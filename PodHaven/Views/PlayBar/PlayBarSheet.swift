@@ -189,7 +189,7 @@ struct PlayBarSheet: View {
         range: 0...viewModel.duration.seconds,
         animationDuration: progressAnimationDuration,
         tickMarks: viewModel.chapterPositions,
-        maxPlaybackPosition: viewModel.canJumpToMaxPlayback ? viewModel.maxPlaybackTime : nil
+        maxPlaybackTime: viewModel.canJumpToMaxPlayback ? viewModel.maxPlaybackTime : nil
       )
 
       HStack {

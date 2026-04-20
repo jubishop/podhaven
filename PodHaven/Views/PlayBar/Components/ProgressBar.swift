@@ -9,7 +9,7 @@ struct ProgressBar: View {
   let range: ClosedRange<Double>
   let animationDuration: Double
   var tickMarks: [Double]?
-  var maxPlaybackPosition: Double?
+  var maxPlaybackTime: Double?
   let normalHeight: CGFloat = 4
   let dragHeight: CGFloat = 12
   let touchHeight: CGFloat = 36
@@ -36,13 +36,13 @@ struct ProgressBar: View {
 
         // Tick marks
         if let tickMarks {
-          ForEach(tickMarks, id: \.self) { position in
-            tickMark(at: position, width: geometry.size.width)
+          ForEach(tickMarks, id: \.self) { time in
+            marker(at: time, containerWidth: geometry.size.width, color: .primary)
           }
         }
 
-        if let maxPlaybackPosition {
-          maxPlaybackMarkerView(at: maxPlaybackPosition, width: geometry.size.width)
+        if let maxPlaybackTime {
+          marker(at: maxPlaybackTime, containerWidth: geometry.size.width, color: .accentColor)
         }
       }
       .frame(maxHeight: .infinity, alignment: .center)
@@ -68,30 +68,16 @@ struct ProgressBar: View {
     .animation(.easeInOut(duration: animationDuration), value: isDragging)
   }
 
-  // MARK: - Tick Marks
+  // MARK: - Markers
 
-  private func tickMark(at position: Double, width: CGFloat) -> some View {
+  private func marker(at time: Double, containerWidth: CGFloat, color: Color) -> some View {
     let markerWidth: CGFloat = 2
-    let normalized = (position - range.lowerBound) / (range.upperBound - range.lowerBound)
+    let position = (time - range.lowerBound) / (range.upperBound - range.lowerBound)
 
     return RoundedRectangle(cornerRadius: markerWidth / 2)
-      .fill(Color.primary)
+      .fill(color)
       .frame(width: markerWidth, height: currentHeight + 4)
-      .position(x: CGFloat(normalized) * width, y: dragHeight / 2)
-  }
-
-  private func maxPlaybackMarkerView(at position: Double, width: CGFloat) -> some View {
-    let normalized =
-      (position.clamped(to: range) - range.lowerBound)
-      / (range.upperBound - range.lowerBound)
-    let markerWidth: CGFloat = 5
-    let markerHeight: CGFloat = currentHeight + 5
-
-    return Ellipse()
-      .fill(Color.primary)
-      .overlay(Ellipse().stroke(Color.accentColor, lineWidth: 1))
-      .frame(width: markerWidth, height: markerHeight)
-      .position(x: CGFloat(normalized) * width, y: dragHeight / 2)
+      .position(x: CGFloat(position) * containerWidth, y: dragHeight / 2)
   }
 }
 
@@ -102,7 +88,7 @@ private struct ProgressBarSample: View {
   let title: String
   let duration: Double
   let tickMarks: [Double]?
-  let maxPlaybackPosition: Double?
+  let maxPlaybackTime: Double?
   let forceDragging: Bool
 
   @State private var value: Double
@@ -113,13 +99,13 @@ private struct ProgressBarSample: View {
     duration: Double = 600,
     value: Double = 0,
     tickMarks: [Double]? = nil,
-    maxPlaybackPosition: Double? = nil,
+    maxPlaybackTime: Double? = nil,
     forceDragging: Bool = false
   ) {
     self.title = title
     self.duration = duration
     self.tickMarks = tickMarks
-    self.maxPlaybackPosition = maxPlaybackPosition
+    self.maxPlaybackTime = maxPlaybackTime
     self.forceDragging = forceDragging
     self._value = State(initialValue: value)
     self._isDragging = State(initialValue: forceDragging)
@@ -137,7 +123,7 @@ private struct ProgressBarSample: View {
         range: 0...duration,
         animationDuration: 0.15,
         tickMarks: tickMarks,
-        maxPlaybackPosition: maxPlaybackPosition
+        maxPlaybackTime: maxPlaybackTime
       )
 
       HStack {
@@ -190,27 +176,22 @@ struct ProgressBarPreviewGallery: View {
             ProgressBarSample(
               "peak just ahead (~25s)",
               value: 150,
-              maxPlaybackPosition: 175
+              maxPlaybackTime: 175
             )
             ProgressBarSample(
               "peak far ahead",
               value: 100,
-              maxPlaybackPosition: 420
+              maxPlaybackTime: 420
             )
             ProgressBarSample(
               "peak near start (edge)",
               value: 5,
-              maxPlaybackPosition: 30
+              maxPlaybackTime: 30
             )
             ProgressBarSample(
               "peak near end (edge)",
               value: 300,
-              maxPlaybackPosition: 595
-            )
-            ProgressBarSample(
-              "peak clamped past end",
-              value: 300,
-              maxPlaybackPosition: 750
+              maxPlaybackTime: 595
             )
           }
 
@@ -222,19 +203,19 @@ struct ProgressBarPreviewGallery: View {
               "peak between ticks",
               value: 80,
               tickMarks: [60, 180, 360, 500],
-              maxPlaybackPosition: 260
+              maxPlaybackTime: 260
             )
             ProgressBarSample(
               "peak overlapping a tick",
               value: 80,
               tickMarks: [60, 180, 360, 500],
-              maxPlaybackPosition: 180
+              maxPlaybackTime: 180
             )
             ProgressBarSample(
               "dense chapters + marker",
               value: 200,
               tickMarks: stride(from: 30.0, through: 570.0, by: 30.0).map { $0 },
-              maxPlaybackPosition: 450
+              maxPlaybackTime: 450
             )
           }
 
@@ -251,7 +232,7 @@ struct ProgressBarPreviewGallery: View {
               "dragging, with chapters + marker",
               value: 260,
               tickMarks: [60, 180, 360, 500],
-              maxPlaybackPosition: 420,
+              maxPlaybackTime: 420,
               forceDragging: true
             )
           }
