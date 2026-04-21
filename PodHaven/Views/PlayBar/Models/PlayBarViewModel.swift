@@ -7,6 +7,11 @@ import Logging
 import SwiftUI
 import Tagged
 
+enum UndoSeekDirection {
+  case backward
+  case forward
+}
+
 @Observable @MainActor class PlayBarViewModel {
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
@@ -28,7 +33,7 @@ import Tagged
   var isStopped: Bool { sharedState.playbackStatus.stopped }
   var isWaiting: Bool { sharedState.playbackStatus.waiting }
 
-  var showUndoButton = false
+  var undoSeekDirection: UndoSeekDirection?
   @ObservationIgnored private var undoCandidate: (episodeID: Episode.ID, time: Double)?
   @ObservationIgnored private var hideUndoButtonTask: Task<Void, Never>?
 
@@ -209,9 +214,20 @@ import Tagged
       return
     }
 
-    // Show the undo button
-    showUndoButton = true
-    Self.log.debug("Showing undo button")
+    // Bail early if the scrub miraculously went nowhere (wow)
+    let currentTime = (sharedState.onDeck?.currentTime ?? .zero).safe.seconds
+    guard currentTime != undoCandidate.time else {
+      Self.log.debug("Clearing undo state: scrub landed at the original position (\(currentTime))")
+      clearUndoState()
+      return
+    }
+
+    // Show the undo button — if the scrub went backward, undoing jumps forward.
+    let direction: UndoSeekDirection = undoCandidate.time > currentTime ? .forward : .backward
+    undoSeekDirection = direction
+    Self.log.debug(
+      "Showing undo button (direction: \(direction), from \(currentTime) to \(undoCandidate.time))"
+    )
 
     hideUndoButtonTask = Task { [weak self] in
       guard let self else { return }
@@ -256,7 +272,7 @@ import Tagged
 
   private func clearUndoState() {
     cancelHideUndoButtonTask()
-    showUndoButton = false
+    undoSeekDirection = nil
     undoCandidate = nil
   }
 

@@ -51,7 +51,7 @@ struct PlayBarSheet: View {
 
           Spacer()
         }
-        .animation(.easeInOut(duration: 0.2), value: viewModel.showUndoButton)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.undoSeekDirection)
 
         progressBar
           .padding(.horizontal, spacing)
@@ -160,8 +160,8 @@ struct PlayBarSheet: View {
   private var playbackControls: some View {
     Spacer()
 
-    if viewModel.showUndoButton {
-      playbackButtonStyle(AppIcon.undoSeek.imageButton(action: viewModel.undoSeek))
+    if viewModel.undoSeekDirection == .backward {
+      playbackButtonStyle(AppIcon.undoSeekBackward.imageButton(action: viewModel.undoSeek))
     } else {
       playbackButtonStyle(SeekBackwardButton(action: viewModel.seekBackward))
     }
@@ -172,7 +172,11 @@ struct PlayBarSheet: View {
 
     Spacer()
 
-    playbackButtonStyle(SeekForwardButton(action: viewModel.seekForward))
+    if viewModel.undoSeekDirection == .forward {
+      playbackButtonStyle(AppIcon.undoSeekForward.imageButton(action: viewModel.undoSeek))
+    } else {
+      playbackButtonStyle(SeekForwardButton(action: viewModel.seekForward))
+    }
 
     Spacer()
   }
