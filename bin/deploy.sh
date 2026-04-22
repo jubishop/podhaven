@@ -176,6 +176,9 @@ on_exit() {
     git -C "$PROJECT_DIR" tag -d "$tag" 2>/dev/null
   else
     git -C "$PROJECT_DIR" push origin "$tag" 2>/dev/null || true
+    echo "==> Mirroring ${branch} and ${tag} to sourcehut..."
+    git -C "$PROJECT_DIR" push sourcehut "$branch" || echo "warning: sourcehut push of ${branch} failed" >&2
+    git -C "$PROJECT_DIR" push sourcehut "$tag" || echo "warning: sourcehut push of ${tag} failed" >&2
     gh release create "$tag" --title "$tag" --notes "$tag_message" 2>/dev/null || true
     echo "==> Done. Tagged ${commit} as ${tag}"
   fi
