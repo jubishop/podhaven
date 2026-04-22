@@ -362,6 +362,186 @@ class EmbeddingServiceTests {
     #expect(podcastRowCount == 1)
   }
 
+  // MARK: - Recipe Stability
+
+  // Golden-value lock on the full recipe: recipeVersion prefix, 0x1F
+  // component separator, component ordering, and cleanText behavior for
+  // already-clean inputs. Any drift here (knob tweak without recipeVersion
+  // bump, accidental cleanText change, component reordering) fails this test
+  // and forces an explicit decision.
+  @Test("source hash is stable for known input (golden value)")
+  func sourceHashGolden() async throws {
+    let pe = try await makePodcastEpisode(
+      podcastDescription: "Known pod desc",
+      episodeTitle: "Known title",
+      episodeDescription: "Known ep desc"
+    )
+    let embedding = makeContextualEmbedding()
+
+    try await EmbeddingService.upsertEpisodeEmbeddings(
+      for: [pe.episode],
+      embedding: embedding
+    )
+
+    let saved = try #require(try await repo.embedding(for: pe.episode.id))
+    #expect(
+      saved.sourceHash
+        == "3e1458490c8adec7135e9d57a00376e4fb46434c9f93e9d69647797c0937070c"
+    )
+  }
+
+  // MARK: - Empty Podcast Description
+
+  @Test("empty podcast description produces no podcastEmbedding row")
+  func emptyPodcastDescriptionSkipsStorage() async throws {
+    let pe = try await makePodcastEpisode(
+      podcastDescription: "",
+      episodeTitle: "Title",
+      episodeDescription: "Description"
+    )
+    let embedding = makeContextualEmbedding()
+
+    try await EmbeddingService.upsertEpisodeEmbeddings(
+      for: [pe.episode],
+      embedding: embedding
+    )
+
+    #expect(try await repo.podcastEmbedding(for: pe.podcast.id) == nil)
+    #expect(try await repo.embedding(for: pe.episode.id) != nil)
+  }
+
+  // MARK: - Batch Robustness
+
+  @Test("one throwing episode does not abort the rest of the batch")
+  func failingEpisodeDoesNotAbortBatch() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast(description: "POD")
+    let pes = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: try Create.unsavedEpisode(
+          title: "BadEpisode",
+          description: "BadContent"
+        )
+      ),
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: try Create.unsavedEpisode(
+          title: "GoodEpisode",
+          description: "GoodContent"
+        )
+      ),
+    ])
+    let bad = try #require(pes.first).episode
+    let good = try #require(pes.last).episode
+
+    // FailOnMarkerEmbeddable throws .noResult for any input containing "Bad",
+    // simulating an episode whose cleaned text tokenizes to something the
+    // model can't handle.
+    let embedding = makeContextualEmbedding(
+      FailOnMarkerEmbeddable(failIfInputContains: "Bad")
+    )
+
+    try await EmbeddingService.upsertEpisodeEmbeddings(
+      for: [bad, good],
+      embedding: embedding
+    )
+
+    #expect(try await repo.embedding(for: bad.id) == nil)
+    #expect(try await repo.embedding(for: good.id) != nil)
+  }
+
+  @Test("cancellation during batch preserves completed episodes")
+  func cancellationPreservesPartial() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast(description: "POD")
+    let pes = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: try Create.unsavedEpisode(
+          title: "FirstTitle",
+          description: "FirstDesc"
+        )
+      ),
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: try Create.unsavedEpisode(
+          title: "CancelMe",
+          description: "SecondDesc"
+        )
+      ),
+    ])
+    let first = try #require(pes.first).episode
+    let second = try #require(pes.last).episode
+
+    // Throws CancellationError on the first vector(for:) call made inside
+    // episode 2's compute. Episode 1 finishes fully (podcast + title + desc
+    // all pre-"CancelMe"), its embedding is written, and the for-loop's
+    // do/catch rethrows CancellationError out of upsertEpisodeEmbeddings.
+    let embedding = makeContextualEmbedding(
+      CancelOnMarkerEmbeddable(cancelIfInputContains: "CancelMe")
+    )
+
+    await #expect(throws: CancellationError.self) {
+      try await EmbeddingService.upsertEpisodeEmbeddings(
+        for: [first, second],
+        embedding: embedding
+      )
+    }
+
+    #expect(try await repo.embedding(for: first.id) != nil)
+    #expect(try await repo.embedding(for: second.id) == nil)
+  }
+
+  // MARK: - Blend Discrimination
+
+  @Test("within-show episodes remain distinct after podcast blending")
+  func withinShowEpisodeSeparation() async throws {
+    // Vectors are chosen so the podcast points along x, episode A along y,
+    // episode B along z. At the current 0.75/0.25 blend the stored vectors
+    // land at ~[0.316, 0.949, 0] and ~[0.316, 0, 0.949], giving cosine ~0.10.
+    // If someone cranks podcast weight to >=0.5 the episodes collapse toward
+    // the podcast axis and cosine climbs past 0.3.
+    let mapping: [String: [Double]] = [
+      "POD": [1, 0, 0],
+      "EP_A_TITLE": [0, 1, 0],
+      "EP_A_DESC": [0, 1, 0],
+      "EP_B_TITLE": [0, 0, 1],
+      "EP_B_DESC": [0, 0, 1],
+    ]
+    let embedding = makeContextualEmbedding(
+      DeterministicEmbeddable(mapping: mapping)
+    )
+
+    let unsavedPodcast = try Create.unsavedPodcast(description: "POD")
+    let pes = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: try Create.unsavedEpisode(
+          title: "EP_A_TITLE",
+          description: "EP_A_DESC"
+        )
+      ),
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: try Create.unsavedEpisode(
+          title: "EP_B_TITLE",
+          description: "EP_B_DESC"
+        )
+      ),
+    ])
+    let epA = try #require(pes.first).episode
+    let epB = try #require(pes.last).episode
+
+    try await EmbeddingService.upsertEpisodeEmbeddings(
+      for: [epA, epB],
+      embedding: embedding
+    )
+
+    let vA = try #require(try await repo.embedding(for: epA.id)).floatVector
+    let vB = try #require(try await repo.embedding(for: epB.id)).floatVector
+    let cosine = VectorMath.dotProduct(vA, vB)
+    #expect(cosine < 0.3)
+  }
+
   // MARK: - Helpers
 
   private func makeContextualEmbedding(
@@ -437,4 +617,48 @@ private final class RecordingEmbeddable: Embeddable {
   }
 
   func seenInputs() -> [String] { inputs() }
+}
+
+private struct FailOnMarkerEmbeddable: Embeddable {
+  let hasAvailableAssets = true
+  let revision: Int = 1
+  let failIfInputContains: String
+
+  func load() throws {}
+  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+
+  func embeddingResult(for string: String) throws -> any EmbeddableResult {
+    if string.contains(failIfInputContains) { throw EmbeddingError.noResult }
+    return try FakeEmbeddable().embeddingResult(for: string)
+  }
+}
+
+private struct CancelOnMarkerEmbeddable: Embeddable {
+  let hasAvailableAssets = true
+  let revision: Int = 1
+  let cancelIfInputContains: String
+
+  func load() throws {}
+  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+
+  func embeddingResult(for string: String) throws -> any EmbeddableResult {
+    if string.contains(cancelIfInputContains) { throw CancellationError() }
+    return try FakeEmbeddable().embeddingResult(for: string)
+  }
+}
+
+private struct DeterministicEmbeddable: Embeddable {
+  let hasAvailableAssets = true
+  let revision: Int = 1
+  let mapping: [String: [Double]]
+
+  func load() throws {}
+  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+
+  func embeddingResult(for string: String) throws -> any EmbeddableResult {
+    guard let vector = mapping[string] else {
+      Assert.fatal("DeterministicEmbeddable received unmapped input: '\(string)'")
+    }
+    return FakeEmbeddingResult(vectors: [vector])
+  }
 }

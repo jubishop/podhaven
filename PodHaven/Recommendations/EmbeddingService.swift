@@ -64,24 +64,36 @@ enum EmbeddingService {
 
       guard needsRecompute else { continue }
 
-      let podcastVector: [Float]?
-      if let cached = podcastVectorCache[episode.podcastID] {
-        podcastVector = cached
-      } else {
-        podcastVector = try await ensurePodcastEmbedding(
-          podcast: podcast,
-          embedding: embedding,
-          cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
-        )
-        podcastVectorCache[episode.podcastID] = podcastVector
-      }
+      // One bad episode (unexpected throw from the embedding model, a transient
+      // DB error, etc.) must not abort the whole BG pass — otherwise the same
+      // episode re-enters episodesNeedingEmbeddings on the next run and we
+      // loop forever on it. Cancellation still propagates.
+      do {
+        let podcastVector: [Float]?
+        if let cached = podcastVectorCache[episode.podcastID] {
+          podcastVector = cached
+        } else {
+          podcastVector = try await ensurePodcastEmbedding(
+            podcast: podcast,
+            embedding: embedding,
+            cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
+          )
+          podcastVectorCache[episode.podcastID] = podcastVector
+        }
 
-      try await upsertEpisodeEmbedding(
-        episode,
-        hash: hash,
-        embedding: embedding,
-        podcastVector: podcastVector
-      )
+        try await upsertEpisodeEmbedding(
+          episode,
+          hash: hash,
+          embedding: embedding,
+          podcastVector: podcastVector
+        )
+      } catch {
+        if error is CancellationError { throw error }
+        Self.log.caughtError(
+          "Failed to embed episode \(episode.toString); continuing batch",
+          error
+        )
+      }
     }
   }
 
@@ -95,7 +107,10 @@ enum EmbeddingService {
     guard let podcast else { return nil }
 
     let cleanedDescription = cleanText(podcast.description)
-    guard !cleanedDescription.isEmpty else { return nil }
+    guard !cleanedDescription.isEmpty else {
+      Self.log.debug("Skipping podcast vector: empty description for podcast \(podcast.id)")
+      return nil
+    }
 
     let hash = podcastSourceHash(cleanedDescription: cleanedDescription)
 
