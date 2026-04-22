@@ -140,7 +140,7 @@ class EpisodeRatingTests {
 
   // MARK: - Signal Episodes
 
-  @Test("fetchSignalEpisodes returns rated and finished episodes")
+  @Test("fetchSignalEpisodes returns rated and finished episodes tagged by kind")
   func fetchSignalEpisodes() async throws {
     _ = try await createPodcastWithEpisode(rating: .loved, ratingDate: Date())
     _ = try await createPodcastWithEpisode(rating: .disliked, ratingDate: Date())
@@ -155,5 +155,27 @@ class EpisodeRatingTests {
 
     let signals = try await repo.allSignalEpisodes()
     #expect(signals.count == 3)
+
+    let kinds = signals.map(\.kind)
+    #expect(kinds.contains(.rating(.loved)))
+    #expect(kinds.contains(.rating(.disliked)))
+    #expect(kinds.contains(.finished))
+  }
+
+  @Test("signal classification prefers explicit rating over finished")
+  func explicitRatingWinsOverFinished() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let bothRatedAndFinished = try Create.unsavedEpisode(
+      finishDate: Date(),
+      rating: .liked,
+      ratingDate: Date()
+    )
+    _ = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: bothRatedAndFinished)
+    ])
+
+    let signals = try await repo.allSignalEpisodes()
+    #expect(signals.count == 1)
+    #expect(signals.first?.kind == .rating(.liked))
   }
 }

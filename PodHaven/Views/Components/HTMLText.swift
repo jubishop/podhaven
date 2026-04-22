@@ -49,7 +49,7 @@ struct HTMLText: View {
 
   private static func buildAttributedString(html: String, font: Font) -> AttributedString? {
     guard html.isHTML() else {
-      let decoded = decodeHTMLEntities(html)
+      let decoded = html.decodingHTMLEntities()
       guard decoded != html else { return nil }
       return AttributedString(decoded)
     }
@@ -202,134 +202,6 @@ struct HTMLText: View {
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  private static let htmlEntities: [String: String] = [
-    "&amp;": "&",
-    "&lt;": "<",
-    "&gt;": ">",
-    "&quot;": "\"",
-    "&apos;": "'",
-    "&nbsp;": "\u{00A0}",
-    "&#39;": "'",
-    "&#x27;": "'",
-    "&rsquo;": "'",
-    "&lsquo;": "'",
-    "&rdquo;": "\"",
-    "&ldquo;": "\"",
-    "&mdash;": "—",
-    "&ndash;": "–",
-    "&hellip;": "…",
-    "&bull;": "•",
-    "&deg;": "°",
-    "&copy;": "©",
-    "&reg;": "®",
-    "&trade;": "™",
-    "&euro;": "€",
-    "&pound;": "£",
-    "&yen;": "¥",
-    "&cent;": "¢",
-    "&sect;": "§",
-    "&para;": "¶",
-    "&middot;": "·",
-    "&frac12;": "½",
-    "&frac14;": "¼",
-    "&frac34;": "¾",
-    "&sup1;": "¹",
-    "&sup2;": "²",
-    "&sup3;": "³",
-    "&times;": "×",
-    "&divide;": "÷",
-    "&plusmn;": "±",
-  ]
-
-  internal static func decodeHTMLEntities(_ text: String) -> String {
-    var result = text
-
-    // Replace named entities first
-    for (entity, replacement) in Self.htmlEntities {
-      result = result.replacingOccurrences(of: entity, with: replacement, options: .caseInsensitive)
-    }
-
-    // Handle numeric entities manually since we can't use callback-style replacement
-    result = decodeNumericEntities(result)
-
-    return result
-  }
-
-  private static func decodeNumericEntities(_ text: String) -> String {
-    var index = text.startIndex
-    var output = ""
-    output.reserveCapacity(text.count)
-
-    while index < text.endIndex {
-      let character = text[index]
-
-      guard character == "&" else {
-        output.append(character)
-        index = text.index(after: index)
-        continue
-      }
-
-      let hashIndex = text.index(after: index)
-      guard hashIndex < text.endIndex, text[hashIndex] == "#" else {
-        output.append(character)
-        index = hashIndex
-        continue
-      }
-
-      var valueStart = text.index(after: hashIndex)
-      var isHex = false
-
-      if valueStart < text.endIndex, text[valueStart] == "x" || text[valueStart] == "X" {
-        isHex = true
-        valueStart = text.index(after: valueStart)
-      }
-
-      var cursor = valueStart
-      var isValid = true
-      while cursor < text.endIndex, text[cursor] != ";" {
-        let scalar = text[cursor]
-        let isValidDigit = isHex ? scalar.isHexDigit : scalar.isNumber
-        if !isValidDigit {
-          isValid = false
-          break
-        }
-        cursor = text.index(after: cursor)
-      }
-
-      guard cursor < text.endIndex, isValid else {
-        output.append("&")
-        index = hashIndex
-        continue
-      }
-
-      let entityRange = index...cursor
-      let numberString = String(text[valueStart..<cursor])
-
-      if numberString.isEmpty {
-        output.append(contentsOf: text[entityRange])
-        index = text.index(after: cursor)
-        continue
-      }
-
-      let parsedValue: Int?
-      if isHex {
-        parsedValue = Int(numberString, radix: 16)
-      } else {
-        parsedValue = Int(numberString)
-      }
-
-      if let value = parsedValue, let scalar = UnicodeScalar(value) {
-        output.unicodeScalars.append(scalar)
-      } else {
-        output.append(contentsOf: text[entityRange])
-      }
-
-      index = text.index(after: cursor)
-    }
-
-    return output
-  }
-
   // MARK: - Text Parsing
 
   private static func parseTextParts(_ text: String) -> [TextPart] {
@@ -389,8 +261,7 @@ struct HTMLText: View {
     var result = AttributedString()
 
     for part in parts where !part.text.isEmpty {
-      // Decode HTML entities in the text content
-      let decodedText = decodeHTMLEntities(part.text)
+      let decodedText = part.text.decodingHTMLEntities()
       let attributedPart = Self.styledAttributedString(
         decodedText,
         format: part.format,
@@ -460,7 +331,7 @@ struct HTMLText: View {
     var formatRanges: [(range: Range<Int>, format: TextFormat)] = []
 
     for part in textParts {
-      let partDecoded = Self.decodeHTMLEntities(part.text)
+      let partDecoded = part.text.decodingHTMLEntities()
       let startOffset = decoded.count
       decoded += partDecoded
       let endOffset = decoded.count

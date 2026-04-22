@@ -172,7 +172,7 @@ protocol Databasing: Sendable {
 
   // MARK: - Recommendation Readers
 
-  func allSignalEpisodes() async throws -> [Episode]
+  func allSignalEpisodes() async throws -> [SignalEpisode]
   func allCandidateEpisodes(excluding: [Episode.ID]) async throws -> [Episode]
   func allPodcastTags() async throws -> [PodcastTag]
 }

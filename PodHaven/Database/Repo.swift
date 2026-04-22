@@ -380,22 +380,18 @@ struct Repo: Databasing, Sendable {
 
   // MARK: - Recommendation Readers
 
-  func allSignalEpisodes() async throws -> [Episode] {
-    try await appDB.db.read { db in
+  func allSignalEpisodes() async throws -> [SignalEpisode] {
+    let episodes = try await appDB.db.read { db in
       try Episode
-        .filter(Episode.rated || Episode.finished)
+        .filter(Episode.signal)
         .fetchAll(db)
     }
+    return episodes.map(SignalEpisode.init(from:))
   }
 
   func allCandidateEpisodes(excluding excludedIDs: [Episode.ID] = []) async throws -> [Episode] {
     try await appDB.db.read { db in
-      var request =
-        Episode
-        .filter(Episode.unstarted)
-        .filter(Episode.unfinished)
-        .filter(!Episode.rated)
-        .filter(Episode.unqueued)
+      var request = Episode.filter(Episode.candidate)
 
       if !excludedIDs.isEmpty {
         request = request.filter(!excludedIDs.contains(Episode.Columns.id))
@@ -487,10 +483,7 @@ struct Repo: Databasing, Sendable {
         try Episode
         .joining(required: Episode.podcast.aliased(podcastAlias))
         .joining(optional: Episode.embedding.aliased(embeddingAlias))
-        .filter(
-          Episode.rated || Episode.finished
-            || (Episode.unstarted && Episode.unfinished && !Episode.rated && Episode.unqueued)
-        )
+        .filter(Episode.signal || Episode.candidate)
         .filter(
           embeddingAlias[EpisodeEmbedding.Columns.id] == nil
             || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
@@ -499,7 +492,7 @@ struct Repo: Databasing, Sendable {
             || podcastAlias[Podcast.Columns.contentUpdatedAt]
               > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
         )
-        .order((Episode.rated || Episode.finished).desc)
+        .order(Episode.signal.desc)
         .fetchAll(db)
     }
   }

@@ -321,7 +321,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.episodesNeedingEmbeddings(revision: revision)
   }
 
-  func allSignalEpisodes() async throws -> [Episode] {
+  func allSignalEpisodes() async throws -> [SignalEpisode] {
     recordCall(methodName: "allSignalEpisodes", parameters: ())
     return try await repo.allSignalEpisodes()
   }

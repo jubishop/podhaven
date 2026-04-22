@@ -10,18 +10,22 @@ import Logging
 enum EmbeddingService {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
+  // Bump when any recipe knob below changes (weights, blend, cleanText rules).
+  // Folded into source hashes so cached vectors invalidate on tuning.
+  private static let recipeVersion = 1
+
   // Title gets more weight than description to avoid boilerplate dominance
   private static let titleWeight: Float = 0.6
   private static let descriptionWeight: Float = 0.4
 
-  // Podcast description blending ratio
-  private static let episodeBlendWeight: Float = 0.6
-  private static let podcastBlendWeight: Float = 0.4
+  // Podcast description blending ratio. Tuned lower to preserve within-show
+  // discrimination while still providing cross-show semantic signal.
+  private static let episodeBlendWeight: Float = 0.75
+  private static let podcastBlendWeight: Float = 0.25
 
   // Regex<Substring> isn't Sendable-annotated upstream, but its compiled NFA is
   // immutable and matching is thread-safe. Precompile once to avoid recompiling
   // on every cleanText call (called 2x per episode during BG embedding pass).
-  private nonisolated(unsafe) static let htmlTagRegex = /<[^>]+>/
   private nonisolated(unsafe) static let urlRegex = /https?:\/\/\S+/
   private nonisolated(unsafe) static let whitespaceRunRegex = /\s+/
 
@@ -93,7 +97,7 @@ enum EmbeddingService {
     let cleanedDescription = cleanText(podcast.description)
     guard !cleanedDescription.isEmpty else { return nil }
 
-    let hash = cleanedDescription.sha256()
+    let hash = podcastSourceHash(cleanedDescription: cleanedDescription)
 
     // Return cached if still fresh (same source hash and revision)
     if let cached = cachedEmbedding,
@@ -175,16 +179,31 @@ enum EmbeddingService {
   }
 
   private static func fullSourceHash(for episode: Episode, podcast: Podcast?) -> String {
-    var text = "\(episode.title) \(episode.description ?? "")"
+    let cleanedTitle = cleanText(episode.title)
+    let cleanedDescription = cleanText(episode.description ?? "")
+    let cleanedPodcastDescription: String
     if let podcast {
-      text += " \(podcast.description)"
+      cleanedPodcastDescription = cleanText(podcast.description)
+    } else {
+      cleanedPodcastDescription = ""
     }
-    return text.sha256()
+    let components = [
+      "r\(recipeVersion)",
+      cleanedTitle,
+      cleanedDescription,
+      cleanedPodcastDescription,
+    ]
+    return components.joined(separator: "\u{1F}").sha256()
+  }
+
+  private static func podcastSourceHash(cleanedDescription: String) -> String {
+    "r\(recipeVersion)\u{1F}\(cleanedDescription)".sha256()
   }
 
   static func cleanText(_ text: String) -> String {
-    var result = text
-    unsafe result.replace(htmlTagRegex, with: " ")
+    // Decode entities first so `&lt;script&gt;` becomes `<script>` and is then
+    // stripped by the tag pass.
+    var result = text.decodingHTMLEntities().strippingHTMLTags()
     unsafe result.replace(urlRegex, with: "")
     unsafe result.replace(Timestamp.regex, with: "")
     unsafe result.replace(whitespaceRunRegex, with: " ")

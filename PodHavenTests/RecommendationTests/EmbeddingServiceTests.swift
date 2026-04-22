@@ -38,6 +38,25 @@ class EmbeddingServiceTests {
     #expect(result == "too many spaces")
   }
 
+  @Test("cleanText decodes named HTML entities")
+  func cleanTextNamedEntities() {
+    let result = EmbeddingService.cleanText("Tom &amp; Jerry &ndash; reunion &hellip;")
+    #expect(result == "Tom & Jerry \u{2013} reunion \u{2026}")
+  }
+
+  @Test("cleanText decodes numeric and hex HTML entities")
+  func cleanTextNumericEntities() {
+    let result = EmbeddingService.cleanText("smart quotes: &#8220;hi&#8221; and &#x2014; dash")
+    #expect(result == "smart quotes: \u{201C}hi\u{201D} and \u{2014} dash")
+  }
+
+  @Test("cleanText strips tags revealed by entity decoding")
+  func cleanTextEntityThenTag() {
+    // Entities decode first, so &lt;script&gt; becomes <script> and is then stripped.
+    let result = EmbeddingService.cleanText("real &lt;script&gt;bad&lt;/script&gt; content")
+    #expect(result == "real bad content")
+  }
+
   // MARK: - Input Forwarding
 
   @Test("upsertEpisodeEmbeddings forwards full cleaned text without length truncation")

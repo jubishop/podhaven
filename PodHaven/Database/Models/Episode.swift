@@ -232,6 +232,8 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   static let liked: SQLExpression = Columns.rating == EpisodeRating.liked.rawValue
   static let disliked: SQLExpression = Columns.rating == EpisodeRating.disliked.rawValue
   static let rated: SQLExpression = Columns.rating != nil
+  static let signal: SQLExpression = rated || finished
+  static let candidate: SQLExpression = unstarted && unfinished && !rated && unqueued
   static func contains(_ pattern: String) -> SQLExpression {
     Columns.title.lowercased.like(pattern) || Columns.description.lowercased.like(pattern)
   }
