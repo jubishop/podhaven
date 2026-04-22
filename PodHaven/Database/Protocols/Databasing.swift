@@ -168,7 +168,8 @@ protocol Databasing: Sendable {
   func podcastEmbeddings(for podcastIDs: [Podcast.ID]) async throws
     -> IdentifiedArray<Podcast.ID, PodcastEmbedding>
   func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast>
-  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode]
+  func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode]
+  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID]
 
   // MARK: - Recommendation Readers
 

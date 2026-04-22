@@ -303,7 +303,7 @@ class V37MigrationTests {
   func childTablesPreserved() async throws {
     _ = try await populateAtV36()
 
-    func capture() async throws -> [String: [[String: DatabaseValue]]] {
+    let capture = { [appDB] () async throws -> [String: [[String: DatabaseValue]]] in
       try await appDB.db.read { db in
         [
           "tag": try Row.fetchAll(db, sql: "SELECT * FROM tag ORDER BY id")

@@ -47,26 +47,28 @@ struct EmbeddingProcessor: Sendable {
       }
 
       do {
-        // Query returns only episodes that actually need embedding work:
+        // Query returns only episode IDs that actually need embedding work:
         // no existing embedding, wrong revision, or content changed since
         // last computation. Signal episodes (rated/finished) are ordered first.
+        // IDs only — full Episode rows are hydrated in chunks as they are
+        // processed so a BG-expiry doesn't waste a multi-second hydration pass.
         let queryStart = ContinuousClock.now
-        let episodesToProcess = try await repo.episodesNeedingEmbeddings(
+        let idsToProcess = try await repo.episodesNeedingEmbeddings(
           revision: embedding.revision
         )
         let queryDuration = ContinuousClock.now - queryStart
         Self.log.debug("episodesNeedingEmbeddings query took \(queryDuration)")
 
-        if episodesToProcess.isEmpty {
+        if idsToProcess.isEmpty {
           Self.log.info("No episodes need embedding updates")
           complete(true)
           return
         }
 
-        Self.log.info("Processing \(episodesToProcess.count) episodes for embeddings")
+        Self.log.info("Processing \(idsToProcess.count) episodes for embeddings")
 
         try await EmbeddingService.upsertEpisodeEmbeddings(
-          for: episodesToProcess,
+          forIDs: idsToProcess,
           embedding: embedding
         )
 

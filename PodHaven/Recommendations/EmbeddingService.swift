@@ -29,7 +29,28 @@ enum EmbeddingService {
   private nonisolated(unsafe) static let urlRegex = /https?:\/\/\S+/
   private nonisolated(unsafe) static let whitespaceRunRegex = /\s+/
 
+  // Chunk size for the ID-driven entry point. Hydrating full Episode rows is
+  // ~125 MB for the full library; chunking lets BG-task expiry preserve work
+  // already done instead of paying a multi-second hydration pass up front.
+  private static let hydrationChunkSize = 64
+
   // MARK: - Upsert Episode Embeddings
+
+  static func upsertEpisodeEmbeddings(
+    forIDs episodeIDs: [Episode.ID],
+    embedding: ContextualEmbedding
+  ) async throws {
+    guard !episodeIDs.isEmpty else { return }
+    let repo = Container.shared.repo()
+
+    for start in stride(from: 0, to: episodeIDs.count, by: hydrationChunkSize) {
+      try Task.checkCancellation()
+      let end = min(start + hydrationChunkSize, episodeIDs.count)
+      let chunk = Array(episodeIDs[start..<end])
+      let episodes = try await repo.episodes(for: chunk)
+      try await upsertEpisodeEmbeddings(for: episodes, embedding: embedding)
+    }
+  }
 
   static func upsertEpisodeEmbeddings(
     for episodes: [Episode],

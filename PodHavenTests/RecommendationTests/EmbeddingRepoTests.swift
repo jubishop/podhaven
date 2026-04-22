@@ -210,7 +210,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(rating: .loved)
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("includes finished episodes without embeddings")
@@ -218,7 +218,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(finishDate: Date())
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("includes unstarted, unfinished, unrated, unqueued episodes")
@@ -226,7 +226,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode()
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("excludes queued episodes that are otherwise candidates")
@@ -234,7 +234,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(queueOrder: 1)
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(!result.contains(where: { $0.id == pe.episode.id }))
+    #expect(!result.contains(pe.episode.id))
   }
 
   @Test("excludes started episodes that are otherwise candidates")
@@ -242,7 +242,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(currentTime: CMTime(seconds: 60, preferredTimescale: 1))
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(!result.contains(where: { $0.id == pe.episode.id }))
+    #expect(!result.contains(pe.episode.id))
   }
 
   @Test("excludes episodes with fresh embeddings at correct revision")
@@ -251,7 +251,7 @@ class EmbeddingRepoTests {
     try await insertEmbedding(for: pe.episode.id, revision: 1)
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(!result.contains(where: { $0.id == pe.episode.id }))
+    #expect(!result.contains(pe.episode.id))
   }
 
   @Test("includes episodes with wrong embedding revision")
@@ -260,7 +260,7 @@ class EmbeddingRepoTests {
     try await insertEmbedding(for: pe.episode.id, revision: 1)
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 2)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("includes episodes whose content updated after embedding creation")
@@ -286,7 +286,7 @@ class EmbeddingRepoTests {
     ])
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("signal episodes ordered before candidate episodes")
@@ -298,8 +298,8 @@ class EmbeddingRepoTests {
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
 
-    let signalIndex = result.firstIndex(where: { $0.id == signal.episode.id })
-    let candidateIndex = result.firstIndex(where: { $0.id == candidate.episode.id })
+    let signalIndex = result.firstIndex(of: signal.episode.id)
+    let candidateIndex = result.firstIndex(of: candidate.episode.id)
 
     let unwrappedSignal = try #require(signalIndex)
     let unwrappedCandidate = try #require(candidateIndex)
@@ -337,7 +337,7 @@ class EmbeddingRepoTests {
     ])
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("includes episodes whose podcast content updated after embedding creation")
@@ -363,6 +363,6 @@ class EmbeddingRepoTests {
     ])
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 }

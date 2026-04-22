@@ -116,6 +116,15 @@ struct Repo: Databasing, Sendable {
 
   // MARK: - Episode Readers
 
+  func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode] {
+    guard !episodeIDs.isEmpty else { return [] }
+    return try await appDB.db.read { db in
+      try Episode
+        .filter(episodeIDs.contains(Episode.Columns.id))
+        .fetchAll(db)
+    }
+  }
+
   func episode(_ episodeID: Episode.ID) async throws -> Episode? {
     try await appDB.db.read { db in
       try Episode
@@ -474,7 +483,7 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode] {
+  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID] {
     try await appDB.db.read { db in
       let embeddingAlias = TableAlias()
       let podcastAlias = TableAlias()
@@ -493,6 +502,7 @@ struct Repo: Databasing, Sendable {
               > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
         )
         .order(Episode.signal.desc)
+        .select(Episode.Columns.id, as: Episode.ID.self)
         .fetchAll(db)
     }
   }
