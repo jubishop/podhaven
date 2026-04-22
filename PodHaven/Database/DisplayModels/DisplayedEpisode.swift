@@ -84,6 +84,7 @@ struct DisplayedEpisode:
   var queueOrder: Int? { episode.queueOrder }
   var cacheStatus: Episode.CacheStatus { episode.cacheStatus }
   var finishDate: Date? { episode.finishDate }
+  var rating: EpisodeRating? { episode.rating }
 
   // MARK: - EpisodeDisplayable
 

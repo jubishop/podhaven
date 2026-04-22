@@ -36,6 +36,8 @@ extension Container: @retroactive AutoRegistering {
       }
     }
 
+    nlContextualEmbedding.context(.test) { FakeEmbeddable() }.scope(.cached)
+
     sleeper.context(.test) { FakeSleeper() }.scope(.cached)
 
     userNotificationCenter.context(.test) { FakeUserNotificationCenter() }.scope(.cached)

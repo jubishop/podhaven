@@ -19,6 +19,7 @@ protocol EpisodeFoundational: Identifiable, Sendable, Stringable where ID: Senda
   var saveInCache: Bool { get }
   var currentTime: CMTime { get }
   var finishDate: Date? { get }
+  var rating: EpisodeRating? { get }
 
   // MARK: - Computed Properties
 

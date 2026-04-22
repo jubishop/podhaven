@@ -195,6 +195,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let queueAllEpisodes = Column("queueAllEpisodes")
     static let cacheAllEpisodes = Column("cacheAllEpisodes")
     static let notifyNewEpisodes = Column("notifyNewEpisodes")
+    static let contentUpdatedAt = Column("contentUpdatedAt")
   }
 
   // MARK: - RSSUpdatable

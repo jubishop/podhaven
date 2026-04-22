@@ -21,6 +21,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
   let queueOrder: Int?
   let cacheStatus: Episode.CacheStatus
   let saveInCache: Bool
+  let rating: EpisodeRating?
 
   // MARK: - Podcast Fields
 
@@ -49,6 +50,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     finishDate = row[Episode.Columns.finishDate]
     queueOrder = row[Episode.Columns.queueOrder]
     saveInCache = row[Episode.Columns.saveInCache]
+    rating = row[Episode.Columns.rating]
 
     let cachedFilename: String? = row[Episode.Columns.cachedFilename]
     let downloadTaskID: URLSessionDownloadTask.ID? = row[Episode.Columns.downloadTaskID]
@@ -91,6 +93,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     queueOrder = podcastEpisode.queueOrder
     cacheStatus = podcastEpisode.cacheStatus
     saveInCache = podcastEpisode.saveInCache
+    rating = podcastEpisode.rating
     podcastImage = podcastEpisode.podcastImage
     podcastTitle = podcastEpisode.podcastTitle
     feedURL = podcastEpisode.feedURL
@@ -174,6 +177,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     hasher.combine(queueOrder)
     hasher.combine(cacheStatus)
     hasher.combine(saveInCache)
+    hasher.combine(rating)
     hasher.combine(podcastImage)
     hasher.combine(podcastTitle)
     hasher.combine(feedURL)
@@ -195,6 +199,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       && lhs.queueOrder == rhs.queueOrder
       && lhs.cacheStatus == rhs.cacheStatus
       && lhs.saveInCache == rhs.saveInCache
+      && lhs.rating == rhs.rating
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle
       && lhs.feedURL == rhs.feedURL

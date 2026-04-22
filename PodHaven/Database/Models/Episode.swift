@@ -8,6 +8,14 @@ import Logging
 import SavedMacro
 import Tagged
 
+// MARK: - EpisodeRating
+
+enum EpisodeRating: String, CaseIterable, Codable, DatabaseValueConvertible, Hashable, Sendable {
+  case loved
+  case liked
+  case disliked
+}
+
 typealias GUID = Tagged<UnsavedEpisode, String>
 enum MediaURLTag {}
 typealias MediaURL = Tagged<MediaURLTag, URL>
@@ -56,6 +64,8 @@ struct UnsavedEpisode:
   private let cachedFilename: String?
   let downloadTaskID: URLSessionDownloadTask.ID?
   let saveInCache: Bool
+  let rating: EpisodeRating?
+  let ratingDate: Date?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -74,7 +84,9 @@ struct UnsavedEpisode:
     queueDate: Date? = nil,
     cachedFilename: String? = nil,
     downloadTaskID: URLSessionDownloadTask.ID? = nil,
-    saveInCache: Bool = false
+    saveInCache: Bool = false,
+    rating: EpisodeRating? = nil,
+    ratingDate: Date? = nil
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
@@ -119,6 +131,8 @@ struct UnsavedEpisode:
     self.cachedFilename = cachedFilename
     self.downloadTaskID = downloadTaskID
     self.saveInCache = saveInCache
+    self.rating = rating
+    self.ratingDate = ratingDate
   }
 
   // MARK: - EpisodeFoundational
@@ -197,6 +211,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
 
   // MARK: - Associations
 
+  static let embedding = hasOne(EpisodeEmbedding.self)
   static let episodeTags = hasMany(EpisodeTag.self)
   static let podcast = belongsTo(Podcast.self)
   static let tags = hasMany(Tag.self, through: episodeTags, using: EpisodeTag.tag).order(\.name)
@@ -213,6 +228,12 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   static let unstarted: SQLExpression = Columns.currentTime == 0
   static let started: SQLExpression = Columns.currentTime > 0
   static let previouslyQueued: SQLExpression = Columns.queueDate != nil
+  static let loved: SQLExpression = Columns.rating == EpisodeRating.loved.rawValue
+  static let liked: SQLExpression = Columns.rating == EpisodeRating.liked.rawValue
+  static let disliked: SQLExpression = Columns.rating == EpisodeRating.disliked.rawValue
+  static let rated: SQLExpression = Columns.rating != nil
+  static let signal: SQLExpression = rated || finished
+  static let candidate: SQLExpression = unstarted && unfinished && !rated && unqueued
   static func contains(_ pattern: String) -> SQLExpression {
     Columns.title.lowercased.like(pattern) || Columns.description.lowercased.like(pattern)
   }
@@ -238,7 +259,10 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     static let cachedFilename = Column("cachedFilename")
     static let downloadTaskID = Column("downloadTaskID")
     static let saveInCache = Column("saveInCache")
+    static let rating = Column("rating")
+    static let ratingDate = Column("ratingDate")
     static let creationDate = Column("creationDate")
+    static let contentUpdatedAt = Column("contentUpdatedAt")
   }
 
   // MARK: - RSSUpdatable
@@ -265,6 +289,8 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   var cacheStatus: CacheStatus { unsaved.cacheStatus }
   var saveInCache: Bool { unsaved.saveInCache }
   var finishDate: Date? { unsaved.finishDate }
+  var rating: EpisodeRating? { unsaved.rating }
+  var ratingDate: Date? { unsaved.ratingDate }
 
   // MARK: - Derived Passthroughs
   var cachedURL: CachedURL? { unsaved.cachedURL }

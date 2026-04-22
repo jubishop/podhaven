@@ -44,6 +44,7 @@ struct UnsavedPodcastEpisode:
   var queueOrder: Int? { unsavedEpisode.queueOrder }
   var cacheStatus: Episode.CacheStatus { unsavedEpisode.cacheStatus }
   var finishDate: Date? { unsavedEpisode.finishDate }
+  var rating: EpisodeRating? { unsavedEpisode.rating }
 
   // MARK: - Reset
 

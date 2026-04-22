@@ -64,6 +64,11 @@ enum LogSubsystem {
     case tags
   }
 
+  enum Recommendations: String, LogCategorizable {
+    case embedding
+    case processor
+  }
+
   enum NotificationService: String, LogCategorizable {
     case main
   }

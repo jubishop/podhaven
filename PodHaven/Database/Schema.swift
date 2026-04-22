@@ -322,6 +322,65 @@ enum Schema {
       try db.execute(sql: "UPDATE episode SET maxPlaybackTime = currentTime")
     }
 
+    migrator.registerMigration("v35") { db in
+      try db.alter(table: "episode") { t in
+        t.add(column: "rating", .text)
+          .check { $0 == nil || $0 == "loved" || $0 == "liked" || $0 == "disliked" }
+        t.add(column: "ratingDate", .datetime)
+      }
+    }
+
+    migrator.registerMigration("v36") { db in
+      try db.create(table: "episodeEmbedding") { t in
+        t.autoIncrementedPrimaryKey("id")
+        t.belongsTo("episode", onDelete: .cascade).notNull().unique()
+        t.column("vector", .blob).notNull()
+        t.column("sourceHash", .text).notNull()
+        t.column("embeddingRevision", .integer).notNull()
+        t.column("dimension", .integer).notNull()
+        t.column("creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+      }
+
+      try db.create(table: "podcastEmbedding") { t in
+        t.autoIncrementedPrimaryKey("id")
+        t.belongsTo("podcast", onDelete: .cascade).notNull().unique()
+        t.column("vector", .blob).notNull()
+        t.column("sourceHash", .text).notNull()
+        t.column("embeddingRevision", .integer).notNull()
+        t.column("dimension", .integer).notNull()
+        t.column("creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+      }
+    }
+
+    migrator.registerMigration("v37") { db in
+      try db.alter(table: "episode") { t in
+        t.add(column: "contentUpdatedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+      }
+      try db.alter(table: "podcast") { t in
+        t.add(column: "contentUpdatedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+      }
+
+      try db.execute(
+        sql: """
+          CREATE TRIGGER episode_content_updated AFTER UPDATE ON episode
+          WHEN OLD.title IS NOT NEW.title OR OLD.description IS NOT NEW.description
+          BEGIN
+            UPDATE episode SET contentUpdatedAt = CURRENT_TIMESTAMP WHERE id = NEW.id;
+          END
+          """
+      )
+
+      try db.execute(
+        sql: """
+          CREATE TRIGGER podcast_content_updated AFTER UPDATE ON podcast
+          WHEN OLD.description IS NOT NEW.description
+          BEGIN
+            UPDATE podcast SET contentUpdatedAt = CURRENT_TIMESTAMP WHERE id = NEW.id;
+          END
+          """
+      )
+    }
+
     return migrator
   }
 

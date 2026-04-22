@@ -104,6 +104,16 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  // MARK: - Podcast Readers
+
+  func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
+    try await appDB.db.read { db in
+      try Podcast
+        .withID(podcastID)
+        .fetchOne(db)
+    }
+  }
+
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode? {
@@ -368,6 +378,125 @@ struct Repo: Databasing, Sendable {
     } > 0
   }
 
+  // MARK: - Recommendation Readers
+
+  func allSignalEpisodes() async throws -> [SignalEpisode] {
+    let episodes = try await appDB.db.read { db in
+      try Episode
+        .filter(Episode.signal)
+        .fetchAll(db)
+    }
+    return episodes.map(SignalEpisode.init(from:))
+  }
+
+  func allCandidateEpisodes(excluding excludedIDs: [Episode.ID] = []) async throws -> [Episode] {
+    try await appDB.db.read { db in
+      var request = Episode.filter(Episode.candidate)
+
+      if !excludedIDs.isEmpty {
+        request = request.filter(!excludedIDs.contains(Episode.Columns.id))
+      }
+
+      return try request.fetchAll(db)
+    }
+  }
+
+  func allPodcastTags() async throws -> [PodcastTag] {
+    try await appDB.db.read { db in
+      try PodcastTag.fetchAll(db)
+    }
+  }
+
+  // MARK: - Embedding Writers
+
+  @discardableResult
+  func upsertEmbedding(_ unsaved: UnsavedEpisodeEmbedding) async throws -> EpisodeEmbedding {
+    Self.log.debug("upsertEmbedding: episode \(unsaved.episodeId)")
+    return try await appDB.db.write { db in
+      try unsaved.upsertAndFetch(db, as: EpisodeEmbedding.self)
+    }
+  }
+
+  @discardableResult
+  func upsertPodcastEmbedding(_ unsaved: UnsavedPodcastEmbedding) async throws -> PodcastEmbedding {
+    Self.log.debug("upsertPodcastEmbedding: podcast \(unsaved.podcastId)")
+    return try await appDB.db.write { db in
+      try unsaved.upsertAndFetch(db, as: PodcastEmbedding.self)
+    }
+  }
+
+  // MARK: - Embedding Readers
+
+  func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
+    try await appDB.db.read { db in
+      try EpisodeEmbedding
+        .filter(EpisodeEmbedding.Columns.episodeId == episodeID)
+        .fetchOne(db)
+    }
+  }
+
+  func embeddings(for episodeIDs: [Episode.ID]) async throws
+    -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
+  {
+    guard !episodeIDs.isEmpty else { return IdentifiedArray(id: \.episodeId) }
+    return try await appDB.db.read { db in
+      try EpisodeEmbedding
+        .filter(episodeIDs.contains(EpisodeEmbedding.Columns.episodeId))
+        .fetchIdentifiedArray(db, id: \.episodeId)
+    }
+  }
+
+  func podcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding? {
+    try await appDB.db.read { db in
+      try PodcastEmbedding
+        .filter(PodcastEmbedding.Columns.podcastId == podcastID)
+        .fetchOne(db)
+    }
+  }
+
+  func podcastEmbeddings(for podcastIDs: [Podcast.ID]) async throws
+    -> IdentifiedArray<Podcast.ID, PodcastEmbedding>
+  {
+    guard !podcastIDs.isEmpty else { return IdentifiedArray(id: \.podcastId) }
+    return try await appDB.db.read { db in
+      try PodcastEmbedding
+        .filter(podcastIDs.contains(PodcastEmbedding.Columns.podcastId))
+        .fetchIdentifiedArray(db, id: \.podcastId)
+    }
+  }
+
+  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast> {
+    guard !podcastIDs.isEmpty else { return [] }
+    return try await appDB.db.read { db in
+      try Podcast
+        .filter(podcastIDs.contains(Podcast.Columns.id))
+        .fetchIdentifiedArray(db)
+    }
+  }
+
+  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode] {
+    try await appDB.db.read { db in
+      let embeddingAlias = TableAlias()
+      let podcastAlias = TableAlias()
+
+      return
+        try Episode
+        .joining(required: Episode.podcast.aliased(podcastAlias))
+        .joining(optional: Episode.embedding.aliased(embeddingAlias))
+        .filter(Episode.signal || Episode.candidate)
+        .filter(
+          embeddingAlias[EpisodeEmbedding.Columns.id] == nil
+            || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
+            || Episode.Columns.contentUpdatedAt
+              > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
+            || podcastAlias[Podcast.Columns.contentUpdatedAt]
+              > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
+        )
+        .order(Episode.signal.desc)
+        .fetchAll(db)
+    }
+  }
+
   // MARK: - Episode Writers
 
   @discardableResult
@@ -598,6 +727,21 @@ struct Repo: Databasing, Sendable {
       try Episode
         .withID(episodeID)
         .updateAll(db, Episode.Columns.saveInCache.set(to: saveInCache))
+    } > 0
+  }
+
+  @discardableResult
+  func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool {
+    Self.log.debug("updateRating: \(episodeID) to \(String(describing: rating))")
+
+    return try await appDB.db.write { db in
+      try Episode
+        .withID(episodeID)
+        .updateAll(
+          db,
+          Episode.Columns.rating.set(to: rating),
+          Episode.Columns.ratingDate.set(to: rating != nil ? Date() : nil)
+        )
     } > 0
   }
 

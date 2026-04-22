@@ -3,6 +3,7 @@
 import AVFoundation
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Tagged
 
 protocol Databasing: Sendable {
@@ -19,6 +20,10 @@ protocol Databasing: Sendable {
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries?
   func podcastSeries(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws -> PodcastSeries?
+
+  // MARK: - Podcast Readers
+
+  func podcast(_ podcastID: Podcast.ID) async throws -> Podcast?
 
   // MARK: - Episode Readers
 
@@ -105,6 +110,9 @@ protocol Databasing: Sendable {
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool
 
   @discardableResult
+  func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool
+
+  @discardableResult
   func markFinished(_ episodeIDs: [Episode.ID]) async throws -> Int
 
   @discardableResult
@@ -143,9 +151,37 @@ protocol Databasing: Sendable {
   @discardableResult
   func updateNotifyNewEpisodes(_ podcastID: Podcast.ID, notifyNewEpisodes: Bool)
     async throws -> Bool
+
+  // MARK: - Embedding Writers
+
+  @discardableResult
+  func upsertEmbedding(_ unsaved: UnsavedEpisodeEmbedding) async throws -> EpisodeEmbedding
+  @discardableResult
+  func upsertPodcastEmbedding(_ unsaved: UnsavedPodcastEmbedding) async throws -> PodcastEmbedding
+
+  // MARK: - Embedding Readers
+
+  func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding?
+  func embeddings(for episodeIDs: [Episode.ID]) async throws
+    -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
+  func podcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding?
+  func podcastEmbeddings(for podcastIDs: [Podcast.ID]) async throws
+    -> IdentifiedArray<Podcast.ID, PodcastEmbedding>
+  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast>
+  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode]
+
+  // MARK: - Recommendation Readers
+
+  func allSignalEpisodes() async throws -> [SignalEpisode]
+  func allCandidateEpisodes(excluding: [Episode.ID]) async throws -> [Episode]
+  func allPodcastTags() async throws -> [PodcastTag]
 }
 
 extension Databasing {
+  func allCandidateEpisodes() async throws -> [Episode] {
+    try await allCandidateEpisodes(excluding: [])
+  }
+
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
     try await podcastSeries(feedURL, iTunesID: nil)
   }
