@@ -56,6 +56,11 @@ struct RecommendationEngine: Sendable {
   // Bayesian smoothing prior for podcast affinity
   private static let affinityPrior: Float = 2.0
 
+  // Podcast affinity — dislikes contribute but at half the strength of likes.
+  // One bad episode shouldn't tank an otherwise-loved show, but repeated
+  // dislikes should still register as show-level aversion.
+  private static let dislikedAffinityWeight: Float = 0.5
+
   // Temporal decay half-life in days
   private static let decayHalfLifeDays: Double = 180
 
@@ -64,7 +69,7 @@ struct RecommendationEngine: Sendable {
   func getRecommendations(limit: Int = 10) async throws -> [RecommendedEpisode] {
     Self.log.debug("Generating recommendations (limit: \(limit))")
 
-    let signalEpisodes = try await fetchSignalEpisodes()
+    let signalEpisodes = try await repo.allSignalEpisodes()
     guard signalEpisodes.count >= Self.minimumDataThreshold else {
       Self.log.debug(
         """
@@ -104,7 +109,7 @@ struct RecommendationEngine: Sendable {
     let now = Date()
 
     // Score candidates
-    let candidateIDs: [Episode.ID] = candidates.map { $0.id }
+    let candidateIDs: [Episode.ID] = candidates.map(\.id)
     let embeddingsByEpisode = try await repo.embeddings(for: candidateIDs)
 
     var results: [RecommendedEpisode] = candidates.compactMap { episode in
@@ -248,12 +253,6 @@ struct RecommendationEngine: Sendable {
     )
   }
 
-  // MARK: - Fetch Signal Episodes
-
-  private func fetchSignalEpisodes() async throws -> [SignalEpisode] {
-    try await repo.allSignalEpisodes()
-  }
-
   // MARK: - Fetch Candidates
 
   private func fetchCandidates() async throws -> [Episode] {
@@ -264,11 +263,6 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Podcast Affinity
 
-  // TODO: dislike bleed — a single negative signal penalizes every other episode
-  // from the same podcast via affinity. Mitigation options when this is next
-  // touched (priority order): drop negatives here entirely (let the negative
-  // centroid handle show-level dislike via similarity), asymmetric weights, or
-  // raise affinityPrior.
   private func computePodcastAffinities(signalEpisodes: [SignalEpisode]) -> [Podcast.ID: Float] {
     var podcastStats: [Podcast.ID: (positive: Float, negative: Float, total: Float)] = [:]
 
@@ -281,7 +275,7 @@ struct RecommendationEngine: Sendable {
       case .rating(.loved), .rating(.liked):
         stats.positive += 1
       case .rating(.disliked):
-        stats.negative += 1
+        stats.negative += Self.dislikedAffinityWeight
       case .finished:
         stats.positive += 0.5
       }
@@ -289,7 +283,7 @@ struct RecommendationEngine: Sendable {
       podcastStats[podcastID] = stats
     }
 
-    // Bayesian smoothed affinity: (positive - negative) / (total + prior)
+    // Bayesian smoothed affinity: (positive - negative) / (total + prior).
     return podcastStats.mapValues { stats in
       (stats.positive - stats.negative) / (stats.total + Self.affinityPrior)
     }
