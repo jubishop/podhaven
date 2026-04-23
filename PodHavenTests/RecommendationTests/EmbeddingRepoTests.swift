@@ -181,6 +181,28 @@ class EmbeddingRepoTests {
     #expect(after! >= before!)
   }
 
+  @Test("podcast trigger does not fire when description is unchanged")
+  func podcastTriggerIgnoresUnchanged() async throws {
+    let pe = try await createPodcastEpisode(podcastDescription: "Stable desc")
+    let before = try await contentUpdatedAt(forPodcast: pe.podcast.id)
+
+    _ = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: pe.podcast.feedURL,
+          title: pe.podcast.title,
+          image: pe.podcast.image,
+          description: "Stable desc",
+          link: pe.podcast.link
+        ),
+        unsavedEpisode: try pe.episode.toOriginalUnsavedEpisode()
+      )
+    ])
+
+    let after = try await contentUpdatedAt(forPodcast: pe.podcast.id)
+    #expect(after == before)
+  }
+
   // MARK: - episodesNeedingEmbeddings Tests
 
   @Test("includes rated episodes without embeddings")
@@ -188,7 +210,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(rating: .loved)
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("includes finished episodes without embeddings")
@@ -196,7 +218,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(finishDate: Date())
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("includes unstarted, unfinished, unrated, unqueued episodes")
@@ -204,7 +226,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode()
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("excludes queued episodes that are otherwise candidates")
@@ -212,7 +234,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(queueOrder: 1)
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(!result.contains(where: { $0.id == pe.episode.id }))
+    #expect(!result.contains(pe.episode.id))
   }
 
   @Test("excludes started episodes that are otherwise candidates")
@@ -220,7 +242,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(currentTime: CMTime(seconds: 60, preferredTimescale: 1))
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(!result.contains(where: { $0.id == pe.episode.id }))
+    #expect(!result.contains(pe.episode.id))
   }
 
   @Test("excludes episodes with fresh embeddings at correct revision")
@@ -229,7 +251,7 @@ class EmbeddingRepoTests {
     try await insertEmbedding(for: pe.episode.id, revision: 1)
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(!result.contains(where: { $0.id == pe.episode.id }))
+    #expect(!result.contains(pe.episode.id))
   }
 
   @Test("includes episodes with wrong embedding revision")
@@ -238,7 +260,7 @@ class EmbeddingRepoTests {
     try await insertEmbedding(for: pe.episode.id, revision: 1)
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 2)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("includes episodes whose content updated after embedding creation")
@@ -264,7 +286,7 @@ class EmbeddingRepoTests {
     ])
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("signal episodes ordered before candidate episodes")
@@ -276,8 +298,8 @@ class EmbeddingRepoTests {
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
 
-    let signalIndex = result.firstIndex(where: { $0.id == signal.episode.id })
-    let candidateIndex = result.firstIndex(where: { $0.id == candidate.episode.id })
+    let signalIndex = result.firstIndex(of: signal.episode.id)
+    let candidateIndex = result.firstIndex(of: candidate.episode.id)
 
     let unwrappedSignal = try #require(signalIndex)
     let unwrappedCandidate = try #require(candidateIndex)
@@ -288,6 +310,34 @@ class EmbeddingRepoTests {
   func emptyWhenNoEpisodes() async throws {
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
     #expect(result.isEmpty)
+  }
+
+  @Test("empty podcast description becoming populated invalidates embeddings")
+  func emptyToPopulatedPodcastDescription() async throws {
+    let pe = try await createPodcastEpisode(
+      podcastDescription: "",
+      rating: .liked
+    )
+    try await insertEmbedding(for: pe.episode.id, revision: 1, backdated: true)
+
+    // Populate the previously-empty podcast description. The podcast trigger
+    // should fire on "" → "Now has content", pushing contentUpdatedAt past the
+    // backdated embedding creationDate.
+    _ = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: pe.podcast.feedURL,
+          title: pe.podcast.title,
+          image: pe.podcast.image,
+          description: "Now has content",
+          link: pe.podcast.link
+        ),
+        unsavedEpisode: try pe.episode.toOriginalUnsavedEpisode()
+      )
+    ])
+
+    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("includes episodes whose podcast content updated after embedding creation")
@@ -313,6 +363,6 @@ class EmbeddingRepoTests {
     ])
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
-    #expect(result.contains(where: { $0.id == pe.episode.id }))
+    #expect(result.contains(pe.episode.id))
   }
 }

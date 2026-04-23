@@ -7,7 +7,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("EpisodeDetailViewModel tests", .container)
+@Suite("of EpisodeDetailViewModel tests", .container)
 @MainActor final class EpisodeDetailViewModelTests {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation

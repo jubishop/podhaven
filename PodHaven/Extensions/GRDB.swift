@@ -36,3 +36,9 @@ extension FetchRequest where RowDecoder: FetchableRecord & Identifiable {
     try IdentifiedArray(uniqueElements: fetchAll(db), id: id)
   }
 }
+
+// SQLite's two-argument scalar MAX. GRDB's top-level `max` is the aggregate
+// form, so this fills the gap for `UPDATE … SET col = MAX(col, :value)`.
+func sqlMax(_ a: any SQLSpecificExpressible, _ b: any SQLExpressible) -> SQLExpression {
+  SQL("MAX(\(a), \(b))").sqlExpression
+}

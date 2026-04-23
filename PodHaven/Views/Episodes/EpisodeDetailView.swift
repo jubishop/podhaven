@@ -199,7 +199,7 @@ struct EpisodeDetailView: View {
           Text("Description")
             .font(.headline)
 
-          HTMLText(
+          unsafe HTMLText(
             description,
             menuMatching: Timestamp.regex
           ) { timestamp in

@@ -15,80 +15,130 @@ class V34MigrationTests {
     self.migrator = Schema.makeMigrator()
   }
 
-  // MARK: - Helpers
+  @Test("v34 adds maxPlaybackTime column seeded from currentTime")
+  func testV34Migration() async throws {
+    try migrator.migrate(appDB.db, upTo: "v33")
 
-  private static func insertPodcast(_ db: Database) throws -> Int64 {
-    try db.execute(
-      sql: """
-        INSERT INTO podcast (feedURL, title, image, description)
-        VALUES ('https://example.com/feed.xml', 'Test', 'img', 'desc')
-        """
-    )
-    return db.lastInsertedRowID
-  }
+    let podcastID = try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO podcast (feedURL, title, image, description)
+          VALUES (?, ?, ?, ?)
+          """,
+        arguments: [
+          "https://example.com/feed.xml",
+          "Test Podcast",
+          "https://example.com/image.jpg",
+          "Test Description",
+        ]
+      )
+      return db.lastInsertedRowID
+    }
 
-  private static func insertEpisode(
-    _ db: Database,
-    podcastID: Int64,
-    rating: String? = nil,
-    ratingDate: String? = nil
-  ) throws -> Int64 {
-    try db.execute(
-      sql: """
-        INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate, rating, ratingDate)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
-        """,
-      arguments: [
-        podcastID, "ep-\(UUID())", "https://example.com/ep-\(UUID()).mp3", "Test Episode",
-        rating, ratingDate,
-      ]
-    )
-    return db.lastInsertedRowID
-  }
+    // Seed three episodes: in-progress, untouched, and finished (currentTime 0).
+    let inProgressID = try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate, currentTime)
+          VALUES (?, ?, ?, ?, ?, ?)
+          """,
+        arguments: [
+          podcastID, "guid-in-progress", "https://example.com/ep1.mp3",
+          "In Progress", Date(), 123.5,
+        ]
+      )
+      return db.lastInsertedRowID
+    }
+    let untouchedID = try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
+          VALUES (?, ?, ?, ?, ?)
+          """,
+        arguments: [
+          podcastID, "guid-untouched", "https://example.com/ep2.mp3",
+          "Untouched", Date(),
+        ]
+      )
+      return db.lastInsertedRowID
+    }
+    let finishedID = try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO episode (
+            podcastId, guid, mediaURL, title, pubDate, currentTime, finishDate
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          """,
+        arguments: [
+          podcastID, "guid-finished", "https://example.com/ep3.mp3",
+          "Finished", Date(), 0, Date(),
+        ]
+      )
+      return db.lastInsertedRowID
+    }
 
-  // MARK: - Tests
+    try await appDB.db.read { db in
+      let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
+      let colNames = Set(cols.compactMap { $0["name"] as? String })
+      #expect(!colNames.contains("maxPlaybackTime"), "maxPlaybackTime should not exist before v34")
+    }
 
-  @Test("adds rating and ratingDate columns to episode table")
-  func ratingColumnsExist() async throws {
     try migrator.migrate(appDB.db, upTo: "v34")
 
     try await appDB.db.read { db in
-      let columns = try db.columns(in: "episode").map(\.name)
-      #expect(columns.contains("rating"))
-      #expect(columns.contains("ratingDate"))
-    }
-  }
-
-  @Test("rating column accepts valid values")
-  func ratingColumnAcceptsValidValues() async throws {
-    try migrator.migrate(appDB.db, upTo: "v34")
-
-    try await appDB.db.write { db in
-      let podcastID = try V34MigrationTests.insertPodcast(db)
-      _ = try V34MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "loved")
-      _ = try V34MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "liked")
-      _ = try V34MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "disliked")
-      _ = try V34MigrationTests.insertEpisode(db, podcastID: podcastID, rating: nil)
+      let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
+      let col = cols.first { $0["name"] as? String == "maxPlaybackTime" }
+      #expect(col != nil, "maxPlaybackTime column should exist after v34")
+      #expect(col?["type"] as? String == "INTEGER")
+      #expect(col?["notnull"] as? Int64 == 1, "maxPlaybackTime should be NOT NULL")
+      #expect(col?["dflt_value"] as? String == "0", "maxPlaybackTime should default to 0")
     }
 
+    // Backfill sets maxPlaybackTime to the episode's existing currentTime.
     try await appDB.db.read { db in
-      let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode")
-      #expect(count == 4)
-    }
-  }
+      let inProgress = try Double.fetchOne(
+        db,
+        sql: "SELECT maxPlaybackTime FROM episode WHERE id = ?",
+        arguments: [inProgressID]
+      )
+      #expect(inProgress == 123.5)
 
-  @Test("rating column rejects invalid values")
-  func ratingColumnRejectsInvalid() async throws {
-    try migrator.migrate(appDB.db, upTo: "v34")
+      let untouched = try Double.fetchOne(
+        db,
+        sql: "SELECT maxPlaybackTime FROM episode WHERE id = ?",
+        arguments: [untouchedID]
+      )
+      #expect(untouched == 0)
 
-    do {
-      try await appDB.db.write { db in
-        let podcastID = try V34MigrationTests.insertPodcast(db)
-        _ = try V34MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "invalid")
-      }
-      Issue.record("Expected CHECK constraint to reject invalid rating")
-    } catch {
-      // Expected: CHECK constraint violation
+      let finished = try Double.fetchOne(
+        db,
+        sql: "SELECT maxPlaybackTime FROM episode WHERE id = ?",
+        arguments: [finishedID]
+      )
+      #expect(finished == 0)
     }
+
+    // New inserts without the column default to 0.
+    let freshID = try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
+          VALUES (?, ?, ?, ?, ?)
+          """,
+        arguments: [
+          podcastID, "guid-fresh", "https://example.com/ep4.mp3",
+          "Fresh", Date(),
+        ]
+      )
+      return db.lastInsertedRowID
+    }
+    let fresh = try await appDB.db.read { db in
+      try Double.fetchOne(
+        db,
+        sql: "SELECT maxPlaybackTime FROM episode WHERE id = ?",
+        arguments: [freshID]
+      )
+    }
+    #expect(fresh == 0)
   }
 }

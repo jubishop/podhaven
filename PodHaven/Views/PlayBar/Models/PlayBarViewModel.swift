@@ -7,6 +7,11 @@ import Logging
 import SwiftUI
 import Tagged
 
+enum UndoSeekDirection {
+  case backward
+  case forward
+}
+
 @Observable @MainActor class PlayBarViewModel {
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
@@ -16,6 +21,11 @@ import Tagged
 
   private static let log = Log.as(LogSubsystem.PlayBar.main)
 
+  // Only surface the max-playback marker and swap the finish button for
+  // jump-to-max when the peak is at least this far ahead of the scrubber.
+  // Tweak after eyeballing in the simulator.
+  private static let jumpToMaxMinDeltaSeconds: Double = 20
+
   // MARK: - State Management
 
   var isLoading: Bool { sharedState.playbackStatus.loading }
@@ -23,11 +33,10 @@ import Tagged
   var isStopped: Bool { sharedState.playbackStatus.stopped }
   var isWaiting: Bool { sharedState.playbackStatus.waiting }
 
-  var showUndoButton = false
+  var undoSeekDirection: UndoSeekDirection?
   @ObservationIgnored private var undoCandidate: (episodeID: Episode.ID, time: Double)?
   @ObservationIgnored private var hideUndoButtonTask: Task<Void, Never>?
 
-  var onDeck: OnDeck? { sharedState.onDeck }
   var episodeImage: UIImage? { sharedState.onDeck?.artwork }
   var loadingEpisodeTitle: String { sharedState.playbackStatus.loadingTitle ?? "Unknown" }
 
@@ -56,6 +65,21 @@ import Tagged
   var hasChapters: Bool { chapters != nil }
 
   var chapterPositions: [Double]? { chapters?.map { $0.seconds } }
+
+  // MARK: - Max Playback Position
+
+  // Live peak: fall back to the scrubber value in case the in-memory OnDeck
+  // lags behind (e.g., a scrub just happened and the update is in-flight).
+  var maxPlaybackTime: Double {
+    Swift.max(
+      (sharedState.onDeck?.maxPlaybackTime ?? .zero).safe.seconds,
+      sliderValue
+    )
+  }
+
+  var canJumpToMaxPlayback: Bool {
+    (maxPlaybackTime - sliderValue) > Self.jumpToMaxMinDeltaSeconds
+  }
 
   var canGoToNextChapter: Bool {
     guard let chapters, !chapters.isEmpty else { return false }
@@ -133,6 +157,15 @@ import Tagged
     }
   }
 
+  func jumpToMaxPlayback() {
+    let target = maxPlaybackTime
+    Task { [weak self] in
+      guard let self else { return }
+      Self.log.debug("Jumping to max playback position: \(target)")
+      await playManager.seek(to: CMTime.seconds(target))
+    }
+  }
+
   func finishEpisode() {
     Task { [weak self] in
       guard let self else { return }
@@ -181,9 +214,20 @@ import Tagged
       return
     }
 
-    // Show the undo button
-    showUndoButton = true
-    Self.log.debug("Showing undo button")
+    // Bail early if the scrub miraculously went nowhere (wow)
+    let currentTime = (sharedState.onDeck?.currentTime ?? .zero).safe.seconds
+    guard currentTime != undoCandidate.time else {
+      Self.log.debug("Clearing undo state: scrub landed at the original position (\(currentTime))")
+      clearUndoState()
+      return
+    }
+
+    // Show the undo button — if the scrub went backward, undoing jumps forward.
+    let direction: UndoSeekDirection = undoCandidate.time > currentTime ? .forward : .backward
+    undoSeekDirection = direction
+    Self.log.debug(
+      "Showing undo button (direction: \(direction), from \(currentTime) to \(undoCandidate.time))"
+    )
 
     hideUndoButtonTask = Task { [weak self] in
       guard let self else { return }
@@ -228,7 +272,7 @@ import Tagged
 
   private func clearUndoState() {
     cancelHideUndoButtonTask()
-    showUndoButton = false
+    undoSeekDirection = nil
     undoCandidate = nil
   }
 

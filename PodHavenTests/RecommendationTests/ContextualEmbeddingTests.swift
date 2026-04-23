@@ -61,6 +61,40 @@ struct ContextualEmbeddingTests {
     #expect(fake.requestAssetsCount == 1)
   }
 
+  // MARK: - loadAssetsIfAvailable
+
+  @Test("loadAssetsIfAvailable loads when assets are on disk")
+  func loadIfAvailableLoadsWhenOnDisk() {
+    let fake = ControllableEmbeddable(hasAvailableAssets: true)
+    let embedding = ContextualEmbedding(embedding: fake)
+
+    embedding.loadAssetsIfAvailable()
+    #expect(embedding.isAvailable)
+    #expect(fake.loadCount == 1)
+    #expect(fake.requestAssetsCount == 0)
+  }
+
+  @Test("loadAssetsIfAvailable does not trigger a download")
+  func loadIfAvailableDoesNotDownload() {
+    let fake = ControllableEmbeddable(hasAvailableAssets: false)
+    let embedding = ContextualEmbedding(embedding: fake)
+
+    embedding.loadAssetsIfAvailable()
+    #expect(!embedding.isAvailable)
+    #expect(fake.loadCount == 0)
+    #expect(fake.requestAssetsCount == 0)
+  }
+
+  @Test("loadAssetsIfAvailable is a no-op when already loaded")
+  func loadIfAvailableIdempotent() {
+    let fake = ControllableEmbeddable(hasAvailableAssets: true)
+    let embedding = ContextualEmbedding(embedding: fake)
+
+    embedding.loadAssetsIfAvailable()
+    embedding.loadAssetsIfAvailable()
+    #expect(fake.loadCount == 1)
+  }
+
   // MARK: - vector(for:)
 
   @Test("throws when not available")
@@ -124,16 +158,6 @@ struct ContextualEmbeddingTests {
     let embedding = ContextualEmbedding(embedding: fake)
     #expect(embedding.revision == 42)
   }
-
-  @Test("maximumSequenceLength delegates to underlying embeddable")
-  func maximumSequenceLengthDelegates() {
-    let fake = ControllableEmbeddable(
-      hasAvailableAssets: true,
-      maximumSequenceLength: 512
-    )
-    let embedding = ContextualEmbedding(embedding: fake)
-    #expect(embedding.maximumSequenceLength == 512)
-  }
 }
 
 // MARK: - Controllable Fake
@@ -141,7 +165,6 @@ struct ContextualEmbeddingTests {
 private class ControllableEmbeddable: Embeddable {
   var hasAvailableAssets: Bool
   let revision: Int
-  let maximumSequenceLength: Int
   let vectors: [[Double]]
 
   private(set) var loadCount = 0
@@ -150,13 +173,11 @@ private class ControllableEmbeddable: Embeddable {
   init(
     hasAvailableAssets: Bool,
     vectors: [[Double]] = [[0.5, 0.5, 0.5]],
-    revision: Int = 1,
-    maximumSequenceLength: Int = 1000
+    revision: Int = 1
   ) {
     self.hasAvailableAssets = hasAvailableAssets
     self.vectors = vectors
     self.revision = revision
-    self.maximumSequenceLength = maximumSequenceLength
   }
 
   func load() throws {

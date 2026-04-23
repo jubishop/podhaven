@@ -41,7 +41,7 @@ struct VectorMathTests {
     let v1: [Float] = [1.0, 2.0, 3.0]
     let v2: [Float] = [4.0, 5.0, 6.0]
     let result = VectorMath.dotProduct(v1, v2)
-    #expect(result == 32.0)
+    #expect(abs(result - 32.0) < 0.0001)
   }
 
   @Test("dotProduct of orthogonal vectors is zero")

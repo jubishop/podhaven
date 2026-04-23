@@ -46,28 +46,30 @@ class ContextualEmbedding {
   }
 
   var revision: Int { embedding.revision }
-  var maximumSequenceLength: Int { embedding.maximumSequenceLength }
 
   func requestAndLoadAssetsIfNeeded() {
-    guard !isAvailable else { return }
+    loadAssetsIfAvailable()
+    guard !embedding.hasAvailableAssets else { return }
+    guard isRequesting.claim() else { return }
 
-    guard embedding.hasAvailableAssets else {
-      guard isRequesting.claim() else { return }
-
-      Self.log.info("Requesting contextual embedding assets download")
-      let isRequesting = isRequesting
-      embedding.requestAssets { error in
-        if let error {
-          Self.log.caughtError("Failed to download contextual embedding assets", error)
-          isRequesting.release()
-        } else {
-          Self.log.info("Contextual embedding assets downloaded")
-          Container.shared.contextualEmbedding().loadAssets()
-        }
+    Self.log.info("Requesting contextual embedding assets download")
+    let isRequesting = isRequesting
+    embedding.requestAssets { error in
+      if let error {
+        Self.log.caughtError("Failed to download contextual embedding assets", error)
+        isRequesting.release()
+      } else {
+        Self.log.info("Contextual embedding assets downloaded")
+        Container.shared.contextualEmbedding().loadAssets()
       }
-      return
     }
+  }
 
+  // Load on-disk assets without triggering a download. Safe to call from a
+  // background task handler where the process was launched into the background
+  // and the scene never went active.
+  func loadAssetsIfAvailable() {
+    guard !isAvailable, embedding.hasAvailableAssets else { return }
     loadAssets()
   }
 
@@ -81,11 +83,11 @@ class ContextualEmbedding {
     var count = 0
 
     result.enumerateTokenVectors(in: text.startIndex..<text.endIndex) { vector, _ in
-      if sum == nil {
-        sum = [Float](repeating: 0, count: vector.count)
-      }
-      for i in 0..<vector.count {
-        sum![i] += Float(vector[i])
+      if var accumulated = sum {
+        for i in 0..<vector.count { accumulated[i] += Float(vector[i]) }
+        sum = accumulated
+      } else {
+        sum = vector.map { Float($0) }
       }
       count += 1
       return true

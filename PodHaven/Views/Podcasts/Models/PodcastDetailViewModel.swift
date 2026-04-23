@@ -103,7 +103,7 @@ class PodcastDetailViewModel:
     var sortMethod: (@Sendable (DisplayedEpisode, DisplayedEpisode) -> Bool)? {
       switch self {
       case .newestFirst:
-        return nil  // This is the default for PodcastSeries
+        return { $0.pubDate > $1.pubDate }
       case .oldestFirst:
         return { $0.pubDate < $1.pubDate }
       case .recentlyAdded:

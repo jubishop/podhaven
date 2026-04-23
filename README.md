@@ -1,5 +1,6 @@
 # PodHaven - Your Personal Podcast Hub
 
+[![Tests](https://github.com/jubishop/podhaven/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/jubishop/podhaven/actions/workflows/tests.yml?query=branch%3Amain)
 [![Swift Version](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
 [![Xcode Version](https://img.shields.io/badge/Xcode-26-blue.svg)](https://developer.apple.com/xcode/)
 [![Platform](https://img.shields.io/badge/iOS-26-lightblue.svg)](https://developer.apple.com/ios/)

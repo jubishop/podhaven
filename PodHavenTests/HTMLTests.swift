@@ -9,6 +9,13 @@ import UIKit
 
 @Suite("of HTML Regex tests")
 @MainActor class HTMLTests {
+  // Thin forwarder kept so tests read `Self.decode("&amp;")` instead of
+  // `"&amp;".decodingHTMLEntities()` on every line — much smaller diff and
+  // the intent is still obvious in a file this entity-heavy.
+  fileprivate static func decode(_ text: String) -> String {
+    text.decodingHTMLEntities()
+  }
+
   @Test("that HTML tag detection works")
   func testHTMLTagDetection() throws {
     #expect("Words with <br/> making new lines".hasHTMLTags() == true)
@@ -47,6 +54,16 @@ import UIKit
     #expect("I have this & that; nothing special".isHTML() == false)
   }
 
+  @Test("that strippingHTMLTags removes tags and inserts spaces at boundaries")
+  func testStrippingHTMLTags() throws {
+    #expect("<p>Hello <b>world</b></p>".strippingHTMLTags() == " Hello  world  ")
+    #expect("plain text".strippingHTMLTags() == "plain text")
+    #expect("<br/>".strippingHTMLTags() == " ")
+    #expect("no<p>tag".strippingHTMLTags() == "no tag")
+    // Boundary gap prevents adjacent words from gluing together.
+    #expect("a</p><p>b".strippingHTMLTags() == "a  b")
+  }
+
   @Test("that HTML entity detection works correctly")
   func testHTMLEntityDetection() throws {
     // Should detect named entities
@@ -69,37 +86,37 @@ import UIKit
   @Test("that HTML entity decoding works correctly")
   func testHTMLEntityDecoding() throws {
     // Test common entities
-    #expect(HTMLText.decodeHTMLEntities("&rsquo;") == "'")
-    #expect(HTMLText.decodeHTMLEntities("&lsquo;") == "'")
-    #expect(HTMLText.decodeHTMLEntities("&rdquo;") == "\"")
-    #expect(HTMLText.decodeHTMLEntities("&ldquo;") == "\"")
-    #expect(HTMLText.decodeHTMLEntities("&mdash;") == "—")
-    #expect(HTMLText.decodeHTMLEntities("&ndash;") == "–")
-    #expect(HTMLText.decodeHTMLEntities("&hellip;") == "…")
-    #expect(HTMLText.decodeHTMLEntities("&amp;") == "&")
-    #expect(HTMLText.decodeHTMLEntities("&lt;") == "<")
-    #expect(HTMLText.decodeHTMLEntities("&gt;") == ">")
-    #expect(HTMLText.decodeHTMLEntities("&quot;") == "\"")
+    #expect(Self.decode("&rsquo;") == "'")
+    #expect(Self.decode("&lsquo;") == "'")
+    #expect(Self.decode("&rdquo;") == "\"")
+    #expect(Self.decode("&ldquo;") == "\"")
+    #expect(Self.decode("&mdash;") == "—")
+    #expect(Self.decode("&ndash;") == "–")
+    #expect(Self.decode("&hellip;") == "…")
+    #expect(Self.decode("&amp;") == "&")
+    #expect(Self.decode("&lt;") == "<")
+    #expect(Self.decode("&gt;") == ">")
+    #expect(Self.decode("&quot;") == "\"")
 
     // Test numeric entities
-    #expect(HTMLText.decodeHTMLEntities("&#8217;") == "’")  // Right single quotation mark
-    #expect(HTMLText.decodeHTMLEntities("&#x2019;") == "’")  // Right single quotation mark (hex)
-    #expect(HTMLText.decodeHTMLEntities("&#8212;") == "—")  // Em dash
-    #expect(HTMLText.decodeHTMLEntities("&#x2014;") == "—")  // Em dash (hex)
+    #expect(Self.decode("&#8217;") == "’")  // Right single quotation mark
+    #expect(Self.decode("&#x2019;") == "’")  // Right single quotation mark (hex)
+    #expect(Self.decode("&#8212;") == "—")  // Em dash
+    #expect(Self.decode("&#x2014;") == "—")  // Em dash (hex)
 
     // Test mixed content
     #expect(
-      HTMLText.decodeHTMLEntities("It&rsquo;s &ldquo;amazing&rdquo; &mdash; really!")
+      Self.decode("It&rsquo;s &ldquo;amazing&rdquo; &mdash; really!")
         == "It's \"amazing\" — really!"
     )
 
     // Test multiple entities in one string
-    #expect(HTMLText.decodeHTMLEntities("&amp; &lt; &gt; &quot;test&quot;") == "& < > \"test\"")
+    #expect(Self.decode("&amp; &lt; &gt; &quot;test&quot;") == "& < > \"test\"")
 
     // Test case insensitivity
-    #expect(HTMLText.decodeHTMLEntities("&RSQUO;") == "'")
-    #expect(HTMLText.decodeHTMLEntities("&Mdash;") == "—")
-    #expect(HTMLText.decodeHTMLEntities("&#X2019;") == "’")
+    #expect(Self.decode("&RSQUO;") == "'")
+    #expect(Self.decode("&Mdash;") == "—")
+    #expect(Self.decode("&#X2019;") == "’")
   }
 
   @Test("that entity-only strings build attributed output")
@@ -342,7 +359,7 @@ import UIKit
   @Test("that entity decoding leaves invalid items untouched")
   func testEntityDecodingPassThrough() throws {
     let html = "Mix &#65; valid &#12a; hex &#x1F60A; bad &#xZZ;"
-    let decoded = HTMLText.decodeHTMLEntities(html)
+    let decoded = Self.decode(html)
     #expect(decoded.contains("A"))
     #expect(decoded.contains("😊"))
     #expect(decoded.contains("&#12a;"))
@@ -392,16 +409,16 @@ import UIKit
   @Test("that malformed entities are handled gracefully")
   func testMalformedEntities() throws {
     // Test incomplete entities
-    #expect(HTMLText.decodeHTMLEntities("&rsquo") == "&rsquo")  // Missing semicolon
-    #expect(HTMLText.decodeHTMLEntities("&unknown;") == "&unknown;")  // Unknown entity
+    #expect(Self.decode("&rsquo") == "&rsquo")  // Missing semicolon
+    #expect(Self.decode("&unknown;") == "&unknown;")  // Unknown entity
 
     // Test malformed numeric entities (should be left unchanged)
-    #expect(HTMLText.decodeHTMLEntities("&#;") == "&#;")  // Empty numeric entity
-    #expect(HTMLText.decodeHTMLEntities("&#abc;") == "&#abc;")  // Invalid numeric entity
-    #expect(HTMLText.decodeHTMLEntities("&#x;") == "&#x;")  // Empty hex entity
-    #expect(HTMLText.decodeHTMLEntities("&#xzz;") == "&#xzz;")  // Invalid hex entity
-    #expect(HTMLText.decodeHTMLEntities("&#9999999;") == "&#9999999;")  // Out of Unicode range
-    #expect(HTMLText.decodeHTMLEntities("&#x110000;") == "&#x110000;")  // Above Unicode max
+    #expect(Self.decode("&#;") == "&#;")  // Empty numeric entity
+    #expect(Self.decode("&#abc;") == "&#abc;")  // Invalid numeric entity
+    #expect(Self.decode("&#x;") == "&#x;")  // Empty hex entity
+    #expect(Self.decode("&#xzz;") == "&#xzz;")  // Invalid hex entity
+    #expect(Self.decode("&#9999999;") == "&#9999999;")  // Out of Unicode range
+    #expect(Self.decode("&#x110000;") == "&#x110000;")  // Above Unicode max
   }
 
   // MARK: - List Tests
@@ -701,7 +718,7 @@ import UIKit
   @Test("that malformed numeric entities do not block later decoding")
   func testMalformedNumericEntityRecovery() throws {
     let html = "Broken &#123 still decodes &#x2019; end"
-    let decoded = HTMLText.decodeHTMLEntities(html)
+    let decoded = Self.decode(html)
     #expect(decoded.contains("&#123"))
     #expect(decoded.contains("’"))
   }

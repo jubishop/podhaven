@@ -34,6 +34,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
 
   var artwork: UIImage?
   var currentTime: CMTime
+  var maxPlaybackTime: CMTime
 
   // MARK: - FetchableRecord
 
@@ -69,11 +70,12 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     feedURL = podcastRow[Podcast.Columns.feedURL]
     defaultPlaybackRate = podcastRow[Podcast.Columns.defaultPlaybackRate]
 
-    // artwork and currentTime are managed in-memory by StateManager, not read
-    // from the DB row. Reading currentTime here would cause GRDB to track the
-    // column and re-query every 3 seconds during playback.
+    // artwork, currentTime, and maxPlaybackTime are managed in-memory by
+    // StateManager, not read from the DB row. Reading them here would cause
+    // GRDB to track the columns and re-query every 3 seconds during playback.
     artwork = nil
     currentTime = .zero
+    maxPlaybackTime = .zero
   }
 
   // MARK: - Convenience Init
@@ -98,6 +100,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     defaultPlaybackRate = podcastEpisode.podcast.defaultPlaybackRate
     artwork = nil
     currentTime = podcastEpisode.currentTime
+    maxPlaybackTime = podcastEpisode.maxPlaybackTime
   }
 
   // MARK: - EpisodeListable

@@ -10,15 +10,47 @@ import Logging
 enum EmbeddingService {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
+  // Bump when any recipe knob below changes (weights, blend, cleanText rules).
+  // Folded into source hashes so cached vectors invalidate on tuning.
+  private static let recipeVersion = 1
+
   // Title gets more weight than description to avoid boilerplate dominance
   private static let titleWeight: Float = 0.6
   private static let descriptionWeight: Float = 0.4
 
-  // Podcast description blending ratio
-  private static let episodeBlendWeight: Float = 0.6
-  private static let podcastBlendWeight: Float = 0.4
+  // Podcast description blending ratio. Tuned lower to preserve within-show
+  // discrimination while still providing cross-show semantic signal.
+  private static let episodeBlendWeight: Float = 0.75
+  private static let podcastBlendWeight: Float = 0.25
+
+  // Regex<Substring> isn't Sendable-annotated upstream, but its compiled NFA is
+  // immutable and matching is thread-safe. Precompile once to avoid recompiling
+  // on every cleanText call (called 2x per episode during BG embedding pass).
+  private nonisolated(unsafe) static let urlRegex = /https?:\/\/\S+/
+  private nonisolated(unsafe) static let whitespaceRunRegex = /\s+/
+
+  // Chunk size for the ID-driven entry point. Hydrating full Episode rows is
+  // ~125 MB for the full library; chunking lets BG-task expiry preserve work
+  // already done instead of paying a multi-second hydration pass up front.
+  private static let hydrationChunkSize = 64
 
   // MARK: - Upsert Episode Embeddings
+
+  static func upsertEpisodeEmbeddings(
+    forIDs episodeIDs: [Episode.ID],
+    embedding: ContextualEmbedding
+  ) async throws {
+    guard !episodeIDs.isEmpty else { return }
+    let repo = Container.shared.repo()
+
+    for start in stride(from: 0, to: episodeIDs.count, by: hydrationChunkSize) {
+      try Task.checkCancellation()
+      let end = min(start + hydrationChunkSize, episodeIDs.count)
+      let chunk = Array(episodeIDs[start..<end])
+      let episodes = try await repo.episodes(for: chunk)
+      try await upsertEpisodeEmbeddings(for: episodes, embedding: embedding)
+    }
+  }
 
   static func upsertEpisodeEmbeddings(
     for episodes: [Episode],
@@ -36,6 +68,9 @@ enum EmbeddingService {
     let podcastsByID = try await repo.podcasts(for: podcastIDs)
     let podcastEmbeddings = try await repo.podcastEmbeddings(for: podcastIDs)
 
+    // Cache computed podcast vectors to avoid redundant work within the batch
+    var podcastVectorCache: [Podcast.ID: [Float]?] = [:]
+
     for episode in episodes {
       try Task.checkCancellation()
 
@@ -50,18 +85,36 @@ enum EmbeddingService {
 
       guard needsRecompute else { continue }
 
-      let podcastVector = try await ensurePodcastEmbedding(
-        podcast: podcast,
-        embedding: embedding,
-        cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
-      )
+      // One bad episode (unexpected throw from the embedding model, a transient
+      // DB error, etc.) must not abort the whole BG pass — otherwise the same
+      // episode re-enters episodesNeedingEmbeddings on the next run and we
+      // loop forever on it. Cancellation still propagates.
+      do {
+        let podcastVector: [Float]?
+        if let cached = podcastVectorCache[episode.podcastID] {
+          podcastVector = cached
+        } else {
+          podcastVector = try await ensurePodcastEmbedding(
+            podcast: podcast,
+            embedding: embedding,
+            cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
+          )
+          podcastVectorCache[episode.podcastID] = podcastVector
+        }
 
-      try await upsertEpisodeEmbedding(
-        episode,
-        hash: hash,
-        embedding: embedding,
-        podcastVector: podcastVector
-      )
+        try await upsertEpisodeEmbedding(
+          episode,
+          hash: hash,
+          embedding: embedding,
+          podcastVector: podcastVector
+        )
+      } catch {
+        if error is CancellationError { throw error }
+        Self.log.caughtError(
+          "Failed to embed episode \(episode.toString); continuing batch",
+          error
+        )
+      }
     }
   }
 
@@ -75,9 +128,12 @@ enum EmbeddingService {
     guard let podcast else { return nil }
 
     let cleanedDescription = cleanText(podcast.description)
-    guard !cleanedDescription.isEmpty else { return nil }
+    guard !cleanedDescription.isEmpty else {
+      Self.log.debug("Skipping podcast vector: empty description for podcast \(podcast.id)")
+      return nil
+    }
 
-    let hash = cleanedDescription.sha256()
+    let hash = podcastSourceHash(cleanedDescription: cleanedDescription)
 
     // Return cached if still fresh (same source hash and revision)
     if let cached = cachedEmbedding,
@@ -87,8 +143,7 @@ enum EmbeddingService {
       return cached.floatVector
     }
 
-    let text = String(cleanedDescription.prefix(embedding.maximumSequenceLength))
-    let vector = try embedding.vector(for: text)
+    let vector = try embedding.vector(for: cleanedDescription)
     let normalized = VectorMath.normalize(vector)
 
     let unsaved = UnsavedPodcastEmbedding(
@@ -135,10 +190,7 @@ enum EmbeddingService {
 
     let titleVector = try embedding.vector(for: cleanedTitle)
 
-    let descriptionText =
-      cleanedDescription.isEmpty
-      ? cleanedTitle
-      : String(cleanedDescription.prefix(embedding.maximumSequenceLength))
+    let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
     let descriptionVector = try embedding.vector(for: descriptionText)
 
     // Weighted average of title and description
@@ -163,40 +215,34 @@ enum EmbeddingService {
   }
 
   private static func fullSourceHash(for episode: Episode, podcast: Podcast?) -> String {
-    var text = "\(episode.title) \(episode.description ?? "")"
+    let cleanedTitle = cleanText(episode.title)
+    let cleanedDescription = cleanText(episode.description ?? "")
+    let cleanedPodcastDescription: String
     if let podcast {
-      text += " \(podcast.description)"
+      cleanedPodcastDescription = cleanText(podcast.description)
+    } else {
+      cleanedPodcastDescription = ""
     }
-    return text.sha256()
+    let components = [
+      "r\(recipeVersion)",
+      cleanedTitle,
+      cleanedDescription,
+      cleanedPodcastDescription,
+    ]
+    return components.joined(separator: "\u{1F}").sha256()
+  }
+
+  private static func podcastSourceHash(cleanedDescription: String) -> String {
+    "r\(recipeVersion)\u{1F}\(cleanedDescription)".sha256()
   }
 
   static func cleanText(_ text: String) -> String {
-    var result = text
-
-    // Strip HTML tags
-    result = result.replacingOccurrences(
-      of: "<[^>]+>",
-      with: " ",
-      options: .regularExpression
-    )
-
-    // Strip URLs
-    result = result.replacingOccurrences(
-      of: "https?://\\S+",
-      with: "",
-      options: .regularExpression
-    )
-
-    // Strip timestamps
-    result.replace(Timestamp.regex, with: "")
-
-    // Normalize whitespace
-    result = result.replacingOccurrences(
-      of: "\\s+",
-      with: " ",
-      options: .regularExpression
-    )
-
+    // Decode entities first so `&lt;script&gt;` becomes `<script>` and is then
+    // stripped by the tag pass.
+    var result = text.decodingHTMLEntities().strippingHTMLTags()
+    unsafe result.replace(urlRegex, with: "")
+    unsafe result.replace(Timestamp.regex, with: "")
+    unsafe result.replace(whitespaceRunRegex, with: " ")
     return result.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }

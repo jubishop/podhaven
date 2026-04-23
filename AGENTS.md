@@ -1,3 +1,8 @@
+## Project Memory
+- Project-specific memory lives in `memory/`.
+- Use `memory/MEMORY.md` as the canonical index of saved memories, with one linked Markdown file per memory in `memory/`.
+- When asked to save, recall, or update a memory, read and write those files directly. Check memory before guessing about prior project-specific decisions or environment details.
+
 ## MCP Usage
 - If discussing Swift, SwiftUI, and iOS: Consult the apple-docs mcp for up to date information.
 
@@ -46,7 +51,7 @@
 
 ## Coding Standards
 - Always use `[weak self]` in closures and Tasks that capture `self`, unless a strong reference is explicitly required.
-- Prefer `if let` / `guard let` over `.map` on optionals
+- Never use `.map` on optionals for value projection (e.g. `x.map { $0.rawValue }`) — use optional chaining (`x?.rawValue`). For anything more involved than a direct projection, use `if let` / `guard let` instead of `.map`.
 - Never force-unwrap (`!`) in production code; use `Assert` or guarded unwraps with readable error handling.
 - Prefer triple-quoted strings for multi-line or >100 character literals.
 - Run `swift-format` on every Swift file you touch before handing work back.

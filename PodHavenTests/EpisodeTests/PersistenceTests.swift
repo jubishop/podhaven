@@ -103,6 +103,59 @@ class EpisodePersistenceTests {
     #expect(updatedEpisode.currentTime == newCMTime)
   }
 
+  @Test("that updateCurrentTime advances maxPlaybackTime but never regresses it")
+  func maxPlaybackTimeTracksFurthestReached() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode()
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisodes: [unsavedEpisode]
+      )
+    )
+    let episode = podcastSeries.episodes.first!
+    #expect(episode.maxPlaybackTime == .zero)
+
+    // Advancing forward lifts both currentTime and maxPlaybackTime.
+    try await repo.updateCurrentTime(episode.id, currentTime: CMTime.seconds(120))
+    var fetched = try await repo.episode(episode.id)!
+    #expect(fetched.currentTime == CMTime.seconds(120))
+    #expect(fetched.maxPlaybackTime == CMTime.seconds(120))
+
+    // Seeking backward moves currentTime but leaves maxPlaybackTime at the peak.
+    try await repo.updateCurrentTime(episode.id, currentTime: CMTime.seconds(45))
+    fetched = try await repo.episode(episode.id)!
+    #expect(fetched.currentTime == CMTime.seconds(45))
+    #expect(fetched.maxPlaybackTime == CMTime.seconds(120))
+
+    // Advancing past the prior peak lifts maxPlaybackTime again.
+    try await repo.updateCurrentTime(episode.id, currentTime: CMTime.seconds(200))
+    fetched = try await repo.episode(episode.id)!
+    #expect(fetched.currentTime == CMTime.seconds(200))
+    #expect(fetched.maxPlaybackTime == CMTime.seconds(200))
+  }
+
+  @Test("that markFinished zeroes both currentTime and maxPlaybackTime")
+  func markFinishedResetsMaxPlaybackTime() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode()
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisodes: [unsavedEpisode]
+      )
+    )
+    let episode = podcastSeries.episodes.first!
+
+    try await repo.updateCurrentTime(episode.id, currentTime: CMTime.seconds(300))
+    try await repo.markFinished(episode.id)
+
+    let finished = try await repo.episode(episode.id)!
+    #expect(finished.currentTime == .zero)
+    #expect(finished.maxPlaybackTime == .zero)
+    #expect(finished.finishDate != nil)
+  }
+
   @Test("that episodes can persist duration")
   func persistDuration() async throws {
     let guid = GUID("guid")
@@ -279,6 +332,7 @@ class EpisodePersistenceTests {
   func toOriginalUnsavedEpisodeResetsUserFields() throws {
     let unsavedEpisode = try Create.unsavedEpisode(
       currentTime: CMTime.seconds(120),
+      maxPlaybackTime: CMTime.seconds(240),
       queueOrder: 5,
       queueDate: Date(),
       cachedFilename: "cached.mp3"
@@ -288,6 +342,7 @@ class EpisodePersistenceTests {
 
     #expect(original.finishDate == nil)
     #expect(original.currentTime == .zero)
+    #expect(original.maxPlaybackTime == .zero)
     #expect(original.queueOrder == nil)
     #expect(original.queueDate == nil)
     #expect(original.cachedURL == nil)

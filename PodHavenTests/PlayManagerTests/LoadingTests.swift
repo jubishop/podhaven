@@ -71,8 +71,10 @@ import Testing
     expectedInfo[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
     expectedInfo[MPNowPlayingInfoPropertyPlaybackQueueCount] = 1
 
-    // Check all keys exist in both dictionaries
-    #expect(Set(nowPlayingInfo!.keys) == Set(expectedInfo.keys).union([MPMediaItemPropertyArtwork]))
+    #expect(
+      Set(nowPlayingInfo!.keys)
+        == Set(expectedInfo.keys).union([MPMediaItemPropertyArtwork])
+    )
 
     let isEqual: (Any?, Any) -> Bool = { lhs, rhs in
       switch (lhs, rhs) {

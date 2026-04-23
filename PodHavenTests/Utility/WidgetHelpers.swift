@@ -32,8 +32,8 @@ enum WidgetHelpers {
       try await sleeper.waitForSleepRequests(count: 1)
       await sleeper.advanceTime(by: .milliseconds(250))
 
-      // Wait.until polls with real Task.sleep, giving async write work time
-      // to complete after advanceTime resumes the debounce continuation.
+      // Wait.until gives async write work time to complete after advanceTime resumes the
+      // debounce continuation.
       // Wrap in do/catch so we can try the next debounce cycle if the file
       // wasn't written by this particular debounce.
       do {

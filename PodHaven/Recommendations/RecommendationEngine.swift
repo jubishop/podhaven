@@ -140,31 +140,31 @@ struct RecommendationEngine: Sendable {
   // MARK: - Build Centroids
 
   private func buildCentroids(
-    signalEpisodes: [Episode]
+    signalEpisodes: [SignalEpisode]
   ) async throws -> (positive: [Float]?, negative: [Float]?) {
-    let episodeIDs: [Episode.ID] = signalEpisodes.map { $0.id }
+    let episodeIDs: [Episode.ID] = signalEpisodes.map(\.id)
     let embeddingsByEpisode = try await repo.embeddings(for: episodeIDs)
 
     let now = Date()
     var positiveVectors: [(vector: [Float], weight: Float)] = []
     var negativeVectors: [(vector: [Float], weight: Float)] = []
 
-    for episode in signalEpisodes {
-      guard let cached = embeddingsByEpisode[id: episode.id] else { continue }
+    for signal in signalEpisodes {
+      guard let cached = embeddingsByEpisode[id: signal.id] else { continue }
       let vector = cached.floatVector
 
-      if let rating = episode.rating {
-        let decay = temporalDecay(from: episode.ratingDate, now: now)
-        switch rating {
-        case .loved:
-          positiveVectors.append((vector, Self.lovedWeight * decay))
-        case .liked:
-          positiveVectors.append((vector, Self.likedWeight * decay))
-        case .disliked:
-          negativeVectors.append((vector, decay))
-        }
-      } else if episode.finished {
-        let decay = temporalDecay(from: episode.finishDate, now: now)
+      switch signal.kind {
+      case .rating(.loved):
+        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
+        positiveVectors.append((vector, Self.lovedWeight * decay))
+      case .rating(.liked):
+        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
+        positiveVectors.append((vector, Self.likedWeight * decay))
+      case .rating(.disliked):
+        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
+        negativeVectors.append((vector, decay))
+      case .finished:
+        let decay = temporalDecay(from: signal.episode.finishDate, now: now)
         positiveVectors.append((vector, Self.finishedWeight * decay))
       }
     }
@@ -250,7 +250,7 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Fetch Signal Episodes
 
-  private func fetchSignalEpisodes() async throws -> [Episode] {
+  private func fetchSignalEpisodes() async throws -> [SignalEpisode] {
     try await repo.allSignalEpisodes()
   }
 
@@ -264,22 +264,25 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Podcast Affinity
 
-  private func computePodcastAffinities(signalEpisodes: [Episode]) -> [Podcast.ID: Float] {
+  // TODO: dislike bleed — a single negative signal penalizes every other episode
+  // from the same podcast via affinity. Mitigation options when this is next
+  // touched (priority order): drop negatives here entirely (let the negative
+  // centroid handle show-level dislike via similarity), asymmetric weights, or
+  // raise affinityPrior.
+  private func computePodcastAffinities(signalEpisodes: [SignalEpisode]) -> [Podcast.ID: Float] {
     var podcastStats: [Podcast.ID: (positive: Float, negative: Float, total: Float)] = [:]
 
-    for episode in signalEpisodes {
-      let podcastID = episode.podcastID
+    for signal in signalEpisodes {
+      let podcastID = signal.episode.podcastID
       var stats = podcastStats[podcastID] ?? (positive: 0, negative: 0, total: 0)
       stats.total += 1
 
-      if let rating = episode.rating {
-        switch rating {
-        case .loved, .liked:
-          stats.positive += 1
-        case .disliked:
-          stats.negative += 1
-        }
-      } else if episode.finished {
+      switch signal.kind {
+      case .rating(.loved), .rating(.liked):
+        stats.positive += 1
+      case .rating(.disliked):
+        stats.negative += 1
+      case .finished:
         stats.positive += 0.5
       }
 
@@ -294,18 +297,20 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Tag Affinity
 
-  private func computeTagAffinities(signalEpisodes: [Episode]) async throws -> [Podcast.ID: Float] {
-    let positiveEpisodes = signalEpisodes.filter { episode in
-      if let rating = episode.rating {
-        return rating == .loved || rating == .liked
+  private func computeTagAffinities(
+    signalEpisodes: [SignalEpisode]
+  ) async throws -> [Podcast.ID: Float] {
+    let positiveSignals = signalEpisodes.filter { signal in
+      switch signal.kind {
+      case .rating(.loved), .rating(.liked): return true
+      case .rating(.disliked), .finished: return false
       }
-      return false
     }
 
-    guard !positiveEpisodes.isEmpty else { return [:] }
+    guard !positiveSignals.isEmpty else { return [:] }
 
     // Get tags from positively-rated episodes' podcasts
-    let positivePodcastIDs = Set(positiveEpisodes.map(\.podcastID))
+    let positivePodcastIDs = Set(positiveSignals.map { $0.episode.podcastID })
 
     let allTags = try await repo.allPodcastTags()
     var allPodcastTags: [Podcast.ID: Set<Tag.ID>] = [:]
@@ -329,16 +334,16 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Duration
 
-  private func computeMedianDuration(signalEpisodes: [Episode]) -> Double? {
+  private func computeMedianDuration(signalEpisodes: [SignalEpisode]) -> Double? {
     let durations =
       signalEpisodes
-      .filter { episode in
-        if let rating = episode.rating {
-          return rating == .loved || rating == .liked
+      .filter { signal in
+        switch signal.kind {
+        case .rating(.loved), .rating(.liked), .finished: return true
+        case .rating(.disliked): return false
         }
-        return episode.finished
       }
-      .map { $0.duration.seconds }
+      .map { $0.episode.duration.seconds }
       .filter { $0 > 0 }
       .sorted()
 

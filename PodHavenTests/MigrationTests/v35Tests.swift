@@ -1,70 +1,94 @@
 // Copyright Justin Bishop, 2026
 
-import FactoryKit
-import FactoryTesting
 import Foundation
 import GRDB
 import Testing
 
 @testable import PodHaven
 
-@Suite("v35 migration tests (embedding cache tables)", .container)
+@Suite("of v35 migration tests", .container)
 class V35MigrationTests {
-  @DynamicInjected(\.appDB) private var appDB
+  private let appDB = AppDB.inMemory(migrate: false)
+  private let migrator: DatabaseMigrator
 
-  @Test("v35 creates episodeEmbedding table with correct columns")
-  func episodeEmbeddingTableExists() async throws {
-    let columns = try await appDB.db.read { db in
-      try db.columns(in: "episodeEmbedding").map(\.name)
-    }
-    #expect(columns.contains("episodeId"))
-    #expect(columns.contains("vector"))
-    #expect(columns.contains("sourceHash"))
-    #expect(columns.contains("embeddingRevision"))
-    #expect(columns.contains("dimension"))
-    #expect(columns.contains("creationDate"))
+  init() async throws {
+    self.migrator = Schema.makeMigrator()
   }
 
-  @Test("v35 creates podcastEmbedding table with correct columns")
-  func podcastEmbeddingTableExists() async throws {
-    let columns = try await appDB.db.read { db in
-      try db.columns(in: "podcastEmbedding").map(\.name)
-    }
-    #expect(columns.contains("podcastId"))
-    #expect(columns.contains("vector"))
-    #expect(columns.contains("sourceHash"))
-    #expect(columns.contains("embeddingRevision"))
-    #expect(columns.contains("dimension"))
-    #expect(columns.contains("creationDate"))
-  }
+  // MARK: - Helpers
 
-  @Test("episodeEmbedding cascades on episode delete")
-  func episodeEmbeddingCascade() async throws {
-    let unsavedPodcast = try Create.unsavedPodcast()
-    let unsavedEpisode = try Create.unsavedEpisode()
-    let podcastEpisodes = try await Container.shared.repo()
-      .upsertPodcastEpisodes([
-        UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsavedEpisode)
-      ])
-    let episodeID = podcastEpisodes.first!.episode.id
-    let podcastID = podcastEpisodes.first!.podcast.id
-
-    let testVector: [Float] = [1.0, 0.0, 0.0]
-    let unsaved = UnsavedEpisodeEmbedding(
-      episodeId: episodeID,
-      vector: UnsavedEpisodeEmbedding.vectorData(from: testVector),
-      sourceHash: "test",
-      embeddingRevision: 1,
-      dimension: 3
+  private static func insertPodcast(_ db: Database) throws -> Int64 {
+    try db.execute(
+      sql: """
+        INSERT INTO podcast (feedURL, title, image, description)
+        VALUES ('https://example.com/feed.xml', 'Test', 'img', 'desc')
+        """
     )
-    try await Container.shared.repo().upsertEmbedding(unsaved)
+    return db.lastInsertedRowID
+  }
 
-    let beforeDelete = try await Container.shared.repo().embedding(for: episodeID)
-    #expect(beforeDelete != nil)
+  private static func insertEpisode(
+    _ db: Database,
+    podcastID: Int64,
+    rating: String? = nil,
+    ratingDate: String? = nil
+  ) throws -> Int64 {
+    try db.execute(
+      sql: """
+        INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate, rating, ratingDate)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
+        """,
+      arguments: [
+        podcastID, "ep-\(UUID())", "https://example.com/ep-\(UUID()).mp3", "Test Episode",
+        rating, ratingDate,
+      ]
+    )
+    return db.lastInsertedRowID
+  }
 
-    _ = try await Container.shared.repo().deletePodcast(podcastID)
+  // MARK: - Tests
 
-    let afterDelete = try await Container.shared.repo().embedding(for: episodeID)
-    #expect(afterDelete == nil)
+  @Test("adds rating and ratingDate columns to episode table")
+  func ratingColumnsExist() async throws {
+    try migrator.migrate(appDB.db, upTo: "v35")
+
+    try await appDB.db.read { db in
+      let columns = try db.columns(in: "episode").map(\.name)
+      #expect(columns.contains("rating"))
+      #expect(columns.contains("ratingDate"))
+    }
+  }
+
+  @Test("rating column accepts valid values")
+  func ratingColumnAcceptsValidValues() async throws {
+    try migrator.migrate(appDB.db, upTo: "v35")
+
+    try await appDB.db.write { db in
+      let podcastID = try V35MigrationTests.insertPodcast(db)
+      _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "loved")
+      _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "liked")
+      _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "disliked")
+      _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: nil)
+    }
+
+    try await appDB.db.read { db in
+      let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode")
+      #expect(count == 4)
+    }
+  }
+
+  @Test("rating column rejects invalid values")
+  func ratingColumnRejectsInvalid() async throws {
+    try migrator.migrate(appDB.db, upTo: "v35")
+
+    do {
+      try await appDB.db.write { db in
+        let podcastID = try V35MigrationTests.insertPodcast(db)
+        _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "invalid")
+      }
+      Issue.record("Expected CHECK constraint to reject invalid rating")
+    } catch {
+      // Expected: CHECK constraint violation
+    }
   }
 }

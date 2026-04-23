@@ -1,9 +1,12 @@
 // Copyright Justin Bishop, 2025
 
 import CoreMedia
+import FactoryKit
 import SwiftUI
 
 struct PlayBarSheet: View {
+  @DynamicInjected(\.sharedState) private var sharedState
+
   private let spacing: CGFloat = 12
 
   @Bindable var viewModel: PlayBarViewModel
@@ -23,7 +26,7 @@ struct PlayBarSheet: View {
         HStack {
           Spacer()
 
-          if let onDeck = viewModel.onDeck {
+          if let onDeck = sharedState.onDeck {
             ShareEpisodeButton(episode: onDeck)
               .font(.title3)
               .padding(spacing / 2)
@@ -48,7 +51,7 @@ struct PlayBarSheet: View {
 
           Spacer()
         }
-        .animation(.easeInOut(duration: 0.2), value: viewModel.showUndoButton)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.undoSeekDirection)
 
         progressBar
           .padding(.horizontal, spacing)
@@ -74,7 +77,7 @@ struct PlayBarSheet: View {
           .clipped()
           .overlay((colorScheme == .dark ? Color.black : Color.white).opacity(0.5))
       } else {
-        Color.black
+        (colorScheme == .dark ? Color.black : Color.white)
           .overlay(alignment: .top) {
             AppIcon.audioPlaceholder.image
               .font(.system(size: spacing * 12))
@@ -96,6 +99,15 @@ struct PlayBarSheet: View {
   }
 
   @ViewBuilder
+  private var finishOrJumpButton: some View {
+    if viewModel.canJumpToMaxPlayback {
+      AppIcon.jumpToMaxPosition.imageButton { viewModel.jumpToMaxPlayback() }
+    } else {
+      AppIcon.finishEpisode.imageButton { viewModel.finishEpisode() }
+    }
+  }
+
+  @ViewBuilder
   private var playbackMetaControls: some View {
     ZStack {
       HStack {
@@ -109,13 +121,8 @@ struct PlayBarSheet: View {
 
         Spacer()
 
-        metaButtonStyle(
-          AppIcon.finishEpisode
-            .imageButton {
-              viewModel.finishEpisode()
-            }
-        )
-        .disabled(isShowingSpeedPopover)
+        metaButtonStyle(finishOrJumpButton)
+          .disabled(isShowingSpeedPopover)
       }
 
       if viewModel.hasChapters {
@@ -153,8 +160,8 @@ struct PlayBarSheet: View {
   private var playbackControls: some View {
     Spacer()
 
-    if viewModel.showUndoButton {
-      playbackButtonStyle(AppIcon.undoSeek.imageButton(action: viewModel.undoSeek))
+    if viewModel.undoSeekDirection == .backward {
+      playbackButtonStyle(AppIcon.undoSeekBackward.imageButton(action: viewModel.undoSeek))
     } else {
       playbackButtonStyle(SeekBackwardButton(action: viewModel.seekBackward))
     }
@@ -165,7 +172,11 @@ struct PlayBarSheet: View {
 
     Spacer()
 
-    playbackButtonStyle(SeekForwardButton(action: viewModel.seekForward))
+    if viewModel.undoSeekDirection == .forward {
+      playbackButtonStyle(AppIcon.undoSeekForward.imageButton(action: viewModel.undoSeek))
+    } else {
+      playbackButtonStyle(SeekForwardButton(action: viewModel.seekForward))
+    }
 
     Spacer()
   }
@@ -181,7 +192,8 @@ struct PlayBarSheet: View {
         isDragging: $viewModel.isDragging,
         range: 0...viewModel.duration.seconds,
         animationDuration: progressAnimationDuration,
-        tickMarks: viewModel.chapterPositions
+        tickMarks: viewModel.chapterPositions,
+        maxPlaybackTime: viewModel.canJumpToMaxPlayback ? viewModel.maxPlaybackTime : nil
       )
 
       HStack {
@@ -210,3 +222,96 @@ struct PlayBarSheet: View {
     .glassEffect(.clear.interactive(), in: .rect(cornerRadius: viewModel.isDragging ? 12 : 8))
   }
 }
+
+// MARK: - Previews
+
+#if DEBUG
+struct PlayBarSheetPreview: View {
+  private var sharedState: SharedState { Container.shared.sharedState() }
+
+  let status: PlaybackStatus
+  let image: UIImage?
+  let currentTimeSeconds: Double
+  let maxPlaybackTimeSeconds: Double
+  let durationSeconds: Double
+  let description: String?
+
+  init(
+    _ status: PlaybackStatus = .playing,
+    image: UIImage? = PreviewBundle.loadImage(
+      named: "pod-save-america-podcast",
+      in: .EpisodeThumbnails
+    ),
+    currentTime: Double = 120,
+    maxPlaybackTime: Double = 120,
+    duration: Double = 2400,
+    description: String? = nil
+  ) {
+    self.status = status
+    self.image = image
+    self.currentTimeSeconds = currentTime
+    self.maxPlaybackTimeSeconds = maxPlaybackTime
+    self.durationSeconds = duration
+    self.description = description
+  }
+
+  var body: some View {
+    PlayBarSheet(viewModel: PlayBarViewModel())
+      .preview()
+      .task {
+        sharedState.setPlaybackStatus(status)
+
+        let unsavedEpisode = try! Create.unsavedEpisode(
+          duration: CMTime.seconds(durationSeconds),
+          description: description
+        )
+        let podcastEpisode = try! await Create.podcastEpisode(unsavedEpisode)
+        var onDeck = OnDeck(from: podcastEpisode)
+        onDeck.artwork = image
+        onDeck.currentTime = CMTime.seconds(currentTimeSeconds)
+        onDeck.maxPlaybackTime = CMTime.seconds(maxPlaybackTimeSeconds)
+        sharedState.$onDeck.new(onDeck)
+      }
+  }
+}
+
+#Preview("at peak — finish button") {
+  PlayBarSheetPreview(currentTime: 600, maxPlaybackTime: 600)
+}
+
+#Preview("peak ahead — jump button + marker") {
+  PlayBarSheetPreview(currentTime: 400, maxPlaybackTime: 1400)
+}
+
+#Preview("with chapters") {
+  PlayBarSheetPreview(
+    currentTime: 300,
+    maxPlaybackTime: 300,
+    description: """
+      Intro 00:00 — Guest 05:30 — Deep dive 18:00 — Break 25:15 — Closing 32:00
+      """
+  )
+}
+
+#Preview("chapters + peak ahead") {
+  PlayBarSheetPreview(
+    currentTime: 120,
+    maxPlaybackTime: 1500,
+    description: """
+      Intro 00:00 — Guest 05:30 — Deep dive 18:00 — Break 25:15 — Closing 32:00
+      """
+  )
+}
+
+#Preview("no artwork") {
+  PlayBarSheetPreview(image: nil)
+}
+
+#Preview("loading") {
+  PlayBarSheetPreview(
+    .loading("Fetching episode…"),
+    currentTime: 0,
+    maxPlaybackTime: 0
+  )
+}
+#endif

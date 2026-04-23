@@ -38,6 +38,7 @@ enum NowPlayingInfo {
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo = nowPlayingInfo
+    infoCenter.playbackState = .paused
 
     updateQueueCount()
     updateDefaultPlaybackRate(for: onDeck)
@@ -50,6 +51,7 @@ enum NowPlayingInfo {
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo = nil
+    infoCenter.playbackState = .stopped
   }
 
   static func setImage(_ image: UIImage?) {
@@ -116,11 +118,17 @@ enum NowPlayingInfo {
     let infoCenter = Container.shared.mpNowPlayingInfoCenter()
     let previousElapsed =
       infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
+    let previousElapsedString: String
+    if let previousElapsed {
+      previousElapsedString = String(describing: CMTime.seconds(previousElapsed))
+    } else {
+      previousElapsedString = "nil"
+    }
     Self.log.debug(
       """
       setPlaybackRate: \(rate)
         currentTime: \(currentTime)
-        previousElapsed: \(String(describing: previousElapsed.map { CMTime.seconds($0) }))
+        previousElapsed: \(previousElapsedString)
       """
     )
 
@@ -146,6 +154,10 @@ enum NowPlayingInfo {
     }
 
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = Double(rate.clamped(to: -1.0...2.0))
+    // Mirror rate into the separate `playbackState` enum. Apple's NowPlayable
+    // reference sample sets both; iOS may use the enum as a secondary signal
+    // for lock-screen/CarPlay UI and for system-generated remote events.
+    infoCenterVar.playbackState = rate > 0 ? .playing : .paused
   }
 
   static func updateQueueCount() {

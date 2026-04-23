@@ -10,7 +10,7 @@ import Tagged
 
 // MARK: - EpisodeRating
 
-enum EpisodeRating: String, Codable, DatabaseValueConvertible, Hashable, Sendable {
+enum EpisodeRating: String, CaseIterable, Codable, DatabaseValueConvertible, Hashable, Sendable {
   case loved
   case liked
   case disliked
@@ -58,6 +58,7 @@ struct UnsavedEpisode:
   // User
   let finishDate: Date?
   let currentTime: CMTime
+  let maxPlaybackTime: CMTime
   let queueOrder: Int?
   let queueDate: Date?
   private let cachedFilename: String?
@@ -78,6 +79,7 @@ struct UnsavedEpisode:
     image: URL?,
     finishDate: Date? = nil,
     currentTime: CMTime? = nil,
+    maxPlaybackTime: CMTime? = nil,
     queueOrder: Int? = nil,
     queueDate: Date? = nil,
     cachedFilename: String? = nil,
@@ -123,6 +125,7 @@ struct UnsavedEpisode:
     }
     self.finishDate = finishDate
     self.currentTime = currentTime ?? CMTime.zero
+    self.maxPlaybackTime = maxPlaybackTime ?? CMTime.zero
     self.queueOrder = queueOrder
     self.queueDate = queueDate
     self.cachedFilename = cachedFilename
@@ -229,6 +232,8 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   static let liked: SQLExpression = Columns.rating == EpisodeRating.liked.rawValue
   static let disliked: SQLExpression = Columns.rating == EpisodeRating.disliked.rawValue
   static let rated: SQLExpression = Columns.rating != nil
+  static let signal: SQLExpression = rated || finished
+  static let candidate: SQLExpression = unstarted && unfinished && !rated && unqueued
   static func contains(_ pattern: String) -> SQLExpression {
     Columns.title.lowercased.like(pattern) || Columns.description.lowercased.like(pattern)
   }
@@ -248,6 +253,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     static let image = Column("image")
     static let finishDate = Column("finishDate")
     static let currentTime = Column("currentTime")
+    static let maxPlaybackTime = Column("maxPlaybackTime")
     static let queueOrder = Column("queueOrder")
     static let queueDate = Column("queueDate")
     static let cachedFilename = Column("cachedFilename")
@@ -277,6 +283,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   var description: String? { unsaved.description }
   var duration: CMTime { unsaved.duration }
   var currentTime: CMTime { unsaved.currentTime }
+  var maxPlaybackTime: CMTime { unsaved.maxPlaybackTime }
   var queueDate: Date? { unsaved.queueDate }
   var queueOrder: Int? { unsaved.queueOrder }
   var cacheStatus: CacheStatus { unsaved.cacheStatus }
@@ -321,7 +328,7 @@ extension Episode {
     guard let description else { return nil }
 
     var seen = Set<Int>()
-    let times: [CMTime] = description.matches(of: Timestamp.regex)
+    let times: [CMTime] = unsafe description.matches(of: Timestamp.regex)
       .compactMap { match in
         guard let totalSeconds = Timestamp.parse(match.output) else { return nil }
 
