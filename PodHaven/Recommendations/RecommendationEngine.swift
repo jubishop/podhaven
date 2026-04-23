@@ -68,64 +68,30 @@ struct RecommendationEngine: Sendable {
   // Temporal decay half-life in days
   private static let decayHalfLifeDays: Double = 180
 
-  // MARK: - Get Recommendations
+  // MARK: - Public API
 
-  func getRecommendations(limit: Int = 10) async throws -> [RecommendedEpisode] {
-    Self.log.debug("Generating recommendations (limit: \(limit))")
+  // Score an arbitrary set of episodes so a caller can sort a list by "how
+  // recommended." Unlike `topRecommendations`, there's no candidate filter,
+  // no minimum-score floor, and no limit — every requested episode that has
+  // sufficient context gets a score. Callers typically already have full
+  // `Episode` values, so we take those directly to skip a pointless round-trip
+  // through the DB.
+  func recommendations(
+    for episodes: [Episode]
+  ) async throws -> [Episode.ID: RecommendedEpisode] {
+    guard !episodes.isEmpty else { return [:] }
+    guard let context = try await prepareScoringContext() else { return [:] }
+    let scored = try await scoreEpisodes(episodes, context: context)
+    return Dictionary(uniqueKeysWithValues: scored.map { ($0.episode.id, $0) })
+  }
 
-    let signalEpisodes = try await repo.allSignalEpisodes()
-    guard signalEpisodes.count >= Self.minimumDataThreshold else {
-      Self.log.debug(
-        """
-        Not enough signal data (\(signalEpisodes.count)/\(Self.minimumDataThreshold)), \
-        returning empty
-        """
-      )
-      return []
-    }
-
-    guard try await repo.hasEmbeddings() else {
-      Self.log.debug("No embeddings computed yet, returning empty")
-      return []
-    }
-
-    // Build centroids
-    let (positiveCentroid, negativeCentroid) = try await buildCentroids(
-      signalEpisodes: signalEpisodes
-    )
-
-    guard positiveCentroid != nil else {
-      Self.log.debug("No positive centroid (no embeddings available), returning empty")
-      return []
-    }
-
-    // Fetch candidates
+  func topRecommendations(limit: Int = 10) async throws -> [RecommendedEpisode] {
+    Self.log.debug("Generating top recommendations (limit: \(limit))")
     let candidates = try await fetchCandidates()
-    guard !candidates.isEmpty else {
-      Self.log.debug("No candidate episodes found")
-      return []
-    }
-
-    // Compute scoring context
-    let podcastAffinities = computePodcastAffinities(signalEpisodes: signalEpisodes)
-    let now = Date()
-
-    // Score candidates
-    let candidateIDs: [Episode.ID] = candidates.map(\.id)
-    let embeddingsByEpisode = try await repo.embeddings(for: candidateIDs)
-
-    var results: [RecommendedEpisode] = candidates.compactMap { episode in
-      scoreCandidate(
-        episode: episode,
-        embedding: embeddingsByEpisode[id: episode.id],
-        positiveCentroid: positiveCentroid,
-        negativeCentroid: negativeCentroid,
-        podcastAffinities: podcastAffinities,
-        now: now
-      )
-    }
+    let scored = try await recommendations(for: candidates)
 
     // Sort with deterministic tie-breaking
+    var results = Array(scored.values)
     results.sort { a, b in
       if a.score != b.score { return a.score > b.score }
       if a.episode.pubDate != b.episode.pubDate { return a.episode.pubDate > b.episode.pubDate }
@@ -140,6 +106,66 @@ struct RecommendationEngine: Sendable {
       "Returning \(topResults.count) recommendations from \(candidates.count) candidates"
     )
     return topResults
+  }
+
+  // MARK: - Scoring Pipeline
+
+  private struct ScoringContext {
+    let positiveCentroid: [Float]
+    let negativeCentroid: [Float]?
+    let podcastAffinities: [Podcast.ID: Float]
+    let now: Date
+  }
+
+  // Returns nil if we can't meaningfully score: too few signals, no embeddings
+  // yet, or no positive centroid. Both public methods short-circuit on nil.
+  private func prepareScoringContext() async throws -> ScoringContext? {
+    let signalEpisodes = try await repo.allSignalEpisodes()
+    guard signalEpisodes.count >= Self.minimumDataThreshold else {
+      Self.log.debug(
+        """
+        Not enough signal data (\(signalEpisodes.count)/\(Self.minimumDataThreshold)), \
+        returning empty
+        """
+      )
+      return nil
+    }
+
+    guard try await repo.hasEmbeddings() else {
+      Self.log.debug("No embeddings computed yet, returning empty")
+      return nil
+    }
+
+    let (positive, negative) = try await buildCentroids(signalEpisodes: signalEpisodes)
+    guard let positiveCentroid = positive else {
+      Self.log.debug("No positive centroid (no embeddings available), returning empty")
+      return nil
+    }
+
+    return ScoringContext(
+      positiveCentroid: positiveCentroid,
+      negativeCentroid: negative,
+      podcastAffinities: computePodcastAffinities(signalEpisodes: signalEpisodes),
+      now: Date()
+    )
+  }
+
+  private func scoreEpisodes(
+    _ episodes: [Episode],
+    context: ScoringContext
+  ) async throws -> [RecommendedEpisode] {
+    let episodeIDs = episodes.map(\.id)
+    let embeddings = try await repo.embeddings(for: episodeIDs)
+    return episodes.compactMap { episode in
+      scoreCandidate(
+        episode: episode,
+        embedding: embeddings[id: episode.id],
+        positiveCentroid: context.positiveCentroid,
+        negativeCentroid: context.negativeCentroid,
+        podcastAffinities: context.podcastAffinities,
+        now: context.now
+      )
+    }
   }
 
   // MARK: - Build Centroids

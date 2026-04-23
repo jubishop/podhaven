@@ -129,7 +129,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(episodes)
 
-    let recommendations = try await engine.getRecommendations()
+    let recommendations = try await engine.topRecommendations()
     #expect(recommendations.isEmpty)
   }
 
@@ -152,7 +152,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(candidateEpisodes)
 
-    let recommendations = try await engine.getRecommendations()
+    let recommendations = try await engine.topRecommendations()
     #expect(!recommendations.isEmpty)
     #expect(recommendations.count <= 10)
 
@@ -180,7 +180,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(candidates)
 
-    let recommendations = try await engine.getRecommendations()
+    let recommendations = try await engine.topRecommendations()
     let recommendedIDs = Set(recommendations.map(\.episode.id))
 
     #expect(!recommendedIDs.contains(candidates[0].id))
@@ -202,7 +202,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(rated)
 
-    let recommendations = try await engine.getRecommendations()
+    let recommendations = try await engine.topRecommendations()
     let recommendedIDs = Set(recommendations.map(\.episode.id))
     #expect(!recommendedIDs.contains(rated[0].id))
   }
@@ -224,7 +224,7 @@ class RecommendationEngineTests {
     try await embedEpisodes(candidates)
 
     // Should return empty since there's no positive centroid
-    let recommendations = try await engine.getRecommendations()
+    let recommendations = try await engine.topRecommendations()
     #expect(recommendations.isEmpty)
   }
 
@@ -245,7 +245,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(candidates)
 
-    let recommendations = try await engine.getRecommendations()
+    let recommendations = try await engine.topRecommendations()
     for rec in recommendations {
       #expect(!rec.reasons.isEmpty)
     }
@@ -270,7 +270,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(old)
 
-    let recs = try await engine.getRecommendations()
+    let recs = try await engine.topRecommendations()
     let oldRec = try #require(recs.first { $0.episode.id == old.first?.id })
     #expect(!oldRec.reasons.contains(.recentlyPublished))
   }
@@ -292,7 +292,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(candidates)
 
-    let recs = try await engine.getRecommendations()
+    let recs = try await engine.topRecommendations()
     for rec in recs where candidates.map(\.id).contains(rec.episode.id) {
       #expect(!rec.reasons.contains(.podcastAffinity))
     }
@@ -325,7 +325,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(opposites, embeddable: embeddable)
 
-    let recs = try await engine.getRecommendations()
+    let recs = try await engine.topRecommendations()
     let oppositeIDs = Set(opposites.map(\.id))
     let oppositeRecs = recs.filter { oppositeIDs.contains($0.episode.id) }
     #expect(!oppositeRecs.isEmpty)
@@ -349,12 +349,89 @@ class RecommendationEngineTests {
     let candidates = try await addEpisodes(to: lovedPodcast, count: 2)
     try await embedEpisodes(candidates)
 
-    let recs = try await engine.getRecommendations()
+    let recs = try await engine.topRecommendations()
     let candidateIDs = Set(candidates.map(\.id))
     let candidateRecs = recs.filter { candidateIDs.contains($0.episode.id) }
     #expect(!candidateRecs.isEmpty)
     for rec in candidateRecs {
       #expect(rec.reasons.contains(.podcastAffinity))
+    }
+  }
+
+  // MARK: - Arbitrary-list scoring
+
+  @Test("recommendations(for:) scores every requested episode")
+  func recommendationsForArbitraryList() async throws {
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    let (_, episodes) = try await createPodcastWithEpisodes(
+      count: 4,
+      podcastTitle: "Arbitrary"
+    )
+    try await embedEpisodes(episodes)
+
+    let map = try await engine.recommendations(for: episodes)
+    #expect(map.count == episodes.count)
+    for episode in episodes {
+      #expect(map[episode.id] != nil)
+    }
+  }
+
+  @Test("recommendations(for:) returns empty when signal threshold isn't met")
+  func recommendationsForArbitraryListBelowThreshold() async throws {
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    let (_, episodes) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Arbitrary"
+    )
+    try await embedEpisodes(episodes)
+
+    let map = try await engine.recommendations(for: episodes)
+    #expect(map.isEmpty)
+  }
+
+  @Test("recommendations(for:) scores rated and finished episodes the top API skips")
+  func recommendationsForArbitraryListIncludesFilteredEpisodes() async throws {
+    // Enough positive signals from a separate podcast to satisfy the threshold.
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    // Mixed bag: a disliked episode and a finished episode — both would be
+    // excluded by `topRecommendations` via the candidate filter.
+    let (_, filtered) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Filtered",
+      ratings: [.disliked, nil],
+      finished: [false, true]
+    )
+    try await embedEpisodes(filtered)
+
+    let map = try await engine.recommendations(for: filtered)
+    #expect(map.count == filtered.count)
+    for episode in filtered {
+      #expect(map[episode.id] != nil)
+    }
+
+    // Sanity-check: the same episodes are absent from the top API.
+    let top = try await engine.topRecommendations()
+    let topIDs = Set(top.map(\.episode.id))
+    for episode in filtered {
+      #expect(!topIDs.contains(episode.id))
     }
   }
 }
