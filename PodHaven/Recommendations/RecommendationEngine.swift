@@ -18,9 +18,7 @@ struct RecommendedEpisode: Sendable {
 enum RecommendationReason: Sendable {
   case similarToLiked
   case podcastAffinity
-  case tagAffinity
   case recentlyPublished
-  case durationMatch
 }
 
 // MARK: - Container
@@ -42,11 +40,17 @@ struct RecommendationEngine: Sendable {
   private static let minimumScoreThreshold: Float = 0.1
 
   // Scoring weights (must sum to 1.0)
-  private static let similarityWeight: Float = 0.40
+  private static let similarityWeight: Float = 0.60
   private static let podcastAffinityWeight: Float = 0.20
-  private static let tagAffinityWeight: Float = 0.15
-  private static let freshnessWeight: Float = 0.15
-  private static let durationFitWeight: Float = 0.10
+  private static let freshnessWeight: Float = 0.20
+
+  // Freshness curve: `1 / (1 + days / halfLife)`. The half-life is the day
+  // count at which an episode's freshness score falls to 0.5. 60 days is
+  // tuned for the "haven't configured anything" default — most podcast
+  // subscriptions are time-sensitive enough that 2-month-old episodes scoring
+  // 0.5 feels right. Evergreen/history content gets overridden per-podcast
+  // (see memory: ML Recommendations Feature → deferred to v2).
+  private static let freshnessHalfLifeDays: Double = 60
 
   // Centroid weights
   private static let lovedWeight: Float = 1.0
@@ -104,8 +108,6 @@ struct RecommendationEngine: Sendable {
 
     // Compute scoring context
     let podcastAffinities = computePodcastAffinities(signalEpisodes: signalEpisodes)
-    let tagAffinities = try await computeTagAffinities(signalEpisodes: signalEpisodes)
-    let medianDuration = computeMedianDuration(signalEpisodes: signalEpisodes)
     let now = Date()
 
     // Score candidates
@@ -119,8 +121,6 @@ struct RecommendationEngine: Sendable {
         positiveCentroid: positiveCentroid,
         negativeCentroid: negativeCentroid,
         podcastAffinities: podcastAffinities,
-        tagAffinities: tagAffinities,
-        medianDuration: medianDuration,
         now: now
       )
     }
@@ -188,8 +188,6 @@ struct RecommendationEngine: Sendable {
     positiveCentroid: [Float]?,
     negativeCentroid: [Float]?,
     podcastAffinities: [Podcast.ID: Float],
-    tagAffinities: [Podcast.ID: Float],
-    medianDuration: Double?,
     now: Date
   ) -> RecommendedEpisode? {
     var features: [(weight: Float, value: Float, reason: RecommendationReason)] = []
@@ -214,24 +212,9 @@ struct RecommendationEngine: Sendable {
     let remappedAffinity = (affinity + 1.0) / 2.0
     features.append((Self.podcastAffinityWeight, remappedAffinity, .podcastAffinity))
 
-    // Tag affinity
-    let tagScore = tagAffinities[episode.podcastID] ?? 0
-    if tagScore > 0 {
-      features.append((Self.tagAffinityWeight, tagScore, .tagAffinity))
-    }
-
     // Freshness
     let freshness = freshnessScore(pubDate: episode.pubDate, now: now)
     features.append((Self.freshnessWeight, freshness, .recentlyPublished))
-
-    // Duration fit
-    if let medianDuration, medianDuration > 0 {
-      let episodeDuration = episode.duration.seconds
-      if episodeDuration > 0 {
-        let ratio = min(episodeDuration, medianDuration) / max(episodeDuration, medianDuration)
-        features.append((Self.durationFitWeight, Float(ratio), .durationMatch))
-      }
-    }
 
     // Renormalize weights over available features
     let totalWeight = features.reduce(Float(0)) { $0 + $1.weight }
@@ -241,16 +224,13 @@ struct RecommendationEngine: Sendable {
       sum + (feature.weight / totalWeight) * feature.value
     }
 
-    let significantReasons =
-      features
-      .filter { ($0.weight / totalWeight) * $0.value > 0.05 }
-      .map(\.reason)
+    // A reason fires only when its feature is above its own neutral midpoint.
+    // Each feature's value is normalized to [0, 1] with 0.5 = neutral, so this
+    // surfaces only features that are actively positive for this episode — not
+    // every feature that happened to fire.
+    let reasons = features.filter { $0.value > 0.5 }.map(\.reason)
 
-    return RecommendedEpisode(
-      episode: episode,
-      score: score,
-      reasons: significantReasons.isEmpty ? [.similarToLiked] : significantReasons
-    )
+    return RecommendedEpisode(episode: episode, score: score, reasons: reasons)
   }
 
   // MARK: - Fetch Candidates
@@ -289,66 +269,6 @@ struct RecommendationEngine: Sendable {
     }
   }
 
-  // MARK: - Tag Affinity
-
-  private func computeTagAffinities(
-    signalEpisodes: [SignalEpisode]
-  ) async throws -> [Podcast.ID: Float] {
-    let positiveSignals = signalEpisodes.filter { signal in
-      switch signal.kind {
-      case .rating(.loved), .rating(.liked): return true
-      case .rating(.disliked), .finished: return false
-      }
-    }
-
-    guard !positiveSignals.isEmpty else { return [:] }
-
-    // Get tags from positively-rated episodes' podcasts
-    let positivePodcastIDs = Set(positiveSignals.map { $0.episode.podcastID })
-
-    let allTags = try await repo.allPodcastTags()
-    var allPodcastTags: [Podcast.ID: Set<Tag.ID>] = [:]
-    for tag in allTags {
-      allPodcastTags[tag.podcastId, default: Set()].insert(tag.tagId)
-    }
-
-    let likedTags = positivePodcastIDs.reduce(into: Set<Tag.ID>()) { result, podcastID in
-      if let tags = allPodcastTags[podcastID] {
-        result.formUnion(tags)
-      }
-    }
-    guard !likedTags.isEmpty else { return [:] }
-
-    return allPodcastTags.mapValues { podcastTags in
-      let overlap = podcastTags.intersection(likedTags).count
-      guard !likedTags.isEmpty else { return 0 }
-      return Float(overlap) / Float(likedTags.count)
-    }
-  }
-
-  // MARK: - Duration
-
-  private func computeMedianDuration(signalEpisodes: [SignalEpisode]) -> Double? {
-    let durations =
-      signalEpisodes
-      .filter { signal in
-        switch signal.kind {
-        case .rating(.loved), .rating(.liked), .finished: return true
-        case .rating(.disliked): return false
-        }
-      }
-      .map { $0.episode.duration.seconds }
-      .filter { $0 > 0 }
-      .sorted()
-
-    guard !durations.isEmpty else { return nil }
-    let mid = durations.count / 2
-    if durations.count.isMultiple(of: 2) {
-      return (durations[mid - 1] + durations[mid]) / 2
-    }
-    return durations[mid]
-  }
-
   // MARK: - Temporal Decay
 
   private func temporalDecay(from date: Date?, now: Date) -> Float {
@@ -364,8 +284,7 @@ struct RecommendationEngine: Sendable {
   private func freshnessScore(pubDate: Date, now: Date) -> Float {
     let daysSince = now.timeIntervalSince(pubDate) / 86400
     guard daysSince > 0 else { return 1.0 }
-    // Sigmoid-like decay: episodes from the last week score ~1.0, older ones decay
-    return Float(1.0 / (1.0 + daysSince / 30.0))
+    return Float(1.0 / (1.0 + daysSince / Self.freshnessHalfLifeDays))
   }
 
   // MARK: - Centroid Math

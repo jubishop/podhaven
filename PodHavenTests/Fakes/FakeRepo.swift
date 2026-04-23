@@ -341,11 +341,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.allCandidateEpisodes(excluding: excludedIDs)
   }
 
-  func allPodcastTags() async throws -> [PodcastTag] {
-    recordCall(methodName: "allPodcastTags", parameters: ())
-    return try await repo.allPodcastTags()
-  }
-
   @discardableResult
   func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool {
     recordCall(

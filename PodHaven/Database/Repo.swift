@@ -410,12 +410,6 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func allPodcastTags() async throws -> [PodcastTag] {
-    try await appDB.db.read { db in
-      try PodcastTag.fetchAll(db)
-    }
-  }
-
   // MARK: - Embedding Writers
 
   @discardableResult

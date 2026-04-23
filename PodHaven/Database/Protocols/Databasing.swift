@@ -176,7 +176,6 @@ protocol Databasing: Sendable {
 
   func allSignalEpisodes() async throws -> [SignalEpisode]
   func allCandidateEpisodes(excluding: [Episode.ID]) async throws -> [Episode]
-  func allPodcastTags() async throws -> [PodcastTag]
 }
 
 extension Databasing {
