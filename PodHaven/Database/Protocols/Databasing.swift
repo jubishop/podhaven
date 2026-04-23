@@ -161,6 +161,7 @@ protocol Databasing: Sendable {
 
   // MARK: - Embedding Readers
 
+  func hasEmbeddings() async throws -> Bool
   func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding?
   func embeddings(for episodeIDs: [Episode.ID]) async throws
     -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
