@@ -185,8 +185,16 @@ import Testing
         title: "Preloaded Series"
       ),
       unsavedEpisodes: [
-        try Create.unsavedEpisode(guid: "preloaded-1", title: "Episode 1"),
-        try Create.unsavedEpisode(guid: "preloaded-2", title: "Episode 2"),
+        try Create.unsavedEpisode(
+          guid: "preloaded-1",
+          title: "Episode 1",
+          pubDate: Date(timeIntervalSince1970: 200)
+        ),
+        try Create.unsavedEpisode(
+          guid: "preloaded-2",
+          title: "Episode 2",
+          pubDate: Date(timeIntervalSince1970: 100)
+        ),
       ]
     )
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
