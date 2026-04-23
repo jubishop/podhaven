@@ -48,25 +48,28 @@ class ContextualEmbedding {
   var revision: Int { embedding.revision }
 
   func requestAndLoadAssetsIfNeeded() {
-    guard !isAvailable else { return }
+    loadAssetsIfAvailable()
+    guard !embedding.hasAvailableAssets else { return }
+    guard isRequesting.claim() else { return }
 
-    guard embedding.hasAvailableAssets else {
-      guard isRequesting.claim() else { return }
-
-      Self.log.info("Requesting contextual embedding assets download")
-      let isRequesting = isRequesting
-      embedding.requestAssets { error in
-        if let error {
-          Self.log.caughtError("Failed to download contextual embedding assets", error)
-          isRequesting.release()
-        } else {
-          Self.log.info("Contextual embedding assets downloaded")
-          Container.shared.contextualEmbedding().loadAssets()
-        }
+    Self.log.info("Requesting contextual embedding assets download")
+    let isRequesting = isRequesting
+    embedding.requestAssets { error in
+      if let error {
+        Self.log.caughtError("Failed to download contextual embedding assets", error)
+        isRequesting.release()
+      } else {
+        Self.log.info("Contextual embedding assets downloaded")
+        Container.shared.contextualEmbedding().loadAssets()
       }
-      return
     }
+  }
 
+  // Load on-disk assets without triggering a download. Safe to call from a
+  // background task handler where the process was launched into the background
+  // and the scene never went active.
+  func loadAssetsIfAvailable() {
+    guard !isAvailable, embedding.hasAvailableAssets else { return }
     loadAssets()
   }
 

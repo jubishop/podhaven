@@ -61,6 +61,40 @@ struct ContextualEmbeddingTests {
     #expect(fake.requestAssetsCount == 1)
   }
 
+  // MARK: - loadAssetsIfAvailable
+
+  @Test("loadAssetsIfAvailable loads when assets are on disk")
+  func loadIfAvailableLoadsWhenOnDisk() {
+    let fake = ControllableEmbeddable(hasAvailableAssets: true)
+    let embedding = ContextualEmbedding(embedding: fake)
+
+    embedding.loadAssetsIfAvailable()
+    #expect(embedding.isAvailable)
+    #expect(fake.loadCount == 1)
+    #expect(fake.requestAssetsCount == 0)
+  }
+
+  @Test("loadAssetsIfAvailable does not trigger a download")
+  func loadIfAvailableDoesNotDownload() {
+    let fake = ControllableEmbeddable(hasAvailableAssets: false)
+    let embedding = ContextualEmbedding(embedding: fake)
+
+    embedding.loadAssetsIfAvailable()
+    #expect(!embedding.isAvailable)
+    #expect(fake.loadCount == 0)
+    #expect(fake.requestAssetsCount == 0)
+  }
+
+  @Test("loadAssetsIfAvailable is a no-op when already loaded")
+  func loadIfAvailableIdempotent() {
+    let fake = ControllableEmbeddable(hasAvailableAssets: true)
+    let embedding = ContextualEmbedding(embedding: fake)
+
+    embedding.loadAssetsIfAvailable()
+    embedding.loadAssetsIfAvailable()
+    #expect(fake.loadCount == 1)
+  }
+
   // MARK: - vector(for:)
 
   @Test("throws when not available")
