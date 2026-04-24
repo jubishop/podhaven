@@ -52,7 +52,7 @@
 
 ## Coding Standards
 - Always use `[weak self]` in closures and Tasks that capture `self`, unless a strong reference is explicitly required.
-- Never use `.map` on optionals for value projection (e.g. `x.map { $0.rawValue }`) — use optional chaining (`x?.rawValue`). For anything more involved than a direct projection, use `if let` / `guard let` instead of `.map`.
+- `.map` and `.compactMap` are for transforming lists — never use them to work around optionals. Don't write `x.map { $0.rawValue }` (use optional chaining `x?.rawValue`) or `[x].compactMap { $0 }` (use `if let x { … }` / `guard let x else { … }`). For anything beyond a direct projection, use `if let` / `guard let`.
 - Never force-unwrap (`!`) in production code; use `Assert` or guarded unwraps with readable error handling.
 - Prefer triple-quoted strings for multi-line or >100 character literals.
 - Run `swift-format` on every Swift file you touch before handing work back.
