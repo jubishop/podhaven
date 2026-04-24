@@ -23,6 +23,9 @@
 - `ThreadSafe` supports concurrency-safe storage.  `Broadcast` adds AsyncStreams and Observability.
 - Never use `Task.sleep` in production code; always use the injected `Sleepable` (`sleeper`) so tests can control timing.
 
+## Factories
+- Types intended to be constructed only through a `Container` factory must declare their `init` as `fileprivate`, so callers are forced to go through the registered factory and can't bypass it (see `AppLauncher`, `Repo`, `StateManager` for examples).
+
 ## Errors and Logging
 - Log errors at the appropriate level using `ErrorKit` for formatting system error messages.
 - All logging should go through static `Logger` instances created via `Log.as` methods.
