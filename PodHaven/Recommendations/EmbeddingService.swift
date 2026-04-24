@@ -12,11 +12,17 @@ enum EmbeddingService {
 
   // Bump when any recipe knob below changes (weights, blend, cleanText rules).
   // Folded into source hashes so cached vectors invalidate on tuning.
-  private static let recipeVersion = 1
+  private static let recipeVersion = 2
 
   // Title gets more weight than description to avoid boilerplate dominance
   private static let titleWeight: Float = 0.6
   private static let descriptionWeight: Float = 0.4
+
+  // Podcast vector recipe mirrors the episode recipe. Title carries show
+  // identity (important when descriptions are generic or missing); description
+  // adds topical context when available.
+  private static let podcastTitleWeight: Float = 0.6
+  private static let podcastDescriptionWeight: Float = 0.4
 
   // Podcast description blending ratio. Tuned lower to preserve within-show
   // discrimination while still providing cross-show semantic signal.
@@ -127,13 +133,17 @@ enum EmbeddingService {
   ) async throws -> [Float]? {
     guard let podcast else { return nil }
 
+    let cleanedTitle = cleanText(podcast.title)
     let cleanedDescription = cleanText(podcast.description)
-    guard !cleanedDescription.isEmpty else {
-      Self.log.debug("Skipping podcast vector: empty description for podcast \(podcast.id)")
+    guard !cleanedTitle.isEmpty else {
+      Self.log.debug("Skipping podcast vector: empty title for podcast \(podcast.id)")
       return nil
     }
 
-    let hash = podcastSourceHash(cleanedDescription: cleanedDescription)
+    let hash = podcastSourceHash(
+      cleanedTitle: cleanedTitle,
+      cleanedDescription: cleanedDescription
+    )
 
     // Return cached if still fresh (same source hash and revision)
     if let cached = cachedEmbedding,
@@ -143,8 +153,20 @@ enum EmbeddingService {
       return cached.floatVector
     }
 
-    let vector = try embedding.vector(for: cleanedDescription)
-    let normalized = VectorMath.normalize(vector)
+    // Description falls back to title when missing, mirroring the episode
+    // recipe. This still contributes the title vector at descriptionWeight
+    // instead of nil-ing the podcast vector entirely.
+    let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
+    let titleVector = try embedding.vector(for: cleanedTitle)
+    let descriptionVector = try embedding.vector(for: descriptionText)
+
+    let blended = VectorMath.weightedAverage(
+      titleVector,
+      weight1: podcastTitleWeight,
+      descriptionVector,
+      weight2: podcastDescriptionWeight
+    )
+    let normalized = VectorMath.normalize(blended)
 
     let unsaved = UnsavedPodcastEmbedding(
       podcastId: podcast.id,
@@ -217,23 +239,35 @@ enum EmbeddingService {
   private static func fullSourceHash(for episode: Episode, podcast: Podcast?) -> String {
     let cleanedTitle = cleanText(episode.title)
     let cleanedDescription = cleanText(episode.description ?? "")
+    let cleanedPodcastTitle: String
     let cleanedPodcastDescription: String
     if let podcast {
+      cleanedPodcastTitle = cleanText(podcast.title)
       cleanedPodcastDescription = cleanText(podcast.description)
     } else {
+      cleanedPodcastTitle = ""
       cleanedPodcastDescription = ""
     }
     let components = [
       "r\(recipeVersion)",
       cleanedTitle,
       cleanedDescription,
+      cleanedPodcastTitle,
       cleanedPodcastDescription,
     ]
     return components.joined(separator: "\u{1F}").sha256()
   }
 
-  private static func podcastSourceHash(cleanedDescription: String) -> String {
-    "r\(recipeVersion)\u{1F}\(cleanedDescription)".sha256()
+  private static func podcastSourceHash(
+    cleanedTitle: String,
+    cleanedDescription: String
+  ) -> String {
+    let components = [
+      "r\(recipeVersion)",
+      cleanedTitle,
+      cleanedDescription,
+    ]
+    return components.joined(separator: "\u{1F}").sha256()
   }
 
   static func cleanText(_ text: String) -> String {

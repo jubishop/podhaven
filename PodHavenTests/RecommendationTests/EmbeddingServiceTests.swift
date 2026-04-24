@@ -372,6 +372,7 @@ class EmbeddingServiceTests {
   @Test("source hash is stable for known input (golden value)")
   func sourceHashGolden() async throws {
     let pe = try await makePodcastEpisode(
+      podcastTitle: "Known pod title",
       podcastDescription: "Known pod desc",
       episodeTitle: "Known title",
       episodeDescription: "Known ep desc"
@@ -386,14 +387,14 @@ class EmbeddingServiceTests {
     let saved = try #require(try await repo.embedding(for: pe.episode.id))
     #expect(
       saved.sourceHash
-        == "3e1458490c8adec7135e9d57a00376e4fb46434c9f93e9d69647797c0937070c"
+        == "eeb76b9a3fd52168f833cb5a502110d190f699ae005da759c3497b93b4423702"
     )
   }
 
-  // MARK: - Empty Podcast Description
+  // MARK: - Podcast Vector Edge Cases
 
-  @Test("empty podcast description produces no podcastEmbedding row")
-  func emptyPodcastDescriptionSkipsStorage() async throws {
+  @Test("empty podcast description still produces podcastEmbedding via title")
+  func emptyPodcastDescriptionUsesTitle() async throws {
     let pe = try await makePodcastEpisode(
       podcastDescription: "",
       episodeTitle: "Title",
@@ -406,7 +407,7 @@ class EmbeddingServiceTests {
       embedding: embedding
     )
 
-    #expect(try await repo.podcastEmbedding(for: pe.podcast.id) == nil)
+    #expect(try await repo.podcastEmbedding(for: pe.podcast.id) != nil)
     #expect(try await repo.embedding(for: pe.episode.id) != nil)
   }
 
@@ -553,13 +554,17 @@ class EmbeddingServiceTests {
   }
 
   private func makePodcastEpisode(
+    podcastTitle: String = String.random(),
     podcastDescription: String,
     episodeTitle: String,
     episodeDescription: String
   ) async throws -> PodcastEpisode {
     let podcastEpisodes = try await repo.upsertPodcastEpisodes([
       UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(description: podcastDescription),
+        unsavedPodcast: try Create.unsavedPodcast(
+          title: podcastTitle,
+          description: podcastDescription
+        ),
         unsavedEpisode: try Create.unsavedEpisode(
           title: episodeTitle,
           description: episodeDescription
