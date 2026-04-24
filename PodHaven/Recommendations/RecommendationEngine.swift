@@ -258,16 +258,16 @@ struct RecommendationEngine: Sendable {
 
       switch signal.kind {
       case .rating(.loved):
-        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
+        let decay = temporalDecay(from: signal.ratingDate, now: now)
         positiveVectors.append((vector, lovedWeight * decay))
       case .rating(.liked):
-        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
+        let decay = temporalDecay(from: signal.ratingDate, now: now)
         positiveVectors.append((vector, likedWeight * decay))
       case .rating(.disliked):
-        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
+        let decay = temporalDecay(from: signal.ratingDate, now: now)
         negativeVectors.append((vector, decay))
       case .finished:
-        let decay = temporalDecay(from: signal.episode.finishDate, now: now)
+        let decay = temporalDecay(from: signal.finishDate, now: now)
         positiveVectors.append((vector, finishedWeight * decay))
       }
     }
@@ -341,8 +341,7 @@ struct RecommendationEngine: Sendable {
     )
 
     for signal in signals {
-      let podcastID = signal.episode.podcastID
-      var stats = podcastStats[podcastID] ?? (positive: 0, negative: 0, total: 0)
+      var stats = podcastStats[signal.podcastID] ?? (positive: 0, negative: 0, total: 0)
       stats.total += 1
 
       switch signal.kind {
@@ -354,7 +353,7 @@ struct RecommendationEngine: Sendable {
         stats.positive += 0.5
       }
 
-      podcastStats[podcastID] = stats
+      podcastStats[signal.podcastID] = stats
     }
 
     // Bayesian smoothed affinity: (positive - negative) / (total + prior).

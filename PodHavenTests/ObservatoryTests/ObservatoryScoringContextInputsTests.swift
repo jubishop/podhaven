@@ -98,12 +98,12 @@ actor ObservatoryScoringContextInputsTests {
     #expect(inputs.signals.count == 2)
     let lovedSignal = try #require(inputs.signals.first { $0.id == loved.id })
     #expect(lovedSignal.kind == .rating(.loved))
-    #expect(lovedSignal.episode.podcastID == loved.podcastID)
-    #expect(lovedSignal.episode.ratingDate != nil)
+    #expect(lovedSignal.podcastID == loved.podcastID)
+    #expect(lovedSignal.ratingDate != nil)
 
     let finishedSignal = try #require(inputs.signals.first { $0.id == finished.id })
     #expect(finishedSignal.kind == .finished)
-    #expect(finishedSignal.episode.finishDate != nil)
+    #expect(finishedSignal.finishDate != nil)
 
     #expect(inputs.signals.contains { $0.id == unrated.id } == false)
 

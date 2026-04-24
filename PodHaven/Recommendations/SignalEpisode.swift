@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
+import GRDB
 
 // Classifies why an episode counts as a signal for recommendations.
 // Explicit ratings take precedence over implicit finished-playback signals.
@@ -9,37 +10,63 @@ enum SignalKind: Sendable, Hashable {
   case finished
 }
 
-struct SignalEpisode: Sendable, Identifiable, Equatable {
-  let episode: Episode
+// Narrow projection of an Episode row holding only the columns the
+// recommendation engine actually reads. Conforms to `TableRecord` against
+// the Episode table with a `databaseSelection` of just those columns, so
+// `SignalEpisode.filter(Episode.signal).fetchAll(db)` shrinks both the data
+// fetched AND GRDB's column tracking — unrelated Episode updates (e.g.
+// currentTime) won't re-run any observation built on this request.
+struct SignalEpisode:
+  Sendable,
+  Identifiable,
+  Equatable,
+  FetchableRecord,
+  TableRecord
+{
+  static let databaseTableName: String = Episode.databaseTableName
+  static var databaseSelection: [any SQLSelectable] {
+    [
+      Episode.Columns.id,
+      Episode.Columns.podcastId,
+      Episode.Columns.rating,
+      Episode.Columns.ratingDate,
+      Episode.Columns.finishDate,
+    ]
+  }
+
+  let id: Episode.ID
+  let podcastID: Podcast.ID
   let kind: SignalKind
+  let ratingDate: Date?
+  let finishDate: Date?
 
-  var id: Episode.ID { episode.id }
-
-  init(episode: Episode, kind: SignalKind) {
-    self.episode = episode
+  init(
+    id: Episode.ID,
+    podcastID: Podcast.ID,
+    kind: SignalKind,
+    ratingDate: Date?,
+    finishDate: Date?
+  ) {
+    self.id = id
+    self.podcastID = podcastID
     self.kind = kind
+    self.ratingDate = ratingDate
+    self.finishDate = finishDate
   }
 
-  init(from episode: Episode) {
-    self.episode = episode
-    if let rating = episode.rating {
-      self.kind = .rating(rating)
+  init(row: Row) throws {
+    let kind: SignalKind
+    if let rating = row[Episode.Columns.rating] as EpisodeRating? {
+      kind = .rating(rating)
     } else {
-      self.kind = .finished
+      kind = .finished
     }
-  }
-
-  // Episode itself isn't Equatable (UnsavedEpisode synthesizes wouldn't
-  // compose), so compare only the columns the recommendation engine reads:
-  // identity, podcast membership, signal kind, and the dates that drive
-  // temporal decay. Other Episode columns (currentTime, queueOrder, etc.)
-  // intentionally don't bust observation equality — they shouldn't trigger
-  // a centroid rebuild.
-  static func == (lhs: SignalEpisode, rhs: SignalEpisode) -> Bool {
-    lhs.episode.id == rhs.episode.id
-      && lhs.episode.podcastID == rhs.episode.podcastID
-      && lhs.kind == rhs.kind
-      && lhs.episode.ratingDate == rhs.episode.ratingDate
-      && lhs.episode.finishDate == rhs.episode.finishDate
+    self.init(
+      id: row[Episode.Columns.id],
+      podcastID: row[Episode.Columns.podcastId],
+      kind: kind,
+      ratingDate: row[Episode.Columns.ratingDate],
+      finishDate: row[Episode.Columns.finishDate]
+    )
   }
 }
