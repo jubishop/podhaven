@@ -30,16 +30,17 @@ class RecommendationEngineTests {
       description: podcastDescription
     )
 
-    let unsavedEpisodes = try (0..<count).map { i in
-      try buildUnsaved(
-        index: i,
-        podcastTitle: podcastTitle,
-        episodeDescriptions: episodeDescriptions,
-        ratings: ratings,
-        finished: finished,
-        pubDateOffset: pubDateOffset
-      )
-    }
+    let unsavedEpisodes = try (0..<count)
+      .map { i in
+        try buildUnsaved(
+          index: i,
+          podcastTitle: podcastTitle,
+          episodeDescriptions: episodeDescriptions,
+          ratings: ratings,
+          finished: finished,
+          pubDateOffset: pubDateOffset
+        )
+      }
     let entries = unsavedEpisodes.map {
       UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: $0)
     }
@@ -67,16 +68,17 @@ class RecommendationEngineTests {
       description: podcast.description
     )
 
-    let unsavedEpisodes = try (0..<count).map { i in
-      try buildUnsaved(
-        index: i,
-        podcastTitle: podcast.title,
-        episodeDescriptions: episodeDescriptions,
-        ratings: ratings,
-        finished: finished,
-        pubDateOffset: pubDateOffset
-      )
-    }
+    let unsavedEpisodes = try (0..<count)
+      .map { i in
+        try buildUnsaved(
+          index: i,
+          podcastTitle: podcast.title,
+          episodeDescriptions: episodeDescriptions,
+          ratings: ratings,
+          finished: finished,
+          pubDateOffset: pubDateOffset
+        )
+      }
     let entries = unsavedEpisodes.map {
       UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: $0)
     }
@@ -158,7 +160,7 @@ class RecommendationEngineTests {
 
     // Verify deterministic ordering (scores should be descending)
     for i in 0..<(recommendations.count - 1) {
-      #expect(recommendations[i].score >= recommendations[i + 1].score)
+      #expect(recommendations[i].score.score >= recommendations[i + 1].score.score)
     }
   }
 
@@ -247,7 +249,7 @@ class RecommendationEngineTests {
 
     let recommendations = try await engine.topRecommendations()
     for rec in recommendations {
-      #expect(!rec.reasons.isEmpty)
+      #expect(!rec.score.reasons.isEmpty)
     }
   }
 
@@ -272,7 +274,7 @@ class RecommendationEngineTests {
 
     let recs = try await engine.topRecommendations()
     let oldRec = try #require(recs.first { $0.episode.id == old.first?.id })
-    #expect(!oldRec.reasons.contains(.recentlyPublished))
+    #expect(!oldRec.score.reasons.contains(.recentlyPublished))
   }
 
   @Test("candidates from an unknown podcast don't include podcastAffinity reason")
@@ -294,7 +296,7 @@ class RecommendationEngineTests {
 
     let recs = try await engine.topRecommendations()
     for rec in recs where candidates.map(\.id).contains(rec.episode.id) {
-      #expect(!rec.reasons.contains(.podcastAffinity))
+      #expect(!rec.score.reasons.contains(.podcastAffinity))
     }
   }
 
@@ -330,7 +332,7 @@ class RecommendationEngineTests {
     let oppositeRecs = recs.filter { oppositeIDs.contains($0.episode.id) }
     #expect(!oppositeRecs.isEmpty)
     for rec in oppositeRecs {
-      #expect(!rec.reasons.contains(.similarToLiked))
+      #expect(!rec.score.reasons.contains(.similarToLiked))
     }
   }
 
@@ -354,7 +356,7 @@ class RecommendationEngineTests {
     let candidateRecs = recs.filter { candidateIDs.contains($0.episode.id) }
     #expect(!candidateRecs.isEmpty)
     for rec in candidateRecs {
-      #expect(rec.reasons.contains(.podcastAffinity))
+      #expect(rec.score.reasons.contains(.podcastAffinity))
     }
   }
 

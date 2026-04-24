@@ -9,10 +9,21 @@ import Logging
 
 // MARK: - Types
 
-struct RecommendedEpisode: Sendable {
-  let episode: Episode
+// The "new info" a recommendation adds to an episode: a blended score in
+// [0, 1] and the reasons that fired above their neutral midpoint. Returned
+// on its own by `recommendations(for:)` so callers that already have the
+// episodes don't get them echoed back.
+struct RecommendationScore: Sendable {
   let score: Float
   let reasons: [RecommendationReason]
+}
+
+// Pairs an episode with its score, used by `topRecommendations` where the
+// caller doesn't have the episodes up front.
+struct RecommendedEpisode: Sendable, Identifiable {
+  var id: Episode.ID { episode.id }
+  let episode: Episode
+  let score: RecommendationScore
 }
 
 enum RecommendationReason: Sendable {
@@ -74,38 +85,43 @@ struct RecommendationEngine: Sendable {
   // Score an arbitrary set of episodes so a caller can sort a list by "how
   // recommended." Unlike `topRecommendations`, there's no candidate filter,
   // no minimum-score floor, and no limit — every requested episode that has
-  // sufficient context gets a score. Callers typically already have full
-  // `Episode` values, so we take those directly to skip a pointless round-trip
-  // through the DB.
+  // sufficient context gets a score. Callers already have the episodes, so
+  // we return just the new info (score + reasons) keyed by ID.
   func recommendations(
     for episodes: [Episode]
-  ) async throws -> [Episode.ID: RecommendedEpisode] {
+  ) async throws -> [Episode.ID: RecommendationScore] {
     guard !episodes.isEmpty else { return [:] }
     guard let context = try await prepareScoringContext() else { return [:] }
-    let scored = try await scoreEpisodes(episodes, context: context)
-    return Dictionary(uniqueKeysWithValues: scored.map { ($0.episode.id, $0) })
+    return try await scoreEpisodes(episodes, context: context)
   }
 
-  func topRecommendations(limit: Int = 10) async throws -> [RecommendedEpisode] {
+  func topRecommendations(limit: Int = 10) async throws -> IdentifiedArrayOf<RecommendedEpisode> {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
     let onDeckID = Container.shared.sharedState().onDeck?.id
     let candidates = try await repo.allCandidateEpisodes(excluding: onDeckID)
-    let scored = try await recommendations(for: candidates)
+    let scores = try await recommendations(for: candidates)
 
-    // Apply confidence floor before sorting — filter is O(n), sort is O(n log n),
-    // so shrinking the input makes the sort cheaper.
-    var results = scored.values.filter { $0.score >= Self.minimumScoreThreshold }
+    // Join episodes with their scores, dropping anything below the confidence
+    // floor. Filter is O(n); shrinking the list before sorting makes the
+    // O(n log n) sort cheaper.
+    var results = [RecommendedEpisode](capacity: candidates.count)
+    for episode in candidates {
+      guard let score = scores[episode.id],
+        score.score >= Self.minimumScoreThreshold
+      else { continue }
+      results.append(RecommendedEpisode(episode: episode, score: score))
+    }
     results.sort { a, b in
-      if a.score != b.score { return a.score > b.score }
+      if a.score.score != b.score.score { return a.score.score > b.score.score }
       if a.episode.pubDate != b.episode.pubDate { return a.episode.pubDate > b.episode.pubDate }
       return a.episode.id > b.episode.id
     }
-    let topResults = Array(results.prefix(limit))
+    let top = IdentifiedArrayOf<RecommendedEpisode>(uniqueElements: results.prefix(limit))
 
     Self.log.debug(
-      "Returning \(topResults.count) recommendations from \(candidates.count) candidates"
+      "Returning \(top.count) recommendations from \(candidates.count) candidates"
     )
-    return topResults
+    return top
   }
 
   // MARK: - Scoring Pipeline
@@ -153,19 +169,25 @@ struct RecommendationEngine: Sendable {
   private func scoreEpisodes(
     _ episodes: [Episode],
     context: ScoringContext
-  ) async throws -> [RecommendedEpisode] {
+  ) async throws -> [Episode.ID: RecommendationScore] {
     let episodeIDs = episodes.map(\.id)
     let embeddings = try await repo.embeddings(for: episodeIDs)
-    return episodes.compactMap { episode in
-      scoreCandidate(
-        episode: episode,
-        embedding: embeddings[id: episode.id],
-        positiveCentroid: context.positiveCentroid,
-        negativeCentroid: context.negativeCentroid,
-        podcastAffinities: context.podcastAffinities,
-        now: context.now
-      )
+    var scores = [Episode.ID: RecommendationScore](capacity: episodes.count)
+    for episode in episodes {
+      guard
+        let score = scoreCandidate(
+          embedding: embeddings[id: episode.id],
+          podcastID: episode.podcastID,
+          pubDate: episode.pubDate,
+          positiveCentroid: context.positiveCentroid,
+          negativeCentroid: context.negativeCentroid,
+          podcastAffinities: context.podcastAffinities,
+          now: context.now
+        )
+      else { continue }
+      scores[episode.id] = score
     }
+    return scores
   }
 
   // MARK: - Build Centroids
@@ -177,8 +199,8 @@ struct RecommendationEngine: Sendable {
     let embeddingsByEpisode = try await repo.embeddings(for: episodeIDs)
 
     let now = Date()
-    var positiveVectors: [(vector: [Float], weight: Float)] = []
-    var negativeVectors: [(vector: [Float], weight: Float)] = []
+    var positiveVectors = [(vector: [Float], weight: Float)](capacity: signalEpisodes.count)
+    var negativeVectors = [(vector: [Float], weight: Float)](capacity: signalEpisodes.count)
 
     for signal in signalEpisodes {
       guard let cached = embeddingsByEpisode[id: signal.id] else { continue }
@@ -212,13 +234,14 @@ struct RecommendationEngine: Sendable {
   // MARK: - Score Candidate
 
   private func scoreCandidate(
-    episode: Episode,
     embedding: EpisodeEmbedding?,
+    podcastID: Podcast.ID,
+    pubDate: Date,
     positiveCentroid: [Float]?,
     negativeCentroid: [Float]?,
     podcastAffinities: [Podcast.ID: Float],
     now: Date
-  ) -> RecommendedEpisode? {
+  ) -> RecommendationScore? {
     var features: [(weight: Float, value: Float, reason: RecommendationReason)] = []
 
     // Content similarity (dual centroid)
@@ -236,13 +259,13 @@ struct RecommendationEngine: Sendable {
     }
 
     // Podcast affinity
-    let affinity = podcastAffinities[episode.podcastID] ?? 0
+    let affinity = podcastAffinities[podcastID] ?? 0
     // Remap from [-1, 1] to [0, 1]
     let remappedAffinity = (affinity + 1.0) / 2.0
     features.append((Self.podcastAffinityWeight, remappedAffinity, .podcastAffinity))
 
     // Freshness
-    let freshness = freshnessScore(pubDate: episode.pubDate, now: now)
+    let freshness = freshnessScore(pubDate: pubDate, now: now)
     features.append((Self.freshnessWeight, freshness, .recentlyPublished))
 
     // Renormalize weights over available features
@@ -259,13 +282,15 @@ struct RecommendationEngine: Sendable {
     // every feature that happened to fire.
     let reasons = features.filter { $0.value > 0.5 }.map(\.reason)
 
-    return RecommendedEpisode(episode: episode, score: score, reasons: reasons)
+    return RecommendationScore(score: score, reasons: reasons)
   }
 
   // MARK: - Podcast Affinity
 
   private func computePodcastAffinities(signalEpisodes: [SignalEpisode]) -> [Podcast.ID: Float] {
-    var podcastStats: [Podcast.ID: (positive: Float, negative: Float, total: Float)] = [:]
+    var podcastStats = [Podcast.ID: (positive: Float, negative: Float, total: Float)](
+      capacity: signalEpisodes.count
+    )
 
     for signal in signalEpisodes {
       let podcastID = signal.episode.podcastID
