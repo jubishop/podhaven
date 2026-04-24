@@ -122,6 +122,7 @@ struct RecommendationEngine: Sendable {
     let onDeckID = Container.shared.sharedState().onDeck?.id
     let candidates = try await repo.allCandidateEpisodes(excluding: onDeckID)
     let scores = try await recommendations(for: candidates)
+    guard !scores.isEmpty else { return [] }
 
     // Join episodes with their scores, dropping anything below the confidence
     // floor. Filter is O(n); shrinking the list before sorting makes the
