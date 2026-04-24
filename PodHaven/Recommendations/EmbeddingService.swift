@@ -153,11 +153,8 @@ enum EmbeddingService {
       return cached.floatVector
     }
 
-    // Description falls back to title when missing, mirroring the episode
-    // recipe. This still contributes the title vector at descriptionWeight
-    // instead of nil-ing the podcast vector entirely.
-    let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
     let titleVector = try embedding.vector(for: cleanedTitle)
+    let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
     let descriptionVector = try embedding.vector(for: descriptionText)
 
     let blended = VectorMath.weightedAverage(
@@ -211,7 +208,6 @@ enum EmbeddingService {
     let cleanedDescription = cleanText(episode.description ?? "")
 
     let titleVector = try embedding.vector(for: cleanedTitle)
-
     let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
     let descriptionVector = try embedding.vector(for: descriptionText)
 
