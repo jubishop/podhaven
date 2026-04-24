@@ -92,7 +92,7 @@ struct Observatory {
   ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> {
     _observe { db in
       try PodcastWithEpisodeMetadata<ListablePodcast>
-        .all(filter, selecting: ListablePodcast.podcastColumns)
+        .all(filter)
         .limit(limit)
         .fetchAll(db)
     }

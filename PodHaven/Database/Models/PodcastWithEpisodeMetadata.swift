@@ -37,7 +37,8 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Str
 
 // MARK: - FetchableRecord
 
-extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType: FetchableRecord {
+extension PodcastWithEpisodeMetadata: FetchableRecord
+where PodcastType: FetchableRecord & TableRecord {
   init(row: Row) throws {
     self.podcast = try PodcastType(row: row)
     self.episodeCount = row[CodingKeys.episodeCount]
@@ -51,14 +52,15 @@ extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType: Fetchab
 
   // MARK: Query Builders
 
+  // Selects from the Podcast table but narrows columns to whatever the
+  // generic PodcastType declares in its `databaseSelection`. For
+  // `PodcastWithEpisodeMetadata<Podcast>` this defaults to all columns; for
+  // `PodcastWithEpisodeMetadata<ListablePodcast>` it picks up the listable
+  // subset automatically — no need for callers to pass columns explicitly.
   static func all(
-    _ filter: PodcastFilter = { $0 },
-    selecting columns: [any SQLSelectable]? = nil
+    _ filter: PodcastFilter = { $0 }
   ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
-    var request = filter(Podcast.all())
-    if let columns { request = request.select(columns) }
-    return
-      request
+    filter(Podcast.all().select(PodcastType.databaseSelection))
       .annotated(with: [
         Podcast.episodes.count.forKey(CodingKeys.episodeCount),
         Podcast.episodes.max(\.pubDate).forKey(CodingKeys.mostRecentEpisodeDate),

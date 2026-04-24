@@ -8,7 +8,27 @@ import Tagged
 // Lightweight podcast type for list views. Only decodes columns needed for
 // list display, so .removeDuplicates() in Observatory filters out changes to
 // detail-only columns like lastUpdate, defaultPlaybackRate, etc.
-struct ListablePodcast: PodcastListable, FetchableRecord {
+//
+// `TableRecord` conformance against the Podcast table with `databaseSelection`
+// set to just the listable columns means any GRDB query rooted in
+// `ListablePodcast` (e.g. `ListablePodcast.all()`, or anything pulling
+// `ListablePodcast.databaseSelection` into its select) gets the column
+// narrowing automatically — callers don't have to remember to pass the
+// columns explicitly.
+struct ListablePodcast: PodcastListable, FetchableRecord, TableRecord {
+  static let databaseTableName: String = Podcast.databaseTableName
+  static var databaseSelection: [any SQLSelectable] {
+    [
+      Podcast.Columns.id,
+      Podcast.Columns.creationDate,
+      Podcast.Columns.feedURL,
+      Podcast.Columns.iTunesID,
+      Podcast.Columns.image,
+      Podcast.Columns.title,
+      Podcast.Columns.subscriptionDate,
+    ]
+  }
+
   let id: Podcast.ID
   let creationDate: Date
 
@@ -35,20 +55,6 @@ struct ListablePodcast: PodcastListable, FetchableRecord {
     image = row[Podcast.Columns.image]
     subscriptionDate = row[Podcast.Columns.subscriptionDate]
     creationDate = row[Podcast.Columns.creationDate]
-  }
-
-  // MARK: - Column Selection
-
-  static var podcastColumns: [any SQLSelectable] {
-    [
-      Podcast.Columns.id,
-      Podcast.Columns.creationDate,
-      Podcast.Columns.feedURL,
-      Podcast.Columns.iTunesID,
-      Podcast.Columns.image,
-      Podcast.Columns.title,
-      Podcast.Columns.subscriptionDate,
-    ]
   }
 
   func getPodcast() async throws -> Podcast {
