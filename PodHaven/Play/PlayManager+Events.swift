@@ -151,7 +151,10 @@ extension PlayManager {
   private func handleMediaServicesReset() async {
     Self.log.info("handleMediaServicesReset: beginning recovery process")
 
-    guard configureAudioSession() else { return }
+    guard await configureAudioSession() else {
+      await stop()
+      return
+    }
     Self.log.debug("handleMediaServicesReset: audio session configured")
 
     // Clean up the old AVPlayer before resetting, since @DynamicInjected re-resolves

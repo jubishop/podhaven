@@ -13,6 +13,7 @@ import Testing
 
 @Suite("of Loading tests", .container)
 @MainActor struct LoadingTests {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.fakeAudioSession) private var audioSession
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeDataLoader) private var dataLoader
@@ -392,6 +393,41 @@ import Testing
     }
 
     try await PlayHelpers.waitFor(.playing)
+  }
+
+  @Test("audio session failure during load clears state and surfaces alert")
+  func audioSessionFailureDuringLoadClearsStateAndSurfacesAlert() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+
+    let loaded = try await playManager.load(podcastEpisode)
+    #expect(loaded == false)
+
+    try await PlayHelpers.waitFor(.stopped)
+    #expect(sharedState.onDeck == nil)
+    #expect(nowPlayingInfo == nil)
+
+    try await Wait.until(
+      { @MainActor in alert.config != nil },
+      { @MainActor in "Expected alert after audio session configuration failure" }
+    )
+  }
+
+  @Test("audio session recovers on next load attempt after prior failure")
+  func audioSessionRecoversOnNextLoadAttemptAfterPriorFailure() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+    #expect(try await playManager.load(podcastEpisode) == false)
+    try await PlayHelpers.waitFor(.stopped)
+
+    audioSession.configureError { $0 = nil }
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.paused)
   }
 
   @Test("loading episode already loaded does nothing")

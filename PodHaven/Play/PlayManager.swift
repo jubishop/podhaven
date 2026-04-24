@@ -127,7 +127,7 @@ final class PlayManager {
   }
 
   @discardableResult
-  func configureAudioSession() -> Bool {
+  func configureAudioSession() async -> Bool {
     Self.log.info("configureAudioSession: executing")
     do {
       try Container.shared.configureAudioSession()()
@@ -140,19 +140,15 @@ final class PlayManager {
           routeSharingPolicy: \(session.routeSharingPolicy.rawValue)
         """
       )
+      return true
     } catch {
       Self.log.caughtError("configureAudioSession: failed to configure audio session", error)
-      Task { @MainActor [weak self] in
-        guard let self else { return }
-        await alert("Couldn't get audio permissions") {
-          Button("Send Report and Crash") { [error] in
-            Assert.fatal("Failed to initialize the audio session: \(error)")
-          }
-        }
-      }
+      await alert(
+        title: "Couldn't start audio playback",
+        ErrorKit.message(for: error)
+      )
       return false
     }
-    return true
   }
 
   // MARK: - Loading
@@ -179,7 +175,10 @@ final class PlayManager {
       setStatus(.loading(incoming.episode.title))
       await clearOnDeck()
 
-      guard configureAudioSession() else { return false }
+      guard await configureAudioSession() else {
+        await cleanUpAfterLoadFailure(outgoing, incoming)
+        return false
+      }
 
       do {
         try Container.shared.setAudioSessionActive()(true)
