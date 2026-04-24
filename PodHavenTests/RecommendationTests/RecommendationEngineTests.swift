@@ -14,6 +14,7 @@ import Testing
 class RecommendationEngineTests {
   @DynamicInjected(\.recommendationEngine) private var engine
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.sharedState) private var sharedState
 
   // MARK: - Helpers
 
@@ -468,6 +469,128 @@ class RecommendationEngineTests {
     for episode in filtered {
       #expect(!topIDs.contains(episode.id))
     }
+  }
+
+  // MARK: - Tie-breaking
+
+  @Test("breaks score ties by newer pubDate first")
+  func tieBreakByPubDate() async throws {
+    // Deterministic embeddings so similarity is identical for both candidates.
+    let embeddable = ScriptedEmbeddable { _ in [1, 0, 0] }
+
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals, embeddable: embeddable)
+
+    // Two candidates on the same podcast, same embedding. pubDates placed in
+    // the future so freshnessScore short-circuits to 1.0 exactly for both
+    // (daysSince <= 0 guard) — that's the only way to get bit-exact freshness
+    // equality across two distinct pubDates. Same podcast → identical affinity.
+    // Same embedding → identical similarity. Score tie by construction.
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Candidates",
+      pubDateOffset: { i in TimeInterval((i == 0 ? 2 : 1) * 86400) }
+    )
+    try await embedEpisodes(candidates, embeddable: embeddable)
+
+    let recs = try await startAndWaitForRecs()
+    let candidateIDs = Set(candidates.map(\.id))
+    let candidateRecs = recs.filter { candidateIDs.contains($0.episode.id) }
+    #expect(candidateRecs.count == 2)
+    let first = try #require(candidateRecs.first)
+    let second = try #require(candidateRecs.last)
+    #expect(first.score.value == second.score.value)
+    #expect(first.episode.pubDate > second.episode.pubDate)
+  }
+
+  // MARK: - Limit
+
+  @Test("honors custom limit by truncating results")
+  func customLimit() async throws {
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 5,
+      podcastTitle: "Candidates"
+    )
+    try await embedEpisodes(candidates)
+
+    engine.start()
+    let engine = self.engine
+    let limited = try await Wait.forValue {
+      let recs = try await engine.topRecommendations(limit: 3)
+      return recs.count == 3 ? recs : nil
+    }
+    #expect(limited.count == 3)
+  }
+
+  // MARK: - onDeck exclusion
+
+  @Test("excludes onDeck episode from candidates")
+  func excludesOnDeck() async throws {
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    let (candidatePodcast, candidates) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Candidates"
+    )
+    try await embedEpisodes(candidates)
+
+    let onDeckEpisode = try #require(candidates.first)
+    sharedState.$onDeck.new(
+      OnDeck(from: PodcastEpisode(podcast: candidatePodcast, episode: onDeckEpisode))
+    )
+
+    let recs = try await startAndWaitForRecs()
+    let recommendedIDs = Set(recs.map(\.episode.id))
+    #expect(!recommendedIDs.contains(onDeckEpisode.id))
+  }
+
+  // MARK: - Signals without embeddings
+
+  @Test("returns empty when signals exist but none have embeddings yet")
+  func signalsWithoutEmbeddings() async throws {
+    // 3 rated signals but no embeddings yet — transient state during initial
+    // embedding-pipeline warmup. hasAnyEmbeddings is true (from candidates) so
+    // the early hasAnyEmbeddings gate passes, but buildCentroids returns nil
+    // because no signal embedding is available to seed the positive centroid.
+    _ = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Candidates"
+    )
+    try await embedEpisodes(candidates)
+
+    engine.start()
+    let recs = try await engine.topRecommendations()
+    #expect(recs.isEmpty)
+  }
+
+  // MARK: - Empty input
+
+  @Test("recommendations(for:) with empty input returns empty without touching the cache")
+  func recommendationsForEmptyInput() async throws {
+    let map = try await engine.recommendations(for: [])
+    #expect(map.isEmpty)
   }
 }
 

@@ -46,6 +46,7 @@ struct RecommendationEngine: Sendable {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.sleeper) private var sleeper
+  @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.Recommendations.engine)
 
@@ -119,6 +120,9 @@ struct RecommendationEngine: Sendable {
 
   func topRecommendations(limit: Int = 10) async throws -> IdentifiedArrayOf<RecommendedEpisode> {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
+    // Direct Container.shared access because SharedState isn't Sendable and
+    // @DynamicInjected requires a Sendable type. The property read is @MainActor
+    // isolated in practice; onDeck is a Sendable value type so the copy is safe.
     let onDeckID = Container.shared.sharedState().onDeck?.id
     let candidates = try await repo.allCandidateEpisodes(excluding: onDeckID)
     let scores = try await recommendations(for: candidates)
@@ -163,8 +167,7 @@ struct RecommendationEngine: Sendable {
   // taskPriority funnel lets tests override to nil and avoid priority-based
   // starvation.
   private func startObservingScoringContext() {
-    let priority = Container.shared.taskPriority()(.utility)
-    Task(priority: priority) {
+    Task(priority: taskPriority(.utility)) {
       var retryDelay: Duration = .seconds(1)
       while !Task.isCancelled {
         do {
@@ -227,18 +230,15 @@ struct RecommendationEngine: Sendable {
     let now = Date()
     var scores = [Episode.ID: RecommendationScore](capacity: episodes.count)
     for episode in episodes {
-      guard
-        let score = scoreCandidate(
-          embedding: embeddings[id: episode.id],
-          podcastID: episode.podcastID,
-          pubDate: episode.pubDate,
-          positiveCentroid: context.positiveCentroid,
-          negativeCentroid: context.negativeCentroid,
-          podcastAffinities: context.podcastAffinities,
-          now: now
-        )
-      else { continue }
-      scores[episode.id] = score
+      scores[episode.id] = scoreCandidate(
+        embedding: embeddings[id: episode.id],
+        podcastID: episode.podcastID,
+        pubDate: episode.pubDate,
+        positiveCentroid: context.positiveCentroid,
+        negativeCentroid: context.negativeCentroid,
+        podcastAffinities: context.podcastAffinities,
+        now: now
+      )
     }
     return scores
   }
@@ -288,7 +288,7 @@ struct RecommendationEngine: Sendable {
     negativeCentroid: [Float]?,
     podcastAffinities: [Podcast.ID: Float],
     now: Date
-  ) -> RecommendationScore? {
+  ) -> RecommendationScore {
     var features: [(weight: Float, value: Float, reason: RecommendationReason)] = []
 
     // Content similarity (dual centroid)
@@ -315,9 +315,15 @@ struct RecommendationEngine: Sendable {
     let freshness = freshnessScore(pubDate: pubDate, now: now)
     features.append((Self.freshnessWeight, freshness, .recentlyPublished))
 
-    // Renormalize weights over available features
+    // Renormalize weights over available features. Affinity + freshness are
+    // always appended, so totalWeight is either 0.40 (no candidate embedding)
+    // or 1.00 (embedding present). The guard protects the divide below; if it
+    // ever fires, static weights have been reconfigured and we want to hear
+    // about it rather than silently return a neutral score.
     let totalWeight = features.reduce(Float(0)) { $0 + $1.weight }
-    guard totalWeight > 0 else { return nil }
+    guard totalWeight > 0 else {
+      Assert.fatal("scoreCandidate: totalWeight is zero — scoring weights misconfigured")
+    }
 
     let score = features.reduce(Float(0)) { sum, feature in
       sum + (feature.weight / totalWeight) * feature.value

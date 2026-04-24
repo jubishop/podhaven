@@ -13,6 +13,7 @@ import Testing
 actor ObservatoryScoringContextInputsTests {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.appDB) private var appDB
 
   // MARK: - Helpers
 
@@ -172,6 +173,60 @@ actor ObservatoryScoringContextInputsTests {
     try await Wait.until(
       { await embeddingCount.value == 1 },
       { "Expected re-emission with one embedding, got \(await embeddingCount.value)" }
+    )
+  }
+
+  @Test("re-emits with signal removed when a rating is cleared")
+  func reEmitsOnRatingCleared() async throws {
+    let podcast = try await insertPodcast()
+    let episode = try await upsertEpisode(podcast: podcast, title: "Loved", rating: .loved)
+
+    let signalCount = Counter()
+    Task {
+      for try await inputs in observatory.scoringContextInputs() {
+        await signalCount(inputs.signals.count)
+      }
+    }
+    try await Wait.until(
+      { await signalCount.value == 1 },
+      { "Expected initial emission with one signal" }
+    )
+
+    _ = try await repo.updateRating(episode.id, rating: nil)
+
+    try await Wait.until(
+      { await signalCount.value == 0 },
+      { "Expected re-emission with zero signals, got \(await signalCount.value)" }
+    )
+  }
+
+  @Test("re-emits when a signal embedding is deleted")
+  func reEmitsOnEmbeddingDeleted() async throws {
+    let podcast = try await insertPodcast()
+    let episode = try await upsertEpisode(podcast: podcast, title: "Loved", rating: .loved)
+    try await upsertEmbedding(for: episode)
+
+    let embeddingCount = Counter()
+    Task {
+      for try await inputs in observatory.scoringContextInputs() {
+        await embeddingCount(inputs.signalEmbeddings.count)
+      }
+    }
+    try await Wait.until(
+      { await embeddingCount.value == 1 },
+      { "Expected initial emission with one embedding" }
+    )
+
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "DELETE FROM episodeEmbedding WHERE episodeId = ?",
+        arguments: [episode.id]
+      )
+    }
+
+    try await Wait.until(
+      { await embeddingCount.value == 0 },
+      { "Expected re-emission with zero embeddings, got \(await embeddingCount.value)" }
     )
   }
 
