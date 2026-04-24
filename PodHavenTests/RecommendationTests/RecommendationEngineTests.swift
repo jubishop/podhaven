@@ -160,7 +160,7 @@ class RecommendationEngineTests {
 
     // Verify deterministic ordering (scores should be descending)
     for i in 0..<(recommendations.count - 1) {
-      #expect(recommendations[i].score.score >= recommendations[i + 1].score.score)
+      #expect(recommendations[i].score.value >= recommendations[i + 1].score.value)
     }
   }
 

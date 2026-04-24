@@ -14,7 +14,7 @@ import Logging
 // on its own by `recommendations(for:)` so callers that already have the
 // episodes don't get them echoed back.
 struct RecommendationScore: Sendable {
-  let score: Float
+  let value: Float
   let reasons: [RecommendationReason]
 }
 
@@ -107,12 +107,12 @@ struct RecommendationEngine: Sendable {
     var results = [RecommendedEpisode](capacity: candidates.count)
     for episode in candidates {
       guard let score = scores[episode.id],
-        score.score >= Self.minimumScoreThreshold
+        score.value >= Self.minimumScoreThreshold
       else { continue }
       results.append(RecommendedEpisode(episode: episode, score: score))
     }
     results.sort { a, b in
-      if a.score.score != b.score.score { return a.score.score > b.score.score }
+      if a.score.value != b.score.value { return a.score.value > b.score.value }
       if a.episode.pubDate != b.episode.pubDate { return a.episode.pubDate > b.episode.pubDate }
       return a.episode.id > b.episode.id
     }
@@ -282,7 +282,7 @@ struct RecommendationEngine: Sendable {
     // every feature that happened to fire.
     let reasons = features.filter { $0.value > 0.5 }.map(\.reason)
 
-    return RecommendationScore(score: score, reasons: reasons)
+    return RecommendationScore(value: score, reasons: reasons)
   }
 
   // MARK: - Podcast Affinity
