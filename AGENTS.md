@@ -61,3 +61,4 @@
 - Avoid using `@unchecked`/`@retroactive`/`unsafe` in code unless absolutely necessary.
 - Avoid `inout` parameters; return values instead.
 - Use `@MainActor` on functions/types instead of `MainActor.run { }` blocks.
+- Prefer named tuples — every element must have a label (e.g., `(name: String, count: Int)`), accessed by name rather than `.0`/`.1`.
