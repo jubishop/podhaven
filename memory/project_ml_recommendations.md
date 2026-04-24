@@ -54,7 +54,7 @@ Plan at `.claude/plans/cozy-bouncing-shore.md`.
 
 **Key architectural decisions (extensively reviewed via 3 rounds of Codex):**
 - Explicit ratings override implicit signals for the same episode
-- Disliked episodes excluded from positive centroid, affect scoring via podcast affinity + candidate filter
+- Disliked episodes excluded from positive centroid. They affect scoring three ways: (1) added to the negative centroid (subtracted from similarity in `scoreCandidate`), (2) podcast affinity via asymmetric 0.5 weight, (3) candidate filter excludes them from the candidate pool entirely
 - Candidate filter excludes on-deck, queued, finished, and explicitly rated episodes
 - `ratingDate` set to now on any change, nil on un-rate
 - `lastPlayedDate`/`listenedDuration` NOT part of OnDeck decoding (avoids observation churn)
