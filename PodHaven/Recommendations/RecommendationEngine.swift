@@ -206,21 +206,18 @@ struct RecommendationEngine: Sendable {
       guard let cached = embeddingsByEpisode[id: signal.id] else { continue }
       let vector = cached.floatVector
 
-      let signalDate: Date? =
-        switch signal.kind {
-        case .rating: signal.episode.ratingDate
-        case .finished: signal.episode.finishDate
-        }
-      let decay = temporalDecay(from: signalDate, now: now)
-
       switch signal.kind {
       case .rating(.loved):
+        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
         positiveVectors.append((vector, Self.lovedWeight * decay))
       case .rating(.liked):
+        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
         positiveVectors.append((vector, Self.likedWeight * decay))
       case .rating(.disliked):
+        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
         negativeVectors.append((vector, decay))
       case .finished:
+        let decay = temporalDecay(from: signal.episode.finishDate, now: now)
         positiveVectors.append((vector, Self.finishedWeight * decay))
       }
     }
