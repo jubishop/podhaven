@@ -40,33 +40,15 @@ struct SignalEpisode:
   let ratingDate: Date?
   let finishDate: Date?
 
-  init(
-    id: Episode.ID,
-    podcastID: Podcast.ID,
-    kind: SignalKind,
-    ratingDate: Date?,
-    finishDate: Date?
-  ) {
-    self.id = id
-    self.podcastID = podcastID
-    self.kind = kind
-    self.ratingDate = ratingDate
-    self.finishDate = finishDate
-  }
-
   init(row: Row) throws {
-    let kind: SignalKind
+    self.id = row[Episode.Columns.id]
+    self.podcastID = row[Episode.Columns.podcastId]
     if let rating = row[Episode.Columns.rating] as EpisodeRating? {
-      kind = .rating(rating)
+      self.kind = .rating(rating)
     } else {
-      kind = .finished
+      self.kind = .finished
     }
-    self.init(
-      id: row[Episode.Columns.id],
-      podcastID: row[Episode.Columns.podcastId],
-      kind: kind,
-      ratingDate: row[Episode.Columns.ratingDate],
-      finishDate: row[Episode.Columns.finishDate]
-    )
+    self.ratingDate = row[Episode.Columns.ratingDate]
+    self.finishDate = row[Episode.Columns.finishDate]
   }
 }
