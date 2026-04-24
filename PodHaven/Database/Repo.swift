@@ -390,12 +390,9 @@ struct Repo: Databasing, Sendable {
   // MARK: - Recommendation Readers
 
   func allSignalEpisodes() async throws -> [SignalEpisode] {
-    let episodes = try await appDB.db.read { db in
-      try Episode
-        .filter(Episode.signal)
-        .fetchAll(db)
+    try await appDB.db.read { db in
+      try SignalEpisode.filter(Episode.signal).fetchAll(db)
     }
-    return episodes.map(SignalEpisode.init(from:))
   }
 
   func allCandidateEpisodes(excluding excludedID: Episode.ID? = nil) async throws -> [Episode] {
