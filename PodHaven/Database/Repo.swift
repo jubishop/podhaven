@@ -398,21 +398,13 @@ struct Repo: Databasing, Sendable {
     return episodes.map(SignalEpisode.init(from:))
   }
 
-  func allCandidateEpisodes(excluding excludedIDs: [Episode.ID] = []) async throws -> [Episode] {
+  func allCandidateEpisodes(excluding excludedID: Episode.ID? = nil) async throws -> [Episode] {
     try await appDB.db.read { db in
       var request = Episode.filter(Episode.candidate)
-
-      if !excludedIDs.isEmpty {
-        request = request.filter(!excludedIDs.contains(Episode.Columns.id))
+      if let excludedID {
+        request = request.filter(Episode.Columns.id != excludedID)
       }
-
       return try request.fetchAll(db)
-    }
-  }
-
-  func allPodcastTags() async throws -> [PodcastTag] {
-    try await appDB.db.read { db in
-      try PodcastTag.fetchAll(db)
     }
   }
 
@@ -435,6 +427,12 @@ struct Repo: Databasing, Sendable {
   }
 
   // MARK: - Embedding Readers
+
+  func hasEmbeddings() async throws -> Bool {
+    try await appDB.db.read { db in
+      try EpisodeEmbedding.fetchCount(db) > 0
+    }
+  }
 
   func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
     try await appDB.db.read { db in

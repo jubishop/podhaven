@@ -287,6 +287,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.upsertPodcastEmbedding(unsaved)
   }
 
+  func hasEmbeddings() async throws -> Bool {
+    recordCall(methodName: "hasEmbeddings", parameters: ())
+    return try await repo.hasEmbeddings()
+  }
+
   func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
     recordCall(methodName: "embedding", parameters: episodeID)
     return try await repo.embedding(for: episodeID)
@@ -331,14 +336,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.allSignalEpisodes()
   }
 
-  func allCandidateEpisodes(excluding excludedIDs: [Episode.ID] = []) async throws -> [Episode] {
-    recordCall(methodName: "allCandidateEpisodes", parameters: excludedIDs)
-    return try await repo.allCandidateEpisodes(excluding: excludedIDs)
-  }
-
-  func allPodcastTags() async throws -> [PodcastTag] {
-    recordCall(methodName: "allPodcastTags", parameters: ())
-    return try await repo.allPodcastTags()
+  func allCandidateEpisodes(excluding excludedID: Episode.ID? = nil) async throws -> [Episode] {
+    recordCall(methodName: "allCandidateEpisodes", parameters: excludedID)
+    return try await repo.allCandidateEpisodes(excluding: excludedID)
   }
 
   @discardableResult
