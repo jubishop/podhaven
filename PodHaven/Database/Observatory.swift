@@ -227,6 +227,44 @@ struct Observatory {
     }
   }
 
+  // MARK: - Recommendations
+
+  // Composite observation feeding `RecommendationEngine`'s cached
+  // `ScoringContext`. One stream covers signals + their embeddings + the
+  // any-embedding flag so a single transaction touching multiple tables
+  // produces one rebuild instead of three.
+  func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
+    _observe { db in
+      let signalEpisodes = try Episode.filter(Episode.signal).fetchAll(db)
+      let signals = signalEpisodes.map(ScoringContextInputs.Signal.init(from:))
+
+      let signalEmbeddings: [Episode.ID: ScoringContextInputs.EmbeddingVector]
+      if signalEpisodes.isEmpty {
+        signalEmbeddings = [:]
+      } else {
+        let signalIDs = signalEpisodes.map(\.id)
+        let fetched =
+          try EpisodeEmbedding
+          .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
+          .fetchAll(db)
+        var map = [Episode.ID: ScoringContextInputs.EmbeddingVector](capacity: fetched.count)
+        for embedding in fetched {
+          map[embedding.episodeId] = ScoringContextInputs.EmbeddingVector(from: embedding)
+        }
+        signalEmbeddings = map
+      }
+
+      let hasAnyEmbeddings =
+        try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
+
+      return ScoringContextInputs(
+        signals: signals,
+        signalEmbeddings: signalEmbeddings,
+        hasAnyEmbeddings: hasAnyEmbeddings
+      )
+    }
+  }
+
   // Private Helpers
 
   private static func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {

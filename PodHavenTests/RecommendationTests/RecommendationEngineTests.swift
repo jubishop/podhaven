@@ -5,6 +5,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Testing
 
 @testable import PodHaven
@@ -121,6 +122,32 @@ class RecommendationEngineTests {
     )
   }
 
+  // The engine spawns its observation Task on `start()` and only populates
+  // its cache once the Observatory has emitted. Tests for "expected
+  // non-empty" results poll until the cache lands; tests for "expected
+  // empty" results don't need to wait since both cold and hot states yield
+  // empty. (Helpers stash the engine in a local before the polling closure
+  // so the @Sendable boundary doesn't capture the non-Sendable test class.)
+  private func startAndWaitForRecs() async throws -> IdentifiedArrayOf<RecommendedEpisode> {
+    engine.start()
+    let engine = self.engine
+    return try await Wait.forValue {
+      let recs = try await engine.topRecommendations()
+      return recs.isEmpty ? nil : recs
+    }
+  }
+
+  private func startAndWaitForScores(
+    for episodes: [Episode]
+  ) async throws -> [Episode.ID: RecommendationScore] {
+    engine.start()
+    let engine = self.engine
+    return try await Wait.forValue {
+      let map = try await engine.recommendations(for: episodes)
+      return map.isEmpty ? nil : map
+    }
+  }
+
   // MARK: - Minimum Threshold
 
   @Test("returns empty when fewer than 3 signal episodes")
@@ -131,6 +158,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(episodes)
 
+    engine.start()
     let recommendations = try await engine.topRecommendations()
     #expect(recommendations.isEmpty)
   }
@@ -154,7 +182,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(candidateEpisodes)
 
-    let recommendations = try await engine.topRecommendations()
+    let recommendations = try await startAndWaitForRecs()
     #expect(!recommendations.isEmpty)
     #expect(recommendations.count <= 10)
 
@@ -182,7 +210,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(candidates)
 
-    let recommendations = try await engine.topRecommendations()
+    let recommendations = try await startAndWaitForRecs()
     let recommendedIDs = Set(recommendations.map(\.episode.id))
 
     #expect(!recommendedIDs.contains(candidates[0].id))
@@ -204,6 +232,9 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(rated)
 
+    // Only candidate is rated, so the candidate pool is empty and recs
+    // come back empty either way — no point waiting on the cache.
+    engine.start()
     let recommendations = try await engine.topRecommendations()
     let recommendedIDs = Set(recommendations.map(\.episode.id))
     #expect(!recommendedIDs.contains(rated[0].id))
@@ -226,6 +257,7 @@ class RecommendationEngineTests {
     try await embedEpisodes(candidates)
 
     // Should return empty since there's no positive centroid
+    engine.start()
     let recommendations = try await engine.topRecommendations()
     #expect(recommendations.isEmpty)
   }
@@ -247,7 +279,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(candidates)
 
-    let recommendations = try await engine.topRecommendations()
+    let recommendations = try await startAndWaitForRecs()
     for rec in recommendations {
       #expect(!rec.score.reasons.isEmpty)
     }
@@ -272,7 +304,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(old)
 
-    let recs = try await engine.topRecommendations()
+    let recs = try await startAndWaitForRecs()
     let oldRec = try #require(recs.first { $0.episode.id == old.first?.id })
     #expect(!oldRec.score.reasons.contains(.recentlyPublished))
   }
@@ -294,7 +326,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(candidates)
 
-    let recs = try await engine.topRecommendations()
+    let recs = try await startAndWaitForRecs()
     for rec in recs where candidates.map(\.id).contains(rec.episode.id) {
       #expect(!rec.score.reasons.contains(.podcastAffinity))
     }
@@ -327,7 +359,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(opposites, embeddable: embeddable)
 
-    let recs = try await engine.topRecommendations()
+    let recs = try await startAndWaitForRecs()
     let oppositeIDs = Set(opposites.map(\.id))
     let oppositeRecs = recs.filter { oppositeIDs.contains($0.episode.id) }
     #expect(!oppositeRecs.isEmpty)
@@ -351,7 +383,7 @@ class RecommendationEngineTests {
     let candidates = try await addEpisodes(to: lovedPodcast, count: 2)
     try await embedEpisodes(candidates)
 
-    let recs = try await engine.topRecommendations()
+    let recs = try await startAndWaitForRecs()
     let candidateIDs = Set(candidates.map(\.id))
     let candidateRecs = recs.filter { candidateIDs.contains($0.episode.id) }
     #expect(!candidateRecs.isEmpty)
@@ -377,7 +409,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(episodes)
 
-    let map = try await engine.recommendations(for: episodes)
+    let map = try await startAndWaitForScores(for: episodes)
     #expect(map.count == episodes.count)
     for episode in episodes {
       #expect(map[episode.id] != nil)
@@ -399,6 +431,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(episodes)
 
+    engine.start()
     let map = try await engine.recommendations(for: episodes)
     #expect(map.isEmpty)
   }
@@ -423,7 +456,7 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(filtered)
 
-    let map = try await engine.recommendations(for: filtered)
+    let map = try await startAndWaitForScores(for: filtered)
     #expect(map.count == filtered.count)
     for episode in filtered {
       #expect(map[episode.id] != nil)

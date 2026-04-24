@@ -44,6 +44,8 @@ extension Container {
 
 struct RecommendationEngine: Sendable {
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.sleeper) private var sleeper
 
   private static let log = Log.as(LogSubsystem.Recommendations.engine)
 
@@ -80,18 +82,38 @@ struct RecommendationEngine: Sendable {
   // Temporal decay half-life in days
   private static let decayHalfLifeDays: Double = 180
 
+  // MARK: - Cached Scoring Context
+
+  private let cache = ThreadSafe<ScoringContext?>(nil)
+  private let startOnce = Once()
+
+  fileprivate init() {}
+
   // MARK: - Public API
+
+  // Idempotent. Spawns the observation Task that keeps `cache` in sync with
+  // the DB. AppLauncher calls this during foreground init; tests call it
+  // after seeding their fixture. Public scoring methods do NOT auto-call
+  // `start()` — they just read whatever the cache currently has and return
+  // empty when it's nil. That keeps every recommendations() call
+  // latency-free and pushes "is the cache hot?" to the lifecycle owner.
+  func start() {
+    startOnce.run {
+      startObservingScoringContext()
+    }
+  }
 
   // Score an arbitrary set of episodes so a caller can sort a list by "how
   // recommended." Unlike `topRecommendations`, there's no candidate filter,
   // no minimum-score floor, and no limit — every requested episode that has
   // sufficient context gets a score. Callers already have the episodes, so
-  // we return just the new info (score + reasons) keyed by ID.
+  // we return just the new info (score + reasons) keyed by ID. Returns
+  // empty if `start()` hasn't yet hydrated the cache.
   func recommendations(
     for episodes: [Episode]
   ) async throws -> [Episode.ID: RecommendationScore] {
     guard !episodes.isEmpty else { return [:] }
-    guard let context = try await prepareScoringContext() else { return [:] }
+    guard let context = cache() else { return [:] }
     return try await scoreEpisodes(episodes, context: context)
   }
 
@@ -124,47 +146,76 @@ struct RecommendationEngine: Sendable {
     return top
   }
 
-  // MARK: - Scoring Pipeline
+  // MARK: - ScoringContext
 
-  private struct ScoringContext {
+  // The output of one centroid+affinity build, reused across every
+  // `recommendations(for:)` / `topRecommendations()` call until the
+  // observation emits a new `ScoringContextInputs`.
+  private struct ScoringContext: Sendable {
     let positiveCentroid: [Float]
     let negativeCentroid: [Float]?
     let podcastAffinities: [Podcast.ID: Float]
-    let now: Date
   }
 
-  // Returns nil if we can't meaningfully score: too few signals, no embeddings
-  // yet, or no positive centroid. Both public methods short-circuit on nil.
-  private func prepareScoringContext() async throws -> ScoringContext? {
-    let signalEpisodes = try await repo.allSignalEpisodes()
-    guard signalEpisodes.count >= Self.minimumDataThreshold else {
-      Self.log.debug(
+  // Spawns the long-running observation Task that keeps `cache` in sync.
+  // .utility priority keeps the rebuild off the UI critical path; the
+  // taskPriority funnel lets tests override to nil and avoid priority-based
+  // starvation.
+  private func startObservingScoringContext() {
+    let priority = Container.shared.taskPriority()(.utility)
+    Task(priority: priority) {
+      var retryDelay: Duration = .seconds(1)
+      while !Task.isCancelled {
+        do {
+          for try await inputs in observatory.scoringContextInputs() {
+            guard !Task.isCancelled else { return }
+            retryDelay = .seconds(1)
+            cache(Self.buildContext(from: inputs))
+          }
+        } catch {
+          Self.log.caughtError("scoringContextInputs observation failed", error)
+          try? await sleeper.sleep(for: retryDelay)
+          retryDelay = min(retryDelay * 2, .seconds(60))
+        }
+      }
+    }
+  }
+
+  // MARK: - Build Context
+
+  private static func buildContext(from inputs: ScoringContextInputs) -> ScoringContext? {
+    guard inputs.signals.count >= minimumDataThreshold else {
+      log.debug(
         """
-        Not enough signal data (\(signalEpisodes.count)/\(Self.minimumDataThreshold)), \
-        returning empty
+        Not enough signal data (\(inputs.signals.count)/\(minimumDataThreshold)), \
+        cached context cleared
         """
       )
       return nil
     }
 
-    guard try await repo.hasEmbeddings() else {
-      Self.log.debug("No embeddings computed yet, returning empty")
+    guard inputs.hasAnyEmbeddings else {
+      log.debug("No embeddings computed yet, cached context cleared")
       return nil
     }
 
-    let (positive, negative) = try await buildCentroids(signalEpisodes: signalEpisodes)
+    let (positive, negative) = buildCentroids(
+      signals: inputs.signals,
+      embeddings: inputs.signalEmbeddings
+    )
     guard let positiveCentroid = positive else {
-      Self.log.debug("No positive centroid (no embeddings available), returning empty")
+      log.debug("No positive centroid (no signal embeddings available), cached context cleared")
       return nil
     }
 
     return ScoringContext(
       positiveCentroid: positiveCentroid,
       negativeCentroid: negative,
-      podcastAffinities: computePodcastAffinities(signalEpisodes: signalEpisodes),
-      now: Date()
+      podcastAffinities: computePodcastAffinities(signals: inputs.signals)
     )
   }
+
+  // MARK: - Score Episodes
 
   private func scoreEpisodes(
     _ episodes: [Episode],
@@ -172,6 +223,7 @@ struct RecommendationEngine: Sendable {
   ) async throws -> [Episode.ID: RecommendationScore] {
     let episodeIDs = episodes.map(\.id)
     let embeddings = try await repo.embeddings(for: episodeIDs)
+    let now = Date()
     var scores = [Episode.ID: RecommendationScore](capacity: episodes.count)
     for episode in episodes {
       guard
@@ -182,7 +234,7 @@ struct RecommendationEngine: Sendable {
           positiveCentroid: context.positiveCentroid,
           negativeCentroid: context.negativeCentroid,
           podcastAffinities: context.podcastAffinities,
-          now: context.now
+          now: now
         )
       else { continue }
       scores[episode.id] = score
@@ -192,39 +244,36 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Build Centroids
 
-  private func buildCentroids(
-    signalEpisodes: [SignalEpisode]
-  ) async throws -> (positive: [Float]?, negative: [Float]?) {
-    let episodeIDs: [Episode.ID] = signalEpisodes.map(\.id)
-    let embeddingsByEpisode = try await repo.embeddings(for: episodeIDs)
-
+  private static func buildCentroids(
+    signals: [ScoringContextInputs.Signal],
+    embeddings: [Episode.ID: ScoringContextInputs.EmbeddingVector]
+  ) -> (positive: [Float]?, negative: [Float]?) {
     let now = Date()
-    var positiveVectors = [(vector: [Float], weight: Float)](capacity: signalEpisodes.count)
-    var negativeVectors = [(vector: [Float], weight: Float)](capacity: signalEpisodes.count)
+    var positiveVectors = [(vector: [Float], weight: Float)](capacity: signals.count)
+    var negativeVectors = [(vector: [Float], weight: Float)](capacity: signals.count)
 
-    for signal in signalEpisodes {
-      guard let cached = embeddingsByEpisode[id: signal.id] else { continue }
+    for signal in signals {
+      guard let cached = embeddings[signal.id] else { continue }
       let vector = cached.floatVector
 
       switch signal.kind {
       case .rating(.loved):
-        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
-        positiveVectors.append((vector, Self.lovedWeight * decay))
+        let decay = temporalDecay(from: signal.ratingDate, now: now)
+        positiveVectors.append((vector, lovedWeight * decay))
       case .rating(.liked):
-        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
-        positiveVectors.append((vector, Self.likedWeight * decay))
+        let decay = temporalDecay(from: signal.ratingDate, now: now)
+        positiveVectors.append((vector, likedWeight * decay))
       case .rating(.disliked):
-        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
+        let decay = temporalDecay(from: signal.ratingDate, now: now)
         negativeVectors.append((vector, decay))
       case .finished:
-        let decay = temporalDecay(from: signal.episode.finishDate, now: now)
-        positiveVectors.append((vector, Self.finishedWeight * decay))
+        let decay = temporalDecay(from: signal.finishDate, now: now)
+        positiveVectors.append((vector, finishedWeight * decay))
       }
     }
 
     let positive = computeWeightedCentroid(positiveVectors)
     let negative = computeWeightedCentroid(negativeVectors)
-
     return (positive, negative)
   }
 
@@ -284,42 +333,43 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Podcast Affinity
 
-  private func computePodcastAffinities(signalEpisodes: [SignalEpisode]) -> [Podcast.ID: Float] {
+  private static func computePodcastAffinities(
+    signals: [ScoringContextInputs.Signal]
+  ) -> [Podcast.ID: Float] {
     var podcastStats = [Podcast.ID: (positive: Float, negative: Float, total: Float)](
-      capacity: signalEpisodes.count
+      capacity: signals.count
     )
 
-    for signal in signalEpisodes {
-      let podcastID = signal.episode.podcastID
-      var stats = podcastStats[podcastID] ?? (positive: 0, negative: 0, total: 0)
+    for signal in signals {
+      var stats = podcastStats[signal.podcastID] ?? (positive: 0, negative: 0, total: 0)
       stats.total += 1
 
       switch signal.kind {
       case .rating(.loved), .rating(.liked):
         stats.positive += 1
       case .rating(.disliked):
-        stats.negative += Self.dislikedAffinityWeight
+        stats.negative += dislikedAffinityWeight
       case .finished:
         stats.positive += 0.5
       }
 
-      podcastStats[podcastID] = stats
+      podcastStats[signal.podcastID] = stats
     }
 
     // Bayesian smoothed affinity: (positive - negative) / (total + prior).
     return podcastStats.mapValues { stats in
-      (stats.positive - stats.negative) / (stats.total + Self.affinityPrior)
+      (stats.positive - stats.negative) / (stats.total + affinityPrior)
     }
   }
 
   // MARK: - Temporal Decay
 
-  private func temporalDecay(from date: Date?, now: Date) -> Float {
+  private static func temporalDecay(from date: Date?, now: Date) -> Float {
     guard let date else { return 1.0 }
     let daysSince = now.timeIntervalSince(date) / 86400
     guard daysSince > 0 else { return 1.0 }
     // Half-life decay: weight = 0.5^(days / halfLife)
-    return Float(pow(0.5, daysSince / Self.decayHalfLifeDays))
+    return Float(pow(0.5, daysSince / decayHalfLifeDays))
   }
 
   // MARK: - Freshness
@@ -332,7 +382,7 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Centroid Math
 
-  private func computeWeightedCentroid(
+  private static func computeWeightedCentroid(
     _ vectors: [(vector: [Float], weight: Float)]
   ) -> [Float]? {
     guard let first = vectors.first else { return nil }
