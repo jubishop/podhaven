@@ -11,10 +11,7 @@
       "mcp__xcode__GetTestList",
       "mcp__xcode__GetBuildLog",
       "mcp__xcode__RenderPreview",
-      "Skill(merge-main)",
-      "Bash(rm -rf .claude/skills/test-policy)",
-      "Bash(mv \".claude/skills/test-policy~Updated upstream\" .claude/skills/test-policy)",
-      "Bash(git reset *)"
+      "Skill(merge-main)"
     ],
     "deny": [],
     "ask": []
