@@ -88,19 +88,18 @@ struct RecommendationEngine: Sendable {
 
   func topRecommendations(limit: Int = 10) async throws -> [RecommendedEpisode] {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
-    let candidates = try await fetchCandidates()
+    let onDeckID = Container.shared.sharedState().onDeck?.id
+    let candidates = try await repo.allCandidateEpisodes(excluding: onDeckID)
     let scored = try await recommendations(for: candidates)
 
-    // Sort with deterministic tie-breaking
-    var results = Array(scored.values)
+    // Apply confidence floor before sorting — filter is O(n), sort is O(n log n),
+    // so shrinking the input makes the sort cheaper.
+    var results = scored.values.filter { $0.score >= Self.minimumScoreThreshold }
     results.sort { a, b in
       if a.score != b.score { return a.score > b.score }
       if a.episode.pubDate != b.episode.pubDate { return a.episode.pubDate > b.episode.pubDate }
       return a.episode.id > b.episode.id
     }
-
-    // Apply confidence floor and limit
-    results = results.filter { $0.score >= Self.minimumScoreThreshold }
     let topResults = Array(results.prefix(limit))
 
     Self.log.debug(
@@ -185,18 +184,21 @@ struct RecommendationEngine: Sendable {
       guard let cached = embeddingsByEpisode[id: signal.id] else { continue }
       let vector = cached.floatVector
 
+      let signalDate: Date? =
+        switch signal.kind {
+        case .rating: signal.episode.ratingDate
+        case .finished: signal.episode.finishDate
+        }
+      let decay = temporalDecay(from: signalDate, now: now)
+
       switch signal.kind {
       case .rating(.loved):
-        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
         positiveVectors.append((vector, Self.lovedWeight * decay))
       case .rating(.liked):
-        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
         positiveVectors.append((vector, Self.likedWeight * decay))
       case .rating(.disliked):
-        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
         negativeVectors.append((vector, decay))
       case .finished:
-        let decay = temporalDecay(from: signal.episode.finishDate, now: now)
         positiveVectors.append((vector, Self.finishedWeight * decay))
       }
     }
@@ -258,14 +260,6 @@ struct RecommendationEngine: Sendable {
     let reasons = features.filter { $0.value > 0.5 }.map(\.reason)
 
     return RecommendedEpisode(episode: episode, score: score, reasons: reasons)
-  }
-
-  // MARK: - Fetch Candidates
-
-  private func fetchCandidates() async throws -> [Episode] {
-    let onDeckID = Container.shared.sharedState().onDeck?.id
-    let excluded = [onDeckID].compactMap { $0 }
-    return try await repo.allCandidateEpisodes(excluding: excluded)
   }
 
   // MARK: - Podcast Affinity

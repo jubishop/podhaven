@@ -398,14 +398,12 @@ struct Repo: Databasing, Sendable {
     return episodes.map(SignalEpisode.init(from:))
   }
 
-  func allCandidateEpisodes(excluding excludedIDs: [Episode.ID] = []) async throws -> [Episode] {
+  func allCandidateEpisodes(excluding excludedID: Episode.ID? = nil) async throws -> [Episode] {
     try await appDB.db.read { db in
       var request = Episode.filter(Episode.candidate)
-
-      if !excludedIDs.isEmpty {
-        request = request.filter(!excludedIDs.contains(Episode.Columns.id))
+      if let excludedID {
+        request = request.filter(Episode.Columns.id != excludedID)
       }
-
       return try request.fetchAll(db)
     }
   }
