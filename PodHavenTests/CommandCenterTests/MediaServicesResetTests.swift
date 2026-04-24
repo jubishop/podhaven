@@ -10,6 +10,7 @@ import Testing
 
 @Suite("of Media services reset tests", .container)
 @MainActor struct MediaServicesResetTests {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.fakeAudioSession) private var audioSession
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
@@ -81,6 +82,30 @@ import Testing
     )
     #expect(sharedState.onDeck == nil)
     #expect(sharedState.playbackStatus == .stopped)
+  }
+
+  @Test("media services reset with failing audio session stops gracefully")
+  func mediaServicesResetWithFailingAudioSessionStopsGracefully() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.pause()
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await Wait.until(
+      { @MainActor in sharedState.onDeck == nil },
+      { @MainActor in "Expected onDeck to clear after failed media services reset recovery" }
+    )
+    try await Wait.until(
+      { @MainActor in alert.config != nil },
+      { @MainActor in "Expected alert after failed audio session reconfiguration" }
+    )
   }
 
   @Test("media services reset with no on-deck but queued episode loads top of queue")
