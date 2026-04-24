@@ -11,7 +11,43 @@ import Tagged
 // ignores changes to detail-only columns like Podcast.lastUpdate,
 // Episode.link, etc. Combined with .removeDuplicates(), this prevents
 // spurious list re-renders when non-visible data changes.
-struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Identifiable {
+//
+// `TableRecord` conformance against the Episode table with
+// `databaseSelection` set to just the listable Episode columns means any
+// GRDB query rooted in `ListablePodcastEpisode` (e.g.
+// `ListablePodcastEpisode.filter(...).fetchAll(db)`) gets the column
+// narrowing automatically. The joined Podcast columns still need an
+// explicit `.select(podcastColumns)` because they live behind the
+// `belongsTo` association.
+struct ListablePodcastEpisode:
+  EpisodeListable, Searchable, FetchableRecord, TableRecord, Identifiable
+{
+  static let databaseTableName: String = Episode.databaseTableName
+  static var databaseSelection: [any SQLSelectable] {
+    [
+      Episode.Columns.id,
+      Episode.Columns.guid,
+      Episode.Columns.mediaURL,
+      Episode.Columns.title,
+      Episode.Columns.pubDate,
+      Episode.Columns.duration,
+      Episode.Columns.image,
+      Episode.Columns.finishDate,
+      Episode.Columns.currentTime,
+      Episode.Columns.queueOrder,
+      Episode.Columns.saveInCache,
+      Episode.Columns.cachedFilename,
+      Episode.Columns.downloadTaskID,
+      Episode.Columns.creationDate,
+      Episode.Columns.queueDate,
+      Episode.Columns.rating,
+    ]
+  }
+
+  // MARK: - Associations
+
+  static let podcast = belongsTo(Podcast.self)
+
   @DynamicInjected(\.repo) private var repo
 
   // MARK: - Episode Fields
@@ -123,29 +159,11 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
       && lhs.podcastTitle == rhs.podcastTitle
   }
 
-  // MARK: - Column Selection
+  // MARK: - Joined Podcast Column Selection
 
-  static var episodeColumns: [any SQLSelectable] {
-    [
-      Episode.Columns.id,
-      Episode.Columns.guid,
-      Episode.Columns.mediaURL,
-      Episode.Columns.title,
-      Episode.Columns.pubDate,
-      Episode.Columns.duration,
-      Episode.Columns.image,
-      Episode.Columns.finishDate,
-      Episode.Columns.currentTime,
-      Episode.Columns.queueOrder,
-      Episode.Columns.saveInCache,
-      Episode.Columns.cachedFilename,
-      Episode.Columns.downloadTaskID,
-      Episode.Columns.creationDate,
-      Episode.Columns.queueDate,
-      Episode.Columns.rating,
-    ]
-  }
-
+  // Columns we read from the joined Podcast row. These can't sit in
+  // `databaseSelection` because that controls the *primary* table's columns;
+  // the join is narrowed via `Episode.podcast.select(podcastColumns)` below.
   static var podcastColumns: [any SQLSelectable] {
     [
       Podcast.Columns.feedURL,
@@ -159,14 +177,11 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
     order: SQLOrdering = Episode.Columns.pubDate.desc,
     limit: Int = Int.max
   ) -> QueryInterfaceRequest<ListablePodcastEpisode> {
-    Episode
-      .all()
+    ListablePodcastEpisode
       .filter(filter)
-      .select(episodeColumns)
-      .including(required: Episode.podcast.select(podcastColumns))
+      .including(required: ListablePodcastEpisode.podcast.select(podcastColumns))
       .order(order)
       .limit(limit)
-      .asRequest(of: ListablePodcastEpisode.self)
   }
 
   func getPodcastEpisode() async throws -> PodcastEpisode {

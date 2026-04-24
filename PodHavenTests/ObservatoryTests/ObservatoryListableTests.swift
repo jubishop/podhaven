@@ -176,7 +176,7 @@ actor ObservatoryListableTests {
 
     let region = try await db.read { db in
       try PodcastWithEpisodeMetadata<ListablePodcast>
-        .all(selecting: ListablePodcast.podcastColumns)
+        .all()
         .databaseRegion(db)
     }
 
