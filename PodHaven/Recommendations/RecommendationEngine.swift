@@ -245,29 +245,29 @@ struct RecommendationEngine: Sendable {
   // MARK: - Build Centroids
 
   private static func buildCentroids(
-    signals: [ScoringContextInputs.Signal],
-    embeddings: [Episode.ID: ScoringContextInputs.EmbeddingVector]
+    signals: [SignalEpisode],
+    embeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
   ) -> (positive: [Float]?, negative: [Float]?) {
     let now = Date()
     var positiveVectors = [(vector: [Float], weight: Float)](capacity: signals.count)
     var negativeVectors = [(vector: [Float], weight: Float)](capacity: signals.count)
 
     for signal in signals {
-      guard let cached = embeddings[signal.id] else { continue }
+      guard let cached = embeddings[id: signal.id] else { continue }
       let vector = cached.floatVector
 
       switch signal.kind {
       case .rating(.loved):
-        let decay = temporalDecay(from: signal.ratingDate, now: now)
+        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
         positiveVectors.append((vector, lovedWeight * decay))
       case .rating(.liked):
-        let decay = temporalDecay(from: signal.ratingDate, now: now)
+        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
         positiveVectors.append((vector, likedWeight * decay))
       case .rating(.disliked):
-        let decay = temporalDecay(from: signal.ratingDate, now: now)
+        let decay = temporalDecay(from: signal.episode.ratingDate, now: now)
         negativeVectors.append((vector, decay))
       case .finished:
-        let decay = temporalDecay(from: signal.finishDate, now: now)
+        let decay = temporalDecay(from: signal.episode.finishDate, now: now)
         positiveVectors.append((vector, finishedWeight * decay))
       }
     }
@@ -334,14 +334,15 @@ struct RecommendationEngine: Sendable {
   // MARK: - Podcast Affinity
 
   private static func computePodcastAffinities(
-    signals: [ScoringContextInputs.Signal]
+    signals: [SignalEpisode]
   ) -> [Podcast.ID: Float] {
     var podcastStats = [Podcast.ID: (positive: Float, negative: Float, total: Float)](
       capacity: signals.count
     )
 
     for signal in signals {
-      var stats = podcastStats[signal.podcastID] ?? (positive: 0, negative: 0, total: 0)
+      let podcastID = signal.episode.podcastID
+      var stats = podcastStats[podcastID] ?? (positive: 0, negative: 0, total: 0)
       stats.total += 1
 
       switch signal.kind {
@@ -353,7 +354,7 @@ struct RecommendationEngine: Sendable {
         stats.positive += 0.5
       }
 
-      podcastStats[signal.podcastID] = stats
+      podcastStats[podcastID] = stats
     }
 
     // Bayesian smoothed affinity: (positive - negative) / (total + prior).

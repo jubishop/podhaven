@@ -236,22 +236,17 @@ struct Observatory {
   func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
     _observe { db in
       let signalEpisodes = try Episode.filter(Episode.signal).fetchAll(db)
-      let signals = signalEpisodes.map(ScoringContextInputs.Signal.init(from:))
+      let signals = signalEpisodes.map(SignalEpisode.init(from:))
 
-      let signalEmbeddings: [Episode.ID: ScoringContextInputs.EmbeddingVector]
+      let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
       if signalEpisodes.isEmpty {
-        signalEmbeddings = [:]
+        signalEmbeddings = IdentifiedArray(id: \.episodeId)
       } else {
         let signalIDs = signalEpisodes.map(\.id)
-        let fetched =
+        signalEmbeddings =
           try EpisodeEmbedding
           .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
-          .fetchAll(db)
-        var map = [Episode.ID: ScoringContextInputs.EmbeddingVector](capacity: fetched.count)
-        for embedding in fetched {
-          map[embedding.episodeId] = ScoringContextInputs.EmbeddingVector(from: embedding)
-        }
-        signalEmbeddings = map
+          .fetchIdentifiedArray(db, id: \.episodeId)
       }
 
       let hasAnyEmbeddings =

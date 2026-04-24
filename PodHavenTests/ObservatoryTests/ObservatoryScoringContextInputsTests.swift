@@ -98,20 +98,20 @@ actor ObservatoryScoringContextInputsTests {
     #expect(inputs.signals.count == 2)
     let lovedSignal = try #require(inputs.signals.first { $0.id == loved.id })
     #expect(lovedSignal.kind == .rating(.loved))
-    #expect(lovedSignal.podcastID == loved.podcastID)
-    #expect(lovedSignal.ratingDate != nil)
+    #expect(lovedSignal.episode.podcastID == loved.podcastID)
+    #expect(lovedSignal.episode.ratingDate != nil)
 
     let finishedSignal = try #require(inputs.signals.first { $0.id == finished.id })
     #expect(finishedSignal.kind == .finished)
-    #expect(finishedSignal.finishDate != nil)
+    #expect(finishedSignal.episode.finishDate != nil)
 
     #expect(inputs.signals.contains { $0.id == unrated.id } == false)
 
     #expect(inputs.signalEmbeddings.count == 1)
-    let lovedEmbedding = try #require(inputs.signalEmbeddings[loved.id])
+    let lovedEmbedding = try #require(inputs.signalEmbeddings[id: loved.id])
     #expect(lovedEmbedding.dimension == 3)
     #expect(lovedEmbedding.floatVector == [1, 0, 0])
-    #expect(inputs.signalEmbeddings[finished.id] == nil)
+    #expect(inputs.signalEmbeddings[id: finished.id] == nil)
     #expect(inputs.hasAnyEmbeddings == true)
   }
 
