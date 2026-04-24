@@ -512,7 +512,7 @@ class EmbeddingServiceTests {
       DeterministicEmbeddable(mapping: mapping)
     )
 
-    let unsavedPodcast = try Create.unsavedPodcast(description: "POD")
+    let unsavedPodcast = try Create.unsavedPodcast(title: "POD", description: "POD")
     let pes = try await repo.upsertPodcastEpisodes([
       UnsavedPodcastEpisode(
         unsavedPodcast: unsavedPodcast,
@@ -541,6 +541,70 @@ class EmbeddingServiceTests {
     let vB = try #require(try await repo.embedding(for: epB.id)).floatVector
     let cosine = VectorMath.dotProduct(vA, vB)
     #expect(cosine < 0.3)
+  }
+
+  @Test("episode title and description blend at 0.6 / 0.4")
+  func episodeUses60_40TitleDescriptionBlend() async throws {
+    // Title/description sit on orthogonal axes so their ratio in the stored
+    // vector reflects the blend weights directly; podcast title/description
+    // sit on different axes so the 0.75/0.25 episode/podcast blend cannot
+    // leak into stored[0] or stored[1].
+    let mapping: [String: [Double]] = [
+      "EP_TITLE": [1, 0, 0, 0],
+      "EP_DESC": [0, 1, 0, 0],
+      "POD_TITLE": [0, 0, 1, 0],
+      "POD_DESC": [0, 0, 0, 1],
+    ]
+    let embedding = makeContextualEmbedding(
+      DeterministicEmbeddable(mapping: mapping)
+    )
+
+    let pe = try await makePodcastEpisode(
+      podcastTitle: "POD_TITLE",
+      podcastDescription: "POD_DESC",
+      episodeTitle: "EP_TITLE",
+      episodeDescription: "EP_DESC"
+    )
+
+    try await EmbeddingService.upsertEpisodeEmbeddings(
+      for: [pe.episode],
+      embedding: embedding
+    )
+
+    let stored = try #require(try await repo.embedding(for: pe.episode.id)).floatVector
+    let ratio = stored[0] / stored[1]
+    #expect(abs(ratio - 1.5) < 0.001)
+  }
+
+  @Test("podcast title and description blend at 0.6 / 0.4")
+  func podcastUses60_40TitleDescriptionBlend() async throws {
+    let mapping: [String: [Double]] = [
+      "POD_TITLE": [1, 0, 0],
+      "POD_DESC": [0, 1, 0],
+      "EP_TITLE": [0, 0, 1],
+      "EP_DESC": [0, 0, 1],
+    ]
+    let embedding = makeContextualEmbedding(
+      DeterministicEmbeddable(mapping: mapping)
+    )
+
+    let pe = try await makePodcastEpisode(
+      podcastTitle: "POD_TITLE",
+      podcastDescription: "POD_DESC",
+      episodeTitle: "EP_TITLE",
+      episodeDescription: "EP_DESC"
+    )
+
+    try await EmbeddingService.upsertEpisodeEmbeddings(
+      for: [pe.episode],
+      embedding: embedding
+    )
+
+    let stored = try #require(try await repo.podcastEmbedding(for: pe.podcast.id))
+      .floatVector
+    let ratio = stored[0] / stored[1]
+    #expect(abs(ratio - 1.5) < 0.001)
+    #expect(abs(stored[2]) < 0.001)
   }
 
   // MARK: - Helpers
