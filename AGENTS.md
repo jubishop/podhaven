@@ -61,3 +61,5 @@
 - Avoid using `@unchecked`/`@retroactive`/`unsafe` in code unless absolutely necessary.
 - Avoid `inout` parameters; return values instead.
 - Use `@MainActor` on functions/types instead of `MainActor.run { }` blocks.
+- Prefer named tuples — every element must have a label (e.g., `(name: String, count: Int)`), accessed by name rather than `.0`/`.1`.
+- When creating an `Array`, `Dictionary`, `Set`, `ContiguousArray`, `Data`, or `String` that will be filled iteratively and the final size is known or reasonably bounded, use the `CapacityReservable` `init(capacity:)` initializer (e.g., `var results = [Item](capacity: items.count)`) instead of `[]` / `[:]` to avoid repeated reallocations.
