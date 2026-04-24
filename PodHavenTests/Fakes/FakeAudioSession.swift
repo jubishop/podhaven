@@ -13,7 +13,11 @@ extension Container {
 
 actor FakeAudioSession {
   private(set) var configureCallCount = 0
-  func configure() throws { configureCallCount += 1 }
+  nonisolated let configureError = ThreadSafe<(any Error & Sendable)?>(nil)
+  func configure() throws {
+    configureCallCount += 1
+    if let error = configureError() { throw error }
+  }
 
   private(set) var activeCalls: [Bool] = []
   private(set) var active: Bool = false
