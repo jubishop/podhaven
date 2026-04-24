@@ -44,13 +44,14 @@ struct RecommendationEngine: Sendable {
   private static let podcastAffinityWeight: Float = 0.20
   private static let freshnessWeight: Float = 0.20
 
-  // Freshness curve: `1 / (1 + days / halfLife)`. The half-life is the day
-  // count at which an episode's freshness score falls to 0.5. 60 days is
+  // Freshness curve: `1 / (1 + days / midpoint)`. This is a hyperbolic decay,
+  // not an exponential half-life — it crosses 0.5 once at `midpoint` days and
+  // then tapers slowly (120d → 0.33, 180d → 0.25, 365d → 0.14). 60 days is
   // tuned for the "haven't configured anything" default — most podcast
   // subscriptions are time-sensitive enough that 2-month-old episodes scoring
   // 0.5 feels right. Evergreen/history content gets overridden per-podcast
   // (see memory: ML Recommendations Feature → deferred to v2).
-  private static let freshnessHalfLifeDays: Double = 60
+  private static let freshnessMidpointDays: Double = 60
 
   // Centroid weights
   private static let lovedWeight: Float = 1.0
@@ -310,7 +311,7 @@ struct RecommendationEngine: Sendable {
   private func freshnessScore(pubDate: Date, now: Date) -> Float {
     let daysSince = now.timeIntervalSince(pubDate) / 86400
     guard daysSince > 0 else { return 1.0 }
-    return Float(1.0 / (1.0 + daysSince / Self.freshnessHalfLifeDays))
+    return Float(1.0 / (1.0 + daysSince / Self.freshnessMidpointDays))
   }
 
   // MARK: - Centroid Math
