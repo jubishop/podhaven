@@ -34,7 +34,6 @@ class PodcastDetailViewModel:
   // MARK: - Data
 
   private let originTab: Navigation.Tab
-  private let detailSource: PodcastDetailSource
   var podcast: DisplayedPodcast
   private var _podcastSeries: PodcastSeries?
   private var podcastSeries: PodcastSeries? {
@@ -304,13 +303,13 @@ class PodcastDetailViewModel:
 
   // MARK: - Initialization
 
-  private init(detailSource: PodcastDetailSource) {
+  private init(detailSeed: PodcastDetailSeed) {
     self.originTab = Container.shared.navigation().currentTab
-    self.detailSource = detailSource
-    self.podcast = detailSource.initialPresentation.podcast
-    isHydratingInitialPresentation = detailSource.requiresHydratedPresentation
+    let initialPresentation = detailSeed.initialPresentation
+    self.podcast = initialPresentation.podcast
+    isHydratingInitialPresentation = detailSeed.requiresHydratedPresentation
     episodeList.sortMethod = currentSortMethod.sortMethod
-    episodeList.allEntries = detailSource.initialPresentation.episodes
+    episodeList.allEntries = initialPresentation.episodes
 
     Task { [weak self] in
       guard let self else { return }
@@ -328,15 +327,15 @@ class PodcastDetailViewModel:
   }
 
   convenience init(podcast: DisplayedPodcast) {
-    self.init(detailSource: PodcastDetailSource(podcast: podcast))
+    self.init(detailSeed: .displayedPodcast(podcast))
   }
 
   convenience init(listedPodcast: ListedPodcast) {
-    self.init(detailSource: PodcastDetailSource(listedPodcast: listedPodcast))
+    self.init(detailSeed: .listedPodcast(listedPodcast))
   }
 
   convenience init(unsavedPodcastSeries: UnsavedPodcastSeries) {
-    self.init(detailSource: PodcastDetailSource(unsavedPodcastSeries: unsavedPodcastSeries))
+    self.init(detailSeed: .unsavedPodcastSeries(unsavedPodcastSeries))
   }
 
   func appear() {
@@ -517,7 +516,7 @@ class PodcastDetailViewModel:
     }
 
     guard
-      let podcastSeries = try await detailSource.savedSeries(currentPodcast: podcast)
+      let podcastSeries = try await savedSeries(for: podcast)
     else { return false }
 
     Self.log.debug("\(podcastSeries.toString) exists in db")
@@ -611,7 +610,7 @@ class PodcastDetailViewModel:
     if let podcastSeries { return podcastSeries }
 
     guard
-      let podcastSeries = try await detailSource.savedSeries(currentPodcast: podcast)
+      let podcastSeries = try await savedSeries(for: podcast)
     else { return nil }
 
     self.podcastSeries = podcastSeries
@@ -627,7 +626,36 @@ class PodcastDetailViewModel:
 
     Self.log.debug("Now fetching and parsing feed for \(podcast.toString)")
     apply(
-      try await detailSource.parsedFeedPresentation(currentPodcast: podcast)
+      try await parsedFeedPresentation(for: podcast)
+    )
+  }
+
+  private func savedSeries(for currentPodcast: DisplayedPodcast) async throws -> PodcastSeries? {
+    try await repo.podcastSeries(
+      currentPodcast.feedURL,
+      iTunesID: currentPodcast.iTunesID
+    )
+  }
+
+  private func parsedFeedPresentation(for currentPodcast: DisplayedPodcast) async throws
+    -> PodcastDetailPresentation
+  {
+    let podcastFeed = try await PodcastFeed.parse(currentPodcast.feedURL)
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: currentPodcast.iTunesID)
+    return PodcastDetailPresentation(
+      podcast: DisplayedPodcast(unsavedPodcast),
+      episodes: IdentifiedArray(
+        uniqueElements: podcastFeed.toUnsavedEpisodes()
+          .map {
+            DisplayedEpisode(
+              UnsavedPodcastEpisode(
+                unsavedPodcast: unsavedPodcast,
+                unsavedEpisode: $0
+              )
+            )
+          },
+        id: \.mediaGUID
+      )
     )
   }
 

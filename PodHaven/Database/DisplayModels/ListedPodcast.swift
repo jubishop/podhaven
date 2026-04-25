@@ -15,9 +15,8 @@ struct ListedPodcast:
     Assert.precondition(
       !(podcast is ListedPodcast)
         && !(podcast is DisplayedPodcast)
-        && !(podcast is Podcast)
-        && !(podcast is PodcastDetailSnapshot),
-      "ListedPodcast cannot wrap wrapper or detail snapshot types"
+        && !(podcast is Podcast),
+      "ListedPodcast cannot wrap wrapper or full podcast types"
     )
     self.podcast = podcast
   }

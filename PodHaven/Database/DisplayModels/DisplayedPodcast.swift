@@ -31,35 +31,11 @@ struct DisplayedPodcast:
   // MARK: - Hashable / Equatable
 
   func hash(into hasher: inout Hasher) {
-    if let podcast = getPodcast() {
-      hasher.combine(podcast)
-    } else if let unsavedPodcast = getUnsavedPodcast() {
-      hasher.combine(unsavedPodcast)
-    } else if let podcastDetailSnapshot = getPodcastDetailSnapshot() {
-      hasher.combine(podcastDetailSnapshot)
-    } else {
-      Assert.fatal("Can't make hash from: \(type(of: podcast))")
-    }
+    AnyHashable(podcast).hash(into: &hasher)
   }
 
   static func == (lhs: DisplayedPodcast, rhs: DisplayedPodcast) -> Bool {
-    if let leftPodcast = lhs.getPodcast(), let rightPodcast = rhs.getPodcast() {
-      return leftPodcast == rightPodcast
-    }
-
-    if let leftUnsavedPodcast = lhs.getUnsavedPodcast(),
-      let rightUnsavedPodcast = rhs.getUnsavedPodcast()
-    {
-      return leftUnsavedPodcast == rightUnsavedPodcast
-    }
-
-    if let leftSnapshot = lhs.getPodcastDetailSnapshot(),
-      let rightSnapshot = rhs.getPodcastDetailSnapshot()
-    {
-      return leftSnapshot == rightSnapshot
-    }
-
-    return false  // Different concrete types are not equal
+    AnyHashable(lhs.podcast) == AnyHashable(rhs.podcast)
   }
 
   // MARK: - Stringable / Searchable
@@ -100,7 +76,4 @@ struct DisplayedPodcast:
 
   func getPodcast() -> Podcast? { podcast as? Podcast }
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
-  func getPodcastDetailSnapshot() -> PodcastDetailSnapshot? {
-    podcast as? PodcastDetailSnapshot
-  }
 }
