@@ -360,11 +360,27 @@ actor ObservatoryScoringContextInputsTests {
     )
   }
 
-  @Test("does not re-emit on irrelevant column changes")
+  @Test("does not re-emit on irrelevant column changes across both tracking branches")
   func skipsIrrelevantChanges() async throws {
-    let podcast = try await insertPodcast()
-    let episode = try await upsertEpisode(podcast: podcast, title: "Loved", rating: .loved)
-    try await upsertEmbedding(for: episode)
+    // Seed both tracking branches: a manual-cadence podcast with a signal
+    // episode + embedding (covers the signal projection + embedding fetch)
+    // AND auto-cadence podcasts with multiple episodes (covers the new
+    // pubDate-window SQL). Without coverage of the auto branch, a regression
+    // that widened that query's tracked region would slip through.
+    let manualPodcast = try await insertPodcast(title: "Manual")
+    _ = try await repo.updateFreshnessCadence(manualPodcast.id, freshnessCadence: .weekly)
+    let signalEpisode = try await upsertEpisode(
+      podcast: manualPodcast,
+      title: "Loved",
+      rating: .loved
+    )
+    try await upsertEmbedding(for: signalEpisode)
+
+    let autoPodcastA = try await insertPodcast(title: "Auto A")
+    let autoEpisodeA1 = try await upsertEpisode(podcast: autoPodcastA, title: "A1")
+    let autoEpisodeA2 = try await upsertEpisode(podcast: autoPodcastA, title: "A2")
+    let autoPodcastB = try await insertPodcast(title: "Auto B")
+    let autoEpisodeB1 = try await upsertEpisode(podcast: autoPodcastB, title: "B1")
 
     let emissionCount = Counter()
     Task {
@@ -374,15 +390,44 @@ actor ObservatoryScoringContextInputsTests {
     }
     try await emissionCount.wait(for: 1)
 
-    // currentTime is not a signal column and no embedding/rating row changes —
-    // the projection should drop this update before it surfaces.
-    _ = try await repo.updateCurrentTime(episode.id, currentTime: CMTime.seconds(30))
-    _ = try await repo.updateCurrentTime(episode.id, currentTime: CMTime.seconds(60))
+    // Episode columns the scoring context never reads (currentTime, duration,
+    // cachedFilename, saveInCache). Fire on episodes belonging to both the
+    // manual podcast (signal projection's region) and the auto podcasts
+    // (pubDate-window SQL's region) so a regression in either branch shows up.
+    let allEpisodeIDs = [
+      signalEpisode.id, autoEpisodeA1.id, autoEpisodeA2.id, autoEpisodeB1.id,
+    ]
+    for episodeID in allEpisodeIDs {
+      _ = try await repo.updateCurrentTime(episodeID, currentTime: CMTime.seconds(30))
+      _ = try await repo.updateDuration(
+        episodeID,
+        duration: CMTime(seconds: 1900, preferredTimescale: 1)
+      )
+      _ = try await repo.updateCachedFilename(episodeID, cachedFilename: "f-\(episodeID).mp3")
+      _ = try await repo.updateSaveInCache(episodeID, saveInCache: true)
+    }
+
+    // Podcast columns the scoring context never reads (defaults, queue/cache
+    // policy, notify, lastUpdate). The observation projects only id +
+    // freshnessCadence, so none of these should trigger a rebuild even though
+    // they live on the same row that the auto-branch subquery touches.
+    for podcastID in [manualPodcast.id, autoPodcastA.id, autoPodcastB.id] {
+      _ = try await repo.updateDefaultPlaybackRate(podcastID, defaultPlaybackRate: 1.5)
+      _ = try await repo.updateQueueAllEpisodes(podcastID, queueAllEpisodes: .onTop)
+      _ = try await repo.updateCacheAllEpisodes(podcastID, cacheAllEpisodes: .save)
+      _ = try await repo.updateNotifyNewEpisodes(podcastID, notifyNewEpisodes: true)
+      _ = try await repo.updateLastUpdate(podcastID)
+    }
 
     try await Wait.until(
       maxAttempts: 50,
-      { await emissionCount.maxValue == 1 },
-      { "Expected exactly one emission, got \(await emissionCount.maxValue)" }
+      {
+        await emissionCount.maxValue == 1
+      },
+      {
+        "Expected exactly one emission after irrelevant updates, "
+          + "got \(await emissionCount.maxValue)"
+      }
     )
   }
 }

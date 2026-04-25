@@ -13,6 +13,12 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
 
   static let `default`: FreshnessCadence = .weekly
 
+  // Cap on samples used by `infer`. Median-gap inference is stable well
+  // before this many samples, so we ignore older history; this also lets
+  // callers (e.g. the Observatory's SQL window query) bound their fetch to
+  // the same window without diverging from in-memory callers.
+  static let inferenceMaxSamples = 100
+
   // Past this many days without a new episode, treat the show as evergreen
   // regardless of historical spacing — catches wrapped-up serials and
   // archives where freshness is meaningless even if the median gap was weekly.
@@ -49,7 +55,7 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   static func infer(from pubDates: [Date], now: Date = Date()) -> FreshnessCadence {
     guard pubDates.count >= 3 else { return .default }
 
-    let sorted = pubDates.sorted()
+    let sorted = Array(pubDates.sorted().suffix(inferenceMaxSamples))
     guard let mostRecent = sorted.last else { return .default }
     if now.timeIntervalSince(mostRecent) > dormantThresholdDays * 86400 {
       return .evergreen

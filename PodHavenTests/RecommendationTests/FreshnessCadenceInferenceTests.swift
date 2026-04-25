@@ -58,4 +58,26 @@ struct FreshnessCadenceInferenceTests {
     let quarterly = dates(daysAgo: [0, 95, 190, 285])
     #expect(FreshnessCadence.infer(from: quarterly, now: now) == .evergreen)
   }
+
+  @Test("caps inference to the most recent samples for shows with long histories")
+  func capsToMostRecentSamples() {
+    // Recent block: `inferenceMaxSamples` weekly-spaced episodes (newest 0d,
+    // oldest just under 700d back). Ancient block: another full sample
+    // window of monthly-spaced episodes from 800d back. Without the cap, the
+    // ancient block dominates the median and inference flips to .monthly;
+    // with the cap, only the recent block contributes → .weekly.
+    let recent = stride(
+      from: 0.0,
+      to: Double(FreshnessCadence.inferenceMaxSamples) * 7,
+      by: 7
+    )
+    .map { $0 }
+    let ancient = stride(
+      from: 800.0,
+      to: 800.0 + Double(FreshnessCadence.inferenceMaxSamples) * 30,
+      by: 30
+    )
+    .map { $0 }
+    #expect(FreshnessCadence.infer(from: dates(daysAgo: recent + ancient), now: now) == .weekly)
+  }
 }

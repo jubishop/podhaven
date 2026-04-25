@@ -297,9 +297,10 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(signals)
 
-    // Default cadence is weekly (7d plateau + 7d half-life). At 365d,
-    // multiplier ≈ 0.019, well below the 0.75 reason threshold. Use the
-    // unfiltered scoring API since this gated score falls below the top
+    // Default cadence is weekly (7d plateau + 7d half-life). At 365d the
+    // episode is far past the plateau, so `.recentlyPublished` (gated by
+    // `freshness.inPlateau`) should not fire. Use the unfiltered scoring API
+    // since the multiplier (~0.019) drops the gated score below the top
     // API's confidence floor.
     let (_, old) = try await createPodcastWithEpisodes(
       count: 1,
@@ -738,8 +739,8 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(signals)
 
-    // 1 day old on a weekly cadence → inside plateau → multiplier = 1.0,
-    // well above the 0.75 reason threshold.
+    // 1 day old on a weekly cadence → inside the 7d plateau, so
+    // `freshness.inPlateau` is true and `.recentlyPublished` fires.
     let (_, fresh) = try await createPodcastWithEpisodes(
       count: 1,
       podcastTitle: "Fresh",

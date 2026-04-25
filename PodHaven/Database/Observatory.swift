@@ -14,10 +14,6 @@ extension Container {
 struct Observatory {
   private static let log = Log.as(LogSubsystem.Database.observatory)
 
-  // Bounds per-rebuild work even for shows with thousands of episodes;
-  // median-gap inference is stable well before this many samples.
-  private static let inferenceMaxPubDatesPerPodcast = 100
-
   // MARK: - Initialization
 
   private let repo: any Databasing
@@ -298,9 +294,9 @@ struct Observatory {
           WHERE podcastId IN (SELECT id FROM podcast WHERE freshnessCadence IS NULL)
         ) WHERE rn <= ?
         """,
-      arguments: [Self.inferenceMaxPubDatesPerPodcast]
+      arguments: [FreshnessCadence.inferenceMaxSamples]
     )
-    var pubDatesByPodcast: [Podcast.ID: [Date]] = [:]
+    var pubDatesByPodcast = [Podcast.ID: [Date]](capacity: pubDateRows.count)
     for row in pubDateRows {
       let id: Podcast.ID = row[Episode.Columns.podcastId]
       let pubDate: Date = row[Episode.Columns.pubDate]
