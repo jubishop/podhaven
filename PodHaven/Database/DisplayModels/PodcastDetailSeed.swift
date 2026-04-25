@@ -115,7 +115,9 @@ private struct PodcastDetailInitialPodcast:
       notifyNewEpisodes = false
       freshnessHalfLifeDays = nil
     } else {
-      Assert.fatal("Cannot build PodcastDetailSeed from: \(type(of: listedPodcast.podcast))")
+      Assert.fatal(
+        "Cannot build PodcastDetailInitialPodcast from: \(type(of: listedPodcast.podcast))"
+      )
     }
   }
 }
