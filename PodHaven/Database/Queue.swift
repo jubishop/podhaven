@@ -50,8 +50,7 @@ struct Queue: Queueing {
     try await appDB.db.write { db in
       try _clear(db)
 
-      // Note: Since _clear just set all queueOrder to nil,
-      // all episodes will be treated as newly queued
+      // _clear nulled queueOrder for every row, so every id here looks newly queued.
       try _updateQueueDate(db, episodeIDs)
 
       for (index, episodeID) in episodeIDs.enumerated() {
@@ -60,7 +59,6 @@ struct Queue: Queueing {
     }
   }
 
-  // Public exposure for Repo.deletePodcast()
   func dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
     try _dequeue(db, episodeIDs)
   }
@@ -86,7 +84,6 @@ struct Queue: Queueing {
     }
   }
 
-  // Public exposure for Repo.updateSeriesFromFeed()
   func unshift(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
     try _unshift(db, episodeIDs)
   }
@@ -101,7 +98,6 @@ struct Queue: Queueing {
     try await unshift([episodeID])
   }
 
-  // Public exposure for Repo.updateSeriesFromFeed()
   func append(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
     try _append(db, episodeIDs)
   }
@@ -122,7 +118,6 @@ struct Queue: Queueing {
     guard episodeIDs.count > 1 else { return }
 
     try await appDB.db.write { db in
-      // Verify we're reordering the entire queue
       let maxQueueOrder =
         try Episode
         .select(max(Episode.Columns.queueOrder), as: Int.self)
@@ -138,7 +133,6 @@ struct Queue: Queueing {
         )
       }
 
-      // Update each episode's queueOrder using GRDB
       for (index, episodeID) in episodeIDs.enumerated() {
         try Episode
           .withID(episodeID)
@@ -179,12 +173,11 @@ struct Queue: Queueing {
 
     Self.log.debug("queue: dequeueing \(episodeIDs)")
 
-    // Remove episodes from queue
     try Episode
       .withIDs(episodeIDs)
       .updateAll(db, Episode.Columns.queueOrder.set(to: nil))
 
-    // Renumber remaining episodes
+    // Renumber remaining episodes so queueOrder stays a dense 0-based sequence.
     try db.execute(
       sql: """
           WITH numbered_rows AS (
@@ -237,26 +230,21 @@ struct Queue: Queueing {
 
     Self.log.debug("queue: unshifting \(episodeIDs)")
 
-    // IMPORTANT: Update queueDate BEFORE dequeueing.
+    // Must update queueDate BEFORE dequeueing — _dequeue clears the rows we'd otherwise key on.
     try _updateQueueDate(db, episodeIDs)
-
-    // Remove any existing episodes
     try _dequeue(db, episodeIDs)
 
-    // Make space for the new episodes at the beginning of the queue
     try Episode
       .all()
       .queued()
       .updateAll(db, Episode.Columns.queueOrder += episodeIDs.count)
 
-    // Assign queue positions to the incoming episodes
     for (index, id) in episodeIDs.enumerated() {
       try Episode
         .withID(id)
         .updateAll(db, Episode.Columns.queueOrder.set(to: index))
     }
 
-    // Enforce max queue length by removing from the end
     try _enforceMaxQueueLength(db)
   }
 
@@ -271,13 +259,10 @@ struct Queue: Queueing {
 
     Self.log.debug("queue: appending \(episodeIDs)")
 
-    // IMPORTANT: Update queueDate BEFORE dequeueing.
+    // Must update queueDate BEFORE dequeueing — _dequeue clears the rows we'd otherwise key on.
     try _updateQueueDate(db, episodeIDs)
-
-    // Remove any existing episodes
     try _dequeue(db, episodeIDs)
 
-    // Check if adding these episodes would exceed max queue length
     let maxQueueLength = Container.shared.userSettings().maxQueueLength
     let currentCount =
       try Episode
@@ -285,7 +270,6 @@ struct Queue: Queueing {
       .queued()
       .fetchCount(db)
 
-    // Calculate how many episodes we can add
     let availableSpace = maxQueueLength - currentCount
     guard availableSpace > 0 else {
       Self.log.debug(
@@ -297,7 +281,6 @@ struct Queue: Queueing {
       return
     }
 
-    // Only append as many episodes as will fit
     let episodesToAppend = Array(episodeIDs.prefix(availableSpace))
     if episodesToAppend.count < episodeIDs.count {
       let skippedCount = episodeIDs.count - episodesToAppend.count
@@ -309,13 +292,11 @@ struct Queue: Queueing {
       )
     }
 
-    // Get the current max position after potential removals
     let maxPosition =
       try Episode
       .select(max(Episode.Columns.queueOrder), as: Int.self)
       .fetchOne(db) ?? -1
 
-    // Assign queue positions to the incoming episodes
     for (index, id) in episodesToAppend.enumerated() {
       try Episode
         .withID(id)
@@ -363,7 +344,6 @@ struct Queue: Queueing {
 
     let maxQueueLength = Container.shared.userSettings().maxQueueLength
 
-    // Get current queue count
     let currentCount =
       try Episode
       .all()
@@ -380,7 +360,6 @@ struct Queue: Queueing {
       """
     )
 
-    // Remove from the end (highest queueOrder values)
     let episodeIDsToRemove =
       try Episode
       .all()
@@ -390,7 +369,6 @@ struct Queue: Queueing {
       .fetchAll(db)
       .map(\.id)
 
-    // Remove the episodes
     try _dequeue(db, episodeIDsToRemove)
   }
 

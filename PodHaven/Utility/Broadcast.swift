@@ -47,8 +47,7 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 
   // MARK: - Current Value
 
-  // The current value held by the broadcast.
-  // Reading this property registers observation for SwiftUI views.
+  // Reading registers observation for SwiftUI views.
   var current: T {
     registrar.access(self, keyPath: \.current)
     return state().current
@@ -56,7 +55,6 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 
   // MARK: - Broadcasting
 
-  // Replaces the current value entirely and broadcasts to all streams.
   func new(_ value: T) {
     state { state in
       state.current = value
@@ -67,7 +65,6 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
     notifyObservers(value)
   }
 
-  // Updates the current value using a closure and broadcasts the result.
   func update(_ transform: (inout T) -> Void) {
     let updated: T = state { state in
       transform(&state.current)
@@ -79,9 +76,7 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
     notifyObservers(updated)
   }
 
-  // Fires observation notifications on the main actor so SwiftUI
-  // reliably picks up the change, regardless of which thread mutated.
-  // Also invokes the onChange callback for side effects like persistence.
+  // Hop to MainActor so SwiftUI picks up the change regardless of which thread mutated.
   private func notifyObservers(_ value: T) {
     onChange?(value)
     Task { @MainActor [weak self] in
@@ -92,8 +87,7 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 
   // MARK: - Streaming
 
-  // Creates a new AsyncStream that immediately yields the current value,
-  // then yields all future updates.
+  // Yields the current value immediately, then every future update.
   func stream() -> AsyncStream<T> {
     let id = UUID()
 

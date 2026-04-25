@@ -78,16 +78,11 @@ struct CachePurger: Sendable {
     }
     defer { purgeLock.release() }
 
-    // Get cached episodes once
     let cachedEpisodes = try await repo.cachedEpisodes()
 
-    // First, purge any dangling files (files with no associated episode)
     try purgeDanglingFiles(cachedEpisodes: cachedEpisodes)
-
-    // Validate that cached episodes still have their files on disk
     await validateCachedEpisodes(cachedEpisodes: cachedEpisodes)
 
-    // Calculate total cache size
     let totalSize = try calculateCacheSize()
     Self.log.debug(
       "cache size: \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))"
