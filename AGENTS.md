@@ -1,7 +1,10 @@
-## Project Memory
-- Project-specific memory lives in `memory/`.
-- Use `memory/MEMORY.md` as the canonical index of saved memories, with one linked Markdown file per memory in `memory/`.
-- When asked to save, recall, or update a memory, read and write those files directly. Check memory before guessing about prior project-specific decisions or environment details.
+## Project Memory & Tracking
+
+Three places hold persistent project context — pick the right one when saving or looking something up:
+
+- **Memory (`memory/`)** — non-derivable context: the *why* behind past decisions, user/feedback notes, references to external systems. `memory/MEMORY.md` is the canonical index with one linked Markdown file per entry. Read and write those files directly; check memory before guessing about prior project-specific decisions or environment details. Memory is **not** a task list — if it's a "we still need to do X," it belongs in a GitHub Issue, not here.
+- **GitHub Issues (`jubishop/podhaven`)** — discrete TODOs, bug reports, and planned refactors. Use `gh issue list` / `gh issue create` / `gh issue view`. Anything with a clear open/closed lifecycle goes here so it can be linked from PRs and closed automatically when merged.
+- **Design docs (`docs/`)** — ongoing initiatives and architecture rationale, one Markdown file per initiative. `docs/README.md` is the index with one-line pointers per doc; add an entry there when you add a doc. Use these for multi-PR efforts and "what we built / what's next" notes that should evolve in lockstep with the code and get reviewed in PRs.
 
 ## MCP Usage
 - If discussing Swift, SwiftUI, and iOS: Consult the apple-docs mcp for up to date information.

@@ -1,7 +1,4 @@
 - [BGTaskScheduler investigation](background_tasks_investigation.md) — dasd silently rejects background task submissions on TestFlight, investigated 2026-03-14
 - [NowPlayingInfo desync bug](project_nowplaying_desync_bug.md) — iOS sends stale backward scrub ~30–33s after AirPods pause in background; 6 incidents, fb43f650 fix DID NOT hold (4/19 recurrence with dict only 2s stale at pause — refutes dict-staleness theory)
 - [Worktree setup hooks](worktree_setup_hooks.md) — git post-checkout hook (preferred), failed approaches, Xcode build optimization for worktrees
-- [ML Recommendations Feature](project_ml_recommendations.md) — on-device ML recommendation engine with NLContextualEmbedding, dual centroids, podcast blending, tag signals
 - [Observable + Broadcast gap](observation_broadcast_viewmodel.md) — reading @Broadcasted state through @Observable viewModel computed properties can silently fail for conditional views; read SharedState directly instead
-- [Podcast Detail Refactor, Part 2](podcast_detail_refactor_part2.md) — implemented explicit ListedPodcast row cases and SavedSearchResultPodcast bridge payload after 787c881
-- [Podcast Detail Refactor, Parts 3–6 (planned)](podcast_detail_refactor_part3.md) — four leftover sibling types (ListedEpisode, EpisodeDetailSource/Snapshot, DisplayedEpisode, DisplayedPodcast) still use the pre-Part-2 wrapper pattern; ordered backlog with per-part conversion recipes
