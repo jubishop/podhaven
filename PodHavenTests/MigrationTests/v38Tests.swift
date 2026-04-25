@@ -97,21 +97,26 @@ class V38MigrationTests {
       )
     }
 
-    let rows = try await appDB.db.read { db in
+    // Extract Sendable tuples inside the read closure — Row is not Sendable.
+    let rows: [(feedURL: String, halfLife: Int64?)] = try await appDB.db.read { db in
       try Row.fetchAll(
         db,
         sql: "SELECT feedURL, freshnessHalfLifeDays FROM podcast ORDER BY feedURL"
       )
+      .map { row in
+        (
+          feedURL: row["feedURL"] as String,
+          halfLife: row["freshnessHalfLifeDays"] as Int64?
+        )
+      }
     }
     #expect(rows.count == 3)
-    let news = try #require(rows.first { ($0["feedURL"] as? String)?.contains("news") == true })
-    #expect(news["freshnessHalfLifeDays"] as Int64? == 30)
-    let evergreen = try #require(
-      rows.first { ($0["feedURL"] as? String)?.contains("evergreen") == true }
-    )
-    #expect(evergreen["freshnessHalfLifeDays"] as Int64? == 730)
-    let nullRow = try #require(rows.first { ($0["feedURL"] as? String)?.contains("null") == true })
-    #expect(nullRow.hasNull(atIndex: 1))
+    let news = try #require(rows.first { $0.feedURL.contains("news") })
+    #expect(news.halfLife == 30)
+    let evergreen = try #require(rows.first { $0.feedURL.contains("evergreen") })
+    #expect(evergreen.halfLife == 730)
+    let nullRow = try #require(rows.first { $0.feedURL.contains("null") })
+    #expect(nullRow.halfLife == nil)
   }
 
   @Test("v38 rejects values below 1")
@@ -185,14 +190,14 @@ class V38MigrationTests {
         arguments: [id]
       )
     }
-    let cleared = try await appDB.db.read { db in
-      try Row.fetchOne(
+    let clearedHalfLife: Int64? = try await appDB.db.read { db in
+      try Int64.fetchOne(
         db,
         sql: "SELECT freshnessHalfLifeDays FROM podcast WHERE id = ?",
         arguments: [id]
       )
     }
-    #expect(cleared?.hasNull(atIndex: 0) == true)
+    #expect(clearedHalfLife == nil)
 
     await #expect(throws: DatabaseError.self) {
       try await self.appDB.db.write { db in
