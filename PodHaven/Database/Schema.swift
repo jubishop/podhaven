@@ -522,21 +522,9 @@ enum Schema {
     }
 
     migrator.registerMigration("v39") { db in
-      // Replace v38's `freshnessHalfLifeDays` knob with a cadence enum:
-      // daily / weekly / monthly / evergreen. Cadence directly matches the
-      // user's mental model of a podcast ("this is a weekly show") and the
-      // engine maps each case to a half-life internally. The column is
-      // nullable: nil means "auto" — RecommendationEngine resolves it lazily
-      // by inferring from the podcast's episode pubDates. v38 hasn't shipped
-      // yet, so existing rows are dropped to nil with no backfill.
-      //
-      // The allowed list is a hard-coded literal (not derived from
-      // `FreshnessCadence.allCases`) so renaming or removing an enum case
-      // can't silently change what the migration accepts. Hoisting into a
-      // `let` also collapses the check closure to one nil-comparison plus
-      // one IN expression — chaining four `||` equalities directly inside
-      // the closure tripped the SwiftCompiler's type-checker timeout on
-      // cold CI builds.
+      // Hoisted to a `let` so the check closure stays a single `.contains`
+      // call — chaining four `||` equalities inline tripped SwiftCompiler's
+      // type-checker timeout on cold CI builds.
       let allowedCadences = ["daily", "weekly", "monthly", "evergreen"]
       try db.alter(table: "podcast") { t in
         t.add(column: "freshnessCadence", .text)

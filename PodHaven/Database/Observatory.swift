@@ -14,10 +14,8 @@ extension Container {
 struct Observatory {
   private static let log = Log.as(LogSubsystem.Database.observatory)
 
-  // Cap on pubDates fetched per auto-cadence podcast for inference. Median-gap
-  // inference is stable well before this many samples, and the dormancy check
-  // only needs the single most recent date — bounds per-rebuild work even for
-  // podcasts with thousands of historical episodes.
+  // Bounds per-rebuild work even for shows with thousands of episodes;
+  // median-gap inference is stable well before this many samples.
   private static let inferenceMaxPubDatesPerPodcast = 100
 
   // MARK: - Initialization
@@ -235,19 +233,11 @@ struct Observatory {
 
   // MARK: - Recommendations
 
-  // Composite observation feeding `RecommendationEngine`'s cached
-  // `ScoringContext`. One stream covers signals + their embeddings + the
-  // any-embedding flag + a per-podcast resolved freshness cadence, so a
-  // single transaction touching multiple tables produces one rebuild
-  // instead of several. `SignalEpisode`'s `databaseSelection` narrows the
-  // fetch to the five Episode columns the engine actually reads. The
-  // cadence projection issues two column-narrow queries: one for podcasts
-  // with an explicit (`IS NOT NULL`) cadence, and one joining Episode to
-  // Podcast for the (podcastId, pubDate) tuples needed to infer a cadence
-  // for the rest. Inference happens here so `removeDuplicates` can
-  // suppress emissions where pubDate changes don't actually shift the
-  // inferred cadence — and GRDB's column tracking still ignores updates
-  // to currentTime, queueOrder, podcast title, etc.
+  // Combines signals, embeddings, the any-embedding flag, and resolved
+  // cadences into a single observation so one DB change produces one engine
+  // rebuild. Every fetch is column-narrowed (via `SignalEpisode.databaseSelection`
+  // and explicit `.select(...)` projections) so unrelated UPDATEs to
+  // currentTime, queueOrder, podcast title, etc. don't trigger emissions.
   func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
     _observe { db in
       let signals = try SignalEpisode.filter(Episode.signal).fetchAll(db)
@@ -277,11 +267,8 @@ struct Observatory {
 
   // Private Helpers
 
-  // Resolves every podcast that has either a manual cadence or any
-  // episode pubDates into a single map. Manual choices win; nil-cadence
-  // podcasts get `FreshnessCadence.infer(from:)` applied to their
-  // pubDates. Podcasts with no episodes and no manual choice are absent —
-  // the engine falls back to `FreshnessCadence.default` at scoring time.
+  // Manual choices win; nil-cadence podcasts get inferred from their
+  // pubDates. Podcasts with no episodes and no manual choice are absent.
   private static func _resolveFreshnessCadences(
     _ db: Database
   ) throws -> [Podcast.ID: FreshnessCadence] {
@@ -298,9 +285,7 @@ struct Observatory {
       resolved[id] = cadence
     }
 
-    // Window function isn't expressible via the GRDB query builder, so this
-    // one stays in raw SQL. ROW_NUMBER caps each podcast's contribution to
-    // its N most recent pubDates — see `inferenceMaxPubDatesPerPodcast`.
+    // Raw SQL: window functions aren't expressible via the GRDB query builder.
     let pubDateRows = try Row.fetchAll(
       db,
       sql: """

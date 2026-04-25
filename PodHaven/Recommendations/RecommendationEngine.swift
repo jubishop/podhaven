@@ -53,13 +53,9 @@ struct RecommendationEngine: Sendable {
   private static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
-  // Base-score weights for the additive features (must sum to 1.0). Freshness
-  // is no longer a summand — it's applied as a multiplicative gate after the
-  // base score is computed, so a podcast whose freshness curve returns ~0
-  // actually drives the final score to ~0 instead of nudging it by a fixed
-  // weight. Similarity dominates affinity 4:1 — a single liked episode
-  // shouldn't drag in everything that podcast ever published when the
-  // candidate isn't actually similar.
+  // Must sum to 1.0. Similarity dominates 4:1 so a single liked episode
+  // doesn't drag in everything that podcast ever published. Freshness isn't
+  // a summand — it's a multiplicative gate (see `scoreCandidate`).
   private static let similarityWeight: Float = 0.8
   private static let podcastAffinityWeight: Float = 0.2
 
@@ -311,11 +307,8 @@ struct RecommendationEngine: Sendable {
     let remappedAffinity = (affinity + 1.0) / 2.0
     features.append((Self.podcastAffinityWeight, remappedAffinity, .podcastAffinity))
 
-    // Renormalize weights over available features. Affinity is always
-    // appended, so totalWeight is either 0.2 (no candidate embedding) or
-    // 1.00 (embedding present). The guard protects the divide below; if it
-    // ever fires, static weights have been reconfigured and we want to hear
-    // about it rather than silently return a neutral score.
+    // Renormalize weights so a missing-embedding candidate (totalWeight 0.2)
+    // still produces a comparable score. Guard catches misconfigured weights.
     let totalWeight = features.reduce(Float(0)) { $0 + $1.weight }
     guard totalWeight > 0 else {
       Assert.fatal("scoreCandidate: totalWeight is zero — scoring weights misconfigured")
@@ -325,11 +318,8 @@ struct RecommendationEngine: Sendable {
       sum + (feature.weight / totalWeight) * feature.value
     }
 
-    // Freshness applies as a multiplicative gate, not an additive feature.
-    // Evergreen returns 1.0 unconditionally so back-catalog shows keep their
-    // full base score regardless of pubDate; daily/weekly/monthly multiply
-    // by the hyperbolic curve so a year-old daily-news episode actually
-    // drops to ≈0 instead of being capped by a fixed weight.
+    // Multiplicative gate, not a summand: a year-old daily-news episode
+    // drops to ≈0 instead of being capped by a fixed-weight summand.
     let freshness = FreshnessSignal.compute(
       pubDate: pubDate,
       cadence: freshnessCadence,
@@ -337,12 +327,7 @@ struct RecommendationEngine: Sendable {
     )
     let score = baseScore * freshness.multiplier
 
-    // A similarity/affinity reason fires only when its feature is above its
-    // own neutral midpoint (0.5). The freshness reason fires only when the
-    // episode is within its podcast's cadence plateau — i.e., the next
-    // episode hasn't dropped yet. Evergreen podcasts never surface it
-    // because they have no plateau (the user has opted out of treating
-    // freshness as signal).
+    // Reasons fire when their feature is above neutral (0.5).
     var reasons = features.filter { $0.value > 0.5 }.map(\.reason)
     if freshness.inPlateau {
       reasons.append(.recentlyPublished)
