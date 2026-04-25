@@ -297,11 +297,6 @@ class PodcastDetailViewModel:
     }
   }
 
-  // The cadence FreshnessCadence.infer() would return for this podcast right
-  // now. Surfaces what "Auto" actually resolves to in PodcastSettingsView so
-  // the user can see whether the inferred value matches their expectation
-  // before deciding whether to override. Inference is recomputed off the
-  // already-loaded `episodeList` — no DB hit.
   var inferredFreshnessCadence: FreshnessCadence {
     FreshnessCadence.infer(from: episodeList.allEntries.map(\.pubDate))
   }

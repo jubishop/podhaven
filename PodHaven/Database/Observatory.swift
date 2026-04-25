@@ -14,6 +14,12 @@ extension Container {
 struct Observatory {
   private static let log = Log.as(LogSubsystem.Database.observatory)
 
+  // Cap on pubDates fetched per auto-cadence podcast for inference. Median-gap
+  // inference is stable well before this many samples, and the dormancy check
+  // only needs the single most recent date — bounds per-rebuild work even for
+  // podcasts with thousands of historical episodes.
+  private static let inferenceMaxPubDatesPerPodcast = 100
+
   // MARK: - Initialization
 
   private let repo: any Databasing
@@ -292,11 +298,22 @@ struct Observatory {
       resolved[id] = cadence
     }
 
+    // Window function isn't expressible via the GRDB query builder, so this
+    // one stays in raw SQL. ROW_NUMBER caps each podcast's contribution to
+    // its N most recent pubDates — see `inferenceMaxPubDatesPerPodcast`.
     let pubDateRows = try Row.fetchAll(
       db,
-      Episode
-        .joining(required: Episode.podcast.filter(Podcast.Columns.freshnessCadence == nil))
-        .select(Episode.Columns.podcastId, Episode.Columns.pubDate)
+      sql: """
+        SELECT podcastId, pubDate FROM (
+          SELECT
+            podcastId,
+            pubDate,
+            ROW_NUMBER() OVER (PARTITION BY podcastId ORDER BY pubDate DESC) AS rn
+          FROM episode
+          WHERE podcastId IN (SELECT id FROM podcast WHERE freshnessCadence IS NULL)
+        ) WHERE rn <= ?
+        """,
+      arguments: [inferenceMaxPubDatesPerPodcast]
     )
     var pubDatesByPodcast: [Podcast.ID: [Date]] = [:]
     for row in pubDateRows {
