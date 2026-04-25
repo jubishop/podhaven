@@ -30,6 +30,20 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   private static let weeklyMaxMedianDays: Double = 12
   private static let monthlyMaxMedianDays: Double = 48
 
+  // Half-life used by FreshnessSignal's hyperbolic decay past the plateau.
+  // Each value matches the cadence's natural period so an episode that's one
+  // full cadence-period overdue (e.g. a 14-day-old weekly) lands on the 0.5
+  // midpoint of the curve. .evergreen returns nil — there is no decay, the
+  // signal multiplier is always 1.0.
+  var halfLifeDays: Int? {
+    switch self {
+    case .daily: 1
+    case .weekly: 7
+    case .monthly: 30
+    case .evergreen: nil
+    }
+  }
+
   // Infer a cadence from a podcast's episode publish dates. Used at podcast
   // ingest (feed parse) and during the v39 backfill so users don't have to
   // hand-tune each podcast — most shows fall cleanly into one bucket. Falls
