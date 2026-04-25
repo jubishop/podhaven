@@ -92,7 +92,9 @@ enum AppInfo {
 
   // Initial synchronous environment detection
   private static func detectEnvironment() -> EnvironmentType {
-    guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1"
+    let env = ProcessInfo.processInfo.environment
+    guard env["XCODE_RUNNING_FOR_PREVIEWS"] != "1",
+      env["XCODE_RUNNING_FOR_PLAYGROUNDS"] != "1"
     else { return .preview }
 
     guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil

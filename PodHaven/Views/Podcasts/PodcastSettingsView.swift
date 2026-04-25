@@ -147,10 +147,10 @@ struct PodcastSettingsView: View {
                 """
             ) {
               HStack {
-                if viewModel.freshnessHalfLifeDays != nil {
-                  Text("Freshness Half-Life")
+                if viewModel.hasCustomFreshness {
+                  Text("Freshness")
                 } else {
-                  Text("Freshness Half-Life (Unset)")
+                  Text("Freshness (Unset)")
                 }
 
                 Spacer()
@@ -252,7 +252,7 @@ struct PodcastSettingsView: View {
     }
   }
 
-  return PreviewWrapper()
+  return PreviewWrapper().preview()
 }
 
 #Preview("With Custom Default Rate") {
@@ -279,7 +279,7 @@ struct PodcastSettingsView: View {
     }
   }
 
-  return PreviewWrapper()
+  return PreviewWrapper().preview()
 }
 
 #Preview("With Podcast Custom Rate") {
@@ -305,7 +305,7 @@ struct PodcastSettingsView: View {
     }
   }
 
-  return PreviewWrapper()
+  return PreviewWrapper().preview()
 }
 
 #Preview("With Custom Freshness Half-Life") {
@@ -331,6 +331,6 @@ struct PodcastSettingsView: View {
     }
   }
 
-  return PreviewWrapper()
+  return PreviewWrapper().preview()
 }
 #endif
