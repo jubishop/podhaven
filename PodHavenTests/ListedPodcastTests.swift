@@ -218,6 +218,41 @@ class ListedPodcastTests {
     #expect(resolved.feedURL == series.podcast.feedURL)
   }
 
+  @Test("SavedSearchResultPodcast equality follows the canonical saved podcast")
+  func testSearchResultEqualityUsesCanonicalPodcast() async throws {
+    let canonicalURL = FeedURL(URL(string: "https://example.com/canonical-hash.rss")!)
+    let unsavedPodcast = try Create.unsavedPodcast(feedURL: canonicalURL)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
+    )
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
+
+    let first = makeSearchResult(
+      resultFeedURL: FeedURL(URL(string: "https://example.com/first-slot.rss")!),
+      originalPodcast: try Create.unsavedPodcast(
+        feedURL: FeedURL(URL(string: "https://example.com/first-slot.rss")!),
+        title: "First Result"
+      ),
+      savedPodcast: savedPodcast,
+      originalEpisodeCount: 1,
+      originalMostRecentEpisodeDate: Date(timeIntervalSince1970: 100)
+    )
+    let second = makeSearchResult(
+      resultFeedURL: FeedURL(URL(string: "https://example.com/second-slot.rss")!),
+      originalPodcast: try Create.unsavedPodcast(
+        feedURL: FeedURL(URL(string: "https://example.com/second-slot.rss")!),
+        title: "Second Result"
+      ),
+      savedPodcast: savedPodcast,
+      originalEpisodeCount: 2,
+      originalMostRecentEpisodeDate: Date(timeIntervalSince1970: 200)
+    )
+
+    #expect(first == second)
+    #expect(Set([first, second]).count == 1)
+    #expect(ListedPodcast(savedSearchResult: first) == ListedPodcast(savedSearchResult: second))
+  }
+
   @Test("ListedPodcast.getOrCreatePodcast() returns the real Podcast")
   func testGetOrCreatePodcast() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)

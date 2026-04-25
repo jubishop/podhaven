@@ -155,6 +155,8 @@ struct ListedPodcast:
     episodeCount: Int,
     mostRecentEpisodeDate: Date?
   ) -> SearchMetadata? {
+    // The arguments only apply to unsaved search results; saved search results
+    // already carry the original metadata needed to restore the search row.
     source.searchMetadata(
       episodeCount: episodeCount,
       mostRecentEpisodeDate: mostRecentEpisodeDate
