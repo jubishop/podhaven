@@ -66,6 +66,7 @@ Three places hold persistent project context — pick the right one when saving 
 - Prefer triple-quoted strings for multi-line or >100 character literals.
 - Run `swift-format` on every Swift file you touch before handing work back.
 - Use `//` for comments, not `///` (no doc comments).
+- Keep comments minimal — only add one when the *why* isn't already obvious from reading the code (a hidden constraint, a non-obvious invariant, a workaround for a specific bug, behavior that would surprise a reader). Don't restate what well-named identifiers already convey, and don't reference the current task/PR/caller. If removing the comment wouldn't confuse a future reader, don't write it.
 - Never leave behind unused code, properties, or parameters. If something becomes unused, remove it immediately.
 - Avoid using `@unchecked`/`@retroactive`/`unsafe` in code unless absolutely necessary.
 - Avoid `inout` parameters; return values instead.
