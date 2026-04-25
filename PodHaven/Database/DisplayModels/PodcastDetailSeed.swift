@@ -45,14 +45,14 @@ enum PodcastDetailSeed: Hashable, Sendable {
   var requiresHydratedPresentation: Bool {
     switch self {
     case .listedPodcast(let listedPodcast):
-      return listedPodcast.getListablePodcast() != nil
+      return listedPodcast.listablePodcast != nil
     case .displayedPodcast, .unsavedPodcastSeries:
       return false
     }
   }
 
   private func initialPodcast(from listedPodcast: ListedPodcast) -> DisplayedPodcast {
-    if let unsavedPodcast = listedPodcast.getUnsavedPodcast() {
+    if let unsavedPodcast = listedPodcast.unsavedSearchResult {
       return DisplayedPodcast(unsavedPodcast)
     }
 
@@ -86,7 +86,7 @@ private struct PodcastDetailInitialPodcast:
   var searchableString: String { "\(title) - \(description)" }
 
   init(_ listedPodcast: ListedPodcast) {
-    if let searchResult = listedPodcast.getSearchResultPodcast() {
+    if let searchResult = listedPodcast.savedSearchResult {
       podcastID = searchResult.savedPodcast.id
       feedURL = searchResult.savedPodcast.feedURL
       iTunesID = searchResult.savedPodcast.iTunesID
@@ -100,7 +100,7 @@ private struct PodcastDetailInitialPodcast:
       cacheAllEpisodes = .never
       notifyNewEpisodes = false
       freshnessHalfLifeDays = nil
-    } else if let listablePodcast = listedPodcast.getListablePodcast() {
+    } else if let listablePodcast = listedPodcast.listablePodcast {
       podcastID = listablePodcast.id
       feedURL = listablePodcast.feedURL
       iTunesID = listablePodcast.iTunesID
@@ -115,9 +115,7 @@ private struct PodcastDetailInitialPodcast:
       notifyNewEpisodes = false
       freshnessHalfLifeDays = nil
     } else {
-      Assert.fatal(
-        "Cannot build PodcastDetailInitialPodcast from: \(type(of: listedPodcast.podcast))"
-      )
+      Assert.fatal("Cannot build PodcastDetailInitialPodcast from unsaved search result")
     }
   }
 }

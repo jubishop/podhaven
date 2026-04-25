@@ -81,7 +81,7 @@ struct PodcastsListView: View {
       ItemGrid(items: viewModel.podcastList.filteredEntries) { podcastWithEpisodeMetadata in
         NavigationLink(
           value: Navigation.Destination.listedPodcast(
-            ListedPodcast(podcastWithEpisodeMetadata.podcast)
+            ListedPodcast(saved: podcastWithEpisodeMetadata.podcast)
           ),
           label: {
             PodcastGridView(
@@ -106,7 +106,7 @@ struct PodcastsListView: View {
       ForEach(viewModel.podcastList.filteredEntries) { podcastWithEpisodeMetadata in
         NavigationLink(
           value: Navigation.Destination.listedPodcast(
-            ListedPodcast(podcastWithEpisodeMetadata.podcast)
+            ListedPodcast(saved: podcastWithEpisodeMetadata.podcast)
           ),
           label: {
             PodcastListView(

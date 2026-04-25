@@ -81,7 +81,7 @@ import Testing
       )
     )
     let listablePodcast = try await fetchListablePodcast(savedSeries.id)
-    let viewModel = PodcastDetailViewModel(listedPodcast: ListedPodcast(listablePodcast))
+    let viewModel = PodcastDetailViewModel(listedPodcast: ListedPodcast(saved: listablePodcast))
 
     #expect(viewModel.isHydratingInitialPresentation)
     #expect(viewModel.shareURL == ShareURL.podcast(feedURL: savedSeries.podcast.feedURL))
@@ -129,7 +129,7 @@ import Testing
     let savedPodcast = try await fetchListablePodcast(savedSeries.id)
     let searchDescription = "Search Description"
     let searchLink = try #require(URL(string: "https://example.com/search"))
-    let searchResult = SearchResultPodcast(
+    let searchResult = SavedSearchResultPodcast(
       resultFeedURL: FeedURL(URL(string: "https://example.com/search-result.rss")!),
       originalPodcast: try Create.unsavedPodcast(
         feedURL: searchResultFeedURL(),
@@ -142,7 +142,9 @@ import Testing
       originalMostRecentEpisodeDate: Date(timeIntervalSince1970: 123),
       savedPodcast: savedPodcast
     )
-    let viewModel = PodcastDetailViewModel(listedPodcast: ListedPodcast(searchResult))
+    let viewModel = PodcastDetailViewModel(
+      listedPodcast: ListedPodcast(savedSearchResult: searchResult)
+    )
 
     #expect(viewModel.isHydratingInitialPresentation == false)
     #expect(viewModel.shareURL == ShareURL.podcast(feedURL: feedURL))
