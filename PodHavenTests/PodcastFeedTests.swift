@@ -182,33 +182,28 @@ struct PodcastFeedTests {
     #expect(unsavedEpisode.description!.contains("<strong>"))
   }
 
-  @Test("toUnsavedPodcast infers freshnessCadence from the feed's episode pubDates")
-  func inferringFreshnessCadenceOnNewSubscription() async throws {
+  @Test("toUnsavedPodcast leaves freshnessCadence nil for first-time subscriptions")
+  func freshnessCadenceNilOnNewSubscription() async throws {
     let data = PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let feed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try feed.toUnsavedPodcast()
 
-    // The cadence on a brand-new (un-merged) UnsavedPodcast must come from
-    // FreshnessCadence.infer over the feed's pubDates — not the .weekly
-    // default. Comparing against the same inference call documents the wire
-    // without locking in a specific bucket (which would shift if the fixture
-    // ever moves further into the past).
-    let expectedCadence = FreshnessCadence.infer(
-      from: feed.toUnsavedEpisodes().map(\.pubDate)
-    )
-    #expect(unsavedPodcast.freshnessCadence == expectedCadence)
+    // First-time inserts go in as nil — RecommendationEngine resolves nil
+    // lazily by inferring from pubDates at scoring time, so there's no need
+    // to commit to a cadence at parse time.
+    #expect(unsavedPodcast.freshnessCadence == nil)
   }
 
-  @Test("toUnsavedPodcast preserves cadence when merging an existing podcast")
+  @Test("toUnsavedPodcast preserves the existing podcast's cadence when merging")
   func preservesCadenceWhenMerging() async throws {
     let data = PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let feed = try await PodcastFeed.parse(data, from: fakeURL)
 
-    // Insert with a deliberately user-chosen cadence the user wouldn't get
-    // by inference on this fixture, then re-parse with merging to confirm
-    // the existing cadence wins.
+    // Insert once with a user-chosen cadence, then update the cadence to
+    // exercise both the explicit and nil branches of the merge path without
+    // re-inserting episodes (which would collide on guid + mediaURL).
     let inserted = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(
@@ -221,8 +216,13 @@ struct PodcastFeedTests {
     )
     #expect(inserted.podcast.freshnessCadence == .evergreen)
 
-    let mergedUnsaved = try feed.toUnsavedPodcast(merging: inserted.podcast)
-    #expect(mergedUnsaved.freshnessCadence == .evergreen)
+    let mergedEvergreen = try feed.toUnsavedPodcast(merging: inserted.podcast)
+    #expect(mergedEvergreen.freshnessCadence == .evergreen)
+
+    _ = try await repo.updateFreshnessCadence(inserted.podcast.id, freshnessCadence: nil)
+    let refreshed = try #require(try await repo.podcastSeries(inserted.podcast.id))
+    let mergedAuto = try feed.toUnsavedPodcast(merging: refreshed.podcast)
+    #expect(mergedAuto.freshnessCadence == nil)
   }
 
   @Test("parsing and inserting the twentyminutevc feed via repo")

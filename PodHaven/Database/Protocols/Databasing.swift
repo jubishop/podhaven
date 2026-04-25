@@ -155,7 +155,7 @@ protocol Databasing: Sendable {
   @discardableResult
   func updateFreshnessCadence(
     _ podcastID: Podcast.ID,
-    freshnessCadence: FreshnessCadence
+    freshnessCadence: FreshnessCadence?
   ) async throws -> Bool
 
   // MARK: - Embedding Writers

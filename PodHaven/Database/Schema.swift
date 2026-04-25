@@ -525,33 +525,18 @@ enum Schema {
       // Replace v38's `freshnessHalfLifeDays` knob with a cadence enum:
       // daily / weekly / monthly / evergreen. Cadence directly matches the
       // user's mental model of a podcast ("this is a weekly show") and the
-      // engine maps each case to a half-life internally. Existing rows get
-      // their cadence inferred from each podcast's episode pubDates so the
-      // user doesn't have to hand-tag a fresh subscription set after upgrade.
+      // engine maps each case to a half-life internally. The column is
+      // nullable: nil means "auto" — RecommendationEngine resolves it lazily
+      // by inferring from the podcast's episode pubDates. v38 hasn't shipped
+      // yet, so existing rows are dropped to nil with no backfill.
       try db.alter(table: "podcast") { t in
         t.add(column: "freshnessCadence", .text)
-          .notNull()
-          .defaults(to: "weekly")
           .check {
-            $0 == "daily" || $0 == "weekly" || $0 == "monthly" || $0 == "evergreen"
+            $0 == nil || $0 == "daily" || $0 == "weekly" || $0 == "monthly"
+              || $0 == "evergreen"
           }
       }
       try db.execute(sql: "ALTER TABLE podcast DROP COLUMN freshnessHalfLifeDays")
-
-      let now = Date()
-      let podcastIDs = try Int64.fetchAll(db, sql: "SELECT id FROM podcast")
-      for podcastID in podcastIDs {
-        let pubDates = try Date.fetchAll(
-          db,
-          sql: "SELECT pubDate FROM episode WHERE podcastId = ?",
-          arguments: [podcastID]
-        )
-        let cadence = FreshnessCadence.infer(from: pubDates, now: now)
-        try db.execute(
-          sql: "UPDATE podcast SET freshnessCadence = ? WHERE id = ?",
-          arguments: [cadence.rawValue, podcastID]
-        )
-      }
     }
 
     return migrator

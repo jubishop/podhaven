@@ -231,14 +231,16 @@ struct Observatory {
 
   // Composite observation feeding `RecommendationEngine`'s cached
   // `ScoringContext`. One stream covers signals + their embeddings + the
-  // any-embedding flag + per-podcast freshness cadence so a single
-  // transaction touching multiple tables produces one rebuild instead of
-  // several. `SignalEpisode`'s `databaseSelection` narrows the fetch to the
-  // five Episode columns the engine actually reads, and the freshness query
-  // selects only id + freshnessCadence — so GRDB's column tracking ignores
-  // updates to currentTime, queueOrder, podcast title, etc. Only podcasts
-  // whose cadence deviates from the engine default (.weekly) are projected;
-  // absent entries resolve to the default at scoring time.
+  // any-embedding flag + the raw inputs the engine needs to resolve
+  // per-podcast freshness cadence, so a single transaction touching
+  // multiple tables produces one rebuild instead of several.
+  // `SignalEpisode`'s `databaseSelection` narrows the fetch to the five
+  // Episode columns the engine actually reads. The cadence projection
+  // splits in two: rows with an explicit cadence (`IS NOT NULL`) project
+  // only id + freshnessCadence, and rows where the cadence is nil project
+  // their episodes' (podcastId, pubDate) so the engine can infer a cadence
+  // lazily — GRDB's column tracking still ignores updates to currentTime,
+  // queueOrder, podcast title, etc.
   func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
     _observe { db in
       let signals = try SignalEpisode.filter(Episode.signal).fetchAll(db)
@@ -257,24 +259,38 @@ struct Observatory {
       let hasAnyEmbeddings =
         try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
 
-      let cadenceRows = try Row.fetchAll(
+      let manualRows = try Row.fetchAll(
         db,
         Podcast
-          .filter(Podcast.Columns.freshnessCadence != FreshnessCadence.weekly.rawValue)
+          .filter(Podcast.Columns.freshnessCadence != nil)
           .select(Podcast.Columns.id, Podcast.Columns.freshnessCadence)
       )
-      var freshnessCadences = [Podcast.ID: FreshnessCadence](capacity: cadenceRows.count)
-      for row in cadenceRows {
+      var manualFreshnessCadences = [Podcast.ID: FreshnessCadence](capacity: manualRows.count)
+      for row in manualRows {
         let id: Podcast.ID = row[Podcast.Columns.id]
         let cadence: FreshnessCadence = row[Podcast.Columns.freshnessCadence]
-        freshnessCadences[id] = cadence
+        manualFreshnessCadences[id] = cadence
+      }
+
+      let pubDateRows = try Row.fetchAll(
+        db,
+        Episode
+          .joining(required: Episode.podcast.filter(Podcast.Columns.freshnessCadence == nil))
+          .select(Episode.Columns.podcastId, Episode.Columns.pubDate)
+      )
+      var inferenceFreshnessPubDates: [Podcast.ID: [Date]] = [:]
+      for row in pubDateRows {
+        let id: Podcast.ID = row[Episode.Columns.podcastId]
+        let pubDate: Date = row[Episode.Columns.pubDate]
+        inferenceFreshnessPubDates[id, default: []].append(pubDate)
       }
 
       return ScoringContextInputs(
         signals: signals,
         signalEmbeddings: signalEmbeddings,
         hasAnyEmbeddings: hasAnyEmbeddings,
-        freshnessCadences: freshnessCadences
+        manualFreshnessCadences: manualFreshnessCadences,
+        inferenceFreshnessPubDates: inferenceFreshnessPubDates
       )
     }
   }

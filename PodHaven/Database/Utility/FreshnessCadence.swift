@@ -6,14 +6,22 @@ import GRDB
 // How quickly a podcast's episodes lose freshness in the recommendation
 // score, expressed as the show's natural publish cadence. RecommendationEngine
 // translates each case to a half-life for its hyperbolic decay; .evergreen
-// disables decay entirely (multiplier always 1.0). Default is .weekly — the
-// most common podcast cadence, and a sensible middle ground for un-tagged
-// shows.
+// disables decay entirely (multiplier always 1.0). The Podcast row stores
+// this as Optional — `nil` means "auto", and the engine resolves it lazily
+// by inferring from the podcast's episode pubDates (see `infer(from:now:)`).
+// `default` is the fallback used when there's no manual choice and not
+// enough episodes for inference to be confident.
 enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, CaseIterable {
   case daily
   case weekly
   case monthly
   case evergreen
+
+  // The fallback cadence used wherever a concrete cadence is needed but
+  // none has been chosen and inference can't yield one (< 3 episodes).
+  // Centralized here so Observatory/RecommendationEngine/UI all agree on
+  // what "unset" resolves to without each owning the constant.
+  static let `default`: FreshnessCadence = .weekly
 
   // A podcast that hasn't published in this long is treated as evergreen,
   // regardless of its historical cadence. Catches dormant/archive shows like
@@ -30,6 +38,16 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   private static let weeklyMaxMedianDays: Double = 12
   private static let monthlyMaxMedianDays: Double = 48
 
+  // Human-readable picker / settings label.
+  var displayName: String {
+    switch self {
+    case .daily: "Daily"
+    case .weekly: "Weekly"
+    case .monthly: "Monthly"
+    case .evergreen: "Evergreen"
+    }
+  }
+
   // Half-life used by FreshnessSignal's hyperbolic decay past the plateau.
   // Each value matches the cadence's natural period so an episode that's one
   // full cadence-period overdue (e.g. a 14-day-old weekly) lands on the 0.5
@@ -44,16 +62,16 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
     }
   }
 
-  // Infer a cadence from a podcast's episode publish dates. Used at podcast
-  // ingest (feed parse) and during the v39 backfill so users don't have to
-  // hand-tune each podcast — most shows fall cleanly into one bucket. Falls
-  // back to .weekly when there isn't enough data to be confident (< 3
+  // Infer a cadence from a podcast's episode publish dates. Used by
+  // RecommendationEngine to resolve podcasts whose stored cadence is nil,
+  // and by PodcastSettingsView to render the "Auto" picker label. Falls
+  // back to `.default` when there isn't enough data to be confident (< 3
   // episodes) since that's the most common cadence anyway.
   static func infer(from pubDates: [Date], now: Date = Date()) -> FreshnessCadence {
-    guard pubDates.count >= 3 else { return .weekly }
+    guard pubDates.count >= 3 else { return .default }
 
     let sorted = pubDates.sorted()
-    guard let mostRecent = sorted.last else { return .weekly }
+    guard let mostRecent = sorted.last else { return .default }
     if now.timeIntervalSince(mostRecent) > dormantThresholdDays * 86400 {
       return .evergreen
     }

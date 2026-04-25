@@ -358,7 +358,7 @@ class PodcastTests {
     #expect(original.cacheAllEpisodes == .never)
     #expect(original.defaultPlaybackRate == nil)
     #expect(original.queueAllEpisodes == .never)
-    #expect(original.freshnessCadence == .weekly)
+    #expect(original.freshnessCadence == nil)
 
     // Feed fields should be preserved
     #expect(original.feedURL == unsavedPodcast.feedURL)
@@ -368,18 +368,18 @@ class PodcastTests {
     #expect(original.link == unsavedPodcast.link)
   }
 
-  @Test("freshnessCadence defaults to .weekly and round-trips through insert + fetch")
+  @Test("freshnessCadence defaults to nil and round-trips every case through insert + fetch")
   func freshnessCadencePersistence() async throws {
     let defaultPodcast = try Create.unsavedPodcast()
-    #expect(defaultPodcast.freshnessCadence == .weekly)
+    #expect(defaultPodcast.freshnessCadence == nil)
     let defaultSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: defaultPodcast)
     )
-    #expect(defaultSeries.podcast.freshnessCadence == .weekly)
+    #expect(defaultSeries.podcast.freshnessCadence == nil)
     let fetchedDefault = try await repo.podcastSeries(defaultSeries.id)
-    #expect(fetchedDefault?.podcast.freshnessCadence == .weekly)
+    #expect(fetchedDefault?.podcast.freshnessCadence == nil)
 
-    for cadence in FreshnessCadence.allCases where cadence != .weekly {
+    for cadence in FreshnessCadence.allCases {
       let custom = try Create.unsavedPodcast(freshnessCadence: cadence)
       let series = try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: custom))
       #expect(series.podcast.freshnessCadence == cadence)
@@ -388,14 +388,15 @@ class PodcastTests {
     }
   }
 
-  @Test("updateFreshnessCadence() flips the cadence and persists across fetches")
+  @Test("updateFreshnessCadence() flips the cadence and persists across fetches, including nil")
   func testUpdateFreshnessCadence() async throws {
     let podcastSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
-    #expect(podcastSeries.podcast.freshnessCadence == .weekly)
+    #expect(podcastSeries.podcast.freshnessCadence == nil)
 
-    for cadence in [FreshnessCadence.daily, .monthly, .evergreen, .weekly] {
+    let sequence: [FreshnessCadence?] = [.daily, .monthly, .evergreen, .weekly, nil]
+    for cadence in sequence {
       let updated = try await repo.updateFreshnessCadence(
         podcastSeries.id,
         freshnessCadence: cadence

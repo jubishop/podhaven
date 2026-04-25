@@ -80,54 +80,71 @@ actor ObservatoryScoringContextInputsTests {
     #expect(inputs.signals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
     #expect(inputs.hasAnyEmbeddings == false)
-    #expect(inputs.freshnessCadences.isEmpty)
+    #expect(inputs.manualFreshnessCadences.isEmpty)
+    #expect(inputs.inferenceFreshnessPubDates.isEmpty)
   }
 
-  @Test("emits per-podcast freshness cadence only for podcasts off the default (weekly)")
-  func freshnessCadencesProjected() async throws {
+  @Test("projects manual cadences only and pubDates for nil-cadence podcasts only")
+  func freshnessProjectionsSplit() async throws {
+    let now = Date()
     let dailyPodcast = try await insertPodcast(title: "News")
     let evergreenPodcast = try await insertPodcast(title: "Serial")
-    let weeklyPodcast = try await insertPodcast(title: "Default")
+    let autoPodcast = try await insertPodcast(title: "Auto")
     _ = try await repo.updateFreshnessCadence(dailyPodcast.id, freshnessCadence: .daily)
     _ = try await repo.updateFreshnessCadence(evergreenPodcast.id, freshnessCadence: .evergreen)
+    // Give the auto podcast some episodes so its pubDates are projected;
+    // give the manual ones an episode each to confirm those don't leak in.
+    _ = try await upsertEpisode(podcast: dailyPodcast, title: "Daily 1", pubDate: now)
+    _ = try await upsertEpisode(podcast: evergreenPodcast, title: "Ever 1", pubDate: now)
+    _ = try await upsertEpisode(podcast: autoPodcast, title: "Auto 1", pubDate: now)
+    _ = try await upsertEpisode(
+      podcast: autoPodcast,
+      title: "Auto 2",
+      pubDate: now.addingTimeInterval(-7 * 86400)
+    )
 
     let inputs = try await observatory.scoringContextInputs().get()
-    #expect(inputs.freshnessCadences[dailyPodcast.id] == .daily)
-    #expect(inputs.freshnessCadences[evergreenPodcast.id] == .evergreen)
-    #expect(inputs.freshnessCadences[weeklyPodcast.id] == nil)
+    #expect(inputs.manualFreshnessCadences[dailyPodcast.id] == .daily)
+    #expect(inputs.manualFreshnessCadences[evergreenPodcast.id] == .evergreen)
+    #expect(inputs.manualFreshnessCadences[autoPodcast.id] == nil)
+
+    #expect(inputs.inferenceFreshnessPubDates[dailyPodcast.id] == nil)
+    #expect(inputs.inferenceFreshnessPubDates[evergreenPodcast.id] == nil)
+    let autoPubDates = try #require(inputs.inferenceFreshnessPubDates[autoPodcast.id])
+    #expect(autoPubDates.count == 2)
   }
 
-  @Test("re-emits when a freshness cadence is changed back to default and away again")
+  @Test("re-emits when a freshness cadence flips between manual and auto")
   func reEmitsOnFreshnessCadenceChange() async throws {
     let podcast = try await insertPodcast(title: "Tunable")
 
     let cadenceCount = Counter()
     Task {
       for try await inputs in observatory.scoringContextInputs() {
-        await cadenceCount(inputs.freshnessCadences.count)
+        await cadenceCount(inputs.manualFreshnessCadences.count)
       }
     }
     try await Wait.until(
       { await cadenceCount.value == 0 },
-      { "Expected initial emission with no off-default cadences" }
+      { "Expected initial emission with no manual cadences" }
     )
 
     _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: .daily)
     try await Wait.until(
       { await cadenceCount.value == 1 },
-      { "Expected re-emission with one cadence, got \(await cadenceCount.value)" }
+      { "Expected re-emission with one manual cadence, got \(await cadenceCount.value)" }
     )
 
     _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: .evergreen)
     try await Wait.until(
       { await cadenceCount.value == 1 },
-      { "Expected one cadence after switching to evergreen" }
+      { "Expected one manual cadence after switching to evergreen" }
     )
 
-    _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: .weekly)
+    _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: nil)
     try await Wait.until(
       { await cadenceCount.value == 0 },
-      { "Expected zero cadences after restoring default" }
+      { "Expected zero manual cadences after switching back to auto" }
     )
   }
 

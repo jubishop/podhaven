@@ -63,7 +63,7 @@ enum Create {
     queueAllEpisodes: QueueAllEpisodes = .never,
     cacheAllEpisodes: CacheAllEpisodes = .never,
     notifyNewEpisodes: Bool = false,
-    freshnessCadence: FreshnessCadence = .weekly
+    freshnessCadence: FreshnessCadence? = nil
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: feedURL,
@@ -95,7 +95,7 @@ enum Create {
     queueAllEpisodes: QueueAllEpisodes = .never,
     cacheAllEpisodes: CacheAllEpisodes = .never,
     notifyNewEpisodes: Bool = false,
-    freshnessCadence: FreshnessCadence = .weekly
+    freshnessCadence: FreshnessCadence? = nil
   ) async throws -> Podcast {
     try await Container.shared.repo()
       .insertSeries(

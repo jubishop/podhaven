@@ -451,7 +451,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   @discardableResult
   func updateFreshnessCadence(
     _ podcastID: Podcast.ID,
-    freshnessCadence: FreshnessCadence
+    freshnessCadence: FreshnessCadence?
   ) async throws -> Bool {
     recordCall(
       methodName: "updateFreshnessCadence",

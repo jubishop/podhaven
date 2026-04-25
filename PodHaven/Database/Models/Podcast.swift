@@ -38,7 +38,7 @@ struct UnsavedPodcast:
   let queueAllEpisodes: QueueAllEpisodes
   let cacheAllEpisodes: CacheAllEpisodes
   let notifyNewEpisodes: Bool
-  let freshnessCadence: FreshnessCadence
+  let freshnessCadence: FreshnessCadence?
 
   private static let log = Log.as(LogSubsystem.Database.podcast)
 
@@ -55,7 +55,7 @@ struct UnsavedPodcast:
     queueAllEpisodes: QueueAllEpisodes = .never,
     cacheAllEpisodes: CacheAllEpisodes = .never,
     notifyNewEpisodes: Bool = false,
-    freshnessCadence: FreshnessCadence = .weekly
+    freshnessCadence: FreshnessCadence? = nil
   ) throws {
     self.feedURL = try feedURL.convertToHTTPSURL()
     self.iTunesID = iTunesID
@@ -225,7 +225,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   var queueAllEpisodes: QueueAllEpisodes { unsaved.queueAllEpisodes }
   var cacheAllEpisodes: CacheAllEpisodes { unsaved.cacheAllEpisodes }
   var notifyNewEpisodes: Bool { unsaved.notifyNewEpisodes }
-  var freshnessCadence: FreshnessCadence { unsaved.freshnessCadence }
+  var freshnessCadence: FreshnessCadence? { unsaved.freshnessCadence }
 
   // MARK: - Reset
 

@@ -672,9 +672,11 @@ struct Repo: Databasing, Sendable {
   @discardableResult
   func updateFreshnessCadence(
     _ podcastID: Podcast.ID,
-    freshnessCadence: FreshnessCadence
+    freshnessCadence: FreshnessCadence?
   ) async throws -> Bool {
-    Self.log.debug("updateFreshnessCadence: \(podcastID) to \(freshnessCadence)")
+    Self.log.debug(
+      "updateFreshnessCadence: \(podcastID) to \(String(describing: freshnessCadence))"
+    )
 
     return try await appDB.db.write { db in
       try Podcast

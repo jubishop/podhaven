@@ -12,7 +12,7 @@ struct PodcastSettingsView: View {
   @State private var tempQueueAllEpisodes: QueueAllEpisodes
   @State private var tempCacheAllEpisodes: CacheAllEpisodes
   @State private var tempNotifyNewEpisodes: Bool
-  @State private var tempFreshnessCadence: FreshnessCadence
+  @State private var tempFreshnessCadence: FreshnessCadence?
 
   init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel
@@ -134,24 +134,32 @@ struct PodcastSettingsView: View {
             SettingsRow(
               infoText: """
                 How quickly older episodes from this podcast lose their freshness boost in \
-                recommendations, expressed as the show's natural publish cadence.  Daily for \
-                news-style shows, Weekly (the default) for most podcasts, Monthly for less \
-                time-sensitive shows, and Evergreen for back-catalog or narrative-archive \
-                content where episode age is immaterial.
+                recommendations, expressed as the show's natural publish cadence.  Auto \
+                detects the cadence from the feed's publish dates and tracks it as new \
+                episodes arrive.  Daily for news-style shows, Weekly for most podcasts, \
+                Monthly for less time-sensitive shows, and Evergreen for back-catalog or \
+                narrative-archive content where episode age is immaterial.
                 """
             ) {
               Text("Freshness")
             }
 
             Picker("", selection: $tempFreshnessCadence) {
-              Text("Daily").tag(FreshnessCadence.daily)
-              Text("Weekly").tag(FreshnessCadence.weekly)
-              Text("Monthly").tag(FreshnessCadence.monthly)
-              Text("Evergreen").tag(FreshnessCadence.evergreen)
+              Text("Auto").tag(FreshnessCadence?.none)
+              Text("Daily").tag(FreshnessCadence?.some(.daily))
+              Text("Weekly").tag(FreshnessCadence?.some(.weekly))
+              Text("Monthly").tag(FreshnessCadence?.some(.monthly))
+              Text("Evergreen").tag(FreshnessCadence?.some(.evergreen))
             }
             .pickerStyle(.segmented)
             .onChange(of: tempFreshnessCadence) {
               viewModel.freshnessCadence = tempFreshnessCadence
+            }
+
+            if tempFreshnessCadence == nil {
+              Text("Resolved to \(viewModel.inferredFreshnessCadence.displayName)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
           }
         }
@@ -319,6 +327,29 @@ struct PodcastSettingsView: View {
           title: "Hardcore History",
           freshnessCadence: .evergreen
         )
+        viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(podcast))
+        viewModel?.appear()
+      }
+    }
+  }
+
+  return PreviewWrapper().preview()
+}
+
+#Preview("Auto Freshness Cadence") {
+  struct PreviewWrapper: View {
+    @State private var viewModel: PodcastDetailViewModel?
+
+    var body: some View {
+      Group {
+        if let viewModel {
+          PodcastSettingsView(viewModel: viewModel)
+        } else {
+          ProgressView()
+        }
+      }
+      .task {
+        let podcast = try! await Create.podcast(title: "Auto Cadence Sample")
         viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(podcast))
         viewModel?.appear()
       }

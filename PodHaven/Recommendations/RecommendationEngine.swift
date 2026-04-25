@@ -79,11 +79,6 @@ struct RecommendationEngine: Sendable {
   // Temporal decay half-life in days
   private static let decayHalfLifeDays: Double = 180
 
-  // Cadence applied to podcasts whose row isn't in `freshnessCadences`.
-  // Observatory only projects rows that deviate from this value, so the
-  // dictionary lookup falls back here for the long tail of un-tagged shows.
-  static let defaultCadence: FreshnessCadence = .weekly
-
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
@@ -218,8 +213,29 @@ struct RecommendationEngine: Sendable {
       positiveCentroid: positiveCentroid,
       negativeCentroid: negative,
       podcastAffinities: computePodcastAffinities(signals: inputs.signals),
-      freshnessCadences: inputs.freshnessCadences
+      freshnessCadences: resolveFreshnessCadences(from: inputs)
     )
+  }
+
+  // Combine the two raw freshness inputs into a single per-podcast cadence
+  // map. Manual choices win; podcasts without a manual choice get whatever
+  // their pubDates infer to (FreshnessCadence.infer falls back to .default
+  // if there aren't enough episodes). Podcasts that aren't in either input
+  // are absent from the map and resolve to .default at scoring time.
+  private static func resolveFreshnessCadences(
+    from inputs: ScoringContextInputs
+  ) -> [Podcast.ID: FreshnessCadence] {
+    let inferenceCount = inputs.inferenceFreshnessPubDates.count
+    var resolved = [Podcast.ID: FreshnessCadence](
+      capacity: inputs.manualFreshnessCadences.count + inferenceCount
+    )
+    for (id, pubDates) in inputs.inferenceFreshnessPubDates {
+      resolved[id] = FreshnessCadence.infer(from: pubDates)
+    }
+    for (id, cadence) in inputs.manualFreshnessCadences {
+      resolved[id] = cadence
+    }
+    return resolved
   }
 
   // MARK: - Score Episodes
@@ -240,7 +256,7 @@ struct RecommendationEngine: Sendable {
         positiveCentroid: context.positiveCentroid,
         negativeCentroid: context.negativeCentroid,
         podcastAffinities: context.podcastAffinities,
-        freshnessCadence: context.freshnessCadences[episode.podcastID] ?? Self.defaultCadence,
+        freshnessCadence: context.freshnessCadences[episode.podcastID] ?? FreshnessCadence.default,
         now: now
       )
     }
