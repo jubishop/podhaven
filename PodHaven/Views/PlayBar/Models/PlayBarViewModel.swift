@@ -172,7 +172,6 @@ enum UndoSeekDirection {
 
       Self.log.debug("Skipping to next episode")
 
-      // Get the current episode
       guard let currentEpisode = sharedState.onDeck else {
         Self.log.warning("No current episode to skip")
         return
@@ -206,7 +205,6 @@ enum UndoSeekDirection {
   private func onSliderSeekEnded() {
     guard userSettings.enableUndoSeek else { return }
 
-    // Only show undo if we have a valid candidate for the current episode
     guard let undoCandidate else { return }
     guard sharedState.onDeck?.id == undoCandidate.episodeID else {
       Self.log.debug("Clearing undo state: episode changed during seek")
@@ -214,7 +212,6 @@ enum UndoSeekDirection {
       return
     }
 
-    // Bail early if the scrub miraculously went nowhere (wow)
     let currentTime = (sharedState.onDeck?.currentTime ?? .zero).safe.seconds
     guard currentTime != undoCandidate.time else {
       Self.log.debug("Clearing undo state: scrub landed at the original position (\(currentTime))")
@@ -222,7 +219,7 @@ enum UndoSeekDirection {
       return
     }
 
-    // Show the undo button — if the scrub went backward, undoing jumps forward.
+    // If the scrub went backward, undoing jumps forward.
     let direction: UndoSeekDirection = undoCandidate.time > currentTime ? .forward : .backward
     undoSeekDirection = direction
     Self.log.debug(
@@ -234,14 +231,12 @@ enum UndoSeekDirection {
 
       do {
         try await sleeper.sleep(for: .seconds(3))
-
-        // Only hide if not cancelled
         try Task.checkCancellation()
 
         clearUndoState()
         Self.log.debug("Hiding undo button after timeout")
       } catch {
-        // Task was cancelled, which is expected if user seeks again or taps undo
+        // Cancelled is expected if user seeks again or taps undo.
         Self.log.debug("Undo hide task cancelled")
       }
     }
@@ -250,7 +245,6 @@ enum UndoSeekDirection {
   func undoSeek() {
     guard let candidate = undoCandidate else { return }
 
-    // Only allow undo if we're still on the same episode
     guard sharedState.onDeck?.id == candidate.episodeID
     else {
       Self.log.debug("Undo skipped: episode changed")
@@ -260,10 +254,8 @@ enum UndoSeekDirection {
 
     Self.log.debug("Undoing seek, returning to position: \(candidate.time)")
 
-    // Cancel the hide task and reset state immediately
     clearUndoState()
 
-    // Seek back to the original position
     Task { [weak self] in
       guard let self else { return }
       await playManager.seek(to: CMTime.seconds(candidate.time))

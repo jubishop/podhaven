@@ -239,21 +239,18 @@ struct Repo: Databasing, Sendable {
     try await appDB.db.write { db in
       var newEpisodes = [Episode](capacity: unsavedEpisodes.count)
 
-      // Update only RSS feed attributes for podcast if provided
       if let podcast = podcast {
         try Podcast
           .withID(podcast.id)
           .updateAll(db, podcast.rssColumnAssignments)
       }
 
-      // Update only RSS feed attributes for existing episodes (excluding duration)
       for existingEpisode in existingEpisodes {
         try Episode
           .withID(existingEpisode.id)
           .updateAll(db, existingEpisode.rssColumnAssignments)
       }
 
-      // Insert new episodes (all attributes needed for new episodes)
       for var unsavedEpisode in unsavedEpisodes {
         unsavedEpisode.podcastId = podcastSeries.id
         newEpisodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
@@ -279,7 +276,6 @@ struct Repo: Databasing, Sendable {
     }
 
     for episode in episodesToDelete {
-      // Remove cached episode files
       if let url = episode.cachedURL {
         do {
           try fileManager.removeItem(at: url.rawValue)
@@ -292,7 +288,6 @@ struct Repo: Databasing, Sendable {
         }
       }
 
-      // Stop playback if needed
       if sharedState.onDeck?.id == episode.id {
         await playManager.stop()
         Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
@@ -300,7 +295,6 @@ struct Repo: Databasing, Sendable {
     }
 
     return try await appDB.db.write { db in
-      // Remove episodes from queue
       let queuedEpisodeIDs =
         try Episode.all()
         .queued()
@@ -309,7 +303,7 @@ struct Repo: Databasing, Sendable {
         .fetchAll(db)
       try queue.dequeue(db, queuedEpisodeIDs)
 
-      // Finally delete the podcast (cascades to episodes)
+      // Cascades to episodes via FK ON DELETE CASCADE.
       return try Podcast.withIDs(podcastIDs).deleteAll(db)
     }
   }

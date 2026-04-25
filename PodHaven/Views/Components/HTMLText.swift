@@ -64,22 +64,11 @@ struct HTMLText: View {
 
   static func preprocessHTML(_ htmlString: String) -> String {
     var result = htmlString
-
-    // Handle list tags
     result = handleListTags(result)
-
-    // Handle block tags
     result = handleBlockTags(result)
-
-    // Handle paragraph tags with intelligent spacing
     result = handleParagraphTags(result)
-
-    // Handle line breaks
     result = handleLineBreaks(result)
-
-    // Clean up whitespace
     result = cleanupWhitespace(result)
-
     return result
   }
 
@@ -165,24 +154,17 @@ struct HTMLText: View {
 
   private static func handleParagraphTags(_ text: String) -> String {
     var result = text
-
-    // Replace closing paragraphs with newlines
     result = result.replacingOccurrences(of: "</p>", with: "\n", options: .caseInsensitive)
-
-    // Remove leading <p> tag (with or without attributes) at start of text
     result = result.replacingOccurrences(
       of: "^\\s*<p[^>]*>",
       with: "",
       options: [.regularExpression, .caseInsensitive]
     )
-
-    // Replace all remaining <p> tags (with or without attributes) with newlines
     result = result.replacingOccurrences(
       of: "<p[^>]*>",
       with: "\n",
       options: [.regularExpression, .caseInsensitive]
     )
-
     return result
   }
 
@@ -213,13 +195,11 @@ struct HTMLText: View {
 
     while index < text.endIndex {
       if text[index] == "<" {
-        // Save current text if any
         if !currentText.isEmpty {
           parts.append(TextPart(text: currentText, format: formatStack.current))
           currentText = ""
         }
 
-        // Parse tag
         if let (tagEnd, tag) = parseTag(from: text, startingAt: index) {
           formatStack.processTag(tag)
           index = text.index(after: tagEnd)
@@ -234,7 +214,6 @@ struct HTMLText: View {
       }
     }
 
-    // Add remaining text
     if !currentText.isEmpty {
       parts.append(TextPart(text: currentText, format: formatStack.current))
     }
@@ -323,10 +302,8 @@ struct HTMLText: View {
   }
 
   private func parseMenuSegments(_ line: String, config: MenuConfig) -> [MenuSegment] {
-    // Parse HTML to get text parts with formatting info
     let textParts = Self.parseTextParts(line)
 
-    // Build decoded string and track format at each character position
     var decoded = ""
     var formatRanges: [(range: Range<Int>, format: TextFormat)] = []
 
@@ -340,12 +317,10 @@ struct HTMLText: View {
       }
     }
 
-    // Find matches in decoded text
     let matches = decoded.matches(of: config.pattern)
 
     guard !matches.isEmpty else { return [.text(textParts)] }
 
-    // Helper to find format at a given offset
     func formatAt(_ offset: Int) -> TextFormat {
       for (range, format) in formatRanges where range.contains(offset) {
         return format
@@ -368,7 +343,6 @@ struct HTMLText: View {
       return parts
     }
 
-    // Build segments, splitting text parts at match boundaries
     var segments: [MenuSegment] = []
     var currentOffset = 0
 
@@ -377,19 +351,16 @@ struct HTMLText: View {
       let matchEnd = decoded.distance(from: decoded.startIndex, to: match.range.upperBound)
       let matchText = String(decoded[match.range])
 
-      // Add text segment for content before this match
       if currentOffset < matchStart {
         segments.append(.text(sliceParts(in: currentOffset..<matchStart)))
       }
 
-      // Add match segment with its format
       let matchFormat = formatAt(matchStart)
       segments.append(.match(matchText, matchFormat))
 
       currentOffset = matchEnd
     }
 
-    // Add remaining text after last match
     if currentOffset < decoded.count {
       segments.append(.text(sliceParts(in: currentOffset..<decoded.count)))
     }

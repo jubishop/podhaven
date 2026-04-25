@@ -55,7 +55,6 @@ enum AppInfo {
   #endif
 
   #if !WIDGET_EXTENSION
-  // Asynchronous environment refinement using AppTransactions
   static func finalizeEnvironment() async {
     await finalizeEnvironmentOnce.run {
       // Only refine environment for release builds on real devices
@@ -71,7 +70,6 @@ enum AppInfo {
       } catch {
         log.caughtError("finalizeEnvironment: AppTransaction.shared failed", error)
 
-        // Retry with refresh
         do {
           let refreshed = try await AppTransaction.refresh()
           if let refinedEnvironment = appTransactionEnvironment(for: refreshed),
@@ -90,7 +88,6 @@ enum AppInfo {
   }
   #endif
 
-  // Initial synchronous environment detection
   private static func detectEnvironment() -> EnvironmentType {
     let env = ProcessInfo.processInfo.environment
     guard env["XCODE_RUNNING_FOR_PREVIEWS"] != "1",

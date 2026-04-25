@@ -84,8 +84,6 @@ final class PlayManager {
 
   fileprivate init() {}
 
-  // Starts the async stream consumers for command center and notifications.
-  // Called from AppDelegate after audio session and command handlers are configured.
   nonisolated func startStreamConsumers() {
     startStreamConsumersOnce.run {
       Self.log.debug("startStreamConsumers: executing")
@@ -95,9 +93,7 @@ final class PlayManager {
     }
   }
 
-  // Full startup for foreground use (called when app becomes active).
-  // Loads the current episode if one exists.
-  // Note: Audio session and command handlers must already be configured.
+  // Audio session and command handlers must already be configured.
   func start() async {
     await startOnce.run {
       Self.log.debug("start: executing")
@@ -217,7 +213,6 @@ final class PlayManager {
       """
     )
 
-    // Dequeue since we successfully loaded the episode
     Self.log.debug("cleanUpAfterLoadSuccess: dequeueing incoming episode: \(incoming.toString)")
     do {
       try await queue.dequeue(incoming.id)
@@ -228,7 +223,6 @@ final class PlayManager {
       )
     }
 
-    // If there was an outgoing episode, put it back at the front of the queue
     if let outgoing {
       Self.log.debug("cleanUpAfterLoadSuccess: unshifting outgoing episode: \(outgoing.toString)")
       do {
@@ -254,7 +248,6 @@ final class PlayManager {
       """
     )
 
-    // Put the outgoing episode back if we displaced it
     if let outgoing, outgoing.id != nowOnDeck?.id {
       Self.log.debug(
         """
@@ -272,7 +265,6 @@ final class PlayManager {
       }
     }
 
-    // Put the incoming episode back at the front of the queue since it failed to load
     if incoming.id != nowOnDeck?.id {
       Self.log.debug(
         """
@@ -349,7 +341,6 @@ final class PlayManager {
 
     await clearOnDeck()
 
-    // Automatically load and play the next episode if one exists
     do {
       if let nextEpisode = try await queue.nextEpisode {
         Self.log.debug("next episode exists to automatically load: \(nextEpisode.toString)")

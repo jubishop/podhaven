@@ -39,7 +39,6 @@ struct AppLauncher: Sendable {
 
   // MARK: - Bootstrap
 
-  // Synchronous early-launch work. Called from AppDelegate.didFinishLaunchingWithOptions.
   @MainActor func bootstrap() {
     AppInfo.initializeEnvironment()
     guard AppInfo.environment != .preview else { return }
@@ -72,7 +71,6 @@ struct AppLauncher: Sendable {
 
   // MARK: - Playback
 
-  // Minimum initialization for audio playback from a background launch.
   func prepareForPlayback() async {
     await prepareForPlaybackOnce.run {
       Self.log.info("Preparing for background audio playback")
@@ -84,8 +82,6 @@ struct AppLauncher: Sendable {
 
   // MARK: - Foreground
 
-  // Full initialization for the foreground UI experience.
-  // Called when the app scene becomes active.
   func prepareForForeground() async {
     await prepareForForegroundOnce.run {
       Self.log.info("Preparing for foreground")
@@ -103,16 +99,14 @@ struct AppLauncher: Sendable {
       Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
       Self.log.debug("Git commit hash is: \(AppInfo.gitCommitHash)")
 
-      // Ensure playback subsystems are started (no-op if already done by an intent)
+      // No-op if an intent already triggered prepareForPlayback during the cold launch.
       await self.prepareForPlayback()
       guard AppInfo.environment != .testing else { return }
       guard !Task.isCancelled else { return }
 
-      // Start all other services
       self.cacheManager.start()
       self.recommendationEngine.start()
 
-      // System monitoring
       self.startSystemMonitoring()
     }
   }

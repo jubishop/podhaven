@@ -12,7 +12,6 @@ enum NowPlayingInfo {
 
   // MARK: - Initializing
 
-  // Sets up NowPlayingInfo.
   static func setOnDeck(_ onDeck: PodcastEpisode) {
     Self.log.debug("setOnDeck: \(onDeck.toString)")
 

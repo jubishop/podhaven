@@ -66,7 +66,6 @@ enum EmbeddingService {
 
     let repo = Container.shared.repo()
 
-    // Batch fetch all needed data upfront
     let episodeIDs = episodes.map(\.id)
     let embeddingsByEpisodeID = try await repo.embeddings(for: episodeIDs)
 
@@ -74,7 +73,7 @@ enum EmbeddingService {
     let podcastsByID = try await repo.podcasts(for: podcastIDs)
     let podcastEmbeddings = try await repo.podcastEmbeddings(for: podcastIDs)
 
-    // Cache computed podcast vectors to avoid redundant work within the batch
+    // Cache podcast vectors so a batch with N episodes from the same show pays the cost once.
     var podcastVectorCache: [Podcast.ID: [Float]?] = [:]
 
     for episode in episodes {
@@ -145,7 +144,6 @@ enum EmbeddingService {
       cleanedDescription: cleanedDescription
     )
 
-    // Return cached if still fresh (same source hash and revision)
     if let cached = cachedEmbedding,
       cached.sourceHash == hash,
       cached.embeddingRevision == embedding.revision
@@ -211,7 +209,6 @@ enum EmbeddingService {
     let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
     let descriptionVector = try embedding.vector(for: descriptionText)
 
-    // Weighted average of title and description
     var episodeVector = VectorMath.weightedAverage(
       titleVector,
       weight1: titleWeight,
@@ -219,7 +216,6 @@ enum EmbeddingService {
       weight2: descriptionWeight
     )
 
-    // Blend with podcast description embedding
     if let podcastVector {
       episodeVector = VectorMath.weightedAverage(
         episodeVector,

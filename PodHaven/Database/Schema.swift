@@ -109,19 +109,13 @@ enum Schema {
     }
 
     migrator.registerMigration("v23") { db in
-      // Convert cacheAllEpisodes from BOOLEAN to TEXT enum
-      // SQLite doesn't support ALTER COLUMN type, so we need to:
-      // 1. Add a new TEXT column
-      // 2. Copy data with conversion (false -> 'never', true -> 'cache')
-      // 3. Drop the old column (SQLite 3.35+)
-      // 4. Rename the new column
-
-      // Step 1: Add new column
+      // Convert cacheAllEpisodes from BOOLEAN to TEXT enum. SQLite doesn't
+      // support ALTER COLUMN type, so we add a new column, copy data with
+      // conversion, drop the old column, and rename.
       try db.alter(table: "podcast") { t in
         t.add(column: "cacheAllEpisodesNew", .text).notNull().defaults(to: "never")
       }
 
-      // Step 2: Copy data with conversion (true -> 'cache', false -> 'never')
       try db.execute(
         sql: """
           UPDATE podcast SET cacheAllEpisodesNew = CASE
@@ -131,10 +125,8 @@ enum Schema {
           """
       )
 
-      // Step 3: Drop old column (requires SQLite 3.35.0+, which is available on iOS 15+)
       try db.execute(sql: "ALTER TABLE podcast DROP COLUMN cacheAllEpisodes")
 
-      // Step 4: Rename new column to original name
       try db.alter(table: "podcast") { t in
         t.rename(column: "cacheAllEpisodesNew", to: "cacheAllEpisodes")
       }
@@ -526,8 +518,6 @@ enum Schema {
 
   // MARK: - v33: Stale Defaults Cleanup
 
-  // Removes keys from the store that are not in the active set.
-  // Extracted as a static method so it can be tested directly.
   static func cleanupStaleKeys(
     in store: any KeyValueStore,
     activeKeys: Set<String>,
@@ -544,12 +534,8 @@ enum Schema {
 
   // MARK: - v30: Widget Snapshot File Migration
 
-  // Migrate the monolithic widget-snapshot.json into per-widget files.
-  // The old format stored all widget data in a single file. The new
-  // architecture uses separate files per widget type. Artwork is not
-  // migrated — it will be populated on the next writer cycle.
-  //
-  // Extracted as a static method so it can be tested with a temp directory.
+  // Splits the monolithic widget-snapshot.json into per-widget files.
+  // Artwork is not migrated — it will be populated on the next writer cycle.
   static func migrateWidgetSnapshotFiles(in containerURL: URL) {
     let oldURL = containerURL.appendingPathComponent("widget-snapshot.json")
     guard FileManager.default.fileExists(atPath: oldURL.path) else {

@@ -67,13 +67,11 @@ final class UserNotificationManager {
     await refreshAuthorizationStatus()
   }
 
-  // Refreshes the current authorization status from the system.
   func refreshAuthorizationStatus() async {
     authorizationStatus = await notificationCenter.authorizationStatus()
     Self.log.debug("Authorization status: \(String(describing: authorizationStatus))")
   }
 
-  // Requests notification authorization if not yet determined.
   // Returns `true` if authorized (either already or newly granted).
   @discardableResult
   func requestAuthorizationIfNeeded() async -> Bool {
@@ -94,7 +92,6 @@ final class UserNotificationManager {
     }
   }
 
-  // Schedules a local notification for new podcast episodes.
   func scheduleNewEpisodeNotification(
     podcast: Podcast,
     episodes: [Episode]
@@ -127,7 +124,6 @@ final class UserNotificationManager {
       imageURL = podcast.image
     }
 
-    // Attach image if available
     if let attachment = await createImageAttachment(from: imageURL) {
       content.attachments = [attachment]
     }
@@ -158,22 +154,19 @@ final class UserNotificationManager {
 
   private func createImageAttachment(from imageURL: URL) async -> UNNotificationAttachment? {
     do {
-      // Load image via Nuke (leverages existing cache)
       let image = try await imagePipeline.image(for: imageURL)
 
-      // Convert to JPEG data
       guard let data = image.jpegData(compressionQuality: 0.8) else {
         Self.log.warning("Failed to convert notification image to JPEG: \(imageURL)")
         return nil
       }
 
-      // Write to temporary file (UNNotificationAttachment requires file URL)
+      // UNNotificationAttachment requires a file URL — staged to a temp file rather than passed inline.
       let tempFile = fileManager.temporaryDirectory.appendingPathComponent(
         UUID().uuidString + ".jpg"
       )
       try await fileManager.writeData(data, to: tempFile)
 
-      // Create attachment
       let attachment = try UNNotificationAttachment(
         identifier: UUID().uuidString,
         url: tempFile,
