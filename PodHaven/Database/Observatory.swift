@@ -54,7 +54,7 @@ struct Observatory {
         subscribed: subscribed,
         unsubscribed: unsubscribed,
         untagged: untagged,
-        byTag: try Self._podcastCountsByTag(db)
+        byTag: try _podcastCountsByTag(db)
       )
     }
   }
@@ -194,7 +194,7 @@ struct Observatory {
 
   func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
     _observe { db in
-      try Self._podcastCountsByTag(db)
+      try _podcastCountsByTag(db)
     }
   }
 
@@ -260,7 +260,7 @@ struct Observatory {
         signals: signals,
         signalEmbeddings: signalEmbeddings,
         hasAnyEmbeddings: hasAnyEmbeddings,
-        freshnessCadences: try Self._resolveFreshnessCadences(db)
+        freshnessCadences: try _resolveFreshnessCadences(db)
       )
     }
   }
@@ -269,7 +269,7 @@ struct Observatory {
 
   // Manual choices win; nil-cadence podcasts get inferred from their
   // pubDates. Podcasts with no episodes and no manual choice are absent.
-  private static func _resolveFreshnessCadences(
+  private func _resolveFreshnessCadences(
     _ db: Database
   ) throws -> [Podcast.ID: FreshnessCadence] {
     let manualRows = try Row.fetchAll(
@@ -298,7 +298,7 @@ struct Observatory {
           WHERE podcastId IN (SELECT id FROM podcast WHERE freshnessCadence IS NULL)
         ) WHERE rn <= ?
         """,
-      arguments: [inferenceMaxPubDatesPerPodcast]
+      arguments: [Self.inferenceMaxPubDatesPerPodcast]
     )
     var pubDatesByPodcast: [Podcast.ID: [Date]] = [:]
     for row in pubDateRows {
@@ -312,7 +312,7 @@ struct Observatory {
     return resolved
   }
 
-  private static func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {
+  private func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {
     Assert.precondition(db.isInsideTransaction, "_podcastCountsByTag requires a transaction")
 
     let rows = try Row.fetchAll(
