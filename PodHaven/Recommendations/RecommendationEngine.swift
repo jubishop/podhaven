@@ -327,7 +327,6 @@ struct RecommendationEngine: Sendable {
     )
     let score = baseScore * freshness.multiplier
 
-    // Reasons fire when their feature is above neutral (0.5).
     var reasons = features.filter { $0.value > 0.5 }.map(\.reason)
     if freshness.inPlateau {
       reasons.append(.recentlyPublished)
