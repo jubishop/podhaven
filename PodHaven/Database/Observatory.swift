@@ -231,12 +231,14 @@ struct Observatory {
 
   // Composite observation feeding `RecommendationEngine`'s cached
   // `ScoringContext`. One stream covers signals + their embeddings + the
-  // any-embedding flag + per-podcast freshness overrides so a single
+  // any-embedding flag + per-podcast freshness cadence so a single
   // transaction touching multiple tables produces one rebuild instead of
   // several. `SignalEpisode`'s `databaseSelection` narrows the fetch to the
   // five Episode columns the engine actually reads, and the freshness query
-  // selects only id + freshnessHalfLifeDays — so GRDB's column tracking
-  // ignores updates to currentTime, queueOrder, podcast title, etc.
+  // selects only id + freshnessCadence — so GRDB's column tracking ignores
+  // updates to currentTime, queueOrder, podcast title, etc. Only podcasts
+  // whose cadence deviates from the engine default (.weekly) are projected;
+  // absent entries resolve to the default at scoring time.
   func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
     _observe { db in
       let signals = try SignalEpisode.filter(Episode.signal).fetchAll(db)
@@ -255,24 +257,24 @@ struct Observatory {
       let hasAnyEmbeddings =
         try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
 
-      let overrideRows = try Row.fetchAll(
+      let cadenceRows = try Row.fetchAll(
         db,
         Podcast
-          .filter(Podcast.Columns.freshnessHalfLifeDays != nil)
-          .select(Podcast.Columns.id, Podcast.Columns.freshnessHalfLifeDays)
+          .filter(Podcast.Columns.freshnessCadence != FreshnessCadence.weekly.rawValue)
+          .select(Podcast.Columns.id, Podcast.Columns.freshnessCadence)
       )
-      var freshnessHalfLifeOverrides = [Podcast.ID: Int](capacity: overrideRows.count)
-      for row in overrideRows {
+      var freshnessCadences = [Podcast.ID: FreshnessCadence](capacity: cadenceRows.count)
+      for row in cadenceRows {
         let id: Podcast.ID = row[Podcast.Columns.id]
-        let halfLife: Int = row[Podcast.Columns.freshnessHalfLifeDays]
-        freshnessHalfLifeOverrides[id] = halfLife
+        let cadence: FreshnessCadence = row[Podcast.Columns.freshnessCadence]
+        freshnessCadences[id] = cadence
       }
 
       return ScoringContextInputs(
         signals: signals,
         signalEmbeddings: signalEmbeddings,
         hasAnyEmbeddings: hasAnyEmbeddings,
-        freshnessHalfLifeOverrides: freshnessHalfLifeOverrides
+        freshnessCadences: freshnessCadences
       )
     }
   }

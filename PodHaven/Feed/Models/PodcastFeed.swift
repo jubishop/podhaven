@@ -31,6 +31,8 @@ struct EpisodeFeed: Sendable, Equatable {
 
   var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
 
+  var pubDate: Date? { rssEpisode.pubDate }
+
   private let rssEpisode: PodcastRSS.Episode
 
   fileprivate init?(rssEpisode: PodcastRSS.Episode) {
@@ -171,13 +173,25 @@ struct PodcastFeed: Sendable, Stringable {
     merging podcast: Podcast? = nil,
     iTunesID: ITunesPodcastID? = nil
   ) throws -> UnsavedPodcast {
-    try UnsavedPodcast(
+    // Preserve the user's cadence on refresh; infer for first-time inserts.
+    // Refresh writes only `rssUpdatableColumns`, so cadence on a merged
+    // UnsavedPodcast doesn't actually hit the DB — but mirroring the
+    // existing value keeps the in-memory representation honest.
+    let cadence: FreshnessCadence
+    if let existing = podcast {
+      cadence = existing.freshnessCadence
+    } else {
+      cadence = FreshnessCadence.infer(from: episodeFeeds.compactMap(\.pubDate))
+    }
+
+    return try UnsavedPodcast(
       feedURL: updatedFeedURL,
       iTunesID: iTunesID ?? podcast?.iTunesID,
       title: rssPodcast.title,
       image: image,
       description: rssPodcast.description,
-      link: link ?? podcast?.link
+      link: link ?? podcast?.link,
+      freshnessCadence: cadence
     )
   }
 

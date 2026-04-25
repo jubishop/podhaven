@@ -53,19 +53,25 @@ struct RecommendationEngine: Sendable {
   private static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
-  // Scoring weights (must sum to 1.0)
-  private static let similarityWeight: Float = 0.60
-  private static let podcastAffinityWeight: Float = 0.20
-  private static let freshnessWeight: Float = 0.20
+  // Base-score weights for the additive features (must sum to 1.0). Freshness
+  // is no longer a summand — it's applied as a multiplicative gate after the
+  // base score is computed, so a podcast whose freshness curve returns ~0
+  // actually drives the final score to ~0 instead of nudging it by a fixed
+  // weight. Similarity:affinity stays at the historical 3:1 ratio.
+  private static let similarityWeight: Float = 0.75
+  private static let podcastAffinityWeight: Float = 0.25
 
-  // Freshness curve: `1 / (1 + days / halfLife)`. This is a hyperbolic decay,
-  // not an exponential half-life — it crosses 0.5 once at `halfLife` days and
-  // then tapers slowly (120d → 0.33, 180d → 0.25, 365d → 0.14). 60 days is
-  // tuned for the "haven't configured anything" default — most podcast
-  // subscriptions are time-sensitive enough that 2-month-old episodes scoring
-  // 0.5 feels right. Evergreen/history content overrides this per-podcast via
-  // `Podcast.freshnessHalfLifeDays`.
-  static let defaultFreshnessHalfLifeDays: Int = 60
+  // Freshness curve: a flat plateau for one cadence period, then hyperbolic
+  // decay `1 / (1 + (age - cadence) / halfLife)` past the plateau. The
+  // plateau means an episode published within its own cadence is still 100%
+  // fresh — a 6-day-old weekly episode shouldn't be dinged just for being 6
+  // days old when the next one hasn't dropped yet. Past the plateau, decay
+  // is identical to the raw curve with `halfLife = cadenceDays` (an 8-day
+  // weekly behaves like a 1-day-old under raw decay; a 14-day weekly hits
+  // the 0.5 midpoint).
+  private static let dailyHalfLifeDays: Int = 1
+  private static let weeklyHalfLifeDays: Int = 7
+  private static let monthlyHalfLifeDays: Int = 30
 
   // Centroid weights
   private static let lovedWeight: Float = 1.0
@@ -160,7 +166,7 @@ struct RecommendationEngine: Sendable {
     let positiveCentroid: [Float]
     let negativeCentroid: [Float]?
     let podcastAffinities: [Podcast.ID: Float]
-    let freshnessHalfLifeOverrides: [Podcast.ID: Int]
+    let freshnessCadences: [Podcast.ID: FreshnessCadence]
   }
 
   // Spawns the long-running observation Task that keeps `cache` in sync.
@@ -217,7 +223,7 @@ struct RecommendationEngine: Sendable {
       positiveCentroid: positiveCentroid,
       negativeCentroid: negative,
       podcastAffinities: computePodcastAffinities(signals: inputs.signals),
-      freshnessHalfLifeOverrides: inputs.freshnessHalfLifeOverrides
+      freshnessCadences: inputs.freshnessCadences
     )
   }
 
@@ -239,8 +245,7 @@ struct RecommendationEngine: Sendable {
         positiveCentroid: context.positiveCentroid,
         negativeCentroid: context.negativeCentroid,
         podcastAffinities: context.podcastAffinities,
-        freshnessHalfLifeDays: context.freshnessHalfLifeOverrides[episode.podcastID]
-          ?? Self.defaultFreshnessHalfLifeDays,
+        freshnessCadence: context.freshnessCadences[episode.podcastID] ?? Self.defaultCadence,
         now: now
       )
     }
@@ -291,7 +296,7 @@ struct RecommendationEngine: Sendable {
     positiveCentroid: [Float]?,
     negativeCentroid: [Float]?,
     podcastAffinities: [Podcast.ID: Float],
-    freshnessHalfLifeDays: Int,
+    freshnessCadence: FreshnessCadence,
     now: Date
   ) -> RecommendationScore {
     var features: [(weight: Float, value: Float, reason: RecommendationReason)] = []
@@ -316,18 +321,9 @@ struct RecommendationEngine: Sendable {
     let remappedAffinity = (affinity + 1.0) / 2.0
     features.append((Self.podcastAffinityWeight, remappedAffinity, .podcastAffinity))
 
-    // Freshness — uses the podcast's per-podcast half-life override when set,
-    // otherwise the global default. Resolved upstream in `scoreEpisodes`.
-    let freshness = freshnessScore(
-      pubDate: pubDate,
-      halfLifeDays: Double(freshnessHalfLifeDays),
-      now: now
-    )
-    features.append((Self.freshnessWeight, freshness, .recentlyPublished))
-
-    // Renormalize weights over available features. Affinity + freshness are
-    // always appended, so totalWeight is either 0.40 (no candidate embedding)
-    // or 1.00 (embedding present). The guard protects the divide below; if it
+    // Renormalize weights over available features. Affinity is always
+    // appended, so totalWeight is either 0.25 (no candidate embedding) or
+    // 1.00 (embedding present). The guard protects the divide below; if it
     // ever fires, static weights have been reconfigured and we want to hear
     // about it rather than silently return a neutral score.
     let totalWeight = features.reduce(Float(0)) { $0 + $1.weight }
@@ -335,15 +331,32 @@ struct RecommendationEngine: Sendable {
       Assert.fatal("scoreCandidate: totalWeight is zero — scoring weights misconfigured")
     }
 
-    let score = features.reduce(Float(0)) { sum, feature in
+    let baseScore = features.reduce(Float(0)) { sum, feature in
       sum + (feature.weight / totalWeight) * feature.value
     }
 
-    // A reason fires only when its feature is above its own neutral midpoint.
-    // Each feature's value is normalized to [0, 1] with 0.5 = neutral, so this
-    // surfaces only features that are actively positive for this episode — not
-    // every feature that happened to fire.
-    let reasons = features.filter { $0.value > 0.5 }.map(\.reason)
+    // Freshness applies as a multiplicative gate, not an additive feature.
+    // Evergreen returns 1.0 unconditionally so back-catalog shows keep their
+    // full base score regardless of pubDate; daily/weekly/monthly multiply
+    // by the hyperbolic curve so a year-old daily-news episode actually
+    // drops to ≈0 instead of being capped by a fixed weight.
+    let freshness = freshnessSignal(
+      pubDate: pubDate,
+      cadence: freshnessCadence,
+      now: now
+    )
+    let score = baseScore * freshness.multiplier
+
+    // A similarity/affinity reason fires only when its feature is above its
+    // own neutral midpoint (0.5). The freshness reason fires only when the
+    // episode is within its podcast's cadence plateau — i.e., the next
+    // episode hasn't dropped yet. Evergreen podcasts never surface it
+    // because they have no plateau (the user has opted out of treating
+    // freshness as signal).
+    var reasons = features.filter { $0.value > 0.5 }.map(\.reason)
+    if freshness.inPlateau {
+      reasons.append(.recentlyPublished)
+    }
 
     return RecommendationScore(value: score, reasons: reasons)
   }
@@ -391,10 +404,41 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Freshness
 
-  private func freshnessScore(pubDate: Date, halfLifeDays: Double, now: Date) -> Float {
+  static let defaultCadence: FreshnessCadence = .weekly
+
+  // Captures both halves of the freshness signal: the multiplier applied to
+  // baseScore, and whether the episode is sitting in its cadence plateau
+  // (the only state that surfaces `.recentlyPublished`). Evergreen never
+  // sets `inPlateau` — it has no plateau, the user has opted out.
+  private struct FreshnessSignal {
+    let multiplier: Float
+    let inPlateau: Bool
+  }
+
+  private func freshnessSignal(
+    pubDate: Date,
+    cadence: FreshnessCadence,
+    now: Date
+  ) -> FreshnessSignal {
+    guard let halfLife = Self.halfLifeDays(for: cadence) else {
+      return FreshnessSignal(multiplier: 1.0, inPlateau: false)
+    }
     let daysSince = now.timeIntervalSince(pubDate) / 86400
-    guard daysSince > 0 else { return 1.0 }
-    return Float(1.0 / (1.0 + daysSince / halfLifeDays))
+    let ageBeyondCadence = daysSince - Double(halfLife)
+    guard ageBeyondCadence > 0 else {
+      return FreshnessSignal(multiplier: 1.0, inPlateau: true)
+    }
+    let multiplier = Float(1.0 / (1.0 + ageBeyondCadence / Double(halfLife)))
+    return FreshnessSignal(multiplier: multiplier, inPlateau: false)
+  }
+
+  private static func halfLifeDays(for cadence: FreshnessCadence) -> Int? {
+    switch cadence {
+    case .daily: return dailyHalfLifeDays
+    case .weekly: return weeklyHalfLifeDays
+    case .monthly: return monthlyHalfLifeDays
+    case .evergreen: return nil
+    }
   }
 
   // MARK: - Centroid Math

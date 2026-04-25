@@ -61,7 +61,7 @@ struct DisplayedPodcast:
   var queueAllEpisodes: QueueAllEpisodes { podcast.queueAllEpisodes }
   var cacheAllEpisodes: CacheAllEpisodes { podcast.cacheAllEpisodes }
   var notifyNewEpisodes: Bool { podcast.notifyNewEpisodes }
-  var freshnessHalfLifeDays: Int? { podcast.freshnessHalfLifeDays }
+  var freshnessCadence: FreshnessCadence { podcast.freshnessCadence }
 
   // MARK: - Helpers
 

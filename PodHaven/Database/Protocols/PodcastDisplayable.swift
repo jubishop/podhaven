@@ -9,5 +9,5 @@ protocol PodcastDisplayable: PodcastListable {
   var queueAllEpisodes: QueueAllEpisodes { get }
   var cacheAllEpisodes: CacheAllEpisodes { get }
   var notifyNewEpisodes: Bool { get }
-  var freshnessHalfLifeDays: Int? { get }
+  var freshnessCadence: FreshnessCadence { get }
 }

@@ -182,6 +182,49 @@ struct PodcastFeedTests {
     #expect(unsavedEpisode.description!.contains("<strong>"))
   }
 
+  @Test("toUnsavedPodcast infers freshnessCadence from the feed's episode pubDates")
+  func inferringFreshnessCadenceOnNewSubscription() async throws {
+    let data = PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let feed = try await PodcastFeed.parse(data, from: fakeURL)
+    let unsavedPodcast = try feed.toUnsavedPodcast()
+
+    // The cadence on a brand-new (un-merged) UnsavedPodcast must come from
+    // FreshnessCadence.infer over the feed's pubDates — not the .weekly
+    // default. Comparing against the same inference call documents the wire
+    // without locking in a specific bucket (which would shift if the fixture
+    // ever moves further into the past).
+    let expectedCadence = FreshnessCadence.infer(
+      from: feed.toUnsavedEpisodes().map(\.pubDate)
+    )
+    #expect(unsavedPodcast.freshnessCadence == expectedCadence)
+  }
+
+  @Test("toUnsavedPodcast preserves cadence when merging an existing podcast")
+  func preservesCadenceWhenMerging() async throws {
+    let data = PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let feed = try await PodcastFeed.parse(data, from: fakeURL)
+
+    // Insert with a deliberately user-chosen cadence the user wouldn't get
+    // by inference on this fixture, then re-parse with merging to confirm
+    // the existing cadence wins.
+    let inserted = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: fakeURL,
+          title: "Pod Save America",
+          freshnessCadence: .evergreen
+        ),
+        unsavedEpisodes: feed.toUnsavedEpisodes()
+      )
+    )
+    #expect(inserted.podcast.freshnessCadence == .evergreen)
+
+    let mergedUnsaved = try feed.toUnsavedPodcast(merging: inserted.podcast)
+    #expect(mergedUnsaved.freshnessCadence == .evergreen)
+  }
+
   @Test("parsing and inserting the twentyminutevc feed via repo")
   func parseTwentyMinuteVCFeedAndInsert() async throws {
     let data = PreviewBundle.loadAsset(named: "twentyminutevc", in: .FeedRSS)

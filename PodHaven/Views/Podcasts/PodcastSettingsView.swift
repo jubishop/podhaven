@@ -12,7 +12,7 @@ struct PodcastSettingsView: View {
   @State private var tempQueueAllEpisodes: QueueAllEpisodes
   @State private var tempCacheAllEpisodes: CacheAllEpisodes
   @State private var tempNotifyNewEpisodes: Bool
-  @State private var tempFreshnessHalfLifeDays: Double
+  @State private var tempFreshnessCadence: FreshnessCadence
 
   init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel
@@ -23,12 +23,7 @@ struct PodcastSettingsView: View {
     self._tempQueueAllEpisodes = State(initialValue: viewModel.queueAllEpisodes)
     self._tempCacheAllEpisodes = State(initialValue: viewModel.cacheAllEpisodes)
     self._tempNotifyNewEpisodes = State(initialValue: viewModel.notifyNewEpisodes)
-    self._tempFreshnessHalfLifeDays = State(
-      initialValue: Double(
-        viewModel.freshnessHalfLifeDays
-          ?? RecommendationEngine.defaultFreshnessHalfLifeDays
-      )
-    )
+    self._tempFreshnessCadence = State(initialValue: viewModel.freshnessCadence)
   }
 
   var body: some View {
@@ -135,48 +130,28 @@ struct PodcastSettingsView: View {
         }
 
         Section("Recommendations") {
-          VStack(alignment: .trailing, spacing: 24) {
+          VStack(alignment: .leading, spacing: 24) {
             SettingsRow(
               infoText: """
-                Controls how quickly older episodes from this podcast lose their freshness boost \
-                in recommendations.  Shorter half-life suits time-sensitive shows like daily news; \
-                longer half-life suits evergreen or back-catalog content.  When unset, the app \
-                default of \(RecommendationEngine.defaultFreshnessHalfLifeDays) days is used.
+                How quickly older episodes from this podcast lose their freshness boost in \
+                recommendations, expressed as the show's natural publish cadence.  Daily for \
+                news-style shows, Weekly (the default) for most podcasts, Monthly for less \
+                time-sensitive shows, and Evergreen for back-catalog or narrative-archive \
+                content where episode age is immaterial.
                 """
             ) {
-              HStack {
-                if viewModel.hasCustomFreshness {
-                  Text("Freshness")
-                } else {
-                  Text("Freshness (Unset)")
-                }
-
-                Spacer()
-                Text(formattedFreshnessHalfLife)
-                  .foregroundStyle(.secondary)
-              }
+              Text("Freshness")
             }
 
-            HStack {
-              Slider(
-                value: $tempFreshnessHalfLifeDays,
-                in: 7...730,
-                step: 1,
-                onEditingChanged: { editing in
-                  if !editing {
-                    viewModel.freshnessHalfLifeDays = Int(tempFreshnessHalfLifeDays.rounded())
-                  }
-                }
-              )
-
-              AppIcon.clear
-                .imageButton {
-                  viewModel.freshnessHalfLifeDays = nil
-                  tempFreshnessHalfLifeDays = Double(
-                    RecommendationEngine.defaultFreshnessHalfLifeDays
-                  )
-                }
-                .disabled(!viewModel.hasCustomFreshness)
+            Picker("", selection: $tempFreshnessCadence) {
+              Text("Daily").tag(FreshnessCadence.daily)
+              Text("Weekly").tag(FreshnessCadence.weekly)
+              Text("Monthly").tag(FreshnessCadence.monthly)
+              Text("Evergreen").tag(FreshnessCadence.evergreen)
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: tempFreshnessCadence) {
+              viewModel.freshnessCadence = tempFreshnessCadence
             }
           }
         }
@@ -221,11 +196,6 @@ struct PodcastSettingsView: View {
 
   private var formattedPlaybackRate: String {
     "\(tempPlayRate.formatted(decimalPlaces: 1))×"
-  }
-
-  private var formattedFreshnessHalfLife: String {
-    let days = Int(tempFreshnessHalfLifeDays.rounded())
-    return days == 1 ? "1 day" : "\(days) days"
   }
 }
 
@@ -306,7 +276,7 @@ struct PodcastSettingsView: View {
   return PreviewWrapper().preview()
 }
 
-#Preview("With Custom Freshness Half-Life") {
+#Preview("Daily Freshness Cadence") {
   struct PreviewWrapper: View {
     @State private var viewModel: PodcastDetailViewModel?
 
@@ -321,7 +291,33 @@ struct PodcastSettingsView: View {
       .task {
         let podcast = try! await Create.podcast(
           title: "Daily News",
-          freshnessHalfLifeDays: 14
+          freshnessCadence: .daily
+        )
+        viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(podcast))
+        viewModel?.appear()
+      }
+    }
+  }
+
+  return PreviewWrapper().preview()
+}
+
+#Preview("Evergreen Freshness Cadence") {
+  struct PreviewWrapper: View {
+    @State private var viewModel: PodcastDetailViewModel?
+
+    var body: some View {
+      Group {
+        if let viewModel {
+          PodcastSettingsView(viewModel: viewModel)
+        } else {
+          ProgressView()
+        }
+      }
+      .task {
+        let podcast = try! await Create.podcast(
+          title: "Hardcore History",
+          freshnessCadence: .evergreen
         )
         viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(podcast))
         viewModel?.appear()

@@ -80,45 +80,54 @@ actor ObservatoryScoringContextInputsTests {
     #expect(inputs.signals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
     #expect(inputs.hasAnyEmbeddings == false)
-    #expect(inputs.freshnessHalfLifeOverrides.isEmpty)
+    #expect(inputs.freshnessCadences.isEmpty)
   }
 
-  @Test("emits per-podcast freshness overrides only for podcasts that set one")
-  func freshnessOverridesProjected() async throws {
-    let withOverride = try await insertPodcast(title: "News")
-    let withoutOverride = try await insertPodcast(title: "Evergreen")
-    _ = try await repo.updateFreshnessHalfLifeDays(withOverride.id, freshnessHalfLifeDays: 14)
+  @Test("emits per-podcast freshness cadence only for podcasts off the default (weekly)")
+  func freshnessCadencesProjected() async throws {
+    let dailyPodcast = try await insertPodcast(title: "News")
+    let evergreenPodcast = try await insertPodcast(title: "Serial")
+    let weeklyPodcast = try await insertPodcast(title: "Default")
+    _ = try await repo.updateFreshnessCadence(dailyPodcast.id, freshnessCadence: .daily)
+    _ = try await repo.updateFreshnessCadence(evergreenPodcast.id, freshnessCadence: .evergreen)
 
     let inputs = try await observatory.scoringContextInputs().get()
-    #expect(inputs.freshnessHalfLifeOverrides == [withOverride.id: 14])
-    #expect(inputs.freshnessHalfLifeOverrides[withoutOverride.id] == nil)
+    #expect(inputs.freshnessCadences[dailyPodcast.id] == .daily)
+    #expect(inputs.freshnessCadences[evergreenPodcast.id] == .evergreen)
+    #expect(inputs.freshnessCadences[weeklyPodcast.id] == nil)
   }
 
-  @Test("re-emits when a freshness override is set or cleared")
-  func reEmitsOnFreshnessOverrideChange() async throws {
+  @Test("re-emits when a freshness cadence is changed back to default and away again")
+  func reEmitsOnFreshnessCadenceChange() async throws {
     let podcast = try await insertPodcast(title: "Tunable")
 
-    let overrideCount = Counter()
+    let cadenceCount = Counter()
     Task {
       for try await inputs in observatory.scoringContextInputs() {
-        await overrideCount(inputs.freshnessHalfLifeOverrides.count)
+        await cadenceCount(inputs.freshnessCadences.count)
       }
     }
     try await Wait.until(
-      { await overrideCount.value == 0 },
-      { "Expected initial emission with no overrides" }
+      { await cadenceCount.value == 0 },
+      { "Expected initial emission with no off-default cadences" }
     )
 
-    _ = try await repo.updateFreshnessHalfLifeDays(podcast.id, freshnessHalfLifeDays: 30)
+    _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: .daily)
     try await Wait.until(
-      { await overrideCount.value == 1 },
-      { "Expected re-emission with one override, got \(await overrideCount.value)" }
+      { await cadenceCount.value == 1 },
+      { "Expected re-emission with one cadence, got \(await cadenceCount.value)" }
     )
 
-    _ = try await repo.updateFreshnessHalfLifeDays(podcast.id, freshnessHalfLifeDays: nil)
+    _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: .evergreen)
     try await Wait.until(
-      { await overrideCount.value == 0 },
-      { "Expected re-emission with zero overrides after clear" }
+      { await cadenceCount.value == 1 },
+      { "Expected one cadence after switching to evergreen" }
+    )
+
+    _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: .weekly)
+    try await Wait.until(
+      { await cadenceCount.value == 0 },
+      { "Expected zero cadences after restoring default" }
     )
   }
 

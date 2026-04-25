@@ -1,0 +1,59 @@
+// Copyright Justin Bishop, 2026
+
+import Foundation
+import GRDB
+
+// How quickly a podcast's episodes lose freshness in the recommendation
+// score, expressed as the show's natural publish cadence. RecommendationEngine
+// translates each case to a half-life for its hyperbolic decay; .evergreen
+// disables decay entirely (multiplier always 1.0). Default is .weekly — the
+// most common podcast cadence, and a sensible middle ground for un-tagged
+// shows.
+enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, CaseIterable {
+  case daily
+  case weekly
+  case monthly
+  case evergreen
+
+  // A podcast that hasn't published in this long is treated as evergreen,
+  // regardless of its historical cadence. Catches dormant/archive shows like
+  // a wrapped-up serial — historical median gap might be weekly, but no new
+  // episode is coming, so freshness is meaningless.
+  private static let dormantThresholdDays: Double = 180
+
+  // Boundaries on the *median* inter-episode gap, in days. Daily news shows
+  // typically publish every weekday (median 1d, with 3d weekend gaps); 3d
+  // tolerates that. Weekly podcasts cluster around 7d but allow some slop.
+  // Anything wider than ~48d only really makes sense as monthly+; past that
+  // we treat freshness as immaterial.
+  private static let dailyMaxMedianDays: Double = 3
+  private static let weeklyMaxMedianDays: Double = 12
+  private static let monthlyMaxMedianDays: Double = 48
+
+  // Infer a cadence from a podcast's episode publish dates. Used at podcast
+  // ingest (feed parse) and during the v39 backfill so users don't have to
+  // hand-tune each podcast — most shows fall cleanly into one bucket. Falls
+  // back to .weekly when there isn't enough data to be confident (< 3
+  // episodes) since that's the most common cadence anyway.
+  static func infer(from pubDates: [Date], now: Date = Date()) -> FreshnessCadence {
+    guard pubDates.count >= 3 else { return .weekly }
+
+    let sorted = pubDates.sorted()
+    guard let mostRecent = sorted.last else { return .weekly }
+    if now.timeIntervalSince(mostRecent) > dormantThresholdDays * 86400 {
+      return .evergreen
+    }
+
+    var gaps = [Double](capacity: sorted.count - 1)
+    for index in 1..<sorted.count {
+      gaps.append(sorted[index].timeIntervalSince(sorted[index - 1]) / 86400)
+    }
+    gaps.sort()
+    let medianDays = gaps[gaps.count / 2]
+
+    if medianDays <= dailyMaxMedianDays { return .daily }
+    if medianDays <= weeklyMaxMedianDays { return .weekly }
+    if medianDays <= monthlyMaxMedianDays { return .monthly }
+    return .evergreen
+  }
+}

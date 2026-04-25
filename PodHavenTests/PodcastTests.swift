@@ -348,7 +348,7 @@ class PodcastTests {
       defaultPlaybackRate: 1.5,
       queueAllEpisodes: .onTop,
       cacheAllEpisodes: .save,
-      freshnessHalfLifeDays: 30
+      freshnessCadence: .evergreen
     )
 
     let original = try unsavedPodcast.toOriginalUnsavedPodcast()
@@ -358,7 +358,7 @@ class PodcastTests {
     #expect(original.cacheAllEpisodes == .never)
     #expect(original.defaultPlaybackRate == nil)
     #expect(original.queueAllEpisodes == .never)
-    #expect(original.freshnessHalfLifeDays == nil)
+    #expect(original.freshnessCadence == .weekly)
 
     // Feed fields should be preserved
     #expect(original.feedURL == unsavedPodcast.feedURL)
@@ -368,71 +368,49 @@ class PodcastTests {
     #expect(original.link == unsavedPodcast.link)
   }
 
-  @Test("freshnessHalfLifeDays defaults to nil and round-trips through insert + fetch")
-  func freshnessHalfLifeDaysPersistence() async throws {
-    // Default is nil
+  @Test("freshnessCadence defaults to .weekly and round-trips through insert + fetch")
+  func freshnessCadencePersistence() async throws {
     let defaultPodcast = try Create.unsavedPodcast()
-    #expect(defaultPodcast.freshnessHalfLifeDays == nil)
+    #expect(defaultPodcast.freshnessCadence == .weekly)
     let defaultSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: defaultPodcast)
     )
-    #expect(defaultSeries.podcast.freshnessHalfLifeDays == nil)
+    #expect(defaultSeries.podcast.freshnessCadence == .weekly)
     let fetchedDefault = try await repo.podcastSeries(defaultSeries.id)
-    #expect(fetchedDefault?.podcast.freshnessHalfLifeDays == nil)
+    #expect(fetchedDefault?.podcast.freshnessCadence == .weekly)
 
-    // Custom value persists
-    let customPodcast = try Create.unsavedPodcast(freshnessHalfLifeDays: 14)
-    let customSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(unsavedPodcast: customPodcast)
-    )
-    #expect(customSeries.podcast.freshnessHalfLifeDays == 14)
-    let fetchedCustom = try await repo.podcastSeries(customSeries.id)
-    #expect(fetchedCustom?.podcast.freshnessHalfLifeDays == 14)
+    for cadence in FreshnessCadence.allCases where cadence != .weekly {
+      let custom = try Create.unsavedPodcast(freshnessCadence: cadence)
+      let series = try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: custom))
+      #expect(series.podcast.freshnessCadence == cadence)
+      let fetched = try await repo.podcastSeries(series.id)
+      #expect(fetched?.podcast.freshnessCadence == cadence)
+    }
   }
 
-  @Test("updateFreshnessHalfLifeDays() successfully updates per-podcast freshness setting")
-  func testUpdateFreshnessHalfLifeDays() async throws {
+  @Test("updateFreshnessCadence() flips the cadence and persists across fetches")
+  func testUpdateFreshnessCadence() async throws {
     let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(freshnessHalfLifeDays: nil)
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    )
+    #expect(podcastSeries.podcast.freshnessCadence == .weekly)
+
+    for cadence in [FreshnessCadence.daily, .monthly, .evergreen, .weekly] {
+      let updated = try await repo.updateFreshnessCadence(
+        podcastSeries.id,
+        freshnessCadence: cadence
       )
-    )
-    #expect(podcastSeries.podcast.freshnessHalfLifeDays == nil)
+      #expect(updated == true)
+      let fetched = try await repo.podcastSeries(podcastSeries.id)!
+      #expect(fetched.podcast.freshnessCadence == cadence)
+    }
 
-    // Set to 30
-    let updated = try await repo.updateFreshnessHalfLifeDays(
-      podcastSeries.id,
-      freshnessHalfLifeDays: 30
-    )
-    #expect(updated == true)
-    let fetched1 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetched1.podcast.freshnessHalfLifeDays == 30)
-
-    // Change to 365
-    let updated2 = try await repo.updateFreshnessHalfLifeDays(
-      podcastSeries.id,
-      freshnessHalfLifeDays: 365
-    )
-    #expect(updated2 == true)
-    let fetched2 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetched2.podcast.freshnessHalfLifeDays == 365)
-
-    // Clear back to nil
-    let updated3 = try await repo.updateFreshnessHalfLifeDays(
-      podcastSeries.id,
-      freshnessHalfLifeDays: nil
-    )
-    #expect(updated3 == true)
-    let fetched3 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetched3.podcast.freshnessHalfLifeDays == nil)
-
-    // Non-existent podcast returns false
     let nonExistentID = Podcast.ID(99999)
-    let updated4 = try await repo.updateFreshnessHalfLifeDays(
+    let updatedMissing = try await repo.updateFreshnessCadence(
       nonExistentID,
-      freshnessHalfLifeDays: 60
+      freshnessCadence: .daily
     )
-    #expect(updated4 == false)
+    #expect(updatedMissing == false)
   }
 
   @Test("queueAllEpisodes defaults to .never when not specified")

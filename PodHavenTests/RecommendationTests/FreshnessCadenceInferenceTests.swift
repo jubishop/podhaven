@@ -1,0 +1,61 @@
+// Copyright Justin Bishop, 2026
+
+import Foundation
+import Testing
+
+@testable import PodHaven
+
+@Suite("FreshnessCadence inference tests")
+struct FreshnessCadenceInferenceTests {
+  private let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+
+  private func dates(daysAgo: [Double]) -> [Date] {
+    daysAgo.map { now.addingTimeInterval(-$0 * 86400) }
+  }
+
+  @Test("returns .weekly when there are fewer than 3 episodes")
+  func fallsBackToWeeklyOnSparseInput() {
+    #expect(FreshnessCadence.infer(from: [], now: now) == .weekly)
+    #expect(FreshnessCadence.infer(from: dates(daysAgo: [0, 7]), now: now) == .weekly)
+  }
+
+  @Test("infers .daily for shows publishing every 1-3 days")
+  func detectsDailyCadence() {
+    let weekdayNews = dates(daysAgo: [0, 1, 2, 3, 6, 7, 8, 9, 10])
+    #expect(FreshnessCadence.infer(from: weekdayNews, now: now) == .daily)
+
+    let strictDaily = dates(daysAgo: stride(from: 0.0, to: 30, by: 1).map { $0 })
+    #expect(FreshnessCadence.infer(from: strictDaily, now: now) == .daily)
+  }
+
+  @Test("infers .weekly for shows publishing every 5-12 days")
+  func detectsWeeklyCadence() {
+    let strictWeekly = dates(daysAgo: stride(from: 0.0, to: 90, by: 7).map { $0 })
+    #expect(FreshnessCadence.infer(from: strictWeekly, now: now) == .weekly)
+
+    let biweeklyish = dates(daysAgo: stride(from: 0.0, to: 90, by: 11).map { $0 })
+    #expect(FreshnessCadence.infer(from: biweeklyish, now: now) == .weekly)
+  }
+
+  @Test("infers .monthly for shows publishing every 13-60 days")
+  func detectsMonthlyCadence() {
+    let strictMonthly = dates(daysAgo: stride(from: 0.0, to: 360, by: 30).map { $0 })
+    #expect(FreshnessCadence.infer(from: strictMonthly, now: now) == .monthly)
+  }
+
+  @Test("infers .evergreen for shows whose latest episode is older than 6 months")
+  func detectsDormantAsEvergreen() {
+    // Weekly cadence historically, but no new episodes in over a year — the
+    // show is dormant or wrapped, freshness no longer matters.
+    let dormant = dates(daysAgo: stride(from: 400.0, to: 500, by: 7).map { $0 })
+    #expect(FreshnessCadence.infer(from: dormant, now: now) == .evergreen)
+  }
+
+  @Test("infers .evergreen for active shows with very long inter-episode gaps")
+  func detectsLongGapsAsEvergreen() {
+    // Recent episode but ~90d+ between drops — the user shouldn't have to
+    // care about freshness for a show like this.
+    let quarterly = dates(daysAgo: [0, 95, 190, 285])
+    #expect(FreshnessCadence.infer(from: quarterly, now: now) == .evergreen)
+  }
+}
