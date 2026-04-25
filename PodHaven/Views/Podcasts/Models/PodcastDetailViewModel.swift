@@ -273,6 +273,34 @@ class PodcastDetailViewModel:
     }
   }
 
+  var freshnessHalfLifeDays: Int? {
+    get { podcast.freshnessHalfLifeDays }
+    set {
+      guard let podcastID = podcastSeries?.id else {
+        Self.log.warning("Cannot update freshnessHalfLifeDays for unsaved podcast")
+        return
+      }
+
+      Task { [weak self] in
+        guard let self else { return }
+
+        do {
+          try await repo.updateFreshnessHalfLifeDays(
+            podcastID,
+            freshnessHalfLifeDays: newValue
+          )
+        } catch {
+          Self.log.caughtError(
+            "freshnessHalfLifeDays: failed to update for podcast \(podcastID)",
+            error
+          )
+          guard ErrorKit.isRemarkable(error) else { return }
+          alert(ErrorKit.message(for: error))
+        }
+      }
+    }
+  }
+
   var loaded: Bool { !episodeList.allEntries.isEmpty }
   var saved: Bool { podcastSeries != nil }
 
@@ -285,6 +313,10 @@ class PodcastDetailViewModel:
 
   var hasCustomPlayRate: Bool {
     defaultPlaybackRate != nil
+  }
+
+  var hasCustomFreshness: Bool {
+    freshnessHalfLifeDays != nil
   }
 
   // MARK: - Share

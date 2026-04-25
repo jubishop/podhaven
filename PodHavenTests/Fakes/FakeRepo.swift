@@ -447,4 +447,19 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     )
     return try await repo.updateNotifyNewEpisodes(podcastID, notifyNewEpisodes: notifyNewEpisodes)
   }
+
+  @discardableResult
+  func updateFreshnessHalfLifeDays(
+    _ podcastID: Podcast.ID,
+    freshnessHalfLifeDays: Int?
+  ) async throws -> Bool {
+    recordCall(
+      methodName: "updateFreshnessHalfLifeDays",
+      parameters: (podcastID: podcastID, freshnessHalfLifeDays: freshnessHalfLifeDays)
+    )
+    return try await repo.updateFreshnessHalfLifeDays(
+      podcastID,
+      freshnessHalfLifeDays: freshnessHalfLifeDays
+    )
+  }
 }

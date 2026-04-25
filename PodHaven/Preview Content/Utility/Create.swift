@@ -62,7 +62,8 @@ enum Create {
     defaultPlaybackRate: Double? = nil,
     queueAllEpisodes: QueueAllEpisodes = .never,
     cacheAllEpisodes: CacheAllEpisodes = .never,
-    notifyNewEpisodes: Bool = false
+    notifyNewEpisodes: Bool = false,
+    freshnessHalfLifeDays: Int? = nil
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: feedURL,
@@ -76,7 +77,8 @@ enum Create {
       defaultPlaybackRate: defaultPlaybackRate,
       queueAllEpisodes: queueAllEpisodes,
       cacheAllEpisodes: cacheAllEpisodes,
-      notifyNewEpisodes: notifyNewEpisodes
+      notifyNewEpisodes: notifyNewEpisodes,
+      freshnessHalfLifeDays: freshnessHalfLifeDays
     )
   }
 
@@ -92,7 +94,8 @@ enum Create {
     defaultPlaybackRate: Double? = nil,
     queueAllEpisodes: QueueAllEpisodes = .never,
     cacheAllEpisodes: CacheAllEpisodes = .never,
-    notifyNewEpisodes: Bool = false
+    notifyNewEpisodes: Bool = false,
+    freshnessHalfLifeDays: Int? = nil
   ) async throws -> Podcast {
     try await Container.shared.repo()
       .insertSeries(
@@ -110,7 +113,8 @@ enum Create {
               defaultPlaybackRate: defaultPlaybackRate,
               queueAllEpisodes: queueAllEpisodes,
               cacheAllEpisodes: cacheAllEpisodes,
-              notifyNewEpisodes: notifyNewEpisodes
+              notifyNewEpisodes: notifyNewEpisodes,
+              freshnessHalfLifeDays: freshnessHalfLifeDays
             )
         )
       )

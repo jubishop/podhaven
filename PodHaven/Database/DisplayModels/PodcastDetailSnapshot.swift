@@ -21,6 +21,7 @@ struct PodcastDetailSnapshot:
   let queueAllEpisodes: QueueAllEpisodes
   let cacheAllEpisodes: CacheAllEpisodes
   let notifyNewEpisodes: Bool
+  let freshnessHalfLifeDays: Int?
 
   var id: FeedURL { feedURL }
   var toString: String { "(\(feedURL.toString)) - \(title)" }
@@ -40,6 +41,7 @@ struct PodcastDetailSnapshot:
       queueAllEpisodes = unsavedPodcast.queueAllEpisodes
       cacheAllEpisodes = unsavedPodcast.cacheAllEpisodes
       notifyNewEpisodes = unsavedPodcast.notifyNewEpisodes
+      freshnessHalfLifeDays = unsavedPodcast.freshnessHalfLifeDays
     } else if let searchResult = listedPodcast.getSearchResultPodcast() {
       podcastID = searchResult.savedPodcast.id
       feedURL = searchResult.savedPodcast.feedURL
@@ -53,6 +55,7 @@ struct PodcastDetailSnapshot:
       queueAllEpisodes = .never
       cacheAllEpisodes = .never
       notifyNewEpisodes = false
+      freshnessHalfLifeDays = nil
     } else if let listablePodcast = listedPodcast.getListablePodcast() {
       podcastID = listablePodcast.id
       feedURL = listablePodcast.feedURL
@@ -66,6 +69,7 @@ struct PodcastDetailSnapshot:
       queueAllEpisodes = .never
       cacheAllEpisodes = .never
       notifyNewEpisodes = false
+      freshnessHalfLifeDays = nil
     } else {
       Assert.fatal("Cannot build PodcastDetailSnapshot from: \(type(of: listedPodcast.podcast))")
     }
