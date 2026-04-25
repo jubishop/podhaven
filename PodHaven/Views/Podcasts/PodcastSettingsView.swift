@@ -14,8 +14,6 @@ struct PodcastSettingsView: View {
   @State private var tempNotifyNewEpisodes: Bool
   @State private var tempFreshnessHalfLifeDays: Double
 
-  private static let freshnessSliderRange: ClosedRange<Double> = 7...730
-
   init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel
     self._tempPlayRate = State(
@@ -162,7 +160,7 @@ struct PodcastSettingsView: View {
             HStack {
               Slider(
                 value: $tempFreshnessHalfLifeDays,
-                in: Self.freshnessSliderRange,
+                in: 7...730,
                 step: 1,
                 onEditingChanged: { editing in
                   if !editing {
