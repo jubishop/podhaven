@@ -79,6 +79,7 @@ private struct PodcastDetailInitialPodcast:
   let queueAllEpisodes: QueueAllEpisodes
   let cacheAllEpisodes: CacheAllEpisodes
   let notifyNewEpisodes: Bool
+  let freshnessHalfLifeDays: Int?
 
   var id: FeedURL { feedURL }
   var toString: String { "(\(feedURL.toString)) - \(title)" }
@@ -98,6 +99,7 @@ private struct PodcastDetailInitialPodcast:
       queueAllEpisodes = .never
       cacheAllEpisodes = .never
       notifyNewEpisodes = false
+      freshnessHalfLifeDays = nil
     } else if let listablePodcast = listedPodcast.getListablePodcast() {
       podcastID = listablePodcast.id
       feedURL = listablePodcast.feedURL
@@ -111,6 +113,7 @@ private struct PodcastDetailInitialPodcast:
       queueAllEpisodes = .never
       cacheAllEpisodes = .never
       notifyNewEpisodes = false
+      freshnessHalfLifeDays = nil
     } else {
       Assert.fatal("Cannot build PodcastDetailSeed from: \(type(of: listedPodcast.podcast))")
     }

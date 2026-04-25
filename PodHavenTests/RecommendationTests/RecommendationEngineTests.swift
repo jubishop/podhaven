@@ -592,6 +592,56 @@ class RecommendationEngineTests {
     let map = try await engine.recommendations(for: [])
     #expect(map.isEmpty)
   }
+
+  // MARK: - Per-podcast freshness half-life
+
+  @Test("per-podcast freshness override scores older episodes higher than the global default")
+  func perPodcastFreshnessOverrideRaisesOldEpisodeScore() async throws {
+    // Same embedding everywhere so the similarity feature is identical for
+    // every candidate. Same podcast title for both candidate podcasts so
+    // affinity is identical too. The only thing that differs between the two
+    // candidates is which podcast row supplies their freshness half-life.
+    let embeddable = ScriptedEmbeddable { _ in [1, 0, 0] }
+
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals, embeddable: embeddable)
+
+    // 365 days old → with the 60-day default, freshness ≈ 0.14 (well below 0.5).
+    let oldOffset: (Int) -> TimeInterval = { _ in TimeInterval(-365 * 86400) }
+
+    let (defaultPodcast, defaultCandidates) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Default Freshness",
+      pubDateOffset: oldOffset
+    )
+    try await embedEpisodes(defaultCandidates, embeddable: embeddable)
+
+    let (evergreenPodcast, evergreenCandidates) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Evergreen Freshness",
+      pubDateOffset: oldOffset
+    )
+    try await embedEpisodes(evergreenCandidates, embeddable: embeddable)
+    // 730-day half-life → freshness ≈ 0.67 (above 0.5).
+    _ = try await repo.updateFreshnessHalfLifeDays(
+      evergreenPodcast.id,
+      freshnessHalfLifeDays: 730
+    )
+
+    let recs = try await startAndWaitForRecs()
+    let defaultRec = try #require(recs.first { $0.episode.podcastID == defaultPodcast.id })
+    let evergreenRec = try #require(recs.first { $0.episode.podcastID == evergreenPodcast.id })
+
+    // The override pushes the freshness feature above neutral, so the rec
+    // gains both score and the .recentlyPublished reason.
+    #expect(evergreenRec.score.value > defaultRec.score.value)
+    #expect(evergreenRec.score.reasons.contains(.recentlyPublished))
+    #expect(!defaultRec.score.reasons.contains(.recentlyPublished))
+  }
 }
 
 // MARK: - Array Safe Subscript

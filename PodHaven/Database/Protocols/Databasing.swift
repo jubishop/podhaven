@@ -152,6 +152,12 @@ protocol Databasing: Sendable {
   func updateNotifyNewEpisodes(_ podcastID: Podcast.ID, notifyNewEpisodes: Bool)
     async throws -> Bool
 
+  @discardableResult
+  func updateFreshnessHalfLifeDays(
+    _ podcastID: Podcast.ID,
+    freshnessHalfLifeDays: Int?
+  ) async throws -> Bool
+
   // MARK: - Embedding Writers
 
   @discardableResult

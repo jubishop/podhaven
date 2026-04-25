@@ -11,4 +11,5 @@ struct ScoringContextInputs: Sendable, Equatable {
   let signals: [SignalEpisode]
   let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
   let hasAnyEmbeddings: Bool
+  let freshnessHalfLifeOverrides: [Podcast.ID: Int]
 }

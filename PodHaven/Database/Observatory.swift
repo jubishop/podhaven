@@ -231,12 +231,12 @@ struct Observatory {
 
   // Composite observation feeding `RecommendationEngine`'s cached
   // `ScoringContext`. One stream covers signals + their embeddings + the
-  // any-embedding flag so a single transaction touching multiple tables
-  // produces one rebuild instead of three. `SignalEpisode`'s
-  // `databaseSelection` narrows the fetch to the five Episode columns the
-  // engine actually reads, so GRDB's column tracking ignores updates to
-  // currentTime, queueOrder, etc. — the observation doesn't re-fetch on
-  // every unrelated row mutation.
+  // any-embedding flag + per-podcast freshness overrides so a single
+  // transaction touching multiple tables produces one rebuild instead of
+  // several. `SignalEpisode`'s `databaseSelection` narrows the fetch to the
+  // five Episode columns the engine actually reads, and the freshness query
+  // selects only id + freshnessHalfLifeDays — so GRDB's column tracking
+  // ignores updates to currentTime, queueOrder, podcast title, etc.
   func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
     _observe { db in
       let signals = try SignalEpisode.filter(Episode.signal).fetchAll(db)
@@ -255,10 +255,24 @@ struct Observatory {
       let hasAnyEmbeddings =
         try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
 
+      let overrideRows = try Row.fetchAll(
+        db,
+        Podcast
+          .filter(Podcast.Columns.freshnessHalfLifeDays != nil)
+          .select(Podcast.Columns.id, Podcast.Columns.freshnessHalfLifeDays)
+      )
+      var freshnessHalfLifeOverrides = [Podcast.ID: Int](capacity: overrideRows.count)
+      for row in overrideRows {
+        let id: Podcast.ID = row[Podcast.Columns.id]
+        let halfLife: Int = row[Podcast.Columns.freshnessHalfLifeDays]
+        freshnessHalfLifeOverrides[id] = halfLife
+      }
+
       return ScoringContextInputs(
         signals: signals,
         signalEmbeddings: signalEmbeddings,
-        hasAnyEmbeddings: hasAnyEmbeddings
+        hasAnyEmbeddings: hasAnyEmbeddings,
+        freshnessHalfLifeOverrides: freshnessHalfLifeOverrides
       )
     }
   }

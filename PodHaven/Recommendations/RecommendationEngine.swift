@@ -58,14 +58,14 @@ struct RecommendationEngine: Sendable {
   private static let podcastAffinityWeight: Float = 0.20
   private static let freshnessWeight: Float = 0.20
 
-  // Freshness curve: `1 / (1 + days / midpoint)`. This is a hyperbolic decay,
-  // not an exponential half-life — it crosses 0.5 once at `midpoint` days and
+  // Freshness curve: `1 / (1 + days / halfLife)`. This is a hyperbolic decay,
+  // not an exponential half-life — it crosses 0.5 once at `halfLife` days and
   // then tapers slowly (120d → 0.33, 180d → 0.25, 365d → 0.14). 60 days is
   // tuned for the "haven't configured anything" default — most podcast
   // subscriptions are time-sensitive enough that 2-month-old episodes scoring
-  // 0.5 feels right. Evergreen/history content gets overridden per-podcast
-  // (see memory: ML Recommendations Feature → deferred to v2).
-  private static let freshnessMidpointDays: Double = 60
+  // 0.5 feels right. Evergreen/history content overrides this per-podcast via
+  // `Podcast.freshnessHalfLifeDays`.
+  static let defaultFreshnessHalfLifeDays: Int = 60
 
   // Centroid weights
   private static let lovedWeight: Float = 1.0
@@ -160,6 +160,7 @@ struct RecommendationEngine: Sendable {
     let positiveCentroid: [Float]
     let negativeCentroid: [Float]?
     let podcastAffinities: [Podcast.ID: Float]
+    let freshnessHalfLifeOverrides: [Podcast.ID: Int]
   }
 
   // Spawns the long-running observation Task that keeps `cache` in sync.
@@ -215,7 +216,8 @@ struct RecommendationEngine: Sendable {
     return ScoringContext(
       positiveCentroid: positiveCentroid,
       negativeCentroid: negative,
-      podcastAffinities: computePodcastAffinities(signals: inputs.signals)
+      podcastAffinities: computePodcastAffinities(signals: inputs.signals),
+      freshnessHalfLifeOverrides: inputs.freshnessHalfLifeOverrides
     )
   }
 
@@ -237,6 +239,8 @@ struct RecommendationEngine: Sendable {
         positiveCentroid: context.positiveCentroid,
         negativeCentroid: context.negativeCentroid,
         podcastAffinities: context.podcastAffinities,
+        freshnessHalfLifeDays: context.freshnessHalfLifeOverrides[episode.podcastID]
+          ?? Self.defaultFreshnessHalfLifeDays,
         now: now
       )
     }
@@ -287,6 +291,7 @@ struct RecommendationEngine: Sendable {
     positiveCentroid: [Float]?,
     negativeCentroid: [Float]?,
     podcastAffinities: [Podcast.ID: Float],
+    freshnessHalfLifeDays: Int,
     now: Date
   ) -> RecommendationScore {
     var features: [(weight: Float, value: Float, reason: RecommendationReason)] = []
@@ -311,8 +316,13 @@ struct RecommendationEngine: Sendable {
     let remappedAffinity = (affinity + 1.0) / 2.0
     features.append((Self.podcastAffinityWeight, remappedAffinity, .podcastAffinity))
 
-    // Freshness
-    let freshness = freshnessScore(pubDate: pubDate, now: now)
+    // Freshness — uses the podcast's per-podcast half-life override when set,
+    // otherwise the global default. Resolved upstream in `scoreEpisodes`.
+    let freshness = freshnessScore(
+      pubDate: pubDate,
+      halfLifeDays: Double(freshnessHalfLifeDays),
+      now: now
+    )
     features.append((Self.freshnessWeight, freshness, .recentlyPublished))
 
     // Renormalize weights over available features. Affinity + freshness are
@@ -381,10 +391,10 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Freshness
 
-  private func freshnessScore(pubDate: Date, now: Date) -> Float {
+  private func freshnessScore(pubDate: Date, halfLifeDays: Double, now: Date) -> Float {
     let daysSince = now.timeIntervalSince(pubDate) / 86400
     guard daysSince > 0 else { return 1.0 }
-    return Float(1.0 / (1.0 + daysSince / Self.freshnessMidpointDays))
+    return Float(1.0 / (1.0 + daysSince / halfLifeDays))
   }
 
   // MARK: - Centroid Math

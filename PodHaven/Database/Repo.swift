@@ -669,6 +669,25 @@ struct Repo: Databasing, Sendable {
     } > 0
   }
 
+  @discardableResult
+  func updateFreshnessHalfLifeDays(
+    _ podcastID: Podcast.ID,
+    freshnessHalfLifeDays: Int?
+  ) async throws -> Bool {
+    Self.log.debug(
+      "updateFreshnessHalfLifeDays: \(podcastID) to \(String(describing: freshnessHalfLifeDays))"
+    )
+
+    return try await appDB.db.write { db in
+      try Podcast
+        .withID(podcastID)
+        .updateAll(
+          db,
+          Podcast.Columns.freshnessHalfLifeDays.set(to: freshnessHalfLifeDays)
+        )
+    } > 0
+  }
+
   // MARK: - Episode Attribute Writers
 
   @discardableResult
