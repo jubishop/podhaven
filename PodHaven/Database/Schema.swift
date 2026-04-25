@@ -515,6 +515,12 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v38") { db in
+      try db.alter(table: "podcast") { t in
+        t.add(column: "freshnessHalfLifeDays", .integer).check { $0 == nil || $0 >= 1 }
+      }
+    }
+
     return migrator
   }
 

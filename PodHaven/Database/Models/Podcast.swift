@@ -38,6 +38,7 @@ struct UnsavedPodcast:
   let queueAllEpisodes: QueueAllEpisodes
   let cacheAllEpisodes: CacheAllEpisodes
   let notifyNewEpisodes: Bool
+  let freshnessHalfLifeDays: Int?
 
   private static let log = Log.as(LogSubsystem.Database.podcast)
 
@@ -53,7 +54,8 @@ struct UnsavedPodcast:
     defaultPlaybackRate: Double? = nil,
     queueAllEpisodes: QueueAllEpisodes = .never,
     cacheAllEpisodes: CacheAllEpisodes = .never,
-    notifyNewEpisodes: Bool = false
+    notifyNewEpisodes: Bool = false,
+    freshnessHalfLifeDays: Int? = nil
   ) throws {
     self.feedURL = try feedURL.convertToHTTPSURL()
     self.iTunesID = iTunesID
@@ -80,6 +82,7 @@ struct UnsavedPodcast:
     self.queueAllEpisodes = queueAllEpisodes
     self.cacheAllEpisodes = cacheAllEpisodes
     self.notifyNewEpisodes = notifyNewEpisodes
+    self.freshnessHalfLifeDays = freshnessHalfLifeDays
   }
 
   // MARK: - Savable
@@ -195,6 +198,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let queueAllEpisodes = Column("queueAllEpisodes")
     static let cacheAllEpisodes = Column("cacheAllEpisodes")
     static let notifyNewEpisodes = Column("notifyNewEpisodes")
+    static let freshnessHalfLifeDays = Column("freshnessHalfLifeDays")
     static let contentUpdatedAt = Column("contentUpdatedAt")
   }
 
@@ -221,6 +225,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   var queueAllEpisodes: QueueAllEpisodes { unsaved.queueAllEpisodes }
   var cacheAllEpisodes: CacheAllEpisodes { unsaved.cacheAllEpisodes }
   var notifyNewEpisodes: Bool { unsaved.notifyNewEpisodes }
+  var freshnessHalfLifeDays: Int? { unsaved.freshnessHalfLifeDays }
 
   // MARK: - Reset
 

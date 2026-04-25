@@ -80,6 +80,46 @@ actor ObservatoryScoringContextInputsTests {
     #expect(inputs.signals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
     #expect(inputs.hasAnyEmbeddings == false)
+    #expect(inputs.freshnessHalfLifeOverrides.isEmpty)
+  }
+
+  @Test("emits per-podcast freshness overrides only for podcasts that set one")
+  func freshnessOverridesProjected() async throws {
+    let withOverride = try await insertPodcast(title: "News")
+    let withoutOverride = try await insertPodcast(title: "Evergreen")
+    _ = try await repo.updateFreshnessHalfLifeDays(withOverride.id, freshnessHalfLifeDays: 14)
+
+    let inputs = try await observatory.scoringContextInputs().get()
+    #expect(inputs.freshnessHalfLifeOverrides == [withOverride.id: 14])
+    #expect(inputs.freshnessHalfLifeOverrides[withoutOverride.id] == nil)
+  }
+
+  @Test("re-emits when a freshness override is set or cleared")
+  func reEmitsOnFreshnessOverrideChange() async throws {
+    let podcast = try await insertPodcast(title: "Tunable")
+
+    let overrideCount = Counter()
+    Task {
+      for try await inputs in observatory.scoringContextInputs() {
+        await overrideCount(inputs.freshnessHalfLifeOverrides.count)
+      }
+    }
+    try await Wait.until(
+      { await overrideCount.value == 0 },
+      { "Expected initial emission with no overrides" }
+    )
+
+    _ = try await repo.updateFreshnessHalfLifeDays(podcast.id, freshnessHalfLifeDays: 30)
+    try await Wait.until(
+      { await overrideCount.value == 1 },
+      { "Expected re-emission with one override, got \(await overrideCount.value)" }
+    )
+
+    _ = try await repo.updateFreshnessHalfLifeDays(podcast.id, freshnessHalfLifeDays: nil)
+    try await Wait.until(
+      { await overrideCount.value == 0 },
+      { "Expected re-emission with zero overrides after clear" }
+    )
   }
 
   @Test("emits signals projected from rated and finished episodes")
