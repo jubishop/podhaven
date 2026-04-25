@@ -6,6 +6,7 @@ import SavedMacro
 import Tagged
 
 struct UnsavedEpisodeEmbedding:
+  Equatable,
   Identifiable,
   Savable,
   VectorStorable
@@ -29,7 +30,7 @@ struct UnsavedEpisodeEmbedding:
 }
 
 @Saved<UnsavedEpisodeEmbedding>
-struct EpisodeEmbedding: Saved, VectorStorable {
+struct EpisodeEmbedding: Equatable, Saved, VectorStorable {
   // MARK: - Associations
 
   static let episode = belongsTo(Episode.self)

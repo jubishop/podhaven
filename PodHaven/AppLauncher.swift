@@ -17,6 +17,7 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
@@ -109,6 +110,7 @@ struct AppLauncher: Sendable {
 
       // Start all other services
       self.cacheManager.start()
+      self.recommendationEngine.start()
 
       // System monitoring
       self.startSystemMonitoring()

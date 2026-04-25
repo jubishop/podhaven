@@ -227,6 +227,42 @@ struct Observatory {
     }
   }
 
+  // MARK: - Recommendations
+
+  // Composite observation feeding `RecommendationEngine`'s cached
+  // `ScoringContext`. One stream covers signals + their embeddings + the
+  // any-embedding flag so a single transaction touching multiple tables
+  // produces one rebuild instead of three. `SignalEpisode`'s
+  // `databaseSelection` narrows the fetch to the five Episode columns the
+  // engine actually reads, so GRDB's column tracking ignores updates to
+  // currentTime, queueOrder, etc. — the observation doesn't re-fetch on
+  // every unrelated row mutation.
+  func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
+    _observe { db in
+      let signals = try SignalEpisode.filter(Episode.signal).fetchAll(db)
+
+      let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
+      if signals.isEmpty {
+        signalEmbeddings = IdentifiedArray(id: \.episodeId)
+      } else {
+        let signalIDs = signals.map(\.id)
+        signalEmbeddings =
+          try EpisodeEmbedding
+          .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
+          .fetchIdentifiedArray(db, id: \.episodeId)
+      }
+
+      let hasAnyEmbeddings =
+        try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
+
+      return ScoringContextInputs(
+        signals: signals,
+        signalEmbeddings: signalEmbeddings,
+        hasAnyEmbeddings: hasAnyEmbeddings
+      )
+    }
+  }
+
   // Private Helpers
 
   private static func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {
