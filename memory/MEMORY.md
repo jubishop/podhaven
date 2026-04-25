@@ -4,3 +4,4 @@
 - [ML Recommendations Feature](project_ml_recommendations.md) — on-device ML recommendation engine with NLContextualEmbedding, dual centroids, podcast blending, tag signals
 - [Observable + Broadcast gap](observation_broadcast_viewmodel.md) — reading @Broadcasted state through @Observable viewModel computed properties can silently fail for conditional views; read SharedState directly instead
 - [Podcast Detail Refactor, Part 2](podcast_detail_refactor_part2.md) — implemented explicit ListedPodcast row cases and SavedSearchResultPodcast bridge payload after 787c881
+- [Podcast Detail Refactor, Parts 3–6 (planned)](podcast_detail_refactor_part3.md) — four leftover sibling types (ListedEpisode, EpisodeDetailSource/Snapshot, DisplayedEpisode, DisplayedPodcast) still use the pre-Part-2 wrapper pattern; ordered backlog with per-part conversion recipes

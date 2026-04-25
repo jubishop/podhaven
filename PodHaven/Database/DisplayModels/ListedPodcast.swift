@@ -13,14 +13,45 @@ struct ListedPodcast:
     case unsavedSearchResult(UnsavedPodcast)
     case savedSearchResult(SavedSearchResultPodcast)
 
+    // Canonical podcast used to forward most list fields. For savedSearchResult
+    // this is the saved podcast — not the bridged search row.
+    var canonicalPodcast: any PodcastListable {
+      switch self {
+      case .saved(let podcast): return podcast
+      case .unsavedSearchResult(let podcast): return podcast
+      case .savedSearchResult(let result): return result.savedPodcast
+      }
+    }
+
+    // Slot identity. For savedSearchResult, the search-row URL — which can
+    // differ from the canonical podcast's feedURL.
+    var id: FeedURL {
+      if case .savedSearchResult(let result) = self { return result.resultFeedURL }
+      return canonicalPodcast.feedURL
+    }
+
+    var podcastID: Podcast.ID? { canonicalPodcast.podcastID }
+    var feedURL: FeedURL { canonicalPodcast.feedURL }
+    var iTunesID: ITunesPodcastID? { canonicalPodcast.iTunesID }
+    var image: URL { canonicalPodcast.image }
+    var title: String { canonicalPodcast.title }
+    var subscriptionDate: Date? { canonicalPodcast.subscriptionDate }
+    var toString: String { canonicalPodcast.toString }
+
+    // For savedSearchResult, search uses the original (unsaved) search description,
+    // not the saved podcast's searchableString.
+    var searchableString: String {
+      if case .savedSearchResult(let result) = self {
+        return result.originalPodcast.searchableString
+      }
+      return canonicalPodcast.searchableString
+    }
+
     func getOrCreatePodcast() async throws -> Podcast {
       switch self {
-      case .saved(let podcast):
-        return try await podcast.getPodcast()
-      case .unsavedSearchResult(let podcast):
-        return try await podcast.getOrCreatePodcast()
-      case .savedSearchResult(let searchResult):
-        return try await searchResult.getPodcast()
+      case .saved(let podcast): return try await podcast.getPodcast()
+      case .unsavedSearchResult(let podcast): return try await podcast.getOrCreatePodcast()
+      case .savedSearchResult(let result): return try await result.getPodcast()
       }
     }
 
@@ -30,8 +61,8 @@ struct ListedPodcast:
     }
 
     var savedSearchResult: SavedSearchResultPodcast? {
-      guard case .savedSearchResult(let searchResult) = self else { return nil }
-      return searchResult
+      guard case .savedSearchResult(let result) = self else { return nil }
+      return result
     }
 
     var unsavedSearchResult: UnsavedPodcast? {
@@ -44,19 +75,18 @@ struct ListedPodcast:
       mostRecentEpisodeDate: Date?
     ) -> SearchMetadata? {
       switch self {
-      case .saved:
-        return nil
+      case .saved: return nil
       case .unsavedSearchResult(let podcast):
         return SearchMetadata(
           podcast: podcast,
           episodeCount: episodeCount,
           mostRecentEpisodeDate: mostRecentEpisodeDate
         )
-      case .savedSearchResult(let searchResult):
+      case .savedSearchResult(let result):
         return SearchMetadata(
-          podcast: searchResult.originalPodcast,
-          episodeCount: searchResult.originalEpisodeCount,
-          mostRecentEpisodeDate: searchResult.originalMostRecentEpisodeDate
+          podcast: result.originalPodcast,
+          episodeCount: result.originalEpisodeCount,
+          mostRecentEpisodeDate: result.originalMostRecentEpisodeDate
         )
       }
     }
@@ -68,88 +98,37 @@ struct ListedPodcast:
     let mostRecentEpisodeDate: Date?
   }
 
-  let id: FeedURL
   let source: Source
-  let podcastID: Podcast.ID?
-  let feedURL: FeedURL
-  let iTunesID: ITunesPodcastID?
-  let image: URL
-  let title: String
-  let subscriptionDate: Date?
-  let subscribed: Bool
-  let toString: String
-  let searchableString: String
 
-  init(saved podcast: ListablePodcast) {
-    id = podcast.feedURL
-    source = .saved(podcast)
-    podcastID = podcast.id
-    feedURL = podcast.feedURL
-    iTunesID = podcast.iTunesID
-    image = podcast.image
-    title = podcast.title
-    subscriptionDate = podcast.subscriptionDate
-    subscribed = podcast.subscribed
-    toString = podcast.toString
-    searchableString = podcast.searchableString
-  }
-
-  init(unsavedSearchResult podcast: UnsavedPodcast) {
-    id = podcast.feedURL
-    source = .unsavedSearchResult(podcast)
-    podcastID = podcast.podcastID
-    feedURL = podcast.feedURL
-    iTunesID = podcast.iTunesID
-    image = podcast.image
-    title = podcast.title
-    subscriptionDate = podcast.subscriptionDate
-    subscribed = podcast.subscribed
-    toString = podcast.toString
-    searchableString = podcast.searchableString
-  }
-
+  init(saved podcast: ListablePodcast) { source = .saved(podcast) }
+  init(unsavedSearchResult podcast: UnsavedPodcast) { source = .unsavedSearchResult(podcast) }
   init(savedSearchResult: SavedSearchResultPodcast) {
-    let savedPodcast = savedSearchResult.savedPodcast
-    id = savedSearchResult.resultFeedURL
     source = .savedSearchResult(savedSearchResult)
-    podcastID = savedPodcast.id
-    feedURL = savedPodcast.feedURL
-    iTunesID = savedPodcast.iTunesID
-    image = savedPodcast.image
-    title = savedPodcast.title
-    subscriptionDate = savedPodcast.subscriptionDate
-    subscribed = savedPodcast.subscribed
-    toString = savedPodcast.toString
-    searchableString = savedSearchResult.originalPodcast.searchableString
   }
+
+  // MARK: - PodcastListable
+
+  var id: FeedURL { source.id }
+  var podcastID: Podcast.ID? { source.podcastID }
+  var feedURL: FeedURL { source.feedURL }
+  var iTunesID: ITunesPodcastID? { source.iTunesID }
+  var image: URL { source.image }
+  var title: String { source.title }
+  var subscriptionDate: Date? { source.subscriptionDate }
+  var toString: String { source.toString }
+  var searchableString: String { source.searchableString }
 
   // MARK: - Hashable / Equatable
 
-  func hash(into hasher: inout Hasher) {
-    hasher.combine(source)
-  }
-
-  static func == (lhs: ListedPodcast, rhs: ListedPodcast) -> Bool {
-    lhs.source == rhs.source
-  }
+  func hash(into hasher: inout Hasher) { hasher.combine(source) }
+  static func == (lhs: ListedPodcast, rhs: ListedPodcast) -> Bool { lhs.source == rhs.source }
 
   // MARK: - Helpers
 
-  func getOrCreatePodcast() async throws -> Podcast {
-    try await source.getOrCreatePodcast()
-  }
-
-  var listablePodcast: ListablePodcast? {
-    source.listablePodcast
-  }
-
-  var savedSearchResult: SavedSearchResultPodcast? {
-    source.savedSearchResult
-  }
-
-  var unsavedSearchResult: UnsavedPodcast? {
-    source.unsavedSearchResult
-  }
+  func getOrCreatePodcast() async throws -> Podcast { try await source.getOrCreatePodcast() }
+  var listablePodcast: ListablePodcast? { source.listablePodcast }
+  var savedSearchResult: SavedSearchResultPodcast? { source.savedSearchResult }
+  var unsavedSearchResult: UnsavedPodcast? { source.unsavedSearchResult }
 
   func searchMetadata(
     episodeCount: Int,
