@@ -171,11 +171,6 @@ struct PodcastFeed: Sendable, Stringable {
     merging podcast: Podcast? = nil,
     iTunesID: ITunesPodcastID? = nil
   ) throws -> UnsavedPodcast {
-    // Cadence stays nil for first-time inserts — RecommendationEngine
-    // resolves nil lazily by inferring from pubDates at scoring time, so
-    // there's no need to commit to a value at parse time. On refresh we
-    // mirror whatever the existing podcast had (refresh only writes
-    // `rssUpdatableColumns`, so this is purely for in-memory consistency).
     try UnsavedPodcast(
       feedURL: updatedFeedURL,
       iTunesID: iTunesID ?? podcast?.iTunesID,

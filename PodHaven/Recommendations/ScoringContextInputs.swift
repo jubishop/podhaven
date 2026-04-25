@@ -8,19 +8,17 @@ import IdentifiedCollections
 // the engine rebuilds its cached context once per change instead of once per
 // recommendation request.
 //
-// Cadence is split into two raw inputs that the engine resolves at
-// buildContext time into a single per-podcast cadence map:
-//
-// - `manualFreshnessCadences`: only podcasts whose row holds an explicit
-//   non-nil cadence (the user has overridden auto).
-// - `inferenceFreshnessPubDates`: the pubDates the engine needs to infer a
-//   cadence for podcasts whose row is nil (auto). Only populated for
-//   podcasts that aren't in `manualFreshnessCadences` and have at least one
-//   episode; the engine resolves the rest to `FreshnessCadence.default`.
+// `freshnessCadences` is already resolved per-podcast: rows with an explicit
+// non-nil cadence carry that value, and rows with nil get
+// `FreshnessCadence.infer(from:)` applied to their episode pubDates inside
+// the observation. Podcasts with no episodes and no manual choice are
+// absent — the engine falls back to `FreshnessCadence.default` at scoring
+// time. Resolving in the observation (vs. in `buildContext`) lets
+// `removeDuplicates()` suppress emissions when episode pubDates shift but
+// the inferred cadence doesn't, avoiding pointless engine rebuilds.
 struct ScoringContextInputs: Sendable, Equatable {
   let signals: [SignalEpisode]
   let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
   let hasAnyEmbeddings: Bool
-  let manualFreshnessCadences: [Podcast.ID: FreshnessCadence]
-  let inferenceFreshnessPubDates: [Podcast.ID: [Date]]
+  let freshnessCadences: [Podcast.ID: FreshnessCadence]
 }

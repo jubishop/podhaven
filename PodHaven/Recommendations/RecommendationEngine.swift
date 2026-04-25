@@ -213,29 +213,8 @@ struct RecommendationEngine: Sendable {
       positiveCentroid: positiveCentroid,
       negativeCentroid: negative,
       podcastAffinities: computePodcastAffinities(signals: inputs.signals),
-      freshnessCadences: resolveFreshnessCadences(from: inputs)
+      freshnessCadences: inputs.freshnessCadences
     )
-  }
-
-  // Combine the two raw freshness inputs into a single per-podcast cadence
-  // map. Manual choices win; podcasts without a manual choice get whatever
-  // their pubDates infer to (FreshnessCadence.infer falls back to .default
-  // if there aren't enough episodes). Podcasts that aren't in either input
-  // are absent from the map and resolve to .default at scoring time.
-  private static func resolveFreshnessCadences(
-    from inputs: ScoringContextInputs
-  ) -> [Podcast.ID: FreshnessCadence] {
-    let inferenceCount = inputs.inferenceFreshnessPubDates.count
-    var resolved = [Podcast.ID: FreshnessCadence](
-      capacity: inputs.manualFreshnessCadences.count + inferenceCount
-    )
-    for (id, pubDates) in inputs.inferenceFreshnessPubDates {
-      resolved[id] = FreshnessCadence.infer(from: pubDates)
-    }
-    for (id, cadence) in inputs.manualFreshnessCadences {
-      resolved[id] = cadence
-    }
-    return resolved
   }
 
   // MARK: - Score Episodes

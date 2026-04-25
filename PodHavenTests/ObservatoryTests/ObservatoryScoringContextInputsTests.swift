@@ -80,71 +80,135 @@ actor ObservatoryScoringContextInputsTests {
     #expect(inputs.signals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
     #expect(inputs.hasAnyEmbeddings == false)
-    #expect(inputs.manualFreshnessCadences.isEmpty)
-    #expect(inputs.inferenceFreshnessPubDates.isEmpty)
+    #expect(inputs.freshnessCadences.isEmpty)
   }
 
-  @Test("projects manual cadences only and pubDates for nil-cadence podcasts only")
-  func freshnessProjectionsSplit() async throws {
+  @Test("manual cadence wins over inference for the same podcast")
+  func manualCadenceWinsOverInference() async throws {
     let now = Date()
-    let dailyPodcast = try await insertPodcast(title: "News")
-    let evergreenPodcast = try await insertPodcast(title: "Serial")
-    let autoPodcast = try await insertPodcast(title: "Auto")
-    _ = try await repo.updateFreshnessCadence(dailyPodcast.id, freshnessCadence: .daily)
-    _ = try await repo.updateFreshnessCadence(evergreenPodcast.id, freshnessCadence: .evergreen)
-    // Give the auto podcast some episodes so its pubDates are projected;
-    // give the manual ones an episode each to confirm those don't leak in.
-    _ = try await upsertEpisode(podcast: dailyPodcast, title: "Daily 1", pubDate: now)
-    _ = try await upsertEpisode(podcast: evergreenPodcast, title: "Ever 1", pubDate: now)
-    _ = try await upsertEpisode(podcast: autoPodcast, title: "Auto 1", pubDate: now)
-    _ = try await upsertEpisode(
-      podcast: autoPodcast,
-      title: "Auto 2",
-      pubDate: now.addingTimeInterval(-7 * 86400)
-    )
+    let manualPodcast = try await insertPodcast(title: "News")
+    _ = try await repo.updateFreshnessCadence(manualPodcast.id, freshnessCadence: .evergreen)
+    // Daily-spaced episodes that would otherwise infer to .daily.
+    for index in 0..<5 {
+      _ = try await upsertEpisode(
+        podcast: manualPodcast,
+        title: "Episode \(index)",
+        pubDate: now.addingTimeInterval(-Double(index) * 86400)
+      )
+    }
 
     let inputs = try await observatory.scoringContextInputs().get()
-    #expect(inputs.manualFreshnessCadences[dailyPodcast.id] == .daily)
-    #expect(inputs.manualFreshnessCadences[evergreenPodcast.id] == .evergreen)
-    #expect(inputs.manualFreshnessCadences[autoPodcast.id] == nil)
+    #expect(inputs.freshnessCadences[manualPodcast.id] == .evergreen)
+  }
 
-    #expect(inputs.inferenceFreshnessPubDates[dailyPodcast.id] == nil)
-    #expect(inputs.inferenceFreshnessPubDates[evergreenPodcast.id] == nil)
-    let autoPubDates = try #require(inputs.inferenceFreshnessPubDates[autoPodcast.id])
-    #expect(autoPubDates.count == 2)
+  @Test("infers daily cadence from daily-spaced pubDates")
+  func infersDailyCadence() async throws {
+    let now = Date()
+    let podcast = try await insertPodcast(title: "Daily News")
+    for index in 0..<5 {
+      _ = try await upsertEpisode(
+        podcast: podcast,
+        title: "Episode \(index)",
+        pubDate: now.addingTimeInterval(-Double(index) * 86400)
+      )
+    }
+
+    let inputs = try await observatory.scoringContextInputs().get()
+    #expect(inputs.freshnessCadences[podcast.id] == .daily)
+  }
+
+  @Test("infers weekly cadence from week-spaced pubDates")
+  func infersWeeklyCadence() async throws {
+    let now = Date()
+    let podcast = try await insertPodcast(title: "Weekly Show")
+    for index in 0..<5 {
+      _ = try await upsertEpisode(
+        podcast: podcast,
+        title: "Episode \(index)",
+        pubDate: now.addingTimeInterval(-Double(index) * 7 * 86400)
+      )
+    }
+
+    let inputs = try await observatory.scoringContextInputs().get()
+    #expect(inputs.freshnessCadences[podcast.id] == .weekly)
+  }
+
+  @Test("infers evergreen for dormant podcasts past the threshold")
+  func infersEvergreenForDormant() async throws {
+    let now = Date()
+    let podcast = try await insertPodcast(title: "Wrapped Serial")
+    // Most recent episode is 200 days old → past the 180-day dormancy
+    // threshold even though historical spacing was weekly.
+    for index in 0..<5 {
+      _ = try await upsertEpisode(
+        podcast: podcast,
+        title: "Episode \(index)",
+        pubDate: now.addingTimeInterval(-Double(200 + index * 7) * 86400)
+      )
+    }
+
+    let inputs = try await observatory.scoringContextInputs().get()
+    #expect(inputs.freshnessCadences[podcast.id] == .evergreen)
+  }
+
+  @Test("falls back to default cadence with insufficient pubDates")
+  func defaultCadenceWhenTooFewEpisodes() async throws {
+    let podcast = try await insertPodcast(title: "Brand New")
+    _ = try await upsertEpisode(podcast: podcast, title: "Only one")
+
+    let inputs = try await observatory.scoringContextInputs().get()
+    #expect(inputs.freshnessCadences[podcast.id] == .default)
+  }
+
+  @Test("podcasts without any episodes are absent from the cadence map")
+  func absentWhenNoEpisodesAndAuto() async throws {
+    let podcast = try await insertPodcast(title: "Empty")
+    let inputs = try await observatory.scoringContextInputs().get()
+    #expect(inputs.freshnessCadences[podcast.id] == nil)
   }
 
   @Test("re-emits when a freshness cadence flips between manual and auto")
   func reEmitsOnFreshnessCadenceChange() async throws {
+    let now = Date()
     let podcast = try await insertPodcast(title: "Tunable")
+    // Three weekly-spaced episodes so the auto branch resolves to .weekly
+    // (distinct from the .daily we'll switch to manually).
+    for index in 0..<3 {
+      _ = try await upsertEpisode(
+        podcast: podcast,
+        title: "Episode \(index)",
+        pubDate: now.addingTimeInterval(-Double(index) * 7 * 86400)
+      )
+    }
 
-    let cadenceCount = Counter()
+    let podcastID = podcast.id
+    let cadence = ThreadSafe<FreshnessCadence?>(nil)
     Task {
       for try await inputs in observatory.scoringContextInputs() {
-        await cadenceCount(inputs.manualFreshnessCadences.count)
+        cadence(inputs.freshnessCadences[podcastID])
       }
     }
     try await Wait.until(
-      { await cadenceCount.value == 0 },
-      { "Expected initial emission with no manual cadences" }
+      { cadence() == .weekly },
+      { "Expected initial inferred .weekly, got \(String(describing: cadence()))" }
     )
 
     _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: .daily)
     try await Wait.until(
-      { await cadenceCount.value == 1 },
-      { "Expected re-emission with one manual cadence, got \(await cadenceCount.value)" }
+      { cadence() == .daily },
+      { "Expected manual .daily, got \(String(describing: cadence()))" }
     )
 
     _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: .evergreen)
     try await Wait.until(
-      { await cadenceCount.value == 1 },
-      { "Expected one manual cadence after switching to evergreen" }
+      { cadence() == .evergreen },
+      { "Expected manual .evergreen, got \(String(describing: cadence()))" }
     )
 
     _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: nil)
     try await Wait.until(
-      { await cadenceCount.value == 0 },
-      { "Expected zero manual cadences after switching back to auto" }
+      { cadence() == .weekly },
+      { "Expected re-inferred .weekly, got \(String(describing: cadence()))" }
     )
   }
 
