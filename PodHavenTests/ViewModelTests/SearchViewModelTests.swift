@@ -138,7 +138,7 @@ import Testing
         guard let bridged = viewModel.searchResults[id: searchFeedURL] else { return false }
         return bridged.podcast.id == searchFeedURL
           && bridged.podcast.feedURL == canonicalFeedURL
-          && bridged.podcast.getSearchResultPodcast() != nil
+          && bridged.podcast.savedSearchResult != nil
           && bridged.podcast.podcastID != nil
           && bridged.episodeCount == 1
           && bridged.mostRecentEpisodeDate == newestEpisodeDate
@@ -150,7 +150,7 @@ import Testing
           bridged exists: \(bridged != nil)
           result ID: \(String(describing: bridged?.podcast.id))
           canonical feed: \(String(describing: bridged?.podcast.feedURL))
-          search result wrapper: \(String(describing: bridged?.podcast.getSearchResultPodcast()))
+          saved search result: \(String(describing: bridged?.podcast.savedSearchResult))
           podcastID: \(String(describing: bridged?.podcast.podcastID))
           episodeCount: \(String(describing: bridged?.episodeCount))
           mostRecentEpisodeDate: \(String(describing: bridged?.mostRecentEpisodeDate))
@@ -199,7 +199,7 @@ import Testing
         return bridged.podcast.id == searchFeedURL
           && bridged.podcast.podcastID == savedSeries.podcast.id
           && bridged.podcast.subscribed
-          && bridged.podcast.getSearchResultPodcast() != nil
+          && bridged.podcast.savedSearchResult != nil
           && bridged.episodeCount == 1
           && bridged.mostRecentEpisodeDate == newestEpisodeDate
       },
@@ -211,7 +211,7 @@ import Testing
           result ID: \(String(describing: bridged?.podcast.id))
           podcastID: \(String(describing: bridged?.podcast.podcastID))
           subscribed: \(String(describing: bridged?.podcast.subscribed))
-          search result wrapper: \(String(describing: bridged?.podcast.getSearchResultPodcast()))
+          saved search result: \(String(describing: bridged?.podcast.savedSearchResult))
           episodeCount: \(String(describing: bridged?.episodeCount))
           mostRecentEpisodeDate: \(String(describing: bridged?.mostRecentEpisodeDate))
           """

@@ -310,7 +310,7 @@ class SearchViewModel:
         trendingSection.results = IdentifiedArray(
           results.map {
             PodcastWithEpisodeMetadata(
-              podcast: ListedPodcast($0.podcast),
+              podcast: ListedPodcast(unsavedSearchResult: $0.podcast),
               episodeCount: $0.episodeCount,
               mostRecentEpisodeDate: $0.mostRecentEpisodeDate
             )
@@ -367,7 +367,7 @@ class SearchViewModel:
         searchResults = IdentifiedArray(
           results.map {
             PodcastWithEpisodeMetadata(
-              podcast: ListedPodcast($0.podcast),
+              podcast: ListedPodcast(unsavedSearchResult: $0.podcast),
               episodeCount: $0.episodeCount,
               mostRecentEpisodeDate: $0.mostRecentEpisodeDate
             )
@@ -527,12 +527,12 @@ class SearchViewModel:
   private func revertToUnsaved(
     _ result: PodcastWithEpisodeMetadata<ListedPodcast>
   ) -> PodcastWithEpisodeMetadata<ListedPodcast>? {
-    guard let searchResult = result.podcast.getSearchResultPodcast() else { return nil }
+    guard let searchResult = result.podcast.savedSearchResult else { return nil }
 
     do {
       let unsaved = try searchResult.originalPodcast.toOriginalUnsavedPodcast()
       return PodcastWithEpisodeMetadata(
-        podcast: ListedPodcast(unsaved),
+        podcast: ListedPodcast(unsavedSearchResult: unsaved),
         episodeCount: searchResult.originalEpisodeCount,
         mostRecentEpisodeDate: searchResult.originalMostRecentEpisodeDate
       )
@@ -546,20 +546,11 @@ class SearchViewModel:
 
   private func originalSearchData(
     for result: PodcastWithEpisodeMetadata<ListedPodcast>
-  ) -> (podcast: UnsavedPodcast, episodeCount: Int, mostRecentEpisodeDate: Date?)? {
-    if let searchResult = result.podcast.getSearchResultPodcast() {
-      return (
-        searchResult.originalPodcast,
-        searchResult.originalEpisodeCount,
-        searchResult.originalMostRecentEpisodeDate
-      )
-    }
-
-    if let unsavedPodcast = result.podcast.getUnsavedPodcast() {
-      return (unsavedPodcast, result.episodeCount, result.mostRecentEpisodeDate)
-    }
-
-    return nil
+  ) -> ListedPodcast.SearchMetadata? {
+    result.podcast.searchMetadata(
+      episodeCount: result.episodeCount,
+      mostRecentEpisodeDate: result.mostRecentEpisodeDate
+    )
   }
 
   private func buildITunesIDMapping(
@@ -587,7 +578,7 @@ class SearchViewModel:
         podcast.feedURL,
         PodcastWithEpisodeMetadata(
           podcast: ListedPodcast(
-            SearchResultPodcast(
+            savedSearchResult: SavedSearchResultPodcast(
               resultFeedURL: podcast.feedURL,
               originalPodcast: originalSearchData.podcast,
               originalEpisodeCount: originalSearchData.episodeCount,
@@ -612,7 +603,7 @@ class SearchViewModel:
       searchFeedURL,
       PodcastWithEpisodeMetadata(
         podcast: ListedPodcast(
-          SearchResultPodcast(
+          savedSearchResult: SavedSearchResultPodcast(
             resultFeedURL: searchFeedURL,
             originalPodcast: originalSearchData.podcast,
             originalEpisodeCount: originalSearchData.episodeCount,

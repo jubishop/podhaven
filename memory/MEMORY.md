@@ -3,4 +3,4 @@
 - [Worktree setup hooks](worktree_setup_hooks.md) — git post-checkout hook (preferred), failed approaches, Xcode build optimization for worktrees
 - [ML Recommendations Feature](project_ml_recommendations.md) — on-device ML recommendation engine with NLContextualEmbedding, dual centroids, podcast blending, tag signals
 - [Observable + Broadcast gap](observation_broadcast_viewmodel.md) — reading @Broadcasted state through @Observable viewModel computed properties can silently fail for conditional views; read SharedState directly instead
-- [Podcast Detail Refactor, Part 2](podcast_detail_refactor_part2.md) — follow-up ideas after replacing PodcastDetailSnapshot/Source with PodcastDetailSeed; remaining cleanup centers on SearchResultPodcast/ListedPodcast modeling
+- [Podcast Detail Refactor, Part 2](podcast_detail_refactor_part2.md) — implemented explicit ListedPodcast row cases and SavedSearchResultPodcast bridge payload after 787c881
