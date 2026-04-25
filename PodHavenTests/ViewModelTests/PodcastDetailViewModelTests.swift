@@ -110,7 +110,7 @@ import Testing
   }
 
   @Test("listed search result podcasts preserve search metadata before hydrating saved detail")
-  func listedSearchResultPodcastsPreserveSnapshotMetadata() async throws {
+  func listedSearchResultPodcastsPreserveInitialMetadata() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/search-target.rss")!)
     let iTunesID = ITunesPodcastID(777)
     let savedLink = try #require(URL(string: "https://example.com/saved"))
@@ -204,6 +204,48 @@ import Testing
     #expect(viewModel.saved == false)
     #expect(viewModel.podcast.title == unsavedSeries.unsavedPodcast.title)
     #expect(viewModel.episodeList.allEntries.map(\.title) == ["Episode 1", "Episode 2"])
+  }
+
+  @Test("shared unsaved podcast series is presented before appear")
+  func unsavedPodcastSeriesIsPresentedBeforeAppear() async throws {
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(
+        feedURL: FeedURL(URL(string: "https://example.com/immediate-series.rss")!),
+        title: "Immediate Series"
+      ),
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(
+          guid: "immediate-1",
+          title: "Immediate Episode 1",
+          pubDate: Date(timeIntervalSince1970: 200)
+        ),
+        try Create.unsavedEpisode(
+          guid: "immediate-2",
+          title: "Immediate Episode 2",
+          pubDate: Date(timeIntervalSince1970: 100)
+        ),
+      ]
+    )
+
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+
+    #expect(viewModel.isHydratingInitialPresentation == false)
+    #expect(viewModel.saved == false)
+    #expect(viewModel.podcast.title == unsavedSeries.unsavedPodcast.title)
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.allEntries.map(\.title) == [
+          "Immediate Episode 1",
+          "Immediate Episode 2",
+        ]
+      },
+      { @MainActor in
+        """
+        Expected shared unsaved podcast series episodes to be presented before appear.
+        Actual titles: \(viewModel.episodeList.allEntries.map(\.title))
+        """
+      }
+    )
   }
 
   @Test("deleting an observed saved series reparses the feed into unsaved detail")

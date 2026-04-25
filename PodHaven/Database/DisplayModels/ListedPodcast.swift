@@ -15,9 +15,8 @@ struct ListedPodcast:
     Assert.precondition(
       !(podcast is ListedPodcast)
         && !(podcast is DisplayedPodcast)
-        && !(podcast is Podcast)
-        && !(podcast is PodcastDetailSnapshot),
-      "ListedPodcast cannot wrap wrapper or detail snapshot types"
+        && !(podcast is Podcast),
+      "ListedPodcast cannot wrap wrapper or full podcast types"
     )
     self.podcast = podcast
   }
@@ -38,30 +37,11 @@ struct ListedPodcast:
   // MARK: - Hashable / Equatable
 
   func hash(into hasher: inout Hasher) {
-    if let listablePodcast = getListablePodcast() {
-      hasher.combine(listablePodcast)
-    } else if let searchResult = getSearchResultPodcast() {
-      hasher.combine(searchResult)
-    } else if let unsavedPodcast = getUnsavedPodcast() {
-      hasher.combine(unsavedPodcast)
-    } else {
-      Assert.fatal("Can't make hash from: \(type(of: podcast))")
-    }
+    AnyHashable(podcast).hash(into: &hasher)
   }
 
   static func == (lhs: ListedPodcast, rhs: ListedPodcast) -> Bool {
-    if let leftListable = lhs.getListablePodcast(), let rightListable = rhs.getListablePodcast() {
-      return leftListable == rightListable
-    }
-    if let leftSearchResult = lhs.getSearchResultPodcast(),
-      let rightSearchResult = rhs.getSearchResultPodcast()
-    {
-      return leftSearchResult == rightSearchResult
-    }
-    if let leftUnsaved = lhs.getUnsavedPodcast(), let rightUnsaved = rhs.getUnsavedPodcast() {
-      return leftUnsaved == rightUnsaved
-    }
-    return false
+    AnyHashable(lhs.podcast) == AnyHashable(rhs.podcast)
   }
 
   // MARK: - Stringable / Searchable
