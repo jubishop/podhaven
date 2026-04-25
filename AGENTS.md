@@ -56,6 +56,9 @@ Three places hold persistent project context — pick the right one when saving 
 ## Database
 - Prefer pure GRDB APIs (associations, aggregates, column expressions, `joining()`, `having()`, `filter()`, etc.) over raw SQL strings.
 
+## Migrations
+- Migration code must reference only literal constants (table/column names as string literals, allowed values as inline arrays, etc.) — never reach into model types, enums, or any other construct that could change. Renaming or removing such a reference would silently change what an already-shipped migration accepts/produces. Same rule that applies to migration *tests* in `## Testing`.
+
 ## Coding Standards
 - Always use `[weak self]` in closures and Tasks that capture `self`, unless a strong reference is explicitly required.
 - `.map` and `.compactMap` are for transforming lists — never use them to work around optionals. Don't write `x.map { $0.rawValue }` (use optional chaining `x?.rawValue`) or `[x].compactMap { $0 }` (use `if let x { … }` / `guard let x else { … }`). For anything beyond a direct projection, use `if let` / `guard let`.

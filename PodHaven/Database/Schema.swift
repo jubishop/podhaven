@@ -529,12 +529,18 @@ enum Schema {
       // nullable: nil means "auto" — RecommendationEngine resolves it lazily
       // by inferring from the podcast's episode pubDates. v38 hasn't shipped
       // yet, so existing rows are dropped to nil with no backfill.
+      //
+      // The allowed list is a hard-coded literal (not derived from
+      // `FreshnessCadence.allCases`) so renaming or removing an enum case
+      // can't silently change what the migration accepts. Hoisting into a
+      // `let` also collapses the check closure to one nil-comparison plus
+      // one IN expression — chaining four `||` equalities directly inside
+      // the closure tripped the SwiftCompiler's type-checker timeout on
+      // cold CI builds.
+      let allowedCadences = ["daily", "weekly", "monthly", "evergreen"]
       try db.alter(table: "podcast") { t in
         t.add(column: "freshnessCadence", .text)
-          .check {
-            $0 == nil || $0 == "daily" || $0 == "weekly" || $0 == "monthly"
-              || $0 == "evergreen"
-          }
+          .check { $0 == nil || allowedCadences.contains($0) }
       }
       try db.execute(sql: "ALTER TABLE podcast DROP COLUMN freshnessHalfLifeDays")
     }
