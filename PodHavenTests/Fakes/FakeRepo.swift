@@ -449,17 +449,17 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
-  func updateFreshnessHalfLifeDays(
+  func updateFreshnessCadence(
     _ podcastID: Podcast.ID,
-    freshnessHalfLifeDays: Int?
+    freshnessCadence: FreshnessCadence?
   ) async throws -> Bool {
     recordCall(
-      methodName: "updateFreshnessHalfLifeDays",
-      parameters: (podcastID: podcastID, freshnessHalfLifeDays: freshnessHalfLifeDays)
+      methodName: "updateFreshnessCadence",
+      parameters: (podcastID: podcastID, freshnessCadence: freshnessCadence)
     )
-    return try await repo.updateFreshnessHalfLifeDays(
+    return try await repo.updateFreshnessCadence(
       podcastID,
-      freshnessHalfLifeDays: freshnessHalfLifeDays
+      freshnessCadence: freshnessCadence
     )
   }
 }

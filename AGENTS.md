@@ -56,6 +56,9 @@ Three places hold persistent project context — pick the right one when saving 
 ## Database
 - Prefer pure GRDB APIs (associations, aggregates, column expressions, `joining()`, `having()`, `filter()`, etc.) over raw SQL strings.
 
+## Migrations
+- Migration code must reference only literal constants (table/column names as string literals, allowed values as inline arrays, etc.) — never reach into model types, enums, or any other construct that could change. Renaming or removing such a reference would silently change what an already-shipped migration accepts/produces. Same rule that applies to migration *tests* in `## Testing`.
+
 ## Coding Standards
 - Always use `[weak self]` in closures and Tasks that capture `self`, unless a strong reference is explicitly required.
 - `.map` and `.compactMap` are for transforming lists — never use them to work around optionals. Don't write `x.map { $0.rawValue }` (use optional chaining `x?.rawValue`) or `[x].compactMap { $0 }` (use `if let x { … }` / `guard let x else { … }`). For anything beyond a direct projection, use `if let` / `guard let`.
@@ -63,6 +66,7 @@ Three places hold persistent project context — pick the right one when saving 
 - Prefer triple-quoted strings for multi-line or >100 character literals.
 - Run `swift-format` on every Swift file you touch before handing work back.
 - Use `//` for comments, not `///` (no doc comments).
+- Keep comments minimal — only add one when the *why* isn't already obvious from reading the code (a hidden constraint, a non-obvious invariant, a workaround for a specific bug, behavior that would surprise a reader). Don't restate what well-named identifiers already convey, and don't reference the current task/PR/caller. If removing the comment wouldn't confuse a future reader, don't write it.
 - Never leave behind unused code, properties, or parameters. If something becomes unused, remove it immediately.
 - Avoid using `@unchecked`/`@retroactive`/`unsafe` in code unless absolutely necessary.
 - Avoid `inout` parameters; return values instead.

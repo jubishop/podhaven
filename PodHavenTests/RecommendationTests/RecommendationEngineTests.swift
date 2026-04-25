@@ -297,7 +297,11 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(signals)
 
-    // Freshness at 365 days with 60-day half-life ≈ 0.14, below the 0.5 threshold.
+    // Default cadence is weekly (7d plateau + 7d half-life). At 365d the
+    // episode is far past the plateau, so `.recentlyPublished` (gated by
+    // `freshness.inPlateau`) should not fire. Use the unfiltered scoring API
+    // since the multiplier (~0.019) drops the gated score below the top
+    // API's confidence floor.
     let (_, old) = try await createPodcastWithEpisodes(
       count: 1,
       podcastTitle: "Archive",
@@ -305,9 +309,10 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(old)
 
-    let recs = try await startAndWaitForRecs()
-    let oldRec = try #require(recs.first { $0.episode.id == old.first?.id })
-    #expect(!oldRec.score.reasons.contains(.recentlyPublished))
+    let scores = try await startAndWaitForScores(for: old)
+    let oldEpisode = try #require(old.first)
+    let oldScore = try #require(scores[oldEpisode.id])
+    #expect(!oldScore.reasons.contains(.recentlyPublished))
   }
 
   @Test("candidates from an unknown podcast don't include podcastAffinity reason")
@@ -593,14 +598,17 @@ class RecommendationEngineTests {
     #expect(map.isEmpty)
   }
 
-  // MARK: - Per-podcast freshness half-life
+  // MARK: - Per-podcast freshness cadence
 
-  @Test("per-podcast freshness override scores older episodes higher than the global default")
-  func perPodcastFreshnessOverrideRaisesOldEpisodeScore() async throws {
-    // Same embedding everywhere so the similarity feature is identical for
-    // every candidate. Same podcast title for both candidate podcasts so
-    // affinity is identical too. The only thing that differs between the two
-    // candidates is which podcast row supplies their freshness half-life.
+  @Test("evergreen cadence preserves old episode scores against the weekly default")
+  func evergreenCadencePreservesOldEpisodeScore() async throws {
+    // Same embedding + same podcast title across candidates so similarity and
+    // affinity are identical; the only thing varying between the two
+    // candidates is the freshness cadence on their podcast row. Evergreen
+    // multiplier is always 1.0; weekly at 365d ≈ 0.019 (after the 7d
+    // plateau + 7d half-life). Use the unfiltered scoring API since the
+    // weekly candidate's gated score falls below the top API's confidence
+    // floor.
     let embeddable = ScriptedEmbeddable { _ in [1, 0, 0] }
 
     let (_, signals) = try await createPodcastWithEpisodes(
@@ -610,37 +618,163 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(signals, embeddable: embeddable)
 
-    // 365 days old → with the 60-day default, freshness ≈ 0.14 (well below 0.5).
     let oldOffset: (Int) -> TimeInterval = { _ in TimeInterval(-365 * 86400) }
 
-    let (defaultPodcast, defaultCandidates) = try await createPodcastWithEpisodes(
+    let (_, weeklyCandidates) = try await createPodcastWithEpisodes(
       count: 1,
-      podcastTitle: "Default Freshness",
+      podcastTitle: "Weekly Default",
       pubDateOffset: oldOffset
     )
-    try await embedEpisodes(defaultCandidates, embeddable: embeddable)
+    try await embedEpisodes(weeklyCandidates, embeddable: embeddable)
 
     let (evergreenPodcast, evergreenCandidates) = try await createPodcastWithEpisodes(
       count: 1,
-      podcastTitle: "Evergreen Freshness",
+      podcastTitle: "Evergreen Cadence",
       pubDateOffset: oldOffset
     )
     try await embedEpisodes(evergreenCandidates, embeddable: embeddable)
-    // 730-day half-life → freshness ≈ 0.67 (above 0.5).
-    _ = try await repo.updateFreshnessHalfLifeDays(
-      evergreenPodcast.id,
-      freshnessHalfLifeDays: 730
+    _ = try await repo.updateFreshnessCadence(evergreenPodcast.id, freshnessCadence: .evergreen)
+
+    let scores = try await startAndWaitForScores(for: weeklyCandidates + evergreenCandidates)
+    let weeklyEpisode = try #require(weeklyCandidates.first)
+    let evergreenEpisode = try #require(evergreenCandidates.first)
+    let weeklyScore = try #require(scores[weeklyEpisode.id])
+    let evergreenScore = try #require(scores[evergreenEpisode.id])
+
+    // Evergreen × 1.0 dominates weekly × ~0.019 by orders of magnitude.
+    #expect(evergreenScore.value > weeklyScore.value * 10)
+    // Evergreen never surfaces .recentlyPublished — the user has opted out
+    // of freshness signal — and weekly at this age is below the threshold.
+    #expect(!evergreenScore.reasons.contains(.recentlyPublished))
+    #expect(!weeklyScore.reasons.contains(.recentlyPublished))
+  }
+
+  @Test("monthly cadence retains older episode scores better than weekly")
+  func monthlyCadenceOutpacesWeekly() async throws {
+    let embeddable = ScriptedEmbeddable { _ in [1, 0, 0] }
+
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
     )
+    try await embedEpisodes(signals, embeddable: embeddable)
+
+    // 60 days old: weekly gives multiplier = 1/(1 + 53/7) ≈ 0.117; monthly's
+    // plateau (30d) + 30d half-life gives 1/(1 + 30/30) = 0.5.
+    let oldOffset: (Int) -> TimeInterval = { _ in TimeInterval(-60 * 86400) }
+
+    let (_, weeklyCandidates) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Weekly",
+      pubDateOffset: oldOffset
+    )
+    try await embedEpisodes(weeklyCandidates, embeddable: embeddable)
+
+    let (monthlyPodcast, monthlyCandidates) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Monthly",
+      pubDateOffset: oldOffset
+    )
+    try await embedEpisodes(monthlyCandidates, embeddable: embeddable)
+    _ = try await repo.updateFreshnessCadence(monthlyPodcast.id, freshnessCadence: .monthly)
+
+    let scores = try await startAndWaitForScores(for: weeklyCandidates + monthlyCandidates)
+    let weeklyEpisode = try #require(weeklyCandidates.first)
+    let monthlyEpisode = try #require(monthlyCandidates.first)
+    let weeklyScore = try #require(scores[weeklyEpisode.id])
+    let monthlyScore = try #require(scores[monthlyEpisode.id])
+
+    #expect(monthlyScore.value > weeklyScore.value)
+  }
+
+  @Test("plateau keeps within-cadence episodes at full freshness")
+  func plateauPreservesWithinCadenceEpisodes() async throws {
+    let embeddable = ScriptedEmbeddable { _ in [1, 0, 0] }
+
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals, embeddable: embeddable)
+
+    // 6 days old on a weekly podcast → still inside the plateau, so
+    // multiplier = 1.0 and the score equals the same-base evergreen score
+    // for the same age. Older test using a 365d offset confirms the curve
+    // *does* decay past the plateau.
+    let withinCadenceOffset: (Int) -> TimeInterval = { _ in TimeInterval(-6 * 86400) }
+
+    let (_, weeklyCandidates) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Weekly Plateau",
+      pubDateOffset: withinCadenceOffset
+    )
+    try await embedEpisodes(weeklyCandidates, embeddable: embeddable)
+
+    let (evergreenPodcast, evergreenCandidates) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Evergreen Plateau",
+      pubDateOffset: withinCadenceOffset
+    )
+    try await embedEpisodes(evergreenCandidates, embeddable: embeddable)
+    _ = try await repo.updateFreshnessCadence(evergreenPodcast.id, freshnessCadence: .evergreen)
+
+    let scores = try await startAndWaitForScores(for: weeklyCandidates + evergreenCandidates)
+    let weeklyEpisode = try #require(weeklyCandidates.first)
+    let evergreenEpisode = try #require(evergreenCandidates.first)
+    let weeklyScore = try #require(scores[weeklyEpisode.id])
+    let evergreenScore = try #require(scores[evergreenEpisode.id])
+
+    #expect(weeklyScore.value == evergreenScore.value)
+    #expect(weeklyScore.reasons.contains(.recentlyPublished))
+  }
+
+  @Test("recently-published reason fires for fresh non-evergreen episodes")
+  func recentlyPublishedFiresForFreshEpisodes() async throws {
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    // 1 day old on a weekly cadence → inside the 7d plateau, so
+    // `freshness.inPlateau` is true and `.recentlyPublished` fires.
+    let (_, fresh) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Fresh",
+      pubDateOffset: { _ in TimeInterval(-1 * 86400) }
+    )
+    try await embedEpisodes(fresh)
 
     let recs = try await startAndWaitForRecs()
-    let defaultRec = try #require(recs.first { $0.episode.podcastID == defaultPodcast.id })
-    let evergreenRec = try #require(recs.first { $0.episode.podcastID == evergreenPodcast.id })
+    let freshRec = try #require(recs.first { $0.episode.id == fresh.first?.id })
+    #expect(freshRec.score.reasons.contains(.recentlyPublished))
+  }
 
-    // The override pushes the freshness feature above neutral, so the rec
-    // gains both score and the .recentlyPublished reason.
-    #expect(evergreenRec.score.value > defaultRec.score.value)
-    #expect(evergreenRec.score.reasons.contains(.recentlyPublished))
-    #expect(!defaultRec.score.reasons.contains(.recentlyPublished))
+  @Test("recently-published reason is suppressed for evergreen podcasts even when fresh")
+  func recentlyPublishedSuppressedForEvergreen() async throws {
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    // Freshly published episode but on an evergreen podcast — multiplier is
+    // 1.0 so the score is fine, but the reason should not surface.
+    let (evergreenPodcast, candidates) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Evergreen",
+      pubDateOffset: { _ in TimeInterval(-1 * 86400) }
+    )
+    try await embedEpisodes(candidates)
+    _ = try await repo.updateFreshnessCadence(evergreenPodcast.id, freshnessCadence: .evergreen)
+
+    let recs = try await startAndWaitForRecs()
+    let candidateRec = try #require(recs.first { $0.episode.id == candidates.first?.id })
+    #expect(!candidateRec.score.reasons.contains(.recentlyPublished))
   }
 }
 

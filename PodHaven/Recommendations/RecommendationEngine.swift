@@ -53,19 +53,11 @@ struct RecommendationEngine: Sendable {
   private static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
-  // Scoring weights (must sum to 1.0)
-  private static let similarityWeight: Float = 0.60
-  private static let podcastAffinityWeight: Float = 0.20
-  private static let freshnessWeight: Float = 0.20
-
-  // Freshness curve: `1 / (1 + days / halfLife)`. This is a hyperbolic decay,
-  // not an exponential half-life — it crosses 0.5 once at `halfLife` days and
-  // then tapers slowly (120d → 0.33, 180d → 0.25, 365d → 0.14). 60 days is
-  // tuned for the "haven't configured anything" default — most podcast
-  // subscriptions are time-sensitive enough that 2-month-old episodes scoring
-  // 0.5 feels right. Evergreen/history content overrides this per-podcast via
-  // `Podcast.freshnessHalfLifeDays`.
-  static let defaultFreshnessHalfLifeDays: Int = 60
+  // Must sum to 1.0. Similarity dominates 4:1 so a single liked episode
+  // doesn't drag in everything that podcast ever published. Freshness isn't
+  // a summand — it's a multiplicative gate (see `scoreCandidate`).
+  private static let similarityWeight: Float = 0.8
+  private static let podcastAffinityWeight: Float = 0.2
 
   // Centroid weights
   private static let lovedWeight: Float = 1.0
@@ -160,7 +152,7 @@ struct RecommendationEngine: Sendable {
     let positiveCentroid: [Float]
     let negativeCentroid: [Float]?
     let podcastAffinities: [Podcast.ID: Float]
-    let freshnessHalfLifeOverrides: [Podcast.ID: Int]
+    let freshnessCadences: [Podcast.ID: FreshnessCadence]
   }
 
   // Spawns the long-running observation Task that keeps `cache` in sync.
@@ -217,7 +209,7 @@ struct RecommendationEngine: Sendable {
       positiveCentroid: positiveCentroid,
       negativeCentroid: negative,
       podcastAffinities: computePodcastAffinities(signals: inputs.signals),
-      freshnessHalfLifeOverrides: inputs.freshnessHalfLifeOverrides
+      freshnessCadences: inputs.freshnessCadences
     )
   }
 
@@ -239,8 +231,7 @@ struct RecommendationEngine: Sendable {
         positiveCentroid: context.positiveCentroid,
         negativeCentroid: context.negativeCentroid,
         podcastAffinities: context.podcastAffinities,
-        freshnessHalfLifeDays: context.freshnessHalfLifeOverrides[episode.podcastID]
-          ?? Self.defaultFreshnessHalfLifeDays,
+        freshnessCadence: context.freshnessCadences[episode.podcastID] ?? FreshnessCadence.default,
         now: now
       )
     }
@@ -291,7 +282,7 @@ struct RecommendationEngine: Sendable {
     positiveCentroid: [Float]?,
     negativeCentroid: [Float]?,
     podcastAffinities: [Podcast.ID: Float],
-    freshnessHalfLifeDays: Int,
+    freshnessCadence: FreshnessCadence,
     now: Date
   ) -> RecommendationScore {
     var features: [(weight: Float, value: Float, reason: RecommendationReason)] = []
@@ -316,34 +307,30 @@ struct RecommendationEngine: Sendable {
     let remappedAffinity = (affinity + 1.0) / 2.0
     features.append((Self.podcastAffinityWeight, remappedAffinity, .podcastAffinity))
 
-    // Freshness — uses the podcast's per-podcast half-life override when set,
-    // otherwise the global default. Resolved upstream in `scoreEpisodes`.
-    let freshness = freshnessScore(
-      pubDate: pubDate,
-      halfLifeDays: Double(freshnessHalfLifeDays),
-      now: now
-    )
-    features.append((Self.freshnessWeight, freshness, .recentlyPublished))
-
-    // Renormalize weights over available features. Affinity + freshness are
-    // always appended, so totalWeight is either 0.40 (no candidate embedding)
-    // or 1.00 (embedding present). The guard protects the divide below; if it
-    // ever fires, static weights have been reconfigured and we want to hear
-    // about it rather than silently return a neutral score.
+    // Renormalize weights so a missing-embedding candidate (totalWeight 0.2)
+    // still produces a comparable score. Guard catches misconfigured weights.
     let totalWeight = features.reduce(Float(0)) { $0 + $1.weight }
     guard totalWeight > 0 else {
       Assert.fatal("scoreCandidate: totalWeight is zero — scoring weights misconfigured")
     }
 
-    let score = features.reduce(Float(0)) { sum, feature in
+    let baseScore = features.reduce(Float(0)) { sum, feature in
       sum + (feature.weight / totalWeight) * feature.value
     }
 
-    // A reason fires only when its feature is above its own neutral midpoint.
-    // Each feature's value is normalized to [0, 1] with 0.5 = neutral, so this
-    // surfaces only features that are actively positive for this episode — not
-    // every feature that happened to fire.
-    let reasons = features.filter { $0.value > 0.5 }.map(\.reason)
+    // Multiplicative gate, not a summand: a year-old daily-news episode
+    // drops to ≈0 instead of being capped by a fixed-weight summand.
+    let freshness = FreshnessSignal.compute(
+      pubDate: pubDate,
+      cadence: freshnessCadence,
+      now: now
+    )
+    let score = baseScore * freshness.multiplier
+
+    var reasons = features.filter { $0.value > 0.5 }.map(\.reason)
+    if freshness.inPlateau {
+      reasons.append(.recentlyPublished)
+    }
 
     return RecommendationScore(value: score, reasons: reasons)
   }
@@ -387,14 +374,6 @@ struct RecommendationEngine: Sendable {
     guard daysSince > 0 else { return 1.0 }
     // Half-life decay: weight = 0.5^(days / halfLife)
     return Float(pow(0.5, daysSince / decayHalfLifeDays))
-  }
-
-  // MARK: - Freshness
-
-  private func freshnessScore(pubDate: Date, halfLifeDays: Double, now: Date) -> Float {
-    let daysSince = now.timeIntervalSince(pubDate) / 86400
-    guard daysSince > 0 else { return 1.0 }
-    return Float(1.0 / (1.0 + daysSince / halfLifeDays))
   }
 
   // MARK: - Centroid Math

@@ -182,6 +182,49 @@ struct PodcastFeedTests {
     #expect(unsavedEpisode.description!.contains("<strong>"))
   }
 
+  @Test("toUnsavedPodcast leaves freshnessCadence nil for first-time subscriptions")
+  func freshnessCadenceNilOnNewSubscription() async throws {
+    let data = PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let feed = try await PodcastFeed.parse(data, from: fakeURL)
+    let unsavedPodcast = try feed.toUnsavedPodcast()
+
+    // First-time inserts go in as nil — RecommendationEngine resolves nil
+    // lazily by inferring from pubDates at scoring time, so there's no need
+    // to commit to a cadence at parse time.
+    #expect(unsavedPodcast.freshnessCadence == nil)
+  }
+
+  @Test("toUnsavedPodcast preserves the existing podcast's cadence when merging")
+  func preservesCadenceWhenMerging() async throws {
+    let data = PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let feed = try await PodcastFeed.parse(data, from: fakeURL)
+
+    // Insert once with a user-chosen cadence, then update the cadence to
+    // exercise both the explicit and nil branches of the merge path without
+    // re-inserting episodes (which would collide on guid + mediaURL).
+    let inserted = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: fakeURL,
+          title: "Pod Save America",
+          freshnessCadence: .evergreen
+        ),
+        unsavedEpisodes: feed.toUnsavedEpisodes()
+      )
+    )
+    #expect(inserted.podcast.freshnessCadence == .evergreen)
+
+    let mergedEvergreen = try feed.toUnsavedPodcast(merging: inserted.podcast)
+    #expect(mergedEvergreen.freshnessCadence == .evergreen)
+
+    _ = try await repo.updateFreshnessCadence(inserted.podcast.id, freshnessCadence: nil)
+    let refreshed = try #require(try await repo.podcastSeries(inserted.podcast.id))
+    let mergedAuto = try feed.toUnsavedPodcast(merging: refreshed.podcast)
+    #expect(mergedAuto.freshnessCadence == nil)
+  }
+
   @Test("parsing and inserting the twentyminutevc feed via repo")
   func parseTwentyMinuteVCFeedAndInsert() async throws {
     let data = PreviewBundle.loadAsset(named: "twentyminutevc", in: .FeedRSS)

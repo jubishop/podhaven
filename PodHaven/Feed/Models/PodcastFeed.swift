@@ -177,7 +177,8 @@ struct PodcastFeed: Sendable, Stringable {
       title: rssPodcast.title,
       image: image,
       description: rssPodcast.description,
-      link: link ?? podcast?.link
+      link: link ?? podcast?.link,
+      freshnessCadence: podcast?.freshnessCadence
     )
   }
 

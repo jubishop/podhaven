@@ -272,11 +272,11 @@ class PodcastDetailViewModel:
     }
   }
 
-  var freshnessHalfLifeDays: Int? {
-    get { podcast.freshnessHalfLifeDays }
+  var freshnessCadence: FreshnessCadence? {
+    get { podcast.freshnessCadence }
     set {
       guard let podcastID = podcastSeries?.id else {
-        Self.log.warning("Cannot update freshnessHalfLifeDays for unsaved podcast")
+        Self.log.warning("Cannot update freshnessCadence for unsaved podcast")
         return
       }
 
@@ -284,13 +284,10 @@ class PodcastDetailViewModel:
         guard let self else { return }
 
         do {
-          try await repo.updateFreshnessHalfLifeDays(
-            podcastID,
-            freshnessHalfLifeDays: newValue
-          )
+          try await repo.updateFreshnessCadence(podcastID, freshnessCadence: newValue)
         } catch {
           Self.log.caughtError(
-            "freshnessHalfLifeDays: failed to update for podcast \(podcastID)",
+            "freshnessCadence: failed to update for podcast \(podcastID)",
             error
           )
           guard ErrorKit.isRemarkable(error) else { return }
@@ -298,6 +295,10 @@ class PodcastDetailViewModel:
         }
       }
     }
+  }
+
+  var inferredFreshnessCadence: FreshnessCadence {
+    FreshnessCadence.infer(from: episodeList.allEntries.map(\.pubDate))
   }
 
   var loaded: Bool { !episodeList.allEntries.isEmpty }
@@ -312,10 +313,6 @@ class PodcastDetailViewModel:
 
   var hasCustomPlayRate: Bool {
     defaultPlaybackRate != nil
-  }
-
-  var hasCustomFreshness: Bool {
-    freshnessHalfLifeDays != nil
   }
 
   // MARK: - Share
