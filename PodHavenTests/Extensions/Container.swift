@@ -38,8 +38,19 @@ extension Container: @retroactive AutoRegistering {
       }
     }
 
-    audioSessionRetryConfig.context(.test) {
-      AudioSessionRetryConfig(maxAttempts: 1, initialDelay: .zero, maxDelay: .zero)
+    performAudioSessionConfiguration.context(.test) {
+      {
+        do {
+          try Container.shared.configureAudioSession()()
+          return true
+        } catch {
+          await Container.shared.alert()(
+            title: "Couldn't start audio playback",
+            ErrorKit.message(for: error)
+          )
+          return false
+        }
+      }
     }
     .scope(.cached)
 

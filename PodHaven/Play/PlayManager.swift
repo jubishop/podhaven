@@ -10,18 +10,6 @@ import Nuke
 import SwiftUI
 import Tagged
 
-struct AudioSessionRetryConfig: Sendable {
-  let maxAttempts: Int
-  let initialDelay: Duration
-  let maxDelay: Duration
-
-  static let production = Self(
-    maxAttempts: 5,
-    initialDelay: .milliseconds(250),
-    maxDelay: .seconds(2)
-  )
-}
-
 extension Container {
   var configureAudioSession: Factory<() throws -> Void> {
     Factory(self) {
@@ -34,8 +22,72 @@ extension Container {
     .scope(.cached)
   }
 
-  var audioSessionRetryConfig: Factory<AudioSessionRetryConfig> {
-    Factory(self) { .production }.scope(.cached)
+  // Performs the full audio-session configuration workflow: invokes
+  // `configureAudioSession`, retries with exponential backoff on failure
+  // (mediaservicesd is sometimes dead at launch — e.g., right after a
+  // TestFlight install/update — and typically respawns within a couple
+  // seconds), and surfaces an alert on terminal failure. Tests override
+  // this to skip retries.
+  var performAudioSessionConfiguration: Factory<@Sendable () async -> Bool> {
+    Factory(self) {
+      {
+        PlayManager.log.info("configureAudioSession: executing")
+
+        let maxAttempts = 5
+        let maxDelay: Duration = .seconds(2)
+        var retryDelay: Duration = .milliseconds(250)
+
+        for attempt in 1...maxAttempts {
+          do {
+            try Container.shared.configureAudioSession()()
+            let session = AVAudioSession.sharedInstance()
+            PlayManager.log.info(
+              """
+              configureAudioSession: configured (attempt \(attempt)/\(maxAttempts))
+                category: \(session.category.rawValue)
+                mode: \(session.mode.rawValue)
+                routeSharingPolicy: \(session.routeSharingPolicy.rawValue)
+              """
+            )
+            return true
+          } catch {
+            if attempt == maxAttempts {
+              PlayManager.log.caughtError(
+                "configureAudioSession: failed after \(maxAttempts) attempts",
+                error
+              )
+              await Container.shared.alert()(
+                title: "Couldn't start audio playback",
+                ErrorKit.message(for: error)
+              )
+              return false
+            }
+            PlayManager.log.debug(
+              """
+              configureAudioSession: attempt \(attempt)/\(maxAttempts) failed, \
+              retrying in \(retryDelay)
+                error: \(ErrorKit.message(for: error))
+              """
+            )
+            do {
+              try await Container.shared.sleeper().sleep(for: retryDelay)
+            } catch {
+              PlayManager.log.caughtError(
+                """
+                configureAudioSession: cancelled during retry backoff \
+                (attempt \(attempt)/\(maxAttempts))
+                """,
+                error
+              )
+              return false
+            }
+            retryDelay = min(retryDelay * 2, maxDelay)
+          }
+        }
+        return false
+      }
+    }
+    .scope(.cached)
   }
 
   var setAudioSessionActive: Factory<(Bool) throws -> Void> {
@@ -140,63 +192,7 @@ final class PlayManager {
 
   @discardableResult
   func configureAudioSession() async -> Bool {
-    Self.log.info("configureAudioSession: executing")
-
-    // mediaservicesd is sometimes dead at launch (e.g., right after a TestFlight
-    // install/update). It typically respawns within a couple seconds, so retry
-    // with exponential backoff before surfacing an error to the user. Config
-    // is injected via Container so tests can disable retries.
-    let config = Container.shared.audioSessionRetryConfig()
-    var retryDelay = config.initialDelay
-
-    for attempt in 1...config.maxAttempts {
-      do {
-        try Container.shared.configureAudioSession()()
-        let session = AVAudioSession.sharedInstance()
-        Self.log.info(
-          """
-          configureAudioSession: configured (attempt \(attempt)/\(config.maxAttempts))
-            category: \(session.category.rawValue)
-            mode: \(session.mode.rawValue)
-            routeSharingPolicy: \(session.routeSharingPolicy.rawValue)
-          """
-        )
-        return true
-      } catch {
-        if attempt == config.maxAttempts {
-          Self.log.caughtError(
-            "configureAudioSession: failed after \(config.maxAttempts) attempts",
-            error
-          )
-          await alert(
-            title: "Couldn't start audio playback",
-            ErrorKit.message(for: error)
-          )
-          return false
-        }
-        Self.log.debug(
-          """
-          configureAudioSession: attempt \(attempt)/\(config.maxAttempts) failed, \
-          retrying in \(retryDelay)
-            error: \(ErrorKit.message(for: error))
-          """
-        )
-        do {
-          try await sleeper.sleep(for: retryDelay)
-        } catch {
-          Self.log.caughtError(
-            """
-            configureAudioSession: cancelled during retry backoff \
-            (attempt \(attempt)/\(config.maxAttempts))
-            """,
-            error
-          )
-          return false
-        }
-        retryDelay = min(retryDelay * 2, config.maxDelay)
-      }
-    }
-    return false
+    await Container.shared.performAudioSessionConfiguration()()
   }
 
   // MARK: - Loading
