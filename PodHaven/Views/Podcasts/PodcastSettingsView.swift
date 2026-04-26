@@ -130,7 +130,7 @@ struct PodcastSettingsView: View {
         }
 
         Section("Recommendations") {
-          VStack(alignment: .leading, spacing: 24) {
+          VStack(alignment: .leading, spacing: 16) {
             SettingsRow(
               infoText: """
                 How quickly older episodes from this podcast lose their freshness boost in \
@@ -141,19 +141,21 @@ struct PodcastSettingsView: View {
                 narrative-archive content where episode age is immaterial.
                 """
             ) {
-              Text("Freshness")
-            }
-
-            Picker("", selection: $tempFreshnessCadence) {
-              Text("Auto").tag(FreshnessCadence?.none)
-              Text("Daily").tag(FreshnessCadence?.some(.daily))
-              Text("Weekly").tag(FreshnessCadence?.some(.weekly))
-              Text("Monthly").tag(FreshnessCadence?.some(.monthly))
-              Text("Evergreen").tag(FreshnessCadence?.some(.evergreen))
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: tempFreshnessCadence) {
-              viewModel.freshnessCadence = tempFreshnessCadence
+              HStack(alignment: .firstTextBaseline) {
+                Text("Freshness")
+                Spacer()
+                Picker("", selection: $tempFreshnessCadence) {
+                  Text("Auto").tag(FreshnessCadence?.none)
+                  Text("Daily").tag(FreshnessCadence?.some(.daily))
+                  Text("Weekly").tag(FreshnessCadence?.some(.weekly))
+                  Text("Monthly").tag(FreshnessCadence?.some(.monthly))
+                  Text("Evergreen").tag(FreshnessCadence?.some(.evergreen))
+                }
+                .pickerStyle(.menu)
+                .onChange(of: tempFreshnessCadence) {
+                  viewModel.freshnessCadence = tempFreshnessCadence
+                }
+              }
             }
 
             if tempFreshnessCadence == nil {
