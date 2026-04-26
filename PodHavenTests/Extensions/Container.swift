@@ -38,6 +38,11 @@ extension Container: @retroactive AutoRegistering {
       }
     }
 
+    audioSessionRetryConfig.context(.test) {
+      AudioSessionRetryConfig(maxAttempts: 1, initialDelay: .zero, maxDelay: .zero)
+    }
+    .scope(.cached)
+
     nlContextualEmbedding.context(.test) { FakeEmbeddable() }.scope(.cached)
 
     sleeper.context(.test) { FakeSleeper() }.scope(.cached)
