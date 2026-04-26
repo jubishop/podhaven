@@ -14,7 +14,7 @@ extension Container {
 @Observable @MainActor class Sheet {
   var config: SheetConfig?
 
-  private static let log = Log.as("Sheet")
+  fileprivate static let log = Log.as("Sheet")
 
   fileprivate init() {}
 
@@ -82,8 +82,25 @@ extension Container {
 
 extension View {
   func customSheet(_ config: Binding<SheetConfig?>) -> some View {
-    sheet(item: config) { config in
-      config.content
+    sheet(item: config) { sheetConfig in
+      sheetConfig.content
+        .onDisappear {
+          // Defensive desync recovery for the bug we're fixing: if SwiftUI's
+          // binding-setter never fires during dismissal, `config` stays
+          // non-nil and a re-present with the same userID would short-circuit
+          // via dedup. Clearing here makes that dedup naturally fail. The id
+          // guard avoids racing with a freshly-presented sheet.
+          if config.wrappedValue?.id == sheetConfig.id {
+            Sheet.log.debug(
+              """
+              onDisappear: clearing stale config
+                id: \(sheetConfig.id)
+                userID: \(String(describing: sheetConfig.userID))
+              """
+            )
+            config.wrappedValue = nil
+          }
+        }
     }
   }
 }

@@ -6,12 +6,12 @@ import Logging
 import SwiftUI
 
 struct SearchView: View {
+  nonisolated private static let log = Log.as(LogSubsystem.SearchView.main)
+
   @DynamicInjected(\.navigation) private var navigation
 
   @State private var isShowingManualFeedEntry = false
   @State private var viewModel: SearchViewModel
-
-  nonisolated private static let log = Log.as(LogSubsystem.SearchView.main)
 
   init(viewModel: SearchViewModel) {
     self.viewModel = viewModel
