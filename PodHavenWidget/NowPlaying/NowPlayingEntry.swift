@@ -26,6 +26,18 @@ struct NowPlayingEntry: TimelineEntry {
     skipBackwardInterval: 15
   )
 
+  static let loadingFallback = NowPlayingEntry(
+    date: Date(),
+    episodeTitle: "",
+    podcastTitle: "",
+    pubDateFormatted: "",
+    durationFormatted: "",
+    playbackStatus: .loading(""),
+    artwork: nil,
+    skipForwardInterval: 30,
+    skipBackwardInterval: 15
+  )
+
   static let preview = NowPlayingEntry(
     date: Date(),
     episodeTitle: "Understanding Swift Concurrency",

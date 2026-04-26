@@ -1,4 +1,3 @@
-- [BGTaskScheduler investigation](background_tasks_investigation.md) — dasd silently rejects background task submissions on TestFlight, investigated 2026-03-14
 - [NowPlayingInfo desync bug](project_nowplaying_desync_bug.md) — iOS sends stale backward scrub ~30–33s after AirPods pause in background; 6 incidents, fb43f650 fix DID NOT hold (4/19 recurrence with dict only 2s stale at pause — refutes dict-staleness theory)
 - [Worktree setup hooks](worktree_setup_hooks.md) — git post-checkout hook (preferred), failed approaches, Xcode build optimization for worktrees
 - [Observable + Broadcast gap](observation_broadcast_viewmodel.md) — reading @Broadcasted state through @Observable viewModel computed properties can silently fail for conditional views; read SharedState directly instead

@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
+import Logging
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -8,6 +9,8 @@ struct OPMLView: View {
   @DynamicInjected(\.alert) private var alert
 
   @State private var viewModel = OPMLViewModel()
+
+  nonisolated private static let log = Log.as(LogSubsystem.SettingsView.opml)
 
   var body: some View {
     Form {
@@ -38,6 +41,20 @@ struct OPMLView: View {
     )
     .sheet(item: $viewModel.opmlFile) { opmlFile in
       OPMLImportSheet(viewModel: viewModel, opmlFile: opmlFile)
+    }
+    .onChange(of: viewModel.opmlFile?.id) { oldID, newID in
+      switch (oldID, newID) {
+      case (nil, .some(let id)):
+        Self.log.debug(
+          "OPML import sheet presented (id: \(id), title: \(viewModel.opmlFile?.title ?? "?"))"
+        )
+      case (.some(let id), nil):
+        Self.log.debug("OPML import sheet dismissed (id: \(id))")
+      case (.some(let oldID), .some(let newID)):
+        Self.log.debug("OPML import sheet replaced (oldID: \(oldID), newID: \(newID))")
+      case (nil, nil):
+        break
+      }
     }
   }
 }

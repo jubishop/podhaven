@@ -15,6 +15,13 @@ struct LockScreenNowPlayingEntry: TimelineEntry {
     playbackStatus: .stopped
   )
 
+  static let loadingFallback = LockScreenNowPlayingEntry(
+    date: Date(),
+    episodeTitle: "",
+    podcastTitle: "",
+    playbackStatus: .loading("")
+  )
+
   static let preview = LockScreenNowPlayingEntry(
     date: Date(),
     episodeTitle: "Understanding Swift Concurrency",

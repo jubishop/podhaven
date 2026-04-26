@@ -183,7 +183,7 @@ struct NowPlayingWidgetView: View {
       AppIcon.loading.image
         .font(isMedium ? .title2 : .title3)
         .foregroundStyle(.secondary)
-      Text("Loading \(episodeTitle)")
+      Text(episodeTitle.isEmpty ? "Loading…" : "Loading \(episodeTitle)")
         .font(isMedium ? .subheadline : .caption)
         .foregroundStyle(.secondary)
         .lineLimit(2)

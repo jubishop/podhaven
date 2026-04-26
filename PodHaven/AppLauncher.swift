@@ -59,6 +59,13 @@ struct AppLauncher: Sendable {
     cachePurger.register()
     embeddingProcessor.register()
 
+    // Per Apple's guidance for AVAudioSession.mediaServicesWereResetNotification,
+    // be ready to respond to a media-services reset before any audio session
+    // configuration. Subscribing here means we won't miss a respawn event if
+    // mediaservicesd is unavailable at launch (e.g., right after a TestFlight
+    // install/update). startStreamConsumers is idempotent.
+    playManager.startStreamConsumers()
+
     // Audio session and command handlers must be configured synchronously
     // to enable AirPods/lock screen controls even during background launches.
     do {

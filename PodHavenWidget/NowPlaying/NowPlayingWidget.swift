@@ -76,13 +76,13 @@ struct NowPlayingProvider: TimelineProvider {
     }
 
     guard let snapshot = WidgetSnapshotReader.readNowPlaying() else {
-      Self.log.warning("makeEntry: no snapshot available, returning empty")
-      return .empty
+      Self.log.warning("makeEntry: no snapshot available, returning loading fallback")
+      return .loadingFallback
     }
 
     guard let nowPlaying = snapshot.nowPlaying else {
-      Self.log.warning("makeEntry: snapshot has no nowPlaying, returning empty")
-      return .empty
+      Self.log.warning("makeEntry: snapshot has no nowPlaying, returning loading fallback")
+      return .loadingFallback
     }
 
     Self.log.debug(

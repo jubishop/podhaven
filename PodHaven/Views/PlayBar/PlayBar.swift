@@ -129,6 +129,7 @@ extension PlayBar {
   static func showPlayBarSheet(viewModel: PlayBarViewModel) {
     @DynamicInjected(\.sheet) var sheet
 
+    log.debug("showPlayBarSheet: tapped (chevron-up)")
     sheet {
       PlayBarSheet(viewModel: viewModel)
     }
@@ -137,6 +138,7 @@ extension PlayBar {
   static func showOnDeckEpisodeDetail() {
     @DynamicInjected(\.alert) var alert
 
+    log.debug("showOnDeckEpisodeDetail: tapped (episode thumbnail)")
     Task {
       do {
         try await presentOnDeckEpisodeDetail()
@@ -155,7 +157,10 @@ extension PlayBar {
 
     guard let onDeck = sharedState.onDeck,
       let podcastEpisode = try await repo.podcastEpisode(onDeck.id)
-    else { return }
+    else {
+      log.debug("presentOnDeckEpisodeDetail: no on-deck episode, skipping sheet")
+      return
+    }
 
     sheet(id: podcastEpisode.id) {
       NavigationStack {

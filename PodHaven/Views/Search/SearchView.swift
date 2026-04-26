@@ -2,6 +2,7 @@
 
 import FactoryKit
 import IdentifiedCollections
+import Logging
 import SwiftUI
 
 struct SearchView: View {
@@ -9,6 +10,8 @@ struct SearchView: View {
 
   @State private var isShowingManualFeedEntry = false
   @State private var viewModel: SearchViewModel
+
+  nonisolated private static let log = Log.as(LogSubsystem.SearchView.main)
 
   init(viewModel: SearchViewModel) {
     self.viewModel = viewModel
@@ -45,6 +48,13 @@ struct SearchView: View {
       prompt: Text("Search podcasts")
     )
     .searchPresentationToolbarBehavior(.avoidHidingContent)
+    .onChange(of: isShowingManualFeedEntry) { _, showing in
+      if showing {
+        Self.log.debug("ManualFeedEntry sheet presented")
+      } else {
+        Self.log.debug("ManualFeedEntry sheet dismissed")
+      }
+    }
     .onAppear { viewModel.appear() }
     .onDisappear { viewModel.disappear() }
   }
