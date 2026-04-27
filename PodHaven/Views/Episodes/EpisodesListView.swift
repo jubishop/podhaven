@@ -62,11 +62,7 @@ struct EpisodesListView: View {
       )
       .listRow()
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
-      .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode) {
-        AppIcon.showPodcast.labelButton {
-          viewModel.showPodcast(podcastEpisode)
-        }
-      }
+      .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
     }
   }
 
