@@ -110,6 +110,9 @@ protocol Databasing: Sendable {
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool
 
   @discardableResult
+  func updateRating(_ episodeIDs: [Episode.ID], rating: EpisodeRating?) async throws -> Int
+
+  @discardableResult
   func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool
 
   @discardableResult
