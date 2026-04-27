@@ -151,7 +151,7 @@ extension PlayManager {
   private func handleMediaServicesReset() async {
     Self.log.info("handleMediaServicesReset: beginning recovery process")
 
-    guard await configureAudioSession() else {
+    guard await Container.shared.configureAudioSession()() else {
       await stop()
       return
     }

@@ -27,11 +27,19 @@ extension Container: @retroactive AutoRegistering {
     loadEpisodeAsset.context(.test) { self.fakeEpisodeAssetLoader().loadEpisodeAsset }
     configureAudioSession.context(.test) {
       {
-        let fake = self.fakeAudioSession()
-        if let error = fake.configureError() { throw error }
+        let fake = Container.shared.fakeAudioSession()
+        if let error = fake.configureError() {
+          await Container.shared.alert()(
+            title: "Couldn't start audio playback",
+            ErrorKit.message(for: error)
+          )
+          return false
+        }
         Task { try await fake.configure() }
+        return true
       }
     }
+    .scope(.cached)
     setAudioSessionActive.context(.test) {
       { active in
         Task { try await self.fakeAudioSession().setActive(active) }

@@ -36,6 +36,13 @@ struct PodcastDetailView: View {
     .sheet(isPresented: $viewModel.showingSettings) {
       PodcastSettingsView(viewModel: viewModel)
     }
+    .onChange(of: viewModel.showingSettings) { _, showing in
+      if showing {
+        Self.log.debug("PodcastSettings sheet presented (podcast: \(viewModel.podcast.toString))")
+      } else {
+        Self.log.debug("PodcastSettings sheet dismissed (podcast: \(viewModel.podcast.toString))")
+      }
+    }
     .onAppear { viewModel.appear() }
     .onDisappear { viewModel.disappear() }
     .overlay {

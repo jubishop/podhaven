@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
+import Logging
 import OSLog
 import SwiftUI
 
@@ -13,6 +14,8 @@ extension Container {
 @Observable @MainActor class Sheet {
   var config: SheetConfig?
 
+  fileprivate static let log = Log.as("Sheet")
+
   fileprivate init() {}
 
   // MARK: - Public Sheet Presentation
@@ -21,34 +24,71 @@ extension Container {
     id: AnyHashable? = nil,
     @ViewBuilder content: @escaping () -> Content
   ) {
-    if let id, config?.id == id { return }
-    config = SheetConfig(id: id, content: content)
+    if let id, config?.userID == id {
+      Self.log.debug(
+        """
+        present: skipped — same id already presented
+          id: \(id)
+        """
+      )
+      return
+    }
+
+    let previousUserID = config?.userID
+    config = SheetConfig(userID: id, content: content)
+    Self.log.debug(
+      """
+      present
+        userID: \(String(describing: id))
+        previousUserID: \(String(describing: previousUserID))
+      """
+    )
   }
 
   func dismiss() {
+    let wasPresented = config != nil
+    let previousUserID = config?.userID
     config = nil
+    Self.log.debug(
+      """
+      dismiss
+        wasPresented: \(wasPresented)
+        previousUserID: \(String(describing: previousUserID))
+      """
+    )
   }
 }
 
-@Observable @MainActor class SheetConfig {
-  let id: AnyHashable?
+@Observable @MainActor class SheetConfig: Identifiable {
+  // Fresh per-presentation so .sheet(item:) sees an identity change on every call.
+  let id = UUID()
+
+  let userID: AnyHashable?
   let content: AnyView
 
-  init<Content: View>(id: AnyHashable?, @ViewBuilder content: @escaping () -> Content) {
-    self.id = id
+  init<Content: View>(userID: AnyHashable?, @ViewBuilder content: @escaping () -> Content) {
+    self.userID = userID
     self.content = AnyView(content())
   }
 }
 
 extension View {
   func customSheet(_ config: Binding<SheetConfig?>) -> some View {
-    sheet(
-      isPresented: Binding(
-        get: { config.wrappedValue != nil },
-        set: { if !$0 { config.wrappedValue = nil } }
-      )
-    ) {
-      config.wrappedValue?.content
+    sheet(item: config) { sheetConfig in
+      sheetConfig.content
+        .onDisappear {
+          // Recover if SwiftUI's binding-setter doesn't fire on dismissal.
+          if config.wrappedValue?.id == sheetConfig.id {
+            Sheet.log.debug(
+              """
+              onDisappear: clearing stale config
+                id: \(sheetConfig.id)
+                userID: \(String(describing: sheetConfig.userID))
+              """
+            )
+            config.wrappedValue = nil
+          }
+        }
     }
   }
 }

@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import AVFoundation
 import FactoryKit
 import Logging
 import Sentry
@@ -59,13 +60,30 @@ struct AppLauncher: Sendable {
     cachePurger.register()
     embeddingProcessor.register()
 
-    // Audio session and command handlers must be configured synchronously
-    // to enable AirPods/lock screen controls even during background launches.
+    // Subscribe before audio session config so a mediaservicesd respawn during
+    // launch isn't missed (Apple guidance for mediaServicesWereResetNotification).
+    playManager.startStreamConsumers()
+
+    // Must be synchronous so AirPods/lock-screen controls register before iOS
+    // evaluates background-launch capability. Sync failure falls back to the
+    // async retry factory.
     do {
-      try Container.shared.configureAudioSession()()
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
+      try session.setMode(.spokenAudio)
       CommandCenter.registerRemoteCommandHandlers()
     } catch {
-      Self.log.caughtError("bootstrap: failed to configure audio session", error)
+      Self.log.caughtError(
+        "bootstrap: synchronous audio session config failed, scheduling async retry",
+        error
+      )
+      Task {
+        // Give mediaservicesd a moment to respawn before the factory's first attempt,
+        // since the sync call just confirmed it's down.
+        try? await Container.shared.sleeper().sleep(for: .milliseconds(250))
+        guard await Container.shared.configureAudioSession()() else { return }
+        CommandCenter.registerRemoteCommandHandlers()
+      }
     }
   }
 
