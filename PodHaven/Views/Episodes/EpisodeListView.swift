@@ -60,6 +60,10 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
       HStack {
         CompactMetadataItem(appIcon: .publishDate, value: episode.pubDate.usShort)
         Spacer()
+        if let rating = episode.rating {
+          AppIcon.rating(for: rating).image
+          Spacer()
+        }
         CompactMetadataItem(appIcon: .duration, value: durationText)
       }
       .font(.footnote)
