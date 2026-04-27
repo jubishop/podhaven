@@ -53,9 +53,10 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
           }
         }
 
-        ratingTriggerIcon.imageButton {
-          isRatingDialogPresented = true
-        }
+        AppIcon.rating(for: episode.rating)
+          .imageButton {
+            isRatingDialogPresented = true
+          }
       }
       .confirmationDialog(
         "Rate Episode",
@@ -77,15 +78,6 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
           }
         }
       }
-  }
-
-  private var ratingTriggerIcon: AppIcon {
-    switch episode.rating {
-    case .loved: .loveEpisode
-    case .liked: .likeEpisode
-    case .disliked: .dislikeEpisode
-    case nil: .rateEpisode
-    }
   }
 }
 

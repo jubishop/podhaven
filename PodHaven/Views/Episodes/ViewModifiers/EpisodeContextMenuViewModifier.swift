@@ -70,7 +70,7 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
             }
           }
         } label: {
-          ratingMenuIcon.label("Rate")
+          AppIcon.rating(for: episode.rating).label("Rate")
         }
 
         Menu {
@@ -112,15 +112,6 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
           }
         }
       }
-  }
-
-  private var ratingMenuIcon: AppIcon {
-    switch episode.rating {
-    case .loved: .loveEpisode
-    case .liked: .likeEpisode
-    case .disliked: .dislikeEpisode
-    case nil: .rateEpisode
-    }
   }
 }
 
