@@ -4,7 +4,8 @@ import Foundation
 import IdentifiedCollections
 
 struct ScoringContextInputs: Sendable, Equatable {
-  let signals: [SignalEpisode]
+  let ratedSignals: [SignalEpisode]
+  let partialSignals: [PartialSignal]
   let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
   let hasAnyEmbeddings: Bool
   let freshnessCadences: [Podcast.ID: FreshnessCadence]

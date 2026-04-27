@@ -385,7 +385,13 @@ struct Repo: Databasing, Sendable {
 
   func allSignalEpisodes() async throws -> [SignalEpisode] {
     try await appDB.db.read { db in
-      try SignalEpisode.filter(Episode.signal).fetchAll(db)
+      try SignalEpisode.filter(Episode.rated).fetchAll(db)
+    }
+  }
+
+  func allPartialSignals() async throws -> [PartialSignal] {
+    try await appDB.db.read { db in
+      try PartialSignal.filter(Episode.hasCoverage && !Episode.rated).fetchAll(db)
     }
   }
 
@@ -707,6 +713,66 @@ struct Repo: Databasing, Sendable {
           )
         )
     } > 0
+  }
+
+  // Caller passes the previous-checkpoint position as `playedFrom` so the
+  // bitmap OR-marks exactly the seconds elapsed since last save. Backward
+  // and zero-progress ranges leave the bitmap untouched.
+  @discardableResult
+  func updatePlayback(
+    _ episodeID: Episode.ID,
+    currentTime: CMTime,
+    playedFrom: CMTime,
+    now: Date
+  ) async throws -> Bool {
+    Self.log.trace(
+      "updatePlayback: \(episodeID) to \(currentTime) (from \(playedFrom))"
+    )
+
+    return try await appDB.db.write { db in
+      let row = try Row.fetchOne(
+        db,
+        Episode
+          .withID(episodeID)
+          .select(Episode.Columns.duration, Episode.Columns.playbackCoverage)
+      )
+      guard let row else { return false }
+
+      var assignments: [ColumnAssignment] = [
+        Episode.Columns.currentTime.set(to: currentTime),
+        Episode.Columns.maxPlaybackTime.set(
+          to: sqlMax(Episode.Columns.maxPlaybackTime, currentTime)
+        ),
+        Episode.Columns.lastPlayedDate.set(to: now),
+      ]
+
+      let duration: CMTime? = row[Episode.Columns.duration]
+      let durationSeconds = Self.toSeconds(duration)
+      let startSeconds = Self.toSeconds(playedFrom)
+      let endSeconds = Self.toSeconds(currentTime)
+
+      if durationSeconds > 0, endSeconds > startSeconds {
+        let existing: Data? = row[Episode.Columns.playbackCoverage]
+        var coverage =
+          existing.map {
+            PlaybackCoverage(data: $0, durationSeconds: durationSeconds)
+          } ?? PlaybackCoverage(durationSeconds: durationSeconds)
+        coverage.mark(startSeconds: startSeconds, endSeconds: endSeconds)
+        assignments.append(Episode.Columns.playbackCoverage.set(to: coverage.data))
+      }
+
+      return
+        try Episode
+        .withID(episodeID)
+        .updateAll(db, assignments) > 0
+    }
+  }
+
+  private static func toSeconds(_ time: CMTime?) -> Int {
+    guard let time, time.isValid, !time.isIndefinite else { return 0 }
+    let s = time.seconds
+    guard s.isFinite, s > 0 else { return 0 }
+    return Int(s.rounded(.down))
   }
 
   @discardableResult

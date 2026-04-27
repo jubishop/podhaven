@@ -262,6 +262,7 @@ final class PlayManager {
           error
         )
       }
+      observatory.refreshScoringContext()
     }
   }
 
@@ -362,6 +363,8 @@ final class PlayManager {
     } catch {
       Self.log.caughtError("finishEpisode: failed to mark episode \(episodeID) finished", error)
     }
+
+    observatory.refreshScoringContext()
 
     guard episodeID == onDeckID
     else { return }

@@ -11,14 +11,24 @@ extension Container {
   }
 }
 
-struct Observatory {
+struct Observatory: Sendable {
   private static let log = Log.as(LogSubsystem.Database.observatory)
 
   // MARK: - Initialization
 
   private let repo: any Databasing
+  // Manual fanout for partial-listen signals: their underlying columns are
+  // excluded from GRDB tracking, so the engine only sees them when this
+  // counter bumps. PlayManager fires it at session boundaries.
+  private let refreshTrigger: Broadcast<Int>
+
   fileprivate init(_ repo: any Databasing) {
     self.repo = repo
+    self.refreshTrigger = Broadcast<Int>(0)
+  }
+
+  func refreshScoringContext() {
+    refreshTrigger.update { $0 += 1 }
   }
 
   // MARK: - Podcasts
@@ -229,35 +239,91 @@ struct Observatory {
 
   // MARK: - Recommendations
 
-  // Combines signals, embeddings, the any-embedding flag, and resolved
-  // cadences into a single observation so one DB change produces one engine
-  // rebuild. Every fetch is column-narrowed (via `SignalEpisode.databaseSelection`
-  // and explicit `.select(...)` projections) so unrelated UPDATEs to
-  // currentTime, queueOrder, podcast title, etc. don't trigger emissions.
-  func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
-    _observe { db in
-      let signals = try SignalEpisode.filter(Episode.signal).fetchAll(db)
+  // Two sources fan in: the narrow rating-only GRDB observation, and
+  // `refreshScoringContext()` bumps. Each emission re-fetches the full
+  // ScoringContextInputs (rated + partial). Partial-signal columns are
+  // never in any tracked region; this is the only path that surfaces them.
+  func scoringContextInputs() -> AsyncStream<ScoringContextInputs> {
+    AsyncStream { continuation in
+      let ratingSource = _ratingObservation()
+      let refreshSource = refreshTrigger.stream()
+      let db = repo.db
 
-      let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
-      if signals.isEmpty {
-        signalEmbeddings = IdentifiedArray(id: \.episodeId)
-      } else {
-        let signalIDs = signals.map(\.id)
-        signalEmbeddings =
-          try EpisodeEmbedding
-          .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
-          .fetchIdentifiedArray(db, id: \.episodeId)
+      let task = Task { [refreshSource] in
+        await withTaskGroup(of: Void.self) { group in
+          group.addTask {
+            do {
+              for try await _ in ratingSource {
+                if Task.isCancelled { return }
+                guard
+                  let inputs = await Self._fetchScoringContextInputs(db: db)
+                else { continue }
+                continuation.yield(inputs)
+              }
+            } catch {
+              Self.log.caughtError(
+                "scoringContextInputs rating observation failed",
+                error
+              )
+            }
+          }
+          group.addTask {
+            for await _ in refreshSource {
+              if Task.isCancelled { return }
+              guard
+                let inputs = await Self._fetchScoringContextInputs(db: db)
+              else { continue }
+              continuation.yield(inputs)
+            }
+          }
+        }
       }
 
-      let hasAnyEmbeddings =
-        try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
+      continuation.onTermination = { _ in
+        task.cancel()
+      }
+    }
+  }
 
-      return ScoringContextInputs(
-        signals: signals,
-        signalEmbeddings: signalEmbeddings,
-        hasAnyEmbeddings: hasAnyEmbeddings,
-        freshnessCadences: try _resolveFreshnessCadences(db)
-      )
+  private func _ratingObservation() -> AsyncValueObservation<[SignalEpisode]> {
+    _observe { db in
+      try SignalEpisode.filter(Episode.rated).fetchAll(db)
+    }
+  }
+
+  private static func _fetchScoringContextInputs(
+    db: any DatabaseReader
+  ) async -> ScoringContextInputs? {
+    do {
+      return try await db.read { db in
+        let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
+        let partialSignals =
+          try PartialSignal
+          .filter(Episode.hasCoverage && !Episode.rated)
+          .fetchAll(db)
+
+        let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
+        let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
+          signalIDs.isEmpty
+          ? IdentifiedArray(id: \.episodeId)
+          : try EpisodeEmbedding
+            .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
+            .fetchIdentifiedArray(db, id: \.episodeId)
+
+        let hasAnyEmbeddings =
+          try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
+
+        return ScoringContextInputs(
+          ratedSignals: ratedSignals,
+          partialSignals: partialSignals,
+          signalEmbeddings: signalEmbeddings,
+          hasAnyEmbeddings: hasAnyEmbeddings,
+          freshnessCadences: try Self._resolveFreshnessCadences(db)
+        )
+      }
+    } catch {
+      log.caughtError("scoringContextInputs fetch failed", error)
+      return nil
     }
   }
 
@@ -265,7 +331,7 @@ struct Observatory {
 
   // Manual choices win; nil-cadence podcasts get inferred from their
   // pubDates. Podcasts with no episodes and no manual choice are absent.
-  private func _resolveFreshnessCadences(
+  fileprivate static func _resolveFreshnessCadences(
     _ db: Database
   ) throws -> [Podcast.ID: FreshnessCadence] {
     let manualRows = try Row.fetchAll(

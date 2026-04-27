@@ -194,11 +194,14 @@ class EpisodeRatingTests {
 
   // MARK: - Signal Episodes
 
-  @Test("fetchSignalEpisodes returns rated and finished episodes tagged by kind")
+  @Test("allSignalEpisodes returns only rated episodes (finished alone is no longer signal)")
   func fetchSignalEpisodes() async throws {
     _ = try await createPodcastWithEpisode(rating: .loved, ratingDate: Date())
     _ = try await createPodcastWithEpisode(rating: .disliked, ratingDate: Date())
 
+    // A finished-but-unrated episode is no longer a signal: next-button
+    // finishes are too noisy to count, and a real engagement signal lives
+    // in the playback-coverage bitmap (see PartialSignal).
     let unsavedPodcast = try Create.unsavedPodcast()
     let finishedEpisode = try Create.unsavedEpisode(finishDate: Date())
     _ = try await repo.upsertPodcastEpisodes([
@@ -208,16 +211,15 @@ class EpisodeRatingTests {
     _ = try await createPodcastWithEpisode()
 
     let signals = try await repo.allSignalEpisodes()
-    #expect(signals.count == 3)
+    #expect(signals.count == 2)
 
-    let kinds = signals.map(\.kind)
-    #expect(kinds.contains(.rating(.loved)))
-    #expect(kinds.contains(.rating(.disliked)))
-    #expect(kinds.contains(.finished))
+    let ratings = signals.map(\.rating)
+    #expect(ratings.contains(.loved))
+    #expect(ratings.contains(.disliked))
   }
 
-  @Test("signal classification prefers explicit rating over finished")
-  func explicitRatingWinsOverFinished() async throws {
+  @Test("rated episodes appear in allSignalEpisodes regardless of finishDate")
+  func ratedAndFinishedAppearAsRated() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let bothRatedAndFinished = try Create.unsavedEpisode(
       finishDate: Date(),
@@ -230,6 +232,6 @@ class EpisodeRatingTests {
 
     let signals = try await repo.allSignalEpisodes()
     #expect(signals.count == 1)
-    #expect(signals.first?.kind == .rating(.liked))
+    #expect(signals.first?.rating == .liked)
   }
 }

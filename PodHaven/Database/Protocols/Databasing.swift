@@ -99,6 +99,14 @@ protocol Databasing: Sendable {
   func updateCurrentTime(_ episodeID: Episode.ID, currentTime: CMTime) async throws -> Bool
 
   @discardableResult
+  func updatePlayback(
+    _ episodeID: Episode.ID,
+    currentTime: CMTime,
+    playedFrom: CMTime,
+    now: Date
+  ) async throws -> Bool
+
+  @discardableResult
   func updateDownloadTaskID(_ episodeID: Episode.ID, downloadTaskID: URLSessionDownloadTask.ID?)
     async throws
     -> Bool
@@ -184,6 +192,7 @@ protocol Databasing: Sendable {
   // MARK: - Recommendation Readers
 
   func allSignalEpisodes() async throws -> [SignalEpisode]
+  func allPartialSignals() async throws -> [PartialSignal]
   func allCandidateEpisodes(excluding: Episode.ID?) async throws -> [Episode]
 }
 

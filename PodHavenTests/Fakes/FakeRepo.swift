@@ -241,6 +241,27 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
+  func updatePlayback(
+    _ episodeID: Episode.ID,
+    currentTime: CMTime,
+    playedFrom: CMTime,
+    now: Date
+  ) async throws -> Bool {
+    recordCall(
+      methodName: "updatePlayback",
+      parameters: (
+        episodeID: episodeID, currentTime: currentTime, playedFrom: playedFrom, now: now
+      )
+    )
+    return try await repo.updatePlayback(
+      episodeID,
+      currentTime: currentTime,
+      playedFrom: playedFrom,
+      now: now
+    )
+  }
+
+  @discardableResult
   func updateDownloadTaskID(_ episodeID: Episode.ID, downloadTaskID: URLSessionDownloadTask.ID?)
     async throws
     -> Bool
@@ -334,6 +355,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func allSignalEpisodes() async throws -> [SignalEpisode] {
     recordCall(methodName: "allSignalEpisodes", parameters: ())
     return try await repo.allSignalEpisodes()
+  }
+
+  func allPartialSignals() async throws -> [PartialSignal] {
+    recordCall(methodName: "allPartialSignals", parameters: ())
+    return try await repo.allPartialSignals()
   }
 
   func allCandidateEpisodes(excluding excludedID: Episode.ID? = nil) async throws -> [Episode] {

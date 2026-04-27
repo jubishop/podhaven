@@ -14,6 +14,7 @@ import Testing
 class RecommendationEngineTests {
   @DynamicInjected(\.recommendationEngine) private var engine
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.sharedState) private var sharedState
 
   // MARK: - Helpers
@@ -563,6 +564,44 @@ class RecommendationEngineTests {
     let recs = try await startAndWaitForRecs()
     let recommendedIDs = Set(recs.map(\.episode.id))
     #expect(!recommendedIDs.contains(onDeckEpisode.id))
+  }
+
+  // MARK: - Partial-listen signals
+
+  @Test("partial-listen signals contribute alongside ratings")
+  func partialSignalsContribute() async throws {
+    // Two rated episodes (one short of the rating-only threshold).
+    let (_, ratedEpisodes) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Rated",
+      ratings: [.loved, .liked]
+    )
+    try await embedEpisodes(ratedEpisodes)
+
+    // One played episode whose bitmap proves real engagement — pushes the
+    // total signal count to the 3-episode threshold.
+    let (_, playedEpisodes) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Played"
+    )
+    try await embedEpisodes(playedEpisodes)
+    let played = try #require(playedEpisodes.first)
+    try await repo.updatePlayback(
+      played.id,
+      currentTime: CMTime.seconds(900),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+    observatory.refreshScoringContext()
+
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Candidates"
+    )
+    try await embedEpisodes(candidates)
+
+    let recs = try await startAndWaitForRecs()
+    #expect(!recs.isEmpty)
   }
 
   // MARK: - Signals without embeddings

@@ -322,6 +322,34 @@ enum PodAVPlayerError: Error, LocalizedError {
     }
   }
 
+  // Seek and pause stay on `saveCurrentTime` — they don't represent content
+  // the user actually heard, so the bitmap and `lastPlayedDate` shouldn't grow.
+  private func savePlaybackTick(_ currentTime: CMTime) async {
+    guard let episodeID else {
+      Self.log.warning("Saving tick on nil player item with CMTime: \(currentTime)")
+      return
+    }
+
+    let playedFrom = lastDatabaseUpdateTime ?? currentTime
+    do {
+      try await repo.updatePlayback(
+        episodeID,
+        currentTime: currentTime,
+        playedFrom: playedFrom,
+        now: Date()
+      )
+      lastDatabaseUpdateTime = currentTime
+      Self.log.trace(
+        "savePlaybackTick: saved \(currentTime) (from \(playedFrom)) for \(episodeID)"
+      )
+    } catch {
+      Self.log.caughtError(
+        "savePlaybackTick: failed to save \(currentTime) for episode \(episodeID)",
+        error
+      )
+    }
+  }
+
   // MARK: - Change Handlers
 
   private func handleCurrentTimeChange(_ currentTime: CMTime) async {
@@ -335,7 +363,7 @@ enum PodAVPlayerError: Error, LocalizedError {
     // backward without routing through `seek(to:)` (which resets
     // `lastDatabaseUpdateTime`).
     if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds) >= 3.0 {
-      await saveCurrentTime(currentTime)
+      await savePlaybackTick(currentTime)
     }
 
     // Always yield to the stream for UI updates (250ms)

@@ -45,7 +45,6 @@ extension Container {
 struct RecommendationEngine: Sendable {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.observatory) private var observatory
-  @DynamicInjected(\.sleeper) private var sleeper
   @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.Recommendations.engine)
@@ -61,8 +60,8 @@ struct RecommendationEngine: Sendable {
 
   // Centroid weights
   private static let lovedWeight: Float = 1.0
-  private static let likedWeight: Float = 0.5
-  private static let finishedWeight: Float = 0.2
+  private static let likedWeight: Float = 0.6
+  private static let partialWeight: Float = 0.4
 
   // Bayesian smoothing prior for podcast affinity
   private static let affinityPrior: Float = 2.0
@@ -155,25 +154,11 @@ struct RecommendationEngine: Sendable {
     let freshnessCadences: [Podcast.ID: FreshnessCadence]
   }
 
-  // Spawns the long-running observation Task that keeps `cache` in sync.
-  // .utility priority keeps the rebuild off the UI critical path; the
-  // taskPriority funnel lets tests override to nil and avoid priority-based
-  // starvation.
   private func startObservingScoringContext() {
     Task(priority: taskPriority(.utility)) {
-      var retryDelay: Duration = .seconds(1)
-      while !Task.isCancelled {
-        do {
-          for try await inputs in observatory.scoringContextInputs() {
-            guard !Task.isCancelled else { return }
-            retryDelay = .seconds(1)
-            cache(Self.buildContext(from: inputs))
-          }
-        } catch {
-          Self.log.caughtError("scoringContextInputs observation failed", error)
-          try? await sleeper.sleep(for: retryDelay)
-          retryDelay = min(retryDelay * 2, .seconds(60))
-        }
+      for await inputs in observatory.scoringContextInputs() {
+        guard !Task.isCancelled else { return }
+        cache(Self.buildContext(from: inputs))
       }
     }
   }
@@ -181,10 +166,11 @@ struct RecommendationEngine: Sendable {
   // MARK: - Build Context
 
   private static func buildContext(from inputs: ScoringContextInputs) -> ScoringContext? {
-    guard inputs.signals.count >= minimumDataThreshold else {
+    let totalSignalCount = inputs.ratedSignals.count + inputs.partialSignals.count
+    guard totalSignalCount >= minimumDataThreshold else {
       log.debug(
         """
-        Not enough signal data (\(inputs.signals.count)/\(minimumDataThreshold)), \
+        Not enough signal data (\(totalSignalCount)/\(minimumDataThreshold)), \
         cached context cleared
         """
       )
@@ -197,7 +183,8 @@ struct RecommendationEngine: Sendable {
     }
 
     let (positive, negative) = buildCentroids(
-      signals: inputs.signals,
+      ratedSignals: inputs.ratedSignals,
+      partialSignals: inputs.partialSignals,
       embeddings: inputs.signalEmbeddings
     )
     guard let positiveCentroid = positive else {
@@ -208,7 +195,10 @@ struct RecommendationEngine: Sendable {
     return ScoringContext(
       positiveCentroid: positiveCentroid,
       negativeCentroid: negative,
-      podcastAffinities: computePodcastAffinities(signals: inputs.signals),
+      podcastAffinities: computePodcastAffinities(
+        ratedSignals: inputs.ratedSignals,
+        partialSignals: inputs.partialSignals
+      ),
       freshnessCadences: inputs.freshnessCadences
     )
   }
@@ -241,31 +231,36 @@ struct RecommendationEngine: Sendable {
   // MARK: - Build Centroids
 
   private static func buildCentroids(
-    signals: [SignalEpisode],
+    ratedSignals: [SignalEpisode],
+    partialSignals: [PartialSignal],
     embeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
   ) -> (positive: [Float]?, negative: [Float]?) {
     let now = Date()
-    var positiveVectors = [(vector: [Float], weight: Float)](capacity: signals.count)
-    var negativeVectors = [(vector: [Float], weight: Float)](capacity: signals.count)
+    let capacity = ratedSignals.count + partialSignals.count
+    var positiveVectors = [(vector: [Float], weight: Float)](capacity: capacity)
+    var negativeVectors = [(vector: [Float], weight: Float)](capacity: capacity)
 
-    for signal in signals {
+    for signal in ratedSignals {
       guard let cached = embeddings[id: signal.id] else { continue }
       let vector = cached.floatVector
+      let decay = temporalDecay(from: signal.ratingDate, now: now)
 
-      switch signal.kind {
-      case .rating(.loved):
-        let decay = temporalDecay(from: signal.ratingDate, now: now)
+      switch signal.rating {
+      case .loved:
         positiveVectors.append((vector, lovedWeight * decay))
-      case .rating(.liked):
-        let decay = temporalDecay(from: signal.ratingDate, now: now)
+      case .liked:
         positiveVectors.append((vector, likedWeight * decay))
-      case .rating(.disliked):
-        let decay = temporalDecay(from: signal.ratingDate, now: now)
+      case .disliked:
         negativeVectors.append((vector, decay))
-      case .finished:
-        let decay = temporalDecay(from: signal.finishDate, now: now)
-        positiveVectors.append((vector, finishedWeight * decay))
       }
+    }
+
+    for partial in partialSignals {
+      guard let cached = embeddings[id: partial.id] else { continue }
+      let weight =
+        partialWeight * Float(partial.coverageRatio)
+        * temporalDecay(from: partial.lastPlayedDate, now: now)
+      positiveVectors.append((cached.floatVector, weight))
     }
 
     let positive = computeWeightedCentroid(positiveVectors)
@@ -338,26 +333,33 @@ struct RecommendationEngine: Sendable {
   // MARK: - Podcast Affinity
 
   private static func computePodcastAffinities(
-    signals: [SignalEpisode]
+    ratedSignals: [SignalEpisode],
+    partialSignals: [PartialSignal]
   ) -> [Podcast.ID: Float] {
+    let capacity = ratedSignals.count + partialSignals.count
     var podcastStats = [Podcast.ID: (positive: Float, negative: Float, total: Float)](
-      capacity: signals.count
+      capacity: capacity
     )
 
-    for signal in signals {
+    for signal in ratedSignals {
       var stats = podcastStats[signal.podcastID] ?? (positive: 0, negative: 0, total: 0)
       stats.total += 1
 
-      switch signal.kind {
-      case .rating(.loved), .rating(.liked):
+      switch signal.rating {
+      case .loved, .liked:
         stats.positive += 1
-      case .rating(.disliked):
+      case .disliked:
         stats.negative += dislikedAffinityWeight
-      case .finished:
-        stats.positive += 0.5
       }
 
       podcastStats[signal.podcastID] = stats
+    }
+
+    for partial in partialSignals {
+      var stats = podcastStats[partial.podcastID] ?? (positive: 0, negative: 0, total: 0)
+      stats.total += 1
+      stats.positive += Float(partial.coverageRatio)
+      podcastStats[partial.podcastID] = stats
     }
 
     // Bayesian smoothed affinity: (positive - negative) / (total + prior).

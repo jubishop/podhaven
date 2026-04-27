@@ -525,6 +525,13 @@ enum Schema {
       try db.execute(sql: "ALTER TABLE podcast DROP COLUMN freshnessHalfLifeDays")
     }
 
+    migrator.registerMigration("v40") { db in
+      try db.alter(table: "episode") { t in
+        t.add(column: "playbackCoverage", .blob)
+        t.add(column: "lastPlayedDate", .datetime)
+      }
+    }
+
     return migrator
   }
 

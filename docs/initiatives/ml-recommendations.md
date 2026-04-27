@@ -51,19 +51,63 @@ After `repo.updateRating(episodeID, rating:)`, the UI callsite must kick off a n
 
 **How to apply:** When implementing rating UI actions on `worktree-appleMLRecommendations-UI`, after every `repo.updateRating` call, also spawn the single-episode embed task. Cheap (one episode = two inferences), no user-visible latency.
 
+## In progress
+
+### Listened-coverage signal (built 2026-04-27)
+
+Replaces the simple `finished` heuristic with a bitmap-based partial-listen signal. Code landed in this branch; pending integration testing on device before being moved to "Shipped follow-ups."
+
+**Schema (migration v40).** Two new columns on `episode`:
+- `playbackCoverage` BLOB nullable — packed 1-bit-per-3-seconds bitmap of chunks actually heard.
+- `lastPlayedDate` DATETIME nullable — timestamp of the last playback checkpoint.
+
+No `listenedDuration` column. Coverage ratio is computed in Swift from the BLOB on engine rebuild — single source of truth, no integer-vs-bitmap consistency burden.
+
+**`PlaybackCoverage` value type** (`PodHaven/Recommendations/PlaybackCoverage.swift`). Wraps the BLOB: `mark(startSeconds:endSeconds:)` OR-sets bits, `popcount × 3 / duration` gives the coverage ratio. ~150 bytes per hour-long episode at 3-second resolution. The 3s width aligns with the existing 3s playback checkpoint cadence so each checkpoint marks roughly one bit.
+
+**Playback write path** (`Repo.updatePlayback` + `PodAVPlayer.savePlaybackTick`). The 3s checkpoint extends to read-modify-write the BLOB and stamp `lastPlayedDate`. Caller passes `playedFrom` (the previous-checkpoint position) so the OR-mark covers exactly the seconds elapsed since last save. Backward jumps (post-seek) leave the bitmap untouched but still bump currentTime. Pause and seek paths stay on the existing `updateCurrentTime` (no bitmap, no lastPlayedDate stamp) so they don't claim listening time the user didn't actually accrue.
+
+**`Episode.signal` SQL:** `rated || (playbackCoverage IS NOT NULL)`. A bitmap exists only after a real playback checkpoint, so next-button finishes (no checkpoint, no bitmap) never enter the signal pool. Whether the episode is currently in progress, abandoned, or even finished is irrelevant — what matters is that real listening occurred.
+
+**`Episode.candidate` SQL:** unchanged — `unstarted && unfinished && !rated && unqueued`. Once `currentTime > 0`, the episode is permanently out of the candidate pool. No "re-admit long-abandoned episodes" clause — decided 2026-04-27 that if a user started something they saw it, regardless of how long ago.
+
+**Two-list signal model.** `SignalKind` was removed. Instead, `ScoringContextInputs` carries two parallel lists:
+
+```swift
+struct ScoringContextInputs {
+  let ratedSignals: [SignalEpisode]   // rated only — rating + ratingDate
+  let partialSignals: [PartialSignal] // bitmap-derived — coverageRatio + lastPlayedDate
+  // ...
+}
+```
+
+The engine processes them in two separate loops. `.finished`-as-signal was bad data (next-button polluted the positive centroid); the bitmap-derived partial is immune both to next-button (no checkpoint → no bitmap) and scrub-to-end (jumping ahead doesn't fill bits). Partial signals are positive-only; only explicit `.rating(.disliked)` contributes to the negative centroid. Listening to a little is weak interest, never aversion.
+
+**`finishDate` column kept.** Still drives queue/UI behavior, still excludes from `Episode.candidate` (so we don't re-recommend something the user dismissed via next-button), no longer feeds the centroid on its own.
+
+**Engine weights:**
+- `lovedWeight = 1.0`
+- `likedWeight = 0.6` (up from 0.5 — wider gap to `partialWeight` reinforces explicit > implicit)
+- `partialWeight = 0.4` (applied as `partialWeight × coverageRatio × decay`; fully covered ≈ 0.4, half covered ≈ 0.2, 10% covered ≈ 0.04 ≈ noise)
+- `finishedWeight` removed
+
+Temporal decay (existing 180-day half-life) applies to partials via `lastPlayedDate`, same role `ratingDate` plays for ratings.
+
+**Observation strategy.** With hundreds of signal episodes per user, per-checkpoint observation re-fetches would steal cycles even at `.utility`. So we exclude playback-path columns from the observed region and refresh on explicit triggers:
+
+- `SignalEpisode.databaseSelection` is `id, podcastId, rating, ratingDate`. The narrow GRDB observation only fires when rating columns change.
+- `PartialSignal` exists as its own `FetchableRecord` but is never fetched inside the observation closure — it's only read inside the merged stream's full-rebuild path.
+- `Observatory.refreshScoringContext()` (a `Broadcast<Int>` counter) is bumped by `PlayManager` on episode finish and episode change. Both triggers fan into a single `AsyncStream<ScoringContextInputs>` consumed by the engine.
+- `prepareForForeground` already calls `engine.start()` — catches anything missed across launches.
+- Pause does *not* trigger refresh — pauses-and-resumes for phone calls are routine; a pause-debounce would either flap or add staleness.
+
+Accepted tradeoff: in a single playback session, the engine cache reflects coverage as of session start. A user who listens for an hour without finishing, changing episodes, or backgrounding sees slightly stale recs until next session boundary. Niche; revisit if reported.
+
+**Files touched:**
+- New: `Recommendations/PlaybackCoverage.swift`, `Recommendations/PartialSignal.swift`, migration `v40`, tests `PlaybackCoverageTests`, `PlaybackCoverageRepoTests`, `V40MigrationTests`.
+- Modified: `Recommendations/SignalEpisode.swift` (rated-only), `Recommendations/ScoringContextInputs.swift` (two lists), `Recommendations/RecommendationEngine.swift` (weights + two-loop centroid), `Database/Models/Episode.swift` (signal SQL + `hasCoverage` + new column refs), `Database/Observatory.swift` (merged-stream `scoringContextInputs()` + `refreshScoringContext()`), `Database/Repo.swift` (`updatePlayback`, `allPartialSignals`), `Play/Utility/PodAVPlayer.swift` (`savePlaybackTick`), `Play/PlayManager.swift` (refresh triggers).
+
 ## Deferred to v2
-
-### `listenedDuration` + `lastPlayedDate` tracking
-
-Cross-cutting change, not a single column add. Touch points, in roughly the order to implement:
-
-1. **Schema migration** — add `listenedDuration` (CMTime/integer seconds) and `lastPlayedDate` (datetime) columns on `episode`, with triggers if we want them auto-maintained.
-2. **Playback write path** — update `listenedDuration` as the user plays. Must be *cumulative distinct* playback (re-listening the same segment shouldn't double-count), not just `currentTime`. Needs a design decision: track via interval math in `PlayManager`, or store a coverage bitmap per episode.
-3. **`Episode.signal` SQL expression** — expand from `rated || finished` to include a partial-listening threshold (e.g. `listenedDuration / duration >= 0.7`). DB-side filter must stay in sync with Swift-side classification.
-4. **`Episode.candidate` SQL expression** — currently `unstarted && unfinished && !rated && unqueued`. This permanently excludes any episode with `currentTime > 0`. v2 needs to re-admit long-abandoned ones: something like `(unstarted || (lowListenedRatio && lastPlayedOlderThan)) && unfinished && !rated && unqueued`.
-5. **`SignalKind` enum** — add cases for partial-listening signals, e.g. `.mostlyListened(ratio: Double)` (weak positive) and `.sampled(ratio: Double)` (weak negative). Associated values vs. bucketed cases is a design call.
-6. **`SignalEpisode.init(from:)`** — today it's total (every rated-or-finished episode is a signal). With thresholds added, it may need to become failable (`init?(from:)`) OR the SQL predicate must pre-filter so the init only runs on guaranteed signals. Keep explicit-rating-wins precedence: rating → finished → mostlyListened → sampled.
-7. **`RecommendationEngine` scoring (UI branch)** — decide where the new SignalKind cases go: `.mostlyListened` as positive-centroid at lower weight? `.sampled` as negative-centroid or ignored? Real engine change, not just plumbing.
 
 ### Per-podcast freshness half-life
 
