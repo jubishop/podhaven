@@ -229,131 +229,53 @@ struct Observatory: Sendable {
 
   // MARK: - Recommendations
 
-  // Two sources fan in: the narrow rating-only-plus-embeddings GRDB
-  // observation, and onDeck transitions (load/clear/change-episode).
-  // Partial-signal columns are excluded from every tracked region; the
-  // onDeck subscription is the only thing that surfaces them, by acting
-  // as a session-boundary signal without any explicit push from
-  // PlayManager.
-  func scoringContextInputs() -> AsyncStream<ScoringContextInputs> {
-    AsyncStream { continuation in
-      let trackedSource = _trackedSourceObservation()
-      let onDeckSource = sharedState.$onDeck.stream()
-      let db = repo.db
-
-      let task = Task {
-        await withTaskGroup(of: Void.self) { group in
-          group.addTask {
-            do {
-              for try await _ in trackedSource {
-                if Task.isCancelled { return }
-                guard
-                  let inputs = await Self._fetchScoringContextInputs(db: db)
-                else { continue }
-                continuation.yield(inputs)
-              }
-            } catch {
-              Self.log.caughtError(
-                "scoringContextInputs tracked observation failed",
-                error
-              )
-            }
-          }
-          group.addTask {
-            // The Broadcast yields the current value on subscribe and then
-            // every mutation — including in-session currentTime/artwork
-            // updates that mutate OnDeck without changing the episode. Only
-            // ID transitions are real session boundaries; the initial yield
-            // is skipped because the GRDB observation already covers cold
-            // hydration.
-            var lastID: Episode.ID? = nil
-            var sawFirst = false
-            for await onDeck in onDeckSource {
-              if Task.isCancelled { return }
-              let currentID = onDeck?.id
-              guard sawFirst else {
-                sawFirst = true
-                lastID = currentID
-                continue
-              }
-              guard currentID != lastID else { continue }
-              lastID = currentID
-              guard
-                let inputs = await Self._fetchScoringContextInputs(db: db)
-              else { continue }
-              continuation.yield(inputs)
-            }
-          }
-        }
-      }
-
-      continuation.onTermination = { _ in
-        task.cancel()
-      }
-    }
-  }
-
-  // Tracked region: rating columns + episodeEmbedding table + freshness
-  // cadences. Playback-path columns (currentTime, playbackCoverage,
-  // lastPlayedDate) are deliberately NOT referenced, so per-checkpoint
-  // writes don't fire this observation. The yielded value is discarded —
-  // each emission triggers a full `_fetchScoringContextInputs` rebuild.
-  private func _trackedSourceObservation() -> AsyncValueObservation<TrackedSourceFingerprint> {
+  // GRDB-driven stream. Tracked region: rating columns + episodeEmbedding
+  // table + freshness cadences. Playback-path columns (currentTime,
+  // playbackCoverage, lastPlayedDate) are deliberately NOT referenced so
+  // per-checkpoint writes during playback fire nothing. Partial-listen
+  // signals are still in the emitted struct because the closure does fetch
+  // them — they're just stale between emissions, and the engine pairs
+  // this stream with onDeck transitions to catch the gap.
+  func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
     _observe { db in
-      let signals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
-      let embeddings = try EpisodeEmbedding.all().fetchIdentifiedArray(db, id: \.episodeId)
-      let cadences = try Self._resolveFreshnessCadences(db)
-      return TrackedSourceFingerprint(
-        signals: signals,
-        embeddings: embeddings,
-        cadences: cadences
-      )
+      try Self._buildScoringContextInputs(db: db)
     }
   }
 
-  private static func _fetchScoringContextInputs(
-    db: any DatabaseReader
-  ) async -> ScoringContextInputs? {
-    do {
-      return try await db.read { db in
-        let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
-        let partialSignals =
-          try PartialSignal
-          .filter(Episode.hasCoverage && !Episode.rated)
-          .fetchAll(db)
-
-        let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
-        let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
-          signalIDs.isEmpty
-          ? IdentifiedArray(id: \.episodeId)
-          : try EpisodeEmbedding
-            .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
-            .fetchIdentifiedArray(db, id: \.episodeId)
-
-        let hasAnyEmbeddings =
-          try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
-
-        return ScoringContextInputs(
-          ratedSignals: ratedSignals,
-          partialSignals: partialSignals,
-          signalEmbeddings: signalEmbeddings,
-          hasAnyEmbeddings: hasAnyEmbeddings,
-          freshnessCadences: try Self._resolveFreshnessCadences(db)
-        )
-      }
-    } catch {
-      log.caughtError("scoringContextInputs fetch failed", error)
-      return nil
+  // One-shot read of the same shape `scoringContextInputs()` emits. Used
+  // by callers that have an out-of-band signal (e.g. the engine merging
+  // onDeck transitions) and need the latest snapshot.
+  func latestScoringContextInputs() async throws -> ScoringContextInputs {
+    try await repo.db.read { db in
+      try Self._buildScoringContextInputs(db: db)
     }
   }
 
-  // Tracked-side fingerprint: only what GRDB needs to observe in order to
-  // know "something relevant changed." Partial signals are deliberately
-  // absent — they're refetched outside the observation.
-  fileprivate struct TrackedSourceFingerprint: Sendable, Equatable {
-    let signals: [SignalEpisode]
-    let embeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
-    let cadences: [Podcast.ID: FreshnessCadence]
+  private static func _buildScoringContextInputs(db: Database) throws -> ScoringContextInputs {
+    let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
+    let partialSignals =
+      try PartialSignal
+      .filter(Episode.hasCoverage && !Episode.rated)
+      .fetchAll(db)
+
+    let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
+    let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
+      signalIDs.isEmpty
+      ? IdentifiedArray(id: \.episodeId)
+      : try EpisodeEmbedding
+        .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
+        .fetchIdentifiedArray(db, id: \.episodeId)
+
+    let hasAnyEmbeddings =
+      try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
+
+    return ScoringContextInputs(
+      ratedSignals: ratedSignals,
+      partialSignals: partialSignals,
+      signalEmbeddings: signalEmbeddings,
+      hasAnyEmbeddings: hasAnyEmbeddings,
+      freshnessCadences: try Self._resolveFreshnessCadences(db)
+    )
   }
 
   // MARK: - Private Helpers

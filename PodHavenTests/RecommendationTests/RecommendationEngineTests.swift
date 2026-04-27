@@ -589,7 +589,6 @@ class RecommendationEngineTests {
       playedFrom: CMTime.seconds(0),
       now: Date()
     )
-    observatory.refreshScoringContext()
 
     let (_, candidates) = try await createPodcastWithEpisodes(
       count: 2,
@@ -619,7 +618,6 @@ class RecommendationEngineTests {
       playedFrom: CMTime.seconds(0),
       now: Date()
     )
-    observatory.refreshScoringContext()
 
     let candidates = try await addEpisodes(to: playedPodcast, count: 1)
     try await embedEpisodes(candidates)
@@ -627,6 +625,54 @@ class RecommendationEngineTests {
     let recs = try await startAndWaitForRecs()
     let candidateRec = try #require(recs.first { $0.episode.id == candidates[0].id })
     #expect(candidateRec.score.reasons.contains(.podcastAffinity))
+  }
+
+  @Test("onDeck transition rebuilds the cache against fresh partial signals")
+  func onDeckTransitionRebuildsCache() async throws {
+    @DynamicInjected(\.sharedState) var sharedState: SharedState
+
+    let (_, ratedEpisodes) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Rated",
+      ratings: [.loved, .liked]
+    )
+    try await embedEpisodes(ratedEpisodes)
+
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Candidate"
+    )
+    try await embedEpisodes(candidates)
+
+    // Start the engine before any partial exists — initial cache lacks
+    // the third signal, so the rating-only count is below threshold.
+    engine.start()
+
+    let (_, played) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Played"
+    )
+    try await embedEpisodes(played)
+    let playedEpisode = try #require(played.first)
+    try await repo.updatePlayback(
+      playedEpisode.id,
+      currentTime: CMTime.seconds(1500),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+
+    // No GRDB observation fires for the bitmap write. An onDeck id
+    // transition is what propagates the partial signal into the cache.
+    let onDeckEpisode = try #require(try await repo.podcastEpisode(playedEpisode.id))
+    sharedState.$onDeck.new(OnDeck(from: onDeckEpisode))
+    sharedState.$onDeck.new(nil)
+
+    let engine = self.engine
+    let recs = try await Wait.forValue {
+      let recs = try await engine.topRecommendations()
+      return recs.isEmpty ? nil : recs
+    }
+    #expect(!recs.isEmpty)
   }
 
   @Test("a started-but-no-bitmap episode is NOT a signal (legacy / pre-v40)")

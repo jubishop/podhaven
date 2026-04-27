@@ -185,7 +185,7 @@ actor ObservatoryScoringContextInputsTests {
     let podcastID = podcast.id
     let cadence = ThreadSafe<FreshnessCadence?>(nil)
     Task {
-      for await inputs in observatory.scoringContextInputs() {
+      for try await inputs in observatory.scoringContextInputs() {
         cadence(inputs.freshnessCadences[podcastID])
       }
     }
@@ -260,7 +260,7 @@ actor ObservatoryScoringContextInputsTests {
 
     let partialCount = Counter()
     Task {
-      for await inputs in observatory.scoringContextInputs() {
+      for try await inputs in observatory.scoringContextInputs() {
         await partialCount(inputs.partialSignals.count)
       }
     }
@@ -291,7 +291,7 @@ actor ObservatoryScoringContextInputsTests {
 
     let signalCount = Counter()
     Task {
-      for await inputs in observatory.scoringContextInputs() {
+      for try await inputs in observatory.scoringContextInputs() {
         await signalCount(inputs.ratedSignals.count)
       }
     }
@@ -315,7 +315,7 @@ actor ObservatoryScoringContextInputsTests {
 
     let embeddingCount = Counter()
     Task {
-      for await inputs in observatory.scoringContextInputs() {
+      for try await inputs in observatory.scoringContextInputs() {
         await embeddingCount(inputs.signalEmbeddings.count)
       }
     }
@@ -339,7 +339,7 @@ actor ObservatoryScoringContextInputsTests {
 
     let signalCount = Counter()
     Task {
-      for await inputs in observatory.scoringContextInputs() {
+      for try await inputs in observatory.scoringContextInputs() {
         await signalCount(inputs.ratedSignals.count)
       }
     }
@@ -364,7 +364,7 @@ actor ObservatoryScoringContextInputsTests {
 
     let embeddingCount = Counter()
     Task {
-      for await inputs in observatory.scoringContextInputs() {
+      for try await inputs in observatory.scoringContextInputs() {
         await embeddingCount(inputs.signalEmbeddings.count)
       }
     }
@@ -409,7 +409,7 @@ actor ObservatoryScoringContextInputsTests {
 
     let emissionCount = Counter()
     Task {
-      for await _ in observatory.scoringContextInputs() {
+      for try await _ in observatory.scoringContextInputs() {
         await emissionCount.increment()
       }
     }
@@ -453,39 +453,19 @@ actor ObservatoryScoringContextInputsTests {
     )
   }
 
-  @Test("onDeck transitions surface partial signals written between observations")
-  func onDeckTransitionTriggersRebuild() async throws {
-    @DynamicInjected(\.sharedState) var sharedState: SharedState
-
+  @Test("latestScoringContextInputs returns the current snapshot on demand")
+  func latestSnapshotIncludesPartials() async throws {
     let podcast = try await insertPodcast()
-    let episode = try await upsertEpisode(podcast: podcast, title: "Played later")
-
-    let partialCount = Counter()
-    Task {
-      for await inputs in observatory.scoringContextInputs() {
-        await partialCount(inputs.partialSignals.count)
-      }
-    }
-    try await emissionCountWaitInitial(partialCount)
-
-    // Bitmap update writes columns the GRDB observation does not track, so
-    // no rebuild fires from the DB write alone. The episode-change signal
-    // (onDeck id transition) is what surfaces the new partial signal.
+    let episode = try await upsertEpisode(podcast: podcast, title: "Played")
     try await repo.updatePlayback(
       episode.id,
-      currentTime: CMTime.seconds(120),
+      currentTime: CMTime.seconds(600),
       playedFrom: CMTime.seconds(0),
       now: Date()
     )
 
-    let podcastEpisode = try #require(try await repo.podcastEpisode(episode.id))
-    sharedState.$onDeck.new(OnDeck(from: podcastEpisode))
-    sharedState.$onDeck.new(nil)
-
-    try await Wait.until(
-      { await partialCount.value == 1 },
-      { "Expected partial signal after onDeck transition, got \(await partialCount.value)" }
-    )
+    let inputs = try await observatory.latestScoringContextInputs()
+    #expect(inputs.partialSignals.contains { $0.id == episode.id })
   }
 
   private func emissionCountWaitInitial(_ counter: Counter) async throws {

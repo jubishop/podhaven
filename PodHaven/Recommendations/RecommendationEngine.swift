@@ -156,9 +156,40 @@ struct RecommendationEngine: Sendable {
 
   private func startObservingScoringContext() {
     Task(priority: taskPriority(.utility)) {
-      for await inputs in observatory.scoringContextInputs() {
+      do {
+        for try await inputs in observatory.scoringContextInputs() {
+          guard !Task.isCancelled else { return }
+          cache(Self.buildContext(from: inputs))
+        }
+      } catch {
+        Self.log.caughtError("scoringContextInputs observation failed", error)
+      }
+    }
+
+    // onDeck transitions cover session boundaries that the GRDB observation
+    // can't see — partial-listen bitmaps and lastPlayedDate are excluded
+    // from its tracked region. Each id change (load / change / clear)
+    // triggers a one-shot rebuild against the latest DB snapshot.
+    Task(priority: taskPriority(.utility)) {
+      let sharedState = Container.shared.sharedState()
+      var lastID: Episode.ID? = nil
+      var sawFirst = false
+      for await onDeck in sharedState.$onDeck.stream() {
         guard !Task.isCancelled else { return }
-        cache(Self.buildContext(from: inputs))
+        let currentID = onDeck?.id
+        guard sawFirst else {
+          sawFirst = true
+          lastID = currentID
+          continue
+        }
+        guard currentID != lastID else { continue }
+        lastID = currentID
+        do {
+          let inputs = try await observatory.latestScoringContextInputs()
+          cache(Self.buildContext(from: inputs))
+        } catch {
+          Self.log.caughtError("onDeck-triggered scoring rebuild failed", error)
+        }
       }
     }
   }
