@@ -51,6 +51,12 @@ private struct SystemImageName:
   static let edit = SystemImageName("pencil.circle")
   static let selectAll = SystemImageName("checklist")
 
+  // Episode Rating
+  static let loveEpisode = SystemImageName("heart.fill")
+  static let likeEpisode = SystemImageName("hand.thumbsup.fill")
+  static let dislikeEpisode = SystemImageName("hand.thumbsdown.fill")
+  static let rateEpisode = SystemImageName("hand.thumbsup")
+
   // Episode Status
   static let downloadEpisode = SystemImageName("arrow.down.circle")
   static let episodeCached = SystemImageName("arrow.down.circle.fill")
@@ -173,6 +179,13 @@ private struct SystemImageName:
   case replaceQueue
   case removeFromQueue
   case showEpisode
+
+  // Episode Rating Actions
+  case loveEpisode
+  case likeEpisode
+  case dislikeEpisode
+  case rateEpisode
+  case clearRating
 
   // Podcast Actions
   case delete
@@ -380,6 +393,18 @@ private struct SystemImageName:
       return Data(text: "Remove from Queue", systemImageName: .removeFromQueue, color: .red)
     case .showEpisode:
       return Data(text: "Show Episode", systemImageName: .showEpisode, color: .blue)
+
+    // Episode Rating Actions
+    case .loveEpisode:
+      return Data(text: "Love", systemImageName: .loveEpisode, color: .pink)
+    case .likeEpisode:
+      return Data(text: "Like", systemImageName: .likeEpisode, color: .blue)
+    case .dislikeEpisode:
+      return Data(text: "Dislike", systemImageName: .dislikeEpisode, color: .gray)
+    case .rateEpisode:
+      return Data(text: "Rate Episode", systemImageName: .rateEpisode, color: .indigo)
+    case .clearRating:
+      return Data(text: "Clear Rating", systemImageName: .clear, color: .red)
 
     // Podcast Actions
     case .delete:

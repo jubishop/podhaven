@@ -18,6 +18,7 @@ import Logging
   func removeEpisodeFromQueue(_ episode: EpisodeType)
   func cacheEpisode(_ episode: EpisodeType)
   func uncacheEpisode(_ episode: EpisodeType)
+  func rateEpisode(_ episode: EpisodeType, rating: EpisodeRating?)
   func markEpisodeFinished(_ episode: EpisodeType)
 
   func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
@@ -240,6 +241,23 @@ extension ManagingEpisodes {
         try await repo.markFinished(episodeID)
       } catch {
         Self.log.caughtError("markEpisodeFinished: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func rateEpisode(_ episode: EpisodeType, rating: EpisodeRating?) {
+    guard episode.rating != rating else { return }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let episodeID = try await getOrCreateEpisodeID(episode)
+        try await repo.updateRating(episodeID, rating: rating)
+      } catch {
+        Self.log.caughtError("rateEpisode: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

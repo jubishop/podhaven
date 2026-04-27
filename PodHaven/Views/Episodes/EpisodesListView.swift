@@ -142,4 +142,61 @@ struct EpisodesListView: View {
     }
   }
 }
+
+#Preview("Rating States") {
+  @Previewable @State var path: [String] = []
+
+  NavigationStack(path: $path) {
+    Button("Go to Rating States") {
+      path = ["episodes"]
+    }
+    .navigationDestination(for: String.self) { _ in
+      EpisodesListView(
+        viewModel: EpisodesListViewModel(
+          title: "Rating States",
+          filter: AppDB.NoOp
+        )
+      )
+    }
+  }
+  .preview()
+  .task {
+    do {
+      let repo = Container.shared.repo()
+      let allThumbnails = PreviewBundle.loadAllThumbnails()
+      let now = Date()
+
+      let cases: [(title: String, rating: EpisodeRating?)] = [
+        (title: "Unrated — swipe shows neutral icon", rating: nil),
+        (title: "Loved — swipe shows pink heart", rating: .loved),
+        (title: "Liked — swipe shows blue thumbs-up", rating: .liked),
+        (title: "Disliked — swipe shows gray thumbs-down", rating: .disliked),
+      ]
+
+      var episodes = IdentifiedArrayOf<UnsavedEpisode>()
+      for (index, entry) in cases.enumerated() {
+        let episode = try Create.unsavedEpisode(
+          title: entry.title,
+          pubDate: index.daysAgo,
+          duration: CMTime.seconds(2400),
+          image: allThumbnails.randomElement()!.value.url,
+          rating: entry.rating,
+          ratingDate: entry.rating == nil ? nil : now
+        )
+        episodes.append(episode)
+      }
+
+      _ = try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(title: "Rating States"),
+          unsavedEpisodes: episodes
+        )
+      )
+
+      path = ["episodes"]
+    } catch {
+      print("Preview error: \(error)")
+    }
+  }
+}
 #endif
