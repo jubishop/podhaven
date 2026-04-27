@@ -123,6 +123,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       Episode.Columns.finishDate,
       Episode.Columns.queueOrder,
       Episode.Columns.saveInCache,
+      Episode.Columns.rating,
       Episode.Columns.cachedFilename,
       Episode.Columns.downloadTaskID,
     ]

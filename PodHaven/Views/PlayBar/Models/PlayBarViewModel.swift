@@ -13,8 +13,10 @@ enum UndoSeekDirection {
 }
 
 @Observable @MainActor class PlayBarViewModel {
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
@@ -178,6 +180,28 @@ enum UndoSeekDirection {
       }
 
       await playManager.finishEpisode(currentEpisode.id)
+    }
+  }
+
+  // MARK: - Rating
+
+  func rate(_ rating: EpisodeRating?) {
+    guard let onDeck = sharedState.onDeck else {
+      Self.log.warning("No on-deck episode to rate")
+      return
+    }
+    guard onDeck.rating != rating else { return }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        try await repo.updateRating(onDeck.id, rating: rating)
+      } catch {
+        Self.log.caughtError("rate: failed for \(onDeck.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
     }
   }
 

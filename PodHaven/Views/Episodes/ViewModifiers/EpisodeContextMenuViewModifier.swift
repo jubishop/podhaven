@@ -55,19 +55,8 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
         }
 
         Menu {
-          AppIcon.loveEpisode.labelButton {
-            viewModel.rateEpisode(episode, rating: .loved)
-          }
-          AppIcon.likeEpisode.labelButton {
-            viewModel.rateEpisode(episode, rating: .liked)
-          }
-          AppIcon.dislikeEpisode.labelButton {
-            viewModel.rateEpisode(episode, rating: .disliked)
-          }
-          if episode.rating != nil {
-            AppIcon.clearRating.labelButton {
-              viewModel.rateEpisode(episode, rating: nil)
-            }
+          ratingMenuButtons(showClear: episode.rating != nil) { rating in
+            viewModel.rateEpisode(episode, rating: rating)
           }
         } label: {
           AppIcon.rating(for: episode.rating).label("Rate")
