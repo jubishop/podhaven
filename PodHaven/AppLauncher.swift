@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import AVFoundation
 import FactoryKit
 import Logging
 import Sentry
@@ -68,8 +69,12 @@ struct AppLauncher: Sendable {
 
     // Audio session and command handlers must be configured synchronously
     // to enable AirPods/lock screen controls even during background launches.
+    // Best-effort: failures here are logged but not retried — the playback
+    // path runs the full retry+alert workflow via Container.configureAudioSession.
     do {
-      try Container.shared.configureAudioSession()()
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
+      try session.setMode(.spokenAudio)
       CommandCenter.registerRemoteCommandHandlers()
     } catch {
       Self.log.caughtError("bootstrap: failed to configure audio session", error)

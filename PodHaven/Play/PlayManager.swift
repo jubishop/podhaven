@@ -11,24 +11,12 @@ import SwiftUI
 import Tagged
 
 extension Container {
-  var configureAudioSession: Factory<() throws -> Void> {
-    Factory(self) {
-      {
-        let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
-        try audioSession.setMode(.spokenAudio)
-      }
-    }
-    .scope(.cached)
-  }
-
-  // Performs the full audio-session configuration workflow: invokes
-  // `configureAudioSession`, retries with exponential backoff on failure
-  // (mediaservicesd is sometimes dead at launch — e.g., right after a
-  // TestFlight install/update — and typically respawns within a couple
-  // seconds), and surfaces an alert on terminal failure. Tests override
-  // this to skip retries.
-  var performAudioSessionConfiguration: Factory<@Sendable () async -> Bool> {
+  // Configures the audio session with retry-with-exponential-backoff. Returns
+  // true on success, false on terminal failure (after surfacing an alert).
+  // mediaservicesd is sometimes dead at launch — e.g., right after a TestFlight
+  // install/update — and typically respawns within a couple seconds, so we
+  // retry before giving up. Tests override this entire closure to skip retries.
+  var configureAudioSession: Factory<@Sendable () async -> Bool> {
     Factory(self) {
       {
         PlayManager.log.info("configureAudioSession: executing")
@@ -39,8 +27,9 @@ extension Container {
 
         for attempt in 1...maxAttempts {
           do {
-            try Container.shared.configureAudioSession()()
             let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
+            try session.setMode(.spokenAudio)
             PlayManager.log.info(
               """
               configureAudioSession: configured (attempt \(attempt)/\(maxAttempts))
@@ -190,11 +179,6 @@ final class PlayManager {
     }
   }
 
-  @discardableResult
-  func configureAudioSession() async -> Bool {
-    await Container.shared.performAudioSessionConfiguration()()
-  }
-
   // MARK: - Loading
 
   @discardableResult
@@ -219,7 +203,7 @@ final class PlayManager {
       setStatus(.loading(incoming.episode.title))
       await clearOnDeck()
 
-      guard await configureAudioSession() else {
+      guard await Container.shared.configureAudioSession()() else {
         await cleanUpAfterLoadFailure(outgoing, incoming)
         return false
       }
