@@ -66,17 +66,9 @@ Three places hold persistent project context — pick the right one when saving 
 - Prefer triple-quoted strings for multi-line or >100 character literals.
 - Run `swift-format` on every Swift file you touch before handing work back.
 - Use `//` for comments, not `///` (no doc comments).
-- `// MARK: - <Section>` dividers are encouraged for organizing files; they are not "comments" for this rule's purposes — keep them where they help readers navigate.
+- `// MARK: - <Section>` dividers are encouraged for organizing files; they are not "comments" — keep them where they help readers navigate.
 - **Default to NO comment.** Silence is the right call when the surrounding code already explains itself. Add one only when (1) the *why* is non-obvious — a hidden constraint, a non-obvious invariant, a workaround for a specific bug, or behavior that would surprise a reader, AND (2) a future reader couldn't recover the *why* from identifier names, the call site, or `git blame`.
-- **Length follows substance, not style.** Most comments that earn their place fit on a single line. A multi-line comment is fine when the *why* genuinely needs more — e.g., capturing a subtle invariant, the shape of a workaround, or the reasoning that future-you will need to weigh edge cases. The bar is "every line is load-bearing," not "shorter is better." Doc-style comments above types/functions/fields, written for completeness rather than necessity, are still wrong.
-- **Specific patterns that are NOT acceptable, even if they feel informative:**
-  - Summarizing what a type/function/property does at its declaration. The signature already says it.
-  - Justifying a design decision in code (e.g., `// chose 0.4 because partials are weaker than likes`). That belongs in the PR description or a design doc, not in the file.
-  - Describing consequences of the implementation (e.g., `// so calls won't double-count`, `// this means observation won't fire`). That's just restating behavior.
-  - Multi-line blocks above types or functions that read like documentation. If a contract truly needs spelling out, keep it tight and load-bearing.
-  - Comments above field/property declarations explaining the chosen value or grouping. Pick a name that conveys it, or skip the comment.
-  - Restating what a `MARK:` already says, or vice versa.
-- Comment audit: before saving a file, re-read each comment you added. If you can delete it without making the code harder to understand for someone who has never seen it, delete it. The bar is "would a competent reader be confused without this?" — not "does this clarify what I just did?"
+- **Length follows substance, not style.** Most comments that earn their place fit on a single line. A multi-line comment is fine when the *why* genuinely needs more — e.g., capturing a subtle invariant, the shape of a workaround, or the reasoning that future-you will need to weigh edge cases.
 - Never leave behind unused code, properties, or parameters. If something becomes unused, remove it immediately.
 - Avoid using `@unchecked`/`@retroactive`/`unsafe` in code unless absolutely necessary.
 - Avoid `inout` parameters; return values instead.

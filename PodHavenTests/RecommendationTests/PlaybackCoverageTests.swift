@@ -158,10 +158,18 @@ struct PlaybackCoverageTests {
 
   // MARK: - CMTime convenience
 
-  @Test("CMTime mark agrees with seconds-based mark")
+  @Test("CMTime mark agrees with seconds-based mark on aligned boundaries")
   func cmTimeMark() {
     var coverage = PlaybackCoverage(duration: CMTime.seconds(60))
-    coverage.mark(from: CMTime.seconds(10), to: CMTime.seconds(40))
+    coverage.mark(from: CMTime.seconds(9), to: CMTime.seconds(39))
     #expect(coverage.coveredSeconds == 30)
+  }
+
+  @Test("CMTime mark on a mid-chunk start rounds up to the chunk boundary")
+  func cmTimeMarkMidChunk() {
+    var coverage = PlaybackCoverage(duration: CMTime.seconds(60))
+    coverage.mark(from: CMTime.seconds(10), to: CMTime.seconds(40))
+    // [10, 40) overlaps chunks [9,12)..[39,42); 11 chunks × 3s = 33s.
+    #expect(coverage.coveredSeconds == 33)
   }
 }
