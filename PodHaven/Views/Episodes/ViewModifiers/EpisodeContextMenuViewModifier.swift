@@ -24,59 +24,86 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
           }
         }
 
-        if episode.queued {
-          AppIcon.removeFromQueue.labelButton {
-            viewModel.removeEpisodeFromQueue(episode)
-          }
+        Menu {
+          if episode.queued {
+            AppIcon.removeFromQueue.labelButton {
+              viewModel.removeEpisodeFromQueue(episode)
+            }
 
-          if !(episode.queueOrder == 0) {
-            AppIcon.moveToTop.labelButton {
+            if !(episode.queueOrder == 0) {
+              AppIcon.moveToTop.labelButton {
+                viewModel.queueEpisodeOnTop(episode)
+              }
+            }
+
+            if !isAtBottomOfQueue {
+              AppIcon.moveToBottom.labelButton {
+                viewModel.queueEpisodeAtBottom(episode)
+              }
+            }
+          } else {
+            AppIcon.queueAtTop.labelButton {
               viewModel.queueEpisodeOnTop(episode)
             }
-          }
 
-          if !isAtBottomOfQueue {
-            AppIcon.moveToBottom.labelButton {
+            AppIcon.queueAtBottom.labelButton {
               viewModel.queueEpisodeAtBottom(episode)
             }
           }
-        } else {
-          AppIcon.queueAtTop.labelButton {
-            viewModel.queueEpisodeOnTop(episode)
-          }
-
-          AppIcon.queueAtBottom.labelButton {
-            viewModel.queueEpisodeAtBottom(episode)
-          }
+        } label: {
+          AppIcon.episodeQueued.label("Queue")
         }
 
-        switch episode.cacheStatus {
-        case .caching:
-          if canClearCache {
-            AppIcon.cancelEpisodeDownload.labelButton {
-              viewModel.uncacheEpisode(episode)
+        Menu {
+          AppIcon.loveEpisode.labelButton {
+            viewModel.rateEpisode(episode, rating: .loved)
+          }
+          AppIcon.likeEpisode.labelButton {
+            viewModel.rateEpisode(episode, rating: .liked)
+          }
+          AppIcon.dislikeEpisode.labelButton {
+            viewModel.rateEpisode(episode, rating: .disliked)
+          }
+          if episode.rating != nil {
+            AppIcon.clearRating.labelButton {
+              viewModel.rateEpisode(episode, rating: nil)
             }
           }
-        case .cached:
-          if canClearCache {
-            AppIcon.uncacheEpisode.labelButton {
-              viewModel.uncacheEpisode(episode)
-            }
-          }
-        case .uncached:
-          AppIcon.cacheEpisode.labelButton {
-            viewModel.cacheEpisode(episode)
-          }
+        } label: {
+          ratingMenuIcon.label("Rate")
         }
 
-        if episode.saveInCache {
-          AppIcon.unsaveEpisodeFromCache.labelButton {
-            viewModel.unsaveEpisodeFromCache(episode)
+        Menu {
+          switch episode.cacheStatus {
+          case .caching:
+            if canClearCache {
+              AppIcon.cancelEpisodeDownload.labelButton {
+                viewModel.uncacheEpisode(episode)
+              }
+            }
+          case .cached:
+            if canClearCache {
+              AppIcon.uncacheEpisode.labelButton {
+                viewModel.uncacheEpisode(episode)
+              }
+            }
+          case .uncached:
+            AppIcon.cacheEpisode.labelButton {
+              viewModel.cacheEpisode(episode)
+            }
           }
-        } else {
-          AppIcon.saveEpisodeInCache.labelButton {
-            viewModel.saveEpisodeInCache(episode)
+
+          if episode.saveInCache {
+            AppIcon.unsaveEpisodeFromCache.labelButton {
+              viewModel.unsaveEpisodeFromCache(episode)
+            }
+          } else {
+            AppIcon.saveEpisodeInCache.labelButton {
+              viewModel.saveEpisodeInCache(episode)
+            }
           }
+        } label: {
+          AppIcon.cacheEpisode.label("Cache")
         }
 
         if !episode.finished {
@@ -85,6 +112,15 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
           }
         }
       }
+  }
+
+  private var ratingMenuIcon: AppIcon {
+    switch episode.rating {
+    case .loved: .loveEpisode
+    case .liked: .likeEpisode
+    case .disliked: .dislikeEpisode
+    case nil: .rateEpisode
+    }
   }
 }
 

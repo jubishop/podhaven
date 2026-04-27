@@ -746,18 +746,25 @@ struct Repo: Databasing, Sendable {
   }
 
   @discardableResult
-  func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool {
-    Self.log.debug("updateRating: \(episodeID) to \(String(describing: rating))")
+  func updateRating(_ episodeIDs: [Episode.ID], rating: EpisodeRating?) async throws -> Int {
+    Self.log.debug("updateRating: \(episodeIDs.count) episodes to \(String(describing: rating))")
+
+    guard !episodeIDs.isEmpty else { return 0 }
 
     return try await appDB.db.write { db in
       try Episode
-        .withID(episodeID)
+        .withIDs(episodeIDs)
         .updateAll(
           db,
           Episode.Columns.rating.set(to: rating),
           Episode.Columns.ratingDate.set(to: rating != nil ? Date() : nil)
         )
-    } > 0
+    }
+  }
+
+  @discardableResult
+  func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool {
+    try await updateRating([episodeID], rating: rating) > 0
   }
 
   @discardableResult

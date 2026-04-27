@@ -27,6 +27,7 @@ import Logging
   var anySelectedCanClearCache: Bool { get }
   var anySelectedCanStopCaching: Bool { get }
   var anySelectedUnfinished: Bool { get }
+  var anySelectedRated: Bool { get }
 
   func playSelectedEpisodes()
   func addSelectedEpisodesToTopOfQueue()
@@ -38,6 +39,7 @@ import Logging
   func unsaveSelectedEpisodesFromCache()
   func cancelSelectedEpisodeDownloads()
   func markSelectedEpisodesFinished()
+  func rateSelectedEpisodes(rating: EpisodeRating?)
 }
 
 extension SelectableEpisodeList {
@@ -101,6 +103,10 @@ extension SelectableEpisodeList {
 
   var anySelectedUnfinished: Bool {
     selectedEpisodes.contains { !$0.finished }
+  }
+
+  var anySelectedRated: Bool {
+    selectedEpisodes.contains { $0.rating != nil }
   }
 
   // MARK: - Actions
@@ -359,6 +365,24 @@ extension SelectableEpisodeList {
         try await repo.markFinished(episodeIDs)
       } catch {
         Self.log.caughtError("markSelectedEpisodesFinished: failed", error)
+      }
+    }
+  }
+
+  func rateSelectedEpisodes(rating: EpisodeRating?) {
+    guard !selectedEpisodes.isEmpty else { return }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let episodeIDs = try await selectedPodcastEpisodeIDs
+        try await repo.updateRating(episodeIDs, rating: rating)
+      } catch {
+        Self.log.caughtError(
+          "rateSelectedEpisodes: failed for \(selectedEpisodes.count) episodes",
+          error
+        )
       }
     }
   }

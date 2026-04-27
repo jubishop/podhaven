@@ -81,6 +81,60 @@ class EpisodeRatingTests {
     #expect(updated.ratingDate! > originalDate)
   }
 
+  // MARK: - Bulk Update Rating
+
+  @Test("bulk updateRating sets rating and ratingDate on all episodes")
+  func bulkUpdateRatingSetsAll() async throws {
+    let one = try await createPodcastWithEpisode()
+    let two = try await createPodcastWithEpisode()
+    let three = try await createPodcastWithEpisode()
+
+    let updated = try await repo.updateRating([one.id, two.id, three.id], rating: .loved)
+    #expect(updated == 3)
+
+    for id in [one.id, two.id, three.id] {
+      let fetched = try await repo.episode(id)!
+      #expect(fetched.rating == .loved)
+      #expect(fetched.ratingDate != nil)
+    }
+  }
+
+  @Test("bulk updateRating with nil clears rating and ratingDate")
+  func bulkUpdateRatingClearsAll() async throws {
+    let one = try await createPodcastWithEpisode(rating: .loved, ratingDate: Date())
+    let two = try await createPodcastWithEpisode(rating: .liked, ratingDate: Date())
+
+    let updated = try await repo.updateRating([one.id, two.id], rating: nil)
+    #expect(updated == 2)
+
+    for id in [one.id, two.id] {
+      let fetched = try await repo.episode(id)!
+      #expect(fetched.rating == nil)
+      #expect(fetched.ratingDate == nil)
+    }
+  }
+
+  @Test("bulk updateRating returns 0 for empty array and runs no write")
+  func bulkUpdateRatingEmpty() async throws {
+    let count = try await repo.updateRating([], rating: .loved)
+    #expect(count == 0)
+  }
+
+  @Test("bulk updateRating only touches the supplied IDs")
+  func bulkUpdateRatingScoped() async throws {
+    let target = try await createPodcastWithEpisode()
+    let untouched = try await createPodcastWithEpisode(rating: .liked, ratingDate: Date())
+
+    try await repo.updateRating([target.id], rating: .disliked)
+
+    let updatedTarget = try await repo.episode(target.id)!
+    #expect(updatedTarget.rating == .disliked)
+    #expect(updatedTarget.ratingDate != nil)
+
+    let untouchedAfter = try await repo.episode(untouched.id)!
+    #expect(untouchedAfter.rating == .liked)
+  }
+
   // MARK: - SQL Expressions
 
   @Test("SQL expressions filter correctly")

@@ -16,66 +16,93 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel:
             viewModel.playSelectedEpisodes()
           }
 
-          if viewModel.anySelectedNotQueued {
-            AppIcon.addSelectionToTop.labelButton {
-              viewModel.addSelectedEpisodesToTopOfQueue()
-            }
-
-            AppIcon.addSelectionToBottom.labelButton {
-              viewModel.addSelectedEpisodesToBottomOfQueue()
-            }
-
-            AppIcon.replaceQueue.labelButton {
-              viewModel.replaceQueueWithSelected()
-            }
-          } else {
-            if viewModel.anySelectedNotAtTopOfQueue {
-              AppIcon.moveToTop.labelButton {
+          Menu {
+            if viewModel.anySelectedNotQueued {
+              AppIcon.addSelectionToTop.labelButton {
                 viewModel.addSelectedEpisodesToTopOfQueue()
               }
-            }
 
-            if viewModel.anySelectedNotAtBottomOfQueue {
-              AppIcon.moveToBottom.labelButton {
+              AppIcon.addSelectionToBottom.labelButton {
                 viewModel.addSelectedEpisodesToBottomOfQueue()
               }
+
+              AppIcon.replaceQueue.labelButton {
+                viewModel.replaceQueueWithSelected()
+              }
+            } else {
+              if viewModel.anySelectedNotAtTopOfQueue {
+                AppIcon.moveToTop.labelButton {
+                  viewModel.addSelectedEpisodesToTopOfQueue()
+                }
+              }
+
+              if viewModel.anySelectedNotAtBottomOfQueue {
+                AppIcon.moveToBottom.labelButton {
+                  viewModel.addSelectedEpisodesToBottomOfQueue()
+                }
+              }
             }
+
+            if viewModel.anySelectedQueued {
+              AppIcon.removeFromQueue.labelButton {
+                viewModel.dequeueSelectedEpisodes()
+              }
+            }
+          } label: {
+            AppIcon.episodeQueued.label("Queue")
           }
 
-          if viewModel.anySelectedQueued {
-            AppIcon.removeFromQueue.labelButton {
-              viewModel.dequeueSelectedEpisodes()
+          Menu {
+            AppIcon.loveEpisode.labelButton {
+              viewModel.rateSelectedEpisodes(rating: .loved)
             }
+            AppIcon.likeEpisode.labelButton {
+              viewModel.rateSelectedEpisodes(rating: .liked)
+            }
+            AppIcon.dislikeEpisode.labelButton {
+              viewModel.rateSelectedEpisodes(rating: .disliked)
+            }
+            if viewModel.anySelectedRated {
+              AppIcon.clearRating.labelButton {
+                viewModel.rateSelectedEpisodes(rating: nil)
+              }
+            }
+          } label: {
+            AppIcon.rateEpisode.label("Rate")
           }
 
-          if viewModel.anySelectedCanStopCaching {
-            AppIcon.cancelEpisodeDownload.labelButton {
-              viewModel.cancelSelectedEpisodeDownloads()
+          Menu {
+            if viewModel.anySelectedCanStopCaching {
+              AppIcon.cancelEpisodeDownload.labelButton {
+                viewModel.cancelSelectedEpisodeDownloads()
+              }
             }
-          }
 
-          if viewModel.anySelectedNotCached {
-            AppIcon.cacheEpisode.labelButton {
-              viewModel.cacheSelectedEpisodes()
+            if viewModel.anySelectedNotCached {
+              AppIcon.cacheEpisode.labelButton {
+                viewModel.cacheSelectedEpisodes()
+              }
             }
-          }
 
-          if viewModel.anySelectedNotSavedInCache {
-            AppIcon.saveEpisodeInCache.labelButton {
-              viewModel.saveSelectedEpisodesInCache()
+            if viewModel.anySelectedNotSavedInCache {
+              AppIcon.saveEpisodeInCache.labelButton {
+                viewModel.saveSelectedEpisodesInCache()
+              }
             }
-          }
 
-          if viewModel.anySelectedSavedInCache {
-            AppIcon.unsaveEpisodeFromCache.labelButton {
-              viewModel.unsaveSelectedEpisodesFromCache()
+            if viewModel.anySelectedSavedInCache {
+              AppIcon.unsaveEpisodeFromCache.labelButton {
+                viewModel.unsaveSelectedEpisodesFromCache()
+              }
             }
-          }
 
-          if viewModel.anySelectedCanClearCache {
-            AppIcon.uncacheEpisode.labelButton {
-              viewModel.uncacheSelectedEpisodes()
+            if viewModel.anySelectedCanClearCache {
+              AppIcon.uncacheEpisode.labelButton {
+                viewModel.uncacheSelectedEpisodes()
+              }
             }
+          } label: {
+            AppIcon.cacheEpisode.label("Cache")
           }
 
           if viewModel.anySelectedUnfinished {

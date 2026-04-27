@@ -342,12 +342,21 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
+  func updateRating(_ episodeIDs: [Episode.ID], rating: EpisodeRating?) async throws -> Int {
+    recordCall(
+      methodName: "updateRating",
+      parameters: (episodeIDs: episodeIDs, rating: rating)
+    )
+    return try await repo.updateRating(episodeIDs, rating: rating)
+  }
+
+  @discardableResult
   func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool {
     recordCall(
       methodName: "updateRating",
       parameters: (episodeID: episodeID, rating: rating)
     )
-    return try await repo.updateRating(episodeID, rating: rating)
+    return try await updateRating([episodeID], rating: rating) > 0
   }
 
   @discardableResult
