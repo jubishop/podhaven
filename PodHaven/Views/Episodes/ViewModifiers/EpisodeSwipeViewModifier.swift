@@ -7,10 +7,11 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
   let viewModel: ViewModel
   let episode: ViewModel.EpisodeType
 
+  @State private var isRatingDialogPresented = false
+
   func body(content: Content) -> some View {
     let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
     let isAtBottomOfQueue = viewModel.isEpisodeAtBottomOfQueue(episode)
-    let canClearCache = viewModel.canClearCache(episode)
 
     content
       .swipeActions(edge: .leading) {
@@ -52,25 +53,39 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
           }
         }
 
-        switch episode.cacheStatus {
-        case .caching:
-          if canClearCache {
-            AppIcon.cancelEpisodeDownload.imageButton {
-              viewModel.uncacheEpisode(episode)
-            }
-          }
-        case .cached:
-          if canClearCache {
-            AppIcon.uncacheEpisode.imageButton {
-              viewModel.uncacheEpisode(episode)
-            }
-          }
-        case .uncached:
-          AppIcon.cacheEpisode.imageButton {
-            viewModel.cacheEpisode(episode)
+        ratingTriggerIcon.imageButton {
+          isRatingDialogPresented = true
+        }
+      }
+      .confirmationDialog(
+        "Rate Episode",
+        isPresented: $isRatingDialogPresented,
+        titleVisibility: .visible
+      ) {
+        Button(AppIcon.loveEpisode.text) {
+          viewModel.rateEpisode(episode, rating: .loved)
+        }
+        Button(AppIcon.likeEpisode.text) {
+          viewModel.rateEpisode(episode, rating: .liked)
+        }
+        Button(AppIcon.dislikeEpisode.text) {
+          viewModel.rateEpisode(episode, rating: .disliked)
+        }
+        if episode.rating != nil {
+          Button(AppIcon.clearRating.text, role: .destructive) {
+            viewModel.rateEpisode(episode, rating: nil)
           }
         }
       }
+  }
+
+  private var ratingTriggerIcon: AppIcon {
+    switch episode.rating {
+    case .loved: .loveEpisode
+    case .liked: .likeEpisode
+    case .disliked: .dislikeEpisode
+    case nil: .rateEpisode
+    }
   }
 }
 
