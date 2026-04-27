@@ -3,13 +3,9 @@
 import Foundation
 import SwiftUI
 
-struct EpisodeContextMenuViewModifier<
-  ViewModel: ManagingEpisodes,
-  AdditionalContent: View
->: ViewModifier {
+struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
   let viewModel: ViewModel
   let episode: ViewModel.EpisodeType
-  @ViewBuilder let additionalContent: () -> AdditionalContent
 
   func body(content: Content) -> some View {
     let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
@@ -88,24 +84,15 @@ struct EpisodeContextMenuViewModifier<
             viewModel.markEpisodeFinished(episode)
           }
         }
-
-        additionalContent()
       }
   }
 }
 
 extension View {
-  func episodeContextMenu<ViewModel: ManagingEpisodes, AdditionalContent: View>(
+  func episodeContextMenu<ViewModel: ManagingEpisodes>(
     viewModel: ViewModel,
-    episode: ViewModel.EpisodeType,
-    @ViewBuilder additionalContent: @escaping () -> AdditionalContent = { EmptyView() }
+    episode: ViewModel.EpisodeType
   ) -> some View {
-    self.modifier(
-      EpisodeContextMenuViewModifier(
-        viewModel: viewModel,
-        episode: episode,
-        additionalContent: additionalContent
-      )
-    )
+    self.modifier(EpisodeContextMenuViewModifier(viewModel: viewModel, episode: episode))
   }
 }

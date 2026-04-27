@@ -19,14 +19,12 @@ import Logging
   func cacheEpisode(_ episode: EpisodeType)
   func uncacheEpisode(_ episode: EpisodeType)
   func markEpisodeFinished(_ episode: EpisodeType)
-  func showPodcast(_ episode: EpisodeType)
 
   func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
 }
 
 extension ManagingEpisodes {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
-  private var navigation: Navigation { Container.shared.navigation() }
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
   private var repo: any Databasing { Container.shared.repo() }
@@ -242,20 +240,6 @@ extension ManagingEpisodes {
         try await repo.markFinished(episodeID)
       } catch {
         Self.log.caughtError("markEpisodeFinished: failed for \(episode.title)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
-  func showPodcast(_ episode: EpisodeType) {
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await navigation.showPodcast(getOrCreatePodcastEpisode(episode).podcast)
-      } catch {
-        Self.log.caughtError("showPodcast: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
