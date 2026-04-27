@@ -53,19 +53,8 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel:
           }
 
           Menu {
-            AppIcon.loveEpisode.labelButton {
-              viewModel.rateSelectedEpisodes(rating: .loved)
-            }
-            AppIcon.likeEpisode.labelButton {
-              viewModel.rateSelectedEpisodes(rating: .liked)
-            }
-            AppIcon.dislikeEpisode.labelButton {
-              viewModel.rateSelectedEpisodes(rating: .disliked)
-            }
-            if viewModel.anySelectedRated {
-              AppIcon.clearRating.labelButton {
-                viewModel.rateSelectedEpisodes(rating: nil)
-              }
+            ratingMenuButtons(showClear: viewModel.anySelectedRated) { rating in
+              viewModel.rateSelectedEpisodes(rating: rating)
             }
           } label: {
             AppIcon.rateEpisode.label("Rate")
