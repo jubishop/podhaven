@@ -11,11 +11,8 @@ import SwiftUI
 import Tagged
 
 extension Container {
-  // Configures the audio session with retry-with-exponential-backoff. Returns
-  // true on success, false on terminal failure (after surfacing an alert).
-  // mediaservicesd is sometimes dead at launch — e.g., right after a TestFlight
-  // install/update — and typically respawns within a couple seconds, so we
-  // retry before giving up. Tests override this entire closure to skip retries.
+  // Retries because mediaservicesd is sometimes dead at launch (e.g., right
+  // after a TestFlight install/update) and typically respawns within seconds.
   var configureAudioSession: Factory<@Sendable () async -> Bool> {
     Factory(self) {
       {

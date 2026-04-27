@@ -60,20 +60,13 @@ struct AppLauncher: Sendable {
     cachePurger.register()
     embeddingProcessor.register()
 
-    // Per Apple's guidance for AVAudioSession.mediaServicesWereResetNotification,
-    // be ready to respond to a media-services reset before any audio session
-    // configuration. Subscribing here means we won't miss a respawn event if
-    // mediaservicesd is unavailable at launch (e.g., right after a TestFlight
-    // install/update). startStreamConsumers is idempotent.
+    // Subscribe before audio session config so a mediaservicesd respawn during
+    // launch isn't missed (Apple guidance for mediaServicesWereResetNotification).
     playManager.startStreamConsumers()
 
-    // Audio session and command handlers must be configured synchronously
-    // to enable AirPods/lock screen controls even during background launches —
-    // that's why we attempt the AVAudioSession calls inline first instead of
-    // hopping straight to the async factory. If the sync attempt fails
-    // (mediaservicesd dead at launch — common right after a TestFlight
-    // install/update), fall back to the async retry+backoff factory; remote
-    // command handlers register on success.
+    // Must be synchronous so AirPods/lock-screen controls register before iOS
+    // evaluates background-launch capability. Sync failure falls back to the
+    // async retry factory.
     do {
       let session = AVAudioSession.sharedInstance()
       try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)

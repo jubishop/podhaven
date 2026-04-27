@@ -60,18 +60,10 @@ extension Container {
 }
 
 @Observable @MainActor class SheetConfig: Identifiable {
-  // Per-presentation identity. Each callAsFunction creates a new SheetConfig
-  // with a fresh UUID so SwiftUI's `.sheet(item:)` sees an identity change and
-  // re-presents. This avoids the bool-based `.sheet(isPresented:)` failure
-  // mode where a stale non-nil config can leave the binding's isPresented
-  // wedged at true and silently swallow new presentations.
+  // Fresh per-presentation so .sheet(item:) sees an identity change on every call.
   let id = UUID()
 
-  // Optional user-supplied key for deduping rapid duplicate presentations of
-  // the same logical thing (e.g., presenting the same EpisodeDetail twice in
-  // succession should be a no-op, not a dismiss-and-re-present flicker).
   let userID: AnyHashable?
-
   let content: AnyView
 
   init<Content: View>(userID: AnyHashable?, @ViewBuilder content: @escaping () -> Content) {
@@ -85,11 +77,7 @@ extension View {
     sheet(item: config) { sheetConfig in
       sheetConfig.content
         .onDisappear {
-          // Defensive desync recovery for the bug we're fixing: if SwiftUI's
-          // binding-setter never fires during dismissal, `config` stays
-          // non-nil and a re-present with the same userID would short-circuit
-          // via dedup. Clearing here makes that dedup naturally fail. The id
-          // guard avoids racing with a freshly-presented sheet.
+          // Recover if SwiftUI's binding-setter doesn't fire on dismissal.
           if config.wrappedValue?.id == sheetConfig.id {
             Sheet.log.debug(
               """
