@@ -251,14 +251,12 @@ actor ObservatoryScoringContextInputsTests {
     let podcast = try await insertPodcast()
     let episode = try await upsertEpisode(podcast: podcast, title: "Played")
 
-    // Simulate a playback session: 0–600s of a 1800s episode listened.
     try await repo.updatePlayback(
       episode.id,
       currentTime: CMTime.seconds(600),
       playedFrom: CMTime.seconds(0),
       now: Date()
     )
-    observatory.refreshScoringContext()
 
     let partialCount = Counter()
     Task {
@@ -455,8 +453,10 @@ actor ObservatoryScoringContextInputsTests {
     )
   }
 
-  @Test("explicit refreshScoringContext() re-emits with up-to-date partial signals")
-  func explicitRefreshTriggersRebuild() async throws {
+  @Test("onDeck transitions surface partial signals written between observations")
+  func onDeckTransitionTriggersRebuild() async throws {
+    @DynamicInjected(\.sharedState) var sharedState: SharedState
+
     let podcast = try await insertPodcast()
     let episode = try await upsertEpisode(podcast: podcast, title: "Played later")
 
@@ -468,8 +468,9 @@ actor ObservatoryScoringContextInputsTests {
     }
     try await emissionCountWaitInitial(partialCount)
 
-    // Bitmap update writes a column the GRDB observation does NOT track,
-    // so the engine sees nothing change — until the explicit refresh poke.
+    // Bitmap update writes columns the GRDB observation does not track, so
+    // no rebuild fires from the DB write alone. The episode-change signal
+    // (onDeck id transition) is what surfaces the new partial signal.
     try await repo.updatePlayback(
       episode.id,
       currentTime: CMTime.seconds(120),
@@ -477,11 +478,13 @@ actor ObservatoryScoringContextInputsTests {
       now: Date()
     )
 
-    observatory.refreshScoringContext()
+    let podcastEpisode = try #require(try await repo.podcastEpisode(episode.id))
+    sharedState.$onDeck.new(OnDeck(from: podcastEpisode))
+    sharedState.$onDeck.new(nil)
 
     try await Wait.until(
       { await partialCount.value == 1 },
-      { "Expected partial signal after explicit refresh, got \(await partialCount.value)" }
+      { "Expected partial signal after onDeck transition, got \(await partialCount.value)" }
     )
   }
 

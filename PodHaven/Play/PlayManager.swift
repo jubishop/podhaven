@@ -102,7 +102,6 @@ final class PlayManager {
   @DynamicInjected(\.fileManager) var fileManager
   @DynamicInjected(\.imagePipeline) private var imagePipeline
   @DynamicInjected(\.notifications) var notifications
-  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.queue) var queue
   @DynamicInjected(\.repo) var repo
   @DynamicInjected(\.sharedState) var sharedState
@@ -262,7 +261,6 @@ final class PlayManager {
           error
         )
       }
-      observatory.refreshScoringContext()
     }
   }
 
@@ -363,8 +361,6 @@ final class PlayManager {
     } catch {
       Self.log.caughtError("finishEpisode: failed to mark episode \(episodeID) finished", error)
     }
-
-    observatory.refreshScoringContext()
 
     guard episodeID == onDeckID
     else { return }

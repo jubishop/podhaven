@@ -17,18 +17,8 @@ struct Observatory: Sendable {
   // MARK: - Initialization
 
   private let repo: any Databasing
-  // Manual fanout for partial-listen signals: their underlying columns are
-  // excluded from GRDB tracking, so the engine only sees them when this
-  // counter bumps. PlayManager fires it at session boundaries.
-  private let refreshTrigger: Broadcast<Int>
-
   fileprivate init(_ repo: any Databasing) {
     self.repo = repo
-    self.refreshTrigger = Broadcast<Int>(0)
-  }
-
-  func refreshScoringContext() {
-    refreshTrigger.update { $0 += 1 }
   }
 
   // MARK: - Podcasts
@@ -239,17 +229,19 @@ struct Observatory: Sendable {
 
   // MARK: - Recommendations
 
-  // Two sources fan in: the narrow rating-only GRDB observation, and
-  // `refreshScoringContext()` bumps. Each emission re-fetches the full
-  // ScoringContextInputs (rated + partial). Partial-signal columns are
-  // never in any tracked region; this is the only path that surfaces them.
+  // Two sources fan in: the narrow rating-only-plus-embeddings GRDB
+  // observation, and onDeck transitions (load/clear/change-episode).
+  // Partial-signal columns are excluded from every tracked region; the
+  // onDeck subscription is the only thing that surfaces them, by acting
+  // as a session-boundary signal without any explicit push from
+  // PlayManager.
   func scoringContextInputs() -> AsyncStream<ScoringContextInputs> {
     AsyncStream { continuation in
       let trackedSource = _trackedSourceObservation()
-      let refreshSource = refreshTrigger.stream()
+      let onDeckSource = sharedState.$onDeck.stream()
       let db = repo.db
 
-      let task = Task { [refreshSource] in
+      let task = Task {
         await withTaskGroup(of: Void.self) { group in
           group.addTask {
             do {
@@ -268,11 +260,24 @@ struct Observatory: Sendable {
             }
           }
           group.addTask {
-            // Broadcast.stream() yields its current value on subscribe; that
-            // initial fire would double up with the GRDB observation's own
-            // initial emission, so skip it.
-            for await _ in refreshSource.dropFirst() {
+            // The Broadcast yields the current value on subscribe and then
+            // every mutation — including in-session currentTime/artwork
+            // updates that mutate OnDeck without changing the episode. Only
+            // ID transitions are real session boundaries; the initial yield
+            // is skipped because the GRDB observation already covers cold
+            // hydration.
+            var lastID: Episode.ID? = nil
+            var sawFirst = false
+            for await onDeck in onDeckSource {
               if Task.isCancelled { return }
+              let currentID = onDeck?.id
+              guard sawFirst else {
+                sawFirst = true
+                lastID = currentID
+                continue
+              }
+              guard currentID != lastID else { continue }
+              lastID = currentID
               guard
                 let inputs = await Self._fetchScoringContextInputs(db: db)
               else { continue }
