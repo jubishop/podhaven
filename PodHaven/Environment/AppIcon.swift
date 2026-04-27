@@ -878,3 +878,18 @@ private struct AppIconImageButton: View {
     .opacity(isEnabled ? 1 : 0.4)
   }
 }
+
+// MARK: - Rating
+
+#if !WIDGET_EXTENSION
+extension AppIcon {
+  static func rating(for rating: EpisodeRating?) -> AppIcon {
+    switch rating {
+    case .loved: .loveEpisode
+    case .liked: .likeEpisode
+    case .disliked: .dislikeEpisode
+    case nil: .rateEpisode
+    }
+  }
+}
+#endif

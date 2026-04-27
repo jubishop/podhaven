@@ -352,6 +352,23 @@ import Tagged
     }
   }
 
+  func rate(_ rating: EpisodeRating?) {
+    guard episode.rating != rating else { return }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        try await repo.updateRating(podcastEpisode.id, rating: rating)
+      } catch {
+        Self.log.caughtError("rate: failed for \(episode.toString)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
   func showPodcast() {
     Task { [weak self] in
       guard let self else { return }
