@@ -36,10 +36,6 @@ struct PodcastListView<Podcast: PodcastListable>: View {
       isSelecting: isSelecting,
       isSelected: isSelected
     )
-    .subscriptionBadge(
-      subscribed: podcastWithMetadata.subscribed,
-      badgeSize: 12
-    )
   }
 
   var podcastInfoSection: some View {
@@ -59,6 +55,11 @@ struct PodcastListView<Podcast: PodcastListable>: View {
         }
 
         Spacer()
+
+        if podcastWithMetadata.subscribed {
+          AppIcon.subscribed.image
+          Spacer()
+        }
 
         CompactMetadataItem(appIcon: .episodeCount, value: "\(podcastWithMetadata.episodeCount) Ep")
       }
