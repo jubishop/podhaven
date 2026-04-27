@@ -245,7 +245,7 @@ struct Observatory: Sendable {
   // never in any tracked region; this is the only path that surfaces them.
   func scoringContextInputs() -> AsyncStream<ScoringContextInputs> {
     AsyncStream { continuation in
-      let ratingSource = _ratingObservation()
+      let trackedSource = _trackedSourceObservation()
       let refreshSource = refreshTrigger.stream()
       let db = repo.db
 
@@ -253,7 +253,7 @@ struct Observatory: Sendable {
         await withTaskGroup(of: Void.self) { group in
           group.addTask {
             do {
-              for try await _ in ratingSource {
+              for try await _ in trackedSource {
                 if Task.isCancelled { return }
                 guard
                   let inputs = await Self._fetchScoringContextInputs(db: db)
@@ -262,13 +262,16 @@ struct Observatory: Sendable {
               }
             } catch {
               Self.log.caughtError(
-                "scoringContextInputs rating observation failed",
+                "scoringContextInputs tracked observation failed",
                 error
               )
             }
           }
           group.addTask {
-            for await _ in refreshSource {
+            // Broadcast.stream() yields its current value on subscribe; that
+            // initial fire would double up with the GRDB observation's own
+            // initial emission, so skip it.
+            for await _ in refreshSource.dropFirst() {
               if Task.isCancelled { return }
               guard
                 let inputs = await Self._fetchScoringContextInputs(db: db)
@@ -285,9 +288,21 @@ struct Observatory: Sendable {
     }
   }
 
-  private func _ratingObservation() -> AsyncValueObservation<[SignalEpisode]> {
+  // Tracked region: rating columns + episodeEmbedding table + freshness
+  // cadences. Playback-path columns (currentTime, playbackCoverage,
+  // lastPlayedDate) are deliberately NOT referenced, so per-checkpoint
+  // writes don't fire this observation. The yielded value is discarded —
+  // each emission triggers a full `_fetchScoringContextInputs` rebuild.
+  private func _trackedSourceObservation() -> AsyncValueObservation<TrackedSourceFingerprint> {
     _observe { db in
-      try SignalEpisode.filter(Episode.rated).fetchAll(db)
+      let signals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
+      let embeddings = try EpisodeEmbedding.all().fetchIdentifiedArray(db, id: \.episodeId)
+      let cadences = try Self._resolveFreshnessCadences(db)
+      return TrackedSourceFingerprint(
+        signals: signals,
+        embeddings: embeddings,
+        cadences: cadences
+      )
     }
   }
 
@@ -327,7 +342,16 @@ struct Observatory: Sendable {
     }
   }
 
-  // Private Helpers
+  // Tracked-side fingerprint: only what GRDB needs to observe in order to
+  // know "something relevant changed." Partial signals are deliberately
+  // absent — they're refetched outside the observation.
+  fileprivate struct TrackedSourceFingerprint: Sendable, Equatable {
+    let signals: [SignalEpisode]
+    let embeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
+    let cadences: [Podcast.ID: FreshnessCadence]
+  }
+
+  // MARK: - Private Helpers
 
   // Manual choices win; nil-cadence podcasts get inferred from their
   // pubDates. Podcasts with no episodes and no manual choice are absent.

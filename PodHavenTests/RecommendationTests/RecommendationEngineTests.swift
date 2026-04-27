@@ -570,7 +570,6 @@ class RecommendationEngineTests {
 
   @Test("partial-listen signals contribute alongside ratings")
   func partialSignalsContribute() async throws {
-    // Two rated episodes (one short of the rating-only threshold).
     let (_, ratedEpisodes) = try await createPodcastWithEpisodes(
       count: 2,
       podcastTitle: "Rated",
@@ -578,8 +577,6 @@ class RecommendationEngineTests {
     )
     try await embedEpisodes(ratedEpisodes)
 
-    // One played episode whose bitmap proves real engagement — pushes the
-    // total signal count to the 3-episode threshold.
     let (_, playedEpisodes) = try await createPodcastWithEpisodes(
       count: 1,
       podcastTitle: "Played"
@@ -602,6 +599,54 @@ class RecommendationEngineTests {
 
     let recs = try await startAndWaitForRecs()
     #expect(!recs.isEmpty)
+  }
+
+  @Test("partial signals lift podcast affinity for the played show")
+  func partialSignalsLiftAffinity() async throws {
+    let (playedPodcast, ratedEpisodes) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "BaselineRatings",
+      ratings: [.loved, .liked]
+    )
+    try await embedEpisodes(ratedEpisodes)
+
+    let played = try await addEpisodes(to: playedPodcast, count: 1)
+    try await embedEpisodes(played)
+    let playedID = try #require(played.first?.id)
+    try await repo.updatePlayback(
+      playedID,
+      currentTime: CMTime.seconds(1700),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+    observatory.refreshScoringContext()
+
+    let candidates = try await addEpisodes(to: playedPodcast, count: 1)
+    try await embedEpisodes(candidates)
+
+    let recs = try await startAndWaitForRecs()
+    let candidateRec = try #require(recs.first { $0.episode.id == candidates[0].id })
+    #expect(candidateRec.score.reasons.contains(.podcastAffinity))
+  }
+
+  @Test("a started-but-no-bitmap episode is NOT a signal (legacy / pre-v40)")
+  func startedWithoutBitmapNotSignal() async throws {
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    let (_, started) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Legacy"
+    )
+    let legacyID = try #require(started.first?.id)
+    try await repo.updateCurrentTime(legacyID, currentTime: CMTime.seconds(60))
+
+    let partials = try await repo.allPartialSignals()
+    #expect(partials.contains { $0.id == legacyID } == false)
   }
 
   // MARK: - Signals without embeddings
