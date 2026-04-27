@@ -78,6 +78,9 @@ struct AppLauncher: Sendable {
         error
       )
       Task {
+        // Give mediaservicesd a moment to respawn before the factory's first attempt,
+        // since the sync call just confirmed it's down.
+        try? await Container.shared.sleeper().sleep(for: .milliseconds(250))
         guard await Container.shared.configureAudioSession()() else { return }
         CommandCenter.registerRemoteCommandHandlers()
       }
