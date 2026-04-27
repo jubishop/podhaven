@@ -38,6 +38,14 @@ struct EpisodesView: View {
           value: Navigation.Destination.episodesViewType(.previouslyQueued),
           label: { Text("Previously Queued") }
         )
+        NavigationLink(
+          value: Navigation.Destination.episodesViewType(.liked),
+          label: { Text("Liked") }
+        )
+        NavigationLink(
+          value: Navigation.Destination.episodesViewType(.disliked),
+          label: { Text("Disliked") }
+        )
       }
       .navigationTitle("Episodes")
     }

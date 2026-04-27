@@ -23,15 +23,12 @@ struct PlayBarSheet: View {
       sheetArtwork
 
       VStack(spacing: spacing) {
-        HStack {
+        HStack(spacing: spacing) {
           Spacer()
 
           if let onDeck = sharedState.onDeck {
-            ShareEpisodeButton(episode: onDeck)
-              .font(.title3)
-              .padding(spacing / 2)
-              .glassEffect(.clear.interactive(), in: .capsule)
-              .disabled(isShowingSpeedPopover)
+            topBarButtonStyle(ShareEpisodeButton(episode: onDeck))
+            topBarButtonStyle(ratingMenu(rating: onDeck.rating))
           }
         }
         .padding(.horizontal, spacing)
@@ -86,6 +83,23 @@ struct PlayBarSheet: View {
       }
     }
     .ignoresSafeArea()
+  }
+
+  @ViewBuilder
+  private func ratingMenu(rating: EpisodeRating?) -> some View {
+    Menu {
+      ratingMenuButtons(showClear: rating != nil, rate: viewModel.rate)
+    } label: {
+      AppIcon.rating(for: rating).image
+    }
+  }
+
+  private func topBarButtonStyle<V: View>(_ content: V) -> some View {
+    content
+      .font(.title3)
+      .padding(spacing / 2)
+      .glassEffect(.clear.interactive(), in: .capsule)
+      .disabled(isShowingSpeedPopover)
   }
 
   private func metaButtonStyle<V: View>(_ content: V) -> some View {

@@ -125,23 +125,7 @@ struct EpisodeDetailView: View {
 
     ToolbarItem(placement: .primaryAction) {
       Menu {
-        AppIcon.loveEpisode.labelButton {
-          viewModel.rate(.loved)
-        }
-
-        AppIcon.likeEpisode.labelButton {
-          viewModel.rate(.liked)
-        }
-
-        AppIcon.dislikeEpisode.labelButton {
-          viewModel.rate(.disliked)
-        }
-
-        if viewModel.episode.rating != nil {
-          AppIcon.clearRating.labelButton {
-            viewModel.rate(nil)
-          }
-        }
+        ratingMenuButtons(showClear: viewModel.episode.rating != nil, rate: viewModel.rate)
       } label: {
         AppIcon.rating(for: viewModel.episode.rating).image
       }
