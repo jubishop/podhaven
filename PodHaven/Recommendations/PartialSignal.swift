@@ -6,7 +6,7 @@ import GRDB
 
 // Read-on-rebuild only. This selection includes high-churn columns
 // (playbackCoverage, lastPlayedDate) that must NOT enter any GRDB
-// observation — fetch via `allPartialSignals()` or the merged-stream
+// observation — fetch via `allUnratedListenedEpisodes()` or the merged-stream
 // rebuild path, never inside a `_observe` closure.
 struct PartialSignal:
   Sendable,
@@ -41,19 +41,12 @@ struct PartialSignal:
     }
 
     let duration: CMTime? = row[Episode.Columns.duration]
-    let durationSeconds = Self.toSeconds(duration)
+    let durationSeconds = duration?.positiveFiniteSeconds ?? 0
     if durationSeconds > 0 {
       let coverage = PlaybackCoverage(data: bitmap, durationSeconds: durationSeconds)
       self.coverageRatio = coverage.ratio
     } else {
       self.coverageRatio = 0
     }
-  }
-
-  private static func toSeconds(_ time: CMTime?) -> Int {
-    guard let time, time.isValid, !time.isIndefinite else { return 0 }
-    let s = time.seconds
-    guard s.isFinite, s > 0 else { return 0 }
-    return Int(s.rounded(.down))
   }
 }

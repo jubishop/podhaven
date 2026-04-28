@@ -194,7 +194,7 @@ class EpisodeRatingTests {
 
   // MARK: - Signal Episodes
 
-  @Test("allSignalEpisodes returns only rated episodes (finished alone is no longer signal)")
+  @Test("allRatedEpisodes returns only rated episodes (finished alone is no longer signal)")
   func fetchSignalEpisodes() async throws {
     _ = try await createPodcastWithEpisode(rating: .loved, ratingDate: Date())
     _ = try await createPodcastWithEpisode(rating: .disliked, ratingDate: Date())
@@ -210,7 +210,7 @@ class EpisodeRatingTests {
 
     _ = try await createPodcastWithEpisode()
 
-    let signals = try await repo.allSignalEpisodes()
+    let signals = try await repo.allRatedEpisodes()
     #expect(signals.count == 2)
 
     let ratings = signals.map(\.rating)
@@ -218,7 +218,7 @@ class EpisodeRatingTests {
     #expect(ratings.contains(.disliked))
   }
 
-  @Test("rated episodes appear in allSignalEpisodes regardless of finishDate")
+  @Test("rated episodes appear in allRatedEpisodes regardless of finishDate")
   func ratedAndFinishedAppearAsRated() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let bothRatedAndFinished = try Create.unsavedEpisode(
@@ -230,20 +230,22 @@ class EpisodeRatingTests {
       UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: bothRatedAndFinished)
     ])
 
-    let signals = try await repo.allSignalEpisodes()
+    let signals = try await repo.allRatedEpisodes()
     #expect(signals.count == 1)
     #expect(signals.first?.rating == .liked)
   }
 
   // MARK: - Partial Signals
 
-  @Test("allPartialSignals returns played-but-unrated episodes with their coverage ratio")
+  @Test("allUnratedListenedEpisodes returns played-but-unrated episodes with their coverage ratio")
   func partialSignalsReturnsPlayedUnrated() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsaved = try Create.unsavedEpisode(duration: CMTime.seconds(300))
-    let pe = try await repo.upsertPodcastEpisodes([
-      UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
-    ]).first!
+    let pe = try await repo
+      .upsertPodcastEpisodes([
+        UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
+      ])
+      .first!
 
     try await repo.updatePlayback(
       pe.episode.id,
@@ -252,14 +254,14 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let partials = try await repo.allPartialSignals()
+    let partials = try await repo.allUnratedListenedEpisodes()
     let partial = try #require(partials.first { $0.id == pe.episode.id })
     #expect(abs(partial.coverageRatio - 0.5) < 0.05)
     #expect(partial.lastPlayedDate != nil)
     #expect(partial.podcastID == pe.episode.podcastID)
   }
 
-  @Test("allPartialSignals excludes rated episodes (rating wins precedence)")
+  @Test("allUnratedListenedEpisodes excludes rated episodes (rating wins precedence)")
   func partialSignalsExcludesRated() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsaved = try Create.unsavedEpisode(
@@ -267,9 +269,11 @@ class EpisodeRatingTests {
       rating: .liked,
       ratingDate: Date()
     )
-    let pe = try await repo.upsertPodcastEpisodes([
-      UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
-    ]).first!
+    let pe = try await repo
+      .upsertPodcastEpisodes([
+        UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
+      ])
+      .first!
 
     try await repo.updatePlayback(
       pe.episode.id,
@@ -278,20 +282,22 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let partials = try await repo.allPartialSignals()
+    let partials = try await repo.allUnratedListenedEpisodes()
     #expect(partials.contains { $0.id == pe.episode.id } == false)
 
-    let signals = try await repo.allSignalEpisodes()
+    let signals = try await repo.allRatedEpisodes()
     #expect(signals.contains { $0.id == pe.episode.id })
   }
 
-  @Test("allPartialSignals preserves bitmap across markFinished")
+  @Test("allUnratedListenedEpisodes preserves bitmap across markFinished")
   func partialSignalsSurvivesFinish() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsaved = try Create.unsavedEpisode(duration: CMTime.seconds(300))
-    let pe = try await repo.upsertPodcastEpisodes([
-      UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
-    ]).first!
+    let pe = try await repo
+      .upsertPodcastEpisodes([
+        UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
+      ])
+      .first!
 
     try await repo.updatePlayback(
       pe.episode.id,
@@ -301,26 +307,56 @@ class EpisodeRatingTests {
     )
     try await repo.markFinished(pe.episode.id)
 
-    let partials = try await repo.allPartialSignals()
+    let partials = try await repo.allUnratedListenedEpisodes()
     let partial = try #require(partials.first { $0.id == pe.episode.id })
     #expect(partial.coverageRatio >= 0.85)
   }
 
-  @Test("allPartialSignals excludes next-button finishes (no bitmap)")
+  @Test("allUnratedListenedEpisodes excludes next-button finishes (no bitmap)")
   func partialSignalsExcludesNextButton() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsaved = try Create.unsavedEpisode(
       duration: CMTime.seconds(300),
       finishDate: Date()
     )
-    let pe = try await repo.upsertPodcastEpisodes([
-      UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
-    ]).first!
+    let pe = try await repo
+      .upsertPodcastEpisodes([
+        UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
+      ])
+      .first!
 
-    let partials = try await repo.allPartialSignals()
+    let partials = try await repo.allUnratedListenedEpisodes()
     #expect(partials.contains { $0.id == pe.episode.id } == false)
 
-    let signals = try await repo.allSignalEpisodes()
+    let signals = try await repo.allRatedEpisodes()
     #expect(signals.contains { $0.id == pe.episode.id } == false)
+  }
+
+  @Test("latestScoringContextInputs aggregates rated and unrated-listened episodes")
+  func latestScoringContextAggregates() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let rated = try Create.unsavedEpisode(
+      duration: CMTime.seconds(300),
+      rating: .loved,
+      ratingDate: Date()
+    )
+    let listened = try Create.unsavedEpisode(duration: CMTime.seconds(300))
+    let pes = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: rated),
+      UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: listened),
+    ])
+    let listenedID = try #require(
+      pes.first { $0.episode.unsaved.guid == listened.guid }?.episode.id
+    )
+    try await repo.updatePlayback(
+      listenedID,
+      currentTime: CMTime.seconds(150),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+
+    let inputs = try await repo.latestScoringContextInputs()
+    #expect(inputs.ratedSignals.contains { $0.rating == .loved })
+    #expect(inputs.partialSignals.contains { $0.id == listenedID })
   }
 }

@@ -11,7 +11,7 @@ extension Container {
   }
 }
 
-struct Observatory: Sendable {
+struct Observatory {
   private static let log = Log.as(LogSubsystem.Database.observatory)
 
   // MARK: - Initialization
@@ -232,98 +232,16 @@ struct Observatory: Sendable {
   // GRDB-driven stream. Tracked region: rating columns + episodeEmbedding
   // table + freshness cadences. Playback-path columns (currentTime,
   // playbackCoverage, lastPlayedDate) are deliberately NOT referenced so
-  // per-checkpoint writes during playback fire nothing. Partial-listen
-  // signals are still in the emitted struct because the closure does fetch
-  // them — they're just stale between emissions, and the engine pairs
-  // this stream with onDeck transitions to catch the gap.
+  // per-checkpoint writes during playback fire nothing. The build itself
+  // lives on `Repo` — this is just the observation wrapper.
   func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
-    _observe { db in
-      try Self._buildScoringContextInputs(db: db)
+    let repo = self.repo
+    return _observe { db in
+      try repo.scoringContextInputs(in: db)
     }
-  }
-
-  // One-shot read of the same shape `scoringContextInputs()` emits. Used
-  // by callers that have an out-of-band signal (e.g. the engine merging
-  // onDeck transitions) and need the latest snapshot.
-  func latestScoringContextInputs() async throws -> ScoringContextInputs {
-    try await repo.db.read { db in
-      try Self._buildScoringContextInputs(db: db)
-    }
-  }
-
-  private static func _buildScoringContextInputs(db: Database) throws -> ScoringContextInputs {
-    let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
-    let partialSignals =
-      try PartialSignal
-      .filter(Episode.hasCoverage && !Episode.rated)
-      .fetchAll(db)
-
-    let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
-    let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
-      signalIDs.isEmpty
-      ? IdentifiedArray(id: \.episodeId)
-      : try EpisodeEmbedding
-        .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
-        .fetchIdentifiedArray(db, id: \.episodeId)
-
-    let hasAnyEmbeddings =
-      try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
-
-    return ScoringContextInputs(
-      ratedSignals: ratedSignals,
-      partialSignals: partialSignals,
-      signalEmbeddings: signalEmbeddings,
-      hasAnyEmbeddings: hasAnyEmbeddings,
-      freshnessCadences: try Self._resolveFreshnessCadences(db)
-    )
   }
 
   // MARK: - Private Helpers
-
-  // Manual choices win; nil-cadence podcasts get inferred from their
-  // pubDates. Podcasts with no episodes and no manual choice are absent.
-  fileprivate static func _resolveFreshnessCadences(
-    _ db: Database
-  ) throws -> [Podcast.ID: FreshnessCadence] {
-    let manualRows = try Row.fetchAll(
-      db,
-      Podcast
-        .filter(Podcast.Columns.freshnessCadence != nil)
-        .select(Podcast.Columns.id, Podcast.Columns.freshnessCadence)
-    )
-    var resolved = [Podcast.ID: FreshnessCadence](capacity: manualRows.count)
-    for row in manualRows {
-      let id: Podcast.ID = row[Podcast.Columns.id]
-      let cadence: FreshnessCadence = row[Podcast.Columns.freshnessCadence]
-      resolved[id] = cadence
-    }
-
-    // Raw SQL: window functions aren't expressible via the GRDB query builder.
-    let pubDateRows = try Row.fetchAll(
-      db,
-      sql: """
-        SELECT podcastId, pubDate FROM (
-          SELECT
-            podcastId,
-            pubDate,
-            ROW_NUMBER() OVER (PARTITION BY podcastId ORDER BY pubDate DESC) AS rn
-          FROM episode
-          WHERE podcastId IN (SELECT id FROM podcast WHERE freshnessCadence IS NULL)
-        ) WHERE rn <= ?
-        """,
-      arguments: [FreshnessCadence.inferenceMaxSamples]
-    )
-    var pubDatesByPodcast = [Podcast.ID: [Date]](capacity: pubDateRows.count)
-    for row in pubDateRows {
-      let id: Podcast.ID = row[Episode.Columns.podcastId]
-      let pubDate: Date = row[Episode.Columns.pubDate]
-      pubDatesByPodcast[id, default: []].append(pubDate)
-    }
-    for (id, pubDates) in pubDatesByPodcast {
-      resolved[id] = FreshnessCadence.infer(from: pubDates)
-    }
-    return resolved
-  }
 
   private func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {
     Assert.precondition(db.isInsideTransaction, "_podcastCountsByTag requires a transaction")

@@ -383,16 +383,95 @@ struct Repo: Databasing, Sendable {
 
   // MARK: - Recommendation Readers
 
-  func allSignalEpisodes() async throws -> [SignalEpisode] {
+  func allRatedEpisodes() async throws -> [SignalEpisode] {
     try await appDB.db.read { db in
       try SignalEpisode.filter(Episode.rated).fetchAll(db)
     }
   }
 
-  func allPartialSignals() async throws -> [PartialSignal] {
+  func allUnratedListenedEpisodes() async throws -> [PartialSignal] {
     try await appDB.db.read { db in
       try PartialSignal.filter(Episode.hasCoverage && !Episode.rated).fetchAll(db)
     }
+  }
+
+  func latestScoringContextInputs() async throws -> ScoringContextInputs {
+    try await appDB.db.read { db in
+      try scoringContextInputs(in: db)
+    }
+  }
+
+  func scoringContextInputs(in db: Database) throws -> ScoringContextInputs {
+    let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
+    let partialSignals =
+      try PartialSignal
+      .filter(Episode.hasCoverage && !Episode.rated)
+      .fetchAll(db)
+
+    let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
+    let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
+      signalIDs.isEmpty
+      ? IdentifiedArray(id: \.episodeId)
+      : try EpisodeEmbedding
+        .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
+        .fetchIdentifiedArray(db, id: \.episodeId)
+
+    let hasAnyEmbeddings =
+      try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
+
+    return ScoringContextInputs(
+      ratedSignals: ratedSignals,
+      partialSignals: partialSignals,
+      signalEmbeddings: signalEmbeddings,
+      hasAnyEmbeddings: hasAnyEmbeddings,
+      freshnessCadences: try Self._resolveFreshnessCadences(db)
+    )
+  }
+
+  // Manual cadence choices win; nil-cadence podcasts are inferred from
+  // their pubDates. Podcasts with no episodes and no manual choice are
+  // absent from the returned map.
+  private static func _resolveFreshnessCadences(
+    _ db: Database
+  ) throws -> [Podcast.ID: FreshnessCadence] {
+    let manualRows = try Row.fetchAll(
+      db,
+      Podcast
+        .filter(Podcast.Columns.freshnessCadence != nil)
+        .select(Podcast.Columns.id, Podcast.Columns.freshnessCadence)
+    )
+    var resolved = [Podcast.ID: FreshnessCadence](capacity: manualRows.count)
+    for row in manualRows {
+      let id: Podcast.ID = row[Podcast.Columns.id]
+      let cadence: FreshnessCadence = row[Podcast.Columns.freshnessCadence]
+      resolved[id] = cadence
+    }
+
+    // Raw SQL: window functions aren't expressible via the GRDB query builder.
+    let pubDateRows = try Row.fetchAll(
+      db,
+      sql: """
+        SELECT podcastId, pubDate FROM (
+          SELECT
+            podcastId,
+            pubDate,
+            ROW_NUMBER() OVER (PARTITION BY podcastId ORDER BY pubDate DESC) AS rn
+          FROM episode
+          WHERE podcastId IN (SELECT id FROM podcast WHERE freshnessCadence IS NULL)
+        ) WHERE rn <= ?
+        """,
+      arguments: [FreshnessCadence.inferenceMaxSamples]
+    )
+    var pubDatesByPodcast = [Podcast.ID: [Date]](capacity: pubDateRows.count)
+    for row in pubDateRows {
+      let id: Podcast.ID = row[Episode.Columns.podcastId]
+      let pubDate: Date = row[Episode.Columns.pubDate]
+      pubDatesByPodcast[id, default: []].append(pubDate)
+    }
+    for (id, pubDates) in pubDatesByPodcast {
+      resolved[id] = FreshnessCadence.infer(from: pubDates)
+    }
+    return resolved
   }
 
   func allCandidateEpisodes(excluding excludedID: Episode.ID? = nil) async throws -> [Episode] {
@@ -747,9 +826,9 @@ struct Repo: Databasing, Sendable {
       ]
 
       let duration: CMTime? = row[Episode.Columns.duration]
-      let durationSeconds = Self.toSeconds(duration)
-      let startSeconds = Self.toSeconds(playedFrom)
-      let endSeconds = Self.toSeconds(currentTime)
+      let durationSeconds = duration?.positiveFiniteSeconds ?? 0
+      let startSeconds = playedFrom.positiveFiniteSeconds
+      let endSeconds = currentTime.positiveFiniteSeconds
 
       if durationSeconds > 0, endSeconds > startSeconds {
         let existing: Data? = row[Episode.Columns.playbackCoverage]
@@ -766,13 +845,6 @@ struct Repo: Databasing, Sendable {
         .withID(episodeID)
         .updateAll(db, assignments) > 0
     }
-  }
-
-  private static func toSeconds(_ time: CMTime?) -> Int {
-    guard let time, time.isValid, !time.isIndefinite else { return 0 }
-    let s = time.seconds
-    guard s.isFinite, s > 0 else { return 0 }
-    return Int(s.rounded(.down))
   }
 
   @discardableResult

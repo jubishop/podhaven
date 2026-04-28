@@ -629,8 +629,6 @@ class RecommendationEngineTests {
 
   @Test("onDeck transition rebuilds the cache against fresh partial signals")
   func onDeckTransitionRebuildsCache() async throws {
-    @DynamicInjected(\.sharedState) var sharedState: SharedState
-
     let (_, ratedEpisodes) = try await createPodcastWithEpisodes(
       count: 2,
       podcastTitle: "Rated",
@@ -691,7 +689,7 @@ class RecommendationEngineTests {
     let legacyID = try #require(started.first?.id)
     try await repo.updateCurrentTime(legacyID, currentTime: CMTime.seconds(60))
 
-    let partials = try await repo.allPartialSignals()
+    let partials = try await repo.allUnratedListenedEpisodes()
     #expect(partials.contains { $0.id == legacyID } == false)
   }
 

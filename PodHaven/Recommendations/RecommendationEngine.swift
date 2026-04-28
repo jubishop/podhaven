@@ -185,7 +185,7 @@ struct RecommendationEngine: Sendable {
         guard currentID != lastID else { continue }
         lastID = currentID
         do {
-          let inputs = try await observatory.latestScoringContextInputs()
+          let inputs = try await repo.latestScoringContextInputs()
           cache(Self.buildContext(from: inputs))
         } catch {
           Self.log.caughtError("onDeck-triggered scoring rebuild failed", error)

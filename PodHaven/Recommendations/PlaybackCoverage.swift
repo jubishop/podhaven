@@ -31,7 +31,7 @@ struct PlaybackCoverage: Equatable, Sendable {
   }
 
   init(data: Data, duration: CMTime) {
-    self.init(data: data, durationSeconds: Self.seconds(duration))
+    self.init(data: data, durationSeconds: duration.positiveFiniteSeconds)
   }
 
   // MARK: - Mutation
@@ -75,26 +75,19 @@ struct PlaybackCoverage: Equatable, Sendable {
     guard duration > 0 else { return 0 }
     return (duration + bitWidthSeconds - 1) / bitWidthSeconds
   }
-
-  private static func seconds(_ time: CMTime) -> Int {
-    guard time.isValid, !time.isIndefinite else { return 0 }
-    let s = time.seconds
-    guard s.isFinite, s > 0 else { return 0 }
-    return Int(s.rounded(.down))
-  }
 }
 
 // MARK: - CMTime convenience
 
 extension PlaybackCoverage {
   init(duration: CMTime) {
-    self.init(durationSeconds: Self.seconds(duration))
+    self.init(durationSeconds: duration.positiveFiniteSeconds)
   }
 
   mutating func mark(from start: CMTime, to end: CMTime) {
     mark(
-      startSeconds: Self.seconds(start),
-      endSeconds: Self.seconds(end)
+      startSeconds: start.positiveFiniteSeconds,
+      endSeconds: end.positiveFiniteSeconds
     )
   }
 }

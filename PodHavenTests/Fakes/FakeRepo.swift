@@ -352,19 +352,28 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.episodesNeedingEmbeddings(revision: revision)
   }
 
-  func allSignalEpisodes() async throws -> [SignalEpisode] {
-    recordCall(methodName: "allSignalEpisodes", parameters: ())
-    return try await repo.allSignalEpisodes()
+  func allRatedEpisodes() async throws -> [SignalEpisode] {
+    recordCall(methodName: "allRatedEpisodes", parameters: ())
+    return try await repo.allRatedEpisodes()
   }
 
-  func allPartialSignals() async throws -> [PartialSignal] {
-    recordCall(methodName: "allPartialSignals", parameters: ())
-    return try await repo.allPartialSignals()
+  func allUnratedListenedEpisodes() async throws -> [PartialSignal] {
+    recordCall(methodName: "allUnratedListenedEpisodes", parameters: ())
+    return try await repo.allUnratedListenedEpisodes()
   }
 
   func allCandidateEpisodes(excluding excludedID: Episode.ID? = nil) async throws -> [Episode] {
     recordCall(methodName: "allCandidateEpisodes", parameters: excludedID)
     return try await repo.allCandidateEpisodes(excluding: excludedID)
+  }
+
+  func latestScoringContextInputs() async throws -> ScoringContextInputs {
+    recordCall(methodName: "latestScoringContextInputs", parameters: ())
+    return try await repo.latestScoringContextInputs()
+  }
+
+  nonisolated func scoringContextInputs(in db: Database) throws -> ScoringContextInputs {
+    try repo.scoringContextInputs(in: db)
   }
 
   @discardableResult

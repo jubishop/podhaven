@@ -191,9 +191,11 @@ protocol Databasing: Sendable {
 
   // MARK: - Recommendation Readers
 
-  func allSignalEpisodes() async throws -> [SignalEpisode]
-  func allPartialSignals() async throws -> [PartialSignal]
+  func allRatedEpisodes() async throws -> [SignalEpisode]
+  func allUnratedListenedEpisodes() async throws -> [PartialSignal]
   func allCandidateEpisodes(excluding: Episode.ID?) async throws -> [Episode]
+  func latestScoringContextInputs() async throws -> ScoringContextInputs
+  func scoringContextInputs(in db: Database) throws -> ScoringContextInputs
 }
 
 extension Databasing {

@@ -453,21 +453,6 @@ actor ObservatoryScoringContextInputsTests {
     )
   }
 
-  @Test("latestScoringContextInputs returns the current snapshot on demand")
-  func latestSnapshotIncludesPartials() async throws {
-    let podcast = try await insertPodcast()
-    let episode = try await upsertEpisode(podcast: podcast, title: "Played")
-    try await repo.updatePlayback(
-      episode.id,
-      currentTime: CMTime.seconds(600),
-      playedFrom: CMTime.seconds(0),
-      now: Date()
-    )
-
-    let inputs = try await observatory.latestScoringContextInputs()
-    #expect(inputs.partialSignals.contains { $0.id == episode.id })
-  }
-
   private func emissionCountWaitInitial(_ counter: Counter) async throws {
     try await Wait.until(
       { await counter.value == 0 },
