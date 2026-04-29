@@ -7,10 +7,10 @@ import Foundation
 // user actually heard. The byte buffer is what gets persisted on
 // `Episode.playbackCoverage`; coverage feeds the partial-listen
 // recommendation signal so episodes the user listened to without rating can
-// still influence scoring. The chunk width is shared with PodAVPlayer's
-// playback-tick cadence so each tick lands on a chunk boundary.
+// still influence scoring. Chunk width tracks `PodAVPlayer.playbackTickSeconds`
+// so each playback tick lands on a chunk boundary.
 struct PlaybackCoverage: Equatable, Sendable {
-  static let bitWidthSeconds: Int = 3
+  static let bitWidthSeconds: Int = PodAVPlayer.playbackTickSeconds
 
   let durationSeconds: Int
   private(set) var bytes: [UInt8]

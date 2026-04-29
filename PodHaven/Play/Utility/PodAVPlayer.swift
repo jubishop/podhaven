@@ -46,6 +46,11 @@ enum PodAVPlayerError: Error, LocalizedError {
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.repo) private var repo
 
+  // Cadence at which playback ticks reach the database. Downstream consumers
+  // (notably `PlaybackCoverage`'s bitmap) align their chunk width to this
+  // value so each tick lands on a chunk boundary.
+  nonisolated static let playbackTickSeconds: Int = 3
+
   nonisolated private static let log = Log.as(LogSubsystem.Play.avPlayer)
 
   // MARK: - State Management
@@ -358,12 +363,10 @@ enum PodAVPlayerError: Error, LocalizedError {
       return
     }
 
-    // Tick at the bitmap's chunk resolution so coverage marks land on
-    // alignment. `abs` guards against any future path that moves time
-    // backward without routing through `seek(to:)` (which resets
-    // `lastDatabaseUpdateTime`).
-    let chunkSeconds = Double(PlaybackCoverage.bitWidthSeconds)
-    if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds) >= chunkSeconds {
+    // `abs` guards against any future path that moves time backward without
+    // routing through `seek(to:)` (which resets `lastDatabaseUpdateTime`).
+    let tickSeconds = Double(Self.playbackTickSeconds)
+    if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds) >= tickSeconds {
       await savePlaybackTick(currentTime)
     }
 
