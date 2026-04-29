@@ -3,6 +3,12 @@
 import AVFoundation
 import Foundation
 
+// Bitmap that records which `bitWidthSeconds`-wide chunks of an episode the
+// user actually heard. The byte buffer is what gets persisted on
+// `Episode.playbackCoverage`; coverage feeds the partial-listen
+// recommendation signal so episodes the user listened to without rating can
+// still influence scoring. The chunk width is shared with PodAVPlayer's
+// playback-tick cadence so each tick lands on a chunk boundary.
 struct PlaybackCoverage: Equatable, Sendable {
   static let bitWidthSeconds: Int = 3
 
@@ -11,16 +17,14 @@ struct PlaybackCoverage: Equatable, Sendable {
 
   // MARK: - Init
 
-  init(durationSeconds: Int) {
-    let bits = Self.bitCount(forDurationSeconds: durationSeconds)
-    self.durationSeconds = durationSeconds
-    self.bytes = [UInt8](repeating: 0, count: (bits + 7) / 8)
-  }
-
-  init(data: Data, durationSeconds: Int) {
+  init(durationSeconds: Int, data: Data? = nil) {
     let bits = Self.bitCount(forDurationSeconds: durationSeconds)
     let expectedByteCount = (bits + 7) / 8
     self.durationSeconds = durationSeconds
+    guard let data else {
+      self.bytes = [UInt8](repeating: 0, count: expectedByteCount)
+      return
+    }
     var stored = [UInt8](data)
     if stored.count < expectedByteCount {
       stored.append(contentsOf: [UInt8](repeating: 0, count: expectedByteCount - stored.count))
@@ -30,8 +34,8 @@ struct PlaybackCoverage: Equatable, Sendable {
     self.bytes = stored
   }
 
-  init(data: Data, duration: CMTime) {
-    self.init(data: data, durationSeconds: duration.positiveFiniteSeconds)
+  init(duration: CMTime, data: Data? = nil) {
+    self.init(durationSeconds: duration.positiveFiniteSeconds, data: data)
   }
 
   // MARK: - Mutation
@@ -50,6 +54,13 @@ struct PlaybackCoverage: Equatable, Sendable {
     for bit in firstBit...lastBit {
       bytes[bit / 8] |= UInt8(1 << (bit % 8))
     }
+  }
+
+  mutating func mark(from start: CMTime, to end: CMTime) {
+    mark(
+      startSeconds: start.positiveFiniteSeconds,
+      endSeconds: end.positiveFiniteSeconds
+    )
   }
 
   // MARK: - Read
@@ -74,20 +85,5 @@ struct PlaybackCoverage: Equatable, Sendable {
   private static func bitCount(forDurationSeconds duration: Int) -> Int {
     guard duration > 0 else { return 0 }
     return (duration + bitWidthSeconds - 1) / bitWidthSeconds
-  }
-}
-
-// MARK: - CMTime convenience
-
-extension PlaybackCoverage {
-  init(duration: CMTime) {
-    self.init(durationSeconds: duration.positiveFiniteSeconds)
-  }
-
-  mutating func mark(from start: CMTime, to end: CMTime) {
-    mark(
-      startSeconds: start.positiveFiniteSeconds,
-      endSeconds: end.positiveFiniteSeconds
-    )
   }
 }

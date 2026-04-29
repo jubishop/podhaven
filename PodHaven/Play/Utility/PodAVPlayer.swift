@@ -358,11 +358,12 @@ enum PodAVPlayerError: Error, LocalizedError {
       return
     }
 
-    // Only update the database every 3 seconds of playback-time delta in
-    // either direction. `abs` guards against any future path that moves time
+    // Tick at the bitmap's chunk resolution so coverage marks land on
+    // alignment. `abs` guards against any future path that moves time
     // backward without routing through `seek(to:)` (which resets
     // `lastDatabaseUpdateTime`).
-    if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds) >= 3.0 {
+    let chunkSeconds = Double(PlaybackCoverage.bitWidthSeconds)
+    if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds) >= chunkSeconds {
       await savePlaybackTick(currentTime)
     }
 

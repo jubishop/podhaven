@@ -169,19 +169,15 @@ struct RecommendationEngine: Sendable {
     // onDeck transitions cover session boundaries that the GRDB observation
     // can't see — partial-listen bitmaps and lastPlayedDate are excluded
     // from its tracked region. Each id change (load / change / clear)
-    // triggers a one-shot rebuild against the latest DB snapshot.
+    // triggers a one-shot rebuild against the latest DB snapshot. The
+    // initial-value emission is suppressed: the GRDB observation above
+    // already handles bootstrap, so we only need real transitions.
     Task(priority: taskPriority(.utility)) {
       let sharedState = Container.shared.sharedState()
-      var lastID: Episode.ID? = nil
-      var sawFirst = false
-      for await onDeck in sharedState.$onDeck.stream() {
+      var lastID: Episode.ID? = sharedState.onDeck?.id
+      for await onDeck in sharedState.$onDeck.stream(emitInitial: false) {
         guard !Task.isCancelled else { return }
         let currentID = onDeck?.id
-        guard sawFirst else {
-          sawFirst = true
-          lastID = currentID
-          continue
-        }
         guard currentID != lastID else { continue }
         lastID = currentID
         do {

@@ -40,7 +40,7 @@ class PlaybackCoverageRepoTests {
       guard let row, let data: Data = row[Episode.Columns.playbackCoverage] else {
         return nil
       }
-      return PlaybackCoverage(data: data, durationSeconds: durationSeconds)
+      return PlaybackCoverage(durationSeconds: durationSeconds, data: data)
     }
   }
 
@@ -59,7 +59,7 @@ class PlaybackCoverageRepoTests {
     )
 
     let row = try await repo.db.read { db in
-      return try Row.fetchOne(
+      try Row.fetchOne(
         db,
         Episode.withID(episode.id)
           .select(
@@ -157,7 +157,7 @@ class PlaybackCoverageRepoTests {
     #expect(after?.bytes == originalBytes)
 
     let row = try await repo.db.read { db in
-      return try Row.fetchOne(
+      try Row.fetchOne(
         db,
         Episode.withID(episode.id).select(Episode.Columns.currentTime)
       )
@@ -177,7 +177,7 @@ class PlaybackCoverageRepoTests {
     )
 
     let row = try await repo.db.read { db in
-      return try Row.fetchOne(
+      try Row.fetchOne(
         db,
         Episode.withID(episode.id)
           .select(Episode.Columns.currentTime, Episode.Columns.playbackCoverage)
@@ -217,7 +217,7 @@ class PlaybackCoverageRepoTests {
     )
 
     let row = try await repo.db.read { db in
-      return try Row.fetchOne(
+      try Row.fetchOne(
         db,
         Episode.withID(episode.id)
           .select(Episode.Columns.currentTime, Episode.Columns.maxPlaybackTime)

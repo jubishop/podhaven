@@ -87,13 +87,18 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 
   // MARK: - Streaming
 
-  // Yields the current value immediately, then every future update.
-  func stream() -> AsyncStream<T> {
+  // Yields the current value immediately when `emitInitial` is true (the
+  // default), then every future update. Pass `emitInitial: false` to
+  // subscribe to changes only — useful when a separate code path already
+  // bootstraps from the current value.
+  func stream(emitInitial: Bool = true) -> AsyncStream<T> {
     let id = UUID()
 
     return AsyncStream { continuation in
       state { state in
-        continuation.yield(state.current)
+        if emitInitial {
+          continuation.yield(state.current)
+        }
         state.continuations[id] = continuation
       }
 

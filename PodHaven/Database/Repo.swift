@@ -401,6 +401,11 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  // Pulls every signal-bearing episode in two disjoint slices — rated (any
+  // explicit rating) and partial-listen (has bitmap coverage but no rating) —
+  // then loads each signal's embedding (if present) into a single
+  // `IdentifiedArray` keyed by episode id. The two slices never overlap, so
+  // no dedupe is needed.
   func scoringContextInputs(in db: Database) throws -> ScoringContextInputs {
     let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
     let partialSignals =
@@ -448,6 +453,9 @@ struct Repo: Databasing, Sendable {
     }
 
     // Raw SQL: window functions aren't expressible via the GRDB query builder.
+    // ORDER BY podcastId lets us stream rows into per-podcast buckets and
+    // flush each one before starting the next, instead of accumulating a
+    // [Podcast.ID: [Date]] map of dynamically-grown arrays.
     let pubDateRows = try Row.fetchAll(
       db,
       sql: """
@@ -459,17 +467,26 @@ struct Repo: Databasing, Sendable {
           FROM episode
           WHERE podcastId IN (SELECT id FROM podcast WHERE freshnessCadence IS NULL)
         ) WHERE rn <= ?
+        ORDER BY podcastId
         """,
       arguments: [FreshnessCadence.inferenceMaxSamples]
     )
-    var pubDatesByPodcast = [Podcast.ID: [Date]](capacity: pubDateRows.count)
+    var currentID: Podcast.ID? = nil
+    var currentDates = [Date](capacity: FreshnessCadence.inferenceMaxSamples)
     for row in pubDateRows {
       let id: Podcast.ID = row[Episode.Columns.podcastId]
       let pubDate: Date = row[Episode.Columns.pubDate]
-      pubDatesByPodcast[id, default: []].append(pubDate)
+      if id != currentID {
+        if let previousID = currentID {
+          resolved[previousID] = FreshnessCadence.infer(from: currentDates)
+        }
+        currentID = id
+        currentDates.removeAll(keepingCapacity: true)
+      }
+      currentDates.append(pubDate)
     }
-    for (id, pubDates) in pubDatesByPodcast {
-      resolved[id] = FreshnessCadence.infer(from: pubDates)
+    if let lastID = currentID {
+      resolved[lastID] = FreshnessCadence.infer(from: currentDates)
     }
     return resolved
   }
@@ -566,7 +583,7 @@ struct Repo: Databasing, Sendable {
         try Episode
         .joining(required: Episode.podcast.aliased(podcastAlias))
         .joining(optional: Episode.embedding.aliased(embeddingAlias))
-        .filter(Episode.signal || Episode.candidate)
+        .filter(Episode.hasSignal || Episode.candidate)
         .filter(
           embeddingAlias[EpisodeEmbedding.Columns.id] == nil
             || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
@@ -575,7 +592,7 @@ struct Repo: Databasing, Sendable {
             || podcastAlias[Podcast.Columns.contentUpdatedAt]
               > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
         )
-        .order(Episode.signal.desc)
+        .order(Episode.hasSignal.desc)
         .select(Episode.Columns.id, as: Episode.ID.self)
         .fetchAll(db)
     }
@@ -832,10 +849,7 @@ struct Repo: Databasing, Sendable {
 
       if durationSeconds > 0, endSeconds > startSeconds {
         let existing: Data? = row[Episode.Columns.playbackCoverage]
-        var coverage =
-          existing.map {
-            PlaybackCoverage(data: $0, durationSeconds: durationSeconds)
-          } ?? PlaybackCoverage(durationSeconds: durationSeconds)
+        var coverage = PlaybackCoverage(durationSeconds: durationSeconds, data: existing)
         coverage.mark(startSeconds: startSeconds, endSeconds: endSeconds)
         assignments.append(Episode.Columns.playbackCoverage.set(to: coverage.data))
       }

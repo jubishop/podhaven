@@ -43,7 +43,7 @@ struct PartialSignal:
     let duration: CMTime? = row[Episode.Columns.duration]
     let durationSeconds = duration?.positiveFiniteSeconds ?? 0
     if durationSeconds > 0 {
-      let coverage = PlaybackCoverage(data: bitmap, durationSeconds: durationSeconds)
+      let coverage = PlaybackCoverage(durationSeconds: durationSeconds, data: bitmap)
       self.coverageRatio = coverage.ratio
     } else {
       self.coverageRatio = 0

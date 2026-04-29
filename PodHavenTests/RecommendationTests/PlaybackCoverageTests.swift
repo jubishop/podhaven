@@ -120,14 +120,14 @@ struct PlaybackCoverageTests {
     original.mark(startSeconds: 0, endSeconds: 15)
     original.mark(startSeconds: 30, endSeconds: 45)
 
-    let restored = PlaybackCoverage(data: original.data, durationSeconds: 60)
+    let restored = PlaybackCoverage(durationSeconds: 60, data: original.data)
     #expect(restored.coveredSeconds == original.coveredSeconds)
     #expect(restored.bytes == original.bytes)
   }
 
   @Test("decode pads when stored data is shorter than expected")
   func decodePadsShortData() {
-    let coverage = PlaybackCoverage(data: Data([0xFF]), durationSeconds: 60)
+    let coverage = PlaybackCoverage(durationSeconds: 60, data: Data([0xFF]))
     // Expected 3 bytes for 60s, only 1 supplied. Remaining bytes should be 0.
     #expect(coverage.bytes.count == 3)
     #expect(coverage.bytes[0] == 0xFF)
@@ -138,8 +138,8 @@ struct PlaybackCoverageTests {
   @Test("decode truncates when stored data is longer than expected")
   func decodeTruncatesLongData() {
     let coverage = PlaybackCoverage(
-      data: Data([0xFF, 0xFF, 0xFF, 0xFF, 0xFF]),
-      durationSeconds: 60
+      durationSeconds: 60,
+      data: Data([0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
     )
     #expect(coverage.bytes.count == 3)
   }
