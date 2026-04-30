@@ -157,15 +157,16 @@ struct RecommendationEngine: Sendable {
 
   // Both triggers funnel through `cacheDebounce` so RefreshManager bulk
   // inserts (observatory) and rapid onDeck transitions (nil → new) collapse
-  // into a single rebuild after the burst settles.
+  // into a single rebuild after the burst settles. The action always
+  // re-fetches inputs so whichever trigger wins the debounce sees DB state
+  // at fire time, not at trigger time — a partial-signal write that
+  // happens between trigger and fire would otherwise be missed.
   private func startObservingScoringContext() {
     Task(priority: taskPriority(.utility)) {
       do {
-        for try await inputs in observatory.scoringContextInputs() {
+        for try await _ in observatory.scoringContextInputs() {
           guard !Task.isCancelled else { return }
-          cacheDebounce {
-            cache(Self.buildContext(from: inputs))
-          }
+          scheduleCacheRebuild()
         }
       } catch {
         Self.log.caughtError("scoringContextInputs observation failed", error)
@@ -174,10 +175,9 @@ struct RecommendationEngine: Sendable {
 
     // onDeck transitions cover session boundaries that the GRDB observation
     // can't see — partial-listen bitmaps and lastPlayedDate are excluded
-    // from its tracked region. Each id change (load / change / clear)
-    // triggers a one-shot rebuild against the latest DB snapshot.
-    // `dropFirst()` skips Broadcast's bootstrap emit; the GRDB observation
-    // above already populates the cache from the initial DB state.
+    // from its tracked region. `dropFirst()` skips Broadcast's bootstrap
+    // emit; the GRDB observation above already populates the cache from
+    // the initial DB state.
     Task(priority: taskPriority(.utility)) {
       let sharedState = Container.shared.sharedState()
       var lastID: Episode.ID? = sharedState.onDeck?.id
@@ -186,14 +186,18 @@ struct RecommendationEngine: Sendable {
         let currentID = onDeck?.id
         guard currentID != lastID else { continue }
         lastID = currentID
-        cacheDebounce {
-          do {
-            let inputs = try await repo.latestScoringContextInputs()
-            cache(Self.buildContext(from: inputs))
-          } catch {
-            Self.log.caughtError("onDeck-triggered scoring rebuild failed", error)
-          }
-        }
+        scheduleCacheRebuild()
+      }
+    }
+  }
+
+  private func scheduleCacheRebuild() {
+    cacheDebounce {
+      do {
+        let inputs = try await repo.latestScoringContextInputs()
+        cache(Self.buildContext(from: inputs))
+      } catch {
+        Self.log.caughtError("scoring context rebuild failed", error)
       }
     }
   }

@@ -58,7 +58,7 @@ class PlaybackCoverageRepoTests {
       now: now
     )
 
-    let row = try await repo.db.read { db -> Row? in
+    let row = try repo.db.read { db -> Row? in
       try Row.fetchOne(
         db,
         Episode.withID(episode.id)
@@ -156,7 +156,7 @@ class PlaybackCoverageRepoTests {
     let after = try await loadCoverage(for: episode.id, durationSeconds: 60)
     #expect(after?.bytes == originalBytes)
 
-    let row = try await repo.db.read { db -> Row? in
+    let row = try repo.db.read { db -> Row? in
       try Row.fetchOne(
         db,
         Episode.withID(episode.id).select(Episode.Columns.currentTime)
@@ -176,7 +176,7 @@ class PlaybackCoverageRepoTests {
       now: Date()
     )
 
-    let row = try await repo.db.read { db -> Row? in
+    let row = try repo.db.read { db -> Row? in
       try Row.fetchOne(
         db,
         Episode.withID(episode.id)
@@ -216,7 +216,7 @@ class PlaybackCoverageRepoTests {
       now: Date()
     )
 
-    let row = try await repo.db.read { db -> Row? in
+    let row = try repo.db.read { db -> Row? in
       try Row.fetchOne(
         db,
         Episode.withID(episode.id)
