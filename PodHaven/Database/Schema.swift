@@ -282,7 +282,6 @@ enum Schema {
           "maxQueueLength",
           "showNowPlayingInUpNext",
           "alwaysShowPodcastImageInUpNext",
-          "alwaysShowPodcastImageForOnDeck",
           "showTimeRemainingInEpisodeLists",
           "appearanceMode",
           "nextTrackBehavior",
@@ -524,6 +523,37 @@ enum Schema {
           .check { $0 == nil || allowedCadences.contains($0) }
       }
       try db.execute(sql: "ALTER TABLE podcast DROP COLUMN freshnessHalfLifeDays")
+    }
+
+    migrator.registerMigration("v40") { _ in
+      // Seed alwaysShowPodcastImageForOnDeck from alwaysShowPodcastImageInUpNext.
+      // The OnDeck setting newly governs the floating now-playing row in Up
+      // Next, which previously followed the queue setting; copy the value
+      // forward so users who enabled the queue setting keep that row's
+      // behavior unchanged.
+      let defaults = Container.shared.standardDefaults()
+      let oldKey = "alwaysShowPodcastImageInUpNext"
+      let newKey = "alwaysShowPodcastImageForOnDeck"
+      guard defaults.data(forKey: newKey) == nil else { return }
+      guard let data = defaults.data(forKey: oldKey) else { return }
+      let value: Bool
+      do {
+        value = try JSONDecoder().decode(Bool.self, from: data)
+      } catch {
+        log.caughtError(
+          "v40: failed to decode \(oldKey)",
+          error,
+          level: { _ in .info }
+        )
+        return
+      }
+      do {
+        let encoded = try JSONEncoder().encode(value)
+        defaults.set(encoded, forKey: newKey)
+        log.info("v40: seeded \(newKey) = \(value)")
+      } catch {
+        log.caughtError("v40: failed to encode \(newKey)", error)
+      }
     }
 
     return migrator

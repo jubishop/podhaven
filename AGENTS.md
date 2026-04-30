@@ -15,7 +15,8 @@ Three places hold persistent project context — pick the right one when saving 
 - Assume the working tree may hold user edits; respect them and avoid resets or reverts.
 
 ## Compatibility
-- Backward compatibility is not necessary.  Always use the latest features and libraries.
+- Backward compatibility with older iOS versions or library versions is not necessary. Always use the latest features and libraries.
+- This does NOT apply to database migrations. Once a migration has shipped, it is immutable — never edit an existing migration's body or its registered version. To change schema or seeded values, add a new migration with the next available version number.
 
 ## UI Structure
 - Views stay declarative, forwarding actions to their view models or shared protocols; never introduce business logic inside SwiftUI view structs.
