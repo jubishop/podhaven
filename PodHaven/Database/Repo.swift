@@ -397,21 +397,16 @@ struct Repo: Databasing {
 
   func latestScoringContextInputs() async throws -> ScoringContextInputs {
     try await appDB.db.read { db in
-      try scoringContextInputs(in: db)
+      try _scoringContextInputs(in: db)
     }
   }
 
-  // Public and takes a `Database` so the Observatory can reuse the same
-  // body inside its `ValueObservation.tracking` block, which already hands
-  // it a live `Database` and would re-enter the queue if it called the
-  // async `latestScoringContextInputs` wrapper above instead.
-  //
   // Pulls every signal-bearing episode in two disjoint slices — rated (any
   // explicit rating) and partial-listen (has bitmap coverage but no rating) —
   // then loads each signal's embedding (if present) into a single
   // `IdentifiedArray` keyed by episode id. The two slices never overlap, so
   // no dedupe is needed.
-  func scoringContextInputs(in db: Database) throws -> ScoringContextInputs {
+  private func _scoringContextInputs(in db: Database) throws -> ScoringContextInputs {
     let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
     let partialSignals =
       try PartialSignal
@@ -434,14 +429,16 @@ struct Repo: Databasing {
       partialSignals: partialSignals,
       signalEmbeddings: signalEmbeddings,
       hasAnyEmbeddings: hasAnyEmbeddings,
-      freshnessCadences: try Self._resolveFreshnessCadences(db)
+      freshnessCadences: try Self.resolveFreshnessCadences(db)
     )
   }
 
-  // Manual cadence choices win; nil-cadence podcasts are inferred from
-  // their pubDates. Podcasts with no episodes and no manual choice are
-  // absent from the returned map.
-  private static func _resolveFreshnessCadences(
+  // Stateless DB helper exposed for the Observatory's observation closure
+  // (which builds a partials-free view of the scoring context and needs the
+  // same cadence resolution that the rebuild path uses). Manual cadence
+  // choices win; nil-cadence podcasts are inferred from their pubDates.
+  // Podcasts with no episodes and no manual choice are absent from the map.
+  static func resolveFreshnessCadences(
     _ db: Database
   ) throws -> [Podcast.ID: FreshnessCadence] {
     let manualRows = try Row.fetchAll(

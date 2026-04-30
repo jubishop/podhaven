@@ -231,14 +231,44 @@ struct Observatory {
 
   // GRDB-driven stream. Tracked region: rating columns + episodeEmbedding
   // table + freshness cadences. Playback-path columns (currentTime,
-  // playbackCoverage, lastPlayedDate) are deliberately NOT referenced so
-  // per-checkpoint writes during playback fire nothing. The build itself
-  // lives on `Repo` — this is just the observation wrapper.
-  func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
-    let repo = self.repo
-    return _observe { db in
-      try repo.scoringContextInputs(in: db)
+  // playbackCoverage, lastPlayedDate) are deliberately NOT referenced —
+  // `_trackedScoringSources` omits the `PartialSignal` fetch precisely so
+  // per-checkpoint `updatePlayback` writes do not wake this observation.
+  // Partial-listen data is filled in by the engine's debounced rebuild
+  // (`latestScoringContextInputs`) and by its `onDeck` session-boundary
+  // handler.
+  func scoringContextInputs() -> AsyncValueObservation<TrackedScoringSources> {
+    _observe { db in
+      try Self._trackedScoringSources(in: db)
     }
+  }
+
+  // The embedding fetch filters by rated-signal IDs; that does not narrow
+  // GRDB's tracked region (the whole `episodeEmbedding` table is tracked
+  // either way), it just avoids loading partial-signal embeddings the
+  // observation will never consume — those land in the rebuild path via
+  // `Repo.latestScoringContextInputs()`.
+  private static func _trackedScoringSources(
+    in db: Database
+  ) throws -> TrackedScoringSources {
+    let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
+    let signalIDs = ratedSignals.map(\.id)
+    let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
+      signalIDs.isEmpty
+      ? IdentifiedArray(id: \.episodeId)
+      : try EpisodeEmbedding
+        .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
+        .fetchIdentifiedArray(db, id: \.episodeId)
+
+    let hasAnyEmbeddings =
+      try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
+
+    return TrackedScoringSources(
+      ratedSignals: ratedSignals,
+      signalEmbeddings: signalEmbeddings,
+      hasAnyEmbeddings: hasAnyEmbeddings,
+      freshnessCadences: try Repo.resolveFreshnessCadences(db)
+    )
   }
 
   // MARK: - Private Helpers

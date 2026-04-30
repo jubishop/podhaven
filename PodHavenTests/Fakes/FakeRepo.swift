@@ -372,10 +372,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.latestScoringContextInputs()
   }
 
-  nonisolated func scoringContextInputs(in db: Database) throws -> ScoringContextInputs {
-    try repo.scoringContextInputs(in: db)
-  }
-
   @discardableResult
   func updateRating(_ episodeIDs: [Episode.ID], rating: EpisodeRating?) async throws -> Int {
     recordCall(

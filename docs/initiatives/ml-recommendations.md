@@ -96,8 +96,8 @@ Temporal decay (existing 180-day half-life) applies to partials via `lastPlayedD
 **Observation strategy.** With hundreds of signal episodes per user, per-checkpoint observation re-fetches would steal cycles even at `.utility`. So we exclude playback-path columns from the observed region and refresh on explicit triggers:
 
 - `SignalEpisode.databaseSelection` is `id, podcastId, rating, ratingDate`. The narrow GRDB observation only fires when rating columns change.
-- `PartialSignal` exists as its own `FetchableRecord` but is never fetched inside the observation closure — it's only read inside the merged stream's full-rebuild path.
-- `Observatory.refreshScoringContext()` (a `Broadcast<Int>` counter) is bumped by `PlayManager` on episode finish and episode change. Both triggers fan into a single `AsyncStream<ScoringContextInputs>` consumed by the engine.
+- The observation closure calls `Repo.trackedScoringSources(in:)`, which intentionally omits the `PartialSignal` fetch — that keeps `playbackCoverage` and `lastPlayedDate` out of the tracked region so per-tick `updatePlayback` writes do not wake the observation. `PartialSignal` is fetched only inside `Repo.latestScoringContextInputs()`, which the engine calls on rebuild.
+- `RecommendationEngine` subscribes to `SharedState.$onDeck` and treats every transition (including nil → new) as a session boundary — that's the trigger that catches partial-signal staleness within a playback session. Both triggers (GRDB observation and onDeck transition) feed a single debounced rebuild that always re-reads `latestScoringContextInputs`, so whichever wins the debounce sees fresh DB state at fire time.
 - `prepareForForeground` already calls `engine.start()` — catches anything missed across launches.
 - Pause does *not* trigger refresh — pauses-and-resumes for phone calls are routine; a pause-debounce would either flap or add staleness.
 

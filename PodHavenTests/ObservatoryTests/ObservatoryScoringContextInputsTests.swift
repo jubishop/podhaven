@@ -78,7 +78,6 @@ actor ObservatoryScoringContextInputsTests {
   func emptyState() async throws {
     let inputs = try await observatory.scoringContextInputs().get()
     #expect(inputs.ratedSignals.isEmpty)
-    #expect(inputs.partialSignals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
     #expect(inputs.hasAnyEmbeddings == false)
     #expect(inputs.freshnessCadences.isEmpty)
@@ -234,7 +233,6 @@ actor ObservatoryScoringContextInputsTests {
     #expect(lovedSignal.podcastID == loved.podcastID)
     #expect(lovedSignal.ratingDate != nil)
 
-    #expect(inputs.partialSignals.isEmpty)
     #expect(inputs.ratedSignals.contains { $0.id == finished.id } == false)
     #expect(inputs.ratedSignals.contains { $0.id == unrated.id } == false)
 
@@ -246,7 +244,7 @@ actor ObservatoryScoringContextInputsTests {
     #expect(inputs.hasAnyEmbeddings == true)
   }
 
-  @Test("an episode with a real playback bitmap appears as a partial signal")
+  @Test("an episode with a real playback bitmap appears as a partial signal in the rebuild path")
   func partialSignalFromBitmap() async throws {
     let podcast = try await insertPodcast()
     let episode = try await upsertEpisode(podcast: podcast, title: "Played")
@@ -258,16 +256,48 @@ actor ObservatoryScoringContextInputsTests {
       now: Date()
     )
 
-    let partialCount = Counter()
+    // Partial signals are filled in by the engine's rebuild path
+    // (`latestScoringContextInputs`), not by the GRDB observation — playback
+    // columns are deliberately excluded from the observation's tracked region.
+    let inputs = try await repo.latestScoringContextInputs()
+    #expect(inputs.partialSignals.count == 1)
+    #expect(inputs.partialSignals.first?.id == episode.id)
+  }
+
+  @Test("updatePlayback writes do not wake the scoringContextInputs observation")
+  func updatePlaybackDoesNotReEmit() async throws {
+    let podcast = try await insertPodcast()
+    let rated = try await upsertEpisode(podcast: podcast, title: "Loved", rating: .loved)
+    try await upsertEmbedding(for: rated)
+    let played = try await upsertEpisode(podcast: podcast, title: "Played")
+
+    let emissionCount = Counter()
     Task {
-      for try await inputs in observatory.scoringContextInputs() {
-        await partialCount(inputs.partialSignals.count)
+      for try await _ in observatory.scoringContextInputs() {
+        await emissionCount.increment()
       }
+    }
+    try await emissionCount.wait(for: 1)
+
+    // Each updatePlayback writes currentTime, maxPlaybackTime, lastPlayedDate,
+    // and playbackCoverage. None of those columns belong to the tracked
+    // region, so a burst of ticks must not produce a single re-emission.
+    for second in stride(from: 3, through: 60, by: 3) {
+      _ = try await repo.updatePlayback(
+        played.id,
+        currentTime: CMTime.seconds(Double(second)),
+        playedFrom: CMTime.seconds(Double(second - 3)),
+        now: Date()
+      )
     }
 
     try await Wait.until(
-      { await partialCount.value == 1 },
-      { "Expected partial signal to materialize, got \(await partialCount.value)" }
+      maxAttempts: 50,
+      { await emissionCount.maxValue == 1 },
+      {
+        "Expected exactly one emission across playback ticks, "
+          + "got \(await emissionCount.maxValue)"
+      }
     )
   }
 
@@ -279,7 +309,6 @@ actor ObservatoryScoringContextInputsTests {
 
     let inputs = try await observatory.scoringContextInputs().get()
     #expect(inputs.ratedSignals.isEmpty)
-    #expect(inputs.partialSignals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
     #expect(inputs.hasAnyEmbeddings == true)
   }
@@ -450,13 +479,6 @@ actor ObservatoryScoringContextInputsTests {
         "Expected exactly one emission after irrelevant updates, "
           + "got \(await emissionCount.maxValue)"
       }
-    )
-  }
-
-  private func emissionCountWaitInitial(_ counter: Counter) async throws {
-    try await Wait.until(
-      { await counter.value == 0 },
-      { "Expected initial empty emission" }
     )
   }
 }
