@@ -13,6 +13,7 @@ Three places hold persistent project context — pick the right one when saving 
 - **This is a public repository.** Never add secrets, API keys, auth tokens, or credentials to any file.
 - Never create commits or push unless the humans explicitly ask.
 - Assume the working tree may hold user edits; respect them and avoid resets or reverts.
+- **Resolve all warnings.** Build and test runs must end with zero warnings. When you see a compiler, linker, or runtime warning in your output, fix the root cause — never ignore it, suppress it locally, or silence it by leaving the noisy line in place. The same applies to deprecation, unused-result, and Sendable warnings.
 
 ## Compatibility
 - Backward compatibility with older iOS versions or library versions is not necessary. Always use the latest features and libraries.
@@ -43,6 +44,7 @@ Three places hold persistent project context — pick the right one when saving 
 
 ## Testing
 - Tests use the Swift Testing DSL: `@Suite("…", .container)` with `#expect` assertions; async tests rely on structured concurrency.
+- Any bugfix should include a regression test, and the test should be confirmed to fail before the fix is applied.
 - Tests should NEVER use `Task.sleep`, ever. Use `Wait.until` or similar polling helpers to await conditions.
 - Tests may use `sleeper.sleep` only to artificially advance time when testing production code that uses sleeps (e.g., debouncing, rate limiting).
 - In-memory GRDB (`AppDB.inMemory()`) powers repo tests; helpers under `Create` build realistic unsaved models.

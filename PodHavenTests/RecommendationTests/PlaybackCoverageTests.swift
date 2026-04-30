@@ -144,6 +144,16 @@ struct PlaybackCoverageTests {
     #expect(coverage.bytes.count == 3)
   }
 
+  @Test("padding bits in the final byte do not count as coverage")
+  func paddingBitsExcludedFromCoverage() {
+    // durationSeconds 1 → 1 valid bit in a 1-byte buffer; bits 1..7 are padding.
+    // 0xFE has bit 0 clear and the 7 padding bits set, so a popcount-everything
+    // implementation would report 21s of coverage on a 1s episode.
+    let coverage = PlaybackCoverage(durationSeconds: 1, data: Data([0xFE]))
+    #expect(coverage.coveredSeconds == 0)
+    #expect(coverage.ratio == 0.0)
+  }
+
   // MARK: - Ratio
 
   @Test("ratio is coveredSeconds / durationSeconds, clamped to 1.0")

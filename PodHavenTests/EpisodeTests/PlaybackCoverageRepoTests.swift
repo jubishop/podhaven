@@ -199,6 +199,30 @@ class PlaybackCoverageRepoTests {
     #expect(result == false)
   }
 
+  @Test("range entirely past duration leaves bitmap nil and excludes from partial signals")
+  func rangeBeyondDurationSkipsBitmap() async throws {
+    let episode = try await insertEpisode(durationSeconds: 60)
+
+    try await repo.updatePlayback(
+      episode.id,
+      currentTime: CMTime.seconds(180),
+      playedFrom: CMTime.seconds(120),
+      now: Date()
+    )
+
+    let bitmap: Data? = try await repo.db.read { db -> Data? in
+      let row = try Row.fetchOne(
+        db,
+        Episode.withID(episode.id).select(Episode.Columns.playbackCoverage)
+      )
+      return row?[Episode.Columns.playbackCoverage]
+    }
+    #expect(bitmap == nil)
+
+    let partials = try await repo.allUnratedListenedEpisodes()
+    #expect(partials.isEmpty)
+  }
+
   @Test("maxPlaybackTime advances but never regresses")
   func maxPlaybackTimeAdvances() async throws {
     let episode = try await insertEpisode(durationSeconds: 300)

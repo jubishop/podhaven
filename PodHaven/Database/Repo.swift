@@ -855,8 +855,9 @@ struct Repo: Databasing {
       if durationSeconds > 0, endSeconds > startSeconds {
         let existing: Data? = row[Episode.Columns.playbackCoverage]
         var coverage = PlaybackCoverage(durationSeconds: durationSeconds, data: existing)
-        coverage.mark(startSeconds: startSeconds, endSeconds: endSeconds)
-        assignments.append(Episode.Columns.playbackCoverage.set(to: coverage.data))
+        if coverage.mark(startSeconds: startSeconds, endSeconds: endSeconds) {
+          assignments.append(Episode.Columns.playbackCoverage.set(to: coverage.data))
+        }
       }
 
       return

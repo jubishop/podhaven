@@ -31,6 +31,13 @@ struct PlaybackCoverage: Equatable, Sendable {
     } else if stored.count > expectedByteCount {
       stored.removeLast(stored.count - expectedByteCount)
     }
+    // Canonicalize the final byte: any bits beyond `bits` are padding and
+    // must read 0. Otherwise a corrupt blob (or one written under a longer
+    // duration) would inflate `coveredSeconds` via the popcount.
+    let trailingBits = bits % 8
+    if trailingBits > 0, !stored.isEmpty {
+      stored[stored.count - 1] &= UInt8((1 << trailingBits) - 1)
+    }
     self.bytes = stored
   }
 
@@ -40,23 +47,29 @@ struct PlaybackCoverage: Equatable, Sendable {
 
   // MARK: - Mutation
 
-  mutating func mark(startSeconds: Int, endSeconds: Int) {
-    guard endSeconds > startSeconds else { return }
+  // Returns true when at least one bit was set, so callers can skip
+  // persisting an all-zero bitmap for ranges that fall entirely outside the
+  // valid duration (a non-nil zero blob would still satisfy `hasCoverage`).
+  @discardableResult
+  mutating func mark(startSeconds: Int, endSeconds: Int) -> Bool {
+    guard endSeconds > startSeconds else { return false }
     let bits = Self.bitCount(forDurationSeconds: durationSeconds)
-    guard bits > 0 else { return }
+    guard bits > 0 else { return false }
 
     let firstBit = max(0, startSeconds / Self.bitWidthSeconds)
     // End is exclusive; (endSeconds - 1) keeps a range that ends on a chunk
     // boundary from spilling into the next chunk.
     let lastBit = min(bits - 1, (endSeconds - 1) / Self.bitWidthSeconds)
-    guard firstBit <= lastBit else { return }
+    guard firstBit <= lastBit else { return false }
 
     for bit in firstBit...lastBit {
       bytes[bit / 8] |= UInt8(1 << (bit % 8))
     }
+    return true
   }
 
-  mutating func mark(from start: CMTime, to end: CMTime) {
+  @discardableResult
+  mutating func mark(from start: CMTime, to end: CMTime) -> Bool {
     mark(
       startSeconds: start.positiveFiniteSeconds,
       endSeconds: end.positiveFiniteSeconds
