@@ -238,6 +238,25 @@ struct SettingsView: View {
           VStack(alignment: .leading, spacing: 24) {
             SettingsRow(
               infoText: """
+                When enabled, the currently playing episode will always display \
+                the podcast artwork instead of the episode-specific artwork — \
+                in the Playbar, the lock screen, the Now Playing widget, \
+                and at the top of the Up Next queue.
+                """
+            ) {
+              Text("Always Show Podcast Art for Now Playing")
+              Spacer()
+            }
+            Toggle(
+              "Always Show Podcast Art for Now Playing",
+              isOn: userSettings.$alwaysShowPodcastImageForOnDeck.binding
+            )
+            .labelsHidden()
+          }
+
+          VStack(alignment: .leading, spacing: 24) {
+            SettingsRow(
+              infoText: """
                 Maximum number of episodes that can be in your queue. \
                 When adding episodes to the end, \
                 as many as possible will be added up to the limit. \

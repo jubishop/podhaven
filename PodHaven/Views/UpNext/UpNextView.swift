@@ -32,7 +32,7 @@ struct UpNextView: View {
         if userSettings.showNowPlayingInUpNext, let onDeck = sharedState.onDeck {
           EpisodeListView(
             episode: onDeck,
-            alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageInUpNext
+            alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageForOnDeck
           )
           .padding()
           .glassEffect(in: RoundedRectangle(cornerRadius: 12))

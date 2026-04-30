@@ -524,10 +524,16 @@ final class PlayManager {
   }
 
   private func fetchImage(for podcastEpisode: PodcastEpisode) {
+    let imageURL =
+      userSettings.alwaysShowPodcastImageForOnDeck
+      ? podcastEpisode.podcastImage : podcastEpisode.image
+    fetchImage(episodeID: podcastEpisode.id, imageURL: imageURL)
+  }
+
+  private func fetchImage(episodeID: Episode.ID, imageURL: URL) {
     imageFetchTask?.cancel()
 
-    imageFetchTask = Task {
-      [weak self, episodeID = podcastEpisode.id, imageURL = podcastEpisode.image] in
+    imageFetchTask = Task { [weak self, episodeID, imageURL] in
       guard let self else { return }
       do {
         let image = try await imagePipeline.image(for: imageURL)
@@ -542,6 +548,13 @@ final class PlayManager {
         )
       }
     }
+  }
+
+  func refetchOnDeckImage() {
+    guard let onDeck = sharedState.onDeck else { return }
+    let imageURL =
+      userSettings.alwaysShowPodcastImageForOnDeck ? onDeck.podcastImage : onDeck.image
+    fetchImage(episodeID: onDeck.id, imageURL: imageURL)
   }
 
   func clearOnDeck() async {
