@@ -260,13 +260,10 @@ struct Observatory {
         .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
         .fetchIdentifiedArray(db, id: \.episodeId)
 
-    let hasAnyEmbeddings =
-      try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
-
     return TrackedScoringSources(
       ratedSignals: ratedSignals,
       signalEmbeddings: signalEmbeddings,
-      hasAnyEmbeddings: hasAnyEmbeddings,
+      embeddingCount: try EpisodeEmbedding.fetchCount(db),
       freshnessCadences: try Repo.resolveFreshnessCadences(db)
     )
   }

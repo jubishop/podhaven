@@ -79,7 +79,7 @@ actor ObservatoryScoringContextInputsTests {
     let inputs = try await observatory.scoringContextInputs().get()
     #expect(inputs.ratedSignals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
-    #expect(inputs.hasAnyEmbeddings == false)
+    #expect(inputs.embeddingCount == 0)
     #expect(inputs.freshnessCadences.isEmpty)
   }
 
@@ -241,7 +241,7 @@ actor ObservatoryScoringContextInputsTests {
     #expect(lovedEmbedding.dimension == 3)
     #expect(lovedEmbedding.floatVector == [1, 0, 0])
     #expect(inputs.signalEmbeddings[id: finished.id] == nil)
-    #expect(inputs.hasAnyEmbeddings == true)
+    #expect(inputs.embeddingCount == 1)
   }
 
   @Test("an episode with a real playback bitmap appears as a partial signal in the rebuild path")
@@ -301,8 +301,8 @@ actor ObservatoryScoringContextInputsTests {
     )
   }
 
-  @Test("hasAnyEmbeddings is true when only non-signal episodes have embeddings")
-  func hasAnyEmbeddingsCoversCandidatesToo() async throws {
+  @Test("embeddingCount counts non-signal episodes too")
+  func embeddingCountCoversCandidatesToo() async throws {
     let podcast = try await insertPodcast()
     let candidate = try await upsertEpisode(podcast: podcast, title: "Candidate")
     try await upsertEmbedding(for: candidate)
@@ -310,7 +310,7 @@ actor ObservatoryScoringContextInputsTests {
     let inputs = try await observatory.scoringContextInputs().get()
     #expect(inputs.ratedSignals.isEmpty)
     #expect(inputs.signalEmbeddings.isEmpty)
-    #expect(inputs.hasAnyEmbeddings == true)
+    #expect(inputs.embeddingCount == 1)
   }
 
   @Test("re-emits when a new rating arrives")
@@ -358,6 +358,37 @@ actor ObservatoryScoringContextInputsTests {
     try await Wait.until(
       { await embeddingCount.value == 1 },
       { "Expected re-emission with one embedding, got \(await embeddingCount.value)" }
+    )
+  }
+
+  @Test("re-emits when an embedding is upserted for an unrated/partial-listen episode")
+  func reEmitsOnPartialEpisodeEmbedding() async throws {
+    // Establish a state where the embedding table is already non-empty so a
+    // pure Bool flag cannot distinguish "an embedding for some other
+    // episode just landed." Adding the partial-listen embedding must still
+    // wake the observation; otherwise the engine never rebuilds with that
+    // new vector.
+    let podcast = try await insertPodcast()
+    let rated = try await upsertEpisode(podcast: podcast, title: "Loved", rating: .loved)
+    try await upsertEmbedding(for: rated)
+
+    let emissionCount = Counter()
+    Task {
+      for try await _ in observatory.scoringContextInputs() {
+        await emissionCount.increment()
+      }
+    }
+    try await emissionCount.wait(for: 1)
+
+    let partial = try await upsertEpisode(podcast: podcast, title: "Played")
+    try await upsertEmbedding(for: partial)
+
+    try await Wait.until(
+      { await emissionCount.value == 2 },
+      {
+        "Expected re-emission for partial-episode embedding, "
+          + "got \(await emissionCount.value)"
+      }
     )
   }
 
