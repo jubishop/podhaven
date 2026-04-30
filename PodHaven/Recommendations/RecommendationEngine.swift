@@ -77,6 +77,7 @@ struct RecommendationEngine: Sendable {
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
+  private let cacheDebounce = Debounce(duration: .seconds(1))
   private let startOnce = Once()
 
   fileprivate init() {}
@@ -154,12 +155,17 @@ struct RecommendationEngine: Sendable {
     let freshnessCadences: [Podcast.ID: FreshnessCadence]
   }
 
+  // Both triggers funnel through `cacheDebounce` so RefreshManager bulk
+  // inserts (observatory) and rapid onDeck transitions (nil → new) collapse
+  // into a single rebuild after the burst settles.
   private func startObservingScoringContext() {
     Task(priority: taskPriority(.utility)) {
       do {
         for try await inputs in observatory.scoringContextInputs() {
           guard !Task.isCancelled else { return }
-          cache(Self.buildContext(from: inputs))
+          cacheDebounce {
+            cache(Self.buildContext(from: inputs))
+          }
         }
       } catch {
         Self.log.caughtError("scoringContextInputs observation failed", error)
@@ -180,11 +186,13 @@ struct RecommendationEngine: Sendable {
         let currentID = onDeck?.id
         guard currentID != lastID else { continue }
         lastID = currentID
-        do {
-          let inputs = try await repo.latestScoringContextInputs()
-          cache(Self.buildContext(from: inputs))
-        } catch {
-          Self.log.caughtError("onDeck-triggered scoring rebuild failed", error)
+        cacheDebounce {
+          do {
+            let inputs = try await repo.latestScoringContextInputs()
+            cache(Self.buildContext(from: inputs))
+          } catch {
+            Self.log.caughtError("onDeck-triggered scoring rebuild failed", error)
+          }
         }
       }
     }

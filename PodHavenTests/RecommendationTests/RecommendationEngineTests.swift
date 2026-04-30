@@ -132,6 +132,7 @@ class RecommendationEngineTests {
   // so the @Sendable boundary doesn't capture the non-Sendable test class.)
   private func startAndWaitForRecs() async throws -> IdentifiedArrayOf<RecommendedEpisode> {
     engine.start()
+    try await advanceCacheDebounce()
     let engine = self.engine
     return try await Wait.forValue {
       let recs = try await engine.topRecommendations()
@@ -143,11 +144,21 @@ class RecommendationEngineTests {
     for episodes: [Episode]
   ) async throws -> [Episode.ID: RecommendationScore] {
     engine.start()
+    try await advanceCacheDebounce()
     let engine = self.engine
     return try await Wait.forValue {
       let map = try await engine.recommendations(for: episodes)
       return map.isEmpty ? nil : map
     }
+  }
+
+  // Engine batches cache rebuilds through a 1s Debounce. FakeSleeper requires
+  // a manual advance to fire pending sleeps, so tests expecting the cache to
+  // be hot wait for the debounce to register, then advance past it.
+  private func advanceCacheDebounce() async throws {
+    let sleeper = Container.shared.sleeper() as! FakeSleeper
+    try await sleeper.waitForSleepRequests(count: 1)
+    await sleeper.advanceTime(by: .seconds(1))
   }
 
   // MARK: - Minimum Threshold
@@ -531,6 +542,7 @@ class RecommendationEngineTests {
     try await embedEpisodes(candidates)
 
     engine.start()
+    try await advanceCacheDebounce()
     let engine = self.engine
     let limited = try await Wait.forValue {
       let recs = try await engine.topRecommendations(limit: 3)
@@ -665,6 +677,7 @@ class RecommendationEngineTests {
     sharedState.$onDeck.new(OnDeck(from: onDeckEpisode))
     sharedState.$onDeck.new(nil)
 
+    try await advanceCacheDebounce()
     let engine = self.engine
     let recs = try await Wait.forValue {
       let recs = try await engine.topRecommendations()
