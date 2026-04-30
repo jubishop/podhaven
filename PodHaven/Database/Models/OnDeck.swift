@@ -160,7 +160,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       && podcastTitle == other.podcastTitle
       && pubDate == other.pubDate
       && duration == other.duration
-      && (artwork != nil) == (other.artwork != nil)
+      && artwork === other.artwork
   }
 
   // MARK: - Hashable

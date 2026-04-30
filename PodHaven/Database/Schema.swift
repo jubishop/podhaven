@@ -282,6 +282,7 @@ enum Schema {
           "maxQueueLength",
           "showNowPlayingInUpNext",
           "alwaysShowPodcastImageInUpNext",
+          "alwaysShowPodcastImageForOnDeck",
           "showTimeRemainingInEpisodeLists",
           "appearanceMode",
           "nextTrackBehavior",
