@@ -365,8 +365,9 @@ enum PodAVPlayerError: Error, LocalizedError {
 
     // `abs` guards against any future path that moves time backward without
     // routing through `seek(to:)` (which resets `lastDatabaseUpdateTime`).
-    let tickSeconds = Double(Self.playbackTickSeconds)
-    if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds) >= tickSeconds {
+    if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds)
+      >= Double(Self.playbackTickSeconds)
+    {
       await savePlaybackTick(currentTime)
     }
 

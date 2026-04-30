@@ -15,7 +15,7 @@ extension Container {
   }
 }
 
-struct Repo: Databasing, Sendable {
+struct Repo: Databasing {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.playManager) private var playManager
 
@@ -401,6 +401,11 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  // Public and takes a `Database` so the Observatory can reuse the same
+  // body inside its `ValueObservation.tracking` block, which already hands
+  // it a live `Database` and would re-enter the queue if it called the
+  // async `latestScoringContextInputs` wrapper above instead.
+  //
   // Pulls every signal-bearing episode in two disjoint slices — rated (any
   // explicit rating) and partial-listen (has bitmap coverage but no rating) —
   // then loads each signal's embedding (if present) into a single
