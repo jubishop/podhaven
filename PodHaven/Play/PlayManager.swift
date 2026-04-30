@@ -530,13 +530,6 @@ final class PlayManager {
     fetchImage(episodeID: podcastEpisode.id, imageURL: imageURL)
   }
 
-  func refetchOnDeckImage() {
-    guard let onDeck = sharedState.onDeck else { return }
-    let imageURL =
-      userSettings.alwaysShowPodcastImageForOnDeck ? onDeck.podcastImage : onDeck.image
-    fetchImage(episodeID: onDeck.id, imageURL: imageURL)
-  }
-
   private func fetchImage(episodeID: Episode.ID, imageURL: URL) {
     imageFetchTask?.cancel()
 
@@ -555,6 +548,13 @@ final class PlayManager {
         )
       }
     }
+  }
+
+  func refetchOnDeckImage() {
+    guard let onDeck = sharedState.onDeck else { return }
+    let imageURL =
+      userSettings.alwaysShowPodcastImageForOnDeck ? onDeck.podcastImage : onDeck.image
+    fetchImage(episodeID: onDeck.id, imageURL: imageURL)
   }
 
   func clearOnDeck() async {
