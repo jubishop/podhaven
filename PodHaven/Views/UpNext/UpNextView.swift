@@ -11,6 +11,7 @@ struct UpNextView: View {
   @DynamicInjected(\.userSettings) private var userSettings
 
   @State private var viewModel: UpNextViewModel
+  @State private var onDeckViewModel = OnDeckViewModel()
 
   init(viewModel: UpNextViewModel) {
     self.viewModel = viewModel
@@ -38,6 +39,7 @@ struct UpNextView: View {
           .padding(.horizontal)
           .contentShape(Rectangle())
           .onTapGesture { PlayBar.showOnDeckEpisodeDetail() }
+          .episodeContextMenu(viewModel: onDeckViewModel, episode: onDeck)
         }
       }
       .refreshable { viewModel.refreshQueue() }
