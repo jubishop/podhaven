@@ -689,7 +689,7 @@ class RecommendationEngineTests {
     #expect(!recs.isEmpty)
   }
 
-  @Test("a started-but-no-bitmap episode is NOT a signal (legacy / pre-v40)")
+  @Test("a started-but-no-bitmap episode is NOT a signal (legacy / pre-v41)")
   func startedWithoutBitmapNotSignal() async throws {
     let (_, signals) = try await createPodcastWithEpisodes(
       count: 3,

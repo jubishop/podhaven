@@ -518,6 +518,13 @@ extension PlayManager {
       }
     }
 
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await _ in userSettings.$alwaysShowPodcastImageForOnDeck.stream() {
+        refetchOnDeckImage()
+      }
+    }
+
     // SharedState
 
     Task { @PlayActor [weak self] in

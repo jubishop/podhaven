@@ -21,6 +21,8 @@ struct UserSettings: Sendable {
   @PersistedBroadcast("showNowPlayingInUpNext") var showNowPlayingInUpNext: Bool = false
   @PersistedBroadcast("alwaysShowPodcastImageInUpNext") var alwaysShowPodcastImageInUpNext: Bool =
     false
+  @PersistedBroadcast("alwaysShowPodcastImageForOnDeck") var alwaysShowPodcastImageForOnDeck: Bool =
+    false
   @PersistedBroadcast("showTimeRemainingInEpisodeLists") var showTimeRemainingInEpisodeLists: Bool =
     false
 
