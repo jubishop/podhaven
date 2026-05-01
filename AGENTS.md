@@ -13,6 +13,7 @@ Three places hold persistent project context — pick the right one when saving 
 - **This is a public repository.** Never add secrets, API keys, auth tokens, or credentials to any file.
 - Never create commits or push unless the humans explicitly ask.
 - Assume the working tree may hold user edits; respect them and avoid resets or reverts.
+- **Resolve all warnings.** Build and test runs must end with zero warnings. When you see a compiler, linker, or runtime warning in your output, fix the root cause — never ignore it, suppress it locally, or silence it by leaving the noisy line in place. The same applies to deprecation, unused-result, and Sendable warnings.
 
 ## Compatibility
 - Backward compatibility with older iOS versions or library versions is not necessary. Always use the latest features and libraries.
@@ -43,6 +44,7 @@ Three places hold persistent project context — pick the right one when saving 
 
 ## Testing
 - Tests use the Swift Testing DSL: `@Suite("…", .container)` with `#expect` assertions; async tests rely on structured concurrency.
+- Any bugfix should include a regression test, and the test should be confirmed to fail before the fix is applied.
 - Tests should NEVER use `Task.sleep`, ever. Use `Wait.until` or similar polling helpers to await conditions.
 - Tests may use `sleeper.sleep` only to artificially advance time when testing production code that uses sleeps (e.g., debouncing, rate limiting).
 - In-memory GRDB (`AppDB.inMemory()`) powers repo tests; helpers under `Create` build realistic unsaved models.
@@ -67,8 +69,11 @@ Three places hold persistent project context — pick the right one when saving 
 - Prefer triple-quoted strings for multi-line or >100 character literals.
 - Run `swift-format` on every Swift file you touch before handing work back.
 - Use `//` for comments, not `///` (no doc comments).
-- Keep comments minimal — only add one when the *why* isn't already obvious from reading the code (a hidden constraint, a non-obvious invariant, a workaround for a specific bug, behavior that would surprise a reader). Don't restate what well-named identifiers already convey, and don't reference the current task/PR/caller. If removing the comment wouldn't confuse a future reader, don't write it.
+- `// MARK: - <Section>` dividers are encouraged for organizing files; they are not "comments" — keep them where they help readers navigate.
+- **Default to NO comment.** Silence is the right call when the surrounding code already explains itself. Add one only when (1) the *why* is non-obvious — a hidden constraint, a non-obvious invariant, a workaround for a specific bug, or behavior that would surprise a reader, AND (2) a future reader couldn't recover the *why* from identifier names, the call site, or `git blame`.
+- **Length follows substance, not style.** Most comments that earn their place fit on a single line. A multi-line comment is fine when the *why* genuinely needs more — e.g., capturing a subtle invariant, the shape of a workaround, or the reasoning that future-you will need to weigh edge cases.
 - Never leave behind unused code, properties, or parameters. If something becomes unused, remove it immediately.
+- Don't extract a helper function for a single call site unless the helper earns its keep — early-exit / `guard`-driven control flow, recursion, or a structurally distinct phase that's genuinely clearer named. A linear sequence of statements lifted into a private one-shot helper just adds a hop; inline it.
 - Avoid using `@unchecked`/`@retroactive`/`unsafe` in code unless absolutely necessary.
 - Avoid `inout` parameters; return values instead.
 - Use `@MainActor` on functions/types instead of `MainActor.run { }` blocks.

@@ -338,7 +338,7 @@ class V37MigrationTests {
     _ = try await populateAtV36()
     try migrator.migrate(appDB.db, upTo: "v37")
 
-    let violations = try await appDB.db.read { db -> [Row] in
+    let violations = try appDB.db.read { db -> [Row] in
       try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
     }
     #expect(violations.isEmpty)

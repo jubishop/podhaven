@@ -241,6 +241,27 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
+  func updatePlayback(
+    _ episodeID: Episode.ID,
+    currentTime: CMTime,
+    playedFrom: CMTime,
+    now: Date
+  ) async throws -> Bool {
+    recordCall(
+      methodName: "updatePlayback",
+      parameters: (
+        episodeID: episodeID, currentTime: currentTime, playedFrom: playedFrom, now: now
+      )
+    )
+    return try await repo.updatePlayback(
+      episodeID,
+      currentTime: currentTime,
+      playedFrom: playedFrom,
+      now: now
+    )
+  }
+
+  @discardableResult
   func updateDownloadTaskID(_ episodeID: Episode.ID, downloadTaskID: URLSessionDownloadTask.ID?)
     async throws
     -> Bool
@@ -331,14 +352,24 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.episodesNeedingEmbeddings(revision: revision)
   }
 
-  func allSignalEpisodes() async throws -> [SignalEpisode] {
-    recordCall(methodName: "allSignalEpisodes", parameters: ())
-    return try await repo.allSignalEpisodes()
+  func allRatedEpisodes() async throws -> [SignalEpisode] {
+    recordCall(methodName: "allRatedEpisodes", parameters: ())
+    return try await repo.allRatedEpisodes()
+  }
+
+  func allUnratedListenedEpisodes() async throws -> [PartialSignal] {
+    recordCall(methodName: "allUnratedListenedEpisodes", parameters: ())
+    return try await repo.allUnratedListenedEpisodes()
   }
 
   func allCandidateEpisodes(excluding excludedID: Episode.ID? = nil) async throws -> [Episode] {
     recordCall(methodName: "allCandidateEpisodes", parameters: excludedID)
     return try await repo.allCandidateEpisodes(excluding: excludedID)
+  }
+
+  func allScoringContextInputs() async throws -> ScoringContextInputs {
+    recordCall(methodName: "allScoringContextInputs", parameters: ())
+    return try await repo.allScoringContextInputs()
   }
 
   @discardableResult

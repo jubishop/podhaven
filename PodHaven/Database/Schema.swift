@@ -556,6 +556,13 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v41") { db in
+      try db.alter(table: "episode") { t in
+        t.add(column: "playbackCoverage", .blob)
+        t.add(column: "lastPlayedDate", .datetime)
+      }
+    }
+
     return migrator
   }
 

@@ -19,6 +19,17 @@ extension CMTime:
     return self
   }
 
+  // Floor of the second-count, returning 0 for any non-positive, indefinite,
+  // or non-finite time. Use when feeding integer-second math (e.g. bitmap
+  // chunk indices) where negatives, NaN, or +∞ would silently corrupt
+  // results.
+  var positiveFiniteSeconds: Int {
+    guard isValid, !isIndefinite else { return 0 }
+    let s = seconds
+    guard s.isFinite, s > 0 else { return 0 }
+    return Int(s.rounded(.down))
+  }
+
   // MARK: - Creation Helpers
 
   static func milliseconds(_ milliseconds: Double) -> CMTime {

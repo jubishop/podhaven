@@ -46,6 +46,11 @@ enum PodAVPlayerError: Error, LocalizedError {
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.repo) private var repo
 
+  // Cadence at which playback ticks reach the database. Downstream consumers
+  // (notably `PlaybackCoverage`'s bitmap) align their chunk width to this
+  // value so each tick lands on a chunk boundary.
+  nonisolated static let playbackTickSeconds: Int = 3
+
   nonisolated private static let log = Log.as(LogSubsystem.Play.avPlayer)
 
   // MARK: - State Management
@@ -322,6 +327,34 @@ enum PodAVPlayerError: Error, LocalizedError {
     }
   }
 
+  // Seek and pause stay on `saveCurrentTime` — they don't represent content
+  // the user actually heard, so the bitmap and `lastPlayedDate` shouldn't grow.
+  private func savePlaybackTick(_ currentTime: CMTime) async {
+    guard let episodeID else {
+      Self.log.warning("Saving tick on nil player item with CMTime: \(currentTime)")
+      return
+    }
+
+    let playedFrom = lastDatabaseUpdateTime ?? currentTime
+    do {
+      try await repo.updatePlayback(
+        episodeID,
+        currentTime: currentTime,
+        playedFrom: playedFrom,
+        now: Date()
+      )
+      lastDatabaseUpdateTime = currentTime
+      Self.log.trace(
+        "savePlaybackTick: saved \(currentTime) (from \(playedFrom)) for \(episodeID)"
+      )
+    } catch {
+      Self.log.caughtError(
+        "savePlaybackTick: failed to save \(currentTime) for episode \(episodeID)",
+        error
+      )
+    }
+  }
+
   // MARK: - Change Handlers
 
   private func handleCurrentTimeChange(_ currentTime: CMTime) async {
@@ -330,12 +363,12 @@ enum PodAVPlayerError: Error, LocalizedError {
       return
     }
 
-    // Only update the database every 3 seconds of playback-time delta in
-    // either direction. `abs` guards against any future path that moves time
-    // backward without routing through `seek(to:)` (which resets
-    // `lastDatabaseUpdateTime`).
-    if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds) >= 3.0 {
-      await saveCurrentTime(currentTime)
+    // `abs` guards against any future path that moves time backward without
+    // routing through `seek(to:)` (which resets `lastDatabaseUpdateTime`).
+    if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds)
+      >= Double(Self.playbackTickSeconds)
+    {
+      await savePlaybackTick(currentTime)
     }
 
     // Always yield to the stream for UI updates (250ms)

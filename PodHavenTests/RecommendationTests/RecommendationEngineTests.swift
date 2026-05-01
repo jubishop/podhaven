@@ -14,7 +14,9 @@ import Testing
 class RecommendationEngineTests {
   @DynamicInjected(\.recommendationEngine) private var engine
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.appDB) private var appDB
 
   // MARK: - Helpers
 
@@ -132,7 +134,7 @@ class RecommendationEngineTests {
   private func startAndWaitForRecs() async throws -> IdentifiedArrayOf<RecommendedEpisode> {
     engine.start()
     let engine = self.engine
-    return try await Wait.forValue {
+    return try await waitAdvancing {
       let recs = try await engine.topRecommendations()
       return recs.isEmpty ? nil : recs
     }
@@ -143,9 +145,25 @@ class RecommendationEngineTests {
   ) async throws -> [Episode.ID: RecommendationScore] {
     engine.start()
     let engine = self.engine
-    return try await Wait.forValue {
+    return try await waitAdvancing {
       let map = try await engine.recommendations(for: episodes)
       return map.isEmpty ? nil : map
+    }
+  }
+
+  // The engine batches cache rebuilds through a 1s Debounce. New triggers
+  // can land at any time during the test, each cancelling the prior sleep
+  // and arming a fresh one (FakeSleeper requires manual advance). Polling
+  // with a per-iteration advance fires whatever sleep is currently armed
+  // and cleanly handles the case where another rebuild gets scheduled
+  // after a previous one already fired.
+  private func waitAdvancing<T: Sendable>(
+    _ block: @Sendable @escaping () async throws -> T?
+  ) async throws -> T {
+    let sleeper = Container.shared.sleeper() as! FakeSleeper
+    return try await Wait.forValue {
+      await sleeper.advanceTime(by: .seconds(1))
+      return try await block()
     }
   }
 
@@ -531,7 +549,7 @@ class RecommendationEngineTests {
 
     engine.start()
     let engine = self.engine
-    let limited = try await Wait.forValue {
+    let limited = try await waitAdvancing {
       let recs = try await engine.topRecommendations(limit: 3)
       return recs.count == 3 ? recs : nil
     }
@@ -565,14 +583,142 @@ class RecommendationEngineTests {
     #expect(!recommendedIDs.contains(onDeckEpisode.id))
   }
 
+  // MARK: - Partial-listen signals
+
+  @Test("partial-listen signals contribute alongside ratings")
+  func partialSignalsContribute() async throws {
+    let (_, ratedEpisodes) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Rated",
+      ratings: [.loved, .liked]
+    )
+    try await embedEpisodes(ratedEpisodes)
+
+    let (_, playedEpisodes) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Played"
+    )
+    try await embedEpisodes(playedEpisodes)
+    let played = try #require(playedEpisodes.first)
+    try await repo.updatePlayback(
+      played.id,
+      currentTime: CMTime.seconds(900),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Candidates"
+    )
+    try await embedEpisodes(candidates)
+
+    let recs = try await startAndWaitForRecs()
+    #expect(!recs.isEmpty)
+  }
+
+  @Test("partial signals lift podcast affinity for the played show")
+  func partialSignalsLiftAffinity() async throws {
+    let (playedPodcast, ratedEpisodes) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "BaselineRatings",
+      ratings: [.loved, .liked]
+    )
+    try await embedEpisodes(ratedEpisodes)
+
+    let played = try await addEpisodes(to: playedPodcast, count: 1)
+    try await embedEpisodes(played)
+    let playedID = try #require(played.first?.id)
+    try await repo.updatePlayback(
+      playedID,
+      currentTime: CMTime.seconds(1700),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+
+    let candidates = try await addEpisodes(to: playedPodcast, count: 1)
+    try await embedEpisodes(candidates)
+
+    let recs = try await startAndWaitForRecs()
+    let candidateRec = try #require(recs.first { $0.episode.id == candidates[0].id })
+    #expect(candidateRec.score.reasons.contains(.podcastAffinity))
+  }
+
+  @Test("onDeck transition rebuilds the cache against fresh partial signals")
+  func onDeckTransitionRebuildsCache() async throws {
+    let (_, ratedEpisodes) = try await createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Rated",
+      ratings: [.loved, .liked]
+    )
+    try await embedEpisodes(ratedEpisodes)
+
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Candidate"
+    )
+    try await embedEpisodes(candidates)
+
+    // Start the engine before any partial exists — initial cache lacks
+    // the third signal, so the rating-only count is below threshold.
+    engine.start()
+
+    let (_, played) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Played"
+    )
+    try await embedEpisodes(played)
+    let playedEpisode = try #require(played.first)
+    try await repo.updatePlayback(
+      playedEpisode.id,
+      currentTime: CMTime.seconds(1500),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+
+    // No GRDB observation fires for the bitmap write. An onDeck id
+    // transition is what propagates the partial signal into the cache.
+    let onDeckEpisode = try #require(try await repo.podcastEpisode(playedEpisode.id))
+    sharedState.$onDeck.new(OnDeck(from: onDeckEpisode))
+    sharedState.$onDeck.new(nil)
+
+    let engine = self.engine
+    let recs = try await waitAdvancing {
+      let recs = try await engine.topRecommendations()
+      return recs.isEmpty ? nil : recs
+    }
+    #expect(!recs.isEmpty)
+  }
+
+  @Test("a started-but-no-bitmap episode is NOT a signal (legacy / pre-v41)")
+  func startedWithoutBitmapNotSignal() async throws {
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    let (_, started) = try await createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Legacy"
+    )
+    let legacyID = try #require(started.first?.id)
+    try await repo.updateCurrentTime(legacyID, currentTime: CMTime.seconds(60))
+
+    let partials = try await repo.allUnratedListenedEpisodes()
+    #expect(partials.contains { $0.id == legacyID } == false)
+  }
+
   // MARK: - Signals without embeddings
 
   @Test("returns empty when signals exist but none have embeddings yet")
   func signalsWithoutEmbeddings() async throws {
     // 3 rated signals but no embeddings yet — transient state during initial
-    // embedding-pipeline warmup. hasAnyEmbeddings is true (from candidates) so
-    // the early hasAnyEmbeddings gate passes, but buildCentroids returns nil
-    // because no signal embedding is available to seed the positive centroid.
+    // embedding-pipeline warmup. embeddingCount is non-zero (from candidates)
+    // so the early hasAnyEmbeddings gate passes, but buildCentroids returns
+    // nil because no signal embedding is available to seed the positive
+    // centroid.
     _ = try await createPodcastWithEpisodes(
       count: 3,
       podcastTitle: "Signal",
@@ -775,6 +921,45 @@ class RecommendationEngineTests {
     let recs = try await startAndWaitForRecs()
     let candidateRec = try #require(recs.first { $0.episode.id == candidates.first?.id })
     #expect(!candidateRec.score.reasons.contains(.recentlyPublished))
+  }
+
+  // MARK: - Observation Retry
+
+  @Test("scoring observation retries after a transient failure")
+  func scoringObservationRetriesAfterFailure() async throws {
+    // Script the fake to hand back a throwing observation on the first call.
+    // The engine's catch-and-retry loop should sleep, then call
+    // `scoringContextInputs()` again; the script is empty by that point so
+    // the fake falls through to the real (in-memory) observation. Without
+    // the retry loop, the engine logs the error and the task exits, so
+    // recommendations stay empty even though the DB has a complete signal
+    // set.
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let dbReader = self.appDB.db
+    fakeObservatory.scoringContextInputsScript([
+      {
+        ValueObservation
+          .tracking { _ -> ScoringContextInputs in
+            throw TestError.simulatedFailure
+          }
+          .values(in: dbReader)
+      }
+    ])
+
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Candidate"
+    )
+    try await embedEpisodes(candidates)
+
+    let recs = try await startAndWaitForRecs()
+    #expect(!recs.isEmpty)
   }
 }
 

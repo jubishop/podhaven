@@ -11,6 +11,7 @@ extension Container: @retroactive AutoRegistering {
     appDB.context(.test) { AppDB.inMemory() }.scope(.cached)
     repo.context(.test) { FakeRepo(self.makeRepo()) }.scope(.cached)
     queue.context(.test) { FakeQueue(self.makeQueue()) }.scope(.cached)
+    observatory.context(.test) { FakeObservatory(self.makeObservatory()) }.scope(.cached)
 
     cacheManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     iTunesServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)

@@ -102,7 +102,6 @@ final class PlayManager {
   @DynamicInjected(\.fileManager) var fileManager
   @DynamicInjected(\.imagePipeline) private var imagePipeline
   @DynamicInjected(\.notifications) var notifications
-  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.queue) var queue
   @DynamicInjected(\.repo) var repo
   @DynamicInjected(\.sharedState) var sharedState

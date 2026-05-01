@@ -88,6 +88,7 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
   // MARK: - Streaming
 
   // Yields the current value immediately, then every future update.
+  // Callers that don't want the bootstrap emit can chain `.dropFirst()`.
   func stream() -> AsyncStream<T> {
     let id = UUID()
 

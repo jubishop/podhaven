@@ -213,9 +213,25 @@ class EmbeddingRepoTests {
     #expect(result.contains(pe.episode.id))
   }
 
-  @Test("includes finished episodes without embeddings")
-  func finishedEpisodesIncluded() async throws {
+  @Test("excludes finished episodes that have no rating and no playback bitmap")
+  func finishedNoBitmapExcluded() async throws {
     let pe = try await createPodcastEpisode(finishDate: Date())
+
+    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    #expect(!result.contains(pe.episode.id))
+  }
+
+  @Test("includes episodes with a playback bitmap even after finish")
+  func playedThenFinishedIncluded() async throws {
+    let pe = try await createPodcastEpisode()
+    try await repo.updateDuration(pe.episode.id, duration: CMTime.seconds(300))
+    try await repo.updatePlayback(
+      pe.episode.id,
+      currentTime: CMTime.seconds(60),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+    try await repo.markFinished(pe.episode.id)
 
     let result = try await repo.episodesNeedingEmbeddings(revision: 1)
     #expect(result.contains(pe.episode.id))

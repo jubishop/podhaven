@@ -232,7 +232,8 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   static let liked: SQLExpression = Columns.rating == EpisodeRating.liked.rawValue
   static let disliked: SQLExpression = Columns.rating == EpisodeRating.disliked.rawValue
   static let rated: SQLExpression = Columns.rating != nil
-  static let signal: SQLExpression = rated || finished
+  static let hasCoverage: SQLExpression = Columns.playbackCoverage != nil
+  static let hasSignal: SQLExpression = rated || hasCoverage
   static let candidate: SQLExpression = unstarted && unfinished && !rated && unqueued
   static func contains(_ pattern: String) -> SQLExpression {
     Columns.title.lowercased.like(pattern) || Columns.description.lowercased.like(pattern)
@@ -263,6 +264,8 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     static let ratingDate = Column("ratingDate")
     static let creationDate = Column("creationDate")
     static let contentUpdatedAt = Column("contentUpdatedAt")
+    static let playbackCoverage = Column("playbackCoverage")
+    static let lastPlayedDate = Column("lastPlayedDate")
   }
 
   // MARK: - RSSUpdatable

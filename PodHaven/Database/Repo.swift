@@ -15,7 +15,7 @@ extension Container {
   }
 }
 
-struct Repo: Databasing, Sendable {
+struct Repo: Databasing {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.playManager) private var playManager
 
@@ -383,10 +383,116 @@ struct Repo: Databasing, Sendable {
 
   // MARK: - Recommendation Readers
 
-  func allSignalEpisodes() async throws -> [SignalEpisode] {
+  func allRatedEpisodes() async throws -> [SignalEpisode] {
     try await appDB.db.read { db in
-      try SignalEpisode.filter(Episode.signal).fetchAll(db)
+      try SignalEpisode.filter(Episode.rated).fetchAll(db)
     }
+  }
+
+  func allUnratedListenedEpisodes() async throws -> [PartialSignal] {
+    try await appDB.db.read { db in
+      try PartialSignal
+        .filter(Episode.hasCoverage && !Episode.rated)
+        .fetchAll(db)
+        .filter(\.meetsSignalThreshold)
+    }
+  }
+
+  func allScoringContextInputs() async throws -> ScoringContextInputs {
+    try await appDB.db.read { db in
+      try Self.scoringContextInputs(db) { db in
+        try PartialSignal
+          .filter(Episode.hasCoverage && !Episode.rated)
+          .fetchAll(db)
+          .filter(\.meetsSignalThreshold)
+      }
+    }
+  }
+
+  // Shared builder for both the engine's debounced rebuild (above) and the
+  // GRDB observation in `Observatory.scoringContextInputsWithoutPartialSignals()`.
+  // The observation passes the default `{ _ in [] }` so `playbackCoverage` and
+  // `lastPlayedDate` stay out of the tracked region — otherwise every 3-second
+  // `updatePlayback` write would wake the observation. The rebuild path passes
+  // a real fetcher, so partial listens land in the engine through that loop.
+  static func scoringContextInputs(
+    _ db: Database,
+    partialSignals fetchPartialSignals: (Database) throws -> [PartialSignal] = { _ in [] }
+  ) throws -> ScoringContextInputs {
+    let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
+    let partialSignals = try fetchPartialSignals(db)
+    let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
+    let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
+      signalIDs.isEmpty
+      ? IdentifiedArray(id: \.episodeId)
+      : try EpisodeEmbedding
+        .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
+        .fetchIdentifiedArray(db, id: \.episodeId)
+    return ScoringContextInputs(
+      ratedSignals: ratedSignals,
+      partialSignals: partialSignals,
+      signalEmbeddings: signalEmbeddings,
+      embeddingCount: try EpisodeEmbedding.fetchCount(db),
+      freshnessCadences: try Self.resolveFreshnessCadences(db)
+    )
+  }
+
+  // Manual cadence choices win; nil-cadence podcasts are inferred from their
+  // pubDates. Podcasts with no episodes and no manual choice are absent from
+  // the map.
+  static func resolveFreshnessCadences(
+    _ db: Database
+  ) throws -> [Podcast.ID: FreshnessCadence] {
+    let manualRows = try Row.fetchAll(
+      db,
+      Podcast
+        .filter(Podcast.Columns.freshnessCadence != nil)
+        .select(Podcast.Columns.id, Podcast.Columns.freshnessCadence)
+    )
+    var resolved = [Podcast.ID: FreshnessCadence](capacity: manualRows.count)
+    for row in manualRows {
+      let id: Podcast.ID = row[Podcast.Columns.id]
+      let cadence: FreshnessCadence = row[Podcast.Columns.freshnessCadence]
+      resolved[id] = cadence
+    }
+
+    // Raw SQL: window functions aren't expressible via the GRDB query builder.
+    // ORDER BY podcastId lets us stream rows into per-podcast buckets and
+    // flush each one before starting the next, instead of accumulating a
+    // [Podcast.ID: [Date]] map of dynamically-grown arrays.
+    let pubDateRows = try Row.fetchAll(
+      db,
+      sql: """
+        SELECT podcastId, pubDate FROM (
+          SELECT
+            podcastId,
+            pubDate,
+            ROW_NUMBER() OVER (PARTITION BY podcastId ORDER BY pubDate DESC) AS rn
+          FROM episode
+          WHERE podcastId IN (SELECT id FROM podcast WHERE freshnessCadence IS NULL)
+        ) WHERE rn <= ?
+        ORDER BY podcastId
+        """,
+      arguments: [FreshnessCadence.inferenceMaxSamples]
+    )
+    var currentID: Podcast.ID? = nil
+    var currentDates = [Date](capacity: FreshnessCadence.inferenceMaxSamples)
+    for row in pubDateRows {
+      let id: Podcast.ID = row[Episode.Columns.podcastId]
+      let pubDate: Date = row[Episode.Columns.pubDate]
+      if id != currentID {
+        if let previousID = currentID {
+          resolved[previousID] = FreshnessCadence.infer(from: currentDates)
+        }
+        currentID = id
+        currentDates.removeAll(keepingCapacity: true)
+      }
+      currentDates.append(pubDate)
+    }
+    if let lastID = currentID {
+      resolved[lastID] = FreshnessCadence.infer(from: currentDates)
+    }
+    return resolved
   }
 
   func allCandidateEpisodes(excluding excludedID: Episode.ID? = nil) async throws -> [Episode] {
@@ -481,7 +587,7 @@ struct Repo: Databasing, Sendable {
         try Episode
         .joining(required: Episode.podcast.aliased(podcastAlias))
         .joining(optional: Episode.embedding.aliased(embeddingAlias))
-        .filter(Episode.signal || Episode.candidate)
+        .filter(Episode.hasSignal || Episode.candidate)
         .filter(
           embeddingAlias[EpisodeEmbedding.Columns.id] == nil
             || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
@@ -490,7 +596,7 @@ struct Repo: Databasing, Sendable {
             || podcastAlias[Podcast.Columns.contentUpdatedAt]
               > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
         )
-        .order(Episode.signal.desc)
+        .order(Episode.hasSignal.desc)
         .select(Episode.Columns.id, as: Episode.ID.self)
         .fetchAll(db)
     }
@@ -707,6 +813,57 @@ struct Repo: Databasing, Sendable {
           )
         )
     } > 0
+  }
+
+  // Caller passes the previous-checkpoint position as `playedFrom` so the
+  // bitmap OR-marks exactly the seconds elapsed since last save. Backward
+  // and zero-progress ranges leave the bitmap untouched.
+  @discardableResult
+  func updatePlayback(
+    _ episodeID: Episode.ID,
+    currentTime: CMTime,
+    playedFrom: CMTime,
+    now: Date
+  ) async throws -> Bool {
+    Self.log.trace(
+      "updatePlayback: \(episodeID) to \(currentTime) (from \(playedFrom))"
+    )
+
+    return try await appDB.db.write { db in
+      let row = try Row.fetchOne(
+        db,
+        Episode
+          .withID(episodeID)
+          .select(Episode.Columns.duration, Episode.Columns.playbackCoverage)
+      )
+      guard let row else { return false }
+
+      var assignments: [ColumnAssignment] = [
+        Episode.Columns.currentTime.set(to: currentTime),
+        Episode.Columns.maxPlaybackTime.set(
+          to: sqlMax(Episode.Columns.maxPlaybackTime, currentTime)
+        ),
+        Episode.Columns.lastPlayedDate.set(to: now),
+      ]
+
+      let duration: CMTime? = row[Episode.Columns.duration]
+      let durationSeconds = duration?.positiveFiniteSeconds ?? 0
+      let startSeconds = playedFrom.positiveFiniteSeconds
+      let endSeconds = currentTime.positiveFiniteSeconds
+
+      if durationSeconds > 0, endSeconds > startSeconds {
+        let existing: Data? = row[Episode.Columns.playbackCoverage]
+        var coverage = PlaybackCoverage(durationSeconds: durationSeconds, data: existing)
+        if coverage.mark(startSeconds: startSeconds, endSeconds: endSeconds) {
+          assignments.append(Episode.Columns.playbackCoverage.set(to: coverage.data))
+        }
+      }
+
+      return
+        try Episode
+        .withID(episodeID)
+        .updateAll(db, assignments) > 0
+    }
   }
 
   @discardableResult
