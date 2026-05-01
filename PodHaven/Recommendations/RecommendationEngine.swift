@@ -46,6 +46,7 @@ struct RecommendationEngine: Sendable {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.taskPriority) private var taskPriority
+  @DynamicInjected(\.sleeper) private var sleeper
 
   private static let log = Log.as(LogSubsystem.Recommendations.engine)
 
@@ -163,13 +164,24 @@ struct RecommendationEngine: Sendable {
   // happens between trigger and fire would otherwise be missed.
   private func startObservingScoringContext() {
     Task(priority: taskPriority(.utility)) {
-      do {
-        for try await _ in observatory.scoringContextInputs() {
-          guard !Task.isCancelled else { return }
-          scheduleCacheRebuild()
+      // A transient observation error (closed DB handle, momentary lock,
+      // etc.) used to drop the engine into a permanent silent state for the
+      // rest of the session — every subsequent rating, embedding, or
+      // freshness change went unnoticed. Retry with exponential backoff so
+      // transient failures self-heal.
+      var retryDelay: Duration = .seconds(1)
+      while !Task.isCancelled {
+        do {
+          for try await _ in observatory.scoringContextInputs() {
+            guard !Task.isCancelled else { return }
+            retryDelay = .seconds(1)
+            scheduleCacheRebuild()
+          }
+        } catch {
+          Self.log.caughtError("scoringContextInputs observation failed", error)
+          try? await sleeper.sleep(for: retryDelay)
+          retryDelay = min(retryDelay * 2, .seconds(60))
         }
-      } catch {
-        Self.log.caughtError("scoringContextInputs observation failed", error)
       }
     }
 

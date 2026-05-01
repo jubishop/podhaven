@@ -16,6 +16,7 @@ class RecommendationEngineTests {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.appDB) private var appDB
 
   // MARK: - Helpers
 
@@ -714,9 +715,10 @@ class RecommendationEngineTests {
   @Test("returns empty when signals exist but none have embeddings yet")
   func signalsWithoutEmbeddings() async throws {
     // 3 rated signals but no embeddings yet — transient state during initial
-    // embedding-pipeline warmup. hasAnyEmbeddings is true (from candidates) so
-    // the early hasAnyEmbeddings gate passes, but buildCentroids returns nil
-    // because no signal embedding is available to seed the positive centroid.
+    // embedding-pipeline warmup. embeddingCount is non-zero (from candidates)
+    // so the early hasAnyEmbeddings gate passes, but buildCentroids returns
+    // nil because no signal embedding is available to seed the positive
+    // centroid.
     _ = try await createPodcastWithEpisodes(
       count: 3,
       podcastTitle: "Signal",
@@ -919,6 +921,45 @@ class RecommendationEngineTests {
     let recs = try await startAndWaitForRecs()
     let candidateRec = try #require(recs.first { $0.episode.id == candidates.first?.id })
     #expect(!candidateRec.score.reasons.contains(.recentlyPublished))
+  }
+
+  // MARK: - Observation Retry
+
+  @Test("scoring observation retries after a transient failure")
+  func scoringObservationRetriesAfterFailure() async throws {
+    // Script the fake to hand back a throwing observation on the first call.
+    // The engine's catch-and-retry loop should sleep, then call
+    // `scoringContextInputs()` again; the script is empty by that point so
+    // the fake falls through to the real (in-memory) observation. Without
+    // the retry loop, the engine logs the error and the task exits, so
+    // recommendations stay empty even though the DB has a complete signal
+    // set.
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let dbReader = self.appDB.db
+    fakeObservatory.scoringContextInputsScript([
+      {
+        ValueObservation
+          .tracking { _ -> TrackedScoringSources in
+            throw TestError.simulatedFailure
+          }
+          .values(in: dbReader)
+      }
+    ])
+
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Candidate"
+    )
+    try await embedEpisodes(candidates)
+
+    let recs = try await startAndWaitForRecs()
+    #expect(!recs.isEmpty)
   }
 }
 

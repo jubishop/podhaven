@@ -6,12 +6,14 @@ import GRDB
 import IdentifiedCollections
 
 extension Container {
-  var observatory: Factory<Observatory> {
-    Factory(self) { Observatory(self.repo()) }.scope(.cached)
+  internal func makeObservatory() -> Observatory { Observatory(self.repo()) }
+
+  var observatory: Factory<any Observing> {
+    Factory(self) { self.makeObservatory() }.scope(.cached)
   }
 }
 
-struct Observatory {
+struct Observatory: Observing {
   private static let log = Log.as(LogSubsystem.Database.observatory)
 
   // MARK: - Initialization
