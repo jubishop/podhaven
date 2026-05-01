@@ -43,10 +43,10 @@ extension Container {
 // MARK: - RecommendationEngine
 
 struct RecommendationEngine: Sendable {
-  @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.observatory) private var observatory
-  @DynamicInjected(\.taskPriority) private var taskPriority
+  @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sleeper) private var sleeper
+  @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.Recommendations.engine)
 
@@ -164,11 +164,6 @@ struct RecommendationEngine: Sendable {
   // happens between trigger and fire would otherwise be missed.
   private func startObservingScoringContext() {
     Task(priority: taskPriority(.utility)) {
-      // A transient observation error (closed DB handle, momentary lock,
-      // etc.) used to drop the engine into a permanent silent state for the
-      // rest of the session — every subsequent rating, embedding, or
-      // freshness change went unnoticed. Retry with exponential backoff so
-      // transient failures self-heal.
       var retryDelay: Duration = .seconds(1)
       while !Task.isCancelled {
         do {

@@ -85,7 +85,7 @@ protocol Observing: Sendable {
 
   // MARK: - Recommendations
 
-  func scoringContextInputs() -> AsyncValueObservation<TrackedScoringSources>
+  func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs>
 }
 
 // MARK: - Defaulted Convenience Overloads

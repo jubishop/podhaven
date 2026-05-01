@@ -939,7 +939,7 @@ class RecommendationEngineTests {
     fakeObservatory.scoringContextInputsScript([
       {
         ValueObservation
-          .tracking { _ -> TrackedScoringSources in
+          .tracking { _ -> ScoringContextInputs in
             throw TestError.simulatedFailure
           }
           .values(in: dbReader)

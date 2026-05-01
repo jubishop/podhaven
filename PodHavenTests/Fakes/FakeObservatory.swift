@@ -18,7 +18,7 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
   // observation that throws on iteration so the engine's retry loop has
   // something to recover from.
   let scoringContextInputsScript = ThreadSafe<
-    [@Sendable () -> AsyncValueObservation<TrackedScoringSources>]
+    [@Sendable () -> AsyncValueObservation<ScoringContextInputs>]
   >([])
 
   private let observatory: any Observing
@@ -172,7 +172,7 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
 
   // MARK: - Recommendations
 
-  func scoringContextInputs() -> AsyncValueObservation<TrackedScoringSources> {
+  func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
     recordCall(methodName: "scoringContextInputs", parameters: ())
     var script = scoringContextInputsScript()
     if let next = script.first {

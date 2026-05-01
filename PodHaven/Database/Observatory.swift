@@ -245,7 +245,7 @@ struct Observatory: Observing {
   // either way), it just avoids loading partial-signal embeddings the
   // observation will never consume — those land in the rebuild path via
   // `Repo.latestScoringContextInputs()`.
-  func scoringContextInputs() -> AsyncValueObservation<TrackedScoringSources> {
+  func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
     _observe { db in
       let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
       let signalIDs = ratedSignals.map(\.id)
@@ -256,8 +256,9 @@ struct Observatory: Observing {
           .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
           .fetchIdentifiedArray(db, id: \.episodeId)
 
-      return TrackedScoringSources(
+      return ScoringContextInputs(
         ratedSignals: ratedSignals,
+        partialSignals: [],
         signalEmbeddings: signalEmbeddings,
         embeddingCount: try EpisodeEmbedding.fetchCount(db),
         freshnessCadences: try Repo.resolveFreshnessCadences(db)
