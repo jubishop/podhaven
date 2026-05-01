@@ -257,9 +257,10 @@ actor ObservatoryScoringContextInputsTests {
     )
 
     // Partial signals are filled in by the engine's rebuild path
-    // (`Repo.scoringContextInputs()`), not by the GRDB observation — playback
-    // columns are deliberately excluded from the observation's tracked region.
-    let inputs = try await repo.scoringContextInputs()
+    // (`Repo.allScoringContextInputs()`), not by the GRDB observation —
+    // playback columns are deliberately excluded from the observation's
+    // tracked region.
+    let inputs = try await repo.allScoringContextInputs()
     #expect(inputs.partialSignals.count == 1)
     #expect(inputs.partialSignals.first?.id == episode.id)
   }

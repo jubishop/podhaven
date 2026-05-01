@@ -14,7 +14,7 @@ import IdentifiedCollections
 //    observation. Partial listens reach the engine via the rebuild path
 //    below.
 //
-// 2. The engine's debounced rebuild calls `Repo.scoringContextInputs()`,
+// 2. The engine's debounced rebuild calls `Repo.allScoringContextInputs()`,
 //    which passes a real `PartialSignal` fetcher.
 //
 // `embeddingCount` is a count, not a bool, so a new embedding inserted for

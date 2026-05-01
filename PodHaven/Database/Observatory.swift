@@ -238,7 +238,7 @@ struct Observatory: Observing {
   // empty closure to `Repo.scoringContextInputs(_:partialSignals:)`)
   // precisely so per-checkpoint `updatePlayback` writes do not wake this
   // observation. Partial-listen data lands in the engine via the debounced
-  // rebuild (`Repo.scoringContextInputs()`) and the `onDeck`
+  // rebuild (`Repo.allScoringContextInputs()`) and the `onDeck`
   // session-boundary handler.
   func scoringContextInputsWithoutPartialSignals()
     -> AsyncValueObservation<ScoringContextInputs>

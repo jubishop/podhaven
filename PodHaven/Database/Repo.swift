@@ -395,7 +395,7 @@ struct Repo: Databasing {
     }
   }
 
-  func scoringContextInputs() async throws -> ScoringContextInputs {
+  func allScoringContextInputs() async throws -> ScoringContextInputs {
     try await appDB.db.read { db in
       try Self.scoringContextInputs(db) { db in
         try PartialSignal

@@ -201,7 +201,7 @@ struct RecommendationEngine: Sendable {
   private func scheduleCacheRebuild() {
     cacheDebounce {
       do {
-        let inputs = try await repo.scoringContextInputs()
+        let inputs = try await repo.allScoringContextInputs()
         cache(Self.buildContext(from: inputs))
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)
