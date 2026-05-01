@@ -391,7 +391,10 @@ struct Repo: Databasing {
 
   func allUnratedListenedEpisodes() async throws -> [PartialSignal] {
     try await appDB.db.read { db in
-      try PartialSignal.filter(Episode.hasCoverage && !Episode.rated).fetchAll(db)
+      try PartialSignal
+        .filter(Episode.hasCoverage && !Episode.rated)
+        .fetchAll(db)
+        .filter(\.meetsSignalThreshold)
     }
   }
 
@@ -401,6 +404,7 @@ struct Repo: Databasing {
         try PartialSignal
           .filter(Episode.hasCoverage && !Episode.rated)
           .fetchAll(db)
+          .filter(\.meetsSignalThreshold)
       }
     }
   }

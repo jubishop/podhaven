@@ -332,6 +332,79 @@ class EpisodeRatingTests {
     #expect(signals.contains { $0.id == pe.episode.id } == false)
   }
 
+  @Test("allUnratedListenedEpisodes excludes episodes below the absolute-seconds floor")
+  func partialSignalsExcludesBelowAbsoluteFloor() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    // 200s episode played 0..30s: 30s covered (15% ratio passes the 10%
+    // ratio floor) but coveredSeconds=30 is below the 60s absolute floor —
+    // think autoplay-skip on a short episode.
+    let unsaved = try Create.unsavedEpisode(duration: CMTime.seconds(200))
+    let pe = try await repo
+      .upsertPodcastEpisodes([
+        UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
+      ])
+      .first!
+
+    try await repo.updatePlayback(
+      pe.episode.id,
+      currentTime: CMTime.seconds(30),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+
+    let partials = try await repo.allUnratedListenedEpisodes()
+    #expect(partials.contains { $0.id == pe.episode.id } == false)
+  }
+
+  @Test("allUnratedListenedEpisodes excludes episodes below the ratio floor")
+  func partialSignalsExcludesBelowRatioFloor() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    // 1000s episode played 0..90s: coveredSeconds=90 passes the 60s
+    // absolute floor but ratio=0.09 is below the 10% ratio floor —
+    // think autoplay-skip on a long episode.
+    let unsaved = try Create.unsavedEpisode(duration: CMTime.seconds(1000))
+    let pe = try await repo
+      .upsertPodcastEpisodes([
+        UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
+      ])
+      .first!
+
+    try await repo.updatePlayback(
+      pe.episode.id,
+      currentTime: CMTime.seconds(90),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+
+    let partials = try await repo.allUnratedListenedEpisodes()
+    #expect(partials.contains { $0.id == pe.episode.id } == false)
+  }
+
+  @Test("allUnratedListenedEpisodes includes episodes that just clear both floors")
+  func partialSignalsIncludesAtThreshold() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    // 600s episode played 0..60s: coveredSeconds=60 (==60 floor) and
+    // ratio=0.10 (==10% floor). Both boundaries are inclusive.
+    let unsaved = try Create.unsavedEpisode(duration: CMTime.seconds(600))
+    let pe = try await repo
+      .upsertPodcastEpisodes([
+        UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
+      ])
+      .first!
+
+    try await repo.updatePlayback(
+      pe.episode.id,
+      currentTime: CMTime.seconds(60),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+
+    let partials = try await repo.allUnratedListenedEpisodes()
+    let partial = try #require(partials.first { $0.id == pe.episode.id })
+    #expect(partial.coveredSeconds == 60)
+    #expect(abs(partial.coverageRatio - 0.10) < 1e-9)
+  }
+
   @Test("allScoringContextInputs aggregates rated and unrated-listened episodes")
   func allScoringContextAggregates() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
