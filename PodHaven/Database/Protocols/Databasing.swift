@@ -194,7 +194,7 @@ protocol Databasing: Sendable {
   func allRatedEpisodes() async throws -> [SignalEpisode]
   func allUnratedListenedEpisodes() async throws -> [PartialSignal]
   func allCandidateEpisodes(excluding: Episode.ID?) async throws -> [Episode]
-  func latestScoringContextInputs() async throws -> ScoringContextInputs
+  func scoringContextInputs() async throws -> ScoringContextInputs
 }
 
 extension Databasing {

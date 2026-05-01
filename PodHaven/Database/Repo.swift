@@ -395,42 +395,47 @@ struct Repo: Databasing {
     }
   }
 
-  // Pulls every signal-bearing episode in two disjoint slices — rated (any
-  // explicit rating) and partial-listen (has bitmap coverage but no rating) —
-  // then loads each signal's embedding (if present) into a single
-  // `IdentifiedArray` keyed by episode id. The two slices never overlap, so
-  // no dedupe is needed.
-  func latestScoringContextInputs() async throws -> ScoringContextInputs {
+  func scoringContextInputs() async throws -> ScoringContextInputs {
     try await appDB.db.read { db in
-      let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
-      let partialSignals =
+      try Self.scoringContextInputs(db) { db in
         try PartialSignal
-        .filter(Episode.hasCoverage && !Episode.rated)
-        .fetchAll(db)
-
-      let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
-      let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
-        signalIDs.isEmpty
-        ? IdentifiedArray(id: \.episodeId)
-        : try EpisodeEmbedding
-          .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
-          .fetchIdentifiedArray(db, id: \.episodeId)
-
-      return ScoringContextInputs(
-        ratedSignals: ratedSignals,
-        partialSignals: partialSignals,
-        signalEmbeddings: signalEmbeddings,
-        embeddingCount: try EpisodeEmbedding.fetchCount(db),
-        freshnessCadences: try Self.resolveFreshnessCadences(db)
-      )
+          .filter(Episode.hasCoverage && !Episode.rated)
+          .fetchAll(db)
+      }
     }
   }
 
-  // Stateless DB helper exposed for the Observatory's observation closure
-  // (which builds a partials-free view of the scoring context and needs the
-  // same cadence resolution that the rebuild path uses). Manual cadence
-  // choices win; nil-cadence podcasts are inferred from their pubDates.
-  // Podcasts with no episodes and no manual choice are absent from the map.
+  // Shared builder for both the engine's debounced rebuild (above) and the
+  // GRDB observation in `Observatory.scoringContextInputsWithoutPartialSignals()`.
+  // The observation passes the default `{ _ in [] }` so `playbackCoverage` and
+  // `lastPlayedDate` stay out of the tracked region — otherwise every 3-second
+  // `updatePlayback` write would wake the observation. The rebuild path passes
+  // a real fetcher, so partial listens land in the engine through that loop.
+  static func scoringContextInputs(
+    _ db: Database,
+    partialSignals fetchPartialSignals: (Database) throws -> [PartialSignal] = { _ in [] }
+  ) throws -> ScoringContextInputs {
+    let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
+    let partialSignals = try fetchPartialSignals(db)
+    let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
+    let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
+      signalIDs.isEmpty
+      ? IdentifiedArray(id: \.episodeId)
+      : try EpisodeEmbedding
+        .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
+        .fetchIdentifiedArray(db, id: \.episodeId)
+    return ScoringContextInputs(
+      ratedSignals: ratedSignals,
+      partialSignals: partialSignals,
+      signalEmbeddings: signalEmbeddings,
+      embeddingCount: try EpisodeEmbedding.fetchCount(db),
+      freshnessCadences: try Self.resolveFreshnessCadences(db)
+    )
+  }
+
+  // Manual cadence choices win; nil-cadence podcasts are inferred from their
+  // pubDates. Podcasts with no episodes and no manual choice are absent from
+  // the map.
   static func resolveFreshnessCadences(
     _ db: Database
   ) throws -> [Podcast.ID: FreshnessCadence] {

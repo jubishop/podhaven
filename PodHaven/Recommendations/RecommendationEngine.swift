@@ -167,7 +167,7 @@ struct RecommendationEngine: Sendable {
       var retryDelay: Duration = .seconds(1)
       while !Task.isCancelled {
         do {
-          for try await _ in observatory.scoringContextInputs() {
+          for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
             guard !Task.isCancelled else { return }
             retryDelay = .seconds(1)
             scheduleCacheRebuild()
@@ -201,7 +201,7 @@ struct RecommendationEngine: Sendable {
   private func scheduleCacheRebuild() {
     cacheDebounce {
       do {
-        let inputs = try await repo.latestScoringContextInputs()
+        let inputs = try await repo.scoringContextInputs()
         cache(Self.buildContext(from: inputs))
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)

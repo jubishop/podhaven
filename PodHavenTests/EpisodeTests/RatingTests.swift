@@ -332,8 +332,8 @@ class EpisodeRatingTests {
     #expect(signals.contains { $0.id == pe.episode.id } == false)
   }
 
-  @Test("latestScoringContextInputs aggregates rated and unrated-listened episodes")
-  func latestScoringContextAggregates() async throws {
+  @Test("scoringContextInputs aggregates rated and unrated-listened episodes")
+  func scoringContextAggregates() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let rated = try Create.unsavedEpisode(
       duration: CMTime.seconds(300),
@@ -355,7 +355,7 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let inputs = try await repo.latestScoringContextInputs()
+    let inputs = try await repo.scoringContextInputs()
     #expect(inputs.ratedSignals.contains { $0.rating == .loved })
     #expect(inputs.partialSignals.contains { $0.id == listenedID })
   }

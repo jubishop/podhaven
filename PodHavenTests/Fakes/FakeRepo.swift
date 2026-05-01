@@ -367,9 +367,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.allCandidateEpisodes(excluding: excludedID)
   }
 
-  func latestScoringContextInputs() async throws -> ScoringContextInputs {
-    recordCall(methodName: "latestScoringContextInputs", parameters: ())
-    return try await repo.latestScoringContextInputs()
+  func scoringContextInputs() async throws -> ScoringContextInputs {
+    recordCall(methodName: "scoringContextInputs", parameters: ())
+    return try await repo.scoringContextInputs()
   }
 
   @discardableResult

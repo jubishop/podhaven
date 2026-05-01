@@ -233,36 +233,18 @@ struct Observatory: Observing {
 
   // GRDB-driven stream. Tracked region: rating columns + episodeEmbedding
   // table + freshness cadences. Playback-path columns (currentTime,
-  // playbackCoverage, lastPlayedDate) are deliberately NOT referenced —
-  // the closure omits the `PartialSignal` fetch precisely so per-checkpoint
-  // `updatePlayback` writes do not wake this observation. Partial-listen
-  // data is filled in by the engine's debounced rebuild
-  // (`latestScoringContextInputs`) and by its `onDeck` session-boundary
-  // handler.
-  //
-  // The embedding fetch filters by rated-signal IDs; that does not narrow
-  // GRDB's tracked region (the whole `episodeEmbedding` table is tracked
-  // either way), it just avoids loading partial-signal embeddings the
-  // observation will never consume — those land in the rebuild path via
-  // `Repo.latestScoringContextInputs()`.
-  func scoringContextInputs() -> AsyncValueObservation<ScoringContextInputs> {
+  // playbackCoverage, lastPlayedDate) are deliberately NOT referenced — the
+  // observation omits the `PartialSignal` fetch (by passing the default
+  // empty closure to `Repo.scoringContextInputs(_:partialSignals:)`)
+  // precisely so per-checkpoint `updatePlayback` writes do not wake this
+  // observation. Partial-listen data lands in the engine via the debounced
+  // rebuild (`Repo.scoringContextInputs()`) and the `onDeck`
+  // session-boundary handler.
+  func scoringContextInputsWithoutPartialSignals()
+    -> AsyncValueObservation<ScoringContextInputs>
+  {
     _observe { db in
-      let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
-      let signalIDs = ratedSignals.map(\.id)
-      let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
-        signalIDs.isEmpty
-        ? IdentifiedArray(id: \.episodeId)
-        : try EpisodeEmbedding
-          .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
-          .fetchIdentifiedArray(db, id: \.episodeId)
-
-      return ScoringContextInputs(
-        ratedSignals: ratedSignals,
-        partialSignals: [],
-        signalEmbeddings: signalEmbeddings,
-        embeddingCount: try EpisodeEmbedding.fetchCount(db),
-        freshnessCadences: try Repo.resolveFreshnessCadences(db)
-      )
+      try Repo.scoringContextInputs(db)
     }
   }
 

@@ -3,19 +3,19 @@
 import Foundation
 import IdentifiedCollections
 
-// Snapshot consumed in two places, with the same shape but different
-// origins:
+// Snapshot consumed in two places, both built by
+// `Repo.scoringContextInputs(_:partialSignals:)`:
 //
-// 1. Emitted by the GRDB observation in `Observatory.scoringContextInputs()`.
-//    The observation closure does NOT fetch `PartialSignal`, so it always
-//    sets `partialSignals: []`. That keeps `playbackCoverage` and
-//    `lastPlayedDate` out of GRDB's tracked region — otherwise every
-//    3-second `updatePlayback` write would wake the observation. Partial
-//    listens reach the engine via the rebuild path below.
+// 1. The GRDB observation in
+//    `Observatory.scoringContextInputsWithoutPartialSignals()` passes the
+//    default empty closure, so `partialSignals` is always `[]`. That keeps
+//    `playbackCoverage` and `lastPlayedDate` out of GRDB's tracked region
+//    — otherwise every 3-second `updatePlayback` write would wake the
+//    observation. Partial listens reach the engine via the rebuild path
+//    below.
 //
-// 2. Returned by `Repo.latestScoringContextInputs()`, which the engine
-//    calls on every debounced rebuild. This path runs `partialSignals` for
-//    real.
+// 2. The engine's debounced rebuild calls `Repo.scoringContextInputs()`,
+//    which passes a real `PartialSignal` fetcher.
 //
 // `embeddingCount` is a count, not a bool, so a new embedding inserted for
 // an unrated/partial-listen episode (which doesn't change
