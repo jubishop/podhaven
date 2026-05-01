@@ -73,6 +73,7 @@ Three places hold persistent project context — pick the right one when saving 
 - **Default to NO comment.** Silence is the right call when the surrounding code already explains itself. Add one only when (1) the *why* is non-obvious — a hidden constraint, a non-obvious invariant, a workaround for a specific bug, or behavior that would surprise a reader, AND (2) a future reader couldn't recover the *why* from identifier names, the call site, or `git blame`.
 - **Length follows substance, not style.** Most comments that earn their place fit on a single line. A multi-line comment is fine when the *why* genuinely needs more — e.g., capturing a subtle invariant, the shape of a workaround, or the reasoning that future-you will need to weigh edge cases.
 - Never leave behind unused code, properties, or parameters. If something becomes unused, remove it immediately.
+- Don't extract a helper function for a single call site unless the helper earns its keep — early-exit / `guard`-driven control flow, recursion, or a structurally distinct phase that's genuinely clearer named. A linear sequence of statements lifted into a private one-shot helper just adds a hop; inline it.
 - Avoid using `@unchecked`/`@retroactive`/`unsafe` in code unless absolutely necessary.
 - Avoid `inout` parameters; return values instead.
 - Use `@MainActor` on functions/types instead of `MainActor.run { }` blocks.

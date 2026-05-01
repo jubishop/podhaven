@@ -395,42 +395,38 @@ struct Repo: Databasing {
     }
   }
 
-  func latestScoringContextInputs() async throws -> ScoringContextInputs {
-    try await appDB.db.read { db in
-      try _scoringContextInputs(in: db)
-    }
-  }
-
   // Pulls every signal-bearing episode in two disjoint slices — rated (any
   // explicit rating) and partial-listen (has bitmap coverage but no rating) —
   // then loads each signal's embedding (if present) into a single
   // `IdentifiedArray` keyed by episode id. The two slices never overlap, so
   // no dedupe is needed.
-  private func _scoringContextInputs(in db: Database) throws -> ScoringContextInputs {
-    let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
-    let partialSignals =
-      try PartialSignal
-      .filter(Episode.hasCoverage && !Episode.rated)
-      .fetchAll(db)
+  func latestScoringContextInputs() async throws -> ScoringContextInputs {
+    try await appDB.db.read { db in
+      let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
+      let partialSignals =
+        try PartialSignal
+        .filter(Episode.hasCoverage && !Episode.rated)
+        .fetchAll(db)
 
-    let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
-    let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
-      signalIDs.isEmpty
-      ? IdentifiedArray(id: \.episodeId)
-      : try EpisodeEmbedding
-        .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
-        .fetchIdentifiedArray(db, id: \.episodeId)
+      let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
+      let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
+        signalIDs.isEmpty
+        ? IdentifiedArray(id: \.episodeId)
+        : try EpisodeEmbedding
+          .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
+          .fetchIdentifiedArray(db, id: \.episodeId)
 
-    let hasAnyEmbeddings =
-      try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
+      let hasAnyEmbeddings =
+        try !signalEmbeddings.isEmpty || EpisodeEmbedding.fetchCount(db) > 0
 
-    return ScoringContextInputs(
-      ratedSignals: ratedSignals,
-      partialSignals: partialSignals,
-      signalEmbeddings: signalEmbeddings,
-      hasAnyEmbeddings: hasAnyEmbeddings,
-      freshnessCadences: try Self.resolveFreshnessCadences(db)
-    )
+      return ScoringContextInputs(
+        ratedSignals: ratedSignals,
+        partialSignals: partialSignals,
+        signalEmbeddings: signalEmbeddings,
+        hasAnyEmbeddings: hasAnyEmbeddings,
+        freshnessCadences: try Self.resolveFreshnessCadences(db)
+      )
+    }
   }
 
   // Stateless DB helper exposed for the Observatory's observation closure
