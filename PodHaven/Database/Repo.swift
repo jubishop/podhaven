@@ -175,6 +175,17 @@ struct Repo: Databasing {
     }
   }
 
+  func listablePodcastEpisodes(_ episodeIDs: [Episode.ID]) async throws
+    -> [ListablePodcastEpisode]
+  {
+    guard !episodeIDs.isEmpty else { return [] }
+    return try await appDB.db.read { db in
+      try ListablePodcastEpisode
+        .request(filter: episodeIDs.contains(Episode.Columns.id))
+        .fetchAll(db)
+    }
+  }
+
   func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode

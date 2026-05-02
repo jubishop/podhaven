@@ -28,6 +28,7 @@ struct SharedState: Sendable {
   @Broadcasted var playRate: Float = 1.0
   @Broadcasted var tags: IdentifiedArrayOf<Tag> = []
   @Broadcasted var queuedPodcastEpisodes: [ListablePodcastEpisode] = []
+  @Broadcasted var topRecommendations: IdentifiedArrayOf<RecommendedEpisode> = []
 
   // MARK: - Download Progress
 
@@ -62,6 +63,12 @@ struct SharedState: Sendable {
 
   var maxQueuePosition: Int? {
     queueCount > 0 ? queueCount - 1 : nil
+  }
+
+  // MARK: - Recommendations
+
+  func setTopRecommendations(_ recommendations: IdentifiedArrayOf<RecommendedEpisode>) {
+    $topRecommendations.new(recommendations)
   }
 
   // MARK: - Episode Playing Checks

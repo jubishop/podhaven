@@ -13,12 +13,16 @@ struct SettingsView: View {
   private static let githubURL = URL(string: "https://github.com/jubishop/podhaven")
 
   @State private var tempMaxQueueLength: Double
+  @State private var tempMaxRecommendedEpisodes: Double
 
   private let viewModel = SettingsViewModel()
 
   init() {
     self._tempMaxQueueLength = State(
       initialValue: Double(Container.shared.userSettings().maxQueueLength)
+    )
+    self._tempMaxRecommendedEpisodes = State(
+      initialValue: Double(Container.shared.userSettings().maxRecommendedEpisodesInUpNext)
     )
   }
 
@@ -37,6 +41,11 @@ struct SettingsView: View {
 
   private var formattedMaxQueueLength: String {
     "\(Int(tempMaxQueueLength)) ep"
+  }
+
+  private var formattedMaxRecommendedEpisodes: String {
+    let count = Int(tempMaxRecommendedEpisodes)
+    return count == 0 ? "Off" : "\(count) ep"
   }
 
   var body: some View {
@@ -290,6 +299,34 @@ struct SettingsView: View {
                       alert(ErrorKit.message(for: error))
                     }
                   }
+                }
+              }
+            )
+          }
+
+          VStack(alignment: .leading, spacing: 24) {
+            SettingsRow(
+              infoText: """
+                Number of recommended episodes shown below the queue in Up Next. \
+                Set to Off to hide the recommendations section entirely.
+                """
+            ) {
+              HStack {
+                Text("Recommended Episodes")
+                Spacer()
+                Text(formattedMaxRecommendedEpisodes)
+                  .foregroundStyle(.secondary)
+              }
+            }
+            Slider(
+              value: $tempMaxRecommendedEpisodes,
+              in: 0...20,
+              step: 1,
+              onEditingChanged: { editing in
+                if !editing {
+                  userSettings.$maxRecommendedEpisodesInUpNext.new(
+                    Int(tempMaxRecommendedEpisodes)
+                  )
                 }
               }
             )

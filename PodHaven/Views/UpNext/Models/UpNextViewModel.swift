@@ -29,6 +29,7 @@ import SwiftUI
   }
 
   var episodeList = PowerList<ListablePodcastEpisode>()
+  private(set) var recommendedEpisodes: IdentifiedArrayOf<ListablePodcastEpisode> = []
 
   enum SortMethod: SortingMethod {
     case newestFirst
@@ -82,11 +83,33 @@ import SwiftUI
   func execute() async {
     Self.log.debug("executing UpNextViewModel")
 
+    await withDiscardingTaskGroup { group in
+      group.addTask { [weak self] in
+        guard let self else { return }
+        await self.observeQueue()
+      }
+      group.addTask { [weak self] in
+        guard let self else { return }
+        await self.observeRecommendations()
+      }
+    }
+  }
+
+  private func observeQueue() async {
     for await podcastEpisodes in sharedState.$queuedPodcastEpisodes.stream() {
       guard !Task.isCancelled else { return }
-      Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
+      Self.log.debug("Updating \(podcastEpisodes.count) observed queue episodes")
 
       self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
+    }
+  }
+
+  private func observeRecommendations() async {
+    for await recommendations in sharedState.$topRecommendations.stream() {
+      guard !Task.isCancelled else { return }
+      Self.log.debug("Updating \(recommendations.count) observed recommendations")
+
+      recommendedEpisodes = IdentifiedArray(uniqueElements: recommendations.map(\.episode))
     }
   }
 

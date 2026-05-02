@@ -18,11 +18,13 @@ struct RecommendationScore: Sendable {
   let reasons: [RecommendationReason]
 }
 
-// Pairs an episode with its score, used by `topRecommendations` where the
-// caller doesn't have the episodes up front.
+// Pairs a list-displayable episode with its score, used by
+// `topRecommendations` where the caller doesn't have the episodes up
+// front. The episode is the joined podcast+episode projection so
+// consumers can render it directly without another round trip.
 struct RecommendedEpisode: Sendable, Identifiable {
   var id: Episode.ID { episode.id }
-  let episode: Episode
+  let episode: ListablePodcastEpisode
   let score: RecommendationScore
 }
 
@@ -79,6 +81,7 @@ struct RecommendationEngine: Sendable {
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
   private let cacheDebounce = Debounce(duration: .seconds(1))
+  private let recommendationsDebounce = Debounce(duration: .seconds(1))
   private let startOnce = Once()
 
   fileprivate init() {}
@@ -113,33 +116,91 @@ struct RecommendationEngine: Sendable {
 
   func topRecommendations(limit: Int = 10) async throws -> IdentifiedArrayOf<RecommendedEpisode> {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
+    let totalStart = ContinuousClock.now
+
     // Direct Container.shared access because SharedState isn't Sendable and
     // @DynamicInjected requires a Sendable type. The property read is @MainActor
     // isolated in practice; onDeck is a Sendable value type so the copy is safe.
     let onDeckID = Container.shared.sharedState().onDeck?.id
-    let candidates = try await repo.allCandidateEpisodes(excluding: onDeckID)
-    let scores = try await recommendations(for: candidates)
-    guard !scores.isEmpty else { return [] }
 
-    // Join episodes with their scores, dropping anything below the confidence
-    // floor. Filter is O(n); shrinking the list before sorting makes the
-    // O(n log n) sort cheaper.
-    var results = [RecommendedEpisode](capacity: candidates.count)
+    let candidatesStart = ContinuousClock.now
+    let candidates = try await repo.allCandidateEpisodes(excluding: onDeckID)
+    let candidatesDuration = ContinuousClock.now - candidatesStart
+    Self.log.debug(
+      "perf: allCandidateEpisodes took \(candidatesDuration) for \(candidates.count) candidates"
+    )
+
+    let scoresStart = ContinuousClock.now
+    let scores = try await recommendations(for: candidates)
+    let scoresDuration = ContinuousClock.now - scoresStart
+    Self.log.debug(
+      """
+      perf: recommendations(for:) took \(scoresDuration) \
+      for \(candidates.count) candidates (\(scores.count) scored)
+      """
+    )
+    guard !scores.isEmpty else {
+      Self.log.debug(
+        "perf: topRecommendations returned 0 (no scores) in \(ContinuousClock.now - totalStart)"
+      )
+      return []
+    }
+
+    // Sort by score (then pubDate, then id) on the lightweight Episode
+    // tuples first; we only re-fetch the joined podcast columns for the
+    // top `limit`, not for every candidate.
+    struct ScoredCandidate {
+      let id: Episode.ID
+      let pubDate: Date
+      let score: RecommendationScore
+    }
+    let rankStart = ContinuousClock.now
+    var ranked = [ScoredCandidate](capacity: candidates.count)
     for episode in candidates {
       guard let score = scores[episode.id],
         score.value >= Self.minimumScoreThreshold
       else { continue }
-      results.append(RecommendedEpisode(episode: episode, score: score))
+      ranked.append(ScoredCandidate(id: episode.id, pubDate: episode.pubDate, score: score))
     }
-    results.sort { a, b in
+    ranked.sort { a, b in
       if a.score.value != b.score.value { return a.score.value > b.score.value }
-      if a.episode.pubDate != b.episode.pubDate { return a.episode.pubDate > b.episode.pubDate }
-      return a.episode.id > b.episode.id
+      if a.pubDate != b.pubDate { return a.pubDate > b.pubDate }
+      return a.id > b.id
     }
-    let top = IdentifiedArrayOf<RecommendedEpisode>(uniqueElements: results.prefix(limit))
-
+    let rankDuration = ContinuousClock.now - rankStart
     Self.log.debug(
-      "Returning \(top.count) recommendations from \(candidates.count) candidates"
+      """
+      perf: rank+sort took \(rankDuration) \
+      (\(ranked.count) above threshold of \(scores.count) scored)
+      """
+    )
+
+    let topRanked = ranked.prefix(limit)
+    let topIDs = topRanked.map(\.id)
+    let listablesStart = ContinuousClock.now
+    let listables = try await repo.listablePodcastEpisodes(topIDs)
+    let listablesDuration = ContinuousClock.now - listablesStart
+    Self.log.debug(
+      """
+      perf: listablePodcastEpisodes(top) took \(listablesDuration) \
+      for \(topIDs.count) ids (\(listables.count) returned)
+      """
+    )
+
+    let listableByID = Dictionary(uniqueKeysWithValues: listables.map { ($0.id, $0) })
+    var results = [RecommendedEpisode](capacity: topRanked.count)
+    for ranked in topRanked {
+      guard let listable = listableByID[ranked.id] else { continue }
+      results.append(RecommendedEpisode(episode: listable, score: ranked.score))
+    }
+    let top = IdentifiedArrayOf<RecommendedEpisode>(uniqueElements: results)
+
+    let totalDuration = ContinuousClock.now - totalStart
+    Self.log.debug(
+      """
+      perf: topRecommendations(limit: \(limit)) total \(totalDuration) — \
+      \(top.count) returned from \(candidates.count) candidates
+      """
     )
     return top
   }
@@ -196,15 +257,90 @@ struct RecommendationEngine: Sendable {
         scheduleCacheRebuild()
       }
     }
+
+    // The user-controlled limit doesn't affect scoring, so it doesn't
+    // invalidate the cache — but it does change how many entries should
+    // be published. `dropFirst()` skips the bootstrap emit; whichever
+    // path populates the cache first will publish the initial list.
+    Task(priority: taskPriority(.utility)) {
+      let userSettings = Container.shared.userSettings()
+      for await _ in userSettings.$maxRecommendedEpisodesInUpNext.stream().dropFirst() {
+        guard !Task.isCancelled else { return }
+        scheduleRecommendationsRebuild()
+      }
+    }
+
+    // Wakes when an episode leaves or rejoins the candidate pool via
+    // queue / finish / rate transitions — the cache stays valid (none of
+    // those columns affect scoring beyond what the signal observation
+    // already covers), so we only need to re-rank, not rebuild context.
+    // `dropFirst()` skips the bootstrap; the cache observation above will
+    // publish the initial list once context is hot.
+    Task(priority: taskPriority(.utility)) {
+      var retryDelay: Duration = .seconds(1)
+      while !Task.isCancelled {
+        do {
+          for try await _ in observatory.candidateGateCounts().dropFirst() {
+            guard !Task.isCancelled else { return }
+            retryDelay = .seconds(1)
+            scheduleRecommendationsRebuild()
+          }
+        } catch {
+          Self.log.caughtError("candidateGateCounts observation failed", error)
+          try? await sleeper.sleep(for: retryDelay)
+          retryDelay = min(retryDelay * 2, .seconds(60))
+        }
+      }
+    }
   }
 
   private func scheduleCacheRebuild() {
     cacheDebounce {
       do {
+        let inputsStart = ContinuousClock.now
         let inputs = try await repo.allScoringContextInputs()
-        cache(Self.buildContext(from: inputs))
+        let inputsDuration = ContinuousClock.now - inputsStart
+        Self.log.debug(
+          """
+          perf: allScoringContextInputs took \(inputsDuration) — \
+          rated=\(inputs.ratedSignals.count) partial=\(inputs.partialSignals.count) \
+          embeddings=\(inputs.signalEmbeddings.count) cadences=\(inputs.freshnessCadences.count)
+          """
+        )
+
+        let buildStart = ContinuousClock.now
+        let context = Self.buildContext(from: inputs)
+        let buildDuration = ContinuousClock.now - buildStart
+        Self.log.debug(
+          "perf: buildContext took \(buildDuration) — context=\(context == nil ? "nil" : "ready")"
+        )
+
+        cache(context)
+        scheduleRecommendationsRebuild()
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)
+      }
+    }
+  }
+
+  // Pushes the current top recommendations to SharedState. Reads the
+  // user-controlled limit at fire time, so a slider change between
+  // schedule and fire still picks up the latest value. Uses its own
+  // debounce so a rapid drag of the slider doesn't trigger a query
+  // per intermediate value.
+  private func scheduleRecommendationsRebuild() {
+    recommendationsDebounce {
+      let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
+      let sharedState = Container.shared.sharedState()
+      guard limit > 0 else {
+        sharedState.setTopRecommendations([])
+        return
+      }
+      do {
+        let top = try await topRecommendations(limit: limit)
+        sharedState.setTopRecommendations(top)
+      } catch {
+        Self.log.caughtError("top recommendations rebuild failed", error)
       }
     }
   }
@@ -256,7 +392,18 @@ struct RecommendationEngine: Sendable {
     context: ScoringContext
   ) async throws -> [Episode.ID: RecommendationScore] {
     let episodeIDs = episodes.map(\.id)
+
+    let embeddingsStart = ContinuousClock.now
     let embeddings = try await repo.embeddings(for: episodeIDs)
+    let embeddingsDuration = ContinuousClock.now - embeddingsStart
+    Self.log.debug(
+      """
+      perf: embeddings(for:) took \(embeddingsDuration) \
+      for \(episodeIDs.count) ids (\(embeddings.count) returned)
+      """
+    )
+
+    let mathStart = ContinuousClock.now
     let now = Date()
     var scores = [Episode.ID: RecommendationScore](capacity: episodes.count)
     for episode in episodes {
@@ -271,6 +418,10 @@ struct RecommendationEngine: Sendable {
         now: now
       )
     }
+    let mathDuration = ContinuousClock.now - mathStart
+    Self.log.debug(
+      "perf: scoring math took \(mathDuration) for \(episodes.count) episodes"
+    )
     return scores
   }
 

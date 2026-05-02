@@ -248,6 +248,28 @@ struct Observatory: Observing {
     }
   }
 
+  // Wakes when any column that gates `Episode.candidate` flips: `rating`,
+  // `finishDate`, or `queueOrder`. Used by the recommendation engine to
+  // re-rank when an episode leaves or rejoins the candidate pool — e.g.
+  // user marks an unrated episode finished, or queues/dequeues an episode.
+  // `currentTime` is intentionally excluded: it ticks every few seconds
+  // during playback and would defeat the engine's debounce. The
+  // `unstarted → started` transition is covered by the `onDeck` observer
+  // in the engine instead.
+  //
+  // The result is three counts, one per gating column. A single mutation
+  // flips exactly one count by ±1, so `.removeDuplicates()` only suppresses
+  // emissions that genuinely don't change candidate eligibility.
+  func candidateGateCounts() -> AsyncValueObservation<CandidateGateCounts> {
+    _observe { db in
+      CandidateGateCounts(
+        rated: try Episode.filter(Episode.rated).fetchCount(db),
+        finished: try Episode.filter(Episode.finished).fetchCount(db),
+        queued: try Episode.filter(Episode.queued).fetchCount(db)
+      )
+    }
+  }
+
   // MARK: - Private Helpers
 
   private func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {
