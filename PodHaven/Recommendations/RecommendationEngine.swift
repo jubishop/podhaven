@@ -280,13 +280,13 @@ struct RecommendationEngine: Sendable {
       var retryDelay: Duration = .seconds(1)
       while !Task.isCancelled {
         do {
-          for try await _ in observatory.candidateGateCounts().dropFirst() {
+          for try await _ in observatory.candidateGateExclusions().dropFirst() {
             guard !Task.isCancelled else { return }
             retryDelay = .seconds(1)
             scheduleRecommendationsRebuild()
           }
         } catch {
-          Self.log.caughtError("candidateGateCounts observation failed", error)
+          Self.log.caughtError("candidateGateExclusions observation failed", error)
           try? await sleeper.sleep(for: retryDelay)
           retryDelay = min(retryDelay * 2, .seconds(60))
         }
@@ -330,15 +330,27 @@ struct RecommendationEngine: Sendable {
   // per intermediate value.
   private func scheduleRecommendationsRebuild() {
     recommendationsDebounce {
+      let totalStart = ContinuousClock.now
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
       guard limit > 0 else {
         sharedState.setTopRecommendations([])
+        Self.log.debug(
+          "perf: scheduleRecommendationsRebuild cleared (limit=0) in \(ContinuousClock.now - totalStart)"
+        )
         return
       }
       do {
         let top = try await topRecommendations(limit: limit)
+        let broadcastStart = ContinuousClock.now
         sharedState.setTopRecommendations(top)
+        let broadcastDuration = ContinuousClock.now - broadcastStart
+        Self.log.debug(
+          """
+          perf: scheduleRecommendationsRebuild total \(ContinuousClock.now - totalStart) \
+          (broadcast \(broadcastDuration)) — published \(top.count) of limit \(limit)
+          """
+        )
       } catch {
         Self.log.caughtError("top recommendations rebuild failed", error)
       }

@@ -252,21 +252,33 @@ struct Observatory: Observing {
   // `finishDate`, or `queueOrder`. Used by the recommendation engine to
   // re-rank when an episode leaves or rejoins the candidate pool — e.g.
   // user marks an unrated episode finished, or queues/dequeues an episode.
-  // `currentTime` is intentionally excluded: it ticks every few seconds
-  // during playback and would defeat the engine's debounce. The
-  // `unstarted → started` transition is covered by the `onDeck` observer
-  // in the engine instead.
   //
-  // The result is three counts, one per gating column. A single mutation
-  // flips exactly one count by ±1, so `.removeDuplicates()` only suppresses
-  // emissions that genuinely don't change candidate eligibility.
-  func candidateGateCounts() -> AsyncValueObservation<CandidateGateCounts> {
+  // `currentTime` is intentionally excluded from the predicate. GRDB
+  // tracks observations by table+column, not by predicate value, so
+  // referencing `Episode.started` (which is `currentTime > 0`) would put
+  // the entire `currentTime` column into the tracked region — every
+  // playback tick (~every couple seconds) would re-run the ID-set query
+  // even though `.removeDuplicates()` would suppress the emission. The
+  // realistic transitions are still covered:
+  //   - `unstarted → started`: starting playback flips `onDeck`, which
+  //     the engine's `onDeck` observer turns into a rebuild.
+  //   - `started → unstarted` (via finish): `markFinished` writes
+  //     `finishDate` and `currentTime = 0` in the same transaction, so
+  //     the `finishDate` flip alone wakes this observation.
+  //
+  // The result is the ID set of episodes currently excluded by any of
+  // those three columns. Returning IDs (not counts) is what makes the
+  // simultaneous-flip case fire: if one episode is queued while another is
+  // dequeued in the same transaction, the count is unchanged but the set
+  // membership is, so `.removeDuplicates()` no longer drops the emission.
+  func candidateGateExclusions() -> AsyncValueObservation<CandidateGateExclusions> {
     _observe { db in
-      CandidateGateCounts(
-        rated: try Episode.filter(Episode.rated).fetchCount(db),
-        finished: try Episode.filter(Episode.finished).fetchCount(db),
-        queued: try Episode.filter(Episode.queued).fetchCount(db)
-      )
+      let ids =
+        try Episode
+        .filter(Episode.rated || Episode.finished || Episode.queued)
+        .select(Episode.Columns.id, as: Episode.ID.self)
+        .fetchSet(db)
+      return CandidateGateExclusions(episodeIDs: ids)
     }
   }
 
