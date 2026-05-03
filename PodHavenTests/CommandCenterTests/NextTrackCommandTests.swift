@@ -17,6 +17,7 @@ import Testing
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.userSettings) private var userSettings
 
   private var mpRemoteCommandCenter: FakeMPRemoteCommandCenter {
     Container.shared.mpRemoteCommandCenter() as! FakeMPRemoteCommandCenter
@@ -35,6 +36,8 @@ import Testing
 
   @Test("nextTrackCommand is disabled when queue is empty")
   func nextTrackCommandIsDisabledWhenQueueIsEmpty() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
+
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
 
@@ -49,6 +52,7 @@ import Testing
 
   @Test("nextTrackCommand is enabled when queue has episodes")
   func nextTrackCommandIsEnabledWhenQueueHasEpisodes() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
 
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -65,6 +69,7 @@ import Testing
 
   @Test("nextTrackCommand is disabled after queue becomes empty")
   func nextTrackCommandIsDisabledAfterQueueBecomesEmpty() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
 
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -90,6 +95,7 @@ import Testing
 
   @Test("nextTrackCommand advances to next episode when enabled")
   func nextTrackCommandAdvancesToNextEpisodeWhenEnabled() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
 
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -115,6 +121,7 @@ import Testing
 
   @Test("queue count updates MPNowPlayingInfoPropertyPlaybackQueueCount")
   func queueCountUpdatesMPNowPlayingInfoPropertyPlaybackQueueCount() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
 
     await playManager.start()
     let (playingEpisode, queuedEpisode1, queuedEpisode2) =
@@ -202,6 +209,7 @@ import Testing
 
   @Test("nextTrackCommand disables when queue empties while paused")
   func nextTrackCommandDisablesWhenQueueEmptiesWhilePaused() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
 
     await playManager.start()
     let (currentEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -266,6 +274,8 @@ import Testing
 
   @Test("nextEpisode mode previousTrack is enabled")
   func nextEpisodeModePreviousTrackIsEnabled() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
+
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
 
@@ -279,6 +289,8 @@ import Testing
 
   @Test("nextEpisode mode previousTrack seeks to zero")
   func nextEpisodeModePreviousTrackSeeksToZero() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
+
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
 

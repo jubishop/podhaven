@@ -16,12 +16,12 @@ struct UserSettings: Sendable {
   @PersistedBroadcast("defaultPlaybackRate") var defaultPlaybackRate: Double = 1.0
   @PersistedBroadcast("skipForwardInterval") var skipForwardInterval: TimeInterval = 30
   @PersistedBroadcast("skipBackwardInterval") var skipBackwardInterval: TimeInterval = 15
-  @PersistedBroadcast("enableUndoSeek") var enableUndoSeek: Bool = false
+  @PersistedBroadcast("enableUndoSeek") var enableUndoSeek: Bool = true
   @PersistedBroadcast("maxQueueLength") var maxQueueLength: Int = 50
   @PersistedBroadcast("maxRecommendedEpisodesInUpNext") var maxRecommendedEpisodesInUpNext: Int = 5
   @PersistedBroadcast("showNowPlayingInUpNext") var showNowPlayingInUpNext: Bool = false
   @PersistedBroadcast("alwaysShowPodcastImageInUpNext") var alwaysShowPodcastImageInUpNext: Bool =
-    false
+    true
   @PersistedBroadcast("alwaysShowPodcastImageForOnDeck") var alwaysShowPodcastImageForOnDeck: Bool =
     false
   @PersistedBroadcast("showTimeRemainingInEpisodeLists") var showTimeRemainingInEpisodeLists: Bool =
@@ -42,10 +42,16 @@ struct UserSettings: Sendable {
       }
     }
   }
-
   @PersistedBroadcast("appearanceMode") var appearanceMode: AppearanceMode = .system
 
-  @PersistedBroadcast("nextTrackBehavior") var nextTrackBehavior: NextTrackBehavior = .nextEpisode
+  enum NextTrackBehavior: String, Codable, DefaultsStorable, CaseIterable, Identifiable, Sendable {
+    case nextEpisode = "Next Episode"
+    case skipInterval = "Skip Interval"
+    case nextChapter = "Next Chapter"
+
+    var id: String { rawValue }
+  }
+  @PersistedBroadcast("nextTrackBehavior") var nextTrackBehavior: NextTrackBehavior = .skipInterval
 
   private static let log = Log.as("UserSettings")
 

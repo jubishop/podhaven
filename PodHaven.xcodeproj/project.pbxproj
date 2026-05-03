@@ -116,7 +116,6 @@
 				Logging/LoggerLevel.swift,
 				Logging/LogKit.swift,
 				Logging/LogSubsystem.swift,
-				Play/Models/NextTrackBehavior.swift,
 				Play/Models/PlaybackStatus.swift,
 				Protocols/DefaultsStorable.swift,
 				Protocols/FileManaging.swift,
