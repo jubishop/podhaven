@@ -283,14 +283,12 @@ struct Observatory: Observing {
   // simultaneous-flip case fire: if one episode is queued while another is
   // dequeued in the same transaction, the count is unchanged but the set
   // membership is, so `.removeDuplicates()` no longer drops the emission.
-  func candidateGateExclusions() -> AsyncValueObservation<CandidateGateExclusions> {
+  func candidateGateExclusions() -> AsyncValueObservation<Set<Episode.ID>> {
     _observe { db in
-      let ids =
-        try Episode
+      try Episode
         .filter(Episode.rated || Episode.finished || Episode.queued)
         .select(Episode.Columns.id, as: Episode.ID.self)
         .fetchSet(db)
-      return CandidateGateExclusions(episodeIDs: ids)
     }
   }
 

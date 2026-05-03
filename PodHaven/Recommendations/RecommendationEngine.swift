@@ -106,7 +106,10 @@ struct RecommendationEngine: Sendable {
   ) async throws -> [Episode.ID: RecommendationScore] {
     guard !episodes.isEmpty else { return [:] }
     guard let context = cache() else { return [:] }
-    return try await scoreEpisodes(episodes, context: context)
+    let candidates = episodes.map {
+      CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
+    }
+    return try await scoreEpisodes(candidates, context: context)
   }
 
   func topRecommendations(limit: Int = 10) async throws -> [RankedRecommendation] {
@@ -125,12 +128,23 @@ struct RecommendationEngine: Sendable {
       "perf: allCandidateEpisodes took \(candidatesDuration) for \(candidates.count) candidates"
     )
 
+    guard !candidates.isEmpty, let context = cache() else {
+      Self.log.debug(
+        """
+        perf: topRecommendations returned 0 \
+        (\(candidates.isEmpty ? "no candidates" : "cache cold")) \
+        in \(ContinuousClock.now - totalStart)
+        """
+      )
+      return []
+    }
+
     let scoresStart = ContinuousClock.now
-    let scores = try await recommendations(for: candidates)
+    let scores = try await scoreEpisodes(candidates, context: context)
     let scoresDuration = ContinuousClock.now - scoresStart
     Self.log.debug(
       """
-      perf: recommendations(for:) took \(scoresDuration) \
+      perf: scoreEpisodes took \(scoresDuration) \
       for \(candidates.count) candidates (\(scores.count) scored)
       """
     )
@@ -151,11 +165,13 @@ struct RecommendationEngine: Sendable {
     }
     let rankStart = ContinuousClock.now
     var ranked = [ScoredCandidate](capacity: candidates.count)
-    for episode in candidates {
-      guard let score = scores[episode.id],
+    for candidate in candidates {
+      guard let score = scores[candidate.id],
         score.value >= Self.minimumScoreThreshold
       else { continue }
-      ranked.append(ScoredCandidate(id: episode.id, pubDate: episode.pubDate, score: score))
+      ranked.append(
+        ScoredCandidate(id: candidate.id, pubDate: candidate.pubDate, score: score)
+      )
     }
     ranked.sort { a, b in
       if a.score.value != b.score.value { return a.score.value > b.score.value }
@@ -369,10 +385,10 @@ struct RecommendationEngine: Sendable {
   // MARK: - Score Episodes
 
   private func scoreEpisodes(
-    _ episodes: [Episode],
+    _ candidates: [CandidateEpisode],
     context: ScoringContext
   ) async throws -> [Episode.ID: RecommendationScore] {
-    let episodeIDs = episodes.map(\.id)
+    let episodeIDs = candidates.map(\.id)
 
     let embeddingsStart = ContinuousClock.now
     let embeddings = try await repo.embeddings(for: episodeIDs)
@@ -386,22 +402,23 @@ struct RecommendationEngine: Sendable {
 
     let mathStart = ContinuousClock.now
     let now = Date()
-    var scores = [Episode.ID: RecommendationScore](capacity: episodes.count)
-    for episode in episodes {
-      scores[episode.id] = scoreCandidate(
-        embedding: embeddings[id: episode.id],
-        podcastID: episode.podcastID,
-        pubDate: episode.pubDate,
+    var scores = [Episode.ID: RecommendationScore](capacity: candidates.count)
+    for candidate in candidates {
+      scores[candidate.id] = scoreCandidate(
+        embedding: embeddings[id: candidate.id],
+        podcastID: candidate.podcastID,
+        pubDate: candidate.pubDate,
         positiveCentroid: context.positiveCentroid,
         negativeCentroid: context.negativeCentroid,
         podcastAffinities: context.podcastAffinities,
-        freshnessCadence: context.freshnessCadences[episode.podcastID] ?? FreshnessCadence.default,
+        freshnessCadence: context.freshnessCadences[candidate.podcastID]
+          ?? FreshnessCadence.default,
         now: now
       )
     }
     let mathDuration = ContinuousClock.now - mathStart
     Self.log.debug(
-      "perf: scoring math took \(mathDuration) for \(episodes.count) episodes"
+      "perf: scoring math took \(mathDuration) for \(candidates.count) candidates"
     )
     return scores
   }

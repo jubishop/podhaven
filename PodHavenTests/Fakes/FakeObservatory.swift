@@ -192,7 +192,7 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.scoringContextInputsWithoutPartialSignals()
   }
 
-  func candidateGateExclusions() -> AsyncValueObservation<CandidateGateExclusions> {
+  func candidateGateExclusions() -> AsyncValueObservation<Set<Episode.ID>> {
     recordCall(methodName: "candidateGateExclusions", parameters: ())
     return observatory.candidateGateExclusions()
   }
