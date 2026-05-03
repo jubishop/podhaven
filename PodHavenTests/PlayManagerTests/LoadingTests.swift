@@ -24,6 +24,7 @@ import Testing
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.userSettings) private var userSettings
 
   private var avPlayer: FakeAVPlayer {
     Container.shared.avPlayer() as! FakeAVPlayer
@@ -42,6 +43,8 @@ import Testing
 
   @Test("loading sets all data")
   func loadingSetsAllData() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
+
     await playManager.start()
     dataLoader.setDefaultHandler { url in
       FakeDataLoader.create(url).pngData()!

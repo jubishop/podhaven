@@ -319,6 +319,8 @@ import Testing
 
   @Test("changing to nextChapter mode updates command availability")
   func changingToNextChapterModeUpdatesCommandAvailability() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
+
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
 

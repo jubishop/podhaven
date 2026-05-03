@@ -95,7 +95,7 @@ struct SettingsView: View {
             }
 
             Picker("Next Track Behavior", selection: userSettings.$nextTrackBehavior.binding) {
-              ForEach(NextTrackBehavior.allCases) { behavior in
+              ForEach(UserSettings.NextTrackBehavior.allCases) { behavior in
                 Text(behavior.rawValue).tag(behavior)
               }
             }
