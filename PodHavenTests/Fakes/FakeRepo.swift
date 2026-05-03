@@ -87,13 +87,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.episodes(downloadTaskIDs)
   }
 
-  func listablePodcastEpisodes(_ episodeIDs: [Episode.ID]) async throws
-    -> [ListablePodcastEpisode]
-  {
-    recordCall(methodName: "listablePodcastEpisodes", parameters: episodeIDs)
-    return try await repo.listablePodcastEpisodes(episodeIDs)
-  }
-
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     recordCall(methodName: "podcastEpisode", parameters: episodeID)
     return try await repo.podcastEpisode(episodeID)

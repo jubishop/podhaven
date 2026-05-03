@@ -12,10 +12,12 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
 
@@ -104,13 +106,62 @@ import SwiftUI
     }
   }
 
+  // The engine publishes ranked IDs only; we hydrate display rows here so
+  // cache/save column changes on a recommended episode refresh the UI
+  // without re-running the scoring pipeline. Each ranking change cancels
+  // the prior hydration task and starts a fresh one keyed to the new IDs.
   private func observeRecommendations() async {
-    for await recommendations in sharedState.$topRecommendations.stream() {
-      guard !Task.isCancelled else { return }
-      Self.log.debug("Updating \(recommendations.count) observed recommendations")
+    var hydrationTask: Task<Void, Never>?
+    defer { hydrationTask?.cancel() }
 
-      recommendedEpisodes = IdentifiedArray(uniqueElements: recommendations.map(\.episode))
+    for await ranking in sharedState.$topRecommendations.stream() {
+      guard !Task.isCancelled else { return }
+      Self.log.debug("Updating \(ranking.count) observed recommendations")
+
+      hydrationTask?.cancel()
+
+      guard !ranking.isEmpty else {
+        hydrationTask = nil
+        recommendedEpisodes = []
+        continue
+      }
+
+      let rankOrder = ranking.map(\.id)
+      let idSet = Set(rankOrder)
+      hydrationTask = Task(priority: taskPriority(.utility)) { @MainActor [weak self] in
+        guard let self else { return }
+        var retryDelay: Duration = .seconds(1)
+        while !Task.isCancelled {
+          do {
+            for try await listables in self.observatory.listablePodcastEpisodes(ids: idSet) {
+              guard !Task.isCancelled else { return }
+              retryDelay = .seconds(1)
+              self.applyRecommendedHydration(listables, rankOrder: rankOrder)
+            }
+          } catch {
+            Self.log.caughtError(
+              "observeRecommendations: hydration observation failed for \(idSet.count) ids",
+              error
+            )
+            try? await self.sleeper.sleep(for: retryDelay)
+            retryDelay = min(retryDelay * 2, .seconds(60))
+          }
+        }
+      }
     }
+  }
+
+  private func applyRecommendedHydration(
+    _ listables: [ListablePodcastEpisode],
+    rankOrder: [Episode.ID]
+  ) {
+    let byID = Dictionary(uniqueKeysWithValues: listables.map { ($0.id, $0) })
+    var ordered = [ListablePodcastEpisode](capacity: rankOrder.count)
+    for id in rankOrder {
+      guard let listable = byID[id] else { continue }
+      ordered.append(listable)
+    }
+    recommendedEpisodes = IdentifiedArray(uniqueElements: ordered)
   }
 
   // MARK: - Derived State

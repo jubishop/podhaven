@@ -157,6 +157,97 @@ actor ObservatoryListableTests {
     try await updateCount.wait(for: 2)
   }
 
+  // MARK: - listablePodcastEpisodes(ids:)
+
+  @Test("listablePodcastEpisodes(ids:) emits only the requested IDs in initial value")
+  func testListablePodcastEpisodesByIDsFilter() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "alpha", title: "Alpha"),
+          try Create.unsavedEpisode(guid: "beta", title: "Beta"),
+          try Create.unsavedEpisode(guid: "gamma", title: "Gamma"),
+        ]
+      )
+    )
+    let alpha = series.episodes[0]
+    let gamma = series.episodes[2]
+
+    let observed =
+      try await observatory
+      .listablePodcastEpisodes(ids: [alpha.id, gamma.id])
+      .get()
+    #expect(Set(observed.map(\.id)) == [alpha.id, gamma.id])
+  }
+
+  @Test("listablePodcastEpisodes(ids:) wakes on cachedFilename writes for requested IDs")
+  func testListablePodcastEpisodesByIDsCacheChanges() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "tracked", title: "Tracked"),
+          try Create.unsavedEpisode(guid: "untracked", title: "Untracked"),
+        ]
+      )
+    )
+    let tracked = series.episodes[0]
+    let untracked = series.episodes[1]
+
+    let updateCount = Counter()
+
+    Task {
+      let observation = observatory.listablePodcastEpisodes(ids: [tracked.id])
+      for try await _ in observation {
+        await updateCount.increment()
+      }
+    }
+    try await updateCount.wait(for: 1)
+
+    // Cache mutation on the requested episode wakes the observation — the
+    // regression we care about for recommendation row hydration.
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET cachedFilename = ? WHERE id = ?",
+        arguments: ["cached_tracked.mp3", tracked.id.rawValue]
+      )
+    }
+    try await updateCount.wait(for: 2)
+
+    // saveInCache is also a listable column.
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET saveInCache = ? WHERE id = ?",
+        arguments: [true, tracked.id.rawValue]
+      )
+    }
+    try await updateCount.wait(for: 3)
+
+    // Description isn't tracked, so it must not wake the observation. A
+    // cache write on an episode outside the requested ID set is also
+    // suppressed by `.removeDuplicates()` since the projected result set
+    // doesn't change.
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET description = ? WHERE id = ?",
+        arguments: ["new desc", tracked.id.rawValue]
+      )
+    }
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET cachedFilename = ? WHERE id = ?",
+        arguments: ["cached_untracked.mp3", untracked.id.rawValue]
+      )
+    }
+
+    try await Wait.until(
+      maxAttempts: 50,
+      { await updateCount.maxValue == 3 },
+      { "Expected maxValue to stay at 3, got \(await updateCount.maxValue)" }
+    )
+  }
+
   // MARK: - ListablePodcast
 
   @Test(

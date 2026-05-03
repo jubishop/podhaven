@@ -167,6 +167,18 @@ struct Observatory: Observing {
     }
   }
 
+  // Hydration observation for an arbitrary set of episode IDs. The tracked
+  // region is `ListablePodcastEpisode`'s narrowed selection — display-only
+  // columns like `cachedFilename`, `saveInCache`, and `downloadTaskID` wake
+  // the observation, but detail-only columns (description, link, etc.) do
+  // not. Used by recommendation row hydration so cache/save UI stays fresh
+  // without re-running the ranking pipeline.
+  func listablePodcastEpisodes(
+    ids: Set<Episode.ID>
+  ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
+    listablePodcastEpisodes(filter: ids.contains(Episode.Columns.id))
+  }
+
   // MARK: - Queue
 
   func queuedPodcastEpisodes(limit: Int = Int.max) -> AsyncValueObservation<

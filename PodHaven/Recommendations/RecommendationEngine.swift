@@ -18,15 +18,10 @@ struct RecommendationScore: Sendable {
   let reasons: [RecommendationReason]
 }
 
-// Pairs a list-displayable episode with its score, used by
-// `topRecommendations` where the caller doesn't have the episodes up
-// front. The episode is the joined podcast+episode projection so
-// consumers can render it directly without another round trip.
-struct RecommendedEpisode: Sendable, Identifiable {
-  var id: Episode.ID { episode.id }
-  let episode: ListablePodcastEpisode
-  let score: RecommendationScore
-}
+// `topRecommendations` publishes ranked IDs paired with their scores;
+// callers hydrate display rows separately so cache/save state stays fresh
+// without a re-rank.
+typealias RankedRecommendation = (id: Episode.ID, score: RecommendationScore)
 
 enum RecommendationReason: Sendable {
   case similarToLiked
@@ -114,7 +109,7 @@ struct RecommendationEngine: Sendable {
     return try await scoreEpisodes(episodes, context: context)
   }
 
-  func topRecommendations(limit: Int = 10) async throws -> IdentifiedArrayOf<RecommendedEpisode> {
+  func topRecommendations(limit: Int = 10) async throws -> [RankedRecommendation] {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
     let totalStart = ContinuousClock.now
 
@@ -147,8 +142,8 @@ struct RecommendationEngine: Sendable {
     }
 
     // Sort by score (then pubDate, then id) on the lightweight Episode
-    // tuples first; we only re-fetch the joined podcast columns for the
-    // top `limit`, not for every candidate.
+    // tuples. Hydration of the listable display rows happens at the
+    // consumer; the engine only ranks.
     struct ScoredCandidate {
       let id: Episode.ID
       let pubDate: Date
@@ -176,24 +171,10 @@ struct RecommendationEngine: Sendable {
     )
 
     let topRanked = ranked.prefix(limit)
-    let topIDs = topRanked.map(\.id)
-    let listablesStart = ContinuousClock.now
-    let listables = try await repo.listablePodcastEpisodes(topIDs)
-    let listablesDuration = ContinuousClock.now - listablesStart
-    Self.log.debug(
-      """
-      perf: listablePodcastEpisodes(top) took \(listablesDuration) \
-      for \(topIDs.count) ids (\(listables.count) returned)
-      """
-    )
-
-    let listableByID = Dictionary(uniqueKeysWithValues: listables.map { ($0.id, $0) })
-    var results = [RecommendedEpisode](capacity: topRanked.count)
+    var top = [RankedRecommendation](capacity: topRanked.count)
     for ranked in topRanked {
-      guard let listable = listableByID[ranked.id] else { continue }
-      results.append(RecommendedEpisode(episode: listable, score: ranked.score))
+      top.append((id: ranked.id, score: ranked.score))
     }
-    let top = IdentifiedArrayOf<RecommendedEpisode>(uniqueElements: results)
 
     let totalDuration = ContinuousClock.now - totalStart
     Self.log.debug(
