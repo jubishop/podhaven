@@ -330,27 +330,15 @@ struct RecommendationEngine: Sendable {
   // per intermediate value.
   private func scheduleRecommendationsRebuild() {
     recommendationsDebounce {
-      let totalStart = ContinuousClock.now
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
       guard limit > 0 else {
         sharedState.setTopRecommendations([])
-        Self.log.debug(
-          "perf: scheduleRecommendationsRebuild cleared (limit=0) in \(ContinuousClock.now - totalStart)"
-        )
         return
       }
       do {
         let top = try await topRecommendations(limit: limit)
-        let broadcastStart = ContinuousClock.now
         sharedState.setTopRecommendations(top)
-        let broadcastDuration = ContinuousClock.now - broadcastStart
-        Self.log.debug(
-          """
-          perf: scheduleRecommendationsRebuild total \(ContinuousClock.now - totalStart) \
-          (broadcast \(broadcastDuration)) — published \(top.count) of limit \(limit)
-          """
-        )
       } catch {
         Self.log.caughtError("top recommendations rebuild failed", error)
       }
