@@ -63,10 +63,6 @@ protocol Observing: Sendable {
     limit: Int
   ) -> AsyncValueObservation<[ListablePodcastEpisode]>
 
-  func listablePodcastEpisodes(
-    ids: Set<Episode.ID>
-  ) -> AsyncValueObservation<[ListablePodcastEpisode]>
-
   // MARK: - Queue
 
   func queuedPodcastEpisodes(limit: Int) -> AsyncValueObservation<[ListablePodcastEpisode]>

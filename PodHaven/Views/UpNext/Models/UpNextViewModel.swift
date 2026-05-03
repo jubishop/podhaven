@@ -133,7 +133,10 @@ import SwiftUI
         var retryDelay: Duration = .seconds(1)
         while !Task.isCancelled {
           do {
-            for try await listables in self.observatory.listablePodcastEpisodes(ids: idSet) {
+            let observation = self.observatory.listablePodcastEpisodes(
+              filter: idSet.contains(Episode.Columns.id)
+            )
+            for try await listables in observation {
               guard !Task.isCancelled else { return }
               retryDelay = .seconds(1)
               self.applyRecommendedHydration(listables, rankOrder: rankOrder)
