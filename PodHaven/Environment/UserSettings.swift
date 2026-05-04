@@ -26,6 +26,8 @@ struct UserSettings: Sendable {
     false
   @PersistedBroadcast("showTimeRemainingInEpisodeLists") var showTimeRemainingInEpisodeLists: Bool =
     false
+  @PersistedBroadcast("autoPlayTopRecommendationWhenQueueEmpty")
+  var autoPlayTopRecommendationWhenQueueEmpty: Bool = true
 
   enum AppearanceMode: String, Codable, DefaultsStorable, CaseIterable, Identifiable {
     case system = "System"

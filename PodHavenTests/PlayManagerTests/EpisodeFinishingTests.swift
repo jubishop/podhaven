@@ -15,6 +15,7 @@ import Testing
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.userSettings) private var userSettings
 
   private var avPlayer: FakeAVPlayer {
     Container.shared.avPlayer() as! FakeAVPlayer
@@ -178,4 +179,98 @@ import Testing
     try await PlayHelpers.waitForOnDeck(nil)
     try await PlayHelpers.waitForFinished(podcastEpisode)
   }
+
+  // MARK: - Auto-play Top Recommendation
+
+  @Test(
+    """
+    finishEpisode auto-plays top recommendation when queue is empty and \
+    autoPlayTopRecommendationWhenQueueEmpty is enabled
+    """
+  )
+  func finishEpisodeAutoPlaysTopRecommendationWhenEnabled() async throws {
+    await playManager.start()
+    userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(true)
+    let (currentEpisode, recommendedEpisode) = try await Create.twoPodcastEpisodes()
+
+    sharedState.setTopRecommendations([
+      (id: recommendedEpisode.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    await playManager.finishEpisode(currentEpisode.id)
+
+    try await PlayHelpers.waitForOnDeck(recommendedEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForCurrentItem(recommendedEpisode.episode.mediaURL)
+    try await PlayHelpers.waitForFinished(currentEpisode)
+  }
+
+  @Test(
+    """
+    finishEpisode stops when autoPlayTopRecommendationWhenQueueEmpty is disabled, \
+    even if recommendations are available
+    """
+  )
+  func finishEpisodeStopsWhenAutoPlayDisabled() async throws {
+    await playManager.start()
+    userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(false)
+    let (currentEpisode, recommendedEpisode) = try await Create.twoPodcastEpisodes()
+
+    sharedState.setTopRecommendations([
+      (id: recommendedEpisode.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    await playManager.finishEpisode(currentEpisode.id)
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForOnDeck(nil)
+    try await PlayHelpers.waitForFinished(currentEpisode)
+  }
+
+  @Test("finishEpisode stops when auto-play is enabled but no recommendations are published")
+  func finishEpisodeStopsWhenNoRecommendationsAvailable() async throws {
+    await playManager.start()
+    userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(true)
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    sharedState.setTopRecommendations([])
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+
+    await playManager.finishEpisode(podcastEpisode.id)
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForOnDeck(nil)
+    try await PlayHelpers.waitForFinished(podcastEpisode)
+  }
+
+  @Test("finishEpisode prefers queued episode over top recommendation")
+  func finishEpisodeQueueTakesPrecedenceOverRecommendation() async throws {
+    await playManager.start()
+    userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(true)
+    let (currentEpisode, queuedEpisode, recommendedEpisode) =
+      try await Create.threePodcastEpisodes()
+
+    try await queue.unshift(queuedEpisode.id)
+    sharedState.setTopRecommendations([
+      (id: recommendedEpisode.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    await playManager.finishEpisode(currentEpisode.id)
+
+    try await PlayHelpers.waitForOnDeck(queuedEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForCurrentItem(queuedEpisode.episode.mediaURL)
+  }
+
 }
