@@ -101,6 +101,59 @@ class V42MigrationTests {
       )
       let coverage = db.lastInsertedRowID
 
+      // Child rows so the rebuild has FK references to validate. The episode
+      // table is rebuilt under defer_foreign_keys; if anything reassigned
+      // episode IDs, these would be left dangling.
+      try db.execute(
+        sql: """
+          INSERT INTO tag (id, name, creationDate)
+          VALUES (700, 'tech', '2024-01-01 00:00:00'),
+                 (701, 'news', '2024-01-01 00:00:00')
+          """
+      )
+      try db.execute(
+        sql: """
+          INSERT INTO podcastTag (podcastId, tagId) VALUES
+            (500, 700), (500, 701)
+          """
+      )
+      try db.execute(
+        sql: """
+          INSERT INTO episodeTag (episodeId, tagId) VALUES
+            (?, 700), (?, 701), (?, 700)
+          """,
+        arguments: [loved, loved, liked]
+      )
+
+      let vector = Data([0x10, 0x20, 0x30, 0x40])
+      try db.execute(
+        sql: """
+          INSERT INTO episodeEmbedding (
+            episodeId, vector, sourceHash, embeddingRevision, dimension,
+            creationDate
+          ) VALUES (?, ?, 'hash-loved', 1, 3, '2024-01-03 00:00:00')
+          """,
+        arguments: [loved, vector]
+      )
+      try db.execute(
+        sql: """
+          INSERT INTO episodeEmbedding (
+            episodeId, vector, sourceHash, embeddingRevision, dimension,
+            creationDate
+          ) VALUES (?, ?, 'hash-cov', 2, 3, '2024-01-06 00:00:00')
+          """,
+        arguments: [coverage, vector]
+      )
+      try db.execute(
+        sql: """
+          INSERT INTO podcastEmbedding (
+            podcastId, vector, sourceHash, embeddingRevision, dimension,
+            creationDate
+          ) VALUES (500, ?, 'hash-p500', 1, 3, '2024-01-03 00:00:00')
+          """,
+        arguments: [vector]
+      )
+
       return FixtureIDs(
         podcast: 500,
         episodeLoved: loved,
@@ -330,6 +383,82 @@ class V42MigrationTests {
     }
   }
 
+  @Test("episode (podcastId, mediaURL) UNIQUE still enforced after v42 rebuild")
+  func compoundUniquePodcastMediaURL() async throws {
+    let ids = try await populateAtV41()
+    try migrator.migrate(appDB.db, upTo: "v42")
+
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.write { db in
+        try db.execute(
+          sql: """
+            INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
+            VALUES (?, 'guid-distinct', 'https://example.com/guid-loved.mp3', 'Dup', ?)
+            """,
+          arguments: [ids.podcast, "2025-01-01 00:00:00"]
+        )
+      }
+    }
+  }
+
+  @Test("episode (guid, mediaURL) UNIQUE still enforced after v42 rebuild")
+  func compoundUniqueGuidMediaURL() async throws {
+    _ = try await populateAtV41()
+    // Insert a second podcast at v41 so we can attempt the cross-podcast
+    // duplicate that only the (guid, mediaURL) UNIQUE catches.
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO podcast (
+            id, feedURL, title, image, description, contentUpdatedAt
+          ) VALUES (
+            501, 'https://example.com/v42-2.xml', 'Other', 'img', 'desc',
+            '2024-01-01 00:00:00'
+          )
+          """
+      )
+    }
+    try migrator.migrate(appDB.db, upTo: "v42")
+
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.write { db in
+        try db.execute(
+          sql: """
+            INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
+            VALUES (501, 'guid-loved', 'https://example.com/guid-loved.mp3', 'Dup', ?)
+            """,
+          arguments: ["2025-01-01 00:00:00"]
+        )
+      }
+    }
+  }
+
+  @Test("episode downloadTaskID UNIQUE still enforced after v42 rebuild")
+  func downloadTaskIDUnique() async throws {
+    let ids = try await populateAtV41()
+    // Seed a downloadTaskID at v41 so the post-v42 conflict is on a real row.
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET downloadTaskID = 4242 WHERE id = ?",
+        arguments: [ids.episodeUnrated]
+      )
+    }
+    try migrator.migrate(appDB.db, upTo: "v42")
+
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.write { db in
+        try db.execute(
+          sql: """
+            INSERT INTO episode (
+              podcastId, guid, mediaURL, title, pubDate, downloadTaskID
+            ) VALUES (?, 'guid-dl', 'https://example.com/dl.mp3', 'Dup DL', ?, 4242)
+            """,
+          arguments: [ids.podcast, "2025-01-01 00:00:00"]
+        )
+      }
+    }
+  }
+
   @Test("episode queueOrder CHECK still rejects negative values after v42 rebuild")
   func queueOrderCheckEnforced() async throws {
     let ids = try await populateAtV41()
@@ -349,6 +478,100 @@ class V42MigrationTests {
     }
   }
 
+  // MARK: - Child Tables
+
+  // The episode rebuild runs under defer_foreign_keys, so child rows in
+  // episodeTag and episodeEmbedding temporarily hang on FKs that point at
+  // the dropped table. This test catches any regression that would silently
+  // orphan or reorder them.
+  @Test("child tables (embeddings, tag joins) unchanged by v42 rebuild")
+  func childTablesPreserved() async throws {
+    _ = try await populateAtV41()
+
+    let capture = { [appDB] () async throws -> [String: [[String: DatabaseValue]]] in
+      try await appDB.db.read { db in
+        [
+          "tag": try Row.fetchAll(db, sql: "SELECT * FROM tag ORDER BY id")
+            .map { $0.asDictionary() },
+          "podcastTag":
+            try Row.fetchAll(
+              db,
+              sql: "SELECT * FROM podcastTag ORDER BY podcastId, tagId"
+            )
+            .map { $0.asDictionary() },
+          "episodeTag":
+            try Row.fetchAll(
+              db,
+              sql: "SELECT * FROM episodeTag ORDER BY episodeId, tagId"
+            )
+            .map { $0.asDictionary() },
+          "episodeEmbedding":
+            try Row.fetchAll(
+              db,
+              sql: "SELECT * FROM episodeEmbedding ORDER BY id"
+            )
+            .map { $0.asDictionary() },
+          "podcastEmbedding":
+            try Row.fetchAll(
+              db,
+              sql: "SELECT * FROM podcastEmbedding ORDER BY id"
+            )
+            .map { $0.asDictionary() },
+        ]
+      }
+    }
+
+    let before = try await capture()
+    try migrator.migrate(appDB.db, upTo: "v42")
+    let after = try await capture()
+
+    #expect(before == after)
+  }
+
+  @Test("episode→tag CASCADE still cleans episodeTag rows after v42 rebuild")
+  func episodeTagCascadeStillWorks() async throws {
+    let ids = try await populateAtV41()
+    try migrator.migrate(appDB.db, upTo: "v42")
+
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "DELETE FROM episode WHERE id = ?",
+        arguments: [ids.episodeLoved]
+      )
+    }
+
+    let remaining = try await appDB.db.read { db in
+      try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episodeTag WHERE episodeId = ?",
+        arguments: [ids.episodeLoved]
+      ) ?? -1
+    }
+    #expect(remaining == 0)
+  }
+
+  @Test("episode→embedding CASCADE still cleans episodeEmbedding rows after v42 rebuild")
+  func episodeEmbeddingCascadeStillWorks() async throws {
+    let ids = try await populateAtV41()
+    try migrator.migrate(appDB.db, upTo: "v42")
+
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "DELETE FROM episode WHERE id = ?",
+        arguments: [ids.episodeWithCoverage]
+      )
+    }
+
+    let remaining = try await appDB.db.read { db in
+      try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episodeEmbedding WHERE episodeId = ?",
+        arguments: [ids.episodeWithCoverage]
+      ) ?? -1
+    }
+    #expect(remaining == 0)
+  }
+
   // MARK: - Cascade & Integrity
 
   @Test("PRAGMA foreign_key_check passes after v42 rebuild")
@@ -356,7 +579,7 @@ class V42MigrationTests {
     _ = try await populateAtV41()
     try migrator.migrate(appDB.db, upTo: "v42")
 
-    let violations = try appDB.db.read { db in
+    let violations = try appDB.db.read { db -> [Row] in
       try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
     }
     #expect(violations.isEmpty)
