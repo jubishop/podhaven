@@ -42,7 +42,10 @@ extension ManagingEpisodes {
   }
 
   func isEpisodeAtBottomOfQueue(_ episode: EpisodeType) -> Bool {
-    episode.queueOrder == sharedState.maxQueuePosition
+    guard let queueOrder = episode.queueOrder,
+      let maxQueuePosition = sharedState.maxQueuePosition
+    else { return false }
+    return queueOrder == maxQueuePosition
   }
 
   func canClearCache(_ episode: EpisodeType) -> Bool {
