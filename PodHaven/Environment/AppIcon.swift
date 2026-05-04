@@ -545,19 +545,19 @@ private struct SystemImageName:
       return Data(text: "Recommendation", systemImageName: .recommendation, color: .yellow)
     case .recommendationSimilar:
       return Data(
-        text: "Similar to what you like",
+        text: "Similar to others",
         systemImageName: .recommendationSimilar,
         color: .pink
       )
     case .recommendationFromPodcast:
       return Data(
-        text: "From a podcast you enjoy",
+        text: "Preferred podcast",
         systemImageName: .recommendationFromPodcast,
         color: .blue
       )
     case .recommendationRecent:
       return Data(
-        text: "Recently published",
+        text: "Fresh",
         systemImageName: .recommendationRecent,
         color: .orange
       )

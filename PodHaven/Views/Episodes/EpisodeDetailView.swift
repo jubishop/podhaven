@@ -448,4 +448,61 @@ struct EpisodeDetailView: View {
     .preview()
   }
 }
+
+#Preview("Strong Recommendation") {
+  let viewModel = EpisodeDetailViewModel(
+    episode: DisplayedEpisode.getDisplayedEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try! Create.unsavedPodcast(
+          title: "The Tech Podcast",
+          description: "A podcast about technology and innovation"
+        ),
+        unsavedEpisode: try! Create.unsavedEpisode(
+          title: "Why Vector Search Eats Keyword Search for Breakfast",
+          pubDate: Date().addingTimeInterval(-86400),
+          duration: CMTime(seconds: 2700, preferredTimescale: 1),
+          description: """
+            <p>Embeddings, ANN indexes, and the surprising places semantic \
+            search shows up in modern apps.</p>
+            """
+        )
+      )
+    )
+  )
+  viewModel.recommendationScore = RecommendationScore(
+    value: 0.87,
+    reasons: [.similarToLiked, .podcastAffinity, .recentlyPublished]
+  )
+  return NavigationStack {
+    EpisodeDetailView(viewModel: viewModel)
+      .preview()
+  }
+}
+
+#Preview("Recommendation, Single Reason") {
+  let viewModel = EpisodeDetailViewModel(
+    episode: DisplayedEpisode.getDisplayedEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try! Create.unsavedPodcast(
+          title: "Curious Minds Weekly",
+          description: "Conversations across science, history, and culture"
+        ),
+        unsavedEpisode: try! Create.unsavedEpisode(
+          title: "The Hidden History of the Decimal Point",
+          pubDate: Date().addingTimeInterval(-86400 * 30),
+          duration: CMTime(seconds: 3300, preferredTimescale: 1),
+          description: "<p>A deceptively rich story about a tiny dot.</p>"
+        )
+      )
+    )
+  )
+  viewModel.recommendationScore = RecommendationScore(
+    value: 0.42,
+    reasons: [.similarToLiked]
+  )
+  return NavigationStack {
+    EpisodeDetailView(viewModel: viewModel)
+      .preview()
+  }
+}
 #endif
