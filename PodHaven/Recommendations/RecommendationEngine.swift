@@ -23,7 +23,7 @@ struct RecommendationScore: Sendable {
 // without a re-rank.
 typealias RankedRecommendation = (id: Episode.ID, score: RecommendationScore)
 
-enum RecommendationReason: Sendable {
+enum RecommendationReason: Hashable, Sendable {
   case similarToLiked
   case podcastAffinity
   case recentlyPublished

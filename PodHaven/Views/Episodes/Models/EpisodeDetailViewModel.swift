@@ -16,8 +16,10 @@ import Tagged
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
@@ -26,6 +28,7 @@ import Tagged
   private let originTab: Navigation.Tab
   private let detailSource: EpisodeDetailSource
   var episode: DisplayedEpisode
+  var recommendationScore: RecommendationScore?
   private var _podcastEpisode: PodcastEpisode?
   private var podcastEpisode: PodcastEpisode? {
     get { _podcastEpisode }
@@ -106,6 +109,7 @@ import Tagged
 
       self.podcastEpisode = podcastEpisode
       startObservation()
+      startRecommendationObservation()
     } else {
       Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
 
@@ -438,16 +442,63 @@ import Tagged
     }
   }
 
+  // MARK: - Recommendation Observation
+
+  @ObservationIgnored private var recommendationTask: Task<Void, Never>?
+
+  // Re-fetches the recommendation for this episode whenever the engine
+  // republishes top recommendations — that publish is keyed off the cache
+  // rebuild, so it's our cheapest signal that scoring context changed. The
+  // engine returns nil for episodes the cold cache can't score yet; the
+  // bootstrap emit covers the "cache is already hot when the view opens" case.
+  private func startRecommendationObservation() {
+    if let recommendationTask, !recommendationTask.isCancelled {
+      Self.log.debug("Recommendation observation already active; not starting again")
+      return
+    }
+
+    recommendationTask = Task(priority: taskPriority(.utility)) { [weak self] in
+      guard let self else { return }
+
+      for await _ in sharedState.$topRecommendations.stream() {
+        guard !Task.isCancelled else { return }
+        await fetchRecommendation()
+      }
+    }
+  }
+
+  private func fetchRecommendation() async {
+    guard let podcastEpisode = self.podcastEpisode else { return }
+
+    do {
+      let scores = try await recommendationEngine.recommendations(
+        for: [podcastEpisode.episode]
+      )
+      recommendationScore = scores[podcastEpisode.id]
+    } catch {
+      Self.log.caughtError(
+        "fetchRecommendation: failed for \(podcastEpisode.toString)",
+        error
+      )
+    }
+  }
+
   // MARK: - Disappear
 
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
+    clearRecommendationTask()
   }
 
   private func clearObservationTask() {
     observationTask?.cancel()
     observationTask = nil
+  }
+
+  private func clearRecommendationTask() {
+    recommendationTask?.cancel()
+    recommendationTask = nil
   }
 
   // MARK: - Private Helpers
@@ -466,6 +517,7 @@ import Tagged
     )
     self.podcastEpisode = podcastEpisode
     startObservation()
+    startRecommendationObservation()
     return podcastEpisode
   }
 }

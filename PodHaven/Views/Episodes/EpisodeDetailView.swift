@@ -23,6 +23,12 @@ struct EpisodeDetailView: View {
 
         Divider()
 
+        if let recommendationScore = viewModel.recommendationScore {
+          recommendationSection(score: recommendationScore)
+
+          Divider()
+        }
+
         metadataRow
 
         Divider()
@@ -177,6 +183,40 @@ struct EpisodeDetailView: View {
       }
       .buttonStyle(PlainButtonStyle())
     }
+  }
+
+  // MARK: - Recommendation
+
+  private func recommendationSection(score: RecommendationScore) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(spacing: 8) {
+        AppIcon.recommendation.label
+        Spacer()
+        Text(recommendationScoreText(score.value))
+          .monospacedDigit()
+          .foregroundStyle(.secondary)
+      }
+      .font(.headline)
+
+      if !score.reasons.isEmpty {
+        FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
+          ForEach(score.reasons, id: \.self) { reason in
+            AppIcon.recommendationReason(for: reason).label
+              .font(.subheadline)
+              .padding(.horizontal, 10)
+              .padding(.vertical, 6)
+              .background(Color.secondary.opacity(0.12))
+              .clipShape(Capsule())
+          }
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func recommendationScoreText(_ value: Float) -> String {
+    let clamped = max(0, min(1, value))
+    return "\(Int((clamped * 100).rounded()))%"
   }
 
   // MARK: - Metadata Row

@@ -94,6 +94,10 @@ private struct SystemImageName:
   static let error = SystemImageName("exclamationmark.triangle")
   static let noImage = SystemImageName("photo")
   static let publishDate = SystemImageName("calendar.badge.clock")
+  static let recommendation = SystemImageName("sparkles")
+  static let recommendationSimilar = SystemImageName("wand.and.stars")
+  static let recommendationFromPodcast = SystemImageName("antenna.radiowaves.left.and.right")
+  static let recommendationRecent = SystemImageName("flame.fill")
   static let trending = SystemImageName("chart.line.uptrend.xyaxis")
   static let trendingTop = SystemImageName("chart.bar.xaxis")
   static let trendingNews = SystemImageName("newspaper")
@@ -251,6 +255,10 @@ private struct SystemImageName:
   case notificationsDisabled
   case notificationsNotDetermined
   case publishDate
+  case recommendation
+  case recommendationSimilar
+  case recommendationFromPodcast
+  case recommendationRecent
   case tag
   case updated
 
@@ -533,6 +541,26 @@ private struct SystemImageName:
       )
     case .publishDate:
       return Data(text: "Published", systemImageName: .publishDate, color: .secondary)
+    case .recommendation:
+      return Data(text: "Recommendation", systemImageName: .recommendation, color: .yellow)
+    case .recommendationSimilar:
+      return Data(
+        text: "Similar to what you like",
+        systemImageName: .recommendationSimilar,
+        color: .pink
+      )
+    case .recommendationFromPodcast:
+      return Data(
+        text: "From a podcast you enjoy",
+        systemImageName: .recommendationFromPodcast,
+        color: .blue
+      )
+    case .recommendationRecent:
+      return Data(
+        text: "Recently published",
+        systemImageName: .recommendationRecent,
+        color: .orange
+      )
     case .tag:
       return Data(text: "Tag", systemImageName: .tag, color: .secondary)
     case .updated:
@@ -879,7 +907,7 @@ private struct AppIconImageButton: View {
   }
 }
 
-// MARK: - Rating
+// MARK: - Recommendations
 
 #if !WIDGET_EXTENSION
 extension AppIcon {
@@ -889,6 +917,14 @@ extension AppIcon {
     case .liked: .likeEpisode
     case .disliked: .dislikeEpisode
     case nil: .rateEpisode
+    }
+  }
+
+  static func recommendationReason(for reason: RecommendationReason) -> AppIcon {
+    switch reason {
+    case .similarToLiked: .recommendationSimilar
+    case .podcastAffinity: .recommendationFromPodcast
+    case .recentlyPublished: .recommendationRecent
     }
   }
 }
