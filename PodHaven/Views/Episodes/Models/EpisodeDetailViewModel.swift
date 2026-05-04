@@ -16,6 +16,7 @@ import Tagged
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
 
@@ -26,6 +27,7 @@ import Tagged
   private let originTab: Navigation.Tab
   private let detailSource: EpisodeDetailSource
   var episode: DisplayedEpisode
+  private var recommendationScore: RecommendationScore?
   private var _podcastEpisode: PodcastEpisode?
   private var podcastEpisode: PodcastEpisode? {
     get { _podcastEpisode }
@@ -63,6 +65,14 @@ import Tagged
 
   var canClearCache: Bool {
     episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
+  }
+
+  // Hide the score once the user has rated or finished the episode: a
+  // direct rating outweighs similarity-to-liked, and a finished episode
+  // is itself a signal — its own score is circular.
+  var displayedRecommendationScore: RecommendationScore? {
+    guard episode.rating == nil, !episode.finished else { return nil }
+    return recommendationScore
   }
 
   private let startTime: Int?
@@ -106,6 +116,7 @@ import Tagged
 
       self.podcastEpisode = podcastEpisode
       startObservation()
+      startRecommendationObservation()
     } else {
       Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
 
@@ -438,16 +449,62 @@ import Tagged
     }
   }
 
+  // MARK: - Recommendation Observation
+
+  @ObservationIgnored private var recommendationTask: Task<Void, Never>?
+
+  // Re-fetches this episode's score whenever the engine bumps
+  // `contextRevision`, i.e. every time its scoring cache rebuilds. The
+  // bootstrap emit covers the "cache is already hot when the view opens"
+  // case; cold caches yield nil and the section stays hidden until the
+  // engine warms up.
+  private func startRecommendationObservation() {
+    if let recommendationTask, !recommendationTask.isCancelled {
+      Self.log.debug("Recommendation observation already active; not starting again")
+      return
+    }
+
+    recommendationTask = Task { [weak self] in
+      guard let self else { return }
+
+      for await _ in recommendationEngine.$contextRevision.stream() {
+        guard !Task.isCancelled else { return }
+        await fetchRecommendation()
+      }
+    }
+  }
+
+  private func fetchRecommendation() async {
+    guard let podcastEpisode = self.podcastEpisode else { return }
+
+    do {
+      recommendationScore = try await recommendationEngine.recommendation(
+        for: podcastEpisode.id
+      )
+    } catch {
+      Self.log.caughtError(
+        "fetchRecommendation: failed for \(podcastEpisode.toString)",
+        error
+      )
+    }
+  }
+
   // MARK: - Disappear
 
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
+    clearRecommendationTask()
   }
 
   private func clearObservationTask() {
     observationTask?.cancel()
     observationTask = nil
+  }
+
+  private func clearRecommendationTask() {
+    recommendationTask?.cancel()
+    recommendationTask = nil
   }
 
   // MARK: - Private Helpers
@@ -458,6 +515,14 @@ import Tagged
     await playManager.play()
   }
 
+  #if DEBUG
+  // Preview-only seed; production code drives `recommendationScore`
+  // exclusively through `startRecommendationObservation`.
+  func previewSeedRecommendationScore(_ score: RecommendationScore?) {
+    recommendationScore = score
+  }
+  #endif
+
   private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
@@ -466,6 +531,7 @@ import Tagged
     )
     self.podcastEpisode = podcastEpisode
     startObservation()
+    startRecommendationObservation()
     return podcastEpisode
   }
 }

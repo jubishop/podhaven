@@ -23,6 +23,12 @@ struct EpisodeDetailView: View {
 
         Divider()
 
+        if let recommendationScore = viewModel.displayedRecommendationScore {
+          recommendationSection(score: recommendationScore)
+
+          Divider()
+        }
+
         metadataRow
 
         Divider()
@@ -177,6 +183,40 @@ struct EpisodeDetailView: View {
       }
       .buttonStyle(PlainButtonStyle())
     }
+  }
+
+  // MARK: - Recommendation
+
+  private func recommendationSection(score: RecommendationScore) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(spacing: 8) {
+        AppIcon.recommendation.label
+        Spacer()
+        Text(recommendationScoreText(score.value))
+          .monospacedDigit()
+          .foregroundStyle(.secondary)
+      }
+      .font(.headline)
+
+      if !score.reasons.isEmpty {
+        FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
+          ForEach(score.reasons, id: \.self) { reason in
+            AppIcon.recommendationReason(for: reason).label
+              .font(.subheadline)
+              .padding(.horizontal, 10)
+              .padding(.vertical, 6)
+              .background(Color.secondary.opacity(0.12))
+              .clipShape(Capsule())
+          }
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func recommendationScoreText(_ value: Float) -> String {
+    let clamped = max(0, min(1, value))
+    return "\(Int((clamped * 100).rounded()))%"
   }
 
   // MARK: - Metadata Row
@@ -406,6 +446,64 @@ struct EpisodeDetailView: View {
       )
     )
     .preview()
+  }
+}
+
+#Preview("Strong Recommendation") {
+  let viewModel = EpisodeDetailViewModel(
+    episode: DisplayedEpisode.getDisplayedEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try! Create.unsavedPodcast(
+          title: "The Tech Podcast",
+          description: "A podcast about technology and innovation"
+        ),
+        unsavedEpisode: try! Create.unsavedEpisode(
+          title: "Why Vector Search Eats Keyword Search for Breakfast",
+          pubDate: Date().addingTimeInterval(-86400),
+          duration: CMTime(seconds: 2700, preferredTimescale: 1),
+          description: """
+            <p>Embeddings, ANN indexes, and the surprising places semantic \
+            search shows up in modern apps.</p>
+            """
+        )
+      )
+    )
+  )
+  viewModel.previewSeedRecommendationScore(
+    RecommendationScore(
+      value: 0.87,
+      reasons: [.similarToLiked, .podcastAffinity, .recentlyPublished]
+    )
+  )
+  return NavigationStack {
+    EpisodeDetailView(viewModel: viewModel)
+      .preview()
+  }
+}
+
+#Preview("Recommendation, Single Reason") {
+  let viewModel = EpisodeDetailViewModel(
+    episode: DisplayedEpisode.getDisplayedEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try! Create.unsavedPodcast(
+          title: "Curious Minds Weekly",
+          description: "Conversations across science, history, and culture"
+        ),
+        unsavedEpisode: try! Create.unsavedEpisode(
+          title: "The Hidden History of the Decimal Point",
+          pubDate: Date().addingTimeInterval(-86400 * 30),
+          duration: CMTime(seconds: 3300, preferredTimescale: 1),
+          description: "<p>A deceptively rich story about a tiny dot.</p>"
+        )
+      )
+    )
+  )
+  viewModel.previewSeedRecommendationScore(
+    RecommendationScore(value: 0.42, reasons: [.similarToLiked])
+  )
+  return NavigationStack {
+    EpisodeDetailView(viewModel: viewModel)
+      .preview()
   }
 }
 #endif

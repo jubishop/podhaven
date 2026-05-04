@@ -23,7 +23,7 @@ struct RecommendationScore: Sendable {
 // without a re-rank.
 typealias RankedRecommendation = (id: Episode.ID, score: RecommendationScore)
 
-enum RecommendationReason: Sendable {
+enum RecommendationReason: Hashable, Sendable {
   case similarToLiked
   case podcastAffinity
   case recentlyPublished
@@ -79,6 +79,14 @@ struct RecommendationEngine: Sendable {
   private let recommendationsDebounce = Debounce(duration: .milliseconds(400))
   private let startOnce = Once()
 
+  // Bumps once per cache rebuild — whether the rebuild produced a hot,
+  // cold, or refreshed-with-new-signals context. Subscribers (e.g. detail
+  // views holding a per-episode score) watch `$contextRevision.stream()`
+  // and re-query when it fires; the value itself is uninteresting, only the
+  // change events. This is the engine's own change signal, replacing the
+  // previous workaround of inferring rebuilds from `topRecommendations`.
+  @Broadcasted var contextRevision: Int = 0
+
   fileprivate init() {}
 
   // MARK: - Public API
@@ -110,6 +118,14 @@ struct RecommendationEngine: Sendable {
       CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
     }
     return try await scoreEpisodes(candidates, context: context)
+  }
+
+  // Single-episode convenience over `recommendations(for:)` for callers
+  // that only have an ID (e.g. a detail view). Returns nil if the episode
+  // doesn't exist or the cache is cold.
+  func recommendation(for episodeID: Episode.ID) async throws -> RecommendationScore? {
+    guard let episode = try await repo.episode(episodeID) else { return nil }
+    return try await recommendations(for: [episode])[episodeID]
   }
 
   func topRecommendations(limit: Int = 10) async throws -> [RankedRecommendation] {
@@ -313,6 +329,7 @@ struct RecommendationEngine: Sendable {
         )
 
         cache(context)
+        $contextRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)
