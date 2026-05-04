@@ -27,7 +27,7 @@ import Tagged
   private let originTab: Navigation.Tab
   private let detailSource: EpisodeDetailSource
   var episode: DisplayedEpisode
-  var recommendationScore: RecommendationScore?
+  private var recommendationScore: RecommendationScore?
   private var _podcastEpisode: PodcastEpisode?
   private var podcastEpisode: PodcastEpisode? {
     get { _podcastEpisode }
@@ -65,6 +65,14 @@ import Tagged
 
   var canClearCache: Bool {
     episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
+  }
+
+  // Hide the score once the user has rated or finished the episode: a
+  // direct rating outweighs similarity-to-liked, and a finished episode
+  // is itself a signal — its own score is circular.
+  var displayedRecommendationScore: RecommendationScore? {
+    guard episode.rating == nil, !episode.finished else { return nil }
+    return recommendationScore
   }
 
   private let startTime: Int?
@@ -506,6 +514,14 @@ import Tagged
     await playManager.seek(to: CMTime.seconds(Double(seconds)))
     await playManager.play()
   }
+
+  #if DEBUG
+  // Preview-only seed; production code drives `recommendationScore`
+  // exclusively through `startRecommendationObservation`.
+  func previewSeedRecommendationScore(_ score: RecommendationScore?) {
+    recommendationScore = score
+  }
+  #endif
 
   private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }

@@ -23,7 +23,7 @@ struct EpisodeDetailView: View {
 
         Divider()
 
-        if let recommendationScore = viewModel.recommendationScore {
+        if let recommendationScore = viewModel.displayedRecommendationScore {
           recommendationSection(score: recommendationScore)
 
           Divider()
@@ -469,9 +469,11 @@ struct EpisodeDetailView: View {
       )
     )
   )
-  viewModel.recommendationScore = RecommendationScore(
-    value: 0.87,
-    reasons: [.similarToLiked, .podcastAffinity, .recentlyPublished]
+  viewModel.previewSeedRecommendationScore(
+    RecommendationScore(
+      value: 0.87,
+      reasons: [.similarToLiked, .podcastAffinity, .recentlyPublished]
+    )
   )
   return NavigationStack {
     EpisodeDetailView(viewModel: viewModel)
@@ -496,9 +498,8 @@ struct EpisodeDetailView: View {
       )
     )
   )
-  viewModel.recommendationScore = RecommendationScore(
-    value: 0.42,
-    reasons: [.similarToLiked]
+  viewModel.previewSeedRecommendationScore(
+    RecommendationScore(value: 0.42, reasons: [.similarToLiked])
   )
   return NavigationStack {
     EpisodeDetailView(viewModel: viewModel)
