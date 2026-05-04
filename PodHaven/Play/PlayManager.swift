@@ -375,14 +375,47 @@ final class PlayManager {
 
         try await load(nextEpisode)
         await play()
+      } else if let recommended = try await nextAutoplayRecommendation() {
+        Self.log.debug(
+          """
+          queue empty, autoloading top recommendation: \(recommended.toString) \
+          (autoPlayTopRecommendationWhenQueueEmpty enabled)
+          """
+        )
+
+        try await load(recommended)
+        await play()
       } else {
-        Self.log.debug("no next episode, stopping")
+        Self.log.debug(
+          """
+          no next episode, stopping \
+          (autoPlayTopRecommendationWhenQueueEmpty: \
+          \(userSettings.autoPlayTopRecommendationWhenQueueEmpty), \
+          topRecommendationsCount: \(sharedState.topRecommendations.count))
+          """
+        )
         setStatus(.stopped)
       }
     } catch {
       Self.log.caughtError("finishEpisode: failed to load next episode after \(episodeID)", error)
       await alert(ErrorKit.message(for: error))
     }
+  }
+
+  // Returns the first published top recommendation we can hydrate. The engine
+  // already excludes the on-deck episode at scoring time and finished episodes
+  // via the candidate gate, so no extra filtering is needed here.
+  private func nextAutoplayRecommendation() async throws -> PodcastEpisode? {
+    guard userSettings.autoPlayTopRecommendationWhenQueueEmpty else { return nil }
+    for ranked in sharedState.topRecommendations {
+      if let podcastEpisode = try await repo.podcastEpisode(ranked.id) {
+        return podcastEpisode
+      }
+      Self.log.warning(
+        "nextAutoplayRecommendation: ranked episode \(ranked.id) not found in database, skipping"
+      )
+    }
+    return nil
   }
 
   // MARK: - Remote Scrub Suppression

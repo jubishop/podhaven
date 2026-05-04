@@ -331,6 +331,19 @@ struct SettingsView: View {
               }
             )
           }
+
+          SettingsRow(
+            infoText: """
+              When enabled, finishing an episode with an empty queue will automatically \
+              play your top recommended episode. Turn off to stop playback at the end of \
+              an episode when nothing else is queued.
+              """
+          ) {
+            Toggle(
+              "Auto-play Top Recommendation",
+              isOn: userSettings.$autoPlayTopRecommendationWhenQueueEmpty.binding
+            )
+          }
         }
 
         Section("Storage") {
