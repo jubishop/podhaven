@@ -19,7 +19,6 @@ import Tagged
   @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
-  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
@@ -446,21 +445,21 @@ import Tagged
 
   @ObservationIgnored private var recommendationTask: Task<Void, Never>?
 
-  // Re-fetches the recommendation for this episode whenever the engine
-  // republishes top recommendations — that publish is keyed off the cache
-  // rebuild, so it's our cheapest signal that scoring context changed. The
-  // engine returns nil for episodes the cold cache can't score yet; the
-  // bootstrap emit covers the "cache is already hot when the view opens" case.
+  // Re-fetches this episode's score whenever the engine bumps
+  // `contextRevision`, i.e. every time its scoring cache rebuilds. The
+  // bootstrap emit covers the "cache is already hot when the view opens"
+  // case; cold caches yield nil and the section stays hidden until the
+  // engine warms up.
   private func startRecommendationObservation() {
     if let recommendationTask, !recommendationTask.isCancelled {
       Self.log.debug("Recommendation observation already active; not starting again")
       return
     }
 
-    recommendationTask = Task(priority: taskPriority(.utility)) { [weak self] in
+    recommendationTask = Task { [weak self] in
       guard let self else { return }
 
-      for await _ in sharedState.$topRecommendations.stream() {
+      for await _ in recommendationEngine.$contextRevision.stream() {
         guard !Task.isCancelled else { return }
         await fetchRecommendation()
       }
@@ -471,10 +470,9 @@ import Tagged
     guard let podcastEpisode = self.podcastEpisode else { return }
 
     do {
-      let scores = try await recommendationEngine.recommendations(
-        for: [podcastEpisode.episode]
+      recommendationScore = try await recommendationEngine.recommendation(
+        for: podcastEpisode.id
       )
-      recommendationScore = scores[podcastEpisode.id]
     } catch {
       Self.log.caughtError(
         "fetchRecommendation: failed for \(podcastEpisode.toString)",
