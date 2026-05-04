@@ -44,7 +44,7 @@ Three places hold persistent project context — pick the right one when saving 
 
 ## Testing
 - Tests use the Swift Testing DSL: `@Suite("…", .container)` with `#expect` assertions; async tests rely on structured concurrency.
-- Any bugfix should include a regression test, and the test should be confirmed to fail before the fix is applied.
+- Any bugfix should include a regression test, and the test **must** be confirmed to fail before the fix is applied. This is non-negotiable: a test that passes both before and after the change is not a regression test, and may indicate the bug doesn't actually exist. Running the test against the *unfixed* tree is the cheapest way to catch that before shipping dead code.
 - Tests should NEVER use `Task.sleep`, ever. Use `Wait.until` or similar polling helpers to await conditions.
 - Tests may use `sleeper.sleep` only to artificially advance time when testing production code that uses sleeps (e.g., debouncing, rate limiting).
 - In-memory GRDB (`AppDB.inMemory()`) powers repo tests; helpers under `Create` build realistic unsaved models.
