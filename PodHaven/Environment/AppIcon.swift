@@ -55,6 +55,7 @@ private struct SystemImageName:
   static let loveEpisode = SystemImageName("heart.fill")
   static let likeEpisode = SystemImageName("hand.thumbsup.fill")
   static let dislikeEpisode = SystemImageName("hand.thumbsdown.fill")
+  static let notInterestedEpisode = SystemImageName("hand.raised.fill")
   static let rateEpisode = SystemImageName("hand.thumbsup")
 
   // Episode Status
@@ -188,6 +189,7 @@ private struct SystemImageName:
   case loveEpisode
   case likeEpisode
   case dislikeEpisode
+  case notInterestedEpisode
   case rateEpisode
   case clearRating
 
@@ -409,6 +411,8 @@ private struct SystemImageName:
       return Data(text: "Like", systemImageName: .likeEpisode, color: .blue)
     case .dislikeEpisode:
       return Data(text: "Dislike", systemImageName: .dislikeEpisode, color: .gray)
+    case .notInterestedEpisode:
+      return Data(text: "Not Interested", systemImageName: .notInterestedEpisode, color: .brown)
     case .rateEpisode:
       return Data(text: "Rate Episode", systemImageName: .rateEpisode, color: .indigo)
     case .clearRating:
@@ -916,6 +920,7 @@ extension AppIcon {
     case .loved: .loveEpisode
     case .liked: .likeEpisode
     case .disliked: .dislikeEpisode
+    case .notInterested: .notInterestedEpisode
     case nil: .rateEpisode
     }
   }

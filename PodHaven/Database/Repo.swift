@@ -385,7 +385,7 @@ struct Repo: Databasing {
 
   func allRatedEpisodes() async throws -> [SignalEpisode] {
     try await appDB.db.read { db in
-      try SignalEpisode.filter(Episode.rated).fetchAll(db)
+      try SignalEpisode.filter(Episode.hasRatingSignal).fetchAll(db)
     }
   }
 
@@ -419,7 +419,7 @@ struct Repo: Databasing {
     _ db: Database,
     partialSignals fetchPartialSignals: (Database) throws -> [PartialSignal] = { _ in [] }
   ) throws -> ScoringContextInputs {
-    let ratedSignals = try SignalEpisode.filter(Episode.rated).fetchAll(db)
+    let ratedSignals = try SignalEpisode.filter(Episode.hasRatingSignal).fetchAll(db)
     let partialSignals = try fetchPartialSignals(db)
     let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
     let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =

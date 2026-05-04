@@ -46,6 +46,10 @@ struct EpisodesView: View {
           value: Navigation.Destination.episodesViewType(.disliked),
           label: { Text("Disliked") }
         )
+        NavigationLink(
+          value: Navigation.Destination.episodesViewType(.notInterested),
+          label: { Text("Not Interested") }
+        )
       }
       .navigationTitle("Episodes")
     }

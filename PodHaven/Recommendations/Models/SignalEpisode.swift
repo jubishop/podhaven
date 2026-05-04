@@ -3,10 +3,10 @@
 import Foundation
 import GRDB
 
-// `databaseSelection` is intentionally narrow: filtering on `Episode.rated`
-// against this projection caps GRDB's tracked region to the rating columns,
-// so playback-path UPDATEs (currentTime, playbackCoverage, lastPlayedDate)
-// can't fire any observation built on it.
+// `databaseSelection` is intentionally narrow: filtering on
+// `Episode.hasRatingSignal` against this projection caps GRDB's tracked
+// region to the rating columns, so playback-path UPDATEs (currentTime,
+// playbackCoverage, lastPlayedDate) can't fire any observation built on it.
 struct SignalEpisode:
   Sendable,
   Identifiable,
@@ -33,7 +33,12 @@ struct SignalEpisode:
     self.id = row[Episode.Columns.id]
     self.podcastID = row[Episode.Columns.podcastId]
     guard let rating = row[Episode.Columns.rating] as EpisodeRating? else {
-      Assert.fatal("SignalEpisode requires Episode.rated filter; row had nil rating")
+      Assert.fatal("SignalEpisode requires Episode.hasRatingSignal filter; row had nil rating")
+    }
+    if rating == .notInterested {
+      Assert.fatal(
+        "SignalEpisode requires Episode.hasRatingSignal filter; row had notInterested rating"
+      )
     }
     self.rating = rating
     self.ratingDate = row[Episode.Columns.ratingDate]
