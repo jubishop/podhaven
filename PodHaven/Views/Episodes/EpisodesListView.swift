@@ -171,6 +171,7 @@ struct EpisodesListView: View {
         (title: "Loved — swipe shows pink heart", rating: .loved),
         (title: "Liked — swipe shows blue thumbs-up", rating: .liked),
         (title: "Disliked — swipe shows gray thumbs-down", rating: .disliked),
+        (title: "Not Interested — swipe shows brown stop-hand", rating: .notInterested),
       ]
 
       var episodes = IdentifiedArrayOf<UnsavedEpisode>()

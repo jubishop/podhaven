@@ -142,6 +142,10 @@ class EpisodeRatingTests {
     let lovedEpisode = try await createPodcastWithEpisode(rating: .loved, ratingDate: Date())
     let likedEpisode = try await createPodcastWithEpisode(rating: .liked, ratingDate: Date())
     let dislikedEpisode = try await createPodcastWithEpisode(rating: .disliked, ratingDate: Date())
+    let notInterestedEpisode = try await createPodcastWithEpisode(
+      rating: .notInterested,
+      ratingDate: Date()
+    )
     _ = try await createPodcastWithEpisode()
 
     let loved = try await repo.db.read { db in
@@ -162,10 +166,24 @@ class EpisodeRatingTests {
     #expect(disliked.count == 1)
     #expect(disliked.first?.id == dislikedEpisode.id)
 
+    let notInterested = try await repo.db.read { db in
+      try Episode.filter(Episode.notInterested).fetchAll(db)
+    }
+    #expect(notInterested.count == 1)
+    #expect(notInterested.first?.id == notInterestedEpisode.id)
+
     let rated = try await repo.db.read { db in
       try Episode.filter(Episode.rated).fetchAll(db)
     }
-    #expect(rated.count == 3)
+    #expect(rated.count == 4)
+
+    // notInterested is rated but contributes no signal: hasRatingSignal
+    // (loved || liked || disliked) excludes it.
+    let hasRatingSignal = try await repo.db.read { db in
+      try Episode.filter(Episode.hasRatingSignal).fetchAll(db)
+    }
+    #expect(hasRatingSignal.count == 3)
+    #expect(hasRatingSignal.contains { $0.id == notInterestedEpisode.id } == false)
   }
 
   // MARK: - CHECK Constraint
@@ -183,12 +201,13 @@ class EpisodeRatingTests {
     }
   }
 
-  // Locks the EpisodeRating rawValue set to match the v35 migration's hardcoded
-  // CHECK constraint. Adding/renaming a case without a follow-up migration to
-  // widen the constraint would cause silent runtime write failures.
-  @Test("EpisodeRating rawValues match v35 CHECK constraint")
+  // Locks the EpisodeRating rawValue set to match the latest migration's
+  // hardcoded CHECK constraint (currently v42, which widened v35 to include
+  // 'notInterested'). Adding/renaming a case without a follow-up migration
+  // would cause silent runtime write failures.
+  @Test("EpisodeRating rawValues match v42 CHECK constraint")
   func ratingRawValuesMatchCheckConstraint() {
-    let expected: Set<String> = ["loved", "liked", "disliked"]
+    let expected: Set<String> = ["loved", "liked", "disliked", "notInterested"]
     #expect(Set(EpisodeRating.allCases.map(\.rawValue)) == expected)
   }
 
@@ -431,5 +450,82 @@ class EpisodeRatingTests {
     let inputs = try await repo.allScoringContextInputs()
     #expect(inputs.ratedSignals.contains { $0.rating == .loved })
     #expect(inputs.partialSignals.contains { $0.id == listenedID })
+  }
+
+  // MARK: - Not Interested
+
+  @Test("notInterested rating persists and is excluded from allRatedEpisodes")
+  func notInterestedExcludedFromRatedSignals() async throws {
+    let liked = try await createPodcastWithEpisode(rating: .liked, ratingDate: Date())
+    let notInterested = try await createPodcastWithEpisode(
+      rating: .notInterested,
+      ratingDate: Date()
+    )
+
+    let fetched = try await repo.episode(notInterested.id)!
+    #expect(fetched.rating == .notInterested)
+
+    let signals = try await repo.allRatedEpisodes()
+    let signalIDs = signals.map(\.id)
+    #expect(signalIDs.contains(liked.id))
+    #expect(signalIDs.contains(notInterested.id) == false)
+  }
+
+  @Test("notInterested rating excludes episode from candidate pool")
+  func notInterestedExcludedFromCandidates() async throws {
+    let candidate = try await createPodcastWithEpisode()
+    let notInterested = try await createPodcastWithEpisode(
+      rating: .notInterested,
+      ratingDate: Date()
+    )
+
+    let candidates = try await repo.db.read { db in
+      try Episode.filter(Episode.candidate).fetchAll(db)
+    }
+    let candidateIDs = candidates.map(\.id)
+    #expect(candidateIDs.contains(candidate.id))
+    #expect(candidateIDs.contains(notInterested.id) == false)
+  }
+
+  @Test("notInterested rating excludes played episode from partial signals")
+  func notInterestedExcludedFromPartialSignals() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsaved = try Create.unsavedEpisode(
+      duration: CMTime.seconds(300),
+      rating: .notInterested,
+      ratingDate: Date()
+    )
+    let pe = try await repo
+      .upsertPodcastEpisodes([
+        UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsaved)
+      ])
+      .first!
+
+    try await repo.updatePlayback(
+      pe.episode.id,
+      currentTime: CMTime.seconds(150),
+      playedFrom: CMTime.seconds(0),
+      now: Date()
+    )
+
+    let partials = try await repo.allUnratedListenedEpisodes()
+    #expect(partials.contains { $0.id == pe.episode.id } == false)
+
+    let signals = try await repo.allRatedEpisodes()
+    #expect(signals.contains { $0.id == pe.episode.id } == false)
+  }
+
+  @Test("CHECK constraint accepts notInterested rating")
+  func checkConstraintAcceptsNotInterested() async throws {
+    let episode = try await createPodcastWithEpisode()
+
+    _ = try await self.appDB.db.write { db in
+      try Episode
+        .withID(episode.id)
+        .updateAll(db, Episode.Columns.rating.set(to: "notInterested"))
+    }
+
+    let updated = try await repo.episode(episode.id)!
+    #expect(updated.rating == .notInterested)
   }
 }

@@ -19,6 +19,10 @@ func ratingMenuButtons(
     rate(.disliked)
   }
 
+  AppIcon.notInterestedEpisode.labelButton {
+    rate(.notInterested)
+  }
+
   if showClear {
     AppIcon.clearRating.labelButton {
       rate(nil)

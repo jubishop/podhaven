@@ -72,6 +72,9 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
         Button(AppIcon.dislikeEpisode.text) {
           viewModel.rateEpisode(episode, rating: .disliked)
         }
+        Button(AppIcon.notInterestedEpisode.text) {
+          viewModel.rateEpisode(episode, rating: .notInterested)
+        }
         if episode.rating != nil {
           Button(AppIcon.clearRating.text, role: .destructive) {
             viewModel.rateEpisode(episode, rating: nil)

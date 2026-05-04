@@ -464,6 +464,10 @@ struct RecommendationEngine: Sendable {
         positiveVectors.append((vector, likedWeight * decay))
       case .disliked:
         negativeVectors.append((vector, decay))
+      case .notInterested:
+        Assert.fatal(
+          "buildCentroids received notInterested signal — Episode.hasRatingSignal filter regressed"
+        )
       }
     }
 
@@ -562,6 +566,13 @@ struct RecommendationEngine: Sendable {
         stats.positive += 1
       case .disliked:
         stats.negative += dislikedAffinityWeight
+      case .notInterested:
+        Assert.fatal(
+          """
+          computePodcastAffinities received notInterested signal — \
+          Episode.hasRatingSignal filter regressed
+          """
+        )
       }
 
       podcastStats[signal.podcastID] = stats

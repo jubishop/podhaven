@@ -14,6 +14,7 @@ enum EpisodeRating: String, CaseIterable, Codable, DatabaseValueConvertible, Has
   case loved
   case liked
   case disliked
+  case notInterested
 }
 
 typealias GUID = Tagged<UnsavedEpisode, String>
@@ -231,9 +232,14 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   static let loved: SQLExpression = Columns.rating == EpisodeRating.loved.rawValue
   static let liked: SQLExpression = Columns.rating == EpisodeRating.liked.rawValue
   static let disliked: SQLExpression = Columns.rating == EpisodeRating.disliked.rawValue
+  static let notInterested: SQLExpression =
+    Columns.rating == EpisodeRating.notInterested.rawValue
   static let rated: SQLExpression = Columns.rating != nil
+  // notInterested is a "rated" row (so it's excluded from `candidate`) but it
+  // contributes no positive or negative signal to the recommendation engine.
+  static let hasRatingSignal: SQLExpression = loved || liked || disliked
   static let hasCoverage: SQLExpression = Columns.playbackCoverage != nil
-  static let hasSignal: SQLExpression = rated || hasCoverage
+  static let hasSignal: SQLExpression = hasRatingSignal || hasCoverage
   static let candidate: SQLExpression = unstarted && unfinished && !rated && unqueued
   static func contains(_ pattern: String) -> SQLExpression {
     Columns.title.lowercased.like(pattern) || Columns.description.lowercased.like(pattern)

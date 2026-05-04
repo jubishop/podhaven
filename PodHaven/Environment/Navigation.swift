@@ -130,7 +130,7 @@ extension Container {
 
   enum EpisodesViewType: String, Codable, DefaultsStorable, CaseIterable {
     case recentEpisodes, finished, unqueued, cached, saved, unfinished, previouslyQueued, liked,
-      disliked
+      disliked, notInterested
   }
 
   enum PodcastsViewType: DefaultsStorable, Codable, Hashable, Sendable {
@@ -244,6 +244,14 @@ extension Container {
           viewModel: EpisodesListViewModel(title: "Disliked", filter: Episode.disliked)
         )
         .id("disliked")
+      case .notInterested:
+        EpisodesListView(
+          viewModel: EpisodesListViewModel(
+            title: "Not Interested",
+            filter: Episode.notInterested
+          )
+        )
+        .id("notInterested")
       }
 
     // Podcasts destinations
