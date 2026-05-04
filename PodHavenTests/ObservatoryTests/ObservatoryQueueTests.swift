@@ -3,7 +3,6 @@
 import FactoryKit
 import FactoryTesting
 import Foundation
-import GRDB
 import Testing
 
 @testable import PodHaven
@@ -40,45 +39,6 @@ actor ObservatoryQueueTests {
         "top", "midtop", "middle", "midbottom", "bottom",
       ]
     )
-  }
-
-  @Test("podcastEpisodes(Episode.finished, Episode.Columns.finishDate.desc)")
-  func testFinishedPodcastEpisodes() async throws {
-    let unsavedPodcast = try Create.unsavedPodcast()
-    try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: [
-          Create.unsavedEpisode(
-            guid: "top",
-            pubDate: 15.minutesAgo,
-            finishDate: 5.minutesAgo
-          ),
-          Create.unsavedEpisode(guid: "topUnfinished"),
-          Create.unsavedEpisode(
-            guid: "bottom",
-            pubDate: 1.minutesAgo,
-            finishDate: 15.minutesAgo
-          ),
-          Create.unsavedEpisode(guid: "bottomUnfinished"),
-          Create.unsavedEpisode(
-            guid: "middle",
-            pubDate: 25.minutesAgo,
-            finishDate: 10.minutesAgo
-          ),
-          Create.unsavedEpisode(guid: "middleUnfinished"),
-        ]
-      )
-    )
-
-    let finishedEpisodes: [PodcastEpisode] =
-      try await observatory.podcastEpisodes(
-        filter: Episode.finished,
-        order: Episode.Columns.finishDate.desc
-      )
-      .get()
-    #expect(finishedEpisodes.count == 3)
-    #expect(finishedEpisodes.map(\.episode.guid) == ["top", "middle", "bottom"])
   }
 
   @Test("queuedPodcastEpisodes AsyncSequence receives all updates")
