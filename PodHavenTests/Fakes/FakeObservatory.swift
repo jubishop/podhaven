@@ -189,4 +189,9 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     recordCall(methodName: "candidateGateExclusions", parameters: ())
     return observatory.candidateGateExclusions()
   }
+
+  func episodeEmbeddingIDs() -> AsyncValueObservation<Set<Episode.ID>> {
+    recordCall(methodName: "episodeEmbeddingIDs", parameters: ())
+    return observatory.episodeEmbeddingIDs()
+  }
 }

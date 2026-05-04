@@ -87,6 +87,7 @@ protocol Observing: Sendable {
 
   func scoringContextInputsWithoutPartialSignals() -> AsyncValueObservation<ScoringContextInputs>
   func candidateGateExclusions() -> AsyncValueObservation<Set<Episode.ID>>
+  func episodeEmbeddingIDs() -> AsyncValueObservation<Set<Episode.ID>>
 }
 
 // MARK: - Defaulted Convenience Overloads
