@@ -280,28 +280,6 @@ struct Observatory: Observing {
     }
   }
 
-  // Wakes when the set of episodes that have an embedding changes — i.e. a
-  // row is inserted or deleted in `episodeEmbedding`. Pure single-table
-  // select with no associations or joins, so the tracked region is
-  // `episodeEmbedding(episodeId)` and nothing else; updates to Episode or
-  // Podcast columns can never wake it. Updates to existing embedding rows
-  // (vector/sourceHash recomputed) leave the ID set unchanged and are
-  // suppressed by `.removeDuplicates()`.
-  //
-  // The recommendation engine uses this to re-rank when a candidate becomes
-  // scorable for the first time. `scoringContextInputsWithoutPartialSignals`
-  // also tracks `episodeEmbedding`, but its fetched value only includes
-  // *signal* embeddings — a candidate's embedding landing leaves that value
-  // unchanged, so removeDuplicates suppresses it and the engine never sees
-  // the new candidate. This observation closes that gap.
-  func episodeEmbeddingIDs() -> AsyncValueObservation<Set<Episode.ID>> {
-    _observe { db in
-      try EpisodeEmbedding
-        .select(EpisodeEmbedding.Columns.episodeId, as: Episode.ID.self)
-        .fetchSet(db)
-    }
-  }
-
   // MARK: - Private Helpers
 
   private func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {

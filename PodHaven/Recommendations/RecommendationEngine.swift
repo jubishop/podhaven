@@ -289,31 +289,6 @@ struct RecommendationEngine: Sendable {
         }
       }
     }
-
-    // Wakes when the set of episodes that have an embedding changes. The
-    // scoring-context observation above tracks `episodeEmbedding` too, but
-    // its fetched value only includes signal embeddings — a candidate's
-    // first embedding landing leaves that value byte-identical and is
-    // suppressed by removeDuplicates, so without this observation a brand-
-    // new candidate would stay unranked until some unrelated trigger fired.
-    // Cache stays valid (signal-side embedding inserts already wake the
-    // context observation), so we only re-rank.
-    Task(priority: taskPriority(.utility)) {
-      var retryDelay: Duration = .seconds(1)
-      while !Task.isCancelled {
-        do {
-          for try await _ in observatory.episodeEmbeddingIDs().dropFirst() {
-            guard !Task.isCancelled else { return }
-            retryDelay = .seconds(1)
-            scheduleRecommendationsRebuild()
-          }
-        } catch {
-          Self.log.caughtError("episodeEmbeddingIDs observation failed", error)
-          try? await sleeper.sleep(for: retryDelay)
-          retryDelay = min(retryDelay * 2, .seconds(60))
-        }
-      }
-    }
   }
 
   private func scheduleCacheRebuild() {

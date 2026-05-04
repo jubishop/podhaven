@@ -966,67 +966,6 @@ class RecommendationEngineTests {
     let recs = try await startAndWaitForRecs()
     #expect(!recs.isEmpty)
   }
-
-  // MARK: - Candidate embedding invalidation
-
-  // Regression: before the `episodeEmbeddingIDs` observation existed, an
-  // embedding landing for an existing candidate did not wake any of the
-  // engine's observation Tasks — `scoringContextInputsWithoutPartialSignals`
-  // re-fetched but produced an unchanged signal-side payload that
-  // `removeDuplicates()` swallowed, and `candidateGateExclusions` doesn't
-  // track the embedding table at all. The candidate would therefore stay
-  // un-rescored in `SharedState.topRecommendations` until some unrelated
-  // trigger (rating change, queue change, onDeck flip, settings change)
-  // happened to fire.
-  //
-  // This test pins the publisher path specifically: poll `sharedState`,
-  // not `engine.topRecommendations()` directly. The direct API recomputes
-  // fresh on every call so it would mask the publisher-trigger gap.
-  @Test(
-    "embedding landing for an existing candidate republishes topRecommendations"
-  )
-  func candidateEmbeddingTriggersPublishedRebuild() async throws {
-    let (_, signals) = try await createPodcastWithEpisodes(
-      count: 3,
-      podcastTitle: "Signal",
-      ratings: [.loved, .liked, .liked]
-    )
-    try await embedEpisodes(signals)
-
-    // Candidate created WITHOUT an embedding — simulates the window between
-    // a feed refresh inserting an episode and the embedding job catching up.
-    let (_, candidates) = try await createPodcastWithEpisodes(
-      count: 1,
-      podcastTitle: "Candidate"
-    )
-    let candidate = try #require(candidates.first)
-
-    engine.start()
-
-    // Wait for the initial publish to land in SharedState. Without an
-    // embedding the candidate scores via podcast-affinity only, so the
-    // .similarToLiked reason must be absent.
-    let sharedState = self.sharedState
-    let initialPublished = try await waitAdvancing { () -> [RankedRecommendation]? in
-      let recs = sharedState.topRecommendations
-      guard let entry = recs.first(where: { $0.id == candidate.id }) else { return nil }
-      return entry.score.reasons.contains(.similarToLiked) ? nil : recs
-    }
-    #expect(initialPublished.contains { $0.id == candidate.id })
-
-    // Land the candidate's embedding. The publisher must republish with the
-    // similarity reason now present; if `episodeEmbeddingIDs` is removed or
-    // unwired, this poll will spin until timeout.
-    try await embedEpisodes([candidate])
-
-    let republished = try await waitAdvancing { () -> [RankedRecommendation]? in
-      let recs = sharedState.topRecommendations
-      guard let entry = recs.first(where: { $0.id == candidate.id }) else { return nil }
-      return entry.score.reasons.contains(.similarToLiked) ? recs : nil
-    }
-    let updatedEntry = try #require(republished.first { $0.id == candidate.id })
-    #expect(updatedEntry.score.reasons.contains(.similarToLiked))
-  }
 }
 
 // MARK: - Array Safe Subscript
