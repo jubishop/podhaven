@@ -99,7 +99,8 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
       }
 
       continuation.onTermination = { [weak self] _ in
-        self?.state { _ = $0.continuations.removeValue(forKey: id) }
+        guard let self else { return }
+        self.state { _ = $0.continuations.removeValue(forKey: id) }
       }
     }
   }

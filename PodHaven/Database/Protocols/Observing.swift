@@ -86,6 +86,7 @@ protocol Observing: Sendable {
   // MARK: - Recommendations
 
   func scoringContextInputsWithoutPartialSignals() -> AsyncValueObservation<ScoringContextInputs>
+  func candidateGateExclusions() -> AsyncValueObservation<Set<Episode.ID>>
 }
 
 // MARK: - Defaulted Convenience Overloads

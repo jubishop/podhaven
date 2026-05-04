@@ -116,7 +116,10 @@ import SwiftUI
         title: "Delete Tag?",
         "\"\(tagName)\" is used by \(count) \(count == 1 ? "podcast" : "podcasts"). Are you sure you want to delete it?"
       ) { [weak self] in
-        Button("Delete", role: .destructive) { self?.performDeleteTag(tagID) }
+        Button("Delete", role: .destructive) {
+          guard let self else { return }
+          self.performDeleteTag(tagID)
+        }
         Button("Cancel", role: .cancel) {}
       }
     } else {

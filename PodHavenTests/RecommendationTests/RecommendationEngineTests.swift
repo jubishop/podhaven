@@ -17,6 +17,7 @@ class RecommendationEngineTests {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.appDB) private var appDB
+  @DynamicInjected(\.userSettings) private var userSettings
 
   // MARK: - Helpers
 
@@ -131,7 +132,7 @@ class RecommendationEngineTests {
   // empty" results don't need to wait since both cold and hot states yield
   // empty. (Helpers stash the engine in a local before the polling closure
   // so the @Sendable boundary doesn't capture the non-Sendable test class.)
-  private func startAndWaitForRecs() async throws -> IdentifiedArrayOf<RecommendedEpisode> {
+  private func startAndWaitForRecs() async throws -> [RankedRecommendation] {
     engine.start()
     let engine = self.engine
     return try await waitAdvancing {
@@ -230,7 +231,7 @@ class RecommendationEngineTests {
     try await embedEpisodes(candidates)
 
     let recommendations = try await startAndWaitForRecs()
-    let recommendedIDs = Set(recommendations.map(\.episode.id))
+    let recommendedIDs = Set(recommendations.map(\.id))
 
     #expect(!recommendedIDs.contains(candidates[0].id))
   }
@@ -255,7 +256,7 @@ class RecommendationEngineTests {
     // come back empty either way — no point waiting on the cache.
     engine.start()
     let recommendations = try await engine.topRecommendations()
-    let recommendedIDs = Set(recommendations.map(\.episode.id))
+    let recommendedIDs = Set(recommendations.map(\.id))
     #expect(!recommendedIDs.contains(rated[0].id))
   }
 
@@ -351,7 +352,7 @@ class RecommendationEngineTests {
     try await embedEpisodes(candidates)
 
     let recs = try await startAndWaitForRecs()
-    for rec in recs where candidates.map(\.id).contains(rec.episode.id) {
+    for rec in recs where candidates.map(\.id).contains(rec.id) {
       #expect(!rec.score.reasons.contains(.podcastAffinity))
     }
   }
@@ -385,7 +386,7 @@ class RecommendationEngineTests {
 
     let recs = try await startAndWaitForRecs()
     let oppositeIDs = Set(opposites.map(\.id))
-    let oppositeRecs = recs.filter { oppositeIDs.contains($0.episode.id) }
+    let oppositeRecs = recs.filter { oppositeIDs.contains($0.id) }
     #expect(!oppositeRecs.isEmpty)
     for rec in oppositeRecs {
       #expect(!rec.score.reasons.contains(.similarToLiked))
@@ -409,7 +410,7 @@ class RecommendationEngineTests {
 
     let recs = try await startAndWaitForRecs()
     let candidateIDs = Set(candidates.map(\.id))
-    let candidateRecs = recs.filter { candidateIDs.contains($0.episode.id) }
+    let candidateRecs = recs.filter { candidateIDs.contains($0.id) }
     #expect(!candidateRecs.isEmpty)
     for rec in candidateRecs {
       #expect(rec.score.reasons.contains(.podcastAffinity))
@@ -488,7 +489,7 @@ class RecommendationEngineTests {
 
     // Sanity-check: the same episodes are absent from the top API.
     let top = try await engine.topRecommendations()
-    let topIDs = Set(top.map(\.episode.id))
+    let topIDs = Set(top.map(\.id))
     for episode in filtered {
       #expect(!topIDs.contains(episode.id))
     }
@@ -522,12 +523,17 @@ class RecommendationEngineTests {
 
     let recs = try await startAndWaitForRecs()
     let candidateIDs = Set(candidates.map(\.id))
-    let candidateRecs = recs.filter { candidateIDs.contains($0.episode.id) }
+    let candidateRecs = recs.filter { candidateIDs.contains($0.id) }
     #expect(candidateRecs.count == 2)
     let first = try #require(candidateRecs.first)
     let second = try #require(candidateRecs.last)
     #expect(first.score.value == second.score.value)
-    #expect(first.episode.pubDate > second.episode.pubDate)
+
+    // Look up pubDates from the source candidates since the engine no longer
+    // echoes hydrated episodes back; ranking publishes IDs + scores only.
+    let firstEpisode = try #require(candidates.first { $0.id == first.id })
+    let secondEpisode = try #require(candidates.first { $0.id == second.id })
+    #expect(firstEpisode.pubDate > secondEpisode.pubDate)
   }
 
   // MARK: - Limit
@@ -579,7 +585,7 @@ class RecommendationEngineTests {
     )
 
     let recs = try await startAndWaitForRecs()
-    let recommendedIDs = Set(recs.map(\.episode.id))
+    let recommendedIDs = Set(recs.map(\.id))
     #expect(!recommendedIDs.contains(onDeckEpisode.id))
   }
 
@@ -640,7 +646,7 @@ class RecommendationEngineTests {
     try await embedEpisodes(candidates)
 
     let recs = try await startAndWaitForRecs()
-    let candidateRec = try #require(recs.first { $0.episode.id == candidates[0].id })
+    let candidateRec = try #require(recs.first { $0.id == candidates[0].id })
     #expect(candidateRec.score.reasons.contains(.podcastAffinity))
   }
 
@@ -895,7 +901,7 @@ class RecommendationEngineTests {
     try await embedEpisodes(fresh)
 
     let recs = try await startAndWaitForRecs()
-    let freshRec = try #require(recs.first { $0.episode.id == fresh.first?.id })
+    let freshRec = try #require(recs.first { $0.id == fresh.first?.id })
     #expect(freshRec.score.reasons.contains(.recentlyPublished))
   }
 
@@ -919,7 +925,7 @@ class RecommendationEngineTests {
     _ = try await repo.updateFreshnessCadence(evergreenPodcast.id, freshnessCadence: .evergreen)
 
     let recs = try await startAndWaitForRecs()
-    let candidateRec = try #require(recs.first { $0.episode.id == candidates.first?.id })
+    let candidateRec = try #require(recs.first { $0.id == candidates.first?.id })
     #expect(!candidateRec.score.reasons.contains(.recentlyPublished))
   }
 
@@ -960,6 +966,57 @@ class RecommendationEngineTests {
 
     let recs = try await startAndWaitForRecs()
     #expect(!recs.isEmpty)
+  }
+
+  // MARK: - Slider transitions
+
+  // The slider write path goes through the engine's settings observer
+  // (`userSettings.$maxRecommendedEpisodesInUpNext.stream().dropFirst()`
+  // in `startObservingScoringContext`), which calls
+  // `scheduleRecommendationsRebuild`. The rebuild reads the limit at fire
+  // time: 0 publishes `[]`, non-zero publishes a fresh top-N. This test
+  // pins both branches and the round-trip back to non-zero so a future
+  // refactor can't quietly break either.
+  @Test("slider 5 → 0 publishes empty, 0 → 3 republishes non-empty")
+  func sliderTransitionsRepublish() async throws {
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 5,
+      podcastTitle: "Candidates"
+    )
+    try await embedEpisodes(candidates)
+
+    engine.start()
+    let sharedState = self.sharedState
+    let userSettings = self.userSettings
+
+    // Initial publish at the default limit (5) lands non-empty.
+    _ = try await waitAdvancing { () -> [RankedRecommendation]? in
+      let recs = sharedState.topRecommendations
+      return recs.isEmpty ? nil : recs
+    }
+
+    // Flip to 0 — engine's settings observer fires, debounced rebuild
+    // publishes `[]`.
+    userSettings.$maxRecommendedEpisodesInUpNext.new(0)
+    _ = try await waitAdvancing { () -> Bool? in
+      sharedState.topRecommendations.isEmpty ? true : nil
+    }
+
+    // Flip to 3 — settings observer fires again, debounced rebuild
+    // publishes a fresh top-N (capped at 3).
+    userSettings.$maxRecommendedEpisodesInUpNext.new(3)
+    let republished = try await waitAdvancing { () -> [RankedRecommendation]? in
+      let recs = sharedState.topRecommendations
+      return recs.isEmpty ? nil : recs
+    }
+    #expect(republished.count <= 3)
   }
 }
 

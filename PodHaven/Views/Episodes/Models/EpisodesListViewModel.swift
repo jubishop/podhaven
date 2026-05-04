@@ -102,7 +102,8 @@ class EpisodesListViewModel:
   @ObservationIgnored lazy var filterDebouncer = StringDebouncer(
     debounceDuration: .milliseconds(400)
   ) { [weak self] filteredText in
-    self?.filterText = filteredText
+    guard let self else { return }
+    self.filterText = filteredText
   }
 
   // MARK: - State Management

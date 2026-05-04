@@ -193,7 +193,7 @@ protocol Databasing: Sendable {
 
   func allRatedEpisodes() async throws -> [SignalEpisode]
   func allUnratedListenedEpisodes() async throws -> [PartialSignal]
-  func allCandidateEpisodes(excluding: Episode.ID?) async throws -> [Episode]
+  func allCandidateEpisodes(excluding: Episode.ID?) async throws -> [CandidateEpisode]
   func allScoringContextInputs() async throws -> ScoringContextInputs
 }
 
