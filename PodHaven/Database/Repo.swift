@@ -496,7 +496,7 @@ struct Repo: Databasing {
   }
 
   func allCandidateEpisodes(
-    excluding excludedID: Episode.ID? = nil
+    excluding excludedID: Episode.ID?
   ) async throws -> [CandidateEpisode] {
     try await appDB.db.read { db in
       var request = CandidateEpisode.filter(Episode.candidate)

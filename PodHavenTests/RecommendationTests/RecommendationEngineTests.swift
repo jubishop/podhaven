@@ -17,6 +17,7 @@ class RecommendationEngineTests {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.appDB) private var appDB
+  @DynamicInjected(\.userSettings) private var userSettings
 
   // MARK: - Helpers
 
@@ -965,6 +966,57 @@ class RecommendationEngineTests {
 
     let recs = try await startAndWaitForRecs()
     #expect(!recs.isEmpty)
+  }
+
+  // MARK: - Slider transitions
+
+  // The slider write path goes through the engine's settings observer
+  // (`userSettings.$maxRecommendedEpisodesInUpNext.stream().dropFirst()`
+  // in `startObservingScoringContext`), which calls
+  // `scheduleRecommendationsRebuild`. The rebuild reads the limit at fire
+  // time: 0 publishes `[]`, non-zero publishes a fresh top-N. This test
+  // pins both branches and the round-trip back to non-zero so a future
+  // refactor can't quietly break either.
+  @Test("slider 5 → 0 publishes empty, 0 → 3 republishes non-empty")
+  func sliderTransitionsRepublish() async throws {
+    let (_, signals) = try await createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await embedEpisodes(signals)
+
+    let (_, candidates) = try await createPodcastWithEpisodes(
+      count: 5,
+      podcastTitle: "Candidates"
+    )
+    try await embedEpisodes(candidates)
+
+    engine.start()
+    let sharedState = self.sharedState
+    let userSettings = self.userSettings
+
+    // Initial publish at the default limit (5) lands non-empty.
+    _ = try await waitAdvancing { () -> [RankedRecommendation]? in
+      let recs = sharedState.topRecommendations
+      return recs.isEmpty ? nil : recs
+    }
+
+    // Flip to 0 — engine's settings observer fires, debounced rebuild
+    // publishes `[]`.
+    userSettings.$maxRecommendedEpisodesInUpNext.new(0)
+    _ = try await waitAdvancing { () -> Bool? in
+      sharedState.topRecommendations.isEmpty ? true : nil
+    }
+
+    // Flip to 3 — settings observer fires again, debounced rebuild
+    // publishes a fresh top-N (capped at 3).
+    userSettings.$maxRecommendedEpisodesInUpNext.new(3)
+    let republished = try await waitAdvancing { () -> [RankedRecommendation]? in
+      let recs = sharedState.topRecommendations
+      return recs.isEmpty ? nil : recs
+    }
+    #expect(republished.count <= 3)
   }
 }
 

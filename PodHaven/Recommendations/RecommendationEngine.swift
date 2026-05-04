@@ -188,8 +188,8 @@ struct RecommendationEngine: Sendable {
 
     let topRanked = ranked.prefix(limit)
     var top = [RankedRecommendation](capacity: topRanked.count)
-    for ranked in topRanked {
-      top.append((id: ranked.id, score: ranked.score))
+    for entry in topRanked {
+      top.append((id: entry.id, score: entry.score))
     }
 
     let totalDuration = ContinuousClock.now - totalStart
