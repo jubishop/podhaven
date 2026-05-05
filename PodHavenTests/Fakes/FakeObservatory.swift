@@ -96,29 +96,6 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     )
   }
 
-  // MARK: - PodcastEpisodes
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    filter: SQLExpression,
-    order: SQLOrdering,
-    limit: Int
-  ) -> AsyncValueObservation<[T]> {
-    recordCall(methodName: "podcastEpisodes(filter:order:limit:)", parameters: limit)
-    return observatory.podcastEpisodes(filter: filter, order: order, limit: limit)
-  }
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    _ mediaGUIDs: [MediaGUID],
-    order: SQLOrdering,
-    limit: Int
-  ) -> AsyncValueObservation<[T]> {
-    recordCall(
-      methodName: "podcastEpisodes(mediaGUIDs:order:limit:)",
-      parameters: (mediaGUIDs: mediaGUIDs, limit: limit)
-    )
-    return observatory.podcastEpisodes(mediaGUIDs, order: order, limit: limit)
-  }
-
   // MARK: - Listable PodcastEpisodes
 
   func listablePodcastEpisodes(

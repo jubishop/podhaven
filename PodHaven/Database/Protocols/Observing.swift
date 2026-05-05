@@ -42,19 +42,6 @@ protocol Observing: Sendable {
     limit: Int
   ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]>
 
-  // MARK: - PodcastEpisodes
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    filter: SQLExpression,
-    order: SQLOrdering,
-    limit: Int
-  ) -> AsyncValueObservation<[T]>
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    _ mediaGUIDs: [MediaGUID],
-    order: SQLOrdering,
-    limit: Int
-  ) -> AsyncValueObservation<[T]>
-
   // MARK: - Listable PodcastEpisodes
 
   func listablePodcastEpisodes(
@@ -174,50 +161,6 @@ extension Observing {
     limit: Int
   ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> {
     listablePodcastsWithEpisodeMetadata(feedURLs, iTunesIDs: [], limit: limit)
-  }
-
-  // PodcastEpisodes (filter form)
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    filter: SQLExpression
-  ) -> AsyncValueObservation<[T]> {
-    podcastEpisodes(filter: filter, order: Episode.Columns.pubDate.desc, limit: Int.max)
-  }
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    filter: SQLExpression,
-    order: SQLOrdering
-  ) -> AsyncValueObservation<[T]> {
-    podcastEpisodes(filter: filter, order: order, limit: Int.max)
-  }
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    filter: SQLExpression,
-    limit: Int
-  ) -> AsyncValueObservation<[T]> {
-    podcastEpisodes(filter: filter, order: Episode.Columns.pubDate.desc, limit: limit)
-  }
-
-  // PodcastEpisodes (mediaGUIDs form)
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    _ mediaGUIDs: [MediaGUID]
-  ) -> AsyncValueObservation<[T]> {
-    podcastEpisodes(mediaGUIDs, order: Episode.Columns.pubDate.desc, limit: Int.max)
-  }
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    _ mediaGUIDs: [MediaGUID],
-    order: SQLOrdering
-  ) -> AsyncValueObservation<[T]> {
-    podcastEpisodes(mediaGUIDs, order: order, limit: Int.max)
-  }
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    _ mediaGUIDs: [MediaGUID],
-    limit: Int
-  ) -> AsyncValueObservation<[T]> {
-    podcastEpisodes(mediaGUIDs, order: Episode.Columns.pubDate.desc, limit: limit)
   }
 
   // ListablePodcastEpisodes
