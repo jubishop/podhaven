@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import IdentifiedCollections
 import Testing
 
@@ -118,5 +119,35 @@ import Testing
       { @MainActor in "Hydration didn't populate; got \(viewModel.recommendedEpisodes.count)" }
     )
     #expect(viewModel.recommendedEpisodes.map(\.id) == [older.id, newer.id])
+  }
+
+  // Regression for #168: when the queue is empty, `maxQueuePosition` is nil
+  // and unqueued episodes have `queueOrder == nil`. The old implementation
+  // returned `nil == nil` → true, which hid "Queue at Bottom" from swipe
+  // actions and context menus and made `queueEpisodeAtBottom` a silent no-op.
+  @Test("isEpisodeAtBottomOfQueue is false for an unqueued episode when queue is empty")
+  func isEpisodeAtBottomOfQueueFalseForUnqueuedWithEmptyQueue() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "unqueued", title: "Unqueued")]
+      )
+    )
+    let unqueued = try await fetchListable(series.episodes[0].id)
+
+    #expect(unqueued.queueOrder == nil)
+    #expect(sharedState.maxQueuePosition == nil)
+
+    let viewModel = UpNextViewModel()
+    #expect(viewModel.isEpisodeAtBottomOfQueue(unqueued) == false)
+  }
+
+  private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
+    try await repo.db.read { db in
+      try Episode.withID(episodeID)
+        .including(required: Episode.podcast)
+        .asRequest(of: ListablePodcastEpisode.self)
+        .fetchOne(db)!
+    }
   }
 }
