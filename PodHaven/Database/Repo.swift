@@ -381,6 +381,30 @@ struct Repo: Databasing {
     } > 0
   }
 
+  // Idempotent bulk apply: skips episodes already linked to the tag so the
+  // caller doesn't have to filter the input set. Used by context-menu and
+  // multi-select tagging where some selected episodes may already carry it.
+  @discardableResult
+  func applyTag(_ tagID: Tag.ID, to episodeIDs: [Episode.ID]) async throws -> Int {
+    guard !episodeIDs.isEmpty else { return 0 }
+    return try await appDB.db.write { db in
+      let alreadyTagged =
+        try EpisodeTag
+        .filter(
+          episodeIDs.contains(EpisodeTag.Columns.episodeId)
+            && EpisodeTag.Columns.tagId == tagID
+        )
+        .select(EpisodeTag.Columns.episodeId, as: Episode.ID.self)
+        .fetchSet(db)
+      var inserted = 0
+      for episodeID in episodeIDs where !alreadyTagged.contains(episodeID) {
+        try EpisodeTag(episodeId: episodeID, tagId: tagID).insert(db)
+        inserted += 1
+      }
+      return inserted
+    }
+  }
+
   // MARK: - Recommendation Readers
 
   func allRatedEpisodes() async throws -> [SignalEpisode] {

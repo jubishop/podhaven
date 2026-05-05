@@ -40,6 +40,7 @@ import Logging
   func cancelSelectedEpisodeDownloads()
   func markSelectedEpisodesFinished()
   func rateSelectedEpisodes(rating: EpisodeRating?)
+  func applyTagToSelectedEpisodes(_ tagID: Tag.ID)
 }
 
 extension SelectableEpisodeList {
@@ -381,6 +382,24 @@ extension SelectableEpisodeList {
       } catch {
         Self.log.caughtError(
           "rateSelectedEpisodes: failed for \(selectedEpisodes.count) episodes",
+          error
+        )
+      }
+    }
+  }
+
+  func applyTagToSelectedEpisodes(_ tagID: Tag.ID) {
+    guard !selectedEpisodes.isEmpty else { return }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let episodeIDs = try await selectedPodcastEpisodeIDs
+        try await repo.applyTag(tagID, to: episodeIDs)
+      } catch {
+        Self.log.caughtError(
+          "applyTagToSelectedEpisodes: failed to apply tag \(tagID) to \(selectedEpisodes.count) episodes",
           error
         )
       }

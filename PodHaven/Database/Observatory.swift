@@ -152,6 +152,19 @@ struct Observatory: Observing {
     }
   }
 
+  func episodeTags(_ episodeID: Episode.ID)
+    -> AsyncValueObservation<IdentifiedArrayOf<Tag>>
+  {
+    _observe { db in
+      try Tag
+        .joining(
+          required: Tag.episodeTags.filter(EpisodeTag.Columns.episodeId == episodeID)
+        )
+        .orderedByName()
+        .fetchIdentifiedArray(db)
+    }
+  }
+
   func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
     _observe { db in
       try _podcastCountsByTag(db)

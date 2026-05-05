@@ -210,6 +210,66 @@ import Testing
     #expect(viewModel.atTopOfQueue == true)
   }
 
+  @Test("addTag observes saved episode tags and removeTag clears them")
+  func addAndRemoveTagOnSavedEpisode() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Tagged"),
+        unsavedEpisode: try Create.unsavedEpisode(guid: "tagged-ep", title: "Tagged")
+      )
+    )
+    let tag = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    try await viewModel.performAppear()
+
+    viewModel.addTag(tag.id)
+
+    try await Wait.until(
+      { @MainActor in viewModel.tags.map(\.id) == [tag.id] },
+      { @MainActor in
+        "Expected episode tag observation to surface added tag. tags: \(viewModel.tags.map(\.name))"
+      }
+    )
+
+    viewModel.removeTag(tag.id)
+
+    try await Wait.until(
+      { @MainActor in viewModel.tags.isEmpty },
+      { @MainActor in
+        "Expected episode tag observation to clear after removeTag. tags: \(viewModel.tags.map(\.name))"
+      }
+    )
+  }
+
+  @Test("addTag saves an unsaved episode before tagging it")
+  func addTagSavesUnsavedEpisodeBeforeTagging() async throws {
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved For Tagging"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-tagging",
+        title: "Unsaved For Tagging"
+      )
+    )
+    let tag = try await repo.insertTag(UnsavedTag(name: "Listen Later"))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    viewModel.addTag(tag.id)
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episode.isSaved && viewModel.tags.map(\.id) == [tag.id]
+      },
+      { @MainActor in
+        """
+        Expected addTag to save and tag the unsaved episode.
+        saved: \(viewModel.episode.isSaved)
+        tags: \(viewModel.tags.map(\.name))
+        """
+      }
+    )
+  }
+
   @Test("markFinished saves an unsaved episode before finishing it")
   func markFinishedSavesUnsavedEpisodeBeforeFinishingIt() async throws {
     let unsavedPodcastEpisode = UnsavedPodcastEpisode(

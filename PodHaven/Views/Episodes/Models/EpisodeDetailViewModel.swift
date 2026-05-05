@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Logging
 import SwiftUI
 import Tagged
@@ -27,6 +28,7 @@ import Tagged
   private let originTab: Navigation.Tab
   private let detailSource: EpisodeDetailSource
   var episode: DisplayedEpisode
+  var tags: IdentifiedArrayOf<Tag> = []
   private var recommendationScore: RecommendationScore?
   private var _podcastEpisode: PodcastEpisode?
   private var podcastEpisode: PodcastEpisode? {
@@ -75,6 +77,9 @@ import Tagged
     return recommendationScore
   }
 
+  var saved: Bool { podcastEpisode != nil }
+  var allTags: IdentifiedArrayOf<Tag> { sharedState.tags }
+
   private let startTime: Int?
 
   // MARK: - Initialization
@@ -116,6 +121,7 @@ import Tagged
 
       self.podcastEpisode = podcastEpisode
       startObservation()
+      startTagObservation()
       startRecommendationObservation()
     } else {
       Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
@@ -395,6 +401,54 @@ import Tagged
     }
   }
 
+  // MARK: - Tag Management
+
+  func addTag(_ tagID: Tag.ID) {
+    Task { [weak self] in
+      guard let self else { return }
+
+      let episodeID: Episode.ID
+      do {
+        episodeID = try await getOrCreatePodcastEpisode().id
+      } catch {
+        Self.log.caughtError("addTag: failed to get/create episode \(episode.toString)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+        return
+      }
+
+      do {
+        try await repo.addTag(tagID, to: episodeID)
+      } catch {
+        Self.log.caughtError("addTag: failed to add tag \(tagID) to episode \(episodeID)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func removeTag(_ tagID: Tag.ID) {
+    guard let episodeID = podcastEpisode?.id else {
+      Self.log.warning("Cannot remove tag from unsaved episode")
+      return
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        try await repo.removeTag(tagID, from: episodeID)
+      } catch {
+        Self.log.caughtError(
+          "removeTag: failed to remove tag \(tagID) from episode \(episodeID)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
   // MARK: - Observation Management
 
   @ObservationIgnored private var observationTask: Task<Void, Never>?
@@ -449,6 +503,49 @@ import Tagged
     }
   }
 
+  // MARK: - Tag Observation
+
+  @ObservationIgnored private var tagObservationTask: Task<Void, Never>?
+
+  private func startTagObservation() {
+    if let tagObservationTask, !tagObservationTask.isCancelled {
+      Self.log.debug("Tag observation already active; not starting again")
+      return
+    }
+
+    tagObservationTask = Task { [weak self] in
+      guard let self else { return }
+      await observeEpisodeTags()
+      clearTagObservationTask()
+    }
+  }
+
+  private func observeEpisodeTags() async {
+    guard let podcastEpisode = self.podcastEpisode
+    else { Assert.fatal("Observing tags for a non-saved episode") }
+
+    Self.log.debug("Starting tag observation for episode: \(podcastEpisode.toString)")
+
+    do {
+      for try await updatedTags in observatory.episodeTags(podcastEpisode.id) {
+        try Task.checkCancellation()
+        Self.log.debug("Updating observed tags: \(updatedTags.count) tags")
+        tags = updatedTags
+      }
+    } catch {
+      Self.log.caughtError(
+        "observeEpisodeTags: observation failed for \(podcastEpisode.toString)",
+        error
+      )
+    }
+  }
+
+  private func clearTagObservationTask() {
+    tagObservationTask?.cancel()
+    tagObservationTask = nil
+    tags = []
+  }
+
   // MARK: - Recommendation Observation
 
   @ObservationIgnored private var recommendationTask: Task<Void, Never>?
@@ -494,6 +591,7 @@ import Tagged
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
+    clearTagObservationTask()
     clearRecommendationTask()
   }
 
@@ -531,6 +629,7 @@ import Tagged
     )
     self.podcastEpisode = podcastEpisode
     startObservation()
+    startTagObservation()
     startRecommendationObservation()
     return podcastEpisode
   }

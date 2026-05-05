@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import SwiftUI
 
 // MARK: - Selectable
@@ -8,6 +9,9 @@ import SwiftUI
 func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel: ViewModel)
   -> some ToolbarContent
 {
+  // Read SharedState directly: @Broadcasted reads routed through an
+  // @Observable viewModel can drop tracking for conditional view creation.
+  let tags = Container.shared.sharedState().tags
   if viewModel.episodeList.isSelecting, viewModel.episodeList.anySelected {
     ToolbarItem(placement: .primaryAction) {
       Menu(
@@ -92,6 +96,18 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel:
             }
           } label: {
             AppIcon.cacheEpisode.label("Cache")
+          }
+
+          if !tags.isEmpty {
+            Menu {
+              ForEach(tags) { tag in
+                Button(tag.name) {
+                  viewModel.applyTagToSelectedEpisodes(tag.id)
+                }
+              }
+            } label: {
+              AppIcon.addTag.label("Tag")
+            }
           }
 
           if viewModel.anySelectedUnfinished {

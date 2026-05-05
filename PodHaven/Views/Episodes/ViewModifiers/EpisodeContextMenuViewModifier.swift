@@ -1,9 +1,12 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import SwiftUI
 
 struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
+  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+
   let viewModel: ViewModel
   let episode: ViewModel.EpisodeType
 
@@ -11,6 +14,7 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
     let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
     let isAtBottomOfQueue = viewModel.isEpisodeAtBottomOfQueue(episode)
     let canClearCache = viewModel.canClearCache(episode)
+    let tags = sharedState.tags
 
     content
       .contextMenu {
@@ -93,6 +97,18 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
           }
         } label: {
           AppIcon.cacheEpisode.label("Cache")
+        }
+
+        if !tags.isEmpty {
+          Menu {
+            ForEach(tags) { tag in
+              Button(tag.name) {
+                viewModel.applyTag(tag.id, to: episode)
+              }
+            }
+          } label: {
+            AppIcon.addTag.label("Tag")
+          }
         }
 
         if !episode.finished {
