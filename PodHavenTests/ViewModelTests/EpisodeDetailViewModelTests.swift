@@ -3,6 +3,7 @@
 import AVFoundation
 import FactoryKit
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
@@ -65,10 +66,10 @@ import Testing
         )
       )
     )
-    let listableEpisodes: [ListablePodcastEpisode] =
-      try await observatory.podcastEpisodes([
-        podcastEpisode.mediaGUID
-      ])
+    let listableEpisodes =
+      try await observatory.listablePodcastEpisodes(
+        filter: Episode.Columns.id == podcastEpisode.id
+      )
       .get()
     let listedEpisode = try #require(listableEpisodes.first)
 
@@ -95,10 +96,10 @@ import Testing
         )
       )
     )
-    let listableEpisodes: [ListablePodcastEpisode] =
-      try await observatory.podcastEpisodes([
-        podcastEpisode.mediaGUID
-      ])
+    let listableEpisodes =
+      try await observatory.listablePodcastEpisodes(
+        filter: Episode.Columns.id == podcastEpisode.id
+      )
       .get()
     let listedEpisode = try #require(listableEpisodes.first)
     let listed = ListedEpisode(listedEpisode)

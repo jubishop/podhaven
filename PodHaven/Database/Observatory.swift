@@ -117,44 +117,6 @@ struct Observatory: Observing {
     )
   }
 
-  // MARK: - PodcastEpisodes
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    filter: SQLExpression,
-    order: SQLOrdering = Episode.Columns.pubDate.desc,
-    limit: Int = Int.max
-  ) -> AsyncValueObservation<[T]> {
-    _observe { db in
-      try Episode
-        .all()
-        .filter(filter)
-        .including(required: Episode.podcast)
-        .order(order)
-        .limit(limit)
-        .asRequest(of: T.self)
-        .fetchAll(db)
-    }
-  }
-
-  func podcastEpisodes<T: FetchableRecord & Equatable>(
-    _ mediaGUIDs: [MediaGUID],
-    order: SQLOrdering = Episode.Columns.pubDate.desc,
-    limit: Int = Int.max
-  ) -> AsyncValueObservation<[T]> {
-    let mediaGUIDFilters = mediaGUIDs.map { mediaGUID in
-      Episode.Columns.guid == mediaGUID.guid && Episode.Columns.mediaURL == mediaGUID.mediaURL
-    }
-    let combinedFilter = mediaGUIDFilters.reduce(false.sqlExpression) { result, filter in
-      result || filter
-    }
-
-    return podcastEpisodes(
-      filter: combinedFilter,
-      order: order,
-      limit: limit
-    )
-  }
-
   // MARK: - Listable PodcastEpisodes
 
   func listablePodcastEpisodes(
