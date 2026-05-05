@@ -80,9 +80,6 @@ protocol Databasing: Sendable {
   @discardableResult
   func removeTag(_ tagID: Tag.ID, from episodeID: Episode.ID) async throws -> Bool
 
-  @discardableResult
-  func applyTag(_ tagID: Tag.ID, to episodeIDs: [Episode.ID]) async throws -> Int
-
   // MARK: - Episode Writers
 
   @discardableResult

@@ -59,6 +59,7 @@ protocol Observing: Sendable {
   func tags() -> AsyncValueObservation<IdentifiedArrayOf<Tag>>
   func episodeTags(_ episodeID: Episode.ID) -> AsyncValueObservation<IdentifiedArrayOf<Tag>>
   func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]>
+  func episodeCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]>
 
   // MARK: - On Deck
 

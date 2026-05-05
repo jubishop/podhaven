@@ -149,6 +149,32 @@ class TagsTests {
     #expect(tags.map(\.name) == ["News", "Tech"])
   }
 
+  @Test("observatory.episodeCountsByTag() returns correct counts per tag")
+  func episodeCountsByTag() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "ep-a"),
+          try Create.unsavedEpisode(guid: "ep-b"),
+        ]
+      )
+    )
+    let episodeIDs = series.episodes.map(\.id)
+    let tagOne = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
+    let tagTwo = try await repo.insertTag(UnsavedTag(name: "Listen Later"))
+    _ = try await repo.insertTag(UnsavedTag(name: "Unattached"))
+
+    try await repo.addTag(tagOne.id, to: episodeIDs[0])
+    try await repo.addTag(tagOne.id, to: episodeIDs[1])
+    try await repo.addTag(tagTwo.id, to: episodeIDs[0])
+
+    let counts = try await observatory.episodeCountsByTag().get()
+    #expect(counts[tagOne.id] == 2)
+    #expect(counts[tagTwo.id] == 1)
+    #expect(counts.count == 2)
+  }
+
   @Test("observatory.podcastCountsByTag() returns correct counts per tag")
   func podcastCountsByTag() async throws {
     let seriesA = try await repo.insertSeries(
@@ -213,42 +239,6 @@ class TagsTests {
 
     let secondRemove = try await repo.removeTag(tag.id, from: episode.id)
     #expect(!secondRemove)
-  }
-
-  @Test("applyTag(to:) is idempotent and returns count of newly inserted rows")
-  func applyTagIsIdempotent() async throws {
-    let series = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [
-          try Create.unsavedEpisode(guid: "ep-a"),
-          try Create.unsavedEpisode(guid: "ep-b"),
-          try Create.unsavedEpisode(guid: "ep-c"),
-        ]
-      )
-    )
-    let episodeIDs = series.episodes.map(\.id)
-    let tag = try await repo.insertTag(UnsavedTag(name: "Bulk"))
-
-    try await repo.addTag(tag.id, to: episodeIDs[0])
-
-    let firstApply = try await repo.applyTag(tag.id, to: episodeIDs)
-    #expect(firstApply == 2)
-
-    let secondApply = try await repo.applyTag(tag.id, to: episodeIDs)
-    #expect(secondApply == 0)
-
-    for episodeID in episodeIDs {
-      let tags = try await observatory.episodeTags(episodeID).get()
-      #expect(tags.map(\.id) == [tag.id])
-    }
-  }
-
-  @Test("applyTag(to:) returns zero for an empty episode list")
-  func applyTagEmptyList() async throws {
-    let tag = try await repo.insertTag(UnsavedTag(name: "Empty"))
-    let inserted = try await repo.applyTag(tag.id, to: [])
-    #expect(inserted == 0)
   }
 
   @Test("observatory.episodeTags() returns tags ordered by case-insensitive name")

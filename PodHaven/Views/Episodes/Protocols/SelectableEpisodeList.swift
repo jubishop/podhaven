@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import IdentifiedCollections
 import Logging
 
@@ -394,14 +395,30 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
 
+      let episodeIDs: [Episode.ID]
       do {
-        let episodeIDs = try await selectedPodcastEpisodeIDs
-        try await repo.applyTag(tagID, to: episodeIDs)
+        episodeIDs = try await selectedPodcastEpisodeIDs
       } catch {
         Self.log.caughtError(
-          "applyTagToSelectedEpisodes: failed to apply tag \(tagID) to \(selectedEpisodes.count) episodes",
+          "applyTagToSelectedEpisodes: failed to resolve episode IDs",
           error
         )
+        return
+      }
+
+      // Per-episode strict insert lets already-tagged rows no-op without
+      // aborting the batch — UNIQUE constraint logs at debug, real failures
+      // at error.
+      for episodeID in episodeIDs {
+        do {
+          try await repo.addTag(tagID, to: episodeID)
+        } catch {
+          Self.log.caughtError(
+            "applyTagToSelectedEpisodes: failed to tag episode \(episodeID) with \(tagID)",
+            error,
+            level: { DatabaseError.SQLITE_CONSTRAINT_UNIQUE ~= $0 ? .debug : .error }
+          )
+        }
       }
     }
   }

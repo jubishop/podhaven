@@ -274,7 +274,7 @@ extension ManagingEpisodes {
 
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
-        try await repo.applyTag(tagID, to: [episodeID])
+        try await repo.addTag(tagID, to: episodeID)
       } catch {
         Self.log.caughtError(
           "applyTag: failed to apply tag \(tagID) to \(episode.title)",

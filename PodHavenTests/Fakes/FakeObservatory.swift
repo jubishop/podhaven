@@ -133,6 +133,11 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.podcastCountsByTag()
   }
 
+  func episodeCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
+    recordCall(methodName: "episodeCountsByTag", parameters: ())
+    return observatory.episodeCountsByTag()
+  }
+
   // MARK: - On Deck
 
   func onDeck(_ episodeID: Episode.ID) -> AsyncValueObservation<OnDeck?> {
