@@ -53,7 +53,7 @@ class EmbeddingRepoTests {
       embeddingRevision: revision,
       dimension: 3
     )
-    try await repo.upsertEmbedding(unsaved)
+    try await repo.upsertEmbeddings([unsaved])
 
     if backdated {
       // Push creationDate into the past so trigger-updated contentUpdatedAt is clearly newer
@@ -395,7 +395,7 @@ class EmbeddingRepoTests {
     #expect(try await repo.hasEmbeddings() == false)
   }
 
-  @Test("hasEmbeddings returns true after upsertEmbedding")
+  @Test("hasEmbeddings returns true after upsertEmbeddings")
   func hasEmbeddingsAfterUpsert() async throws {
     let pe = try await createPodcastEpisode()
     try await insertEmbedding(for: pe.episode.id)

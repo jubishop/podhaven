@@ -76,8 +76,19 @@ enum EmbeddingService {
     // Cache podcast vectors so a batch with N episodes from the same show pays the cost once.
     var podcastVectorCache: [Podcast.ID: [Float]?] = [:]
 
+    // Accumulate per-chunk and commit at the end so one fsync covers the
+    // whole batch instead of one per episode.
+    var pendingEpisodeEmbeddings = [UnsavedEpisodeEmbedding](capacity: episodes.count)
+    var pendingPodcastEmbeddings = [UnsavedPodcastEmbedding](capacity: podcastIDs.count)
+
+    var caughtCancellation: CancellationError?
     for episode in episodes {
-      try Task.checkCancellation()
+      do {
+        try Task.checkCancellation()
+      } catch let error as CancellationError {
+        caughtCancellation = error
+        break
+      }
 
       let existingEmbedding = embeddingsByEpisodeID[id: episode.id]
       let podcast = podcastsByID[id: episode.podcastID]
@@ -90,53 +101,68 @@ enum EmbeddingService {
 
       guard needsRecompute else { continue }
 
-      // One bad episode (unexpected throw from the embedding model, a transient
-      // DB error, etc.) must not abort the whole BG pass — otherwise the same
-      // episode re-enters episodesNeedingEmbeddings on the next run and we
-      // loop forever on it. Cancellation still propagates.
+      // One bad episode mustn't abort the whole BG pass — otherwise the
+      // same episode re-enters episodesNeedingEmbeddings forever. Cancellation
+      // breaks out of the loop so the post-loop flush still runs.
       do {
         let podcastVector: [Float]?
         if let cached = podcastVectorCache[episode.podcastID] {
           podcastVector = cached
         } else {
-          podcastVector = try await ensurePodcastEmbedding(
+          let resolved = try resolvePodcastVector(
             podcast: podcast,
             embedding: embedding,
             cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
           )
+          podcastVector = resolved.vector
+          if let fresh = resolved.fresh {
+            pendingPodcastEmbeddings.append(fresh)
+          }
           podcastVectorCache[episode.podcastID] = podcastVector
         }
 
-        try await upsertEpisodeEmbedding(
+        let unsavedEpisode = try buildUnsavedEpisodeEmbedding(
           episode,
           hash: hash,
           embedding: embedding,
           podcastVector: podcastVector
         )
+        pendingEpisodeEmbeddings.append(unsavedEpisode)
+      } catch let error as CancellationError {
+        caughtCancellation = error
+        break
       } catch {
-        if error is CancellationError { throw error }
         Self.log.caughtError(
           "Failed to embed episode \(episode.toString); continuing batch",
           error
         )
       }
     }
+
+    // Flush even on cancellation so episodes embedded earlier in the chunk
+    // land before the error propagates.
+    try await repo.upsertPodcastEmbeddings(pendingPodcastEmbeddings)
+    try await repo.upsertEmbeddings(pendingEpisodeEmbeddings)
+
+    if let caughtCancellation { throw caughtCancellation }
   }
 
   // MARK: - Helpers
 
-  private static func ensurePodcastEmbedding(
+  // `fresh` is non-nil when a new row needs to be persisted; the caller
+  // appends it to the chunk's pending batch and flushes once per chunk.
+  private static func resolvePodcastVector(
     podcast: Podcast?,
     embedding: ContextualEmbedding,
     cachedEmbedding: PodcastEmbedding?
-  ) async throws -> [Float]? {
-    guard let podcast else { return nil }
+  ) throws -> (vector: [Float]?, fresh: UnsavedPodcastEmbedding?) {
+    guard let podcast else { return (nil, nil) }
 
     let cleanedTitle = cleanText(podcast.title)
     let cleanedDescription = cleanText(podcast.description)
     guard !cleanedTitle.isEmpty else {
       Self.log.debug("Skipping podcast vector: empty title for podcast \(podcast.id)")
-      return nil
+      return (nil, nil)
     }
 
     let hash = podcastSourceHash(
@@ -148,7 +174,7 @@ enum EmbeddingService {
       cached.sourceHash == hash,
       cached.embeddingRevision == embedding.revision
     {
-      return cached.floatVector
+      return (cached.floatVector, nil)
     }
 
     let titleVector = try embedding.vector(for: cleanedTitle)
@@ -163,38 +189,35 @@ enum EmbeddingService {
     )
     let normalized = VectorMath.normalize(blended)
 
-    let unsaved = UnsavedPodcastEmbedding(
+    let fresh = UnsavedPodcastEmbedding(
       podcastId: podcast.id,
       vector: UnsavedPodcastEmbedding.vectorData(from: normalized),
       sourceHash: hash,
       embeddingRevision: embedding.revision,
       dimension: normalized.count
     )
-    try await Container.shared.repo().upsertPodcastEmbedding(unsaved)
-
-    return normalized
+    return (normalized, fresh)
   }
 
-  private static func upsertEpisodeEmbedding(
+  private static func buildUnsavedEpisodeEmbedding(
     _ episode: Episode,
     hash: String,
     embedding: ContextualEmbedding,
     podcastVector: [Float]?
-  ) async throws {
+  ) throws -> UnsavedEpisodeEmbedding {
     let vector = try computeEpisodeEmbedding(
       for: episode,
       embedding: embedding,
       podcastVector: podcastVector
     )
 
-    let unsaved = UnsavedEpisodeEmbedding(
+    return UnsavedEpisodeEmbedding(
       episodeId: episode.id,
       vector: UnsavedEpisodeEmbedding.vectorData(from: vector),
       sourceHash: hash,
       embeddingRevision: embedding.revision,
       dimension: vector.count
     )
-    try await Container.shared.repo().upsertEmbedding(unsaved)
   }
 
   private static func computeEpisodeEmbedding(

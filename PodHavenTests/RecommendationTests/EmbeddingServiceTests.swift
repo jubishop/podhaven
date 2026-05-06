@@ -149,7 +149,7 @@ class EmbeddingServiceTests {
       embeddingRevision: 1,
       dimension: 3
     )
-    try await repo.upsertEmbedding(staleEmbedding)
+    try await repo.upsertEmbeddings([staleEmbedding])
 
     // Verify stale embedding was saved
     let afterStale = try await repo.embedding(for: episode.id)!
@@ -267,7 +267,7 @@ class EmbeddingServiceTests {
       embeddingRevision: embedding.revision,
       dimension: staleVector.count
     )
-    try await repo.upsertPodcastEmbedding(staleEmbedding)
+    try await repo.upsertPodcastEmbeddings([staleEmbedding])
 
     let cachedBeforeRefresh = try #require(
       try await repo.podcastEmbedding(for: podcastEpisode.podcast.id)
@@ -309,8 +309,7 @@ class EmbeddingServiceTests {
       embeddingRevision: 2,
       dimension: 3
     )
-    try await repo.upsertEmbedding(firstEpisodeEmbedding)
-    try await repo.upsertEmbedding(secondEpisodeEmbedding)
+    try await repo.upsertEmbeddings([firstEpisodeEmbedding, secondEpisodeEmbedding])
 
     let firstPodcastEmbedding = UnsavedPodcastEmbedding(
       podcastId: podcastEpisode.podcast.id,
@@ -326,8 +325,7 @@ class EmbeddingServiceTests {
       embeddingRevision: 2,
       dimension: 3
     )
-    try await repo.upsertPodcastEmbedding(firstPodcastEmbedding)
-    try await repo.upsertPodcastEmbedding(secondPodcastEmbedding)
+    try await repo.upsertPodcastEmbeddings([firstPodcastEmbedding, secondPodcastEmbedding])
 
     let savedEpisodeEmbedding = try #require(
       try await repo.embedding(for: podcastEpisode.episode.id)

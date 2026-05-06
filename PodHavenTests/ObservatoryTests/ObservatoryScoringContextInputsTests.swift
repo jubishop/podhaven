@@ -61,7 +61,7 @@ actor ObservatoryScoringContextInputsTests {
     vector: [Float] = [1, 0, 0]
   ) async throws {
     let data = UnsavedEpisodeEmbedding.vectorData(from: vector)
-    try await repo.upsertEmbedding(
+    try await repo.upsertEmbeddings([
       UnsavedEpisodeEmbedding(
         episodeId: episode.id,
         vector: data,
@@ -69,7 +69,7 @@ actor ObservatoryScoringContextInputsTests {
         embeddingRevision: 1,
         dimension: vector.count
       )
-    )
+    ])
   }
 
   // MARK: - Tests

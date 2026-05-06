@@ -8,10 +8,35 @@ import SwiftUI
 struct DebugSection: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
+  @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
+
+  @State private var pendingEmbeddings: Int? = nil
+
+  private static let log = Log.as(LogSubsystem.SettingsView.main)
+
+  private var pendingEmbeddingsLabel: String {
+    if let pendingEmbeddings {
+      return "Embeddings remaining: \(pendingEmbeddings.formatted())"
+    }
+    return "Embeddings remaining: …"
+  }
 
   var body: some View {
     Section("Debugging") {
       Text("Environment: \(AppInfo.environment.rawValue)")
+
+      Text(pendingEmbeddingsLabel)
+        .task {
+          do {
+            let ids = try await repo.episodesNeedingEmbeddings(
+              revision: contextualEmbedding.revision
+            )
+            pendingEmbeddings = ids.count
+          } catch {
+            Self.log.caughtError("Failed to count pending embeddings", error)
+          }
+        }
 
       Button("Copy Device ID") {
         UIPasteboard.general.string = AppInfo.deviceIdentifier
