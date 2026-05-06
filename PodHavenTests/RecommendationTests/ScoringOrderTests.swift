@@ -79,16 +79,9 @@ class ScoringOrderTests {
 
   @Test("unembedded candidate doesn't outscore an embedded peer on the same podcast")
   func unembeddedCandidateDoesNotOutscoreEmbedded() async throws {
-    // Reproduces the screenshot bug: a Gastropod episode with no embedding
-    // row scored 75% (pure affinity) while an embedded sibling on the same
-    // podcast scored 57% (similarity barely above the reason threshold,
-    // dragging the blended total down). The fix treats a missing embedding
-    // as the neutral 0.5 midpoint instead of dropping the similarity
-    // feature entirely.
-    //
-    // Signals + podcast text map onto [1,0,0]; the embedded candidate's
-    // description is the only thing scripted to a different axis, so its
-    // stored vector tilts away from the centroid by a controlled amount.
+    // Embedded candidate's description tilts off the centroid axis just
+    // enough that its similarity barely clears 0.5; under the old behavior
+    // the unembedded sibling's pure-affinity score would outrank it.
     let embeddable = ScriptedEmbeddable { text in
       if text.contains("Embedded Candidate") { return [0, 1, 0] }
       return [1, 0, 0]
@@ -105,9 +98,8 @@ class ScoringOrderTests {
       )
     try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
 
-    // Same podcast for both candidates → identical affinity. pubDates in
-    // the future short-circuit freshness to 1.0 for both, so any score
-    // difference comes purely from the embedding-presence path.
+    // Same podcast → identical affinity; future pubDates → freshness 1.0,
+    // so the only thing left to drive score difference is the embedding.
     let candidates = try await RecommendationHelpers.addEpisodes(
       to: lovedPodcast,
       count: 2,

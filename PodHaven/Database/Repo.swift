@@ -509,19 +509,24 @@ struct Repo: Databasing {
 
   // MARK: - Embedding Writers
 
-  @discardableResult
-  func upsertEmbedding(_ unsaved: UnsavedEpisodeEmbedding) async throws -> EpisodeEmbedding {
-    Self.log.debug("upsertEmbedding: episode \(unsaved.episodeId)")
-    return try await appDB.db.write { db in
-      try unsaved.upsertAndFetch(db, as: EpisodeEmbedding.self)
+  // Batch upsert: one transaction per chunk instead of one per episode.
+  func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {
+    guard !unsaved.isEmpty else { return }
+    Self.log.debug("upsertEmbeddings: \(unsaved.count) episodes")
+    try await appDB.db.write { db in
+      for entry in unsaved {
+        try entry.upsert(db)
+      }
     }
   }
 
-  @discardableResult
-  func upsertPodcastEmbedding(_ unsaved: UnsavedPodcastEmbedding) async throws -> PodcastEmbedding {
-    Self.log.debug("upsertPodcastEmbedding: podcast \(unsaved.podcastId)")
-    return try await appDB.db.write { db in
-      try unsaved.upsertAndFetch(db, as: PodcastEmbedding.self)
+  func upsertPodcastEmbeddings(_ unsaved: [UnsavedPodcastEmbedding]) async throws {
+    guard !unsaved.isEmpty else { return }
+    Self.log.debug("upsertPodcastEmbeddings: \(unsaved.count) podcasts")
+    try await appDB.db.write { db in
+      for entry in unsaved {
+        try entry.upsert(db)
+      }
     }
   }
 

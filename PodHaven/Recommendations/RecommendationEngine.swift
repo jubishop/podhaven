@@ -496,12 +496,8 @@ struct RecommendationEngine: Sendable {
     freshnessCadence: FreshnessCadence,
     now: Date
   ) -> RecommendationScore {
-    // Missing data lands at the neutral 0.5 midpoint instead of being dropped
-    // from the feature set: dropping would let renormalization re-weight the
-    // remaining feature to 1.0, so an unembedded candidate could outscore an
-    // embedded peer whose similarity was just barely above the same threshold
-    // (75% pure-affinity > 57% blended). Affinity already neutralizes via the
-    // `?? 0` default — raw 0 remaps to 0.5.
+    // Missing embedding → neutral 0.5; dropping the feature would let
+    // renormalization promote affinity to weight 1.0 and overrank the candidate.
     let similarityValue: Float
     if let embedding {
       var similarity = VectorMath.dotProduct(embedding.floatVector, positiveCentroid)
