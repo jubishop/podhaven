@@ -690,11 +690,11 @@ def report_to_dict(report: Report, args: argparse.Namespace) -> dict[str, Any]:
         "top_issues": [serialize_issue_group(group) for group in report.issue_groups[: args.top]],
         "selection": {
             "constraints": selection_constraints(args),
-            "entries": len(report.selection_entries),
-            "bursts": len(report.selection_bursts),
+            "entry_count": len(report.selection_entries),
+            "burst_count": len(report.selection_bursts),
             "range": range_summary(report.selection_entries),
             "levels": counter_to_dict(selected_levels),
-            "bursts_list": [
+            "bursts": [
                 serialize_burst(burst) for burst in report.selection_bursts[: args.limit]
             ],
         },
