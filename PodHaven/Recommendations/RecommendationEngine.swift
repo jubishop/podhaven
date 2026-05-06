@@ -490,43 +490,40 @@ struct RecommendationEngine: Sendable {
     embedding: EpisodeEmbedding?,
     podcastID: Podcast.ID,
     pubDate: Date,
-    positiveCentroid: [Float]?,
+    positiveCentroid: [Float],
     negativeCentroid: [Float]?,
     podcastAffinities: [Podcast.ID: Float],
     freshnessCadence: FreshnessCadence,
     now: Date
   ) -> RecommendationScore {
-    var features: [(weight: Float, value: Float, reason: RecommendationReason)] = []
-
-    // Content similarity (dual centroid)
-    if let embedding,
-      let positiveCentroid
-    {
-      let vector = embedding.floatVector
-      var similarity = VectorMath.dotProduct(vector, positiveCentroid)
+    // Missing data lands at the neutral 0.5 midpoint instead of being dropped
+    // from the feature set: dropping would let renormalization re-weight the
+    // remaining feature to 1.0, so an unembedded candidate could outscore an
+    // embedded peer whose similarity was just barely above the same threshold
+    // (75% pure-affinity > 57% blended). Affinity already neutralizes via the
+    // `?? 0` default — raw 0 remaps to 0.5.
+    let similarityValue: Float
+    if let embedding {
+      var similarity = VectorMath.dotProduct(embedding.floatVector, positiveCentroid)
       if let negativeCentroid {
-        similarity -= VectorMath.dotProduct(vector, negativeCentroid)
+        similarity -= VectorMath.dotProduct(embedding.floatVector, negativeCentroid)
       }
       // Remap from [-2, 2] to [0, 1]
-      let remapped = (similarity + 2.0) / 4.0
-      features.append((Self.similarityWeight, remapped, .similarToLiked))
+      similarityValue = (similarity + 2.0) / 4.0
+    } else {
+      similarityValue = 0.5
     }
 
-    // Podcast affinity
     let affinity = podcastAffinities[podcastID] ?? 0
     // Remap from [-1, 1] to [0, 1]
     let remappedAffinity = (affinity + 1.0) / 2.0
-    features.append((Self.podcastAffinityWeight, remappedAffinity, .podcastAffinity))
 
-    // Renormalize weights so a missing-embedding candidate (totalWeight 0.2)
-    // still produces a comparable score. Guard catches misconfigured weights.
-    let totalWeight = features.reduce(Float(0)) { $0 + $1.weight }
-    guard totalWeight > 0 else {
-      Assert.fatal("scoreCandidate: totalWeight is zero — scoring weights misconfigured")
-    }
-
+    let features: [(weight: Float, value: Float, reason: RecommendationReason)] = [
+      (Self.similarityWeight, similarityValue, .similarToLiked),
+      (Self.podcastAffinityWeight, remappedAffinity, .podcastAffinity),
+    ]
     let baseScore = features.reduce(Float(0)) { sum, feature in
-      sum + (feature.weight / totalWeight) * feature.value
+      sum + feature.weight * feature.value
     }
 
     // Multiplicative gate, not a summand: a year-old daily-news episode
