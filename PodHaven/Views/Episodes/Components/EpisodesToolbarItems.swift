@@ -9,9 +9,6 @@ import SwiftUI
 func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel: ViewModel)
   -> some ToolbarContent
 {
-  // Read SharedState directly: @Broadcasted reads routed through an
-  // @Observable viewModel can drop tracking for conditional view creation.
-  let tags = Container.shared.sharedState().tags
   if viewModel.episodeList.isSelecting, viewModel.episodeList.anySelected {
     ToolbarItem(placement: .primaryAction) {
       Menu(
@@ -98,9 +95,9 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel:
             AppIcon.cacheEpisode.label("Cache")
           }
 
-          if !tags.isEmpty {
+          if !Container.shared.sharedState().tags.isEmpty {
             Menu {
-              ForEach(tags) { tag in
+              ForEach(Container.shared.sharedState().tags) { tag in
                 Button(tag.name) {
                   viewModel.applyTagToSelectedEpisodes(tag.id)
                 }

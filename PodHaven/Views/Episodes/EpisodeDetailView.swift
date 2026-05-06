@@ -36,7 +36,7 @@ struct EpisodeDetailView: View {
         if viewModel.saved {
           TagsView(
             tags: viewModel.tags,
-            allTags: viewModel.allTags,
+            allTags: Container.shared.sharedState().tags,
             onAdd: viewModel.addTag,
             onRemove: viewModel.removeTag
           )

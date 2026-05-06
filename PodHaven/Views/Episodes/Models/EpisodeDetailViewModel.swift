@@ -78,7 +78,6 @@ import Tagged
   }
 
   var saved: Bool { podcastEpisode != nil }
-  var allTags: IdentifiedArrayOf<Tag> { sharedState.tags }
 
   private let startTime: Int?
 

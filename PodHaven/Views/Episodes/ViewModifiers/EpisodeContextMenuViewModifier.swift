@@ -14,7 +14,6 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
     let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
     let isAtBottomOfQueue = viewModel.isEpisodeAtBottomOfQueue(episode)
     let canClearCache = viewModel.canClearCache(episode)
-    let tags = sharedState.tags
 
     content
       .contextMenu {
@@ -99,11 +98,11 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
           AppIcon.cacheEpisode.label("Cache")
         }
 
-        if !tags.isEmpty {
+        if !sharedState.tags.isEmpty {
           Menu {
-            ForEach(tags) { tag in
+            ForEach(sharedState.tags) { tag in
               Button(tag.name) {
-                viewModel.applyTag(tag.id, to: episode)
+                viewModel.addTag(tag.id, to: episode)
               }
             }
           } label: {
