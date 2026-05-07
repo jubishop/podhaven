@@ -77,8 +77,6 @@ import Tagged
     return recommendationScore
   }
 
-  var saved: Bool { podcastEpisode != nil }
-
   private let startTime: Int?
 
   // MARK: - Initialization
@@ -575,9 +573,11 @@ import Tagged
   // engine warms up.
   //
   // Unlike the episode/tag observations, this one doesn't rebind on
-  // episode change: it subscribes to a global engine stream and
-  // `fetchRecommendation` reads `self.podcastEpisode` at each emit, so
-  // the running task naturally tracks whichever episode is current.
+  // in-place episode updates: it subscribes to a global engine stream
+  // and `fetchRecommendation` reads `self.podcastEpisode` at each emit,
+  // so the running task naturally tracks whichever episode is current.
+  // The deletion path is the one exception — it explicitly cancels the
+  // task (and the re-save path recreates it via `getOrCreatePodcastEpisode`).
   private func startRecommendationObservation() {
     if let recommendationTask, !recommendationTask.isCancelled {
       Self.log.debug("Recommendation observation already active; not starting again")

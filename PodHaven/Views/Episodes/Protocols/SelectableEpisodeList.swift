@@ -2,7 +2,6 @@
 
 import FactoryKit
 import Foundation
-import GRDB
 import IdentifiedCollections
 import Logging
 
@@ -41,7 +40,6 @@ import Logging
   func cancelSelectedEpisodeDownloads()
   func markSelectedEpisodesFinished()
   func rateSelectedEpisodes(rating: EpisodeRating?)
-  func applyTagToSelectedEpisodes(_ tagID: Tag.ID)
 }
 
 extension SelectableEpisodeList {
@@ -385,40 +383,6 @@ extension SelectableEpisodeList {
           "rateSelectedEpisodes: failed for \(selectedEpisodes.count) episodes",
           error
         )
-      }
-    }
-  }
-
-  func applyTagToSelectedEpisodes(_ tagID: Tag.ID) {
-    guard !selectedEpisodes.isEmpty else { return }
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      let episodeIDs: [Episode.ID]
-      do {
-        episodeIDs = try await selectedPodcastEpisodeIDs
-      } catch {
-        Self.log.caughtError(
-          "applyTagToSelectedEpisodes: failed to resolve episode IDs",
-          error
-        )
-        return
-      }
-
-      // Per-episode strict insert lets already-tagged rows no-op without
-      // aborting the batch — UNIQUE constraint logs at debug, real failures
-      // at error.
-      for episodeID in episodeIDs {
-        do {
-          try await repo.addTag(tagID, to: episodeID)
-        } catch {
-          Self.log.caughtError(
-            "applyTagToSelectedEpisodes: failed to tag episode \(episodeID) with \(tagID)",
-            error,
-            level: { DatabaseError.SQLITE_CONSTRAINT_UNIQUE ~= $0 ? .debug : .error }
-          )
-        }
       }
     }
   }

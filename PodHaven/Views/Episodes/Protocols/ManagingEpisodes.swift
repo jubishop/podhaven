@@ -20,7 +20,6 @@ import Logging
   func uncacheEpisode(_ episode: EpisodeType)
   func rateEpisode(_ episode: EpisodeType, rating: EpisodeRating?)
   func markEpisodeFinished(_ episode: EpisodeType)
-  func addTag(_ tagID: Tag.ID, to episode: EpisodeType)
 
   func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
 }
@@ -262,24 +261,6 @@ extension ManagingEpisodes {
         try await repo.updateRating(episodeID, rating: rating)
       } catch {
         Self.log.caughtError("rateEpisode: failed for \(episode.title)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
-  func addTag(_ tagID: Tag.ID, to episode: EpisodeType) {
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let episodeID = try await getOrCreateEpisodeID(episode)
-        try await repo.addTag(tagID, to: episodeID)
-      } catch {
-        Self.log.caughtError(
-          "addTag: failed to add tag \(tagID) to \(episode.title)",
-          error
-        )
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

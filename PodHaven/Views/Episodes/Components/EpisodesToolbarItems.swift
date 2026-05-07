@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import SwiftUI
 
 // MARK: - Selectable
@@ -93,18 +92,6 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel:
             }
           } label: {
             AppIcon.cacheEpisode.label("Cache")
-          }
-
-          if !Container.shared.sharedState().tags.isEmpty {
-            Menu {
-              ForEach(Container.shared.sharedState().tags) { tag in
-                Button(tag.name) {
-                  viewModel.applyTagToSelectedEpisodes(tag.id)
-                }
-              }
-            } label: {
-              AppIcon.addTag.label("Tag")
-            }
           }
 
           if viewModel.anySelectedUnfinished {

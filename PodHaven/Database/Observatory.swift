@@ -178,13 +178,13 @@ struct Observatory: Observing {
         EpisodeTag
           .select(
             EpisodeTag.Columns.tagId,
-            count(EpisodeTag.Columns.episodeId).forKey("count")
+            count(EpisodeTag.Columns.episodeId).forKey(Self.countKey)
           )
           .group(EpisodeTag.Columns.tagId)
       )
       return Dictionary(
         uniqueKeysWithValues: rows.map { row in
-          (row[EpisodeTag.Columns.tagId] as Tag.ID, row["count"] as Int)
+          (row[EpisodeTag.Columns.tagId] as Tag.ID, row[Self.countKey] as Int)
         }
       )
     }
@@ -276,6 +276,8 @@ struct Observatory: Observing {
 
   // MARK: - Private Helpers
 
+  private static let countKey = "count"
+
   private func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {
     Assert.precondition(db.isInsideTransaction, "_podcastCountsByTag requires a transaction")
 
@@ -284,13 +286,13 @@ struct Observatory: Observing {
       PodcastTag
         .select(
           PodcastTag.Columns.tagId,
-          count(PodcastTag.Columns.podcastId).forKey("count")
+          count(PodcastTag.Columns.podcastId).forKey(Self.countKey)
         )
         .group(PodcastTag.Columns.tagId)
     )
     return Dictionary(
       uniqueKeysWithValues: rows.map { row in
-        (row[PodcastTag.Columns.tagId] as Tag.ID, row["count"] as Int)
+        (row[PodcastTag.Columns.tagId] as Tag.ID, row[Self.countKey] as Int)
       }
     )
   }
