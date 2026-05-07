@@ -52,7 +52,12 @@ struct Observatory: Observing {
         subscribed: subscribed,
         unsubscribed: unsubscribed,
         untagged: untagged,
-        byTag: try _podcastCountsByTag(db)
+        byTag: try _tagCounts(
+          PodcastTag.self,
+          tagIdColumn: PodcastTag.Columns.tagId,
+          countingColumn: PodcastTag.Columns.podcastId,
+          in: db
+        )
       )
     }
   }
@@ -167,25 +172,22 @@ struct Observatory: Observing {
 
   func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
     _observe { db in
-      try _podcastCountsByTag(db)
+      try _tagCounts(
+        PodcastTag.self,
+        tagIdColumn: PodcastTag.Columns.tagId,
+        countingColumn: PodcastTag.Columns.podcastId,
+        in: db
+      )
     }
   }
 
   func episodeCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
     _observe { db in
-      let rows = try Row.fetchAll(
-        db,
-        EpisodeTag
-          .select(
-            EpisodeTag.Columns.tagId,
-            count(EpisodeTag.Columns.episodeId).forKey(Self.countKey)
-          )
-          .group(EpisodeTag.Columns.tagId)
-      )
-      return Dictionary(
-        uniqueKeysWithValues: rows.map { row in
-          (row[EpisodeTag.Columns.tagId] as Tag.ID, row[Self.countKey] as Int)
-        }
+      try _tagCounts(
+        EpisodeTag.self,
+        tagIdColumn: EpisodeTag.Columns.tagId,
+        countingColumn: EpisodeTag.Columns.episodeId,
+        in: db
       )
     }
   }
@@ -278,21 +280,23 @@ struct Observatory: Observing {
 
   private static let countKey = "count"
 
-  private func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {
-    Assert.precondition(db.isInsideTransaction, "_podcastCountsByTag requires a transaction")
+  private func _tagCounts<T: TableRecord>(
+    _ type: T.Type,
+    tagIdColumn: Column,
+    countingColumn: Column,
+    in db: Database
+  ) throws -> [Tag.ID: Int] {
+    Assert.precondition(db.isInsideTransaction, "_tagCounts requires a transaction")
 
     let rows = try Row.fetchAll(
       db,
-      PodcastTag
-        .select(
-          PodcastTag.Columns.tagId,
-          count(PodcastTag.Columns.podcastId).forKey(Self.countKey)
-        )
-        .group(PodcastTag.Columns.tagId)
+      type
+        .select(tagIdColumn, count(countingColumn).forKey(Self.countKey))
+        .group(tagIdColumn)
     )
     return Dictionary(
       uniqueKeysWithValues: rows.map { row in
-        (row[PodcastTag.Columns.tagId] as Tag.ID, row[Self.countKey] as Int)
+        (row[tagIdColumn] as Tag.ID, row[Self.countKey] as Int)
       }
     )
   }

@@ -484,6 +484,7 @@ import Tagged
           observationTask = nil
           observedEpisodeID = nil
           clearTagObservationTask()
+          tags = []
           clearRecommendationTask()
           recommendationScore = nil
           _podcastEpisode = nil
@@ -559,7 +560,6 @@ import Tagged
     tagObservationTask?.cancel()
     tagObservationTask = nil
     observedTagsEpisodeID = nil
-    tags = []
   }
 
   // MARK: - Recommendation Observation
