@@ -161,7 +161,8 @@ final class UserNotificationManager {
         return nil
       }
 
-      // UNNotificationAttachment requires a file URL — staged to a temp file rather than passed inline.
+      // UNNotificationAttachment requires a file URL — staged to a temp file
+      // rather than passed inline.
       let tempFile = fileManager.temporaryDirectory.appendingPathComponent(
         UUID().uuidString + ".jpg"
       )
