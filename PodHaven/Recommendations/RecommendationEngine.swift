@@ -59,15 +59,13 @@ struct RecommendationEngine: Sendable {
   // Centroid weights
   private static let lovedWeight: Float = 1.0
   private static let likedWeight: Float = 0.6
-  private static let partialWeight: Float = 0.4
+  private static let partialWeight: Float = 0.5
 
   // Bayesian smoothing prior for podcast affinity
   private static let affinityPrior: Float = 2.0
 
-  // Podcast affinity — dislikes contribute but at half the strength of likes.
-  // One bad episode shouldn't tank an otherwise-loved show, but repeated
-  // dislikes should still register as show-level aversion.
-  private static let dislikedAffinityWeight: Float = 0.5
+  // Podcast affinity — dislikes contribute but at less strength.
+  private static let dislikedAffinityWeight: Float = 0.4
 
   // Temporal decay half-life in days
   private static let decayHalfLifeDays: Double = 180
