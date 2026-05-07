@@ -8,6 +8,8 @@
 
 PodHaven is a modern podcast application for iOS, built with Swift and SwiftUI. It provides a clean and intuitive interface for discovering, subscribing to, and listening to your favorite podcasts.
 
+Website: [artisanalsoftware.com/podhaven](https://artisanalsoftware.com/podhaven)
+
 ## Features
 
 - **Discover & Search**: Find new podcasts powered by the [iTunes Search API](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/).
