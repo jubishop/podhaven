@@ -134,17 +134,23 @@ import SwiftUI
   }
 
   func deleteTag(_ tagID: Tag.ID) {
+    let tagName = tags[id: tagID]?.name ?? "this tag"
     let podcastCount = podcastCounts[tagID] ?? 0
     let episodeCount = episodeCounts[tagID] ?? 0
-    guard podcastCount > 0 || episodeCount > 0 else {
-      performDeleteTag(tagID)
-      return
-    }
+    let message: String =
+      if podcastCount > 0 || episodeCount > 0 {
+        """
+        \"\(tagName)\" is used by \
+        \(Self.usageDescription(podcasts: podcastCount, episodes: episodeCount)). \
+        Are you sure you want to delete it?
+        """
+      } else {
+        "Are you sure you want to delete \"\(tagName)\"?"
+      }
 
-    let tagName = tags[id: tagID]?.name ?? "this tag"
     alert(
       title: "Delete Tag?",
-      "\"\(tagName)\" is used by \(Self.usageDescription(podcasts: podcastCount, episodes: episodeCount)). Are you sure you want to delete it?"
+      message
     ) { [weak self] in
       Button("Delete", role: .destructive) {
         guard let self else { return }
