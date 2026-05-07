@@ -118,7 +118,6 @@ import Tagged
 
       self.podcastEpisode = podcastEpisode
       startObservation()
-      startTagObservation()
       startRecommendationObservation()
     } else {
       Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
@@ -473,17 +472,18 @@ import Tagged
     Self.log.debug("Starting observation for episode: \(podcastEpisode.toString)")
 
     do {
-      for try await updatedEpisode: PodcastEpisode? in self.observatory.episode(podcastEpisode.id) {
+      for try await updated in observatory.podcastEpisodeWithTags(podcastEpisode.id) {
         try Task.checkCancellation()
 
-        Self.log.debug("Updating observed episode: \(String(describing: updatedEpisode?.toString))")
+        Self.log.debug(
+          "Updating observed episode: \(String(describing: updated?.podcastEpisode.toString))"
+        )
 
-        guard let updatedEpisode
+        guard let updated
         else {
           Self.log.debug("Episode was deleted")
           observationTask = nil
           observedEpisodeID = nil
-          clearTagObservationTask()
           tags = []
           clearRecommendationTask()
           recommendationScore = nil
@@ -492,13 +492,12 @@ import Tagged
           return
         }
 
-        guard updatedEpisode != self.podcastEpisode
-        else {
-          Self.log.debug("New episode is the same as the current one, skipping update")
-          continue
+        if updated.podcastEpisode != self.podcastEpisode {
+          self.podcastEpisode = updated.podcastEpisode
         }
-
-        self.podcastEpisode = updatedEpisode
+        if tags != updated.tags {
+          tags = updated.tags
+        }
       }
     } catch {
       Self.log.caughtError(
@@ -514,54 +513,6 @@ import Tagged
     observedEpisodeID = nil
   }
 
-  // MARK: - Tag Observation
-
-  @ObservationIgnored private var tagObservationTask: Task<Void, Never>?
-  @ObservationIgnored private var observedTagsEpisodeID: Episode.ID?
-
-  private func startTagObservation() {
-    guard let podcastEpisode = self.podcastEpisode
-    else { Assert.fatal("Observing tags for a non-saved episode") }
-
-    let episodeID = podcastEpisode.id
-    if let tagObservationTask, !tagObservationTask.isCancelled,
-      observedTagsEpisodeID == episodeID
-    {
-      Self.log.debug("Tag observation already active; not starting again")
-      return
-    }
-
-    clearTagObservationTask()
-    observedTagsEpisodeID = episodeID
-    tagObservationTask = Task { [weak self] in
-      guard let self else { return }
-      await observeEpisodeTags(episodeID)
-    }
-  }
-
-  private func observeEpisodeTags(_ episodeID: Episode.ID) async {
-    Self.log.debug("Starting tag observation for episode: \(episodeID)")
-
-    do {
-      for try await updatedTags in observatory.episodeTags(episodeID) {
-        try Task.checkCancellation()
-        Self.log.debug("Updating observed tags: \(updatedTags.count) tags")
-        tags = updatedTags
-      }
-    } catch {
-      Self.log.caughtError(
-        "observeEpisodeTags: observation failed for episode \(episodeID)",
-        error
-      )
-    }
-  }
-
-  private func clearTagObservationTask() {
-    tagObservationTask?.cancel()
-    tagObservationTask = nil
-    observedTagsEpisodeID = nil
-  }
-
   // MARK: - Recommendation Observation
 
   @ObservationIgnored private var recommendationTask: Task<Void, Never>?
@@ -572,12 +523,12 @@ import Tagged
   // case; cold caches yield nil and the section stays hidden until the
   // engine warms up.
   //
-  // Unlike the episode/tag observations, this one doesn't rebind on
-  // in-place episode updates: it subscribes to a global engine stream
-  // and `fetchRecommendation` reads `self.podcastEpisode` at each emit,
-  // so the running task naturally tracks whichever episode is current.
-  // The deletion path is the one exception — it explicitly cancels the
-  // task (and the re-save path recreates it via `getOrCreatePodcastEpisode`).
+  // Unlike the episode observation, this one doesn't rebind on in-place
+  // episode updates: it subscribes to a global engine stream and
+  // `fetchRecommendation` reads `self.podcastEpisode` at each emit, so the
+  // running task naturally tracks whichever episode is current. The
+  // deletion path is the one exception — it explicitly cancels the task
+  // (and the re-save path recreates it via `getOrCreatePodcastEpisode`).
   private func startRecommendationObservation() {
     if let recommendationTask, !recommendationTask.isCancelled {
       Self.log.debug("Recommendation observation already active; not starting again")
@@ -619,7 +570,6 @@ import Tagged
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
-    clearTagObservationTask()
     clearRecommendationTask()
   }
 
@@ -639,7 +589,6 @@ import Tagged
     )
     self.podcastEpisode = podcastEpisode
     startObservation()
-    startTagObservation()
     startRecommendationObservation()
     return podcastEpisode
   }

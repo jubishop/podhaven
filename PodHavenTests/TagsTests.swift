@@ -241,8 +241,8 @@ class TagsTests {
     #expect(!secondRemove)
   }
 
-  @Test("observatory.episodeTags() returns tags ordered by case-insensitive name")
-  func observatoryEpisodeTagsReturnsOrdered() async throws {
+  @Test("observatory.podcastEpisodeWithTags() returns tags ordered by case-insensitive name")
+  func observatoryPodcastEpisodeWithTagsReturnsOrderedTags() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
@@ -260,8 +260,8 @@ class TagsTests {
     try await repo.addTag(alpha.id, to: episode.id)
     try await repo.addTag(beta.id, to: episode.id)
 
-    let tags = try await observatory.episodeTags(episode.id).get()
-    #expect(tags.map(\.name) == ["Alpha", "beta", "zeta"])
+    let observed = try #require(try await observatory.podcastEpisodeWithTags(episode.id).get())
+    #expect(observed.tags.map(\.name) == ["Alpha", "beta", "zeta"])
   }
 
   @Test("deleteTag() cascades through episodeTag mappings")

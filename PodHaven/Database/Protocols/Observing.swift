@@ -57,7 +57,6 @@ protocol Observing: Sendable {
   // MARK: - Tags
 
   func tags() -> AsyncValueObservation<IdentifiedArrayOf<Tag>>
-  func episodeTags(_ episodeID: Episode.ID) -> AsyncValueObservation<IdentifiedArrayOf<Tag>>
   func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]>
   func episodeCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]>
 
@@ -68,9 +67,8 @@ protocol Observing: Sendable {
   // MARK: - Singular Observations
 
   func podcastSeries(_ podcastID: Podcast.ID) -> AsyncValueObservation<PodcastSeries?>
-  func episode<T: FetchableRecord & Equatable>(
-    _ episodeID: Episode.ID
-  ) -> AsyncValueObservation<T?>
+  func podcastEpisodeWithTags(_ episodeID: Episode.ID)
+    -> AsyncValueObservation<PodcastEpisodeWithTags?>
 
   // MARK: - Recommendations
 

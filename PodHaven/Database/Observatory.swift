@@ -157,19 +157,6 @@ struct Observatory: Observing {
     }
   }
 
-  func episodeTags(_ episodeID: Episode.ID)
-    -> AsyncValueObservation<IdentifiedArrayOf<Tag>>
-  {
-    _observe { db in
-      try Tag
-        .joining(
-          required: Tag.episodeTags.filter(EpisodeTag.Columns.episodeId == episodeID)
-        )
-        .orderedByName()
-        .fetchIdentifiedArray(db)
-    }
-  }
-
   func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
     _observe { db in
       try _tagCounts(
@@ -213,14 +200,15 @@ struct Observatory: Observing {
     }
   }
 
-  func episode<T: FetchableRecord & Equatable>(
-    _ episodeID: Episode.ID
-  ) -> AsyncValueObservation<T?> {
+  func podcastEpisodeWithTags(_ episodeID: Episode.ID)
+    -> AsyncValueObservation<PodcastEpisodeWithTags?>
+  {
     _observe { db in
       try Episode
         .withID(episodeID)
         .including(required: Episode.podcast)
-        .asRequest(of: T.self)
+        .including(all: Episode.tags)
+        .asRequest(of: PodcastEpisodeWithTags.self)
         .fetchOne(db)
     }
   }

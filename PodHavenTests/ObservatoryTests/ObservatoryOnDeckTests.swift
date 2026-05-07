@@ -161,8 +161,7 @@ actor ObservatoryOnDeckTests {
     )
 
     let episode = series.episodes[0]
-    let optionalEpisode: PodcastEpisode? = try await observatory.episode(episode.id).get()
-    let podcastEpisode = try #require(optionalEpisode)
+    let podcastEpisode = try #require(try await repo.podcastEpisode(episode.id))
     let onDeck = OnDeck(from: podcastEpisode)
 
     // Episode fields
@@ -196,8 +195,7 @@ actor ObservatoryOnDeckTests {
   @Test("equality and hash ignore artwork and currentTime")
   func testEqualityAndHashIgnoreInMemoryFields() async throws {
     let (episode, _, _) = try await Create.threePodcastEpisodes()
-    let optionalEpisode: PodcastEpisode? = try await observatory.episode(episode.id).get()
-    let podcastEpisode = try #require(optionalEpisode)
+    let podcastEpisode = try #require(try await repo.podcastEpisode(episode.id))
 
     let a = OnDeck(from: podcastEpisode)
     var b = OnDeck(from: podcastEpisode)

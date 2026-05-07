@@ -121,13 +121,6 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.tags()
   }
 
-  func episodeTags(_ episodeID: Episode.ID)
-    -> AsyncValueObservation<IdentifiedArrayOf<Tag>>
-  {
-    recordCall(methodName: "episodeTags", parameters: episodeID)
-    return observatory.episodeTags(episodeID)
-  }
-
   func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
     recordCall(methodName: "podcastCountsByTag", parameters: ())
     return observatory.podcastCountsByTag()
@@ -152,11 +145,11 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.podcastSeries(podcastID)
   }
 
-  func episode<T: FetchableRecord & Equatable>(
-    _ episodeID: Episode.ID
-  ) -> AsyncValueObservation<T?> {
-    recordCall(methodName: "episode", parameters: episodeID)
-    return observatory.episode(episodeID)
+  func podcastEpisodeWithTags(_ episodeID: Episode.ID)
+    -> AsyncValueObservation<PodcastEpisodeWithTags?>
+  {
+    recordCall(methodName: "podcastEpisodeWithTags", parameters: episodeID)
+    return observatory.podcastEpisodeWithTags(episodeID)
   }
 
   // MARK: - Recommendations
