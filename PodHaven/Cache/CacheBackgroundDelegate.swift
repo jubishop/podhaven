@@ -117,7 +117,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           try fileManager.removeItem(at: location)
         } catch {
           Self.log.caughtError(
-            "didFinishDownloadingTo: failed to remove orphaned temp file at \(location) for task #\(downloadTask.taskID)",
+            """
+            didFinishDownloadingTo: failed to remove orphaned temp file \
+            at \(location) for task #\(downloadTask.taskID)
+            """,
             error
           )
         }
@@ -150,7 +153,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         try fileManager.removeItem(at: destURL.rawValue)
       } catch {
         Self.log.caughtError(
-          "didFinishDownloadingTo: failed to remove existing cached file at \(destURL) for \(episode.toString)",
+          """
+          didFinishDownloadingTo: failed to remove existing cached file \
+          at \(destURL) for \(episode.toString)
+          """,
           error
         )
         return
@@ -161,7 +167,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       try fileManager.moveItem(at: location, to: destURL.rawValue)
     } catch {
       Self.log.caughtError(
-        "didFinishDownloadingTo: failed to move downloaded file to \(destURL) for \(episode.toString)",
+        """
+        didFinishDownloadingTo: failed to move downloaded file to \(destURL) \
+        for \(episode.toString)
+        """,
         error
       )
       return
@@ -219,7 +228,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       try await repo.updateCachedFilename(episode.id, cachedFilename: fileName)
     } catch {
       Self.log.caughtError(
-        "didFinishDownloadingTo: failed to update cached filename for \(episode.toString) to \(fileName)",
+        """
+        didFinishDownloadingTo: failed to update cached filename \
+        for \(episode.toString) to \(fileName)
+        """,
         error
       )
       return
