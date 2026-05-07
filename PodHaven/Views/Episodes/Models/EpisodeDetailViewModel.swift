@@ -448,20 +448,16 @@ import Tagged
   // MARK: - Observation Management
 
   @ObservationIgnored private var observationTask: Task<Void, Never>?
-  @ObservationIgnored private var observedEpisodeID: Episode.ID?
 
   private func startObservation() {
     guard let podcastEpisode = self.podcastEpisode
     else { Assert.fatal("Observing a non-saved podcastEpisode") }
 
-    let episodeID = podcastEpisode.id
-    if let observationTask, !observationTask.isCancelled, observedEpisodeID == episodeID {
+    if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
       return
     }
 
-    clearObservationTask()
-    observedEpisodeID = episodeID
     observationTask = Task { [weak self] in
       guard let self else { return }
       await observePodcastEpisode(podcastEpisode)
@@ -483,7 +479,6 @@ import Tagged
         else {
           Self.log.debug("Episode was deleted")
           observationTask = nil
-          observedEpisodeID = nil
           tags = []
           clearRecommendationTask()
           recommendationScore = nil
@@ -510,7 +505,6 @@ import Tagged
   private func clearObservationTask() {
     observationTask?.cancel()
     observationTask = nil
-    observedEpisodeID = nil
   }
 
   // MARK: - Recommendation Observation
@@ -522,13 +516,6 @@ import Tagged
   // bootstrap emit covers the "cache is already hot when the view opens"
   // case; cold caches yield nil and the section stays hidden until the
   // engine warms up.
-  //
-  // Unlike the episode observation, this one doesn't rebind on in-place
-  // episode updates: it subscribes to a global engine stream and
-  // `fetchRecommendation` reads `self.podcastEpisode` at each emit, so the
-  // running task naturally tracks whichever episode is current. The
-  // deletion path is the one exception — it explicitly cancels the task
-  // (and the re-save path recreates it via `getOrCreatePodcastEpisode`).
   private func startRecommendationObservation() {
     if let recommendationTask, !recommendationTask.isCancelled {
       Self.log.debug("Recommendation observation already active; not starting again")
