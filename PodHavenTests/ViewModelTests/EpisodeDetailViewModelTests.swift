@@ -189,6 +189,104 @@ import Testing
     )
   }
 
+  @Test("addTag restarts tag observation after saved episode is deleted and re-saved")
+  func addTagRestartsTagObservationAfterDeleteAndResave() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Tag Delete Resave"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "tag-delete-resave",
+          title: "Tag Delete Resave"
+        )
+      )
+    )
+    let tag = try await repo.insertTag(UnsavedTag(name: "Recovered"))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    try await viewModel.performAppear()
+    _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
+
+    try await Wait.until(
+      { @MainActor in !viewModel.episode.isSaved },
+      { @MainActor in
+        "Expected deleted saved episode to revert before re-saving. episode: \(viewModel.episode.toString)"
+      }
+    )
+
+    viewModel.addTag(tag.id)
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episode.isSaved && viewModel.tags.map(\.id) == [tag.id]
+      },
+      { @MainActor in
+        """
+        Expected addTag to re-save the episode and observe tags for the new episode ID.
+        saved: \(viewModel.episode.isSaved)
+        tags: \(viewModel.tags.map(\.name))
+        """
+      }
+    )
+  }
+
+  @Test(
+    "recommendation observation clears and bootstraps after saved episode is deleted and re-saved"
+  )
+  func recommendationObservationClearsAndBootstrapsAfterDeleteAndResave() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Detail Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Recommendation Delete Resave"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "recommendation-delete-resave",
+          title: "Recommendation Delete Resave"
+        )
+      )
+    )
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
+
+    let tag = try await repo.insertTag(UnsavedTag(name: "Re-score"))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in viewModel.displayedRecommendationScore != nil },
+      { @MainActor in "Expected recommendation score to bootstrap for the saved episode." }
+    )
+
+    _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
+
+    try await Wait.until(
+      { @MainActor in !viewModel.episode.isSaved },
+      { @MainActor in
+        "Expected deleted saved episode to revert before re-saving. episode: \(viewModel.episode.toString)"
+      }
+    )
+    #expect(viewModel.displayedRecommendationScore == nil)
+
+    viewModel.addTag(tag.id)
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episode.isSaved && viewModel.displayedRecommendationScore != nil
+      },
+      { @MainActor in
+        """
+        Expected re-saved episode to bootstrap recommendation score without waiting for a new engine revision.
+        saved: \(viewModel.episode.isSaved)
+        score: \(String(describing: viewModel.displayedRecommendationScore?.value))
+        """
+      }
+    )
+  }
+
   @Test("addToTopOfQueue is a no-op for the first queued episode")
   func addToTopOfQueueIsNoOpForFirstQueuedEpisode() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
