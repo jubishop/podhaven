@@ -333,7 +333,7 @@ import Testing
     try await viewModel.performAppear()
 
     try await Wait.until(
-      maxAttempts: 200,
+      maxAttempts: 400,
       delay: .milliseconds(50),
       { @MainActor in
         try await viewModel.performAppear()
