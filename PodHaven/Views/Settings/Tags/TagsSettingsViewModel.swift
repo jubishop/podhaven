@@ -19,6 +19,7 @@ import SwiftUI
 
   var tags: IdentifiedArrayOf<Tag> { sharedState.tags }
   var podcastCounts: [Tag.ID: Int] = [:]
+  var episodeCounts: [Tag.ID: Int] = [:]
   var newTagName: String = ""
   var editingTagID: Tag.ID?
   var editingTagName: String = ""
@@ -26,13 +27,37 @@ import SwiftUI
   // MARK: - Initialization
 
   func execute() async {
+    await withDiscardingTaskGroup { group in
+      group.addTask { [weak self] in
+        guard let self else { return }
+        await observePodcastCounts()
+      }
+      group.addTask { [weak self] in
+        guard let self else { return }
+        await observeEpisodeCounts()
+      }
+    }
+  }
+
+  private func observePodcastCounts() async {
     do {
       for try await counts in observatory.podcastCountsByTag() {
         guard !Task.isCancelled else { return }
         podcastCounts = counts
       }
     } catch {
-      Self.log.caughtError("execute: podcastCountsByTag observation failed", error)
+      Self.log.caughtError("observePodcastCounts: observation failed", error)
+    }
+  }
+
+  private func observeEpisodeCounts() async {
+    do {
+      for try await counts in observatory.episodeCountsByTag() {
+        guard !Task.isCancelled else { return }
+        episodeCounts = counts
+      }
+    } catch {
+      Self.log.caughtError("observeEpisodeCounts: observation failed", error)
     }
   }
 
@@ -109,22 +134,41 @@ import SwiftUI
   }
 
   func deleteTag(_ tagID: Tag.ID) {
-    let count = podcastCounts[tagID] ?? 0
-    if count > 0 {
-      let tagName = tags[id: tagID]?.name ?? "this tag"
-      alert(
-        title: "Delete Tag?",
-        "\"\(tagName)\" is used by \(count) \(count == 1 ? "podcast" : "podcasts"). Are you sure you want to delete it?"
-      ) { [weak self] in
-        Button("Delete", role: .destructive) {
-          guard let self else { return }
-          self.performDeleteTag(tagID)
-        }
-        Button("Cancel", role: .cancel) {}
+    let tagName = tags[id: tagID]?.name ?? "this tag"
+    let podcastCount = podcastCounts[tagID] ?? 0
+    let episodeCount = episodeCounts[tagID] ?? 0
+    let message: String =
+      if podcastCount > 0 || episodeCount > 0 {
+        """
+        \"\(tagName)\" is used by \
+        \(Self.usageDescription(podcasts: podcastCount, episodes: episodeCount)). \
+        Are you sure you want to delete it?
+        """
+      } else {
+        "Are you sure you want to delete \"\(tagName)\"?"
       }
-    } else {
-      performDeleteTag(tagID)
+
+    alert(
+      title: "Delete Tag?",
+      message
+    ) { [weak self] in
+      Button("Delete", role: .destructive) {
+        guard let self else { return }
+        self.performDeleteTag(tagID)
+      }
+      Button("Cancel", role: .cancel) {}
     }
+  }
+
+  private static func usageDescription(podcasts: Int, episodes: Int) -> String {
+    var parts = [String](capacity: 2)
+    if podcasts > 0 {
+      parts.append("\(podcasts) \(podcasts == 1 ? "podcast" : "podcasts")")
+    }
+    if episodes > 0 {
+      parts.append("\(episodes) \(episodes == 1 ? "episode" : "episodes")")
+    }
+    return parts.joined(separator: " and ")
   }
 
   // MARK: - Private Helpers

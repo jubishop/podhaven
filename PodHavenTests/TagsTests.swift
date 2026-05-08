@@ -149,6 +149,32 @@ class TagsTests {
     #expect(tags.map(\.name) == ["News", "Tech"])
   }
 
+  @Test("observatory.episodeCountsByTag() returns correct counts per tag")
+  func episodeCountsByTag() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "ep-a"),
+          try Create.unsavedEpisode(guid: "ep-b"),
+        ]
+      )
+    )
+    let episodeIDs = series.episodes.map(\.id)
+    let tagOne = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
+    let tagTwo = try await repo.insertTag(UnsavedTag(name: "Listen Later"))
+    _ = try await repo.insertTag(UnsavedTag(name: "Unattached"))
+
+    try await repo.addTag(tagOne.id, to: episodeIDs[0])
+    try await repo.addTag(tagOne.id, to: episodeIDs[1])
+    try await repo.addTag(tagTwo.id, to: episodeIDs[0])
+
+    let counts = try await observatory.episodeCountsByTag().get()
+    #expect(counts[tagOne.id] == 2)
+    #expect(counts[tagTwo.id] == 1)
+    #expect(counts.count == 2)
+  }
+
   @Test("observatory.podcastCountsByTag() returns correct counts per tag")
   func podcastCountsByTag() async throws {
     let seriesA = try await repo.insertSeries(
@@ -213,6 +239,32 @@ class TagsTests {
 
     let secondRemove = try await repo.removeTag(tag.id, from: episode.id)
     #expect(!secondRemove)
+  }
+
+  @Test("observatory.podcastEpisodeWithTags() returns tags ordered by case-insensitive name")
+  func observatoryPodcastEpisodeWithTagsReturnsOrderedTags() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let episode = series.episodes[0]
+
+    // Names chosen so binary and .nocase orderings diverge: binary sorts to
+    // [Apple, Cherry, banana] (uppercase before lowercase), case-insensitive
+    // sorts to [Apple, banana, Cherry].
+    let banana = try await repo.insertTag(UnsavedTag(name: "banana"))
+    let cherry = try await repo.insertTag(UnsavedTag(name: "Cherry"))
+    let apple = try await repo.insertTag(UnsavedTag(name: "Apple"))
+    _ = try await repo.insertTag(UnsavedTag(name: "Unattached"))
+
+    try await repo.addTag(banana.id, to: episode.id)
+    try await repo.addTag(cherry.id, to: episode.id)
+    try await repo.addTag(apple.id, to: episode.id)
+
+    let observed = try #require(try await observatory.podcastEpisodeWithTags(episode.id).get())
+    #expect(observed.tags.map(\.name) == ["Apple", "banana", "Cherry"])
   }
 
   @Test("deleteTag() cascades through episodeTag mappings")

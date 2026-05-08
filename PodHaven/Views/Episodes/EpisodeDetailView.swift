@@ -33,6 +33,17 @@ struct EpisodeDetailView: View {
 
         Divider()
 
+        if viewModel.episode.isSaved {
+          TagsView(
+            tags: viewModel.tags,
+            allTags: Container.shared.sharedState().tags,
+            onAdd: viewModel.addTag,
+            onRemove: viewModel.removeTag
+          )
+
+          Divider()
+        }
+
         descriptionView
       }
       .padding()

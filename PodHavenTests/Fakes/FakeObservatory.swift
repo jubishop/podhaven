@@ -21,6 +21,11 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     [@Sendable () -> AsyncValueObservation<ScoringContextInputs>]
   >([])
 
+  // Same shape as `scoringContextInputsScript` but for podcastEpisodeWithTags.
+  let podcastEpisodeWithTagsScript = ThreadSafe<
+    [@Sendable (Episode.ID) -> AsyncValueObservation<PodcastEpisodeWithTags?>]
+  >([])
+
   private let observatory: any Observing
 
   init(_ observatory: any Observing) {
@@ -126,6 +131,11 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.podcastCountsByTag()
   }
 
+  func episodeCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
+    recordCall(methodName: "episodeCountsByTag", parameters: ())
+    return observatory.episodeCountsByTag()
+  }
+
   // MARK: - On Deck
 
   func onDeck(_ episodeID: Episode.ID) -> AsyncValueObservation<OnDeck?> {
@@ -140,11 +150,17 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.podcastSeries(podcastID)
   }
 
-  func episode<T: FetchableRecord & Equatable>(
-    _ episodeID: Episode.ID
-  ) -> AsyncValueObservation<T?> {
-    recordCall(methodName: "episode", parameters: episodeID)
-    return observatory.episode(episodeID)
+  func podcastEpisodeWithTags(_ episodeID: Episode.ID)
+    -> AsyncValueObservation<PodcastEpisodeWithTags?>
+  {
+    recordCall(methodName: "podcastEpisodeWithTags", parameters: episodeID)
+    var script = podcastEpisodeWithTagsScript()
+    if let next = script.first {
+      script.removeFirst()
+      podcastEpisodeWithTagsScript(script)
+      return next(episodeID)
+    }
+    return observatory.podcastEpisodeWithTags(episodeID)
   }
 
   // MARK: - Recommendations

@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Logging
 import SwiftUI
 import Tagged
@@ -27,6 +28,7 @@ import Tagged
   private let originTab: Navigation.Tab
   private let detailSource: EpisodeDetailSource
   var episode: DisplayedEpisode
+  var tags: IdentifiedArrayOf<Tag> = []
   private var recommendationScore: RecommendationScore?
   private var _podcastEpisode: PodcastEpisode?
   private var podcastEpisode: PodcastEpisode? {
@@ -395,11 +397,57 @@ import Tagged
     }
   }
 
+  // MARK: - Tag Management
+
+  func addTag(_ tagID: Tag.ID) {
+    guard let episodeID = episode.episodeID else {
+      Self.log.warning("Cannot add tag to unsaved episode")
+      return
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        try await repo.addTag(tagID, to: episodeID)
+      } catch {
+        Self.log.caughtError("addTag: failed to add tag \(tagID) to episode \(episodeID)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func removeTag(_ tagID: Tag.ID) {
+    guard let episodeID = episode.episodeID else {
+      Self.log.warning("Cannot remove tag from unsaved episode")
+      return
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        try await repo.removeTag(tagID, from: episodeID)
+      } catch {
+        Self.log.caughtError(
+          "removeTag: failed to remove tag \(tagID) from episode \(episodeID)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
   // MARK: - Observation Management
 
   @ObservationIgnored private var observationTask: Task<Void, Never>?
 
   private func startObservation() {
+    guard let podcastEpisode = self.podcastEpisode
+    else { Assert.fatal("Observing a non-saved podcastEpisode") }
+
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
       return
@@ -407,39 +455,49 @@ import Tagged
 
     observationTask = Task { [weak self] in
       guard let self else { return }
-
-      await observePodcastEpisode()
-      clearObservationTask()
+      await observePodcastEpisode(podcastEpisode)
     }
   }
 
-  private func observePodcastEpisode() async {
-    guard let podcastEpisode = self.podcastEpisode
-    else { Assert.fatal("Observing a non-saved podcastEpisode") }
-
+  private func observePodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
     Self.log.debug("Starting observation for episode: \(podcastEpisode.toString)")
 
+    // Clear our reference on any natural exit (deletion, error, normal end).
+    // Skip when we were cancelled — disappear() or a re-binding
+    // startObservation() has already cleared/replaced observationTask, and
+    // stomping it would kill a newer task.
+    defer {
+      if !Task.isCancelled {
+        observationTask = nil
+      }
+    }
+
     do {
-      for try await updatedEpisode: PodcastEpisode? in self.observatory.episode(podcastEpisode.id) {
+      for try await updated in observatory.podcastEpisodeWithTags(podcastEpisode.id) {
         try Task.checkCancellation()
 
-        Self.log.debug("Updating observed episode: \(String(describing: updatedEpisode?.toString))")
+        Self.log.debug(
+          "Updating observed episode: \(String(describing: updated?.podcastEpisode.toString))"
+        )
 
-        guard let updatedEpisode
+        guard let updated
         else {
           Self.log.debug("Episode was deleted")
+          let deletedPresentation = try detailSource.deletedObservedPresentation(podcastEpisode)
+          tags = []
+          clearRecommendationTask()
+          recommendationScore = nil
           _podcastEpisode = nil
-          episode = try detailSource.deletedObservedPresentation(podcastEpisode)
+          episode = deletedPresentation
           return
         }
 
-        guard updatedEpisode != self.podcastEpisode
-        else {
-          Self.log.debug("New episode is the same as the current one, skipping update")
-          continue
+        if updated.podcastEpisode != self.podcastEpisode {
+          self.podcastEpisode = updated.podcastEpisode
         }
-
-        self.podcastEpisode = updatedEpisode
+        if tags != updated.tags {
+          tags = updated.tags
+        }
       }
     } catch {
       Self.log.caughtError(
@@ -447,6 +505,11 @@ import Tagged
         error
       )
     }
+  }
+
+  private func clearObservationTask() {
+    observationTask?.cancel()
+    observationTask = nil
   }
 
   // MARK: - Recommendation Observation
@@ -489,22 +552,17 @@ import Tagged
     }
   }
 
+  private func clearRecommendationTask() {
+    recommendationTask?.cancel()
+    recommendationTask = nil
+  }
+
   // MARK: - Disappear
 
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
     clearRecommendationTask()
-  }
-
-  private func clearObservationTask() {
-    observationTask?.cancel()
-    observationTask = nil
-  }
-
-  private func clearRecommendationTask() {
-    recommendationTask?.cancel()
-    recommendationTask = nil
   }
 
   // MARK: - Private Helpers
@@ -514,14 +572,6 @@ import Tagged
     await playManager.seek(to: CMTime.seconds(Double(seconds)))
     await playManager.play()
   }
-
-  #if DEBUG
-  // Preview-only seed; production code drives `recommendationScore`
-  // exclusively through `startRecommendationObservation`.
-  func previewSeedRecommendationScore(_ score: RecommendationScore?) {
-    recommendationScore = score
-  }
-  #endif
 
   private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
@@ -534,4 +584,14 @@ import Tagged
     startRecommendationObservation()
     return podcastEpisode
   }
+
+  // MARK: - Preview Helpers
+
+  #if DEBUG
+  // Preview-only seed; production code drives `recommendationScore`
+  // exclusively through `startRecommendationObservation`.
+  func previewSeedRecommendationScore(_ score: RecommendationScore?) {
+    recommendationScore = score
+  }
+  #endif
 }
