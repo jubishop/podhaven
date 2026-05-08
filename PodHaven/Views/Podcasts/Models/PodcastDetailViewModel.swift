@@ -50,9 +50,17 @@ class PodcastDetailViewModel:
 
       // Careful to only update allEntries once
       var allEntries = episodeList.allEntries
+      let tagIDsByEpisodeId = newValue.tagIDsByEpisodeId
       for episode in newValue.episodes {
+        let tagIDs: Set<Tag.ID>?
+        if let tagIDsByEpisodeId {
+          tagIDs = tagIDsByEpisodeId[episode.id] ?? []
+        } else {
+          tagIDs = nil
+        }
         allEntries[id: episode.unsaved.id] = DisplayedEpisode(
-          PodcastEpisode(podcast: newValue.podcast, episode: episode)
+          PodcastEpisode(podcast: newValue.podcast, episode: episode),
+          tagIDs: tagIDs
         )
       }
       episodeList.allEntries = allEntries

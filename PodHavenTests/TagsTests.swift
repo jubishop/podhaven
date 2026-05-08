@@ -217,8 +217,8 @@ class TagsTests {
     #expect(try await observatory.tags().get().isEmpty)
   }
 
-  @Test("addTag(to episode) throws on duplicate and removeTag(from episode) unassigns")
-  func assignAndUnassignEpisodeTags() async throws {
+  @Test("addTag(to episode) throws SQLITE_CONSTRAINT_UNIQUE on duplicate")
+  func addTagToEpisodeThrowsUniqueOnDuplicate() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
@@ -230,8 +230,16 @@ class TagsTests {
     let tag = try await repo.insertTag(UnsavedTag(name: "Favorite"))
     try await repo.addTag(tag.id, to: episode.id)
 
-    await #expect(throws: DatabaseError.self) {
-      try await self.repo.addTag(tag.id, to: episode.id)
+    // Pins the error pattern that applyTagToSelectedEpisodes' bulk catch
+    // relies on — see SelectableEpisodeList.applyTagToSelectedEpisodes.
+    // If GRDB ever stops surfacing this duplicate as
+    // DatabaseError.SQLITE_CONSTRAINT_UNIQUE, the production catch
+    // silently turns into a generic .error log; this test fails first.
+    do {
+      try await repo.addTag(tag.id, to: episode.id)
+      Issue.record("expected duplicate addTag to throw SQLITE_CONSTRAINT_UNIQUE")
+    } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
+      // expected
     }
 
     let firstRemove = try await repo.removeTag(tag.id, from: episode.id)

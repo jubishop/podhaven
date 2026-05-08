@@ -134,8 +134,9 @@ extension SelectableEpisodeList {
     for episode in selectedEpisodes {
       guard let tagIDs = episode.tagIDs else { continue }
       if let current = intersection {
-        intersection = current.intersection(tagIDs)
-        if intersection?.isEmpty == true { return [] }
+        let next = current.intersection(tagIDs)
+        if next.isEmpty { return [] }
+        intersection = next
       } else {
         intersection = tagIDs
       }

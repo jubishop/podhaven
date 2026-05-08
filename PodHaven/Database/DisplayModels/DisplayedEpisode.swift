@@ -13,13 +13,20 @@ struct DisplayedEpisode:
   @DynamicInjected(\.repo) private var repo
 
   let episode: any EpisodeDisplayable
+  // Overrides the `EpisodeListable.tagIDs` default (`nil`) so detail-view
+  // rows wrapping a `PodcastEpisode` (which carries no tag column) can still
+  // surface tag data plumbed in by the view model. Static member resolution
+  // beats `@dynamicMemberLookup`, so without this stored property every
+  // `DisplayedEpisode.tagIDs` would resolve to the protocol default.
+  let tagIDs: Set<Tag.ID>?
 
-  init(_ episode: any EpisodeDisplayable) {
+  init(_ episode: any EpisodeDisplayable, tagIDs: Set<Tag.ID>? = nil) {
     Assert.precondition(
       !(episode is DisplayedEpisode),
       "Cannot wrap a wrapper type as a DisplayedEpisode"
     )
     self.episode = episode
+    self.tagIDs = tagIDs
   }
 
   subscript<T>(dynamicMember keyPath: KeyPath<any EpisodeDisplayable, T>) -> T {
@@ -42,9 +49,12 @@ struct DisplayedEpisode:
     } else {
       Assert.fatal("Can't make hash from: \(type(of: episode))")
     }
+    hasher.combine(tagIDs)
   }
 
   static func == (lhs: DisplayedEpisode, rhs: DisplayedEpisode) -> Bool {
+    guard lhs.tagIDs == rhs.tagIDs else { return false }
+
     if let leftPodcastEpisode = lhs.getPodcastEpisode(),
       let rightPodcastEpisode = rhs.getPodcastEpisode()
     {

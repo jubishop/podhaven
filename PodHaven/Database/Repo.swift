@@ -75,12 +75,15 @@ struct Repo: Databasing {
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
     try await appDB.db.read { db in
-      try Podcast
-        .withID(podcastID)
-        .including(all: Podcast.episodes)
-        .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
-        .asRequest(of: PodcastSeries.self)
-        .fetchOne(db)
+      guard
+        let raw = try Podcast
+          .withID(podcastID)
+          .including(all: Podcast.episodes)
+          .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
+          .asRequest(of: PodcastSeries.self)
+          .fetchOne(db)
+      else { return nil }
+      return try raw.withFoldedEpisodeTagIDs(db: db)
     }
   }
 
@@ -95,10 +98,12 @@ struct Repo: Databasing {
         .asRequest(of: PodcastSeries.self)
       // feedURL takes priority over iTunesID
       if let result = try base.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
-        return result
+        return try result.withFoldedEpisodeTagIDs(db: db)
       }
       if let iTunesID {
-        return try base.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
+        guard let result = try base.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
+        else { return nil }
+        return try result.withFoldedEpisodeTagIDs(db: db)
       }
       return nil
     }

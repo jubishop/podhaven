@@ -397,6 +397,43 @@ import Testing
     )
   }
 
+  @Test("selected episode tag helpers use saved episode tag IDs")
+  func selectedEpisodeTagHelpersUseSavedEpisodeTagIDs() async throws {
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Tagged Detail"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "detail-tagged-1"),
+          try Create.unsavedEpisode(guid: "detail-tagged-2"),
+        ]
+      )
+    )
+    let firstEpisode = savedSeries.episodes[0]
+    let secondEpisode = savedSeries.episodes[1]
+    let alpha = try await repo.insertTag(UnsavedTag(name: "Alpha"))
+    let beta = try await repo.insertTag(UnsavedTag(name: "Beta"))
+    let cherry = try await repo.insertTag(UnsavedTag(name: "Cherry"))
+
+    try await repo.addTag(alpha.id, to: firstEpisode.id)
+    try await repo.addTag(beta.id, to: firstEpisode.id)
+    try await repo.addTag(beta.id, to: secondEpisode.id)
+    try await repo.addTag(cherry.id, to: secondEpisode.id)
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count == 2 },
+      { @MainActor in
+        "Expected saved podcast detail episodes to load before selection."
+      }
+    )
+
+    try select(viewModel, episodeIDs: [firstEpisode.id, secondEpisode.id])
+    #expect(viewModel.selectedEpisodesTagIntersection == [beta.id])
+    #expect(viewModel.selectedEpisodesTagUnion == [alpha.id, beta.id, cherry.id])
+  }
+
   @Test("refreshing a series under newestFirst places a new episode at the top, not the bottom")
   func refreshMergesNewEpisodeAtTopUnderNewestFirstSort() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/refresh-sort.rss")!)
@@ -588,5 +625,12 @@ import Testing
 
   private func searchResultFeedURL() -> FeedURL {
     FeedURL(URL(string: "https://example.com/search-result.rss")!)
+  }
+
+  private func select(_ viewModel: PodcastDetailViewModel, episodeIDs: [Episode.ID]) throws {
+    for episodeID in episodeIDs {
+      let entry = try #require(viewModel.episodeList.allEntries.first { $0.episodeID == episodeID })
+      viewModel.episodeList.isSelected[entry.id] = true
+    }
   }
 }
