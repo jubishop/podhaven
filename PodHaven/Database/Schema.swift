@@ -662,6 +662,10 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v43") { db in
+      try db.create(index: "episode_on_pubDate", on: "episode", columns: ["pubDate"])
+    }
+
     return migrator
   }
 
