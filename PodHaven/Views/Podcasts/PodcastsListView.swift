@@ -89,10 +89,6 @@ struct PodcastsListView: View {
               isSelecting: viewModel.podcastList.isSelecting,
               isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
             )
-            .podcastSwipeActions(
-              viewModel: viewModel,
-              podcast: podcastWithEpisodeMetadata.podcast
-            )
             .podcastContextMenu(
               viewModel: viewModel,
               podcast: podcastWithEpisodeMetadata.podcast
