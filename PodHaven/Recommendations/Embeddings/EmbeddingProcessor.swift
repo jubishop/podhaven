@@ -17,7 +17,7 @@ extension Container {
 // MARK: - EmbeddingProcessor
 
 struct EmbeddingProcessor: Sendable {
-  @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
 
   private static let log = Log.as(LogSubsystem.Recommendations.processor)
 
@@ -54,7 +54,7 @@ struct EmbeddingProcessor: Sendable {
         // IDs only — full Episode rows are hydrated in chunks as they are
         // processed so a BG-expiry doesn't waste a multi-second hydration pass.
         let queryStart = ContinuousClock.now
-        let idsToProcess = try await repo.episodesNeedingEmbeddings(
+        let idsToProcess = try await recommendationRepo.episodesNeedingEmbeddings(
           revision: embedding.revision
         )
         let queryDuration = ContinuousClock.now - queryStart

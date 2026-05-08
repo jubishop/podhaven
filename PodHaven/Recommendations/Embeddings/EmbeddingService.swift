@@ -47,13 +47,13 @@ enum EmbeddingService {
     embedding: ContextualEmbedding
   ) async throws {
     guard !episodeIDs.isEmpty else { return }
-    let repo = Container.shared.repo()
+    let recommendationRepo = Container.shared.recommendationRepo()
 
     for start in stride(from: 0, to: episodeIDs.count, by: hydrationChunkSize) {
       try Task.checkCancellation()
       let end = min(start + hydrationChunkSize, episodeIDs.count)
       let chunk = Array(episodeIDs[start..<end])
-      let episodes = try await repo.episodes(for: chunk)
+      let episodes = try await recommendationRepo.episodes(for: chunk)
       try await upsertEpisodeEmbeddings(for: episodes, embedding: embedding)
     }
   }
@@ -64,14 +64,14 @@ enum EmbeddingService {
   ) async throws {
     guard !episodes.isEmpty else { return }
 
-    let repo = Container.shared.repo()
+    let recommendationRepo = Container.shared.recommendationRepo()
 
     let episodeIDs = episodes.map(\.id)
-    let embeddingsByEpisodeID = try await repo.embeddings(for: episodeIDs)
+    let embeddingsByEpisodeID = try await recommendationRepo.embeddings(for: episodeIDs)
 
     let podcastIDs = Array(Set(episodes.map(\.podcastID)))
-    let podcastsByID = try await repo.podcasts(for: podcastIDs)
-    let podcastEmbeddings = try await repo.podcastEmbeddings(for: podcastIDs)
+    let podcastsByID = try await recommendationRepo.podcasts(for: podcastIDs)
+    let podcastEmbeddings = try await recommendationRepo.podcastEmbeddings(for: podcastIDs)
 
     // Cache podcast vectors so a batch with N episodes from the same show pays the cost once.
     var podcastVectorCache: [Podcast.ID: [Float]?] = [:]
@@ -141,8 +141,8 @@ enum EmbeddingService {
 
     // Flush even on cancellation so episodes embedded earlier in the chunk
     // land before the error propagates.
-    try await repo.upsertPodcastEmbeddings(pendingPodcastEmbeddings)
-    try await repo.upsertEmbeddings(pendingEpisodeEmbeddings)
+    try await recommendationRepo.upsertPodcastEmbeddings(pendingPodcastEmbeddings)
+    try await recommendationRepo.upsertEmbeddings(pendingEpisodeEmbeddings)
 
     if let caughtCancellation { throw caughtCancellation }
   }

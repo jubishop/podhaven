@@ -10,6 +10,7 @@ import Testing
 @Suite("EmbeddingService tests", .container)
 class EmbeddingServiceTests {
   @DynamicInjected(\.appDB) private var appDB
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
 
   // MARK: - Text Cleaning
@@ -105,7 +106,7 @@ class EmbeddingServiceTests {
       embedding: embedding
     )
 
-    let cached = try await repo.embedding(for: episode.id)
+    let cached = try await recommendationRepo.embedding(for: episode.id)
     #expect(cached != nil)
     #expect(cached?.dimension == 3)
 
@@ -116,7 +117,7 @@ class EmbeddingServiceTests {
       embedding: embedding
     )
 
-    let cached2 = try await repo.embedding(for: episode.id)
+    let cached2 = try await recommendationRepo.embedding(for: episode.id)
     #expect(cached2?.creationDate == originalComputedAt)
   }
 
@@ -137,8 +138,8 @@ class EmbeddingServiceTests {
       for: [episode],
       embedding: embedding
     )
-    let correctHash = try await repo.embedding(for: episode.id)!.sourceHash
-    let correctVector = try await repo.embedding(for: episode.id)!.floatVector
+    let correctHash = try await recommendationRepo.embedding(for: episode.id)!.sourceHash
+    let correctVector = try await recommendationRepo.embedding(for: episode.id)!.floatVector
 
     // Overwrite with a stale hash but different vector
     let staleVector: [Float] = [99.0, 99.0, 99.0]
@@ -149,10 +150,10 @@ class EmbeddingServiceTests {
       embeddingRevision: 1,
       dimension: 3
     )
-    try await repo.upsertEmbeddings([staleEmbedding])
+    try await recommendationRepo.upsertEmbeddings([staleEmbedding])
 
     // Verify stale embedding was saved
-    let afterStale = try await repo.embedding(for: episode.id)!
+    let afterStale = try await recommendationRepo.embedding(for: episode.id)!
     #expect(afterStale.sourceHash == "stale-hash")
 
     // Recompute — should detect stale hash and recompute
@@ -161,7 +162,7 @@ class EmbeddingServiceTests {
       embedding: embedding
     )
 
-    let refreshed = try await repo.embedding(for: episode.id)!
+    let refreshed = try await recommendationRepo.embedding(for: episode.id)!
     #expect(refreshed.sourceHash == correctHash)
     #expect(refreshed.floatVector == correctVector)
   }
@@ -186,7 +187,7 @@ class EmbeddingServiceTests {
       embedding: firstEmbedding
     )
 
-    let cached = try #require(try await repo.embedding(for: episode.id))
+    let cached = try #require(try await recommendationRepo.embedding(for: episode.id))
     #expect(cached.embeddingRevision == 1)
 
     try await EmbeddingService.upsertEpisodeEmbeddings(
@@ -194,7 +195,7 @@ class EmbeddingServiceTests {
       embedding: secondEmbedding
     )
 
-    let refreshed = try #require(try await repo.embedding(for: episode.id))
+    let refreshed = try #require(try await recommendationRepo.embedding(for: episode.id))
     #expect(refreshed.embeddingRevision == 2)
     #expect(refreshed.sourceHash == cached.sourceHash)
     #expect(refreshed.floatVector == cached.floatVector)
@@ -215,10 +216,10 @@ class EmbeddingServiceTests {
     )
 
     let initialEpisodeEmbedding = try #require(
-      try await repo.embedding(for: podcastEpisode.episode.id)
+      try await recommendationRepo.embedding(for: podcastEpisode.episode.id)
     )
     let initialPodcastEmbedding = try #require(
-      try await repo.podcastEmbedding(for: podcastEpisode.podcast.id)
+      try await recommendationRepo.podcastEmbedding(for: podcastEpisode.podcast.id)
     )
 
     let updatedPodcast = try makeUnsavedPodcast(
@@ -238,10 +239,10 @@ class EmbeddingServiceTests {
     )
 
     let refreshedEpisodeEmbedding = try #require(
-      try await repo.embedding(for: refreshedPodcastEpisode.episode.id)
+      try await recommendationRepo.embedding(for: refreshedPodcastEpisode.episode.id)
     )
     let refreshedPodcastEmbedding = try #require(
-      try await repo.podcastEmbedding(for: refreshedPodcastEpisode.podcast.id)
+      try await recommendationRepo.podcastEmbedding(for: refreshedPodcastEpisode.podcast.id)
     )
 
     #expect(refreshedEpisodeEmbedding.sourceHash != initialEpisodeEmbedding.sourceHash)
@@ -267,10 +268,10 @@ class EmbeddingServiceTests {
       embeddingRevision: embedding.revision,
       dimension: staleVector.count
     )
-    try await repo.upsertPodcastEmbeddings([staleEmbedding])
+    try await recommendationRepo.upsertPodcastEmbeddings([staleEmbedding])
 
     let cachedBeforeRefresh = try #require(
-      try await repo.podcastEmbedding(for: podcastEpisode.podcast.id)
+      try await recommendationRepo.podcastEmbedding(for: podcastEpisode.podcast.id)
     )
     #expect(cachedBeforeRefresh.sourceHash == "stale-hash")
 
@@ -280,7 +281,7 @@ class EmbeddingServiceTests {
     )
 
     let refreshedPodcastEmbedding = try #require(
-      try await repo.podcastEmbedding(for: podcastEpisode.podcast.id)
+      try await recommendationRepo.podcastEmbedding(for: podcastEpisode.podcast.id)
     )
     #expect(refreshedPodcastEmbedding.sourceHash != "stale-hash")
     #expect(refreshedPodcastEmbedding.embeddingRevision == embedding.revision)
@@ -309,7 +310,7 @@ class EmbeddingServiceTests {
       embeddingRevision: 2,
       dimension: 3
     )
-    try await repo.upsertEmbeddings([firstEpisodeEmbedding, secondEpisodeEmbedding])
+    try await recommendationRepo.upsertEmbeddings([firstEpisodeEmbedding, secondEpisodeEmbedding])
 
     let firstPodcastEmbedding = UnsavedPodcastEmbedding(
       podcastId: podcastEpisode.podcast.id,
@@ -325,13 +326,15 @@ class EmbeddingServiceTests {
       embeddingRevision: 2,
       dimension: 3
     )
-    try await repo.upsertPodcastEmbeddings([firstPodcastEmbedding, secondPodcastEmbedding])
+    try await recommendationRepo.upsertPodcastEmbeddings([
+      firstPodcastEmbedding, secondPodcastEmbedding,
+    ])
 
     let savedEpisodeEmbedding = try #require(
-      try await repo.embedding(for: podcastEpisode.episode.id)
+      try await recommendationRepo.embedding(for: podcastEpisode.episode.id)
     )
     let savedPodcastEmbedding = try #require(
-      try await repo.podcastEmbedding(for: podcastEpisode.podcast.id)
+      try await recommendationRepo.podcastEmbedding(for: podcastEpisode.podcast.id)
     )
     let episodeRowCount = try #require(
       try await appDB.db.read { db in
@@ -382,7 +385,7 @@ class EmbeddingServiceTests {
       embedding: embedding
     )
 
-    let saved = try #require(try await repo.embedding(for: pe.episode.id))
+    let saved = try #require(try await recommendationRepo.embedding(for: pe.episode.id))
     #expect(
       saved.sourceHash
         == "eeb76b9a3fd52168f833cb5a502110d190f699ae005da759c3497b93b4423702"
@@ -405,8 +408,8 @@ class EmbeddingServiceTests {
       embedding: embedding
     )
 
-    #expect(try await repo.podcastEmbedding(for: pe.podcast.id) != nil)
-    #expect(try await repo.embedding(for: pe.episode.id) != nil)
+    #expect(try await recommendationRepo.podcastEmbedding(for: pe.podcast.id) != nil)
+    #expect(try await recommendationRepo.embedding(for: pe.episode.id) != nil)
   }
 
   // MARK: - Batch Robustness
@@ -445,8 +448,8 @@ class EmbeddingServiceTests {
       embedding: embedding
     )
 
-    #expect(try await repo.embedding(for: bad.id) == nil)
-    #expect(try await repo.embedding(for: good.id) != nil)
+    #expect(try await recommendationRepo.embedding(for: bad.id) == nil)
+    #expect(try await recommendationRepo.embedding(for: good.id) != nil)
   }
 
   @Test("cancellation during batch preserves completed episodes")
@@ -486,8 +489,8 @@ class EmbeddingServiceTests {
       )
     }
 
-    #expect(try await repo.embedding(for: first.id) != nil)
-    #expect(try await repo.embedding(for: second.id) == nil)
+    #expect(try await recommendationRepo.embedding(for: first.id) != nil)
+    #expect(try await recommendationRepo.embedding(for: second.id) == nil)
   }
 
   // MARK: - Blend Discrimination
@@ -535,8 +538,8 @@ class EmbeddingServiceTests {
       embedding: embedding
     )
 
-    let vA = try #require(try await repo.embedding(for: epA.id)).floatVector
-    let vB = try #require(try await repo.embedding(for: epB.id)).floatVector
+    let vA = try #require(try await recommendationRepo.embedding(for: epA.id)).floatVector
+    let vB = try #require(try await recommendationRepo.embedding(for: epB.id)).floatVector
     let cosine = VectorMath.dotProduct(vA, vB)
     #expect(cosine < 0.3)
   }
@@ -569,7 +572,8 @@ class EmbeddingServiceTests {
       embedding: embedding
     )
 
-    let stored = try #require(try await repo.embedding(for: pe.episode.id)).floatVector
+    let stored = try #require(try await recommendationRepo.embedding(for: pe.episode.id))
+      .floatVector
     let ratio = stored[0] / stored[1]
     #expect(abs(ratio - 1.5) < 0.001)
   }
@@ -598,7 +602,7 @@ class EmbeddingServiceTests {
       embedding: embedding
     )
 
-    let stored = try #require(try await repo.podcastEmbedding(for: pe.podcast.id))
+    let stored = try #require(try await recommendationRepo.podcastEmbedding(for: pe.podcast.id))
       .floatVector
     let ratio = stored[0] / stored[1]
     #expect(abs(ratio - 1.5) < 0.001)

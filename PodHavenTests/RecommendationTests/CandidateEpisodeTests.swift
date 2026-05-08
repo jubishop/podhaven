@@ -11,6 +11,7 @@ import Testing
 @Suite("of CandidateEpisode tests", .container)
 actor CandidateEpisodeTests {
   @DynamicInjected(\.appDB) private var appDB
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
 
   @Test("CandidateEpisode projection skips heavy Episode columns")
@@ -90,7 +91,7 @@ actor CandidateEpisodeTests {
     )
     let candidate = series.episodes[0]
 
-    let candidates = try await repo.allCandidateEpisodes(excluding: nil)
+    let candidates = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
     #expect(candidates.count == 1)
     let only = try #require(candidates.first)
     #expect(only.id == candidate.id)

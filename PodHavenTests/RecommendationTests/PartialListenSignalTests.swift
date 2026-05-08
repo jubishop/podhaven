@@ -11,6 +11,7 @@ import Testing
 @Suite("RecommendationEngine partial-listen signal tests", .container)
 class PartialListenSignalTests {
   @DynamicInjected(\.recommendationEngine) private var engine
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
 
@@ -135,7 +136,7 @@ class PartialListenSignalTests {
     let legacyID = try #require(started.first?.id)
     try await repo.updateCurrentTime(legacyID, currentTime: CMTime.seconds(60))
 
-    let partials = try await repo.allUnratedListenedEpisodes()
+    let partials = try await recommendationRepo.allUnratedListenedEpisodes()
     #expect(partials.contains { $0.id == legacyID } == false)
   }
 }

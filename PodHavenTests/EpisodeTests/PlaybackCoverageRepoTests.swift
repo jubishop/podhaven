@@ -11,6 +11,7 @@ import Testing
 
 @Suite("of repo.updatePlayback tests", .container)
 class PlaybackCoverageRepoTests {
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
 
   // MARK: - Helpers
@@ -219,7 +220,7 @@ class PlaybackCoverageRepoTests {
     }
     #expect(bitmap == nil)
 
-    let partials = try await repo.allUnratedListenedEpisodes()
+    let partials = try await recommendationRepo.allUnratedListenedEpisodes()
     #expect(partials.isEmpty)
   }
 
