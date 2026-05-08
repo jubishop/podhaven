@@ -28,9 +28,21 @@ extension Container: @retroactive AutoRegistering {
 
     mpRemoteCommandCenter.context(.test) { FakeMPRemoteCommandCenter() }.scope(.cached)
     mpNowPlayingInfoCenter.context(.test) { FakeMPNowPlayingInfoCenter() }.scope(.cached)
-    MainActor.assumeIsolated {
-      _ = avPlayer.context(.test) { FakeAVPlayer() }.scope(.cached)
+    // `avPlayer` is `@MainActor` in the production extension, so reading it
+    // requires Main isolation. `autoRegister()` is a non-isolated protocol
+    // requirement and runs on whichever actor first resolves any factory in
+    // this container — under Swift Testing that's the cooperative pool, where
+    // `MainActor.assumeIsolated` traps. Construct the registration directly
+    // with the matching key (the production accessor uses `key: #function` =
+    // `"avPlayer"`) so we don't touch the `@MainActor` accessor here. The
+    // default closure is unreachable because xctest auto-activates `.test`.
+    _ = Factory<any AVPlayable>(self, key: "avPlayer") {
+      Assert.fatal("avPlayer default closure resolved in tests — .test override should always win")
     }
+    .context(.test) {
+      MainActor.assumeIsolated { FakeAVPlayer() }
+    }
+    .scope(.cached)
     loadEpisodeAsset.context(.test) { self.fakeEpisodeAssetLoader().loadEpisodeAsset }
     configureAudioSession.context(.test) {
       {
@@ -68,9 +80,16 @@ extension Container: @retroactive AutoRegistering {
     standardDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
     sharedDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
 
-    MainActor.assumeIsolated {
-      _ = uiApplication.context(.test) { FakeApplication() }.scope(.cached)
+    // Same reasoning as `avPlayer` above: `uiApplication` is `@MainActor` in
+    // production. Match its `#function` key directly to register the `.test`
+    // override without touching the `@MainActor` accessor.
+    _ = Factory<any ApplicationProviding>(self, key: "uiApplication") {
+      Assert.fatal(
+        "uiApplication default closure resolved in tests — .test override should always win"
+      )
     }
+    .context(.test) { FakeApplication() }
+    .scope(.cached)
 
     bgTaskScheduler.context(.test) { FakeBGTaskScheduler() }.scope(.cached)
 
