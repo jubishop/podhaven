@@ -23,6 +23,13 @@ import Logging
   func addTag(_ tagID: Tag.ID, to episode: EpisodeType)
   func removeTag(_ tagID: Tag.ID, from episode: EpisodeType)
 
+  // Tags currently assigned to `episode`, or `nil` when this view model has
+  // no tag UI for it (e.g. unsaved/preview episodes). Default returns nil;
+  // overridden where tag data is available — directly on the episode (see
+  // the `ListablePodcastEpisode` specialisation) or via a sibling map kept
+  // by the view model (e.g. `PodcastDetailViewModel`).
+  func tagIDs(for episode: EpisodeType) -> Set<Tag.ID>?
+
   func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
 }
 
@@ -305,6 +312,8 @@ extension ManagingEpisodes {
     }
   }
 
+  func tagIDs(for episode: EpisodeType) -> Set<Tag.ID>? { nil }
+
   // MARK: - Helpers
 
   private func getOrCreateEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID {
@@ -322,4 +331,6 @@ extension ManagingEpisodes where EpisodeType == ListablePodcastEpisode {
   func getOrCreatePodcastEpisode(_ episode: ListablePodcastEpisode) async throws -> PodcastEpisode {
     try await episode.getPodcastEpisode()
   }
+
+  func tagIDs(for episode: ListablePodcastEpisode) -> Set<Tag.ID>? { episode.tagIDs }
 }

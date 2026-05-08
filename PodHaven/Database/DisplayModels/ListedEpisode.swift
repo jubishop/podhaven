@@ -34,7 +34,6 @@ struct ListedEpisode:
     var podcastImage: URL { canonicalEpisode.podcastImage }
     var saveInCache: Bool { canonicalEpisode.saveInCache }
     var rating: EpisodeRating? { canonicalEpisode.rating }
-    var tagIDs: Set<Tag.ID>? { canonicalEpisode.tagIDs }
 
     var unsavedPodcastEpisode: UnsavedPodcastEpisode? {
       guard case .unsaved(let episode) = self else { return nil }
@@ -73,7 +72,6 @@ struct ListedEpisode:
   var podcastImage: URL { source.podcastImage }
   var saveInCache: Bool { source.saveInCache }
   var rating: EpisodeRating? { source.rating }
-  var tagIDs: Set<Tag.ID>? { source.tagIDs }
 
   // MARK: - Helpers
 

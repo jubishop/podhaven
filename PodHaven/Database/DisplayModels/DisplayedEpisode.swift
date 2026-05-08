@@ -13,18 +13,13 @@ struct DisplayedEpisode:
   @DynamicInjected(\.repo) private var repo
 
   let episode: any EpisodeDisplayable
-  // Stored independently of `episode.tagIDs` because wrapped types like
-  // `PodcastEpisode` carry no tag column; the view model plumbs the
-  // current tag set in here so detail-view rows can still drive tag UI.
-  let tagIDs: Set<Tag.ID>?
 
-  init(_ episode: any EpisodeDisplayable, tagIDs: Set<Tag.ID>? = nil) {
+  init(_ episode: any EpisodeDisplayable) {
     Assert.precondition(
       !(episode is DisplayedEpisode),
       "Cannot wrap a wrapper type as a DisplayedEpisode"
     )
     self.episode = episode
-    self.tagIDs = tagIDs
   }
 
   subscript<T>(dynamicMember keyPath: KeyPath<any EpisodeDisplayable, T>) -> T {
@@ -47,12 +42,9 @@ struct DisplayedEpisode:
     } else {
       Assert.fatal("Can't make hash from: \(type(of: episode))")
     }
-    hasher.combine(tagIDs)
   }
 
   static func == (lhs: DisplayedEpisode, rhs: DisplayedEpisode) -> Bool {
-    guard lhs.tagIDs == rhs.tagIDs else { return false }
-
     if let leftPodcastEpisode = lhs.getPodcastEpisode(),
       let rightPodcastEpisode = rhs.getPodcastEpisode()
     {

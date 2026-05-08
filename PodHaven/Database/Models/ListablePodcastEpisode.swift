@@ -84,10 +84,9 @@ struct ListablePodcastEpisode:
   let creationDate: Date
   let queueDate: Date?
   let rating: EpisodeRating?
-  // Always materialised by the correlated subquery; Optional only to
-  // satisfy the `EpisodeListable.tagIDs` requirement, where shapes without
-  // tag data return `nil`. Empty Set means "row exists, no tags".
-  let tagIDs: Set<Tag.ID>?
+  // Materialised by the correlated subquery in `databaseSelection`. Empty
+  // Set means "row exists, no tags".
+  let tagIDs: Set<Tag.ID>
 
   // MARK: - Podcast Fields
 

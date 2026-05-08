@@ -6,9 +6,9 @@ import SwiftUI
 // MARK: - Selectable
 
 @MainActor @ToolbarContentBuilder
-func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel: ViewModel)
-  -> some ToolbarContent
-{
+func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingEpisodes>(
+  viewModel: ViewModel
+) -> some ToolbarContent {
   if viewModel.episodeList.isSelecting, viewModel.episodeList.anySelected {
     ToolbarItem(placement: .primaryAction) {
       Menu(
@@ -125,7 +125,7 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel:
 // Hidden whole-cloth when both filtered lists are empty so the menu never
 // offers an action that would no-op for the entire selection.
 @MainActor @ViewBuilder
-private func tagBulkMenu<ViewModel: SelectableEpisodeList>(
+private func tagBulkMenu<ViewModel: SelectableEpisodeList & ManagingEpisodes>(
   viewModel: ViewModel
 ) -> some View {
   let allTags = Container.shared.sharedState().tags

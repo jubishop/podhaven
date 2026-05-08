@@ -28,7 +28,6 @@ struct PodcastEpisode:
   var image: URL { episode.image ?? podcast.image }
   var podcastImage: URL { podcast.image }
   var saveInCache: Bool { episode.saveInCache }
-  var tagIDs: Set<Tag.ID>? { nil }
 
   // MARK: - EpisodeFoundational
 

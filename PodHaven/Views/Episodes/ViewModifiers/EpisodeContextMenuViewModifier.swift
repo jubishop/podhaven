@@ -105,7 +105,7 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
           }
         }
 
-        if let tagIDs = episode.tagIDs {
+        if let tagIDs = viewModel.tagIDs(for: episode) {
           tagMenu(tagIDs: tagIDs)
         }
       }

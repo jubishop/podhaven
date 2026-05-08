@@ -35,6 +35,10 @@ class PodcastDetailViewModel:
 
   private let originTab: Navigation.Tab
   var podcast: DisplayedPodcast
+  // Sibling map keyed by episode ID, kept in sync with `_podcastSeries.episodes`.
+  // Tag UI in row context menus and the bulk toolbar reads from here via
+  // `tagIDs(for:)` so episode display models stay free of tag plumbing.
+  private var tagIDsByEpisodeID: [Episode.ID: Set<Tag.ID>] = [:]
   private var _podcastSeries: PodcastSeries?
   private var podcastSeries: PodcastSeries? {
     get { _podcastSeries }
@@ -48,15 +52,19 @@ class PodcastDetailViewModel:
       podcast = DisplayedPodcast(newValue.podcast)
       isHydratingInitialPresentation = false
 
+      var nextTagIDsByEpisodeID = [Episode.ID: Set<Tag.ID>](capacity: newValue.episodes.count)
       // Careful to only update allEntries once
       var allEntries = episodeList.allEntries
       for episodeWithTags in newValue.episodes {
         let episode = episodeWithTags.episode
         allEntries[id: episode.unsaved.id] = DisplayedEpisode(
-          PodcastEpisode(podcast: newValue.podcast, episode: episode),
-          tagIDs: episodeWithTags.tagIDs
+          PodcastEpisode(podcast: newValue.podcast, episode: episode)
         )
+        if let tagIDs = episodeWithTags.tagIDs {
+          nextTagIDsByEpisodeID[episode.id] = tagIDs
+        }
       }
+      tagIDsByEpisodeID = nextTagIDsByEpisodeID
       episodeList.allEntries = allEntries
     }
   }
@@ -67,6 +75,11 @@ class PodcastDetailViewModel:
     let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
     startObservation(podcastEpisode.podcast.id)
     return podcastEpisode
+  }
+
+  func tagIDs(for episode: DisplayedEpisode) -> Set<Tag.ID>? {
+    guard let episodeID = episode.episodeID else { return nil }
+    return tagIDsByEpisodeID[episodeID]
   }
 
   // MARK: - SelectableEpisodeList & SortableEpisodeList

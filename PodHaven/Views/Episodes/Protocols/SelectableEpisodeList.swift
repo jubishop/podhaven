@@ -112,38 +112,6 @@ extension SelectableEpisodeList {
     selectedEpisodes.contains { $0.rating != nil }
   }
 
-  // MARK: - Tag Selection Helpers
-
-  // Tags present on at least one selected episode — drives the Remove Tag
-  // submenu so removing affects something. Episodes without tag data
-  // (`tagIDs == nil`) contribute nothing.
-  var selectedEpisodesTagUnion: Set<Tag.ID> {
-    selectedEpisodes.reduce(into: Set<Tag.ID>()) { union, episode in
-      if let tagIDs = episode.tagIDs {
-        union.formUnion(tagIDs)
-      }
-    }
-  }
-
-  // Tags present on every selected episode — adding any of these would be
-  // a no-op for the entire selection, so we strip them from Add Tag. Built
-  // from selections whose tag data is loaded; if none is loaded, no
-  // intersection is computed and Add Tag falls back to all tags.
-  var selectedEpisodesTagIntersection: Set<Tag.ID> {
-    var intersection: Set<Tag.ID>?
-    for episode in selectedEpisodes {
-      guard let tagIDs = episode.tagIDs else { continue }
-      if let current = intersection {
-        let next = current.intersection(tagIDs)
-        if next.isEmpty { return [] }
-        intersection = next
-      } else {
-        intersection = tagIDs
-      }
-    }
-    return intersection ?? []
-  }
-
   // MARK: - Actions
 
   func addSelectedEpisodesToBottomOfQueue() {
@@ -491,6 +459,40 @@ extension SelectableEpisodeList {
         }
       }
     }
+  }
+}
+
+// MARK: - Tag Selection Helpers
+
+extension SelectableEpisodeList where Self: ManagingEpisodes {
+  // Tags present on at least one selected episode — drives the Remove Tag
+  // submenu so removing affects something. Episodes without tag data
+  // (lookup returns nil) contribute nothing.
+  var selectedEpisodesTagUnion: Set<Tag.ID> {
+    selectedEpisodes.reduce(into: Set<Tag.ID>()) { union, episode in
+      if let tagIDs = tagIDs(for: episode) {
+        union.formUnion(tagIDs)
+      }
+    }
+  }
+
+  // Tags present on every selected episode — adding any of these would be
+  // a no-op for the entire selection, so we strip them from Add Tag. Built
+  // from selections whose tag data is loaded; if none is loaded, no
+  // intersection is computed and Add Tag falls back to all tags.
+  var selectedEpisodesTagIntersection: Set<Tag.ID> {
+    var intersection: Set<Tag.ID>?
+    for episode in selectedEpisodes {
+      guard let tagIDs = tagIDs(for: episode) else { continue }
+      if let current = intersection {
+        let next = current.intersection(tagIDs)
+        if next.isEmpty { return [] }
+        intersection = next
+      } else {
+        intersection = tagIDs
+      }
+    }
+    return intersection ?? []
   }
 }
 
