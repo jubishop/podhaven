@@ -332,9 +332,15 @@ import Testing
     // and every subsequent startObservation() returns early.
     try await viewModel.performAppear()
 
+    // Raise priority above the default `.background` so the unstructured
+    // `Task {}` that `startObservation()` spawns from inside this poll
+    // block doesn't inherit `.background` and get starved long enough
+    // that every subsequent rebind short-circuits on the still-running
+    // failed task.
     try await Wait.until(
-      maxAttempts: 400,
+      maxAttempts: 200,
       delay: .milliseconds(50),
+      priority: .userInitiated,
       { @MainActor in
         try await viewModel.performAppear()
         return viewModel.tags.map(\.id) == [tag.id]

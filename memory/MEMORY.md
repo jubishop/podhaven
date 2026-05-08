@@ -2,4 +2,4 @@
 - [PlayBar sheet stuck off-screen bug](sheet_presentation_desync.md) — chevron-up failed to present (2026-04-26, non-reproducible); theory is `Sheet.config` stuck non-nil leaving SwiftUI's `isPresented` wedged; fix on PR `worktree-sheetFixes` switches to `.sheet(item:)`
 - [Worktree setup hooks](worktree_setup_hooks.md) — git post-checkout hook (preferred), failed approaches, Xcode build optimization for worktrees
 - [Observable + Broadcast gap](observation_broadcast_viewmodel.md) — reading @Broadcasted state through @Observable viewModel computed properties can silently fail for conditional views; read SharedState directly instead
-- [observationRestartsAfter… CI flake](flaky_test_observation_restarts.md) — TWO timeouts on CI 2026-05-08 (c063b95f, 7df6c36e) at 10s Wait.until ceiling; bump maxAttempts 200→400 before suspecting defer cleanup regression
+- [observationRestartsAfter… CI flake (resolved)](flaky_test_observation_restarts.md) — root cause was Wait.until's `.background` poller starving the inner observation `Task {}`; fixed by adding `priority:` param and passing `.userInitiated` for this test
