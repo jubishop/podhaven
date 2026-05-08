@@ -17,7 +17,6 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
-  @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
 
@@ -130,25 +129,19 @@ import SwiftUI
       let idSet = Set(rankOrder)
       hydrationTask = Task(priority: taskPriority(.utility)) { @MainActor [weak self] in
         guard let self else { return }
-        var retryDelay: Duration = .seconds(1)
-        while !Task.isCancelled {
-          do {
-            let observation = self.observatory.listablePodcastEpisodes(
-              filter: idSet.contains(Episode.Columns.id)
-            )
-            for try await listables in observation {
-              guard !Task.isCancelled else { return }
-              retryDelay = .seconds(1)
-              self.applyRecommendedHydration(listables, rankOrder: rankOrder)
-            }
-          } catch {
-            Self.log.caughtError(
-              "observeRecommendations: hydration observation failed for \(idSet.count) ids",
-              error
-            )
-            try? await self.sleeper.sleep(for: retryDelay)
-            retryDelay = min(retryDelay * 2, .seconds(60))
+        do {
+          let observation = self.observatory.listablePodcastEpisodes(
+            filter: idSet.contains(Episode.Columns.id)
+          )
+          for try await listables in observation {
+            guard !Task.isCancelled else { return }
+            self.applyRecommendedHydration(listables, rankOrder: rankOrder)
           }
+        } catch {
+          Self.log.caughtError(
+            "observeRecommendations: hydration observation failed for \(idSet.count) ids",
+            error
+          )
         }
       }
     }
