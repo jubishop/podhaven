@@ -5,7 +5,7 @@ import FactoryKit
 import Foundation
 
 extension Container {
-  var avPlayer: Factory<any AVPlayable> {
+  @MainActor var avPlayer: Factory<any AVPlayable> {
     Factory(self) { AVPlayer() }.scope(.cached)
   }
 }

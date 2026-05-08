@@ -569,11 +569,10 @@ actor RefreshManagerTests {
     }!
 
     // Wait for new episode to start being cached
-    _ = try await CacheHelpers.waitForDownloadTaskID(newEpisode.id)
+    try await CacheHelpers.waitForDownloading(newEpisode.id)
 
-    // Verify the new episode has a download task (indicating it's being cached)
     let episodeAfterRefresh = try await repo.episode(newEpisode.id)!
-    #expect(episodeAfterRefresh.downloadTaskID != nil)
+    #expect(episodeAfterRefresh.downloading)
     // saveInCache should remain false for .cache mode
     #expect(episodeAfterRefresh.saveInCache == false)
   }
@@ -625,7 +624,7 @@ actor RefreshManagerTests {
     // Verify the new episode was not cached
     let episodeAfterRefresh = try await repo.episode(newEpisode.id)!
     #expect(episodeAfterRefresh.cacheStatus != .cached)
-    #expect(episodeAfterRefresh.downloadTaskID == nil)
+    #expect(!episodeAfterRefresh.downloading)
   }
 
   @Test("refreshSeries returns false for plain text response")
@@ -765,11 +764,10 @@ actor RefreshManagerTests {
     }!
 
     // Wait for new episode to start being cached
-    _ = try await CacheHelpers.waitForDownloadTaskID(newEpisode.id)
+    try await CacheHelpers.waitForDownloading(newEpisode.id)
 
-    // Verify the new episode has a download task (indicating it's being cached)
     let episodeAfterRefresh = try await repo.episode(newEpisode.id)!
-    #expect(episodeAfterRefresh.downloadTaskID != nil)
+    #expect(episodeAfterRefresh.downloading)
     // saveInCache should be set to true for .save mode
     #expect(episodeAfterRefresh.saveInCache == true)
 

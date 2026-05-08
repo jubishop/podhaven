@@ -7,7 +7,7 @@ import SwiftUI
 
 extension Container {
   @MainActor var sheet: Factory<Sheet> {
-    Factory(self) { @MainActor in Sheet() }.scope(.cached)
+    Factory(self) { Sheet() }.scope(.cached)
   }
 }
 

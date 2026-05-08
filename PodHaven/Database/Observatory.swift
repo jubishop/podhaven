@@ -222,16 +222,16 @@ struct Observatory: Observing {
   // table + freshness cadences. Playback-path columns (currentTime,
   // playbackCoverage, lastPlayedDate) are deliberately NOT referenced — the
   // observation omits the `PartialSignal` fetch (by passing the default
-  // empty closure to `Repo.scoringContextInputs(_:partialSignals:)`)
+  // empty closure to `RecommendationRepo.scoringContextInputs(_:partialSignals:)`)
   // precisely so per-checkpoint `updatePlayback` writes do not wake this
   // observation. Partial-listen data lands in the engine via the debounced
-  // rebuild (`Repo.allScoringContextInputs()`) and the `onDeck`
+  // rebuild (`RecommendationRepo.allScoringContextInputs()`) and the `onDeck`
   // session-boundary handler.
   func scoringContextInputsWithoutPartialSignals()
     -> AsyncValueObservation<ScoringContextInputs>
   {
     _observe { db in
-      try Repo.scoringContextInputs(db)
+      try RecommendationRepo.scoringContextInputs(db)
     }
   }
 

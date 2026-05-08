@@ -41,6 +41,7 @@ extension Container {
 
 struct RecommendationEngine: Sendable {
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sleeper) private var sleeper
   @DynamicInjected(\.taskPriority) private var taskPriority
@@ -136,7 +137,7 @@ struct RecommendationEngine: Sendable {
     let onDeckID = Container.shared.sharedState().onDeck?.id
 
     let candidatesStart = ContinuousClock.now
-    let candidates = try await repo.allCandidateEpisodes(excluding: onDeckID)
+    let candidates = try await recommendationRepo.allCandidateEpisodes(excluding: onDeckID)
     let candidatesDuration = ContinuousClock.now - candidatesStart
     Self.log.debug(
       "perf: allCandidateEpisodes took \(candidatesDuration) for \(candidates.count) candidates"
@@ -309,7 +310,7 @@ struct RecommendationEngine: Sendable {
     cacheDebounce {
       do {
         let inputsStart = ContinuousClock.now
-        let inputs = try await repo.allScoringContextInputs()
+        let inputs = try await recommendationRepo.allScoringContextInputs()
         let inputsDuration = ContinuousClock.now - inputsStart
         Self.log.debug(
           """
@@ -406,7 +407,7 @@ struct RecommendationEngine: Sendable {
     let episodeIDs = candidates.map(\.id)
 
     let embeddingsStart = ContinuousClock.now
-    let embeddings = try await repo.embeddings(for: episodeIDs)
+    let embeddings = try await recommendationRepo.embeddings(for: episodeIDs)
     let embeddingsDuration = ContinuousClock.now - embeddingsStart
     Self.log.debug(
       """

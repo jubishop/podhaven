@@ -12,6 +12,7 @@ import Testing
 @Suite("Episode rating tests", .container)
 class EpisodeRatingTests {
   @DynamicInjected(\.appDB) private var appDB
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
 
   // MARK: - Helpers
@@ -229,7 +230,7 @@ class EpisodeRatingTests {
 
     _ = try await createPodcastWithEpisode()
 
-    let signals = try await repo.allRatedEpisodes()
+    let signals = try await recommendationRepo.allRatedEpisodes()
     #expect(signals.count == 2)
 
     let ratings = signals.map(\.rating)
@@ -249,7 +250,7 @@ class EpisodeRatingTests {
       UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: bothRatedAndFinished)
     ])
 
-    let signals = try await repo.allRatedEpisodes()
+    let signals = try await recommendationRepo.allRatedEpisodes()
     #expect(signals.count == 1)
     #expect(signals.first?.rating == .liked)
   }
@@ -273,7 +274,7 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let partials = try await repo.allUnratedListenedEpisodes()
+    let partials = try await recommendationRepo.allUnratedListenedEpisodes()
     let partial = try #require(partials.first { $0.id == pe.episode.id })
     #expect(abs(partial.coverageRatio - 0.5) < 0.05)
     #expect(partial.lastPlayedDate != nil)
@@ -301,10 +302,10 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let partials = try await repo.allUnratedListenedEpisodes()
+    let partials = try await recommendationRepo.allUnratedListenedEpisodes()
     #expect(partials.contains { $0.id == pe.episode.id } == false)
 
-    let signals = try await repo.allRatedEpisodes()
+    let signals = try await recommendationRepo.allRatedEpisodes()
     #expect(signals.contains { $0.id == pe.episode.id })
   }
 
@@ -326,7 +327,7 @@ class EpisodeRatingTests {
     )
     try await repo.markFinished(pe.episode.id)
 
-    let partials = try await repo.allUnratedListenedEpisodes()
+    let partials = try await recommendationRepo.allUnratedListenedEpisodes()
     let partial = try #require(partials.first { $0.id == pe.episode.id })
     #expect(partial.coverageRatio >= 0.85)
   }
@@ -344,10 +345,10 @@ class EpisodeRatingTests {
       ])
       .first!
 
-    let partials = try await repo.allUnratedListenedEpisodes()
+    let partials = try await recommendationRepo.allUnratedListenedEpisodes()
     #expect(partials.contains { $0.id == pe.episode.id } == false)
 
-    let signals = try await repo.allRatedEpisodes()
+    let signals = try await recommendationRepo.allRatedEpisodes()
     #expect(signals.contains { $0.id == pe.episode.id } == false)
   }
 
@@ -371,7 +372,7 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let partials = try await repo.allUnratedListenedEpisodes()
+    let partials = try await recommendationRepo.allUnratedListenedEpisodes()
     #expect(partials.contains { $0.id == pe.episode.id } == false)
   }
 
@@ -395,7 +396,7 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let partials = try await repo.allUnratedListenedEpisodes()
+    let partials = try await recommendationRepo.allUnratedListenedEpisodes()
     #expect(partials.contains { $0.id == pe.episode.id } == false)
   }
 
@@ -418,7 +419,7 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let partials = try await repo.allUnratedListenedEpisodes()
+    let partials = try await recommendationRepo.allUnratedListenedEpisodes()
     let partial = try #require(partials.first { $0.id == pe.episode.id })
     #expect(partial.coveredSeconds == 60)
     #expect(abs(partial.coverageRatio - 0.10) < 1e-9)
@@ -447,7 +448,7 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let inputs = try await repo.allScoringContextInputs()
+    let inputs = try await recommendationRepo.allScoringContextInputs()
     #expect(inputs.ratedSignals.contains { $0.rating == .loved })
     #expect(inputs.partialSignals.contains { $0.id == listenedID })
   }
@@ -465,7 +466,7 @@ class EpisodeRatingTests {
     let fetched = try await repo.episode(notInterested.id)!
     #expect(fetched.rating == .notInterested)
 
-    let signals = try await repo.allRatedEpisodes()
+    let signals = try await recommendationRepo.allRatedEpisodes()
     let signalIDs = signals.map(\.id)
     #expect(signalIDs.contains(liked.id))
     #expect(signalIDs.contains(notInterested.id) == false)
@@ -508,10 +509,10 @@ class EpisodeRatingTests {
       now: Date()
     )
 
-    let partials = try await repo.allUnratedListenedEpisodes()
+    let partials = try await recommendationRepo.allUnratedListenedEpisodes()
     #expect(partials.contains { $0.id == pe.episode.id } == false)
 
-    let signals = try await repo.allRatedEpisodes()
+    let signals = try await recommendationRepo.allRatedEpisodes()
     #expect(signals.contains { $0.id == pe.episode.id } == false)
   }
 

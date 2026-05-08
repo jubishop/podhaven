@@ -15,12 +15,15 @@ extension Container {
 }
 
 struct RefreshScheduler: Sendable {
-  private var application: any ApplicationProviding { Container.shared.uiApplication() }
   private var connectionState: ConnectionState { Container.shared.connectionState() }
   private var refreshManager: RefreshManager { Container.shared.refreshManager() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var taskPriority: @Sendable (TaskPriority) -> TaskPriority? {
     Container.shared.taskPriority()
+  }
+
+  @MainActor private var applicationIsActive: Bool {
+    Container.shared.uiApplication().applicationState == .active
   }
 
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).feedRefresh"
@@ -223,7 +226,7 @@ struct RefreshScheduler: Sendable {
 
         while shouldContinueForegroundRefreshing(foregroundLoopID: foregroundLoopID) {
           try Task.checkCancellation()
-          guard await application.applicationState == .active else { return }
+          guard await applicationIsActive else { return }
 
           let backgroundTask = await BackgroundTask.start(
             withName: "RefreshScheduler.foregroundRefreshTask"

@@ -181,38 +181,30 @@ struct FileLogHandler: LogHandler {
 
   // MARK: - Logging
 
-  public func log(
-    level: Logging.Logger.Level,
-    message: Logging.Logger.Message,
-    metadata: Logging.Logger.Metadata?,
-    source: String,
-    file: String,
-    function: String,
-    line: UInt
-  ) {
+  public func log(event: LogEvent) {
     let mergedMetadata = LogKit.merge(
       handler: self.metadata,
       provider: self.metadataProvider,
-      oneOff: metadata
+      oneOff: event.metadata
     )
 
     let entry = Entry(
-      level: level.intValue,
-      levelName: level.rawValue,
+      level: event.level.intValue,
+      levelName: event.level.rawValue,
       timestamp: Int64(Date().timeIntervalSince1970 * 1000),
       subsystem: subsystem,
       category: category,
-      message: message.description,
+      message: event.message.description,
       metadata: mergedMetadata.isEmpty
         ? nil
         : Dictionary(uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }),
-      source: source,
-      file: file,
-      function: function,
-      line: line
+      source: event.source,
+      file: event.file,
+      function: event.function,
+      line: event.line
     )
 
-    writer.write(entry, synchronously: writeSynchronously(level))
+    writer.write(entry, synchronously: writeSynchronously(event.level))
   }
 
   // MARK: - Flush

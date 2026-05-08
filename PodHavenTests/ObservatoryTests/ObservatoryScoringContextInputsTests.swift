@@ -12,6 +12,7 @@ import Testing
 @Suite("of Observatory scoringContextInputs tests", .container)
 actor ObservatoryScoringContextInputsTests {
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.appDB) private var appDB
 
@@ -61,7 +62,7 @@ actor ObservatoryScoringContextInputsTests {
     vector: [Float] = [1, 0, 0]
   ) async throws {
     let data = UnsavedEpisodeEmbedding.vectorData(from: vector)
-    try await repo.upsertEmbeddings([
+    try await recommendationRepo.upsertEmbeddings([
       UnsavedEpisodeEmbedding(
         episodeId: episode.id,
         vector: data,
@@ -257,10 +258,10 @@ actor ObservatoryScoringContextInputsTests {
     )
 
     // Partial signals are filled in by the engine's rebuild path
-    // (`Repo.allScoringContextInputs()`), not by the GRDB observation —
+    // (`RecommendationRepo.allScoringContextInputs()`), not by the GRDB observation —
     // playback columns are deliberately excluded from the observation's
     // tracked region.
-    let inputs = try await repo.allScoringContextInputs()
+    let inputs = try await recommendationRepo.allScoringContextInputs()
     #expect(inputs.partialSignals.count == 1)
     #expect(inputs.partialSignals.first?.id == episode.id)
   }

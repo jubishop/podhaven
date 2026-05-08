@@ -3,7 +3,6 @@
 import AVFoundation
 import Foundation
 import GRDB
-import IdentifiedCollections
 import Tagged
 
 @testable import PodHaven
@@ -75,16 +74,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func episode(_ mediaGUID: MediaGUID) async throws -> Episode? {
     recordCall(methodName: "episode", parameters: mediaGUID)
     return try await repo.episode(mediaGUID)
-  }
-
-  func episode(_ downloadTaskID: URLSessionDownloadTask.ID) async throws -> Episode? {
-    recordCall(methodName: "episode", parameters: downloadTaskID)
-    return try await repo.episode(downloadTaskID)
-  }
-
-  func episodes(_ downloadTaskIDs: [URLSessionDownloadTask.ID]) async throws -> [Episode] {
-    recordCall(methodName: "episodes", parameters: downloadTaskIDs)
-    return try await repo.episodes(downloadTaskIDs)
   }
 
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
@@ -262,15 +251,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
-  func updateDownloadTaskID(_ episodeID: Episode.ID, downloadTaskID: URLSessionDownloadTask.ID?)
-    async throws
-    -> Bool
-  {
+  func updateDownloading(_ episodeID: Episode.ID, downloading: Bool) async throws -> Bool {
     recordCall(
-      methodName: "updateDownloadTaskID",
-      parameters: (episodeID: episodeID, downloadTaskID: downloadTaskID)
+      methodName: "updateDownloading",
+      parameters: (episodeID: episodeID, downloading: downloading)
     )
-    return try await repo.updateDownloadTaskID(episodeID, downloadTaskID: downloadTaskID)
+    return try await repo.updateDownloading(episodeID, downloading: downloading)
   }
 
   @discardableResult
@@ -294,82 +280,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
     recordCall(methodName: "podcast", parameters: podcastID)
     return try await repo.podcast(podcastID)
-  }
-
-  func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {
-    recordCall(methodName: "upsertEmbeddings", parameters: unsaved.count)
-    try await repo.upsertEmbeddings(unsaved)
-  }
-
-  func upsertPodcastEmbeddings(_ unsaved: [UnsavedPodcastEmbedding]) async throws {
-    recordCall(methodName: "upsertPodcastEmbeddings", parameters: unsaved.count)
-    try await repo.upsertPodcastEmbeddings(unsaved)
-  }
-
-  func hasEmbeddings() async throws -> Bool {
-    recordCall(methodName: "hasEmbeddings", parameters: ())
-    return try await repo.hasEmbeddings()
-  }
-
-  func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
-    recordCall(methodName: "embedding", parameters: episodeID)
-    return try await repo.embedding(for: episodeID)
-  }
-
-  func embeddings(for episodeIDs: [Episode.ID]) async throws
-    -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
-  {
-    recordCall(methodName: "embeddings", parameters: episodeIDs)
-    return try await repo.embeddings(for: episodeIDs)
-  }
-
-  func podcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding? {
-    recordCall(methodName: "podcastEmbedding", parameters: podcastID)
-    return try await repo.podcastEmbedding(for: podcastID)
-  }
-
-  func podcastEmbeddings(for podcastIDs: [Podcast.ID]) async throws
-    -> IdentifiedArray<Podcast.ID, PodcastEmbedding>
-  {
-    recordCall(methodName: "podcastEmbeddings", parameters: podcastIDs)
-    return try await repo.podcastEmbeddings(for: podcastIDs)
-  }
-
-  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast> {
-    recordCall(methodName: "podcasts", parameters: podcastIDs)
-    return try await repo.podcasts(for: podcastIDs)
-  }
-
-  func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode] {
-    recordCall(methodName: "episodes", parameters: episodeIDs)
-    return try await repo.episodes(for: episodeIDs)
-  }
-
-  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID] {
-    recordCall(methodName: "episodesNeedingEmbeddings", parameters: revision)
-    return try await repo.episodesNeedingEmbeddings(revision: revision)
-  }
-
-  func allRatedEpisodes() async throws -> [SignalEpisode] {
-    recordCall(methodName: "allRatedEpisodes", parameters: ())
-    return try await repo.allRatedEpisodes()
-  }
-
-  func allUnratedListenedEpisodes() async throws -> [PartialSignal] {
-    recordCall(methodName: "allUnratedListenedEpisodes", parameters: ())
-    return try await repo.allUnratedListenedEpisodes()
-  }
-
-  func allCandidateEpisodes(
-    excluding excludedID: Episode.ID?
-  ) async throws -> [CandidateEpisode] {
-    recordCall(methodName: "allCandidateEpisodes", parameters: excludedID)
-    return try await repo.allCandidateEpisodes(excluding: excludedID)
-  }
-
-  func allScoringContextInputs() async throws -> ScoringContextInputs {
-    recordCall(methodName: "allScoringContextInputs", parameters: ())
-    return try await repo.allScoringContextInputs()
   }
 
   @discardableResult

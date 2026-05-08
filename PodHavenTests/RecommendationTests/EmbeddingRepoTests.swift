@@ -12,6 +12,7 @@ import Testing
 @Suite("Embedding repo tests", .container)
 class EmbeddingRepoTests {
   @DynamicInjected(\.appDB) private var appDB
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
 
   // MARK: - Helpers
@@ -53,7 +54,7 @@ class EmbeddingRepoTests {
       embeddingRevision: revision,
       dimension: 3
     )
-    try await repo.upsertEmbeddings([unsaved])
+    try await recommendationRepo.upsertEmbeddings([unsaved])
 
     if backdated {
       // Push creationDate into the past so trigger-updated contentUpdatedAt is clearly newer
@@ -209,7 +210,7 @@ class EmbeddingRepoTests {
   func ratedEpisodesIncluded() async throws {
     let pe = try await createPodcastEpisode(rating: .loved)
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(result.contains(pe.episode.id))
   }
 
@@ -217,7 +218,7 @@ class EmbeddingRepoTests {
   func finishedNoBitmapExcluded() async throws {
     let pe = try await createPodcastEpisode(finishDate: Date())
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(!result.contains(pe.episode.id))
   }
 
@@ -233,7 +234,7 @@ class EmbeddingRepoTests {
     )
     try await repo.markFinished(pe.episode.id)
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(result.contains(pe.episode.id))
   }
 
@@ -241,7 +242,7 @@ class EmbeddingRepoTests {
   func candidateEpisodesIncluded() async throws {
     let pe = try await createPodcastEpisode()
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(result.contains(pe.episode.id))
   }
 
@@ -249,7 +250,7 @@ class EmbeddingRepoTests {
   func queuedEpisodesExcluded() async throws {
     let pe = try await createPodcastEpisode(queueOrder: 1)
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(!result.contains(pe.episode.id))
   }
 
@@ -257,7 +258,7 @@ class EmbeddingRepoTests {
   func startedEpisodesExcluded() async throws {
     let pe = try await createPodcastEpisode(currentTime: CMTime(seconds: 60, preferredTimescale: 1))
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(!result.contains(pe.episode.id))
   }
 
@@ -266,7 +267,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(rating: .liked)
     try await insertEmbedding(for: pe.episode.id, revision: 1)
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(!result.contains(pe.episode.id))
   }
 
@@ -275,7 +276,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(rating: .liked)
     try await insertEmbedding(for: pe.episode.id, revision: 1)
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 2)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 2)
     #expect(result.contains(pe.episode.id))
   }
 
@@ -301,7 +302,7 @@ class EmbeddingRepoTests {
       )
     ])
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(result.contains(pe.episode.id))
   }
 
@@ -312,7 +313,7 @@ class EmbeddingRepoTests {
     // Create signal second (rated)
     let signal = try await createPodcastEpisode(rating: .loved)
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
 
     let signalIndex = result.firstIndex(of: signal.episode.id)
     let candidateIndex = result.firstIndex(of: candidate.episode.id)
@@ -324,7 +325,7 @@ class EmbeddingRepoTests {
 
   @Test("returns empty when no episodes exist")
   func emptyWhenNoEpisodes() async throws {
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(result.isEmpty)
   }
 
@@ -352,7 +353,7 @@ class EmbeddingRepoTests {
       )
     ])
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(result.contains(pe.episode.id))
   }
 
@@ -378,7 +379,7 @@ class EmbeddingRepoTests {
       )
     ])
 
-    let result = try await repo.episodesNeedingEmbeddings(revision: 1)
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
     #expect(result.contains(pe.episode.id))
   }
 
@@ -386,20 +387,20 @@ class EmbeddingRepoTests {
 
   @Test("hasEmbeddings returns false on empty DB")
   func hasEmbeddingsEmpty() async throws {
-    #expect(try await repo.hasEmbeddings() == false)
+    #expect(try await recommendationRepo.hasEmbeddings() == false)
   }
 
   @Test("hasEmbeddings returns false with episodes but no embeddings")
   func hasEmbeddingsEpisodesOnly() async throws {
     _ = try await createPodcastEpisode()
-    #expect(try await repo.hasEmbeddings() == false)
+    #expect(try await recommendationRepo.hasEmbeddings() == false)
   }
 
   @Test("hasEmbeddings returns true after upsertEmbeddings")
   func hasEmbeddingsAfterUpsert() async throws {
     let pe = try await createPodcastEpisode()
     try await insertEmbedding(for: pe.episode.id)
-    #expect(try await repo.hasEmbeddings() == true)
+    #expect(try await recommendationRepo.hasEmbeddings() == true)
   }
 
   // MARK: - allCandidateEpisodes Tests
@@ -407,28 +408,28 @@ class EmbeddingRepoTests {
   @Test("allCandidateEpisodes returns unrated unstarted unfinished unqueued episodes")
   func candidatesIncluded() async throws {
     let pe = try await createPodcastEpisode()
-    let result = try await repo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
     #expect(result.map(\.id).contains(pe.episode.id))
   }
 
   @Test("allCandidateEpisodes omits rated episodes")
   func candidatesExcludeRated() async throws {
     let pe = try await createPodcastEpisode(rating: .loved)
-    let result = try await repo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
     #expect(!result.map(\.id).contains(pe.episode.id))
   }
 
   @Test("allCandidateEpisodes omits finished episodes")
   func candidatesExcludeFinished() async throws {
     let pe = try await createPodcastEpisode(finishDate: Date())
-    let result = try await repo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
     #expect(!result.map(\.id).contains(pe.episode.id))
   }
 
   @Test("allCandidateEpisodes omits queued episodes")
   func candidatesExcludeQueued() async throws {
     let pe = try await createPodcastEpisode(queueOrder: 1)
-    let result = try await repo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
     #expect(!result.map(\.id).contains(pe.episode.id))
   }
 
@@ -437,7 +438,7 @@ class EmbeddingRepoTests {
     let pe = try await createPodcastEpisode(
       currentTime: CMTime(seconds: 60, preferredTimescale: 1)
     )
-    let result = try await repo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
     #expect(!result.map(\.id).contains(pe.episode.id))
   }
 
@@ -445,7 +446,7 @@ class EmbeddingRepoTests {
   func candidatesRespectExclusion() async throws {
     let excluded = try await createPodcastEpisode()
     let kept = try await createPodcastEpisode()
-    let result = try await repo.allCandidateEpisodes(excluding: excluded.episode.id)
+    let result = try await recommendationRepo.allCandidateEpisodes(excluding: excluded.episode.id)
     let ids = result.map(\.id)
     #expect(!ids.contains(excluded.episode.id))
     #expect(ids.contains(kept.episode.id))

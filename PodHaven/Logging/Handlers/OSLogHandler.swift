@@ -41,15 +41,7 @@ struct OSLogHandler: LogHandler {
     logger = os.Logger(subsystem: subsystem, category: category)
   }
 
-  public func log(
-    level: Logging.Logger.Level,
-    message: Logging.Logger.Message,
-    metadata: Logging.Logger.Metadata?,
-    source: String,
-    file: String,
-    function: String,
-    line: UInt
-  ) {
-    logger.log(level: level.osLogLevel, "\(message, privacy: .public)")
+  public func log(event: LogEvent) {
+    logger.log(level: event.level.osLogLevel, "\(event.message, privacy: .public)")
   }
 }

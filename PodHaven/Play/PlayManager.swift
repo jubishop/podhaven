@@ -86,7 +86,7 @@ extension Container {
   }
 
   var playManager: Factory<PlayManager> {
-    Factory(self) { @PlayActor in PlayManager() }.scope(.cached)
+    Factory(self) { PlayManager() }.scope(.cached)
   }
 }
 
@@ -135,7 +135,7 @@ final class PlayManager {
 
   // MARK: - Initialization
 
-  fileprivate init() {}
+  fileprivate nonisolated init() {}
 
   nonisolated func startStreamConsumers() {
     startStreamConsumersOnce.run {

@@ -12,5 +12,5 @@ protocol DataFetchable: Sendable {
 
   // Background Download APIs
   var allCreatedTasks: IdentifiedArray<URLSessionDownloadTask.ID, any DownloadingTask> { get async }
-  func createDownloadTask(with request: URLRequest) -> any DownloadingTask
+  func createDownloadTask(with request: URLRequest, taskDescription: String) -> any DownloadingTask
 }

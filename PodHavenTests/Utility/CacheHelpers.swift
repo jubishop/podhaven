@@ -28,7 +28,8 @@ enum CacheHelpers {
   @discardableResult
   static func unshiftToQueue(_ episodeID: Episode.ID) async throws -> URLSessionDownloadTask.ID {
     try await queue.unshift(episodeID)
-    let taskID = try await waitForDownloadTaskID(episodeID)
+    try await waitForDownloading(episodeID)
+    let taskID = try await waitForDownloadTask(episodeID)
     try await waitForResumed(taskID)
     return taskID
   }
@@ -39,7 +40,7 @@ enum CacheHelpers {
   static func downloadToCache(_ episodeID: Episode.ID) async throws -> URLSessionDownloadTask.ID {
     let taskID = try await cacheManager.downloadToCache(for: episodeID)!
     try await waitForResumed(taskID)
-    try await waitForDownloadTaskID(episodeID, taskID: taskID)
+    try await waitForDownloading(episodeID)
     return taskID
   }
 
@@ -65,41 +66,37 @@ enum CacheHelpers {
     )
   }
 
+  static func waitForDownloading(_ episodeID: Episode.ID) async throws {
+    try await Wait.until(
+      {
+        let episode: Episode = try await repo.episode(episodeID)!
+        return episode.downloading
+      },
+      { "Episode \(episodeID) is not downloading" }
+    )
+  }
+
+  static func waitForNotDownloading(_ episodeID: Episode.ID) async throws {
+    try await Wait.until(
+      {
+        let episode: Episode = try await repo.episode(episodeID)!
+        return !episode.downloading
+      },
+      { "Episode \(episodeID) is still downloading" }
+    )
+  }
+
+  // The taskID is no longer persisted, so we look up the live download
+  // task in the fake session by its taskDescription (the episode id).
   @discardableResult
-  static func waitForDownloadTaskID(_ episodeID: Episode.ID) async throws
+  static func waitForDownloadTask(_ episodeID: Episode.ID) async throws
     -> URLSessionDownloadTask.ID
   {
-    try await Wait.forValue(
+    let description = String(episodeID.rawValue)
+    return try await Wait.forValue(
       {
-        let episode: Episode = try await repo.episode(episodeID)!
-        return episode.downloadTaskID
+        await session.downloadTasks().first(where: { $0.taskDescription == description })?.taskID
       }
-    )
-  }
-
-  static func waitForDownloadTaskID(_ episodeID: Episode.ID, taskID: URLSessionDownloadTask.ID)
-    async throws
-  {
-    try await Wait.until(
-      { try await repo.episode(episodeID)!.downloadTaskID == taskID },
-      {
-        let episode = try await repo.episode(episodeID)!
-        return
-          """
-          Expected episode \(episode.toString) downloadTaskID: \(taskID), 
-          but got \(String(describing: episode.downloadTaskID)))
-          """
-      }
-    )
-  }
-
-  static func waitForNoDownloadTaskID(_ episodeID: Episode.ID) async throws {
-    try await Wait.until(
-      {
-        let episode: Episode = try await repo.episode(episodeID)!
-        return episode.downloadTaskID == nil
-      },
-      { "Episode \(episodeID) downloadTaskID is not nil" }
     )
   }
 

@@ -24,7 +24,7 @@ struct EpisodeDetailSource: Sendable {
   init(listedEpisode: ListedEpisode) {
     initialEpisode = DisplayedEpisode(EpisodeDetailSnapshot(listedEpisode))
     self.listedEpisode = listedEpisode
-    unsavedFallback = Self.unsavedFallback(for: listedEpisode.getUnsavedPodcastEpisode())
+    unsavedFallback = Self.unsavedFallback(for: listedEpisode.unsavedPodcastEpisode)
   }
 
   func savedEpisode(currentEpisode: DisplayedEpisode) async throws -> PodcastEpisode? {

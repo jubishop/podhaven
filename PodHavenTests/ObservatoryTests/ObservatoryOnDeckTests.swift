@@ -248,7 +248,7 @@ actor ObservatoryOnDeckTests {
     // Episode columns OnDeck DOES read must trigger the observation
     for column in [
       "id", "guid", "mediaURL", "title", "pubDate", "duration", "description",
-      "image", "finishDate", "queueOrder", "saveInCache", "cachedFilename", "downloadTaskID",
+      "image", "finishDate", "queueOrder", "saveInCache", "cachedFilename", "downloading",
       "podcastId",
     ] {
       #expect(
