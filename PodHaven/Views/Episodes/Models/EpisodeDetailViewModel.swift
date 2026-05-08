@@ -483,11 +483,12 @@ import Tagged
         guard let updated
         else {
           Self.log.debug("Episode was deleted")
+          let deletedPresentation = try detailSource.deletedObservedPresentation(podcastEpisode)
           tags = []
           clearRecommendationTask()
           recommendationScore = nil
           _podcastEpisode = nil
-          episode = try detailSource.deletedObservedPresentation(podcastEpisode)
+          episode = deletedPresentation
           return
         }
 

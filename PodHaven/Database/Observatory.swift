@@ -207,7 +207,7 @@ struct Observatory: Observing {
       try Episode
         .withID(episodeID)
         .including(required: Episode.podcast)
-        .including(all: Episode.tags)
+        .including(all: Episode.tags.order { $0.name.collating(.nocase) })
         .asRequest(of: PodcastEpisodeWithTags.self)
         .fetchOne(db)
     }
