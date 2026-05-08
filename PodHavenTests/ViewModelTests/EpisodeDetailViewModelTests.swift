@@ -401,6 +401,45 @@ import Testing
     )
   }
 
+  @Test("addTag writes tag mapping for a saved listed episode before performAppear hydrates")
+  func addTagWritesMappingForSavedListedEpisodeBeforePerformAppear() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Pre-Hydration Tag"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "pre-hydration-tag",
+          title: "Pre-Hydration Tag"
+        )
+      )
+    )
+    let listableEpisodes =
+      try await observatory.listablePodcastEpisodes(
+        filter: Episode.Columns.id == podcastEpisode.id
+      )
+      .get()
+    let listedEpisode = try #require(listableEpisodes.first)
+    let tag = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
+    let viewModel = EpisodeDetailViewModel(listedEpisode: ListedEpisode(listedEpisode))
+
+    // The view shows TagsView based on viewModel.episode.isSaved, which is
+    // already true from the listed snapshot — before performAppear() finishes
+    // hydrating podcastEpisode. A tap landing in that window must still write
+    // the tag mapping; otherwise it is silently dropped.
+    #expect(viewModel.episode.isSaved)
+
+    viewModel.addTag(tag.id)
+
+    try await Wait.until(
+      { @MainActor in
+        let observed = try await self.observatory.podcastEpisodeWithTags(podcastEpisode.id).get()
+        return observed?.tags.map(\.id) == [tag.id]
+      },
+      { @MainActor in
+        "Expected addTag to write the tag mapping before performAppear hydration."
+      }
+    )
+  }
+
   @Test("addTag is a no-op for unsaved episodes")
   func addTagIsNoOpForUnsavedEpisode() async throws {
     let unsavedPodcastEpisode = UnsavedPodcastEpisode(

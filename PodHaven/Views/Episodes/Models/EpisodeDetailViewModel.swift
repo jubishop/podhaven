@@ -400,7 +400,7 @@ import Tagged
   // MARK: - Tag Management
 
   func addTag(_ tagID: Tag.ID) {
-    guard let episodeID = podcastEpisode?.id else {
+    guard let episodeID = episode.episodeID else {
       Self.log.warning("Cannot add tag to unsaved episode")
       return
     }
@@ -419,7 +419,7 @@ import Tagged
   }
 
   func removeTag(_ tagID: Tag.ID) {
-    guard let episodeID = podcastEpisode?.id else {
+    guard let episodeID = episode.episodeID else {
       Self.log.warning("Cannot remove tag from unsaved episode")
       return
     }
