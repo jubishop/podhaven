@@ -4,7 +4,7 @@ import Foundation
 import IdentifiedCollections
 
 // Snapshot consumed in two places, both built by
-// `Repo.scoringContextInputs(_:partialSignals:)`:
+// `RecommendationRepo.scoringContextInputs(_:partialSignals:)`:
 //
 // 1. The GRDB observation in
 //    `Observatory.scoringContextInputsWithoutPartialSignals()` passes the
@@ -14,8 +14,9 @@ import IdentifiedCollections
 //    observation. Partial listens reach the engine via the rebuild path
 //    below.
 //
-// 2. The engine's debounced rebuild calls `Repo.allScoringContextInputs()`,
-//    which passes a real `PartialSignal` fetcher.
+// 2. The engine's debounced rebuild calls
+//    `RecommendationRepo.allScoringContextInputs()`, which passes a real
+//    `PartialSignal` fetcher.
 //
 // `embeddingCount` is a count, not a bool, so a new embedding inserted for
 // an unrated/partial-listen episode (which doesn't change

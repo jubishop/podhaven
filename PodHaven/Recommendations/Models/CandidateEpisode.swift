@@ -6,7 +6,7 @@ import GRDB
 // Narrow projection of `Episode` carrying only the columns scoring math
 // reads: id (lookup key for embeddings + score map), podcastID (affinity
 // + freshness cadence lookup), pubDate (freshness multiplier + tiebreaker).
-// Used by `Repo.allCandidateEpisodes` so the per-rebuild fetch skips heavy
+// Used by `RecommendationRepo.allCandidateEpisodes` so the per-rebuild fetch skips heavy
 // payload columns (description, playbackCoverage, image, etc.) on every
 // candidate row.
 struct CandidateEpisode:

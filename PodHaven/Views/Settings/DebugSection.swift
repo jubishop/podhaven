@@ -8,7 +8,7 @@ import SwiftUI
 struct DebugSection: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
-  @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
 
   @State private var pendingEmbeddings: Int? = nil
@@ -29,7 +29,7 @@ struct DebugSection: View {
       Text(pendingEmbeddingsLabel)
         .task {
           do {
-            let ids = try await repo.episodesNeedingEmbeddings(
+            let ids = try await recommendationRepo.episodesNeedingEmbeddings(
               revision: contextualEmbedding.revision
             )
             pendingEmbeddings = ids.count

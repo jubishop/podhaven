@@ -10,6 +10,10 @@ extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
     appDB.context(.test) { AppDB.inMemory() }.scope(.cached)
     repo.context(.test) { FakeRepo(self.makeRepo()) }.scope(.cached)
+    recommendationRepo.context(.test) {
+      FakeRecommendationRepo(self.makeRecommendationRepo())
+    }
+    .scope(.cached)
     queue.context(.test) { FakeQueue(self.makeQueue()) }.scope(.cached)
     observatory.context(.test) { FakeObservatory(self.makeObservatory()) }.scope(.cached)
 

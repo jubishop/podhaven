@@ -1,0 +1,266 @@
+// Copyright Justin Bishop, 2026
+
+import FactoryKit
+import Foundation
+import GRDB
+import IdentifiedCollections
+import Logging
+import Tagged
+
+extension Container {
+  internal func makeRecommendationRepo() -> RecommendationRepo {
+    RecommendationRepo(self.appDB())
+  }
+  var recommendationRepo: Factory<any Recommending> {
+    Factory(self) { self.makeRecommendationRepo() }.scope(.cached)
+  }
+}
+
+struct RecommendationRepo: Recommending {
+  private static let log = Log.as(LogSubsystem.Database.recommendationRepo)
+
+  // MARK: - Initialization
+
+  var db: any DatabaseReader { appDB.db }
+  private let appDB: AppDB
+  fileprivate init(_ appDB: AppDB) {
+    self.appDB = appDB
+  }
+
+  // MARK: - Recommendation Readers
+
+  func allRatedEpisodes() async throws -> [SignalEpisode] {
+    try await appDB.db.read { db in
+      try SignalEpisode.filter(Episode.hasRatingSignal).fetchAll(db)
+    }
+  }
+
+  func allUnratedListenedEpisodes() async throws -> [PartialSignal] {
+    try await appDB.db.read { db in
+      try PartialSignal
+        .filter(Episode.hasCoverage && !Episode.rated)
+        .fetchAll(db)
+        .filter(\.meetsSignalThreshold)
+    }
+  }
+
+  func allScoringContextInputs() async throws -> ScoringContextInputs {
+    try await appDB.db.read { db in
+      try Self.scoringContextInputs(db) { db in
+        try PartialSignal
+          .filter(Episode.hasCoverage && !Episode.rated)
+          .fetchAll(db)
+          .filter(\.meetsSignalThreshold)
+      }
+    }
+  }
+
+  // Shared builder for both the engine's debounced rebuild (above) and the
+  // GRDB observation in `Observatory.scoringContextInputsWithoutPartialSignals()`.
+  // The observation passes the default `{ _ in [] }` so `playbackCoverage` and
+  // `lastPlayedDate` stay out of the tracked region — otherwise every 3-second
+  // `updatePlayback` write would wake the observation. The rebuild path passes
+  // a real fetcher, so partial listens land in the engine through that loop.
+  static func scoringContextInputs(
+    _ db: Database,
+    partialSignals fetchPartialSignals: (Database) throws -> [PartialSignal] = { _ in [] }
+  ) throws -> ScoringContextInputs {
+    let ratedSignals = try SignalEpisode.filter(Episode.hasRatingSignal).fetchAll(db)
+    let partialSignals = try fetchPartialSignals(db)
+    let signalIDs = ratedSignals.map(\.id) + partialSignals.map(\.id)
+    let signalEmbeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding> =
+      signalIDs.isEmpty
+      ? IdentifiedArray(id: \.episodeId)
+      : try EpisodeEmbedding
+        .filter(signalIDs.contains(EpisodeEmbedding.Columns.episodeId))
+        .fetchIdentifiedArray(db, id: \.episodeId)
+    return ScoringContextInputs(
+      ratedSignals: ratedSignals,
+      partialSignals: partialSignals,
+      signalEmbeddings: signalEmbeddings,
+      embeddingCount: try EpisodeEmbedding.fetchCount(db),
+      freshnessCadences: try Self.resolveFreshnessCadences(db)
+    )
+  }
+
+  // Manual cadence choices win; nil-cadence podcasts are inferred from their
+  // pubDates. Podcasts with no episodes and no manual choice are absent from
+  // the map.
+  static func resolveFreshnessCadences(
+    _ db: Database
+  ) throws -> [Podcast.ID: FreshnessCadence] {
+    let manualRows = try Row.fetchAll(
+      db,
+      Podcast
+        .filter(Podcast.Columns.freshnessCadence != nil)
+        .select(Podcast.Columns.id, Podcast.Columns.freshnessCadence)
+    )
+    var resolved = [Podcast.ID: FreshnessCadence](capacity: manualRows.count)
+    for row in manualRows {
+      let id: Podcast.ID = row[Podcast.Columns.id]
+      let cadence: FreshnessCadence = row[Podcast.Columns.freshnessCadence]
+      resolved[id] = cadence
+    }
+
+    // Raw SQL: window functions aren't expressible via the GRDB query builder.
+    // ORDER BY podcastId lets us stream rows into per-podcast buckets and
+    // flush each one before starting the next, instead of accumulating a
+    // [Podcast.ID: [Date]] map of dynamically-grown arrays.
+    let pubDateRows = try Row.fetchAll(
+      db,
+      sql: """
+        SELECT podcastId, pubDate FROM (
+          SELECT
+            podcastId,
+            pubDate,
+            ROW_NUMBER() OVER (PARTITION BY podcastId ORDER BY pubDate DESC) AS rn
+          FROM episode
+          WHERE podcastId IN (SELECT id FROM podcast WHERE freshnessCadence IS NULL)
+        ) WHERE rn <= ?
+        ORDER BY podcastId
+        """,
+      arguments: [FreshnessCadence.inferenceMaxSamples]
+    )
+    var currentID: Podcast.ID? = nil
+    var currentDates = [Date](capacity: FreshnessCadence.inferenceMaxSamples)
+    for row in pubDateRows {
+      let id: Podcast.ID = row[Episode.Columns.podcastId]
+      let pubDate: Date = row[Episode.Columns.pubDate]
+      if id != currentID {
+        if let previousID = currentID {
+          resolved[previousID] = FreshnessCadence.infer(from: currentDates)
+        }
+        currentID = id
+        currentDates.removeAll(keepingCapacity: true)
+      }
+      currentDates.append(pubDate)
+    }
+    if let lastID = currentID {
+      resolved[lastID] = FreshnessCadence.infer(from: currentDates)
+    }
+    return resolved
+  }
+
+  func allCandidateEpisodes(
+    excluding excludedID: Episode.ID?
+  ) async throws -> [CandidateEpisode] {
+    try await appDB.db.read { db in
+      var request = CandidateEpisode.filter(Episode.candidate)
+      if let excludedID {
+        request = request.filter(Episode.Columns.id != excludedID)
+      }
+      return try request.fetchAll(db)
+    }
+  }
+
+  // MARK: - Embedding Writers
+
+  // Batch upsert: one transaction per chunk instead of one per episode.
+  func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {
+    guard !unsaved.isEmpty else { return }
+    Self.log.debug("upsertEmbeddings: \(unsaved.count) episodes")
+    try await appDB.db.write { db in
+      for entry in unsaved {
+        try entry.upsert(db)
+      }
+    }
+  }
+
+  func upsertPodcastEmbeddings(_ unsaved: [UnsavedPodcastEmbedding]) async throws {
+    guard !unsaved.isEmpty else { return }
+    Self.log.debug("upsertPodcastEmbeddings: \(unsaved.count) podcasts")
+    try await appDB.db.write { db in
+      for entry in unsaved {
+        try entry.upsert(db)
+      }
+    }
+  }
+
+  // MARK: - Embedding Readers
+
+  func hasEmbeddings() async throws -> Bool {
+    try await appDB.db.read { db in
+      try EpisodeEmbedding.fetchCount(db) > 0
+    }
+  }
+
+  func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
+    try await appDB.db.read { db in
+      try EpisodeEmbedding
+        .filter(EpisodeEmbedding.Columns.episodeId == episodeID)
+        .fetchOne(db)
+    }
+  }
+
+  func embeddings(for episodeIDs: [Episode.ID]) async throws
+    -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
+  {
+    guard !episodeIDs.isEmpty else { return IdentifiedArray(id: \.episodeId) }
+    return try await appDB.db.read { db in
+      try EpisodeEmbedding
+        .filter(episodeIDs.contains(EpisodeEmbedding.Columns.episodeId))
+        .fetchIdentifiedArray(db, id: \.episodeId)
+    }
+  }
+
+  func podcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding? {
+    try await appDB.db.read { db in
+      try PodcastEmbedding
+        .filter(PodcastEmbedding.Columns.podcastId == podcastID)
+        .fetchOne(db)
+    }
+  }
+
+  func podcastEmbeddings(for podcastIDs: [Podcast.ID]) async throws
+    -> IdentifiedArray<Podcast.ID, PodcastEmbedding>
+  {
+    guard !podcastIDs.isEmpty else { return IdentifiedArray(id: \.podcastId) }
+    return try await appDB.db.read { db in
+      try PodcastEmbedding
+        .filter(podcastIDs.contains(PodcastEmbedding.Columns.podcastId))
+        .fetchIdentifiedArray(db, id: \.podcastId)
+    }
+  }
+
+  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast> {
+    guard !podcastIDs.isEmpty else { return [] }
+    return try await appDB.db.read { db in
+      try Podcast
+        .filter(podcastIDs.contains(Podcast.Columns.id))
+        .fetchIdentifiedArray(db)
+    }
+  }
+
+  func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode] {
+    guard !episodeIDs.isEmpty else { return [] }
+    return try await appDB.db.read { db in
+      try Episode
+        .filter(episodeIDs.contains(Episode.Columns.id))
+        .fetchAll(db)
+    }
+  }
+
+  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID] {
+    try await appDB.db.read { db in
+      let embeddingAlias = TableAlias()
+      let podcastAlias = TableAlias()
+
+      return
+        try Episode
+        .joining(required: Episode.podcast.aliased(podcastAlias))
+        .joining(optional: Episode.embedding.aliased(embeddingAlias))
+        .filter(Episode.hasSignal || Episode.candidate)
+        .filter(
+          embeddingAlias[EpisodeEmbedding.Columns.id] == nil
+            || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
+            || Episode.Columns.contentUpdatedAt
+              > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
+            || podcastAlias[Podcast.Columns.contentUpdatedAt]
+              > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
+        )
+        .order(Episode.hasSignal.desc)
+        .select(Episode.Columns.id, as: Episode.ID.self)
+        .fetchAll(db)
+    }
+  }
+}
