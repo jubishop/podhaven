@@ -24,20 +24,12 @@ struct SentryLogHandler: LogHandler {
     (self.subsystem, self.category) = LogKit.destructureLabel(from: label)
   }
 
-  public func log(
-    level: Logging.Logger.Level,
-    message: Logging.Logger.Message,
-    metadata: Logging.Logger.Metadata?,
-    source: String,
-    file: String,
-    function: String,
-    line: UInt
-  ) {
+  public func log(event: LogEvent) {
     let logger = SentrySDK.logger
-    let message = String(describing: message)
+    let message = String(describing: event.message)
     let attributes =
       [
-        "severity": level,
+        "severity": event.level,
         "subsystem": subsystem,
         "category": category,
         "environment": AppInfo.environment,
@@ -47,7 +39,7 @@ struct SentryLogHandler: LogHandler {
         "gitCommitHash": AppInfo.gitCommitHash,
       ] as [String: Any]
 
-    switch level {
+    switch event.level {
     case .trace:
       logger.trace(message, attributes: attributes)
     case .debug:

@@ -18,15 +18,7 @@ struct PrintLogHandler: LogHandler {
     self.label = label
   }
 
-  public func log(
-    level: Logger.Level,
-    message: Logger.Message,
-    metadata: Logger.Metadata?,
-    source: String,
-    file: String,
-    function: String,
-    line: UInt
-  ) {
-    print("[\(level)] \(label): \(message)")
+  public func log(event: LogEvent) {
+    print("[\(event.level)] \(label): \(event.message)")
   }
 }
