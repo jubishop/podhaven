@@ -251,35 +251,33 @@ struct PodcastDetailView: View {
   // MARK: - Expanded About
 
   private var expandedAboutInfoView: some View {
-    VStack(spacing: 16) {
-      Divider()
+    ScrollView {
+      VStack(spacing: 16) {
+        Divider()
 
-      metadataRow
-        .padding(.horizontal)
-
-      Divider()
-
-      if viewModel.saved {
-        TagsView(
-          tags: viewModel.tags,
-          allTags: viewModel.allTags,
-          onAdd: viewModel.addTag,
-          onRemove: viewModel.removeTag
-        )
-        .padding(.horizontal)
+        metadataRow
+          .padding(.horizontal)
 
         Divider()
-      }
 
-      ScrollView {
+        if viewModel.saved {
+          TagsView(
+            tags: viewModel.tags,
+            allTags: viewModel.allTags,
+            onAdd: viewModel.addTag,
+            onRemove: viewModel.removeTag
+          )
+          .padding(.horizontal)
+
+          Divider()
+        }
+
         VStack(alignment: .leading, spacing: 16) {
-          // Title
           Text(viewModel.podcast.title)
             .font(.headline)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-          // Website Link
           if let link = viewModel.podcast.link {
             Link(destination: link) {
               HStack(spacing: 16) {
@@ -289,7 +287,6 @@ struct PodcastDetailView: View {
             }
           }
 
-          // Description
           HTMLText(viewModel.podcast.description)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
