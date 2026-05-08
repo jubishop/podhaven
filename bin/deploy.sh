@@ -14,7 +14,6 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT="$PROJECT_DIR/PodHaven.xcodeproj"
 SCHEME="PodHaven"
 EXPORT_OPTIONS="$PROJECT_DIR/ExportOptions.plist"
-ARCHIVE_PATH="$PROJECT_DIR/build/PodHaven.xcarchive"
 
 # Resolve the first available iPhone simulator for this scheme
 SIM_DESTINATION=$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null \
@@ -168,6 +167,11 @@ fi
 
 echo "==> Build ${build} (${tag}) from ${commit}"
 
+# Per-run scratch dir under /tmp for the archive and all xcodebuild logs.
+LOG_DIR=$(mktemp -d "/tmp/podhaven-deploy.XXXXXX")
+ARCHIVE_PATH="$LOG_DIR/PodHaven.xcarchive"
+echo "==> Logs and archive: $LOG_DIR"
+
 # On exit: clean up on failure, finalize on success.
 DEPLOY_SUCCEEDED=false
 CURRENT_PHASE=""
@@ -183,18 +187,15 @@ on_exit() {
         echo "error: Deploy failed (exit ${exit_code})."
       fi
       if [[ -n "$CURRENT_LOG" && -f "$CURRENT_LOG" ]]; then
-        echo ""
-        echo "==> Last 100 lines of ${CURRENT_LOG}:"
-        echo "----------------------------------------"
-        tail -n 100 "$CURRENT_LOG"
-        echo "----------------------------------------"
-        echo "==> Full log preserved at: ${CURRENT_LOG}"
-        echo ""
+        echo "==> Log: ${CURRENT_LOG}"
+      fi
+      if [[ -n "${LOG_DIR:-}" ]]; then
+        echo "==> All logs and artifacts: ${LOG_DIR}"
       fi
       echo "error: Rolling back local tag ${tag}..."
     } >&2
     git -C "$PROJECT_DIR" tag -d "$tag" 2>/dev/null
-    # Leave $PROJECT_DIR/build in place so the log above can be re-read after the script exits.
+    # Leave $LOG_DIR in place so the log above can be re-read after the script exits.
   else
     git -C "$PROJECT_DIR" push origin "$tag" 2>/dev/null || true
     echo "==> Mirroring ${branch} and ${tag} to sourcehut..."
@@ -202,7 +203,7 @@ on_exit() {
     git -C "$PROJECT_DIR" push sourcehut "$tag" || echo "warning: sourcehut push of ${tag} failed" >&2
     gh release create "$tag" --title "$tag" --notes "$tag_message" 2>/dev/null || true
     echo "==> Done. Tagged ${commit} as ${tag}"
-    rm -rf "$PROJECT_DIR/build"
+    rm -rf "$LOG_DIR"
     rm -rf ~/Library/Developer/Xcode/Archives/*/"PodHaven "*
   fi
 }
@@ -230,7 +231,7 @@ run_xcodebuild() {
 
 # Run tests
 echo "==> Running tests..."
-TEST_LOG="$PROJECT_DIR/build/xcodebuild-test.log"
+TEST_LOG="$LOG_DIR/xcodebuild-test.log"
 run_xcodebuild "tests" "$TEST_LOG" \
   test \
   -project "$PROJECT" \
@@ -240,7 +241,7 @@ echo "==> Tests passed."
 
 # Archive
 echo "==> Archiving..."
-BUILD_LOG="$PROJECT_DIR/build/xcodebuild-archive.log"
+BUILD_LOG="$LOG_DIR/xcodebuild-archive.log"
 run_xcodebuild "archive" "$BUILD_LOG" \
   archive \
   -project "$PROJECT" \
@@ -254,7 +255,7 @@ run_xcodebuild "archive" "$BUILD_LOG" \
 
 # Export and upload
 echo "==> Uploading to App Store Connect..."
-UPLOAD_LOG="$PROJECT_DIR/build/xcodebuild-upload.log"
+UPLOAD_LOG="$LOG_DIR/xcodebuild-upload.log"
 run_xcodebuild "upload" "$UPLOAD_LOG" \
   -exportArchive \
   -archivePath "$ARCHIVE_PATH" \
