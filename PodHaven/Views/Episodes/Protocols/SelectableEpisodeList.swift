@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import IdentifiedCollections
 import Logging
 
@@ -129,13 +130,17 @@ extension SelectableEpisodeList {
   // from selections whose tag data is loaded; if none is loaded, no
   // intersection is computed and Add Tag falls back to all tags.
   var selectedEpisodesTagIntersection: Set<Tag.ID> {
-    var iterator = selectedEpisodes.lazy.compactMap { $0.tagIDs }.makeIterator()
-    guard var intersection = iterator.next() else { return [] }
-    while let next = iterator.next() {
-      intersection.formIntersection(next)
-      if intersection.isEmpty { break }
+    var intersection: Set<Tag.ID>?
+    for episode in selectedEpisodes {
+      guard let tagIDs = episode.tagIDs else { continue }
+      if let current = intersection {
+        intersection = current.intersection(tagIDs)
+        if intersection?.isEmpty == true { return [] }
+      } else {
+        intersection = tagIDs
+      }
     }
-    return intersection
+    return intersection ?? []
   }
 
   // MARK: - Actions
@@ -436,16 +441,15 @@ extension SelectableEpisodeList {
           group.addTask {
             do {
               try await Container.shared.repo().addTag(tagID, to: episodeID)
-            } catch {
+            } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
               // Add Tag is filtered against the *intersection* of selected
               // tags, so anything in the menu is missing from at least one
               // episode — but it can still already exist on others, which
-              // is precisely what UNIQUE throws on. Treat the whole bulk
-              // path as best-effort.
+              // is precisely what UNIQUE throws on. Swallow that case.
+            } catch {
               log.caughtError(
                 "applyTagToSelectedEpisodes: failed for episode \(episodeID), tag \(tagID)",
-                error,
-                level: { _ in .debug }
+                error
               )
             }
           }
@@ -473,17 +477,13 @@ extension SelectableEpisodeList {
         for episodeID in episodeIDs {
           group.addTask {
             do {
+              // The repo returns false (not throws) for the no-row case,
+              // so anything bubbling up here is genuinely unexpected.
               _ = try await Container.shared.repo().removeTag(tagID, from: episodeID)
             } catch {
-              // Remove Tag is filtered against the *union* of selected
-              // tags, so the menu surfaces tags present on only some of
-              // the selection. The no-row case is benign here (the repo
-              // returns false rather than throwing), so anything that
-              // bubbles up is expected best-effort noise.
               log.caughtError(
                 "removeTagFromSelectedEpisodes: failed for episode \(episodeID), tag \(tagID)",
-                error,
-                level: { _ in .debug }
+                error
               )
             }
           }
