@@ -25,7 +25,8 @@ struct EpisodeDetailSnapshot: EpisodeDisplayable, Hashable, Sendable {
   var id: MediaGUID { mediaGUID }
 
   init(_ listedEpisode: ListedEpisode) {
-    if let unsavedPodcastEpisode = listedEpisode.getUnsavedPodcastEpisode() {
+    switch listedEpisode.source {
+    case .unsaved(let unsavedPodcastEpisode):
       episodeID = unsavedPodcastEpisode.episodeID
       mediaGUID = unsavedPodcastEpisode.mediaGUID
       feedURL = unsavedPodcastEpisode.feedURL
@@ -43,7 +44,7 @@ struct EpisodeDetailSnapshot: EpisodeDisplayable, Hashable, Sendable {
       podcastImage = unsavedPodcastEpisode.podcastImage
       saveInCache = unsavedPodcastEpisode.saveInCache
       rating = unsavedPodcastEpisode.rating
-    } else if let listablePodcastEpisode = listedEpisode.getListablePodcastEpisode() {
+    case .saved(let listablePodcastEpisode):
       episodeID = listablePodcastEpisode.id
       mediaGUID = listablePodcastEpisode.mediaGUID
       feedURL = listablePodcastEpisode.feedURL
@@ -61,8 +62,6 @@ struct EpisodeDetailSnapshot: EpisodeDisplayable, Hashable, Sendable {
       podcastImage = listablePodcastEpisode.podcastImage
       saveInCache = listablePodcastEpisode.saveInCache
       rating = listablePodcastEpisode.rating
-    } else {
-      Assert.fatal("Cannot build EpisodeDetailSnapshot from: \(type(of: listedEpisode.episode))")
     }
   }
 }

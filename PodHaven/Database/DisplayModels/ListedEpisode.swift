@@ -5,29 +5,48 @@ import FactoryKit
 import Foundation
 import GRDB
 
-@dynamicMemberLookup
 struct ListedEpisode:
   EpisodeListable,
   Hashable,
   Sendable
 {
+  enum Source: Hashable, Sendable {
+    case saved(ListablePodcastEpisode)
+    case unsaved(UnsavedPodcastEpisode)
+
+    var canonicalEpisode: any EpisodeListable {
+      switch self {
+      case .saved(let episode): return episode
+      case .unsaved(let episode): return episode
+      }
+    }
+
+    var feedURL: FeedURL { canonicalEpisode.feedURL }
+    var mediaGUID: MediaGUID { canonicalEpisode.mediaGUID }
+    var title: String { canonicalEpisode.title }
+    var pubDate: Date { canonicalEpisode.pubDate }
+    var duration: CMTime { canonicalEpisode.duration }
+    var currentTime: CMTime { canonicalEpisode.currentTime }
+    var queueOrder: Int? { canonicalEpisode.queueOrder }
+    var cacheStatus: Episode.CacheStatus { canonicalEpisode.cacheStatus }
+    var finishDate: Date? { canonicalEpisode.finishDate }
+    var image: URL { canonicalEpisode.image }
+    var podcastImage: URL { canonicalEpisode.podcastImage }
+    var saveInCache: Bool { canonicalEpisode.saveInCache }
+    var rating: EpisodeRating? { canonicalEpisode.rating }
+
+    var unsavedPodcastEpisode: UnsavedPodcastEpisode? {
+      guard case .unsaved(let episode) = self else { return nil }
+      return episode
+    }
+  }
+
   @DynamicInjected(\.repo) private var repo
 
-  let episode: any EpisodeListable
+  let source: Source
 
-  init(_ episode: any EpisodeListable) {
-    Assert.precondition(
-      !(episode is ListedEpisode)
-        && !(episode is DisplayedEpisode)
-        && !(episode is EpisodeDetailSnapshot),
-      "ListedEpisode cannot wrap wrapper or detail snapshot types"
-    )
-    self.episode = episode
-  }
-
-  subscript<T>(dynamicMember keyPath: KeyPath<any EpisodeListable, T>) -> T {
-    episode[keyPath: keyPath]
-  }
+  init(_ episode: ListablePodcastEpisode) { source = .saved(episode) }
+  init(_ episode: UnsavedPodcastEpisode) { source = .unsaved(episode) }
 
   // MARK: - Identifiable
 
@@ -35,63 +54,33 @@ struct ListedEpisode:
 
   // MARK: - Hashable / Equatable
 
-  func hash(into hasher: inout Hasher) {
-    if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
-      hasher.combine(unsavedPodcastEpisode)
-    } else if let listableEpisode = getListablePodcastEpisode() {
-      hasher.combine(listableEpisode)
-    } else {
-      Assert.fatal("Can't make hash from: \(type(of: episode))")
-    }
-  }
-
-  static func == (lhs: ListedEpisode, rhs: ListedEpisode) -> Bool {
-    if let leftUnsaved = lhs.getUnsavedPodcastEpisode(),
-      let rightUnsaved = rhs.getUnsavedPodcastEpisode()
-    {
-      return leftUnsaved == rightUnsaved
-    }
-
-    if let leftListable = lhs.getListablePodcastEpisode(),
-      let rightListable = rhs.getListablePodcastEpisode()
-    {
-      return leftListable == rightListable
-    }
-
-    return false  // Different concrete types are not equal
-  }
+  func hash(into hasher: inout Hasher) { hasher.combine(source) }
+  static func == (lhs: ListedEpisode, rhs: ListedEpisode) -> Bool { lhs.source == rhs.source }
 
   // MARK: - EpisodeListable
 
-  var feedURL: FeedURL { episode.feedURL }
-  var mediaGUID: MediaGUID { episode.mediaGUID }
-  var title: String { episode.title }
-  var pubDate: Date { episode.pubDate }
-  var duration: CMTime { episode.duration }
-  var currentTime: CMTime { episode.currentTime }
-  var queueOrder: Int? { episode.queueOrder }
-  var cacheStatus: Episode.CacheStatus { episode.cacheStatus }
-  var finishDate: Date? { episode.finishDate }
-  var image: URL { episode.image }
-  var podcastImage: URL { episode.podcastImage }
-  var saveInCache: Bool { episode.saveInCache }
-  var rating: EpisodeRating? { episode.rating }
+  var feedURL: FeedURL { source.feedURL }
+  var mediaGUID: MediaGUID { source.mediaGUID }
+  var title: String { source.title }
+  var pubDate: Date { source.pubDate }
+  var duration: CMTime { source.duration }
+  var currentTime: CMTime { source.currentTime }
+  var queueOrder: Int? { source.queueOrder }
+  var cacheStatus: Episode.CacheStatus { source.cacheStatus }
+  var finishDate: Date? { source.finishDate }
+  var image: URL { source.image }
+  var podcastImage: URL { source.podcastImage }
+  var saveInCache: Bool { source.saveInCache }
+  var rating: EpisodeRating? { source.rating }
 
-  // MARK: - Getters
-
-  func getListablePodcastEpisode() -> ListablePodcastEpisode? {
-    episode as? ListablePodcastEpisode
-  }
-  func getUnsavedPodcastEpisode() -> UnsavedPodcastEpisode? {
-    episode as? UnsavedPodcastEpisode
-  }
+  // MARK: - Helpers
 
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
-    if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
-      return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
-    } else if let listablePodcastEpisode = getListablePodcastEpisode() {
-      return try await listablePodcastEpisode.getPodcastEpisode()
+    switch source {
+    case .saved(let episode): return try await episode.getPodcastEpisode()
+    case .unsaved(let episode): return try await repo.upsertPodcastEpisode(episode)
     }
-    Assert.fatal("Can't make PodcastEpisode from: \(type(of: episode))")
   }
+
+  var unsavedPodcastEpisode: UnsavedPodcastEpisode? { source.unsavedPodcastEpisode }
 }
