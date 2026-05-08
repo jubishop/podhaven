@@ -105,7 +105,7 @@ import Testing
     try await PlayHelpers.play()
 
     // Simulate cache completion
-    let taskID = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
+    let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
     try await CacheHelpers.simulateBackgroundFinish(taskID)
     let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
 
@@ -125,7 +125,7 @@ import Testing
     try await PlayHelpers.play()
 
     // Simulate cache completion
-    let taskID = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
+    let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
     try await CacheHelpers.simulateBackgroundFinish(taskID)
     let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
 
@@ -145,7 +145,7 @@ import Testing
     try await PlayHelpers.play()
 
     // Simulate cache completion
-    let taskID = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
+    let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
     try await CacheHelpers.simulateBackgroundFinish(taskID)
     let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
 

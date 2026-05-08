@@ -35,7 +35,7 @@ actor CandidateEpisodeTests {
     for column in [
       "guid", "mediaURL", "title", "duration", "image", "link",
       "description", "creationDate", "queueDate", "saveInCache",
-      "cachedFilename", "downloadTaskID", "ratingDate", "maxPlaybackTime",
+      "cachedFilename", "downloading", "ratingDate", "maxPlaybackTime",
       "playbackCoverage", "lastPlayedDate", "contentUpdatedAt",
     ] {
       #expect(

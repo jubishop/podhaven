@@ -346,7 +346,7 @@ class EpisodePersistenceTests {
     #expect(original.queueOrder == nil)
     #expect(original.queueDate == nil)
     #expect(original.cachedURL == nil)
-    #expect(original.downloadTaskID == nil)
+    #expect(!original.downloading)
 
     // Feed fields should be preserved
     #expect(original.guid == unsavedEpisode.guid)

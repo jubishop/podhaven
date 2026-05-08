@@ -53,10 +53,10 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     rating = row[Episode.Columns.rating]
 
     let cachedFilename: String? = row[Episode.Columns.cachedFilename]
-    let downloadTaskID: URLSessionDownloadTask.ID? = row[Episode.Columns.downloadTaskID]
+    let downloading: Bool = row[Episode.Columns.downloading]
     if cachedFilename != nil {
       cacheStatus = .cached
-    } else if downloadTaskID != nil {
+    } else if downloading {
       cacheStatus = .caching
     } else {
       cacheStatus = .uncached
@@ -125,7 +125,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       Episode.Columns.saveInCache,
       Episode.Columns.rating,
       Episode.Columns.cachedFilename,
-      Episode.Columns.downloadTaskID,
+      Episode.Columns.downloading,
     ]
   }
 

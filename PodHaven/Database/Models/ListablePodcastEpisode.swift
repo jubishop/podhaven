@@ -37,7 +37,7 @@ struct ListablePodcastEpisode:
       Episode.Columns.queueOrder,
       Episode.Columns.saveInCache,
       Episode.Columns.cachedFilename,
-      Episode.Columns.downloadTaskID,
+      Episode.Columns.downloading,
       Episode.Columns.creationDate,
       Episode.Columns.queueDate,
       Episode.Columns.rating,
@@ -103,7 +103,7 @@ struct ListablePodcastEpisode:
 
     cacheStatus = .from(
       cachedFilename: row[Episode.Columns.cachedFilename] as String?,
-      downloadTaskID: row[Episode.Columns.downloadTaskID] as URLSessionDownloadTask.ID?
+      downloading: row[Episode.Columns.downloading] as Bool
     )
     guard let podcastRow = row.scopes["podcast"] else {
       Assert.fatal("ListablePodcastEpisode requires podcast scope via including(required:)")

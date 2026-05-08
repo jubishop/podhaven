@@ -80,8 +80,13 @@ actor FakeDataFetchable: DataFetchable {
     }
   }
 
-  nonisolated func createDownloadTask(with request: URLRequest) -> any DownloadingTask {
-    let downloadTask = FakeURLSessionDownloadTask()
+  nonisolated func createDownloadTask(with request: URLRequest, taskDescription: String)
+    -> any DownloadingTask
+  {
+    let downloadTask = FakeURLSessionDownloadTask(
+      taskDescription: taskDescription,
+      originalRequest: request
+    )
     downloadTasks { $0.append(downloadTask) }
     return downloadTask
   }

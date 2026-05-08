@@ -63,7 +63,7 @@ struct UnsavedEpisode:
   let queueOrder: Int?
   let queueDate: Date?
   private let cachedFilename: String?
-  let downloadTaskID: URLSessionDownloadTask.ID?
+  let downloading: Bool
   let saveInCache: Bool
   let rating: EpisodeRating?
   let ratingDate: Date?
@@ -84,7 +84,7 @@ struct UnsavedEpisode:
     queueOrder: Int? = nil,
     queueDate: Date? = nil,
     cachedFilename: String? = nil,
-    downloadTaskID: URLSessionDownloadTask.ID? = nil,
+    downloading: Bool = false,
     saveInCache: Bool = false,
     rating: EpisodeRating? = nil,
     ratingDate: Date? = nil
@@ -130,7 +130,7 @@ struct UnsavedEpisode:
     self.queueOrder = queueOrder
     self.queueDate = queueDate
     self.cachedFilename = cachedFilename
-    self.downloadTaskID = downloadTaskID
+    self.downloading = downloading
     self.saveInCache = saveInCache
     self.rating = rating
     self.ratingDate = ratingDate
@@ -140,7 +140,7 @@ struct UnsavedEpisode:
 
   var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
   var cacheStatus: Episode.CacheStatus {
-    .from(cachedFilename: cachedFilename, downloadTaskID: downloadTaskID)
+    .from(cachedFilename: cachedFilename, downloading: downloading)
   }
 
   // MARK: - Searchable
@@ -264,7 +264,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     static let queueOrder = Column("queueOrder")
     static let queueDate = Column("queueDate")
     static let cachedFilename = Column("cachedFilename")
-    static let downloadTaskID = Column("downloadTaskID")
+    static let downloading = Column("downloading")
     static let saveInCache = Column("saveInCache")
     static let rating = Column("rating")
     static let ratingDate = Column("ratingDate")
@@ -319,10 +319,10 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
 
     static func from(
       cachedFilename: String?,
-      downloadTaskID: URLSessionDownloadTask.ID?
+      downloading: Bool
     ) -> CacheStatus {
       if cachedFilename != nil { return .cached }
-      if downloadTaskID != nil { return .caching }
+      if downloading { return .caching }
       return .uncached
     }
   }

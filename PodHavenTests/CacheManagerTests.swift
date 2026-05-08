@@ -42,7 +42,7 @@ import Testing
 
     let data = Data.random()
     let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID, data: data)
-    try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
+    try await CacheHelpers.waitForNotDownloading(podcastEpisode.id)
     try await CacheHelpers.waitForFileRemoved(fileURL)
 
     let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
@@ -80,7 +80,7 @@ import Testing
 
     try await CacheHelpers.simulateBackgroundFailure(taskID)
 
-    try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
+    try await CacheHelpers.waitForNotDownloading(podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
   }
 
@@ -211,7 +211,8 @@ import Testing
 
     try await PlayHelpers.load(podcastEpisode)
 
-    let taskID = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
+    try await CacheHelpers.waitForDownloading(podcastEpisode.id)
+    let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
     try await CacheHelpers.waitForResumed(taskID)
 
     let data = Data.random()
@@ -278,7 +279,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     let taskID = try await cacheManager.downloadToCache(for: podcastEpisode.id)!
     try await CacheHelpers.waitForResumed(taskID)
-    try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id, taskID: taskID)
+    try await CacheHelpers.waitForDownloading(podcastEpisode.id)
   }
 
   @Test("downloadToCache does nothing if already caching")
@@ -332,7 +333,7 @@ import Testing
     try await CacheHelpers.downloadToCache(podcastEpisode.id)
 
     try await cacheManager.clearCache(for: podcastEpisode.id)
-    try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
+    try await CacheHelpers.waitForNotDownloading(podcastEpisode.id)
   }
 
   @Test("clearCache clears cached file")
@@ -355,7 +356,7 @@ import Testing
     try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
     #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
-    try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
+    try await CacheHelpers.waitForDownloading(podcastEpisode.id)
   }
 
   @Test("clearing cache of an uncached episode does nothing")
@@ -429,11 +430,13 @@ import Testing
     let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.load(podcastEpisode1)
-    let taskID1 = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode1.id)
+    try await CacheHelpers.waitForDownloading(podcastEpisode1.id)
+    let taskID1 = try await CacheHelpers.waitForDownloadTask(podcastEpisode1.id)
     try await CacheHelpers.waitForResumed(taskID1)
 
     try await PlayHelpers.load(podcastEpisode2)
-    let taskID2 = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode2.id)
+    try await CacheHelpers.waitForDownloading(podcastEpisode2.id)
+    let taskID2 = try await CacheHelpers.waitForDownloadTask(podcastEpisode2.id)
     try await CacheHelpers.waitForResumed(taskID2)
 
     #expect(taskID1 != taskID2)
@@ -460,5 +463,64 @@ import Testing
 
     #expect(noExtURL.pathExtension == "mp3")
     #expect(withExtURL.pathExtension == "wav")
+  }
+
+  // MARK: - Cross-Contamination Regression
+
+  // Regression for "AI Daily Brief plays Braid": URLSession taskIdentifiers
+  // restart at 1 with each new background session and used to collide with
+  // stale values left in the DB from a prior session. Attribution by
+  // taskIdentifier therefore could write one episode's downloaded audio
+  // into another episode's cached file slot. Attribution must instead use
+  // the taskDescription set at task creation, which is stable across
+  // sessions.
+  @Test("download attribution uses taskDescription, not taskIdentifier")
+  func downloadAttributionUsesTaskDescription() async throws {
+    let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
+
+    // Synthesize a finished download whose taskID does not match anything
+    // the DB knows about, but whose taskDescription pins it to #2.
+    let task = FakeURLSessionDownloadTask(
+      taskID: URLSessionDownloadTask.ID(42),
+      taskDescription: String(podcastEpisode2.id.rawValue),
+      originalRequest: URLRequest(url: podcastEpisode2.episode.mediaURL.rawValue)
+    )
+
+    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try await fileManager.writeData(Data.random(), to: tempFile)
+    await cacheBackgroundDelegate.urlSession(
+      session,
+      downloadTask: task,
+      didFinishDownloadingTo: tempFile
+    )
+
+    let updated2 = try await repo.episode(podcastEpisode2.id)!
+    #expect(updated2.cacheStatus == .cached)
+    let updated1 = try await repo.episode(podcastEpisode1.id)!
+    #expect(updated1.cacheStatus != .cached)
+  }
+
+  // Defense-in-depth: even if a task somehow ends up attributed to the wrong
+  // episode (e.g. a future regression), the URL mismatch must abort the
+  // write so corrupt audio never lands in the wrong slot.
+  @Test("download with mismatched URL is refused, leaving the episode uncached")
+  func mismatchedURLRefused() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    let task = FakeURLSessionDownloadTask(
+      taskDescription: String(podcastEpisode.id.rawValue),
+      originalRequest: URLRequest(url: URL(string: "https://wrong.example.com/other.mp3")!)
+    )
+
+    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try await fileManager.writeData(Data.random(), to: tempFile)
+    await cacheBackgroundDelegate.urlSession(
+      session,
+      downloadTask: task,
+      didFinishDownloadingTo: tempFile
+    )
+
+    let updated = try await repo.episode(podcastEpisode.id)!
+    #expect(updated.cacheStatus != .cached)
   }
 }

@@ -28,8 +28,6 @@ protocol Databasing: Sendable {
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode?
   func episode(_ mediaGUID: MediaGUID) async throws -> Episode?
-  func episode(_ downloadTaskID: URLSessionDownloadTask.ID) async throws -> Episode?
-  func episodes(_ downloadTaskIDs: [URLSessionDownloadTask.ID]) async throws -> [Episode]
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode?
   func podcastEpisodes(_ episodeIDs: [Episode.ID]) async throws -> [PodcastEpisode]
   func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode?
@@ -106,9 +104,7 @@ protocol Databasing: Sendable {
   ) async throws -> Bool
 
   @discardableResult
-  func updateDownloadTaskID(_ episodeID: Episode.ID, downloadTaskID: URLSessionDownloadTask.ID?)
-    async throws
-    -> Bool
+  func updateDownloading(_ episodeID: Episode.ID, downloading: Bool) async throws -> Bool
 
   @discardableResult
   func updateCachedFilename(_ episodeID: Episode.ID, cachedFilename: String?) async throws -> Bool
