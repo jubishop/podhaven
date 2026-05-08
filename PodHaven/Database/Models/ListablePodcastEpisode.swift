@@ -22,6 +22,11 @@ import Tagged
 struct ListablePodcastEpisode:
   EpisodeListable, Searchable, FetchableRecord, TableRecord, Identifiable
 {
+  // Column key under which the correlated tag-IDs subquery is materialised.
+  // Kept as a literal so observation tests and the row decoder agree on the
+  // column name without coupling to a model property.
+  static let tagIDsColumnName = "tagIDs"
+
   static let databaseTableName: String = Episode.databaseTableName
   static var databaseSelection: [any SQLSelectable] {
     [
@@ -41,6 +46,18 @@ struct ListablePodcastEpisode:
       Episode.Columns.creationDate,
       Episode.Columns.queueDate,
       Episode.Columns.rating,
+      // Correlated scalar subquery: SQLite materialises the JSON array only
+      // for rows that survive the outer sort+LIMIT, so per-row cost is paid
+      // on the final page rather than the full filter set. See issue #180
+      // benchmarks for the LEFT JOIN + GROUP BY shape that this avoids.
+      SQL(
+        """
+        (SELECT json_group_array("tagId") \
+        FROM "episodeTag" \
+        WHERE "episodeTag"."episodeId" = "episode"."id")
+        """
+      )
+      .sqlExpression.forKey(tagIDsColumnName),
     ]
   }
 
@@ -67,6 +84,10 @@ struct ListablePodcastEpisode:
   let creationDate: Date
   let queueDate: Date?
   let rating: EpisodeRating?
+  // Always materialised by the correlated subquery — Optional so the
+  // EpisodeListable default (`nil`) keeps tag UI hidden on shapes that
+  // don't carry tag data. Empty Set means "row exists, no tags".
+  let tagIDs: Set<Tag.ID>?
 
   // MARK: - Podcast Fields
 
@@ -101,6 +122,17 @@ struct ListablePodcastEpisode:
     queueDate = row[Episode.Columns.queueDate]
     rating = row[Episode.Columns.rating]
 
+    // SQLite's json_group_array returns NULL for an empty group. Decode the
+    // populated case as JSON; an absent or NULL column maps to an empty Set
+    // so callers don't need to distinguish "no matches" from "no row".
+    if let tagIDsJSON: String = row[Self.tagIDsColumnName],
+      let data = tagIDsJSON.data(using: .utf8)
+    {
+      tagIDs = Set(try JSONDecoder().decode([Tag.ID].self, from: data))
+    } else {
+      tagIDs = []
+    }
+
     cacheStatus = .from(
       cachedFilename: row[Episode.Columns.cachedFilename] as String?,
       downloadTaskID: row[Episode.Columns.downloadTaskID] as URLSessionDownloadTask.ID?
@@ -131,6 +163,7 @@ struct ListablePodcastEpisode:
     hasher.combine(creationDate)
     hasher.combine(queueDate)
     hasher.combine(rating)
+    hasher.combine(tagIDs)
     hasher.combine(feedURL)
     hasher.combine(podcastImage)
     hasher.combine(podcastTitle)
@@ -154,6 +187,7 @@ struct ListablePodcastEpisode:
       && lhs.creationDate == rhs.creationDate
       && lhs.queueDate == rhs.queueDate
       && lhs.rating == rhs.rating
+      && lhs.tagIDs == rhs.tagIDs
       && lhs.feedURL == rhs.feedURL
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle

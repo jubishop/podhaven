@@ -267,6 +267,69 @@ class TagsTests {
     #expect(observed.tags.map(\.name) == ["Apple", "banana", "Cherry"])
   }
 
+  @Test("ListablePodcastEpisode.request materialises tagIDs from the episodeTag JOIN")
+  func listablePodcastEpisodeMaterialisesTagIDs() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "tagged"),
+          try Create.unsavedEpisode(guid: "untagged"),
+        ]
+      )
+    )
+    let tagged = series.episodes[0]
+    let untagged = series.episodes[1]
+
+    let tagOne = try await repo.insertTag(UnsavedTag(name: "Alpha"))
+    let tagTwo = try await repo.insertTag(UnsavedTag(name: "Beta"))
+    _ = try await repo.insertTag(UnsavedTag(name: "Unattached"))
+
+    try await repo.addTag(tagOne.id, to: tagged.id)
+    try await repo.addTag(tagTwo.id, to: tagged.id)
+
+    let listables = try await repo.db.read { db in
+      try ListablePodcastEpisode
+        .request(filter: AppDB.NoOp, order: Episode.Columns.id.asc)
+        .fetchAll(db)
+    }
+
+    let taggedRow = try #require(listables.first { $0.id == tagged.id })
+    let untaggedRow = try #require(listables.first { $0.id == untagged.id })
+    #expect(taggedRow.tagIDs == [tagOne.id, tagTwo.id])
+    #expect(untaggedRow.tagIDs == [])
+  }
+
+  @Test("listablePodcastEpisodes() re-emits when episodeTag rows change")
+  func listablePodcastEpisodesEmitsOnTagChange() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let episodeID = series.episodes[0].id
+    let tag = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
+
+    let updateCount = Counter()
+    let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+      observatory.listablePodcastEpisodes(
+        filter: Episode.Columns.id == episodeID
+      )
+    Task {
+      for try await _ in observation {
+        await updateCount.increment()
+      }
+    }
+
+    try await updateCount.wait(for: 1)
+    try await repo.addTag(tag.id, to: episodeID)
+    try await updateCount.wait(for: 2)
+
+    _ = try await repo.removeTag(tag.id, from: episodeID)
+    try await updateCount.wait(for: 3)
+  }
+
   @Test("deleteTag() cascades through episodeTag mappings")
   func deletingTagRemovesEpisodeMappings() async throws {
     let series = try await repo.insertSeries(

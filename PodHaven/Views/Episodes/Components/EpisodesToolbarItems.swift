@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import SwiftUI
 
 // MARK: - Selectable
@@ -99,6 +100,8 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel:
               viewModel.markSelectedEpisodesFinished()
             }
           }
+
+          tagBulkMenu(viewModel: viewModel)
         },
         label: { AppIcon.moreActions.image }
       )
@@ -107,6 +110,58 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList>(viewModel:
 
   ToolbarItem(placement: .primaryAction) {
     SelectableListMenu(list: viewModel.episodeList)
+  }
+}
+
+// Filtered Add/Remove submenus for bulk selection.
+//
+// - Add Tag is `allTags - intersection(selected.tagIDs)`: any tag where at
+//   least one selected episode would gain it. Tags already on every selected
+//   episode are stripped so we never offer a complete no-op; per-row UNIQUE
+//   hits on already-tagged episodes are demoted in the bulk action.
+// - Remove Tag is `union(selected.tagIDs)`: any tag that's on at least one
+//   selected episode and would actually be removed somewhere.
+//
+// Hidden whole-cloth when both filtered lists are empty so the menu never
+// offers an action that would no-op for the entire selection.
+@MainActor @ViewBuilder
+private func tagBulkMenu<ViewModel: SelectableEpisodeList>(
+  viewModel: ViewModel
+) -> some View {
+  let allTags = Container.shared.sharedState().tags
+  let intersection = viewModel.selectedEpisodesTagIntersection
+  let union = viewModel.selectedEpisodesTagUnion
+  let addable = allTags.filter { !intersection.contains($0.id) }
+  let removable = allTags.filter { union.contains($0.id) }
+
+  if !addable.isEmpty || !removable.isEmpty {
+    Menu {
+      if !addable.isEmpty {
+        Menu {
+          ForEach(addable) { tag in
+            Button(tag.name) {
+              viewModel.applyTagToSelectedEpisodes(tag.id)
+            }
+          }
+        } label: {
+          AppIcon.addTag.label("Add Tag")
+        }
+      }
+
+      if !removable.isEmpty {
+        Menu {
+          ForEach(removable) { tag in
+            Button(tag.name) {
+              viewModel.removeTagFromSelectedEpisodes(tag.id)
+            }
+          }
+        } label: {
+          AppIcon.removeTag.label("Remove Tag")
+        }
+      }
+    } label: {
+      AppIcon.tag.label("Tag")
+    }
   }
 }
 

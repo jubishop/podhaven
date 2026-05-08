@@ -40,6 +40,8 @@ import Logging
   func cancelSelectedEpisodeDownloads()
   func markSelectedEpisodesFinished()
   func rateSelectedEpisodes(rating: EpisodeRating?)
+  func applyTagToSelectedEpisodes(_ tagID: Tag.ID)
+  func removeTagFromSelectedEpisodes(_ tagID: Tag.ID)
 }
 
 extension SelectableEpisodeList {
@@ -107,6 +109,33 @@ extension SelectableEpisodeList {
 
   var anySelectedRated: Bool {
     selectedEpisodes.contains { $0.rating != nil }
+  }
+
+  // MARK: - Tag Selection Helpers
+
+  // Tags present on at least one selected episode — drives the Remove Tag
+  // submenu so removing affects something. Episodes without tag data
+  // (`tagIDs == nil`) contribute nothing.
+  var selectedEpisodesTagUnion: Set<Tag.ID> {
+    selectedEpisodes.reduce(into: Set<Tag.ID>()) { union, episode in
+      if let tagIDs = episode.tagIDs {
+        union.formUnion(tagIDs)
+      }
+    }
+  }
+
+  // Tags present on every selected episode — adding any of these would be
+  // a no-op for the entire selection, so we strip them from Add Tag. Built
+  // from selections whose tag data is loaded; if none is loaded, no
+  // intersection is computed and Add Tag falls back to all tags.
+  var selectedEpisodesTagIntersection: Set<Tag.ID> {
+    var iterator = selectedEpisodes.lazy.compactMap { $0.tagIDs }.makeIterator()
+    guard var intersection = iterator.next() else { return [] }
+    while let next = iterator.next() {
+      intersection.formIntersection(next)
+      if intersection.isEmpty { break }
+    }
+    return intersection
   }
 
   // MARK: - Actions
@@ -383,6 +412,82 @@ extension SelectableEpisodeList {
           "rateSelectedEpisodes: failed for \(selectedEpisodes.count) episodes",
           error
         )
+      }
+    }
+  }
+
+  func applyTagToSelectedEpisodes(_ tagID: Tag.ID) {
+    guard !selectedEpisodes.isEmpty else { return }
+
+    let log = Self.log
+    Task { [weak self] in
+      guard let self else { return }
+
+      let episodeIDs: [Episode.ID]
+      do {
+        episodeIDs = try await selectedPodcastEpisodeIDs
+      } catch {
+        log.caughtError("applyTagToSelectedEpisodes: failed to resolve episode IDs", error)
+        return
+      }
+
+      await withDiscardingTaskGroup { group in
+        for episodeID in episodeIDs {
+          group.addTask {
+            do {
+              try await Container.shared.repo().addTag(tagID, to: episodeID)
+            } catch {
+              // Add Tag is filtered against the *intersection* of selected
+              // tags, so anything in the menu is missing from at least one
+              // episode — but it can still already exist on others, which
+              // is precisely what UNIQUE throws on. Treat the whole bulk
+              // path as best-effort.
+              log.caughtError(
+                "applyTagToSelectedEpisodes: failed for episode \(episodeID), tag \(tagID)",
+                error,
+                level: { _ in .debug }
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+
+  func removeTagFromSelectedEpisodes(_ tagID: Tag.ID) {
+    guard !selectedEpisodes.isEmpty else { return }
+
+    let log = Self.log
+    Task { [weak self] in
+      guard let self else { return }
+
+      let episodeIDs: [Episode.ID]
+      do {
+        episodeIDs = try await selectedPodcastEpisodeIDs
+      } catch {
+        log.caughtError("removeTagFromSelectedEpisodes: failed to resolve episode IDs", error)
+        return
+      }
+
+      await withDiscardingTaskGroup { group in
+        for episodeID in episodeIDs {
+          group.addTask {
+            do {
+              _ = try await Container.shared.repo().removeTag(tagID, from: episodeID)
+            } catch {
+              // Remove Tag is filtered against the *union* of selected
+              // tags, so the menu surfaces tags present on only some of
+              // the selection. The no-row case is benign here (the repo
+              // returns false rather than throwing), so anything that
+              // bubbles up is expected best-effort noise.
+              log.caughtError(
+                "removeTagFromSelectedEpisodes: failed for episode \(episodeID), tag \(tagID)",
+                error,
+                level: { _ in .debug }
+              )
+            }
+          }
+        }
       }
     }
   }

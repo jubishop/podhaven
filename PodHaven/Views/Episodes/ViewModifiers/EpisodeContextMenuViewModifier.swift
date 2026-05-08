@@ -1,9 +1,13 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
+import IdentifiedCollections
 import SwiftUI
 
 struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
+  @DynamicInjected(\.sharedState) private var sharedState
+
   let viewModel: ViewModel
   let episode: ViewModel.EpisodeType
 
@@ -100,7 +104,50 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
             viewModel.markEpisodeFinished(episode)
           }
         }
+
+        if let tagIDs = episode.tagIDs {
+          tagMenu(tagIDs: tagIDs)
+        }
       }
+  }
+
+  // Filtered Add/Remove submenus. Hidden whole-cloth when both filtered
+  // lists are empty so we never offer a submenu that would no-op.
+  @ViewBuilder
+  private func tagMenu(tagIDs: Set<Tag.ID>) -> some View {
+    let allTags = sharedState.tags
+    let addable = allTags.filter { !tagIDs.contains($0.id) }
+    let removable = allTags.filter { tagIDs.contains($0.id) }
+
+    if !addable.isEmpty || !removable.isEmpty {
+      Menu {
+        if !addable.isEmpty {
+          Menu {
+            ForEach(addable) { tag in
+              Button(tag.name) {
+                viewModel.addTag(tag.id, to: episode)
+              }
+            }
+          } label: {
+            AppIcon.addTag.label("Add Tag")
+          }
+        }
+
+        if !removable.isEmpty {
+          Menu {
+            ForEach(removable) { tag in
+              Button(tag.name) {
+                viewModel.removeTag(tag.id, from: episode)
+              }
+            }
+          } label: {
+            AppIcon.removeTag.label("Remove Tag")
+          }
+        }
+      } label: {
+        AppIcon.tag.label("Tag")
+      }
+    }
   }
 }
 
