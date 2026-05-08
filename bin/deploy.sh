@@ -170,10 +170,31 @@ echo "==> Build ${build} (${tag}) from ${commit}"
 
 # On exit: clean up on failure, finalize on success.
 DEPLOY_SUCCEEDED=false
+CURRENT_PHASE=""
+CURRENT_LOG=""
 on_exit() {
+  local exit_code=$?
   if [[ "$DEPLOY_SUCCEEDED" != true ]]; then
-    echo "error: Deploy failed — rolling back local tag ${tag}..." >&2
+    {
+      echo ""
+      if [[ -n "$CURRENT_PHASE" ]]; then
+        echo "error: Deploy failed during: ${CURRENT_PHASE} (exit ${exit_code})"
+      else
+        echo "error: Deploy failed (exit ${exit_code})."
+      fi
+      if [[ -n "$CURRENT_LOG" && -f "$CURRENT_LOG" ]]; then
+        echo ""
+        echo "==> Last 100 lines of ${CURRENT_LOG}:"
+        echo "----------------------------------------"
+        tail -n 100 "$CURRENT_LOG"
+        echo "----------------------------------------"
+        echo "==> Full log preserved at: ${CURRENT_LOG}"
+        echo ""
+      fi
+      echo "error: Rolling back local tag ${tag}..."
+    } >&2
     git -C "$PROJECT_DIR" tag -d "$tag" 2>/dev/null
+    # Leave $PROJECT_DIR/build in place so the log above can be re-read after the script exits.
   else
     git -C "$PROJECT_DIR" push origin "$tag" 2>/dev/null || true
     echo "==> Mirroring ${branch} and ${tag} to sourcehut..."
@@ -181,28 +202,43 @@ on_exit() {
     git -C "$PROJECT_DIR" push sourcehut "$tag" || echo "warning: sourcehut push of ${tag} failed" >&2
     gh release create "$tag" --title "$tag" --notes "$tag_message" 2>/dev/null || true
     echo "==> Done. Tagged ${commit} as ${tag}"
+    rm -rf "$PROJECT_DIR/build"
+    rm -rf ~/Library/Developer/Xcode/Archives/*/"PodHaven "*
   fi
-  rm -rf "$PROJECT_DIR/build"
-  rm -rf ~/Library/Developer/Xcode/Archives/*/"PodHaven "*
 }
 trap on_exit EXIT
+
+# Run an xcodebuild pipeline so its exit code (not tee/xcbeautify's) drives failure.
+# xcbeautify can swallow xcodebuild's stderr; PIPESTATUS[0] preserves the real status.
+run_xcodebuild() {
+  local phase="$1"
+  local log="$2"
+  shift 2
+  CURRENT_PHASE="$phase"
+  CURRENT_LOG="$log"
+  mkdir -p "$(dirname "$log")"
+  xcodebuild "$@" 2>&1 | tee "$log" | xcbeautify || true
+  local status=${PIPESTATUS[0]}
+  if (( status != 0 )); then
+    exit "$status"
+  fi
+}
 
 # Run tests
 echo "==> Running tests..."
 TEST_LOG="$PROJECT_DIR/build/xcodebuild-test.log"
-mkdir -p "$PROJECT_DIR/build"
-xcodebuild test \
+run_xcodebuild "tests" "$TEST_LOG" \
+  test \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
-  -destination "platform=iOS Simulator,name=$SIM_DESTINATION" \
-  2>&1 | tee "$TEST_LOG" | xcbeautify
+  -destination "platform=iOS Simulator,name=$SIM_DESTINATION"
 echo "==> Tests passed."
 
 # Archive
 echo "==> Archiving..."
 BUILD_LOG="$PROJECT_DIR/build/xcodebuild-archive.log"
-mkdir -p "$PROJECT_DIR/build"
-xcodebuild archive \
+run_xcodebuild "archive" "$BUILD_LOG" \
+  archive \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
   -configuration Release \
@@ -210,18 +246,17 @@ xcodebuild archive \
   -archivePath "$ARCHIVE_PATH" \
   -allowProvisioningUpdates \
   "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
-  CURRENT_PROJECT_VERSION="$build" \
-  2>&1 | tee "$BUILD_LOG" | xcbeautify
+  CURRENT_PROJECT_VERSION="$build"
 
 # Export and upload
 echo "==> Uploading to App Store Connect..."
 UPLOAD_LOG="$PROJECT_DIR/build/xcodebuild-upload.log"
-xcodebuild -exportArchive \
+run_xcodebuild "upload" "$UPLOAD_LOG" \
+  -exportArchive \
   -archivePath "$ARCHIVE_PATH" \
   -exportOptionsPlist "$EXPORT_OPTIONS" \
   -allowProvisioningUpdates \
-  "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
-  2>&1 | tee "$UPLOAD_LOG" | xcbeautify
+  "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}"
 
 # Signal success — the EXIT trap handles the rest.
 DEPLOY_SUCCEEDED=true
