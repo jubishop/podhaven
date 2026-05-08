@@ -70,7 +70,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) async {
     guard totalBytesExpectedToWrite > 0 else { return }
     do {
-      if let episode = try await Self.episode(for: downloadTask, repo: repo) {
+      if let episode = try await self.episode(for: downloadTask) {
         sharedState.updateDownloadProgress(
           for: episode.id,
           progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
@@ -114,7 +114,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) async {
     let episode: Episode
     do {
-      guard let fetched = try await Self.episode(for: downloadTask, repo: repo) else {
+      guard let fetched = try await self.episode(for: downloadTask) else {
         Self.log.debug(
           """
           No episode for task #\(downloadTask.taskID) \
@@ -294,7 +294,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
     let episode: Episode?
     do {
-      episode = try await Self.episode(for: task, repo: repo)
+      episode = try await self.episode(for: task)
     } catch {
       Self.log.caughtError(
         "didCompleteWithError: failed to fetch episode for task #\(task.taskID)",
@@ -340,10 +340,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   // taskDescription set when the task was created. URLSession taskIDs are
   // session-scoped and reset on each background-session creation, so they
   // can't be trusted to map a task to a row that survived an app relaunch.
-  private static func episode(
-    for task: any DownloadingTask,
-    repo: any Databasing
-  ) async throws -> Episode? {
+  private func episode(for task: any DownloadingTask) async throws -> Episode? {
     guard let description = task.taskDescription,
       let raw = Episode.ID.RawValue(description)
     else { return nil }
