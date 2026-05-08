@@ -251,17 +251,20 @@ class TagsTests {
     )
     let episode = series.episodes[0]
 
-    let zeta = try await repo.insertTag(UnsavedTag(name: "zeta"))
-    let alpha = try await repo.insertTag(UnsavedTag(name: "Alpha"))
-    let beta = try await repo.insertTag(UnsavedTag(name: "beta"))
+    // Names chosen so binary and .nocase orderings diverge: binary sorts to
+    // [Apple, Cherry, banana] (uppercase before lowercase), case-insensitive
+    // sorts to [Apple, banana, Cherry].
+    let banana = try await repo.insertTag(UnsavedTag(name: "banana"))
+    let cherry = try await repo.insertTag(UnsavedTag(name: "Cherry"))
+    let apple = try await repo.insertTag(UnsavedTag(name: "Apple"))
     _ = try await repo.insertTag(UnsavedTag(name: "Unattached"))
 
-    try await repo.addTag(zeta.id, to: episode.id)
-    try await repo.addTag(alpha.id, to: episode.id)
-    try await repo.addTag(beta.id, to: episode.id)
+    try await repo.addTag(banana.id, to: episode.id)
+    try await repo.addTag(cherry.id, to: episode.id)
+    try await repo.addTag(apple.id, to: episode.id)
 
     let observed = try #require(try await observatory.podcastEpisodeWithTags(episode.id).get())
-    #expect(observed.tags.map(\.name) == ["Alpha", "beta", "zeta"])
+    #expect(observed.tags.map(\.name) == ["Apple", "banana", "Cherry"])
   }
 
   @Test("deleteTag() cascades through episodeTag mappings")

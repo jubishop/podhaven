@@ -9,6 +9,7 @@ import Testing
 @Suite("of TagsSettingsViewModel tests", .container)
 @MainActor final class TagsSettingsViewModelTests {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
   @Test("deleteTag confirms before deleting even when counts have not loaded")
@@ -26,5 +27,7 @@ import Testing
     viewModel.deleteTag(tag.id)
 
     #expect(alert.config?.title == "Delete Tag?")
+    let tagsAfter = try await observatory.tags().get()
+    #expect(tagsAfter[id: tag.id] != nil)
   }
 }

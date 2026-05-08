@@ -11,6 +11,7 @@ import Testing
 @Suite("of EpisodeDetailViewModel tests", .container)
 @MainActor final class EpisodeDetailViewModelTests {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.queue) private var queue
@@ -189,8 +190,8 @@ import Testing
     )
   }
 
-  @Test("addTag restarts tag observation after saved episode is deleted and re-saved")
-  func addTagRestartsTagObservationAfterDeleteAndResave() async throws {
+  @Test("tag observation rebinds after saved episode is deleted and re-saved")
+  func tagObservationRebindsAfterDeleteAndResave() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: try Create.unsavedPodcast(title: "Tag Delete Resave"),
@@ -213,16 +214,27 @@ import Testing
       }
     )
 
-    viewModel.addTag(tag.id)
+    viewModel.markFinished()
 
     try await Wait.until(
-      { @MainActor in
-        viewModel.episode.isSaved && viewModel.tags.map(\.id) == [tag.id]
-      },
+      { @MainActor in viewModel.episode.isSaved && viewModel.episode.finished },
       { @MainActor in
         """
-        Expected addTag to re-save the episode and observe tags for the new episode ID.
+        Expected markFinished to re-save the episode.
         saved: \(viewModel.episode.isSaved)
+        finished: \(viewModel.episode.finished)
+        """
+      }
+    )
+
+    let resaved = try #require(try await repo.podcastEpisode(podcastEpisode.episode.mediaGUID))
+    try await repo.addTag(tag.id, to: resaved.id)
+
+    try await Wait.until(
+      { @MainActor in viewModel.tags.map(\.id) == [tag.id] },
+      { @MainActor in
+        """
+        Expected tag observation to rebind to the re-saved episode and surface the added tag.
         tags: \(viewModel.tags.map(\.name))
         """
       }
@@ -251,7 +263,6 @@ import Testing
     )
     _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
 
-    let tag = try await repo.insertTag(UnsavedTag(name: "Re-score"))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
     try await viewModel.performAppear()
@@ -271,7 +282,7 @@ import Testing
     )
     #expect(viewModel.displayedRecommendationScore == nil)
 
-    viewModel.addTag(tag.id)
+    viewModel.addToTopOfQueue()
 
     try await Wait.until(
       { @MainActor in
@@ -282,6 +293,56 @@ import Testing
         Expected re-saved episode to bootstrap recommendation score without waiting for a new engine revision.
         saved: \(viewModel.episode.isSaved)
         score: \(String(describing: viewModel.displayedRecommendationScore?.value))
+        """
+      }
+    )
+  }
+
+  @Test("observation restarts after a podcastEpisodeWithTags failure")
+  func observationRestartsAfterPodcastEpisodeWithTagsFailure() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Recovery"),
+        unsavedEpisode: try Create.unsavedEpisode(guid: "recovery", title: "Recovery")
+      )
+    )
+    let tag = try await repo.insertTag(UnsavedTag(name: "Recovered"))
+    try await repo.addTag(tag.id, to: podcastEpisode.id)
+
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let dbReader = appDB.db
+    fakeObservatory.podcastEpisodeWithTagsScript([
+      { _ in
+        ValueObservation
+          .tracking { _ -> PodcastEpisodeWithTags? in
+            throw TestError.simulatedFailure
+          }
+          .values(in: dbReader)
+      }
+    ])
+
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    // First performAppear subscribes to the scripted (failing) observation.
+    // SwiftUI can deliver multiple .onAppear without an intervening
+    // .onDisappear, so simulate that by re-entering performAppear from the
+    // poll loop. With the fix, the failed task self-clears and the next
+    // restart subscribes to the real observatory and surfaces the tag.
+    // Without the fix, observationTask permanently retains the dead task
+    // and every subsequent startObservation() returns early.
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      maxAttempts: 200,
+      delay: .milliseconds(50),
+      { @MainActor in
+        try await viewModel.performAppear()
+        return viewModel.tags.map(\.id) == [tag.id]
+      },
+      { @MainActor in
+        """
+        Expected observation to restart after failure and surface the tag.
+        tags: \(viewModel.tags.map(\.name))
         """
       }
     )
@@ -340,8 +401,8 @@ import Testing
     )
   }
 
-  @Test("addTag saves an unsaved episode before tagging it")
-  func addTagSavesUnsavedEpisodeBeforeTagging() async throws {
+  @Test("addTag is a no-op for unsaved episodes")
+  func addTagIsNoOpForUnsavedEpisode() async throws {
     let unsavedPodcastEpisode = UnsavedPodcastEpisode(
       unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved For Tagging"),
       unsavedEpisode: try Create.unsavedEpisode(
@@ -354,18 +415,9 @@ import Testing
 
     viewModel.addTag(tag.id)
 
-    try await Wait.until(
-      { @MainActor in
-        viewModel.episode.isSaved && viewModel.tags.map(\.id) == [tag.id]
-      },
-      { @MainActor in
-        """
-        Expected addTag to save and tag the unsaved episode.
-        saved: \(viewModel.episode.isSaved)
-        tags: \(viewModel.tags.map(\.name))
-        """
-      }
-    )
+    #expect(viewModel.episode.isSaved == false)
+    #expect(viewModel.tags.isEmpty)
+    #expect(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID) == nil)
   }
 
   @Test("markFinished saves an unsaved episode before finishing it")

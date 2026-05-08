@@ -400,18 +400,13 @@ import Tagged
   // MARK: - Tag Management
 
   func addTag(_ tagID: Tag.ID) {
+    guard let episodeID = podcastEpisode?.id else {
+      Self.log.warning("Cannot add tag to unsaved episode")
+      return
+    }
+
     Task { [weak self] in
       guard let self else { return }
-
-      let episodeID: Episode.ID
-      do {
-        episodeID = try await getOrCreatePodcastEpisode().id
-      } catch {
-        Self.log.caughtError("addTag: failed to get/create episode \(episode.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-        return
-      }
 
       do {
         try await repo.addTag(tagID, to: episodeID)
@@ -467,6 +462,16 @@ import Tagged
   private func observePodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
     Self.log.debug("Starting observation for episode: \(podcastEpisode.toString)")
 
+    // Clear our reference on any natural exit (deletion, error, normal end).
+    // Skip when we were cancelled — disappear() or a re-binding
+    // startObservation() has already cleared/replaced observationTask, and
+    // stomping it would kill a newer task.
+    defer {
+      if !Task.isCancelled {
+        observationTask = nil
+      }
+    }
+
     do {
       for try await updated in observatory.podcastEpisodeWithTags(podcastEpisode.id) {
         try Task.checkCancellation()
@@ -478,7 +483,6 @@ import Tagged
         guard let updated
         else {
           Self.log.debug("Episode was deleted")
-          observationTask = nil
           tags = []
           clearRecommendationTask()
           recommendationScore = nil
