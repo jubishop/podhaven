@@ -4,8 +4,8 @@ import FactoryKit
 import UIKit
 
 extension Container {
-  var uiApplication: Factory<any ApplicationProviding> {
-    Factory(self) { @MainActor in UIApplication.shared }
+  @MainActor var uiApplication: Factory<any ApplicationProviding> {
+    Factory(self) { UIApplication.shared }
   }
 }
 

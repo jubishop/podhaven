@@ -8,7 +8,7 @@ import Tagged
 
 extension Container {
   @MainActor var podAVPlayer: Factory<PodAVPlayer> {
-    Factory(self) { @MainActor in PodAVPlayer() }.scope(.cached)
+    Factory(self) { PodAVPlayer() }.scope(.cached)
   }
 
   var loadEpisodeAsset: Factory<(_ asset: AVURLAsset) async throws -> EpisodeAsset> {

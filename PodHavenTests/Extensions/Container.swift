@@ -28,7 +28,9 @@ extension Container: @retroactive AutoRegistering {
 
     mpRemoteCommandCenter.context(.test) { FakeMPRemoteCommandCenter() }.scope(.cached)
     mpNowPlayingInfoCenter.context(.test) { FakeMPNowPlayingInfoCenter() }.scope(.cached)
-    avPlayer.context(.test) { @MainActor in FakeAVPlayer() }.scope(.cached)
+    MainActor.assumeIsolated {
+      _ = avPlayer.context(.test) { FakeAVPlayer() }.scope(.cached)
+    }
     loadEpisodeAsset.context(.test) { self.fakeEpisodeAssetLoader().loadEpisodeAsset }
     configureAudioSession.context(.test) {
       {
@@ -66,7 +68,9 @@ extension Container: @retroactive AutoRegistering {
     standardDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
     sharedDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
 
-    uiApplication.context(.test) { @MainActor in FakeApplication() }.scope(.cached)
+    MainActor.assumeIsolated {
+      _ = uiApplication.context(.test) { FakeApplication() }.scope(.cached)
+    }
 
     bgTaskScheduler.context(.test) { FakeBGTaskScheduler() }.scope(.cached)
 

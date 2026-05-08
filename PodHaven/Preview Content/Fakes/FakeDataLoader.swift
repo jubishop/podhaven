@@ -23,8 +23,10 @@ struct FakeDataLoader: DataLoading {
   // MARK: - DataLoading
 
   func loadData(
-    with request: URLRequest
-  ) async throws -> (AsyncThrowingStream<Data, any Error>, URLResponse) {
+    with request: URLRequest,
+    didReceiveData: @escaping @Sendable (Data, URLResponse) -> Void,
+    completion: @escaping @Sendable ((any Error)?) -> Void
+  ) -> any Cancellable {
     let url = request.url!
     loadedURLs { set in set.insert(url) }
 
@@ -35,16 +37,29 @@ struct FakeDataLoader: DataLoading {
       headerFields: nil
     )!
 
-    guard let fakeHandler = fakeHandlers[url] ?? defaultHandler() else {
-      throw URLError(.fileDoesNotExist)
+    let handler = fakeHandlers[url] ?? defaultHandler()
+
+    let task = Task {
+      guard let handler else {
+        completion(URLError(.fileDoesNotExist))
+        return
+      }
+      do {
+        let data = try await handler(url)
+        try Task.checkCancellation()
+        didReceiveData(data, response)
+        completion(nil)
+      } catch {
+        completion(error)
+      }
     }
-    let data = try await fakeHandler(url)
-    try Task.checkCancellation()
-    let stream = AsyncThrowingStream<Data, any Error> { continuation in
-      continuation.yield(data)
-      continuation.finish()
-    }
-    return (stream, response)
+
+    return TaskCancellable(task: task)
+  }
+
+  private struct TaskCancellable: Cancellable {
+    let task: Task<Void, Never>
+    func cancel() { task.cancel() }
   }
 
   // MARK: - Test Helpers

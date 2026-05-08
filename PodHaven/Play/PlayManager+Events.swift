@@ -7,6 +7,10 @@ import MediaPlayer
 
 extension PlayManager {
 
+  @MainActor private static func resetAVPlayerScope() {
+    Container.shared.avPlayer.reset(.scope)
+  }
+
   // MARK: - Change Handlers
 
   private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID) async {
@@ -162,7 +166,7 @@ extension PlayManager {
     // one's observers and player item would be leaked.
     await podAVPlayer.clear()
 
-    Container.shared.avPlayer.reset(.scope)
+    await Self.resetAVPlayerScope()
     Self.log.debug("handleMediaServicesReset: reset AVPlayer scope")
 
     // Re-register on the fresh factory instances

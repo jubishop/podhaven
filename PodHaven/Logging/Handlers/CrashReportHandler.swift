@@ -24,16 +24,8 @@ struct CrashReportHandler: LogHandler {
     (subsystem, category) = LogKit.destructureLabel(from: label)
   }
 
-  public func log(
-    level: Logger.Level,
-    message: Logger.Message,
-    metadata: Logger.Metadata?,
-    source: String,
-    file: String,
-    function: String,
-    line: UInt
-  ) {
-    SentrySDK.capture(message: message.description)
+  public func log(event: LogEvent) {
+    SentrySDK.capture(message: event.message.description)
     SentrySDK.flush(timeout: 2)
   }
 }

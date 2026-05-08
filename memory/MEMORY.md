@@ -3,3 +3,4 @@
 - [Worktree setup hooks](worktree_setup_hooks.md) — git post-checkout hook (preferred), failed approaches, Xcode build optimization for worktrees
 - [Observable + Broadcast gap](observation_broadcast_viewmodel.md) — reading @Broadcasted state through @Observable viewModel computed properties can silently fail for conditional views; read SharedState directly instead
 - [observationRestartsAfter… CI flake (resolved)](flaky_test_observation_restarts.md) — root cause was Wait.until's `.background` poller starving the inner observation `Task {}`; fixed by adding `priority:` param and passing `.userInitiated` for this test
+- [Factory v3 actor-isolation pattern](factory_v3_migration.md) — closure type became plain `() -> T`; mark accessor `@MainActor` (not closure body); pitfalls in cascade and test linker

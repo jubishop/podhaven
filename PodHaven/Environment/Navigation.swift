@@ -10,7 +10,7 @@ import UIKit
 
 extension Container {
   @MainActor var navigation: Factory<Navigation> {
-    Factory(self) { @MainActor in Navigation() }.scope(.cached)
+    Factory(self) { Navigation() }.scope(.cached)
   }
 }
 
