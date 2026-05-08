@@ -90,7 +90,8 @@ extension PodcastSeries {
     var tagIDsByEpisodeId: [Episode.ID: Set<Tag.ID>] = [:]
     let episodeIDs = episodes.map(\.id)
     if !episodeIDs.isEmpty {
-      let pairs = try EpisodeTag
+      let pairs =
+        try EpisodeTag
         .filter(episodeIDs.contains(EpisodeTag.Columns.episodeId))
         .fetchAll(db)
       for pair in pairs {
