@@ -63,7 +63,7 @@ actor ObservatoryListableTests {
     for column in [
       "id", "guid", "mediaURL", "title", "pubDate", "duration",
       "image", "finishDate", "currentTime", "queueOrder", "saveInCache",
-      "cachedFilename", "downloadTaskID", "podcastId", "creationDate",
+      "cachedFilename", "downloading", "podcastId", "creationDate",
       "queueDate",
     ] {
       #expect(

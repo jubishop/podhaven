@@ -70,7 +70,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) async {
     guard totalBytesExpectedToWrite > 0 else { return }
     do {
-      if let episode = try await repo.episode(downloadTask.taskID) {
+      if let episode = try await Self.episode(for: downloadTask, repo: repo) {
         sharedState.updateDownloadProgress(
           for: episode.id,
           progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
@@ -78,7 +78,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       }
     } catch {
       Self.log.caughtError(
-        "didWriteData: failed to update download progress for task #\(downloadTask.taskID)",
+        """
+        didWriteData: failed to update download progress for task #\(downloadTask.taskID) \
+        (description: \(downloadTask.taskDescription ?? "nil"))
+        """,
         error
       )
     }
@@ -111,8 +114,13 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) async {
     let episode: Episode
     do {
-      guard let fetched = try await repo.episode(downloadTask.taskID) else {
-        Self.log.debug("No episode for task #\(downloadTask.taskID)?")
+      guard let fetched = try await Self.episode(for: downloadTask, repo: repo) else {
+        Self.log.debug(
+          """
+          No episode for task #\(downloadTask.taskID) \
+          (description: \(downloadTask.taskDescription ?? "nil"))
+          """
+        )
         do {
           try fileManager.removeItem(at: location)
         } catch {
@@ -135,11 +143,38 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       return
     }
 
+    // Defensive guard: even with taskDescription routing the lookup, refuse
+    // to attribute a downloaded file to an episode whose mediaURL doesn't
+    // match what was actually fetched. Catches future regressions in the
+    // attribution pipeline.
+    if let requestedURL = downloadTask.originalRequest?.url,
+      requestedURL != episode.mediaURL.rawValue
+    {
+      Self.log.error(
+        """
+        didFinishDownloadingTo: URL mismatch for task #\(downloadTask.taskID) \
+        — refusing to attribute download
+          episode: \(episode.toString)
+          episode.mediaURL: \(episode.mediaURL.rawValue)
+          task.originalRequest.url: \(requestedURL)
+        """
+      )
+      do {
+        try fileManager.removeItem(at: location)
+      } catch {
+        Self.log.caughtError(
+          "didFinishDownloadingTo: failed to remove misattributed file at \(location)",
+          error
+        )
+      }
+      return
+    }
+
     do {
-      try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
+      try await repo.updateDownloading(episode.id, downloading: false)
     } catch {
       Self.log.caughtError(
-        "didFinishDownloadingTo: failed to clear download task ID for \(episode.toString)",
+        "didFinishDownloadingTo: failed to clear downloading flag for \(episode.toString)",
         error
       )
     }
@@ -259,7 +294,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
     let episode: Episode?
     do {
-      episode = try await repo.episode(task.taskID)
+      episode = try await Self.episode(for: task, repo: repo)
     } catch {
       Self.log.caughtError(
         "didCompleteWithError: failed to fetch episode for task #\(task.taskID)",
@@ -270,7 +305,12 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     }
 
     guard let episode else {
-      Self.log.warning("No episode for task #\(task.taskID)?")
+      Self.log.warning(
+        """
+        No episode for task #\(task.taskID) \
+        (description: \(task.taskDescription ?? "nil"))
+        """
+      )
       Self.log.caughtError("Download failed for unknown task #\(task.taskID)", downloadError)
       return
     }
@@ -278,10 +318,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     sharedState.clearDownloadProgress(for: episode.id)
 
     do {
-      try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
+      try await repo.updateDownloading(episode.id, downloading: false)
     } catch {
       Self.log.caughtError(
-        "didCompleteWithError: failed to clear download task ID for \(episode.toString)",
+        "didCompleteWithError: failed to clear downloading flag for \(episode.toString)",
         error
       )
     }
@@ -295,6 +335,20 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   // MARK: - Private Helpers
+
+  // Resolve a finished/failed download back to its episode using the
+  // taskDescription set when the task was created. URLSession taskIDs are
+  // session-scoped and reset on each background-session creation, so they
+  // can't be trusted to map a task to a row that survived an app relaunch.
+  private static func episode(
+    for task: any DownloadingTask,
+    repo: any Databasing
+  ) async throws -> Episode? {
+    guard let description = task.taskDescription,
+      let raw = Episode.ID.RawValue(description)
+    else { return nil }
+    return try await repo.episode(Episode.ID(rawValue: raw))
+  }
 
   private func generateCacheFilename(for episode: Episode) -> String {
     let mediaURL = episode.mediaURL.rawValue

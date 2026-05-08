@@ -30,7 +30,11 @@ extension URLSession: DataFetchable {
     }
   }
 
-  func createDownloadTask(with request: URLRequest) -> any DownloadingTask {
-    downloadTask(with: request)
+  func createDownloadTask(with request: URLRequest, taskDescription: String)
+    -> any DownloadingTask
+  {
+    let task = downloadTask(with: request)
+    task.taskDescription = taskDescription
+    return task
   }
 }

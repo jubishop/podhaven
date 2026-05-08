@@ -190,54 +190,19 @@ class EpisodeQueryTests {
     #expect(foundPodcastEpisode2?.episode.title == "Episode 2")
   }
 
-  @Test("update and fetch episode by downloadTaskID")
-  func updateAndFetchByTaskID() async throws {
-    // Create two episodes
-    let (one, two) = try await Create.twoPodcastEpisodes()
+  @Test("update and fetch episode downloading flag")
+  func updateAndFetchDownloading() async throws {
+    let (one, _) = try await Create.twoPodcastEpisodes()
 
-    let id1 = URLSessionDownloadTask.ID(101)
-    let id2 = URLSessionDownloadTask.ID(202)
+    #expect(try await repo.episode(one.id)?.downloading == false)
 
-    // Set mapping for first
-    let updated1 = try await repo.updateDownloadTaskID(one.id, downloadTaskID: id1)
-    #expect(updated1)
+    let setTrue = try await repo.updateDownloading(one.id, downloading: true)
+    #expect(setTrue)
+    #expect(try await repo.episode(one.id)?.downloading == true)
 
-    // Fetch by single task id
-    let fetched1 = try await repo.episode(id1)
-    #expect(fetched1 != nil)
-    #expect(fetched1?.id == one.id)
-
-    // Set mapping for second and verify batch fetch
-    let updated2 = try await repo.updateDownloadTaskID(two.id, downloadTaskID: id2)
-    #expect(updated2)
-
-    let fetchedBatch = try await repo.episodes([id1, id2])
-    #expect(fetchedBatch.count == 2)
-    let fetchedIDs = Set(fetchedBatch.map(\.id))
-    #expect(fetchedIDs == Set([one.id, two.id]))
-
-    // Clear first mapping and verify lookup is nil
-    _ = try await repo.updateDownloadTaskID(one.id, downloadTaskID: nil)
-    let shouldBeNil = try await repo.episode(id1)
-    #expect(shouldBeNil == nil)
-  }
-
-  @Test("unique constraint enforced when assigning duplicate downloadTaskID")
-  func uniqueConstraintOnTaskID() async throws {
-    let (one, two) = try await Create.twoPodcastEpisodes()
-    let sharedID = URLSessionDownloadTask.ID(4242)
-
-    _ = try await repo.updateDownloadTaskID(one.id, downloadTaskID: sharedID)
-
-    await #expect(throws: DatabaseError.self) {
-      _ = try await self.repo.updateDownloadTaskID(two.id, downloadTaskID: sharedID)
-    }
-  }
-
-  @Test("episodes([]) returns empty array")
-  func episodesEmptyBatch() async throws {
-    let results = try await repo.episodes([])
-    #expect(results.isEmpty)
+    let setFalse = try await repo.updateDownloading(one.id, downloading: false)
+    #expect(setFalse)
+    #expect(try await repo.episode(one.id)?.downloading == false)
   }
 
   // MARK: - Batch podcastEpisodes

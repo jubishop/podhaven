@@ -105,10 +105,17 @@ struct CacheManager {
     request.allowsExpensiveNetworkAccess = true
     request.allowsConstrainedNetworkAccess = true
 
-    let downloadTask = cacheManagerSession.createDownloadTask(with: request)
+    // taskDescription is the stable per-episode identifier the delegate uses
+    // to map a finished download back to its episode. Setting it BEFORE
+    // resume() guarantees it's there when the system invokes any callback,
+    // including across an app relaunch that reattaches to this background
+    // session.
+    let downloadTask = cacheManagerSession.createDownloadTask(
+      with: request,
+      taskDescription: String(podcastEpisode.id.rawValue)
+    )
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
     downloadTask.resume()
-
-    try await repo.updateDownloadTaskID(podcastEpisode.id, downloadTaskID: downloadTask.taskID)
 
     return downloadTask.taskID
   }
@@ -129,10 +136,14 @@ struct CacheManager {
       return nil
     }
 
-    if let taskID = episode.downloadTaskID {
-      await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
+    if episode.downloading {
+      let description = String(episodeID.rawValue)
+      let liveTask = await cacheManagerSession.allCreatedTasks.first {
+        $0.taskDescription == description
+      }
+      liveTask?.cancel()
       sharedState.clearDownloadProgress(for: episodeID)
-      try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
+      try await repo.updateDownloading(episode.id, downloading: false)
     }
 
     guard let cachedURL = episode.cachedURL

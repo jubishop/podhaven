@@ -132,19 +132,6 @@ struct Repo: Databasing {
     }
   }
 
-  func episodes(_ downloadTaskIDs: [URLSessionDownloadTask.ID]) async throws -> [Episode] {
-    guard !downloadTaskIDs.isEmpty else { return [] }
-    return try await appDB.db.read { db in
-      try Episode
-        .filter(downloadTaskIDs.contains(Episode.Columns.downloadTaskID))
-        .fetchAll(db)
-    }
-  }
-
-  func episode(_ downloadTaskID: URLSessionDownloadTask.ID) async throws -> Episode? {
-    try await episodes([downloadTaskID]).first
-  }
-
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
@@ -637,16 +624,13 @@ struct Repo: Databasing {
   }
 
   @discardableResult
-  func updateDownloadTaskID(_ episodeID: Episode.ID, downloadTaskID: URLSessionDownloadTask.ID?)
-    async throws
-    -> Bool
-  {
-    Self.log.debug("updateDownloadTaskID: \(episodeID) to \(String(describing: downloadTaskID))")
+  func updateDownloading(_ episodeID: Episode.ID, downloading: Bool) async throws -> Bool {
+    Self.log.debug("updateDownloading: \(episodeID) to \(downloading)")
 
     return try await appDB.db.write { db in
       try Episode
         .withID(episodeID)
-        .updateAll(db, Episode.Columns.downloadTaskID.set(to: downloadTaskID))
+        .updateAll(db, Episode.Columns.downloading.set(to: downloading))
     } > 0
   }
 
