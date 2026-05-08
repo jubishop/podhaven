@@ -13,11 +13,9 @@ struct DisplayedEpisode:
   @DynamicInjected(\.repo) private var repo
 
   let episode: any EpisodeDisplayable
-  // Overrides the `EpisodeListable.tagIDs` default (`nil`) so detail-view
-  // rows wrapping a `PodcastEpisode` (which carries no tag column) can still
-  // surface tag data plumbed in by the view model. Static member resolution
-  // beats `@dynamicMemberLookup`, so without this stored property every
-  // `DisplayedEpisode.tagIDs` would resolve to the protocol default.
+  // Stored independently of `episode.tagIDs` because wrapped types like
+  // `PodcastEpisode` carry no tag column; the view model plumbs the
+  // current tag set in here so detail-view rows can still drive tag UI.
   let tagIDs: Set<Tag.ID>?
 
   init(_ episode: any EpisodeDisplayable, tagIDs: Set<Tag.ID>? = nil) {

@@ -31,6 +31,7 @@ struct UnsavedPodcastEpisode:
   var image: URL { unsavedEpisode.image ?? unsavedPodcast.image }
   var podcastImage: URL { unsavedPodcast.image }
   var saveInCache: Bool { unsavedEpisode.saveInCache }
+  var tagIDs: Set<Tag.ID>? { nil }
 
   // MARK: - EpisodeFoundational
 

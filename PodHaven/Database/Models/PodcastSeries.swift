@@ -8,39 +8,45 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
   var id: Podcast.ID { podcast.id }
 
   let podcast: Podcast
-  let episodes: IdentifiedArrayOf<Episode>
+  let episodes: IdentifiedArrayOf<EpisodeWithTags>
   let tags: IdentifiedArrayOf<Tag>?
-  // Per-episode tag IDs for episodes in this series. Populated by the
-  // Observatory observation (which folds in an episodeTag query so the
-  // observation region tracks tag changes); `nil` means tag data wasn't
-  // loaded with this series, so callers should treat it as "unknown" rather
-  // than "no tags". An episode missing from the dictionary has no tags.
-  let tagIDsByEpisodeId: [Episode.ID: Set<Tag.ID>]?
 
   init(
     podcast: Podcast,
     episodes: [Episode] = [],
-    tags: IdentifiedArrayOf<Tag>? = nil,
-    tagIDsByEpisodeId: [Episode.ID: Set<Tag.ID>]? = nil
+    tags: IdentifiedArrayOf<Tag>? = nil
   ) {
     self.init(
       podcast: podcast,
-      episodes: IdentifiedArrayOf(uniqueElements: episodes),
-      tags: tags,
-      tagIDsByEpisodeId: tagIDsByEpisodeId
+      episodes: IdentifiedArrayOf(
+        uniqueElements: episodes.map { EpisodeWithTags(episode: $0, tagIDs: nil) }
+      ),
+      tags: tags
     )
   }
 
   init(
     podcast: Podcast,
     episodes: IdentifiedArrayOf<Episode>,
-    tags: IdentifiedArrayOf<Tag>? = nil,
-    tagIDsByEpisodeId: [Episode.ID: Set<Tag.ID>]? = nil
+    tags: IdentifiedArrayOf<Tag>? = nil
+  ) {
+    self.init(
+      podcast: podcast,
+      episodes: IdentifiedArrayOf(
+        uniqueElements: episodes.map { EpisodeWithTags(episode: $0, tagIDs: nil) }
+      ),
+      tags: tags
+    )
+  }
+
+  init(
+    podcast: Podcast,
+    episodes: IdentifiedArrayOf<EpisodeWithTags>,
+    tags: IdentifiedArrayOf<Tag>? = nil
   ) {
     self.podcast = podcast
     self.episodes = episodes
     self.tags = tags
-    self.tagIDsByEpisodeId = tagIDsByEpisodeId
   }
 
   // MARK: - Decodable
@@ -48,18 +54,18 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
   init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     podcast = try container.decode(Podcast.self, forKey: .podcast)
+    // Decoder path is only reached via GRDB's `asRequest(of:)`, which doesn't
+    // surface the episodeTag join; callers that need tag data fold it in via
+    // `withFoldedEpisodeTagIDs(db:)` after decoding.
     episodes = IdentifiedArrayOf(
       uniqueElements: try container.decode([Episode].self, forKey: .episodes)
+        .map { EpisodeWithTags(episode: $0, tagIDs: nil) }
     )
     if let decodedTags = try container.decodeIfPresent([Tag].self, forKey: .tags) {
       tags = IdentifiedArrayOf(uniqueElements: decodedTags)
     } else {
       tags = nil
     }
-    // Decoder path is only reached via GRDB's `asRequest(of:)`, which doesn't
-    // surface the episodeTag join. Callers fold the map in via the dedicated
-    // initializer after the row decode.
-    tagIDsByEpisodeId = nil
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -91,11 +97,18 @@ extension PodcastSeries {
         tagIDsByEpisodeId[pair.episodeId, default: []].insert(pair.tagId)
       }
     }
+    let foldedEpisodes = IdentifiedArrayOf<EpisodeWithTags>(
+      uniqueElements: episodes.map {
+        EpisodeWithTags(
+          episode: $0.episode,
+          tagIDs: tagIDsByEpisodeId[$0.id] ?? []
+        )
+      }
+    )
     return PodcastSeries(
       podcast: podcast,
-      episodes: episodes,
-      tags: tags,
-      tagIDsByEpisodeId: tagIDsByEpisodeId
+      episodes: foldedEpisodes,
+      tags: tags
     )
   }
 }

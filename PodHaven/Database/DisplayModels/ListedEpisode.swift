@@ -76,6 +76,7 @@ struct ListedEpisode:
   var podcastImage: URL { episode.podcastImage }
   var saveInCache: Bool { episode.saveInCache }
   var rating: EpisodeRating? { episode.rating }
+  var tagIDs: Set<Tag.ID>? { episode.tagIDs }
 
   // MARK: - Getters
 

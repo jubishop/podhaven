@@ -164,8 +164,8 @@ struct RefreshManager {
     var updatedEpisodes: [Episode] = []
 
     for unsavedEpisode in podcastFeed.toUnsavedEpisodes(merging: podcastSeries.episodes) {
-      if let existingEpisode = episodesByMediaURL[id: unsavedEpisode.mediaURL]
-        ?? episodesByGUID[id: unsavedEpisode.guid]
+      if let existingEpisode = episodesByMediaURL[id: unsavedEpisode.mediaURL]?.episode
+        ?? episodesByGUID[id: unsavedEpisode.guid]?.episode
       {
         let updatedEpisode = Episode(
           id: existingEpisode.id,

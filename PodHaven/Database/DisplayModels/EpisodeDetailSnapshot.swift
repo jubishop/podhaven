@@ -23,6 +23,7 @@ struct EpisodeDetailSnapshot: EpisodeDisplayable, Hashable, Sendable {
   let rating: EpisodeRating?
 
   var id: MediaGUID { mediaGUID }
+  var tagIDs: Set<Tag.ID>? { nil }
 
   init(_ listedEpisode: ListedEpisode) {
     if let unsavedPodcastEpisode = listedEpisode.getUnsavedPodcastEpisode() {

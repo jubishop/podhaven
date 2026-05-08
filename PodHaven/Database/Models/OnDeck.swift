@@ -107,6 +107,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
 
   var image: URL { episodeImage ?? podcastImage }
   var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
+  var tagIDs: Set<Tag.ID>? { nil }
 
   // MARK: - Column Selection
 

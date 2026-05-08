@@ -11,7 +11,3 @@ protocol EpisodeListable: EpisodeFoundational, Hashable {
   // UI may offer filtered tag editing against it.
   var tagIDs: Set<Tag.ID>? { get }
 }
-
-extension EpisodeListable {
-  var tagIDs: Set<Tag.ID>? { nil }
-}
