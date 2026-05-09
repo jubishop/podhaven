@@ -90,4 +90,50 @@ actor MetadataTests {
         .approximatelyEquals(playedEpisode.pubDate)
     )
   }
+
+  // MARK: - Tags
+
+  @Test("podcastsWithEpisodeMetadata() carries each podcast's tags, ordered case-insensitively")
+  func testPodcastsWithEpisodeMetadataCarriesTags() async throws {
+    let taggedPodcast = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(title: "Tagged"))
+    )
+    let untaggedPodcast = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(title: "Untagged"))
+    )
+
+    let zebra = try await repo.insertTag(UnsavedTag(name: "zebra"))
+    let apple = try await repo.insertTag(UnsavedTag(name: "Apple"))
+    let mango = try await repo.insertTag(UnsavedTag(name: "mango"))
+
+    try await repo.addTag(zebra.id, to: taggedPodcast.id)
+    try await repo.addTag(apple.id, to: taggedPodcast.id)
+    try await repo.addTag(mango.id, to: taggedPodcast.id)
+
+    let results: [PodcastWithEpisodeMetadata<Podcast>] =
+      try await observatory.podcastsWithEpisodeMetadata().get()
+
+    let taggedResult = results.first { $0.feedURL == taggedPodcast.podcast.feedURL }!
+    #expect(
+      taggedResult.tags.map(\.name) == ["Apple", "mango", "zebra"]
+    )
+
+    let untaggedResult = results.first { $0.feedURL == untaggedPodcast.podcast.feedURL }!
+    #expect(untaggedResult.tags.isEmpty)
+  }
+
+  @Test("listablePodcastsWithEpisodeMetadata() also carries tags")
+  func testListablePodcastsWithEpisodeMetadataCarriesTags() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    )
+    let tag = try await repo.insertTag(UnsavedTag(name: "Swift"))
+    try await repo.addTag(tag.id, to: series.id)
+
+    let results: [PodcastWithEpisodeMetadata<ListablePodcast>] =
+      try await observatory.listablePodcastsWithEpisodeMetadata().get()
+
+    #expect(results.count == 1)
+    #expect(results[0].tags.map(\.name) == ["Swift"])
+  }
 }

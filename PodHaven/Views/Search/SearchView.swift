@@ -224,6 +224,10 @@ struct SearchView: View {
               isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
             )
             .listRowSeparator()
+            .podcastSwipeActions(
+              viewModel: viewModel,
+              podcast: podcastWithEpisodeMetadata.podcast
+            )
             .podcastContextMenu(
               viewModel: viewModel,
               podcast: podcastWithEpisodeMetadata.podcast
