@@ -113,20 +113,6 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingE
   }
 }
 
-// Filtered Add/Remove submenus for bulk selection.
-//
-// - Add Tag is `allTags - intersection(selected.tagIDs)`: any tag where at
-//   least one selected episode would gain it. Tags already on every selected
-//   episode are stripped so we never offer a complete no-op; per-row UNIQUE
-//   hits on already-tagged episodes are demoted in the bulk action.
-// - Remove Tag is `union(selected.tagIDs)`: any tag that's on at least one
-//   selected episode and would actually be removed somewhere.
-//
-// Hidden whole-cloth when both filtered lists are empty so the menu never
-// offers an action that would no-op for the entire selection — and also
-// gated on `selectionHasTagData` so unsaved rows (whose tagIDs lookup is
-// nil) don't expose a bulk action that would silently upsert them just to
-// attach a tag, matching the per-row context-menu contract.
 @MainActor @ViewBuilder
 private func tagBulkMenu<ViewModel: SelectableEpisodeList & ManagingEpisodes>(
   viewModel: ViewModel
