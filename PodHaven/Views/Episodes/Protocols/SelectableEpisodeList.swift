@@ -503,8 +503,20 @@ extension SelectableEpisodeList where EpisodeType == PodcastEpisode {
 extension SelectableEpisodeList where EpisodeType == ListablePodcastEpisode {
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
+      let selectedEpisodes = self.selectedEpisodes
       let episodeIDs = selectedEpisodes.compactMap(\.episodeID)
-      return try await Container.shared.repo().podcastEpisodes(episodeIDs)
+      // SQLite's `WHERE id IN (...)` doesn't preserve input order, so map
+      // by ID and replay in `selectedEpisodes` (PowerList visible) order —
+      // bulk Play / Replace Queue / Add to Queue act in user-visible order.
+      let savedByID = Dictionary(
+        uniqueKeysWithValues: try await Container.shared.repo().podcastEpisodes(episodeIDs).map {
+          ($0.id, $0)
+        }
+      )
+      return selectedEpisodes.compactMap { episode in
+        guard let episodeID = episode.episodeID else { return nil }
+        return savedByID[episodeID]
+      }
     }
   }
 }

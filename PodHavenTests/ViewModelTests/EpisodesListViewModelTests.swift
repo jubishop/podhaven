@@ -80,6 +80,38 @@ import Testing
     #expect(viewModel.selectedEpisodesTagUnion == [setup.tagB.id, setup.tagC.id])
   }
 
+  @Test("selectedPodcastEpisodes preserves user-visible selection order")
+  func selectedPodcastEpisodesPreservesSelectionOrder() async throws {
+    let setup = try await setupFourTaggedEpisodes()
+
+    let viewModel = EpisodesListViewModel(title: "Test")
+    // Visible order is reversed from DB rowid order so the test fails if
+    // `WHERE id IN (...)` row order leaks through `selectedPodcastEpisodes`.
+    let reversed = IdentifiedArray(
+      uniqueElements: [setup.ep4.id, setup.ep3.id, setup.ep2.id, setup.ep1.id].compactMap { id in
+        setup.episodes.first { $0.id == id }
+      }
+    )
+    viewModel.episodeList.allEntries = reversed
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.id) == [
+          setup.ep4.id, setup.ep3.id, setup.ep2.id, setup.ep1.id,
+        ]
+      },
+      { @MainActor in
+        "Expected reversed visible order before selecting; got \(viewModel.episodeList.filteredEntries.map(\.id))"
+      }
+    )
+
+    select(viewModel, ids: [setup.ep4.id, setup.ep3.id, setup.ep2.id, setup.ep1.id])
+
+    let podcastEpisodes = try await viewModel.selectedPodcastEpisodes
+    #expect(
+      podcastEpisodes.map(\.id) == [setup.ep4.id, setup.ep3.id, setup.ep2.id, setup.ep1.id]
+    )
+  }
+
   // MARK: - Helpers
 
   private struct Setup {
