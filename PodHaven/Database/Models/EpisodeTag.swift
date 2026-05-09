@@ -35,7 +35,10 @@ struct EpisodeTag: Codable, Equatable, FetchableRecord, Hashable, PersistableRec
   // Correlated subquery that materialises the set of tagIds attached to
   // the current `episode.id`. Add to a model's `databaseSelection` when
   // its row decoder needs to populate `tagIDs` (see `ListableEpisode`,
-  // `OnDeck`).
+  // `OnDeck`). Callers must root the query in the unaliased `episode`
+  // table — the SQL references `"episode"."id"` literally, so any alias
+  // or self-join on Episode silently breaks the binding at query time
+  // as `no such column: episode.id`.
   static var tagIDsSelectable: any SQLSelectable {
     SQL(
       """
