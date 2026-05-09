@@ -203,7 +203,7 @@ struct Observatory: Observing {
     -> AsyncValueObservation<PodcastSeriesDetail?>
   {
     _observe { db in
-      try PodcastSeriesDetail.fetchOne(podcastID, in: db)
+      try Repo.fetchPodcastSeriesDetail(podcastID, in: db)
     }
   }
 

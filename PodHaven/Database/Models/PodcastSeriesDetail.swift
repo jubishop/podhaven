@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
-import GRDB
 import IdentifiedCollections
 
 // Detail-view shape returned by `Repo.podcastSeriesDetail(...)` and
@@ -33,30 +32,4 @@ struct PodcastSeriesDetail: Equatable, Hashable, Identifiable, Sendable, Stringa
   // MARK: - Stringable
 
   var toString: String { podcast.toString }
-
-  // MARK: - Fetch
-
-  // Single source of truth for the three-query detail fetch — used by the
-  // one-shot `Repo.podcastSeriesDetail(_:)` read and the live
-  // `Observatory.podcastSeriesDetail(_:)` ValueObservation. ValueObservation
-  // auto-tracks every table referenced inside the closure, so observers
-  // wake on changes to `podcast`, `episode`, `episodeTag`, or `podcastTag`.
-  static func fetchOne(_ podcastID: Podcast.ID, in db: Database) throws -> PodcastSeriesDetail? {
-    guard let podcast = try Podcast.withID(podcastID).fetchOne(db) else { return nil }
-    let episodes =
-      try ListableEpisode
-      .filter(Episode.Columns.podcastId == podcastID)
-      .order(Episode.Columns.pubDate.desc)
-      .fetchAll(db)
-    let tags =
-      try Tag
-      .joining(required: Tag.podcastTags.filter(PodcastTag.Columns.podcastId == podcastID))
-      .orderedByName()
-      .fetchAll(db)
-    return PodcastSeriesDetail(
-      podcast: podcast,
-      episodes: IdentifiedArrayOf(uniqueElements: episodes),
-      tags: IdentifiedArrayOf(uniqueElements: tags)
-    )
-  }
 }
