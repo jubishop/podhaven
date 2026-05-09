@@ -5,17 +5,19 @@ import Foundation
 import GRDB
 import Tagged
 
-// Slim list-row shape rooted in the Episode table. Mirrors the listable
-// subset of `ListablePodcastEpisode` minus the joined Podcast columns —
-// callers that already hold the parent `Podcast` (e.g. `PodcastSeriesDetail`)
-// fold it in at the view-model layer instead of re-emitting podcast columns
-// per row from SQLite.
+// Slim list-row shape rooted in the Episode table — the Episode-side
+// projection of `ListablePodcastEpisode` minus the joined Podcast columns.
+// Both list types share `databaseSelection` and `init(row:)` from here so
+// the Episode-side column list, correlated tag-IDs subquery, and row decode
+// live in exactly one place. Callers that already hold the parent `Podcast`
+// (e.g. `PodcastSeriesDetail`) fold it in at the view-model layer instead
+// of re-emitting podcast columns per row from SQLite.
 struct ListableEpisode:
-  FetchableRecord, TableRecord, Hashable, Identifiable, Sendable
+  EpisodeFoundational, FetchableRecord, TableRecord, Hashable, Identifiable, Sendable
 {
-  // Same correlated tag-IDs subquery shape as `ListablePodcastEpisode` —
-  // SQLite materialises the JSON array per-row at the projection step, so
-  // no LEFT JOIN+GROUP BY blowup against the full filter set.
+  // Column key under which the correlated tag-IDs subquery is materialised.
+  // Kept as a literal so observation tests and the row decoder agree on the
+  // column name without coupling to a model property.
   static let tagIDsColumnName = "tagIDs"
 
   static let databaseTableName: String = Episode.databaseTableName
@@ -37,6 +39,10 @@ struct ListableEpisode:
       Episode.Columns.creationDate,
       Episode.Columns.queueDate,
       Episode.Columns.rating,
+      // Correlated scalar subquery: SQLite materialises the JSON array only
+      // for rows that survive the outer sort+LIMIT, so per-row cost is paid
+      // on the final page rather than the full filter set. See issue #180
+      // benchmarks for the LEFT JOIN + GROUP BY shape that this avoids.
       SQL(
         """
         (SELECT json_group_array("tagId") \
@@ -69,6 +75,10 @@ struct ListableEpisode:
   // Set means "row exists, no tags".
   let tagIDs: Set<Tag.ID>
 
+  // MARK: - EpisodeFoundational
+
+  var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
+
   // MARK: - FetchableRecord
 
   init(row: Row) throws {
@@ -87,9 +97,9 @@ struct ListableEpisode:
     queueDate = row[Episode.Columns.queueDate]
     rating = row[Episode.Columns.rating]
 
-    // SQLite's json_group_array returns NULL for an empty group; both an
-    // absent column and a NULL value collapse to an empty Set so callers
-    // never need to distinguish "no matches" from "no row".
+    // SQLite's json_group_array returns NULL for an empty group. Decode the
+    // populated case as JSON; an absent or NULL column maps to an empty Set
+    // so callers don't need to distinguish "no matches" from "no row".
     if let tagIDsJSON: String = row[Self.tagIDsColumnName],
       let data = tagIDsJSON.data(using: .utf8)
     {

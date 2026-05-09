@@ -98,25 +98,11 @@ struct Repo: Databasing {
   // its own tagIDs subquery), so the view model never refetches podcast
   // columns per row and the detail UI gets per-episode tag data without a
   // separate query path. `Repo.podcastSeries(...)` keeps full `Episode`
-  // rows for refresh/write callers.
+  // rows for refresh/write callers. The actual three-query fetch is shared
+  // with `Observatory.podcastSeriesDetail(_:)` via `PodcastSeriesDetail.fetchOne`.
   func podcastSeriesDetail(_ podcastID: Podcast.ID) async throws -> PodcastSeriesDetail? {
     try await appDB.db.read { db in
-      guard let podcast = try Podcast.withID(podcastID).fetchOne(db) else { return nil }
-      let episodes =
-        try ListableEpisode
-        .filter(Episode.Columns.podcastId == podcastID)
-        .order(Episode.Columns.pubDate.desc)
-        .fetchAll(db)
-      let tags =
-        try Tag
-        .joining(required: Tag.podcastTags.filter(PodcastTag.Columns.podcastId == podcastID))
-        .orderedByName()
-        .fetchAll(db)
-      return PodcastSeriesDetail(
-        podcast: podcast,
-        episodes: IdentifiedArrayOf(uniqueElements: episodes),
-        tags: IdentifiedArrayOf(uniqueElements: tags)
-      )
+      try PodcastSeriesDetail.fetchOne(podcastID, in: db)
     }
   }
 

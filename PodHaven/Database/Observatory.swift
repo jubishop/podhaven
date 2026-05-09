@@ -203,22 +203,7 @@ struct Observatory: Observing {
     -> AsyncValueObservation<PodcastSeriesDetail?>
   {
     _observe { db in
-      guard let podcast = try Podcast.withID(podcastID).fetchOne(db) else { return nil }
-      let episodes =
-        try ListableEpisode
-        .filter(Episode.Columns.podcastId == podcastID)
-        .order(Episode.Columns.pubDate.desc)
-        .fetchAll(db)
-      let tags =
-        try Tag
-        .joining(required: Tag.podcastTags.filter(PodcastTag.Columns.podcastId == podcastID))
-        .orderedByName()
-        .fetchAll(db)
-      return PodcastSeriesDetail(
-        podcast: podcast,
-        episodes: IdentifiedArrayOf(uniqueElements: episodes),
-        tags: IdentifiedArrayOf(uniqueElements: tags)
-      )
+      try PodcastSeriesDetail.fetchOne(podcastID, in: db)
     }
   }
 

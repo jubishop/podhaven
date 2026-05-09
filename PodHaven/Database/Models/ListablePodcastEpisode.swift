@@ -6,60 +6,24 @@ import Foundation
 import GRDB
 import Tagged
 
-// Lightweight episode+podcast type for list views. Reads only columns needed
-// for list display from the GRDB row, so Observatory column-level tracking
-// ignores changes to detail-only columns like Podcast.lastUpdate,
-// Episode.link, etc. Combined with .removeDuplicates(), this prevents
-// spurious list re-renders when non-visible data changes.
+// Lightweight episode+podcast type for list views. Embeds a `ListableEpisode`
+// for the Episode-side fields (column list, correlated tag-IDs subquery, row
+// decode all live there) and layers on the joined Podcast columns this list
+// shape needs — feedURL/title/image. Forwards Episode-side property reads
+// to the embedded core via `@dynamicMemberLookup` so call sites that read
+// e.g. `.title`, `.duration`, `.tagIDs` keep working unchanged.
 //
-// `TableRecord` conformance against the Episode table with
-// `databaseSelection` set to just the listable Episode columns means any
-// GRDB query rooted in `ListablePodcastEpisode` (e.g.
-// `ListablePodcastEpisode.filter(...).fetchAll(db)`) gets the column
-// narrowing automatically. The joined Podcast columns still need an
-// explicit `.select(podcastColumns)` because they live behind the
+// `TableRecord` rooted in the Episode table with `databaseSelection` set to
+// just the listable Episode columns means any GRDB query rooted in
+// `ListablePodcastEpisode` (e.g. `ListablePodcastEpisode.filter(...).fetchAll(db)`)
+// gets the column narrowing automatically. The joined Podcast columns still
+// need an explicit `.select(podcastColumns)` because they live behind the
 // `belongsTo` association.
 struct ListablePodcastEpisode:
-  EpisodeListable, Searchable, FetchableRecord, TableRecord, Identifiable
+  EpisodeListable, Searchable, FetchableRecord, TableRecord, Identifiable, Hashable, Sendable
 {
-  // Column key under which the correlated tag-IDs subquery is materialised.
-  // Kept as a literal so observation tests and the row decoder agree on the
-  // column name without coupling to a model property.
-  static let tagIDsColumnName = "tagIDs"
-
   static let databaseTableName: String = Episode.databaseTableName
-  static var databaseSelection: [any SQLSelectable] {
-    [
-      Episode.Columns.id,
-      Episode.Columns.guid,
-      Episode.Columns.mediaURL,
-      Episode.Columns.title,
-      Episode.Columns.pubDate,
-      Episode.Columns.duration,
-      Episode.Columns.image,
-      Episode.Columns.finishDate,
-      Episode.Columns.currentTime,
-      Episode.Columns.queueOrder,
-      Episode.Columns.saveInCache,
-      Episode.Columns.cachedFilename,
-      Episode.Columns.downloading,
-      Episode.Columns.creationDate,
-      Episode.Columns.queueDate,
-      Episode.Columns.rating,
-      // Correlated scalar subquery: SQLite materialises the JSON array only
-      // for rows that survive the outer sort+LIMIT, so per-row cost is paid
-      // on the final page rather than the full filter set. See issue #180
-      // benchmarks for the LEFT JOIN + GROUP BY shape that this avoids.
-      SQL(
-        """
-        (SELECT json_group_array("tagId") \
-        FROM "episodeTag" \
-        WHERE "episodeTag"."episodeId" = "episode"."id")
-        """
-      )
-      .sqlExpression.forKey(tagIDsColumnName),
-    ]
-  }
+  static var databaseSelection: [any SQLSelectable] { ListableEpisode.databaseSelection }
 
   // MARK: - Associations
 
@@ -67,41 +31,49 @@ struct ListablePodcastEpisode:
 
   @DynamicInjected(\.repo) private var repo
 
-  // MARK: - Episode Fields
+  // MARK: - Stored Fields
 
-  let id: Episode.ID
-  private let guid: GUID
-  private let mediaURL: MediaURL
-  let title: String
-  let pubDate: Date
-  let duration: CMTime
-  let episodeImage: URL?
-  let finishDate: Date?
-  let currentTime: CMTime
-  let queueOrder: Int?
-  let cacheStatus: Episode.CacheStatus
-  let saveInCache: Bool
-  let creationDate: Date
-  let queueDate: Date?
-  let rating: EpisodeRating?
-  // Materialised by the correlated subquery in `databaseSelection`. Empty
-  // Set means "row exists, no tags".
-  let tagIDs: Set<Tag.ID>
-
-  // MARK: - Podcast Fields
-
+  let core: ListableEpisode
   let feedURL: FeedURL
   let podcastImage: URL
   let podcastTitle: String
 
+  // MARK: - Identifiable
+
+  var id: Episode.ID { core.id }
+
+  // MARK: - Forwarded Episode Fields
+
+  // Plain computed-property forwarders (rather than `@dynamicMemberLookup`)
+  // because Swift won't accept dynamic-member lookups as proof of a
+  // protocol property requirement, and the call sites benefit from the
+  // explicit surface anyway. `tagIDs`, `episodeImage`, `creationDate`, and
+  // `queueDate` are surfaced because external callers (notifications,
+  // sort/filter helpers, widgets) read them directly.
+  var mediaGUID: MediaGUID { core.mediaGUID }
+  var title: String { core.title }
+  var pubDate: Date { core.pubDate }
+  var duration: CMTime { core.duration }
+  var queueOrder: Int? { core.queueOrder }
+  var cacheStatus: Episode.CacheStatus { core.cacheStatus }
+  var saveInCache: Bool { core.saveInCache }
+  var currentTime: CMTime { core.currentTime }
+  var finishDate: Date? { core.finishDate }
+  var rating: EpisodeRating? { core.rating }
+  var tagIDs: Set<Tag.ID> { core.tagIDs }
+  var episodeImage: URL? { core.episodeImage }
+  var creationDate: Date { core.creationDate }
+  var queueDate: Date? { core.queueDate }
+
   // MARK: - EpisodeListable
 
-  var image: URL { episodeImage ?? podcastImage }
-  var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
+  // Resolves the row's image, falling back to the podcast image so callers
+  // never see the optional core value directly.
+  var image: URL { core.episodeImage ?? podcastImage }
 
   // MARK: - Searchable
 
-  var searchableString: String { "\(title) - \(podcastTitle)" }
+  var searchableString: String { "\(core.title) - \(podcastTitle)" }
 
   // MARK: - In-Memory Construction
 
@@ -109,22 +81,7 @@ struct ListablePodcastEpisode:
   // holds together with the slim DB-fetched `ListableEpisode` row, avoiding
   // a redundant podcast join per child.
   init(podcast: Podcast, episode: ListableEpisode) {
-    id = episode.id
-    guid = episode.guid
-    mediaURL = episode.mediaURL
-    title = episode.title
-    pubDate = episode.pubDate
-    duration = episode.duration
-    episodeImage = episode.episodeImage
-    finishDate = episode.finishDate
-    currentTime = episode.currentTime
-    queueOrder = episode.queueOrder
-    cacheStatus = episode.cacheStatus
-    saveInCache = episode.saveInCache
-    creationDate = episode.creationDate
-    queueDate = episode.queueDate
-    rating = episode.rating
-    tagIDs = episode.tagIDs
+    core = episode
     feedURL = podcast.feedURL
     podcastImage = podcast.image
     podcastTitle = podcast.title
@@ -133,90 +90,13 @@ struct ListablePodcastEpisode:
   // MARK: - FetchableRecord
 
   init(row: Row) throws {
-    id = row[Episode.Columns.id]
-    guid = row[Episode.Columns.guid]
-    mediaURL = row[Episode.Columns.mediaURL]
-    title = row[Episode.Columns.title]
-    pubDate = row[Episode.Columns.pubDate]
-    duration = row[Episode.Columns.duration]
-    episodeImage = row[Episode.Columns.image]
-    finishDate = row[Episode.Columns.finishDate]
-    currentTime = row[Episode.Columns.currentTime]
-    queueOrder = row[Episode.Columns.queueOrder]
-    saveInCache = row[Episode.Columns.saveInCache]
-    creationDate = row[Episode.Columns.creationDate]
-    queueDate = row[Episode.Columns.queueDate]
-    rating = row[Episode.Columns.rating]
-
-    // SQLite's json_group_array returns NULL for an empty group. Decode the
-    // populated case as JSON; an absent or NULL column maps to an empty Set
-    // so callers don't need to distinguish "no matches" from "no row".
-    if let tagIDsJSON: String = row[Self.tagIDsColumnName],
-      let data = tagIDsJSON.data(using: .utf8)
-    {
-      tagIDs = Set(try JSONDecoder().decode([Tag.ID].self, from: data))
-    } else {
-      tagIDs = []
-    }
-
-    cacheStatus = .from(
-      cachedFilename: row[Episode.Columns.cachedFilename] as String?,
-      downloading: row[Episode.Columns.downloading] as Bool
-    )
+    core = try ListableEpisode(row: row)
     guard let podcastRow = row.scopes["podcast"] else {
       Assert.fatal("ListablePodcastEpisode requires podcast scope via including(required:)")
     }
     feedURL = podcastRow[Podcast.Columns.feedURL]
     podcastImage = podcastRow[Podcast.Columns.image]
     podcastTitle = podcastRow[Podcast.Columns.title]
-  }
-
-  // MARK: - Hashable
-
-  func hash(into hasher: inout Hasher) {
-    hasher.combine(id)
-    hasher.combine(guid)
-    hasher.combine(mediaURL)
-    hasher.combine(title)
-    hasher.combine(pubDate)
-    hasher.combine(duration)
-    hasher.combine(episodeImage)
-    hasher.combine(finishDate)
-    hasher.combine(currentTime)
-    hasher.combine(queueOrder)
-    hasher.combine(cacheStatus)
-    hasher.combine(saveInCache)
-    hasher.combine(creationDate)
-    hasher.combine(queueDate)
-    hasher.combine(rating)
-    hasher.combine(tagIDs)
-    hasher.combine(feedURL)
-    hasher.combine(podcastImage)
-    hasher.combine(podcastTitle)
-  }
-
-  // MARK: - Equatable
-
-  static func == (lhs: ListablePodcastEpisode, rhs: ListablePodcastEpisode) -> Bool {
-    lhs.id == rhs.id
-      && lhs.guid == rhs.guid
-      && lhs.mediaURL == rhs.mediaURL
-      && lhs.title == rhs.title
-      && lhs.pubDate == rhs.pubDate
-      && lhs.duration == rhs.duration
-      && lhs.episodeImage == rhs.episodeImage
-      && lhs.finishDate == rhs.finishDate
-      && lhs.currentTime == rhs.currentTime
-      && lhs.queueOrder == rhs.queueOrder
-      && lhs.cacheStatus == rhs.cacheStatus
-      && lhs.saveInCache == rhs.saveInCache
-      && lhs.creationDate == rhs.creationDate
-      && lhs.queueDate == rhs.queueDate
-      && lhs.rating == rhs.rating
-      && lhs.tagIDs == rhs.tagIDs
-      && lhs.feedURL == rhs.feedURL
-      && lhs.podcastImage == rhs.podcastImage
-      && lhs.podcastTitle == rhs.podcastTitle
   }
 
   // MARK: - Joined Podcast Column Selection
@@ -249,5 +129,25 @@ struct ListablePodcastEpisode:
       Assert.fatal("PodcastEpisode not found for ID \(id)")
     }
     return podcastEpisode
+  }
+
+  // MARK: - Hashable / Equatable
+
+  // Manual conformances are required because `@DynamicInjected` adds a
+  // non-Hashable backing storage to the type. We hash and compare only the
+  // four stored data fields — `core` is itself Hashable so it carries every
+  // Episode-side column for free.
+  func hash(into hasher: inout Hasher) {
+    hasher.combine(core)
+    hasher.combine(feedURL)
+    hasher.combine(podcastImage)
+    hasher.combine(podcastTitle)
+  }
+
+  static func == (lhs: ListablePodcastEpisode, rhs: ListablePodcastEpisode) -> Bool {
+    lhs.core == rhs.core
+      && lhs.feedURL == rhs.feedURL
+      && lhs.podcastImage == rhs.podcastImage
+      && lhs.podcastTitle == rhs.podcastTitle
   }
 }
