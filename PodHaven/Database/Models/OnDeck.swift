@@ -22,6 +22,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
   let cacheStatus: Episode.CacheStatus
   let saveInCache: Bool
   let rating: EpisodeRating?
+  let tagIDs: Set<Tag.ID>
 
   // MARK: - Podcast Fields
 
@@ -51,6 +52,8 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     queueOrder = row[Episode.Columns.queueOrder]
     saveInCache = row[Episode.Columns.saveInCache]
     rating = row[Episode.Columns.rating]
+
+    tagIDs = try EpisodeTag.decodeTagIDs(from: row)
 
     let cachedFilename: String? = row[Episode.Columns.cachedFilename]
     let downloading: Bool = row[Episode.Columns.downloading]
@@ -94,6 +97,10 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     cacheStatus = podcastEpisode.cacheStatus
     saveInCache = podcastEpisode.saveInCache
     rating = podcastEpisode.rating
+    // Tags aren't carried on PodcastEpisode; the on-deck observation
+    // populates them on the next emission via the correlated subquery in
+    // `request(for:)`, so seeding empty here is fine.
+    tagIDs = []
     podcastImage = podcastEpisode.podcastImage
     podcastTitle = podcastEpisode.podcastTitle
     feedURL = podcastEpisode.feedURL
@@ -126,6 +133,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       Episode.Columns.rating,
       Episode.Columns.cachedFilename,
       Episode.Columns.downloading,
+      EpisodeTag.tagIDsSelectable,
     ]
   }
 
@@ -179,6 +187,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     hasher.combine(cacheStatus)
     hasher.combine(saveInCache)
     hasher.combine(rating)
+    hasher.combine(tagIDs)
     hasher.combine(podcastImage)
     hasher.combine(podcastTitle)
     hasher.combine(feedURL)
@@ -201,6 +210,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       && lhs.cacheStatus == rhs.cacheStatus
       && lhs.saveInCache == rhs.saveInCache
       && lhs.rating == rhs.rating
+      && lhs.tagIDs == rhs.tagIDs
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle
       && lhs.feedURL == rhs.feedURL

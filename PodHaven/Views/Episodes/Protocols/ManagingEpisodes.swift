@@ -339,3 +339,7 @@ extension ManagingEpisodes where EpisodeType == ListedEpisode {
 
   func tagIDs(for episode: ListedEpisode) -> Set<Tag.ID>? { episode.tagIDs }
 }
+
+extension ManagingEpisodes where EpisodeType == OnDeck {
+  func tagIDs(for episode: OnDeck) -> Set<Tag.ID>? { episode.tagIDs }
+}

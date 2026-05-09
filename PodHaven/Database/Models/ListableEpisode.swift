@@ -15,15 +15,6 @@ import Tagged
 struct ListableEpisode:
   EpisodeFoundational, FetchableRecord, TableRecord, Hashable, Identifiable, Sendable
 {
-  // Column key under which the correlated tag-IDs subquery is materialised.
-  // Kept as a literal so observation tests and the row decoder agree on the
-  // column name without coupling to a model property.
-  static let tagIDsColumnName = "tagIDs"
-
-  // Reused across every row decode — `init(row:)` is hot on long lists,
-  // and a per-row `JSONDecoder()` adds allocator pressure for no benefit.
-  private static let tagIDsDecoder = JSONDecoder()
-
   static let databaseTableName: String = Episode.databaseTableName
   static var databaseSelection: [any SQLSelectable] {
     [
@@ -43,14 +34,7 @@ struct ListableEpisode:
       Episode.Columns.creationDate,
       Episode.Columns.queueDate,
       Episode.Columns.rating,
-      SQL(
-        """
-        (SELECT json_group_array("tagId") \
-        FROM "episodeTag" \
-        WHERE "episodeTag"."episodeId" = "episode"."id")
-        """
-      )
-      .sqlExpression.forKey(tagIDsColumnName),
+      EpisodeTag.tagIDsSelectable,
     ]
   }
 
@@ -95,13 +79,7 @@ struct ListableEpisode:
     queueDate = row[Episode.Columns.queueDate]
     rating = row[Episode.Columns.rating]
 
-    if let tagIDsJSON: String = row[Self.tagIDsColumnName] {
-      tagIDs = Set(
-        try Self.tagIDsDecoder.decode([Tag.ID].self, from: Data(tagIDsJSON.utf8))
-      )
-    } else {
-      tagIDs = []
-    }
+    tagIDs = try EpisodeTag.decodeTagIDs(from: row)
 
     cacheStatus = .from(
       cachedFilename: row[Episode.Columns.cachedFilename] as String?,
