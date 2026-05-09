@@ -159,9 +159,7 @@ struct Repo: Databasing {
         .asRequest(of: PodcastEpisode.self)
         .fetchAll(db)
     }
-    // SQLite's `WHERE id IN (...)` returns rows in rowid order, not input
-    // order. Bulk Play / Replace Queue / Add to Queue rely on the result
-    // matching the user-visible selection order callers passed in.
+    // Preserves the order as passed in.
     let byID = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })
     return episodeIDs.compactMap { byID[$0] }
   }
@@ -376,9 +374,6 @@ struct Repo: Databasing {
     guard !episodeIDs.isEmpty else { return }
 
     try await appDB.db.write { db in
-      // INSERT OR IGNORE so duplicates already on a subset of the input
-      // are not an error — the bulk Add Tag menu may legitimately include
-      // a tag that exists on some selected episodes but not others.
       for episodeID in episodeIDs {
         try EpisodeTag(episodeId: episodeID, tagId: tagID).insert(db, onConflict: .ignore)
       }

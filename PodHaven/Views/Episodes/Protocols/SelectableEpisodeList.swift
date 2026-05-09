@@ -246,8 +246,6 @@ extension SelectableEpisodeList {
           error
         )
       }
-      // clearCache is genuine file I/O — parallelism actually buys speedup
-      // here, unlike the DB write above which serializes through GRDB.
       await withDiscardingTaskGroup { group in
         for episodeID in cachedEpisodeIDs {
           group.addTask {
@@ -290,8 +288,6 @@ extension SelectableEpisodeList {
         return
       }
 
-      // downloadToCache is genuine network I/O — parallelism buys real
-      // speedup here, unlike the DB write above which serializes anyway.
       await withDiscardingTaskGroup { group in
         for episodeID in episodeIDs {
           group.addTask {
@@ -395,8 +391,6 @@ extension SelectableEpisodeList {
     let log = Self.log
     Task {
       do {
-        // INSERT OR IGNORE in the bulk repo method — duplicates on a
-        // subset of the selection are not an error.
         try await Container.shared.repo().addTag(tagID, toEpisodes: episodeIDs)
       } catch {
         log.caughtError(
@@ -428,17 +422,11 @@ extension SelectableEpisodeList {
 // MARK: - Tag Selection Helpers
 
 extension SelectableEpisodeList where Self: ManagingEpisodes {
-  // True only when every selected episode has loaded tag data (nil means
-  // the row has no tag UI — e.g. unsaved preview episodes). Drives whether
-  // the bulk tag menu shows at all so it never silently upserts unsaved
-  // rows just to attach a tag.
+  // True only when every selected episode has loaded tag data.
   var selectionHasTagData: Bool {
     !selectedEpisodes.isEmpty && selectedEpisodes.allSatisfy { tagIDs(for: $0) != nil }
   }
 
-  // Tags present on at least one selected episode — drives the Remove Tag
-  // submenu so removing affects something. Episodes without tag data
-  // (lookup returns nil) contribute nothing.
   var selectedEpisodesTagUnion: Set<Tag.ID> {
     selectedEpisodes.reduce(into: Set<Tag.ID>()) { union, episode in
       if let tagIDs = tagIDs(for: episode) {
@@ -447,10 +435,6 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
     }
   }
 
-  // Tags present on every selected episode — adding any of these would be
-  // a no-op for the entire selection, so we strip them from Add Tag.
-  // Callers gate on `selectionHasTagData` first; once that holds, every
-  // tagIDs lookup is non-nil and the intersection reflects the full set.
   var selectedEpisodesTagIntersection: Set<Tag.ID> {
     var intersection: Set<Tag.ID>?
     for episode in selectedEpisodes {
