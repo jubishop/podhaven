@@ -517,9 +517,10 @@ extension SelectableEpisodeList where EpisodeType == ListablePodcastEpisode {
       // by ID and replay in `selectedEpisodes` (PowerList visible) order —
       // bulk Play / Replace Queue / Add to Queue act in user-visible order.
       let savedByID = Dictionary(
-        uniqueKeysWithValues: try await Container.shared.repo().podcastEpisodes(episodeIDs).map {
-          ($0.id, $0)
-        }
+        uniqueKeysWithValues: try await Container.shared.repo().podcastEpisodes(episodeIDs)
+          .map {
+            ($0.id, $0)
+          }
       )
       return selectedEpisodes.compactMap { episode in
         guard let episodeID = episode.episodeID else { return nil }

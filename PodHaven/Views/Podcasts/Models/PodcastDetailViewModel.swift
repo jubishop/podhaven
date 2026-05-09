@@ -163,14 +163,16 @@ class PodcastDetailViewModel:
       // by ID and replay in `selectedEpisodes` (PowerList visible) order —
       // bulk Play / Replace Queue / Add to Queue act in user-visible order.
       let savedByID = Dictionary(
-        uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs).map {
-          ($0.id, $0)
-        }
+        uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs)
+          .map {
+            ($0.id, $0)
+          }
       )
       let upsertedByMediaGUID = Dictionary(
-        uniqueKeysWithValues: try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes).map {
-          ($0.mediaGUID, $0)
-        }
+        uniqueKeysWithValues: try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
+          .map {
+            ($0.mediaGUID, $0)
+          }
       )
       let podcastEpisodes: [PodcastEpisode] = selectedEpisodes.compactMap { episode in
         if let episodeID = episode.episodeID { return savedByID[episodeID] }

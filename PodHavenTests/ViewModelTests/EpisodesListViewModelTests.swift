@@ -88,9 +88,10 @@ import Testing
     // Visible order is reversed from DB rowid order so the test fails if
     // `WHERE id IN (...)` row order leaks through `selectedPodcastEpisodes`.
     let reversed = IdentifiedArray(
-      uniqueElements: [setup.ep4.id, setup.ep3.id, setup.ep2.id, setup.ep1.id].compactMap { id in
-        setup.episodes.first { $0.id == id }
-      }
+      uniqueElements: [setup.ep4.id, setup.ep3.id, setup.ep2.id, setup.ep1.id]
+        .compactMap { id in
+          setup.episodes.first { $0.id == id }
+        }
     )
     viewModel.episodeList.allEntries = reversed
     try await Wait.until(

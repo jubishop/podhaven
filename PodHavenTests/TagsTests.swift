@@ -91,7 +91,6 @@ class TagsTests {
     #expect(fetched?.tags.map(\.name) == ["Alpha", "beta"])
   }
 
-
   @Test("renameTag() updates name and preserves podcast associations")
   func renameTagPreservesAssociations() async throws {
     let series = try await repo.insertSeries(
