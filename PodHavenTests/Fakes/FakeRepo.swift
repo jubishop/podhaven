@@ -281,6 +281,16 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.podcast(podcastID)
   }
 
+  func savedPodcastIdentity(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws
+    -> (id: Podcast.ID, iTunesID: ITunesPodcastID?)?
+  {
+    recordCall(
+      methodName: "savedPodcastIdentity",
+      parameters: (feedURL: feedURL, iTunesID: iTunesID)
+    )
+    return try await repo.savedPodcastIdentity(feedURL, iTunesID: iTunesID)
+  }
+
   @discardableResult
   func updateRating(_ episodeIDs: [Episode.ID], rating: EpisodeRating?) async throws -> Int {
     recordCall(

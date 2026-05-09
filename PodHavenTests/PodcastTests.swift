@@ -63,6 +63,41 @@ class PodcastTests {
     #expect(titleCount == 0)
   }
 
+  @Test("savedPodcastIdentity() resolves by feedURL then iTunesID")
+  func savedPodcastIdentityResolution() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/identity-lookup.rss")!)
+    let iTunesID = ITunesPodcastID(rawValue: 42)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, iTunesID: iTunesID)
+      )
+    )
+
+    // feedURL match wins; iTunesID supplied or not is irrelevant.
+    let byFeed = try await repo.savedPodcastIdentity(feedURL, iTunesID: nil)
+    #expect(byFeed?.id == series.id)
+    #expect(byFeed?.iTunesID == iTunesID)
+
+    // Wrong feedURL with matching iTunesID falls through to the iTunesID branch.
+    let mismatchedFeed = FeedURL(URL(string: "https://example.com/different.rss")!)
+    let byITunes = try await repo.savedPodcastIdentity(mismatchedFeed, iTunesID: iTunesID)
+    #expect(byITunes?.id == series.id)
+
+    // Neither matches.
+    let unrelatedITunes = ITunesPodcastID(rawValue: 999)
+    let nothing = try await repo.savedPodcastIdentity(mismatchedFeed, iTunesID: unrelatedITunes)
+    #expect(nothing == nil)
+
+    // No iTunesID stored; lookup with iTunesID falls back to nil correctly.
+    let plainURL = FeedURL(URL(string: "https://example.com/plain.rss")!)
+    let plainSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(feedURL: plainURL))
+    )
+    let plainIdentity = try await repo.savedPodcastIdentity(plainURL, iTunesID: nil)
+    #expect(plainIdentity?.id == plainSeries.id)
+    #expect(plainIdentity?.iTunesID == nil)
+  }
+
   @Test("that a podcast feedURL must be valid")
   func failToInsertInvalidFeedURL() async throws {
     // Bad scheme

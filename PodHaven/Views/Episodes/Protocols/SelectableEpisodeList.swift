@@ -465,6 +465,14 @@ extension SelectableEpisodeList {
 // MARK: - Tag Selection Helpers
 
 extension SelectableEpisodeList where Self: ManagingEpisodes {
+  // True only when every selected episode has loaded tag data (nil means
+  // the row has no tag UI — e.g. unsaved preview episodes). Drives whether
+  // the bulk tag menu shows at all so it never silently upserts unsaved
+  // rows just to attach a tag.
+  var selectionHasTagData: Bool {
+    !selectedEpisodes.isEmpty && selectedEpisodes.allSatisfy { tagIDs(for: $0) != nil }
+  }
+
   // Tags present on at least one selected episode — drives the Remove Tag
   // submenu so removing affects something. Episodes without tag data
   // (lookup returns nil) contribute nothing.
@@ -477,9 +485,9 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
   }
 
   // Tags present on every selected episode — adding any of these would be
-  // a no-op for the entire selection, so we strip them from Add Tag. Built
-  // from selections whose tag data is loaded; if none is loaded, no
-  // intersection is computed and Add Tag falls back to all tags.
+  // a no-op for the entire selection, so we strip them from Add Tag.
+  // Callers gate on `selectionHasTagData` first; once that holds, every
+  // tagIDs lookup is non-nil and the intersection reflects the full set.
   var selectedEpisodesTagIntersection: Set<Tag.ID> {
     var intersection: Set<Tag.ID>?
     for episode in selectedEpisodes {

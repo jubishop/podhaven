@@ -123,44 +123,49 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingE
 //   selected episode and would actually be removed somewhere.
 //
 // Hidden whole-cloth when both filtered lists are empty so the menu never
-// offers an action that would no-op for the entire selection.
+// offers an action that would no-op for the entire selection — and also
+// gated on `selectionHasTagData` so unsaved rows (whose tagIDs lookup is
+// nil) don't expose a bulk action that would silently upsert them just to
+// attach a tag, matching the per-row context-menu contract.
 @MainActor @ViewBuilder
 private func tagBulkMenu<ViewModel: SelectableEpisodeList & ManagingEpisodes>(
   viewModel: ViewModel
 ) -> some View {
-  let allTags = Container.shared.sharedState().tags
-  let intersection = viewModel.selectedEpisodesTagIntersection
-  let union = viewModel.selectedEpisodesTagUnion
-  let addable = allTags.filter { !intersection.contains($0.id) }
-  let removable = allTags.filter { union.contains($0.id) }
+  if viewModel.selectionHasTagData {
+    let allTags = Container.shared.sharedState().tags
+    let intersection = viewModel.selectedEpisodesTagIntersection
+    let union = viewModel.selectedEpisodesTagUnion
+    let addable = allTags.filter { !intersection.contains($0.id) }
+    let removable = allTags.filter { union.contains($0.id) }
 
-  if !addable.isEmpty || !removable.isEmpty {
-    Menu {
-      if !addable.isEmpty {
-        Menu {
-          ForEach(addable) { tag in
-            Button(tag.name) {
-              viewModel.applyTagToSelectedEpisodes(tag.id)
+    if !addable.isEmpty || !removable.isEmpty {
+      Menu {
+        if !addable.isEmpty {
+          Menu {
+            ForEach(addable) { tag in
+              Button(tag.name) {
+                viewModel.applyTagToSelectedEpisodes(tag.id)
+              }
             }
+          } label: {
+            AppIcon.addTag.label("Add Tag")
           }
-        } label: {
-          AppIcon.addTag.label("Add Tag")
         }
-      }
 
-      if !removable.isEmpty {
-        Menu {
-          ForEach(removable) { tag in
-            Button(tag.name) {
-              viewModel.removeTagFromSelectedEpisodes(tag.id)
+        if !removable.isEmpty {
+          Menu {
+            ForEach(removable) { tag in
+              Button(tag.name) {
+                viewModel.removeTagFromSelectedEpisodes(tag.id)
+              }
             }
+          } label: {
+            AppIcon.removeTag.label("Remove Tag")
           }
-        } label: {
-          AppIcon.removeTag.label("Remove Tag")
         }
+      } label: {
+        AppIcon.tag.label("Tag")
       }
-    } label: {
-      AppIcon.tag.label("Tag")
     }
   }
 }

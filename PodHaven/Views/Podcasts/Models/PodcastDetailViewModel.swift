@@ -437,13 +437,6 @@ class PodcastDetailViewModel:
             )
           )
           try await repo.markSubscribed(insertedSeries.id)
-          // Seed `_podcastSeries` synchronously — same pattern as
-          // `attemptObservation` — so guards on `podcastSeries?.id`
-          // (addTag, defaultPlaybackRate, freshnessCadence, etc.) don't
-          // briefly no-op in the gap before the first observation tick.
-          if let detail = try await repo.podcastSeriesDetail(insertedSeries.id) {
-            self.podcastSeries = detail
-          }
           startObservation(insertedSeries.id)
         } else {
           Assert.fatal("Podcast type is not supported: \(String(describing: podcast))")
@@ -568,25 +561,22 @@ class PodcastDetailViewModel:
       return true
     }
 
-    guard
-      let lookupSeries = try await savedSeries(for: podcast)
-    else { return false }
+    guard let savedIdentity = try await savedPodcastIdentity(for: podcast) else { return false }
 
-    Self.log.debug("\(lookupSeries.toString) exists in db")
+    Self.log.debug("Podcast \(savedIdentity.id) exists in db")
 
     // Soft migration: backfill iTunesID for pre-existing podcasts
-    if lookupSeries.podcast.iTunesID == nil, let iTunesID = podcast.iTunesID {
-      try await repo.updateITunesID(lookupSeries.podcast.id, iTunesID: iTunesID)
+    if savedIdentity.iTunesID == nil, let iTunesID = podcast.iTunesID {
+      try await repo.updateITunesID(savedIdentity.id, iTunesID: iTunesID)
     }
 
-    // Seed the detail-shaped series synchronously so callers awaiting
-    // `performAppear` can see `saved == true` and the row data immediately.
-    // The subsequent observation re-emits the same value (skipped via
-    // `updatedSeries != podcastSeries`) and then drives further updates.
-    if let detail = try await repo.podcastSeriesDetail(lookupSeries.id) {
-      self.podcastSeries = detail
-    }
-    startObservation(lookupSeries.id)
+    // No synchronous seed — the observation's first emission populates
+    // `_podcastSeries`. Avoiding the eager fetch costs us a brief window
+    // (typically milliseconds) where `podcastSeries?.id` is nil, which
+    // guards on it (addTag, defaultPlaybackRate, freshnessCadence, etc.)
+    // briefly no-op for. Live observation is still triggered by every
+    // table the detail query references so subsequent ticks drive the UI.
+    startObservation(savedIdentity.id)
 
     Task { [weak self] in
       guard let self else { return }
@@ -669,12 +659,10 @@ class PodcastDetailViewModel:
   private func ensureObservedSeries(for podcast: DisplayedPodcast) async throws -> Podcast.ID? {
     if let podcastID = podcastSeries?.id { return podcastID }
 
-    guard
-      let lookupSeries = try await savedSeries(for: podcast)
-    else { return nil }
+    guard let savedIdentity = try await savedPodcastIdentity(for: podcast) else { return nil }
 
-    startObservation(lookupSeries.id)
-    return lookupSeries.id
+    startObservation(savedIdentity.id)
+    return savedIdentity.id
   }
 
   private func loadPresentationFromFeed() async throws {
@@ -689,8 +677,10 @@ class PodcastDetailViewModel:
     )
   }
 
-  private func savedSeries(for currentPodcast: DisplayedPodcast) async throws -> PodcastSeries? {
-    try await repo.podcastSeries(
+  private func savedPodcastIdentity(for currentPodcast: DisplayedPodcast) async throws
+    -> (id: Podcast.ID, iTunesID: ITunesPodcastID?)?
+  {
+    try await repo.savedPodcastIdentity(
       currentPodcast.feedURL,
       iTunesID: currentPodcast.iTunesID
     )

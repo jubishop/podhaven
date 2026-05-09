@@ -117,6 +117,26 @@ struct Repo: Databasing {
     }
   }
 
+  func savedPodcastIdentity(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws
+    -> (id: Podcast.ID, iTunesID: ITunesPodcastID?)?
+  {
+    try await appDB.db.read { db in
+      let columns = [Podcast.Columns.id, Podcast.Columns.iTunesID]
+      let request = Podcast.select(columns).asRequest(of: Row.self)
+      func decode(_ row: Row?) -> (id: Podcast.ID, iTunesID: ITunesPodcastID?)? {
+        guard let row else { return nil }
+        return (id: row[Podcast.Columns.id], iTunesID: row[Podcast.Columns.iTunesID])
+      }
+      if let byFeed = try request.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
+        return decode(byFeed)
+      }
+      if let iTunesID {
+        return decode(try request.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db))
+      }
+      return nil
+    }
+  }
+
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode? {

@@ -28,6 +28,12 @@ protocol Databasing: Sendable {
 
   func podcast(_ podcastID: Podcast.ID) async throws -> Podcast?
 
+  // Lightweight existence + identity lookup keyed by feedURL (priority)
+  // then iTunesID. Skips the full Podcast row when callers only need the
+  // id (e.g. to start observation) and the iTunesID (e.g. soft migration).
+  func savedPodcastIdentity(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws
+    -> (id: Podcast.ID, iTunesID: ITunesPodcastID?)?
+
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode?

@@ -153,9 +153,21 @@ import Testing
 
     try await viewModel.performAppear()
 
-    #expect(viewModel.saved)
-    #expect(viewModel.podcast.description == savedSeries.podcast.description)
-    #expect(viewModel.podcast.link == savedLink)
+    try await Wait.until(
+      { @MainActor in
+        viewModel.saved
+          && viewModel.podcast.description == savedSeries.podcast.description
+          && viewModel.podcast.link == savedLink
+      },
+      { @MainActor in
+        """
+        Expected search-result detail to hydrate saved metadata after performAppear.
+        saved: \(viewModel.saved)
+        description: \(viewModel.podcast.description)
+        link: \(String(describing: viewModel.podcast.link))
+        """
+      }
+    )
   }
 
   @Test("performAppear parses the feed when no saved series exists")
@@ -323,34 +335,6 @@ import Testing
     )
   }
 
-  @Test("subscribe synchronously seeds podcastSeries before observation fires")
-  func subscribeSeedsPodcastSeriesSynchronously() async throws {
-    let feedURL = FeedURL(URL(string: "https://example.com/subscribe-sync-seed.rss")!)
-    let unsavedSeries = UnsavedPodcastSeries(
-      unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Sync Seed"),
-      unsavedEpisodes: [try Create.unsavedEpisode(guid: "ep1", title: "Episode 1")]
-    )
-    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
-    let fakeRepo = repo as! FakeRepo
-    fakeRepo.clearAllCalls()
-
-    viewModel.subscribe()
-
-    // Pinning the synchronous seed: the live observation path uses
-    // `PodcastSeriesDetail.fetchOne` (static, takes a Database), which
-    // FakeRepo doesn't intercept. Any recorded `podcastSeriesDetail` call
-    // is uniquely from subscribe()'s synchronous seed, so this asserts
-    // the seed ran without racing the observation tick.
-    try await Wait.until(
-      { @MainActor in
-        (try? fakeRepo.expectCalls(methodName: "podcastSeriesDetail", count: 1)) != nil
-      },
-      { @MainActor in
-        "Expected subscribe() to call repo.podcastSeriesDetail once for the synchronous seed."
-      }
-    )
-  }
-
   @Test("subscribe persists an unsaved series and its episodes")
   func subscribePersistsUnsavedSeriesAndItsEpisodes() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/subscribe.rss")!)
@@ -460,6 +444,36 @@ import Testing
     try select(viewModel, episodeIDs: [firstEpisode.id, secondEpisode.id])
     #expect(viewModel.selectedEpisodesTagIntersection == [beta.id])
     #expect(viewModel.selectedEpisodesTagUnion == [alpha.id, beta.id, cherry.id])
+    #expect(viewModel.selectionHasTagData)
+  }
+
+  @Test("selectionHasTagData is false when any selected episode is unsaved")
+  func selectionHasTagDataFalseForUnsavedSelection() async throws {
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved Tag Gate"),
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(guid: "unsaved-tag-gate-1"),
+        try Create.unsavedEpisode(guid: "unsaved-tag-gate-2"),
+      ]
+    )
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    _ = try await repo.insertTag(UnsavedTag(name: "Alpha"))
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.count == 2 },
+      { @MainActor in
+        "Expected unsaved series episodes to seed before selection."
+      }
+    )
+
+    for entry in viewModel.episodeList.allEntries {
+      viewModel.episodeList.isSelected[entry.id] = true
+    }
+
+    // Bulk tag actions on unsaved selections would silently upsert just to
+    // attach a tag — the gate keeps the menu hidden so the per-row
+    // "no tag UI for unsaved rows" contract holds across both surfaces.
+    #expect(viewModel.selectionHasTagData == false)
   }
 
   @Test("selectedPodcastEpisodes preserves user-visible selection order")
