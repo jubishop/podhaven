@@ -10,6 +10,7 @@ import Testing
 @Suite("of PodcastDetailViewModel tests", .container)
 @MainActor final class PodcastDetailViewModelTests {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
@@ -808,6 +809,48 @@ import Testing
         Expected description-only token '\(descriptionToken)' to filter to nothing on saved detail.
         If this test fails because filteredEntries now contains \(descriptionOnlyID), saved detail description search has been reintroduced. Make that product change explicit and keep it off the slim row model unless the query cost is acceptable.
         filteredEntries: \(viewModel.episodeList.filteredEntries.map { ($0.title, $0.episodeID) })
+        """
+      }
+    )
+  }
+
+  @Test("podcastSeries observation prunes episodes that have been removed from the DB")
+  func podcastSeriesObservationPrunesRemovedEpisodes() async throws {
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Prune Test"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "keep-1"),
+          try Create.unsavedEpisode(guid: "remove-me"),
+          try Create.unsavedEpisode(guid: "keep-2"),
+        ]
+      )
+    )
+    let removedID = savedSeries.episodes[1].id
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await viewModel.performAppear()
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count == 3 },
+      { @MainActor in
+        "Expected 3 entries after initial observation; got \(viewModel.episodeList.allEntries.count)"
+      }
+    )
+
+    _ = try await appDB.db.write { db in
+      try Episode.deleteOne(db, key: removedID)
+    }
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.allEntries.count == 2
+          && viewModel.episodeList.allEntries.allSatisfy { $0.episodeID != removedID }
+      },
+      { @MainActor in
+        """
+        Expected the removed episode to be pruned from allEntries.
+        count: \(viewModel.episodeList.allEntries.count)
+        episodeIDs: \(viewModel.episodeList.allEntries.map(\.episodeID))
         """
       }
     )

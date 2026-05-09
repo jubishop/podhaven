@@ -105,12 +105,12 @@ struct Repo: Databasing {
     try await appDB.db.read { db in
       // feedURL takes priority over iTunesID
       if let byFeed = try Podcast.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
-        return try PodcastSeriesDetail.fetchOne(byFeed.id, in: db)
+        return try PodcastSeriesDetail.fetchOne(podcast: byFeed, in: db)
       }
       if let iTunesID,
         let byITunes = try Podcast.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
       {
-        return try PodcastSeriesDetail.fetchOne(byITunes.id, in: db)
+        return try PodcastSeriesDetail.fetchOne(podcast: byITunes, in: db)
       }
       return nil
     }

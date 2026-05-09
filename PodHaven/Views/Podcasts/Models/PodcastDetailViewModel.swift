@@ -48,16 +48,21 @@ class PodcastDetailViewModel:
       podcast = DisplayedPodcast(newValue.podcast)
       isHydratingInitialPresentation = false
 
-      // Fold the parent podcast in with each slim listable-episode row to
-      // form the row's display type without re-fetching podcast columns.
-      var allEntries = episodeList.allEntries
-      for listableEpisode in newValue.episodes {
-        let row = ListedEpisode(
-          ListablePodcastEpisode(podcast: newValue.podcast, episode: listableEpisode)
-        )
-        allEntries[id: row.id] = row
-      }
-      episodeList.allEntries = allEntries
+      // Skip the allEntries update when the incoming detail carries no
+      // episodes — that's the bootstrap case (subscribe() before
+      // observation hydrates the inserted episodes). Wholesale-replacing
+      // here would briefly blank the feed-parsed unsaved rows on screen.
+      // For the populated case, do a wholesale replacement so episodes
+      // removed from the DB get pruned (a merge-only update would leave
+      // deleted rows on screen).
+      guard !newValue.episodes.isEmpty else { return }
+      episodeList.allEntries = IdentifiedArray(
+        uniqueElements: newValue.episodes.map { listableEpisode in
+          ListedEpisode(
+            ListablePodcastEpisode(podcast: newValue.podcast, episode: listableEpisode)
+          )
+        }
+      )
     }
   }
 

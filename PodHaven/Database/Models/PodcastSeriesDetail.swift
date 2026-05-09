@@ -42,14 +42,18 @@ struct PodcastSeriesDetail: Equatable, Hashable, Identifiable, Sendable, Stringa
     -> PodcastSeriesDetail?
   {
     guard let podcast = try Podcast.withID(podcastID).fetchOne(db) else { return nil }
+    return try fetchOne(podcast: podcast, in: db)
+  }
+
+  static func fetchOne(podcast: Podcast, in db: Database) throws -> PodcastSeriesDetail {
     let episodes =
       try ListableEpisode
-      .filter(Episode.Columns.podcastId == podcastID)
+      .filter(Episode.Columns.podcastId == podcast.id)
       .order(Episode.Columns.pubDate.desc)
       .fetchAll(db)
     let tags =
       try Tag
-      .joining(required: Tag.podcastTags.filter(PodcastTag.Columns.podcastId == podcastID))
+      .joining(required: Tag.podcastTags.filter(PodcastTag.Columns.podcastId == podcast.id))
       .orderedByName()
       .fetchAll(db)
     return PodcastSeriesDetail(

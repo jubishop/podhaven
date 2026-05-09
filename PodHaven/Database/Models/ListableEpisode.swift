@@ -95,10 +95,10 @@ struct ListableEpisode:
     queueDate = row[Episode.Columns.queueDate]
     rating = row[Episode.Columns.rating]
 
-    if let tagIDsJSON: String = row[Self.tagIDsColumnName],
-      let data = tagIDsJSON.data(using: .utf8)
-    {
-      tagIDs = Set(try Self.tagIDsDecoder.decode([Tag.ID].self, from: data))
+    if let tagIDsJSON: String = row[Self.tagIDsColumnName] {
+      tagIDs = Set(
+        try Self.tagIDsDecoder.decode([Tag.ID].self, from: Data(tagIDsJSON.utf8))
+      )
     } else {
       tagIDs = []
     }
