@@ -153,21 +153,9 @@ import Testing
 
     try await viewModel.performAppear()
 
-    try await Wait.until(
-      { @MainActor in
-        viewModel.saved
-          && viewModel.podcast.description == savedSeries.podcast.description
-          && viewModel.podcast.link == savedLink
-      },
-      { @MainActor in
-        """
-        Expected search-result detail to hydrate saved metadata after performAppear.
-        saved: \(viewModel.saved)
-        description: \(viewModel.podcast.description)
-        link: \(String(describing: viewModel.podcast.link))
-        """
-      }
-    )
+    #expect(viewModel.saved)
+    #expect(viewModel.podcast.description == savedSeries.podcast.description)
+    #expect(viewModel.podcast.link == savedLink)
   }
 
   @Test("performAppear parses the feed when no saved series exists")

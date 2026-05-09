@@ -109,21 +109,14 @@ struct Repo: Databasing {
     }
   }
 
-  func savedPodcastIdentity(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws
-    -> (id: Podcast.ID, iTunesID: ITunesPodcastID?)?
-  {
+  func podcast(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws -> Podcast? {
     try await appDB.db.read { db in
-      let columns = [Podcast.Columns.id, Podcast.Columns.iTunesID]
-      let request = Podcast.select(columns).asRequest(of: Row.self)
-      func decode(_ row: Row?) -> (id: Podcast.ID, iTunesID: ITunesPodcastID?)? {
-        guard let row else { return nil }
-        return (id: row[Podcast.Columns.id], iTunesID: row[Podcast.Columns.iTunesID])
-      }
-      if let byFeed = try request.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
-        return decode(byFeed)
+      // feedURL takes priority over iTunesID
+      if let byFeed = try Podcast.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
+        return byFeed
       }
       if let iTunesID {
-        return decode(try request.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db))
+        return try Podcast.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
       }
       return nil
     }
@@ -159,13 +152,18 @@ struct Repo: Databasing {
 
   func podcastEpisodes(_ episodeIDs: [Episode.ID]) async throws -> [PodcastEpisode] {
     guard !episodeIDs.isEmpty else { return [] }
-    return try await appDB.db.read { db in
+    let fetched: [PodcastEpisode] = try await appDB.db.read { db in
       try Episode
         .filter(episodeIDs.contains(Episode.Columns.id))
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchAll(db)
     }
+    // SQLite's `WHERE id IN (...)` returns rows in rowid order, not input
+    // order. Bulk Play / Replace Queue / Add to Queue rely on the result
+    // matching the user-visible selection order callers passed in.
+    let byID = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })
+    return episodeIDs.compactMap { byID[$0] }
   }
 
   func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode? {

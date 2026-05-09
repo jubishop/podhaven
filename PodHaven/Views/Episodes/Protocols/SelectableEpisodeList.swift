@@ -391,20 +391,11 @@ extension SelectableEpisodeList {
   }
 
   func applyTagToSelectedEpisodes(_ tagID: Tag.ID) {
-    guard !selectedEpisodes.isEmpty else { return }
+    let episodeIDs = selectedSavedEpisodeIDs
+    guard !episodeIDs.isEmpty else { return }
 
     let log = Self.log
-    Task { [weak self] in
-      guard let self else { return }
-
-      let episodeIDs: [Episode.ID]
-      do {
-        episodeIDs = try await selectedPodcastEpisodeIDs
-      } catch {
-        log.caughtError("applyTagToSelectedEpisodes: failed to resolve episode IDs", error)
-        return
-      }
-
+    Task {
       await withDiscardingTaskGroup { group in
         for episodeID in episodeIDs {
           group.addTask {
@@ -428,26 +419,15 @@ extension SelectableEpisodeList {
   }
 
   func removeTagFromSelectedEpisodes(_ tagID: Tag.ID) {
-    guard !selectedEpisodes.isEmpty else { return }
+    let episodeIDs = selectedSavedEpisodeIDs
+    guard !episodeIDs.isEmpty else { return }
 
     let log = Self.log
-    Task { [weak self] in
-      guard let self else { return }
-
-      let episodeIDs: [Episode.ID]
-      do {
-        episodeIDs = try await selectedPodcastEpisodeIDs
-      } catch {
-        log.caughtError("removeTagFromSelectedEpisodes: failed to resolve episode IDs", error)
-        return
-      }
-
+    Task {
       await withDiscardingTaskGroup { group in
         for episodeID in episodeIDs {
           group.addTask {
             do {
-              // The repo returns false (not throws) for the no-row case,
-              // so anything bubbling up here is genuinely unexpected.
               _ = try await Container.shared.repo().removeTag(tagID, from: episodeID)
             } catch {
               log.caughtError(
@@ -511,21 +491,7 @@ extension SelectableEpisodeList where EpisodeType == PodcastEpisode {
 extension SelectableEpisodeList where EpisodeType == ListablePodcastEpisode {
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
-      let selectedEpisodes = self.selectedEpisodes
-      let episodeIDs = selectedEpisodes.compactMap(\.episodeID)
-      // SQLite's `WHERE id IN (...)` doesn't preserve input order, so map
-      // by ID and replay in `selectedEpisodes` (PowerList visible) order —
-      // bulk Play / Replace Queue / Add to Queue act in user-visible order.
-      let savedByID = Dictionary(
-        uniqueKeysWithValues: try await Container.shared.repo().podcastEpisodes(episodeIDs)
-          .map {
-            ($0.id, $0)
-          }
-      )
-      return selectedEpisodes.compactMap { episode in
-        guard let episodeID = episode.episodeID else { return nil }
-        return savedByID[episodeID]
-      }
+      try await Container.shared.repo().podcastEpisodes(selectedEpisodes.compactMap(\.episodeID))
     }
   }
 }

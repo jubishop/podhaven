@@ -159,21 +159,15 @@ class PodcastDetailViewModel:
 
       let savedEpisodeIDs = selectedEpisodes.compactMap(\.episodeID)
       let unsavedPodcastEpisodes = selectedEpisodes.compactMap(\.unsavedPodcastEpisode)
-      // SQLite's `WHERE id IN (...)` doesn't preserve input order, so map
-      // by ID and replay in `selectedEpisodes` (PowerList visible) order —
-      // bulk Play / Replace Queue / Add to Queue act in user-visible order.
       let savedByID = Dictionary(
-        uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs)
-          .map {
-            ($0.id, $0)
-          }
+        uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs).map { ($0.id, $0) }
       )
       let upsertedByMediaGUID = Dictionary(
         uniqueKeysWithValues: try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
-          .map {
-            ($0.mediaGUID, $0)
-          }
+          .map { ($0.mediaGUID, $0) }
       )
+      // Walk `selectedEpisodes` (PowerList visible order) to interleave
+      // saved + just-upserted rows in user-visible order.
       let podcastEpisodes: [PodcastEpisode] = selectedEpisodes.compactMap { episode in
         if let episodeID = episode.episodeID { return savedByID[episodeID] }
         return upsertedByMediaGUID[episode.mediaGUID]
@@ -439,6 +433,7 @@ class PodcastDetailViewModel:
             )
           )
           try await repo.markSubscribed(insertedSeries.id)
+          self.podcastSeries = PodcastSeriesDetail(podcast: insertedSeries.podcast)
           startObservation(insertedSeries.id)
         } else {
           Assert.fatal("Podcast type is not supported: \(String(describing: podcast))")
@@ -563,16 +558,17 @@ class PodcastDetailViewModel:
       return true
     }
 
-    guard let savedIdentity = try await savedPodcastIdentity(for: podcast) else { return false }
+    guard let savedPodcast = try await savedPodcast(for: podcast) else { return false }
 
-    Self.log.debug("Podcast \(savedIdentity.id) exists in db")
+    Self.log.debug("Podcast \(savedPodcast.id) exists in db")
 
     // Soft migration: backfill iTunesID for pre-existing podcasts
-    if savedIdentity.iTunesID == nil, let iTunesID = podcast.iTunesID {
-      try await repo.updateITunesID(savedIdentity.id, iTunesID: iTunesID)
+    if savedPodcast.iTunesID == nil, let iTunesID = podcast.iTunesID {
+      try await repo.updateITunesID(savedPodcast.id, iTunesID: iTunesID)
     }
 
-    startObservation(savedIdentity.id)
+    self.podcastSeries = PodcastSeriesDetail(podcast: savedPodcast)
+    startObservation(savedPodcast.id)
 
     Task { [weak self] in
       guard let self else { return }
@@ -652,10 +648,11 @@ class PodcastDetailViewModel:
   private func ensureObservedSeries(for podcast: DisplayedPodcast) async throws -> Podcast.ID? {
     if let podcastID = podcastSeries?.id { return podcastID }
 
-    guard let savedIdentity = try await savedPodcastIdentity(for: podcast) else { return nil }
+    guard let savedPodcast = try await savedPodcast(for: podcast) else { return nil }
 
-    startObservation(savedIdentity.id)
-    return savedIdentity.id
+    self.podcastSeries = PodcastSeriesDetail(podcast: savedPodcast)
+    startObservation(savedPodcast.id)
+    return savedPodcast.id
   }
 
   private func loadPresentationFromFeed() async throws {
@@ -670,10 +667,8 @@ class PodcastDetailViewModel:
     )
   }
 
-  private func savedPodcastIdentity(for currentPodcast: DisplayedPodcast) async throws
-    -> (id: Podcast.ID, iTunesID: ITunesPodcastID?)?
-  {
-    try await repo.savedPodcastIdentity(
+  private func savedPodcast(for currentPodcast: DisplayedPodcast) async throws -> Podcast? {
+    try await repo.podcast(
       currentPodcast.feedURL,
       iTunesID: currentPodcast.iTunesID
     )

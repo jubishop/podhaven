@@ -46,6 +46,33 @@ class EpisodeQueryTests {
     #expect(latestEpisode == nil)
   }
 
+  @Test("podcastEpisodes(_:) returns rows in input order")
+  func podcastEpisodesPreservesInputOrder() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "ep-a"),
+          try Create.unsavedEpisode(guid: "ep-b"),
+          try Create.unsavedEpisode(guid: "ep-c"),
+          try Create.unsavedEpisode(guid: "ep-d"),
+        ]
+      )
+    )
+    let ids = series.episodes.map(\.id)
+    let reversed = Array(ids.reversed())
+    let scrambled = [ids[2], ids[0], ids[3], ids[1]]
+
+    let inserted = try await repo.podcastEpisodes(ids)
+    #expect(inserted.map(\.id) == ids)
+
+    let reversedFetch = try await repo.podcastEpisodes(reversed)
+    #expect(reversedFetch.map(\.id) == reversed)
+
+    let scrambledFetch = try await repo.podcastEpisodes(scrambled)
+    #expect(scrambledFetch.map(\.id) == scrambled)
+  }
+
   @Test("that episode can be queried by MediaGUID")
   func testEpisodeQueryByMediaGUID() async throws {
     let guid = GUID("test-guid")
