@@ -323,6 +323,34 @@ import Testing
     )
   }
 
+  @Test("subscribe synchronously seeds podcastSeries before observation fires")
+  func subscribeSeedsPodcastSeriesSynchronously() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/subscribe-sync-seed.rss")!)
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Sync Seed"),
+      unsavedEpisodes: [try Create.unsavedEpisode(guid: "ep1", title: "Episode 1")]
+    )
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    let fakeRepo = repo as! FakeRepo
+    fakeRepo.clearAllCalls()
+
+    viewModel.subscribe()
+
+    // Pinning the synchronous seed: the live observation path uses
+    // `Repo.fetchPodcastSeriesDetail` (static), which FakeRepo doesn't
+    // intercept. Any recorded `podcastSeriesDetail` call is uniquely from
+    // subscribe()'s synchronous seed, so this asserts the seed ran without
+    // racing the observation tick.
+    try await Wait.until(
+      { @MainActor in
+        (try? fakeRepo.expectCalls(methodName: "podcastSeriesDetail", count: 1)) != nil
+      },
+      { @MainActor in
+        "Expected subscribe() to call repo.podcastSeriesDetail once for the synchronous seed."
+      }
+    )
+  }
+
   @Test("subscribe persists an unsaved series and its episodes")
   func subscribePersistsUnsavedSeriesAndItsEpisodes() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/subscribe.rss")!)
@@ -432,6 +460,64 @@ import Testing
     try select(viewModel, episodeIDs: [firstEpisode.id, secondEpisode.id])
     #expect(viewModel.selectedEpisodesTagIntersection == [beta.id])
     #expect(viewModel.selectedEpisodesTagUnion == [alpha.id, beta.id, cherry.id])
+  }
+
+  @Test("selectedPodcastEpisodes preserves user-visible selection order")
+  func selectedPodcastEpisodesPreservesSelectionOrder() async throws {
+    // Insertion order = ep1, ep2, ep3 (so DB rowid order matches that).
+    // pubDates are reversed so `oldestFirst` flips the visible order to
+    // [ep3, ep2, ep1] — different from any "natural" SQL ordering, which
+    // is what reveals the bug if `WHERE id IN (...)` returns rows in
+    // rowid order rather than the input ID order.
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Selection Order"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "sel-order-1",
+            title: "Newest",
+            pubDate: Date(timeIntervalSince1970: 300)
+          ),
+          try Create.unsavedEpisode(
+            guid: "sel-order-2",
+            title: "Middle",
+            pubDate: Date(timeIntervalSince1970: 200)
+          ),
+          try Create.unsavedEpisode(
+            guid: "sel-order-3",
+            title: "Oldest",
+            pubDate: Date(timeIntervalSince1970: 100)
+          ),
+        ]
+      )
+    )
+    let newest = savedSeries.episodes[0]
+    let middle = savedSeries.episodes[1]
+    let oldest = savedSeries.episodes[2]
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await viewModel.performAppear()
+    viewModel.currentSortMethod = .oldestFirst
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.title) == ["Oldest", "Middle", "Newest"]
+      },
+      { @MainActor in
+        """
+        Expected oldestFirst sort to flip the visible order before selecting.
+        Actual titles: \(viewModel.episodeList.filteredEntries.map(\.title))
+        """
+      }
+    )
+
+    try select(viewModel, episodeIDs: [oldest.id, middle.id, newest.id])
+
+    // selectedEpisodes follows filteredEntries (visible) order, so the
+    // returned PodcastEpisodes must match — anything else means the
+    // `WHERE id IN (...)` row-order leaked into bulk Play / Replace Queue.
+    let podcastEpisodes = try await viewModel.selectedPodcastEpisodes
+    #expect(podcastEpisodes.map(\.id) == [oldest.id, middle.id, newest.id])
   }
 
   @Test("refreshing a series under newestFirst places a new episode at the top, not the bottom")

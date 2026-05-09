@@ -9,9 +9,10 @@ import Tagged
 // Lightweight episode+podcast type for list views. Embeds a `ListableEpisode`
 // for the Episode-side fields (column list, correlated tag-IDs subquery, row
 // decode all live there) and layers on the joined Podcast columns this list
-// shape needs — feedURL/title/image. Forwards Episode-side property reads
-// to the embedded core via `@dynamicMemberLookup` so call sites that read
-// e.g. `.title`, `.duration`, `.tagIDs` keep working unchanged.
+// shape needs — feedURL/title/image. Episode-side reads are surfaced via
+// explicit forwarders below (see comment on the forwarder block) so call
+// sites that read e.g. `.title`, `.duration`, `.tagIDs` keep working
+// unchanged.
 //
 // `TableRecord` rooted in the Episode table with `databaseSelection` set to
 // just the listable Episode columns means any GRDB query rooted in

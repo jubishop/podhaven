@@ -159,10 +159,23 @@ class PodcastDetailViewModel:
 
       let savedEpisodeIDs = selectedEpisodes.compactMap(\.episodeID)
       let unsavedPodcastEpisodes = selectedEpisodes.compactMap(\.unsavedPodcastEpisode)
-      async let savedPodcastEpisodesTask = repo.podcastEpisodes(savedEpisodeIDs)
-      async let upsertedPodcastEpisodesTask = repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
-      let podcastEpisodes =
-        try await savedPodcastEpisodesTask + upsertedPodcastEpisodesTask
+      // SQLite's `WHERE id IN (...)` doesn't preserve input order, so map
+      // by ID and replay in `selectedEpisodes` (PowerList visible) order —
+      // bulk Play / Replace Queue / Add to Queue act in user-visible order.
+      let savedByID = Dictionary(
+        uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs).map {
+          ($0.id, $0)
+        }
+      )
+      let upsertedByMediaGUID = Dictionary(
+        uniqueKeysWithValues: try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes).map {
+          ($0.mediaGUID, $0)
+        }
+      )
+      let podcastEpisodes: [PodcastEpisode] = selectedEpisodes.compactMap { episode in
+        if let episodeID = episode.episodeID { return savedByID[episodeID] }
+        return upsertedByMediaGUID[episode.mediaGUID]
+      }
 
       guard let podcastEpisode = podcastEpisodes.first
       else { Assert.fatal("No PodcastEpisodes even tho selectedEpisodes was not empty?") }
@@ -424,6 +437,13 @@ class PodcastDetailViewModel:
             )
           )
           try await repo.markSubscribed(insertedSeries.id)
+          // Seed `_podcastSeries` synchronously — same pattern as
+          // `attemptObservation` — so guards on `podcastSeries?.id`
+          // (addTag, defaultPlaybackRate, freshnessCadence, etc.) don't
+          // briefly no-op in the gap before the first observation tick.
+          if let detail = try await repo.podcastSeriesDetail(insertedSeries.id) {
+            self.podcastSeries = detail
+          }
           startObservation(insertedSeries.id)
         } else {
           Assert.fatal("Podcast type is not supported: \(String(describing: podcast))")

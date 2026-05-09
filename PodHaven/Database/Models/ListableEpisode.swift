@@ -20,6 +20,10 @@ struct ListableEpisode:
   // column name without coupling to a model property.
   static let tagIDsColumnName = "tagIDs"
 
+  // Reused across every row decode — `init(row:)` is hot on long lists,
+  // and a per-row `JSONDecoder()` adds allocator pressure for no benefit.
+  private static let tagIDsDecoder = JSONDecoder()
+
   static let databaseTableName: String = Episode.databaseTableName
   static var databaseSelection: [any SQLSelectable] {
     [
@@ -103,7 +107,7 @@ struct ListableEpisode:
     if let tagIDsJSON: String = row[Self.tagIDsColumnName],
       let data = tagIDsJSON.data(using: .utf8)
     {
-      tagIDs = Set(try JSONDecoder().decode([Tag.ID].self, from: data))
+      tagIDs = Set(try Self.tagIDsDecoder.decode([Tag.ID].self, from: data))
     } else {
       tagIDs = []
     }

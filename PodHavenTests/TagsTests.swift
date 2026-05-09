@@ -63,7 +63,7 @@ class TagsTests {
     }
 
     let fetched = try await repo.podcastSeriesDetail(series.id)
-    #expect(fetched?.tags?.map(\.id) == [tag.id])
+    #expect(fetched?.tags.map(\.id) == [tag.id])
 
     let firstRemove = try await repo.removeTag(tag.id, from: series.id)
     let secondRemove = try await repo.removeTag(tag.id, from: series.id)
@@ -71,7 +71,7 @@ class TagsTests {
     #expect(firstRemove)
     #expect(!secondRemove)
     let afterRemove = try await repo.podcastSeriesDetail(series.id)
-    #expect(afterRemove?.tags?.isEmpty == true)
+    #expect(afterRemove?.tags.isEmpty == true)
   }
 
   @Test("podcastSeriesDetail() includes associated tags")
@@ -88,7 +88,7 @@ class TagsTests {
 
     let fetched = try await repo.podcastSeriesDetail(series.id)
     #expect(fetched != nil)
-    #expect(fetched?.tags?.map(\.name) == ["Alpha", "beta"])
+    #expect(fetched?.tags.map(\.name) == ["Alpha", "beta"])
   }
 
   @Test("renameTag() updates name and preserves podcast associations")
@@ -106,7 +106,7 @@ class TagsTests {
     #expect(tags.map(\.name) == ["News"])
 
     let fetched = try await repo.podcastSeriesDetail(series.id)
-    #expect(fetched?.tags?.map(\.id) == [tag.id])
+    #expect(fetched?.tags.map(\.id) == [tag.id])
   }
 
   @Test("renameTag() throws on conflict with another tag")
@@ -181,12 +181,12 @@ class TagsTests {
 
     _ = try await repo.addTag(tag.id, to: series.id)
     let beforeDelete = try await repo.podcastSeriesDetail(series.id)
-    #expect(beforeDelete?.tags?.count == 1)
+    #expect(beforeDelete?.tags.count == 1)
 
     let deleted = try await repo.deleteTag(tag.id)
     #expect(deleted)
     let afterDelete = try await repo.podcastSeriesDetail(series.id)
-    #expect(afterDelete?.tags?.isEmpty == true)
+    #expect(afterDelete?.tags.isEmpty == true)
     #expect(try await observatory.tags().get().isEmpty)
   }
 

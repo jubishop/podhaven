@@ -9,7 +9,7 @@ import IdentifiedCollections
 //   * a list of `ListableEpisode`s — the slim episode-row shape with tag
 //     IDs materialised, *without* the joined Podcast columns the parent
 //     already has
-//   * the podcast's own tags (when the caller asked for them)
+//   * the podcast's own tags (empty when none assigned)
 // Distinct from `PodcastSeries`, which keeps full `Episode` rows for the
 // operational/refresh path.
 struct PodcastSeriesDetail: Equatable, Hashable, Identifiable, Sendable, Stringable {
@@ -17,12 +17,12 @@ struct PodcastSeriesDetail: Equatable, Hashable, Identifiable, Sendable, Stringa
 
   let podcast: Podcast
   let episodes: IdentifiedArrayOf<ListableEpisode>
-  let tags: IdentifiedArrayOf<Tag>?
+  let tags: IdentifiedArrayOf<Tag>
 
   init(
     podcast: Podcast,
     episodes: IdentifiedArrayOf<ListableEpisode> = [],
-    tags: IdentifiedArrayOf<Tag>? = nil
+    tags: IdentifiedArrayOf<Tag> = []
   ) {
     self.podcast = podcast
     self.episodes = episodes
