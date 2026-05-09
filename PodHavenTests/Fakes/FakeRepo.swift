@@ -193,6 +193,23 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.removeTag(tagID, from: episodeID)
   }
 
+  func addTag(_ tagID: Tag.ID, toEpisodes episodeIDs: [Episode.ID]) async throws {
+    recordCall(
+      methodName: "addTag",
+      parameters: (tagID: tagID, episodeIDs: episodeIDs)
+    )
+    try await repo.addTag(tagID, toEpisodes: episodeIDs)
+  }
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, fromEpisodes episodeIDs: [Episode.ID]) async throws -> Int {
+    recordCall(
+      methodName: "removeTag",
+      parameters: (tagID: tagID, episodeIDs: episodeIDs)
+    )
+    return try await repo.removeTag(tagID, fromEpisodes: episodeIDs)
+  }
+
   // MARK: - Episode Writers
 
   @discardableResult
@@ -274,6 +291,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       parameters: (episodeID: episodeID, saveInCache: saveInCache)
     )
     return try await repo.updateSaveInCache(episodeID, saveInCache: saveInCache)
+  }
+
+  @discardableResult
+  func updateSaveInCache(_ episodeIDs: [Episode.ID], saveInCache: Bool) async throws -> Int {
+    recordCall(
+      methodName: "updateSaveInCache",
+      parameters: (episodeIDs: episodeIDs, saveInCache: saveInCache)
+    )
+    return try await repo.updateSaveInCache(episodeIDs, saveInCache: saveInCache)
   }
 
   func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {

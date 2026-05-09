@@ -203,11 +203,6 @@ class TagsTests {
     let tag = try await repo.insertTag(UnsavedTag(name: "Favorite"))
     try await repo.addTag(tag.id, to: episode.id)
 
-    // Pins the error pattern that applyTagToSelectedEpisodes' bulk catch
-    // relies on — see SelectableEpisodeList.applyTagToSelectedEpisodes.
-    // If GRDB ever stops surfacing this duplicate as
-    // DatabaseError.SQLITE_CONSTRAINT_UNIQUE, the production catch
-    // silently turns into a generic .error log; this test fails first.
     do {
       try await repo.addTag(tag.id, to: episode.id)
       Issue.record("expected duplicate addTag to throw SQLITE_CONSTRAINT_UNIQUE")
@@ -309,6 +304,88 @@ class TagsTests {
 
     _ = try await repo.removeTag(tag.id, from: episodeID)
     try await updateCount.wait(for: 3)
+  }
+
+  @Test("addTag(toEpisodes:) ignores duplicates and adds missing rows in one transaction")
+  func bulkAddTagIgnoresDuplicates() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "ep-a"),
+          try Create.unsavedEpisode(guid: "ep-b"),
+          try Create.unsavedEpisode(guid: "ep-c"),
+        ]
+      )
+    )
+    let epA = series.episodes[0].id
+    let epB = series.episodes[1].id
+    let epC = series.episodes[2].id
+
+    let tag = try await repo.insertTag(UnsavedTag(name: "Mixed"))
+    // Pre-tag epA so the bulk call hits a UNIQUE conflict for that row;
+    // the others must still get tagged. Per-row addTag would throw here.
+    try await repo.addTag(tag.id, to: epA)
+
+    try await repo.addTag(tag.id, toEpisodes: [epA, epB, epC])
+
+    let detail = try #require(try await repo.podcastSeriesDetail(series.id))
+    let tagsByEpisode = Dictionary(
+      uniqueKeysWithValues: detail.episodes.map { ($0.id, $0.tagIDs) }
+    )
+    #expect(tagsByEpisode[epA] == [tag.id])
+    #expect(tagsByEpisode[epB] == [tag.id])
+    #expect(tagsByEpisode[epC] == [tag.id])
+  }
+
+  @Test("addTag(toEpisodes:) is a no-op for an empty list")
+  func bulkAddTagEmptyList() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "Lonely"))
+    try await repo.addTag(tag.id, toEpisodes: [])
+  }
+
+  @Test("removeTag(fromEpisodes:) deletes only the target tag and returns the count removed")
+  func bulkRemoveTagDeletesAndCounts() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "ep-a"),
+          try Create.unsavedEpisode(guid: "ep-b"),
+          try Create.unsavedEpisode(guid: "ep-c"),
+        ]
+      )
+    )
+    let epA = series.episodes[0].id
+    let epB = series.episodes[1].id
+    let epC = series.episodes[2].id
+
+    let target = try await repo.insertTag(UnsavedTag(name: "Target"))
+    let untouched = try await repo.insertTag(UnsavedTag(name: "Untouched"))
+
+    try await repo.addTag(target.id, to: epA)
+    try await repo.addTag(target.id, to: epB)
+    // epC has only `untouched`, so the bulk remove must skip it but also
+    // not remove epC's untouched tag.
+    try await repo.addTag(untouched.id, to: epC)
+
+    let removed = try await repo.removeTag(target.id, fromEpisodes: [epA, epB, epC])
+    #expect(removed == 2)
+
+    let detail = try #require(try await repo.podcastSeriesDetail(series.id))
+    let tagsByEpisode = Dictionary(
+      uniqueKeysWithValues: detail.episodes.map { ($0.id, $0.tagIDs) }
+    )
+    #expect(tagsByEpisode[epA] == [])
+    #expect(tagsByEpisode[epB] == [])
+    #expect(tagsByEpisode[epC] == [untouched.id])
+  }
+
+  @Test("removeTag(fromEpisodes:) is a no-op returning 0 for an empty list")
+  func bulkRemoveTagEmptyList() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "Lonely"))
+    let removed = try await repo.removeTag(tag.id, fromEpisodes: [])
+    #expect(removed == 0)
   }
 
   @Test("deleteTag() cascades through episodeTag mappings")

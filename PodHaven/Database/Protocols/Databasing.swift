@@ -83,6 +83,11 @@ protocol Databasing: Sendable {
   @discardableResult
   func removeTag(_ tagID: Tag.ID, from episodeID: Episode.ID) async throws -> Bool
 
+  func addTag(_ tagID: Tag.ID, toEpisodes episodeIDs: [Episode.ID]) async throws
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, fromEpisodes episodeIDs: [Episode.ID]) async throws -> Int
+
   // MARK: - Episode Writers
 
   @discardableResult
@@ -117,6 +122,9 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool
+
+  @discardableResult
+  func updateSaveInCache(_ episodeIDs: [Episode.ID], saveInCache: Bool) async throws -> Int
 
   @discardableResult
   func updateRating(_ episodeIDs: [Episode.ID], rating: EpisodeRating?) async throws -> Int

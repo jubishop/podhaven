@@ -372,6 +372,33 @@ struct Repo: Databasing {
     } > 0
   }
 
+  func addTag(_ tagID: Tag.ID, toEpisodes episodeIDs: [Episode.ID]) async throws {
+    guard !episodeIDs.isEmpty else { return }
+
+    try await appDB.db.write { db in
+      // INSERT OR IGNORE so duplicates already on a subset of the input
+      // are not an error — the bulk Add Tag menu may legitimately include
+      // a tag that exists on some selected episodes but not others.
+      for episodeID in episodeIDs {
+        try EpisodeTag(episodeId: episodeID, tagId: tagID).insert(db, onConflict: .ignore)
+      }
+    }
+  }
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, fromEpisodes episodeIDs: [Episode.ID]) async throws -> Int {
+    guard !episodeIDs.isEmpty else { return 0 }
+
+    return try await appDB.db.write { db in
+      try EpisodeTag
+        .filter(
+          EpisodeTag.Columns.tagId == tagID
+            && episodeIDs.contains(EpisodeTag.Columns.episodeId)
+        )
+        .deleteAll(db)
+    }
+  }
+
   // MARK: - Episode Writers
 
   @discardableResult
@@ -660,13 +687,20 @@ struct Repo: Databasing {
 
   @discardableResult
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool {
-    Self.log.debug("updateSaveInCache: \(episodeID) to \(saveInCache)")
+    try await updateSaveInCache([episodeID], saveInCache: saveInCache) > 0
+  }
+
+  @discardableResult
+  func updateSaveInCache(_ episodeIDs: [Episode.ID], saveInCache: Bool) async throws -> Int {
+    Self.log.debug("updateSaveInCache: \(episodeIDs.count) episodes to \(saveInCache)")
+
+    guard !episodeIDs.isEmpty else { return 0 }
 
     return try await appDB.db.write { db in
       try Episode
-        .withID(episodeID)
+        .withIDs(episodeIDs)
         .updateAll(db, Episode.Columns.saveInCache.set(to: saveInCache))
-    } > 0
+    }
   }
 
   @discardableResult

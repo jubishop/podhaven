@@ -721,4 +721,96 @@ import Testing
       viewModel.episodeList.isSelected[entry.id] = true
     }
   }
+
+  // Saved podcast detail rows are backed by `ListablePodcastEpisode`, whose
+  // searchableString is intentionally title-only (`title - podcastTitle`).
+  // Episode.description lives outside the slim row so list reads stay
+  // cheap; this test pins that contract — extending the searchable string
+  // to also match description requires a deliberate decision (e.g. a
+  // separate description index) and should fail this test on the way in.
+  @Test("saved podcast detail filters by episode + podcast title only, not description")
+  func savedDetailFilterIsTitleOnly() async throws {
+    let descriptionToken = "rutabaga-flagstone-3471"
+    let titleToken = "tangerine-dropper"
+    let podcastTitleToken = "kaleidoscope-cassette"
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          title: "Detail Search \(podcastTitleToken)",
+          description: "Series-level blurb without any of the tokens"
+        ),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "title-match",
+            title: "Episode \(titleToken)",
+            description: "intro with no special tokens"
+          ),
+          try Create.unsavedEpisode(
+            guid: "description-only",
+            title: "Episode With Plain Title",
+            description: "intro that mentions \(descriptionToken)"
+          ),
+        ]
+      )
+    )
+    let titleMatchID = savedSeries.episodes[0].id
+    let descriptionOnlyID = savedSeries.episodes[1].id
+
+    let viewModel = PodcastDetailViewModel(
+      podcast: DisplayedPodcast(savedSeries.podcast)
+    )
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count == 2 },
+      { @MainActor in
+        "Expected both saved episodes to load before filtering; got \(viewModel.episodeList.allEntries.count)"
+      }
+    )
+
+    // Drop the debounce so each search term applies immediately.
+    viewModel.episodeList.debounceDuration = .zero
+
+    // Episode title token matches just the first row.
+    viewModel.episodeList.entryFilter = titleToken
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.episodeID) == [titleMatchID]
+      },
+      { @MainActor in
+        """
+        Expected episode-title token '\(titleToken)' to match the first row.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.map { ($0.title, $0.episodeID) })
+        """
+      }
+    )
+
+    // Podcast title token matches every row (both share the parent podcast).
+    viewModel.episodeList.entryFilter = podcastTitleToken
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.count == 2
+      },
+      { @MainActor in
+        """
+        Expected podcast-title token '\(podcastTitleToken)' to match both rows.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.map { ($0.title, $0.episodeID) })
+        """
+      }
+    )
+
+    // Description-only token must NOT match — description deliberately
+    // lives outside the slim listable row, so search can't see it.
+    viewModel.episodeList.entryFilter = descriptionToken
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.isEmpty },
+      { @MainActor in
+        """
+        Expected description-only token '\(descriptionToken)' to filter to nothing on saved detail.
+        If this test fails because filteredEntries now contains \(descriptionOnlyID), the slim ListableEpisode row is paying for description in every list read — revisit the trade-off intentionally.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.map { ($0.title, $0.episodeID) })
+        """
+      }
+    )
+  }
 }
