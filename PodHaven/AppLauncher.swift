@@ -51,7 +51,7 @@ struct AppLauncher: Sendable {
 
     Self.log.debug(
       """
-      Initial environment is: \(AppInfo.environment), 
+      Environment is: \(AppInfo.environment),
       state: \(UIApplication.shared.applicationState)
       """
     )
@@ -104,16 +104,11 @@ struct AppLauncher: Sendable {
     await prepareForForegroundOnce.run {
       Self.log.info("Preparing for foreground")
 
-      await AppInfo.finalizeEnvironment()
-      await Self.applySentryEnvironment()
-      guard !Task.isCancelled else { return }
-
       await self.userNotificationManager.initialize()
       guard !Task.isCancelled else { return }
 
       Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
       Self.log.debug("My device?: \(AppInfo.myDevice)")
-      Self.log.debug("Final environment is: \(AppInfo.environment)")
       Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
       Self.log.debug("Git commit hash is: \(AppInfo.gitCommitHash)")
 
@@ -192,12 +187,6 @@ struct AppLauncher: Sendable {
   }
 
   // MARK: - Sentry
-
-  @MainActor private static func applySentryEnvironment() {
-    SentrySDK.configureScope { scope in
-      scope.setEnvironment(AppInfo.environment.rawValue)
-    }
-  }
 
   private static func configureSentry() {
     SentrySDK.start { options in

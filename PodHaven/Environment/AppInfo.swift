@@ -5,7 +5,7 @@ import Foundation
 import Logging
 
 #if !WIDGET_EXTENSION
-import StoreKit
+import UIKit
 #endif
 
 enum EnvironmentType: String {
@@ -22,7 +22,6 @@ enum EnvironmentType: String {
 enum AppInfo {
   private static let log = Log.as("AppInfo")
   private static let initializeEnvironmentOnce = Once()
-  private static let finalizeEnvironmentOnce = AsyncOnce()
 
   // MARK: - System Settings
 
@@ -39,6 +38,9 @@ enum AppInfo {
   static var deviceIdentifier: String { _deviceIdentifier() }
   static var myDevice: Bool { deviceIdentifier == "6B915F57-D7FC-4249-8FAD-B71F5D362CEB" }
 
+  // The widget extension never calls `initializeEnvironment`, so inside the
+  // widget process `environment` stays `.deployed` forever — don't branch
+  // widget behavior on this value.
   private static let _environment = ThreadSafe<EnvironmentType>(.deployed)
   static var environment: EnvironmentType {
     set { _environment(newValue) }
@@ -50,40 +52,6 @@ enum AppInfo {
     initializeEnvironmentOnce.run {
       _deviceIdentifier(UIDevice.current.identifierForVendor?.uuidString ?? "Unknown")
       environment = detectEnvironment()
-    }
-  }
-  #endif
-
-  #if !WIDGET_EXTENSION
-  static func finalizeEnvironment() async {
-    await finalizeEnvironmentOnce.run {
-      // Only refine environment for release builds on real devices
-      #if !DEBUG && !targetEnvironment(simulator)
-      do {
-        let result = try await AppTransaction.shared
-        if let refinedEnvironment = appTransactionEnvironment(for: result),
-          environment != refinedEnvironment
-        {
-          log.debug("Environment refined to \(refinedEnvironment)")
-          environment = refinedEnvironment
-        }
-      } catch {
-        log.caughtError("finalizeEnvironment: AppTransaction.shared failed", error)
-
-        do {
-          let refreshed = try await AppTransaction.refresh()
-          if let refinedEnvironment = appTransactionEnvironment(for: refreshed),
-            environment != refinedEnvironment
-          {
-            log.debug("Environment refined to \(refinedEnvironment) after refresh")
-            environment = refinedEnvironment
-          }
-        } catch {
-          log.caughtError("finalizeEnvironment: AppTransaction.refresh also failed", error)
-          environment = .appStore
-        }
-      }
-      #endif
     }
   }
   #endif
@@ -103,34 +71,14 @@ enum AppInfo {
     #if DEBUG
     return currentDevelopmentEnvironment()
     #else
-    return .deployed
+    // App Store builds are re-signed by Apple and ship without an embedded
+    // provisioning profile; TestFlight builds keep theirs so the 90-day
+    // expiration can be enforced.
+    return Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision") != nil
+      ? .testFlight : .appStore
     #endif
     #endif
   }
-
-  #if !WIDGET_EXTENSION
-  private static func appTransactionEnvironment(
-    for verificationResult: VerificationResult<AppTransaction>
-  ) -> EnvironmentType? {
-    switch verificationResult {
-    case .verified(let appTransaction):
-      switch appTransaction.environment {
-      case .sandbox:
-        return .testFlight
-      case .production:
-        return .appStore
-      default:
-        log.warning(
-          "Unknown App Store transaction environment: \(appTransaction.environment)"
-        )
-        return nil
-      }
-    case .unverified(_, _):
-      log.warning("Unable to verify App Store transaction for environment detection")
-      return nil
-    }
-  }
-  #endif
 
   private static func currentDevelopmentEnvironment() -> EnvironmentType {
     (ProcessInfo.processInfo.isMacCatalystApp || ProcessInfo.processInfo.isiOSAppOnMac)
