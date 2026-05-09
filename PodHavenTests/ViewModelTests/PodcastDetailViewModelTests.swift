@@ -722,14 +722,14 @@ import Testing
     }
   }
 
-  // Saved podcast detail rows are backed by `ListablePodcastEpisode`, whose
-  // searchableString is intentionally title-only (`title - podcastTitle`).
-  // Episode.description lives outside the slim row so list reads stay
-  // cheap; this test pins that contract — extending the searchable string
-  // to also match description requires a deliberate decision (e.g. a
-  // separate description index) and should fail this test on the way in.
-  @Test("saved podcast detail filters by episode + podcast title only, not description")
-  func savedDetailFilterIsTitleOnly() async throws {
+  // Saved podcast detail intentionally filters by row title and parent podcast
+  // title only. Episode.description stays outside the slim row so detail-list
+  // hydration does not widen every saved detail read; adding description search
+  // needs a deliberate alternate path rather than piggybacking on the row model.
+  @Test(
+    "saved podcast detail intentionally filters by episode and podcast title only"
+  )
+  func savedDetailFilterIsIntentionallyTitleOnly() async throws {
     let descriptionToken = "rutabaga-flagstone-3471"
     let titleToken = "tangerine-dropper"
     let podcastTitleToken = "kaleidoscope-cassette"
@@ -799,15 +799,14 @@ import Testing
       }
     )
 
-    // Description-only token must NOT match — description deliberately
-    // lives outside the slim listable row, so search can't see it.
+    // Description-only token must NOT match under this title-only contract.
     viewModel.episodeList.entryFilter = descriptionToken
     try await Wait.until(
       { @MainActor in viewModel.episodeList.filteredEntries.isEmpty },
       { @MainActor in
         """
         Expected description-only token '\(descriptionToken)' to filter to nothing on saved detail.
-        If this test fails because filteredEntries now contains \(descriptionOnlyID), the slim ListableEpisode row is paying for description in every list read — revisit the trade-off intentionally.
+        If this test fails because filteredEntries now contains \(descriptionOnlyID), saved detail description search has been reintroduced. Make that product change explicit and keep it off the slim row model unless the query cost is acceptable.
         filteredEntries: \(viewModel.episodeList.filteredEntries.map { ($0.title, $0.episodeID) })
         """
       }

@@ -558,17 +558,17 @@ class PodcastDetailViewModel:
       return true
     }
 
-    guard let savedPodcast = try await savedPodcast(for: podcast) else { return false }
+    guard let savedSeries = try await savedSeries(for: podcast) else { return false }
 
-    Self.log.debug("Podcast \(savedPodcast.id) exists in db")
+    Self.log.debug("\(savedSeries.toString) exists in db")
 
     // Soft migration: backfill iTunesID for pre-existing podcasts
-    if savedPodcast.iTunesID == nil, let iTunesID = podcast.iTunesID {
-      try await repo.updateITunesID(savedPodcast.id, iTunesID: iTunesID)
+    if savedSeries.podcast.iTunesID == nil, let iTunesID = podcast.iTunesID {
+      try await repo.updateITunesID(savedSeries.podcast.id, iTunesID: iTunesID)
     }
 
-    self.podcastSeries = PodcastSeriesDetail(podcast: savedPodcast)
-    startObservation(savedPodcast.id)
+    self.podcastSeries = savedSeries
+    startObservation(savedSeries.id)
 
     Task { [weak self] in
       guard let self else { return }
@@ -648,11 +648,11 @@ class PodcastDetailViewModel:
   private func ensureObservedSeries(for podcast: DisplayedPodcast) async throws -> Podcast.ID? {
     if let podcastID = podcastSeries?.id { return podcastID }
 
-    guard let savedPodcast = try await savedPodcast(for: podcast) else { return nil }
+    guard let savedSeries = try await savedSeries(for: podcast) else { return nil }
 
-    self.podcastSeries = PodcastSeriesDetail(podcast: savedPodcast)
-    startObservation(savedPodcast.id)
-    return savedPodcast.id
+    self.podcastSeries = savedSeries
+    startObservation(savedSeries.id)
+    return savedSeries.id
   }
 
   private func loadPresentationFromFeed() async throws {
@@ -667,8 +667,10 @@ class PodcastDetailViewModel:
     )
   }
 
-  private func savedPodcast(for currentPodcast: DisplayedPodcast) async throws -> Podcast? {
-    try await repo.podcast(
+  private func savedSeries(for currentPodcast: DisplayedPodcast) async throws
+    -> PodcastSeriesDetail?
+  {
+    try await repo.podcastSeriesDetail(
       currentPodcast.feedURL,
       iTunesID: currentPodcast.iTunesID
     )

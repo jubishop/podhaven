@@ -63,6 +63,16 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.podcastSeriesDetail(podcastID)
   }
 
+  func podcastSeriesDetail(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws
+    -> PodcastSeriesDetail?
+  {
+    recordCall(
+      methodName: "podcastSeriesDetail",
+      parameters: (feedURL: feedURL, iTunesID: iTunesID)
+    )
+    return try await repo.podcastSeriesDetail(feedURL, iTunesID: iTunesID)
+  }
+
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode? {
@@ -305,14 +315,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
     recordCall(methodName: "podcast", parameters: podcastID)
     return try await repo.podcast(podcastID)
-  }
-
-  func podcast(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws -> Podcast? {
-    recordCall(
-      methodName: "podcast",
-      parameters: (feedURL: feedURL, iTunesID: iTunesID)
-    )
-    return try await repo.podcast(feedURL, iTunesID: iTunesID)
   }
 
   @discardableResult

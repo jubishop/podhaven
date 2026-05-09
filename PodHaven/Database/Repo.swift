@@ -99,6 +99,23 @@ struct Repo: Databasing {
     }
   }
 
+  func podcastSeriesDetail(_ feedURL: FeedURL, iTunesID: ITunesPodcastID? = nil) async throws
+    -> PodcastSeriesDetail?
+  {
+    try await appDB.db.read { db in
+      // feedURL takes priority over iTunesID
+      if let byFeed = try Podcast.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
+        return try PodcastSeriesDetail.fetchOne(byFeed.id, in: db)
+      }
+      if let iTunesID,
+        let byITunes = try Podcast.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
+      {
+        return try PodcastSeriesDetail.fetchOne(byITunes.id, in: db)
+      }
+      return nil
+    }
+  }
+
   // MARK: - Podcast Readers
 
   func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
@@ -106,19 +123,6 @@ struct Repo: Databasing {
       try Podcast
         .withID(podcastID)
         .fetchOne(db)
-    }
-  }
-
-  func podcast(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws -> Podcast? {
-    try await appDB.db.read { db in
-      // feedURL takes priority over iTunesID
-      if let byFeed = try Podcast.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
-        return byFeed
-      }
-      if let iTunesID {
-        return try Podcast.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
-      }
-      return nil
     }
   }
 

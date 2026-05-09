@@ -23,12 +23,12 @@ protocol Databasing: Sendable {
   // MARK: - Series Detail Readers
 
   func podcastSeriesDetail(_ podcastID: Podcast.ID) async throws -> PodcastSeriesDetail?
+  func podcastSeriesDetail(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws
+    -> PodcastSeriesDetail?
 
   // MARK: - Podcast Readers
 
   func podcast(_ podcastID: Podcast.ID) async throws -> Podcast?
-
-  func podcast(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws -> Podcast?
 
   // MARK: - Episode Readers
 

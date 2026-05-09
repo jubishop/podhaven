@@ -118,6 +118,7 @@ private func tagBulkMenu<ViewModel: SelectableEpisodeList & ManagingEpisodes>(
   viewModel: ViewModel
 ) -> some View {
   if viewModel.selectionHasTagData {
+    // Free function — no @DynamicInjected; resolve via Container directly.
     let allTags = Container.shared.sharedState().tags
     let intersection = viewModel.selectedEpisodesTagIntersection
     let union = viewModel.selectedEpisodesTagUnion

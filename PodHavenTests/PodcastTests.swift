@@ -63,8 +63,8 @@ class PodcastTests {
     #expect(titleCount == 0)
   }
 
-  @Test("podcast(feedURL:iTunesID:) resolves by feedURL then iTunesID")
-  func podcastByFeedURLAndITunesIDResolution() async throws {
+  @Test("podcastSeriesDetail(feedURL:iTunesID:) resolves by feedURL then iTunesID")
+  func podcastSeriesDetailByFeedURLAndITunesIDResolution() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/identity-lookup.rss")!)
     let iTunesID = ITunesPodcastID(rawValue: 42)
     let series = try await repo.insertSeries(
@@ -74,18 +74,18 @@ class PodcastTests {
     )
 
     // feedURL match wins; iTunesID supplied or not is irrelevant.
-    let byFeed = try await repo.podcast(feedURL, iTunesID: nil)
+    let byFeed = try await repo.podcastSeriesDetail(feedURL, iTunesID: nil)
     #expect(byFeed?.id == series.id)
-    #expect(byFeed?.iTunesID == iTunesID)
+    #expect(byFeed?.podcast.iTunesID == iTunesID)
 
     // Wrong feedURL with matching iTunesID falls through to the iTunesID branch.
     let mismatchedFeed = FeedURL(URL(string: "https://example.com/different.rss")!)
-    let byITunes = try await repo.podcast(mismatchedFeed, iTunesID: iTunesID)
+    let byITunes = try await repo.podcastSeriesDetail(mismatchedFeed, iTunesID: iTunesID)
     #expect(byITunes?.id == series.id)
 
     // Neither matches.
     let unrelatedITunes = ITunesPodcastID(rawValue: 999)
-    let nothing = try await repo.podcast(mismatchedFeed, iTunesID: unrelatedITunes)
+    let nothing = try await repo.podcastSeriesDetail(mismatchedFeed, iTunesID: unrelatedITunes)
     #expect(nothing == nil)
 
     // No iTunesID stored; lookup with iTunesID falls back to nil correctly.
@@ -93,9 +93,9 @@ class PodcastTests {
     let plainSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(feedURL: plainURL))
     )
-    let plainPodcast = try await repo.podcast(plainURL, iTunesID: nil)
-    #expect(plainPodcast?.id == plainSeries.id)
-    #expect(plainPodcast?.iTunesID == nil)
+    let plainSeriesDetail = try await repo.podcastSeriesDetail(plainURL, iTunesID: nil)
+    #expect(plainSeriesDetail?.id == plainSeries.id)
+    #expect(plainSeriesDetail?.podcast.iTunesID == nil)
   }
 
   @Test("that a podcast feedURL must be valid")
