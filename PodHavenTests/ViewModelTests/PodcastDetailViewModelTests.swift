@@ -337,10 +337,10 @@ import Testing
     viewModel.subscribe()
 
     // Pinning the synchronous seed: the live observation path uses
-    // `Repo.fetchPodcastSeriesDetail` (static), which FakeRepo doesn't
-    // intercept. Any recorded `podcastSeriesDetail` call is uniquely from
-    // subscribe()'s synchronous seed, so this asserts the seed ran without
-    // racing the observation tick.
+    // `PodcastSeriesDetail.fetchOne` (static, takes a Database), which
+    // FakeRepo doesn't intercept. Any recorded `podcastSeriesDetail` call
+    // is uniquely from subscribe()'s synchronous seed, so this asserts
+    // the seed ran without racing the observation tick.
     try await Wait.until(
       { @MainActor in
         (try? fakeRepo.expectCalls(methodName: "podcastSeriesDetail", count: 1)) != nil

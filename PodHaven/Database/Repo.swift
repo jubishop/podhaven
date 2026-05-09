@@ -98,38 +98,13 @@ struct Repo: Databasing {
   // its own tagIDs subquery), so the view model never refetches podcast
   // columns per row and the detail UI gets per-episode tag data without a
   // separate query path. `Repo.podcastSeries(...)` keeps full `Episode`
-  // rows for refresh/write callers. Shares its three-query fetch with
-  // `Observatory.podcastSeriesDetail(_:)` via `Repo.fetchPodcastSeriesDetail(_:in:)`.
+  // rows for refresh/write callers. The fetch lives on the model
+  // (`PodcastSeriesDetail.fetchOne`) so `Observatory.podcastSeriesDetail`
+  // can share the same query inside its ValueObservation.
   func podcastSeriesDetail(_ podcastID: Podcast.ID) async throws -> PodcastSeriesDetail? {
     try await appDB.db.read { db in
-      try Self.fetchPodcastSeriesDetail(podcastID, in: db)
+      try PodcastSeriesDetail.fetchOne(podcastID, in: db)
     }
-  }
-
-  // Single source of truth for the three-query detail fetch — used by the
-  // one-shot `podcastSeriesDetail(_:)` read above and by the live
-  // `Observatory.podcastSeriesDetail(_:)` ValueObservation. ValueObservation
-  // auto-tracks every table referenced here, so observers wake on changes
-  // to `podcast`, `episode`, `episodeTag`, or `podcastTag`.
-  static func fetchPodcastSeriesDetail(_ podcastID: Podcast.ID, in db: Database) throws
-    -> PodcastSeriesDetail?
-  {
-    guard let podcast = try Podcast.withID(podcastID).fetchOne(db) else { return nil }
-    let episodes =
-      try ListableEpisode
-      .filter(Episode.Columns.podcastId == podcastID)
-      .order(Episode.Columns.pubDate.desc)
-      .fetchAll(db)
-    let tags =
-      try Tag
-      .joining(required: Tag.podcastTags.filter(PodcastTag.Columns.podcastId == podcastID))
-      .orderedByName()
-      .fetchAll(db)
-    return PodcastSeriesDetail(
-      podcast: podcast,
-      episodes: IdentifiedArrayOf(uniqueElements: episodes),
-      tags: IdentifiedArrayOf(uniqueElements: tags)
-    )
   }
 
   // MARK: - Podcast Readers
