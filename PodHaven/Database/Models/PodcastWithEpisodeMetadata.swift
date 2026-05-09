@@ -2,6 +2,7 @@
 
 import Foundation
 import GRDB
+import IdentifiedCollections
 
 @dynamicMemberLookup
 struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Stringable {
@@ -25,13 +26,20 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Str
   let podcast: PodcastType
   let episodeCount: Int
   let mostRecentEpisodeDate: Date?
+  let tags: IdentifiedArrayOf<Tag>
 
   // MARK: - Initialization
 
-  init(podcast: PodcastType, episodeCount: Int, mostRecentEpisodeDate: Date?) {
+  init(
+    podcast: PodcastType,
+    episodeCount: Int,
+    mostRecentEpisodeDate: Date?,
+    tags: IdentifiedArrayOf<Tag> = []
+  ) {
     self.podcast = podcast
     self.episodeCount = episodeCount
     self.mostRecentEpisodeDate = mostRecentEpisodeDate
+    self.tags = tags
   }
 }
 
@@ -43,12 +51,16 @@ where PodcastType: FetchableRecord & TableRecord {
     self.podcast = try PodcastType(row: row)
     self.episodeCount = row[CodingKeys.episodeCount]
     self.mostRecentEpisodeDate = row[CodingKeys.mostRecentEpisodeDate]
+    let tagRows = row.prefetchedRows[Self.tagsKey] ?? []
+    self.tags = IdentifiedArrayOf(uniqueElements: try tagRows.map { try Tag(row: $0) })
   }
 
   enum CodingKeys: String, CodingKey, ColumnExpression {
     case episodeCount
     case mostRecentEpisodeDate
   }
+
+  fileprivate static var tagsKey: String { "tags" }
 
   // MARK: Query Builders
 
@@ -65,6 +77,7 @@ where PodcastType: FetchableRecord & TableRecord {
         Podcast.episodes.count.forKey(CodingKeys.episodeCount),
         Podcast.episodes.max(\.pubDate).forKey(CodingKeys.mostRecentEpisodeDate),
       ])
+      .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
       .asRequest(of: PodcastWithEpisodeMetadata.self)
   }
 }
