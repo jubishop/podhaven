@@ -6,20 +6,6 @@ import Foundation
 import GRDB
 import Tagged
 
-// Lightweight episode+podcast type for list views. Embeds a `ListableEpisode`
-// for the Episode-side fields (column list, correlated tag-IDs subquery, row
-// decode all live there) and layers on the joined Podcast columns this list
-// shape needs — feedURL/title/image. Episode-side reads are surfaced via
-// explicit forwarders below (see comment on the forwarder block) so call
-// sites that read e.g. `.title`, `.duration`, `.tagIDs` keep working
-// unchanged.
-//
-// `TableRecord` rooted in the Episode table with `databaseSelection` set to
-// just the listable Episode columns means any GRDB query rooted in
-// `ListablePodcastEpisode` (e.g. `ListablePodcastEpisode.filter(...).fetchAll(db)`)
-// gets the column narrowing automatically. The joined Podcast columns still
-// need an explicit `.select(podcastColumns)` because they live behind the
-// `belongsTo` association.
 struct ListablePodcastEpisode:
   EpisodeListable, Searchable, FetchableRecord, TableRecord, Identifiable, Hashable, Sendable
 {
@@ -45,12 +31,6 @@ struct ListablePodcastEpisode:
 
   // MARK: - Forwarded Episode Fields
 
-  // Plain computed-property forwarders (rather than `@dynamicMemberLookup`)
-  // because Swift won't accept dynamic-member lookups as proof of a
-  // protocol property requirement, and the call sites benefit from the
-  // explicit surface anyway. `tagIDs`, `episodeImage`, `creationDate`, and
-  // `queueDate` are surfaced because external callers (notifications,
-  // sort/filter helpers, widgets) read them directly.
   var mediaGUID: MediaGUID { core.mediaGUID }
   var title: String { core.title }
   var pubDate: Date { core.pubDate }
@@ -68,8 +48,6 @@ struct ListablePodcastEpisode:
 
   // MARK: - EpisodeListable
 
-  // Resolves the row's image, falling back to the podcast image so callers
-  // never see the optional core value directly.
   var image: URL { core.episodeImage ?? podcastImage }
 
   // MARK: - Searchable
@@ -79,8 +57,7 @@ struct ListablePodcastEpisode:
   // MARK: - In-Memory Construction
 
   // Used by `PodcastDetailViewModel` to fold the parent `Podcast` it already
-  // holds together with the slim DB-fetched `ListableEpisode` row, avoiding
-  // a redundant podcast join per child.
+  // holds together with the slim DB-fetched `ListableEpisode` row.
   init(podcast: Podcast, episode: ListableEpisode) {
     core = episode
     feedURL = podcast.feedURL
@@ -134,10 +111,6 @@ struct ListablePodcastEpisode:
 
   // MARK: - Hashable / Equatable
 
-  // Manual conformances are required because `@DynamicInjected` adds a
-  // non-Hashable backing storage to the type. We hash and compare only the
-  // four stored data fields — `core` is itself Hashable so it carries every
-  // Episode-side column for free.
   func hash(into hasher: inout Hasher) {
     hasher.combine(core)
     hasher.combine(feedURL)

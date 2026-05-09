@@ -24,10 +24,7 @@ import Logging
   func removeTag(_ tagID: Tag.ID, from episode: EpisodeType)
 
   // Tags currently assigned to `episode`, or `nil` when this view model has
-  // no tag UI for it (e.g. unsaved/preview episodes). Default returns nil;
-  // overridden where tag data is available — directly on the episode (see
-  // the `ListablePodcastEpisode` specialisation) or via a sibling map kept
-  // by the view model (e.g. `PodcastDetailViewModel`).
+  // no tag UI for it (e.g. unsaved/preview episodes).
   func tagIDs(for episode: EpisodeType) -> Set<Tag.ID>?
 
   func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode

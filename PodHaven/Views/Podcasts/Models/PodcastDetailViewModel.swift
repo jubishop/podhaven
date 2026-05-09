@@ -572,12 +572,6 @@ class PodcastDetailViewModel:
       try await repo.updateITunesID(savedIdentity.id, iTunesID: iTunesID)
     }
 
-    // No synchronous seed — the observation's first emission populates
-    // `_podcastSeries`. Avoiding the eager fetch costs us a brief window
-    // (typically milliseconds) where `podcastSeries?.id` is nil, which
-    // guards on it (addTag, defaultPlaybackRate, freshnessCadence, etc.)
-    // briefly no-op for. Live observation is still triggered by every
-    // table the detail query references so subsequent ticks drive the UI.
     startObservation(savedIdentity.id)
 
     Task { [weak self] in
@@ -654,9 +648,6 @@ class PodcastDetailViewModel:
 
   // MARK: - Private Helpers
 
-  // Returns the saved Podcast's ID (kicking off observation if not already
-  // running), or nil when no saved podcast matches the current display.
-  // Used by subscribe/unsubscribe/delete which only need the ID.
   @discardableResult
   private func ensureObservedSeries(for podcast: DisplayedPodcast) async throws -> Podcast.ID? {
     if let podcastID = podcastSeries?.id { return podcastID }

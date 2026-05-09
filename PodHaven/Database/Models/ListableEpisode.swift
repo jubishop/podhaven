@@ -43,10 +43,6 @@ struct ListableEpisode:
       Episode.Columns.creationDate,
       Episode.Columns.queueDate,
       Episode.Columns.rating,
-      // Correlated scalar subquery: SQLite materialises the JSON array only
-      // for rows that survive the outer sort+LIMIT, so per-row cost is paid
-      // on the final page rather than the full filter set. See issue #180
-      // benchmarks for the LEFT JOIN + GROUP BY shape that this avoids.
       SQL(
         """
         (SELECT json_group_array("tagId") \
@@ -75,8 +71,6 @@ struct ListableEpisode:
   let creationDate: Date
   let queueDate: Date?
   let rating: EpisodeRating?
-  // Materialised by the correlated subquery in `databaseSelection`. Empty
-  // Set means "row exists, no tags".
   let tagIDs: Set<Tag.ID>
 
   // MARK: - EpisodeFoundational
@@ -101,9 +95,6 @@ struct ListableEpisode:
     queueDate = row[Episode.Columns.queueDate]
     rating = row[Episode.Columns.rating]
 
-    // SQLite's json_group_array returns NULL for an empty group. Decode the
-    // populated case as JSON; an absent or NULL column maps to an empty Set
-    // so callers don't need to distinguish "no matches" from "no row".
     if let tagIDsJSON: String = row[Self.tagIDsColumnName],
       let data = tagIDsJSON.data(using: .utf8)
     {

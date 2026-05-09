@@ -93,14 +93,6 @@ struct Repo: Databasing {
 
   // MARK: - Series Detail Readers
 
-  // Listable shape for the podcast detail view. Folds the parent `Podcast`
-  // and its tags together with the slim `ListableEpisode` rows (each with
-  // its own tagIDs subquery), so the view model never refetches podcast
-  // columns per row and the detail UI gets per-episode tag data without a
-  // separate query path. `Repo.podcastSeries(...)` keeps full `Episode`
-  // rows for refresh/write callers. The fetch lives on the model
-  // (`PodcastSeriesDetail.fetchOne`) so `Observatory.podcastSeriesDetail`
-  // can share the same query inside its ValueObservation.
   func podcastSeriesDetail(_ podcastID: Podcast.ID) async throws -> PodcastSeriesDetail? {
     try await appDB.db.read { db in
       try PodcastSeriesDetail.fetchOne(podcastID, in: db)

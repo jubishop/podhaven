@@ -102,9 +102,6 @@ struct ListedEpisode:
   var saveInCache: Bool { source.saveInCache }
   var rating: EpisodeRating? { source.rating }
   var tagIDs: Set<Tag.ID>? { source.tagIDs }
-
-  // Mirrors `EpisodeDisplayable.queueDate` so detail-view sort/filter
-  // helpers can reach it via the row's EpisodeListable type.
   var queueDate: Date? { source.queueDate }
   var previouslyQueued: Bool { queueDate != nil }
   var creationDate: Date? { source.creationDate }
