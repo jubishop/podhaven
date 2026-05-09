@@ -38,6 +38,9 @@ enum AppInfo {
   static var deviceIdentifier: String { _deviceIdentifier() }
   static var myDevice: Bool { deviceIdentifier == "6B915F57-D7FC-4249-8FAD-B71F5D362CEB" }
 
+  // The widget extension never calls `initializeEnvironment`, so inside the
+  // widget process `environment` stays `.deployed` forever — don't branch
+  // widget behavior on this value.
   private static let _environment = ThreadSafe<EnvironmentType>(.deployed)
   static var environment: EnvironmentType {
     set { _environment(newValue) }
