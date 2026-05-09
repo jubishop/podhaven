@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -127,6 +128,77 @@ import Testing
     try await PlayHelpers.waitForQueue([])
     try await PlayHelpers.waitForCurrentItem(originalEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeck(originalEpisode)
+  }
+
+  // The previously-OnDeck ("outgoing") episode must remain visible somewhere
+  // in the queue for the entire duration of a load attempt. Before the fix,
+  // performLoad cleared OnDeck and only restored the outgoing episode to the
+  // queue inside cleanUpAfterLoad{Success,Failure}, which left a window —
+  // equal to the full load duration, ~12s of timeout in the field — where
+  // the user's previously-playing episode existed neither as OnDeck nor in
+  // the queue. See log analysis in the PR.
+  @Test("outgoing episode stays at top of queue throughout a successful load")
+  func outgoingStaysAtTopOfQueueThroughoutSuccessfulLoad() async throws {
+    await playManager.start()
+    let (playingEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await playManager.load(playingEpisode)
+    try await PlayHelpers.waitForOnDeck(playingEpisode)
+    try await PlayHelpers.waitForQueue([])
+
+    let loadingSemaphore = await episodeAssetLoader.waitRespond(
+      to: incomingEpisode.episode.mediaURL,
+      data: (true, .seconds(60))
+    )
+
+    let loadTask = Task { try await playManager.load(incomingEpisode) }
+    try await PlayHelpers.waitFor(.loading(incomingEpisode.episode.title))
+
+    do {
+      try await PlayHelpers.waitForQueue([playingEpisode])
+    } catch {
+      loadingSemaphore.signal()
+      _ = try? await loadTask.value
+      throw error
+    }
+
+    loadingSemaphore.signal()
+    _ = try await loadTask.value
+
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
+    try await PlayHelpers.waitForQueue([playingEpisode])
+  }
+
+  @Test("outgoing episode stays at top of queue throughout a failed load")
+  func outgoingStaysAtTopOfQueueThroughoutFailedLoad() async throws {
+    await playManager.start()
+    let (playingEpisode, episodeToLoad) = try await Create.twoPodcastEpisodes()
+
+    try await playManager.load(playingEpisode)
+    try await PlayHelpers.waitForOnDeck(playingEpisode)
+    try await PlayHelpers.waitForQueue([])
+
+    let failureSemaphore = await episodeAssetLoader.waitRespond(
+      to: episodeToLoad.episode.mediaURL,
+      error: TestError.assetLoadFailure(episodeToLoad)
+    )
+
+    let loadTask = Task { try await playManager.load(episodeToLoad) }
+    try await PlayHelpers.waitFor(.loading(episodeToLoad.episode.title))
+
+    do {
+      try await PlayHelpers.waitForQueue([playingEpisode])
+    } catch {
+      failureSemaphore.signal()
+      _ = try? await loadTask.value
+      throw error
+    }
+
+    failureSemaphore.signal()
+    await #expect(throws: (any Error).self) { try await loadTask.value }
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForQueue([episodeToLoad, playingEpisode])
   }
 
   @Test("failed episode gets unshifted back to queue")

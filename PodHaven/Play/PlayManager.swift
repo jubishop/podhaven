@@ -199,6 +199,22 @@ final class PlayManager {
       setStatus(.loading(incoming.episode.title))
       await clearOnDeck()
 
+      // Restore the outgoing episode to the top of the queue immediately so
+      // it stays visible for the entire load attempt. Without this, a long
+      // network load (or a timeout, ~12s in the field) leaves the
+      // previously-OnDeck episode in limbo — neither OnDeck nor in the
+      // queue — until cleanUpAfterLoad{Success,Failure} runs at the end.
+      if let outgoing {
+        do {
+          try await queue.unshift(outgoing.id)
+        } catch {
+          Self.log.caughtError(
+            "performLoad: failed to unshift outgoing episode \(outgoing.toString)",
+            error
+          )
+        }
+      }
+
       guard await Container.shared.configureAudioSession()() else {
         await cleanUpAfterLoadFailure(outgoing, incoming)
         return false
@@ -250,18 +266,6 @@ final class PlayManager {
         error
       )
     }
-
-    if let outgoing {
-      Self.log.debug("cleanUpAfterLoadSuccess: unshifting outgoing episode: \(outgoing.toString)")
-      do {
-        try await queue.unshift(outgoing.id)
-      } catch {
-        Self.log.caughtError(
-          "cleanUpAfterLoadSuccess: failed to unshift outgoing episode \(outgoing.toString)",
-          error
-        )
-      }
-    }
   }
 
   private func cleanUpAfterLoadFailure(_ outgoing: OnDeck?, _ incoming: PodcastEpisode) async {
@@ -275,23 +279,6 @@ final class PlayManager {
         nowOnDeck: \(String(describing: nowOnDeck?.toString))
       """
     )
-
-    if let outgoing, outgoing.id != nowOnDeck?.id {
-      Self.log.debug(
-        """
-        cleanUpAfterLoadFailure: unshifting outgoing episode post failure: \
-        \(outgoing.toString)
-        """
-      )
-      do {
-        try await queue.unshift(outgoing.id)
-      } catch {
-        Self.log.caughtError(
-          "cleanUpAfterLoadFailure: failed to unshift outgoing episode \(outgoing.toString)",
-          error
-        )
-      }
-    }
 
     if incoming.id != nowOnDeck?.id {
       Self.log.debug(
