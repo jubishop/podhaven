@@ -186,7 +186,7 @@ enum CacheHelpers {
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast, unsavedEpisodes: [unsavedEpisode])
     )
 
-    let episode = podcastSeries.episodes.first!.episode
+    let episode = podcastSeries.episodes.first!
 
     // Write fake file to simulate cached episode
     if let cachedURL = episode.cachedURL {

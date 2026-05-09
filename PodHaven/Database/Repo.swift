@@ -44,28 +44,17 @@ struct Repo: Databasing {
   func allPodcastSeries(
     _ filter: SQLExpression,
     order: SQLOrdering,
-    limit: Int,
-    includeTags: Bool
+    limit: Int
   ) async throws
     -> [PodcastSeries]
   {
     try await appDB.db.read { db in
-      var baseRequest =
-        Podcast
+      try Podcast
         .all()
         .filter(filter)
         .order(order)
         .limit(limit)
         .including(all: Podcast.episodes)
-
-      if includeTags {
-        baseRequest = baseRequest.including(
-          all: Podcast.tags.order { $0.name.collating(.nocase) }
-        )
-      }
-
-      return
-        try baseRequest
         .asRequest(of: PodcastSeries.self)
         .fetchAll(db)
     }
@@ -75,15 +64,11 @@ struct Repo: Databasing {
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
     try await appDB.db.read { db in
-      guard
-        let raw = try Podcast
-          .withID(podcastID)
-          .including(all: Podcast.episodes)
-          .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
-          .asRequest(of: PodcastSeries.self)
-          .fetchOne(db)
-      else { return nil }
-      return try raw.withFoldedEpisodeTagIDs(db: db)
+      try Podcast
+        .withID(podcastID)
+        .including(all: Podcast.episodes)
+        .asRequest(of: PodcastSeries.self)
+        .fetchOne(db)
     }
   }
 
@@ -94,18 +79,44 @@ struct Repo: Databasing {
       let base =
         Podcast
         .including(all: Podcast.episodes)
-        .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
         .asRequest(of: PodcastSeries.self)
       // feedURL takes priority over iTunesID
       if let result = try base.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
-        return try result.withFoldedEpisodeTagIDs(db: db)
+        return result
       }
       if let iTunesID {
-        guard let result = try base.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
-        else { return nil }
-        return try result.withFoldedEpisodeTagIDs(db: db)
+        return try base.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
       }
       return nil
+    }
+  }
+
+  // MARK: - Series Detail Readers
+
+  // Listable shape for the podcast detail view. Folds the parent `Podcast`
+  // and its tags together with the slim `ListableEpisode` rows (each with
+  // its own tagIDs subquery), so the view model never refetches podcast
+  // columns per row and the detail UI gets per-episode tag data without a
+  // separate query path. `Repo.podcastSeries(...)` keeps full `Episode`
+  // rows for refresh/write callers.
+  func podcastSeriesDetail(_ podcastID: Podcast.ID) async throws -> PodcastSeriesDetail? {
+    try await appDB.db.read { db in
+      guard let podcast = try Podcast.withID(podcastID).fetchOne(db) else { return nil }
+      let episodes =
+        try ListableEpisode
+        .filter(Episode.Columns.podcastId == podcastID)
+        .order(Episode.Columns.pubDate.desc)
+        .fetchAll(db)
+      let tags =
+        try Tag
+        .joining(required: Tag.podcastTags.filter(PodcastTag.Columns.podcastId == podcastID))
+        .orderedByName()
+        .fetchAll(db)
+      return PodcastSeriesDetail(
+        podcast: podcast,
+        episodes: IdentifiedArrayOf(uniqueElements: episodes),
+        tags: IdentifiedArrayOf(uniqueElements: tags)
+      )
     }
   }
 

@@ -287,7 +287,7 @@ actor UserNotificationManagerTests {
 
     await userNotificationManager.scheduleNewEpisodeNotification(
       podcast: podcastSeries.podcast,
-      episodes: podcastSeries.episodes.map(\.episode)
+      episodes: Array(podcastSeries.episodes)
     )
 
     let request = fakeCenter.addedRequests.first!
@@ -314,7 +314,7 @@ actor UserNotificationManagerTests {
 
     await userNotificationManager.scheduleNewEpisodeNotification(
       podcast: podcastSeries.podcast,
-      episodes: podcastSeries.episodes.map(\.episode)
+      episodes: Array(podcastSeries.episodes)
     )
 
     #expect(fakeCenter.addedRequests.count == 1)

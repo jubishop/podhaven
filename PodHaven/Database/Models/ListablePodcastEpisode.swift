@@ -103,6 +103,33 @@ struct ListablePodcastEpisode:
 
   var searchableString: String { "\(title) - \(podcastTitle)" }
 
+  // MARK: - In-Memory Construction
+
+  // Used by `PodcastDetailViewModel` to fold the parent `Podcast` it already
+  // holds together with the slim DB-fetched `ListableEpisode` row, avoiding
+  // a redundant podcast join per child.
+  init(podcast: Podcast, episode: ListableEpisode) {
+    id = episode.id
+    guid = episode.guid
+    mediaURL = episode.mediaURL
+    title = episode.title
+    pubDate = episode.pubDate
+    duration = episode.duration
+    episodeImage = episode.episodeImage
+    finishDate = episode.finishDate
+    currentTime = episode.currentTime
+    queueOrder = episode.queueOrder
+    cacheStatus = episode.cacheStatus
+    saveInCache = episode.saveInCache
+    creationDate = episode.creationDate
+    queueDate = episode.queueDate
+    rating = episode.rating
+    tagIDs = episode.tagIDs
+    feedURL = podcast.feedURL
+    podcastImage = podcast.image
+    podcastTitle = podcast.title
+  }
+
   // MARK: - FetchableRecord
 
   init(row: Row) throws {

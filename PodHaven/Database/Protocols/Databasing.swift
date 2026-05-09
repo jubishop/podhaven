@@ -11,7 +11,7 @@ protocol Databasing: Sendable {
   // MARK: - Global Readers
 
   func allPodcasts(_ filter: SQLExpression) async throws -> [Podcast]
-  func allPodcastSeries(_ filter: SQLExpression, order: SQLOrdering, limit: Int, includeTags: Bool)
+  func allPodcastSeries(_ filter: SQLExpression, order: SQLOrdering, limit: Int)
     async throws
     -> [PodcastSeries]
 
@@ -19,6 +19,10 @@ protocol Databasing: Sendable {
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries?
   func podcastSeries(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws -> PodcastSeries?
+
+  // MARK: - Series Detail Readers
+
+  func podcastSeriesDetail(_ podcastID: Podcast.ID) async throws -> PodcastSeriesDetail?
 
   // MARK: - Podcast Readers
 

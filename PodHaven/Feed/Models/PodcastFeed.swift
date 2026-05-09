@@ -182,17 +182,17 @@ struct PodcastFeed: Sendable, Stringable {
     )
   }
 
-  func toUnsavedEpisodes(merging episodes: IdentifiedArrayOf<EpisodeWithTags>? = nil)
+  func toUnsavedEpisodes(merging episodes: IdentifiedArrayOf<Episode>? = nil)
     -> IdentifiedArrayOf<UnsavedEpisode>
   {
     let existingEpisodesByMediaURL: [MediaURL: Episode]
     let existingEpisodesByGUID: [GUID: Episode]
     if let episodes {
       existingEpisodesByMediaURL = Dictionary(
-        uniqueKeysWithValues: episodes.map { ($0.mediaGUID.mediaURL, $0.episode) }
+        uniqueKeysWithValues: episodes.map { ($0.mediaGUID.mediaURL, $0) }
       )
       existingEpisodesByGUID = Dictionary(
-        uniqueKeysWithValues: episodes.map { ($0.mediaGUID.guid, $0.episode) }
+        uniqueKeysWithValues: episodes.map { ($0.mediaGUID.guid, $0) }
       )
     } else {
       existingEpisodesByMediaURL = [:]

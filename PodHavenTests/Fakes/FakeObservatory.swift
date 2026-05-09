@@ -150,6 +150,13 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.podcastSeries(podcastID)
   }
 
+  func podcastSeriesDetail(_ podcastID: Podcast.ID)
+    -> AsyncValueObservation<PodcastSeriesDetail?>
+  {
+    recordCall(methodName: "podcastSeriesDetail", parameters: podcastID)
+    return observatory.podcastSeriesDetail(podcastID)
+  }
+
   func podcastEpisodeWithTags(_ episodeID: Episode.ID)
     -> AsyncValueObservation<PodcastEpisodeWithTags?>
   {

@@ -200,7 +200,7 @@ struct PodcastDetailView: View {
       if !viewModel.episodeList.filteredEntries.isEmpty {
         List(viewModel.episodeList.filteredEntries) { episode in
           NavigationLink(
-            value: Navigation.Destination.episode(episode),
+            value: Navigation.Destination.listedEpisode(episode),
             label: {
               EpisodeListView(
                 episode: episode,

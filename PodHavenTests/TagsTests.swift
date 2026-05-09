@@ -62,20 +62,20 @@ class TagsTests {
       _ = try await self.repo.addTag(tag.id, to: series.id)
     }
 
-    let fetchedSeries = try await repo.podcastSeries(series.id)
-    #expect(fetchedSeries?.tags?.map(\.id) == [tag.id])
+    let fetched = try await repo.podcastSeriesDetail(series.id)
+    #expect(fetched?.tags?.map(\.id) == [tag.id])
 
     let firstRemove = try await repo.removeTag(tag.id, from: series.id)
     let secondRemove = try await repo.removeTag(tag.id, from: series.id)
 
     #expect(firstRemove)
     #expect(!secondRemove)
-    let afterRemove = try await repo.podcastSeries(series.id)
+    let afterRemove = try await repo.podcastSeriesDetail(series.id)
     #expect(afterRemove?.tags?.isEmpty == true)
   }
 
-  @Test("podcastSeries() includes associated tags")
-  func podcastSeriesIncludesTags() async throws {
+  @Test("podcastSeriesDetail() includes associated tags")
+  func podcastSeriesDetailIncludesTags() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
@@ -86,36 +86,9 @@ class TagsTests {
     _ = try await repo.addTag(tagOne.id, to: series.id)
     _ = try await repo.addTag(tagTwo.id, to: series.id)
 
-    let fetchedSeries = try await repo.podcastSeries(series.id)
-    #expect(fetchedSeries != nil)
-    #expect(fetchedSeries?.tags?.map(\.name) == ["Alpha", "beta"])
-  }
-
-  @Test("allPodcastSeries(includeTags:) controls whether tags are fetched")
-  func allPodcastSeriesIncludeTagsFlag() async throws {
-    let series = try await repo.insertSeries(
-      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
-    )
-    let tag = try await repo.insertTag(UnsavedTag(name: "Tech"))
-    _ = try await repo.addTag(tag.id, to: series.id)
-
-    let withoutTags = try await repo.allPodcastSeries(
-      AppDB.NoOp,
-      order: Podcast.Columns.id.asc,
-      limit: Int.max,
-      includeTags: false
-    )
-    #expect(withoutTags.count == 1)
-    #expect(withoutTags[0].tags == nil)
-
-    let withTags = try await repo.allPodcastSeries(
-      AppDB.NoOp,
-      order: Podcast.Columns.id.asc,
-      limit: Int.max,
-      includeTags: true
-    )
-    #expect(withTags.count == 1)
-    #expect(withTags[0].tags?.map(\.name) == ["Tech"])
+    let fetched = try await repo.podcastSeriesDetail(series.id)
+    #expect(fetched != nil)
+    #expect(fetched?.tags?.map(\.name) == ["Alpha", "beta"])
   }
 
   @Test("renameTag() updates name and preserves podcast associations")
@@ -132,8 +105,8 @@ class TagsTests {
     let tags = try await observatory.tags().get()
     #expect(tags.map(\.name) == ["News"])
 
-    let fetchedSeries = try await repo.podcastSeries(series.id)
-    #expect(fetchedSeries?.tags?.map(\.id) == [tag.id])
+    let fetched = try await repo.podcastSeriesDetail(series.id)
+    #expect(fetched?.tags?.map(\.id) == [tag.id])
   }
 
   @Test("renameTag() throws on conflict with another tag")
@@ -207,12 +180,12 @@ class TagsTests {
     let tag = try await repo.insertTag(UnsavedTag(name: "News"))
 
     _ = try await repo.addTag(tag.id, to: series.id)
-    let beforeDelete = try await repo.podcastSeries(series.id)
+    let beforeDelete = try await repo.podcastSeriesDetail(series.id)
     #expect(beforeDelete?.tags?.count == 1)
 
     let deleted = try await repo.deleteTag(tag.id)
     #expect(deleted)
-    let afterDelete = try await repo.podcastSeries(series.id)
+    let afterDelete = try await repo.podcastSeriesDetail(series.id)
     #expect(afterDelete?.tags?.isEmpty == true)
     #expect(try await observatory.tags().get().isEmpty)
   }

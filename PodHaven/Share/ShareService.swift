@@ -70,7 +70,7 @@ struct ShareService {
       )
 
       if let guid,
-        let episode = podcastSeries.episodes.first(where: { $0.guid == guid })?.episode
+        let episode = podcastSeries.episodes.first(where: { $0.guid == guid })
       {
         Self.log.debug("Found episode with guid: \(guid) - \(episode.toString)")
         await navigation.showEpisode(

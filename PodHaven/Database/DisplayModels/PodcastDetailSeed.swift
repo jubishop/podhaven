@@ -5,7 +5,7 @@ import IdentifiedCollections
 
 struct PodcastDetailPresentation: Sendable {
   let podcast: DisplayedPodcast
-  let episodes: IdentifiedArrayOf<DisplayedEpisode>
+  let episodes: IdentifiedArrayOf<ListedEpisode>
 }
 
 enum PodcastDetailSeed: Hashable, Sendable {
@@ -30,7 +30,7 @@ enum PodcastDetailSeed: Hashable, Sendable {
         podcast: DisplayedPodcast(unsavedPodcastSeries.unsavedPodcast),
         episodes: IdentifiedArrayOf(
           uniqueElements: unsavedPodcastSeries.unsavedEpisodes.map {
-            DisplayedEpisode(
+            ListedEpisode(
               UnsavedPodcastEpisode(
                 unsavedPodcast: unsavedPodcastSeries.unsavedPodcast,
                 unsavedEpisode: $0

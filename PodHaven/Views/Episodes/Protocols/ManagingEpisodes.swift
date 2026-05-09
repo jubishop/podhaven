@@ -334,3 +334,11 @@ extension ManagingEpisodes where EpisodeType == ListablePodcastEpisode {
 
   func tagIDs(for episode: ListablePodcastEpisode) -> Set<Tag.ID>? { episode.tagIDs }
 }
+
+extension ManagingEpisodes where EpisodeType == ListedEpisode {
+  func getOrCreatePodcastEpisode(_ episode: ListedEpisode) async throws -> PodcastEpisode {
+    try await episode.getOrCreatePodcastEpisode()
+  }
+
+  func tagIDs(for episode: ListedEpisode) -> Set<Tag.ID>? { episode.tagIDs }
+}

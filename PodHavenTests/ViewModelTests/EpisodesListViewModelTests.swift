@@ -105,10 +105,10 @@ import Testing
         ]
       )
     )
-    let ep1 = series.episodes[0].episode
-    let ep2 = series.episodes[1].episode
-    let ep3 = series.episodes[2].episode
-    let ep4 = series.episodes[3].episode
+    let ep1 = series.episodes[0]
+    let ep2 = series.episodes[1]
+    let ep3 = series.episodes[2]
+    let ep4 = series.episodes[3]
 
     let tagA = try await repo.insertTag(UnsavedTag(name: "Alpha"))
     let tagB = try await repo.insertTag(UnsavedTag(name: "Beta"))

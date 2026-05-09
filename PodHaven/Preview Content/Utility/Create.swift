@@ -150,15 +150,15 @@ enum Create {
     return (
       PodcastEpisode(
         podcast: podcastSeriesOne.podcast,
-        episode: podcastSeriesOne.episodes[0].episode
+        episode: podcastSeriesOne.episodes[0]
       ),
       PodcastEpisode(
         podcast: podcastSeriesTwo.podcast,
-        episode: podcastSeriesTwo.episodes[0].episode
+        episode: podcastSeriesTwo.episodes[0]
       ),
       PodcastEpisode(
         podcast: podcastSeriesThree.podcast,
-        episode: podcastSeriesThree.episodes[0].episode
+        episode: podcastSeriesThree.episodes[0]
       )
     )
   }

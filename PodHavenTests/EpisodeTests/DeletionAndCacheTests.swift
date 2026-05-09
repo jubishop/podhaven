@@ -73,7 +73,7 @@ class EpisodeDeletionAndCacheTests {
     let podcast = series.podcast
     let podcastEpisode = PodcastEpisode(
       podcast: podcast,
-      episode: series.episodes.first!.episode
+      episode: series.episodes.first!
     )
     let onDeck = try await PlayHelpers.load(podcastEpisode)
     #expect(onDeck.id == podcastEpisode.id)

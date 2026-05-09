@@ -27,7 +27,7 @@ class PlaybackCoverageRepoTests {
         unsavedEpisodes: [unsavedEpisode]
       )
     )
-    return series.episodes.first!.episode
+    return series.episodes.first!
   }
 
   private func loadCoverage(for episodeID: Episode.ID, durationSeconds: Int)

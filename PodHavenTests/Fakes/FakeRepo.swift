@@ -30,21 +30,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func allPodcastSeries(
     _ filter: SQLExpression,
     order: SQLOrdering = Podcast.Columns.id.desc,
-    limit: Int = Int.max,
-    includeTags: Bool = true
+    limit: Int = Int.max
   ) async throws
     -> [PodcastSeries]
   {
     recordCall(
       methodName: "allPodcastSeries",
-      parameters: (filter: filter, order: order, limit: limit, includeTags: includeTags)
+      parameters: (filter: filter, order: order, limit: limit)
     )
-    return try await repo.allPodcastSeries(
-      filter,
-      order: order,
-      limit: limit,
-      includeTags: includeTags
-    )
+    return try await repo.allPodcastSeries(filter, order: order, limit: limit)
   }
 
   // MARK: - Series Readers
@@ -62,6 +56,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       parameters: (feedURL: feedURL, iTunesID: iTunesID)
     )
     return try await repo.podcastSeries(feedURL, iTunesID: iTunesID)
+  }
+
+  func podcastSeriesDetail(_ podcastID: Podcast.ID) async throws -> PodcastSeriesDetail? {
+    recordCall(methodName: "podcastSeriesDetail", parameters: podcastID)
+    return try await repo.podcastSeriesDetail(podcastID)
   }
 
   // MARK: - Episode Readers

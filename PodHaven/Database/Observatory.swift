@@ -191,15 +191,34 @@ struct Observatory: Observing {
 
   func podcastSeries(_ podcastID: Podcast.ID) -> AsyncValueObservation<PodcastSeries?> {
     _observe { db in
-      guard
-        let raw = try Podcast
-          .withID(podcastID)
-          .including(all: Podcast.episodes)
-          .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
-          .asRequest(of: PodcastSeries.self)
-          .fetchOne(db)
-      else { return nil }
-      return try raw.withFoldedEpisodeTagIDs(db: db)
+      try Podcast
+        .withID(podcastID)
+        .including(all: Podcast.episodes)
+        .asRequest(of: PodcastSeries.self)
+        .fetchOne(db)
+    }
+  }
+
+  func podcastSeriesDetail(_ podcastID: Podcast.ID)
+    -> AsyncValueObservation<PodcastSeriesDetail?>
+  {
+    _observe { db in
+      guard let podcast = try Podcast.withID(podcastID).fetchOne(db) else { return nil }
+      let episodes =
+        try ListableEpisode
+        .filter(Episode.Columns.podcastId == podcastID)
+        .order(Episode.Columns.pubDate.desc)
+        .fetchAll(db)
+      let tags =
+        try Tag
+        .joining(required: Tag.podcastTags.filter(PodcastTag.Columns.podcastId == podcastID))
+        .orderedByName()
+        .fetchAll(db)
+      return PodcastSeriesDetail(
+        podcast: podcast,
+        episodes: IdentifiedArrayOf(uniqueElements: episodes),
+        tags: IdentifiedArrayOf(uniqueElements: tags)
+      )
     }
   }
 
