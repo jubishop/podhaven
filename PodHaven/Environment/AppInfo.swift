@@ -5,7 +5,14 @@ import Foundation
 import Logging
 
 #if !WIDGET_EXTENSION
+import MarketplaceKit
 import UIKit
+
+extension Container {
+  var appDistributor: Factory<@concurrent () async throws -> AppDistributor> {
+    Factory(self) { { try await AppDistributor.current } }.scope(.cached)
+  }
+}
 #endif
 
 enum EnvironmentType: String {
@@ -22,6 +29,7 @@ enum EnvironmentType: String {
 enum AppInfo {
   private static let log = Log.as("AppInfo")
   private static let initializeEnvironmentOnce = Once()
+  private static let finalizeEnvironmentOnce = AsyncOnce()
 
   // MARK: - System Settings
 
@@ -56,6 +64,45 @@ enum AppInfo {
   }
   #endif
 
+  #if !WIDGET_EXTENSION
+  static func finalizeEnvironment() async {
+    await finalizeEnvironmentOnce.run {
+      guard environment == .deployed else { return }
+      do {
+        let refined: EnvironmentType
+        switch try await Container.shared.appDistributor()() {
+        case .appStore:
+          refined = .appStore
+        case .testFlight:
+          refined = .testFlight
+        case .marketplace(let identifier):
+          log.warning(
+            "Distributed via marketplace \(identifier); treating as App Store for debug gating"
+          )
+          refined = .appStore
+        case .web:
+          log.warning("AppDistributor.web; treating as App Store for debug gating")
+          refined = .appStore
+        case .other:
+          log.warning("AppDistributor.other; treating as App Store for debug gating")
+          refined = .appStore
+        @unknown default:
+          log.warning("Unknown AppDistributor; treating as App Store for debug gating")
+          refined = .appStore
+        }
+        log.debug("Environment refined to \(refined)")
+        environment = refined
+      } catch {
+        log.caughtError(
+          "finalizeEnvironment: AppDistributor.current failed; defaulting to .appStore",
+          error
+        )
+        environment = .appStore
+      }
+    }
+  }
+  #endif
+
   private static func detectEnvironment() -> EnvironmentType {
     let env = ProcessInfo.processInfo.environment
     guard env["XCODE_RUNNING_FOR_PREVIEWS"] != "1",
@@ -71,11 +118,8 @@ enum AppInfo {
     #if DEBUG
     return currentDevelopmentEnvironment()
     #else
-    // App Store builds are re-signed by Apple and ship without an embedded
-    // provisioning profile; TestFlight builds keep theirs so the 90-day
-    // expiration can be enforced.
-    return Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision") != nil
-      ? .testFlight : .appStore
+    // Refined async by `finalizeEnvironment()` once `AppDistributor.current` resolves.
+    return .deployed
     #endif
     #endif
   }

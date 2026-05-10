@@ -51,10 +51,18 @@ struct AppLauncher: Sendable {
 
     Self.log.debug(
       """
-      Environment is: \(AppInfo.environment),
+      Initial environment is: \(AppInfo.environment), \
       state: \(UIApplication.shared.applicationState)
       """
     )
+
+    // Background-only launches (Siri, AirPods intents) may never foreground,
+    // so kick off finalize here too — `prepareForForeground` awaits the same
+    // AsyncOnce when it runs.
+    Task {
+      await AppInfo.finalizeEnvironment()
+      Self.applySentryEnvironment()
+    }
 
     refreshScheduler.register()
     cachePurger.register()
@@ -104,11 +112,16 @@ struct AppLauncher: Sendable {
     await prepareForForegroundOnce.run {
       Self.log.info("Preparing for foreground")
 
+      await AppInfo.finalizeEnvironment()
+      Self.applySentryEnvironment()
+      guard !Task.isCancelled else { return }
+
       await self.userNotificationManager.initialize()
       guard !Task.isCancelled else { return }
 
       Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
       Self.log.debug("My device?: \(AppInfo.myDevice)")
+      Self.log.debug("Final environment is: \(AppInfo.environment)")
       Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
       Self.log.debug("Git commit hash is: \(AppInfo.gitCommitHash)")
 
@@ -187,6 +200,12 @@ struct AppLauncher: Sendable {
   }
 
   // MARK: - Sentry
+
+  private static func applySentryEnvironment() {
+    SentrySDK.configureScope { scope in
+      scope.setEnvironment(AppInfo.environment.rawValue)
+    }
+  }
 
   private static func configureSentry() {
     SentrySDK.start { options in
