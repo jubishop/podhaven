@@ -52,6 +52,12 @@ class PodcastDetailViewModel:
       // For the populated case, do a wholesale replacement so episodes
       // removed from the DB get pruned (a merge-only update would leave
       // deleted rows on screen).
+      // Known blind spot: a genuine DB-empty observation emission (every
+      // episode deleted, or a feed re-parse that yields no items) also
+      // hits this guard, so stale rows would linger on screen until the
+      // next non-empty emission. Treated as acceptable because the
+      // observed series should also disappear or repopulate quickly in
+      // those scenarios; revisit if a user-visible regression shows up.
       guard !newValue.episodes.isEmpty else { return }
       episodeList.allEntries = IdentifiedArray(
         uniqueElements: newValue.episodes.map { listableEpisode in

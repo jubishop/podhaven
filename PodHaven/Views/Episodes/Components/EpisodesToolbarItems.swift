@@ -101,7 +101,7 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingE
             }
           }
 
-          tagBulkMenu(viewModel: viewModel)
+          BulkTagMenu(viewModel: viewModel)
         },
         label: { AppIcon.moreActions.image }
       )
@@ -113,47 +113,52 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingE
   }
 }
 
-@MainActor @ViewBuilder
-private func tagBulkMenu<ViewModel: SelectableEpisodeList & ManagingEpisodes>(
-  viewModel: ViewModel
-) -> some View {
-  if viewModel.selectionHasTagData {
-    // Toolbar items are free functions, not types, so `@DynamicInjected`
-    // isn't available here — resolving via `Container.shared` is the
-    // intentional pattern across this file.
-    let allTags = Container.shared.sharedState().tags
-    let intersection = viewModel.selectedEpisodesTagIntersection
-    let union = viewModel.selectedEpisodesTagUnion
-    let addable = allTags.filter { !intersection.contains($0.id) }
-    let removable = allTags.filter { union.contains($0.id) }
+// Wrapped in a struct view (rather than a free `@ViewBuilder` function)
+// so `@DynamicInjected(\.sharedState)` participates in SwiftUI observation
+// tracking — tag renames/adds reflect in the open menu without waiting for
+// some unrelated re-render to evict the toolbar.
+@MainActor
+private struct BulkTagMenu<ViewModel: SelectableEpisodeList & ManagingEpisodes>: View {
+  @DynamicInjected(\.sharedState) private var sharedState
 
-    if !addable.isEmpty || !removable.isEmpty {
-      Menu {
-        if !addable.isEmpty {
-          Menu {
-            ForEach(addable) { tag in
-              Button(tag.name) {
-                viewModel.applyTagToSelectedEpisodes(tag.id)
-              }
-            }
-          } label: {
-            AppIcon.addTag.label("Add Tag")
-          }
-        }
+  let viewModel: ViewModel
 
-        if !removable.isEmpty {
-          Menu {
-            ForEach(removable) { tag in
-              Button(tag.name) {
-                viewModel.removeTagFromSelectedEpisodes(tag.id)
+  var body: some View {
+    if viewModel.selectionHasTagData {
+      let allTags = sharedState.tags
+      let intersection = viewModel.selectedEpisodesTagIntersection
+      let union = viewModel.selectedEpisodesTagUnion
+      let addable = allTags.filter { !intersection.contains($0.id) }
+      let removable = allTags.filter { union.contains($0.id) }
+
+      if !addable.isEmpty || !removable.isEmpty {
+        Menu {
+          if !addable.isEmpty {
+            Menu {
+              ForEach(addable) { tag in
+                Button(tag.name) {
+                  viewModel.applyTagToSelectedEpisodes(tag.id)
+                }
               }
+            } label: {
+              AppIcon.addTag.label("Add Tag")
             }
-          } label: {
-            AppIcon.removeTag.label("Remove Tag")
           }
+
+          if !removable.isEmpty {
+            Menu {
+              ForEach(removable) { tag in
+                Button(tag.name) {
+                  viewModel.removeTagFromSelectedEpisodes(tag.id)
+                }
+              }
+            } label: {
+              AppIcon.removeTag.label("Remove Tag")
+            }
+          }
+        } label: {
+          AppIcon.tag.label("Tag")
         }
-      } label: {
-        AppIcon.tag.label("Tag")
       }
     }
   }
