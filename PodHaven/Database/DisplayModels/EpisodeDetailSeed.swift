@@ -17,9 +17,9 @@ enum EpisodeDetailSeed: Hashable, Sendable {
   }
 }
 
-// Constructed only by `EpisodeDetailSeed.initialEpisode` (init is fileprivate),
-// but type-visible to `DisplayedEpisode.Source.initialPresentation` so the
-// presentation slot is explicit in the type system rather than an existential.
+// Internal because `DisplayedEpisode.Source.initialPresentation` names this
+// type across files; init is fileprivate so the seed remains the only
+// constructor.
 struct EpisodeDetailInitialEpisode:
   EpisodeDisplayable,
   Hashable,

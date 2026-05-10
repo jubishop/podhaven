@@ -119,168 +119,192 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
         description: "Testing all episode status icon combinations"
       )
 
-      var episodes: [any EpisodeDisplayable] = []
+      var episodes: [DisplayedEpisode] = []
 
       // Basic States - UnsavedPodcastEpisodes
       episodes.append(contentsOf: [
-        UnsavedPodcastEpisode(
-          unsavedPodcast: basePodcast,
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "1. Default Episode (no icons) - Grey Box",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 1),
-            duration: CMTime.seconds(2400)
-            // No image specified = uses basePodcast image (Changelog)
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: basePodcast,
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "1. Default Episode (no icons) - Grey Box",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 1),
+              duration: CMTime.seconds(2400)
+              // No image specified = uses basePodcast image (Changelog)
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "Pod Save America",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "2. Started Episode (progress in duration)",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 2),
-            duration: CMTime.seconds(1800),
-            image: allThumbnails.randomElement()!.value.url,  // Episode-specific image
-            currentTime: CMTime.seconds(300)
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "Pod Save America",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "2. Started Episode (progress in duration)",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 2),
+              duration: CMTime.seconds(1800),
+              image: allThumbnails.randomElement()!.value.url,  // Episode-specific image
+              currentTime: CMTime.seconds(300)
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "This American Life",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "3. Finished Episode (blue checkmark) - SELECTED",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 3),
-            duration: CMTime.seconds(2700),
-            image: allThumbnails.randomElement()!.value.url,  // Episode-specific image
-            finishDate: Date().addingTimeInterval(-3600 * 12)
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "This American Life",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "3. Finished Episode (blue checkmark) - SELECTED",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 3),
+              duration: CMTime.seconds(2700),
+              image: allThumbnails.randomElement()!.value.url,  // Episode-specific image
+              finishDate: Date().addingTimeInterval(-3600 * 12)
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: basePodcast,
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "4. Started + Finished - SELECTED",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 4),
-            duration: CMTime.seconds(3600),
-            image: allThumbnails.randomElement()!.value.url,  // Changelog Interviews image
-            finishDate: Date().addingTimeInterval(-3600 * 6),
-            currentTime: CMTime.seconds(1800)
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: basePodcast,
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "4. Started + Finished - SELECTED",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 4),
+              duration: CMTime.seconds(3600),
+              image: allThumbnails.randomElement()!.value.url,  // Changelog Interviews image
+              finishDate: Date().addingTimeInterval(-3600 * 6),
+              currentTime: CMTime.seconds(1800)
+            )
           )
         ),
       ])
 
       // Queue States - UnsavedPodcastEpisodes
       episodes.append(contentsOf: [
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "Changelog Interviews",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "5. Queued at Top (orange arrow up)",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 5),
-            duration: CMTime.seconds(2100),
-            image: allThumbnails.randomElement()!.value.url,  // Pod Save America episode image
-            queueOrder: 0
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "Changelog Interviews",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "5. Queued at Top (orange arrow up)",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 5),
+              duration: CMTime.seconds(2100),
+              image: allThumbnails.randomElement()!.value.url,  // Pod Save America episode image
+              queueOrder: 0
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: basePodcast,  // Grey box - invalid image
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "6. Queued Middle (orange lines) - Grey Box",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 6),
-            duration: CMTime.seconds(900),
-            image: nil,  // Will show grey box
-            queueOrder: 5
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: basePodcast,  // Grey box - invalid image
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "6. Queued Middle (orange lines) - Grey Box",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 6),
+              duration: CMTime.seconds(900),
+              image: nil,  // Will show grey box
+              queueOrder: 5
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "This American Life",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "7. Queued + Started",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 7),
-            duration: CMTime.seconds(2400),
-            image: allThumbnails.randomElement()!.value.url,  // This American Life episode image
-            currentTime: CMTime.seconds(600),
-            queueOrder: 3
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "This American Life",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "7. Queued + Started",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 7),
+              duration: CMTime.seconds(2400),
+              image: allThumbnails.randomElement()!.value.url,  // This American Life episode image
+              currentTime: CMTime.seconds(600),
+              queueOrder: 3
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "Pod Save America",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "8. Queued + Finished",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 8),
-            duration: CMTime.seconds(3000),
-            image: allThumbnails.randomElement()!.value.url,  // Pod Save America episode image
-            finishDate: Date().addingTimeInterval(-3600 * 3),
-            queueOrder: 2
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "Pod Save America",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "8. Queued + Finished",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 8),
+              duration: CMTime.seconds(3000),
+              image: allThumbnails.randomElement()!.value.url,  // Pod Save America episode image
+              finishDate: Date().addingTimeInterval(-3600 * 3),
+              queueOrder: 2
+            )
           )
         ),
       ])
 
       // Cache States - UnsavedPodcastEpisodes
       episodes.append(contentsOf: [
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "Changelog",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "9. Cached Episode (green download)",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 9),
-            duration: CMTime.seconds(3300),
-            image: allThumbnails.randomElement()!.value.url,  // Changelog Interviews
-            cachedFilename: "cached_episode.mp3"
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "Changelog",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "9. Cached Episode (green download)",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 9),
+              duration: CMTime.seconds(3300),
+              image: allThumbnails.randomElement()!.value.url,  // Changelog Interviews
+              cachedFilename: "cached_episode.mp3"
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "Unknown Podcast",
-            image: URL.valid()  // Grey box
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "10. Cached + Started - Grey Box",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 10),
-            duration: CMTime.seconds(1800),
-            currentTime: CMTime.seconds(450),
-            cachedFilename: "cached_started.mp3"
-              // No episode image = falls back to podcast image (grey box)
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "Unknown Podcast",
+              image: URL.valid()  // Grey box
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "10. Cached + Started - Grey Box",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 10),
+              duration: CMTime.seconds(1800),
+              currentTime: CMTime.seconds(450),
+              cachedFilename: "cached_started.mp3"
+                // No episode image = falls back to podcast image (grey box)
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "This American Life",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "11. Cached + Finished",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 11),
-            duration: CMTime.seconds(2600),
-            image: allThumbnails.randomElement()!.value.url,  // This American Life episode
-            finishDate: Date().addingTimeInterval(-3600 * 8),
-            cachedFilename: "cached_finished.mp3"
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "This American Life",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "11. Cached + Finished",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 11),
+              duration: CMTime.seconds(2600),
+              image: allThumbnails.randomElement()!.value.url,  // This American Life episode
+              finishDate: Date().addingTimeInterval(-3600 * 8),
+              cachedFilename: "cached_finished.mp3"
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "Pod Save America",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "12. Cached + Queued",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 12),
-            duration: CMTime.seconds(4000),
-            image: allThumbnails.randomElement()!.value.url,  // Pod Save America episode 2
-            queueOrder: 7,
-            cachedFilename: "cached_queued.mp3"
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "Pod Save America",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "12. Cached + Queued",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 12),
+              duration: CMTime.seconds(4000),
+              image: allThumbnails.randomElement()!.value.url,  // Pod Save America episode 2
+              queueOrder: 7,
+              cachedFilename: "cached_queued.mp3"
+            )
           )
         ),
       ])
@@ -343,77 +367,85 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
 
       // Add refreshed caching episodes to the list
       episodes.append(contentsOf: [
-        try await repo.podcastEpisode(cachingEpisode25.id)!,
-        try await repo.podcastEpisode(cachingEpisode65.id)!,
-        try await repo.podcastEpisode(waitingEpisode.id)!,
+        DisplayedEpisode(try await repo.podcastEpisode(cachingEpisode25.id)!),
+        DisplayedEpisode(try await repo.podcastEpisode(cachingEpisode65.id)!),
+        DisplayedEpisode(try await repo.podcastEpisode(waitingEpisode.id)!),
       ])
 
       // Combined States - UnsavedPodcastEpisodes
       episodes.append(contentsOf: [
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "Changelog",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "16. Everything: Queued + Cached + Started - SELECTED",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 16),
-            duration: CMTime.seconds(3600),
-            image: allThumbnails.randomElement()!.value.url,  // Changelog Interviews
-            currentTime: CMTime.seconds(900),
-            queueOrder: 1,
-            cachedFilename: "everything.mp3"
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "Changelog",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "16. Everything: Queued + Cached + Started - SELECTED",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 16),
+              duration: CMTime.seconds(3600),
+              image: allThumbnails.randomElement()!.value.url,  // Changelog Interviews
+              currentTime: CMTime.seconds(900),
+              queueOrder: 1,
+              cachedFilename: "everything.mp3"
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "Pod Save America",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "17. Top Queue + Cached + Finished",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 17),
-            duration: CMTime.seconds(2700),
-            image: allThumbnails.randomElement()!.value.url,  // Pod Save America episode
-            finishDate: Date().addingTimeInterval(-3600 * 2),
-            queueOrder: 0,
-            cachedFilename: "top_queue_finished.mp3"
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "Pod Save America",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "17. Top Queue + Cached + Finished",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 17),
+              duration: CMTime.seconds(2700),
+              image: allThumbnails.randomElement()!.value.url,  // Pod Save America episode
+              finishDate: Date().addingTimeInterval(-3600 * 2),
+              queueOrder: 0,
+              cachedFilename: "top_queue_finished.mp3"
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "This American Life",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "18. All States: Queue + Cache + Complete + Started",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 18),
-            duration: CMTime.seconds(4200),
-            image: allThumbnails.randomElement()!.value.url,  // This American Life episode
-            finishDate: Date().addingTimeInterval(-3600 * 1),
-            currentTime: CMTime.seconds(1500),
-            queueOrder: 4,
-            cachedFilename: "all_states.mp3"
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "This American Life",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "18. All States: Queue + Cache + Complete + Started",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 18),
+              duration: CMTime.seconds(4200),
+              image: allThumbnails.randomElement()!.value.url,  // This American Life episode
+              finishDate: Date().addingTimeInterval(-3600 * 1),
+              currentTime: CMTime.seconds(1500),
+              queueOrder: 4,
+              cachedFilename: "all_states.mp3"
+            )
           )
         ),
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(
-            title: "Changelog Interviews",
-            image: allThumbnails.randomElement()!.value.url
-          ),
-          unsavedEpisode: try Create.unsavedEpisode(
-            title: "19. Long Title to Test Layout with Multiple States and Icons - SELECTED",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 19),
-            duration: CMTime.seconds(5400),
-            image: allThumbnails.randomElement()!.value.url,  // Pod Save America episode 2
-            currentTime: CMTime.seconds(2700),
-            queueOrder: 8,
-            cachedFilename: "long_title.mp3"
+        DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(
+              title: "Changelog Interviews",
+              image: allThumbnails.randomElement()!.value.url
+            ),
+            unsavedEpisode: try Create.unsavedEpisode(
+              title: "19. Long Title to Test Layout with Multiple States and Icons - SELECTED",
+              pubDate: Date().addingTimeInterval(-3600 * 24 * 19),
+              duration: CMTime.seconds(5400),
+              image: allThumbnails.randomElement()!.value.url,  // Pod Save America episode 2
+              currentTime: CMTime.seconds(2700),
+              queueOrder: 8,
+              cachedFilename: "long_title.mp3"
+            )
           )
         ),
       ])
 
-      displayedEpisodes = episodes.map { DisplayedEpisode.forPreview($0) }
+      displayedEpisodes = episodes
 
       selectedStates = Array(repeating: false, count: episodes.count)
       // Set some episodes as selected for demonstration

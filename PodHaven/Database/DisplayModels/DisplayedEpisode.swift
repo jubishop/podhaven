@@ -91,20 +91,3 @@ struct DisplayedEpisode:
     }
   }
 }
-
-#if DEBUG
-extension DisplayedEpisode {
-  // Preview-only convenience for sample-data arrays that mix concrete
-  // `EpisodeDisplayable` types in a single literal. Production code uses
-  // the typed initializers (`init(_ episode: PodcastEpisode)` etc.) directly.
-  static func forPreview(_ episode: any EpisodeDisplayable) -> DisplayedEpisode {
-    if let podcastEpisode = episode as? PodcastEpisode {
-      return DisplayedEpisode(podcastEpisode)
-    }
-    if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
-      return DisplayedEpisode(unsavedPodcastEpisode)
-    }
-    Assert.fatal("Cannot build preview DisplayedEpisode from \(type(of: episode))")
-  }
-}
-#endif
