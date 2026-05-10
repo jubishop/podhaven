@@ -11,6 +11,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
+  // One-shot error to throw from `updateSaveInCache(_ episodeIDs:saveInCache:)`.
+  // Cleared on use so subsequent calls reach the real repo.
+  nonisolated let updateSaveInCacheBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
+
   private let repo: Repo
 
   init(_ repo: Repo) {
@@ -309,6 +313,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       methodName: "updateSaveInCache",
       parameters: (episodeIDs: episodeIDs, saveInCache: saveInCache)
     )
+    if let injected = updateSaveInCacheBulkError({ error in
+      let captured = error
+      error = nil
+      return captured
+    }) {
+      throw injected
+    }
     return try await repo.updateSaveInCache(episodeIDs, saveInCache: saveInCache)
   }
 

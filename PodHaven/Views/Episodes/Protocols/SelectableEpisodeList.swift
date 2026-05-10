@@ -245,6 +245,7 @@ extension SelectableEpisodeList {
           "uncacheSelectedEpisodes: failed to unsave \(cachedEpisodeIDs.count) episodes",
           error
         )
+        return
       }
       await withDiscardingTaskGroup { group in
         for episodeID in cachedEpisodeIDs {

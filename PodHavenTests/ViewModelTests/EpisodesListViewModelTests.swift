@@ -12,6 +12,13 @@ import Testing
 @MainActor final class EpisodesListViewModelTests {
   @DynamicInjected(\.repo) private var repo
 
+  private var fakeRepo: FakeRepo { repo as! FakeRepo }
+  private var fileManager: FakeFileManager {
+    Container.shared.fileManager() as! FakeFileManager
+  }
+
+  private struct InjectedRepoError: Error, Sendable {}
+
   @Test("selectedEpisodesTagIntersection collapses to common tags across selection")
   func selectedEpisodesTagIntersectionAcrossSelection() async throws {
     let setup = try await setupFourTaggedEpisodes()
@@ -111,6 +118,61 @@ import Testing
     #expect(
       podcastEpisodes.map(\.id) == [setup.ep4.id, setup.ep3.id, setup.ep2.id, setup.ep1.id]
     )
+  }
+
+  @Test("uncacheSelectedEpisodes leaves cache files alone when bulk unsave throws")
+  func uncacheSelectedEpisodesPreservesCacheOnUnsaveFailure() async throws {
+    let cachedEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "ep1",
+      cachedFilename: "ep1.mp3",
+      saveInCache: true
+    )
+    let cachedURL = try #require(cachedEpisode.cachedURL)
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
+
+    let listables = try await repo.db.read { db in
+      try ListablePodcastEpisode
+        .request(filter: AppDB.NoOp, order: Episode.Columns.id.asc)
+        .fetchAll(db)
+    }
+    let viewModel = EpisodesListViewModel(title: "Test")
+    try await loadEntries(into: viewModel, episodes: listables)
+    select(viewModel, ids: [cachedEpisode.id])
+
+    let fakeRepo = self.fakeRepo
+    fakeRepo.updateSaveInCacheBulkError(InjectedRepoError())
+    fakeRepo.clearAllCalls()
+
+    viewModel.uncacheSelectedEpisodes()
+
+    try await Wait.until(
+      { (try? fakeRepo.expectCalls(methodName: "updateSaveInCache")) != nil },
+      { "uncacheSelectedEpisodes never invoked updateSaveInCache" }
+    )
+
+    // The buggy path keeps going after the throw and runs clearCache, which
+    // records updateCachedFilename on its way to clearing the file. Poll for
+    // that side effect; a timeout means the early-return fix held.
+    do {
+      try await Wait.until(
+        maxAttempts: 50,
+        delay: .milliseconds(20),
+        priority: .userInitiated,
+        { (try? fakeRepo.expectCalls(methodName: "updateCachedFilename")) != nil },
+        { "regression: clearCache ran despite updateSaveInCache throwing" }
+      )
+      Issue.record("regression: clearCache ran despite updateSaveInCache throwing")
+    } catch {
+      // Expected timeout under the fixed implementation.
+    }
+
+    try fakeRepo.expectNoCall(methodName: "updateCachedFilename")
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
+
+    let final = try #require(try await repo.episode(cachedEpisode.id))
+    #expect(final.cachedURL == cachedEpisode.cachedURL)
+    #expect(final.cacheStatus == .cached)
+    #expect(final.saveInCache)
   }
 
   // MARK: - Helpers
