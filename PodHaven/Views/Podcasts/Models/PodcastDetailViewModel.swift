@@ -45,19 +45,10 @@ class PodcastDetailViewModel:
       _podcastSeries = newValue
       podcast = DisplayedPodcast(newValue.podcast)
 
-      // Skip the allEntries update when the incoming detail carries no
-      // episodes — that's the bootstrap case (subscribe() before
-      // observation hydrates the inserted episodes). Wholesale-replacing
-      // here would briefly blank the feed-parsed unsaved rows on screen.
-      // For the populated case, do a wholesale replacement so episodes
-      // removed from the DB get pruned (a merge-only update would leave
-      // deleted rows on screen).
-      // Known blind spot: a genuine DB-empty observation emission (every
-      // episode deleted, or a feed re-parse that yields no items) also
-      // hits this guard, so stale rows would linger on screen until the
-      // next non-empty emission. Treated as acceptable because the
-      // observed series should also disappear or repopulate quickly in
-      // those scenarios; revisit if a user-visible regression shows up.
+      // Empty episodes is the bootstrap case (subscribe() before observation
+      // hydrates), so skip the replacement to avoid blanking the feed-parsed
+      // unsaved rows on screen. For the populated case, wholesale-replace so
+      // DB-deleted rows get pruned rather than lingering from a merge.
       guard !newValue.episodes.isEmpty else { return }
       episodeList.allEntries = IdentifiedArray(
         uniqueElements: newValue.episodes.map { listableEpisode in
@@ -67,6 +58,12 @@ class PodcastDetailViewModel:
         }
       )
     }
+  }
+
+  // Bypasses the setter's nil-fatal for the one legitimate path: observation
+  // emitted nil because the DB row was deleted.
+  private func clearPodcastSeries() {
+    _podcastSeries = nil
   }
 
   // MARK: - ManagingEpisodes
@@ -608,7 +605,7 @@ class PodcastDetailViewModel:
       guard let updatedSeries
       else {
         Self.log.debug("Podcast was deleted")
-        _podcastSeries = nil
+        clearPodcastSeries()
         do {
           try await loadPresentationFromFeed()
         } catch {
