@@ -22,14 +22,14 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   // Past this many days without a new episode, treat the show as evergreen
   // regardless of historical spacing — catches wrapped-up serials and
   // archives where freshness is meaningless even if the median gap was weekly.
-  private static let dormantThresholdDays: Double = 180
+  private static let dormantThresholdDays: Double = 120
 
   // Upper bounds on the *median* inter-episode gap. Daily news shows publish
   // weekdays only (1d median with 3d weekend gaps), so 3d tolerates that.
   // Past ~48d, freshness is immaterial → evergreen.
-  private static let dailyMaxMedianDays: Double = 3
-  private static let weeklyMaxMedianDays: Double = 12
-  private static let monthlyMaxMedianDays: Double = 48
+  private static let dailyMaxMedianDays: Double = 2
+  private static let weeklyMaxMedianDays: Double = 14
+  private static let monthlyMaxMedianDays: Double = 60
 
   var displayName: String {
     switch self {
