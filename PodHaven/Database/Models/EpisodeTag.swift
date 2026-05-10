@@ -3,7 +3,13 @@
 import Foundation
 import GRDB
 
-struct EpisodeTag: Codable, Equatable, FetchableRecord, Hashable, PersistableRecord, Sendable,
+struct EpisodeTag:
+  Codable,
+  Equatable,
+  FetchableRecord,
+  Hashable,
+  PersistableRecord,
+  Sendable,
   TableRecord
 {
   // MARK: - Data
