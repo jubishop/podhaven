@@ -168,7 +168,7 @@ extension PlayBar {
       NavigationStack {
         EpisodeDetailView(
           viewModel: EpisodeDetailViewModel(
-            episode: DisplayedEpisode.getDisplayedEpisode(podcastEpisode)
+            episode: DisplayedEpisode(podcastEpisode)
           )
         )
       }

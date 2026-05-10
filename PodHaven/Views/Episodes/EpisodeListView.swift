@@ -413,7 +413,7 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
         ),
       ])
 
-      displayedEpisodes = episodes.map { DisplayedEpisode.getDisplayedEpisode($0) }
+      displayedEpisodes = episodes.map { DisplayedEpisode.forPreview($0) }
 
       selectedStates = Array(repeating: false, count: episodes.count)
       // Set some episodes as selected for demonstration

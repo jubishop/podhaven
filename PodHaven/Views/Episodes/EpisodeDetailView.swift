@@ -322,7 +322,7 @@ struct EpisodeDetailView: View {
   NavigationStack {
     EpisodeDetailView(
       viewModel: EpisodeDetailViewModel(
-        episode: DisplayedEpisode.getDisplayedEpisode(
+        episode: DisplayedEpisode(
           UnsavedPodcastEpisode(
             unsavedPodcast: try! Create.unsavedPodcast(
               title: "The Tech Podcast",
@@ -356,7 +356,7 @@ struct EpisodeDetailView: View {
   NavigationStack {
     EpisodeDetailView(
       viewModel: EpisodeDetailViewModel(
-        episode: DisplayedEpisode.getDisplayedEpisode(
+        episode: DisplayedEpisode(
           UnsavedPodcastEpisode(
             unsavedPodcast: try! Create.unsavedPodcast(
               title: "The Long-Form Investigative Journalism and Documentary Podcast Network",
@@ -404,7 +404,7 @@ struct EpisodeDetailView: View {
   NavigationStack {
     EpisodeDetailView(
       viewModel: EpisodeDetailViewModel(
-        episode: DisplayedEpisode.getDisplayedEpisode(
+        episode: DisplayedEpisode(
           UnsavedPodcastEpisode(
             unsavedPodcast: try! Create.unsavedPodcast(
               title: "Tech Interview Podcast",
@@ -436,7 +436,7 @@ struct EpisodeDetailView: View {
   NavigationStack {
     EpisodeDetailView(
       viewModel: EpisodeDetailViewModel(
-        episode: DisplayedEpisode.getDisplayedEpisode(
+        episode: DisplayedEpisode(
           UnsavedPodcastEpisode(
             unsavedPodcast: try! Create.unsavedPodcast(
               title: "Tech Talk Daily",
@@ -462,7 +462,7 @@ struct EpisodeDetailView: View {
 
 #Preview("Strong Recommendation") {
   let viewModel = EpisodeDetailViewModel(
-    episode: DisplayedEpisode.getDisplayedEpisode(
+    episode: DisplayedEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: try! Create.unsavedPodcast(
           title: "The Tech Podcast",
@@ -494,7 +494,7 @@ struct EpisodeDetailView: View {
 
 #Preview("Recommendation, Single Reason") {
   let viewModel = EpisodeDetailViewModel(
-    episode: DisplayedEpisode.getDisplayedEpisode(
+    episode: DisplayedEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: try! Create.unsavedPodcast(
           title: "Curious Minds Weekly",

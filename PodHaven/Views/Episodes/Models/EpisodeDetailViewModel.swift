@@ -1,4 +1,4 @@
-// Copyright Justin Bishop, 2025
+// Copyright Justin Bishop, 2026
 
 import AVFoundation
 import FactoryKit
@@ -26,7 +26,8 @@ import Tagged
   // MARK: - Data
 
   private let originTab: Navigation.Tab
-  private let detailSource: EpisodeDetailSource
+  private let seed: EpisodeDetailSeed
+  private let unsavedFallback: UnsavedPodcastEpisode?
   var episode: DisplayedEpisode
   var tags: IdentifiedArrayOf<Tag> = []
   private var recommendationScore: RecommendationScore?
@@ -81,19 +82,44 @@ import Tagged
 
   // MARK: - Initialization
 
-  private init(detailSource: EpisodeDetailSource, startTime: Int? = nil) {
+  private init(seed: EpisodeDetailSeed, startTime: Int? = nil) {
     self.originTab = Container.shared.navigation().currentTab
-    self.detailSource = detailSource
-    self.episode = detailSource.initialEpisode
+    self.seed = seed
+    self.episode = seed.initialEpisode
+    self.unsavedFallback = Self.unsavedFallback(for: seed)
     self.startTime = startTime
   }
 
   convenience init(episode: DisplayedEpisode, startTime: Int? = nil) {
-    self.init(detailSource: EpisodeDetailSource(episode: episode), startTime: startTime)
+    self.init(seed: .displayedEpisode(episode), startTime: startTime)
   }
 
   convenience init(listedEpisode: ListedEpisode) {
-    self.init(detailSource: EpisodeDetailSource(listedEpisode: listedEpisode))
+    self.init(seed: .listedEpisode(listedEpisode))
+  }
+
+  private static func unsavedFallback(for seed: EpisodeDetailSeed) -> UnsavedPodcastEpisode? {
+    let unsavedSource: UnsavedPodcastEpisode?
+    switch seed {
+    case .displayedEpisode(let episode):
+      unsavedSource = episode.source.unsaved
+    case .listedEpisode(let listedEpisode):
+      unsavedSource = listedEpisode.unsavedPodcastEpisode
+    }
+
+    guard let unsavedSource else { return nil }
+
+    do {
+      return try unsavedSource.toOriginalUnsavedPodcastEpisode()
+    } catch {
+      Assert.fatal(
+        """
+        Cannot build UnsavedPodcastEpisode fallback \
+        for episode: \(unsavedSource.toString). \
+        Error: \(error)
+        """
+      )
+    }
   }
 
   func appear() {
@@ -111,7 +137,7 @@ import Tagged
   }
 
   func performAppear() async throws {
-    let podcastEpisode = try await detailSource.savedEpisode(currentEpisode: episode)
+    let podcastEpisode = try await repo.podcastEpisode(episode.mediaGUID)
 
     if let podcastEpisode {
       Self.log.debug("Podcast episode: \(podcastEpisode.toString) exists in db")
@@ -123,15 +149,13 @@ import Tagged
       Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
 
       _podcastEpisode = nil
-      switch detailSource.missingSavedResolution() {
-      case .display(let fallbackEpisode):
-        episode = fallbackEpisode
-      case .dismiss(let message):
+      guard let unsavedFallback else {
         Self.log.warning("Episode no longer exists for detail hydration: \(episode.toString)")
-        alert(message)
+        alert("This episode is no longer available.")
         navigation.dismiss(from: originTab)
         return
       }
+      episode = DisplayedEpisode(unsavedFallback)
     }
 
     if let startTime {
@@ -483,7 +507,9 @@ import Tagged
         guard let updated
         else {
           Self.log.debug("Episode was deleted")
-          let deletedPresentation = try detailSource.deletedObservedPresentation(podcastEpisode)
+          let deletedPresentation = DisplayedEpisode(
+            try podcastEpisode.toOriginalUnsavedPodcastEpisode()
+          )
           tags = []
           clearRecommendationTask()
           recommendationScore = nil
@@ -576,9 +602,13 @@ import Tagged
   private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
-    let podcastEpisode = try await detailSource.getOrCreatePodcastEpisode(
-      currentEpisode: episode
-    )
+    let podcastEpisode: PodcastEpisode
+    switch seed {
+    case .listedEpisode(let listedEpisode):
+      podcastEpisode = try await listedEpisode.getOrCreatePodcastEpisode()
+    case .displayedEpisode:
+      podcastEpisode = try await episode.getOrCreatePodcastEpisode()
+    }
     self.podcastEpisode = podcastEpisode
     startObservation()
     startRecommendationObservation()
