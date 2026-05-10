@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import SwiftUI
 
 // MARK: - Selectable
@@ -25,7 +24,14 @@ func selectablePodcastsToolbarItems<ViewModel: SelectablePodcastList>(viewModel:
             }
           }
 
-          BulkPodcastTagMenu(viewModel: viewModel)
+          if viewModel.selectionHasTagData {
+            TagMenu(
+              intersection: viewModel.selectedPodcastsTagIntersection,
+              union: viewModel.selectedPodcastsTagUnion,
+              onAdd: { viewModel.applyTagToSelectedPodcasts($0) },
+              onRemove: { viewModel.removeTagFromSelectedPodcasts($0) }
+            )
+          }
 
           Divider()
 
@@ -42,57 +48,6 @@ func selectablePodcastsToolbarItems<ViewModel: SelectablePodcastList>(viewModel:
 
   ToolbarItem(placement: .primaryAction) {
     SelectableListMenu(list: viewModel.podcastList)
-  }
-}
-
-// Wrapped in a struct view (rather than a free `@ViewBuilder` function)
-// so `@DynamicInjected(\.sharedState)` participates in SwiftUI observation
-// tracking — tag renames/adds reflect in the open menu without waiting for
-// some unrelated re-render to evict the toolbar.
-@MainActor
-private struct BulkPodcastTagMenu<ViewModel: SelectablePodcastList>: View {
-  @DynamicInjected(\.sharedState) private var sharedState
-
-  let viewModel: ViewModel
-
-  var body: some View {
-    if viewModel.selectionHasTagData {
-      let allTags = sharedState.tags
-      let intersection = viewModel.selectedPodcastsTagIntersection
-      let union = viewModel.selectedPodcastsTagUnion
-      let addable = allTags.filter { !intersection.contains($0.id) }
-      let removable = allTags.filter { union.contains($0.id) }
-
-      if !addable.isEmpty || !removable.isEmpty {
-        Menu {
-          if !addable.isEmpty {
-            Menu {
-              ForEach(addable) { tag in
-                Button(tag.name) {
-                  viewModel.applyTagToSelectedPodcasts(tag.id)
-                }
-              }
-            } label: {
-              AppIcon.addTag.label("Add Tag")
-            }
-          }
-
-          if !removable.isEmpty {
-            Menu {
-              ForEach(removable) { tag in
-                Button(tag.name) {
-                  viewModel.removeTagFromSelectedPodcasts(tag.id)
-                }
-              }
-            } label: {
-              AppIcon.removeTag.label("Remove Tag")
-            }
-          }
-        } label: {
-          AppIcon.tag.label("Tag")
-        }
-      }
-    }
   }
 }
 
