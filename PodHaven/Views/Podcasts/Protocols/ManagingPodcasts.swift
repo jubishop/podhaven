@@ -12,6 +12,8 @@ import Logging
   func deletePodcast(_ podcast: PodcastType)
   func subscribePodcast(_ podcast: PodcastType)
   func unsubscribePodcast(_ podcast: PodcastType)
+  func addTag(_ tagID: Tag.ID, to podcast: PodcastType)
+  func removeTag(_ tagID: Tag.ID, from podcast: PodcastType)
 
   func getOrCreatePodcast(_ podcast: PodcastType) async throws -> Podcast
 }
@@ -102,6 +104,42 @@ extension ManagingPodcasts {
         try await repo.markUnsubscribed(podcastID)
       } catch {
         Self.log.caughtError("unsubscribePodcast: failed for podcast \(podcastID)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func addTag(_ tagID: Tag.ID, to podcast: PodcastType) {
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let podcastID = try await getOrCreatePodcastID(podcast)
+        try await repo.addTag(tagID, to: podcastID)
+      } catch {
+        Self.log.caughtError(
+          "addTag: failed to add tag \(tagID) to podcast \(podcast.title)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func removeTag(_ tagID: Tag.ID, from podcast: PodcastType) {
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let podcastID = try await getOrCreatePodcastID(podcast)
+        _ = try await repo.removeTag(tagID, from: podcastID)
+      } catch {
+        Self.log.caughtError(
+          "removeTag: failed to remove tag \(tagID) from podcast \(podcast.title)",
+          error
+        )
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

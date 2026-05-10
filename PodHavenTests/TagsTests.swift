@@ -388,6 +388,118 @@ class TagsTests {
     #expect(removed == 0)
   }
 
+  @Test("addTag(toPodcasts:) ignores duplicates and adds missing rows in one transaction")
+  func bulkAddTagToPodcastsIgnoresDuplicates() async throws {
+    let podA =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://example.com/a.rss")!),
+            title: "A"
+          )
+        )
+      )
+      .id
+    let podB =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://example.com/b.rss")!),
+            title: "B"
+          )
+        )
+      )
+      .id
+    let podC =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://example.com/c.rss")!),
+            title: "C"
+          )
+        )
+      )
+      .id
+
+    let tag = try await repo.insertTag(UnsavedTag(name: "Mixed"))
+    // Pre-tag podA so the bulk call hits a UNIQUE conflict for that row;
+    // the others must still get tagged. Per-row addTag would throw here.
+    try await repo.addTag(tag.id, to: podA)
+
+    try await repo.addTag(tag.id, toPodcasts: [podA, podB, podC])
+
+    for podcastID in [podA, podB, podC] {
+      let detail = try #require(try await repo.podcastSeriesDetail(podcastID))
+      #expect(detail.tags.map(\.id) == [tag.id])
+    }
+  }
+
+  @Test("addTag(toPodcasts:) is a no-op for an empty list")
+  func bulkAddTagToPodcastsEmptyList() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "Lonely"))
+    try await repo.addTag(tag.id, toPodcasts: [])
+  }
+
+  @Test("removeTag(fromPodcasts:) deletes only the target tag and returns the count removed")
+  func bulkRemoveTagFromPodcastsDeletesAndCounts() async throws {
+    let podA =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://example.com/a.rss")!),
+            title: "A"
+          )
+        )
+      )
+      .id
+    let podB =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://example.com/b.rss")!),
+            title: "B"
+          )
+        )
+      )
+      .id
+    let podC =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://example.com/c.rss")!),
+            title: "C"
+          )
+        )
+      )
+      .id
+
+    let target = try await repo.insertTag(UnsavedTag(name: "Target"))
+    let untouched = try await repo.insertTag(UnsavedTag(name: "Untouched"))
+
+    try await repo.addTag(target.id, to: podA)
+    try await repo.addTag(target.id, to: podB)
+    // podC has only `untouched`, so the bulk remove must skip it but also
+    // not remove podC's untouched tag.
+    try await repo.addTag(untouched.id, to: podC)
+
+    let removed = try await repo.removeTag(target.id, fromPodcasts: [podA, podB, podC])
+    #expect(removed == 2)
+
+    let detailA = try #require(try await repo.podcastSeriesDetail(podA))
+    let detailB = try #require(try await repo.podcastSeriesDetail(podB))
+    let detailC = try #require(try await repo.podcastSeriesDetail(podC))
+    #expect(detailA.tags.isEmpty)
+    #expect(detailB.tags.isEmpty)
+    #expect(detailC.tags.map(\.id) == [untouched.id])
+  }
+
+  @Test("removeTag(fromPodcasts:) is a no-op returning 0 for an empty list")
+  func bulkRemoveTagFromPodcastsEmptyList() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "Lonely"))
+    let removed = try await repo.removeTag(tag.id, fromPodcasts: [])
+    #expect(removed == 0)
+  }
+
   @Test("deleteTag() cascades through episodeTag mappings")
   func deletingTagRemovesEpisodeMappings() async throws {
     let series = try await repo.insertSeries(

@@ -10,7 +10,8 @@ struct PodcastTag:
   Hashable,
   PersistableRecord,
   Sendable,
-  TableRecord
+  TableRecord,
+  TagJoinableTable
 {
   // MARK: - Data
 
@@ -30,4 +31,9 @@ struct PodcastTag:
     static let podcastId = Column("podcastId")
     static let tagId = Column("tagId")
   }
+
+  // MARK: - TagJoinableTable
+
+  static let parentTableName = Podcast.databaseTableName
+  static let parentIdColumnName = Columns.podcastId.name
 }

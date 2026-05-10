@@ -24,6 +24,15 @@ func selectablePodcastsToolbarItems<ViewModel: SelectablePodcastList>(viewModel:
             }
           }
 
+          if viewModel.selectionHasTagData {
+            TagMenu(
+              intersection: viewModel.selectedPodcastsTagIntersection,
+              union: viewModel.selectedPodcastsTagUnion,
+              onAdd: { viewModel.applyTagToSelectedPodcasts($0) },
+              onRemove: { viewModel.removeTagFromSelectedPodcasts($0) }
+            )
+          }
+
           Divider()
 
           if viewModel.anySelectedSaved {
