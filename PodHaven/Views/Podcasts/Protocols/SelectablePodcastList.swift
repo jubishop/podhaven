@@ -139,11 +139,9 @@ extension SelectablePodcastList {
       }
     }
   }
-}
 
-// MARK: - Tag Selection Helpers
+  // MARK: - Tag Selection Helpers
 
-extension SelectablePodcastList {
   // True only when every selected podcast is saved (and so carries
   // observable tag rows). Mirrors `SelectableEpisodeList.selectionHasTagData`.
   var selectionHasTagData: Bool {
@@ -153,20 +151,19 @@ extension SelectablePodcastList {
 
   var selectedPodcastsTagUnion: Set<Tag.ID> {
     selectedPodcastsWithMetadata.reduce(into: Set<Tag.ID>()) { union, metadata in
-      union.formUnion(metadata.tags.ids)
+      union.formUnion(metadata.tagIDs)
     }
   }
 
   var selectedPodcastsTagIntersection: Set<Tag.ID> {
     var intersection: Set<Tag.ID>?
     for metadata in selectedPodcastsWithMetadata {
-      let tagIDs = Set(metadata.tags.ids)
       if let current = intersection {
-        let next = current.intersection(tagIDs)
+        let next = current.intersection(metadata.tagIDs)
         if next.isEmpty { return [] }
         intersection = next
       } else {
-        intersection = tagIDs
+        intersection = metadata.tagIDs
       }
     }
     return intersection ?? []

@@ -202,8 +202,7 @@ struct SearchView: View {
             )
             .podcastContextMenu(
               viewModel: viewModel,
-              podcast: podcastWithEpisodeMetadata.podcast,
-              tagIDs: Set(podcastWithEpisodeMetadata.tags.ids)
+              podcastWithMetadata: podcastWithEpisodeMetadata
             )
           }
         )
@@ -231,8 +230,7 @@ struct SearchView: View {
             )
             .podcastContextMenu(
               viewModel: viewModel,
-              podcast: podcastWithEpisodeMetadata.podcast,
-              tagIDs: Set(podcastWithEpisodeMetadata.tags.ids)
+              podcastWithMetadata: podcastWithEpisodeMetadata
             )
           }
         )

@@ -93,7 +93,7 @@ actor MetadataTests {
 
   // MARK: - Tags
 
-  @Test("podcastsWithEpisodeMetadata() carries each podcast's tags, ordered case-insensitively")
+  @Test("podcastsWithEpisodeMetadata() carries each podcast's tag IDs")
   func testPodcastsWithEpisodeMetadataCarriesTags() async throws {
     let taggedPodcast = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(title: "Tagged"))
@@ -114,15 +114,13 @@ actor MetadataTests {
       try await observatory.podcastsWithEpisodeMetadata().get()
 
     let taggedResult = results.first { $0.feedURL == taggedPodcast.podcast.feedURL }!
-    #expect(
-      taggedResult.tags.map(\.name) == ["Apple", "mango", "zebra"]
-    )
+    #expect(taggedResult.tagIDs == [apple.id, mango.id, zebra.id])
 
     let untaggedResult = results.first { $0.feedURL == untaggedPodcast.podcast.feedURL }!
-    #expect(untaggedResult.tags.isEmpty)
+    #expect(untaggedResult.tagIDs.isEmpty)
   }
 
-  @Test("listablePodcastsWithEpisodeMetadata() also carries tags")
+  @Test("listablePodcastsWithEpisodeMetadata() also carries tag IDs")
   func testListablePodcastsWithEpisodeMetadataCarriesTags() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
@@ -134,6 +132,6 @@ actor MetadataTests {
       try await observatory.listablePodcastsWithEpisodeMetadata().get()
 
     #expect(results.count == 1)
-    #expect(results[0].tags.map(\.name) == ["Swift"])
+    #expect(results[0].tagIDs == [tag.id])
   }
 }
