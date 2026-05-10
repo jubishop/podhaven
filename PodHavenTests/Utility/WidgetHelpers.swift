@@ -19,43 +19,32 @@ enum WidgetHelpers {
 
   // MARK: - Debounced Helper
 
-  // Waits for debounce sleep cycles, then polls for the snapshot file.
-  // Multiple independent debounces may be active, so we tolerate iterations
-  // where a different debounce fires before the one we're waiting for.
+  // Drives any pending fake-sleeper debounces forward in 250ms ticks and polls
+  // for the snapshot file in between. Wait.until's 10ms cadence gives the
+  // debounce action's async work (image pipeline, encoding, file write) time
+  // to complete after the debounce fires. The 5s overall budget is generous
+  // enough to ride out CI-stress slowdowns in the snapshot writer's TaskGroup.
   @discardableResult
   static func waitForDebounced<T: WidgetSnapshotType>(
     _ type: T.Type,
     url: URL,
     where predicate: @escaping @Sendable (T) -> Bool = { _ in true }
   ) async throws -> T {
-    for _ in 0..<10 {
-      try await sleeper.waitForSleepRequests(count: 1)
-      await sleeper.advanceTime(by: .milliseconds(250))
-
-      // Wait.until gives async write work time to complete after advanceTime resumes the
-      // debounce continuation.
-      // Wrap in do/catch so we can try the next debounce cycle if the file
-      // wasn't written by this particular debounce.
-      do {
-        try await Wait.until(
-          maxAttempts: 50,
-          { [fakeFileManager] in
-            guard fakeFileManager.fileExists(at: url) else { return false }
-            let data = try await fakeFileManager.readData(from: url)
-            let snapshot = try JSONDecoder().decode(T.self, from: data)
-            return predicate(snapshot)
-          },
-          { "Snapshot at \(url.lastPathComponent) not ready yet" }
-        )
+    try await Wait.until(
+      maxAttempts: 500,
+      { [sleeper, fakeFileManager] in
+        if sleeper.pendingCount() > 0 {
+          await sleeper.advanceTime(by: .milliseconds(250))
+        }
+        guard fakeFileManager.fileExists(at: url) else { return false }
         let data = try await fakeFileManager.readData(from: url)
-        return try JSONDecoder().decode(T.self, from: data)
-      } catch {
-        continue
-      }
-    }
-    throw TestError.waitUntilFailure(
-      "Snapshot at \(url.lastPathComponent) never matched expected condition"
+        let snapshot = try JSONDecoder().decode(T.self, from: data)
+        return predicate(snapshot)
+      },
+      { "Snapshot at \(url.lastPathComponent) never matched expected condition" }
     )
+    let data = try await fakeFileManager.readData(from: url)
+    return try JSONDecoder().decode(T.self, from: data)
   }
 
   // MARK: - Per-Type Convenience

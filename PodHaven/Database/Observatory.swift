@@ -194,9 +194,16 @@ struct Observatory: Observing {
       try Podcast
         .withID(podcastID)
         .including(all: Podcast.episodes)
-        .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
+    }
+  }
+
+  func podcastSeriesDetail(_ podcastID: Podcast.ID)
+    -> AsyncValueObservation<PodcastSeriesDetail?>
+  {
+    _observe { db in
+      try PodcastSeriesDetail.fetchOne(podcastID, in: db)
     }
   }
 

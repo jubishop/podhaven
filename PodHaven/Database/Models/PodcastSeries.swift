@@ -4,26 +4,32 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 
+// Operational shape used by RefreshManager and series writers. Carries
+// full `Episode` rows for feed merge / migration. Detail-view callers
+// should use `PodcastSeriesDetail` instead — it carries tag IDs and the
+// slim listable-episode shape.
 struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifiable, Stringable {
   var id: Podcast.ID { podcast.id }
 
   let podcast: Podcast
   let episodes: IdentifiedArrayOf<Episode>
-  let tags: IdentifiedArrayOf<Tag>?
 
-  init(podcast: Podcast, episodes: [Episode] = [], tags: IdentifiedArrayOf<Tag>? = nil) {
+  init(
+    podcast: Podcast,
+    episodes: [Episode] = []
+  ) {
     self.init(
       podcast: podcast,
-      episodes: IdentifiedArrayOf(uniqueElements: episodes),
-      tags: tags
+      episodes: IdentifiedArrayOf(uniqueElements: episodes)
     )
   }
 
-  init(podcast: Podcast, episodes: IdentifiedArrayOf<Episode>, tags: IdentifiedArrayOf<Tag>? = nil)
-  {
+  init(
+    podcast: Podcast,
+    episodes: IdentifiedArrayOf<Episode>
+  ) {
     self.podcast = podcast
     self.episodes = episodes
-    self.tags = tags
   }
 
   // MARK: - Decodable
@@ -34,17 +40,11 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
     episodes = IdentifiedArrayOf(
       uniqueElements: try container.decode([Episode].self, forKey: .episodes)
     )
-    if let decodedTags = try container.decodeIfPresent([Tag].self, forKey: .tags) {
-      tags = IdentifiedArrayOf(uniqueElements: decodedTags)
-    } else {
-      tags = nil
-    }
   }
 
   private enum CodingKeys: String, CodingKey {
     case podcast
     case episodes
-    case tags
   }
 
   // MARK: - Stringable

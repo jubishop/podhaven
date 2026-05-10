@@ -10,7 +10,7 @@ import Testing
 @Suite("of PodcastDetailViewModel tests", .container)
 @MainActor final class PodcastDetailViewModelTests {
   @DynamicInjected(\.alert) private var alert
-  @DynamicInjected(\.navigation) private var navigation
+  @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.repo) private var repo
@@ -83,15 +83,13 @@ import Testing
     let listablePodcast = try await fetchListablePodcast(savedSeries.id)
     let viewModel = PodcastDetailViewModel(listedPodcast: ListedPodcast(saved: listablePodcast))
 
-    #expect(viewModel.isHydratingInitialPresentation)
     #expect(viewModel.shareURL == ShareURL.podcast(feedURL: savedSeries.podcast.feedURL))
 
     try await viewModel.performAppear()
 
     try await Wait.until(
       { @MainActor in
-        !viewModel.isHydratingInitialPresentation
-          && viewModel.saved
+        viewModel.saved
           && viewModel.podcast.title == savedSeries.podcast.title
           && viewModel.podcast.description == savedSeries.podcast.description
           && viewModel.episodeList.allEntries.count == savedSeries.episodes.count
@@ -99,7 +97,6 @@ import Testing
       { @MainActor in
         """
         Expected list-backed podcast detail to hydrate saved podcast data.
-        isHydratingInitialPresentation: \(viewModel.isHydratingInitialPresentation)
         saved: \(viewModel.saved)
         title: \(viewModel.podcast.title)
         description: \(viewModel.podcast.description)
@@ -146,7 +143,6 @@ import Testing
       listedPodcast: ListedPodcast(savedSearchResult: searchResult)
     )
 
-    #expect(viewModel.isHydratingInitialPresentation == false)
     #expect(viewModel.shareURL == ShareURL.podcast(feedURL: feedURL))
     #expect(viewModel.podcast.description == searchDescription)
     #expect(viewModel.podcast.link == searchLink)
@@ -231,7 +227,6 @@ import Testing
 
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
 
-    #expect(viewModel.isHydratingInitialPresentation == false)
     #expect(viewModel.saved == false)
     #expect(viewModel.podcast.title == unsavedSeries.unsavedPodcast.title)
     try await Wait.until(
@@ -286,20 +281,14 @@ import Testing
     )
   }
 
-  @Test("deleting an observed saved series alerts and dismisses when feed recovery fails")
-  func observedDeletionFailureAlertsAndDismisses() async throws {
+  @Test("deleting an observed saved series alerts when feed recovery fails")
+  func observedDeletionFailureAlerts() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/deleted-podcast.rss")!)
     let feedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     await feedSession.respond(to: feedURL.rawValue, data: feedData)
     let podcastFeed = try await PodcastFeed.parse(feedData, from: feedURL)
     let savedSeries = try await repo.insertSeries(podcastFeed.toUnsavedSeries())
     let displayedPodcast = DisplayedPodcast(savedSeries.podcast)
-
-    navigation.currentTab = .podcasts
-    navigation.podcasts.path = [
-      .podcastsViewType(.unsubscribed),
-      .podcast(displayedPodcast),
-    ]
 
     let viewModel = PodcastDetailViewModel(podcast: displayedPodcast)
 
@@ -309,15 +298,11 @@ import Testing
     _ = try await repo.deletePodcast(savedSeries.id)
 
     try await Wait.until(
-      { @MainActor [self] in
-        alert.config != nil
-          && navigation.podcasts.path == [.podcastsViewType(.unsubscribed)]
-      },
+      { @MainActor [self] in alert.config != nil },
       { @MainActor [self] in
         """
-        Expected failed feed recovery after deletion to alert and dismiss.
+        Expected failed feed recovery after deletion to alert.
         alert presented: \(alert.config != nil)
-        navigation path: \(navigation.podcasts.path)
         """
       }
     )
@@ -395,6 +380,131 @@ import Testing
         """
       }
     )
+  }
+
+  @Test("selected episode tag helpers use saved episode tag IDs")
+  func selectedEpisodeTagHelpersUseSavedEpisodeTagIDs() async throws {
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Tagged Detail"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "detail-tagged-1"),
+          try Create.unsavedEpisode(guid: "detail-tagged-2"),
+        ]
+      )
+    )
+    let firstEpisode = savedSeries.episodes[0]
+    let secondEpisode = savedSeries.episodes[1]
+    let alpha = try await repo.insertTag(UnsavedTag(name: "Alpha"))
+    let beta = try await repo.insertTag(UnsavedTag(name: "Beta"))
+    let cherry = try await repo.insertTag(UnsavedTag(name: "Cherry"))
+
+    try await repo.addTag(alpha.id, to: firstEpisode.id)
+    try await repo.addTag(beta.id, to: firstEpisode.id)
+    try await repo.addTag(beta.id, to: secondEpisode.id)
+    try await repo.addTag(cherry.id, to: secondEpisode.id)
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count == 2 },
+      { @MainActor in
+        "Expected saved podcast detail episodes to load before selection."
+      }
+    )
+
+    try select(viewModel, episodeIDs: [firstEpisode.id, secondEpisode.id])
+    #expect(viewModel.selectedEpisodesTagIntersection == [beta.id])
+    #expect(viewModel.selectedEpisodesTagUnion == [alpha.id, beta.id, cherry.id])
+    #expect(viewModel.selectionHasTagData)
+  }
+
+  @Test("selectionHasTagData is false when any selected episode is unsaved")
+  func selectionHasTagDataFalseForUnsavedSelection() async throws {
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved Tag Gate"),
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(guid: "unsaved-tag-gate-1"),
+        try Create.unsavedEpisode(guid: "unsaved-tag-gate-2"),
+      ]
+    )
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    _ = try await repo.insertTag(UnsavedTag(name: "Alpha"))
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.count == 2 },
+      { @MainActor in
+        "Expected unsaved series episodes to seed before selection."
+      }
+    )
+
+    for entry in viewModel.episodeList.allEntries {
+      viewModel.episodeList.isSelected[entry.id] = true
+    }
+
+    // Bulk tag actions on unsaved selections would silently upsert just to
+    // attach a tag — the gate keeps the menu hidden so the per-row
+    // "no tag UI for unsaved rows" contract holds across both surfaces.
+    #expect(viewModel.selectionHasTagData == false)
+  }
+
+  @Test("selectedPodcastEpisodes preserves user-visible selection order")
+  func selectedPodcastEpisodesPreservesSelectionOrder() async throws {
+    // Insertion order = ep1, ep2, ep3 (so DB rowid order matches that).
+    // pubDates are reversed so `oldestFirst` flips the visible order to
+    // [ep3, ep2, ep1] — different from any "natural" SQL ordering, which
+    // is what reveals the bug if `WHERE id IN (...)` returns rows in
+    // rowid order rather than the input ID order.
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Selection Order"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "sel-order-1",
+            title: "Newest",
+            pubDate: Date(timeIntervalSince1970: 300)
+          ),
+          try Create.unsavedEpisode(
+            guid: "sel-order-2",
+            title: "Middle",
+            pubDate: Date(timeIntervalSince1970: 200)
+          ),
+          try Create.unsavedEpisode(
+            guid: "sel-order-3",
+            title: "Oldest",
+            pubDate: Date(timeIntervalSince1970: 100)
+          ),
+        ]
+      )
+    )
+    let newest = savedSeries.episodes[0]
+    let middle = savedSeries.episodes[1]
+    let oldest = savedSeries.episodes[2]
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await viewModel.performAppear()
+    viewModel.currentSortMethod = .oldestFirst
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.title) == ["Oldest", "Middle", "Newest"]
+      },
+      { @MainActor in
+        """
+        Expected oldestFirst sort to flip the visible order before selecting.
+        Actual titles: \(viewModel.episodeList.filteredEntries.map(\.title))
+        """
+      }
+    )
+
+    try select(viewModel, episodeIDs: [oldest.id, middle.id, newest.id])
+
+    // selectedEpisodes follows filteredEntries (visible) order, so the
+    // returned PodcastEpisodes must match — anything else means the
+    // `WHERE id IN (...)` row-order leaked into bulk Play / Replace Queue.
+    let podcastEpisodes = try await viewModel.selectedPodcastEpisodes
+    #expect(podcastEpisodes.map(\.id) == [oldest.id, middle.id, newest.id])
   }
 
   @Test("refreshing a series under newestFirst places a new episode at the top, not the bottom")
@@ -588,5 +698,145 @@ import Testing
 
   private func searchResultFeedURL() -> FeedURL {
     FeedURL(URL(string: "https://example.com/search-result.rss")!)
+  }
+
+  private func select(_ viewModel: PodcastDetailViewModel, episodeIDs: [Episode.ID]) throws {
+    for episodeID in episodeIDs {
+      let entry = try #require(viewModel.episodeList.allEntries.first { $0.episodeID == episodeID })
+      viewModel.episodeList.isSelected[entry.id] = true
+    }
+  }
+
+  // Saved podcast detail intentionally filters by row title and parent podcast
+  // title only. Episode.description stays outside the slim row so detail-list
+  // hydration does not widen every saved detail read; adding description search
+  // needs a deliberate alternate path rather than piggybacking on the row model.
+  @Test(
+    "saved podcast detail intentionally filters by episode and podcast title only"
+  )
+  func savedDetailFilterIsIntentionallyTitleOnly() async throws {
+    let descriptionToken = "rutabaga-flagstone-3471"
+    let titleToken = "tangerine-dropper"
+    let podcastTitleToken = "kaleidoscope-cassette"
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          title: "Detail Search \(podcastTitleToken)",
+          description: "Series-level blurb without any of the tokens"
+        ),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "title-match",
+            title: "Episode \(titleToken)",
+            description: "intro with no special tokens"
+          ),
+          try Create.unsavedEpisode(
+            guid: "description-only",
+            title: "Episode With Plain Title",
+            description: "intro that mentions \(descriptionToken)"
+          ),
+        ]
+      )
+    )
+    let titleMatchID = savedSeries.episodes[0].id
+    let descriptionOnlyID = savedSeries.episodes[1].id
+
+    let viewModel = PodcastDetailViewModel(
+      podcast: DisplayedPodcast(savedSeries.podcast)
+    )
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count == 2 },
+      { @MainActor in
+        "Expected both saved episodes to load before filtering; got \(viewModel.episodeList.allEntries.count)"
+      }
+    )
+
+    // Drop the debounce so each search term applies immediately.
+    viewModel.episodeList.debounceDuration = .zero
+
+    // Episode title token matches just the first row.
+    viewModel.episodeList.entryFilter = titleToken
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.episodeID) == [titleMatchID]
+      },
+      { @MainActor in
+        """
+        Expected episode-title token '\(titleToken)' to match the first row.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.map { ($0.title, $0.episodeID) })
+        """
+      }
+    )
+
+    // Podcast title token matches every row (both share the parent podcast).
+    viewModel.episodeList.entryFilter = podcastTitleToken
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.count == 2
+      },
+      { @MainActor in
+        """
+        Expected podcast-title token '\(podcastTitleToken)' to match both rows.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.map { ($0.title, $0.episodeID) })
+        """
+      }
+    )
+
+    // Description-only token must NOT match under this title-only contract.
+    viewModel.episodeList.entryFilter = descriptionToken
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.isEmpty },
+      { @MainActor in
+        """
+        Expected description-only token '\(descriptionToken)' to filter to nothing on saved detail.
+        If this test fails because filteredEntries now contains \(descriptionOnlyID), saved detail description search has been reintroduced. Make that product change explicit and keep it off the slim row model unless the query cost is acceptable.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.map { ($0.title, $0.episodeID) })
+        """
+      }
+    )
+  }
+
+  @Test("podcastSeries observation prunes episodes that have been removed from the DB")
+  func podcastSeriesObservationPrunesRemovedEpisodes() async throws {
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Prune Test"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "keep-1"),
+          try Create.unsavedEpisode(guid: "remove-me"),
+          try Create.unsavedEpisode(guid: "keep-2"),
+        ]
+      )
+    )
+    let removedID = savedSeries.episodes[1].id
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await viewModel.performAppear()
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count == 3 },
+      { @MainActor in
+        "Expected 3 entries after initial observation; got \(viewModel.episodeList.allEntries.count)"
+      }
+    )
+
+    _ = try await appDB.db.write { db in
+      try Episode.deleteOne(db, key: removedID)
+    }
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.allEntries.count == 2
+          && viewModel.episodeList.allEntries.allSatisfy { $0.episodeID != removedID }
+      },
+      { @MainActor in
+        """
+        Expected the removed episode to be pruned from allEntries.
+        count: \(viewModel.episodeList.allEntries.count)
+        episodeIDs: \(viewModel.episodeList.allEntries.map(\.episodeID))
+        """
+      }
+    )
   }
 }

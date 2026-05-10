@@ -51,8 +51,7 @@ struct RefreshManager {
         Podcast.Columns.lastUpdate < Date.now.advanced(by: -stalenessThreshold.asTimeInterval)
           && filter,
         order: Podcast.Columns.lastUpdate.asc,
-        limit: limit,
-        includeTags: false
+        limit: limit
       )
       Self.log.debug(
         "performRefresh: fetched \(staleSeries.count) stale series (limit: \(limit))"

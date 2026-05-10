@@ -63,6 +63,41 @@ class PodcastTests {
     #expect(titleCount == 0)
   }
 
+  @Test("podcastSeriesDetail(feedURL:iTunesID:) resolves by feedURL then iTunesID")
+  func podcastSeriesDetailByFeedURLAndITunesIDResolution() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/identity-lookup.rss")!)
+    let iTunesID = ITunesPodcastID(rawValue: 42)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, iTunesID: iTunesID)
+      )
+    )
+
+    // feedURL match wins; iTunesID supplied or not is irrelevant.
+    let byFeed = try await repo.podcastSeriesDetail(feedURL, iTunesID: nil)
+    #expect(byFeed?.id == series.id)
+    #expect(byFeed?.podcast.iTunesID == iTunesID)
+
+    // Wrong feedURL with matching iTunesID falls through to the iTunesID branch.
+    let mismatchedFeed = FeedURL(URL(string: "https://example.com/different.rss")!)
+    let byITunes = try await repo.podcastSeriesDetail(mismatchedFeed, iTunesID: iTunesID)
+    #expect(byITunes?.id == series.id)
+
+    // Neither matches.
+    let unrelatedITunes = ITunesPodcastID(rawValue: 999)
+    let nothing = try await repo.podcastSeriesDetail(mismatchedFeed, iTunesID: unrelatedITunes)
+    #expect(nothing == nil)
+
+    // No iTunesID stored; lookup with iTunesID falls back to nil correctly.
+    let plainURL = FeedURL(URL(string: "https://example.com/plain.rss")!)
+    let plainSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(feedURL: plainURL))
+    )
+    let plainSeriesDetail = try await repo.podcastSeriesDetail(plainURL, iTunesID: nil)
+    #expect(plainSeriesDetail?.id == plainSeries.id)
+    #expect(plainSeriesDetail?.podcast.iTunesID == nil)
+  }
+
   @Test("that a podcast feedURL must be valid")
   func failToInsertInvalidFeedURL() async throws {
     // Bad scheme
@@ -162,8 +197,7 @@ class PodcastTests {
     let allPodcastSeries = try await repo.allPodcastSeries(
       AppDB.NoOp,
       order: Podcast.Columns.lastUpdate.asc,
-      limit: Int.max,
-      includeTags: false
+      limit: Int.max
     )
     #expect(allPodcastSeries.count == 3)
     #expect(allPodcastSeries == [neverUpdatedSeries, staleSeries, freshSeries])
@@ -171,16 +205,14 @@ class PodcastTests {
     let limitedPodcastSeries = try await repo.allPodcastSeries(
       AppDB.NoOp,
       order: Podcast.Columns.id.asc,
-      limit: 2,
-      includeTags: false
+      limit: 2
     )
     #expect(limitedPodcastSeries.count == 2)
 
     let subscribedPodcastSeries = try await repo.allPodcastSeries(
       Podcast.subscribed,
       order: Podcast.Columns.id.asc,
-      limit: Int.max,
-      includeTags: false
+      limit: Int.max
     )
     #expect(Set(subscribedPodcastSeries) == Set([staleSeries, freshSeries]))
   }

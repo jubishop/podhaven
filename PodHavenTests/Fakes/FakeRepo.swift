@@ -11,6 +11,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
+  // One-shot error to throw from `updateSaveInCache(_ episodeIDs:saveInCache:)`.
+  // Cleared on use so subsequent calls reach the real repo.
+  nonisolated let updateSaveInCacheBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
+
   private let repo: Repo
 
   init(_ repo: Repo) {
@@ -30,21 +34,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func allPodcastSeries(
     _ filter: SQLExpression,
     order: SQLOrdering = Podcast.Columns.id.desc,
-    limit: Int = Int.max,
-    includeTags: Bool = true
+    limit: Int = Int.max
   ) async throws
     -> [PodcastSeries]
   {
     recordCall(
       methodName: "allPodcastSeries",
-      parameters: (filter: filter, order: order, limit: limit, includeTags: includeTags)
+      parameters: (filter: filter, order: order, limit: limit)
     )
-    return try await repo.allPodcastSeries(
-      filter,
-      order: order,
-      limit: limit,
-      includeTags: includeTags
-    )
+    return try await repo.allPodcastSeries(filter, order: order, limit: limit)
   }
 
   // MARK: - Series Readers
@@ -62,6 +60,21 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       parameters: (feedURL: feedURL, iTunesID: iTunesID)
     )
     return try await repo.podcastSeries(feedURL, iTunesID: iTunesID)
+  }
+
+  func podcastSeriesDetail(_ podcastID: Podcast.ID) async throws -> PodcastSeriesDetail? {
+    recordCall(methodName: "podcastSeriesDetail", parameters: podcastID)
+    return try await repo.podcastSeriesDetail(podcastID)
+  }
+
+  func podcastSeriesDetail(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws
+    -> PodcastSeriesDetail?
+  {
+    recordCall(
+      methodName: "podcastSeriesDetail",
+      parameters: (feedURL: feedURL, iTunesID: iTunesID)
+    )
+    return try await repo.podcastSeriesDetail(feedURL, iTunesID: iTunesID)
   }
 
   // MARK: - Episode Readers
@@ -194,6 +207,23 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.removeTag(tagID, from: episodeID)
   }
 
+  func addTag(_ tagID: Tag.ID, toEpisodes episodeIDs: [Episode.ID]) async throws {
+    recordCall(
+      methodName: "addTag",
+      parameters: (tagID: tagID, episodeIDs: episodeIDs)
+    )
+    try await repo.addTag(tagID, toEpisodes: episodeIDs)
+  }
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, fromEpisodes episodeIDs: [Episode.ID]) async throws -> Int {
+    recordCall(
+      methodName: "removeTag",
+      parameters: (tagID: tagID, episodeIDs: episodeIDs)
+    )
+    return try await repo.removeTag(tagID, fromEpisodes: episodeIDs)
+  }
+
   // MARK: - Episode Writers
 
   @discardableResult
@@ -275,6 +305,22 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       parameters: (episodeID: episodeID, saveInCache: saveInCache)
     )
     return try await repo.updateSaveInCache(episodeID, saveInCache: saveInCache)
+  }
+
+  @discardableResult
+  func updateSaveInCache(_ episodeIDs: [Episode.ID], saveInCache: Bool) async throws -> Int {
+    recordCall(
+      methodName: "updateSaveInCache",
+      parameters: (episodeIDs: episodeIDs, saveInCache: saveInCache)
+    )
+    if let injected = updateSaveInCacheBulkError({ error in
+      let captured = error
+      error = nil
+      return captured
+    }) {
+      throw injected
+    }
+    return try await repo.updateSaveInCache(episodeIDs, saveInCache: saveInCache)
   }
 
   func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {

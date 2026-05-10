@@ -7,6 +7,7 @@ import GRDB
 
 struct ListedEpisode:
   EpisodeListable,
+  Searchable,
   Hashable,
   Sendable
 {
@@ -21,6 +22,7 @@ struct ListedEpisode:
       }
     }
 
+    var episodeID: Episode.ID? { canonicalEpisode.episodeID }
     var feedURL: FeedURL { canonicalEpisode.feedURL }
     var mediaGUID: MediaGUID { canonicalEpisode.mediaGUID }
     var title: String { canonicalEpisode.title }
@@ -34,6 +36,32 @@ struct ListedEpisode:
     var podcastImage: URL { canonicalEpisode.podcastImage }
     var saveInCache: Bool { canonicalEpisode.saveInCache }
     var rating: EpisodeRating? { canonicalEpisode.rating }
+    var queueDate: Date? {
+      switch self {
+      case .saved(let episode): return episode.queueDate
+      case .unsaved(let episode): return episode.queueDate
+      }
+    }
+    var creationDate: Date? {
+      switch self {
+      case .saved(let episode): return episode.creationDate
+      case .unsaved: return nil
+      }
+    }
+
+    var tagIDs: Set<Tag.ID>? {
+      switch self {
+      case .saved(let episode): return episode.tagIDs
+      case .unsaved: return nil
+      }
+    }
+
+    var searchableString: String {
+      switch self {
+      case .saved(let episode): return episode.searchableString
+      case .unsaved(let episode): return episode.searchableString
+      }
+    }
 
     var unsavedPodcastEpisode: UnsavedPodcastEpisode? {
       guard case .unsaved(let episode) = self else { return nil }
@@ -59,6 +87,7 @@ struct ListedEpisode:
 
   // MARK: - EpisodeListable
 
+  var episodeID: Episode.ID? { source.episodeID }
   var feedURL: FeedURL { source.feedURL }
   var mediaGUID: MediaGUID { source.mediaGUID }
   var title: String { source.title }
@@ -72,6 +101,14 @@ struct ListedEpisode:
   var podcastImage: URL { source.podcastImage }
   var saveInCache: Bool { source.saveInCache }
   var rating: EpisodeRating? { source.rating }
+  var tagIDs: Set<Tag.ID>? { source.tagIDs }
+  var queueDate: Date? { source.queueDate }
+  var previouslyQueued: Bool { queueDate != nil }
+  var creationDate: Date? { source.creationDate }
+
+  // MARK: - Searchable
+
+  var searchableString: String { source.searchableString }
 
   // MARK: - Helpers
 

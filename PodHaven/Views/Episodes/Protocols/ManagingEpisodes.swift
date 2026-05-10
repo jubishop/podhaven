@@ -20,6 +20,12 @@ import Logging
   func uncacheEpisode(_ episode: EpisodeType)
   func rateEpisode(_ episode: EpisodeType, rating: EpisodeRating?)
   func markEpisodeFinished(_ episode: EpisodeType)
+  func addTag(_ tagID: Tag.ID, to episode: EpisodeType)
+  func removeTag(_ tagID: Tag.ID, from episode: EpisodeType)
+
+  // Tags currently assigned to `episode`, or `nil` when this view model has
+  // no tag UI for it (e.g. unsaved/preview episodes).
+  func tagIDs(for episode: EpisodeType) -> Set<Tag.ID>?
 
   func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
 }
@@ -267,6 +273,44 @@ extension ManagingEpisodes {
     }
   }
 
+  func addTag(_ tagID: Tag.ID, to episode: EpisodeType) {
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let episodeID = try await getOrCreateEpisodeID(episode)
+        try await repo.addTag(tagID, to: episodeID)
+      } catch {
+        Self.log.caughtError(
+          "addTag: failed to add tag \(tagID) to episode \(episode.title)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func removeTag(_ tagID: Tag.ID, from episode: EpisodeType) {
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let episodeID = try await getOrCreateEpisodeID(episode)
+        _ = try await repo.removeTag(tagID, from: episodeID)
+      } catch {
+        Self.log.caughtError(
+          "removeTag: failed to remove tag \(tagID) from episode \(episode.title)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func tagIDs(for episode: EpisodeType) -> Set<Tag.ID>? { nil }
+
   // MARK: - Helpers
 
   private func getOrCreateEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID {
@@ -284,4 +328,18 @@ extension ManagingEpisodes where EpisodeType == ListablePodcastEpisode {
   func getOrCreatePodcastEpisode(_ episode: ListablePodcastEpisode) async throws -> PodcastEpisode {
     try await episode.getPodcastEpisode()
   }
+
+  func tagIDs(for episode: ListablePodcastEpisode) -> Set<Tag.ID>? { episode.tagIDs }
+}
+
+extension ManagingEpisodes where EpisodeType == ListedEpisode {
+  func getOrCreatePodcastEpisode(_ episode: ListedEpisode) async throws -> PodcastEpisode {
+    try await episode.getOrCreatePodcastEpisode()
+  }
+
+  func tagIDs(for episode: ListedEpisode) -> Set<Tag.ID>? { episode.tagIDs }
+}
+
+extension ManagingEpisodes where EpisodeType == OnDeck {
+  func tagIDs(for episode: OnDeck) -> Set<Tag.ID>? { episode.tagIDs }
 }

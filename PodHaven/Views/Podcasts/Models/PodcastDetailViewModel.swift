@@ -18,7 +18,6 @@ class PodcastDetailViewModel:
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
-  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
@@ -33,10 +32,9 @@ class PodcastDetailViewModel:
 
   // MARK: - Data
 
-  private let originTab: Navigation.Tab
   var podcast: DisplayedPodcast
-  private var _podcastSeries: PodcastSeries?
-  private var podcastSeries: PodcastSeries? {
+  private var _podcastSeries: PodcastSeriesDetail?
+  private var podcastSeries: PodcastSeriesDetail? {
     get { _podcastSeries }
     set {
       guard let newValue
@@ -46,22 +44,31 @@ class PodcastDetailViewModel:
 
       _podcastSeries = newValue
       podcast = DisplayedPodcast(newValue.podcast)
-      isHydratingInitialPresentation = false
 
-      // Careful to only update allEntries once
-      var allEntries = episodeList.allEntries
-      for episode in newValue.episodes {
-        allEntries[id: episode.unsaved.id] = DisplayedEpisode(
-          PodcastEpisode(podcast: newValue.podcast, episode: episode)
-        )
-      }
-      episodeList.allEntries = allEntries
+      // Empty episodes is the bootstrap case (subscribe() before observation
+      // hydrates), so skip the replacement to avoid blanking the feed-parsed
+      // unsaved rows on screen. For the populated case, wholesale-replace so
+      // DB-deleted rows get pruned rather than lingering from a merge.
+      guard !newValue.episodes.isEmpty else { return }
+      episodeList.allEntries = IdentifiedArray(
+        uniqueElements: newValue.episodes.map { listableEpisode in
+          ListedEpisode(
+            ListablePodcastEpisode(podcast: newValue.podcast, episode: listableEpisode)
+          )
+        }
+      )
     }
+  }
+
+  // Bypasses the setter's nil-fatal for the one legitimate path: observation
+  // emitted nil because the DB row was deleted.
+  private func clearPodcastSeries() {
+    _podcastSeries = nil
   }
 
   // MARK: - ManagingEpisodes
 
-  func getOrCreatePodcastEpisode(_ episode: DisplayedEpisode) async throws -> PodcastEpisode {
+  func getOrCreatePodcastEpisode(_ episode: ListedEpisode) async throws -> PodcastEpisode {
     let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
     startObservation(podcastEpisode.podcast.id)
     return podcastEpisode
@@ -69,7 +76,7 @@ class PodcastDetailViewModel:
 
   // MARK: - SelectableEpisodeList & SortableEpisodeList
 
-  var episodeList = PowerList<DisplayedEpisode>(debounceDuration: .milliseconds(250))
+  var episodeList = PowerList<ListedEpisode>(debounceDuration: .milliseconds(250))
 
   enum SortMethod: SortingMethod {
     case newestFirst
@@ -99,7 +106,7 @@ class PodcastDetailViewModel:
       }
     }
 
-    var sortMethod: (@Sendable (DisplayedEpisode, DisplayedEpisode) -> Bool)? {
+    var sortMethod: (@Sendable (ListedEpisode, ListedEpisode) -> Bool)? {
       switch self {
       case .newestFirst:
         return { $0.pubDate > $1.pubDate }
@@ -107,8 +114,8 @@ class PodcastDetailViewModel:
         return { $0.pubDate < $1.pubDate }
       case .recentlyAdded:
         return { lhs, rhs in
-          let lhsDate = lhs.getPodcastEpisode()?.episode.creationDate ?? Date.distantFuture
-          let rhsDate = rhs.getPodcastEpisode()?.episode.creationDate ?? Date.distantFuture
+          let lhsDate = lhs.creationDate ?? Date.distantFuture
+          let rhsDate = rhs.creationDate ?? Date.distantFuture
           return lhsDate > rhsDate
         }
       case .longest:
@@ -117,8 +124,8 @@ class PodcastDetailViewModel:
         return { $0.duration < $1.duration }
       case .recentlyFinished:
         return { lhs, rhs in
-          let lhsDate = lhs.episode.finishDate ?? Date.distantPast
-          let rhsDate = rhs.episode.finishDate ?? Date.distantPast
+          let lhsDate = lhs.finishDate ?? Date.distantPast
+          let rhsDate = rhs.finishDate ?? Date.distantPast
           return lhsDate > rhsDate
         }
       case .recentlyQueued:
@@ -130,7 +137,7 @@ class PodcastDetailViewModel:
       }
     }
 
-    var filterMethod: (@Sendable (DisplayedEpisode) -> Bool)? {
+    var filterMethod: (@Sendable (ListedEpisode) -> Bool)? {
       switch self {
       case .recentlyFinished:
         return { $0.finished }
@@ -155,11 +162,21 @@ class PodcastDetailViewModel:
 
       Self.log.debug("selectedPodcastEpisodes: \(selectedEpisodes.count) episodes selected")
 
-      let podcastEpisodes =
-        try await repo.upsertPodcastEpisodes(
-          selectedEpisodes.compactMap { $0.getUnsavedPodcastEpisode() }
-        )
-        + selectedEpisodes.compactMap { $0.getPodcastEpisode() }
+      let savedEpisodeIDs = selectedEpisodes.compactMap(\.episodeID)
+      let unsavedPodcastEpisodes = selectedEpisodes.compactMap(\.unsavedPodcastEpisode)
+      let savedByID = Dictionary(
+        uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs).map { ($0.id, $0) }
+      )
+      let upsertedByMediaGUID = Dictionary(
+        uniqueKeysWithValues: try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
+          .map { ($0.mediaGUID, $0) }
+      )
+      // Walk `selectedEpisodes` (PowerList visible order) to interleave
+      // saved + just-upserted rows in user-visible order.
+      let podcastEpisodes: [PodcastEpisode] = selectedEpisodes.compactMap { episode in
+        if let episodeID = episode.episodeID { return savedByID[episodeID] }
+        return upsertedByMediaGUID[episode.mediaGUID]
+      }
 
       guard let podcastEpisode = podcastEpisodes.first
       else { Assert.fatal("No PodcastEpisodes even tho selectedEpisodes was not empty?") }
@@ -172,7 +189,6 @@ class PodcastDetailViewModel:
   // MARK: - Derived State
 
   var displayingAboutSection: Bool = false
-  var isHydratingInitialPresentation: Bool
   var showingSettings: Bool = false
 
   var defaultPlaybackRate: Double? {
@@ -333,10 +349,8 @@ class PodcastDetailViewModel:
   // MARK: - Initialization
 
   private init(detailSeed: PodcastDetailSeed) {
-    self.originTab = Container.shared.navigation().currentTab
     let initialPresentation = detailSeed.initialPresentation
     self.podcast = initialPresentation.podcast
-    isHydratingInitialPresentation = detailSeed.requiresHydratedPresentation
     episodeList.sortMethod = currentSortMethod.sortMethod
     episodeList.allEntries = initialPresentation.episodes
 
@@ -377,9 +391,6 @@ class PodcastDetailViewModel:
         Self.log.caughtError("appear: failed for \(podcast.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
-        if isHydratingInitialPresentation {
-          navigation.dismiss(from: originTab)
-        }
       }
     }
   }
@@ -406,23 +417,23 @@ class PodcastDetailViewModel:
     Task { [weak self] in
       guard let self else { return }
       do {
-        if let podcastSeries = try await getPodcastSeries(for: podcast) {
-          try await repo.markSubscribed(podcastSeries.id)
+        if let podcastID = try await ensureObservedSeries(for: podcast) {
+          try await repo.markSubscribed(podcastID)
         } else if let unsavedPodcast = podcast.getUnsavedPodcast() {
-          let podcastSeries = try await repo.insertSeries(
+          let insertedSeries = try await repo.insertSeries(
             UnsavedPodcastSeries(
               unsavedPodcast: unsavedPodcast,
               unsavedEpisodes: episodeList.allEntries.map {
-                guard let unsavedEpisode = $0.getUnsavedPodcastEpisode()?.unsavedEpisode
+                guard let unsavedEpisode = $0.unsavedPodcastEpisode?.unsavedEpisode
                 else { Assert.fatal("Saved PodcastEpisodes but PodcastSeries is nil?") }
 
                 return unsavedEpisode
               }
             )
           )
-          try await repo.markSubscribed(podcastSeries.id)
-          self.podcastSeries = podcastSeries
-          startObservation(podcastSeries.id)
+          try await repo.markSubscribed(insertedSeries.id)
+          self.podcastSeries = PodcastSeriesDetail(podcast: insertedSeries.podcast)
+          startObservation(insertedSeries.id)
         } else {
           Assert.fatal("Podcast type is not supported: \(String(describing: podcast))")
         }
@@ -438,13 +449,13 @@ class PodcastDetailViewModel:
     Task { [weak self] in
       guard let self else { return }
       do {
-        guard let podcastSeries = try await getPodcastSeries(for: podcast)
+        guard let podcastID = try await ensureObservedSeries(for: podcast)
         else {
           Self.log.warning("Trying to unsubscribe from a non-saved podcast")
           return
         }
 
-        try await repo.markUnsubscribed(podcastSeries.id)
+        try await repo.markUnsubscribed(podcastID)
       } catch {
         Self.log.caughtError("unsubscribe: failed for \(podcast.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -458,14 +469,14 @@ class PodcastDetailViewModel:
       guard let self else { return }
 
       do {
-        guard let podcastSeries = try await getPodcastSeries(for: podcast)
+        guard let podcastID = try await ensureObservedSeries(for: podcast)
         else {
           Self.log.warning("Trying to delete a non-saved podcast")
           return
         }
 
-        Self.log.info("Deleting podcast: \(podcastSeries.toString)")
-        try await repo.deletePodcast(podcastSeries.id)
+        Self.log.info("Deleting podcast: \(podcast.toString)")
+        try await repo.deletePodcast(podcastID)
       } catch {
         Self.log.caughtError("delete: failed for \(podcast.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -476,9 +487,11 @@ class PodcastDetailViewModel:
 
   func refreshSeries() async {
     do {
-      if let podcastSeries = podcastSeries {
-        Self.log.debug("refreshing saved podcast series \(podcastSeries.toString)")
-        try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+      if let podcastID = podcastSeries?.id,
+        let operationalSeries = try await repo.podcastSeries(podcastID)
+      {
+        Self.log.debug("refreshing saved podcast series \(operationalSeries.toString)")
+        try await refreshManager.refreshSeries(podcastSeries: operationalSeries)
       } else {
         Self.log.debug("refreshing unsaved podcast series \(podcast.toString)")
         try await loadPresentationFromFeed()
@@ -544,19 +557,17 @@ class PodcastDetailViewModel:
       return true
     }
 
-    guard
-      let podcastSeries = try await savedSeries(for: podcast)
-    else { return false }
+    guard let savedSeries = try await savedSeries(for: podcast) else { return false }
 
-    Self.log.debug("\(podcastSeries.toString) exists in db")
+    Self.log.debug("\(savedSeries.toString) exists in db")
 
     // Soft migration: backfill iTunesID for pre-existing podcasts
-    if podcastSeries.podcast.iTunesID == nil, let iTunesID = podcast.iTunesID {
-      try await repo.updateITunesID(podcastSeries.podcast.id, iTunesID: iTunesID)
+    if savedSeries.podcast.iTunesID == nil, let iTunesID = podcast.iTunesID {
+      try await repo.updateITunesID(savedSeries.podcast.id, iTunesID: iTunesID)
     }
 
-    self.podcastSeries = podcastSeries
-    startObservation(podcastSeries.id)
+    self.podcastSeries = savedSeries
+    startObservation(savedSeries.id)
 
     Task { [weak self] in
       guard let self else { return }
@@ -586,7 +597,7 @@ class PodcastDetailViewModel:
   private func observePodcastSeries(_ podcastID: Podcast.ID) async throws {
     Self.log.debug("Observing podcast series with ID: \(podcastID)")
 
-    for try await updatedSeries in observatory.podcastSeries(podcastID) {
+    for try await updatedSeries in observatory.podcastSeriesDetail(podcastID) {
       try Task.checkCancellation()
 
       Self.log.debug("Updating observed series: \(String(describing: updatedSeries?.toString))")
@@ -594,7 +605,7 @@ class PodcastDetailViewModel:
       guard let updatedSeries
       else {
         Self.log.debug("Podcast was deleted")
-        _podcastSeries = nil
+        clearPodcastSeries()
         do {
           try await loadPresentationFromFeed()
         } catch {
@@ -603,7 +614,6 @@ class PodcastDetailViewModel:
             error
           )
           alert(Self.unavailableMessage)
-          navigation.dismiss(from: originTab)
         }
         return
       }
@@ -633,18 +643,14 @@ class PodcastDetailViewModel:
   // MARK: - Private Helpers
 
   @discardableResult
-  private func getPodcastSeries(for podcast: DisplayedPodcast) async throws
-    -> PodcastSeries?
-  {
-    if let podcastSeries { return podcastSeries }
+  private func ensureObservedSeries(for podcast: DisplayedPodcast) async throws -> Podcast.ID? {
+    if let podcastID = podcastSeries?.id { return podcastID }
 
-    guard
-      let podcastSeries = try await savedSeries(for: podcast)
-    else { return nil }
+    guard let savedSeries = try await savedSeries(for: podcast) else { return nil }
 
-    self.podcastSeries = podcastSeries
-    startObservation(podcastSeries.id)
-    return podcastSeries
+    self.podcastSeries = savedSeries
+    startObservation(savedSeries.id)
+    return savedSeries.id
   }
 
   private func loadPresentationFromFeed() async throws {
@@ -659,8 +665,10 @@ class PodcastDetailViewModel:
     )
   }
 
-  private func savedSeries(for currentPodcast: DisplayedPodcast) async throws -> PodcastSeries? {
-    try await repo.podcastSeries(
+  private func savedSeries(for currentPodcast: DisplayedPodcast) async throws
+    -> PodcastSeriesDetail?
+  {
+    try await repo.podcastSeriesDetail(
       currentPodcast.feedURL,
       iTunesID: currentPodcast.iTunesID
     )
@@ -676,14 +684,14 @@ class PodcastDetailViewModel:
       episodes: IdentifiedArray(
         uniqueElements: podcastFeed.toUnsavedEpisodes()
           .map {
-            DisplayedEpisode(
+            ListedEpisode(
               UnsavedPodcastEpisode(
                 unsavedPodcast: unsavedPodcast,
                 unsavedEpisode: $0
               )
             )
           },
-        id: \.mediaGUID
+        id: \.id
       )
     )
   }
@@ -691,6 +699,5 @@ class PodcastDetailViewModel:
   private func apply(_ presentation: PodcastDetailPresentation) {
     podcast = presentation.podcast
     episodeList.allEntries = presentation.episodes
-    isHydratingInitialPresentation = false
   }
 }

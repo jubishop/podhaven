@@ -44,28 +44,17 @@ struct Repo: Databasing {
   func allPodcastSeries(
     _ filter: SQLExpression,
     order: SQLOrdering,
-    limit: Int,
-    includeTags: Bool
+    limit: Int
   ) async throws
     -> [PodcastSeries]
   {
     try await appDB.db.read { db in
-      var baseRequest =
-        Podcast
+      try Podcast
         .all()
         .filter(filter)
         .order(order)
         .limit(limit)
         .including(all: Podcast.episodes)
-
-      if includeTags {
-        baseRequest = baseRequest.including(
-          all: Podcast.tags.order { $0.name.collating(.nocase) }
-        )
-      }
-
-      return
-        try baseRequest
         .asRequest(of: PodcastSeries.self)
         .fetchAll(db)
     }
@@ -78,7 +67,6 @@ struct Repo: Databasing {
       try Podcast
         .withID(podcastID)
         .including(all: Podcast.episodes)
-        .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
     }
@@ -91,7 +79,6 @@ struct Repo: Databasing {
       let base =
         Podcast
         .including(all: Podcast.episodes)
-        .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
         .asRequest(of: PodcastSeries.self)
       // feedURL takes priority over iTunesID
       if let result = try base.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
@@ -99,6 +86,31 @@ struct Repo: Databasing {
       }
       if let iTunesID {
         return try base.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
+      }
+      return nil
+    }
+  }
+
+  // MARK: - Series Detail Readers
+
+  func podcastSeriesDetail(_ podcastID: Podcast.ID) async throws -> PodcastSeriesDetail? {
+    try await appDB.db.read { db in
+      try PodcastSeriesDetail.fetchOne(podcastID, in: db)
+    }
+  }
+
+  func podcastSeriesDetail(_ feedURL: FeedURL, iTunesID: ITunesPodcastID? = nil) async throws
+    -> PodcastSeriesDetail?
+  {
+    try await appDB.db.read { db in
+      // feedURL takes priority over iTunesID
+      if let byFeed = try Podcast.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
+        return try PodcastSeriesDetail.fetchOne(podcast: byFeed, in: db)
+      }
+      if let iTunesID,
+        let byITunes = try Podcast.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
+      {
+        return try PodcastSeriesDetail.fetchOne(podcast: byITunes, in: db)
       }
       return nil
     }
@@ -144,13 +156,16 @@ struct Repo: Databasing {
 
   func podcastEpisodes(_ episodeIDs: [Episode.ID]) async throws -> [PodcastEpisode] {
     guard !episodeIDs.isEmpty else { return [] }
-    return try await appDB.db.read { db in
+    let fetched: [PodcastEpisode] = try await appDB.db.read { db in
       try Episode
         .filter(episodeIDs.contains(Episode.Columns.id))
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchAll(db)
     }
+    // Preserves the order as passed in.
+    let byID = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })
+    return episodeIDs.compactMap { byID[$0] }
   }
 
   func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode? {
@@ -357,6 +372,30 @@ struct Repo: Databasing {
         )
         .deleteAll(db)
     } > 0
+  }
+
+  func addTag(_ tagID: Tag.ID, toEpisodes episodeIDs: [Episode.ID]) async throws {
+    guard !episodeIDs.isEmpty else { return }
+
+    try await appDB.db.write { db in
+      for episodeID in episodeIDs {
+        try EpisodeTag(episodeId: episodeID, tagId: tagID).insert(db, onConflict: .ignore)
+      }
+    }
+  }
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, fromEpisodes episodeIDs: [Episode.ID]) async throws -> Int {
+    guard !episodeIDs.isEmpty else { return 0 }
+
+    return try await appDB.db.write { db in
+      try EpisodeTag
+        .filter(
+          EpisodeTag.Columns.tagId == tagID
+            && episodeIDs.contains(EpisodeTag.Columns.episodeId)
+        )
+        .deleteAll(db)
+    }
   }
 
   // MARK: - Episode Writers
@@ -647,13 +686,20 @@ struct Repo: Databasing {
 
   @discardableResult
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool {
-    Self.log.debug("updateSaveInCache: \(episodeID) to \(saveInCache)")
+    try await updateSaveInCache([episodeID], saveInCache: saveInCache) > 0
+  }
+
+  @discardableResult
+  func updateSaveInCache(_ episodeIDs: [Episode.ID], saveInCache: Bool) async throws -> Int {
+    Self.log.debug("updateSaveInCache: \(episodeIDs.count) episodes to \(saveInCache)")
+
+    guard !episodeIDs.isEmpty else { return 0 }
 
     return try await appDB.db.write { db in
       try Episode
-        .withID(episodeID)
+        .withIDs(episodeIDs)
         .updateAll(db, Episode.Columns.saveInCache.set(to: saveInCache))
-    } > 0
+    }
   }
 
   @discardableResult

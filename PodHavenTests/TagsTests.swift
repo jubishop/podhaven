@@ -62,20 +62,20 @@ class TagsTests {
       _ = try await self.repo.addTag(tag.id, to: series.id)
     }
 
-    let fetchedSeries = try await repo.podcastSeries(series.id)
-    #expect(fetchedSeries?.tags?.map(\.id) == [tag.id])
+    let fetched = try await repo.podcastSeriesDetail(series.id)
+    #expect(fetched?.tags.map(\.id) == [tag.id])
 
     let firstRemove = try await repo.removeTag(tag.id, from: series.id)
     let secondRemove = try await repo.removeTag(tag.id, from: series.id)
 
     #expect(firstRemove)
     #expect(!secondRemove)
-    let afterRemove = try await repo.podcastSeries(series.id)
-    #expect(afterRemove?.tags?.isEmpty == true)
+    let afterRemove = try await repo.podcastSeriesDetail(series.id)
+    #expect(afterRemove?.tags.isEmpty == true)
   }
 
-  @Test("podcastSeries() includes associated tags")
-  func podcastSeriesIncludesTags() async throws {
+  @Test("podcastSeriesDetail() includes associated tags")
+  func podcastSeriesDetailIncludesTags() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
@@ -86,36 +86,9 @@ class TagsTests {
     _ = try await repo.addTag(tagOne.id, to: series.id)
     _ = try await repo.addTag(tagTwo.id, to: series.id)
 
-    let fetchedSeries = try await repo.podcastSeries(series.id)
-    #expect(fetchedSeries != nil)
-    #expect(fetchedSeries?.tags?.map(\.name) == ["Alpha", "beta"])
-  }
-
-  @Test("allPodcastSeries(includeTags:) controls whether tags are fetched")
-  func allPodcastSeriesIncludeTagsFlag() async throws {
-    let series = try await repo.insertSeries(
-      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
-    )
-    let tag = try await repo.insertTag(UnsavedTag(name: "Tech"))
-    _ = try await repo.addTag(tag.id, to: series.id)
-
-    let withoutTags = try await repo.allPodcastSeries(
-      AppDB.NoOp,
-      order: Podcast.Columns.id.asc,
-      limit: Int.max,
-      includeTags: false
-    )
-    #expect(withoutTags.count == 1)
-    #expect(withoutTags[0].tags == nil)
-
-    let withTags = try await repo.allPodcastSeries(
-      AppDB.NoOp,
-      order: Podcast.Columns.id.asc,
-      limit: Int.max,
-      includeTags: true
-    )
-    #expect(withTags.count == 1)
-    #expect(withTags[0].tags?.map(\.name) == ["Tech"])
+    let fetched = try await repo.podcastSeriesDetail(series.id)
+    #expect(fetched != nil)
+    #expect(fetched?.tags.map(\.name) == ["Alpha", "beta"])
   }
 
   @Test("renameTag() updates name and preserves podcast associations")
@@ -132,8 +105,8 @@ class TagsTests {
     let tags = try await observatory.tags().get()
     #expect(tags.map(\.name) == ["News"])
 
-    let fetchedSeries = try await repo.podcastSeries(series.id)
-    #expect(fetchedSeries?.tags?.map(\.id) == [tag.id])
+    let fetched = try await repo.podcastSeriesDetail(series.id)
+    #expect(fetched?.tags.map(\.id) == [tag.id])
   }
 
   @Test("renameTag() throws on conflict with another tag")
@@ -207,18 +180,18 @@ class TagsTests {
     let tag = try await repo.insertTag(UnsavedTag(name: "News"))
 
     _ = try await repo.addTag(tag.id, to: series.id)
-    let beforeDelete = try await repo.podcastSeries(series.id)
-    #expect(beforeDelete?.tags?.count == 1)
+    let beforeDelete = try await repo.podcastSeriesDetail(series.id)
+    #expect(beforeDelete?.tags.count == 1)
 
     let deleted = try await repo.deleteTag(tag.id)
     #expect(deleted)
-    let afterDelete = try await repo.podcastSeries(series.id)
-    #expect(afterDelete?.tags?.isEmpty == true)
+    let afterDelete = try await repo.podcastSeriesDetail(series.id)
+    #expect(afterDelete?.tags.isEmpty == true)
     #expect(try await observatory.tags().get().isEmpty)
   }
 
-  @Test("addTag(to episode) throws on duplicate and removeTag(from episode) unassigns")
-  func assignAndUnassignEpisodeTags() async throws {
+  @Test("addTag(to episode) throws SQLITE_CONSTRAINT_UNIQUE on duplicate")
+  func addTagToEpisodeThrowsUniqueOnDuplicate() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
@@ -230,8 +203,11 @@ class TagsTests {
     let tag = try await repo.insertTag(UnsavedTag(name: "Favorite"))
     try await repo.addTag(tag.id, to: episode.id)
 
-    await #expect(throws: DatabaseError.self) {
-      try await self.repo.addTag(tag.id, to: episode.id)
+    do {
+      try await repo.addTag(tag.id, to: episode.id)
+      Issue.record("expected duplicate addTag to throw SQLITE_CONSTRAINT_UNIQUE")
+    } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
+      // expected
     }
 
     let firstRemove = try await repo.removeTag(tag.id, from: episode.id)
@@ -265,6 +241,151 @@ class TagsTests {
 
     let observed = try #require(try await observatory.podcastEpisodeWithTags(episode.id).get())
     #expect(observed.tags.map(\.name) == ["Apple", "banana", "Cherry"])
+  }
+
+  @Test("ListablePodcastEpisode.request materialises tagIDs from the episodeTag JOIN")
+  func listablePodcastEpisodeMaterialisesTagIDs() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "tagged"),
+          try Create.unsavedEpisode(guid: "untagged"),
+        ]
+      )
+    )
+    let tagged = series.episodes[0]
+    let untagged = series.episodes[1]
+
+    let tagOne = try await repo.insertTag(UnsavedTag(name: "Alpha"))
+    let tagTwo = try await repo.insertTag(UnsavedTag(name: "Beta"))
+    _ = try await repo.insertTag(UnsavedTag(name: "Unattached"))
+
+    try await repo.addTag(tagOne.id, to: tagged.id)
+    try await repo.addTag(tagTwo.id, to: tagged.id)
+
+    let listables = try await repo.db.read { db in
+      try ListablePodcastEpisode
+        .request(filter: AppDB.NoOp, order: Episode.Columns.id.asc)
+        .fetchAll(db)
+    }
+
+    let taggedRow = try #require(listables.first { $0.id == tagged.id })
+    let untaggedRow = try #require(listables.first { $0.id == untagged.id })
+    #expect(taggedRow.tagIDs == [tagOne.id, tagTwo.id])
+    #expect(untaggedRow.tagIDs == [])
+  }
+
+  @Test("listablePodcastEpisodes() re-emits when episodeTag rows change")
+  func listablePodcastEpisodesEmitsOnTagChange() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let episodeID = series.episodes[0].id
+    let tag = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
+
+    let updateCount = Counter()
+    let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+      observatory.listablePodcastEpisodes(
+        filter: Episode.Columns.id == episodeID
+      )
+    Task {
+      for try await _ in observation {
+        await updateCount.increment()
+      }
+    }
+
+    try await updateCount.wait(for: 1)
+    try await repo.addTag(tag.id, to: episodeID)
+    try await updateCount.wait(for: 2)
+
+    _ = try await repo.removeTag(tag.id, from: episodeID)
+    try await updateCount.wait(for: 3)
+  }
+
+  @Test("addTag(toEpisodes:) ignores duplicates and adds missing rows in one transaction")
+  func bulkAddTagIgnoresDuplicates() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "ep-a"),
+          try Create.unsavedEpisode(guid: "ep-b"),
+          try Create.unsavedEpisode(guid: "ep-c"),
+        ]
+      )
+    )
+    let epA = series.episodes[0].id
+    let epB = series.episodes[1].id
+    let epC = series.episodes[2].id
+
+    let tag = try await repo.insertTag(UnsavedTag(name: "Mixed"))
+    // Pre-tag epA so the bulk call hits a UNIQUE conflict for that row;
+    // the others must still get tagged. Per-row addTag would throw here.
+    try await repo.addTag(tag.id, to: epA)
+
+    try await repo.addTag(tag.id, toEpisodes: [epA, epB, epC])
+
+    let detail = try #require(try await repo.podcastSeriesDetail(series.id))
+    let tagsByEpisode = Dictionary(
+      uniqueKeysWithValues: detail.episodes.map { ($0.id, $0.tagIDs) }
+    )
+    #expect(tagsByEpisode[epA] == [tag.id])
+    #expect(tagsByEpisode[epB] == [tag.id])
+    #expect(tagsByEpisode[epC] == [tag.id])
+  }
+
+  @Test("addTag(toEpisodes:) is a no-op for an empty list")
+  func bulkAddTagEmptyList() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "Lonely"))
+    try await repo.addTag(tag.id, toEpisodes: [])
+  }
+
+  @Test("removeTag(fromEpisodes:) deletes only the target tag and returns the count removed")
+  func bulkRemoveTagDeletesAndCounts() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "ep-a"),
+          try Create.unsavedEpisode(guid: "ep-b"),
+          try Create.unsavedEpisode(guid: "ep-c"),
+        ]
+      )
+    )
+    let epA = series.episodes[0].id
+    let epB = series.episodes[1].id
+    let epC = series.episodes[2].id
+
+    let target = try await repo.insertTag(UnsavedTag(name: "Target"))
+    let untouched = try await repo.insertTag(UnsavedTag(name: "Untouched"))
+
+    try await repo.addTag(target.id, to: epA)
+    try await repo.addTag(target.id, to: epB)
+    // epC has only `untouched`, so the bulk remove must skip it but also
+    // not remove epC's untouched tag.
+    try await repo.addTag(untouched.id, to: epC)
+
+    let removed = try await repo.removeTag(target.id, fromEpisodes: [epA, epB, epC])
+    #expect(removed == 2)
+
+    let detail = try #require(try await repo.podcastSeriesDetail(series.id))
+    let tagsByEpisode = Dictionary(
+      uniqueKeysWithValues: detail.episodes.map { ($0.id, $0.tagIDs) }
+    )
+    #expect(tagsByEpisode[epA] == [])
+    #expect(tagsByEpisode[epB] == [])
+    #expect(tagsByEpisode[epC] == [untouched.id])
+  }
+
+  @Test("removeTag(fromEpisodes:) is a no-op returning 0 for an empty list")
+  func bulkRemoveTagEmptyList() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "Lonely"))
+    let removed = try await repo.removeTag(tag.id, fromEpisodes: [])
+    #expect(removed == 0)
   }
 
   @Test("deleteTag() cascades through episodeTag mappings")

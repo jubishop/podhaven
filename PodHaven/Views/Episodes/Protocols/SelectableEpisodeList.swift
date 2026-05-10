@@ -40,6 +40,8 @@ import Logging
   func cancelSelectedEpisodeDownloads()
   func markSelectedEpisodesFinished()
   func rateSelectedEpisodes(rating: EpisodeRating?)
+  func applyTagToSelectedEpisodes(_ tagID: Tag.ID)
+  func removeTagFromSelectedEpisodes(_ tagID: Tag.ID)
 }
 
 extension SelectableEpisodeList {
@@ -236,17 +238,18 @@ extension SelectableEpisodeList {
 
     let log = Self.log
     Task {
+      do {
+        try await Container.shared.repo().updateSaveInCache(cachedEpisodeIDs, saveInCache: false)
+      } catch {
+        log.caughtError(
+          "uncacheSelectedEpisodes: failed to unsave \(cachedEpisodeIDs.count) episodes",
+          error
+        )
+        return
+      }
       await withDiscardingTaskGroup { group in
         for episodeID in cachedEpisodeIDs {
           group.addTask {
-            do {
-              try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: false)
-            } catch {
-              log.caughtError(
-                "uncacheSelectedEpisodes: failed to unsave episode \(episodeID)",
-                error
-              )
-            }
             do {
               try await Container.shared.cacheManager().clearCache(for: episodeID)
             } catch {
@@ -276,18 +279,19 @@ extension SelectableEpisodeList {
         return
       }
 
+      do {
+        try await Container.shared.repo().updateSaveInCache(episodeIDs, saveInCache: true)
+      } catch {
+        log.caughtError(
+          "saveSelectedEpisodesInCache: failed to save \(episodeIDs.count) episodes",
+          error
+        )
+        return
+      }
+
       await withDiscardingTaskGroup { group in
         for episodeID in episodeIDs {
           group.addTask {
-            do {
-              try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: true)
-            } catch {
-              log.caughtError(
-                "saveSelectedEpisodesInCache: failed to save episode \(episodeID)",
-                error
-              )
-              return
-            }
             do {
               try await Container.shared.cacheManager().downloadToCache(for: episodeID)
             } catch {
@@ -311,19 +315,13 @@ extension SelectableEpisodeList {
 
     let log = Self.log
     Task {
-      await withDiscardingTaskGroup { group in
-        for episodeID in savedEpisodeIDs {
-          group.addTask {
-            do {
-              try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: false)
-            } catch {
-              log.caughtError(
-                "unsaveSelectedEpisodesFromCache: failed to unsave episode \(episodeID)",
-                error
-              )
-            }
-          }
-        }
+      do {
+        try await Container.shared.repo().updateSaveInCache(savedEpisodeIDs, saveInCache: false)
+      } catch {
+        log.caughtError(
+          "unsaveSelectedEpisodesFromCache: failed to unsave \(savedEpisodeIDs.count) episodes",
+          error
+        )
       }
     }
   }
@@ -386,6 +384,72 @@ extension SelectableEpisodeList {
       }
     }
   }
+
+  func applyTagToSelectedEpisodes(_ tagID: Tag.ID) {
+    let episodeIDs = selectedSavedEpisodeIDs
+    guard !episodeIDs.isEmpty else { return }
+
+    let log = Self.log
+    Task {
+      do {
+        try await Container.shared.repo().addTag(tagID, toEpisodes: episodeIDs)
+      } catch {
+        log.caughtError(
+          "applyTagToSelectedEpisodes: failed for \(episodeIDs.count) episodes, tag \(tagID)",
+          error
+        )
+      }
+    }
+  }
+
+  func removeTagFromSelectedEpisodes(_ tagID: Tag.ID) {
+    let episodeIDs = selectedSavedEpisodeIDs
+    guard !episodeIDs.isEmpty else { return }
+
+    let log = Self.log
+    Task {
+      do {
+        _ = try await Container.shared.repo().removeTag(tagID, fromEpisodes: episodeIDs)
+      } catch {
+        log.caughtError(
+          "removeTagFromSelectedEpisodes: failed for \(episodeIDs.count) episodes, tag \(tagID)",
+          error
+        )
+      }
+    }
+  }
+}
+
+// MARK: - Tag Selection Helpers
+
+extension SelectableEpisodeList where Self: ManagingEpisodes {
+  // True only when every selected episode has loaded tag data.
+  var selectionHasTagData: Bool {
+    !selectedEpisodes.isEmpty && selectedEpisodes.allSatisfy { tagIDs(for: $0) != nil }
+  }
+
+  var selectedEpisodesTagUnion: Set<Tag.ID> {
+    selectedEpisodes.reduce(into: Set<Tag.ID>()) { union, episode in
+      if let tagIDs = tagIDs(for: episode) {
+        union.formUnion(tagIDs)
+      }
+    }
+  }
+
+  var selectedEpisodesTagIntersection: Set<Tag.ID> {
+    var intersection: Set<Tag.ID>?
+    for episode in selectedEpisodes {
+      guard let tagIDs = tagIDs(for: episode) else { continue }
+      if let current = intersection {
+        let next = current.intersection(tagIDs)
+        if next.isEmpty { return [] }
+        intersection = next
+      } else {
+        intersection = tagIDs
+      }
+    }
+    return intersection ?? []
+  }
 }
 
 extension SelectableEpisodeList where EpisodeType == PodcastEpisode {
@@ -395,8 +459,7 @@ extension SelectableEpisodeList where EpisodeType == PodcastEpisode {
 extension SelectableEpisodeList where EpisodeType == ListablePodcastEpisode {
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
-      let episodeIDs = selectedEpisodes.compactMap(\.episodeID)
-      return try await Container.shared.repo().podcastEpisodes(episodeIDs)
+      try await Container.shared.repo().podcastEpisodes(selectedEpisodes.compactMap(\.episodeID))
     }
   }
 }

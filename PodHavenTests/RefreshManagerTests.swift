@@ -52,9 +52,9 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    let refreshStart = Date.now
+    let refreshStart = Self.flooredToMillisecond(Date.now)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
-    let refreshEnd = Date.now
+    let refreshEnd = Self.ceiledToMillisecond(Date.now)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
     #expect(updatedSeries.podcast.lastUpdate >= refreshStart)
@@ -89,13 +89,24 @@ actor RefreshManagerTests {
 
     let updatedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    let refreshStart = Date.now
+    let refreshStart = Self.flooredToMillisecond(Date.now)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
-    let refreshEnd = Date.now
+    let refreshEnd = Self.ceiledToMillisecond(Date.now)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
     #expect(updatedSeries.podcast.lastUpdate >= refreshStart)
     #expect(updatedSeries.podcast.lastUpdate <= refreshEnd)
+  }
+
+  // GRDB stores `Date` columns at millisecond precision. Compare against
+  // outward-rounded bounds so fast refresh paths don't fail on sub-millisecond
+  // differences between the captured test window and persisted lastUpdate.
+  private static func flooredToMillisecond(_ date: Date) -> Date {
+    Date(timeIntervalSince1970: floor(date.timeIntervalSince1970 * 1000) / 1000)
+  }
+
+  private static func ceiledToMillisecond(_ date: Date) -> Date {
+    Date(timeIntervalSince1970: ceil(date.timeIntervalSince1970 * 1000) / 1000)
   }
 
   @Test("that selective updates only update changed content")

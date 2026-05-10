@@ -261,6 +261,41 @@ class EpisodePersistenceTests {
     #expect(reUpdatedEpisode.saveInCache == false)
   }
 
+  @Test("updateSaveInCache(_:saveInCache:) updates many episodes in one transaction")
+  func bulkUpdateSaveInCache() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "ep-a", saveInCache: false),
+          try Create.unsavedEpisode(guid: "ep-b", saveInCache: false),
+          try Create.unsavedEpisode(guid: "ep-c", saveInCache: false),
+        ]
+      )
+    )
+    let ids = podcastSeries.episodes.map(\.id)
+    #expect(podcastSeries.episodes.allSatisfy { $0.saveInCache == false })
+
+    let updated = try await repo.updateSaveInCache(ids, saveInCache: true)
+    #expect(updated == ids.count)
+
+    for id in ids {
+      let episode = try await repo.episode(id)!
+      #expect(episode.saveInCache == true)
+    }
+
+    let cleared = try await repo.updateSaveInCache(ids, saveInCache: false)
+    #expect(cleared == ids.count)
+
+    for id in ids {
+      let episode = try await repo.episode(id)!
+      #expect(episode.saveInCache == false)
+    }
+
+    let emptyResult = try await repo.updateSaveInCache([], saveInCache: true)
+    #expect(emptyResult == 0)
+  }
+
   @Test("that an episode can be marked finished")
   func markEpisodeFinished() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()

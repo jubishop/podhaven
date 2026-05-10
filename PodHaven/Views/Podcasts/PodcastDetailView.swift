@@ -20,36 +20,26 @@ struct PodcastDetailView: View {
   }
 
   var body: some View {
-    Group {
-      if viewModel.isHydratingInitialPresentation {
-        initialLoadingView
-      } else {
-        contentView
+    contentView
+      .toolbar { toolbar }
+      .toolbarRole(.editor)
+      .sheet(isPresented: $viewModel.showingSettings) {
+        PodcastSettingsView(viewModel: viewModel)
       }
-    }
-    .toolbar {
-      if !viewModel.isHydratingInitialPresentation {
-        toolbar
+      .onChange(of: viewModel.showingSettings) { _, showing in
+        if showing {
+          Self.log.debug("PodcastSettings sheet presented (podcast: \(viewModel.podcast.toString))")
+        } else {
+          Self.log.debug("PodcastSettings sheet dismissed (podcast: \(viewModel.podcast.toString))")
+        }
       }
-    }
-    .toolbarRole(.editor)
-    .sheet(isPresented: $viewModel.showingSettings) {
-      PodcastSettingsView(viewModel: viewModel)
-    }
-    .onChange(of: viewModel.showingSettings) { _, showing in
-      if showing {
-        Self.log.debug("PodcastSettings sheet presented (podcast: \(viewModel.podcast.toString))")
-      } else {
-        Self.log.debug("PodcastSettings sheet dismissed (podcast: \(viewModel.podcast.toString))")
+      .onAppear { viewModel.appear() }
+      .onDisappear { viewModel.disappear() }
+      .overlay {
+        if showingImageOverlay {
+          fullScreenImageOverlay
+        }
       }
-    }
-    .onAppear { viewModel.appear() }
-    .onDisappear { viewModel.disappear() }
-    .overlay {
-      if showingImageOverlay {
-        fullScreenImageOverlay
-      }
-    }
   }
 
   private var contentView: some View {
@@ -65,14 +55,6 @@ struct PodcastDetailView: View {
       } else {
         episodeListView
       }
-    }
-  }
-
-  private var initialLoadingView: some View {
-    VStack {
-      ProgressView("Loading podcast...")
-        .padding()
-      Spacer()
     }
   }
 
@@ -200,7 +182,7 @@ struct PodcastDetailView: View {
       if !viewModel.episodeList.filteredEntries.isEmpty {
         List(viewModel.episodeList.filteredEntries) { episode in
           NavigationLink(
-            value: Navigation.Destination.episode(episode),
+            value: Navigation.Destination.listedEpisode(episode),
             label: {
               EpisodeListView(
                 episode: episode,

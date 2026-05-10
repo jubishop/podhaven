@@ -11,7 +11,7 @@ protocol Databasing: Sendable {
   // MARK: - Global Readers
 
   func allPodcasts(_ filter: SQLExpression) async throws -> [Podcast]
-  func allPodcastSeries(_ filter: SQLExpression, order: SQLOrdering, limit: Int, includeTags: Bool)
+  func allPodcastSeries(_ filter: SQLExpression, order: SQLOrdering, limit: Int)
     async throws
     -> [PodcastSeries]
 
@@ -19,6 +19,12 @@ protocol Databasing: Sendable {
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries?
   func podcastSeries(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws -> PodcastSeries?
+
+  // MARK: - Series Detail Readers
+
+  func podcastSeriesDetail(_ podcastID: Podcast.ID) async throws -> PodcastSeriesDetail?
+  func podcastSeriesDetail(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws
+    -> PodcastSeriesDetail?
 
   // MARK: - Podcast Readers
 
@@ -77,6 +83,11 @@ protocol Databasing: Sendable {
   @discardableResult
   func removeTag(_ tagID: Tag.ID, from episodeID: Episode.ID) async throws -> Bool
 
+  func addTag(_ tagID: Tag.ID, toEpisodes episodeIDs: [Episode.ID]) async throws
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, fromEpisodes episodeIDs: [Episode.ID]) async throws -> Int
+
   // MARK: - Episode Writers
 
   @discardableResult
@@ -111,6 +122,9 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool
+
+  @discardableResult
+  func updateSaveInCache(_ episodeIDs: [Episode.ID], saveInCache: Bool) async throws -> Int
 
   @discardableResult
   func updateRating(_ episodeIDs: [Episode.ID], rating: EpisodeRating?) async throws -> Int
