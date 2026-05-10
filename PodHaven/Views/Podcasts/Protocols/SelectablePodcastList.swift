@@ -25,6 +25,8 @@ import Logging
   func deleteSelectedPodcasts()
   func subscribeSelectedPodcasts()
   func unsubscribeSelectedPodcasts()
+  func applyTagToSelectedPodcasts(_ tagID: Tag.ID)
+  func removeTagFromSelectedPodcasts(_ tagID: Tag.ID)
 }
 
 extension SelectablePodcastList {
@@ -102,6 +104,72 @@ extension SelectablePodcastList {
         )
       }
     }
+  }
+
+  func applyTagToSelectedPodcasts(_ tagID: Tag.ID) {
+    let podcastIDs = selectedSavedPodcastIDs
+    guard !podcastIDs.isEmpty else { return }
+
+    let log = Self.log
+    Task {
+      do {
+        try await Container.shared.repo().addTag(tagID, toPodcasts: podcastIDs)
+      } catch {
+        log.caughtError(
+          "applyTagToSelectedPodcasts: failed for \(podcastIDs.count) podcasts, tag \(tagID)",
+          error
+        )
+      }
+    }
+  }
+
+  func removeTagFromSelectedPodcasts(_ tagID: Tag.ID) {
+    let podcastIDs = selectedSavedPodcastIDs
+    guard !podcastIDs.isEmpty else { return }
+
+    let log = Self.log
+    Task {
+      do {
+        _ = try await Container.shared.repo().removeTag(tagID, fromPodcasts: podcastIDs)
+      } catch {
+        log.caughtError(
+          "removeTagFromSelectedPodcasts: failed for \(podcastIDs.count) podcasts, tag \(tagID)",
+          error
+        )
+      }
+    }
+  }
+}
+
+// MARK: - Tag Selection Helpers
+
+extension SelectablePodcastList {
+  // True only when every selected podcast is saved (and so carries
+  // observable tag rows). Mirrors `SelectableEpisodeList.selectionHasTagData`.
+  var selectionHasTagData: Bool {
+    !selectedPodcastsWithMetadata.isEmpty
+      && selectedPodcastsWithMetadata.allSatisfy(\.isSaved)
+  }
+
+  var selectedPodcastsTagUnion: Set<Tag.ID> {
+    selectedPodcastsWithMetadata.reduce(into: Set<Tag.ID>()) { union, metadata in
+      union.formUnion(metadata.tags.ids)
+    }
+  }
+
+  var selectedPodcastsTagIntersection: Set<Tag.ID> {
+    var intersection: Set<Tag.ID>?
+    for metadata in selectedPodcastsWithMetadata {
+      let tagIDs = Set(metadata.tags.ids)
+      if let current = intersection {
+        let next = current.intersection(tagIDs)
+        if next.isEmpty { return [] }
+        intersection = next
+      } else {
+        intersection = tagIDs
+      }
+    }
+    return intersection ?? []
   }
 }
 

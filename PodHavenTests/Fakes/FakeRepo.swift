@@ -193,6 +193,23 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.removeTag(tagID, from: podcastID)
   }
 
+  func addTag(_ tagID: Tag.ID, toPodcasts podcastIDs: [Podcast.ID]) async throws {
+    recordCall(
+      methodName: "addTag",
+      parameters: (tagID: tagID, podcastIDs: podcastIDs)
+    )
+    try await repo.addTag(tagID, toPodcasts: podcastIDs)
+  }
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, fromPodcasts podcastIDs: [Podcast.ID]) async throws -> Int {
+    recordCall(
+      methodName: "removeTag",
+      parameters: (tagID: tagID, podcastIDs: podcastIDs)
+    )
+    return try await repo.removeTag(tagID, fromPodcasts: podcastIDs)
+  }
+
   func addTag(_ tagID: Tag.ID, to episodeID: Episode.ID) async throws {
     recordCall(methodName: "addTag", parameters: (tagID: tagID, episodeID: episodeID))
     try await repo.addTag(tagID, to: episodeID)

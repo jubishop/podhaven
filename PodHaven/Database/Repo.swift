@@ -356,6 +356,30 @@ struct Repo: Databasing {
     } > 0
   }
 
+  func addTag(_ tagID: Tag.ID, toPodcasts podcastIDs: [Podcast.ID]) async throws {
+    guard !podcastIDs.isEmpty else { return }
+
+    try await appDB.db.write { db in
+      for podcastID in podcastIDs {
+        try PodcastTag(podcastId: podcastID, tagId: tagID).insert(db, onConflict: .ignore)
+      }
+    }
+  }
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, fromPodcasts podcastIDs: [Podcast.ID]) async throws -> Int {
+    guard !podcastIDs.isEmpty else { return 0 }
+
+    return try await appDB.db.write { db in
+      try PodcastTag
+        .filter(
+          PodcastTag.Columns.tagId == tagID
+            && podcastIDs.contains(PodcastTag.Columns.podcastId)
+        )
+        .deleteAll(db)
+    }
+  }
+
   func addTag(_ tagID: Tag.ID, to episodeID: Episode.ID) async throws {
     try await appDB.db.write { db in
       try EpisodeTag(episodeId: episodeID, tagId: tagID).insert(db)

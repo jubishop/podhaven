@@ -91,7 +91,8 @@ struct PodcastsListView: View {
             )
             .podcastContextMenu(
               viewModel: viewModel,
-              podcast: podcastWithEpisodeMetadata.podcast
+              podcast: podcastWithEpisodeMetadata.podcast,
+              tagIDs: Set(podcastWithEpisodeMetadata.tags.ids)
             )
           }
         )
@@ -121,7 +122,8 @@ struct PodcastsListView: View {
             )
             .podcastContextMenu(
               viewModel: viewModel,
-              podcast: podcastWithEpisodeMetadata.podcast
+              podcast: podcastWithEpisodeMetadata.podcast,
+              tagIDs: Set(podcastWithEpisodeMetadata.tags.ids)
             )
           }
         )
