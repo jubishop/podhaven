@@ -42,15 +42,6 @@ enum PodcastDetailSeed: Hashable, Sendable {
     }
   }
 
-  var requiresHydratedPresentation: Bool {
-    switch self {
-    case .listedPodcast(let listedPodcast):
-      return listedPodcast.listablePodcast != nil
-    case .displayedPodcast, .unsavedPodcastSeries:
-      return false
-    }
-  }
-
   private func initialPodcast(from listedPodcast: ListedPodcast) -> DisplayedPodcast {
     if let unsavedPodcast = listedPodcast.unsavedSearchResult {
       return DisplayedPodcast(unsavedPodcast)

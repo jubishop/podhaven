@@ -18,7 +18,6 @@ class PodcastDetailViewModel:
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
-  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
@@ -33,7 +32,6 @@ class PodcastDetailViewModel:
 
   // MARK: - Data
 
-  private let originTab: Navigation.Tab
   var podcast: DisplayedPodcast
   private var _podcastSeries: PodcastSeriesDetail?
   private var podcastSeries: PodcastSeriesDetail? {
@@ -46,7 +44,6 @@ class PodcastDetailViewModel:
 
       _podcastSeries = newValue
       podcast = DisplayedPodcast(newValue.podcast)
-      isHydratingInitialPresentation = false
 
       // Skip the allEntries update when the incoming detail carries no
       // episodes — that's the bootstrap case (subscribe() before
@@ -189,7 +186,6 @@ class PodcastDetailViewModel:
   // MARK: - Derived State
 
   var displayingAboutSection: Bool = false
-  var isHydratingInitialPresentation: Bool
   var showingSettings: Bool = false
 
   var defaultPlaybackRate: Double? {
@@ -350,10 +346,8 @@ class PodcastDetailViewModel:
   // MARK: - Initialization
 
   private init(detailSeed: PodcastDetailSeed) {
-    self.originTab = Container.shared.navigation().currentTab
     let initialPresentation = detailSeed.initialPresentation
     self.podcast = initialPresentation.podcast
-    isHydratingInitialPresentation = detailSeed.requiresHydratedPresentation
     episodeList.sortMethod = currentSortMethod.sortMethod
     episodeList.allEntries = initialPresentation.episodes
 
@@ -394,9 +388,6 @@ class PodcastDetailViewModel:
         Self.log.caughtError("appear: failed for \(podcast.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
-        if isHydratingInitialPresentation {
-          navigation.dismiss(from: originTab)
-        }
       }
     }
   }
@@ -620,7 +611,6 @@ class PodcastDetailViewModel:
             error
           )
           alert(Self.unavailableMessage)
-          navigation.dismiss(from: originTab)
         }
         return
       }
@@ -706,6 +696,5 @@ class PodcastDetailViewModel:
   private func apply(_ presentation: PodcastDetailPresentation) {
     podcast = presentation.podcast
     episodeList.allEntries = presentation.episodes
-    isHydratingInitialPresentation = false
   }
 }
