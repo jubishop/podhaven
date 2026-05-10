@@ -40,7 +40,8 @@ final class FakeMPSkipCommand: FakeMPRemoteCommandable, MPSkipCommandable {
   var preferredIntervals: [NSNumber] = []
 }
 
-final class FakeMPChangePlaybackRateCommand: FakeMPRemoteCommandable,
+final class FakeMPChangePlaybackRateCommand:
+  FakeMPRemoteCommandable,
   MPChangePlaybackRateCommandable
 {
   var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)?

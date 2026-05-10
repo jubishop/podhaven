@@ -13,7 +13,12 @@ import Tagged
 // (e.g. `PodcastSeriesDetail`) fold it in at the view-model layer instead
 // of re-emitting podcast columns per row from SQLite.
 struct ListableEpisode:
-  EpisodeFoundational, FetchableRecord, TableRecord, Hashable, Identifiable, Sendable
+  EpisodeFoundational,
+  FetchableRecord,
+  Hashable,
+  Identifiable,
+  Sendable,
+  TableRecord
 {
   static let databaseTableName: String = Episode.databaseTableName
   static var databaseSelection: [any SQLSelectable] {

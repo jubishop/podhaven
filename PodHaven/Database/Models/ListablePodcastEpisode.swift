@@ -7,7 +7,13 @@ import GRDB
 import Tagged
 
 struct ListablePodcastEpisode:
-  EpisodeListable, Searchable, FetchableRecord, TableRecord, Identifiable, Hashable, Sendable
+  EpisodeListable,
+  FetchableRecord,
+  Hashable,
+  Identifiable,
+  Searchable,
+  Sendable,
+  TableRecord
 {
   static let databaseTableName: String = Episode.databaseTableName
   static var databaseSelection: [any SQLSelectable] { ListableEpisode.databaseSelection }
