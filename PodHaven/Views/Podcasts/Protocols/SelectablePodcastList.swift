@@ -143,7 +143,7 @@ extension SelectablePodcastList {
   // MARK: - Tag Selection Helpers
 
   // True only when every selected podcast is saved (and so carries
-  // observable tag rows). Mirrors `SelectableEpisodeList.selectionHasTagData`.
+  // observable tag rows).
   var selectionHasTagData: Bool {
     !selectedPodcastsWithMetadata.isEmpty
       && selectedPodcastsWithMetadata.allSatisfy(\.isSaved)

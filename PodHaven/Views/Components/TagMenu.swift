@@ -3,17 +3,9 @@
 import FactoryKit
 import SwiftUI
 
-// Shared filtered Add Tag / Remove Tag submenu used by both per-row context
-// menus and bulk multi-select toolbars.
-//
-// Add Tag → only tags missing from `intersection` (tags every target shares).
-// Remove Tag → only tags present in `union` (tags any target has).
-// For per-row callers, intersection == union == the row's own tag IDs.
-//
-// Wrapped as a struct view (rather than a `@ViewBuilder` helper) so
-// `@DynamicInjected(\.sharedState)` participates in SwiftUI observation
-// tracking — tag renames/adds reflect in the open menu without waiting for
-// some unrelated re-render upstream.
+// Wrapped as a `View` (not a `@ViewBuilder` helper) so the
+// `@DynamicInjected(\.sharedState)` read participates in SwiftUI observation
+// — open menus pick up tag renames/adds without an upstream re-render.
 @MainActor
 struct TagMenu: View {
   @DynamicInjected(\.sharedState) private var sharedState

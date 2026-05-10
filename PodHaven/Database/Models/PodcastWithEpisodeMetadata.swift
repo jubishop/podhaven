@@ -60,13 +60,6 @@ where PodcastType: FetchableRecord & TableRecord {
 
   // MARK: Query Builders
 
-  // Selects from the Podcast table but narrows columns to whatever the
-  // generic PodcastType declares in its `databaseSelection`, then layers on
-  // the correlated tag-IDs subquery so each row materialises its `tagIDs`
-  // set without a separate prefetch. For `PodcastWithEpisodeMetadata<Podcast>`
-  // the podcast selection defaults to all columns; for
-  // `PodcastWithEpisodeMetadata<ListablePodcast>` it picks up the listable
-  // subset automatically — no need for callers to pass columns explicitly.
   static func all(
     _ filter: PodcastFilter = { $0 }
   ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
