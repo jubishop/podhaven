@@ -3,25 +3,11 @@
 import AVFoundation
 import Foundation
 
-enum EpisodeDetailSeed: Hashable, Sendable {
-  case displayedEpisode(DisplayedEpisode)
-  case listedEpisode(ListedEpisode)
-
-  var initialEpisode: EpisodeDetailContent {
-    switch self {
-    case .displayedEpisode(let episode):
-      return .loaded(episode)
-    case .listedEpisode(let listedEpisode):
-      return .initial(listedEpisode)
-    }
-  }
-}
-
-// Live state of `EpisodeDetailViewModel.episode`. `.initial` is the
+// View-facing projection of `EpisodeDetailViewModel.state`. `.initial` is the
 // transient list-row snapshot displayed before the saved episode hydrates;
-// `.loaded` is the fully-displayable episode (saved or unsaved). Both
-// arms conform to `EpisodeDisplayable`, so a single existential helper
-// forwards every property.
+// `.loaded` is the fully-displayable episode (saved or unsaved). Both arms
+// conform to `EpisodeDisplayable`, so a single existential helper forwards
+// every property.
 enum EpisodeDetailContent:
   EpisodeDisplayable,
   Hashable,

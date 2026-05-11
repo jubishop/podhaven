@@ -9,6 +9,51 @@ import Logging
 import SwiftUI
 import Tagged
 
+// Live state of `EpisodeDetailViewModel`. Transitions flow through
+// `transition(to:)` so the view-facing projection (`episode`) stays in sync.
+//
+// - `.initial`: list-row snapshot (saved listed episode whose `PodcastEpisode`
+//   has not been loaded). Promotes to `.saved` once `performAppear` finds it,
+//   or causes a dismiss if the row has been deleted.
+// - `.unsaved`: an episode we know about but haven't persisted; either an
+//   unsaved-source displayed/listed episode or a saved episode that was
+//   reverted after observation reported deletion.
+// - `.saved`: a fully-saved episode under live observation.
+enum EpisodeDetailState: Sendable {
+  case initial(ListedEpisode)
+  case unsaved(UnsavedPodcastEpisode)
+  case saved(PodcastEpisode)
+
+  var savedPodcastEpisode: PodcastEpisode? {
+    guard case .saved(let podcastEpisode) = self else { return nil }
+    return podcastEpisode
+  }
+
+  var detailContent: EpisodeDetailContent {
+    switch self {
+    case .initial(let listed): return .initial(listed)
+    case .unsaved(let unsaved): return .loaded(DisplayedEpisode(unsaved))
+    case .saved(let podcastEpisode): return .loaded(DisplayedEpisode(podcastEpisode))
+    }
+  }
+
+  var mediaGUID: MediaGUID {
+    switch self {
+    case .initial(let listed): return listed.mediaGUID
+    case .unsaved(let unsaved): return unsaved.mediaGUID
+    case .saved(let podcastEpisode): return podcastEpisode.mediaGUID
+    }
+  }
+
+  var toString: String {
+    switch self {
+    case .initial(let listed): return "initial(\(listed.toString))"
+    case .unsaved(let unsaved): return "unsaved(\(unsaved.toString))"
+    case .saved(let podcastEpisode): return "saved(\(podcastEpisode.toString))"
+    }
+  }
+}
+
 @Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
@@ -23,32 +68,19 @@ import Tagged
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
-  // MARK: - Data
+  // MARK: - State
 
   private let originTab: Navigation.Tab
-  private let seed: EpisodeDetailSeed
-  private let unsavedFallback: UnsavedPodcastEpisode?
-  var episode: EpisodeDetailContent
+  private(set) var state: EpisodeDetailState
   var tags: IdentifiedArrayOf<Tag> = []
   private var recommendationScore: RecommendationScore?
-  private var _podcastEpisode: PodcastEpisode?
-  private var podcastEpisode: PodcastEpisode? {
-    get { _podcastEpisode }
-    set {
-      guard let newValue
-      else { Assert.fatal("Setting podcastEpisode to nil is not allowed") }
 
-      Self.log.debug("Setting podcastEpisode to: \(newValue.toString)")
-
-      _podcastEpisode = newValue
-      episode = .loaded(DisplayedEpisode(newValue))
-    }
-  }
+  var episode: EpisodeDetailContent { state.detailContent }
 
   // MARK: - Derived State
 
   var onDeck: Bool {
-    guard let podcastEpisode = podcastEpisode else { return false }
+    guard let podcastEpisode = state.savedPodcastEpisode else { return false }
     return sharedState.onDeck?.id == podcastEpisode.id
   }
 
@@ -62,7 +94,7 @@ import Tagged
   }
 
   var isPlaying: Bool {
-    guard let podcastEpisode = podcastEpisode else { return false }
+    guard let podcastEpisode = state.savedPodcastEpisode else { return false }
     return sharedState.isEpisodePlaying(podcastEpisode)
   }
 
@@ -82,43 +114,40 @@ import Tagged
 
   // MARK: - Initialization
 
-  private init(seed: EpisodeDetailSeed, startTime: Int? = nil) {
+  private init(state: EpisodeDetailState, startTime: Int? = nil) {
     self.originTab = Container.shared.navigation().currentTab
-    self.seed = seed
-    self.episode = seed.initialEpisode
-    self.unsavedFallback = Self.unsavedFallback(for: seed)
+    self.state = state
     self.startTime = startTime
   }
 
   convenience init(episode: DisplayedEpisode, startTime: Int? = nil) {
-    self.init(seed: .displayedEpisode(episode), startTime: startTime)
+    switch episode.source {
+    case .saved(let podcastEpisode):
+      self.init(state: .saved(podcastEpisode), startTime: startTime)
+    case .unsaved(let unsavedPodcastEpisode):
+      self.init(state: .unsaved(unsavedPodcastEpisode), startTime: startTime)
+    }
   }
 
   convenience init(listedEpisode: ListedEpisode) {
-    self.init(seed: .listedEpisode(listedEpisode))
-  }
-
-  private static func unsavedFallback(for seed: EpisodeDetailSeed) -> UnsavedPodcastEpisode? {
-    let unsavedSource: UnsavedPodcastEpisode?
-    switch seed {
-    case .displayedEpisode(let episode):
-      unsavedSource = episode.source.unsaved
-    case .listedEpisode(let listedEpisode):
-      unsavedSource = listedEpisode.unsavedPodcastEpisode
-    }
-
-    guard let unsavedSource else { return nil }
-
-    do {
-      return try unsavedSource.toOriginalUnsavedPodcastEpisode()
-    } catch {
-      Assert.fatal(
-        """
-        Cannot build UnsavedPodcastEpisode fallback \
-        for episode: \(unsavedSource.toString). \
-        Error: \(error)
-        """
-      )
+    if let unsavedPodcastEpisode = listedEpisode.unsavedPodcastEpisode {
+      // Both `.listedEpisode(.unsaved(...))` and `.displayedEpisode(.unsaved(...))`
+      // collapse to `.unsaved(UnsavedPodcastEpisode)` here. Round-trip through
+      // `toOriginalUnsavedPodcastEpisode` to drop any saved-only fields that
+      // may have leaked into the listing snapshot.
+      do {
+        let original = try unsavedPodcastEpisode.toOriginalUnsavedPodcastEpisode()
+        self.init(state: .unsaved(original))
+      } catch {
+        Assert.fatal(
+          """
+          Cannot build UnsavedPodcastEpisode for listed unsaved episode: \
+          \(unsavedPodcastEpisode.toString). Error: \(error)
+          """
+        )
+      }
+    } else {
+      self.init(state: .initial(listedEpisode))
     }
   }
 
@@ -129,7 +158,7 @@ import Tagged
       do {
         try await performAppear()
       } catch {
-        Self.log.caughtError("appear: failed for \(episode.toString)", error)
+        Self.log.caughtError("appear: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -137,25 +166,38 @@ import Tagged
   }
 
   func performAppear() async throws {
-    let podcastEpisode = try await repo.podcastEpisode(episode.mediaGUID)
+    let podcastEpisode = try await repo.podcastEpisode(state.mediaGUID)
 
     if let podcastEpisode {
       Self.log.debug("Podcast episode: \(podcastEpisode.toString) exists in db")
 
-      self.podcastEpisode = podcastEpisode
+      transition(to: .saved(podcastEpisode))
       startObservation()
       startRecommendationObservation()
     } else {
-      Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
+      Self.log.debug("Podcast episode: \(state.toString) does not exist in db")
 
-      _podcastEpisode = nil
-      guard let unsavedFallback else {
-        Self.log.warning("Episode no longer exists for detail hydration: \(episode.toString)")
+      switch state {
+      case .initial:
+        // Saved-listed seed but the row is gone — only safe move is to
+        // dismiss; the bridge can't synthesize an unsaved fallback.
+        Self.log.warning("Episode no longer exists for detail hydration: \(state.toString)")
+        alert("This episode is no longer available.")
+        navigation.dismiss(from: originTab)
+        return
+      case .unsaved:
+        // Already in unsaved state; nothing to revert.
+        break
+      case .saved(let stalePodcastEpisode):
+        // Saved-source seed pointing at a row that's been deleted between
+        // navigation and appear; same behavior as `.initial` — dismiss.
+        Self.log.warning(
+          "Saved-source seed missing from DB: \(stalePodcastEpisode.toString)"
+        )
         alert("This episode is no longer available.")
         navigation.dismiss(from: originTab)
         return
       }
-      episode = .loaded(DisplayedEpisode(unsavedFallback))
     }
 
     if let startTime {
@@ -175,7 +217,7 @@ import Tagged
       do {
         podcastEpisode = try await getOrCreatePodcastEpisode()
       } catch {
-        Self.log.caughtError("playNow: failed to get/create episode \(episode.toString)", error)
+        Self.log.caughtError("playNow: failed to get/create episode \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
         return
@@ -185,7 +227,7 @@ import Tagged
         try await playManager.load(podcastEpisode)
         await playManager.play()
       } catch {
-        Self.log.caughtError("playNow: failed to load episode \(episode.toString)", error)
+        Self.log.caughtError("playNow: failed to load episode \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -206,7 +248,7 @@ import Tagged
         try await loadAndPlay(podcastEpisode, seekTo: seconds)
       } catch {
         Self.log.caughtError(
-          "playAt: failed for \(episode.toString) at timestamp \(timestamp)",
+          "playAt: failed for \(state.toString) at timestamp \(timestamp)",
           error
         )
         guard ErrorKit.isRemarkable(error) else { return }
@@ -234,7 +276,7 @@ import Tagged
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await queue.unshift(podcastEpisode.episode.id)
       } catch {
-        Self.log.caughtError("addToTopOfQueue: failed for \(episode.toString)", error)
+        Self.log.caughtError("addToTopOfQueue: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -251,7 +293,7 @@ import Tagged
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await queue.append(podcastEpisode.episode.id)
       } catch {
-        Self.log.caughtError("appendToQueue: failed for \(episode.toString)", error)
+        Self.log.caughtError("appendToQueue: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -268,7 +310,7 @@ import Tagged
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await queue.dequeue(podcastEpisode.episode.id)
       } catch {
-        Self.log.caughtError("removeFromQueue: failed for \(episode.toString)", error)
+        Self.log.caughtError("removeFromQueue: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -283,7 +325,7 @@ import Tagged
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
-        Self.log.caughtError("cacheEpisode: failed for \(episode.toString)", error)
+        Self.log.caughtError("cacheEpisode: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -301,7 +343,7 @@ import Tagged
         podcastEpisode = try await getOrCreatePodcastEpisode()
       } catch {
         Self.log.caughtError(
-          "uncacheEpisode: failed to get/create episode \(episode.toString)",
+          "uncacheEpisode: failed to get/create episode \(state.toString)",
           error
         )
         guard ErrorKit.isRemarkable(error) else { return }
@@ -312,7 +354,7 @@ import Tagged
       do {
         try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
       } catch {
-        Self.log.caughtError("uncacheEpisode: failed to unsave episode \(episode.toString)", error)
+        Self.log.caughtError("uncacheEpisode: failed to unsave episode \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -321,7 +363,7 @@ import Tagged
         try await cacheManager.clearCache(for: podcastEpisode.id)
       } catch {
         Self.log.caughtError(
-          "uncacheEpisode: failed to clear cache for \(episode.toString)",
+          "uncacheEpisode: failed to clear cache for \(state.toString)",
           error
         )
         guard ErrorKit.isRemarkable(error) else { return }
@@ -339,7 +381,7 @@ import Tagged
         podcastEpisode = try await getOrCreatePodcastEpisode()
       } catch {
         Self.log.caughtError(
-          "saveEpisodeInCache: failed to get/create episode \(episode.toString)",
+          "saveEpisodeInCache: failed to get/create episode \(state.toString)",
           error
         )
         guard ErrorKit.isRemarkable(error) else { return }
@@ -351,7 +393,7 @@ import Tagged
         try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
       } catch {
         Self.log.caughtError(
-          "saveEpisodeInCache: failed to save episode \(episode.toString)",
+          "saveEpisodeInCache: failed to save episode \(state.toString)",
           error
         )
         guard ErrorKit.isRemarkable(error) else { return }
@@ -363,7 +405,7 @@ import Tagged
         try await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
         Self.log.caughtError(
-          "saveEpisodeInCache: failed to cache episode \(episode.toString)",
+          "saveEpisodeInCache: failed to cache episode \(state.toString)",
           error
         )
         guard ErrorKit.isRemarkable(error) else { return }
@@ -382,7 +424,7 @@ import Tagged
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await repo.markFinished(podcastEpisode.id)
       } catch {
-        Self.log.caughtError("markFinished: failed for \(episode.toString)", error)
+        Self.log.caughtError("markFinished: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -399,7 +441,7 @@ import Tagged
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await repo.updateRating(podcastEpisode.id, rating: rating)
       } catch {
-        Self.log.caughtError("rate: failed for \(episode.toString)", error)
+        Self.log.caughtError("rate: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -414,7 +456,7 @@ import Tagged
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         navigation.showPodcast(podcastEpisode.podcast)
       } catch {
-        Self.log.caughtError("showPodcast: failed for \(episode.toString)", error)
+        Self.log.caughtError("showPodcast: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -469,8 +511,10 @@ import Tagged
   @ObservationIgnored private var observationTask: Task<Void, Never>?
 
   private func startObservation() {
-    guard let podcastEpisode = self.podcastEpisode
-    else { Assert.fatal("Observing a non-saved podcastEpisode") }
+    guard let podcastEpisode = state.savedPodcastEpisode else {
+      Self.log.warning("startObservation: skipped, state is \(state.toString)")
+      return
+    }
 
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
@@ -507,19 +551,25 @@ import Tagged
         guard let updated
         else {
           Self.log.debug("Episode was deleted")
-          let deletedPresentation = DisplayedEpisode(
-            try podcastEpisode.toOriginalUnsavedPodcastEpisode()
-          )
+          let deletedAsUnsaved: UnsavedPodcastEpisode
+          do {
+            deletedAsUnsaved = try podcastEpisode.toOriginalUnsavedPodcastEpisode()
+          } catch {
+            Self.log.caughtError(
+              "observePodcastEpisode: failed to convert deleted episode back to unsaved",
+              error
+            )
+            return
+          }
           tags = []
           clearRecommendationTask()
           recommendationScore = nil
-          _podcastEpisode = nil
-          episode = .loaded(deletedPresentation)
+          transition(to: .unsaved(deletedAsUnsaved))
           return
         }
 
-        if updated.podcastEpisode != self.podcastEpisode {
-          self.podcastEpisode = updated.podcastEpisode
+        if updated.podcastEpisode != state.savedPodcastEpisode {
+          transition(to: .saved(updated.podcastEpisode))
         }
         if tags != updated.tags {
           tags = updated.tags
@@ -564,7 +614,7 @@ import Tagged
   }
 
   private func fetchRecommendation() async {
-    guard let podcastEpisode = self.podcastEpisode else { return }
+    guard let podcastEpisode = state.savedPodcastEpisode else { return }
 
     do {
       recommendationScore = try await recommendationEngine.recommendation(
@@ -593,6 +643,11 @@ import Tagged
 
   // MARK: - Private Helpers
 
+  private func transition(to newState: EpisodeDetailState) {
+    Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
+    state = newState
+  }
+
   private func loadAndPlay(_ podcastEpisode: PodcastEpisode, seekTo seconds: Int) async throws {
     try await playManager.load(podcastEpisode)
     await playManager.seek(to: CMTime.seconds(Double(seconds)))
@@ -600,24 +655,16 @@ import Tagged
   }
 
   private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
-    if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
-
     let podcastEpisode: PodcastEpisode
-    if let loaded = episode.loaded {
-      // Use current episode state: covers post-deletion revert where `episode`
-      // was replaced with an unsaved variant that needs to upsert, not the
-      // stale saved-podcast value originally captured in the seed.
-      podcastEpisode = try await loaded.getOrCreatePodcastEpisode()
-    } else if case .listedEpisode(let listedEpisode) = seed {
-      // Initial bridge state only happens for `.listedEpisode` seeds; the
-      // bridge can't getOrCreate, so fall back to the original list-row.
+    switch state {
+    case .saved(let saved):
+      return saved
+    case .unsaved(let unsavedPodcastEpisode):
+      podcastEpisode = try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
+    case .initial(let listedEpisode):
       podcastEpisode = try await listedEpisode.getOrCreatePodcastEpisode()
-    } else {
-      Assert.fatal(
-        "Initial-state episode without listedEpisode seed: \(episode.toString)"
-      )
     }
-    self.podcastEpisode = podcastEpisode
+    transition(to: .saved(podcastEpisode))
     startObservation()
     startRecommendationObservation()
     return podcastEpisode
