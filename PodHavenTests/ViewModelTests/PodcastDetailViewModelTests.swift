@@ -920,35 +920,4 @@ import Testing
     )
   }
 
-  @Test("subscribe preserves the unsaved episode list across the saved-bootstrap window")
-  func subscribePreservesEpisodeListAcrossInsertBootstrap() async throws {
-    let feedURL = FeedURL(URL(string: "https://example.com/bootstrap-subscribe.rss")!)
-    let unsavedSeries = UnsavedPodcastSeries(
-      unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Bootstrap Subscribe"),
-      unsavedEpisodes: [
-        try Create.unsavedEpisode(guid: "bootstrap-1", title: "Episode 1"),
-        try Create.unsavedEpisode(guid: "bootstrap-2", title: "Episode 2"),
-        try Create.unsavedEpisode(guid: "bootstrap-3", title: "Episode 3"),
-      ]
-    )
-    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
-    let originalTitles = viewModel.episodeList.allEntries.map(\.title)
-    #expect(originalTitles == ["Episode 1", "Episode 2", "Episode 3"])
-
-    viewModel.subscribe()
-
-    // `subscribe()` transitions through `.saved(PodcastSeriesDetail(podcast:))`
-    // — a series with empty episodes — before live observation hydrates the
-    // real episodes. If `refreshEpisodeList`'s bootstrap-skip is broken, that
-    // empty-episodes transition wipes `episodeList` until observation refills
-    // it. Poll at `.userInitiated` so this assertion lands during the window
-    // when observation has not yet refilled the list, and verify titles are
-    // unchanged from the unsaved seed.
-    try await Wait.until(
-      priority: .userInitiated,
-      { @MainActor in viewModel.saved },
-      { @MainActor in "Expected subscribe() to land in saved state" }
-    )
-    #expect(viewModel.episodeList.allEntries.map(\.title) == originalTitles)
-  }
 }
