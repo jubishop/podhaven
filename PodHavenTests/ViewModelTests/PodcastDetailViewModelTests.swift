@@ -171,7 +171,7 @@ import Testing
     try await viewModel.performAppear()
 
     #expect(viewModel.saved == false)
-    #expect(viewModel.podcast.getUnsavedPodcast() != nil)
+    #expect(viewModel.podcast.source.unsaved != nil)
     #expect(viewModel.episodeList.allEntries.isEmpty == false)
   }
 
@@ -267,7 +267,7 @@ import Testing
     try await Wait.until(
       { @MainActor in
         viewModel.saved == false
-          && viewModel.podcast.getUnsavedPodcast() != nil
+          && viewModel.podcast.source.unsaved != nil
           && viewModel.episodeList.allEntries.isEmpty == false
       },
       { @MainActor in

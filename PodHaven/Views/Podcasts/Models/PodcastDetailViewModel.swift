@@ -419,7 +419,7 @@ class PodcastDetailViewModel:
       do {
         if let podcastID = try await ensureObservedSeries(for: podcast) {
           try await repo.markSubscribed(podcastID)
-        } else if let unsavedPodcast = podcast.getUnsavedPodcast() {
+        } else if let unsavedPodcast = podcast.source.unsaved {
           let insertedSeries = try await repo.insertSeries(
             UnsavedPodcastSeries(
               unsavedPodcast: unsavedPodcast,
