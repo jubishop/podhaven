@@ -100,14 +100,15 @@ class V45MigrationTests {
     try await populateAtV44()
     try migrator.migrate(appDB.db, upTo: "v45")
 
-    let dates = try await appDB.db.read { db in
-      try Row.fetchOne(
-        db,
-        sql: "SELECT creationDate, verificationDate FROM episodeEmbedding WHERE episodeId = 510"
+    try await appDB.db.read { db in
+      let row = try #require(
+        try Row.fetchOne(
+          db,
+          sql: "SELECT creationDate, verificationDate FROM episodeEmbedding WHERE episodeId = 510"
+        )
       )
+      #expect((row["creationDate"] as String) == "2024-03-01 12:34:56")
+      #expect((row["verificationDate"] as String) == "2024-03-01 12:34:56")
     }
-    let row = try #require(dates)
-    #expect((row["creationDate"] as String) == "2024-03-01 12:34:56")
-    #expect((row["verificationDate"] as String) == "2024-03-01 12:34:56")
   }
 }
