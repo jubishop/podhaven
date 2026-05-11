@@ -538,18 +538,25 @@ import Testing
     try select(viewModel, episodeIDs: savedSeries.episodes.map(\.id))
     #expect(viewModel.selectedEpisodes.count == 2)
 
-    // Stop observation first so the deletion's `nil` emission cannot race
-    // the assertion below by re-entering `loadPresentationFromFeed`.
+    // disappear() first so the deletion's `nil` emission can't race the
+    // assertion via `loadPresentationFromFeed`.
     viewModel.disappear()
 
     let deleted = try await repo.deletePodcast(savedSeries.id)
     #expect(deleted)
 
-    // Pre-fix: this trapped via `Assert.fatal` because `compactMap` produced
-    // an empty array while `selectedEpisodes` was still non-empty. Post-fix:
-    // it returns [] gracefully so the user sees a no-op rather than a crash.
     let podcastEpisodes = try await viewModel.selectedPodcastEpisodes
     #expect(podcastEpisodes.isEmpty)
+
+    try await Wait.until(
+      { @MainActor [self] in alert.config != nil },
+      { @MainActor [self] in
+        """
+        Expected an alert when selectedPodcastEpisodes degrades to [].
+        alert presented: \(alert.config != nil)
+        """
+      }
+    )
   }
 
   @Test("refreshing a series under newestFirst places a new episode at the top, not the bottom")

@@ -134,10 +134,7 @@ enum EpisodeDetailState: Sendable {
       // Both `.listedEpisode(.unsaved(...))` and `.displayedEpisode(.unsaved(...))`
       // collapse to `.unsaved(UnsavedPodcastEpisode)` here. Round-trip through
       // `toOriginalUnsavedPodcastEpisode` to drop any saved-only fields that
-      // may have leaked into the listing snapshot. URL validation is
-      // idempotent for already-constructed unsaved values, so the throw
-      // path should be unreachable; if it ever does fire, log and seed the
-      // state with the un-stripped value rather than crashing.
+      // may have leaked into the listing snapshot.
       let resolved: UnsavedPodcastEpisode
       do {
         resolved = try unsavedPodcastEpisode.toOriginalUnsavedPodcastEpisode()

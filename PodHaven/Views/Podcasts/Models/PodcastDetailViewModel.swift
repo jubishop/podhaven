@@ -202,12 +202,20 @@ class PodcastDetailViewModel:
         return upsertedByMediaGUID[episode.mediaGUID]
       }
 
-      // Empty results are a corrupted-state signal (e.g., the rows were
-      // deleted out from under a live selection) — degrade to a no-op
-      // rather than crashing the user's session.
-      if let firstEpisode = podcastEpisodes.first {
-        startObservation(firstEpisode.podcast.id)
+      // No matches with non-empty selection means rows vanished under the user
+      // (e.g. cascade delete) — surface a no-op instead of crashing.
+      guard let firstEpisode = podcastEpisodes.first else {
+        Self.log.error(
+          """
+          selectedPodcastEpisodes: \(selectedEpisodes.count) selected but no \
+          matching rows (saved hits: \(savedByID.count), upsert hits: \
+          \(upsertedByMediaGUID.count))
+          """
+        )
+        alert("These episodes are no longer available.")
+        return []
       }
+      startObservation(firstEpisode.podcast.id)
 
       return podcastEpisodes
     }
