@@ -19,6 +19,10 @@ protocol Recommending: Sendable {
 
   func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws
   func upsertPodcastEmbeddings(_ unsaved: [UnsavedPodcastEmbedding]) async throws
+  func touchEmbeddingVerification(
+    forEpisodeIDs episodeIDs: [Episode.ID],
+    at date: Date
+  ) async throws
 
   // MARK: - Embedding Readers
 

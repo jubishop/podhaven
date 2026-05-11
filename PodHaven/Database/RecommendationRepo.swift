@@ -254,13 +254,31 @@ struct RecommendationRepo: Recommending {
           embeddingAlias[EpisodeEmbedding.Columns.id] == nil
             || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
             || Episode.Columns.contentUpdatedAt
-              > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
+              > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
             || podcastAlias[Podcast.Columns.contentUpdatedAt]
-              > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
+              > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
         )
         .order(Episode.hasSignal.desc)
         .select(Episode.Columns.id, as: Episode.ID.self)
         .fetchAll(db)
+    }
+  }
+
+  // The hash check in EmbeddingService skips embeddings whose cleaned source
+  // text hasn't changed. We still need to advance verificationDate on those
+  // rows so the next `episodesNeedingEmbeddings` query stops returning them —
+  // otherwise a `contentUpdatedAt` bump on a hash-stable change (e.g. a feed
+  // refresh that leaves cleaned title/description unchanged) loops forever.
+  func touchEmbeddingVerification(
+    forEpisodeIDs episodeIDs: [Episode.ID],
+    at date: Date
+  ) async throws {
+    guard !episodeIDs.isEmpty else { return }
+    try await appDB.db.write { db in
+      _ =
+        try EpisodeEmbedding
+        .filter(episodeIDs.contains(EpisodeEmbedding.Columns.episodeId))
+        .updateAll(db, EpisodeEmbedding.Columns.verificationDate.set(to: date))
     }
   }
 }

@@ -52,16 +52,17 @@ class EmbeddingRepoTests {
       vector: UnsavedEpisodeEmbedding.vectorData(from: [1.0, 0.0, 0.0]),
       sourceHash: "test-hash",
       embeddingRevision: revision,
-      dimension: 3
+      dimension: 3,
+      verificationDate: Date()
     )
     try await recommendationRepo.upsertEmbeddings([unsaved])
 
     if backdated {
-      // Push creationDate into the past so trigger-updated contentUpdatedAt is clearly newer
+      // Push verificationDate into the past so trigger-updated contentUpdatedAt is clearly newer
       try await appDB.db.write { db in
         try db.execute(
           sql: """
-            UPDATE episodeEmbedding SET creationDate = datetime('now', '-1 hour')
+            UPDATE episodeEmbedding SET verificationDate = datetime('now', '-1 hour')
             WHERE episodeId = ?
             """,
           arguments: [episodeID]

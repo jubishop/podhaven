@@ -68,7 +68,8 @@ actor ObservatoryScoringContextInputsTests {
         vector: data,
         sourceHash: "hash-\(episode.id)",
         embeddingRevision: 1,
-        dimension: vector.count
+        dimension: vector.count,
+        verificationDate: Date()
       )
     ])
   }

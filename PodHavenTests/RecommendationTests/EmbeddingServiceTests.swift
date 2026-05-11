@@ -148,7 +148,8 @@ class EmbeddingServiceTests {
       vector: UnsavedEpisodeEmbedding.vectorData(from: staleVector),
       sourceHash: "stale-hash",
       embeddingRevision: 1,
-      dimension: 3
+      dimension: 3,
+      verificationDate: Date()
     )
     try await recommendationRepo.upsertEmbeddings([staleEmbedding])
 
@@ -301,14 +302,16 @@ class EmbeddingServiceTests {
       vector: UnsavedEpisodeEmbedding.vectorData(from: [1.0, 0.0, 0.0]),
       sourceHash: "episode-hash-1",
       embeddingRevision: 1,
-      dimension: 3
+      dimension: 3,
+      verificationDate: Date()
     )
     let secondEpisodeEmbedding = UnsavedEpisodeEmbedding(
       episodeId: podcastEpisode.episode.id,
       vector: UnsavedEpisodeEmbedding.vectorData(from: [0.0, 1.0, 0.0]),
       sourceHash: "episode-hash-2",
       embeddingRevision: 2,
-      dimension: 3
+      dimension: 3,
+      verificationDate: Date()
     )
     try await recommendationRepo.upsertEmbeddings([firstEpisodeEmbedding, secondEpisodeEmbedding])
 
@@ -361,6 +364,69 @@ class EmbeddingServiceTests {
     #expect(savedPodcastEmbedding.embeddingRevision == 2)
     #expect(episodeRowCount == 1)
     #expect(podcastRowCount == 1)
+  }
+
+  // MARK: - Verification Touch
+
+  // Regression: episodesNeedingEmbeddings used to compare contentUpdatedAt
+  // against creationDate, but the EmbeddingService loop short-circuits when
+  // the source hash matches — so for any contentUpdatedAt bump that didn't
+  // change cleaned title/description (e.g. a feed refresh that touched a
+  // non-content field), the same episode came back forever. The fix splits
+  // a mutable verificationDate out of creationDate and touches it on the
+  // hash-match skip path.
+  @Test("hash-stable contentUpdatedAt bump no longer requeues the episode forever")
+  func verificationDateTouchDrainsQueue() async throws {
+    let pe = try await makePodcastEpisode(
+      podcastTitle: "Stable Pod",
+      podcastDescription: "Stable pod desc",
+      episodeTitle: "Stable Title",
+      episodeDescription: "Stable desc"
+    )
+    let embedding = makeContextualEmbedding()
+
+    try await EmbeddingService.upsertEpisodeEmbeddings(
+      for: [pe.episode],
+      embedding: embedding
+    )
+
+    // Force verificationDate < contentUpdatedAt without going through the
+    // title/description trigger, so the cleaned-text hash stays identical
+    // and the service's needsRecompute guard skips the vector recompute.
+    // Use fixed past dates so the assertion doesn't depend on test-runner
+    // clock skew between the initial upsert and the touch.
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          UPDATE episodeEmbedding SET verificationDate = '2020-01-01 00:00:00'
+          WHERE episodeId = ?
+          """,
+        arguments: [pe.episode.id]
+      )
+      try db.execute(
+        sql: """
+          UPDATE episode SET contentUpdatedAt = '2020-06-01 00:00:00'
+          WHERE id = ?
+          """,
+        arguments: [pe.episode.id]
+      )
+    }
+
+    let staleQueue = try await recommendationRepo.episodesNeedingEmbeddings(
+      revision: embedding.revision
+    )
+    #expect(staleQueue.contains(pe.episode.id))
+
+    let refreshed = try await recommendationRepo.episodes(for: [pe.episode.id])
+    try await EmbeddingService.upsertEpisodeEmbeddings(
+      for: refreshed,
+      embedding: embedding
+    )
+
+    let drainedQueue = try await recommendationRepo.episodesNeedingEmbeddings(
+      revision: embedding.revision
+    )
+    #expect(!drainedQueue.contains(pe.episode.id))
   }
 
   // MARK: - Recipe Stability

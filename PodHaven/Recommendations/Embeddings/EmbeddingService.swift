@@ -81,6 +81,14 @@ enum EmbeddingService {
     var pendingEpisodeEmbeddings = [UnsavedEpisodeEmbedding](capacity: episodes.count)
     var pendingPodcastEmbeddings = [UnsavedPodcastEmbedding](capacity: podcastIDs.count)
 
+    // Episodes whose embedding still matches (same hash, same revision) but
+    // whose contentUpdatedAt or podcast.contentUpdatedAt advanced past the
+    // stored verificationDate. We touch verificationDate on these so the
+    // SQL query in episodesNeedingEmbeddings stops returning them — without
+    // doing a no-op vector recompute.
+    var verifiedOnlyEpisodeIDs = [Episode.ID](capacity: episodes.count)
+    let chunkStart = Date()
+
     var caughtCancellation: CancellationError?
     for episode in episodes {
       do {
@@ -99,7 +107,10 @@ enum EmbeddingService {
         || existingEmbedding?.sourceHash != hash
         || existingEmbedding?.embeddingRevision != embedding.revision
 
-      guard needsRecompute else { continue }
+      guard needsRecompute else {
+        verifiedOnlyEpisodeIDs.append(episode.id)
+        continue
+      }
 
       // One bad episode mustn't abort the whole BG pass — otherwise the
       // same episode re-enters episodesNeedingEmbeddings forever. Cancellation
@@ -125,7 +136,8 @@ enum EmbeddingService {
           episode,
           hash: hash,
           embedding: embedding,
-          podcastVector: podcastVector
+          podcastVector: podcastVector,
+          verificationDate: chunkStart
         )
         pendingEpisodeEmbeddings.append(unsavedEpisode)
       } catch let error as CancellationError {
@@ -143,6 +155,10 @@ enum EmbeddingService {
     // land before the error propagates.
     try await recommendationRepo.upsertPodcastEmbeddings(pendingPodcastEmbeddings)
     try await recommendationRepo.upsertEmbeddings(pendingEpisodeEmbeddings)
+    try await recommendationRepo.touchEmbeddingVerification(
+      forEpisodeIDs: verifiedOnlyEpisodeIDs,
+      at: chunkStart
+    )
 
     if let caughtCancellation { throw caughtCancellation }
   }
@@ -203,7 +219,8 @@ enum EmbeddingService {
     _ episode: Episode,
     hash: String,
     embedding: ContextualEmbedding,
-    podcastVector: [Float]?
+    podcastVector: [Float]?,
+    verificationDate: Date
   ) throws -> UnsavedEpisodeEmbedding {
     let vector = try computeEpisodeEmbedding(
       for: episode,
@@ -216,7 +233,8 @@ enum EmbeddingService {
       vector: UnsavedEpisodeEmbedding.vectorData(from: vector),
       sourceHash: hash,
       embeddingRevision: embedding.revision,
-      dimension: vector.count
+      dimension: vector.count,
+      verificationDate: verificationDate
     )
   }
 

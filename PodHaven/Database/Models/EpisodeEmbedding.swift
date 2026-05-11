@@ -22,6 +22,7 @@ struct UnsavedEpisodeEmbedding:
   let sourceHash: String
   let embeddingRevision: Int
   let dimension: Int
+  let verificationDate: Date
 
   // MARK: - Stringable / Searchable
 
@@ -45,6 +46,7 @@ struct EpisodeEmbedding: Equatable, Saved, VectorStorable {
     static let embeddingRevision = Column("embeddingRevision")
     static let dimension = Column("dimension")
     static let creationDate = Column("creationDate")
+    static let verificationDate = Column("verificationDate")
   }
 
   // MARK: - Passthroughs
@@ -54,4 +56,5 @@ struct EpisodeEmbedding: Equatable, Saved, VectorStorable {
   var sourceHash: String { unsaved.sourceHash }
   var embeddingRevision: Int { unsaved.embeddingRevision }
   var dimension: Int { unsaved.dimension }
+  var verificationDate: Date { unsaved.verificationDate }
 }

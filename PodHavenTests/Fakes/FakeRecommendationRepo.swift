@@ -57,6 +57,17 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     try await recommendationRepo.upsertPodcastEmbeddings(unsaved)
   }
 
+  func touchEmbeddingVerification(
+    forEpisodeIDs episodeIDs: [Episode.ID],
+    at date: Date
+  ) async throws {
+    recordCall(methodName: "touchEmbeddingVerification", parameters: episodeIDs.count)
+    try await recommendationRepo.touchEmbeddingVerification(
+      forEpisodeIDs: episodeIDs,
+      at: date
+    )
+  }
+
   // MARK: - Embedding Readers
 
   func hasEmbeddings() async throws -> Bool {
