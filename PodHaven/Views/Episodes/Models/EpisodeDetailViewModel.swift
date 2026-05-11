@@ -134,18 +134,24 @@ enum EpisodeDetailState: Sendable {
       // Both `.listedEpisode(.unsaved(...))` and `.displayedEpisode(.unsaved(...))`
       // collapse to `.unsaved(UnsavedPodcastEpisode)` here. Round-trip through
       // `toOriginalUnsavedPodcastEpisode` to drop any saved-only fields that
-      // may have leaked into the listing snapshot.
+      // may have leaked into the listing snapshot. URL validation is
+      // idempotent for already-constructed unsaved values, so the throw
+      // path should be unreachable; if it ever does fire, log and seed the
+      // state with the un-stripped value rather than crashing.
+      let resolved: UnsavedPodcastEpisode
       do {
-        let original = try unsavedPodcastEpisode.toOriginalUnsavedPodcastEpisode()
-        self.init(state: .unsaved(original))
+        resolved = try unsavedPodcastEpisode.toOriginalUnsavedPodcastEpisode()
       } catch {
-        Assert.fatal(
+        Self.log.caughtError(
           """
-          Cannot build UnsavedPodcastEpisode for listed unsaved episode: \
-          \(unsavedPodcastEpisode.toString). Error: \(error)
-          """
+          init(listedEpisode:): failed to strip saved-only fields for \
+          \(unsavedPodcastEpisode.toString)
+          """,
+          error
         )
+        resolved = unsavedPodcastEpisode
       }
+      self.init(state: .unsaved(resolved))
     } else {
       self.init(state: .initial(listedEpisode))
     }

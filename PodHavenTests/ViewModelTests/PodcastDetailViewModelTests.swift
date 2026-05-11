@@ -507,6 +507,51 @@ import Testing
     #expect(podcastEpisodes.map(\.id) == [oldest.id, middle.id, newest.id])
   }
 
+  @Test("selectedPodcastEpisodes degrades to [] when DB rows vanish under a live selection")
+  func selectedPodcastEpisodesGracefulOnVanishedRows() async throws {
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "About to be deleted"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "vanish-1", title: "First"),
+          try Create.unsavedEpisode(guid: "vanish-2", title: "Second"),
+        ]
+      )
+    )
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.saved && viewModel.episodeList.allEntries.count == 2
+      },
+      { @MainActor in
+        """
+        Expected episodeList to hydrate before selection.
+        saved: \(viewModel.saved)
+        count: \(viewModel.episodeList.allEntries.count)
+        """
+      }
+    )
+
+    try select(viewModel, episodeIDs: savedSeries.episodes.map(\.id))
+    #expect(viewModel.selectedEpisodes.count == 2)
+
+    // Stop observation first so the deletion's `nil` emission cannot race
+    // the assertion below by re-entering `loadPresentationFromFeed`.
+    viewModel.disappear()
+
+    let deleted = try await repo.deletePodcast(savedSeries.id)
+    #expect(deleted)
+
+    // Pre-fix: this trapped via `Assert.fatal` because `compactMap` produced
+    // an empty array while `selectedEpisodes` was still non-empty. Post-fix:
+    // it returns [] gracefully so the user sees a no-op rather than a crash.
+    let podcastEpisodes = try await viewModel.selectedPodcastEpisodes
+    #expect(podcastEpisodes.isEmpty)
+  }
+
   @Test("refreshing a series under newestFirst places a new episode at the top, not the bottom")
   func refreshMergesNewEpisodeAtTopUnderNewestFirstSort() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/refresh-sort.rss")!)

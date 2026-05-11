@@ -202,9 +202,12 @@ class PodcastDetailViewModel:
         return upsertedByMediaGUID[episode.mediaGUID]
       }
 
-      guard let podcastEpisode = podcastEpisodes.first
-      else { Assert.fatal("No PodcastEpisodes even tho selectedEpisodes was not empty?") }
-      startObservation(podcastEpisode.podcast.id)
+      // Empty results are a corrupted-state signal (e.g., the rows were
+      // deleted out from under a live selection) — degrade to a no-op
+      // rather than crashing the user's session.
+      if let firstEpisode = podcastEpisodes.first {
+        startObservation(firstEpisode.podcast.id)
+      }
 
       return podcastEpisodes
     }
