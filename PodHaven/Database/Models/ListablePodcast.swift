@@ -34,6 +34,7 @@ struct ListablePodcast: PodcastListable, FetchableRecord, TableRecord {
 
   // MARK: - PodcastListable
 
+  var podcastID: Podcast.ID? { id }
   let feedURL: FeedURL
   let iTunesID: ITunesPodcastID?
   let image: URL

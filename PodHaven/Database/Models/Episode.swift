@@ -39,6 +39,7 @@ struct UnsavedEpisode:
   Searchable
 {
   var id: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
+  var episodeID: Episode.ID? { nil }
 
   private static let log = Log.as(LogSubsystem.Database.episode)
 
@@ -205,6 +206,10 @@ struct UnsavedEpisode:
 
 @Saved<UnsavedEpisode>
 struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
+  // MARK: - EpisodeFoundational
+
+  var episodeID: Episode.ID? { id }
+
   // MARK: - Stringable / Searchable
 
   var toString: String { "[\(id)] - \(unsaved.toString)" }

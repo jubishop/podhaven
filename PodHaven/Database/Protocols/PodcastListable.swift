@@ -20,7 +20,6 @@ where ID: Sendable {
 }
 
 extension PodcastListable {
-  var podcastID: Podcast.ID? { id as? Podcast.ID }
   var isSaved: Bool { podcastID != nil }
   var iTunesID: ITunesPodcastID? { nil }
   var subscribed: Bool { subscriptionDate != nil }

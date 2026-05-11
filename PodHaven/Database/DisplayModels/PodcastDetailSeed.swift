@@ -68,54 +68,31 @@ enum PodcastDetailContent: Hashable, Sendable {
     return podcast
   }
 
-  // MARK: - PodcastListable + header surface
+  // Both cases conform to `PodcastListable`, so list-row fields forward
+  // through one existential. `description` and `link` aren't in the
+  // listable surface — bridge has them as standalone fields, displayed has
+  // them via `PodcastDisplayable` — so they switch explicitly.
+  private var canonicalListable: any PodcastListable {
+    switch self {
+    case .initial(let podcast): return podcast
+    case .loaded(let podcast): return podcast
+    }
+  }
+
+  // MARK: - PodcastListable
 
   var id: FeedURL { feedURL }
+  var podcastID: Podcast.ID? { canonicalListable.podcastID }
+  var feedURL: FeedURL { canonicalListable.feedURL }
+  var iTunesID: ITunesPodcastID? { canonicalListable.iTunesID }
+  var image: URL { canonicalListable.image }
+  var title: String { canonicalListable.title }
+  var subscriptionDate: Date? { canonicalListable.subscriptionDate }
+  var subscribed: Bool { canonicalListable.subscribed }
+  var isSaved: Bool { canonicalListable.isSaved }
+  var toString: String { canonicalListable.toString }
 
-  var podcastID: Podcast.ID? {
-    switch self {
-    case .initial(let podcast): return podcast.podcastID
-    case .loaded(let podcast): return podcast.podcastID
-    }
-  }
-
-  var feedURL: FeedURL {
-    switch self {
-    case .initial(let podcast): return podcast.feedURL
-    case .loaded(let podcast): return podcast.feedURL
-    }
-  }
-
-  var iTunesID: ITunesPodcastID? {
-    switch self {
-    case .initial(let podcast): return podcast.iTunesID
-    case .loaded(let podcast): return podcast.iTunesID
-    }
-  }
-
-  var image: URL {
-    switch self {
-    case .initial(let podcast): return podcast.image
-    case .loaded(let podcast): return podcast.image
-    }
-  }
-
-  var title: String {
-    switch self {
-    case .initial(let podcast): return podcast.title
-    case .loaded(let podcast): return podcast.title
-    }
-  }
-
-  var subscriptionDate: Date? {
-    switch self {
-    case .initial(let podcast): return podcast.subscriptionDate
-    case .loaded(let podcast): return podcast.subscriptionDate
-    }
-  }
-
-  var subscribed: Bool { subscriptionDate != nil }
-  var isSaved: Bool { podcastID != nil }
+  // MARK: - Header extras (not in PodcastListable)
 
   var description: String {
     switch self {
@@ -128,13 +105,6 @@ enum PodcastDetailContent: Hashable, Sendable {
     switch self {
     case .initial(let podcast): return podcast.link
     case .loaded(let podcast): return podcast.link
-    }
-  }
-
-  var toString: String {
-    switch self {
-    case .initial(let podcast): return podcast.toString
-    case .loaded(let podcast): return podcast.toString
     }
   }
 }

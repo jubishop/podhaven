@@ -46,6 +46,7 @@ struct ListableEpisode:
   // MARK: - Episode Fields
 
   let id: Episode.ID
+  var episodeID: Episode.ID? { id }
   let guid: GUID
   let mediaURL: MediaURL
   let title: String

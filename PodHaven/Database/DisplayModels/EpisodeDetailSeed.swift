@@ -19,9 +19,12 @@ enum EpisodeDetailSeed: Hashable, Sendable {
 
 // Live state of `EpisodeDetailViewModel.episode`. `.initial` is the
 // transient list-row snapshot displayed before the saved episode hydrates;
-// `.loaded` is the fully-displayable episode (saved or unsaved).
+// `.loaded` is the fully-displayable episode (saved or unsaved). Both
+// cases conform to `EpisodeDisplayable`, so a single existential helper
+// forwards every property — unlike the podcast side, the bridge episode
+// legitimately carries all `EpisodeDisplayable` fields with honest values.
 enum EpisodeDetailContent:
-  EpisodeListable,
+  EpisodeDisplayable,
   Hashable,
   Sendable
 {
@@ -33,153 +36,53 @@ enum EpisodeDetailContent:
     return episode
   }
 
-  // MARK: - EpisodeListable + header surface
+  private var canonicalEpisode: any EpisodeDisplayable {
+    switch self {
+    case .initial(let episode): return episode
+    case .loaded(let episode): return episode
+    }
+  }
+
+  // MARK: - EpisodeListable / EpisodeFoundational
 
   var id: MediaGUID { mediaGUID }
+  var episodeID: Episode.ID? { canonicalEpisode.episodeID }
+  var mediaGUID: MediaGUID { canonicalEpisode.mediaGUID }
+  var feedURL: FeedURL { canonicalEpisode.feedURL }
+  var title: String { canonicalEpisode.title }
+  var pubDate: Date { canonicalEpisode.pubDate }
+  var duration: CMTime { canonicalEpisode.duration }
+  var currentTime: CMTime { canonicalEpisode.currentTime }
+  var queueOrder: Int? { canonicalEpisode.queueOrder }
+  var cacheStatus: Episode.CacheStatus { canonicalEpisode.cacheStatus }
+  var saveInCache: Bool { canonicalEpisode.saveInCache }
+  var finishDate: Date? { canonicalEpisode.finishDate }
+  var rating: EpisodeRating? { canonicalEpisode.rating }
+  var image: URL { canonicalEpisode.image }
+  var podcastImage: URL { canonicalEpisode.podcastImage }
+  var toString: String { canonicalEpisode.toString }
 
-  var episodeID: Episode.ID? {
-    switch self {
-    case .initial(let episode): return episode.episodeID
-    case .loaded(let episode): return episode.episodeID
-    }
-  }
+  // MARK: - EpisodeDisplayable
 
-  var mediaGUID: MediaGUID {
-    switch self {
-    case .initial(let episode): return episode.mediaGUID
-    case .loaded(let episode): return episode.mediaGUID
-    }
-  }
-
-  var feedURL: FeedURL {
-    switch self {
-    case .initial(let episode): return episode.feedURL
-    case .loaded(let episode): return episode.feedURL
-    }
-  }
-
-  var title: String {
-    switch self {
-    case .initial(let episode): return episode.title
-    case .loaded(let episode): return episode.title
-    }
-  }
-
-  var pubDate: Date {
-    switch self {
-    case .initial(let episode): return episode.pubDate
-    case .loaded(let episode): return episode.pubDate
-    }
-  }
-
-  var duration: CMTime {
-    switch self {
-    case .initial(let episode): return episode.duration
-    case .loaded(let episode): return episode.duration
-    }
-  }
-
-  var currentTime: CMTime {
-    switch self {
-    case .initial(let episode): return episode.currentTime
-    case .loaded(let episode): return episode.currentTime
-    }
-  }
-
-  var queueOrder: Int? {
-    switch self {
-    case .initial(let episode): return episode.queueOrder
-    case .loaded(let episode): return episode.queueOrder
-    }
-  }
-
-  var cacheStatus: Episode.CacheStatus {
-    switch self {
-    case .initial(let episode): return episode.cacheStatus
-    case .loaded(let episode): return episode.cacheStatus
-    }
-  }
-
-  var saveInCache: Bool {
-    switch self {
-    case .initial(let episode): return episode.saveInCache
-    case .loaded(let episode): return episode.saveInCache
-    }
-  }
-
-  var finishDate: Date? {
-    switch self {
-    case .initial(let episode): return episode.finishDate
-    case .loaded(let episode): return episode.finishDate
-    }
-  }
-
-  var rating: EpisodeRating? {
-    switch self {
-    case .initial(let episode): return episode.rating
-    case .loaded(let episode): return episode.rating
-    }
-  }
-
-  var image: URL {
-    switch self {
-    case .initial(let episode): return episode.image
-    case .loaded(let episode): return episode.image
-    }
-  }
-
-  var podcastImage: URL {
-    switch self {
-    case .initial(let episode): return episode.podcastImage
-    case .loaded(let episode): return episode.podcastImage
-    }
-  }
-
-  var podcastTitle: String {
-    switch self {
-    case .initial(let episode): return episode.podcastTitle
-    case .loaded(let episode): return episode.podcastTitle
-    }
-  }
-
-  var description: String? {
-    switch self {
-    case .initial(let episode): return episode.description
-    case .loaded(let episode): return episode.description
-    }
-  }
-
-  var queueDate: Date? {
-    switch self {
-    case .initial(let episode): return episode.queueDate
-    case .loaded(let episode): return episode.queueDate
-    }
-  }
-
-  var isSaved: Bool { episodeID != nil }
-  var queued: Bool { queueOrder != nil }
-  var finished: Bool { finishDate != nil }
-
-  var toString: String {
-    switch self {
-    case .initial(let episode): return episode.toString
-    case .loaded(let episode): return episode.toString
-    }
-  }
+  var podcastTitle: String { canonicalEpisode.podcastTitle }
+  var description: String? { canonicalEpisode.description }
+  var queueDate: Date? { canonicalEpisode.queueDate }
 }
 
 // Snapshot of list-row episode data displayed before the detail view
-// hydrates. Carries only what the list row knows: episode-listable fields
-// plus the displayable extras (`podcastTitle`, `description`, `queueDate`)
-// that are present in both source variants. Does **not** claim
-// `EpisodeDisplayable` conformance — the wrapper-level `Displayed*`
-// surface is reserved for fully-loaded data.
+// hydrates. Conforms to `EpisodeDisplayable` because the bridge legitimately
+// carries every required field with honest values — `podcastTitle` /
+// `queueDate` come straight from the list row, `description` is `nil` for
+// the saved arm (genuinely unknown until hydration) and the unsaved
+// episode's own description for the unsaved arm. Contrast with the podcast
+// bridge, which can only honestly fulfill `PodcastListable` because the
+// detail-only fields (`queueAllEpisodes`, etc.) have no list-row source.
 //
 // Internal because `EpisodeDetailContent.initial` names this type across
 // files; init is fileprivate so `EpisodeDetailSeed` remains the only
 // constructor.
 struct EpisodeDetailInitialEpisode:
-  EpisodeListable,
+  EpisodeDisplayable,
   Sendable
 {
   let episodeID: Episode.ID?
