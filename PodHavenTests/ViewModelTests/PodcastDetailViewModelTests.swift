@@ -920,4 +920,82 @@ import Testing
     )
   }
 
+  @Test("subscribe preserves the unsaved episode list across the saved-bootstrap window")
+  func subscribePreservesEpisodeListAcrossInsertBootstrap() async throws {
+    // pubDates intentionally descending: keeps the unsaved insertion order
+    // byte-equal to the eventual saved-series fetch order (pubDate desc),
+    // so the assertion only catches `episodeList` getting wiped — never a
+    // benign reorder from observation.
+    let feedURL = FeedURL(URL(string: "https://example.com/bootstrap-subscribe.rss")!)
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Bootstrap Subscribe"),
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(
+          guid: "bootstrap-1",
+          title: "Episode 1",
+          pubDate: Date(timeIntervalSince1970: 300)
+        ),
+        try Create.unsavedEpisode(
+          guid: "bootstrap-2",
+          title: "Episode 2",
+          pubDate: Date(timeIntervalSince1970: 200)
+        ),
+        try Create.unsavedEpisode(
+          guid: "bootstrap-3",
+          title: "Episode 3",
+          pubDate: Date(timeIntervalSince1970: 100)
+        ),
+      ]
+    )
+    // Stub `podcastSeriesDetail` so the observation the VM starts after
+    // insert throws on first iteration. That cuts off the live-hydration
+    // path and leaves `.saved(emptyPodcastSeriesDetail)` as the terminal
+    // state, so the only thing that can touch `episodeList` is the
+    // bootstrap-skip in `refreshEpisodeList`.
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let dbReader = appDB.db
+    fakeObservatory.podcastSeriesDetailScript([
+      { _ in
+        ValueObservation
+          .tracking { _ -> PodcastSeriesDetail? in
+            throw TestError.simulatedFailure
+          }
+          .values(in: dbReader)
+      }
+    ])
+
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.allEntries.map(\.title) == [
+          "Episode 1", "Episode 2", "Episode 3",
+        ]
+      },
+      { @MainActor in
+        """
+        Expected unsaved init to populate episodeList before subscribe.
+        titles: \(viewModel.episodeList.allEntries.map(\.title))
+        """
+      }
+    )
+
+    viewModel.subscribe()
+
+    // Wait for the saved transition. With observation stubbed to throw,
+    // no further transitions follow, so the only thing that can change
+    // episodeList from here is `refreshEpisodeList`'s bootstrap-skip
+    // branch. Yield a few times so PowerList's debounced `_allEntries`
+    // task drains before the assertion lands.
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in viewModel.saved },
+      { @MainActor in "Expected subscribe() to land in saved state" }
+    )
+    for _ in 0..<10 { await Task.yield() }
+    #expect(
+      viewModel.episodeList.allEntries.map(\.title) == [
+        "Episode 1", "Episode 2", "Episode 3",
+      ]
+    )
+  }
 }
