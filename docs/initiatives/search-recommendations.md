@@ -17,7 +17,13 @@ The new engine entry point this initiative adds scores by similarity to the user
 - **Affinity** would heavily bias the list toward podcasts the user already rates highly — irrelevant for unsubscribed podcasts (no rating history) and counter-productive for subscribed ones (the discovery list would become "your top subscribed podcasts again").
 - **Freshness** is multiplicative (`RecommendationEngine.swift:531`), so a 2018 episode of a perfectly-matched podcast would be penalized into oblivion. For a search-driven view, the user's lens is content match, not recency.
 
-Because affinity is removed, **subscribed and unsubscribed podcasts can coexist in the list**. Subscribed-podcast episodes are nearly free to score — embeddings already live in the `episodeEmbedding` table, and there's no RSS fetch. Unsubscribed-podcast episodes are the expensive path: fetch RSS, parse, embed on the fly, then score. The collector branches on this distinction internally but the user-facing list is one ranked stream.
+### Why subscribed podcasts are still excluded
+
+Stripping affinity from the scoring isn't enough on its own. The user's centroid is built from episodes they've liked, whose titles and descriptions overwhelmingly come from podcasts they're already subscribed to — so **podcast affinity leaks through the centroid itself**. A pure content-similarity score will still rank subscribed-podcast episodes highly on shape alone, and the discovery list would collapse back to "your subscribed podcasts again" through the side door.
+
+On top of that, candidate episodes from subscribed podcasts (i.e. ones that pass `Episode.candidate && id != onDeckID`) are exactly what UpNext already surfaces. Including them in a search-discovery list is duplicative with an existing surface that does the same job with the full scoring signal (affinity + freshness included).
+
+So the collector **excludes subscribed podcasts entirely**. Every podcast it processes is unsubscribed: RSS fetch → parse → embed → score. There is no cheap path.
 
 ---
 
@@ -40,7 +46,7 @@ func discoveryScores<ID: Hashable & Sendable>(
 ) async -> [ID: RecommendationScore]
 ```
 
-The generic ID lets the collector key on whatever it has handy — `Episode.ID` for subscribed-podcast episodes (which have a DB row), or a synthetic `(feedURL, guid)` composite for unsubscribed-podcast episodes (which don't). Internally the method cosines each candidate against the cached `positiveCentroid` (and subtracts against `negativeCentroid` if present) using the same primitive that `scoreCandidate` already calls, but skips the affinity blend and freshness multiply. Returns `RecommendationScore` with `reasons: [.similarToLiked]` only — the other two reason variants don't apply.
+The collector's current use keys on a synthetic `(feedURL, guid)` composite, since unsubscribed-podcast episodes don't have an `Episode.ID`. The generic ID parameter keeps the entry point honest as a general-purpose primitive — future discovery callers (e.g. an "explore" tab seeded from elsewhere) can plug in their own key type without forcing the engine to know about RSS shapes. Internally the method cosines each candidate against the cached `positiveCentroid` (and subtracts against `negativeCentroid` if present) using the same primitive that `scoreCandidate` already calls, but skips the affinity blend and freshness multiply. Returns `RecommendationScore` with `reasons: [.similarToLiked]` only — the other two reason variants don't apply.
 
 This is additive — no changes to `recommendations(for:)` or `topRecommendations(limit:)`. Both keep their current contract for UpNext.
 
@@ -59,17 +65,15 @@ A `@MainActor` `@Observable` class owned by `SearchViewModel`. One instance per 
 
 Responsibilities:
 
-- Observe `SearchViewModel.podcastList`. When new search results arrive, enqueue any podcast that isn't already in the collector's seen-set.
-- Cap intake at the first **P** result podcasts by search ranking, and the most recent **E** episodes per podcast (by `pubDate` desc). Starting values: `P = 25`, `E = 10`. Both are **tunable** — they trade discovery surface area against RSS load + embedding cost, and the right values will fall out of measurement once the feature is wired up. Captured here as constants near the collector so they're easy to find and adjust.
-- For each enqueued podcast, fan out a child Task at `taskPriority(.utility)`. Branch on subscription state:
-  - **Subscribed (cheap path).** Query the local DB for the E most recent episodes plus their stored vectors from `episodeEmbedding`. Apply the same candidate filter UpNext uses — `Episode.candidate && id != onDeckID` (`Episode.swift:248`) — which excludes finished, queued, started, rated, and onDeck episodes. No RSS fetch, no embedding work. Pass straight to `engine.discoveryScores(for:)`.
-  - **Unsubscribed (expensive path).**
-    1. Fetch + parse RSS via `PodcastFeed.parse(downloadTask.downloadFinished())` (same path `RefreshManager.refreshSeries` uses at `RefreshManager.swift:97`).
-    2. Take the E most recent episodes from the parsed feed.
-    3. Apply the candidate filter. Most unsubscribed-podcast episodes won't have a DB row at all (so the filter is a no-op for them), but the user *might* have interacted with one previously — played, queued, or rated an episode from a podcast they never subscribed to. Resolve via one batch query: `SELECT … FROM episode WHERE guid IN (…) OR mediaURL IN (…)` keyed by the RSS episodes' natural keys. For each match, apply `Episode.candidate && id != onDeckID` and drop the failures. Episodes with no matching row pass through.
-    4. For surviving episodes, call `EmbeddingService.embed(episode:)` to produce a vector. Skip any episode that fails to embed (e.g. NLContextualEmbedding asset unavailable for the detected language).
-    5. Pass the batch to `engine.discoveryScores(for:)`.
-- Merge scored episodes into the published `episodes` array, keyed by `Episode.ID` for subscribed-podcast episodes and `(feedURL, guid)` for unsubscribed-podcast episodes. Re-sort on every insert. UI observes and re-renders silently.
+- Observe `SearchViewModel.podcastList`. When new search results arrive, take the first **P** by search ranking, **then drop any the user is subscribed to** (see "Why subscribed podcasts are still excluded" above), then enqueue the survivors that aren't already in the seen-set. The cap happens *before* the subscription filter — we don't walk deeper into the result list to backfill the discovery budget, since the 30th-ranked search result has no business being shown as a "top pick."
+- Take the most recent **E** episodes per enqueued podcast (by `pubDate` desc). Starting values: `P = 25`, `E = 10`. Both are **tunable** — they trade discovery surface area against RSS load + embedding cost, and the right values will fall out of measurement once the feature is wired up. Captured here as constants near the collector so they're easy to find and adjust. Note that with subscribed podcasts excluded, every enqueued podcast pays the full RSS+embed cost, so P caps the network/CPU load directly.
+- For each enqueued podcast, fan out a child Task at `taskPriority(.utility)`:
+  1. Fetch + parse RSS via `PodcastFeed.parse(downloadTask.downloadFinished())` (same path `RefreshManager.refreshSeries` uses at `RefreshManager.swift:97`).
+  2. Take the E most recent episodes from the parsed feed.
+  3. Apply the candidate filter. Most episodes from these podcasts won't have a DB row at all (so the filter is a no-op for them), but the user *might* have interacted with one previously — played, queued, or rated an episode from a podcast they never subscribed to. Resolve via one batch query: `SELECT … FROM episode WHERE guid IN (…) OR mediaURL IN (…)` keyed by the RSS episodes' natural keys. For each match, apply `Episode.candidate && id != onDeckID` (`Episode.swift:248`) — which excludes finished, queued, started, rated, and onDeck episodes — and drop the failures. Episodes with no matching row pass through.
+  4. For surviving episodes, call `EmbeddingService.embed(episode:)` to produce a vector. Skip any episode that fails to embed (e.g. NLContextualEmbedding asset unavailable for the detected language).
+  5. Pass the batch to `engine.discoveryScores(for:)`.
+- Merge scored episodes into the published `episodes` array, keyed by `(feedURL, guid)`. Re-sort on every insert. UI observes and re-renders silently.
 - Track a minimum-score floor identical to UpNext (`minimumScoreThreshold`, `RecommendationEngine.swift:185`) so the list isn't polluted by low-similarity matches.
 
 Cancellation lifecycle:
@@ -81,7 +85,7 @@ Cancellation lifecycle:
 
 A new `EpisodeListable` source backed by the collector's `episodes` array. The existing `EpisodesListView` already renders any `EpisodeListable` collection, so the integration is:
 
-- A bridge type that wraps `[ListedEpisode]` (with the `UnsavedPodcastEpisode` case carrying the RSS-derived episode + the collector's `RecommendationScore` for sorting).
+- A bridge type that wraps `[ListedEpisode]` — every entry is the `UnsavedPodcastEpisode` case (carrying the RSS-derived episode + the collector's `RecommendationScore` for sorting), since the collector only surfaces episodes from unsubscribed podcasts.
 - The view's navigation title is the original search query string. Subtitle (if the existing view supports one) shows "Recommended for you" or similar.
 - Sort is fixed: score desc, then pubDate desc, then guid. The standard sort toolbar is hidden here — the whole point of this view is "ranked by recommendation," and exposing the sort menu would invite a confusing "what does the engine think of these in pubDate order?" reading.
 - Tapping an episode opens the existing episode detail view. **Verify** that the detail-view + play path handles `UnsavedPodcastEpisode` end-to-end without subscribing (this should already work — Search already lets users play episodes from unsubscribed podcasts — but worth confirming as part of implementation).
@@ -103,7 +107,7 @@ A new `EpisodeListable` source backed by the collector's `episodes` array. The e
 
 ## Cancellation & cost ceiling
 
-At the starting `P = 25`, `E = 10` caps, the unsubscribed-podcast branch is the dominant cost: each podcast costs one RSS fetch (200ms–2s, parallel) + E embeddings (~10ms each on-device). Worst case (all 25 podcasts unsubscribed): **3–8s wall clock** at utility priority, RSS-bound. The subscribed-podcast branch is essentially free — a DB query and a dictionary lookup per podcast. Mixed cases land in between.
+At the starting `P = 25`, `E = 10` caps, every enqueued podcast is unsubscribed, so every podcast costs one RSS fetch (200ms–2s, parallel) + E embeddings (~10ms each on-device). Typical case is **3–8s wall clock** at utility priority, RSS-bound. If a search returns mostly subscribed podcasts (e.g. the user searches a term that matches several of their subscriptions), the collector fills its P budget from fewer results and may end up with a shorter list — acceptable, and arguably correct: those subscribed matches are UpNext's job.
 
 Cancellation matters because users tab out of search quickly. Per the lifecycle decision, leaving the search screen cancels every in-flight Task — no zombie network requests or embeddings continuing after the user has moved on.
 

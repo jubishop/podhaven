@@ -51,11 +51,11 @@ struct RecommendationEngine: Sendable {
   private static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
-  // Must sum to 1.0. Similarity dominates 4:1 so a single liked episode
+  // Must sum to 1.0. Similarity dominates so a single liked episode
   // doesn't drag in everything that podcast ever published. Freshness isn't
   // a summand — it's a multiplicative gate (see `scoreCandidate`).
-  private static let similarityWeight: Float = 0.8
-  private static let podcastAffinityWeight: Float = 0.2
+  private static let similarityWeight: Float = 0.9
+  private static let podcastAffinityWeight: Float = 0.1
 
   // Centroid weights
   private static let lovedWeight: Float = 1.0
