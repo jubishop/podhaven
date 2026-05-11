@@ -12,13 +12,11 @@ struct DisplayedEpisode:
   enum Source: Hashable, Sendable {
     case saved(PodcastEpisode)
     case unsaved(UnsavedPodcastEpisode)
-    case initialPresentation(EpisodeDetailInitialEpisode)
 
     var canonicalEpisode: any EpisodeDisplayable {
       switch self {
       case .saved(let episode): return episode
       case .unsaved(let episode): return episode
-      case .initialPresentation(let episode): return episode
       }
     }
 
@@ -39,7 +37,6 @@ struct DisplayedEpisode:
 
   init(_ episode: PodcastEpisode) { source = .saved(episode) }
   init(_ episode: UnsavedPodcastEpisode) { source = .unsaved(episode) }
-  init(_ episode: EpisodeDetailInitialEpisode) { source = .initialPresentation(episode) }
 
   // MARK: - Identifiable
 
@@ -86,8 +83,6 @@ struct DisplayedEpisode:
       return podcastEpisode
     case .unsaved(let unsavedPodcastEpisode):
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
-    case .initialPresentation:
-      Assert.fatal("Cannot get-or-create from initial presentation: \(toString)")
     }
   }
 }

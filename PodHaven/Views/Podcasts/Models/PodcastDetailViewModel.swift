@@ -32,7 +32,7 @@ class PodcastDetailViewModel:
 
   // MARK: - Data
 
-  var podcast: DisplayedPodcast
+  var podcast: PodcastDetailContent
   private var _podcastSeries: PodcastSeriesDetail?
   private var podcastSeries: PodcastSeriesDetail? {
     get { _podcastSeries }
@@ -43,7 +43,7 @@ class PodcastDetailViewModel:
       Self.log.debug("Setting podcastSeries to: \(newValue.toString)")
 
       _podcastSeries = newValue
-      podcast = DisplayedPodcast(newValue.podcast)
+      podcast = .loaded(DisplayedPodcast(newValue.podcast))
 
       // Empty episodes is the bootstrap case (subscribe() before observation
       // hydrates), so skip the replacement to avoid blanking the feed-parsed
@@ -192,7 +192,7 @@ class PodcastDetailViewModel:
   var showingSettings: Bool = false
 
   var defaultPlaybackRate: Double? {
-    get { podcast.defaultPlaybackRate }
+    get { podcast.loaded?.defaultPlaybackRate }
     set {
       guard let podcastID = podcastSeries?.id else {
         Self.log.warning("Cannot update defaultPlaybackRate for unsaved podcast")
@@ -217,7 +217,7 @@ class PodcastDetailViewModel:
   }
 
   var queueAllEpisodes: QueueAllEpisodes {
-    get { podcast.queueAllEpisodes }
+    get { podcast.loaded?.queueAllEpisodes ?? .never }
     set {
       guard let podcastID = podcastSeries?.id else {
         Self.log.warning("Cannot update queueAllEpisodes for unsaved podcast")
@@ -239,7 +239,7 @@ class PodcastDetailViewModel:
   }
 
   var cacheAllEpisodes: CacheAllEpisodes {
-    get { podcast.cacheAllEpisodes }
+    get { podcast.loaded?.cacheAllEpisodes ?? .never }
     set {
       guard let podcastID = podcastSeries?.id else {
         Self.log.warning("Cannot update cacheAllEpisodes for unsaved podcast")
@@ -261,7 +261,7 @@ class PodcastDetailViewModel:
   }
 
   var notifyNewEpisodes: Bool {
-    get { podcast.notifyNewEpisodes }
+    get { podcast.loaded?.notifyNewEpisodes ?? false }
     set {
       guard let podcastID = podcastSeries?.id else {
         Self.log.warning("Cannot update notifyNewEpisodes for unsaved podcast")
@@ -289,7 +289,7 @@ class PodcastDetailViewModel:
   }
 
   var freshnessCadence: FreshnessCadence? {
-    get { podcast.freshnessCadence }
+    get { podcast.loaded?.freshnessCadence }
     set {
       guard let podcastID = podcastSeries?.id else {
         Self.log.warning("Cannot update freshnessCadence for unsaved podcast")
@@ -419,7 +419,7 @@ class PodcastDetailViewModel:
       do {
         if let podcastID = try await ensureObservedSeries(for: podcast) {
           try await repo.markSubscribed(podcastID)
-        } else if let unsavedPodcast = podcast.source.unsaved {
+        } else if let unsavedPodcast = podcast.loaded?.source.unsaved {
           let insertedSeries = try await repo.insertSeries(
             UnsavedPodcastSeries(
               unsavedPodcast: unsavedPodcast,
@@ -643,7 +643,7 @@ class PodcastDetailViewModel:
   // MARK: - Private Helpers
 
   @discardableResult
-  private func ensureObservedSeries(for podcast: DisplayedPodcast) async throws -> Podcast.ID? {
+  private func ensureObservedSeries(for podcast: PodcastDetailContent) async throws -> Podcast.ID? {
     if let podcastID = podcastSeries?.id { return podcastID }
 
     guard let savedSeries = try await savedSeries(for: podcast) else { return nil }
@@ -665,7 +665,7 @@ class PodcastDetailViewModel:
     )
   }
 
-  private func savedSeries(for currentPodcast: DisplayedPodcast) async throws
+  private func savedSeries(for currentPodcast: PodcastDetailContent) async throws
     -> PodcastSeriesDetail?
   {
     try await repo.podcastSeriesDetail(
@@ -674,13 +674,13 @@ class PodcastDetailViewModel:
     )
   }
 
-  private func parsedFeedPresentation(for currentPodcast: DisplayedPodcast) async throws
+  private func parsedFeedPresentation(for currentPodcast: PodcastDetailContent) async throws
     -> PodcastDetailPresentation
   {
     let podcastFeed = try await PodcastFeed.parse(currentPodcast.feedURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: currentPodcast.iTunesID)
     return PodcastDetailPresentation(
-      podcast: DisplayedPodcast(unsavedPodcast),
+      podcast: .loaded(DisplayedPodcast(unsavedPodcast)),
       episodes: IdentifiedArray(
         uniqueElements: podcastFeed.toUnsavedEpisodes()
           .map {

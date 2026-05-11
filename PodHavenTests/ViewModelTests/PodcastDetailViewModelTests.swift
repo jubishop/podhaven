@@ -171,7 +171,7 @@ import Testing
     try await viewModel.performAppear()
 
     #expect(viewModel.saved == false)
-    #expect(viewModel.podcast.source.unsaved != nil)
+    #expect(viewModel.podcast.loaded?.source.unsaved != nil)
     #expect(viewModel.episodeList.allEntries.isEmpty == false)
   }
 
@@ -267,7 +267,7 @@ import Testing
     try await Wait.until(
       { @MainActor in
         viewModel.saved == false
-          && viewModel.podcast.source.unsaved != nil
+          && viewModel.podcast.loaded?.source.unsaved != nil
           && viewModel.episodeList.allEntries.isEmpty == false
       },
       { @MainActor in
@@ -659,7 +659,7 @@ import Testing
       { @MainActor in
         let savedSeries = try await self.repo.podcastSeries(feedURL)
         return savedSeries?.podcast.notifyNewEpisodes == true
-          && viewModel.podcast.notifyNewEpisodes
+          && viewModel.notifyNewEpisodes
           && self.notificationCenter.requestAuthorizationCalls.count == 1
       },
       { @MainActor in
@@ -667,7 +667,7 @@ import Testing
         return """
           Expected notifyNewEpisodes to persist and request authorization.
           repo value: \(String(describing: savedSeries?.podcast.notifyNewEpisodes))
-          view model value: \(viewModel.podcast.notifyNewEpisodes)
+          view model value: \(viewModel.notifyNewEpisodes)
           authorization calls: \(self.notificationCenter.requestAuthorizationCalls.count)
           """
       }

@@ -28,7 +28,7 @@ import Tagged
   private let originTab: Navigation.Tab
   private let seed: EpisodeDetailSeed
   private let unsavedFallback: UnsavedPodcastEpisode?
-  var episode: DisplayedEpisode
+  var episode: EpisodeDetailContent
   var tags: IdentifiedArrayOf<Tag> = []
   private var recommendationScore: RecommendationScore?
   private var _podcastEpisode: PodcastEpisode?
@@ -41,7 +41,7 @@ import Tagged
       Self.log.debug("Setting podcastEpisode to: \(newValue.toString)")
 
       _podcastEpisode = newValue
-      episode = DisplayedEpisode(newValue)
+      episode = .loaded(DisplayedEpisode(newValue))
     }
   }
 
@@ -155,7 +155,7 @@ import Tagged
         navigation.dismiss(from: originTab)
         return
       }
-      episode = DisplayedEpisode(unsavedFallback)
+      episode = .loaded(DisplayedEpisode(unsavedFallback))
     }
 
     if let startTime {
@@ -514,7 +514,7 @@ import Tagged
           clearRecommendationTask()
           recommendationScore = nil
           _podcastEpisode = nil
-          episode = deletedPresentation
+          episode = .loaded(deletedPresentation)
           return
         }
 
@@ -603,11 +603,19 @@ import Tagged
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
     let podcastEpisode: PodcastEpisode
-    switch seed {
-    case .listedEpisode(let listedEpisode):
+    if let loaded = episode.loaded {
+      // Use current episode state: covers post-deletion revert where `episode`
+      // was replaced with an unsaved variant that needs to upsert, not the
+      // stale saved-podcast value originally captured in the seed.
+      podcastEpisode = try await loaded.getOrCreatePodcastEpisode()
+    } else if case .listedEpisode(let listedEpisode) = seed {
+      // Initial bridge state only happens for `.listedEpisode` seeds; the
+      // bridge can't getOrCreate, so fall back to the original list-row.
       podcastEpisode = try await listedEpisode.getOrCreatePodcastEpisode()
-    case .displayedEpisode:
-      podcastEpisode = try await episode.getOrCreatePodcastEpisode()
+    } else {
+      Assert.fatal(
+        "Initial-state episode without listedEpisode seed: \(episode.toString)"
+      )
     }
     self.podcastEpisode = podcastEpisode
     startObservation()
