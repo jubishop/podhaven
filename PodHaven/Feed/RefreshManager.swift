@@ -103,10 +103,7 @@ struct RefreshManager {
           FeedURL: \(podcastSeries.podcast.feedURL)
         """,
         error,
-        level: { error in
-          if error as? FeedParseError == .notXML { return .notice }
-          return .error
-        }
+        level: { _ in .notice }
       )
       return false
     }
