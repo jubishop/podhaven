@@ -415,64 +415,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
-  func updateDefaultPlaybackRate(_ podcastID: Podcast.ID, defaultPlaybackRate: Double?) async throws
+  func updatePodcastSettings(_ podcastID: Podcast.ID, _ settings: PodcastSettings) async throws
     -> Bool
   {
     recordCall(
-      methodName: "updateDefaultPlaybackRate",
-      parameters: (podcastID: podcastID, defaultPlaybackRate: defaultPlaybackRate)
+      methodName: "updatePodcastSettings",
+      parameters: (podcastID: podcastID, settings: settings)
     )
-    return try await repo.updateDefaultPlaybackRate(
-      podcastID,
-      defaultPlaybackRate: defaultPlaybackRate
-    )
-  }
-
-  @discardableResult
-  func updateQueueAllEpisodes(_ podcastID: Podcast.ID, queueAllEpisodes: QueueAllEpisodes)
-    async throws -> Bool
-  {
-    recordCall(
-      methodName: "updateQueueAllEpisodes",
-      parameters: (podcastID: podcastID, queueAllEpisodes: queueAllEpisodes)
-    )
-    return try await repo.updateQueueAllEpisodes(podcastID, queueAllEpisodes: queueAllEpisodes)
-  }
-
-  @discardableResult
-  func updateCacheAllEpisodes(_ podcastID: Podcast.ID, cacheAllEpisodes: CacheAllEpisodes)
-    async throws -> Bool
-  {
-    recordCall(
-      methodName: "updateCacheAllEpisodes",
-      parameters: (podcastID: podcastID, cacheAllEpisodes: cacheAllEpisodes)
-    )
-    return try await repo.updateCacheAllEpisodes(podcastID, cacheAllEpisodes: cacheAllEpisodes)
-  }
-
-  @discardableResult
-  func updateNotifyNewEpisodes(_ podcastID: Podcast.ID, notifyNewEpisodes: Bool)
-    async throws -> Bool
-  {
-    recordCall(
-      methodName: "updateNotifyNewEpisodes",
-      parameters: (podcastID: podcastID, notifyNewEpisodes: notifyNewEpisodes)
-    )
-    return try await repo.updateNotifyNewEpisodes(podcastID, notifyNewEpisodes: notifyNewEpisodes)
-  }
-
-  @discardableResult
-  func updateFreshnessCadence(
-    _ podcastID: Podcast.ID,
-    freshnessCadence: FreshnessCadence?
-  ) async throws -> Bool {
-    recordCall(
-      methodName: "updateFreshnessCadence",
-      parameters: (podcastID: podcastID, freshnessCadence: freshnessCadence)
-    )
-    return try await repo.updateFreshnessCadence(
-      podcastID,
-      freshnessCadence: freshnessCadence
-    )
+    return try await repo.updatePodcastSettings(podcastID, settings)
   }
 }

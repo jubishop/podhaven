@@ -705,7 +705,9 @@ import Testing
       { @MainActor in "Expected notify test podcast to be saved before changing settings" }
     )
 
-    viewModel.setNotifyNewEpisodes(true)
+    var newSettings = viewModel.settings ?? .defaults
+    newSettings.notifyNewEpisodes = true
+    viewModel.updateSettings(newSettings)
 
     try await Wait.until(
       { @MainActor in

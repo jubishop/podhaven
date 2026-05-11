@@ -162,26 +162,8 @@ protocol Databasing: Sendable {
   func updateLastUpdate(_ podcastID: Podcast.ID) async throws -> Bool
 
   @discardableResult
-  func updateDefaultPlaybackRate(_ podcastID: Podcast.ID, defaultPlaybackRate: Double?) async throws
+  func updatePodcastSettings(_ podcastID: Podcast.ID, _ settings: PodcastSettings) async throws
     -> Bool
-
-  @discardableResult
-  func updateQueueAllEpisodes(_ podcastID: Podcast.ID, queueAllEpisodes: QueueAllEpisodes)
-    async throws -> Bool
-
-  @discardableResult
-  func updateCacheAllEpisodes(_ podcastID: Podcast.ID, cacheAllEpisodes: CacheAllEpisodes)
-    async throws -> Bool
-
-  @discardableResult
-  func updateNotifyNewEpisodes(_ podcastID: Podcast.ID, notifyNewEpisodes: Bool)
-    async throws -> Bool
-
-  @discardableResult
-  func updateFreshnessCadence(
-    _ podcastID: Podcast.ID,
-    freshnessCadence: FreshnessCadence?
-  ) async throws -> Bool
 }
 
 extension Databasing {

@@ -284,92 +284,36 @@ class PodcastTests {
     #expect(fetchedPodcast.podcast.lastUpdate.approximatelyEquals(updateTime))
   }
 
-  @Test("updateCacheAllEpisodes() successfully updates podcast cacheAllEpisodes setting")
-  func testUpdateCacheAll() async throws {
-    // Insert a podcast with default cacheAllEpisodes value (.never)
+  @Test(
+    "updatePodcastSettings() atomically updates every settings field and persists across fetches"
+  )
+  func testUpdatePodcastSettings() async throws {
     let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(cacheAllEpisodes: .never))
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
-    #expect(podcastSeries.podcast.cacheAllEpisodes == .never)
+    #expect(podcastSeries.podcast.unsaved.settings == .defaults)
 
-    // Update cacheAllEpisodes to .cache
-    let updated = try await repo.updateCacheAllEpisodes(podcastSeries.id, cacheAllEpisodes: .cache)
+    let everythingSet = PodcastSettings(
+      defaultPlaybackRate: 1.5,
+      queueAllEpisodes: .onTop,
+      cacheAllEpisodes: .save,
+      notifyNewEpisodes: true,
+      freshnessCadence: .evergreen
+    )
+    let updated = try await repo.updatePodcastSettings(podcastSeries.id, everythingSet)
     #expect(updated == true)
+    let afterAllSet = try await repo.podcastSeries(podcastSeries.id)!
+    #expect(afterAllSet.podcast.unsaved.settings == everythingSet)
 
-    // Verify the update worked
-    let fetchedPodcast1 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast1.podcast.cacheAllEpisodes == .cache)
-
-    // Update cacheAllEpisodes to .save
-    let updated2 = try await repo.updateCacheAllEpisodes(
-      podcastSeries.id,
-      cacheAllEpisodes: .save
-    )
+    let everythingCleared = PodcastSettings.defaults
+    let updated2 = try await repo.updatePodcastSettings(podcastSeries.id, everythingCleared)
     #expect(updated2 == true)
+    let afterCleared = try await repo.podcastSeries(podcastSeries.id)!
+    #expect(afterCleared.podcast.unsaved.settings == everythingCleared)
 
-    // Verify the update worked
-    let fetchedPodcast2 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast2.podcast.cacheAllEpisodes == .save)
-
-    // Update cacheAllEpisodes back to .never
-    let updated3 = try await repo.updateCacheAllEpisodes(podcastSeries.id, cacheAllEpisodes: .never)
-    #expect(updated3 == true)
-
-    // Verify the update worked
-    let fetchedPodcast3 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast3.podcast.cacheAllEpisodes == .never)
-
-    // Try to update a non-existent podcast
     let nonExistentID = Podcast.ID(99999)
-    let updated4 = try await repo.updateCacheAllEpisodes(nonExistentID, cacheAllEpisodes: .cache)
-    #expect(updated4 == false)
-  }
-
-  @Test("updateDefaultPlaybackRate() successfully updates podcast defaultPlaybackRate setting")
-  func testUpdateDefaultPlaybackRate() async throws {
-    // Insert a podcast with default defaultPlaybackRate value (nil)
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(defaultPlaybackRate: nil))
-    )
-    #expect(podcastSeries.podcast.defaultPlaybackRate == nil)
-
-    // Update defaultPlaybackRate to 1.5
-    let updated = try await repo.updateDefaultPlaybackRate(
-      podcastSeries.id,
-      defaultPlaybackRate: 1.5
-    )
-    #expect(updated == true)
-
-    // Verify the update worked
-    let fetchedPodcast1 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast1.podcast.defaultPlaybackRate == 1.5)
-
-    // Update defaultPlaybackRate to 1.25
-    let updated2 = try await repo.updateDefaultPlaybackRate(
-      podcastSeries.id,
-      defaultPlaybackRate: 1.25
-    )
-    #expect(updated2 == true)
-
-    // Verify the update worked
-    let fetchedPodcast2 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast2.podcast.defaultPlaybackRate == 1.25)
-
-    // Update defaultPlaybackRate back to nil
-    let updated3 = try await repo.updateDefaultPlaybackRate(
-      podcastSeries.id,
-      defaultPlaybackRate: nil
-    )
-    #expect(updated3 == true)
-
-    // Verify the update worked
-    let fetchedPodcast3 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast3.podcast.defaultPlaybackRate == nil)
-
-    // Try to update a non-existent podcast
-    let nonExistentID = Podcast.ID(99999)
-    let updated4 = try await repo.updateDefaultPlaybackRate(nonExistentID, defaultPlaybackRate: 1.0)
-    #expect(updated4 == false)
+    let updatedMissing = try await repo.updatePodcastSettings(nonExistentID, everythingSet)
+    #expect(updatedMissing == false)
   }
 
   @Test("toOriginalUnsavedPodcast resets all user-generated fields")
@@ -420,30 +364,22 @@ class PodcastTests {
     }
   }
 
-  @Test("updateFreshnessCadence() flips the cadence and persists across fetches, including nil")
-  func testUpdateFreshnessCadence() async throws {
+  @Test("updatePodcastSettings flips the freshness cadence across every case, including nil")
+  func testUpdatePodcastSettingsCadenceSweep() async throws {
     let podcastSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
     #expect(podcastSeries.podcast.freshnessCadence == nil)
 
+    var settings = PodcastSettings.defaults
     let sequence: [FreshnessCadence?] = [.daily, .monthly, .evergreen, .weekly, nil]
     for cadence in sequence {
-      let updated = try await repo.updateFreshnessCadence(
-        podcastSeries.id,
-        freshnessCadence: cadence
-      )
+      settings.freshnessCadence = cadence
+      let updated = try await repo.updatePodcastSettings(podcastSeries.id, settings)
       #expect(updated == true)
       let fetched = try await repo.podcastSeries(podcastSeries.id)!
       #expect(fetched.podcast.freshnessCadence == cadence)
     }
-
-    let nonExistentID = Podcast.ID(99999)
-    let updatedMissing = try await repo.updateFreshnessCadence(
-      nonExistentID,
-      freshnessCadence: .daily
-    )
-    #expect(updatedMissing == false)
   }
 
   @Test("queueAllEpisodes defaults to .never when not specified")
@@ -502,47 +438,6 @@ class PodcastTests {
     #expect(fetchedFromDB?.podcast.queueAllEpisodes == .onTop)
   }
 
-  @Test("updateQueueAllEpisodes() successfully updates podcast queueAllEpisodes setting")
-  func testUpdateQueueAllEpisodes() async throws {
-    // Insert a podcast with default queueAllEpisodes value (.never)
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(queueAllEpisodes: .never))
-    )
-    #expect(podcastSeries.podcast.unsaved.queueAllEpisodes == .never)
-
-    // Update queueAllEpisodes to .onTop
-    let updated = try await repo.updateQueueAllEpisodes(podcastSeries.id, queueAllEpisodes: .onTop)
-    #expect(updated == true)
-
-    // Verify the update worked
-    let fetchedPodcast1 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast1.podcast.unsaved.queueAllEpisodes == .onTop)
-
-    // Update queueAllEpisodes to .onBottom
-    let updated2 = try await repo.updateQueueAllEpisodes(
-      podcastSeries.id,
-      queueAllEpisodes: .onBottom
-    )
-    #expect(updated2 == true)
-
-    // Verify the update worked
-    let fetchedPodcast2 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast2.podcast.unsaved.queueAllEpisodes == .onBottom)
-
-    // Update queueAllEpisodes back to .never
-    let updated3 = try await repo.updateQueueAllEpisodes(podcastSeries.id, queueAllEpisodes: .never)
-    #expect(updated3 == true)
-
-    // Verify the update worked
-    let fetchedPodcast3 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast3.podcast.unsaved.queueAllEpisodes == .never)
-
-    // Try to update a non-existent podcast
-    let nonExistentID = Podcast.ID(99999)
-    let updated4 = try await repo.updateQueueAllEpisodes(nonExistentID, queueAllEpisodes: .onTop)
-    #expect(updated4 == false)
-  }
-
   @Test("untagged filter returns only podcasts with no tags")
   func testUntaggedFilter() async throws {
     let series1 = try await repo.insertSeries(
@@ -574,36 +469,4 @@ class PodcastTests {
     #expect(untaggedAfter.isEmpty)
   }
 
-  @Test("updateNotifyNewEpisodes() successfully updates podcast notifyNewEpisodes setting")
-  func testUpdateNotifyNewEpisodes() async throws {
-    // Insert a podcast with default notifyNewEpisodes value (false)
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(notifyNewEpisodes: false))
-    )
-    #expect(podcastSeries.podcast.notifyNewEpisodes == false)
-
-    // Update notifyNewEpisodes to true
-    let updated = try await repo.updateNotifyNewEpisodes(podcastSeries.id, notifyNewEpisodes: true)
-    #expect(updated == true)
-
-    // Verify the update worked
-    let fetchedPodcast1 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast1.podcast.notifyNewEpisodes == true)
-
-    // Update notifyNewEpisodes back to false
-    let updated2 = try await repo.updateNotifyNewEpisodes(
-      podcastSeries.id,
-      notifyNewEpisodes: false
-    )
-    #expect(updated2 == true)
-
-    // Verify the update worked
-    let fetchedPodcast2 = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast2.podcast.notifyNewEpisodes == false)
-
-    // Try to update a non-existent podcast
-    let nonExistentID = Podcast.ID(99999)
-    let updated3 = try await repo.updateNotifyNewEpisodes(nonExistentID, notifyNewEpisodes: true)
-    #expect(updated3 == false)
-  }
 }

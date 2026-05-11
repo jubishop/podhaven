@@ -24,7 +24,9 @@ struct PodcastDetailView: View {
       .toolbar { toolbar }
       .toolbarRole(.editor)
       .sheet(isPresented: $viewModel.showingSettings) {
-        PodcastSettingsView(viewModel: viewModel)
+        if let settings = viewModel.settings {
+          PodcastSettingsView(viewModel: viewModel, settings: settings)
+        }
       }
       .onChange(of: viewModel.showingSettings) { _, showing in
         if showing {

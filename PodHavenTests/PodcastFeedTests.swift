@@ -219,7 +219,9 @@ struct PodcastFeedTests {
     let mergedEvergreen = try feed.toUnsavedPodcast(merging: inserted.podcast)
     #expect(mergedEvergreen.freshnessCadence == .evergreen)
 
-    _ = try await repo.updateFreshnessCadence(inserted.podcast.id, freshnessCadence: nil)
+    var clearedSettings = inserted.podcast.unsaved.settings
+    clearedSettings.freshnessCadence = nil
+    _ = try await repo.updatePodcastSettings(inserted.podcast.id, clearedSettings)
     let refreshed = try #require(try await repo.podcastSeries(inserted.podcast.id))
     let mergedAuto = try feed.toUnsavedPodcast(merging: refreshed.podcast)
     #expect(mergedAuto.freshnessCadence == nil)
