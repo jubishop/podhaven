@@ -41,7 +41,7 @@ class ListedPodcastTests {
 
   // MARK: - ListedPodcast identity
 
-  @Test("saved search result rows use result feed URL identity and canonical feed URL data")
+  @Test("saved search result rows separate slot identity from canonical identity")
   func testIdentitySeparation() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let searchURL = FeedURL(URL(string: "https://example.com/itunes.rss")!)
@@ -65,12 +65,13 @@ class ListedPodcastTests {
       )
     )
 
-    #expect(listed.id == searchURL)
+    #expect(listed.id == canonicalURL)
     #expect(listed.feedURL == canonicalURL)
-    #expect(listed.id != listed.feedURL)
+    #expect(listed.slotID == searchURL)
+    #expect(listed.slotID != listed.id)
   }
 
-  @Test("saved search result row identity equals canonical feed URL when URLs match")
+  @Test("saved search result slot identity equals canonical feed URL when URLs match")
   func testMatchingURLs() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let unsavedPodcast = try Create.unsavedPodcast(feedURL: feedURL, title: "Same URL")
@@ -87,6 +88,7 @@ class ListedPodcastTests {
     )
 
     #expect(listed.id == listed.feedURL)
+    #expect(listed.slotID == listed.feedURL)
   }
 
   @Test("saved search result rows forward list fields from the saved podcast")
@@ -154,7 +156,7 @@ class ListedPodcastTests {
 
   // MARK: - Saved search result payload
 
-  @Test("ListedPodcast.id returns resultFeedURL for saved search results")
+  @Test("ListedPodcast.slotID returns resultFeedURL for saved search results")
   func testListedPodcastId() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let searchURL = FeedURL(URL(string: "https://example.com/search.rss")!)
@@ -171,7 +173,8 @@ class ListedPodcastTests {
     )
     let listed = ListedPodcast(savedSearchResult: searchResult)
 
-    #expect(listed.id == searchURL)
+    #expect(listed.id == canonicalURL)
+    #expect(listed.slotID == searchURL)
     #expect(listed.feedURL == canonicalURL)
   }
 
@@ -354,10 +357,12 @@ class ListedPodcastTests {
     )
     let listed = ListedPodcast(savedSearchResult: wrapper)
 
-    // Row identity stays on the search URL (IdentifiedArray slot stability)
-    #expect(listed.id == searchURL)
+    // Slot identity stays on the search URL (IdentifiedArray slot stability)
+    #expect(listed.slotID == searchURL)
 
-    // Canonical data flows through for sharing, navigation, DB ops
+    // Canonical identity flows through to .id / .feedURL for sharing,
+    // navigation, DB ops.
+    #expect(listed.id == canonicalURL)
     #expect(listed.feedURL == canonicalURL)
     #expect(listed.iTunesID == iTunesID)
     #expect(listed.isSaved)

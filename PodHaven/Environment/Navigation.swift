@@ -310,7 +310,7 @@ extension Container {
         .id(podcast.id)
     case .listedPodcast(let listedPodcast):
       PodcastDetailView(viewModel: PodcastDetailViewModel(listedPodcast: listedPodcast))
-        .id(listedPodcast.id)
+        .id(listedPodcast.slotID)
     case .listedEpisode(let listedEpisode):
       EpisodeDetailView(viewModel: EpisodeDetailViewModel(listedEpisode: listedEpisode))
         .id(listedEpisode.id)

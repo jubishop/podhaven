@@ -191,7 +191,8 @@ struct SearchView: View {
 
   private var resultsGrid: some View {
     ScrollView {
-      ItemGrid(items: viewModel.podcastList.allEntries) { podcastWithEpisodeMetadata in
+      ItemGrid(items: viewModel.podcastList.allEntries, id: \.podcast.slotID) {
+        podcastWithEpisodeMetadata in
         NavigationLink(
           value: Navigation.Destination.listedPodcast(podcastWithEpisodeMetadata.podcast),
           label: {
@@ -214,7 +215,8 @@ struct SearchView: View {
 
   private var resultsList: some View {
     List {
-      ForEach(viewModel.podcastList.allEntries) { podcastWithEpisodeMetadata in
+      ForEach(viewModel.podcastList.allEntries, id: \.podcast.slotID) {
+        podcastWithEpisodeMetadata in
         NavigationLink(
           value: Navigation.Destination.listedPodcast(podcastWithEpisodeMetadata.podcast),
           label: {
