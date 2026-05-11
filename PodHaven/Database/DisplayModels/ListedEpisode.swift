@@ -6,8 +6,7 @@ import Foundation
 import GRDB
 
 struct ListedEpisode:
-  EpisodeListable,
-  Searchable,
+  EpisodeDisplayable,
   Hashable,
   Sendable
 {
@@ -36,6 +35,24 @@ struct ListedEpisode:
     var podcastImage: URL { canonicalEpisode.podcastImage }
     var saveInCache: Bool { canonicalEpisode.saveInCache }
     var rating: EpisodeRating? { canonicalEpisode.rating }
+
+    // Header fields beyond `EpisodeListable`. The .saved arm has no list-row
+    // source for `description` — surface the same nil placeholder the detail
+    // view already showed pre-hydration; both arms carry `podcastTitle`.
+    var podcastTitle: String {
+      switch self {
+      case .saved(let episode): return episode.podcastTitle
+      case .unsaved(let episode): return episode.podcastTitle
+      }
+    }
+
+    var description: String? {
+      switch self {
+      case .saved: return nil
+      case .unsaved(let episode): return episode.description
+      }
+    }
+
     var queueDate: Date? {
       switch self {
       case .saved(let episode): return episode.queueDate
@@ -102,9 +119,13 @@ struct ListedEpisode:
   var saveInCache: Bool { source.saveInCache }
   var rating: EpisodeRating? { source.rating }
   var tagIDs: Set<Tag.ID>? { source.tagIDs }
-  var queueDate: Date? { source.queueDate }
-  var previouslyQueued: Bool { queueDate != nil }
   var creationDate: Date? { source.creationDate }
+
+  // MARK: - EpisodeDisplayable
+
+  var podcastTitle: String { source.podcastTitle }
+  var description: String? { source.description }
+  var queueDate: Date? { source.queueDate }
 
   // MARK: - Searchable
 

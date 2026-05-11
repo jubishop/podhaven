@@ -16,14 +16,15 @@ struct PodcastSettingsView: View {
 
   init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel
+    let settings = viewModel.settings
     self._tempPlayRate = State(
-      initialValue: viewModel.defaultPlaybackRate
+      initialValue: settings?.defaultPlaybackRate
         ?? Container.shared.userSettings().defaultPlaybackRate
     )
-    self._tempQueueAllEpisodes = State(initialValue: viewModel.queueAllEpisodes)
-    self._tempCacheAllEpisodes = State(initialValue: viewModel.cacheAllEpisodes)
-    self._tempNotifyNewEpisodes = State(initialValue: viewModel.notifyNewEpisodes)
-    self._tempFreshnessCadence = State(initialValue: viewModel.freshnessCadence)
+    self._tempQueueAllEpisodes = State(initialValue: settings?.queueAllEpisodes ?? .never)
+    self._tempCacheAllEpisodes = State(initialValue: settings?.cacheAllEpisodes ?? .never)
+    self._tempNotifyNewEpisodes = State(initialValue: settings?.notifyNewEpisodes ?? false)
+    self._tempFreshnessCadence = State(initialValue: settings?.freshnessCadence)
   }
 
   var body: some View {
@@ -45,7 +46,7 @@ struct PodcastSettingsView: View {
                 """
             ) {
               HStack {
-                if viewModel.defaultPlaybackRate != nil {
+                if viewModel.settings?.defaultPlaybackRate != nil {
                   Text("Playback Rate")
                 } else {
                   Text("Playback Rate (Unset)")
@@ -64,14 +65,14 @@ struct PodcastSettingsView: View {
                 step: 0.1,
                 onEditingChanged: { editing in
                   if !editing {
-                    viewModel.defaultPlaybackRate = tempPlayRate
+                    viewModel.setDefaultPlaybackRate(tempPlayRate)
                   }
                 }
               )
 
               AppIcon.clear
                 .imageButton {
-                  viewModel.defaultPlaybackRate = nil
+                  viewModel.setDefaultPlaybackRate(nil)
                   tempPlayRate = userSettings.defaultPlaybackRate
                 }
                 .disabled(!viewModel.hasCustomPlayRate)
@@ -99,7 +100,7 @@ struct PodcastSettingsView: View {
             }
             .pickerStyle(.segmented)
             .onChange(of: tempQueueAllEpisodes) {
-              viewModel.queueAllEpisodes = tempQueueAllEpisodes
+              viewModel.setQueueAllEpisodes(tempQueueAllEpisodes)
             }
           }
         }
@@ -124,7 +125,7 @@ struct PodcastSettingsView: View {
             }
             .pickerStyle(.segmented)
             .onChange(of: tempCacheAllEpisodes) {
-              viewModel.cacheAllEpisodes = tempCacheAllEpisodes
+              viewModel.setCacheAllEpisodes(tempCacheAllEpisodes)
             }
           }
         }
@@ -153,7 +154,7 @@ struct PodcastSettingsView: View {
                 }
                 .pickerStyle(.menu)
                 .onChange(of: tempFreshnessCadence) {
-                  viewModel.freshnessCadence = tempFreshnessCadence
+                  viewModel.setFreshnessCadence(tempFreshnessCadence)
                 }
               }
             }
@@ -175,11 +176,13 @@ struct PodcastSettingsView: View {
           ) {
             Toggle("Notify New Episodes", isOn: $tempNotifyNewEpisodes)
               .onChange(of: tempNotifyNewEpisodes) {
-                viewModel.notifyNewEpisodes = tempNotifyNewEpisodes
+                viewModel.setNotifyNewEpisodes(tempNotifyNewEpisodes)
               }
           }
 
-          if viewModel.notifyNewEpisodes && !notificationManager.isAuthorized {
+          if (viewModel.settings?.notifyNewEpisodes ?? false)
+            && !notificationManager.isAuthorized
+          {
             if notificationManager.isDenied {
               AppIcon.notificationsDisabled
                 .labelButton {

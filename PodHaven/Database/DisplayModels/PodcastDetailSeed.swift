@@ -21,8 +21,17 @@ enum PodcastDetailSeed: Hashable, Sendable {
         episodes: []
       )
     case .listedPodcast(let listedPodcast):
+      // Unsaved search results carry an `UnsavedPodcast` with the full header
+      // (description/link) — promote straight to `.loaded` so the detail view
+      // never has to flip through a non-displayable initial state.
+      if let unsavedPodcast = listedPodcast.unsavedSearchResult {
+        return PodcastDetailPresentation(
+          podcast: .loaded(DisplayedPodcast(unsavedPodcast)),
+          episodes: []
+        )
+      }
       return PodcastDetailPresentation(
-        podcast: initialPodcast(from: listedPodcast),
+        podcast: .initial(listedPodcast),
         episodes: []
       )
     case .unsavedPodcastSeries(let unsavedPodcastSeries):
@@ -41,26 +50,17 @@ enum PodcastDetailSeed: Hashable, Sendable {
       )
     }
   }
-
-  private func initialPodcast(from listedPodcast: ListedPodcast) -> PodcastDetailContent {
-    switch listedPodcast.source {
-    case .unsavedSearchResult(let unsavedPodcast):
-      return .loaded(DisplayedPodcast(unsavedPodcast))
-    case .savedSearchResult(let result):
-      return .initial(PodcastDetailInitialPodcast(savedSearchResult: result))
-    case .saved(let listablePodcast):
-      return .initial(PodcastDetailInitialPodcast(listablePodcast: listablePodcast))
-    }
-  }
 }
 
 // Live state of `PodcastDetailViewModel.podcast`. `.initial` is the
 // transient list-row snapshot displayed before the saved series hydrates;
-// `.loaded` is the fully-displayable podcast (saved or unsaved). Settings-
-// only fields (defaultPlaybackRate, queueAllEpisodes, etc.) are accessible
-// only via the `.loaded` case — the bridge type doesn't claim to have them.
-enum PodcastDetailContent: Hashable, Sendable {
-  case initial(PodcastDetailInitialPodcast)
+// `.loaded` is the fully-displayable podcast (saved or unsaved). Both arms
+// conform to `PodcastDisplayable`, so a single existential helper forwards
+// every header field. Settings (`defaultPlaybackRate`, `queueAllEpisodes`, …)
+// live on `PodcastSettings` and are accessible only via the `.loaded` case —
+// `ListedPodcast` doesn't claim to have them.
+enum PodcastDetailContent: PodcastDisplayable, Hashable, Sendable {
+  case initial(ListedPodcast)
   case loaded(DisplayedPodcast)
 
   var loaded: DisplayedPodcast? {
@@ -68,11 +68,7 @@ enum PodcastDetailContent: Hashable, Sendable {
     return podcast
   }
 
-  // Both cases conform to `PodcastListable`, so list-row fields forward
-  // through one existential. `description` and `link` aren't in the
-  // listable surface — bridge has them as standalone fields, displayed has
-  // them via `PodcastDisplayable` — so they switch explicitly.
-  private var canonicalListable: any PodcastListable {
+  private var canonical: any PodcastDisplayable {
     switch self {
     case .initial(let podcast): return podcast
     case .loaded(let podcast): return podcast
@@ -82,82 +78,17 @@ enum PodcastDetailContent: Hashable, Sendable {
   // MARK: - PodcastListable
 
   var id: FeedURL { feedURL }
-  var podcastID: Podcast.ID? { canonicalListable.podcastID }
-  var feedURL: FeedURL { canonicalListable.feedURL }
-  var iTunesID: ITunesPodcastID? { canonicalListable.iTunesID }
-  var image: URL { canonicalListable.image }
-  var title: String { canonicalListable.title }
-  var subscriptionDate: Date? { canonicalListable.subscriptionDate }
-  var subscribed: Bool { canonicalListable.subscribed }
-  var isSaved: Bool { canonicalListable.isSaved }
-  var toString: String { canonicalListable.toString }
+  var podcastID: Podcast.ID? { canonical.podcastID }
+  var feedURL: FeedURL { canonical.feedURL }
+  var iTunesID: ITunesPodcastID? { canonical.iTunesID }
+  var image: URL { canonical.image }
+  var title: String { canonical.title }
+  var subscriptionDate: Date? { canonical.subscriptionDate }
+  var toString: String { canonical.toString }
+  var searchableString: String { canonical.searchableString }
 
-  // MARK: - Header extras (not in PodcastListable)
+  // MARK: - PodcastDisplayable
 
-  var description: String {
-    switch self {
-    case .initial(let podcast): return podcast.description
-    case .loaded(let podcast): return podcast.description
-    }
-  }
-
-  var link: URL? {
-    switch self {
-    case .initial(let podcast): return podcast.link
-    case .loaded(let podcast): return podcast.link
-    }
-  }
-}
-
-// Snapshot of list-row data displayed before the detail view hydrates.
-// Conforms to `PodcastListable` only — the detail-only fields it doesn't
-// know yet (defaultPlaybackRate, queueAllEpisodes, …) are deliberately
-// absent rather than faked with placeholder defaults. `description` and
-// `link` are honest standalone fields populated from search-result
-// metadata when available.
-//
-// Internal because `PodcastDetailContent.initial` names this type across
-// files; init is fileprivate so `PodcastDetailSeed` remains the only
-// constructor.
-struct PodcastDetailInitialPodcast:
-  PodcastListable,
-  Searchable,
-  Stringable,
-  Hashable,
-  Sendable
-{
-  let podcastID: Podcast.ID?
-  let feedURL: FeedURL
-  let iTunesID: ITunesPodcastID?
-  let image: URL
-  let title: String
-  let description: String
-  let link: URL?
-  let subscriptionDate: Date?
-
-  var id: FeedURL { feedURL }
-  var toString: String { "(\(feedURL.toString)) - \(title)" }
-  var searchableString: String { "\(title) - \(description)" }
-
-  fileprivate init(savedSearchResult: SavedSearchResultPodcast) {
-    podcastID = savedSearchResult.savedPodcast.id
-    feedURL = savedSearchResult.savedPodcast.feedURL
-    iTunesID = savedSearchResult.savedPodcast.iTunesID
-    image = savedSearchResult.savedPodcast.image
-    title = savedSearchResult.savedPodcast.title
-    description = savedSearchResult.originalPodcast.description
-    link = savedSearchResult.originalPodcast.link
-    subscriptionDate = savedSearchResult.savedPodcast.subscriptionDate
-  }
-
-  fileprivate init(listablePodcast: ListablePodcast) {
-    podcastID = listablePodcast.id
-    feedURL = listablePodcast.feedURL
-    iTunesID = listablePodcast.iTunesID
-    image = listablePodcast.image
-    title = listablePodcast.title
-    description = ""
-    link = nil
-    subscriptionDate = listablePodcast.subscriptionDate
-  }
+  var description: String { canonical.description }
+  var link: URL? { canonical.link }
 }

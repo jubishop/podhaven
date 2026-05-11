@@ -15,6 +15,7 @@ typealias PodcastFilter =
 struct UnsavedPodcast:
   Identifiable,
   PodcastDisplayable,
+  PodcastSettings,
   RSSUpdatable,
   Savable,
   Stringable
@@ -161,7 +162,7 @@ struct UnsavedPodcast:
 }
 
 @Saved<UnsavedPodcast>
-struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
+struct Podcast: PodcastDisplayable, PodcastSettings, Saved, RSSUpdatable {
   // MARK: - Associations
 
   static let episodes = hasMany(Episode.self).order(\.pubDate.desc)
@@ -226,6 +227,9 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   var description: String { unsaved.description }
   var link: URL? { unsaved.link }
   var subscriptionDate: Date? { unsaved.subscriptionDate }
+
+  // MARK: - PodcastSettings
+
   var defaultPlaybackRate: Double? { unsaved.defaultPlaybackRate }
   var queueAllEpisodes: QueueAllEpisodes { unsaved.queueAllEpisodes }
   var cacheAllEpisodes: CacheAllEpisodes { unsaved.cacheAllEpisodes }

@@ -3,7 +3,7 @@
 import Foundation
 
 struct ListedPodcast:
-  PodcastListable,
+  PodcastDisplayable,
   Searchable,
   Hashable,
   Sendable
@@ -37,6 +37,26 @@ struct ListedPodcast:
     var title: String { canonicalPodcast.title }
     var subscriptionDate: Date? { canonicalPodcast.subscriptionDate }
     var toString: String { canonicalPodcast.toString }
+
+    // Header fields beyond `PodcastListable`. The .saved arm has no list-row
+    // source for these — surface the same placeholder the detail view already
+    // showed pre-hydration; .savedSearchResult forwards the original search
+    // metadata, .unsavedSearchResult its own.
+    var description: String {
+      switch self {
+      case .saved: return ""
+      case .unsavedSearchResult(let podcast): return podcast.description
+      case .savedSearchResult(let result): return result.originalPodcast.description
+      }
+    }
+
+    var link: URL? {
+      switch self {
+      case .saved: return nil
+      case .unsavedSearchResult(let podcast): return podcast.link
+      case .savedSearchResult(let result): return result.originalPodcast.link
+      }
+    }
 
     // For savedSearchResult, search uses the original (unsaved) search description,
     // not the saved podcast's searchableString.
@@ -117,6 +137,11 @@ struct ListedPodcast:
   var subscriptionDate: Date? { source.subscriptionDate }
   var toString: String { source.toString }
   var searchableString: String { source.searchableString }
+
+  // MARK: - PodcastDisplayable
+
+  var description: String { source.description }
+  var link: URL? { source.link }
 
   // MARK: - Hashable / Equatable
 

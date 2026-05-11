@@ -191,124 +191,111 @@ class PodcastDetailViewModel:
   var displayingAboutSection: Bool = false
   var showingSettings: Bool = false
 
-  var defaultPlaybackRate: Double? {
-    get { podcast.loaded?.defaultPlaybackRate }
-    set {
-      guard let podcastID = podcastSeries?.id else {
-        Self.log.warning("Cannot update defaultPlaybackRate for unsaved podcast")
-        return
-      }
+  var settings: (any PodcastSettings)? { podcast.loaded }
 
-      Task { [weak self] in
-        guard let self else { return }
+  func setDefaultPlaybackRate(_ newValue: Double?) {
+    guard let podcastID = podcastSeries?.id else {
+      Self.log.warning("Cannot update defaultPlaybackRate for unsaved podcast")
+      return
+    }
 
-        do {
-          try await repo.updateDefaultPlaybackRate(podcastID, defaultPlaybackRate: newValue)
-        } catch {
-          Self.log.caughtError(
-            "defaultPlaybackRate: failed to update for podcast \(podcastID)",
-            error
-          )
-          guard ErrorKit.isRemarkable(error) else { return }
-          alert(ErrorKit.message(for: error))
-        }
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        try await repo.updateDefaultPlaybackRate(podcastID, defaultPlaybackRate: newValue)
+      } catch {
+        Self.log.caughtError(
+          "defaultPlaybackRate: failed to update for podcast \(podcastID)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
 
-  var queueAllEpisodes: QueueAllEpisodes {
-    get { podcast.loaded?.queueAllEpisodes ?? .never }
-    set {
-      guard let podcastID = podcastSeries?.id else {
-        Self.log.warning("Cannot update queueAllEpisodes for unsaved podcast")
-        return
-      }
+  func setQueueAllEpisodes(_ newValue: QueueAllEpisodes) {
+    guard let podcastID = podcastSeries?.id else {
+      Self.log.warning("Cannot update queueAllEpisodes for unsaved podcast")
+      return
+    }
 
-      Task { [weak self] in
-        guard let self else { return }
+    Task { [weak self] in
+      guard let self else { return }
 
-        do {
-          try await repo.updateQueueAllEpisodes(podcastID, queueAllEpisodes: newValue)
-        } catch {
-          Self.log.caughtError("queueAllEpisodes: failed to update for podcast \(podcastID)", error)
-          guard ErrorKit.isRemarkable(error) else { return }
-          alert(ErrorKit.message(for: error))
-        }
+      do {
+        try await repo.updateQueueAllEpisodes(podcastID, queueAllEpisodes: newValue)
+      } catch {
+        Self.log.caughtError("queueAllEpisodes: failed to update for podcast \(podcastID)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
 
-  var cacheAllEpisodes: CacheAllEpisodes {
-    get { podcast.loaded?.cacheAllEpisodes ?? .never }
-    set {
-      guard let podcastID = podcastSeries?.id else {
-        Self.log.warning("Cannot update cacheAllEpisodes for unsaved podcast")
-        return
-      }
+  func setCacheAllEpisodes(_ newValue: CacheAllEpisodes) {
+    guard let podcastID = podcastSeries?.id else {
+      Self.log.warning("Cannot update cacheAllEpisodes for unsaved podcast")
+      return
+    }
 
-      Task { [weak self] in
-        guard let self else { return }
+    Task { [weak self] in
+      guard let self else { return }
 
-        do {
-          try await repo.updateCacheAllEpisodes(podcastID, cacheAllEpisodes: newValue)
-        } catch {
-          Self.log.caughtError("cacheAllEpisodes: failed to update for podcast \(podcastID)", error)
-          guard ErrorKit.isRemarkable(error) else { return }
-          alert(ErrorKit.message(for: error))
-        }
+      do {
+        try await repo.updateCacheAllEpisodes(podcastID, cacheAllEpisodes: newValue)
+      } catch {
+        Self.log.caughtError("cacheAllEpisodes: failed to update for podcast \(podcastID)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
 
-  var notifyNewEpisodes: Bool {
-    get { podcast.loaded?.notifyNewEpisodes ?? false }
-    set {
-      guard let podcastID = podcastSeries?.id else {
-        Self.log.warning("Cannot update notifyNewEpisodes for unsaved podcast")
-        return
-      }
+  func setNotifyNewEpisodes(_ newValue: Bool) {
+    guard let podcastID = podcastSeries?.id else {
+      Self.log.warning("Cannot update notifyNewEpisodes for unsaved podcast")
+      return
+    }
 
-      Task { [weak self] in
-        guard let self else { return }
+    Task { [weak self] in
+      guard let self else { return }
 
-        do {
-          try await repo.updateNotifyNewEpisodes(podcastID, notifyNewEpisodes: newValue)
-          if newValue {
-            await userNotificationManager.requestAuthorizationIfNeeded()
-          }
-        } catch {
-          Self.log.caughtError(
-            "notifyNewEpisodes: failed to update for podcast \(podcastID)",
-            error
-          )
-          guard ErrorKit.isRemarkable(error) else { return }
-          alert(ErrorKit.message(for: error))
+      do {
+        try await repo.updateNotifyNewEpisodes(podcastID, notifyNewEpisodes: newValue)
+        if newValue {
+          await userNotificationManager.requestAuthorizationIfNeeded()
         }
+      } catch {
+        Self.log.caughtError(
+          "notifyNewEpisodes: failed to update for podcast \(podcastID)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
 
-  var freshnessCadence: FreshnessCadence? {
-    get { podcast.loaded?.freshnessCadence }
-    set {
-      guard let podcastID = podcastSeries?.id else {
-        Self.log.warning("Cannot update freshnessCadence for unsaved podcast")
-        return
-      }
+  func setFreshnessCadence(_ newValue: FreshnessCadence?) {
+    guard let podcastID = podcastSeries?.id else {
+      Self.log.warning("Cannot update freshnessCadence for unsaved podcast")
+      return
+    }
 
-      Task { [weak self] in
-        guard let self else { return }
+    Task { [weak self] in
+      guard let self else { return }
 
-        do {
-          try await repo.updateFreshnessCadence(podcastID, freshnessCadence: newValue)
-        } catch {
-          Self.log.caughtError(
-            "freshnessCadence: failed to update for podcast \(podcastID)",
-            error
-          )
-          guard ErrorKit.isRemarkable(error) else { return }
-          alert(ErrorKit.message(for: error))
-        }
+      do {
+        try await repo.updateFreshnessCadence(podcastID, freshnessCadence: newValue)
+      } catch {
+        Self.log.caughtError(
+          "freshnessCadence: failed to update for podcast \(podcastID)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -328,7 +315,7 @@ class PodcastDetailViewModel:
   }
 
   var hasCustomPlayRate: Bool {
-    defaultPlaybackRate != nil
+    settings?.defaultPlaybackRate != nil
   }
 
   // MARK: - Share
