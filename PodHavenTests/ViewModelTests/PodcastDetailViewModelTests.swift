@@ -653,13 +653,13 @@ import Testing
       { @MainActor in "Expected notify test podcast to be saved before changing settings" }
     )
 
-    viewModel.notifyNewEpisodes = true
+    viewModel.setNotifyNewEpisodes(true)
 
     try await Wait.until(
       { @MainActor in
         let savedSeries = try await self.repo.podcastSeries(feedURL)
         return savedSeries?.podcast.notifyNewEpisodes == true
-          && viewModel.notifyNewEpisodes
+          && viewModel.settings?.notifyNewEpisodes == true
           && self.notificationCenter.requestAuthorizationCalls.count == 1
       },
       { @MainActor in
@@ -667,7 +667,7 @@ import Testing
         return """
           Expected notifyNewEpisodes to persist and request authorization.
           repo value: \(String(describing: savedSeries?.podcast.notifyNewEpisodes))
-          view model value: \(viewModel.notifyNewEpisodes)
+          view model value: \(String(describing: viewModel.settings?.notifyNewEpisodes))
           authorization calls: \(self.notificationCenter.requestAuthorizationCalls.count)
           """
       }

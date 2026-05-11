@@ -4,6 +4,7 @@ import Foundation
 
 struct DisplayedPodcast:
   PodcastDisplayable,
+  PodcastSettings,
   Searchable,
   Stringable,
   Hashable,
@@ -13,7 +14,7 @@ struct DisplayedPodcast:
     case saved(Podcast)
     case unsaved(UnsavedPodcast)
 
-    var canonicalPodcast: any PodcastDisplayable {
+    var canonicalPodcast: any PodcastDisplayable & PodcastSettings {
       switch self {
       case .saved(let podcast): return podcast
       case .unsaved(let podcast): return podcast
@@ -66,6 +67,9 @@ struct DisplayedPodcast:
 
   var description: String { source.canonicalPodcast.description }
   var link: URL? { source.canonicalPodcast.link }
+
+  // MARK: - PodcastSettings
+
   var defaultPlaybackRate: Double? { source.canonicalPodcast.defaultPlaybackRate }
   var queueAllEpisodes: QueueAllEpisodes { source.canonicalPodcast.queueAllEpisodes }
   var cacheAllEpisodes: CacheAllEpisodes { source.canonicalPodcast.cacheAllEpisodes }
