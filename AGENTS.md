@@ -52,7 +52,7 @@ Three places hold persistent project context — pick the right one when saving 
 - Override factories with `.context(.test)` to plug in fakes from `PodHavenTests/Fakes`
 - All test files belong to the `PodHavenTests` target.
 - Migration tests must use raw SQL and `Container.shared.standardDefaults()` only — no model types, `Create` helpers, or other constructs that could change and break the test after the migration is written.
-- **Test external behavior, not internal details.** Never expose `private` methods (making them `internal`, injecting closures for testability, exposing computed values, etc.) just to write a test. If something is hard to test through the public/observable API, that's a design signal — fix the API or improve the test fixture, don't drill into the implementation. Tests coupled to internals become brittle and block refactoring.
+- **Test external behavior, not internal details.** Never expose `private` methods (making them `internal`, injecting closures for testability, exposing computed values, etc.) just to write a test. If an accessor, method, or property has no production callers and exists only because tests reference it, delete it and rewrite the test against the observable public API — test-only usage isn't real behavior surface and keeping the code alive for tests is the same smell as exposing private things for testability. If something is hard to test through the public/observable API, that's a design signal — fix the API or improve the test fixture, don't drill into the implementation. Tests coupled to internals become brittle and block refactoring.
 
 ## Previews
 - Previews stub factories for in-memory SwiftUI previews with no network calls or DB access.
