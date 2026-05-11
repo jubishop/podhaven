@@ -146,7 +146,9 @@ class SearchViewModel:
 
     fileprivate(set) var state: LoadingState = .idle
     fileprivate(set)
-      var results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>> = []
+      var results = IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>>(
+        id: \.podcast.slotID
+      )
     {
       didSet {
         owner?.syncPodcastListToTrendingResults(self)
@@ -190,7 +192,7 @@ class SearchViewModel:
     guard let self else { return }
 
     if searchedText.isEmpty {
-      searchResults = []
+      searchResults.removeAll()
       showTrendingSection(currentTrendingSection)
     } else if await executeSearch() {
       restartObservationForSearchResults()
@@ -202,7 +204,9 @@ class SearchViewModel:
   }
 
   var searchState: LoadingState = .idle
-  var searchResults: IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>> = [] {
+  var searchResults = IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>>(
+    id: \.podcast.slotID
+  ) {
     didSet {
       syncPodcastListToSearchResults()
     }
@@ -304,7 +308,7 @@ class SearchViewModel:
       try Task.checkCancellation()
 
       if results.isEmpty {
-        trendingSection.results = []
+        trendingSection.results.removeAll()
         trendingSection.state = .error("No podcasts available in this category right now.")
       } else {
         trendingSection.results = IdentifiedArray(
@@ -315,6 +319,7 @@ class SearchViewModel:
               mostRecentEpisodeDate: $0.mostRecentEpisodeDate
             )
           },
+          id: \.podcast.slotID,
           uniquingIDsWith: { _, new in new }
         )
         trendingSection.state = .loaded
@@ -335,7 +340,7 @@ class SearchViewModel:
       )
       guard !Task.isCancelled else { return false }
 
-      trendingSection.results = []
+      trendingSection.results.removeAll()
       trendingSection.state = .error(ErrorKit.message(for: error))
     }
     return true
@@ -372,6 +377,7 @@ class SearchViewModel:
               mostRecentEpisodeDate: $0.mostRecentEpisodeDate
             )
           },
+          id: \.podcast.slotID,
           uniquingIDsWith: { _, new in new }
         )
         searchState = .loaded
@@ -385,7 +391,7 @@ class SearchViewModel:
         Self.log.caughtError("executeSearch: failed for term '\(searchedText)'", error)
         guard !Task.isCancelled else { return false }
 
-        searchResults = []
+        searchResults.removeAll()
         searchState = .error(ErrorKit.message(for: error))
       }
       return true
@@ -516,9 +522,9 @@ class SearchViewModel:
     updatedIDs: Set<FeedURL>
   ) -> IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>> {
     var results = results
-    for result in results where !updatedIDs.contains(result.id) {
+    for result in results where !updatedIDs.contains(result.podcast.slotID) {
       if let reverted = revertToUnsaved(result) {
-        results[id: result.id] = reverted
+        results[id: result.podcast.slotID] = reverted
       }
     }
     return results
@@ -559,7 +565,7 @@ class SearchViewModel:
     var mapping: [ITunesPodcastID: FeedURL] = [:]
     for result in results {
       if let iTunesID = result.podcast.iTunesID {
-        mapping[iTunesID] = result.id
+        mapping[iTunesID] = result.podcast.slotID
       }
     }
     return mapping

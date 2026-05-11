@@ -23,9 +23,17 @@ struct ListedPodcast:
       }
     }
 
-    // Slot identity. For savedSearchResult, the search-row URL — which can
-    // differ from the canonical podcast's feedURL.
-    var id: FeedURL {
+    // Canonical identity for the underlying podcast. Matches `feedURL` —
+    // the saved podcast's feedURL for `.savedSearchResult`, the row's own
+    // feedURL for the other cases. Use this when you want "which podcast is
+    // this?" semantics.
+    var id: FeedURL { canonicalPodcast.feedURL }
+
+    // Row-slot identity used by `IdentifiedArray` to keep a search result
+    // pinned to its display slot. For `.savedSearchResult` this is the search
+    // row's feedURL, which can differ from the canonical podcast's feedURL
+    // once the row has been bridged to a saved podcast.
+    var slotID: FeedURL {
       if case .savedSearchResult(let result) = self { return result.resultFeedURL }
       return canonicalPodcast.feedURL
     }
@@ -129,6 +137,7 @@ struct ListedPodcast:
   // MARK: - PodcastListable
 
   var id: FeedURL { source.id }
+  var slotID: FeedURL { source.slotID }
   var podcastID: Podcast.ID? { source.podcastID }
   var feedURL: FeedURL { source.feedURL }
   var iTunesID: ITunesPodcastID? { source.iTunesID }

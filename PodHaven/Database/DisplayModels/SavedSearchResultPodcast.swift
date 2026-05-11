@@ -9,10 +9,8 @@ struct SavedSearchResultPodcast: Hashable, Sendable {
   let originalMostRecentEpisodeDate: Date?
   let savedPodcast: ListablePodcast
 
-  // Intentionally hashes/compares on the canonical podcast, not resultFeedURL.
-  // id (resultFeedURL) drives IdentifiedArray slot identity; hash/equality answer
-  // "is this the same underlying podcast data?" so SwiftUI diffing re-renders when
-  // the podcast changes, not when the search slot does.
+  // Hash/equality on the canonical podcast (not resultFeedURL) so SwiftUI
+  // diffs by content, not by which search slot the row occupies.
   func hash(into hasher: inout Hasher) {
     hasher.combine(savedPodcast)
   }

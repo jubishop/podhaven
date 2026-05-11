@@ -17,8 +17,8 @@ where Item.ID: Sendable {
     }
   }
 
-  var anySelected: Bool { filteredEntries.ids.contains { isSelected[$0] } }
-  var anyNotSelected: Bool { filteredEntries.ids.contains { !isSelected[$0] } }
+  var anySelected: Bool { filteredEntries.contains { isSelected[$0.id] } }
+  var anyNotSelected: Bool { filteredEntries.contains { !isSelected[$0.id] } }
 
   var isSelected = BindableDictionary<Item.ID, Bool>(defaultValue: false)
   var selectedEntries: IdentifiedArrayOf<Item> {
