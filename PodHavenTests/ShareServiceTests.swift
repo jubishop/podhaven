@@ -364,8 +364,8 @@ import Testing
       Issue.record("Expected navigation to episode, but got: \(navigation.podcasts.path[safe: 2])")
       return
     }
-    #expect(displayedEpisode.episode.mediaGUID.guid.rawValue == episodeGUID)
-    #expect(displayedEpisode.episode.title.contains("Foundation Sprint"))
+    #expect(displayedEpisode.mediaGUID.guid.rawValue == episodeGUID)
+    #expect(displayedEpisode.title.contains("Foundation Sprint"))
   }
 
   @Test("that an episode URL with invalid guid falls back to podcast")

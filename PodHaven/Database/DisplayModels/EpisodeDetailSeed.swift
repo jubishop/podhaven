@@ -3,7 +3,28 @@
 import AVFoundation
 import Foundation
 
-struct EpisodeDetailSnapshot: EpisodeDisplayable, Hashable, Sendable {
+enum EpisodeDetailSeed: Hashable, Sendable {
+  case displayedEpisode(DisplayedEpisode)
+  case listedEpisode(ListedEpisode)
+
+  var initialEpisode: DisplayedEpisode {
+    switch self {
+    case .displayedEpisode(let episode):
+      return episode
+    case .listedEpisode(let listedEpisode):
+      return DisplayedEpisode(EpisodeDetailInitialEpisode(listedEpisode))
+    }
+  }
+}
+
+// Internal because `DisplayedEpisode.Source.initialPresentation` names this
+// type across files; init is fileprivate so the seed remains the only
+// constructor.
+struct EpisodeDetailInitialEpisode:
+  EpisodeDisplayable,
+  Hashable,
+  Sendable
+{
   let episodeID: Episode.ID?
   let mediaGUID: MediaGUID
   let feedURL: FeedURL
@@ -24,7 +45,7 @@ struct EpisodeDetailSnapshot: EpisodeDisplayable, Hashable, Sendable {
 
   var id: MediaGUID { mediaGUID }
 
-  init(_ listedEpisode: ListedEpisode) {
+  fileprivate init(_ listedEpisode: ListedEpisode) {
     switch listedEpisode.source {
     case .unsaved(let unsavedPodcastEpisode):
       episodeID = unsavedPodcastEpisode.episodeID
