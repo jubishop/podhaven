@@ -32,8 +32,6 @@ protocol EpisodeFoundational: Identifiable, Sendable, Stringable where ID: Senda
 // MARK: - Default Implementations
 
 extension EpisodeFoundational {
-  var episodeID: Episode.ID? { id as? Episode.ID }
-
   var isSaved: Bool { episodeID != nil }
   var queued: Bool { queueOrder != nil }
   var started: Bool { currentTime.seconds > 0 }

@@ -31,6 +31,7 @@ struct PodcastEpisode:
 
   // MARK: - EpisodeFoundational
 
+  var episodeID: Episode.ID? { id }
   var mediaGUID: MediaGUID { episode.unsaved.id }
   var title: String { episode.title }
   var pubDate: Date { episode.pubDate }

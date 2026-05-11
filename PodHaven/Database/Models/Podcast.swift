@@ -20,6 +20,7 @@ struct UnsavedPodcast:
   Stringable
 {
   var id: FeedURL { feedURL }
+  var podcastID: Podcast.ID? { nil }
 
   static let databaseTableName: String = "podcast"
 
@@ -211,6 +212,10 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   func rssEquals(_ other: Podcast) -> Bool {
     unsaved.rssEquals(other.unsaved)
   }
+
+  // MARK: - PodcastListable
+
+  var podcastID: Podcast.ID? { id }
 
   // MARK: - PodcastDisplayable
 

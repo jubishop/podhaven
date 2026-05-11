@@ -112,6 +112,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
 
   // MARK: - EpisodeListable
 
+  var episodeID: Episode.ID? { id }
   var image: URL { episodeImage ?? podcastImage }
   var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
 
