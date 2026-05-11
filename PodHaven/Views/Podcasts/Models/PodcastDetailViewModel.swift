@@ -10,6 +10,59 @@ import SwiftUI
 import Tagged
 import UIKit
 
+// Live state of `PodcastDetailViewModel`. Transitions flow through
+// `transition(to:)` so view-facing projections stay in sync.
+//
+// - `.initial`: list-row snapshot (saved or savedSearchResult); promoted to
+//   `.saved` once observation hydrates the series.
+// - `.unsaved`: a podcast we know about but haven't persisted — feed-parsed,
+//   shared-from-share-sheet, or an unsaved search result. May carry zero or
+//   more pre-parsed episodes ready to be inserted on `subscribe()`.
+// - `.saved`: a fully-hydrated series under live observation.
+enum PodcastDetailState: Sendable {
+  case initial(ListedPodcast)
+  case unsaved(UnsavedPodcast, episodes: IdentifiedArrayOf<UnsavedEpisode>)
+  case saved(PodcastSeriesDetail)
+
+  var savedSeries: PodcastSeriesDetail? {
+    guard case .saved(let series) = self else { return nil }
+    return series
+  }
+
+  var detailContent: PodcastDetailContent {
+    switch self {
+    case .initial(let listed): return .initial(listed)
+    case .unsaved(let unsavedPodcast, _): return .loaded(DisplayedPodcast(unsavedPodcast))
+    case .saved(let series): return .loaded(DisplayedPodcast(series.podcast))
+    }
+  }
+
+  var feedURL: FeedURL {
+    switch self {
+    case .initial(let listed): return listed.feedURL
+    case .unsaved(let unsavedPodcast, _): return unsavedPodcast.feedURL
+    case .saved(let series): return series.podcast.feedURL
+    }
+  }
+
+  var iTunesID: ITunesPodcastID? {
+    switch self {
+    case .initial(let listed): return listed.iTunesID
+    case .unsaved(let unsavedPodcast, _): return unsavedPodcast.iTunesID
+    case .saved(let series): return series.podcast.iTunesID
+    }
+  }
+
+  var toString: String {
+    switch self {
+    case .initial(let listed): return "initial(\(listed.toString))"
+    case .unsaved(let unsavedPodcast, let episodes):
+      return "unsaved(\(unsavedPodcast.toString), episodes: \(episodes.count))"
+    case .saved(let series): return "saved(\(series.toString))"
+    }
+  }
+}
+
 @Observable @MainActor
 class PodcastDetailViewModel:
   ManagingEpisodes,
@@ -30,41 +83,12 @@ class PodcastDetailViewModel:
   private static let log = Log.as(LogSubsystem.PodcastsView.detail)
   private static let unavailableMessage = "This podcast is no longer available."
 
-  // MARK: - Data
+  // MARK: - State
 
-  var podcast: PodcastDetailContent
-  private var _podcastSeries: PodcastSeriesDetail?
-  private var podcastSeries: PodcastSeriesDetail? {
-    get { _podcastSeries }
-    set {
-      guard let newValue
-      else { Assert.fatal("Setting podcastSeries to nil is not allowed") }
+  private(set) var state: PodcastDetailState
 
-      Self.log.debug("Setting podcastSeries to: \(newValue.toString)")
-
-      _podcastSeries = newValue
-      podcast = .loaded(DisplayedPodcast(newValue.podcast))
-
-      // Empty episodes is the bootstrap case (subscribe() before observation
-      // hydrates), so skip the replacement to avoid blanking the feed-parsed
-      // unsaved rows on screen. For the populated case, wholesale-replace so
-      // DB-deleted rows get pruned rather than lingering from a merge.
-      guard !newValue.episodes.isEmpty else { return }
-      episodeList.allEntries = IdentifiedArray(
-        uniqueElements: newValue.episodes.map { listableEpisode in
-          ListedEpisode(
-            ListablePodcastEpisode(podcast: newValue.podcast, episode: listableEpisode)
-          )
-        }
-      )
-    }
-  }
-
-  // Bypasses the setter's nil-fatal for the one legitimate path: observation
-  // emitted nil because the DB row was deleted.
-  private func clearPodcastSeries() {
-    _podcastSeries = nil
-  }
+  var podcast: PodcastDetailContent { state.detailContent }
+  var saved: Bool { state.savedSeries != nil }
 
   // MARK: - ManagingEpisodes
 
@@ -194,7 +218,7 @@ class PodcastDetailViewModel:
   var settings: (any PodcastSettings)? { podcast.loaded }
 
   func setDefaultPlaybackRate(_ newValue: Double?) {
-    guard let podcastID = podcastSeries?.id else {
+    guard let podcastID = state.savedSeries?.id else {
       Self.log.warning("Cannot update defaultPlaybackRate for unsaved podcast")
       return
     }
@@ -216,7 +240,7 @@ class PodcastDetailViewModel:
   }
 
   func setQueueAllEpisodes(_ newValue: QueueAllEpisodes) {
-    guard let podcastID = podcastSeries?.id else {
+    guard let podcastID = state.savedSeries?.id else {
       Self.log.warning("Cannot update queueAllEpisodes for unsaved podcast")
       return
     }
@@ -235,7 +259,7 @@ class PodcastDetailViewModel:
   }
 
   func setCacheAllEpisodes(_ newValue: CacheAllEpisodes) {
-    guard let podcastID = podcastSeries?.id else {
+    guard let podcastID = state.savedSeries?.id else {
       Self.log.warning("Cannot update cacheAllEpisodes for unsaved podcast")
       return
     }
@@ -254,7 +278,7 @@ class PodcastDetailViewModel:
   }
 
   func setNotifyNewEpisodes(_ newValue: Bool) {
-    guard let podcastID = podcastSeries?.id else {
+    guard let podcastID = state.savedSeries?.id else {
       Self.log.warning("Cannot update notifyNewEpisodes for unsaved podcast")
       return
     }
@@ -279,7 +303,7 @@ class PodcastDetailViewModel:
   }
 
   func setFreshnessCadence(_ newValue: FreshnessCadence?) {
-    guard let podcastID = podcastSeries?.id else {
+    guard let podcastID = state.savedSeries?.id else {
       Self.log.warning("Cannot update freshnessCadence for unsaved podcast")
       return
     }
@@ -305,9 +329,8 @@ class PodcastDetailViewModel:
   }
 
   var loaded: Bool { !episodeList.allEntries.isEmpty }
-  var saved: Bool { podcastSeries != nil }
 
-  var tags: IdentifiedArrayOf<Tag> { podcastSeries?.tags ?? [] }
+  var tags: IdentifiedArrayOf<Tag> { state.savedSeries?.tags ?? [] }
   var allTags: IdentifiedArrayOf<Tag> { sharedState.tags }
 
   var mostRecentEpisodeDate: Date {
@@ -335,11 +358,10 @@ class PodcastDetailViewModel:
 
   // MARK: - Initialization
 
-  private init(detailSeed: PodcastDetailSeed) {
-    let initialPresentation = detailSeed.initialPresentation
-    self.podcast = initialPresentation.podcast
+  private init(state: PodcastDetailState) {
+    self.state = state
     episodeList.sortMethod = currentSortMethod.sortMethod
-    episodeList.allEntries = initialPresentation.episodes
+    refreshEpisodeList(from: state, allowsBootstrapSkip: false)
 
     Task { [weak self] in
       guard let self else { return }
@@ -357,15 +379,29 @@ class PodcastDetailViewModel:
   }
 
   convenience init(podcast: DisplayedPodcast) {
-    self.init(detailSeed: .displayedPodcast(podcast))
+    switch podcast.source {
+    case .saved(let savedPodcast):
+      self.init(state: .saved(PodcastSeriesDetail(podcast: savedPodcast)))
+    case .unsaved(let unsavedPodcast):
+      self.init(state: .unsaved(unsavedPodcast, episodes: []))
+    }
   }
 
   convenience init(listedPodcast: ListedPodcast) {
-    self.init(detailSeed: .listedPodcast(listedPodcast))
+    if let unsavedPodcast = listedPodcast.unsavedSearchResult {
+      self.init(state: .unsaved(unsavedPodcast, episodes: []))
+    } else {
+      self.init(state: .initial(listedPodcast))
+    }
   }
 
   convenience init(unsavedPodcastSeries: UnsavedPodcastSeries) {
-    self.init(detailSeed: .unsavedPodcastSeries(unsavedPodcastSeries))
+    self.init(
+      state: .unsaved(
+        unsavedPodcastSeries.unsavedPodcast,
+        episodes: unsavedPodcastSeries.unsavedEpisodes
+      )
+    )
   }
 
   func appear() {
@@ -385,7 +421,7 @@ class PodcastDetailViewModel:
   func performAppear() async throws {
     if try await attemptObservation() { return }
 
-    Self.log.debug("\(podcast.toString) does not exist in db")
+    Self.log.debug("\(state.toString) does not exist in db")
 
     guard episodeList.allEntries.isEmpty else {
       Self.log.debug("PodcastDetailViewModel already has entries, no need to fetch again.")
@@ -404,28 +440,41 @@ class PodcastDetailViewModel:
     Task { [weak self] in
       guard let self else { return }
       do {
-        if let podcastID = try await ensureObservedSeries(for: podcast) {
-          try await repo.markSubscribed(podcastID)
-        } else if let unsavedPodcast = podcast.loaded?.source.unsaved {
-          let insertedSeries = try await repo.insertSeries(
-            UnsavedPodcastSeries(
-              unsavedPodcast: unsavedPodcast,
-              unsavedEpisodes: episodeList.allEntries.map {
-                guard let unsavedEpisode = $0.unsavedPodcastEpisode?.unsavedEpisode
-                else { Assert.fatal("Saved PodcastEpisodes but PodcastSeries is nil?") }
-
-                return unsavedEpisode
-              }
+        switch state {
+        case .saved(let series):
+          try await repo.markSubscribed(series.id)
+        case .initial(let listedPodcast):
+          guard
+            let series = try await repo.podcastSeriesDetail(
+              listedPodcast.feedURL,
+              iTunesID: listedPodcast.iTunesID
             )
-          )
-          try await repo.markSubscribed(insertedSeries.id)
-          self.podcastSeries = PodcastSeriesDetail(podcast: insertedSeries.podcast)
-          startObservation(insertedSeries.id)
-        } else {
-          Assert.fatal("Podcast type is not supported: \(String(describing: podcast))")
+          else {
+            Self.log.warning("subscribe: no saved series for initial \(listedPodcast.toString)")
+            return
+          }
+          transition(to: .saved(series))
+          startObservation(series.id)
+          try await repo.markSubscribed(series.id)
+        case .unsaved(let unsavedPodcast, let episodes):
+          if let series = try await repo.podcastSeriesDetail(
+            unsavedPodcast.feedURL,
+            iTunesID: unsavedPodcast.iTunesID
+          ) {
+            transition(to: .saved(series))
+            startObservation(series.id)
+            try await repo.markSubscribed(series.id)
+          } else {
+            let inserted = try await repo.insertSeries(
+              UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast, unsavedEpisodes: episodes)
+            )
+            transition(to: .saved(PodcastSeriesDetail(podcast: inserted.podcast)))
+            startObservation(inserted.id)
+            try await repo.markSubscribed(inserted.id)
+          }
         }
       } catch {
-        Self.log.caughtError("subscribe: failed for \(podcast.toString)", error)
+        Self.log.caughtError("subscribe: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -436,7 +485,7 @@ class PodcastDetailViewModel:
     Task { [weak self] in
       guard let self else { return }
       do {
-        guard let podcastID = try await ensureObservedSeries(for: podcast)
+        guard let podcastID = try await ensureObservedSeries()
         else {
           Self.log.warning("Trying to unsubscribe from a non-saved podcast")
           return
@@ -444,7 +493,7 @@ class PodcastDetailViewModel:
 
         try await repo.markUnsubscribed(podcastID)
       } catch {
-        Self.log.caughtError("unsubscribe: failed for \(podcast.toString)", error)
+        Self.log.caughtError("unsubscribe: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -456,16 +505,16 @@ class PodcastDetailViewModel:
       guard let self else { return }
 
       do {
-        guard let podcastID = try await ensureObservedSeries(for: podcast)
+        guard let podcastID = try await ensureObservedSeries()
         else {
           Self.log.warning("Trying to delete a non-saved podcast")
           return
         }
 
-        Self.log.info("Deleting podcast: \(podcast.toString)")
+        Self.log.info("Deleting podcast: \(state.toString)")
         try await repo.deletePodcast(podcastID)
       } catch {
-        Self.log.caughtError("delete: failed for \(podcast.toString)", error)
+        Self.log.caughtError("delete: failed for \(state.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -474,17 +523,17 @@ class PodcastDetailViewModel:
 
   func refreshSeries() async {
     do {
-      if let podcastID = podcastSeries?.id,
-        let operationalSeries = try await repo.podcastSeries(podcastID)
+      if let series = state.savedSeries,
+        let operationalSeries = try await repo.podcastSeries(series.id)
       {
         Self.log.debug("refreshing saved podcast series \(operationalSeries.toString)")
         try await refreshManager.refreshSeries(podcastSeries: operationalSeries)
       } else {
-        Self.log.debug("refreshing unsaved podcast series \(podcast.toString)")
+        Self.log.debug("refreshing unsaved podcast series \(state.toString)")
         try await loadPresentationFromFeed()
       }
     } catch {
-      Self.log.caughtError("refreshSeries: failed for \(podcast.toString)", error)
+      Self.log.caughtError("refreshSeries: failed for \(state.toString)", error)
       guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.message(for: error))
     }
@@ -493,7 +542,7 @@ class PodcastDetailViewModel:
   // MARK: - Tag Management
 
   func addTag(_ tagID: Tag.ID) {
-    guard let podcastID = podcastSeries?.id else {
+    guard let podcastID = state.savedSeries?.id else {
       Self.log.warning("Cannot add tag to unsaved podcast")
       return
     }
@@ -512,7 +561,7 @@ class PodcastDetailViewModel:
   }
 
   func removeTag(_ tagID: Tag.ID) {
-    guard let podcastID = podcastSeries?.id else {
+    guard let podcastID = state.savedSeries?.id else {
       Self.log.warning("Cannot remove tag from unsaved podcast")
       return
     }
@@ -544,16 +593,16 @@ class PodcastDetailViewModel:
       return true
     }
 
-    guard let savedSeries = try await savedSeries(for: podcast) else { return false }
+    guard let savedSeries = try await savedSeriesForCurrentState() else { return false }
 
     Self.log.debug("\(savedSeries.toString) exists in db")
 
     // Soft migration: backfill iTunesID for pre-existing podcasts
-    if savedSeries.podcast.iTunesID == nil, let iTunesID = podcast.iTunesID {
+    if savedSeries.podcast.iTunesID == nil, let iTunesID = state.iTunesID {
       try await repo.updateITunesID(savedSeries.podcast.id, iTunesID: iTunesID)
     }
 
-    self.podcastSeries = savedSeries
+    transition(to: .saved(savedSeries))
     startObservation(savedSeries.id)
 
     Task { [weak self] in
@@ -592,7 +641,6 @@ class PodcastDetailViewModel:
       guard let updatedSeries
       else {
         Self.log.debug("Podcast was deleted")
-        clearPodcastSeries()
         do {
           try await loadPresentationFromFeed()
         } catch {
@@ -605,13 +653,13 @@ class PodcastDetailViewModel:
         return
       }
 
-      guard updatedSeries != podcastSeries
+      guard updatedSeries != state.savedSeries
       else {
         Self.log.debug("New podcastSeries is the same as the current one, skipping update")
         continue
       }
 
-      self.podcastSeries = updatedSeries
+      transition(to: .saved(updatedSeries))
     }
   }
 
@@ -629,62 +677,76 @@ class PodcastDetailViewModel:
 
   // MARK: - Private Helpers
 
+  private func transition(to newState: PodcastDetailState) {
+    Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
+    state = newState
+    refreshEpisodeList(from: newState, allowsBootstrapSkip: true)
+  }
+
+  // `allowsBootstrapSkip` preserves the post-`subscribe()` bootstrap window:
+  // `repo.insertSeries` returns a `PodcastSeriesDetail(podcast:)` whose
+  // `episodes` array is empty (live observation hasn't fired yet). Replacing
+  // `episodeList.allEntries` with that empty array would blank the
+  // feed-parsed unsaved rows the user just saw. Init runs without the skip
+  // so an explicitly-empty initial state still produces an empty list.
+  private func refreshEpisodeList(
+    from state: PodcastDetailState,
+    allowsBootstrapSkip: Bool
+  ) {
+    switch state {
+    case .initial:
+      // List rows are not bundled with the bootstrap snapshot; observation
+      // populates `episodeList` once the saved series hydrates.
+      return
+    case .unsaved(let unsavedPodcast, let episodes):
+      episodeList.allEntries = IdentifiedArray(
+        uniqueElements: episodes.map { unsavedEpisode in
+          ListedEpisode(
+            UnsavedPodcastEpisode(
+              unsavedPodcast: unsavedPodcast,
+              unsavedEpisode: unsavedEpisode
+            )
+          )
+        }
+      )
+    case .saved(let series):
+      if allowsBootstrapSkip, series.episodes.isEmpty { return }
+      episodeList.allEntries = IdentifiedArray(
+        uniqueElements: series.episodes.map { listableEpisode in
+          ListedEpisode(
+            ListablePodcastEpisode(podcast: series.podcast, episode: listableEpisode)
+          )
+        }
+      )
+    }
+  }
+
   @discardableResult
-  private func ensureObservedSeries(for podcast: PodcastDetailContent) async throws -> Podcast.ID? {
-    if let podcastID = podcastSeries?.id { return podcastID }
+  private func ensureObservedSeries() async throws -> Podcast.ID? {
+    if let podcastID = state.savedSeries?.id { return podcastID }
 
-    guard let savedSeries = try await savedSeries(for: podcast) else { return nil }
+    guard let savedSeries = try await savedSeriesForCurrentState() else { return nil }
 
-    self.podcastSeries = savedSeries
+    transition(to: .saved(savedSeries))
     startObservation(savedSeries.id)
     return savedSeries.id
   }
 
   private func loadPresentationFromFeed() async throws {
-    guard podcastSeries == nil else {
-      Self.log.debug("PodcastSeries already exists, no need to fetch again")
-      return
-    }
-
-    Self.log.debug("Now fetching and parsing feed for \(podcast.toString)")
-    apply(
-      try await parsedFeedPresentation(for: podcast)
-    )
-  }
-
-  private func savedSeries(for currentPodcast: PodcastDetailContent) async throws
-    -> PodcastSeriesDetail?
-  {
-    try await repo.podcastSeriesDetail(
-      currentPodcast.feedURL,
-      iTunesID: currentPodcast.iTunesID
-    )
-  }
-
-  private func parsedFeedPresentation(for currentPodcast: PodcastDetailContent) async throws
-    -> PodcastDetailPresentation
-  {
-    let podcastFeed = try await PodcastFeed.parse(currentPodcast.feedURL)
-    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: currentPodcast.iTunesID)
-    return PodcastDetailPresentation(
-      podcast: .loaded(DisplayedPodcast(unsavedPodcast)),
-      episodes: IdentifiedArray(
-        uniqueElements: podcastFeed.toUnsavedEpisodes()
-          .map {
-            ListedEpisode(
-              UnsavedPodcastEpisode(
-                unsavedPodcast: unsavedPodcast,
-                unsavedEpisode: $0
-              )
-            )
-          },
-        id: \.id
+    Self.log.debug("Now fetching and parsing feed for \(state.toString)")
+    let feedURL = state.feedURL
+    let iTunesID = state.iTunesID
+    let podcastFeed = try await PodcastFeed.parse(feedURL)
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: iTunesID)
+    transition(
+      to: .unsaved(
+        unsavedPodcast,
+        episodes: IdentifiedArrayOf(uniqueElements: podcastFeed.toUnsavedEpisodes())
       )
     )
   }
 
-  private func apply(_ presentation: PodcastDetailPresentation) {
-    podcast = presentation.podcast
-    episodeList.allEntries = presentation.episodes
+  private func savedSeriesForCurrentState() async throws -> PodcastSeriesDetail? {
+    try await repo.podcastSeriesDetail(state.feedURL, iTunesID: state.iTunesID)
   }
 }
