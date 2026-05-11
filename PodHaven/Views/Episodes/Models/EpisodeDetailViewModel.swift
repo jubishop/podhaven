@@ -131,21 +131,7 @@ enum EpisodeDetailState: Sendable {
 
   convenience init(listedEpisode: ListedEpisode) {
     if let unsavedPodcastEpisode = listedEpisode.unsavedPodcastEpisode {
-      // Both `.listedEpisode(.unsaved(...))` and `.displayedEpisode(.unsaved(...))`
-      // collapse to `.unsaved(UnsavedPodcastEpisode)` here. Round-trip through
-      // `toOriginalUnsavedPodcastEpisode` to drop any saved-only fields that
-      // may have leaked into the listing snapshot.
-      do {
-        let original = try unsavedPodcastEpisode.toOriginalUnsavedPodcastEpisode()
-        self.init(state: .unsaved(original))
-      } catch {
-        Assert.fatal(
-          """
-          Cannot build UnsavedPodcastEpisode for listed unsaved episode: \
-          \(unsavedPodcastEpisode.toString). Error: \(error)
-          """
-        )
-      }
+      self.init(state: .unsaved(unsavedPodcastEpisode))
     } else {
       self.init(state: .initial(listedEpisode))
     }
