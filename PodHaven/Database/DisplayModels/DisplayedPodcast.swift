@@ -2,7 +2,6 @@
 
 import Foundation
 
-@dynamicMemberLookup
 struct DisplayedPodcast:
   PodcastDisplayable,
   Searchable,
@@ -10,19 +9,35 @@ struct DisplayedPodcast:
   Hashable,
   Sendable
 {
-  let podcast: any PodcastDisplayable
+  enum Source: Hashable, Sendable {
+    case saved(Podcast)
+    case unsaved(UnsavedPodcast)
+    case initialPresentation(PodcastDetailInitialPodcast)
 
-  init(_ podcast: any PodcastDisplayable) {
-    Assert.precondition(
-      !(podcast is DisplayedPodcast),
-      "Cannot wrap a wrapper type as a DisplayedPodcast"
-    )
-    self.podcast = podcast
+    var canonicalPodcast: any PodcastDisplayable {
+      switch self {
+      case .saved(let podcast): return podcast
+      case .unsaved(let podcast): return podcast
+      case .initialPresentation(let podcast): return podcast
+      }
+    }
+
+    var saved: Podcast? {
+      guard case .saved(let podcast) = self else { return nil }
+      return podcast
+    }
+
+    var unsaved: UnsavedPodcast? {
+      guard case .unsaved(let podcast) = self else { return nil }
+      return podcast
+    }
   }
 
-  subscript<T>(dynamicMember keyPath: KeyPath<any PodcastDisplayable, T>) -> T {
-    podcast[keyPath: keyPath]
-  }
+  let source: Source
+
+  init(_ podcast: Podcast) { source = .saved(podcast) }
+  init(_ podcast: UnsavedPodcast) { source = .unsaved(podcast) }
+  init(_ podcast: PodcastDetailInitialPodcast) { source = .initialPresentation(podcast) }
 
   // MARK: - Identifiable
 
@@ -30,51 +45,46 @@ struct DisplayedPodcast:
 
   // MARK: - Hashable / Equatable
 
-  func hash(into hasher: inout Hasher) {
-    AnyHashable(podcast).hash(into: &hasher)
-  }
-
+  func hash(into hasher: inout Hasher) { hasher.combine(source) }
   static func == (lhs: DisplayedPodcast, rhs: DisplayedPodcast) -> Bool {
-    AnyHashable(lhs.podcast) == AnyHashable(rhs.podcast)
+    lhs.source == rhs.source
   }
 
   // MARK: - Stringable / Searchable
 
-  var toString: String { podcast.toString }
-  var searchableString: String { podcast.searchableString }
+  var toString: String { source.canonicalPodcast.toString }
+  var searchableString: String { source.canonicalPodcast.searchableString }
 
   // MARK: - PodcastListable
 
-  var podcastID: Podcast.ID? { podcast.podcastID }
-  var feedURL: FeedURL { podcast.feedURL }
-  var iTunesID: ITunesPodcastID? { podcast.iTunesID }
-  var image: URL { podcast.image }
-  var title: String { podcast.title }
-  var subscriptionDate: Date? { podcast.subscriptionDate }
-  var subscribed: Bool { podcast.subscribed }
+  var podcastID: Podcast.ID? { source.canonicalPodcast.podcastID }
+  var feedURL: FeedURL { source.canonicalPodcast.feedURL }
+  var iTunesID: ITunesPodcastID? { source.canonicalPodcast.iTunesID }
+  var image: URL { source.canonicalPodcast.image }
+  var title: String { source.canonicalPodcast.title }
+  var subscriptionDate: Date? { source.canonicalPodcast.subscriptionDate }
+  var subscribed: Bool { source.canonicalPodcast.subscribed }
 
   // MARK: - PodcastDisplayable
 
-  var description: String { podcast.description }
-  var link: URL? { podcast.link }
-  var defaultPlaybackRate: Double? { podcast.defaultPlaybackRate }
-  var queueAllEpisodes: QueueAllEpisodes { podcast.queueAllEpisodes }
-  var cacheAllEpisodes: CacheAllEpisodes { podcast.cacheAllEpisodes }
-  var notifyNewEpisodes: Bool { podcast.notifyNewEpisodes }
-  var freshnessCadence: FreshnessCadence? { podcast.freshnessCadence }
+  var description: String { source.canonicalPodcast.description }
+  var link: URL? { source.canonicalPodcast.link }
+  var defaultPlaybackRate: Double? { source.canonicalPodcast.defaultPlaybackRate }
+  var queueAllEpisodes: QueueAllEpisodes { source.canonicalPodcast.queueAllEpisodes }
+  var cacheAllEpisodes: CacheAllEpisodes { source.canonicalPodcast.cacheAllEpisodes }
+  var notifyNewEpisodes: Bool { source.canonicalPodcast.notifyNewEpisodes }
+  var freshnessCadence: FreshnessCadence? { source.canonicalPodcast.freshnessCadence }
 
   // MARK: - Helpers
 
   func getOrCreatePodcast() async throws -> Podcast {
-    if let podcast = getPodcast() {
+    switch source {
+    case .saved(let podcast):
       return podcast
-    } else if let unsavedPodcast = getUnsavedPodcast() {
+    case .unsaved(let unsavedPodcast):
       return try await unsavedPodcast.getOrCreatePodcast()
-    } else {
-      Assert.fatal("Can't make Podcast from: \(type(of: podcast))")
+    case .initialPresentation:
+      Assert.fatal("Cannot get-or-create from initial presentation: \(toString)")
     }
   }
-
-  func getPodcast() -> Podcast? { podcast as? Podcast }
-  func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
 }

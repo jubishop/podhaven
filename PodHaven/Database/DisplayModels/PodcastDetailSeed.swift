@@ -51,7 +51,10 @@ enum PodcastDetailSeed: Hashable, Sendable {
   }
 }
 
-private struct PodcastDetailInitialPodcast:
+// Internal because `DisplayedPodcast.Source.initialPresentation` names this
+// type across files; init is fileprivate so the seed remains the only
+// constructor.
+struct PodcastDetailInitialPodcast:
   PodcastDisplayable,
   Searchable,
   Stringable,
@@ -76,7 +79,7 @@ private struct PodcastDetailInitialPodcast:
   var toString: String { "(\(feedURL.toString)) - \(title)" }
   var searchableString: String { "\(title) - \(description)" }
 
-  init(_ listedPodcast: ListedPodcast) {
+  fileprivate init(_ listedPodcast: ListedPodcast) {
     if let searchResult = listedPodcast.savedSearchResult {
       podcastID = searchResult.savedPodcast.id
       feedURL = searchResult.savedPodcast.feedURL
