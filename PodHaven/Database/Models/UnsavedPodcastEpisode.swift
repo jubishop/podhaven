@@ -46,13 +46,4 @@ struct UnsavedPodcastEpisode:
   var cacheStatus: Episode.CacheStatus { unsavedEpisode.cacheStatus }
   var finishDate: Date? { unsavedEpisode.finishDate }
   var rating: EpisodeRating? { unsavedEpisode.rating }
-
-  // MARK: - Reset
-
-  func toOriginalUnsavedPodcastEpisode() throws -> UnsavedPodcastEpisode {
-    UnsavedPodcastEpisode(
-      unsavedPodcast: try unsavedPodcast.toOriginalUnsavedPodcast(),
-      unsavedEpisode: try unsavedEpisode.toOriginalUnsavedEpisode()
-    )
-  }
 }

@@ -131,24 +131,7 @@ enum EpisodeDetailState: Sendable {
 
   convenience init(listedEpisode: ListedEpisode) {
     if let unsavedPodcastEpisode = listedEpisode.unsavedPodcastEpisode {
-      // Both `.listedEpisode(.unsaved(...))` and `.displayedEpisode(.unsaved(...))`
-      // collapse to `.unsaved(UnsavedPodcastEpisode)` here. Round-trip through
-      // `toOriginalUnsavedPodcastEpisode` to drop any saved-only fields that
-      // may have leaked into the listing snapshot.
-      let resolved: UnsavedPodcastEpisode
-      do {
-        resolved = try unsavedPodcastEpisode.toOriginalUnsavedPodcastEpisode()
-      } catch {
-        Self.log.caughtError(
-          """
-          init(listedEpisode:): failed to strip saved-only fields for \
-          \(unsavedPodcastEpisode.toString)
-          """,
-          error
-        )
-        resolved = unsavedPodcastEpisode
-      }
-      self.init(state: .unsaved(resolved))
+      self.init(state: .unsaved(unsavedPodcastEpisode))
     } else {
       self.init(state: .initial(listedEpisode))
     }
