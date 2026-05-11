@@ -136,7 +136,8 @@ import Testing
     try await Wait.until(
       { @MainActor in
         guard let bridged = viewModel.searchResults[id: searchFeedURL] else { return false }
-        return bridged.podcast.id == searchFeedURL
+        return bridged.podcast.id == canonicalFeedURL
+          && bridged.podcast.slotID == searchFeedURL
           && bridged.podcast.feedURL == canonicalFeedURL
           && bridged.podcast.savedSearchResult != nil
           && bridged.podcast.podcastID != nil
@@ -148,7 +149,8 @@ import Testing
         return """
           Expected SearchViewModel to bridge a saved podcast onto the search result row.
           bridged exists: \(bridged != nil)
-          result ID: \(String(describing: bridged?.podcast.id))
+          canonical ID: \(String(describing: bridged?.podcast.id))
+          slot ID: \(String(describing: bridged?.podcast.slotID))
           canonical feed: \(String(describing: bridged?.podcast.feedURL))
           saved search result: \(String(describing: bridged?.podcast.savedSearchResult))
           podcastID: \(String(describing: bridged?.podcast.podcastID))
