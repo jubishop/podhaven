@@ -95,10 +95,6 @@ struct ListableEpisode:
 
   // MARK: - In-Memory Projection
 
-  // Project a full `Episode` row to the slim list-row shape. `tagIDs` defaults
-  // to `[]` because the only current caller is the post-insert bootstrap in
-  // `PodcastDetailViewModel`, where a freshly-inserted episode has no tag
-  // join rows yet. Callers that already hold the tag IDs supply them.
   init(from episode: Episode, tagIDs: Set<Tag.ID> = []) {
     self.id = episode.id
     self.guid = episode.guid

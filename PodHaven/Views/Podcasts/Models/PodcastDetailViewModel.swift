@@ -87,11 +87,7 @@ class PodcastDetailViewModel:
 
   // MARK: - State
 
-  // State ownership: `state` is the source of truth for podcast/series data.
-  // `episodeList` is a SwiftUI-facing `PowerList` that owns view-derived state
-  // (sort, filter, selection, debounce). `refreshEpisodeList(from:)` is the
-  // one-way projection from `state` to `episodeList.allEntries` — episode
-  // rows flow `state → episodeList`, never the reverse.
+  // `state` is the source of truth; `episodeList` is a one-way projection of it.
   private(set) var state: PodcastDetailState
 
   var podcast: PodcastDetailContent { state.detailContent }
