@@ -190,7 +190,7 @@ class PodcastDetailViewModel:
       Self.log.debug("selectedPodcastEpisodes: \(selectedEpisodes.count) episodes selected")
 
       let savedEpisodeIDs = selectedEpisodes.compactMap(\.episodeID)
-      let unsavedPodcastEpisodes = selectedEpisodes.compactMap(\.unsavedPodcastEpisode)
+      let unsavedPodcastEpisodes = selectedEpisodes.compactMap(\.unsaved)
       let savedByID = Dictionary(
         uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs).map { ($0.id, $0) }
       )

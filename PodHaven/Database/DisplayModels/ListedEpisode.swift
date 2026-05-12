@@ -80,7 +80,7 @@ struct ListedEpisode:
       }
     }
 
-    var unsavedPodcastEpisode: UnsavedPodcastEpisode? {
+    var unsaved: UnsavedPodcastEpisode? {
       guard case .unsaved(let episode) = self else { return nil }
       return episode
     }
@@ -140,5 +140,5 @@ struct ListedEpisode:
     }
   }
 
-  var unsavedPodcastEpisode: UnsavedPodcastEpisode? { source.unsavedPodcastEpisode }
+  var unsaved: UnsavedPodcastEpisode? { source.unsaved }
 }

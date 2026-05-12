@@ -78,11 +78,6 @@ struct ListedPodcast:
       }
     }
 
-    var listablePodcast: ListablePodcast? {
-      guard case .saved(let podcast) = self else { return nil }
-      return podcast
-    }
-
     var savedSearchResult: SavedSearchResultPodcast? {
       guard case .savedSearchResult(let result) = self else { return nil }
       return result
@@ -155,7 +150,6 @@ struct ListedPodcast:
   // MARK: - Helpers
 
   func getOrCreatePodcast() async throws -> Podcast { try await source.getOrCreatePodcast() }
-  var listablePodcast: ListablePodcast? { source.listablePodcast }
   var savedSearchResult: SavedSearchResultPodcast? { source.savedSearchResult }
   var unsavedSearchResult: UnsavedPodcast? { source.unsavedSearchResult }
 
