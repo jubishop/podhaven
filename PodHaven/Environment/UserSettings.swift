@@ -55,6 +55,29 @@ struct UserSettings: Sendable {
   }
   @PersistedBroadcast("nextTrackBehavior") var nextTrackBehavior: NextTrackBehavior = .skipInterval
 
+  // "Focused" keeps just the corpus-mean centering — recommendations stay
+  // close to the podcasts you've already rated. "Exploratory" additionally
+  // strips the next three principal components, which empirically encode
+  // podcast *format* rather than topic, opening up topical discovery across
+  // shows you haven't engaged with yet. See
+  // `docs/research/embedding-model-alternatives.md` for the data.
+  enum RecommendationDeconeMode:
+    String, Codable, DefaultsStorable, CaseIterable, Identifiable, Sendable
+  {
+    case focused = "Focused"
+    case exploratory = "Exploratory"
+
+    var id: String { rawValue }
+  }
+  @PersistedBroadcast("recommendationDeconeMode")
+  var recommendationDeconeMode: RecommendationDeconeMode = .exploratory
+
+  // Weight of the podcast-affinity term in the scoring blend; the similarity
+  // term always takes the remainder (1.0 − this). 0.0 = pure content
+  // similarity; 0.5 = equal split. Default 0.1 matches the original hardcoded
+  // value before this became a user-tunable setting.
+  @PersistedBroadcast("podcastAffinityWeight") var podcastAffinityWeight: Double = 0.1
+
   private static let log = Log.as("UserSettings")
 
   fileprivate init() {

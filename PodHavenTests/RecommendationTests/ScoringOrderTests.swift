@@ -79,13 +79,19 @@ class ScoringOrderTests {
 
   @Test("unembedded candidate doesn't outscore an embedded peer on the same podcast")
   func unembeddedCandidateDoesNotOutscoreEmbedded() async throws {
-    // Whitening centers every vector against the corpus mean, so a single
-    // outlier among four total vectors lands anti-aligned with the cluster
-    // it differs from. Filler episodes (rated notInterested so they don't
-    // enter centroids and aren't candidates) stabilize the mean so the
-    // signal direction is meaningful, and the embedded candidate's vector
-    // aligns with that direction. Same podcast → identical affinity; future
-    // pubDates → freshness 1.0, so similarity drives the score difference.
+    // The test verifies the baseline-whitening behavior (corpus-mean centering
+    // only), where an embedded candidate's actual similarity to the signal
+    // centroid beats the unembedded sibling's neutral-0.5 default. Exploratory
+    // mode strips the next three principal components, which on a tiny fixture
+    // collapses the residual to zero — so we pin the test to focused mode.
+    //
+    // Filler episodes (rated notInterested so they don't enter centroids and
+    // aren't candidates) anchor the corpus mean against a different direction
+    // than the signal cluster. Without them the mean would be pulled toward
+    // the lone candidate, anti-aligning the signal residuals with it even
+    // under mean-only centering.
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
     let embeddable = ScriptedEmbeddable { text in
       if text.contains("Filler") { return [0, 0, 1] }
       if text.contains("Loved") || text.contains("Embedded Candidate") { return [1, 0, 0] }

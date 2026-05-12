@@ -10,37 +10,32 @@ import Logging
 enum EmbeddingService {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
-  // Bump when any recipe knob below changes (weights, blend, cleanText rules).
-  // Folded into source hashes so cached vectors invalidate on tuning. Read by
-  // RecommendationEngine as a cache key for the whitening mean — a recipe bump
-  // re-writes every vector in place without changing count or model revision,
-  // so it's the only signal that says "the existing mean is stale."
+  // Bump when any recipe knob below changes. Folded into source hashes so
+  // cached vectors invalidate on tuning, and read by RecommendationEngine
+  // as a whitening-mean cache key — recipe bumps rewrite every vector in
+  // place without changing count or model revision.
   static let recipeVersion = 2
 
-  // Title gets more weight than description to avoid boilerplate dominance
+  // Title weighs more than description to avoid boilerplate dominance.
   private static let titleWeight: Float = 0.6
   private static let descriptionWeight: Float = 0.4
-
-  // Podcast vector recipe mirrors the episode recipe. Title carries show
-  // identity (important when descriptions are generic or missing); description
-  // adds topical context when available.
   private static let podcastTitleWeight: Float = 0.6
   private static let podcastDescriptionWeight: Float = 0.4
 
-  // Podcast description blending ratio. Tuned lower to preserve within-show
-  // discrimination while still providing cross-show semantic signal.
+  // Podcast vector blend ratio. Tuned low to preserve within-show
+  // discrimination while still providing cross-show signal.
   private static let episodeBlendWeight: Float = 0.75
   private static let podcastBlendWeight: Float = 0.25
 
-  // Regex<Substring> isn't Sendable-annotated upstream, but its compiled NFA is
-  // immutable and matching is thread-safe. Precompile once to avoid recompiling
-  // on every cleanText call (called 2x per episode during BG embedding pass).
+  // Regex<Substring> isn't Sendable upstream, but the compiled NFA is
+  // immutable and matching is thread-safe. Precompile to avoid the
+  // 2-per-episode recompile during the BG embedding pass.
   private nonisolated(unsafe) static let urlRegex = /https?:\/\/\S+/
   private nonisolated(unsafe) static let whitespaceRunRegex = /\s+/
 
-  // Chunk size for the ID-driven entry point. Hydrating full Episode rows is
-  // ~125 MB for the full library; chunking lets BG-task expiry preserve work
-  // already done instead of paying a multi-second hydration pass up front.
+  // Hydrating full Episode rows is ~125 MB for the full library; chunking
+  // lets BG-task expiry preserve work already done instead of paying a
+  // multi-second hydration pass up front.
   private static let hydrationChunkSize = 64
 
   // MARK: - Upsert Episode Embeddings
@@ -76,19 +71,17 @@ enum EmbeddingService {
     let podcastsByID = try await recommendationRepo.podcasts(for: podcastIDs)
     let podcastEmbeddings = try await recommendationRepo.podcastEmbeddings(for: podcastIDs)
 
-    // Cache podcast vectors so a batch with N episodes from the same show pays the cost once.
+    // Pays the cost once per show in batches with multiple episodes from it.
     var podcastVectorCache: [Podcast.ID: [Float]?] = [:]
 
-    // Accumulate per-chunk and commit at the end so one fsync covers the
-    // whole batch instead of one per episode.
+    // One fsync per batch instead of one per episode.
     var pendingEpisodeEmbeddings = [UnsavedEpisodeEmbedding](capacity: episodes.count)
     var pendingPodcastEmbeddings = [UnsavedPodcastEmbedding](capacity: podcastIDs.count)
 
-    // Episodes whose embedding still matches (same hash, same revision) but
-    // whose contentUpdatedAt or podcast.contentUpdatedAt advanced past the
-    // stored verificationDate. We touch verificationDate on these so the
-    // SQL query in episodesNeedingEmbeddings stops returning them — without
-    // doing a no-op vector recompute.
+    // Embeddings whose source hash + revision still match but whose
+    // contentUpdatedAt (episode or podcast) advanced past verificationDate.
+    // Touching the date stops episodesNeedingEmbeddings from re-yielding them
+    // without paying for a no-op vector recompute.
     var verifiedOnlyEpisodeIDs = [Episode.ID](capacity: episodes.count)
     let chunkStart = Date()
 
@@ -115,9 +108,9 @@ enum EmbeddingService {
         continue
       }
 
-      // One bad episode mustn't abort the whole BG pass — otherwise the
-      // same episode re-enters episodesNeedingEmbeddings forever. Cancellation
-      // breaks out of the loop so the post-loop flush still runs.
+      // One bad episode mustn't abort the BG pass — it would re-enter
+      // episodesNeedingEmbeddings forever. Cancellation breaks out of the
+      // loop so the post-loop flush still runs.
       do {
         let podcastVector: [Float]?
         if let cached = podcastVectorCache[episode.podcastID] {
@@ -154,8 +147,8 @@ enum EmbeddingService {
       }
     }
 
-    // Flush even on cancellation so episodes embedded earlier in the chunk
-    // land before the error propagates.
+    // Flush on cancellation too so earlier episodes in the chunk land
+    // before the error propagates.
     try await recommendationRepo.upsertPodcastEmbeddings(pendingPodcastEmbeddings)
     try await recommendationRepo.upsertEmbeddings(pendingEpisodeEmbeddings)
     try await recommendationRepo.touchEmbeddingVerification(
@@ -169,7 +162,7 @@ enum EmbeddingService {
   // MARK: - Helpers
 
   // `fresh` is non-nil when a new row needs to be persisted; the caller
-  // appends it to the chunk's pending batch and flushes once per chunk.
+  // batches it with the chunk's pending writes.
   private static func resolvePodcastVector(
     podcast: Podcast?,
     embedding: ContextualEmbedding,
@@ -307,8 +300,8 @@ enum EmbeddingService {
   }
 
   static func cleanText(_ text: String) -> String {
-    // Decode entities first so `&lt;script&gt;` becomes `<script>` and is then
-    // stripped by the tag pass.
+    // Decode entities first so e.g. `&lt;script&gt;` becomes `<script>` and
+    // is then stripped by the tag pass.
     var result = text.decodingHTMLEntities().strippingHTMLTags()
     unsafe result.replace(urlRegex, with: "")
     unsafe result.replace(Timestamp.regex, with: "")

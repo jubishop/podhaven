@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2026
 
 import AVFoundation
-import Accelerate
 import FactoryKit
 import Foundation
 import GRDB
@@ -10,20 +9,12 @@ import Logging
 
 // MARK: - Types
 
-// The "new info" a recommendation adds to an episode: a blended score in
-// [0, 1] and the reasons that fired above their neutral midpoint. Returned
-// on its own by `recommendations(for:)` so callers that already have the
-// episodes don't get them echoed back.
 struct RecommendationScore: Sendable {
   let value: Float
   let reasons: [RecommendationReason]
 
-  // Stretch the [0.5, max] segment onto [0.5, 1.0] so the top observed
-  // candidate displays as 100% while preserving "below 50% = below baseline."
-  // The neutral midpoint stays at 50% so a UI threshold like "show 'For You'
-  // when score >= 50%" keeps its meaning across rebuilds; only above-baseline
-  // scores get re-anchored against the latest pool. Pass-through when `max`
-  // doesn't beat the baseline (degenerate cold-start corpus).
+  // Stretches the [0.5, max] segment onto [0.5, 1.0] so the top observed
+  // candidate displays as 100%, leaving sub-baseline scores untouched.
   func rescaledForDisplay(max: Float) -> RecommendationScore {
     guard value > 0.5, max > 0.5 else { return self }
     let stretched = (value - 0.5) * 0.5 / (max - 0.5)
@@ -34,9 +25,6 @@ struct RecommendationScore: Sendable {
   }
 }
 
-// `topRecommendations` publishes ranked IDs paired with their scores;
-// callers hydrate display rows separately so cache/save state stays fresh
-// without a re-rank.
 typealias RankedRecommendation = (id: Episode.ID, score: RecommendationScore)
 
 enum RecommendationReason: Hashable, Sendable {
@@ -67,24 +55,13 @@ struct RecommendationEngine: Sendable {
   private static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
-  // Must sum to 1.0. Similarity dominates so a single liked episode
-  // doesn't drag in everything that podcast ever published. Freshness isn't
-  // a summand — it's a multiplicative gate (see `scoreCandidate`).
-  private static let similarityWeight: Float = 0.9
-  private static let podcastAffinityWeight: Float = 0.1
-
-  // Centroid weights
+  // Similarity weight is 1.0 − `UserSettings.podcastAffinityWeight`. Freshness
+  // is a multiplicative gate, not a summand (see `scoreCandidate`).
   private static let lovedWeight: Float = 1.0
   private static let likedWeight: Float = 0.6
   private static let partialWeight: Float = 0.5
-
-  // Bayesian smoothing prior for podcast affinity
   private static let affinityPrior: Float = 2.0
-
-  // Podcast affinity — dislikes contribute but at less strength.
   private static let dislikedAffinityWeight: Float = 0.4
-
-  // Temporal decay half-life in days
   private static let decayHalfLifeDays: Double = 180
 
   // MARK: - Cached Scoring Context
@@ -94,61 +71,46 @@ struct RecommendationEngine: Sendable {
   private let recommendationsDebounce = Debounce(duration: .milliseconds(400))
   private let startOnce = Once()
 
-  // Display-rescaling anchor: max raw score from the most recent
-  // `topRecommendations` rebuild, which scans the full candidate pool.
-  // `recommendations(for:)` reads it but never writes — an arbitrary subset
-  // would set an artificially low max and inflate every other surface.
-  // Stays at 1.0 until the first rebuild so cold-start callers see un-rescaled
-  // scores instead of a misleading 100% on whatever lands first.
+  // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
+  // so per-call surfaces share the same denominator. 1.0 until first rebuild.
   private let observedMaxScore = ThreadSafe<Float>(1.0)
 
-  // Whitening mean is recomputed only when one of these signals fires; in
-  // steady state cache rebuilds reuse the cached vector and skip the full
-  // 188 MB scan. Counts that stay inside [shrink, growth] map to drift well
-  // below 1% in display-rounded scores (see whiteningMean cache logic).
+  // Recompute the whitening transform only when the corpus turns over enough
+  // that the cached mean drifts past ~1% in display-rounded scores.
   private static let whiteningCountGrowthMax: Float = 1.25
   private static let whiteningCountShrinkMin: Float = 0.8
 
-  // Cached whitening mean keyed on (model revision, recipe version, count).
-  // Revision changes mean the vectors live in a different space; recipe
-  // version changes mean every vector got re-written in place; count moving
-  // outside [shrink, growth] means the corpus turned over enough to matter.
-  // Anything else (new ratings, partial-listen ticks, routine feed adds)
-  // leaves the cached mean valid.
-  private let cachedWhiteningMean = ThreadSafe<
-    (mean: [Float], revision: Int, recipeVersion: Int, count: Int)?
+  // Invalidated by any of: model revision change, recipeVersion bump, count
+  // moving outside [shrink, growth], or the user enabling exploratory mode
+  // when the cached transform was computed with fewer PCs.
+  private let cachedWhiteningTransform = ThreadSafe<
+    (
+      transform: WhiteningTransform, revision: Int, recipeVersion: Int,
+      count: Int, principalComponentCount: Int
+    )?
   >(nil)
 
-  // Bumps once per cache rebuild — whether the rebuild produced a hot,
-  // cold, or refreshed-with-new-signals context. Subscribers (e.g. detail
-  // views holding a per-episode score) watch `$contextRevision.stream()`
-  // and re-query when it fires; the value itself is uninteresting, only the
-  // change events. This is the engine's own change signal, replacing the
-  // previous workaround of inferring rebuilds from `topRecommendations`.
+  // Bumps once per cache rebuild. Subscribers watch
+  // `$contextRevision.stream()` to know when to re-query; the value itself
+  // is uninteresting.
   @Broadcasted var contextRevision: Int = 0
 
   fileprivate init() {}
 
   // MARK: - Public API
 
-  // Idempotent. Spawns the observation Task that keeps `cache` in sync with
-  // the DB. AppLauncher calls this during foreground init; tests call it
-  // after seeding their fixture. Public scoring methods do NOT auto-call
-  // `start()` — they just read whatever the cache currently has and return
-  // empty when it's nil. That keeps every recommendations() call
-  // latency-free and pushes "is the cache hot?" to the lifecycle owner.
+  // Idempotent. Public scoring methods do NOT auto-call `start()` — they
+  // read whatever the cache currently has and return empty when it's nil.
   func start() {
     startOnce.run {
-      startObservingScoringContext()
+      startObservations()
     }
   }
 
-  // Score an arbitrary set of episodes so a caller can sort a list by "how
-  // recommended." Unlike `topRecommendations`, there's no candidate filter,
-  // no minimum-score floor, and no limit — every requested episode that has
-  // sufficient context gets a score. Callers already have the episodes, so
-  // we return just the new info (score + reasons) keyed by ID. Returns
-  // empty if `start()` hasn't yet hydrated the cache.
+  // Unlike `topRecommendations`, there's no candidate filter, no minimum
+  // floor, and no limit — every requested episode that has sufficient
+  // context gets a score. Returns empty if `start()` hasn't yet hydrated
+  // the cache.
   func recommendations(
     for episodes: [Episode]
   ) async throws -> [Episode.ID: RecommendationScore] {
@@ -162,9 +124,7 @@ struct RecommendationEngine: Sendable {
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
   }
 
-  // Single-episode convenience over `recommendations(for:)` for callers
-  // that only have an ID (e.g. a detail view). Returns nil if the episode
-  // doesn't exist or the cache is cold.
+  // Returns nil if the episode doesn't exist or the cache is cold.
   func recommendation(for episodeID: Episode.ID) async throws -> RecommendationScore? {
     guard let episode = try await repo.episode(episodeID) else { return nil }
     return try await recommendations(for: [episode])[episodeID]
@@ -174,9 +134,8 @@ struct RecommendationEngine: Sendable {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
     let totalStart = ContinuousClock.now
 
-    // Direct Container.shared access because SharedState isn't Sendable and
-    // @DynamicInjected requires a Sendable type. The property read is @MainActor
-    // isolated in practice; onDeck is a Sendable value type so the copy is safe.
+    // SharedState isn't Sendable, so it can't go through @DynamicInjected;
+    // the actual read is @MainActor-isolated and onDeck is a value type.
     let onDeckID = Container.shared.sharedState().onDeck?.id
 
     let candidatesStart = ContinuousClock.now
@@ -213,16 +172,11 @@ struct RecommendationEngine: Sendable {
       return []
     }
 
-    // Anchor display rescaling to the full pool's max so an episode shown in
-    // both upNext and a detail view matches. Computed before the threshold
-    // filter so a wholesale low-similarity corpus doesn't pin the anchor at
-    // exactly the threshold value.
+    // Anchor display rescaling to the full-pool max (before threshold filter)
+    // so the same episode reads consistently across upNext and detail views.
     let batchMax = scores.values.map(\.value).max() ?? 1.0
     observedMaxScore(batchMax)
 
-    // Sort by score (then pubDate, then id) on the lightweight Episode
-    // tuples. Hydration of the listable display rows happens at the
-    // consumer; the engine only ranks.
     struct ScoredCandidate {
       let id: Episode.ID
       let pubDate: Date
@@ -269,26 +223,30 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - ScoringContext
 
-  // The output of one centroid+affinity build, reused across every
-  // `recommendations(for:)` / `topRecommendations()` call until the
-  // observation emits a new `ScoringContextInputs`. `whiteningMean` is the
-  // corpus-wide cone center carried alongside the centroids so candidate
-  // scoring whitens against the same anchor the centroids were built from.
+  // Frozen snapshot reused until the next rebuild. `deconeMode` is captured
+  // here because changing it reshapes the centroids and invalidates the cache.
   private struct ScoringContext: Sendable {
     let positiveCentroid: [Float]
     let negativeCentroid: [Float]?
     let podcastAffinities: [Podcast.ID: Float]
     let freshnessCadences: [Podcast.ID: FreshnessCadence]
-    let whiteningMean: [Float]?
+    let whiteningTransform: WhiteningTransform?
+    let deconeMode: UserSettings.RecommendationDeconeMode
   }
 
-  // Both triggers funnel through `cacheDebounce` so RefreshManager bulk
-  // inserts (observatory) and rapid onDeck transitions (nil → new) collapse
-  // into a single rebuild after the burst settles. The action always
-  // re-fetches inputs so whichever trigger wins the debounce sees DB state
-  // at fire time, not at trigger time — a partial-signal write that
-  // happens between trigger and fire would otherwise be missed.
-  private func startObservingScoringContext() {
+  private static func principalComponentStripCount(
+    for mode: UserSettings.RecommendationDeconeMode
+  ) -> Int {
+    switch mode {
+    case .focused: 0
+    case .exploratory: WhiteningTransform.principalComponentCount
+    }
+  }
+
+  // Triggers funnel through `cacheDebounce` so bulk inserts and rapid onDeck
+  // transitions collapse into a single rebuild. The action re-fetches inputs
+  // at fire time so a write between trigger and fire isn't missed.
+  private func startObservations() {
     Task(priority: taskPriority(.utility)) {
       var retryDelay: Duration = .seconds(1)
       while !Task.isCancelled {
@@ -306,11 +264,10 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // onDeck transitions cover session boundaries that the GRDB observation
-    // can't see — partial-listen bitmaps and lastPlayedDate are excluded
-    // from its tracked region. `dropFirst()` skips Broadcast's bootstrap
-    // emit; the GRDB observation above already populates the cache from
-    // the initial DB state.
+    // partial-listen bitmaps and lastPlayedDate are excluded from the GRDB
+    // observation's tracked region, so onDeck transitions are how the engine
+    // learns about completed listens. `dropFirst()` skips the bootstrap emit;
+    // the observation above already covered the initial DB state.
     Task(priority: taskPriority(.utility)) {
       let sharedState = Container.shared.sharedState()
       var lastID: Episode.ID? = sharedState.onDeck?.id
@@ -323,10 +280,8 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // The user-controlled limit doesn't affect scoring, so it doesn't
-    // invalidate the cache — but it does change how many entries should
-    // be published. `dropFirst()` skips the bootstrap emit; whichever
-    // path populates the cache first will publish the initial list.
+    // Limit changes don't invalidate the cache, only how many entries get
+    // published.
     Task(priority: taskPriority(.utility)) {
       let userSettings = Container.shared.userSettings()
       for await _ in userSettings.$maxRecommendedEpisodesInUpNext.stream().dropFirst() {
@@ -335,12 +290,27 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // Wakes when an episode leaves or rejoins the candidate pool via
-    // queue / finish / rate transitions — the cache stays valid (none of
-    // those columns affect scoring beyond what the signal observation
-    // already covers), so we only need to re-rank, not rebuild context.
-    // `dropFirst()` skips the bootstrap; the cache observation above will
-    // publish the initial list once context is hot.
+    // Mode reshapes the centroids, so we need a full cache rebuild.
+    Task(priority: taskPriority(.utility)) {
+      let userSettings = Container.shared.userSettings()
+      for await _ in userSettings.$recommendationDeconeMode.stream().dropFirst() {
+        guard !Task.isCancelled else { return }
+        scheduleCacheRebuild()
+      }
+    }
+
+    // Weight only affects per-candidate scoring; `scoreEpisodes` reads it live.
+    Task(priority: taskPriority(.utility)) {
+      let userSettings = Container.shared.userSettings()
+      for await _ in userSettings.$podcastAffinityWeight.stream().dropFirst() {
+        guard !Task.isCancelled else { return }
+        scheduleRecommendationsRebuild()
+      }
+    }
+
+    // Candidate-pool transitions (queue / finish / rate) need a re-rank but
+    // not a context rebuild — the underlying signal observation already
+    // covers the scoring inputs.
     Task(priority: taskPriority(.utility)) {
       var retryDelay: Duration = .seconds(1)
       while !Task.isCancelled {
@@ -364,9 +334,11 @@ struct RecommendationEngine: Sendable {
       do {
         let inputsStart = ContinuousClock.now
         let inputs = try await recommendationRepo.allScoringContextInputs()
-        let whiteningMean = try await currentWhiteningMean(
+        let deconeMode = Container.shared.userSettings().recommendationDeconeMode
+        let whiteningTransform = try await currentWhiteningTransform(
           embeddingCount: inputs.embeddingCount,
-          currentRevision: Container.shared.contextualEmbedding().revision
+          currentRevision: Container.shared.contextualEmbedding().revision,
+          principalComponentCount: Self.principalComponentStripCount(for: deconeMode)
         )
         let inputsDuration = ContinuousClock.now - inputsStart
         Self.log.debug(
@@ -374,12 +346,17 @@ struct RecommendationEngine: Sendable {
           perf: allScoringContextInputs took \(inputsDuration) — \
           rated=\(inputs.ratedSignals.count) partial=\(inputs.partialSignals.count) \
           embeddings=\(inputs.signalEmbeddings.count) cadences=\(inputs.freshnessCadences.count) \
-          whiteningMean=\(whiteningMean == nil ? "nil" : "ready")
+          whiteningTransform=\(whiteningTransform == nil ? "nil" : "ready") \
+          deconeMode=\(deconeMode.rawValue)
           """
         )
 
         let buildStart = ContinuousClock.now
-        let context = Self.buildContext(from: inputs, whiteningMean: whiteningMean)
+        let context = Self.buildContext(
+          from: inputs,
+          whiteningTransform: whiteningTransform,
+          deconeMode: deconeMode
+        )
         let buildDuration = ContinuousClock.now - buildStart
         Self.log.debug(
           "perf: buildContext took \(buildDuration) — context=\(context == nil ? "nil" : "ready")"
@@ -394,11 +371,8 @@ struct RecommendationEngine: Sendable {
     }
   }
 
-  // Pushes the current top recommendations to SharedState. Reads the
-  // user-controlled limit at fire time, so a slider change between
-  // schedule and fire still picks up the latest value. Uses its own
-  // debounce so a rapid drag of the slider doesn't trigger a query
-  // per intermediate value.
+  // Reads the user limit at fire time so a slider change mid-debounce
+  // picks up the latest value rather than the value at schedule time.
   private func scheduleRecommendationsRebuild() {
     recommendationsDebounce {
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
@@ -420,7 +394,8 @@ struct RecommendationEngine: Sendable {
 
   private static func buildContext(
     from inputs: ScoringContextInputs,
-    whiteningMean: [Float]?
+    whiteningTransform: WhiteningTransform?,
+    deconeMode: UserSettings.RecommendationDeconeMode
   ) -> ScoringContext? {
     let totalSignalCount = inputs.ratedSignals.count + inputs.partialSignals.count
     guard totalSignalCount >= minimumDataThreshold else {
@@ -442,7 +417,8 @@ struct RecommendationEngine: Sendable {
       ratedSignals: inputs.ratedSignals,
       partialSignals: inputs.partialSignals,
       embeddings: inputs.signalEmbeddings,
-      whiteningMean: whiteningMean
+      whiteningTransform: whiteningTransform,
+      deconeMode: deconeMode
     )
     guard let positiveCentroid = positive else {
       log.debug("No positive centroid (no signal embeddings available), cached context cleared")
@@ -457,7 +433,8 @@ struct RecommendationEngine: Sendable {
         partialSignals: inputs.partialSignals
       ),
       freshnessCadences: inputs.freshnessCadences,
-      whiteningMean: whiteningMean
+      whiteningTransform: whiteningTransform,
+      deconeMode: deconeMode
     )
   }
 
@@ -481,20 +458,31 @@ struct RecommendationEngine: Sendable {
 
     let mathStart = ContinuousClock.now
     let now = Date()
+    let affinityWeight = Float(Container.shared.userSettings().podcastAffinityWeight)
+    let similarityWeight = max(0, 1.0 - affinityWeight)
+    let stripCount = Self.principalComponentStripCount(for: context.deconeMode)
+    let dim = context.positiveCentroid.count
+    var scratch = [Float](repeating: 0, count: dim)
     var scores = [Episode.ID: RecommendationScore](capacity: candidates.count)
-    for candidate in candidates {
-      scores[candidate.id] = scoreCandidate(
-        embedding: embeddings[id: candidate.id],
-        podcastID: candidate.podcastID,
-        pubDate: candidate.pubDate,
-        positiveCentroid: context.positiveCentroid,
-        negativeCentroid: context.negativeCentroid,
-        podcastAffinities: context.podcastAffinities,
-        freshnessCadence: context.freshnessCadences[candidate.podcastID]
-          ?? FreshnessCadence.default,
-        whiteningMean: context.whiteningMean,
-        now: now
-      )
+    unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+      for candidate in candidates {
+        scores[candidate.id] = unsafe scoreCandidate(
+          embedding: embeddings[id: candidate.id],
+          podcastID: candidate.podcastID,
+          pubDate: candidate.pubDate,
+          positiveCentroid: context.positiveCentroid,
+          negativeCentroid: context.negativeCentroid,
+          podcastAffinities: context.podcastAffinities,
+          freshnessCadence: context.freshnessCadences[candidate.podcastID]
+            ?? FreshnessCadence.default,
+          whiteningTransform: context.whiteningTransform,
+          stripCount: stripCount,
+          similarityWeight: similarityWeight,
+          affinityWeight: affinityWeight,
+          scratch: scratchPtr,
+          now: now
+        )
+      }
     }
     let mathDuration = ContinuousClock.now - mathStart
     Self.log.debug(
@@ -509,46 +497,123 @@ struct RecommendationEngine: Sendable {
     ratedSignals: [SignalEpisode],
     partialSignals: [PartialSignal],
     embeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>,
-    whiteningMean: [Float]?
+    whiteningTransform: WhiteningTransform?,
+    deconeMode: UserSettings.RecommendationDeconeMode
   ) -> (positive: [Float]?, negative: [Float]?) {
     let now = Date()
-    let capacity = ratedSignals.count + partialSignals.count
-    var positiveVectors = [(vector: [Float], weight: Float)](capacity: capacity)
-    var negativeVectors = [(vector: [Float], weight: Float)](capacity: capacity)
+    let stripCount = principalComponentStripCount(for: deconeMode)
 
-    for signal in ratedSignals {
-      guard let cached = embeddings[id: signal.id] else { continue }
-      let vector = whiten(cached.floatVector, mean: whiteningMean)
-      let decay = temporalDecay(from: signal.ratingDate, now: now)
+    // Size the accumulators from the first available embedding; signals
+    // without embeddings are skipped by the passes below anyway.
+    let dim: Int? = {
+      for signal in ratedSignals {
+        if let cached = embeddings[id: signal.id] { return cached.dimension }
+      }
+      for partial in partialSignals {
+        if let cached = embeddings[id: partial.id] { return cached.dimension }
+      }
+      return nil
+    }()
+    guard let dim else { return (nil, nil) }
 
-      switch signal.rating {
-      case .loved:
-        positiveVectors.append((vector, lovedWeight * decay))
-      case .liked:
-        positiveVectors.append((vector, likedWeight * decay))
-      case .disliked:
-        negativeVectors.append((vector, decay))
-      case .notInterested:
-        Assert.fatal(
-          "buildCentroids received notInterested signal — Episode.hasRatingSignal filter regressed"
-        )
+    var positiveSum = [Float](repeating: 0, count: dim)
+    var negativeSum = [Float](repeating: 0, count: dim)
+    var positiveWeight: Float = 0
+    var negativeWeight: Float = 0
+    var scratch = [Float](repeating: 0, count: dim)
+
+    unsafe positiveSum.withUnsafeMutableBufferPointer { positivePtr in
+      unsafe negativeSum.withUnsafeMutableBufferPointer { negativePtr in
+        unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+          func accumulate(
+            embedding: EpisodeEmbedding,
+            weight: Float,
+            into target: UnsafeMutableBufferPointer<Float>
+          ) {
+            unsafe embedding.withFloatBuffer { vec in
+              if let whiteningTransform {
+                unsafe whiteningTransform.apply(
+                  vec,
+                  strippingTopK: stripCount,
+                  into: scratchPtr
+                )
+                let projected = UnsafeBufferPointer(scratchPtr)
+                unsafe VectorMath.scaledAddInPlace(
+                  projected,
+                  scalar: weight,
+                  into: target
+                )
+              } else {
+                unsafe VectorMath.scaledAddInPlace(
+                  vec,
+                  scalar: weight,
+                  into: target
+                )
+              }
+            }
+          }
+
+          for signal in ratedSignals {
+            guard let cached = embeddings[id: signal.id] else { continue }
+            let decay = temporalDecay(from: signal.ratingDate, now: now)
+            switch signal.rating {
+            case .loved:
+              let w = lovedWeight * decay
+              unsafe accumulate(embedding: cached, weight: w, into: positivePtr)
+              positiveWeight += w
+            case .liked:
+              let w = likedWeight * decay
+              unsafe accumulate(embedding: cached, weight: w, into: positivePtr)
+              positiveWeight += w
+            case .disliked:
+              unsafe accumulate(embedding: cached, weight: decay, into: negativePtr)
+              negativeWeight += decay
+            case .notInterested:
+              Assert.fatal(
+                """
+                buildCentroids received notInterested signal — \
+                Episode.hasRatingSignal filter regressed
+                """
+              )
+            }
+          }
+
+          for partial in partialSignals {
+            guard let cached = embeddings[id: partial.id] else { continue }
+            let weight =
+              partialWeight * Float(partial.coverageRatio)
+              * temporalDecay(from: partial.lastPlayedDate, now: now)
+            unsafe accumulate(embedding: cached, weight: weight, into: positivePtr)
+            positiveWeight += weight
+          }
+        }
       }
     }
 
-    for partial in partialSignals {
-      guard let cached = embeddings[id: partial.id] else { continue }
-      let weight =
-        partialWeight * Float(partial.coverageRatio)
-        * temporalDecay(from: partial.lastPlayedDate, now: now)
-      positiveVectors.append((whiten(cached.floatVector, mean: whiteningMean), weight))
-    }
-
-    let positive = computeWeightedCentroid(positiveVectors)
-    let negative = computeWeightedCentroid(negativeVectors)
+    let positive = positiveWeight > 0 ? VectorMath.normalize(positiveSum) : nil
+    let negative = negativeWeight > 0 ? VectorMath.normalize(negativeSum) : nil
     return (positive, negative)
   }
 
   // MARK: - Score Candidate
+
+  // Pulled out so the same dot-product path runs for whitened and raw inputs
+  // without a cross-branch `UnsafeBufferPointer<Float>` assignment.
+  private static func similarity(
+    of vector: UnsafeBufferPointer<Float>,
+    positive: [Float],
+    negative: [Float]?
+  ) -> Float {
+    var similarity = unsafe positive.withUnsafeBufferPointer { posPtr in
+      unsafe VectorMath.dotProduct(vector, posPtr)
+    }
+    if let negative {
+      similarity -= unsafe negative.withUnsafeBufferPointer { negPtr in
+        unsafe VectorMath.dotProduct(vector, negPtr)
+      }
+    }
+    return similarity
+  }
 
   private func scoreCandidate(
     embedding: EpisodeEmbedding?,
@@ -558,20 +623,35 @@ struct RecommendationEngine: Sendable {
     negativeCentroid: [Float]?,
     podcastAffinities: [Podcast.ID: Float],
     freshnessCadence: FreshnessCadence,
-    whiteningMean: [Float]?,
+    whiteningTransform: WhiteningTransform?,
+    stripCount: Int,
+    similarityWeight: Float,
+    affinityWeight: Float,
+    scratch: UnsafeMutableBufferPointer<Float>,
     now: Date
   ) -> RecommendationScore {
-    // Missing embedding → neutral 0.5; dropping the feature would let
-    // renormalization promote affinity to weight 1.0 and overrank the candidate.
+    // Missing embedding → neutral 0.5. Dropping the feature would let
+    // renormalization promote affinity to 1.0 and overrank the candidate.
     let similarityValue: Float
     if let embedding {
-      let vector = Self.whiten(embedding.floatVector, mean: whiteningMean)
-      var similarity = VectorMath.dotProduct(vector, positiveCentroid)
-      if let negativeCentroid {
-        similarity -= VectorMath.dotProduct(vector, negativeCentroid)
+      let raw = unsafe embedding.withFloatBuffer { vec -> Float in
+        if let whiteningTransform {
+          unsafe whiteningTransform.apply(vec, strippingTopK: stripCount, into: scratch)
+          let projected = UnsafeBufferPointer(scratch)
+          return unsafe Self.similarity(
+            of: projected,
+            positive: positiveCentroid,
+            negative: negativeCentroid
+          )
+        }
+        return unsafe Self.similarity(
+          of: vec,
+          positive: positiveCentroid,
+          negative: negativeCentroid
+        )
       }
       // Remap from [-2, 2] to [0, 1]
-      similarityValue = (similarity + 2.0) / 4.0
+      similarityValue = (raw + 2.0) / 4.0
     } else {
       similarityValue = 0.5
     }
@@ -581,15 +661,15 @@ struct RecommendationEngine: Sendable {
     let remappedAffinity = (affinity + 1.0) / 2.0
 
     let features: [(weight: Float, value: Float, reason: RecommendationReason)] = [
-      (Self.similarityWeight, similarityValue, .similarToLiked),
-      (Self.podcastAffinityWeight, remappedAffinity, .podcastAffinity),
+      (similarityWeight, similarityValue, .similarToLiked),
+      (affinityWeight, remappedAffinity, .podcastAffinity),
     ]
     let baseScore = features.reduce(Float(0)) { sum, feature in
       sum + feature.weight * feature.value
     }
 
-    // Multiplicative gate, not a summand: a year-old daily-news episode
-    // drops to ≈0 instead of being capped by a fixed-weight summand.
+    // Multiplicative gate: a year-old daily-news episode drops to ≈0
+    // instead of being capped at the summand's weight.
     let freshness = FreshnessSignal.compute(
       pubDate: pubDate,
       cadence: freshnessCadence,
@@ -656,84 +736,54 @@ struct RecommendationEngine: Sendable {
     guard let date else { return 1.0 }
     let daysSince = now.timeIntervalSince(date) / 86400
     guard daysSince > 0 else { return 1.0 }
-    // Half-life decay: weight = 0.5^(days / halfLife)
     return Float(pow(0.5, daysSince / decayHalfLifeDays))
   }
 
   // MARK: - Whitening
 
-  // Returns the current whitening mean, recomputing only when the cached one
-  // is stale per `cachedWhiteningMean`'s key. The fast path is a single
-  // `ThreadSafe` read; the slow path scans every embedding. See the cache
-  // declaration for which signals invalidate.
-  private func currentWhiteningMean(
+  // Hot path: cached transform read. Cold path: one streaming corpus scan
+  // plus power iteration. See `cachedWhiteningTransform` for invalidation.
+  private func currentWhiteningTransform(
     embeddingCount: Int,
-    currentRevision: Int
-  ) async throws -> [Float]? {
+    currentRevision: Int,
+    principalComponentCount: Int
+  ) async throws -> WhiteningTransform? {
     let currentRecipeVersion = EmbeddingService.recipeVersion
-    if let cached = cachedWhiteningMean(),
+    if let cached = cachedWhiteningTransform(),
       cached.revision == currentRevision,
       cached.recipeVersion == currentRecipeVersion,
-      cached.count > 0
+      cached.count > 0,
+      cached.principalComponentCount >= principalComponentCount
     {
       let ratio = Float(embeddingCount) / Float(cached.count)
       if ratio >= Self.whiteningCountShrinkMin, ratio <= Self.whiteningCountGrowthMax {
-        return cached.mean
+        return cached.transform
       }
     }
 
     let computeStart = ContinuousClock.now
-    guard let fresh = try await recommendationRepo.whiteningMean() else { return nil }
+    guard
+      let fresh = try await recommendationRepo.whiteningTransform(
+        principalComponentCount: principalComponentCount
+      )
+    else { return nil }
     Self.log.debug(
       """
-      perf: whiteningMean recomputed in \(ContinuousClock.now - computeStart) \
+      perf: whiteningTransform recomputed in \(ContinuousClock.now - computeStart) \
       (count=\(embeddingCount), revision=\(currentRevision), \
-      recipeVersion=\(currentRecipeVersion))
+      recipeVersion=\(currentRecipeVersion), pcs=\(fresh.principalComponents.count))
       """
     )
-    cachedWhiteningMean(
+    cachedWhiteningTransform(
       (
-        mean: fresh,
+        transform: fresh,
         revision: currentRevision,
         recipeVersion: currentRecipeVersion,
-        count: embeddingCount
+        count: embeddingCount,
+        principalComponentCount: principalComponentCount
       )
     )
     return fresh
   }
 
-  // Center against the corpus mean and re-normalize, restoring cosine
-  // similarity's dynamic range. NLContextualEmbedding packs all English text
-  // into a narrow ~[0.85, 0.99] cone around `mean`; without centering, the
-  // [-2, 2] → [0, 1] remap below squashes every candidate into ~[0.50, 0.55].
-  // Pass-through when `mean` is nil (cold start before any embedding has been
-  // computed) so the engine degrades gracefully instead of refusing to score.
-  private static func whiten(_ vector: [Float], mean: [Float]?) -> [Float] {
-    guard let mean, mean.count == vector.count else { return vector }
-    let centered = vDSP.subtract(vector, mean)
-    return VectorMath.normalize(centered)
-  }
-
-  // MARK: - Centroid Math
-
-  private static func computeWeightedCentroid(
-    _ vectors: [(vector: [Float], weight: Float)]
-  ) -> [Float]? {
-    guard let first = vectors.first else { return nil }
-    let dim = first.vector.count
-
-    var sum = [Float](repeating: 0, count: dim)
-    var totalWeight: Float = 0
-
-    for (vector, weight) in vectors where vector.count == dim {
-      for i in 0..<dim {
-        sum[i] += vector[i] * weight
-      }
-      totalWeight += weight
-    }
-
-    guard totalWeight > 0 else { return nil }
-    let centroid = sum.map { $0 / totalWeight }
-    return VectorMath.normalize(centroid)
-  }
 }

@@ -3,12 +3,10 @@
 import AVFoundation
 import Foundation
 
-// Bitmap that records which `bitWidthSeconds`-wide chunks of an episode the
-// user actually heard. The byte buffer is what gets persisted on
-// `Episode.playbackCoverage`; coverage feeds the partial-listen
-// recommendation signal so episodes the user listened to without rating can
-// still influence scoring. Chunk width tracks `PodAVPlayer.playbackTickSeconds`
-// so each playback tick lands on a chunk boundary.
+// Bitmap recording which `bitWidthSeconds`-wide chunks of an episode the
+// user actually heard. Persisted on `Episode.playbackCoverage`; feeds the
+// partial-listen recommendation signal. Chunk width tracks
+// `PodAVPlayer.playbackTickSeconds` so each tick lands on a chunk boundary.
 struct PlaybackCoverage: Equatable, Sendable {
   static let bitWidthSeconds: Int = PodAVPlayer.playbackTickSeconds
 
@@ -31,9 +29,8 @@ struct PlaybackCoverage: Equatable, Sendable {
     } else if stored.count > expectedByteCount {
       stored.removeLast(stored.count - expectedByteCount)
     }
-    // Canonicalize the final byte: any bits beyond `bits` are padding and
-    // must read 0. Otherwise a corrupt blob (or one written under a longer
-    // duration) would inflate `coveredSeconds` via the popcount.
+    // Padding bits must read 0 or a corrupt blob (or one written under a
+    // longer duration) would inflate `coveredSeconds` via the popcount.
     let trailingBits = bits % 8
     if trailingBits > 0, !stored.isEmpty {
       stored[stored.count - 1] &= UInt8((1 << trailingBits) - 1)
@@ -48,8 +45,7 @@ struct PlaybackCoverage: Equatable, Sendable {
   // MARK: - Mutation
 
   // Returns true when at least one bit was set, so callers can skip
-  // persisting an all-zero bitmap for ranges that fall entirely outside the
-  // valid duration (a non-nil zero blob would still satisfy `hasCoverage`).
+  // persisting a zero blob (which would still satisfy `hasCoverage`).
   @discardableResult
   mutating func mark(startSeconds: Int, endSeconds: Int) -> Bool {
     guard endSeconds > startSeconds else { return false }

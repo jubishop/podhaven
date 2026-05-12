@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import FactoryTesting
 import Foundation
 import Testing
@@ -81,8 +82,11 @@ class ReasonsTests {
 
   @Test("semantically opposite candidates don't include similarToLiked reason")
   func oppositeCandidatesExcludeSimilarityReason() async throws {
-    // Engineer vectors so the similarity feature drops well below 0.5 for
-    // candidates whose embeddings point the opposite direction from signals.
+    // Exploratory mode strips three PCs, which on 3-dim vectors collapses every
+    // residual to zero. Pin to focused (mean-only) so the engineered opposition
+    // survives whitening.
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
     let embeddable = ScriptedEmbeddable { text in
       if text.contains("Loved") { return [1, 0, 0] }
       if text.contains("Opposite") { return [-1, 0, 0] }

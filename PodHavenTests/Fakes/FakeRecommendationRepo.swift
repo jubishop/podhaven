@@ -45,9 +45,11 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     return try await recommendationRepo.allScoringContextInputs()
   }
 
-  func whiteningMean() async throws -> [Float]? {
-    recordCall(methodName: "whiteningMean", parameters: ())
-    return try await recommendationRepo.whiteningMean()
+  func whiteningTransform(principalComponentCount: Int) async throws -> WhiteningTransform? {
+    recordCall(methodName: "whiteningTransform", parameters: principalComponentCount)
+    return try await recommendationRepo.whiteningTransform(
+      principalComponentCount: principalComponentCount
+    )
   }
 
   // MARK: - Embedding Writers
