@@ -92,4 +92,29 @@ struct ListableEpisode:
       downloading: row[Episode.Columns.downloading] as Bool
     )
   }
+
+  // MARK: - In-Memory Projection
+
+  // Project a full `Episode` row to the slim list-row shape. `tagIDs` defaults
+  // to `[]` because the only current caller is the post-insert bootstrap in
+  // `PodcastDetailViewModel`, where a freshly-inserted episode has no tag
+  // join rows yet. Callers that already hold the tag IDs supply them.
+  init(from episode: Episode, tagIDs: Set<Tag.ID> = []) {
+    self.id = episode.id
+    self.guid = episode.guid
+    self.mediaURL = episode.mediaURL
+    self.title = episode.title
+    self.pubDate = episode.pubDate
+    self.duration = episode.duration
+    self.episodeImage = episode.image
+    self.finishDate = episode.finishDate
+    self.currentTime = episode.currentTime
+    self.queueOrder = episode.queueOrder
+    self.saveInCache = episode.saveInCache
+    self.creationDate = episode.creationDate
+    self.queueDate = episode.queueDate
+    self.rating = episode.rating
+    self.tagIDs = tagIDs
+    self.cacheStatus = episode.cacheStatus
+  }
 }

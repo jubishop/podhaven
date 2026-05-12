@@ -50,4 +50,18 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
   // MARK: - Stringable
 
   var toString: String { podcast.toString }
+
+  // MARK: - Detail Projection
+
+  // Slim the operational shape into the detail-view shape by projecting each
+  // full `Episode` row to a `ListableEpisode`. `tags` defaults to `[]` —
+  // correct for the post-insert bootstrap, where no `PodcastTag` join rows
+  // exist yet. Callers that already hold the tags supply them.
+  func toDetail(tags: IdentifiedArrayOf<Tag> = []) -> PodcastSeriesDetail {
+    PodcastSeriesDetail(
+      podcast: podcast,
+      episodes: IdentifiedArrayOf(uniqueElements: episodes.map { ListableEpisode(from: $0) }),
+      tags: tags
+    )
+  }
 }

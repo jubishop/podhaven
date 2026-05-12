@@ -87,6 +87,11 @@ class PodcastDetailViewModel:
 
   // MARK: - State
 
+  // State ownership: `state` is the source of truth for podcast/series data.
+  // `episodeList` is a SwiftUI-facing `PowerList` that owns view-derived state
+  // (sort, filter, selection, debounce). `refreshEpisodeList(from:)` is the
+  // one-way projection from `state` to `episodeList.allEntries` — episode
+  // rows flow `state → episodeList`, never the reverse.
   private(set) var state: PodcastDetailState
 
   var podcast: PodcastDetailContent { state.detailContent }
@@ -253,7 +258,7 @@ class PodcastDetailViewModel:
     FreshnessCadence.infer(from: episodeList.allEntries.map(\.pubDate))
   }
 
-  var loaded: Bool { !episodeList.allEntries.isEmpty }
+  var episodesLoaded: Bool { !episodeList.allEntries.isEmpty }
 
   var tags: IdentifiedArrayOf<Tag> { state.savedSeries?.tags ?? [] }
   var allTags: IdentifiedArrayOf<Tag> { sharedState.tags }
@@ -282,7 +287,7 @@ class PodcastDetailViewModel:
   private init(state: PodcastDetailState) {
     self.state = state
     episodeList.sortMethod = currentSortMethod.sortMethod
-    refreshEpisodeList(from: state, allowsBootstrapSkip: false)
+    refreshEpisodeList(from: state)
 
     Task { [weak self] in
       guard let self else { return }
@@ -373,7 +378,7 @@ class PodcastDetailViewModel:
           let inserted = try await repo.insertSeries(
             UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast, unsavedEpisodes: episodes)
           )
-          transition(to: .saved(PodcastSeriesDetail(podcast: inserted.podcast)))
+          transition(to: .saved(inserted.toDetail()))
           startObservation(inserted.id)
           try await repo.markSubscribed(inserted.id)
         }
@@ -546,19 +551,10 @@ class PodcastDetailViewModel:
   private func transition(to newState: PodcastDetailState) {
     Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
     state = newState
-    refreshEpisodeList(from: newState, allowsBootstrapSkip: true)
+    refreshEpisodeList(from: newState)
   }
 
-  // `allowsBootstrapSkip` preserves the post-`subscribe()` bootstrap window:
-  // `repo.insertSeries` returns a `PodcastSeriesDetail(podcast:)` whose
-  // `episodes` array is empty (live observation hasn't fired yet). Replacing
-  // `episodeList.allEntries` with that empty array would blank the
-  // feed-parsed unsaved rows the user just saw. Init runs without the skip
-  // so an explicitly-empty initial state still produces an empty list.
-  private func refreshEpisodeList(
-    from state: PodcastDetailState,
-    allowsBootstrapSkip: Bool
-  ) {
+  private func refreshEpisodeList(from state: PodcastDetailState) {
     switch state {
     case .initial:
       // List rows are not bundled with the bootstrap snapshot; observation
@@ -576,7 +572,6 @@ class PodcastDetailViewModel:
         }
       )
     case .saved(let series):
-      if allowsBootstrapSkip, series.episodes.isEmpty { return }
       episodeList.allEntries = IdentifiedArray(
         uniqueElements: series.episodes.map { listableEpisode in
           ListedEpisode(

@@ -64,7 +64,7 @@ struct PodcastDetailView: View {
 
   @ToolbarContentBuilder
   private var toolbar: some ToolbarContent {
-    if viewModel.loaded
+    if viewModel.episodesLoaded
       && (!viewModel.episodeList.isSelecting || viewModel.displayingAboutSection)
     {
       ToolbarItem(placement: .topBarLeading) {
@@ -171,7 +171,7 @@ struct PodcastDetailView: View {
 
   @ViewBuilder
   private var episodeListView: some View {
-    if viewModel.loaded {
+    if viewModel.episodesLoaded {
       episodeList
     } else {
       loadingEpisodesMessage
