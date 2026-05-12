@@ -536,72 +536,22 @@ struct Repo: Databasing {
   }
 
   @discardableResult
-  func updateDefaultPlaybackRate(_ podcastID: Podcast.ID, defaultPlaybackRate: Double?) async throws
+  func updatePodcastSettings(_ podcastID: Podcast.ID, _ settings: PodcastSettings) async throws
     -> Bool
   {
-    Self.log.debug(
-      "updateDefaultPlaybackRate: \(podcastID) to \(String(describing: defaultPlaybackRate))"
-    )
+    Self.log.debug("updatePodcastSettings: \(podcastID) to \(settings)")
 
     return try await appDB.db.write { db in
       try Podcast
         .withID(podcastID)
-        .updateAll(db, Podcast.Columns.defaultPlaybackRate.set(to: defaultPlaybackRate))
-    } > 0
-  }
-
-  @discardableResult
-  func updateQueueAllEpisodes(_ podcastID: Podcast.ID, queueAllEpisodes: QueueAllEpisodes)
-    async throws -> Bool
-  {
-    Self.log.debug("updateQueueAllEpisodes: \(podcastID) to \(queueAllEpisodes)")
-
-    return try await appDB.db.write { db in
-      try Podcast
-        .withID(podcastID)
-        .updateAll(db, Podcast.Columns.queueAllEpisodes.set(to: queueAllEpisodes))
-    } > 0
-  }
-
-  @discardableResult
-  func updateCacheAllEpisodes(_ podcastID: Podcast.ID, cacheAllEpisodes: CacheAllEpisodes)
-    async throws -> Bool
-  {
-    Self.log.debug("updateCacheAllEpisodes: \(podcastID) to \(cacheAllEpisodes)")
-
-    return try await appDB.db.write { db in
-      try Podcast
-        .withID(podcastID)
-        .updateAll(db, Podcast.Columns.cacheAllEpisodes.set(to: cacheAllEpisodes))
-    } > 0
-  }
-
-  @discardableResult
-  func updateNotifyNewEpisodes(_ podcastID: Podcast.ID, notifyNewEpisodes: Bool)
-    async throws -> Bool
-  {
-    Self.log.debug("updateNotifyNewEpisodes: \(podcastID) to \(notifyNewEpisodes)")
-
-    return try await appDB.db.write { db in
-      try Podcast
-        .withID(podcastID)
-        .updateAll(db, Podcast.Columns.notifyNewEpisodes.set(to: notifyNewEpisodes))
-    } > 0
-  }
-
-  @discardableResult
-  func updateFreshnessCadence(
-    _ podcastID: Podcast.ID,
-    freshnessCadence: FreshnessCadence?
-  ) async throws -> Bool {
-    Self.log.debug(
-      "updateFreshnessCadence: \(podcastID) to \(String(describing: freshnessCadence))"
-    )
-
-    return try await appDB.db.write { db in
-      try Podcast
-        .withID(podcastID)
-        .updateAll(db, Podcast.Columns.freshnessCadence.set(to: freshnessCadence))
+        .updateAll(
+          db,
+          Podcast.Columns.defaultPlaybackRate.set(to: settings.defaultPlaybackRate),
+          Podcast.Columns.queueAllEpisodes.set(to: settings.queueAllEpisodes),
+          Podcast.Columns.cacheAllEpisodes.set(to: settings.cacheAllEpisodes),
+          Podcast.Columns.notifyNewEpisodes.set(to: settings.notifyNewEpisodes),
+          Podcast.Columns.freshnessCadence.set(to: settings.freshnessCadence)
+        )
     } > 0
   }
 

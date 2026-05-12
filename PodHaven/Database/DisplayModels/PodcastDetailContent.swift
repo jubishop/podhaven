@@ -7,8 +7,8 @@ import Foundation
 // `.loaded` is the fully-displayable podcast (saved or unsaved). Both arms
 // conform to `PodcastDisplayable`, so a single existential helper forwards
 // every header field. Settings (`defaultPlaybackRate`, `queueAllEpisodes`, …)
-// live on `PodcastSettings` and are accessible only via the `.loaded` case —
-// `ListedPodcast` doesn't claim to have them.
+// live on `DisplayedPodcast.settings` and are reachable only via the `.loaded`
+// case — `ListedPodcast` doesn't claim to have them.
 enum PodcastDetailContent: PodcastDisplayable, Hashable, Sendable {
   case initial(ListedPodcast)
   case loaded(DisplayedPodcast)

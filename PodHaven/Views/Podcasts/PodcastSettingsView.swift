@@ -8,23 +8,11 @@ struct PodcastSettingsView: View {
   @DynamicInjected(\.userSettings) private var userSettings
 
   private let viewModel: PodcastDetailViewModel
-  @State private var tempPlayRate: Double
-  @State private var tempQueueAllEpisodes: QueueAllEpisodes
-  @State private var tempCacheAllEpisodes: CacheAllEpisodes
-  @State private var tempNotifyNewEpisodes: Bool
-  @State private var tempFreshnessCadence: FreshnessCadence?
+  @State private var temp: PodcastSettings
 
-  init(viewModel: PodcastDetailViewModel) {
+  init(viewModel: PodcastDetailViewModel, settings: PodcastSettings) {
     self.viewModel = viewModel
-    let settings = viewModel.settings
-    self._tempPlayRate = State(
-      initialValue: settings?.defaultPlaybackRate
-        ?? Container.shared.userSettings().defaultPlaybackRate
-    )
-    self._tempQueueAllEpisodes = State(initialValue: settings?.queueAllEpisodes ?? .never)
-    self._tempCacheAllEpisodes = State(initialValue: settings?.cacheAllEpisodes ?? .never)
-    self._tempNotifyNewEpisodes = State(initialValue: settings?.notifyNewEpisodes ?? false)
-    self._tempFreshnessCadence = State(initialValue: settings?.freshnessCadence)
+    self._temp = State(initialValue: settings)
   }
 
   var body: some View {
@@ -46,7 +34,7 @@ struct PodcastSettingsView: View {
                 """
             ) {
               HStack {
-                if viewModel.settings?.defaultPlaybackRate != nil {
+                if temp.defaultPlaybackRate != nil {
                   Text("Playback Rate")
                 } else {
                   Text("Playback Rate (Unset)")
@@ -60,22 +48,25 @@ struct PodcastSettingsView: View {
 
             HStack {
               Slider(
-                value: $tempPlayRate,
+                value: Binding(
+                  get: { temp.defaultPlaybackRate ?? userSettings.defaultPlaybackRate },
+                  set: { temp.defaultPlaybackRate = $0 }
+                ),
                 in: 0.8...2.0,
                 step: 0.1,
                 onEditingChanged: { editing in
                   if !editing {
-                    viewModel.setDefaultPlaybackRate(tempPlayRate)
+                    viewModel.updateSettings(temp)
                   }
                 }
               )
 
               AppIcon.clear
                 .imageButton {
-                  viewModel.setDefaultPlaybackRate(nil)
-                  tempPlayRate = userSettings.defaultPlaybackRate
+                  temp.defaultPlaybackRate = nil
+                  viewModel.updateSettings(temp)
                 }
-                .disabled(!viewModel.hasCustomPlayRate)
+                .disabled(temp.defaultPlaybackRate == nil)
             }
           }
         }
@@ -93,14 +84,14 @@ struct PodcastSettingsView: View {
               Text("Queue All Episodes")
             }
 
-            Picker("", selection: $tempQueueAllEpisodes) {
+            Picker("", selection: $temp.queueAllEpisodes) {
               Text("Never").tag(QueueAllEpisodes.never)
               Text("On Bottom").tag(QueueAllEpisodes.onBottom)
               Text("On Top").tag(QueueAllEpisodes.onTop)
             }
             .pickerStyle(.segmented)
-            .onChange(of: tempQueueAllEpisodes) {
-              viewModel.setQueueAllEpisodes(tempQueueAllEpisodes)
+            .onChange(of: temp.queueAllEpisodes) {
+              viewModel.updateSettings(temp)
             }
           }
         }
@@ -118,14 +109,14 @@ struct PodcastSettingsView: View {
               Text("Cache All Episodes")
             }
 
-            Picker("", selection: $tempCacheAllEpisodes) {
+            Picker("", selection: $temp.cacheAllEpisodes) {
               Text("Never").tag(CacheAllEpisodes.never)
               Text("Cache").tag(CacheAllEpisodes.cache)
               Text("Save").tag(CacheAllEpisodes.save)
             }
             .pickerStyle(.segmented)
-            .onChange(of: tempCacheAllEpisodes) {
-              viewModel.setCacheAllEpisodes(tempCacheAllEpisodes)
+            .onChange(of: temp.cacheAllEpisodes) {
+              viewModel.updateSettings(temp)
             }
           }
         }
@@ -145,7 +136,7 @@ struct PodcastSettingsView: View {
               HStack(alignment: .firstTextBaseline) {
                 Text("Freshness")
                 Spacer()
-                Picker("", selection: $tempFreshnessCadence) {
+                Picker("", selection: $temp.freshnessCadence) {
                   Text("Auto").tag(FreshnessCadence?.none)
                   Text("Daily").tag(FreshnessCadence?.some(.daily))
                   Text("Weekly").tag(FreshnessCadence?.some(.weekly))
@@ -153,13 +144,13 @@ struct PodcastSettingsView: View {
                   Text("Evergreen").tag(FreshnessCadence?.some(.evergreen))
                 }
                 .pickerStyle(.menu)
-                .onChange(of: tempFreshnessCadence) {
-                  viewModel.setFreshnessCadence(tempFreshnessCadence)
+                .onChange(of: temp.freshnessCadence) {
+                  viewModel.updateSettings(temp)
                 }
               }
             }
 
-            if tempFreshnessCadence == nil {
+            if temp.freshnessCadence == nil {
               Text("Resolved to \(viewModel.inferredFreshnessCadence.displayName)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -174,15 +165,13 @@ struct PodcastSettingsView: View {
               Notifications are triggered during background refresh.
               """
           ) {
-            Toggle("Notify New Episodes", isOn: $tempNotifyNewEpisodes)
-              .onChange(of: tempNotifyNewEpisodes) {
-                viewModel.setNotifyNewEpisodes(tempNotifyNewEpisodes)
+            Toggle("Notify New Episodes", isOn: $temp.notifyNewEpisodes)
+              .onChange(of: temp.notifyNewEpisodes) {
+                viewModel.updateSettings(temp)
               }
           }
 
-          if (viewModel.settings?.notifyNewEpisodes ?? false)
-            && !notificationManager.isAuthorized
-          {
+          if temp.notifyNewEpisodes && !notificationManager.isAuthorized {
             if notificationManager.isDenied {
               AppIcon.notificationsDisabled
                 .labelButton {
@@ -208,26 +197,30 @@ struct PodcastSettingsView: View {
   // MARK: - Private Helpers
 
   private var formattedPlaybackRate: String {
-    "\(tempPlayRate.formatted(decimalPlaces: 1))×"
+    let rate = temp.defaultPlaybackRate ?? userSettings.defaultPlaybackRate
+    return "\(rate.formatted(decimalPlaces: 1))×"
   }
 }
 
 #if DEBUG
 #Preview("No Custom Rate") {
   struct PreviewWrapper: View {
+    @State private var settings: PodcastSettings?
     @State private var viewModel: PodcastDetailViewModel?
 
     var body: some View {
       Group {
-        if let viewModel {
-          PodcastSettingsView(viewModel: viewModel)
+        if let viewModel, let settings {
+          PodcastSettingsView(viewModel: viewModel, settings: settings)
         } else {
           ProgressView()
         }
       }
       .task {
         let podcast = try! await Create.podcast(title: "Sample Podcast")
-        viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(podcast))
+        let displayed = DisplayedPodcast(podcast)
+        settings = displayed.settings
+        viewModel = PodcastDetailViewModel(podcast: displayed)
         viewModel?.appear()
       }
     }
@@ -238,6 +231,7 @@ struct PodcastSettingsView: View {
 
 #Preview("With Custom Default Rate") {
   struct PreviewWrapper: View {
+    @State private var settings: PodcastSettings?
     @State private var viewModel: PodcastDetailViewModel?
 
     init() {
@@ -246,15 +240,17 @@ struct PodcastSettingsView: View {
 
     var body: some View {
       Group {
-        if let viewModel {
-          PodcastSettingsView(viewModel: viewModel)
+        if let viewModel, let settings {
+          PodcastSettingsView(viewModel: viewModel, settings: settings)
         } else {
           ProgressView()
         }
       }
       .task {
         let podcast = try! await Create.podcast(title: "Sample Podcast")
-        viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(podcast))
+        let displayed = DisplayedPodcast(podcast)
+        settings = displayed.settings
+        viewModel = PodcastDetailViewModel(podcast: displayed)
         viewModel?.appear()
       }
     }
@@ -265,12 +261,13 @@ struct PodcastSettingsView: View {
 
 #Preview("With Podcast Custom Rate") {
   struct PreviewWrapper: View {
+    @State private var settings: PodcastSettings?
     @State private var viewModel: PodcastDetailViewModel?
 
     var body: some View {
       Group {
-        if let viewModel {
-          PodcastSettingsView(viewModel: viewModel)
+        if let viewModel, let settings {
+          PodcastSettingsView(viewModel: viewModel, settings: settings)
         } else {
           ProgressView()
         }
@@ -280,7 +277,9 @@ struct PodcastSettingsView: View {
           title: "Sample Podcast",
           defaultPlaybackRate: 1.5
         )
-        viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(podcast))
+        let displayed = DisplayedPodcast(podcast)
+        settings = displayed.settings
+        viewModel = PodcastDetailViewModel(podcast: displayed)
         viewModel?.appear()
       }
     }
@@ -291,12 +290,13 @@ struct PodcastSettingsView: View {
 
 #Preview("Daily Freshness Cadence") {
   struct PreviewWrapper: View {
+    @State private var settings: PodcastSettings?
     @State private var viewModel: PodcastDetailViewModel?
 
     var body: some View {
       Group {
-        if let viewModel {
-          PodcastSettingsView(viewModel: viewModel)
+        if let viewModel, let settings {
+          PodcastSettingsView(viewModel: viewModel, settings: settings)
         } else {
           ProgressView()
         }
@@ -306,7 +306,9 @@ struct PodcastSettingsView: View {
           title: "Daily News",
           freshnessCadence: .daily
         )
-        viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(podcast))
+        let displayed = DisplayedPodcast(podcast)
+        settings = displayed.settings
+        viewModel = PodcastDetailViewModel(podcast: displayed)
         viewModel?.appear()
       }
     }
@@ -317,12 +319,13 @@ struct PodcastSettingsView: View {
 
 #Preview("Evergreen Freshness Cadence") {
   struct PreviewWrapper: View {
+    @State private var settings: PodcastSettings?
     @State private var viewModel: PodcastDetailViewModel?
 
     var body: some View {
       Group {
-        if let viewModel {
-          PodcastSettingsView(viewModel: viewModel)
+        if let viewModel, let settings {
+          PodcastSettingsView(viewModel: viewModel, settings: settings)
         } else {
           ProgressView()
         }
@@ -332,7 +335,9 @@ struct PodcastSettingsView: View {
           title: "Hardcore History",
           freshnessCadence: .evergreen
         )
-        viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(podcast))
+        let displayed = DisplayedPodcast(podcast)
+        settings = displayed.settings
+        viewModel = PodcastDetailViewModel(podcast: displayed)
         viewModel?.appear()
       }
     }
@@ -343,19 +348,22 @@ struct PodcastSettingsView: View {
 
 #Preview("Auto Freshness Cadence") {
   struct PreviewWrapper: View {
+    @State private var settings: PodcastSettings?
     @State private var viewModel: PodcastDetailViewModel?
 
     var body: some View {
       Group {
-        if let viewModel {
-          PodcastSettingsView(viewModel: viewModel)
+        if let viewModel, let settings {
+          PodcastSettingsView(viewModel: viewModel, settings: settings)
         } else {
           ProgressView()
         }
       }
       .task {
         let podcast = try! await Create.podcast(title: "Auto Cadence Sample")
-        viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(podcast))
+        let displayed = DisplayedPodcast(podcast)
+        settings = displayed.settings
+        viewModel = PodcastDetailViewModel(podcast: displayed)
         viewModel?.appear()
       }
     }

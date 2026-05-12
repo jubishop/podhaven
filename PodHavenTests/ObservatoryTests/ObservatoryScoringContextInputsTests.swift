@@ -89,7 +89,9 @@ actor ObservatoryScoringContextInputsTests {
   func manualCadenceWinsOverInference() async throws {
     let now = Date()
     let manualPodcast = try await insertPodcast(title: "News")
-    _ = try await repo.updateFreshnessCadence(manualPodcast.id, freshnessCadence: .evergreen)
+    var manualSettings = PodcastSettings.defaults
+    manualSettings.freshnessCadence = .evergreen
+    _ = try await repo.updatePodcastSettings(manualPodcast.id, manualSettings)
     // Daily-spaced episodes that would otherwise infer to .daily.
     for index in 0..<5 {
       _ = try await upsertEpisode(
@@ -195,19 +197,23 @@ actor ObservatoryScoringContextInputsTests {
       { "Expected initial inferred .weekly, got \(String(describing: cadence()))" }
     )
 
-    _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: .daily)
+    var settings = PodcastSettings.defaults
+    settings.freshnessCadence = .daily
+    _ = try await repo.updatePodcastSettings(podcast.id, settings)
     try await Wait.until(
       { cadence() == .daily },
       { "Expected manual .daily, got \(String(describing: cadence()))" }
     )
 
-    _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: .evergreen)
+    settings.freshnessCadence = .evergreen
+    _ = try await repo.updatePodcastSettings(podcast.id, settings)
     try await Wait.until(
       { cadence() == .evergreen },
       { "Expected manual .evergreen, got \(String(describing: cadence()))" }
     )
 
-    _ = try await repo.updateFreshnessCadence(podcast.id, freshnessCadence: nil)
+    settings.freshnessCadence = nil
+    _ = try await repo.updatePodcastSettings(podcast.id, settings)
     try await Wait.until(
       { cadence() == .weekly },
       { "Expected re-inferred .weekly, got \(String(describing: cadence()))" }
@@ -456,7 +462,9 @@ actor ObservatoryScoringContextInputsTests {
     // AND auto-cadence podcasts with multiple episodes (covers the
     // pubDate-window SQL).
     let manualPodcast = try await insertPodcast(title: "Manual")
-    _ = try await repo.updateFreshnessCadence(manualPodcast.id, freshnessCadence: .weekly)
+    var manualSettings = PodcastSettings.defaults
+    manualSettings.freshnessCadence = .weekly
+    _ = try await repo.updatePodcastSettings(manualPodcast.id, manualSettings)
     let signalEpisode = try await upsertEpisode(
       podcast: manualPodcast,
       title: "Loved",
@@ -496,11 +504,15 @@ actor ObservatoryScoringContextInputsTests {
     }
 
     // Podcast columns the scoring context never reads.
+    let noisySettings = PodcastSettings(
+      defaultPlaybackRate: 1.5,
+      queueAllEpisodes: .onTop,
+      cacheAllEpisodes: .save,
+      notifyNewEpisodes: true,
+      freshnessCadence: .weekly
+    )
     for podcastID in [manualPodcast.id, autoPodcastA.id, autoPodcastB.id] {
-      _ = try await repo.updateDefaultPlaybackRate(podcastID, defaultPlaybackRate: 1.5)
-      _ = try await repo.updateQueueAllEpisodes(podcastID, queueAllEpisodes: .onTop)
-      _ = try await repo.updateCacheAllEpisodes(podcastID, cacheAllEpisodes: .save)
-      _ = try await repo.updateNotifyNewEpisodes(podcastID, notifyNewEpisodes: true)
+      _ = try await repo.updatePodcastSettings(podcastID, noisySettings)
       _ = try await repo.updateLastUpdate(podcastID)
     }
 

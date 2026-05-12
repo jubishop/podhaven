@@ -45,7 +45,9 @@ class FreshnessCadenceTests {
         pubDateOffset: oldOffset
       )
     try await RecommendationHelpers.embedEpisodes(evergreenCandidates, embeddable: embeddable)
-    _ = try await repo.updateFreshnessCadence(evergreenPodcast.id, freshnessCadence: .evergreen)
+    var evergreenSettings = PodcastSettings.defaults
+    evergreenSettings.freshnessCadence = .evergreen
+    _ = try await repo.updatePodcastSettings(evergreenPodcast.id, evergreenSettings)
 
     let scores = try await RecommendationHelpers.startAndWaitForScores(
       for: weeklyCandidates + evergreenCandidates
@@ -92,7 +94,9 @@ class FreshnessCadenceTests {
         pubDateOffset: oldOffset
       )
     try await RecommendationHelpers.embedEpisodes(monthlyCandidates, embeddable: embeddable)
-    _ = try await repo.updateFreshnessCadence(monthlyPodcast.id, freshnessCadence: .monthly)
+    var monthlySettings = PodcastSettings.defaults
+    monthlySettings.freshnessCadence = .monthly
+    _ = try await repo.updatePodcastSettings(monthlyPodcast.id, monthlySettings)
 
     let scores = try await RecommendationHelpers.startAndWaitForScores(
       for: weeklyCandidates + monthlyCandidates
@@ -136,7 +140,9 @@ class FreshnessCadenceTests {
         pubDateOffset: withinCadenceOffset
       )
     try await RecommendationHelpers.embedEpisodes(evergreenCandidates, embeddable: embeddable)
-    _ = try await repo.updateFreshnessCadence(evergreenPodcast.id, freshnessCadence: .evergreen)
+    var evergreenSettings = PodcastSettings.defaults
+    evergreenSettings.freshnessCadence = .evergreen
+    _ = try await repo.updatePodcastSettings(evergreenPodcast.id, evergreenSettings)
 
     let scores = try await RecommendationHelpers.startAndWaitForScores(
       for: weeklyCandidates + evergreenCandidates
@@ -190,7 +196,9 @@ class FreshnessCadenceTests {
       pubDateOffset: { _ in TimeInterval(-1 * 86400) }
     )
     try await RecommendationHelpers.embedEpisodes(candidates)
-    _ = try await repo.updateFreshnessCadence(evergreenPodcast.id, freshnessCadence: .evergreen)
+    var evergreenSettings = PodcastSettings.defaults
+    evergreenSettings.freshnessCadence = .evergreen
+    _ = try await repo.updatePodcastSettings(evergreenPodcast.id, evergreenSettings)
 
     let recs = try await RecommendationHelpers.startAndWaitForRecs()
     let candidateRec = try #require(recs.first { $0.id == candidates.first?.id })

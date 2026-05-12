@@ -226,109 +226,29 @@ class PodcastDetailViewModel:
   var displayingAboutSection: Bool = false
   var showingSettings: Bool = false
 
-  var settings: (any PodcastSettings)? { podcast.loaded }
+  // Non-nil iff `.saved`. `.initial` has no settings columns on the list row;
+  // `.unsaved` has `UnsavedPodcast` defaults but no `Podcast.ID` to write back
+  // to, so the settings sheet refuses to open there. This matches the toolbar
+  // gating in `PodcastDetailView` exactly.
+  var settings: PodcastSettings? { state.savedSeries?.podcast.unsaved.settings }
 
-  func setDefaultPlaybackRate(_ newValue: Double?) {
+  func updateSettings(_ newSettings: PodcastSettings) {
     guard let podcastID = state.savedSeries?.id else {
-      Self.log.warning("Cannot update defaultPlaybackRate for unsaved podcast")
+      Self.log.warning("Cannot update settings for unsaved podcast")
       return
     }
+    let previouslyNotifying = settings?.notifyNewEpisodes ?? false
 
     Task { [weak self] in
       guard let self else { return }
 
       do {
-        try await repo.updateDefaultPlaybackRate(podcastID, defaultPlaybackRate: newValue)
-      } catch {
-        Self.log.caughtError(
-          "defaultPlaybackRate: failed to update for podcast \(podcastID)",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
-  func setQueueAllEpisodes(_ newValue: QueueAllEpisodes) {
-    guard let podcastID = state.savedSeries?.id else {
-      Self.log.warning("Cannot update queueAllEpisodes for unsaved podcast")
-      return
-    }
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.updateQueueAllEpisodes(podcastID, queueAllEpisodes: newValue)
-      } catch {
-        Self.log.caughtError("queueAllEpisodes: failed to update for podcast \(podcastID)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
-  func setCacheAllEpisodes(_ newValue: CacheAllEpisodes) {
-    guard let podcastID = state.savedSeries?.id else {
-      Self.log.warning("Cannot update cacheAllEpisodes for unsaved podcast")
-      return
-    }
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.updateCacheAllEpisodes(podcastID, cacheAllEpisodes: newValue)
-      } catch {
-        Self.log.caughtError("cacheAllEpisodes: failed to update for podcast \(podcastID)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
-  func setNotifyNewEpisodes(_ newValue: Bool) {
-    guard let podcastID = state.savedSeries?.id else {
-      Self.log.warning("Cannot update notifyNewEpisodes for unsaved podcast")
-      return
-    }
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.updateNotifyNewEpisodes(podcastID, notifyNewEpisodes: newValue)
-        if newValue {
+        try await repo.updatePodcastSettings(podcastID, newSettings)
+        if newSettings.notifyNewEpisodes, !previouslyNotifying {
           await userNotificationManager.requestAuthorizationIfNeeded()
         }
       } catch {
-        Self.log.caughtError(
-          "notifyNewEpisodes: failed to update for podcast \(podcastID)",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
-  func setFreshnessCadence(_ newValue: FreshnessCadence?) {
-    guard let podcastID = state.savedSeries?.id else {
-      Self.log.warning("Cannot update freshnessCadence for unsaved podcast")
-      return
-    }
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.updateFreshnessCadence(podcastID, freshnessCadence: newValue)
-      } catch {
-        Self.log.caughtError(
-          "freshnessCadence: failed to update for podcast \(podcastID)",
-          error
-        )
+        Self.log.caughtError("updateSettings: failed for podcast \(podcastID)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -346,10 +266,6 @@ class PodcastDetailViewModel:
 
   var mostRecentEpisodeDate: Date {
     episodeList.allEntries.first?.pubDate ?? Date.epoch
-  }
-
-  var hasCustomPlayRate: Bool {
-    settings?.defaultPlaybackRate != nil
   }
 
   // MARK: - Share

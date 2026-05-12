@@ -15,7 +15,6 @@ typealias PodcastFilter =
 struct UnsavedPodcast:
   Identifiable,
   PodcastDisplayable,
-  PodcastSettings,
   RSSUpdatable,
   Savable,
   Stringable
@@ -92,6 +91,18 @@ struct UnsavedPodcast:
   var toString: String { "(\(feedURL.toString)) - \(title)" }
   var searchableString: String { "\(title) - \(description)" }
 
+  // MARK: - Settings
+
+  var settings: PodcastSettings {
+    PodcastSettings(
+      defaultPlaybackRate: defaultPlaybackRate,
+      queueAllEpisodes: queueAllEpisodes,
+      cacheAllEpisodes: cacheAllEpisodes,
+      notifyNewEpisodes: notifyNewEpisodes,
+      freshnessCadence: freshnessCadence
+    )
+  }
+
   // MARK: - RSSUpdatable
 
   var rssUpdatableColumns: [(any ColumnExpression, any SQLExpressible)] {
@@ -162,7 +173,7 @@ struct UnsavedPodcast:
 }
 
 @Saved<UnsavedPodcast>
-struct Podcast: PodcastDisplayable, PodcastSettings, Saved, RSSUpdatable {
+struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   // MARK: - Associations
 
   static let episodes = hasMany(Episode.self).order(\.pubDate.desc)
@@ -227,14 +238,6 @@ struct Podcast: PodcastDisplayable, PodcastSettings, Saved, RSSUpdatable {
   var description: String { unsaved.description }
   var link: URL? { unsaved.link }
   var subscriptionDate: Date? { unsaved.subscriptionDate }
-
-  // MARK: - PodcastSettings
-
-  var defaultPlaybackRate: Double? { unsaved.defaultPlaybackRate }
-  var queueAllEpisodes: QueueAllEpisodes { unsaved.queueAllEpisodes }
-  var cacheAllEpisodes: CacheAllEpisodes { unsaved.cacheAllEpisodes }
-  var notifyNewEpisodes: Bool { unsaved.notifyNewEpisodes }
-  var freshnessCadence: FreshnessCadence? { unsaved.freshnessCadence }
 
   // MARK: - Reset
 
