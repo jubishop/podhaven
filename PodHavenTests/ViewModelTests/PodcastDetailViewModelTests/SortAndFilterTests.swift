@@ -175,6 +175,86 @@ import Testing
     )
   }
 
+  @Test("recommendationScore sort reorders episodes by score descending")
+  func recommendationScoreSortReordersByScore() async throws {
+    // Signal podcast supplies enough rated embeddings to lift the engine over
+    // its minimum-data threshold; without this the cache stays cold and the
+    // sort can't reorder.
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals)
+
+    // Distinct titles → distinct FakeEmbeddable vectors → distinct similarity
+    // scores against the signal centroid, so the rec-score order differs
+    // from any natural property order.
+    let (targetPodcast, candidateEpisodes) =
+      try await RecommendationHelpers
+      .createPodcastWithEpisodes(
+        count: 4,
+        podcastTitle: "Target"
+      )
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes)
+
+    let scoreMap = try await RecommendationHelpers.startAndWaitForScores(
+      for: candidateEpisodes
+    )
+    let expectedOrder =
+      candidateEpisodes
+      .sorted { lhs, rhs in
+        let lhsValue = scoreMap[lhs.id]?.value ?? 0
+        let rhsValue = scoreMap[rhs.id]?.value ?? 0
+        return lhsValue > rhsValue
+      }
+      .map(\.id)
+    // Guard against the case where the rec-score order happens to match
+    // newest-first; a meaningful regression test must actually reorder.
+    let newestFirstOrder =
+      candidateEpisodes
+      .sorted { $0.pubDate > $1.pubDate }
+      .map(\.id)
+    try #require(
+      expectedOrder != newestFirstOrder,
+      "Rec-score order matched newestFirst; the test wouldn't prove the sort applied."
+    )
+
+    let viewModel = PodcastDetailViewModel(
+      podcast: DisplayedPodcast(targetPodcast)
+    )
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.saved
+          && viewModel.episodeList.allEntries.count == candidateEpisodes.count
+      },
+      { @MainActor in
+        """
+        Expected target podcast to load all \(candidateEpisodes.count) episodes.
+        saved: \(viewModel.saved)
+        count: \(viewModel.episodeList.allEntries.count)
+        """
+      }
+    )
+
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.compactMap(\.episodeID) == expectedOrder
+      },
+      { @MainActor in
+        """
+        Expected episodes sorted by recommendation score descending.
+        Expected: \(expectedOrder)
+        Actual: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        """
+      }
+    )
+  }
+
   // Saved podcast detail intentionally filters by row title and parent podcast
   // title only. Episode.description stays outside the slim row so detail-list
   // hydration does not widen every saved detail read; adding description search

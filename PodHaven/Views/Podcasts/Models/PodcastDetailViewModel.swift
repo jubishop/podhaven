@@ -76,6 +76,7 @@ class PodcastDetailViewModel:
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
@@ -113,6 +114,7 @@ class PodcastDetailViewModel:
     case shortest
     case recentlyFinished
     case recentlyQueued
+    case recommendationScore
 
     var appIcon: AppIcon {
       switch self {
@@ -130,6 +132,8 @@ class PodcastDetailViewModel:
         return .sortByRecentlyFinished
       case .recentlyQueued:
         return .sortByMostRecentlyQueued
+      case .recommendationScore:
+        return .sortByRecommendationScore
       }
     }
 
@@ -161,6 +165,12 @@ class PodcastDetailViewModel:
           let rhsDate = rhs.queueDate ?? Date.distantPast
           return lhsDate > rhsDate
         }
+      case .recommendationScore:
+        // Scoring is async; the view model installs the real closure once
+        // `recommendationEngine.recommendations(for:)` returns. Selection
+        // didSet skips the assignment in this case so the previous order
+        // persists until scores arrive — see `currentSortMethod.didSet`.
+        return nil
       }
     }
 
@@ -178,7 +188,12 @@ class PodcastDetailViewModel:
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
       episodeList.filterMethod = currentSortMethod.filterMethod
-      episodeList.sortMethod = currentSortMethod.sortMethod
+      if currentSortMethod == .recommendationScore {
+        startRecommendationSort()
+      } else {
+        stopRecommendationSort()
+        episodeList.sortMethod = currentSortMethod.sortMethod
+      }
     }
   }
 
@@ -530,11 +545,63 @@ class PodcastDetailViewModel:
     }
   }
 
+  // MARK: - Recommendation Sort
+
+  @ObservationIgnored private var recommendationSortTask: Task<Void, Never>?
+
+  // Streams `recommendationEngine.$contextRevision` while the rec-score sort
+  // is active and rebuilds the captured score map on each emit. The bootstrap
+  // emit covers the warm-cache case; cold caches yield an empty map and the
+  // installed closure leaves rows in insertion order until the engine warms.
+  private func startRecommendationSort() {
+    recommendationSortTask?.cancel()
+    recommendationSortTask = Task { [weak self] in
+      guard let self else { return }
+      for await _ in recommendationEngine.$contextRevision.stream() {
+        guard !Task.isCancelled else { return }
+        await fetchAndApplyRecommendationScores()
+      }
+    }
+  }
+
+  private func stopRecommendationSort() {
+    recommendationSortTask?.cancel()
+    recommendationSortTask = nil
+  }
+
+  private func fetchAndApplyRecommendationScores() async {
+    let episodeIDs = episodeList.allEntries.compactMap(\.episodeID)
+    guard !episodeIDs.isEmpty else { return }
+
+    let scoreMap: [Episode.ID: RecommendationScore]
+    do {
+      let podcastEpisodes = try await repo.podcastEpisodes(episodeIDs)
+      scoreMap = try await recommendationEngine.recommendations(
+        for: podcastEpisodes.map(\.episode)
+      )
+    } catch {
+      Self.log.caughtError(
+        "fetchAndApplyRecommendationScores failed for \(episodeIDs.count) ids",
+        error
+      )
+      return
+    }
+
+    guard currentSortMethod == .recommendationScore else { return }
+    let valuesByID = scoreMap.mapValues(\.value)
+    episodeList.sortMethod = { lhs, rhs in
+      let lhsScore = lhs.episodeID.flatMap { valuesByID[$0] } ?? 0
+      let rhsScore = rhs.episodeID.flatMap { valuesByID[$0] } ?? 0
+      return lhsScore > rhsScore
+    }
+  }
+
   // MARK: - Disappear
 
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
+    stopRecommendationSort()
   }
 
   private func clearObservationTask() {
