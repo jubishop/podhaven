@@ -89,7 +89,7 @@ class ArbitraryListScoringTests {
 
   @Test("recommendations(for:) with empty input returns empty without touching the cache")
   func recommendationsForEmptyInput() async throws {
-    let map = try await engine.recommendations(for: [])
+    let map = try await engine.recommendations(for: [] as [Episode])
     #expect(map.isEmpty)
   }
 }

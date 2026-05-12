@@ -76,9 +76,11 @@ class PodcastDetailViewModel:
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
   @ObservationIgnored @DynamicInjected(\.userNotificationManager) private
     var userNotificationManager
 
@@ -113,6 +115,7 @@ class PodcastDetailViewModel:
     case shortest
     case recentlyFinished
     case recentlyQueued
+    case recommendationScore
 
     var appIcon: AppIcon {
       switch self {
@@ -130,6 +133,8 @@ class PodcastDetailViewModel:
         return .sortByRecentlyFinished
       case .recentlyQueued:
         return .sortByMostRecentlyQueued
+      case .recommendationScore:
+        return .sortByRecommendationScore
       }
     }
 
@@ -161,6 +166,10 @@ class PodcastDetailViewModel:
           let rhsDate = rhs.queueDate ?? Date.distantPast
           return lhsDate > rhsDate
         }
+      case .recommendationScore:
+        // Scoring is async; the view model installs the real closure once
+        // `recommendationEngine.recommendations(for:)` returns.
+        return nil
       }
     }
 
@@ -174,11 +183,29 @@ class PodcastDetailViewModel:
       }
     }
   }
-  let allSortMethods = SortMethod.allCases
+  // `.recommendationScore` needs persisted `episodeID`s to score against the
+  // engine; unsaved/initial states carry rows whose `episodeID` is nil and
+  // would silently no-op the sort, so we hide the option until the series
+  // is saved and observed.
+  var allSortMethods: [SortMethod] {
+    guard saved else {
+      return SortMethod.allCases.filter { $0 != .recommendationScore }
+    }
+    return SortMethod.allCases
+  }
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
+      guard oldValue != currentSortMethod else { return }
       episodeList.filterMethod = currentSortMethod.filterMethod
-      episodeList.sortMethod = currentSortMethod.sortMethod
+      if currentSortMethod == .recommendationScore {
+        // Snap to whatever the prefetch task has produced so far; the
+        // running observation will install fresh scores when they arrive.
+        if let cached = lastRecommendationScores {
+          episodeList.sortMethod = makeRecommendationComparator(cached)
+        }
+      } else {
+        episodeList.sortMethod = currentSortMethod.sortMethod
+      }
     }
   }
 
@@ -481,6 +508,8 @@ class PodcastDetailViewModel:
   }
 
   private func startObservation(_ podcastID: Podcast.ID) {
+    startRecommendationObservation()
+
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
       return
@@ -546,11 +575,77 @@ class PodcastDetailViewModel:
     }
   }
 
+  // MARK: - Recommendation Sort
+
+  @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
+  @ObservationIgnored private var lastRecommendationScores: [Episode.ID: Float]?
+
+  // Started alongside `startObservation` so the engine's score map is warm
+  // by the time the user opens the sort menu, not on the moment they pick
+  // `.recommendationScore`. Idempotent.
+  private func startRecommendationObservation() {
+    if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
+    recommendationObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
+      guard let self else { return }
+      for await _ in recommendationEngine.$contextRevision.stream() {
+        guard !Task.isCancelled else { return }
+        await fetchAndApplyRecommendationScores()
+      }
+    }
+  }
+
+  private func clearRecommendationObservationTask() {
+    recommendationObservationTask?.cancel()
+    recommendationObservationTask = nil
+  }
+
+  private func fetchAndApplyRecommendationScores() async {
+    guard let podcastID = state.savedSeries?.id else { return }
+    let candidates: [CandidateEpisode] = episodeList.allEntries.compactMap { episode in
+      guard let episodeID = episode.episodeID else { return nil }
+      return CandidateEpisode(id: episodeID, podcastID: podcastID, pubDate: episode.pubDate)
+    }
+    guard !candidates.isEmpty else { return }
+
+    let scoreMap: [Episode.ID: RecommendationScore]
+    do {
+      scoreMap = try await recommendationEngine.recommendations(for: candidates)
+    } catch {
+      Self.log.caughtError(
+        "fetchAndApplyRecommendationScores failed for \(candidates.count) ids",
+        error
+      )
+      return
+    }
+
+    let valuesByID = scoreMap.mapValues(\.value)
+    lastRecommendationScores = valuesByID
+    guard currentSortMethod == .recommendationScore else { return }
+    episodeList.sortMethod = makeRecommendationComparator(valuesByID)
+  }
+
+  private func makeRecommendationComparator(
+    _ valuesByID: [Episode.ID: Float]
+  ) -> @Sendable (ListedEpisode, ListedEpisode) -> Bool {
+    { lhs, rhs in
+      let lhsScore = lhs.episodeID.flatMap { valuesByID[$0] } ?? 0
+      let rhsScore = rhs.episodeID.flatMap { valuesByID[$0] } ?? 0
+      if lhsScore != rhsScore { return lhsScore > rhsScore }
+      if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
+      if lhs.mediaGUID.guid != rhs.mediaGUID.guid {
+        return lhs.mediaGUID.guid > rhs.mediaGUID.guid
+      }
+      return lhs.mediaGUID.mediaURL.rawValue.absoluteString
+        > rhs.mediaGUID.mediaURL.rawValue.absoluteString
+    }
+  }
+
   // MARK: - Disappear
 
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
+    clearRecommendationObservationTask()
   }
 
   // MARK: - Private Helpers

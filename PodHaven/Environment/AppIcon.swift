@@ -157,6 +157,7 @@ private struct SystemImageName:
   static let sortByLeastRecentlyQueued = SystemImageName("clock.badge")
   static let sortByRecentlyAdded = SystemImageName("calendar.badge.plus")
   static let sortByRecentlyFinished = SystemImageName("checkmark.circle.fill")
+  static let sortByRecommendationScore = SystemImageName("sparkles")
 
   // Status Indicators
   static let waiting = SystemImageName("clock.arrow.circlepath")
@@ -286,6 +287,7 @@ private struct SystemImageName:
   case sortByLeastRecentlyQueued
   case sortByRecentlyAdded
   case sortByRecentlyFinished
+  case sortByRecommendationScore
 
   // UI Controls & Status
   case navigateInto
@@ -682,6 +684,12 @@ private struct SystemImageName:
         text: "Most Recently Finished",
         systemImageName: .sortByRecentlyFinished,
         color: .blue
+      )
+    case .sortByRecommendationScore:
+      return Data(
+        text: "Recommendation Score",
+        systemImageName: .sortByRecommendationScore,
+        color: .yellow
       )
 
     case .loading:

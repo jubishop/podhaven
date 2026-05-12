@@ -112,11 +112,18 @@ struct RecommendationEngine: Sendable {
   func recommendations(
     for episodes: [Episode]
   ) async throws -> [Episode.ID: RecommendationScore] {
-    guard !episodes.isEmpty else { return [:] }
+    try await recommendations(
+      for: episodes.map {
+        CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
+      }
+    )
+  }
+
+  func recommendations(
+    for candidates: [CandidateEpisode]
+  ) async throws -> [Episode.ID: RecommendationScore] {
+    guard !candidates.isEmpty else { return [:] }
     guard let context = cache() else { return [:] }
-    let candidates = episodes.map {
-      CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
-    }
     let scores = try await scoreEpisodes(candidates, context: context)
     let displayMax = observedMaxScore()
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
