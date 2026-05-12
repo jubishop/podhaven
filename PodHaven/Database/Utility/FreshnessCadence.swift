@@ -24,9 +24,7 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   // archives where freshness is meaningless even if the median gap was weekly.
   private static let dormantThresholdDays: Double = 120
 
-  // Upper bounds on the *median* inter-episode gap. Daily news shows publish
-  // weekdays only (1d median with 3d weekend gaps), so 3d tolerates that.
-  // Past ~48d, freshness is immaterial → evergreen.
+  // Upper bounds on the *median* inter-episode gap.
   private static let dailyMaxMedianDays: Double = 2
   private static let weeklyMaxMedianDays: Double = 14
   private static let monthlyMaxMedianDays: Double = 60
@@ -40,14 +38,12 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
     }
   }
 
-  // Half-life for FreshnessSignal's hyperbolic decay. Matches the cadence's
-  // natural period so an episode one full period overdue (e.g. a 14-day-old
-  // weekly) lands on the 0.5 midpoint. .evergreen returns nil — no decay.
+  // Half-life for FreshnessSignal's hyperbolic decay.  evergreen returns nil — no decay.
   var halfLifeDays: Int? {
     switch self {
-    case .daily: 1
-    case .weekly: 7
-    case .monthly: 30
+    case .daily: 2
+    case .weekly: 14
+    case .monthly: 60
     case .evergreen: nil
     }
   }
