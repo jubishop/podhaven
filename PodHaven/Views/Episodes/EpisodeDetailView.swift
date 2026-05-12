@@ -253,7 +253,10 @@ struct EpisodeDetailView: View {
 
   var descriptionView: some View {
     VStack(alignment: .leading, spacing: 16) {
-      if let description = viewModel.episode.description, !description.isEmpty {
+      if viewModel.episode.loaded != nil,
+        let description = viewModel.episode.description,
+        !description.isEmpty
+      {
         VStack(alignment: .leading, spacing: 8) {
           Text("Description")
             .font(.headline)
