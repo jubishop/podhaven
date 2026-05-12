@@ -6,3 +6,7 @@
 - [Episode Transcripts](initiatives/transcripts.md) — three-tier on-device transcript strategy (`<podcast:transcript>` RSS parse + opportunistic `BGProcessingTask` for queue/On Deck/top-rec + user-initiated `BGContinuedProcessingTask`); planning only
 - [Smart Lists](initiatives/smart-lists.md) — user-editable filter rules replacing the hardcoded `EpisodesView` lists; one-level-nested any/all groups, drag-to-reorder hub, per-list editor sheet, sort persisted on row; planning only
 - [Search Recommendations](initiatives/search-recommendations.md) — rank episodes of unsubscribed podcasts from search results *and* trending-category chips (including "Top") via the existing ML engine; banner above grid opens a discovery `EpisodesListView` that fills in rolling as RSS fetches + on-the-fly embeddings complete; planning only
+
+## Research
+
+- [Embedding Model Alternatives](research/embedding-model-alternatives.md) — survey of replacements for `NLContextualEmbedding`; on-device-only constraint narrows it to CoreML-converted Sentence-BERT (MiniLM/BGE), but holding for WWDC '26 in case `FoundationModels` exposes an embedding API
