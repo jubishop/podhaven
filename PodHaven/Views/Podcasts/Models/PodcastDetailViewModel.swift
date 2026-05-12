@@ -31,9 +31,10 @@ enum PodcastDetailState: Sendable {
 
   var detailContent: PodcastDetailContent {
     switch self {
-    case .initial(let listed): return .initial(listed)
-    case .unsaved(let unsavedPodcast, _): return .loaded(DisplayedPodcast(unsavedPodcast))
-    case .saved(let series): return .loaded(DisplayedPodcast(series.podcast))
+    case .initial(let listed): return PodcastDetailContent(initial: listed)
+    case .unsaved(let unsavedPodcast, _):
+      return PodcastDetailContent(loaded: DisplayedPodcast(unsavedPodcast))
+    case .saved(let series): return PodcastDetailContent(loaded: DisplayedPodcast(series.podcast))
     }
   }
 

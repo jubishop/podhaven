@@ -3,53 +3,71 @@
 import AVFoundation
 import Foundation
 
-// View-facing projection of `EpisodeDetailViewModel.state`. `.initial` is the
-// transient list-row snapshot displayed before the saved episode hydrates;
-// `.loaded` is the fully-displayable episode (saved or unsaved). Both arms
-// conform to `EpisodeDisplayable`, so a single existential helper forwards
-// every property.
-enum EpisodeDetailContent:
+struct EpisodeDetailContent:
   EpisodeDisplayable,
   Hashable,
   Sendable
 {
-  case initial(ListedEpisode)
-  case loaded(DisplayedEpisode)
-
-  var loaded: DisplayedEpisode? {
-    guard case .loaded(let episode) = self else { return nil }
-    return episode
-  }
-
-  private var canonicalEpisode: any EpisodeDisplayable {
-    switch self {
-    case .initial(let episode): return episode
-    case .loaded(let episode): return episode
-    }
-  }
-
-  // MARK: - EpisodeListable / EpisodeFoundational
+  let episodeID: Episode.ID?
+  let mediaGUID: MediaGUID
+  let feedURL: FeedURL
+  let title: String
+  let pubDate: Date
+  let duration: CMTime
+  let currentTime: CMTime
+  let queueOrder: Int?
+  let cacheStatus: Episode.CacheStatus
+  let saveInCache: Bool
+  let finishDate: Date?
+  let rating: EpisodeRating?
+  let image: URL
+  let podcastImage: URL
+  let podcastTitle: String
+  let description: String?
+  let queueDate: Date?
+  let loaded: DisplayedEpisode?
 
   var id: MediaGUID { mediaGUID }
-  var episodeID: Episode.ID? { canonicalEpisode.episodeID }
-  var mediaGUID: MediaGUID { canonicalEpisode.mediaGUID }
-  var feedURL: FeedURL { canonicalEpisode.feedURL }
-  var title: String { canonicalEpisode.title }
-  var pubDate: Date { canonicalEpisode.pubDate }
-  var duration: CMTime { canonicalEpisode.duration }
-  var currentTime: CMTime { canonicalEpisode.currentTime }
-  var queueOrder: Int? { canonicalEpisode.queueOrder }
-  var cacheStatus: Episode.CacheStatus { canonicalEpisode.cacheStatus }
-  var saveInCache: Bool { canonicalEpisode.saveInCache }
-  var finishDate: Date? { canonicalEpisode.finishDate }
-  var rating: EpisodeRating? { canonicalEpisode.rating }
-  var image: URL { canonicalEpisode.image }
-  var podcastImage: URL { canonicalEpisode.podcastImage }
-  var toString: String { canonicalEpisode.toString }
 
-  // MARK: - EpisodeDisplayable
+  init(initial listed: ListedEpisode) {
+    episodeID = listed.episodeID
+    mediaGUID = listed.mediaGUID
+    feedURL = listed.feedURL
+    title = listed.title
+    pubDate = listed.pubDate
+    duration = listed.duration
+    currentTime = listed.currentTime
+    queueOrder = listed.queueOrder
+    cacheStatus = listed.cacheStatus
+    saveInCache = listed.saveInCache
+    finishDate = listed.finishDate
+    rating = listed.rating
+    image = listed.image
+    podcastImage = listed.podcastImage
+    podcastTitle = listed.podcastTitle
+    description = listed.description
+    queueDate = listed.queueDate
+    loaded = nil
+  }
 
-  var podcastTitle: String { canonicalEpisode.podcastTitle }
-  var description: String? { canonicalEpisode.description }
-  var queueDate: Date? { canonicalEpisode.queueDate }
+  init(loaded displayed: DisplayedEpisode) {
+    episodeID = displayed.episodeID
+    mediaGUID = displayed.mediaGUID
+    feedURL = displayed.feedURL
+    title = displayed.title
+    pubDate = displayed.pubDate
+    duration = displayed.duration
+    currentTime = displayed.currentTime
+    queueOrder = displayed.queueOrder
+    cacheStatus = displayed.cacheStatus
+    saveInCache = displayed.saveInCache
+    finishDate = displayed.finishDate
+    rating = displayed.rating
+    image = displayed.image
+    podcastImage = displayed.podcastImage
+    podcastTitle = displayed.podcastTitle
+    description = displayed.description
+    queueDate = displayed.queueDate
+    loaded = displayed
+  }
 }

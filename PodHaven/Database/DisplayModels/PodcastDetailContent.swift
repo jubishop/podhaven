@@ -2,43 +2,46 @@
 
 import Foundation
 
-// View-facing projection of `PodcastDetailViewModel.state`. `.initial` is the
-// transient list-row snapshot displayed before the saved series hydrates;
-// `.loaded` is the fully-displayable podcast (saved or unsaved). Both arms
-// conform to `PodcastDisplayable`, so a single existential helper forwards
-// every header field. Settings (`defaultPlaybackRate`, `queueAllEpisodes`, …)
-// live on `DisplayedPodcast.settings` and are reachable only via the `.loaded`
-// case — `ListedPodcast` doesn't claim to have them.
-enum PodcastDetailContent: PodcastDisplayable, Hashable, Sendable {
-  case initial(ListedPodcast)
-  case loaded(DisplayedPodcast)
-
-  var loaded: DisplayedPodcast? {
-    guard case .loaded(let podcast) = self else { return nil }
-    return podcast
-  }
-
-  private var canonical: any PodcastDisplayable {
-    switch self {
-    case .initial(let podcast): return podcast
-    case .loaded(let podcast): return podcast
-    }
-  }
-
-  // MARK: - PodcastListable
+struct PodcastDetailContent: PodcastDisplayable, Hashable, Sendable {
+  let podcastID: Podcast.ID?
+  let feedURL: FeedURL
+  let iTunesID: ITunesPodcastID?
+  let image: URL
+  let title: String
+  let subscriptionDate: Date?
+  let toString: String
+  let searchableString: String
+  let description: String
+  let link: URL?
+  let loaded: DisplayedPodcast?
 
   var id: FeedURL { feedURL }
-  var podcastID: Podcast.ID? { canonical.podcastID }
-  var feedURL: FeedURL { canonical.feedURL }
-  var iTunesID: ITunesPodcastID? { canonical.iTunesID }
-  var image: URL { canonical.image }
-  var title: String { canonical.title }
-  var subscriptionDate: Date? { canonical.subscriptionDate }
-  var toString: String { canonical.toString }
-  var searchableString: String { canonical.searchableString }
 
-  // MARK: - PodcastDisplayable
+  init(initial listed: ListedPodcast) {
+    podcastID = listed.podcastID
+    feedURL = listed.feedURL
+    iTunesID = listed.iTunesID
+    image = listed.image
+    title = listed.title
+    subscriptionDate = listed.subscriptionDate
+    toString = listed.toString
+    searchableString = listed.searchableString
+    description = listed.description
+    link = listed.link
+    loaded = nil
+  }
 
-  var description: String { canonical.description }
-  var link: URL? { canonical.link }
+  init(loaded displayed: DisplayedPodcast) {
+    podcastID = displayed.podcastID
+    feedURL = displayed.feedURL
+    iTunesID = displayed.iTunesID
+    image = displayed.image
+    title = displayed.title
+    subscriptionDate = displayed.subscriptionDate
+    toString = displayed.toString
+    searchableString = displayed.searchableString
+    description = displayed.description
+    link = displayed.link
+    loaded = displayed
+  }
 }
