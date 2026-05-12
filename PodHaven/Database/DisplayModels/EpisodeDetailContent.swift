@@ -3,13 +3,6 @@
 import AVFoundation
 import Foundation
 
-// Flat, view-facing snapshot of `EpisodeDetailViewModel.state`. Built via
-// `init(initial:)` from the transient list-row before the saved episode
-// hydrates, or `init(loaded:)` from the fully-displayable episode (saved or
-// unsaved). `loaded` is non-nil only in the latter case — source flavor and
-// other `DisplayedEpisode`-only data are reachable through it. SwiftUI diffs
-// by visible content rather than by source identity, so two states that
-// project to the same fields hash equal.
 struct EpisodeDetailContent:
   EpisodeDisplayable,
   Hashable,

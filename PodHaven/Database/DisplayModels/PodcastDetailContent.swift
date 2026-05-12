@@ -2,13 +2,6 @@
 
 import Foundation
 
-// Flat, view-facing snapshot of `PodcastDetailViewModel.state`. Built via
-// `init(initial:)` from the transient list-row before the saved series
-// hydrates, or `init(loaded:)` from the fully-displayable podcast (saved or
-// unsaved). `loaded` is non-nil only in the latter case — settings, source
-// flavor, and other `DisplayedPodcast`-only data are reachable through it.
-// SwiftUI diffs by visible content rather than by source identity, so two
-// states that project to the same fields hash equal.
 struct PodcastDetailContent: PodcastDisplayable, Hashable, Sendable {
   let podcastID: Podcast.ID?
   let feedURL: FeedURL
