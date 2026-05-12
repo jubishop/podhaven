@@ -114,12 +114,7 @@ struct RecommendationEngine: Sendable {
   ) async throws -> [Episode.ID: RecommendationScore] {
     try await recommendations(
       for: episodes.map {
-        CandidateEpisode(
-          id: $0.id,
-          podcastID: $0.podcastID,
-          pubDate: $0.pubDate,
-          mediaGUID: $0.mediaGUID
-        )
+        CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
       }
     )
   }
@@ -190,7 +185,6 @@ struct RecommendationEngine: Sendable {
     struct ScoredCandidate {
       let id: Episode.ID
       let pubDate: Date
-      let mediaGUID: MediaGUID
       let score: RecommendationScore
     }
     let rankStart = ContinuousClock.now
@@ -200,19 +194,13 @@ struct RecommendationEngine: Sendable {
         score.value >= Self.minimumScoreThreshold
       else { continue }
       ranked.append(
-        ScoredCandidate(
-          id: candidate.id,
-          pubDate: candidate.pubDate,
-          mediaGUID: candidate.mediaGUID,
-          score: score
-        )
+        ScoredCandidate(id: candidate.id, pubDate: candidate.pubDate, score: score)
       )
     }
     ranked.sort { a, b in
-      RecommendationOrder.descending(
-        .init(score: a.score.value, pubDate: a.pubDate, mediaGUID: a.mediaGUID),
-        .init(score: b.score.value, pubDate: b.pubDate, mediaGUID: b.mediaGUID)
-      )
+      if a.score.value != b.score.value { return a.score.value > b.score.value }
+      if a.pubDate != b.pubDate { return a.pubDate > b.pubDate }
+      return a.id > b.id
     }
     let rankDuration = ContinuousClock.now - rankStart
     Self.log.debug(

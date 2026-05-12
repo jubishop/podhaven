@@ -587,12 +587,7 @@ class PodcastDetailViewModel:
     guard let podcastID = state.savedSeries?.id else { return }
     let candidates: [CandidateEpisode] = episodeList.allEntries.compactMap { episode in
       guard let episodeID = episode.episodeID else { return nil }
-      return CandidateEpisode(
-        id: episodeID,
-        podcastID: podcastID,
-        pubDate: episode.pubDate,
-        mediaGUID: episode.mediaGUID
-      )
+      return CandidateEpisode(id: episodeID, podcastID: podcastID, pubDate: episode.pubDate)
     }
     guard !candidates.isEmpty else { return }
 
@@ -619,10 +614,13 @@ class PodcastDetailViewModel:
     { lhs, rhs in
       let lhsScore = lhs.episodeID.flatMap { valuesByID[$0] } ?? 0
       let rhsScore = rhs.episodeID.flatMap { valuesByID[$0] } ?? 0
-      return RecommendationOrder.descending(
-        .init(score: lhsScore, pubDate: lhs.pubDate, mediaGUID: lhs.mediaGUID),
-        .init(score: rhsScore, pubDate: rhs.pubDate, mediaGUID: rhs.mediaGUID)
-      )
+      if lhsScore != rhsScore { return lhsScore > rhsScore }
+      if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
+      if lhs.mediaGUID.guid != rhs.mediaGUID.guid {
+        return lhs.mediaGUID.guid > rhs.mediaGUID.guid
+      }
+      return lhs.mediaGUID.mediaURL.rawValue.absoluteString
+        > rhs.mediaGUID.mediaURL.rawValue.absoluteString
     }
   }
 

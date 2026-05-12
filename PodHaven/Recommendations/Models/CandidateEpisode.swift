@@ -20,30 +20,22 @@ struct CandidateEpisode:
       Episode.Columns.id,
       Episode.Columns.podcastId,
       Episode.Columns.pubDate,
-      Episode.Columns.guid,
-      Episode.Columns.mediaURL,
     ]
   }
 
   let id: Episode.ID
   let podcastID: Podcast.ID
   let pubDate: Date
-  let mediaGUID: MediaGUID
 
-  init(id: Episode.ID, podcastID: Podcast.ID, pubDate: Date, mediaGUID: MediaGUID) {
+  init(id: Episode.ID, podcastID: Podcast.ID, pubDate: Date) {
     self.id = id
     self.podcastID = podcastID
     self.pubDate = pubDate
-    self.mediaGUID = mediaGUID
   }
 
   init(row: Row) throws {
     self.id = row[Episode.Columns.id]
     self.podcastID = row[Episode.Columns.podcastId]
     self.pubDate = row[Episode.Columns.pubDate]
-    self.mediaGUID = MediaGUID(
-      guid: row[Episode.Columns.guid],
-      mediaURL: row[Episode.Columns.mediaURL]
-    )
   }
 }

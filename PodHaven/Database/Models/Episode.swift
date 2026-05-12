@@ -22,19 +22,12 @@ enum MediaURLTag {}
 typealias MediaURL = Tagged<MediaURLTag, URL>
 enum CachedURLTag {}
 typealias CachedURL = Tagged<CachedURLTag, URL>
-struct MediaGUID: Codable, Comparable, CustomStringConvertible, Equatable, Hashable {
+struct MediaGUID: Codable, CustomStringConvertible, Equatable, Hashable {
   let guid: GUID
   let mediaURL: MediaURL
 
   var description: String {
     "GUID: \(guid.toString), MediaURL: \(mediaURL.toString)"
-  }
-
-  // `MediaURL` wraps `URL`, which isn't `Comparable`; compare on its
-  // absolute-string projection so ties break deterministically.
-  static func < (lhs: MediaGUID, rhs: MediaGUID) -> Bool {
-    if lhs.guid != rhs.guid { return lhs.guid < rhs.guid }
-    return lhs.mediaURL.rawValue.absoluteString < rhs.mediaURL.rawValue.absoluteString
   }
 }
 

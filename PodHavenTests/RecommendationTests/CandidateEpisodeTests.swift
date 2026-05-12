@@ -33,7 +33,7 @@ actor CandidateEpisodeTests {
     // currentTime / finishDate / rating / queueOrder, so those are tracked
     // even though the projection skips them — keep them out of this list.
     for column in [
-      "title", "duration", "image", "link",
+      "guid", "mediaURL", "title", "duration", "image", "link",
       "description", "creationDate", "queueDate", "saveInCache",
       "cachedFilename", "downloading", "ratingDate", "maxPlaybackTime",
       "playbackCoverage", "lastPlayedDate", "contentUpdatedAt",
@@ -47,7 +47,7 @@ actor CandidateEpisodeTests {
     }
 
     // Projection columns must trigger.
-    for column in ["id", "podcastId", "pubDate", "guid", "mediaURL"] {
+    for column in ["id", "podcastId", "pubDate"] {
       #expect(
         region.isModified(
           byEventsOfKind: .update(tableName: "episode", columnNames: [column])
