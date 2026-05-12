@@ -80,6 +80,7 @@ class PodcastDetailViewModel:
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
   @ObservationIgnored @DynamicInjected(\.userNotificationManager) private
     var userNotificationManager
 
@@ -197,9 +198,12 @@ class PodcastDetailViewModel:
       guard oldValue != currentSortMethod else { return }
       episodeList.filterMethod = currentSortMethod.filterMethod
       if currentSortMethod == .recommendationScore {
-        startRecommendationSort()
+        // Snap to whatever the prefetch task has produced so far; the
+        // running observation will install fresh scores when they arrive.
+        if let cached = lastRecommendationScores {
+          episodeList.sortMethod = makeRecommendationComparator(cached)
+        }
       } else {
-        stopRecommendationSort()
         episodeList.sortMethod = currentSortMethod.sortMethod
       }
     }
@@ -504,6 +508,8 @@ class PodcastDetailViewModel:
   }
 
   private func startObservation(_ podcastID: Podcast.ID) {
+    startRecommendationObservation()
+
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
       return
@@ -555,11 +561,15 @@ class PodcastDetailViewModel:
 
   // MARK: - Recommendation Sort
 
-  @ObservationIgnored private var recommendationSortTask: Task<Void, Never>?
+  @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
+  @ObservationIgnored private var lastRecommendationScores: [Episode.ID: Float]?
 
-  private func startRecommendationSort() {
-    recommendationSortTask?.cancel()
-    recommendationSortTask = Task { [weak self] in
+  // Started alongside `startObservation` so the engine's score map is warm
+  // by the time the user opens the sort menu, not on the moment they pick
+  // `.recommendationScore`. Idempotent.
+  private func startRecommendationObservation() {
+    if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
+    recommendationObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
       for await _ in recommendationEngine.$contextRevision.stream() {
         guard !Task.isCancelled else { return }
@@ -568,32 +578,45 @@ class PodcastDetailViewModel:
     }
   }
 
-  private func stopRecommendationSort() {
-    recommendationSortTask?.cancel()
-    recommendationSortTask = nil
+  private func clearRecommendationObservationTask() {
+    recommendationObservationTask?.cancel()
+    recommendationObservationTask = nil
   }
 
   private func fetchAndApplyRecommendationScores() async {
-    let episodeIDs = episodeList.allEntries.compactMap(\.episodeID)
-    guard !episodeIDs.isEmpty else { return }
+    guard let podcastID = state.savedSeries?.id else { return }
+    let candidates: [CandidateEpisode] = episodeList.allEntries.compactMap { episode in
+      guard let episodeID = episode.episodeID else { return nil }
+      return CandidateEpisode(
+        id: episodeID,
+        podcastID: podcastID,
+        pubDate: episode.pubDate,
+        mediaGUID: episode.mediaGUID
+      )
+    }
+    guard !candidates.isEmpty else { return }
 
     let scoreMap: [Episode.ID: RecommendationScore]
     do {
-      let podcastEpisodes = try await repo.podcastEpisodes(episodeIDs)
-      scoreMap = try await recommendationEngine.recommendations(
-        for: podcastEpisodes.map(\.episode)
-      )
+      scoreMap = try await recommendationEngine.recommendations(for: candidates)
     } catch {
       Self.log.caughtError(
-        "fetchAndApplyRecommendationScores failed for \(episodeIDs.count) ids",
+        "fetchAndApplyRecommendationScores failed for \(candidates.count) ids",
         error
       )
       return
     }
 
-    guard currentSortMethod == .recommendationScore else { return }
     let valuesByID = scoreMap.mapValues(\.value)
-    episodeList.sortMethod = { lhs, rhs in
+    lastRecommendationScores = valuesByID
+    guard currentSortMethod == .recommendationScore else { return }
+    episodeList.sortMethod = makeRecommendationComparator(valuesByID)
+  }
+
+  private func makeRecommendationComparator(
+    _ valuesByID: [Episode.ID: Float]
+  ) -> @Sendable (ListedEpisode, ListedEpisode) -> Bool {
+    { lhs, rhs in
       let lhsScore = lhs.episodeID.flatMap { valuesByID[$0] } ?? 0
       let rhsScore = rhs.episodeID.flatMap { valuesByID[$0] } ?? 0
       return RecommendationOrder.descending(
@@ -608,7 +631,7 @@ class PodcastDetailViewModel:
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
-    stopRecommendationSort()
+    clearRecommendationObservationTask()
   }
 
   private func clearObservationTask() {

@@ -226,9 +226,12 @@ import Testing
     let expectedOrder =
       candidateEpisodes
       .sorted { lhs, rhs in
-        let lhsValue = scoreMap[lhs.id]?.value ?? 0
-        let rhsValue = scoreMap[rhs.id]?.value ?? 0
-        return lhsValue > rhsValue
+        let lhsScore = scoreMap[lhs.id]?.value ?? 0
+        let rhsScore = scoreMap[rhs.id]?.value ?? 0
+        return RecommendationOrder.descending(
+          .init(score: lhsScore, pubDate: lhs.pubDate, mediaGUID: lhs.mediaGUID),
+          .init(score: rhsScore, pubDate: rhs.pubDate, mediaGUID: rhs.mediaGUID)
+        )
       }
       .map(\.id)
     // Guard against the case where the rec-score order happens to match
