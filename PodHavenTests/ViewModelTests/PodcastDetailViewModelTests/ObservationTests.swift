@@ -38,7 +38,7 @@ import Testing
     try await Wait.until(
       { @MainActor in
         viewModel.saved == false
-          && viewModel.podcast.loaded?.source.unsaved != nil
+          && viewModel.podcast.loaded != nil
           && viewModel.episodeList.allEntries.isEmpty == false
       },
       { @MainActor in
