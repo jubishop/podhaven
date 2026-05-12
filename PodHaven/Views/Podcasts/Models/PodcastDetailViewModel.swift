@@ -19,7 +19,7 @@ import UIKit
 //   shared-from-share-sheet, or an unsaved search result. May carry zero or
 //   more pre-parsed episodes ready to be inserted on `subscribe()`.
 // - `.saved`: a fully-hydrated series under live observation.
-enum PodcastDetailState: Sendable {
+enum PodcastDetailState: Sendable, Stringable {
   case initial(ListedPodcast)
   case unsaved(UnsavedPodcast, episodes: IdentifiedArrayOf<UnsavedEpisode>)
   case saved(PodcastSeriesDetail)
@@ -451,7 +451,7 @@ class PodcastDetailViewModel:
 
   // MARK: - Observation Management
 
-  @ObservationIgnored private var observationTask: Task<Void, Never>?
+  @ObservationIgnored var observationTask: Task<Void, Never>?
 
   @discardableResult
   private func attemptObservation() async throws -> Bool {
@@ -493,12 +493,21 @@ class PodcastDetailViewModel:
       } catch {
         Self.log.caughtError("startObservation: failed for podcast \(podcastID)", error)
       }
-      clearObservationTask()
     }
   }
 
   private func observePodcastSeries(_ podcastID: Podcast.ID) async throws {
     Self.log.debug("Observing podcast series with ID: \(podcastID)")
+
+    // Clear our reference on any natural exit (deletion, error, normal end).
+    // Skip when we were cancelled — disappear() or a re-binding
+    // startObservation() has already cleared/replaced observationTask, and
+    // stomping it would kill a newer task.
+    defer {
+      if !Task.isCancelled {
+        observationTask = nil
+      }
+    }
 
     for try await updatedSeries in observatory.podcastSeriesDetail(podcastID) {
       try Task.checkCancellation()
@@ -508,6 +517,13 @@ class PodcastDetailViewModel:
       guard let updatedSeries
       else {
         Self.log.debug("Podcast was deleted")
+        // Post-deletion strategy: re-parse the RSS feed so the UI can
+        // recover to an unsaved snapshot. This diverges from
+        // `EpisodeDetailViewModel`, which converts the cached
+        // `PodcastEpisode` directly via `toOriginalUnsavedPodcastEpisode()`:
+        // podcasts have a per-feed RSS endpoint we can fall back to, but
+        // episodes don't. The trade-off is a brief loading state while
+        // the feed is re-parsed, in exchange for fresh fields.
         do {
           try await loadPresentationFromFeed()
         } catch {
@@ -537,15 +553,10 @@ class PodcastDetailViewModel:
     clearObservationTask()
   }
 
-  private func clearObservationTask() {
-    observationTask?.cancel()
-    observationTask = nil
-  }
-
   // MARK: - Private Helpers
 
   private func transition(to newState: PodcastDetailState) {
-    Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
+    logStateTransition(to: newState)
     state = newState
     refreshEpisodeList(from: newState)
   }
