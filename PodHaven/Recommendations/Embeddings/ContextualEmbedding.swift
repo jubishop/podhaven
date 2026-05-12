@@ -65,9 +65,8 @@ class ContextualEmbedding {
     }
   }
 
-  // Load on-disk assets without triggering a download. Safe to call from a
-  // background task handler where the process was launched into the background
-  // and the scene never went active.
+  // Load on-disk assets without triggering a download. Safe from a
+  // BG-launched task handler where the scene never went active.
   func loadAssetsIfAvailable() {
     guard !isAvailable, embedding.hasAvailableAssets else { return }
     loadAssets()

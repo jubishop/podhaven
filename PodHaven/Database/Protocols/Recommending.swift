@@ -14,7 +14,7 @@ protocol Recommending: Sendable {
   func allUnratedListenedEpisodes() async throws -> [PartialSignal]
   func allCandidateEpisodes(excluding: Episode.ID?) async throws -> [CandidateEpisode]
   func allScoringContextInputs() async throws -> ScoringContextInputs
-  func whiteningMean() async throws -> [Float]?
+  func whiteningTransform(principalComponentCount: Int) async throws -> WhiteningTransform?
 
   // MARK: - Embedding Writers
 

@@ -48,11 +48,9 @@ struct EmbeddingProcessor: Sendable {
       }
 
       do {
-        // Query returns only episode IDs that actually need embedding work:
-        // no existing embedding, wrong revision, or content changed since
-        // last computation. Signal episodes (rated/finished) are ordered first.
-        // IDs only — full Episode rows are hydrated in chunks as they are
-        // processed so a BG-expiry doesn't waste a multi-second hydration pass.
+        // IDs only — full Episode rows are hydrated in chunks during
+        // processing so a BG-expiry doesn't waste a multi-second hydration
+        // pass. Signals (rated/finished) are ordered first.
         let queryStart = ContinuousClock.now
         let idsToProcess = try await recommendationRepo.episodesNeedingEmbeddings(
           revision: embedding.revision

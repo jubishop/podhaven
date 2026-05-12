@@ -4,10 +4,9 @@ import AVFoundation
 import Foundation
 import GRDB
 
-// Read-on-rebuild only. This selection includes high-churn columns
-// (playbackCoverage, lastPlayedDate) that must NOT enter any GRDB
-// observation — fetch via `allUnratedListenedEpisodes()` or the merged-stream
-// rebuild path, never inside a `_observe` closure.
+// Read-on-rebuild only. `playbackCoverage` and `lastPlayedDate` here must
+// not enter any GRDB observation — go through `allUnratedListenedEpisodes()`
+// or the merged-stream rebuild path, never `_observe`.
 struct PartialSignal:
   Sendable,
   Identifiable,
@@ -15,10 +14,9 @@ struct PartialSignal:
   FetchableRecord,
   TableRecord
 {
-  // Floors that gate whether a played-but-unrated episode contributes to
-  // recommendations. Both must be met (AND): the absolute floor catches
-  // long-episode autoplay-skip cases where ratio alone would qualify, and
-  // the ratio floor catches short-clip cases where seconds alone would.
+  // Both must be met. The absolute floor catches long-episode autoplay-skip
+  // cases where the ratio alone would qualify; the ratio floor catches
+  // short-clip cases where seconds alone would.
   static let minCoveredSeconds: Int = 60
   static let minCoverageRatio: Double = 0.10
 

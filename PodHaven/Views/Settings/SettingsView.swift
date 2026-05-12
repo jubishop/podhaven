@@ -48,6 +48,11 @@ struct SettingsView: View {
     return count == 0 ? "Off" : "\(count) ep"
   }
 
+  private var formattedPodcastAffinityWeight: String {
+    let percent = Int((userSettings.podcastAffinityWeight * 100).rounded())
+    return percent == 0 ? "Off" : "\(percent)%"
+  }
+
   var body: some View {
     NavStack(manager: navigation.settings) {
       Form {
@@ -212,6 +217,56 @@ struct SettingsView: View {
             Toggle(
               "Show Time Remaining",
               isOn: userSettings.$showTimeRemainingInEpisodeLists.binding
+            )
+          }
+        }
+
+        Section("Recommendations") {
+          VStack(alignment: .leading, spacing: 24) {
+            SettingsRow(
+              infoText: """
+                Controls how aggressively the engine strips out shared structure \
+                from podcast embeddings before scoring. \
+                'Focused' centers vectors against the corpus mean only, so recommendations \
+                stay close to the podcasts you've already rated. \
+                'Exploratory' additionally removes the top three principal components — \
+                which empirically encode podcast *format* (daily news vs. long-form narrative) \
+                rather than topic — opening up topical discovery across shows you haven't \
+                engaged with yet.
+                """
+            ) {
+              Text("Recommendation Diversity")
+            }
+
+            Picker("", selection: userSettings.$recommendationDeconeMode.binding) {
+              Text("Focused").tag(UserSettings.RecommendationDeconeMode.focused)
+              Text("Exploratory").tag(UserSettings.RecommendationDeconeMode.exploratory)
+            }
+            .pickerStyle(.segmented)
+          }
+
+          VStack(alignment: .leading, spacing: 24) {
+            SettingsRow(
+              infoText: """
+                How much weight to give a candidate's podcast affinity \
+                (how positively you've rated other episodes from the same podcast) \
+                versus its content similarity to your listening history. \
+                Lower values favor pure content similarity; \
+                higher values favor podcasts you've already engaged with. \
+                The similarity term always takes the remaining weight.
+                """
+            ) {
+              HStack {
+                Text("Podcast Affinity")
+                Spacer()
+                Text(formattedPodcastAffinityWeight)
+                  .foregroundStyle(.secondary)
+              }
+            }
+            Slider(
+              value: userSettings.$podcastAffinityWeight.binding,
+              in: 0.0...0.5,
+              step: 0.05
             )
           }
         }

@@ -154,28 +154,163 @@ struct RecommendationRepo: Recommending {
     }
   }
 
-  // Mean of every stored episode embedding — the "cone center" that the engine
-  // subtracts from each vector before scoring. NLContextualEmbedding packs all
-  // English text into a narrow cone around this mean, so raw cosine similarity
-  // sits in a tiny ~[0.85, 0.99] band; centering against this mean restores the
-  // dynamic range that the scoring formula assumes. Streamed via fetchCursor to
-  // keep peak memory at one row regardless of corpus size.
-  func whiteningMean() async throws -> [Float]? {
+  // Single-pass corpus scan: accumulates `sum` (for the mean) and
+  // `outerSum = Σ xᵀx` simultaneously, then recovers the covariance via the
+  // identity `Cov = outerSum/N - μμᵀ`. Skips the outer-product accumulation
+  // when `principalComponentCount` is 0. Peak memory is O(d²) regardless of
+  // corpus size. Top-k eigenvectors come from power iteration with deflation.
+  func whiteningTransform(
+    principalComponentCount: Int
+  ) async throws -> WhiteningTransform? {
     try await appDB.db.read { db in
-      let cursor = try EpisodeEmbedding.fetchCursor(db)
       var sum: [Float] = []
+      var outerSum: [Float] = []
+      var outerScratch: [Float] = []
       var count = 0
+      let cursor = try EpisodeEmbedding.fetchCursor(db)
       while let embedding = try cursor.next() {
-        let vec = embedding.floatVector
-        if sum.isEmpty {
-          sum = [Float](repeating: 0, count: vec.count)
+        unsafe embedding.withFloatBuffer { vec in
+          let dim = vec.count
+          if sum.isEmpty {
+            sum = [Float](repeating: 0, count: dim)
+            if principalComponentCount > 0 {
+              outerSum = [Float](repeating: 0, count: dim * dim)
+              outerScratch = [Float](repeating: 0, count: dim * dim)
+            }
+          }
+          unsafe sum.withUnsafeMutableBufferPointer { sumPtr in
+            unsafe VectorMath.addInPlace(vec, into: sumPtr)
+          }
+          guard principalComponentCount > 0 else { return }
+          unsafe outerSum.withUnsafeMutableBufferPointer { outerPtr in
+            unsafe outerScratch.withUnsafeMutableBufferPointer { scratchPtr in
+              unsafe VectorMath.accumulateScaledOuterProduct(
+                of: vec,
+                scalar: 1.0,
+                into: outerPtr,
+                scratch: scratchPtr,
+                dim: dim
+              )
+            }
+          }
         }
-        sum = vDSP.add(sum, vec)
         count += 1
       }
       guard count > 0 else { return nil }
-      return vDSP.divide(sum, Float(count))
+      let mean = vDSP.divide(sum, Float(count))
+      let dim = mean.count
+
+      guard principalComponentCount > 0 else {
+        return WhiteningTransform(mean: mean, principalComponents: [])
+      }
+
+      // covariance = outerSum/N - μ⊗μᵀ, accumulated in `outerSum` in place.
+      unsafe outerSum.withUnsafeMutableBufferPointer { outerPtr in
+        unsafe VectorMath.divideInPlace(outerPtr, by: Float(count))
+        unsafe outerScratch.withUnsafeMutableBufferPointer { scratchPtr in
+          unsafe mean.withUnsafeBufferPointer { meanPtr in
+            unsafe VectorMath.accumulateScaledOuterProduct(
+              of: meanPtr,
+              scalar: -1.0,
+              into: outerPtr,
+              scratch: scratchPtr,
+              dim: dim
+            )
+          }
+        }
+      }
+
+      let principalComponents = Self.topKEigenvectors(
+        ofSymmetric: &outerSum,
+        scratch: &outerScratch,
+        dim: dim,
+        k: principalComponentCount
+      )
+      return WhiteningTransform(mean: mean, principalComponents: principalComponents)
     }
+  }
+
+  // Power iteration with rank-1 deflation. Reuses `scratch` (a d² buffer)
+  // across calls to avoid per-component allocation.
+  private static func topKEigenvectors(
+    ofSymmetric covariance: inout [Float],
+    scratch: inout [Float],
+    dim: Int,
+    k: Int
+  ) -> [[Float]] {
+    var v = [Float](repeating: 0, count: dim)
+    var cv = [Float](repeating: 0, count: dim)
+    var components = [[Float]](capacity: k)
+    for _ in 0..<k {
+      unsafe v.withUnsafeMutableBufferPointer { vBuf in
+        unsafe vBuf.update(repeating: 0)
+        unsafe vBuf[0] = 1
+      }
+      // Bail out of the PC loop when `Cov · v` is zero on the first step —
+      // that means the residual covariance has rank below the requested k
+      // and any "eigenvector" we'd record now would just be the seed.
+      let converged = unsafe covariance.withUnsafeBufferPointer { covPtr -> Bool in
+        unsafe cv.withUnsafeMutableBufferPointer { cvPtr in
+          unsafe v.withUnsafeMutableBufferPointer { vPtr in
+            var madeProgress = false
+            for _ in 0..<50 {
+              unsafe VectorMath.matrixVectorMultiply(
+                covPtr,
+                UnsafeBufferPointer(vPtr),
+                into: cvPtr,
+                dim: dim
+              )
+              let cvBuf = UnsafeBufferPointer(cvPtr)
+              let norm = sqrt(unsafe VectorMath.dotProduct(cvBuf, cvBuf))
+              guard norm > 1e-12 else { break }
+              var divisor = norm
+              unsafe vDSP_vsdiv(
+                cvPtr.baseAddress!,
+                1,
+                &divisor,
+                vPtr.baseAddress!,
+                1,
+                vDSP_Length(dim)
+              )
+              madeProgress = true
+            }
+            return madeProgress
+          }
+        }
+      }
+      guard converged else { break }
+      let eigenvalue = unsafe covariance.withUnsafeBufferPointer { covPtr -> Float in
+        unsafe v.withUnsafeMutableBufferPointer { vPtr -> Float in
+          unsafe cv.withUnsafeMutableBufferPointer { cvPtr -> Float in
+            unsafe VectorMath.matrixVectorMultiply(
+              covPtr,
+              UnsafeBufferPointer(vPtr),
+              into: cvPtr,
+              dim: dim
+            )
+            return unsafe VectorMath.dotProduct(
+              UnsafeBufferPointer(vPtr),
+              UnsafeBufferPointer(cvPtr)
+            )
+          }
+        }
+      }
+      unsafe covariance.withUnsafeMutableBufferPointer { covPtr in
+        unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+          unsafe v.withUnsafeBufferPointer { vPtr in
+            unsafe VectorMath.accumulateScaledOuterProduct(
+              of: vPtr,
+              scalar: -eigenvalue,
+              into: covPtr,
+              scratch: scratchPtr,
+              dim: dim
+            )
+          }
+        }
+      }
+      components.append(v)
+    }
+    return components
   }
 
   // MARK: - Embedding Writers
