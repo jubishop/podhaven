@@ -167,9 +167,7 @@ class PodcastDetailViewModel:
         }
       case .recommendationScore:
         // Scoring is async; the view model installs the real closure once
-        // `recommendationEngine.recommendations(for:)` returns. Selection
-        // didSet skips the assignment in this case so the previous order
-        // persists until scores arrive — see `currentSortMethod.didSet`.
+        // `recommendationEngine.recommendations(for:)` returns.
         return nil
       }
     }
@@ -550,10 +548,6 @@ class PodcastDetailViewModel:
 
   @ObservationIgnored private var recommendationSortTask: Task<Void, Never>?
 
-  // Streams `recommendationEngine.$contextRevision` while the rec-score sort
-  // is active and rebuilds the captured score map on each emit. The bootstrap
-  // emit covers the warm-cache case; cold caches yield an empty map and the
-  // installed closure leaves rows in insertion order until the engine warms.
   private func startRecommendationSort() {
     recommendationSortTask?.cancel()
     recommendationSortTask = Task { [weak self] in
