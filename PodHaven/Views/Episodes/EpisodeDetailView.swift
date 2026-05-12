@@ -253,7 +253,13 @@ struct EpisodeDetailView: View {
 
   var descriptionView: some View {
     VStack(alignment: .leading, spacing: 16) {
-      if let description = viewModel.episode.description, !description.isEmpty {
+      // `.initial` exposes `description == nil` from the saved-listable bridge
+      // even when the episode has one; gate on `loaded` so the heading appears
+      // exactly when the hydrated description does.
+      if viewModel.episode.loaded != nil,
+        let description = viewModel.episode.description,
+        !description.isEmpty
+      {
         VStack(alignment: .leading, spacing: 8) {
           Text("Description")
             .font(.headline)
