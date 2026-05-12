@@ -50,4 +50,14 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
   // MARK: - Stringable
 
   var toString: String { podcast.toString }
+
+  // MARK: - Detail Projection
+
+  func toDetail(tags: IdentifiedArrayOf<Tag> = []) -> PodcastSeriesDetail {
+    PodcastSeriesDetail(
+      podcast: podcast,
+      episodes: IdentifiedArrayOf(uniqueElements: episodes.map { ListableEpisode(from: $0) }),
+      tags: tags
+    )
+  }
 }

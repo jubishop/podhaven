@@ -92,4 +92,25 @@ struct ListableEpisode:
       downloading: row[Episode.Columns.downloading] as Bool
     )
   }
+
+  // MARK: - In-Memory Projection
+
+  init(from episode: Episode, tagIDs: Set<Tag.ID> = []) {
+    self.id = episode.id
+    self.guid = episode.guid
+    self.mediaURL = episode.mediaURL
+    self.title = episode.title
+    self.pubDate = episode.pubDate
+    self.duration = episode.duration
+    self.episodeImage = episode.image
+    self.finishDate = episode.finishDate
+    self.currentTime = episode.currentTime
+    self.queueOrder = episode.queueOrder
+    self.saveInCache = episode.saveInCache
+    self.creationDate = episode.creationDate
+    self.queueDate = episode.queueDate
+    self.rating = episode.rating
+    self.tagIDs = tagIDs
+    self.cacheStatus = episode.cacheStatus
+  }
 }
