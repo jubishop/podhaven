@@ -66,11 +66,12 @@ enum PodcastDetailState: Sendable {
 
 @Observable @MainActor
 class PodcastDetailViewModel:
+  DetailViewModel,
   ManagingEpisodes,
   SelectableEpisodeList,
   SortableEpisodeList
 {
-  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.alert) var alert
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
@@ -81,7 +82,7 @@ class PodcastDetailViewModel:
   @ObservationIgnored @DynamicInjected(\.userNotificationManager) private
     var userNotificationManager
 
-  private static let log = Log.as(LogSubsystem.PodcastsView.detail)
+  nonisolated static let log = Log.as(LogSubsystem.PodcastsView.detail)
   private static let unavailableMessage = "This podcast is no longer available."
 
   // MARK: - State
@@ -240,18 +241,10 @@ class PodcastDetailViewModel:
     }
     let previouslyNotifying = settings?.notifyNewEpisodes ?? false
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.updatePodcastSettings(podcastID, newSettings)
-        if newSettings.notifyNewEpisodes, !previouslyNotifying {
-          await userNotificationManager.requestAuthorizationIfNeeded()
-        }
-      } catch {
-        Self.log.caughtError("updateSettings: failed for podcast \(podcastID)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
+    runTask("updateSettings: podcast \(podcastID)") { [self] in
+      try await repo.updatePodcastSettings(podcastID, newSettings)
+      if newSettings.notifyNewEpisodes, !previouslyNotifying {
+        await userNotificationManager.requestAuthorizationIfNeeded()
       }
     }
   }
@@ -332,20 +325,6 @@ class PodcastDetailViewModel:
     )
   }
 
-  func appear() {
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await performAppear()
-      } catch {
-        Self.log.caughtError("appear: failed for \(podcast.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
   func performAppear() async throws {
     if try await attemptObservation() { return }
 
@@ -365,87 +344,65 @@ class PodcastDetailViewModel:
   // MARK: - Public Methods
 
   func subscribe() {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        switch state {
-        case .saved(let series):
-          try await repo.markSubscribed(series.id)
-        case .initial(let listedPodcast):
-          guard
-            let series = try await repo.podcastSeriesDetail(
-              listedPodcast.feedURL,
-              iTunesID: listedPodcast.iTunesID
-            )
-          else {
-            Self.log.warning("subscribe: no saved series for initial \(listedPodcast.toString)")
-            return
-          }
+    runTask("subscribe: \(state.toString)") { [self] in
+      switch state {
+      case .saved(let series):
+        try await repo.markSubscribed(series.id)
+      case .initial(let listedPodcast):
+        guard
+          let series = try await repo.podcastSeriesDetail(
+            listedPodcast.feedURL,
+            iTunesID: listedPodcast.iTunesID
+          )
+        else {
+          Self.log.warning("subscribe: no saved series for initial \(listedPodcast.toString)")
+          return
+        }
+        transition(to: .saved(series))
+        startObservation(series.id)
+        try await repo.markSubscribed(series.id)
+      case .unsaved(let unsavedPodcast, let episodes):
+        if let series = try await repo.podcastSeriesDetail(
+          unsavedPodcast.feedURL,
+          iTunesID: unsavedPodcast.iTunesID
+        ) {
           transition(to: .saved(series))
           startObservation(series.id)
           try await repo.markSubscribed(series.id)
-        case .unsaved(let unsavedPodcast, let episodes):
-          if let series = try await repo.podcastSeriesDetail(
-            unsavedPodcast.feedURL,
-            iTunesID: unsavedPodcast.iTunesID
-          ) {
-            transition(to: .saved(series))
-            startObservation(series.id)
-            try await repo.markSubscribed(series.id)
-          } else {
-            let inserted = try await repo.insertSeries(
-              UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast, unsavedEpisodes: episodes)
-            )
-            transition(to: .saved(PodcastSeriesDetail(podcast: inserted.podcast)))
-            startObservation(inserted.id)
-            try await repo.markSubscribed(inserted.id)
-          }
+        } else {
+          let inserted = try await repo.insertSeries(
+            UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast, unsavedEpisodes: episodes)
+          )
+          transition(to: .saved(PodcastSeriesDetail(podcast: inserted.podcast)))
+          startObservation(inserted.id)
+          try await repo.markSubscribed(inserted.id)
         }
-      } catch {
-        Self.log.caughtError("subscribe: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
 
   func unsubscribe() {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        guard let podcastID = try await ensureObservedSeries()
-        else {
-          Self.log.warning("Trying to unsubscribe from a non-saved podcast")
-          return
-        }
-
-        try await repo.markUnsubscribed(podcastID)
-      } catch {
-        Self.log.caughtError("unsubscribe: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
+    runTask("unsubscribe: \(state.toString)") { [self] in
+      guard let podcastID = try await ensureObservedSeries()
+      else {
+        Self.log.warning("Trying to unsubscribe from a non-saved podcast")
+        return
       }
+
+      try await repo.markUnsubscribed(podcastID)
     }
   }
 
   func delete() {
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        guard let podcastID = try await ensureObservedSeries()
-        else {
-          Self.log.warning("Trying to delete a non-saved podcast")
-          return
-        }
-
-        Self.log.info("Deleting podcast: \(state.toString)")
-        try await repo.deletePodcast(podcastID)
-      } catch {
-        Self.log.caughtError("delete: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
+    runTask("delete: \(state.toString)") { [self] in
+      guard let podcastID = try await ensureObservedSeries()
+      else {
+        Self.log.warning("Trying to delete a non-saved podcast")
+        return
       }
+
+      Self.log.info("Deleting podcast: \(state.toString)")
+      try await repo.deletePodcast(podcastID)
     }
   }
 
@@ -475,16 +432,8 @@ class PodcastDetailViewModel:
       return
     }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.addTag(tagID, to: podcastID)
-      } catch {
-        Self.log.caughtError("addTag: failed to add tag \(tagID) to podcast \(podcastID)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("addTag: \(tagID) to podcast \(podcastID)") { [self] in
+      try await repo.addTag(tagID, to: podcastID)
     }
   }
 
@@ -494,19 +443,8 @@ class PodcastDetailViewModel:
       return
     }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.removeTag(tagID, from: podcastID)
-      } catch {
-        Self.log.caughtError(
-          "removeTag: failed to remove tag \(tagID) from podcast \(podcastID)",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("removeTag: \(tagID) from podcast \(podcastID)") { [self] in
+      try await repo.removeTag(tagID, from: podcastID)
     }
   }
 

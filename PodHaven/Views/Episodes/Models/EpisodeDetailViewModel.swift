@@ -55,8 +55,8 @@ enum EpisodeDetailState: Sendable {
   }
 }
 
-@Observable @MainActor class EpisodeDetailViewModel {
-  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+@Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
+  @ObservationIgnored @DynamicInjected(\.alert) var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
 
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -67,7 +67,7 @@ enum EpisodeDetailState: Sendable {
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
 
-  private static let log = Log.as(LogSubsystem.EpisodesView.detail)
+  nonisolated static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
   // MARK: - State
 
@@ -138,20 +138,6 @@ enum EpisodeDetailState: Sendable {
     }
   }
 
-  func appear() {
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await performAppear()
-      } catch {
-        Self.log.caughtError("appear: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
   func performAppear() async throws {
     let podcastEpisode = try await repo.podcastEpisode(state.mediaGUID)
 
@@ -197,27 +183,10 @@ enum EpisodeDetailState: Sendable {
   // MARK: - Public Methods
 
   func playNow() {
-    Task { [weak self] in
-      guard let self else { return }
-
-      let podcastEpisode: PodcastEpisode
-      do {
-        podcastEpisode = try await getOrCreatePodcastEpisode()
-      } catch {
-        Self.log.caughtError("playNow: failed to get/create episode \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-        return
-      }
-
-      do {
-        try await playManager.load(podcastEpisode)
-        await playManager.play()
-      } catch {
-        Self.log.caughtError("playNow: failed to load episode \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("playNow: \(state.toString)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await playManager.load(podcastEpisode)
+      await playManager.play()
     }
   }
 
@@ -227,20 +196,9 @@ enum EpisodeDetailState: Sendable {
       return
     }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await loadAndPlay(podcastEpisode, seekTo: seconds)
-      } catch {
-        Self.log.caughtError(
-          "playAt: failed for \(state.toString) at timestamp \(timestamp)",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("playAt: \(state.toString) at timestamp \(timestamp)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await loadAndPlay(podcastEpisode, seekTo: seconds)
     }
   }
 
@@ -256,197 +214,77 @@ enum EpisodeDetailState: Sendable {
   func addToTopOfQueue() {
     guard !atTopOfQueue else { return }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await queue.unshift(podcastEpisode.episode.id)
-      } catch {
-        Self.log.caughtError("addToTopOfQueue: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("addToTopOfQueue: \(state.toString)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await queue.unshift(podcastEpisode.episode.id)
     }
   }
 
   func appendToQueue() {
     guard !atBottomOfQueue else { return }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await queue.append(podcastEpisode.episode.id)
-      } catch {
-        Self.log.caughtError("appendToQueue: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("appendToQueue: \(state.toString)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await queue.append(podcastEpisode.episode.id)
     }
   }
 
   func removeFromQueue() {
     guard episode.queued else { return }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await queue.dequeue(podcastEpisode.episode.id)
-      } catch {
-        Self.log.caughtError("removeFromQueue: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("removeFromQueue: \(state.toString)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await queue.dequeue(podcastEpisode.episode.id)
     }
   }
 
   func cacheEpisode() {
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await cacheManager.downloadToCache(for: podcastEpisode.id)
-      } catch {
-        Self.log.caughtError("cacheEpisode: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("cacheEpisode: \(state.toString)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await cacheManager.downloadToCache(for: podcastEpisode.id)
     }
   }
 
   func uncacheEpisode() {
     guard canClearCache else { return }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      let podcastEpisode: PodcastEpisode
-      do {
-        podcastEpisode = try await getOrCreatePodcastEpisode()
-      } catch {
-        Self.log.caughtError(
-          "uncacheEpisode: failed to get/create episode \(state.toString)",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-        return
-      }
-
-      do {
-        try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
-      } catch {
-        Self.log.caughtError("uncacheEpisode: failed to unsave episode \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-
-      do {
-        try await cacheManager.clearCache(for: podcastEpisode.id)
-      } catch {
-        Self.log.caughtError(
-          "uncacheEpisode: failed to clear cache for \(state.toString)",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("uncacheEpisode: \(state.toString)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
+      try await cacheManager.clearCache(for: podcastEpisode.id)
     }
   }
 
   func saveEpisodeInCache() {
-    Task { [weak self] in
-      guard let self else { return }
-
-      let podcastEpisode: PodcastEpisode
-      do {
-        podcastEpisode = try await getOrCreatePodcastEpisode()
-      } catch {
-        Self.log.caughtError(
-          "saveEpisodeInCache: failed to get/create episode \(state.toString)",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-        return
-      }
-
-      do {
-        try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
-      } catch {
-        Self.log.caughtError(
-          "saveEpisodeInCache: failed to save episode \(state.toString)",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-        return
-      }
-
-      do {
-        try await cacheManager.downloadToCache(for: podcastEpisode.id)
-      } catch {
-        Self.log.caughtError(
-          "saveEpisodeInCache: failed to cache episode \(state.toString)",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("saveEpisodeInCache: \(state.toString)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
+      try await cacheManager.downloadToCache(for: podcastEpisode.id)
     }
   }
 
   func markFinished() {
     guard !episode.finished else { return }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await repo.markFinished(podcastEpisode.id)
-      } catch {
-        Self.log.caughtError("markFinished: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("markFinished: \(state.toString)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await repo.markFinished(podcastEpisode.id)
     }
   }
 
   func rate(_ rating: EpisodeRating?) {
     guard episode.rating != rating else { return }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await repo.updateRating(podcastEpisode.id, rating: rating)
-      } catch {
-        Self.log.caughtError("rate: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("rate: \(state.toString)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await repo.updateRating(podcastEpisode.id, rating: rating)
     }
   }
 
   func showPodcast() {
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode()
-        navigation.showPodcast(podcastEpisode.podcast)
-      } catch {
-        Self.log.caughtError("showPodcast: failed for \(state.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("showPodcast: \(state.toString)") { [self] in
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      navigation.showPodcast(podcastEpisode.podcast)
     }
   }
 
@@ -458,16 +296,8 @@ enum EpisodeDetailState: Sendable {
       return
     }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.addTag(tagID, to: episodeID)
-      } catch {
-        Self.log.caughtError("addTag: failed to add tag \(tagID) to episode \(episodeID)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("addTag: \(tagID) to episode \(episodeID)") { [self] in
+      try await repo.addTag(tagID, to: episodeID)
     }
   }
 
@@ -477,19 +307,8 @@ enum EpisodeDetailState: Sendable {
       return
     }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.removeTag(tagID, from: episodeID)
-      } catch {
-        Self.log.caughtError(
-          "removeTag: failed to remove tag \(tagID) from episode \(episodeID)",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+    runTask("removeTag: \(tagID) from episode \(episodeID)") { [self] in
+      try await repo.removeTag(tagID, from: episodeID)
     }
   }
 
