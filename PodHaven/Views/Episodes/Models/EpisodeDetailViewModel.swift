@@ -56,7 +56,7 @@ enum EpisodeDetailState: Sendable {
 }
 
 @Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
-  @ObservationIgnored @DynamicInjected(\.alert) var alert
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
 
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -67,7 +67,7 @@ enum EpisodeDetailState: Sendable {
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
 
-  nonisolated static let log = Log.as(LogSubsystem.EpisodesView.detail)
+  private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
   // MARK: - State
 

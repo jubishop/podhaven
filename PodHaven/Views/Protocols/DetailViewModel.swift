@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Logging
 
 // Shared lifecycle + error-handling surface for podcast/episode detail
@@ -8,13 +9,16 @@ import Logging
 // conformers only write the work itself. `appear()` is provided as a
 // default that simply funnels `performAppear()` through `runTask`.
 @MainActor protocol DetailViewModel: AnyObject {
-  nonisolated static var log: Logger { get }
-  var alert: Alert { get }
-
   func performAppear() async throws
 }
 
 extension DetailViewModel {
+  private var alert: Alert { Container.shared.alert() }
+
+  nonisolated private static var log: Logger {
+    Log.as(LogSubsystem.ViewProtocols.detailViewModel)
+  }
+
   func appear() {
     runTask("appear") {
       try await self.performAppear()

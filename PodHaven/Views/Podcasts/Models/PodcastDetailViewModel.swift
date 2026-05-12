@@ -71,7 +71,7 @@ class PodcastDetailViewModel:
   SelectableEpisodeList,
   SortableEpisodeList
 {
-  @ObservationIgnored @DynamicInjected(\.alert) var alert
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
@@ -82,7 +82,7 @@ class PodcastDetailViewModel:
   @ObservationIgnored @DynamicInjected(\.userNotificationManager) private
     var userNotificationManager
 
-  nonisolated static let log = Log.as(LogSubsystem.PodcastsView.detail)
+  private static let log = Log.as(LogSubsystem.PodcastsView.detail)
   private static let unavailableMessage = "This podcast is no longer available."
 
   // MARK: - State
