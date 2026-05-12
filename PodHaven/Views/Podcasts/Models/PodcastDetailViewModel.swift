@@ -187,6 +187,7 @@ class PodcastDetailViewModel:
   let allSortMethods = SortMethod.allCases
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
+      guard oldValue != currentSortMethod else { return }
       episodeList.filterMethod = currentSortMethod.filterMethod
       if currentSortMethod == .recommendationScore {
         startRecommendationSort()
