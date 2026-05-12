@@ -131,7 +131,7 @@ enum EpisodeDetailState: Sendable {
   }
 
   convenience init(listedEpisode: ListedEpisode) {
-    if let unsavedPodcastEpisode = listedEpisode.unsavedPodcastEpisode {
+    if let unsavedPodcastEpisode = listedEpisode.unsaved {
       self.init(state: .unsaved(unsavedPodcastEpisode))
     } else {
       self.init(state: .initial(listedEpisode))
