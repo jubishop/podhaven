@@ -59,8 +59,7 @@ struct UserSettings: Sendable {
   // close to the podcasts you've already rated. "Exploratory" additionally
   // strips the next three principal components, which empirically encode
   // podcast *format* rather than topic, opening up topical discovery across
-  // shows you haven't engaged with yet. See
-  // `docs/research/embedding-model-alternatives.md` for the data.
+  // shows you haven't engaged with yet.
   enum RecommendationDeconeMode:
     String, Codable, DefaultsStorable, CaseIterable, Identifiable, Sendable
   {
