@@ -206,15 +206,7 @@ struct RecommendationRepo: Recommending {
 
       // covariance = outerSum/N - μ⊗μᵀ, accumulated in `outerSum` in place.
       unsafe outerSum.withUnsafeMutableBufferPointer { outerPtr in
-        var divisor = Float(count)
-        unsafe vDSP_vsdiv(
-          outerPtr.baseAddress!,
-          1,
-          &divisor,
-          outerPtr.baseAddress!,
-          1,
-          vDSP_Length(dim * dim)
-        )
+        unsafe VectorMath.divideInPlace(outerPtr, by: Float(count))
         unsafe outerScratch.withUnsafeMutableBufferPointer { scratchPtr in
           unsafe mean.withUnsafeBufferPointer { meanPtr in
             unsafe VectorMath.accumulateScaledOuterProduct(
@@ -254,9 +246,13 @@ struct RecommendationRepo: Recommending {
         unsafe vBuf.update(repeating: 0)
         unsafe vBuf[0] = 1
       }
-      unsafe covariance.withUnsafeBufferPointer { covPtr in
+      // Bail out of the PC loop when `Cov · v` is zero on the first step —
+      // that means the residual covariance has rank below the requested k
+      // and any "eigenvector" we'd record now would just be the seed.
+      let converged = unsafe covariance.withUnsafeBufferPointer { covPtr -> Bool in
         unsafe cv.withUnsafeMutableBufferPointer { cvPtr in
           unsafe v.withUnsafeMutableBufferPointer { vPtr in
+            var madeProgress = false
             for _ in 0..<50 {
               unsafe VectorMath.matrixVectorMultiply(
                 covPtr,
@@ -266,7 +262,7 @@ struct RecommendationRepo: Recommending {
               )
               let cvBuf = UnsafeBufferPointer(cvPtr)
               let norm = sqrt(unsafe VectorMath.dotProduct(cvBuf, cvBuf))
-              guard norm > 1e-12 else { return }
+              guard norm > 1e-12 else { break }
               var divisor = norm
               unsafe vDSP_vsdiv(
                 cvPtr.baseAddress!,
@@ -276,10 +272,13 @@ struct RecommendationRepo: Recommending {
                 1,
                 vDSP_Length(dim)
               )
+              madeProgress = true
             }
+            return madeProgress
           }
         }
       }
+      guard converged else { break }
       let eigenvalue = unsafe covariance.withUnsafeBufferPointer { covPtr -> Float in
         unsafe v.withUnsafeMutableBufferPointer { vPtr -> Float in
           unsafe cv.withUnsafeMutableBufferPointer { cvPtr -> Float in

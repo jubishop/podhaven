@@ -55,8 +55,6 @@ struct RecommendationEngine: Sendable {
   private static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
-  // Similarity weight is 1.0 − `UserSettings.podcastAffinityWeight`. Freshness
-  // is a multiplicative gate, not a summand (see `scoreCandidate`).
   private static let lovedWeight: Float = 1.0
   private static let likedWeight: Float = 0.6
   private static let partialWeight: Float = 0.5
@@ -371,8 +369,6 @@ struct RecommendationEngine: Sendable {
     }
   }
 
-  // Reads the user limit at fire time so a slider change mid-debounce
-  // picks up the latest value rather than the value at schedule time.
   private func scheduleRecommendationsRebuild() {
     recommendationsDebounce {
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext

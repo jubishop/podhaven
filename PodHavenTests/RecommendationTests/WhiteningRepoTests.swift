@@ -79,4 +79,21 @@ class WhiteningRepoTests {
     )
     #expect(transform == nil)
   }
+
+  // Power iteration seeds v with [1, 0, …, 0]; once deflation drives Cov to
+  // zero, the next iteration's `Cov·v` is also zero. Without explicit
+  // null-seed handling, that produced a duplicate axis-aligned "eigenvector"
+  // rather than truncating to the rank actually present.
+  @Test("rank-deficient corpus truncates PCs rather than padding with garbage")
+  func topKEigenvectorsTruncatesOnRankDeficiency() async throws {
+    for _ in 0..<8 {
+      try await seedEmbedding([1, 0, 0])
+      try await seedEmbedding([-1, 0, 0])
+    }
+
+    let transform = try #require(
+      await recommendationRepo.whiteningTransform(principalComponentCount: 2)
+    )
+    #expect(transform.principalComponents.count == 1)
+  }
 }

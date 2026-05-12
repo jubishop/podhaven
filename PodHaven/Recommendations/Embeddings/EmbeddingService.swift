@@ -71,7 +71,6 @@ enum EmbeddingService {
     let podcastsByID = try await recommendationRepo.podcasts(for: podcastIDs)
     let podcastEmbeddings = try await recommendationRepo.podcastEmbeddings(for: podcastIDs)
 
-    // Pays the cost once per show in batches with multiple episodes from it.
     var podcastVectorCache: [Podcast.ID: [Float]?] = [:]
 
     // One fsync per batch instead of one per episode.

@@ -74,8 +74,7 @@ struct UserSettings: Sendable {
 
   // Weight of the podcast-affinity term in the scoring blend; the similarity
   // term always takes the remainder (1.0 − this). 0.0 = pure content
-  // similarity; 0.5 = equal split. Default 0.1 matches the original hardcoded
-  // value before this became a user-tunable setting.
+  // similarity; 0.5 = equal split.
   @PersistedBroadcast("podcastAffinityWeight") var podcastAffinityWeight: Double = 0.1
 
   private static let log = Log.as("UserSettings")
