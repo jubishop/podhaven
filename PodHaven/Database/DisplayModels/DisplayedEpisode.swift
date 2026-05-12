@@ -19,16 +19,6 @@ struct DisplayedEpisode:
       case .unsaved(let episode): return episode
       }
     }
-
-    var saved: PodcastEpisode? {
-      guard case .saved(let episode) = self else { return nil }
-      return episode
-    }
-
-    var unsaved: UnsavedPodcastEpisode? {
-      guard case .unsaved(let episode) = self else { return nil }
-      return episode
-    }
   }
 
   @DynamicInjected(\.repo) private var repo

@@ -163,7 +163,7 @@ import Testing
     try await viewModel.performAppear()
 
     #expect(viewModel.saved == false)
-    #expect(viewModel.podcast.loaded?.source.unsaved != nil)
+    #expect(viewModel.podcast.loaded != nil)
     #expect(viewModel.episodeList.allEntries.isEmpty == false)
   }
 

@@ -26,16 +26,6 @@ struct DisplayedPodcast:
       case .unsaved(let podcast): return podcast.settings
       }
     }
-
-    var saved: Podcast? {
-      guard case .saved(let podcast) = self else { return nil }
-      return podcast
-    }
-
-    var unsaved: UnsavedPodcast? {
-      guard case .unsaved(let podcast) = self else { return nil }
-      return podcast
-    }
   }
 
   let source: Source
