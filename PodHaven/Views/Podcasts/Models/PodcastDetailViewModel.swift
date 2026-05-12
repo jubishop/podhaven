@@ -182,7 +182,16 @@ class PodcastDetailViewModel:
       }
     }
   }
-  let allSortMethods = SortMethod.allCases
+  // `.recommendationScore` needs persisted `episodeID`s to score against the
+  // engine; unsaved/initial states carry rows whose `episodeID` is nil and
+  // would silently no-op the sort, so we hide the option until the series
+  // is saved and observed.
+  var allSortMethods: [SortMethod] {
+    guard saved else {
+      return SortMethod.allCases.filter { $0 != .recommendationScore }
+    }
+    return SortMethod.allCases
+  }
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
       guard oldValue != currentSortMethod else { return }
@@ -587,7 +596,10 @@ class PodcastDetailViewModel:
     episodeList.sortMethod = { lhs, rhs in
       let lhsScore = lhs.episodeID.flatMap { valuesByID[$0] } ?? 0
       let rhsScore = rhs.episodeID.flatMap { valuesByID[$0] } ?? 0
-      return lhsScore > rhsScore
+      return RecommendationOrder.descending(
+        .init(score: lhsScore, pubDate: lhs.pubDate, mediaGUID: lhs.mediaGUID),
+        .init(score: rhsScore, pubDate: rhs.pubDate, mediaGUID: rhs.mediaGUID)
+      )
     }
   }
 

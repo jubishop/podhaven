@@ -115,7 +115,12 @@ struct RecommendationEngine: Sendable {
     guard !episodes.isEmpty else { return [:] }
     guard let context = cache() else { return [:] }
     let candidates = episodes.map {
-      CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
+      CandidateEpisode(
+        id: $0.id,
+        podcastID: $0.podcastID,
+        pubDate: $0.pubDate,
+        mediaGUID: $0.mediaGUID
+      )
     }
     let scores = try await scoreEpisodes(candidates, context: context)
     let displayMax = observedMaxScore()
@@ -178,6 +183,7 @@ struct RecommendationEngine: Sendable {
     struct ScoredCandidate {
       let id: Episode.ID
       let pubDate: Date
+      let mediaGUID: MediaGUID
       let score: RecommendationScore
     }
     let rankStart = ContinuousClock.now
@@ -187,13 +193,19 @@ struct RecommendationEngine: Sendable {
         score.value >= Self.minimumScoreThreshold
       else { continue }
       ranked.append(
-        ScoredCandidate(id: candidate.id, pubDate: candidate.pubDate, score: score)
+        ScoredCandidate(
+          id: candidate.id,
+          pubDate: candidate.pubDate,
+          mediaGUID: candidate.mediaGUID,
+          score: score
+        )
       )
     }
     ranked.sort { a, b in
-      if a.score.value != b.score.value { return a.score.value > b.score.value }
-      if a.pubDate != b.pubDate { return a.pubDate > b.pubDate }
-      return a.id > b.id
+      RecommendationOrder.descending(
+        .init(score: a.score.value, pubDate: a.pubDate, mediaGUID: a.mediaGUID),
+        .init(score: b.score.value, pubDate: b.pubDate, mediaGUID: b.mediaGUID)
+      )
     }
     let rankDuration = ContinuousClock.now - rankStart
     Self.log.debug(

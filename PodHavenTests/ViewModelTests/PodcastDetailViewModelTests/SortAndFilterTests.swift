@@ -175,6 +175,28 @@ import Testing
     )
   }
 
+  @Test("recommendationScore is hidden from the sort menu for unsaved podcasts")
+  func recommendationScoreHiddenForUnsavedPodcasts() async throws {
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved Preview"),
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(guid: "a", title: "A"),
+        try Create.unsavedEpisode(guid: "b", title: "B"),
+      ]
+    )
+    let unsavedViewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    #expect(!unsavedViewModel.allSortMethods.contains(.recommendationScore))
+
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Saved Detail"),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "x", title: "X")]
+      )
+    )
+    let savedViewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    #expect(savedViewModel.allSortMethods.contains(.recommendationScore))
+  }
+
   @Test("recommendationScore sort reorders episodes by score descending")
   func recommendationScoreSortReordersByScore() async throws {
     // Signal podcast supplies enough rated embeddings to lift the engine over
