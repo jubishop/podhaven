@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import AVFoundation
+import Accelerate
 import FactoryKit
 import Foundation
 import GRDB
@@ -16,6 +17,21 @@ import Logging
 struct RecommendationScore: Sendable {
   let value: Float
   let reasons: [RecommendationReason]
+
+  // Stretch the [0.5, max] segment onto [0.5, 1.0] so the top observed
+  // candidate displays as 100% while preserving "below 50% = below baseline."
+  // The neutral midpoint stays at 50% so a UI threshold like "show 'For You'
+  // when score >= 50%" keeps its meaning across rebuilds; only above-baseline
+  // scores get re-anchored against the latest pool. Pass-through when `max`
+  // doesn't beat the baseline (degenerate cold-start corpus).
+  func rescaledForDisplay(max: Float) -> RecommendationScore {
+    guard value > 0.5, max > 0.5 else { return self }
+    let stretched = (value - 0.5) * 0.5 / (max - 0.5)
+    return RecommendationScore(
+      value: Swift.min(1.0, 0.5 + stretched),
+      reasons: reasons
+    )
+  }
 }
 
 // `topRecommendations` publishes ranked IDs paired with their scores;
@@ -78,6 +94,31 @@ struct RecommendationEngine: Sendable {
   private let recommendationsDebounce = Debounce(duration: .milliseconds(400))
   private let startOnce = Once()
 
+  // Display-rescaling anchor: max raw score from the most recent
+  // `topRecommendations` rebuild, which scans the full candidate pool.
+  // `recommendations(for:)` reads it but never writes — an arbitrary subset
+  // would set an artificially low max and inflate every other surface.
+  // Stays at 1.0 until the first rebuild so cold-start callers see un-rescaled
+  // scores instead of a misleading 100% on whatever lands first.
+  private let observedMaxScore = ThreadSafe<Float>(1.0)
+
+  // Whitening mean is recomputed only when one of these signals fires; in
+  // steady state cache rebuilds reuse the cached vector and skip the full
+  // 188 MB scan. Counts that stay inside [shrink, growth] map to drift well
+  // below 1% in display-rounded scores (see whiteningMean cache logic).
+  private static let whiteningCountGrowthMax: Float = 1.25
+  private static let whiteningCountShrinkMin: Float = 0.8
+
+  // Cached whitening mean keyed on (model revision, recipe version, count).
+  // Revision changes mean the vectors live in a different space; recipe
+  // version changes mean every vector got re-written in place; count moving
+  // outside [shrink, growth] means the corpus turned over enough to matter.
+  // Anything else (new ratings, partial-listen ticks, routine feed adds)
+  // leaves the cached mean valid.
+  private let cachedWhiteningMean = ThreadSafe<
+    (mean: [Float], revision: Int, recipeVersion: Int, count: Int)?
+  >(nil)
+
   // Bumps once per cache rebuild — whether the rebuild produced a hot,
   // cold, or refreshed-with-new-signals context. Subscribers (e.g. detail
   // views holding a per-episode score) watch `$contextRevision.stream()`
@@ -116,7 +157,9 @@ struct RecommendationEngine: Sendable {
     let candidates = episodes.map {
       CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
     }
-    return try await scoreEpisodes(candidates, context: context)
+    let scores = try await scoreEpisodes(candidates, context: context)
+    let displayMax = observedMaxScore()
+    return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
   }
 
   // Single-episode convenience over `recommendations(for:)` for callers
@@ -170,6 +213,13 @@ struct RecommendationEngine: Sendable {
       return []
     }
 
+    // Anchor display rescaling to the full pool's max so an episode shown in
+    // both upNext and a detail view matches. Computed before the threshold
+    // filter so a wholesale low-similarity corpus doesn't pin the anchor at
+    // exactly the threshold value.
+    let batchMax = scores.values.map(\.value).max() ?? 1.0
+    observedMaxScore(batchMax)
+
     // Sort by score (then pubDate, then id) on the lightweight Episode
     // tuples. Hydration of the listable display rows happens at the
     // consumer; the engine only ranks.
@@ -204,7 +254,7 @@ struct RecommendationEngine: Sendable {
     let topRanked = ranked.prefix(limit)
     var top = [RankedRecommendation](capacity: topRanked.count)
     for entry in topRanked {
-      top.append((id: entry.id, score: entry.score))
+      top.append((id: entry.id, score: entry.score.rescaledForDisplay(max: batchMax)))
     }
 
     let totalDuration = ContinuousClock.now - totalStart
@@ -221,12 +271,15 @@ struct RecommendationEngine: Sendable {
 
   // The output of one centroid+affinity build, reused across every
   // `recommendations(for:)` / `topRecommendations()` call until the
-  // observation emits a new `ScoringContextInputs`.
+  // observation emits a new `ScoringContextInputs`. `whiteningMean` is the
+  // corpus-wide cone center carried alongside the centroids so candidate
+  // scoring whitens against the same anchor the centroids were built from.
   private struct ScoringContext: Sendable {
     let positiveCentroid: [Float]
     let negativeCentroid: [Float]?
     let podcastAffinities: [Podcast.ID: Float]
     let freshnessCadences: [Podcast.ID: FreshnessCadence]
+    let whiteningMean: [Float]?
   }
 
   // Both triggers funnel through `cacheDebounce` so RefreshManager bulk
@@ -311,17 +364,22 @@ struct RecommendationEngine: Sendable {
       do {
         let inputsStart = ContinuousClock.now
         let inputs = try await recommendationRepo.allScoringContextInputs()
+        let whiteningMean = try await currentWhiteningMean(
+          embeddingCount: inputs.embeddingCount,
+          currentRevision: Container.shared.contextualEmbedding().revision
+        )
         let inputsDuration = ContinuousClock.now - inputsStart
         Self.log.debug(
           """
           perf: allScoringContextInputs took \(inputsDuration) — \
           rated=\(inputs.ratedSignals.count) partial=\(inputs.partialSignals.count) \
-          embeddings=\(inputs.signalEmbeddings.count) cadences=\(inputs.freshnessCadences.count)
+          embeddings=\(inputs.signalEmbeddings.count) cadences=\(inputs.freshnessCadences.count) \
+          whiteningMean=\(whiteningMean == nil ? "nil" : "ready")
           """
         )
 
         let buildStart = ContinuousClock.now
-        let context = Self.buildContext(from: inputs)
+        let context = Self.buildContext(from: inputs, whiteningMean: whiteningMean)
         let buildDuration = ContinuousClock.now - buildStart
         Self.log.debug(
           "perf: buildContext took \(buildDuration) — context=\(context == nil ? "nil" : "ready")"
@@ -360,7 +418,10 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Build Context
 
-  private static func buildContext(from inputs: ScoringContextInputs) -> ScoringContext? {
+  private static func buildContext(
+    from inputs: ScoringContextInputs,
+    whiteningMean: [Float]?
+  ) -> ScoringContext? {
     let totalSignalCount = inputs.ratedSignals.count + inputs.partialSignals.count
     guard totalSignalCount >= minimumDataThreshold else {
       log.debug(
@@ -380,7 +441,8 @@ struct RecommendationEngine: Sendable {
     let (positive, negative) = buildCentroids(
       ratedSignals: inputs.ratedSignals,
       partialSignals: inputs.partialSignals,
-      embeddings: inputs.signalEmbeddings
+      embeddings: inputs.signalEmbeddings,
+      whiteningMean: whiteningMean
     )
     guard let positiveCentroid = positive else {
       log.debug("No positive centroid (no signal embeddings available), cached context cleared")
@@ -394,7 +456,8 @@ struct RecommendationEngine: Sendable {
         ratedSignals: inputs.ratedSignals,
         partialSignals: inputs.partialSignals
       ),
-      freshnessCadences: inputs.freshnessCadences
+      freshnessCadences: inputs.freshnessCadences,
+      whiteningMean: whiteningMean
     )
   }
 
@@ -429,6 +492,7 @@ struct RecommendationEngine: Sendable {
         podcastAffinities: context.podcastAffinities,
         freshnessCadence: context.freshnessCadences[candidate.podcastID]
           ?? FreshnessCadence.default,
+        whiteningMean: context.whiteningMean,
         now: now
       )
     }
@@ -444,7 +508,8 @@ struct RecommendationEngine: Sendable {
   private static func buildCentroids(
     ratedSignals: [SignalEpisode],
     partialSignals: [PartialSignal],
-    embeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>
+    embeddings: IdentifiedArray<Episode.ID, EpisodeEmbedding>,
+    whiteningMean: [Float]?
   ) -> (positive: [Float]?, negative: [Float]?) {
     let now = Date()
     let capacity = ratedSignals.count + partialSignals.count
@@ -453,7 +518,7 @@ struct RecommendationEngine: Sendable {
 
     for signal in ratedSignals {
       guard let cached = embeddings[id: signal.id] else { continue }
-      let vector = cached.floatVector
+      let vector = whiten(cached.floatVector, mean: whiteningMean)
       let decay = temporalDecay(from: signal.ratingDate, now: now)
 
       switch signal.rating {
@@ -475,7 +540,7 @@ struct RecommendationEngine: Sendable {
       let weight =
         partialWeight * Float(partial.coverageRatio)
         * temporalDecay(from: partial.lastPlayedDate, now: now)
-      positiveVectors.append((cached.floatVector, weight))
+      positiveVectors.append((whiten(cached.floatVector, mean: whiteningMean), weight))
     }
 
     let positive = computeWeightedCentroid(positiveVectors)
@@ -493,15 +558,17 @@ struct RecommendationEngine: Sendable {
     negativeCentroid: [Float]?,
     podcastAffinities: [Podcast.ID: Float],
     freshnessCadence: FreshnessCadence,
+    whiteningMean: [Float]?,
     now: Date
   ) -> RecommendationScore {
     // Missing embedding → neutral 0.5; dropping the feature would let
     // renormalization promote affinity to weight 1.0 and overrank the candidate.
     let similarityValue: Float
     if let embedding {
-      var similarity = VectorMath.dotProduct(embedding.floatVector, positiveCentroid)
+      let vector = Self.whiten(embedding.floatVector, mean: whiteningMean)
+      var similarity = VectorMath.dotProduct(vector, positiveCentroid)
       if let negativeCentroid {
-        similarity -= VectorMath.dotProduct(embedding.floatVector, negativeCentroid)
+        similarity -= VectorMath.dotProduct(vector, negativeCentroid)
       }
       // Remap from [-2, 2] to [0, 1]
       similarityValue = (similarity + 2.0) / 4.0
@@ -591,6 +658,60 @@ struct RecommendationEngine: Sendable {
     guard daysSince > 0 else { return 1.0 }
     // Half-life decay: weight = 0.5^(days / halfLife)
     return Float(pow(0.5, daysSince / decayHalfLifeDays))
+  }
+
+  // MARK: - Whitening
+
+  // Returns the current whitening mean, recomputing only when the cached one
+  // is stale per `cachedWhiteningMean`'s key. The fast path is a single
+  // `ThreadSafe` read; the slow path scans every embedding. See the cache
+  // declaration for which signals invalidate.
+  private func currentWhiteningMean(
+    embeddingCount: Int,
+    currentRevision: Int
+  ) async throws -> [Float]? {
+    let currentRecipeVersion = EmbeddingService.recipeVersion
+    if let cached = cachedWhiteningMean(),
+      cached.revision == currentRevision,
+      cached.recipeVersion == currentRecipeVersion,
+      cached.count > 0
+    {
+      let ratio = Float(embeddingCount) / Float(cached.count)
+      if ratio >= Self.whiteningCountShrinkMin, ratio <= Self.whiteningCountGrowthMax {
+        return cached.mean
+      }
+    }
+
+    let computeStart = ContinuousClock.now
+    guard let fresh = try await recommendationRepo.whiteningMean() else { return nil }
+    Self.log.debug(
+      """
+      perf: whiteningMean recomputed in \(ContinuousClock.now - computeStart) \
+      (count=\(embeddingCount), revision=\(currentRevision), \
+      recipeVersion=\(currentRecipeVersion))
+      """
+    )
+    cachedWhiteningMean(
+      (
+        mean: fresh,
+        revision: currentRevision,
+        recipeVersion: currentRecipeVersion,
+        count: embeddingCount
+      )
+    )
+    return fresh
+  }
+
+  // Center against the corpus mean and re-normalize, restoring cosine
+  // similarity's dynamic range. NLContextualEmbedding packs all English text
+  // into a narrow ~[0.85, 0.99] cone around `mean`; without centering, the
+  // [-2, 2] → [0, 1] remap below squashes every candidate into ~[0.50, 0.55].
+  // Pass-through when `mean` is nil (cold start before any embedding has been
+  // computed) so the engine degrades gracefully instead of refusing to score.
+  private static func whiten(_ vector: [Float], mean: [Float]?) -> [Float] {
+    guard let mean, mean.count == vector.count else { return vector }
+    let centered = vDSP.subtract(vector, mean)
+    return VectorMath.normalize(centered)
   }
 
   // MARK: - Centroid Math

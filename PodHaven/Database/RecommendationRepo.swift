@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import Accelerate
 import FactoryKit
 import Foundation
 import GRDB
@@ -150,6 +151,30 @@ struct RecommendationRepo: Recommending {
         request = request.filter(Episode.Columns.id != excludedID)
       }
       return try request.fetchAll(db)
+    }
+  }
+
+  // Mean of every stored episode embedding — the "cone center" that the engine
+  // subtracts from each vector before scoring. NLContextualEmbedding packs all
+  // English text into a narrow cone around this mean, so raw cosine similarity
+  // sits in a tiny ~[0.85, 0.99] band; centering against this mean restores the
+  // dynamic range that the scoring formula assumes. Streamed via fetchCursor to
+  // keep peak memory at one row regardless of corpus size.
+  func whiteningMean() async throws -> [Float]? {
+    try await appDB.db.read { db in
+      let cursor = try EpisodeEmbedding.fetchCursor(db)
+      var sum: [Float] = []
+      var count = 0
+      while let embedding = try cursor.next() {
+        let vec = embedding.floatVector
+        if sum.isEmpty {
+          sum = [Float](repeating: 0, count: vec.count)
+        }
+        sum = vDSP.add(sum, vec)
+        count += 1
+      }
+      guard count > 0 else { return nil }
+      return vDSP.divide(sum, Float(count))
     }
   }
 

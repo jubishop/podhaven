@@ -11,8 +11,11 @@ enum EmbeddingService {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
   // Bump when any recipe knob below changes (weights, blend, cleanText rules).
-  // Folded into source hashes so cached vectors invalidate on tuning.
-  private static let recipeVersion = 2
+  // Folded into source hashes so cached vectors invalidate on tuning. Read by
+  // RecommendationEngine as a cache key for the whitening mean — a recipe bump
+  // re-writes every vector in place without changing count or model revision,
+  // so it's the only signal that says "the existing mean is stale."
+  static let recipeVersion = 2
 
   // Title gets more weight than description to avoid boilerplate dominance
   private static let titleWeight: Float = 0.6

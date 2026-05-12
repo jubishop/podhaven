@@ -45,6 +45,11 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     return try await recommendationRepo.allScoringContextInputs()
   }
 
+  func whiteningMean() async throws -> [Float]? {
+    recordCall(methodName: "whiteningMean", parameters: ())
+    return try await recommendationRepo.whiteningMean()
+  }
+
   // MARK: - Embedding Writers
 
   func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {

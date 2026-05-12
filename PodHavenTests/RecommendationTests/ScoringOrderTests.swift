@@ -79,13 +79,26 @@ class ScoringOrderTests {
 
   @Test("unembedded candidate doesn't outscore an embedded peer on the same podcast")
   func unembeddedCandidateDoesNotOutscoreEmbedded() async throws {
-    // Embedded candidate's description tilts off the centroid axis just
-    // enough that its similarity barely clears 0.5; under the old behavior
-    // the unembedded sibling's pure-affinity score would outrank it.
+    // Whitening centers every vector against the corpus mean, so a single
+    // outlier among four total vectors lands anti-aligned with the cluster
+    // it differs from. Filler episodes (rated notInterested so they don't
+    // enter centroids and aren't candidates) stabilize the mean so the
+    // signal direction is meaningful, and the embedded candidate's vector
+    // aligns with that direction. Same podcast → identical affinity; future
+    // pubDates → freshness 1.0, so similarity drives the score difference.
     let embeddable = ScriptedEmbeddable { text in
-      if text.contains("Embedded Candidate") { return [0, 1, 0] }
-      return [1, 0, 0]
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Loved") || text.contains("Embedded Candidate") { return [1, 0, 0] }
+      return [0, 0, 1]
     }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
 
     let (lovedPodcast, signals) =
       try await RecommendationHelpers
@@ -98,8 +111,6 @@ class ScoringOrderTests {
       )
     try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
 
-    // Same podcast → identical affinity; future pubDates → freshness 1.0,
-    // so the only thing left to drive score difference is the embedding.
     let candidates = try await RecommendationHelpers.addEpisodes(
       to: lovedPodcast,
       count: 2,
