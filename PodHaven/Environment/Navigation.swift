@@ -303,12 +303,18 @@ extension Container {
 
     // Universal destinations
     case .episode(let episode, let startTime):
+      // Composite identity: re-opening the same episode with a different startTime
+      // must produce a fresh view instance so the auto-play seek triggers anew.
       EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: episode, startTime: startTime))
         .id("\(episode.id)-\(startTime ?? 0)")
     case .podcast(let podcast):
       PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
         .id(podcast.id)
     case .listedPodcast(let listedPodcast):
+      // Slot identity (not canonical): a search-result row can resolve to a saved
+      // podcast whose feedURL differs from the search-row URL. Using slotID keeps
+      // the same view instance across that transition; using canonical id would
+      // tear down + recreate the view mid-flow. See ListedPodcast.slotID.
       PodcastDetailView(viewModel: PodcastDetailViewModel(listedPodcast: listedPodcast))
         .id(listedPodcast.slotID)
     case .listedEpisode(let listedEpisode):
