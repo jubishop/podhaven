@@ -19,7 +19,7 @@ import Tagged
 //   unsaved-source displayed/listed episode or a saved episode that was
 //   reverted after observation reported deletion.
 // - `.saved`: a fully-saved episode under live observation.
-enum EpisodeDetailState: Sendable {
+enum EpisodeDetailState: Sendable, Stringable {
   case initial(ListedEpisode)
   case unsaved(UnsavedPodcastEpisode)
   case saved(PodcastEpisode)
@@ -145,7 +145,7 @@ enum EpisodeDetailState: Sendable {
       Self.log.debug("Podcast episode: \(podcastEpisode.toString) exists in db")
 
       transition(to: .saved(podcastEpisode))
-      startObservation()
+      startObservation(podcastEpisode)
       startRecommendationObservation()
     } else {
       Self.log.debug("Podcast episode: \(state.toString) does not exist in db")
@@ -314,14 +314,9 @@ enum EpisodeDetailState: Sendable {
 
   // MARK: - Observation Management
 
-  @ObservationIgnored private var observationTask: Task<Void, Never>?
+  @ObservationIgnored var observationTask: Task<Void, Never>?
 
-  private func startObservation() {
-    guard let podcastEpisode = state.savedPodcastEpisode else {
-      Self.log.warning("startObservation: skipped, state is \(state.toString)")
-      return
-    }
-
+  private func startObservation(_ podcastEpisode: PodcastEpisode) {
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
       return
@@ -357,6 +352,14 @@ enum EpisodeDetailState: Sendable {
         guard let updated
         else {
           Self.log.debug("Episode was deleted")
+          // Post-deletion strategy: synthesize an `UnsavedPodcastEpisode`
+          // from the just-cached `PodcastEpisode` we were observing. This
+          // diverges from `PodcastDetailViewModel`, which re-parses the
+          // feed via `loadPresentationFromFeed()`: podcasts have a per-feed
+          // RSS endpoint we can fall back to, but episodes don't — the
+          // cached row is the only thing available locally. The trade-off
+          // is instant fallback at the cost of potentially-stale fields
+          // until the next observation cycle.
           let deletedAsUnsaved: UnsavedPodcastEpisode
           do {
             deletedAsUnsaved = try podcastEpisode.toOriginalUnsavedPodcastEpisode()
@@ -374,12 +377,17 @@ enum EpisodeDetailState: Sendable {
           return
         }
 
-        if updated.podcastEpisode != state.savedPodcastEpisode {
-          transition(to: .saved(updated.podcastEpisode))
-        }
         if tags != updated.tags {
           tags = updated.tags
         }
+
+        guard updated.podcastEpisode != state.savedPodcastEpisode
+        else {
+          Self.log.debug("Observed episode unchanged; skipping transition")
+          continue
+        }
+
+        transition(to: .saved(updated.podcastEpisode))
       }
     } catch {
       Self.log.caughtError(
@@ -387,11 +395,6 @@ enum EpisodeDetailState: Sendable {
         error
       )
     }
-  }
-
-  private func clearObservationTask() {
-    observationTask?.cancel()
-    observationTask = nil
   }
 
   // MARK: - Recommendation Observation
@@ -450,7 +453,7 @@ enum EpisodeDetailState: Sendable {
   // MARK: - Private Helpers
 
   private func transition(to newState: EpisodeDetailState) {
-    Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
+    logStateTransition(to: newState)
     state = newState
   }
 
@@ -471,7 +474,7 @@ enum EpisodeDetailState: Sendable {
       podcastEpisode = try await listedEpisode.getOrCreatePodcastEpisode()
     }
     transition(to: .saved(podcastEpisode))
-    startObservation()
+    startObservation(podcastEpisode)
     startRecommendationObservation()
     return podcastEpisode
   }
