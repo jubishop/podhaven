@@ -4,8 +4,9 @@ import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
+import OrderedCollections
 
-@MainActor protocol SelectableEpisodeList: AnyObject {
+@MainActor protocol SelectableEpisodeList: SelectableList, AnyObject where Item == EpisodeType {
   associatedtype EpisodeType: EpisodeListable & Searchable
 
   var episodeList: PowerList<EpisodeType> { get }
@@ -53,9 +54,21 @@ extension SelectableEpisodeList {
 
   nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
+  // MARK: - SelectableList
+
+  var isSelecting: Bool { episodeList.isSelecting }
+  func setSelecting(_ value: Bool) { episodeList.setSelecting(value) }
+  var isSelected: BindableDictionary<EpisodeType.ID, Bool> { episodeList.isSelected }
+  var anySelected: Bool { episodeList.anySelected }
+  var anyNotSelected: Bool { episodeList.anyNotSelected }
+  var selectedEntries: IdentifiedArrayOf<EpisodeType> { episodeList.selectedEntries }
+  var selectedEntryIDs: [EpisodeType.ID] { selectedEntries.ids.elements }
+  func selectAllEntries() { episodeList.selectAllEntries() }
+  func unselectAllEntries() { episodeList.unselectAllEntries() }
+
   // MARK: - Selection Getters
 
-  var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
+  var selectedEpisodes: [EpisodeType] { selectedEntries.elements }
   var selectedSavedEpisodeIDs: [Episode.ID] {
     selectedEpisodes.compactMap(\.episodeID)
   }
@@ -183,17 +196,17 @@ extension SelectableEpisodeList {
   }
 
   func dequeueSelectedEpisodes() {
-    let savedEpisodeIDs = selectedSavedEpisodeIDs
-    guard !savedEpisodeIDs.isEmpty else { return }
+    let queuedSavedEpisodeIDs = selectedEpisodes.filter(\.queued).compactMap(\.episodeID)
+    guard !queuedSavedEpisodeIDs.isEmpty else { return }
 
     Task { [weak self] in
       guard let self else { return }
 
       do {
-        try await queue.dequeue(savedEpisodeIDs)
+        try await queue.dequeue(queuedSavedEpisodeIDs)
       } catch {
         Self.log.caughtError(
-          "dequeueSelectedEpisodes: failed to dequeue \(savedEpisodeIDs.count) episodes",
+          "dequeueSelectedEpisodes: failed to dequeue \(queuedSavedEpisodeIDs.count) episodes",
           error
         )
       }

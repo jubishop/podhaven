@@ -8,7 +8,7 @@ import SwiftUI
 func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingEpisodes>(
   viewModel: ViewModel
 ) -> some ToolbarContent {
-  if viewModel.episodeList.isSelecting, viewModel.episodeList.anySelected {
+  if viewModel.isSelecting, viewModel.anySelected {
     ToolbarItem(placement: .primaryAction) {
       Menu(
         content: {
@@ -115,7 +115,7 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingE
   }
 
   ToolbarItem(placement: .primaryAction) {
-    SelectableListMenu(list: viewModel.episodeList)
+    SelectableListMenu(list: viewModel)
   }
 }
 

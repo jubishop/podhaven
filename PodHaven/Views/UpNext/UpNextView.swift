@@ -28,10 +28,10 @@ struct UpNextView: View {
         }
         .onMove(perform: viewModel.moveEpisode)
 
-        if !viewModel.recommendedEpisodes.isEmpty, !viewModel.episodeList.isSelecting {
+        if !viewModel.recommendedEpisodes.isEmpty {
           Section("Recommended") {
             ForEach(viewModel.recommendedEpisodes) { recommendedEpisode in
-              upNextListView(recommendedEpisode, selectable: false)
+              upNextListView(recommendedEpisode)
                 .listRow()
                 .episodeSwipeActions(viewModel: viewModel, episode: recommendedEpisode)
                 .episodeContextMenu(viewModel: viewModel, episode: recommendedEpisode)
@@ -98,20 +98,16 @@ struct UpNextView: View {
   // MARK: - Episode List
 
   @ViewBuilder
-  func upNextListView(
-    _ podcastEpisode: ListablePodcastEpisode,
-    selectable: Bool = true
-  ) -> some View {
+  func upNextListView(_ podcastEpisode: ListablePodcastEpisode) -> some View {
     let episodeListView = EpisodeListView(
       episode: podcastEpisode,
       alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageInUpNext,
-      isSelecting: selectable && viewModel.episodeList.isSelecting,
-      isSelected: selectable
-        ? $viewModel.episodeList.isSelected[podcastEpisode.id] : .constant(false)
+      isSelecting: viewModel.episodeList.isSelecting,
+      isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
     )
     .listRowSeparator()
 
-    if selectable && viewModel.episodeList.isSelecting {
+    if viewModel.episodeList.isSelecting {
       episodeListView
     } else {
       NavigationLink(

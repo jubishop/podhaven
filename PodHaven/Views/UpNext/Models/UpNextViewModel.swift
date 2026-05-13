@@ -32,6 +32,45 @@ import SwiftUI
   var episodeList = PowerList<ListablePodcastEpisode>()
   private(set) var recommendedEpisodes: IdentifiedArrayOf<ListablePodcastEpisode> = []
 
+  // MARK: - SelectableList
+
+  // Recommendation candidates exclude queued episodes, but there's a brief
+  // window after queueing where the engine hasn't re-ranked, so the same id
+  // can appear in both lists. Dedupe so callers like replaceQueueWithSelected
+  // don't double-process the same id (which would leave queueOrder=0 empty).
+  var selectedEntries: IdentifiedArrayOf<ListablePodcastEpisode> {
+    var result = episodeList.selectedEntries
+    for rec in recommendedEpisodes
+    where episodeList.isSelected[rec.id] && !result.ids.contains(rec.id) {
+      result.append(rec)
+    }
+    return result
+  }
+
+  var anySelected: Bool {
+    episodeList.anySelected || recommendedEpisodes.contains { episodeList.isSelected[$0.id] }
+  }
+
+  var anyNotSelected: Bool {
+    episodeList.anyNotSelected || recommendedEpisodes.contains { !episodeList.isSelected[$0.id] }
+  }
+
+  func selectAllEntries() {
+    episodeList.selectAllEntries()
+    for recommendedEpisode in recommendedEpisodes {
+      episodeList.isSelected[recommendedEpisode.id] = true
+    }
+  }
+
+  func unselectAllEntries() {
+    episodeList.unselectAllEntries()
+    for recommendedEpisode in recommendedEpisodes {
+      episodeList.isSelected[recommendedEpisode.id] = false
+    }
+  }
+
+  // MARK: - SortableEpisodeList
+
   enum SortMethod: SortingMethod {
     case newestFirst
     case oldestFirst
@@ -269,24 +308,6 @@ import SwiftUI
         try await queue.updateQueueOrders(sortedEpisodes.map(\.id))
       } catch {
         Self.log.caughtError("sort: failed to sort queue by \(method)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
-  // MARK: - Selected Item Actions
-
-  func removeSelectedFromQueue() {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await queue.dequeue(episodeList.selectedEntryIDs)
-      } catch {
-        Self.log.caughtError(
-          "removeSelectedFromQueue: failed to dequeue \(episodeList.selectedEntryIDs.count) episodes",
-          error
-        )
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
