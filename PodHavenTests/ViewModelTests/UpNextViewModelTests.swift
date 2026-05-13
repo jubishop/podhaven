@@ -15,8 +15,6 @@ import Testing
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
 
-  private var fakeQueue: FakeQueue { queue as! FakeQueue }
-
   @Test("recommended row hydration refreshes when cachedFilename updates")
   func recommendedHydrationRefreshesOnCacheChange() async throws {
     let series = try await repo.insertSeries(
@@ -482,6 +480,7 @@ import Testing
     // Pinpoint the regression: pre-fix code passed every saved selected ID
     // to queue.dequeue (including the recommendation). Assert directly that
     // only the queued ID reaches the queue so the test fails on the old path.
+    let fakeQueue = try #require(queue as? FakeQueue)
     let dequeueCall = try fakeQueue.expectCall(
       methodName: "dequeue",
       parameters: [Episode.ID].self
@@ -548,10 +547,11 @@ import Testing
 
   private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
     try await repo.db.read { db in
-      try Episode.withID(episodeID)
+      let episode = try Episode.withID(episodeID)
         .including(required: Episode.podcast)
         .asRequest(of: ListablePodcastEpisode.self)
-        .fetchOne(db)!
+        .fetchOne(db)
+      return try #require(episode)
     }
   }
 }

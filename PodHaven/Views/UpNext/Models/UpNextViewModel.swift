@@ -305,5 +305,4 @@ import SwiftUI
       }
     }
   }
-
 }
