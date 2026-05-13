@@ -79,6 +79,7 @@ actor DownloadTask: Identifiable {
       try await session.validatedData(from: url)
     }
     self.fetchTask = fetchTask
+    defer { self.fetchTask = nil }
 
     do {
       let data = try await fetchTask.value
