@@ -135,11 +135,10 @@ struct RecommendationEngine: Sendable {
     return try await recommendations(for: [episode])[episodeID]
   }
 
-  // Pure-similarity scoring for caller-supplied embeddings — no podcast
-  // affinity, no freshness, no DB lookup. Detail surfaces use this for
-  // unsaved candidates whose embedding was computed in-memory and never
-  // persisted. Returns nil if the cache is cold so callers fall back to
-  // hiding the section instead of rendering a meaningless score.
+  // Pure-similarity scoring for a caller-supplied embedding — no podcast
+  // affinity, no freshness, no DB lookup. Returns nil if the cache is
+  // cold so callers can hide the section instead of rendering a
+  // meaningless score.
   func similarityScore(forEmbedding embedding: [Float]) -> RecommendationScore? {
     guard let context = cache() else { return nil }
     guard embedding.count == context.positiveCentroid.count else { return nil }

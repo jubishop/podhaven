@@ -160,10 +160,9 @@ enum EmbeddingService {
 
   // MARK: - Unsaved Embedding
 
-  // Computes the saved-side episode embedding recipe against unsaved title /
-  // description text — no DB reads, no DB writes. Lets episode-detail
-  // surfaces score unsaved candidates against the same centroid the saved
-  // path uses without first materializing rows.
+  // Runs the saved-side episode embedding recipe against unsaved title /
+  // description text — no DB reads, no DB writes. Yields the same vector
+  // the saved path would produce if the row were persisted.
   static func embeddingVector(
     for unsavedPodcastEpisode: UnsavedPodcastEpisode,
     embedding: ContextualEmbedding

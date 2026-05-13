@@ -46,19 +46,6 @@ enum EpisodeDetailState: Sendable, Stringable {
     }
   }
 
-  // Coalesces the three state cases into the three branches the
-  // recommendation pipeline cares about. Live `.saved` → `.saved` updates
-  // keep the same kind, so transition() can skip a re-score when the
-  // observed PodcastEpisode just shifted fields under us.
-  fileprivate enum RecommendationKind { case initial, unsaved, saved }
-  fileprivate var recommendationKind: RecommendationKind {
-    switch self {
-    case .initial: .initial
-    case .unsaved: .unsaved
-    case .saved: .saved
-    }
-  }
-
   var toString: String {
     switch self {
     case .initial(let listed): return "initial(\(listed.toString))"
@@ -457,20 +444,29 @@ enum EpisodeDetailDisplayedScore: Sendable {
     case .initial:
       internalScore = nil
     case .saved(let podcastEpisode):
-      do {
-        if let score = try await recommendationEngine.recommendation(for: podcastEpisode.id) {
-          internalScore = .recommendation(score)
-        } else {
-          internalScore = nil
-        }
-      } catch {
-        Self.log.caughtError(
-          "fetchRecommendation: saved scorer failed for \(podcastEpisode.toString)",
-          error
-        )
-      }
+      internalScore = await scoreSavedEpisode(podcastEpisode)
     case .unsaved(let unsavedPodcastEpisode):
       internalScore = await scoreUnsavedEpisode(unsavedPodcastEpisode)
+    }
+  }
+
+  // Ask the engine for the full recommendation (similarity + podcast
+  // affinity + freshness, with reason pills). Returns nil if the episode
+  // doesn't have a score yet — the engine's cache is cold or the row
+  // isn't in the scoring set.
+  private func scoreSavedEpisode(
+    _ podcastEpisode: PodcastEpisode
+  ) async -> EpisodeDetailDisplayedScore? {
+    do {
+      guard let score = try await recommendationEngine.recommendation(for: podcastEpisode.id)
+      else { return nil }
+      return .recommendation(score)
+    } catch {
+      Self.log.caughtError(
+        "fetchRecommendation: saved scorer failed for \(podcastEpisode.toString)",
+        error
+      )
+      return nil
     }
   }
 
@@ -531,11 +527,17 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   // MARK: - Private Helpers
 
+  // `.saved` → `.saved` updates keep the same kind, so a re-score is only
+  // needed when the case itself changes.
   private func transition(to newState: EpisodeDetailState) {
-    let kindChanged = state.recommendationKind != newState.recommendationKind
+    let recommendationKindChanged: Bool =
+      switch (state, newState) {
+      case (.initial, .initial), (.unsaved, .unsaved), (.saved, .saved): false
+      default: true
+      }
     logStateTransition(to: newState)
     state = newState
-    if kindChanged {
+    if recommendationKindChanged {
       scheduleRecommendationRefresh()
     }
   }

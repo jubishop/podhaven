@@ -569,7 +569,12 @@ private struct SystemImageName:
         color: .orange
       )
     case .similarityScore:
-      return Data(text: "Similarity score", systemImageName: .recommendation, color: .yellow)
+      return Data(
+        text: "Similarity score",
+        systemImageName: .recommendation,
+        darkColor: .yellow,
+        lightColor: .orange
+      )
     case .tag:
       return Data(text: "Tag", systemImageName: .tag, color: .secondary)
     case .updated:
