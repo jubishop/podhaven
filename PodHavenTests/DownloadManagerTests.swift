@@ -642,6 +642,51 @@ struct DownloadManagerTests {
     )
   }
 
+  @Test("that cancelAllDownloads() cancels pending downloads without starting them")
+  func cancelAllDownloadsCancelsPendingDownloadsWithoutStartingThem() async throws {
+    let maxConcurrentDownloads = 20
+    let downloadManager = DownloadManager(
+      session: session,
+      maxConcurrentDownloads: maxConcurrentDownloads
+    )
+
+    let activeURLs = (0..<maxConcurrentDownloads)
+      .map { index in
+        URL(string: "https://example.com/active-\(index)")!
+      }
+    let activeTasks = await activeURLs.asyncMap { url in
+      _ = await session.waitRespond(to: url)
+      return await downloadManager.addURL(url)
+    }
+    for activeTask in activeTasks {
+      await activeTask.downloadBegan()
+    }
+
+    let pendingURL = URL.valid()
+    let pendingTask = await downloadManager.addURL(pendingURL)
+    #expect(await downloadManager.hasURL(pendingURL))
+    #expect(!(await session.requests.contains(pendingURL)))
+
+    let cancellationTask = Task(priority: .background) {
+      await downloadManager.cancelAllDownloads()
+    }
+    await cancellationTask.value
+
+    for activeTask in activeTasks {
+      await #expect(throws: CancellationError.self) {
+        try await activeTask.downloadFinished()
+      }
+    }
+    await #expect(throws: CancellationError.self) {
+      try await pendingTask.downloadFinished()
+    }
+    for activeURL in activeURLs {
+      #expect(!(await downloadManager.hasURL(activeURL)))
+    }
+    #expect(!(await downloadManager.hasURL(pendingURL)))
+    #expect(!(await session.requests.contains(pendingURL)))
+  }
+
   // MARK: - addURL Identity Tests
 
   @Test("that calling addURL on an already active URL returns the same task")

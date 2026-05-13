@@ -174,14 +174,17 @@ actor DownloadManager {
   }
 
   func cancelAllDownloads() async {
-    for (_, downloadTask) in activeDownloads {
-      await downloadTask.cancelFromOwner()
-    }
+    let activeDownloadTasks = Array(activeDownloads.values)
+    let pendingDownloadTasks = Array(pendingDownloads)
     activeDownloads.removeAll()
-    for downloadTask in pendingDownloads {
+    pendingDownloads.removeAll()
+
+    for downloadTask in activeDownloadTasks {
       await downloadTask.cancelFromOwner()
     }
-    pendingDownloads.removeAll()
+    for downloadTask in pendingDownloadTasks {
+      await downloadTask.cancelFromOwner()
+    }
   }
 
   // MARK: - Fileprivate Helpers
