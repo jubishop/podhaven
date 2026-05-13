@@ -241,10 +241,8 @@ import Testing
     )
   }
 
-  @Test(
-    "recommendation observation clears and bootstraps after saved episode is deleted and re-saved"
-  )
-  func recommendationObservationClearsAndBootstrapsAfterDeleteAndResave() async throws {
+  @Test("saved episode bootstraps a recommendation score and re-bootstraps after delete + re-save")
+  func savedEpisodeBootstrapsRecommendationScoreAfterDeleteAndResave() async throws {
     let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 3,
       podcastTitle: "Detail Signal",
@@ -268,8 +266,16 @@ import Testing
     try await viewModel.performAppear()
 
     try await Wait.until(
-      { @MainActor in viewModel.displayedRecommendationScore != nil },
-      { @MainActor in "Expected recommendation score to bootstrap for the saved episode." }
+      { @MainActor in
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected saved episode to bootstrap a recommendation-kind score.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
     )
 
     _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
@@ -280,19 +286,186 @@ import Testing
         "Expected deleted saved episode to revert before re-saving. episode: \(viewModel.episode.toString)"
       }
     )
-    #expect(viewModel.displayedRecommendationScore == nil)
 
     viewModel.addToTopOfQueue()
 
     try await Wait.until(
       { @MainActor in
-        viewModel.episode.isSaved && viewModel.displayedRecommendationScore != nil
+        guard viewModel.episode.isSaved else { return false }
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
       },
       { @MainActor in
         """
-        Expected re-saved episode to bootstrap recommendation score without waiting for a new engine revision.
+        Expected re-saved episode to bootstrap a recommendation-kind score.
         saved: \(viewModel.episode.isSaved)
-        score: \(String(describing: viewModel.displayedRecommendationScore?.value))
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+  }
+
+  @Test("unsaved episode opened from search shows a similarity score without persisting")
+  func unsavedEpisodeShowsSimilarityScoreWithoutPersisting() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Unsaved Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(
+        title: "Discovery Podcast",
+        description: "An undiscovered show similar to the signals"
+      ),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-similarity",
+        title: "Discovery Episode",
+        description: "An episode about topics the user likes"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .similarity = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected unsaved episode to show a similarity-kind score.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+
+    // The whole point of unsaved scoring is that the row never gets
+    // materialized — exercise the same guard the issue calls out.
+    #expect(viewModel.episode.isSaved == false)
+    #expect(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID) == nil)
+  }
+
+  @Test("unsaved episode hides the score when the engine cache is cold")
+  func unsavedEpisodeHidesScoreWhenCacheIsCold() async throws {
+    // No signal data planted — the engine never builds a context, so
+    // similarityScore returns nil regardless of how many revisions tick.
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Cold Cache Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-cold",
+        title: "Cold Cache Episode"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+
+    // The cold-cache invariant is "score stays nil forever," not "score
+    // becomes nil eventually" — assert directly without polling.
+    #expect(viewModel.displayedScore == nil)
+  }
+
+  @Test("unsaved episode hides the similarity score once the episode is rated")
+  func unsavedEpisodeHidesScoreWhenRated() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Rated Guard Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    let ratedUnsaved = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Rated Guard Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-rated",
+        title: "Already Rated Episode",
+        rating: .liked,
+        ratingDate: Date()
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(ratedUnsaved))
+
+    try await viewModel.performAppear()
+
+    // The display guard hides the section irrespective of what the scorer
+    // computes, so the same invariant as the cold-cache test applies.
+    #expect(viewModel.displayedScore == nil)
+  }
+
+  @Test("unsaved episode hides the similarity score once the episode is finished")
+  func unsavedEpisodeHidesScoreWhenFinished() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Finished Guard Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    let finishedUnsaved = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Finished Guard Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-finished",
+        title: "Already Finished Episode",
+        finishDate: Date()
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(finishedUnsaved))
+
+    try await viewModel.performAppear()
+
+    #expect(viewModel.displayedScore == nil)
+  }
+
+  @Test("transitioning an unsaved episode to saved swaps the similarity score for a recommendation")
+  func unsavedToSavedTransitionSwitchesToRecommendationScore() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Transition Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Transition Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-transition",
+        title: "Will Be Saved"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .similarity = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        "Expected unsaved episode to show similarity score before save action."
+      }
+    )
+
+    viewModel.addToTopOfQueue()
+
+    try await Wait.until(
+      { @MainActor in
+        guard viewModel.episode.isSaved else { return false }
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected unsaved → saved transition to switch to the recommendation-kind score.
+        saved: \(viewModel.episode.isSaved)
+        score: \(String(describing: viewModel.displayedScore))
         """
       }
     )

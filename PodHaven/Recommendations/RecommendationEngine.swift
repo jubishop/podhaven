@@ -135,6 +135,44 @@ struct RecommendationEngine: Sendable {
     return try await recommendations(for: [episode])[episodeID]
   }
 
+  // Pure-similarity scoring for caller-supplied embeddings — no podcast
+  // affinity, no freshness, no DB lookup. Detail surfaces use this for
+  // unsaved candidates whose embedding was computed in-memory and never
+  // persisted. Returns nil if the cache is cold so callers fall back to
+  // hiding the section instead of rendering a meaningless score.
+  func similarityScore(forEmbedding embedding: [Float]) -> RecommendationScore? {
+    guard let context = cache() else { return nil }
+    guard embedding.count == context.positiveCentroid.count else { return nil }
+
+    let stripCount = Self.principalComponentStripCount(for: context.deconeMode)
+    var scratch = [Float](repeating: 0, count: embedding.count)
+    let raw = unsafe embedding.withUnsafeBufferPointer { vec -> Float in
+      unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+        if let whiteningTransform = context.whiteningTransform {
+          unsafe whiteningTransform.apply(vec, strippingTopK: stripCount, into: scratchPtr)
+          let projected = UnsafeBufferPointer(scratchPtr)
+          return unsafe Self.similarity(
+            of: projected,
+            positive: context.positiveCentroid,
+            negative: context.negativeCentroid
+          )
+        }
+        return unsafe Self.similarity(
+          of: vec,
+          positive: context.positiveCentroid,
+          negative: context.negativeCentroid
+        )
+      }
+    }
+
+    // Same [-2, 2] → [0, 1] remap the per-candidate scorer uses, so this
+    // surface and recommendation(for:) read on the same scale.
+    let similarityValue = (raw + 2.0) / 4.0
+    let reasons: [RecommendationReason] = similarityValue > 0.5 ? [.similarToLiked] : []
+    let score = RecommendationScore(value: similarityValue, reasons: reasons)
+    return score.rescaledForDisplay(max: observedMaxScore())
+  }
+
   func topRecommendations(limit: Int = 10) async throws -> [RankedRecommendation] {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
     let totalStart = ContinuousClock.now

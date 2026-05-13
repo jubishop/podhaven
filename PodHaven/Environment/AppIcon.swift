@@ -262,6 +262,7 @@ private struct SystemImageName:
   case recommendationSimilar
   case recommendationFromPodcast
   case recommendationRecent
+  case similarityScore
   case tag
   case updated
 
@@ -567,6 +568,8 @@ private struct SystemImageName:
         systemImageName: .recommendationRecent,
         color: .orange
       )
+    case .similarityScore:
+      return Data(text: "Similarity score", systemImageName: .recommendation, color: .yellow)
     case .tag:
       return Data(text: "Tag", systemImageName: .tag, color: .secondary)
     case .updated:

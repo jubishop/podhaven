@@ -46,6 +46,19 @@ enum EpisodeDetailState: Sendable, Stringable {
     }
   }
 
+  // Coalesces the three state cases into the three branches the
+  // recommendation pipeline cares about. Live `.saved` → `.saved` updates
+  // keep the same kind, so transition() can skip a re-score when the
+  // observed PodcastEpisode just shifted fields under us.
+  fileprivate enum RecommendationKind { case initial, unsaved, saved }
+  fileprivate var recommendationKind: RecommendationKind {
+    switch self {
+    case .initial: .initial
+    case .unsaved: .unsaved
+    case .saved: .saved
+    }
+  }
+
   var toString: String {
     switch self {
     case .initial(let listed): return "initial(\(listed.toString))"
@@ -55,10 +68,20 @@ enum EpisodeDetailState: Sendable, Stringable {
   }
 }
 
+// Score surfaced by `EpisodeDetailViewModel` for the recommendation
+// section. Saved episodes render the full recommendation (with reason
+// pills); unsaved episodes render a similarity-only number with a
+// different header, since the unsaved scorer skips podcast affinity and
+// freshness and the single `.similarToLiked` reason pill is redundant.
+enum EpisodeDetailDisplayedScore: Sendable {
+  case recommendation(RecommendationScore)
+  case similarity(value: Float)
+}
+
 @Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
-
+  @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
@@ -66,6 +89,7 @@ enum EpisodeDetailState: Sendable, Stringable {
   @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
@@ -74,7 +98,7 @@ enum EpisodeDetailState: Sendable, Stringable {
   private let originTab: Navigation.Tab
   private(set) var state: EpisodeDetailState
   var tags: IdentifiedArrayOf<Tag> = []
-  private var recommendationScore: RecommendationScore?
+  private var internalScore: EpisodeDetailDisplayedScore?
 
   var episode: EpisodeDetailContent { state.detailContent }
 
@@ -106,9 +130,9 @@ enum EpisodeDetailState: Sendable, Stringable {
   // Hide the score once the user has rated or finished the episode: a
   // direct rating outweighs similarity-to-liked, and a finished episode
   // is itself a signal — its own score is circular.
-  var displayedRecommendationScore: RecommendationScore? {
+  var displayedScore: EpisodeDetailDisplayedScore? {
     guard episode.rating == nil, !episode.finished else { return nil }
-    return recommendationScore
+    return internalScore
   }
 
   private let startTime: Int?
@@ -146,7 +170,6 @@ enum EpisodeDetailState: Sendable, Stringable {
 
       transition(to: .saved(podcastEpisode))
       startObservation(podcastEpisode)
-      startRecommendationObservation()
     } else {
       Self.log.debug("Podcast episode: \(state.toString) does not exist in db")
 
@@ -172,6 +195,11 @@ enum EpisodeDetailState: Sendable, Stringable {
         return
       }
     }
+
+    // Run for both `.saved` (DB scorer) and `.unsaved` (in-memory
+    // similarity) — `fetchRecommendation` picks the path off the current
+    // state at each context-revision tick.
+    startRecommendationObservation()
 
     if let startTime {
       Self.log.debug("Auto-playing from startTime: \(startTime)s")
@@ -371,8 +399,10 @@ enum EpisodeDetailState: Sendable, Stringable {
             return
           }
           tags = []
-          clearRecommendationTask()
-          recommendationScore = nil
+          // Clear immediately so the stale saved score isn't visible
+          // during the brief window before `transition(to:)` queues the
+          // unsaved-side refetch.
+          internalScore = nil
           transition(to: .unsaved(deletedAsUnsaved))
           return
         }
@@ -412,7 +442,7 @@ enum EpisodeDetailState: Sendable, Stringable {
       return
     }
 
-    recommendationTask = Task { [weak self] in
+    recommendationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
 
       for await _ in recommendationEngine.$contextRevision.stream() {
@@ -423,17 +453,66 @@ enum EpisodeDetailState: Sendable, Stringable {
   }
 
   private func fetchRecommendation() async {
-    guard let podcastEpisode = state.savedPodcastEpisode else { return }
+    switch state {
+    case .initial:
+      internalScore = nil
+    case .saved(let podcastEpisode):
+      do {
+        if let score = try await recommendationEngine.recommendation(for: podcastEpisode.id) {
+          internalScore = .recommendation(score)
+        } else {
+          internalScore = nil
+        }
+      } catch {
+        Self.log.caughtError(
+          "fetchRecommendation: saved scorer failed for \(podcastEpisode.toString)",
+          error
+        )
+      }
+    case .unsaved(let unsavedPodcastEpisode):
+      internalScore = await scoreUnsavedEpisode(unsavedPodcastEpisode)
+    }
+  }
 
+  // Compute the in-memory embedding and ask the engine for a pure
+  // similarity score. Returns nil if the embedding model isn't available
+  // or the engine's cache is cold — either way we hide the section.
+  private func scoreUnsavedEpisode(
+    _ unsavedPodcastEpisode: UnsavedPodcastEpisode
+  ) async -> EpisodeDetailDisplayedScore? {
+    // Idempotent — picks up assets the embedding background task has
+    // already downloaded without triggering a fresh request when they
+    // haven't, so opening detail can't kick off an unrelated download.
+    contextualEmbedding.loadAssetsIfAvailable()
+    let vector: [Float]
     do {
-      recommendationScore = try await recommendationEngine.recommendation(
-        for: podcastEpisode.id
+      vector = try EmbeddingService.embeddingVector(
+        for: unsavedPodcastEpisode,
+        embedding: contextualEmbedding
       )
     } catch {
       Self.log.caughtError(
-        "fetchRecommendation: failed for \(podcastEpisode.toString)",
+        """
+        fetchRecommendation: unsaved embedding failed for \
+        \(unsavedPodcastEpisode.toString)
+        """,
         error
       )
+      return nil
+    }
+    guard let score = recommendationEngine.similarityScore(forEmbedding: vector) else {
+      return nil
+    }
+    return .similarity(value: score.value)
+  }
+
+  // Re-route the score after a state-kind change (saved ↔ unsaved ↔
+  // initial) so users who save/restore an episode see the right scorer
+  // without waiting for the engine's next debounced rebuild.
+  private func scheduleRecommendationRefresh() {
+    Task(priority: taskPriority(.utility)) { [weak self] in
+      guard let self else { return }
+      await fetchRecommendation()
     }
   }
 
@@ -453,8 +532,12 @@ enum EpisodeDetailState: Sendable, Stringable {
   // MARK: - Private Helpers
 
   private func transition(to newState: EpisodeDetailState) {
+    let kindChanged = state.recommendationKind != newState.recommendationKind
     logStateTransition(to: newState)
     state = newState
+    if kindChanged {
+      scheduleRecommendationRefresh()
+    }
   }
 
   private func loadAndPlay(_ podcastEpisode: PodcastEpisode, seekTo seconds: Int) async throws {
@@ -482,10 +565,10 @@ enum EpisodeDetailState: Sendable, Stringable {
   // MARK: - Preview Helpers
 
   #if DEBUG
-  // Preview-only seed; production code drives `recommendationScore`
-  // exclusively through `startRecommendationObservation`.
-  func previewSeedRecommendationScore(_ score: RecommendationScore?) {
-    recommendationScore = score
+  // Preview-only seed; production code drives `internalScore` exclusively
+  // through `startRecommendationObservation`.
+  func previewSeedDisplayedScore(_ score: EpisodeDetailDisplayedScore?) {
+    internalScore = score
   }
   #endif
 }
