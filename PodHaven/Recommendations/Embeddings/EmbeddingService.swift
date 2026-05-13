@@ -162,11 +162,13 @@ enum EmbeddingService {
 
   // Runs the saved-side episode embedding recipe against unsaved title /
   // description text — no DB reads, no DB writes. Yields the same vector
-  // the saved path would produce if the row were persisted.
+  // the saved path would produce if the row were persisted. `async` so
+  // `@MainActor` callers hop the (synchronous, CPU-bound) embedding work
+  // onto the cooperative pool instead of blocking main.
   static func embeddingVector(
     for unsavedPodcastEpisode: UnsavedPodcastEpisode,
     embedding: ContextualEmbedding
-  ) throws -> [Float] {
+  ) async throws -> [Float] {
     let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
     let unsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
 

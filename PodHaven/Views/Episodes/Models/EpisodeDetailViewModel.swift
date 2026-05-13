@@ -85,7 +85,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   private let originTab: Navigation.Tab
   private(set) var state: EpisodeDetailState
   var tags: IdentifiedArrayOf<Tag> = []
-  private var internalScore: EpisodeDetailDisplayedScore?
+  private var score: EpisodeDetailDisplayedScore?
 
   var episode: EpisodeDetailContent { state.detailContent }
 
@@ -119,7 +119,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // is itself a signal — its own score is circular.
   var displayedScore: EpisodeDetailDisplayedScore? {
     guard episode.rating == nil, !episode.finished else { return nil }
-    return internalScore
+    return score
   }
 
   private let startTime: Int?
@@ -389,7 +389,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
           // Clear immediately so the stale saved score isn't visible
           // during the brief window before `transition(to:)` queues the
           // unsaved-side refetch.
-          internalScore = nil
+          score = nil
           transition(to: .unsaved(deletedAsUnsaved))
           return
         }
@@ -417,6 +417,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // MARK: - Recommendation Observation
 
   @ObservationIgnored private var recommendationTask: Task<Void, Never>?
+  @ObservationIgnored private var recommendationRefreshTask: Task<Void, Never>?
 
   // Re-fetches this episode's score whenever the engine bumps
   // `contextRevision`, i.e. every time its scoring cache rebuilds. The
@@ -440,13 +441,39 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   private func fetchRecommendation() async {
-    switch state {
+    // Capture the state kind at entry. After the scoring await resumes,
+    // we may be in a different kind (e.g. a saved fetch races with a
+    // deletion that flipped state to .unsaved); writing the stale score
+    // would surface a saved-style recommendation pill on an unsaved row.
+    let entryState = state
+    let newScore: EpisodeDetailDisplayedScore?
+    switch entryState {
     case .initial:
-      internalScore = nil
+      newScore = nil
     case .saved(let podcastEpisode):
-      internalScore = await scoreSavedEpisode(podcastEpisode)
+      newScore = await scoreSavedEpisode(podcastEpisode)
     case .unsaved(let unsavedPodcastEpisode):
-      internalScore = await scoreUnsavedEpisode(unsavedPodcastEpisode)
+      newScore = await scoreUnsavedEpisode(unsavedPodcastEpisode)
+    }
+    guard Self.sameRecommendationKind(entryState, state) else {
+      Self.log.debug(
+        """
+        fetchRecommendation: state kind changed during scoring; \
+        dropping stale write
+        """
+      )
+      return
+    }
+    score = newScore
+  }
+
+  private static func sameRecommendationKind(
+    _ a: EpisodeDetailState,
+    _ b: EpisodeDetailState
+  ) -> Bool {
+    switch (a, b) {
+    case (.initial, .initial), (.unsaved, .unsaved), (.saved, .saved): true
+    default: false
     }
   }
 
@@ -482,7 +509,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     contextualEmbedding.loadAssetsIfAvailable()
     let vector: [Float]
     do {
-      vector = try EmbeddingService.embeddingVector(
+      vector = try await EmbeddingService.embeddingVector(
         for: unsavedPodcastEpisode,
         embedding: contextualEmbedding
       )
@@ -496,25 +523,31 @@ enum EpisodeDetailDisplayedScore: Sendable {
       )
       return nil
     }
-    guard let score = recommendationEngine.similarityScore(forEmbedding: vector) else {
+    guard let value = recommendationEngine.similarityScore(forEmbedding: vector) else {
       return nil
     }
-    return .similarity(value: score.value)
+    return .similarity(value: value)
   }
 
   // Re-route the score after a state-kind change (saved ↔ unsaved ↔
   // initial) so users who save/restore an episode see the right scorer
-  // without waiting for the engine's next debounced rebuild.
+  // without waiting for the engine's next debounced rebuild. Cancel-and-
+  // replace keeps rapid kind-changes from piling up redundant in-flight
+  // fetches racing on `score`.
   private func scheduleRecommendationRefresh() {
-    Task(priority: taskPriority(.utility)) { [weak self] in
+    recommendationRefreshTask?.cancel()
+    recommendationRefreshTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
+      guard !Task.isCancelled else { return }
       await fetchRecommendation()
     }
   }
 
-  private func clearRecommendationTask() {
+  private func clearRecommendationTasks() {
     recommendationTask?.cancel()
     recommendationTask = nil
+    recommendationRefreshTask?.cancel()
+    recommendationRefreshTask = nil
   }
 
   // MARK: - Disappear
@@ -522,7 +555,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
-    clearRecommendationTask()
+    clearRecommendationTasks()
   }
 
   // MARK: - Private Helpers
@@ -530,11 +563,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // `.saved` → `.saved` updates keep the same kind, so a re-score is only
   // needed when the case itself changes.
   private func transition(to newState: EpisodeDetailState) {
-    let recommendationKindChanged: Bool =
-      switch (state, newState) {
-      case (.initial, .initial), (.unsaved, .unsaved), (.saved, .saved): false
-      default: true
-      }
+    let recommendationKindChanged = !Self.sameRecommendationKind(state, newState)
     logStateTransition(to: newState)
     state = newState
     if recommendationKindChanged {
@@ -567,10 +596,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // MARK: - Preview Helpers
 
   #if DEBUG
-  // Preview-only seed; production code drives `internalScore` exclusively
+  // Preview-only seed; production code drives `score` exclusively
   // through `startRecommendationObservation`.
-  func previewSeedDisplayedScore(_ score: EpisodeDetailDisplayedScore?) {
-    internalScore = score
+  func previewSeedDisplayedScore(_ value: EpisodeDetailDisplayedScore?) {
+    score = value
   }
   #endif
 }

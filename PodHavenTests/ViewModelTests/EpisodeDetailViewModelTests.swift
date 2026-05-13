@@ -471,6 +471,104 @@ import Testing
     )
   }
 
+  @Test("a saved-side fetch resolving after delete reverts state does not stale-write")
+  func savedSideStaleWriteIsDiscardedAfterUnsavedTransition() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Stale Write Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Stale Write Target"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "stale-write-target",
+          title: "Stale Write Target"
+        )
+      )
+    )
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
+
+    // Arm the FakeRepo suspend hook BEFORE opening the view: the
+    // recommendationTask's bootstrap fetch will park inside
+    // `engine.recommendation(for:)` → `repo.episode(_:Episode.ID)`.
+    let fakeRepo = repo as! FakeRepo
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    try await viewModel.performAppear()
+
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+
+    // Saved-side scoring is parked. Delete the podcast — observation
+    // transitions the view model to `.unsaved` and the kind-change refresh
+    // task spins up a fresh unsaved-side fetch.
+    _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
+
+    // Wait until the refresh task produces a .similarity score on the new
+    // .unsaved state. This is the post-deletion correct terminal state
+    // and isolates the stale-write race: anything that overwrites this
+    // after release must be a stale saved-side write.
+    try await Wait.until(
+      { @MainActor in
+        guard !viewModel.episode.isSaved else { return false }
+        if case .similarity = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected unsaved-side refresh task to land .similarity before releasing the held fetch.
+        isSaved: \(viewModel.episode.isSaved)
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+
+    // Release the suspended saved-side fetch. Without the identity guard
+    // in `fetchRecommendation`, its tail overwrites the `.similarity`
+    // above with a stale `.recommendation`. With the guard, the write is
+    // dropped and `.similarity` remains the stable terminal state.
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+
+    // Poll for the stale-write surface within a bounded window. If we
+    // ever observe `.recommendation` while `!isSaved`, the guard failed.
+    // If the window elapses without seeing it, the guard held.
+    var observedStaleWrite = false
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        delay: .milliseconds(10),
+        priority: .userInitiated,
+        { @MainActor in
+          if case .recommendation = viewModel.displayedScore, !viewModel.episode.isSaved {
+            observedStaleWrite = true
+            return true
+          }
+          return false
+        },
+        { @MainActor in "no stale .recommendation write observed within polling window" }
+      )
+    } catch {
+      // Timeout — no stale write observed within the window. Expected
+      // with the identity guard in place.
+    }
+
+    #expect(observedStaleWrite == false)
+    #expect(viewModel.episode.isSaved == false)
+    if case .similarity = viewModel.displayedScore {
+      // Good — terminal state held.
+    } else {
+      Issue.record(
+        """
+        Expected stable .similarity post-release, got \
+        \(String(describing: viewModel.displayedScore))
+        """
+      )
+    }
+  }
+
   @Test("observation restarts after a podcastEpisodeWithTags failure")
   func observationRestartsAfterPodcastEpisodeWithTagsFailure() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
