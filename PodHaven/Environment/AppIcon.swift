@@ -457,9 +457,19 @@ private struct SystemImageName:
     case .trendingTrueCrime:
       return Data(text: "True Crime", systemImageName: .trendingTrueCrime, color: .purple)
     case .trendingComedy:
-      return Data(text: "Comedy", systemImageName: .trendingComedy, color: .yellow)
+      return Data(
+        text: "Comedy",
+        systemImageName: .trendingComedy,
+        darkColor: .yellow,
+        lightColor: .orange
+      )
     case .trendingBusiness:
-      return Data(text: "Business", systemImageName: .trendingBusiness, color: .teal)
+      return Data(
+        text: "Business",
+        systemImageName: .trendingBusiness,
+        darkColor: .teal,
+        lightColor: .blue
+      )
     case .trendingTechnology:
       return Data(text: "Technology", systemImageName: .trendingTechnology, color: .indigo)
     case .trendingSports:
@@ -467,9 +477,19 @@ private struct SystemImageName:
     case .trendingHealth:
       return Data(text: "Health", systemImageName: .trendingHealth, color: .pink)
     case .trendingScience:
-      return Data(text: "Science", systemImageName: .trendingScience, color: .mint)
+      return Data(
+        text: "Science",
+        systemImageName: .trendingScience,
+        darkColor: .mint,
+        lightColor: .green
+      )
     case .trendingEducation:
-      return Data(text: "Education", systemImageName: .trendingEducation, color: .cyan)
+      return Data(
+        text: "Education",
+        systemImageName: .trendingEducation,
+        darkColor: .cyan,
+        lightColor: .blue
+      )
     case .trendingKids:
       return Data(text: "Kids & Family", systemImageName: .trendingKids, color: .orange)
     case .trendingHistory:
@@ -549,7 +569,12 @@ private struct SystemImageName:
     case .publishDate:
       return Data(text: "Published", systemImageName: .publishDate, color: .secondary)
     case .recommendation:
-      return Data(text: "Recommendation", systemImageName: .recommendation, color: .yellow)
+      return Data(
+        text: "Recommendation",
+        systemImageName: .recommendation,
+        darkColor: .yellow,
+        lightColor: .orange
+      )
     case .recommendationSimilar:
       return Data(
         text: "Similar to others",
@@ -637,7 +662,8 @@ private struct SystemImageName:
       return Data(
         text: "Episode Count",
         systemImageName: .sortByEpisodeCount,
-        color: .teal
+        darkColor: .teal,
+        lightColor: .blue
       )
     case .sortByRecentlySubscribed:
       return Data(
@@ -649,7 +675,8 @@ private struct SystemImageName:
       return Data(
         text: "Oldest First",
         systemImageName: .sortByOldest,
-        color: .teal
+        darkColor: .teal,
+        lightColor: .blue
       )
     case .sortByNewest:
       return Data(
@@ -667,13 +694,15 @@ private struct SystemImageName:
       return Data(
         text: "Shortest First",
         systemImageName: .sortByShortest,
-        color: .mint
+        darkColor: .mint,
+        lightColor: .green
       )
     case .sortByMostRecentlyQueued:
       return Data(
         text: "Most Recently Queued",
         systemImageName: .sortByMostRecentlyQueued,
-        color: .cyan
+        darkColor: .cyan,
+        lightColor: .blue
       )
     case .sortByLeastRecentlyQueued:
       return Data(
@@ -697,7 +726,8 @@ private struct SystemImageName:
       return Data(
         text: "Recommendation Score",
         systemImageName: .sortByRecommendationScore,
-        color: .yellow
+        darkColor: .yellow,
+        lightColor: .orange
       )
 
     case .loading:
