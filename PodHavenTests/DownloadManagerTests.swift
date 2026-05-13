@@ -407,6 +407,301 @@ struct DownloadManagerTests {
     }
   }
 
+  // MARK: - Direct DownloadTask.cancel() Tests
+
+  @Test("that direct DownloadTask.cancel() removes a pending task from manager state")
+  func directCancelOfPendingRemovesFromManager() async throws {
+    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+
+    let blockingURL = URL.valid()
+    _ = await session.waitRespond(to: blockingURL)
+    _ = await downloadManager.addURL(blockingURL)
+
+    let pendingURL = URL.valid()
+    let pendingTask = await downloadManager.addURL(pendingURL)
+    #expect(await downloadManager.hasURL(pendingURL))
+
+    await pendingTask.cancel()
+
+    #expect(!(await downloadManager.hasURL(pendingURL)))
+
+    // Subsequent addURL for the same URL must return a fresh, non-finished task,
+    // not the already-cancelled wrapper.
+    let freshTask = await downloadManager.addURL(pendingURL)
+    #expect(!(await freshTask.finished))
+    #expect(freshTask !== pendingTask)
+  }
+
+  @Test("that direct DownloadTask.cancel() on an active task frees its concurrency slot")
+  func directCancelOfActiveFreesSlot() async throws {
+    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+
+    let activeURL = URL.valid()
+    _ = await session.waitRespond(to: activeURL)
+    let activeTask = await downloadManager.addURL(activeURL)
+    await activeTask.downloadBegan()
+
+    let nextURL = URL.valid()
+    let nextTask = await downloadManager.addURL(nextURL)
+    #expect(await downloadManager.hasURL(nextURL))
+
+    await activeTask.cancel()
+
+    #expect(!(await downloadManager.hasURL(activeURL)))
+
+    // Bounded wait so the test fails fast against the unfixed code path
+    // where the pending task would otherwise wait on a never-started fetch.
+    try await Wait.until(
+      { await nextTask.finished },
+      { "Expected nextTask to finish after activeTask was directly cancelled" }
+    )
+    let nextData = try await nextTask.downloadFinished()
+    #expect(nextData == DownloadData(url: nextURL))
+  }
+
+  @Test("that direct DownloadTask.cancel() cancels the underlying URLSession fetch")
+  func directCancelCancelsUnderlyingFetch() async throws {
+    let downloadManager = DownloadManager(session: session)
+
+    let url = URL.valid()
+    _ = await session.waitRespond(to: url)
+    let task = await downloadManager.addURL(url)
+    await task.downloadBegan()
+
+    await task.cancel()
+
+    await #expect(throws: CancellationError.self) {
+      try await task.downloadFinished()
+    }
+    try await Wait.until(
+      { await session.cancelledRequests.contains(url) },
+      { "Expected \(url) in cancelledRequests, got \(await session.cancelledRequests)" }
+    )
+  }
+
+  @Test("that calling cancel() multiple times on the same task is idempotent")
+  func directCancelIsIdempotent() async throws {
+    let downloadManager = DownloadManager(session: session)
+
+    let url = URL.valid()
+    _ = await session.waitRespond(to: url)
+    let task = await downloadManager.addURL(url)
+    await task.downloadBegan()
+
+    await task.cancel()
+    await task.cancel()
+    await task.cancel()
+
+    await #expect(throws: CancellationError.self) {
+      try await task.downloadFinished()
+    }
+    // The underlying fetch should be cancelled exactly once even though
+    // cancel() was invoked three times — second/third calls must short-circuit.
+    try await Wait.until(
+      { await session.cancelledRequests.filter { $0 == url }.count == 1 },
+      {
+        "Expected \(url) cancelled exactly once, got \(await session.cancelledRequests)"
+      }
+    )
+  }
+
+  @Test("that calling cancel() on a successfully-finished task is a no-op")
+  func directCancelAfterSuccessIsNoop() async throws {
+    let downloadManager = DownloadManager(session: session)
+
+    let url = URL.valid()
+    let task = await downloadManager.addURL(url)
+    let data = try await task.downloadFinished()
+    #expect(data == DownloadData(url: url))
+
+    await task.cancel()
+
+    let dataAgain = try await task.downloadFinished()
+    #expect(dataAgain == DownloadData(url: url))
+    #expect(await session.cancelledRequests.isEmpty)
+  }
+
+  @Test("that cancelling one task does not affect other concurrent downloads")
+  func cancelOneDoesNotAffectConcurrentDownloads() async throws {
+    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 3)
+
+    let cancelURL = URL.valid()
+    let succeedURL1 = URL.valid()
+    let succeedURL2 = URL.valid()
+    _ = await session.waitRespond(to: cancelURL)  // never signalled
+
+    let cancelTask = await downloadManager.addURL(cancelURL)
+    let succeedTask1 = await downloadManager.addURL(succeedURL1)
+    let succeedTask2 = await downloadManager.addURL(succeedURL2)
+
+    await cancelTask.downloadBegan()
+    await cancelTask.cancel()
+
+    let data1 = try await succeedTask1.downloadFinished()
+    let data2 = try await succeedTask2.downloadFinished()
+    #expect(data1 == DownloadData(url: succeedURL1))
+    #expect(data2 == DownloadData(url: succeedURL2))
+    await #expect(throws: CancellationError.self) {
+      try await cancelTask.downloadFinished()
+    }
+  }
+
+  // MARK: - DownloadManager.cancelDownload(url:) Tests
+
+  @Test("that cancelDownload(url:) removes a pending task from manager state")
+  func cancelDownloadOfPendingRemovesFromManager() async throws {
+    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+
+    let blockingURL = URL.valid()
+    _ = await session.waitRespond(to: blockingURL)
+    _ = await downloadManager.addURL(blockingURL)
+
+    let pendingURL = URL.valid()
+    let pendingTask = await downloadManager.addURL(pendingURL)
+    #expect(await downloadManager.hasURL(pendingURL))
+
+    await downloadManager.cancelDownload(url: pendingURL)
+
+    #expect(!(await downloadManager.hasURL(pendingURL)))
+    await #expect(throws: CancellationError.self) {
+      try await pendingTask.downloadFinished()
+    }
+  }
+
+  @Test("that cancelDownload(url:) on an active task frees its concurrency slot")
+  func cancelDownloadOfActiveFreesSlot() async throws {
+    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+
+    let activeURL = URL.valid()
+    _ = await session.waitRespond(to: activeURL)
+    let activeTask = await downloadManager.addURL(activeURL)
+    await activeTask.downloadBegan()
+
+    let nextURL = URL.valid()
+    let nextTask = await downloadManager.addURL(nextURL)
+
+    await downloadManager.cancelDownload(url: activeURL)
+
+    #expect(!(await downloadManager.hasURL(activeURL)))
+    let nextData = try await nextTask.downloadFinished()
+    #expect(nextData == DownloadData(url: nextURL))
+    await #expect(throws: CancellationError.self) {
+      try await activeTask.downloadFinished()
+    }
+  }
+
+  @Test("that cancelDownload(url:) cancels the underlying URLSession fetch")
+  func cancelDownloadCancelsUnderlyingFetch() async throws {
+    let downloadManager = DownloadManager(session: session)
+
+    let url = URL.valid()
+    _ = await session.waitRespond(to: url)
+    let task = await downloadManager.addURL(url)
+    await task.downloadBegan()
+
+    await downloadManager.cancelDownload(url: url)
+
+    await #expect(throws: CancellationError.self) {
+      try await task.downloadFinished()
+    }
+    try await Wait.until(
+      { await session.cancelledRequests.contains(url) },
+      { "Expected \(url) in cancelledRequests, got \(await session.cancelledRequests)" }
+    )
+  }
+
+  @Test("that cancelAllDownloads() cancels all in-flight URLSession fetches")
+  func cancelAllDownloadsCancelsUnderlyingFetches() async throws {
+    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 2)
+
+    let url1 = URL.valid()
+    let url2 = URL.valid()
+    _ = await session.waitRespond(to: url1)
+    _ = await session.waitRespond(to: url2)
+    let task1 = await downloadManager.addURL(url1)
+    let task2 = await downloadManager.addURL(url2)
+    await task1.downloadBegan()
+    await task2.downloadBegan()
+
+    await downloadManager.cancelAllDownloads()
+
+    await #expect(throws: CancellationError.self) {
+      try await task1.downloadFinished()
+    }
+    await #expect(throws: CancellationError.self) {
+      try await task2.downloadFinished()
+    }
+    try await Wait.until(
+      {
+        let cancelled = Set(await session.cancelledRequests)
+        return cancelled.contains(url1) && cancelled.contains(url2)
+      },
+      {
+        "Expected both URLs in cancelledRequests, got \(await session.cancelledRequests)"
+      }
+    )
+  }
+
+  @Test("that cancelAllDownloads() cancels pending downloads without starting them")
+  func cancelAllDownloadsCancelsPendingDownloadsWithoutStartingThem() async throws {
+    let maxConcurrentDownloads = 20
+    let downloadManager = DownloadManager(
+      session: session,
+      maxConcurrentDownloads: maxConcurrentDownloads
+    )
+
+    let activeURLs = (0..<maxConcurrentDownloads)
+      .map { index in
+        URL(string: "https://example.com/active-\(index)")!
+      }
+    let activeTasks = await activeURLs.asyncMap { url in
+      _ = await session.waitRespond(to: url)
+      return await downloadManager.addURL(url)
+    }
+    for activeTask in activeTasks {
+      await activeTask.downloadBegan()
+    }
+
+    let pendingURL = URL.valid()
+    let pendingTask = await downloadManager.addURL(pendingURL)
+    #expect(await downloadManager.hasURL(pendingURL))
+    #expect(!(await session.requests.contains(pendingURL)))
+
+    let cancellationTask = Task(priority: .background) {
+      await downloadManager.cancelAllDownloads()
+    }
+    await cancellationTask.value
+
+    for activeTask in activeTasks {
+      await #expect(throws: CancellationError.self) {
+        try await activeTask.downloadFinished()
+      }
+    }
+    await #expect(throws: CancellationError.self) {
+      try await pendingTask.downloadFinished()
+    }
+    for activeURL in activeURLs {
+      #expect(!(await downloadManager.hasURL(activeURL)))
+    }
+    #expect(!(await downloadManager.hasURL(pendingURL)))
+    #expect(!(await session.requests.contains(pendingURL)))
+  }
+
+  // MARK: - addURL Identity Tests
+
+  @Test("that calling addURL on an already active URL returns the same task")
+  func callingAddURLOnAlreadyActiveURLReturnsSameTask() async throws {
+    let downloadManager = DownloadManager(session: session)
+
+    let url = URL.valid()
+    _ = await session.waitRespond(to: url)
+    let task1 = await downloadManager.addURL(url)
+    await task1.downloadBegan()
+
+    let task2 = await downloadManager.addURL(url)
+    #expect(task1 === task2)
+  }
+
   @Test("that delayed failure is properly handled")
   func delayedFailureIsHandled() async throws {
     let downloadManager = DownloadManager(session: session)

@@ -14,6 +14,7 @@ actor FakeDataFetchable: DataFetchable {
   private var defaultHandler: DataHandler
   private var fakeHandlers: [URL: DataHandler] = [:]
   private(set) var requests: [URL] = []
+  private(set) var cancelledRequests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
 
@@ -43,11 +44,15 @@ actor FakeDataFetchable: DataFetchable {
     maxActiveRequests = max(maxActiveRequests, activeRequests)
     requests.append(url)
 
-    if let handler = fakeHandlers[url] {
-      return try await handler(url)
+    do {
+      if let handler = fakeHandlers[url] {
+        return try await handler(url)
+      }
+      return try await defaultHandler(url)
+    } catch is CancellationError {
+      cancelledRequests.append(url)
+      throw CancellationError()
     }
-
-    return try await defaultHandler(url)
   }
 
   func data(from url: URL) async throws -> (Data, URLResponse) {
