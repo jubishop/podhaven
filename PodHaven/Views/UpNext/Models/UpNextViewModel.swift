@@ -280,21 +280,4 @@ import SwiftUI
     }
   }
 
-  // MARK: - Selected Item Actions
-
-  func removeSelectedFromQueue() {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await queue.dequeue(episodeList.selectedEntryIDs)
-      } catch {
-        Self.log.caughtError(
-          "removeSelectedFromQueue: failed to dequeue \(episodeList.selectedEntryIDs.count) episodes",
-          error
-        )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
 }

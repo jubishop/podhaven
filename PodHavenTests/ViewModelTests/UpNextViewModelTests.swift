@@ -269,9 +269,76 @@ import Testing
     )
   }
 
-  // dequeueSelectedEpisodes filters by saved+queued via the protocol's
-  // `selectedSavedEpisodeIDs` path, so a mixed selection only dequeues the
-  // queued half and leaves the recommended row's DB state untouched.
+  // replaceQueueWithSelected resolves `selectedPodcastEpisodes` for every
+  // selected row and atomically rebuilds the queue from that list. If rec
+  // resolution silently dropped a row, the queue would narrow rather than
+  // crash — so assert both halves of a mixed selection land at distinct
+  // queue positions.
+  @Test("replaceQueueWithSelected rebuilds queue from queued + recommendation selection")
+  func replaceQueueWithSelectedUnionsQueueAndRecommendations() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "queued", title: "Queued"),
+          try Create.unsavedEpisode(guid: "rec", title: "Rec"),
+        ]
+      )
+    )
+    let queued = series.episodes[0]
+    let rec = series.episodes[1]
+
+    try await queue.append([queued.id])
+    let queuedListable = try await fetchListable(queued.id)
+    sharedState.setQueuedPodcastEpisodes([queuedListable])
+    sharedState.setTopRecommendations([
+      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.allEntries.count == 1
+          && viewModel.recommendedEpisodes.count == 1
+      },
+      { @MainActor in "Expected hydration of queue + recs" }
+    )
+
+    let queuedRow = try #require(viewModel.episodeList.allEntries.first)
+    let recRow = try #require(viewModel.recommendedEpisodes.first)
+    viewModel.episodeList.isSelected[queuedRow.id] = true
+    viewModel.episodeList.isSelected[recRow.id] = true
+
+    viewModel.replaceQueueWithSelected()
+
+    try await Wait.until(
+      { @MainActor in
+        let queuedAfter = try await self.fetchListable(queued.id)
+        let recAfter = try await self.fetchListable(rec.id)
+        guard let queuedOrder = queuedAfter.queueOrder,
+          let recOrder = recAfter.queueOrder
+        else { return false }
+        return Set([queuedOrder, recOrder]) == Set([0, 1])
+      },
+      { @MainActor in
+        let queuedAfter = try await self.fetchListable(queued.id)
+        let recAfter = try await self.fetchListable(rec.id)
+        return """
+          Expected queued + rec to occupy queueOrder 0 and 1; \
+          got queued=\(String(describing: queuedAfter.queueOrder)) \
+          rec=\(String(describing: recAfter.queueOrder))
+          """
+      }
+    )
+  }
+
+  // dequeueSelectedEpisodes passes every selected episode's id to
+  // `Queue._dequeue`, which clears `queueOrder` row-by-row. A rec's
+  // `queueOrder` is already nil, so the SQL update is a no-op for that row
+  // and only the queued half actually leaves the queue.
   @Test("dequeueSelectedEpisodes ignores selected recommendations")
   func dequeueSelectedIgnoresRecommendations() async throws {
     let series = try await repo.insertSeries(
