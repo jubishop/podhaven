@@ -253,7 +253,10 @@ import Testing
     )
     try await viewModel.performAppear()
 
+    // The recommendation observation work can inherit the poller's priority;
+    // keep this above `.background` so CI load does not starve the sort update.
     try await Wait.until(
+      priority: .userInitiated,
       { @MainActor in
         viewModel.saved
           && viewModel.episodeList.allEntries.count == candidateEpisodes.count
@@ -270,6 +273,7 @@ import Testing
     viewModel.currentSortMethod = .recommendationScore
 
     try await Wait.until(
+      priority: .userInitiated,
       { @MainActor in
         viewModel.episodeList.filteredEntries.compactMap(\.episodeID) == expectedOrder
       },
