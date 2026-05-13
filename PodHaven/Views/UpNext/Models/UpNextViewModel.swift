@@ -32,9 +32,6 @@ import SwiftUI
   var episodeList = PowerList<ListablePodcastEpisode>()
   private(set) var recommendedEpisodes: IdentifiedArrayOf<ListablePodcastEpisode> = []
 
-  // PowerList's selection only sees the queue; the Recommended section lives
-  // outside it. Union both so multi-select toolbar gates and bulk actions
-  // operate over every row the user can see and toggle.
   var selectedEpisodes: [ListablePodcastEpisode] {
     episodeList.selectedEntries.elements
       + recommendedEpisodes.filter { episodeList.isSelected[$0.id] }

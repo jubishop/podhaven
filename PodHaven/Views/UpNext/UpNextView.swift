@@ -92,14 +92,6 @@ struct UpNextView: View {
       )
     }
 
-    if viewModel.episodeList.isSelecting, viewModel.anySelectedNotQueued {
-      ToolbarItem(placement: .primaryAction) {
-        AppIcon.addSelectionToBottom.imageButton {
-          viewModel.addSelectedEpisodesToBottomOfQueue()
-        }
-      }
-    }
-
     selectableEpisodesToolbarItems(viewModel: viewModel)
   }
 
