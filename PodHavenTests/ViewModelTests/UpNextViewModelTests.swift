@@ -318,16 +318,13 @@ import Testing
       { @MainActor in
         let queuedAfter = try await self.fetchListable(queued.id)
         let recAfter = try await self.fetchListable(rec.id)
-        guard let queuedOrder = queuedAfter.queueOrder,
-          let recOrder = recAfter.queueOrder
-        else { return false }
-        return Set([queuedOrder, recOrder]) == Set([0, 1])
+        return queuedAfter.queueOrder == 0 && recAfter.queueOrder == 1
       },
       { @MainActor in
         let queuedAfter = try await self.fetchListable(queued.id)
         let recAfter = try await self.fetchListable(rec.id)
         return """
-          Expected queued + rec to occupy queueOrder 0 and 1; \
+          Expected queued at queueOrder=0 and rec at queueOrder=1; \
           got queued=\(String(describing: queuedAfter.queueOrder)) \
           rec=\(String(describing: recAfter.queueOrder))
           """
@@ -389,6 +386,63 @@ import Testing
 
     let recAfter = try await fetchListable(rec.id)
     #expect(recAfter.queueOrder == nil)
+  }
+
+  // Race window: an episode is queued (so it shows up in episodeList) but the
+  // recommendation engine hasn't re-ranked yet, so the same id is still in
+  // topRecommendations. Selecting the id and replacing the queue must not
+  // double-process — otherwise queue.replace sets queueOrder=1 and leaves
+  // position 0 empty, breaking auto-advance (Queue.nextEpisode returns nil).
+  @Test("selectedEpisodes dedupes when an id appears in both queue and recommendations")
+  func selectedEpisodesDedupesQueueAndRecommendationOverlap() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "shared", title: "Shared")]
+      )
+    )
+    let shared = series.episodes[0]
+
+    try await queue.append([shared.id])
+    let sharedListable = try await fetchListable(shared.id)
+    sharedState.setQueuedPodcastEpisodes([sharedListable])
+    sharedState.setTopRecommendations([
+      (id: shared.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.allEntries.count == 1
+          && viewModel.recommendedEpisodes.count == 1
+      },
+      { @MainActor in
+        "Expected id in both lists, got queue=\(viewModel.episodeList.allEntries.count) "
+          + "recs=\(viewModel.recommendedEpisodes.count)"
+      }
+    )
+
+    viewModel.episodeList.isSelected[shared.id] = true
+
+    #expect(viewModel.selectedEpisodes.count == 1)
+    #expect(viewModel.selectedEpisodes.first?.id == shared.id)
+
+    viewModel.replaceQueueWithSelected()
+
+    try await Wait.until(
+      { @MainActor in
+        let listable = try await self.fetchListable(shared.id)
+        return listable.queueOrder == 0
+      },
+      { @MainActor in
+        let listable = try await self.fetchListable(shared.id)
+        return
+          "Expected queueOrder=0 after replace, got \(String(describing: listable.queueOrder))"
+      }
+    )
   }
 
   private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {

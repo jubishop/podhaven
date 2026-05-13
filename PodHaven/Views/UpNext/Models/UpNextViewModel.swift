@@ -32,9 +32,17 @@ import SwiftUI
   var episodeList = PowerList<ListablePodcastEpisode>()
   private(set) var recommendedEpisodes: IdentifiedArrayOf<ListablePodcastEpisode> = []
 
+  // Recommendation candidates exclude queued episodes, but there's a brief
+  // window after queueing where the engine hasn't re-ranked, so the same id
+  // can appear in both lists. Dedupe so callers like replaceQueueWithSelected
+  // don't double-process the same id (which would leave queueOrder=0 empty).
   var selectedEpisodes: [ListablePodcastEpisode] {
-    episodeList.selectedEntries.elements
-      + recommendedEpisodes.filter { episodeList.isSelected[$0.id] }
+    let queueSelected = episodeList.selectedEntries.elements
+    let queueSelectedIDs = Set(queueSelected.map(\.id))
+    return queueSelected
+      + recommendedEpisodes.filter {
+        episodeList.isSelected[$0.id] && !queueSelectedIDs.contains($0.id)
+      }
   }
 
   enum SortMethod: SortingMethod {
