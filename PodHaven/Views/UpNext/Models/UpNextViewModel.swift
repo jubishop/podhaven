@@ -32,36 +32,44 @@ import SwiftUI
   var episodeList = PowerList<ListablePodcastEpisode>()
   private(set) var recommendedEpisodes: IdentifiedArrayOf<ListablePodcastEpisode> = []
 
+  // MARK: - SelectableList
+
   // Recommendation candidates exclude queued episodes, but there's a brief
   // window after queueing where the engine hasn't re-ranked, so the same id
   // can appear in both lists. Dedupe so callers like replaceQueueWithSelected
   // don't double-process the same id (which would leave queueOrder=0 empty).
-  var selectedEpisodes: [ListablePodcastEpisode] {
-    let queueSelected = episodeList.selectedEntries.elements
-    let queueSelectedIDs = Set(queueSelected.map(\.id))
-    return queueSelected
-      + recommendedEpisodes.filter {
-        episodeList.isSelected[$0.id] && !queueSelectedIDs.contains($0.id)
-      }
+  var selectedEntries: IdentifiedArrayOf<ListablePodcastEpisode> {
+    var result = episodeList.selectedEntries
+    for rec in recommendedEpisodes
+    where episodeList.isSelected[rec.id] && !result.ids.contains(rec.id) {
+      result.append(rec)
+    }
+    return result
   }
 
-  var anyUnselectedEpisodes: Bool {
+  var anySelected: Bool {
+    episodeList.anySelected || recommendedEpisodes.contains { episodeList.isSelected[$0.id] }
+  }
+
+  var anyNotSelected: Bool {
     episodeList.anyNotSelected || recommendedEpisodes.contains { !episodeList.isSelected[$0.id] }
   }
 
-  func selectAllEpisodes() {
+  func selectAllEntries() {
     episodeList.selectAllEntries()
     for recommendedEpisode in recommendedEpisodes {
       episodeList.isSelected[recommendedEpisode.id] = true
     }
   }
 
-  func unselectAllEpisodes() {
+  func unselectAllEntries() {
     episodeList.unselectAllEntries()
     for recommendedEpisode in recommendedEpisodes {
       episodeList.isSelected[recommendedEpisode.id] = false
     }
   }
+
+  // MARK: - SortableEpisodeList
 
   enum SortMethod: SortingMethod {
     case newestFirst

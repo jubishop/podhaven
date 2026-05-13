@@ -4,8 +4,9 @@ import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
+import OrderedCollections
 
-@MainActor protocol SelectableEpisodeList: AnyObject {
+@MainActor protocol SelectableEpisodeList: SelectableList, AnyObject where Item == EpisodeType {
   associatedtype EpisodeType: EpisodeListable & Searchable
 
   var episodeList: PowerList<EpisodeType> { get }
@@ -17,8 +18,6 @@ import Logging
   // Must Implement: Saves new PodcastEpisodes as needed
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
 
-  var anySelectedEpisodes: Bool { get }
-  var anyUnselectedEpisodes: Bool { get }
   var anySelectedQueued: Bool { get }
   var anySelectedNotAtTopOfQueue: Bool { get }
   var anySelectedNotAtBottomOfQueue: Bool { get }
@@ -44,8 +43,6 @@ import Logging
   func rateSelectedEpisodes(rating: EpisodeRating?)
   func applyTagToSelectedEpisodes(_ tagID: Tag.ID)
   func removeTagFromSelectedEpisodes(_ tagID: Tag.ID)
-  func selectAllEpisodes()
-  func unselectAllEpisodes()
 }
 
 extension SelectableEpisodeList {
@@ -57,9 +54,21 @@ extension SelectableEpisodeList {
 
   nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
+  // MARK: - SelectableList
+
+  var isSelecting: Bool { episodeList.isSelecting }
+  func setSelecting(_ value: Bool) { episodeList.setSelecting(value) }
+  var isSelected: BindableDictionary<EpisodeType.ID, Bool> { episodeList.isSelected }
+  var anySelected: Bool { episodeList.anySelected }
+  var anyNotSelected: Bool { episodeList.anyNotSelected }
+  var selectedEntries: IdentifiedArrayOf<EpisodeType> { episodeList.selectedEntries }
+  var selectedEntryIDs: [EpisodeType.ID] { selectedEntries.ids.elements }
+  func selectAllEntries() { episodeList.selectAllEntries() }
+  func unselectAllEntries() { episodeList.unselectAllEntries() }
+
   // MARK: - Selection Getters
 
-  var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
+  var selectedEpisodes: [EpisodeType] { selectedEntries.elements }
   var selectedSavedEpisodeIDs: [Episode.ID] {
     selectedEpisodes.compactMap(\.episodeID)
   }
@@ -67,12 +76,6 @@ extension SelectableEpisodeList {
     get async throws {
       try await selectedPodcastEpisodes.map(\.id)
     }
-  }
-  var anySelectedEpisodes: Bool {
-    !selectedEpisodes.isEmpty
-  }
-  var anyUnselectedEpisodes: Bool {
-    episodeList.anyNotSelected
   }
 
   // MARK: - "Any"? Getters
@@ -427,14 +430,6 @@ extension SelectableEpisodeList {
         )
       }
     }
-  }
-
-  func selectAllEpisodes() {
-    episodeList.selectAllEntries()
-  }
-
-  func unselectAllEpisodes() {
-    episodeList.unselectAllEntries()
   }
 }
 

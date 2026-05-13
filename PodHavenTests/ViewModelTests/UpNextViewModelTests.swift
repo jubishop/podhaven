@@ -223,12 +223,12 @@ import Testing
     viewModel.episodeList.setSelecting(true)
     viewModel.episodeList.isSelected[recRow.id] = true
 
-    #expect(viewModel.anySelectedEpisodes)
+    #expect(viewModel.anySelected)
     #expect(viewModel.anySelectedNotQueued)
   }
 
-  @Test("selectAllEpisodes includes recommendation-only rows")
-  func selectAllEpisodesIncludesRecommendationOnlyRows() async throws {
+  @Test("Select All includes recommendation-only rows")
+  func selectAllEntriesIncludesRecommendationOnlyRows() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
@@ -251,24 +251,24 @@ import Testing
     )
     viewModel.episodeList.setSelecting(true)
 
-    #expect(!viewModel.anySelectedEpisodes)
-    #expect(viewModel.anyUnselectedEpisodes)
+    #expect(!viewModel.anySelected)
+    #expect(viewModel.anyNotSelected)
 
-    viewModel.selectAllEpisodes()
+    viewModel.selectAllEntries()
 
     #expect(viewModel.selectedEpisodes.map(\.id) == [rec.id])
-    #expect(viewModel.anySelectedEpisodes)
-    #expect(!viewModel.anyUnselectedEpisodes)
+    #expect(viewModel.anySelected)
+    #expect(!viewModel.anyNotSelected)
 
-    viewModel.unselectAllEpisodes()
+    viewModel.unselectAllEntries()
 
     #expect(viewModel.selectedEpisodes.isEmpty)
-    #expect(!viewModel.anySelectedEpisodes)
-    #expect(viewModel.anyUnselectedEpisodes)
+    #expect(!viewModel.anySelected)
+    #expect(viewModel.anyNotSelected)
   }
 
-  @Test("selectAllEpisodes includes queued and recommended rows")
-  func selectAllEpisodesIncludesQueueAndRecommendations() async throws {
+  @Test("Select All includes queued and recommended rows")
+  func selectAllEntriesIncludesQueueAndRecommendations() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
@@ -303,22 +303,22 @@ import Testing
     let recRow = try #require(viewModel.recommendedEpisodes.first)
     viewModel.episodeList.setSelecting(true)
 
-    #expect(!viewModel.anySelectedEpisodes)
-    #expect(viewModel.anyUnselectedEpisodes)
+    #expect(!viewModel.anySelected)
+    #expect(viewModel.anyNotSelected)
 
-    viewModel.selectAllEpisodes()
+    viewModel.selectAllEntries()
 
     #expect(viewModel.selectedEpisodes.map(\.id) == [queuedRow.id, recRow.id])
-    #expect(viewModel.anySelectedEpisodes)
-    #expect(!viewModel.anyUnselectedEpisodes)
+    #expect(viewModel.anySelected)
+    #expect(!viewModel.anyNotSelected)
 
-    viewModel.unselectAllEpisodes()
+    viewModel.unselectAllEntries()
 
     #expect(viewModel.selectedEpisodes.isEmpty)
     #expect(!viewModel.episodeList.isSelected[queuedRow.id])
     #expect(!viewModel.episodeList.isSelected[recRow.id])
-    #expect(!viewModel.anySelectedEpisodes)
-    #expect(viewModel.anyUnselectedEpisodes)
+    #expect(!viewModel.anySelected)
+    #expect(viewModel.anyNotSelected)
   }
 
   // The new toolbar's "Add to Queue" path: selecting a rec and invoking the
