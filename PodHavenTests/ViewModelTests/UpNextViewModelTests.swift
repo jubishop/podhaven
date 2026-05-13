@@ -11,6 +11,7 @@ import Testing
 @Suite("of UpNextViewModel tests", .container)
 @MainActor final class UpNextViewModelTests {
   @DynamicInjected(\.appDB) private var appDB
+  @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
 
@@ -140,6 +141,157 @@ import Testing
 
     let viewModel = UpNextViewModel()
     #expect(viewModel.isEpisodeAtBottomOfQueue(unqueued) == false)
+  }
+
+  // Recommended rows live outside the PowerList, so the default protocol
+  // implementation (filter `episodeList.allEntries` by `isSelected`) misses
+  // them. Verify the override unions queue + recs and that the predicates
+  // the multi-select toolbar gates depend on follow.
+  @Test("selectedEpisodes unions queued and recommended selections")
+  func selectedEpisodesUnionsQueueAndRecommendations() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "queued", title: "Queued"),
+          try Create.unsavedEpisode(guid: "rec", title: "Rec"),
+        ]
+      )
+    )
+    let queued = series.episodes[0]
+    let rec = series.episodes[1]
+
+    try await queue.append([queued.id])
+    let queuedListable = try await fetchListable(queued.id)
+    // StateManager isn't running in tests, so feed the queue broadcast
+    // directly — same pattern as setTopRecommendations below.
+    sharedState.setQueuedPodcastEpisodes([queuedListable])
+    sharedState.setTopRecommendations([
+      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.allEntries.count == 1
+          && viewModel.recommendedEpisodes.count == 1
+      },
+      { @MainActor in
+        "Expected queue=1 and recs=1, got queue=\(viewModel.episodeList.allEntries.count) "
+          + "recs=\(viewModel.recommendedEpisodes.count)"
+      }
+    )
+
+    let queuedRow = try #require(viewModel.episodeList.allEntries.first)
+    let recRow = try #require(viewModel.recommendedEpisodes.first)
+
+    viewModel.episodeList.isSelected[queuedRow.id] = true
+    viewModel.episodeList.isSelected[recRow.id] = true
+
+    let selectedIDs = Set(viewModel.selectedEpisodes.map(\.id))
+    #expect(selectedIDs == [queuedRow.id, recRow.id])
+    #expect(viewModel.anySelectedQueued)
+    #expect(viewModel.anySelectedNotQueued)
+  }
+
+  // The new toolbar's "Add to Queue" path: selecting a rec and invoking the
+  // bulk action must mark that rec as queued in the DB.
+  @Test("addSelectedEpisodesToBottomOfQueue queues a selected recommendation")
+  func addSelectedRecommendationToBottomOfQueue() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "rec", title: "Rec")]
+      )
+    )
+    let rec = series.episodes[0]
+
+    sharedState.setTopRecommendations([
+      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.count == 1 },
+      { @MainActor in "Expected 1 rec, got \(viewModel.recommendedEpisodes.count)" }
+    )
+    let recRow = try #require(viewModel.recommendedEpisodes.first)
+    viewModel.episodeList.isSelected[recRow.id] = true
+
+    viewModel.addSelectedEpisodesToBottomOfQueue()
+
+    try await Wait.until(
+      { @MainActor in
+        let listable = try await self.fetchListable(rec.id)
+        return listable.queueOrder != nil
+      },
+      { @MainActor in
+        let listable = try await self.fetchListable(rec.id)
+        return
+          "Expected rec \(rec.id) to land in queue; queueOrder=\(String(describing: listable.queueOrder))"
+      }
+    )
+  }
+
+  // dequeueSelectedEpisodes filters by saved+queued via the protocol's
+  // `selectedSavedEpisodeIDs` path, so a mixed selection only dequeues the
+  // queued half and leaves the recommended row's DB state untouched.
+  @Test("dequeueSelectedEpisodes ignores selected recommendations")
+  func dequeueSelectedIgnoresRecommendations() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "queued", title: "Queued"),
+          try Create.unsavedEpisode(guid: "rec", title: "Rec"),
+        ]
+      )
+    )
+    let queued = series.episodes[0]
+    let rec = series.episodes[1]
+
+    try await queue.append([queued.id])
+    let queuedListable = try await fetchListable(queued.id)
+    sharedState.setQueuedPodcastEpisodes([queuedListable])
+    sharedState.setTopRecommendations([
+      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.allEntries.count == 1
+          && viewModel.recommendedEpisodes.count == 1
+      },
+      { @MainActor in "Expected hydration of queue + recs" }
+    )
+
+    let queuedRow = try #require(viewModel.episodeList.allEntries.first)
+    let recRow = try #require(viewModel.recommendedEpisodes.first)
+    viewModel.episodeList.isSelected[queuedRow.id] = true
+    viewModel.episodeList.isSelected[recRow.id] = true
+
+    viewModel.dequeueSelectedEpisodes()
+
+    try await Wait.until(
+      { @MainActor in
+        let listable = try await self.fetchListable(queued.id)
+        return listable.queueOrder == nil
+      },
+      { @MainActor in "Expected queued episode to be dequeued in DB" }
+    )
+
+    let recAfter = try await fetchListable(rec.id)
+    #expect(recAfter.queueOrder == nil)
   }
 
   private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
