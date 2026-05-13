@@ -115,7 +115,13 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingE
   }
 
   ToolbarItem(placement: .primaryAction) {
-    SelectableListMenu(list: viewModel.episodeList)
+    SelectableListMenu(
+      list: viewModel.episodeList,
+      hasUnselectedEntries: { viewModel.anyUnselectedEpisodes },
+      hasSelectedEntries: { viewModel.anySelectedEpisodes },
+      selectAll: { viewModel.selectAllEpisodes() },
+      unselectAll: { viewModel.unselectAllEpisodes() }
+    )
   }
 }
 

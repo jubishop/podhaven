@@ -18,6 +18,7 @@ import Logging
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
 
   var anySelectedEpisodes: Bool { get }
+  var anyUnselectedEpisodes: Bool { get }
   var anySelectedQueued: Bool { get }
   var anySelectedNotAtTopOfQueue: Bool { get }
   var anySelectedNotAtBottomOfQueue: Bool { get }
@@ -43,6 +44,8 @@ import Logging
   func rateSelectedEpisodes(rating: EpisodeRating?)
   func applyTagToSelectedEpisodes(_ tagID: Tag.ID)
   func removeTagFromSelectedEpisodes(_ tagID: Tag.ID)
+  func selectAllEpisodes()
+  func unselectAllEpisodes()
 }
 
 extension SelectableEpisodeList {
@@ -67,6 +70,9 @@ extension SelectableEpisodeList {
   }
   var anySelectedEpisodes: Bool {
     !selectedEpisodes.isEmpty
+  }
+  var anyUnselectedEpisodes: Bool {
+    episodeList.anyNotSelected
   }
 
   // MARK: - "Any"? Getters
@@ -421,6 +427,14 @@ extension SelectableEpisodeList {
         )
       }
     }
+  }
+
+  func selectAllEpisodes() {
+    episodeList.selectAllEntries()
+  }
+
+  func unselectAllEpisodes() {
+    episodeList.unselectAllEntries()
   }
 }
 

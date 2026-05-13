@@ -227,6 +227,100 @@ import Testing
     #expect(viewModel.anySelectedNotQueued)
   }
 
+  @Test("selectAllEpisodes includes recommendation-only rows")
+  func selectAllEpisodesIncludesRecommendationOnlyRows() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "rec", title: "Rec")]
+      )
+    )
+    let rec = series.episodes[0]
+
+    sharedState.setTopRecommendations([
+      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.count == 1 },
+      { @MainActor in "Expected 1 rec, got \(viewModel.recommendedEpisodes.count)" }
+    )
+    viewModel.episodeList.setSelecting(true)
+
+    #expect(!viewModel.anySelectedEpisodes)
+    #expect(viewModel.anyUnselectedEpisodes)
+
+    viewModel.selectAllEpisodes()
+
+    #expect(viewModel.selectedEpisodes.map(\.id) == [rec.id])
+    #expect(viewModel.anySelectedEpisodes)
+    #expect(!viewModel.anyUnselectedEpisodes)
+
+    viewModel.unselectAllEpisodes()
+
+    #expect(viewModel.selectedEpisodes.isEmpty)
+    #expect(!viewModel.anySelectedEpisodes)
+    #expect(viewModel.anyUnselectedEpisodes)
+  }
+
+  @Test("selectAllEpisodes includes queued and recommended rows")
+  func selectAllEpisodesIncludesQueueAndRecommendations() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "queued", title: "Queued"),
+          try Create.unsavedEpisode(guid: "rec", title: "Rec"),
+        ]
+      )
+    )
+    let queued = series.episodes[0]
+    let rec = series.episodes[1]
+
+    try await queue.append([queued.id])
+    let queuedListable = try await fetchListable(queued.id)
+    sharedState.setQueuedPodcastEpisodes([queuedListable])
+    sharedState.setTopRecommendations([
+      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.allEntries.count == 1
+          && viewModel.recommendedEpisodes.count == 1
+      },
+      { @MainActor in "Expected hydration of queue + recs" }
+    )
+    let queuedRow = try #require(viewModel.episodeList.allEntries.first)
+    let recRow = try #require(viewModel.recommendedEpisodes.first)
+    viewModel.episodeList.setSelecting(true)
+
+    #expect(!viewModel.anySelectedEpisodes)
+    #expect(viewModel.anyUnselectedEpisodes)
+
+    viewModel.selectAllEpisodes()
+
+    #expect(viewModel.selectedEpisodes.map(\.id) == [queuedRow.id, recRow.id])
+    #expect(viewModel.anySelectedEpisodes)
+    #expect(!viewModel.anyUnselectedEpisodes)
+
+    viewModel.unselectAllEpisodes()
+
+    #expect(viewModel.selectedEpisodes.isEmpty)
+    #expect(!viewModel.episodeList.isSelected[queuedRow.id])
+    #expect(!viewModel.episodeList.isSelected[recRow.id])
+    #expect(!viewModel.anySelectedEpisodes)
+    #expect(viewModel.anyUnselectedEpisodes)
+  }
+
   // The new toolbar's "Add to Queue" path: selecting a rec and invoking the
   // bulk action must mark that rec as queued in the DB.
   @Test("addSelectedEpisodesToBottomOfQueue queues a selected recommendation")

@@ -45,6 +45,24 @@ import SwiftUI
       }
   }
 
+  var anyUnselectedEpisodes: Bool {
+    episodeList.anyNotSelected || recommendedEpisodes.contains { !episodeList.isSelected[$0.id] }
+  }
+
+  func selectAllEpisodes() {
+    episodeList.selectAllEntries()
+    for recommendedEpisode in recommendedEpisodes {
+      episodeList.isSelected[recommendedEpisode.id] = true
+    }
+  }
+
+  func unselectAllEpisodes() {
+    episodeList.unselectAllEntries()
+    for recommendedEpisode in recommendedEpisodes {
+      episodeList.isSelected[recommendedEpisode.id] = false
+    }
+  }
+
   enum SortMethod: SortingMethod {
     case newestFirst
     case oldestFirst
