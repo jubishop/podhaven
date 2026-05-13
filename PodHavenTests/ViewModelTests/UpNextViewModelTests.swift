@@ -426,10 +426,6 @@ import Testing
     )
   }
 
-  // dequeueSelectedEpisodes passes every selected episode's id to
-  // `Queue._dequeue`, which clears `queueOrder` row-by-row. A rec's
-  // `queueOrder` is already nil, so the SQL update is a no-op for that row
-  // and only the queued half actually leaves the queue.
   @Test("dequeueSelectedEpisodes ignores selected recommendations")
   func dequeueSelectedIgnoresRecommendations() async throws {
     let series = try await repo.insertSeries(

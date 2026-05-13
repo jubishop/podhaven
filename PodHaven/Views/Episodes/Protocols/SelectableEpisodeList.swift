@@ -193,17 +193,17 @@ extension SelectableEpisodeList {
   }
 
   func dequeueSelectedEpisodes() {
-    let savedEpisodeIDs = selectedSavedEpisodeIDs
-    guard !savedEpisodeIDs.isEmpty else { return }
+    let queuedSavedEpisodeIDs = selectedEpisodes.filter(\.queued).compactMap(\.episodeID)
+    guard !queuedSavedEpisodeIDs.isEmpty else { return }
 
     Task { [weak self] in
       guard let self else { return }
 
       do {
-        try await queue.dequeue(savedEpisodeIDs)
+        try await queue.dequeue(queuedSavedEpisodeIDs)
       } catch {
         Self.log.caughtError(
-          "dequeueSelectedEpisodes: failed to dequeue \(savedEpisodeIDs.count) episodes",
+          "dequeueSelectedEpisodes: failed to dequeue \(queuedSavedEpisodeIDs.count) episodes",
           error
         )
       }
