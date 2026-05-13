@@ -197,6 +197,36 @@ import Testing
     #expect(viewModel.anySelectedNotQueued)
   }
 
+  @Test("recommendation-only selection counts as selected for toolbar actions")
+  func recommendationOnlySelectionCountsForToolbarActions() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "rec", title: "Rec")]
+      )
+    )
+    let rec = series.episodes[0]
+
+    sharedState.setTopRecommendations([
+      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
+    ])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.count == 1 },
+      { @MainActor in "Expected 1 rec, got \(viewModel.recommendedEpisodes.count)" }
+    )
+    let recRow = try #require(viewModel.recommendedEpisodes.first)
+    viewModel.episodeList.setSelecting(true)
+    viewModel.episodeList.isSelected[recRow.id] = true
+
+    #expect(viewModel.anySelectedEpisodes)
+    #expect(viewModel.anySelectedNotQueued)
+  }
+
   // The new toolbar's "Add to Queue" path: selecting a rec and invoking the
   // bulk action must mark that rec as queued in the DB.
   @Test("addSelectedEpisodesToBottomOfQueue queues a selected recommendation")

@@ -17,6 +17,7 @@ import Logging
   // Must Implement: Saves new PodcastEpisodes as needed
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
 
+  var anySelectedEpisodes: Bool { get }
   var anySelectedQueued: Bool { get }
   var anySelectedNotAtTopOfQueue: Bool { get }
   var anySelectedNotAtBottomOfQueue: Bool { get }
@@ -63,6 +64,9 @@ extension SelectableEpisodeList {
     get async throws {
       try await selectedPodcastEpisodes.map(\.id)
     }
+  }
+  var anySelectedEpisodes: Bool {
+    !selectedEpisodes.isEmpty
   }
 
   // MARK: - "Any"? Getters
