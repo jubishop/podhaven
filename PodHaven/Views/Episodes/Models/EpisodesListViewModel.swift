@@ -131,11 +131,23 @@ class EpisodesListViewModel:
   let filter: SQLExpression
   private(set) var loadingState: LoadingState = .loadingEpisodes
 
-  @ObservationIgnored private var lastObservationKey: String?
-  var observationKey: String {
-    let recPart =
-      currentSortMethod == .recommendationScore ? "-\(recommendationScoresVersion)" : ""
-    return "\(currentSortMethod.rawValue)-\(filterText)\(recPart)"
+  // nil `recScoresVersion` means this sort doesn't restart on rec rescores —
+  // a context-revision tick while the user is on a non-rec sort must not
+  // invalidate the in-flight observation.
+  struct ObservationKey: Hashable {
+    let sort: SortMethod
+    let filter: String
+    let recScoresVersion: Int?
+  }
+
+  @ObservationIgnored private var lastObservationKey: ObservationKey?
+  var observationKey: ObservationKey {
+    ObservationKey(
+      sort: currentSortMethod,
+      filter: filterText,
+      recScoresVersion: currentSortMethod == .recommendationScore
+        ? recommendationScoresVersion : nil
+    )
   }
 
   // MARK: - Initialization
