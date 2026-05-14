@@ -120,10 +120,16 @@ class EpisodesListViewModel:
 
   // MARK: - State Management
 
+  enum LoadingState {
+    case loadingEpisodes
+    case computingRecommendations
+    case ready
+  }
+
   private static let displayLimit = 100
   let title: String
   let filter: SQLExpression
-  private(set) var isLoading = true
+  private(set) var loadingState: LoadingState = .loadingEpisodes
 
   @ObservationIgnored private var lastObservationKey: String?
   var observationKey: String {
@@ -156,8 +162,8 @@ class EpisodesListViewModel:
       """
     )
 
-    if keyChanged || episodeList.allEntries.isEmpty { isLoading = true }
-    defer { isLoading = false }
+    if keyChanged || episodeList.allEntries.isEmpty { loadingState = pendingLoadingState() }
+    defer { loadingState = .ready }
 
     startRecommendationObservation()
 
@@ -186,7 +192,7 @@ class EpisodesListViewModel:
       try Task.checkCancellation()
       Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
       episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
-      isLoading = false
+      loadingState = .ready
     }
   }
 
@@ -197,7 +203,7 @@ class EpisodesListViewModel:
     let topIDs = topEpisodeIDsByScore()
     guard !topIDs.isEmpty else {
       episodeList.allEntries = []
-      isLoading = false
+      loadingState = .ready
       return
     }
 
@@ -215,8 +221,15 @@ class EpisodesListViewModel:
         ordered.append(row)
       }
       episodeList.allEntries = IdentifiedArray(uniqueElements: ordered)
-      isLoading = false
+      loadingState = .ready
     }
+  }
+
+  private func pendingLoadingState() -> LoadingState {
+    if currentSortMethod == .recommendationScore, case .pending = recommendationScoresState {
+      return .computingRecommendations
+    }
+    return .loadingEpisodes
   }
 
   // MARK: - Recommendation Scoring

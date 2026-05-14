@@ -39,12 +39,17 @@ struct EpisodesListView: View {
 
   @ViewBuilder
   private var episodesView: some View {
-    if viewModel.isLoading {
-      loadingView
-    } else if viewModel.episodeList.filteredEntries.isEmpty {
-      noEpisodesMessage
-    } else {
-      listView
+    switch viewModel.loadingState {
+    case .computingRecommendations:
+      loadingView(message: "Computing recommendations…")
+    case .loadingEpisodes:
+      loadingView(message: "Loading episodes…")
+    case .ready:
+      if viewModel.episodeList.filteredEntries.isEmpty {
+        noEpisodesMessage
+      } else {
+        listView
+      }
     }
   }
 
@@ -67,9 +72,9 @@ struct EpisodesListView: View {
     }
   }
 
-  private var loadingView: some View {
+  private func loadingView(message: String) -> some View {
     VStack {
-      ProgressView("Loading episodes...")
+      ProgressView(message)
         .foregroundColor(.secondary)
         .padding()
       Spacer()

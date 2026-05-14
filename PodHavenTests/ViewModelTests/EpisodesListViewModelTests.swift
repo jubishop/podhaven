@@ -459,6 +459,124 @@ import Testing
     viewModel.disappear()
   }
 
+  @Test("loadingState is .computingRecommendations during rec-sort cold start")
+  func loadingStateIsComputingRecommendationsOnRecSortColdStart() async throws {
+    let fakeRecRepo =
+      Container.shared.recommendationRepo() as! FakeRecommendationRepo
+    let gate = AsyncStream<Void>.makeStream()
+    fakeRecRepo.candidateEpisodesScript([
+      {
+        var iterator = gate.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        return []
+      }
+    ])
+
+    let viewModel = EpisodesListViewModel(title: "RecLoadingState")
+    viewModel.currentSortMethod = .recommendationScore
+
+    let observationTask = Task { @MainActor in
+      await viewModel.startObservation()
+    }
+
+    do {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.loadingState == .computingRecommendations },
+        { @MainActor in
+          """
+          Expected .computingRecommendations while scoring is parked, got \
+          \(viewModel.loadingState).
+          """
+        }
+      )
+
+      gate.continuation.yield()
+      gate.continuation.finish()
+
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.loadingState == .ready },
+        { @MainActor in
+          "Expected .ready after scores landed, got \(viewModel.loadingState)."
+        }
+      )
+    } catch {
+      gate.continuation.finish()
+      observationTask.cancel()
+      viewModel.disappear()
+      throw error
+    }
+    observationTask.cancel()
+    viewModel.disappear()
+  }
+
+  @Test("recommendationScore sort renders empty list when scoring fails")
+  func recommendationSortRendersEmptyOnScoringFailure() async throws {
+    struct ScoringFailedError: Error, Sendable {}
+
+    let fakeRecRepo =
+      Container.shared.recommendationRepo() as! FakeRecommendationRepo
+    fakeRecRepo.candidateEpisodesScript([{ throw ScoringFailedError() }])
+
+    let viewModel = EpisodesListViewModel(title: "RecScoringFailure")
+    viewModel.currentSortMethod = .recommendationScore
+
+    let observationTask = Task { @MainActor in
+      await viewModel.startObservation()
+    }
+
+    do {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.loadingState == .ready },
+        { @MainActor in
+          """
+          Expected .ready after scoring failure, got \(viewModel.loadingState).
+          """
+        }
+      )
+    } catch {
+      observationTask.cancel()
+      viewModel.disappear()
+      throw error
+    }
+
+    #expect(viewModel.episodeList.filteredEntries.isEmpty)
+    observationTask.cancel()
+    viewModel.disappear()
+  }
+
+  @Test("loadingState defaults to .loadingEpisodes and reaches .ready for non-rec sort")
+  func loadingStateForNonRecSort() async throws {
+    let setup = try await setupFourTaggedEpisodes()
+
+    let viewModel = EpisodesListViewModel(title: "NonRecLoadingState")
+    #expect(viewModel.loadingState == .loadingEpisodes)
+
+    let observationTask = Task { @MainActor in
+      await viewModel.startObservation()
+    }
+
+    do {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.loadingState == .ready },
+        { @MainActor in
+          "Expected .ready, got \(viewModel.loadingState)."
+        }
+      )
+    } catch {
+      observationTask.cancel()
+      viewModel.disappear()
+      throw error
+    }
+
+    #expect(viewModel.episodeList.filteredEntries.count == setup.episodes.count)
+    observationTask.cancel()
+    viewModel.disappear()
+  }
+
   @Test("uncacheSelectedEpisodes leaves cache files alone when bulk unsave throws")
   func uncacheSelectedEpisodesPreservesCacheOnUnsaveFailure() async throws {
     let cachedEpisode = try await CacheHelpers.createCachedEpisode(
