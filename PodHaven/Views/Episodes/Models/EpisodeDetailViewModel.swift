@@ -53,6 +53,16 @@ enum EpisodeDetailState: Sendable, Stringable {
     case .saved(let podcastEpisode): return "saved(\(podcastEpisode.toString))"
     }
   }
+
+  static func sameRecommendationKind(
+    _ a: EpisodeDetailState,
+    _ b: EpisodeDetailState
+  ) -> Bool {
+    switch (a, b) {
+    case (.initial, .initial), (.unsaved, .unsaved), (.saved, .saved): true
+    default: false
+    }
+  }
 }
 
 // Saved episodes render the full recommendation with reason pills; unsaved
@@ -455,7 +465,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     case .unsaved(let unsavedPodcastEpisode):
       newScore = await scoreUnsavedEpisode(unsavedPodcastEpisode)
     }
-    guard Self.sameRecommendationKind(entryState, state) else {
+    guard EpisodeDetailState.sameRecommendationKind(entryState, state) else {
       Self.log.debug(
         """
         fetchRecommendation: state kind changed during scoring; \
@@ -465,16 +475,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return
     }
     score = newScore
-  }
-
-  private static func sameRecommendationKind(
-    _ a: EpisodeDetailState,
-    _ b: EpisodeDetailState
-  ) -> Bool {
-    switch (a, b) {
-    case (.initial, .initial), (.unsaved, .unsaved), (.saved, .saved): true
-    default: false
-    }
   }
 
   private func scoreSavedEpisode(
@@ -556,7 +556,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // MARK: - Private Helpers
 
   private func transition(to newState: EpisodeDetailState) {
-    let recommendationKindChanged = !Self.sameRecommendationKind(state, newState)
+    let recommendationKindChanged = !EpisodeDetailState.sameRecommendationKind(state, newState)
     logStateTransition(to: newState)
     state = newState
     if recommendationKindChanged {
