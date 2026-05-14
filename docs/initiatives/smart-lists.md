@@ -317,7 +317,7 @@ Per CLAUDE.md regression-test rule: each engine-edge-case test must be confirmed
 
 1. Build clean — zero warnings (CLAUDE.md guardrail).
 2. Run full test suite.
-3. Launch in simulator (use the `simulator` skill):
+3. Launch in simulator:
    - On fresh install: confirm 10 lists appear in `EpisodesView` with names matching the table above; tapping each shows the same episodes as before the migration (sanity).
    - On upgrade install (start from a v42 DB if possible): confirm migration succeeds and all 10 lists are present, and that `Container.shared.standardDefaults()` no longer contains the 10 old `EpisodesList-sortMethod-{title}` keys.
    - Tap `+` on `EpisodesView` → editor sheet opens, can build a one-level-nested filter (e.g., top group ALL with `title contains "AI"` AND a nested ANY group with `loved` OR `liked`), Save → new list appears in hub, tapping shows expected episodes.
