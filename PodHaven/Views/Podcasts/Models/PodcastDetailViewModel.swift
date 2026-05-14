@@ -605,6 +605,7 @@ class PodcastDetailViewModel:
       valuesByMediaGUID = await unsavedSimilarityScores(entries: entries)
     }
 
+    guard !Task.isCancelled else { return }
     lastRecommendationScores = valuesByMediaGUID
     guard currentSortMethod == .recommendationScore else { return }
     episodeList.sortMethod = makeRecommendationComparator(valuesByMediaGUID)
