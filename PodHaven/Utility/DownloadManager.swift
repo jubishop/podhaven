@@ -24,6 +24,8 @@ actor DownloadTask: Identifiable {
   private var finishedContinuations: [CheckedContinuation<DownloadResult, Never>] = []
   private var begun: Bool = false
   private var result: DownloadResult?
+  private var fetchTask: Task<Data, any Error>?
+  private weak var owner: DownloadManager?
 
   func downloadBegan() async {
     guard !begun else { return }
@@ -42,24 +44,45 @@ actor DownloadTask: Identifiable {
     return try result.get()
   }
 
-  func cancel() {
-    haveFinished(.failure(CancellationError()))
+  func cancel() async {
+    guard result == nil else { return }
+    // Capture-then-clear so concurrent cancel()s after this point are no-ops
+    // and the owner is notified at most once per task.
+    let owner = self.owner
+    self.owner = nil
+    finalizeCancelled()
+    await owner?.handleDirectCancel(url: url)
   }
 
   // MARK: - Fileprivate Methods
 
-  fileprivate init(url: URL, session: any DataFetchable) {
+  fileprivate init(url: URL, session: any DataFetchable, owner: DownloadManager) {
     self.url = url
     self.session = session
+    self.owner = owner
+  }
+
+  // Cancellation initiated by the owning manager. The manager has already
+  // removed the task from its state, so we skip the owner callback.
+  fileprivate func cancelFromOwner() {
+    guard result == nil else { return }
+    owner = nil
+    finalizeCancelled()
   }
 
   fileprivate func download() async {
-    if self.result != nil { return }
+    guard result == nil else { return }
 
     haveBegun()
 
+    let fetchTask = Task { [session, url] () async throws -> Data in
+      try await session.validatedData(from: url)
+    }
+    self.fetchTask = fetchTask
+    defer { self.fetchTask = nil }
+
     do {
-      let data = try await session.validatedData(from: url)
+      let data = try await fetchTask.value
       haveFinished(.success(DownloadData(url: url, data: data)))
     } catch {
       haveFinished(.failure(error))
@@ -67,6 +90,11 @@ actor DownloadTask: Identifiable {
   }
 
   // MARK: - Private Helpers
+
+  private func finalizeCancelled() {
+    fetchTask?.cancel()
+    haveFinished(.failure(CancellationError()))
+  }
 
   private func haveBegun() {
     guard !begun else { return }
@@ -129,7 +157,7 @@ actor DownloadManager {
       return pendingDownload
     }
 
-    let download = DownloadTask(url: url, session: session)
+    let download = DownloadTask(url: url, session: session, owner: self)
     pendingDownloads.append(download)
 
     startNextDownload()
@@ -138,23 +166,39 @@ actor DownloadManager {
 
   func cancelDownload(url: URL) async {
     if let activeDownload = activeDownloads.removeValue(forKey: url) {
-      await activeDownload.cancel()
+      await activeDownload.cancelFromOwner()
       startNextDownload()
     }
     if let pendingDownload = pendingDownloads.remove(id: url) {
-      await pendingDownload.cancel()
+      await pendingDownload.cancelFromOwner()
     }
   }
 
   func cancelAllDownloads() async {
-    for (_, downloadTask) in activeDownloads {
-      await downloadTask.cancel()
-    }
+    let activeDownloadTasks = Array(activeDownloads.values)
+    let pendingDownloadTasks = Array(pendingDownloads)
     activeDownloads.removeAll()
-    for downloadTask in pendingDownloads {
-      await downloadTask.cancel()
-    }
     pendingDownloads.removeAll()
+
+    for downloadTask in activeDownloadTasks {
+      await downloadTask.cancelFromOwner()
+    }
+    for downloadTask in pendingDownloadTasks {
+      await downloadTask.cancelFromOwner()
+    }
+  }
+
+  // MARK: - Fileprivate Helpers
+
+  // Called by DownloadTask when the task was cancelled directly (not via
+  // cancelDownload/cancelAllDownloads). Keep manager state in sync and free
+  // the concurrency slot the cancelled task was holding.
+  fileprivate func handleDirectCancel(url: URL) {
+    if activeDownloads.removeValue(forKey: url) != nil {
+      startNextDownload()
+    } else {
+      pendingDownloads.remove(id: url)
+    }
   }
 
   // MARK: - Private Helpers

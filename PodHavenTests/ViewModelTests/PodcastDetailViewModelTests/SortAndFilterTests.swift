@@ -199,26 +199,60 @@ import Testing
 
   @Test("recommendationScore sort reorders episodes by score descending")
   func recommendationScoreSortReordersByScore() async throws {
-    // Signal podcast supplies enough rated embeddings to lift the engine over
-    // its minimum-data threshold; without this the cache stays cold and the
-    // sort can't reorder.
+    // Pin focused decone mode: exploratory strips three principal components
+    // and on a fixture this small collapses score residuals to zero, which
+    // would erase the ordering we're asserting.
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    // Engineered vectors give us a deterministic, monotonic similarity
+    // gradient across candidates so the rec-score order is provably distinct
+    // from newest-first. FakeEmbeddable derives vectors from String.hashValue,
+    // which Swift re-seeds per process, so its candidate ordering was random
+    // across CI runs and occasionally matched pubDate-descending.
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target 0") { return [0.2, 0.98, 0] }
+      if text.contains("Target 1") { return [0.4, 0.917, 0] }
+      if text.contains("Target 2") { return [0.6, 0.8, 0] }
+      if text.contains("Target 3") { return [0.8, 0.6, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    // Anchor the corpus mean off the signal/candidate cluster so mean-centering
+    // preserves the engineered ordering. notInterested ratings keep these out
+    // of both centroids and the candidate pool.
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
     let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 3,
       podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
       ratings: [.loved, .liked, .liked]
     )
-    try await RecommendationHelpers.embedEpisodes(signals)
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
 
-    // Distinct titles → distinct FakeEmbeddable vectors → distinct similarity
-    // scores against the signal centroid, so the rec-score order differs
-    // from any natural property order.
+    // Descriptions carry the per-index discriminator the embeddable closure
+    // matches on; titles share the constant "Target" branch so candidate
+    // ordering comes entirely from descriptions.
     let (targetPodcast, candidateEpisodes) =
       try await RecommendationHelpers
       .createPodcastWithEpisodes(
         count: 4,
-        podcastTitle: "Target"
+        podcastTitle: "Target",
+        podcastDescription: "Target",
+        episodeDescriptions: ["Target 0", "Target 1", "Target 2", "Target 3"]
       )
-    try await RecommendationHelpers.embedEpisodes(candidateEpisodes)
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
 
     let scoreMap = try await RecommendationHelpers.startAndWaitForScores(
       for: candidateEpisodes
@@ -237,8 +271,8 @@ import Testing
           > rhs.mediaGUID.mediaURL.rawValue.absoluteString
       }
       .map(\.id)
-    // Guard against the case where the rec-score order happens to match
-    // newest-first; a meaningful regression test must actually reorder.
+    // Engineered vectors make this guard hold by construction; keeping it
+    // documents the contract and catches future fixture drift.
     let newestFirstOrder =
       candidateEpisodes
       .sorted { $0.pubDate > $1.pubDate }
