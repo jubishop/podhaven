@@ -62,7 +62,7 @@ enum EpisodeDetailState: Sendable, Stringable {
 // freshness and the single `.similarToLiked` reason pill is redundant.
 enum EpisodeDetailDisplayedScore: Sendable {
   case recommendation(RecommendationScore)
-  case similarity(value: Float)
+  case similarity(Float)
 }
 
 @Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
@@ -419,6 +419,14 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored private var recommendationTask: Task<Void, Never>?
   @ObservationIgnored private var recommendationRefreshTask: Task<Void, Never>?
 
+  // Memoized vector for the current `.unsaved` payload. Valid while
+  // `contextualEmbedding.revision` matches; cleared inside
+  // `scheduleRecommendationRefresh` since every refresh trigger today is
+  // a kind change, which may bring a different `.unsaved` payload
+  // (e.g. post-deletion synthesis). Skips a CoreML inference on every
+  // contextRevision tick after the first.
+  @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
+
   // Re-fetches this episode's score whenever the engine bumps
   // `contextRevision`, i.e. every time its scoring cache rebuilds. The
   // bootstrap emit covers the "cache is already hot when the view opens"
@@ -503,30 +511,35 @@ enum EpisodeDetailDisplayedScore: Sendable {
   private func scoreUnsavedEpisode(
     _ unsavedPodcastEpisode: UnsavedPodcastEpisode
   ) async -> EpisodeDetailDisplayedScore? {
-    // Idempotent — picks up assets the embedding background task has
-    // already downloaded without triggering a fresh request when they
-    // haven't, so opening detail can't kick off an unrelated download.
     contextualEmbedding.loadAssetsIfAvailable()
+    guard contextualEmbedding.isAvailable else { return nil }
+
+    let revision = contextualEmbedding.revision
     let vector: [Float]
-    do {
-      vector = try await EmbeddingService.embeddingVector(
-        for: unsavedPodcastEpisode,
-        embedding: contextualEmbedding
-      )
-    } catch {
-      Self.log.caughtError(
-        """
-        fetchRecommendation: unsaved embedding failed for \
-        \(unsavedPodcastEpisode.toString)
-        """,
-        error
-      )
-      return nil
+    if let cached = unsavedEmbeddingCache, cached.revision == revision {
+      vector = cached.vector
+    } else {
+      do {
+        vector = try await EmbeddingService.embeddingVector(
+          for: unsavedPodcastEpisode,
+          embedding: contextualEmbedding
+        )
+      } catch {
+        Self.log.caughtError(
+          """
+          fetchRecommendation: unsaved embedding failed for \
+          \(unsavedPodcastEpisode.toString)
+          """,
+          error
+        )
+        return nil
+      }
+      unsavedEmbeddingCache = (revision: revision, vector: vector)
     }
     guard let value = recommendationEngine.similarityScore(forEmbedding: vector) else {
       return nil
     }
-    return .similarity(value: value)
+    return .similarity(value)
   }
 
   // Re-route the score after a state-kind change (saved ↔ unsaved ↔
@@ -535,10 +548,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // replace keeps rapid kind-changes from piling up redundant in-flight
   // fetches racing on `score`.
   private func scheduleRecommendationRefresh() {
+    unsavedEmbeddingCache = nil
     recommendationRefreshTask?.cancel()
     recommendationRefreshTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      guard !Task.isCancelled else { return }
       await fetchRecommendation()
     }
   }

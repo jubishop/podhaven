@@ -557,7 +557,7 @@ struct EpisodeDetailView: View {
       )
     )
   )
-  viewModel.previewSeedDisplayedScore(.similarity(value: 0.73))
+  viewModel.previewSeedDisplayedScore(.similarity(0.73))
   return NavigationStack {
     EpisodeDetailView(viewModel: viewModel)
       .preview()

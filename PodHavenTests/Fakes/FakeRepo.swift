@@ -19,8 +19,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // until `resumeAllEpisodeFetchSuspensions()` fires. Cleared on use.
   // `suspendedEpisodeFetchCount` is exposed nonisolated so tests can poll
   // without contending for the actor (same pattern as FakeSleeper).
+  // `completedEpisodeFetchCount` increments after the suspension (if any)
+  // resolves and the method is about to return — letting tests turn
+  // "the held fetch has resumed and unwound" into an event-driven wait
+  // instead of a time-bounded poll.
   nonisolated let pendingEpisodeFetchSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedEpisodeFetchCount = ThreadSafe<Int>(0)
+  nonisolated let completedEpisodeFetchCount = ThreadSafe<Int>(0)
   private var episodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
 
   private let repo: Repo
@@ -97,6 +102,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         suspendedEpisodeFetchCount(episodeFetchSuspensions.count)
       }
     }
+    completedEpisodeFetchCount { $0 += 1 }
     return result
   }
 
@@ -117,6 +123,18 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         """
         Expected at least \(count) suspended episode fetches, \
         got \(self.suspendedEpisodeFetchCount())
+        """
+      }
+    )
+  }
+
+  nonisolated func waitForEpisodeFetchCompleted(count: Int) async throws {
+    try await Wait.until(
+      { self.completedEpisodeFetchCount() >= count },
+      {
+        """
+        Expected at least \(count) completed episode fetches, \
+        got \(self.completedEpisodeFetchCount())
         """
       }
     )

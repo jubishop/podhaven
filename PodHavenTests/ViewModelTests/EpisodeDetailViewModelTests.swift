@@ -353,6 +353,14 @@ import Testing
   func unsavedEpisodeHidesScoreWhenCacheIsCold() async throws {
     // No signal data planted — the engine never builds a context, so
     // similarityScore returns nil regardless of how many revisions tick.
+    // The probe lets us assert the scoring path actually ran (vector
+    // request observed) before concluding the score "stayed" nil; without
+    // it, the assertion is indistinguishable from the VM's default state.
+    let probe = EmbeddingProbe()
+    Container.shared.contextualEmbedding.reset()
+      .register { AvailableCountingContextualEmbedding(probe: probe) }
+      .scope(.cached)
+
     let unsavedPodcastEpisode = UnsavedPodcastEpisode(
       unsavedPodcast: try Create.unsavedPodcast(title: "Cold Cache Podcast"),
       unsavedEpisode: try Create.unsavedEpisode(
@@ -364,8 +372,69 @@ import Testing
 
     try await viewModel.performAppear()
 
-    // The cold-cache invariant is "score stays nil forever," not "score
-    // becomes nil eventually" — assert directly without polling.
+    // Wait until the bootstrap fetch has computed an embedding, proving
+    // the unsaved scoring path reached `similarityScore`. From there the
+    // cold cache forces a nil return, which `fetchRecommendation` writes
+    // back as `score = nil` on the next MainActor turn.
+    try await Wait.until(
+      { probe.vectorRequestCount() > 0 },
+      {
+        """
+        Expected unsaved scoring to request at least one embedding vector. \
+        vectorRequestCount: \(probe.vectorRequestCount())
+        """
+      }
+    )
+    for _ in 0..<30 { await Task.yield() }
+
+    #expect(viewModel.displayedScore == nil)
+  }
+
+  @Test("unsaved episode skips vector scoring when embedding assets are unavailable")
+  func unsavedEpisodeSkipsVectorScoringWhenEmbeddingAssetsUnavailable() async throws {
+    let probe = EmbeddingProbe()
+    Container.shared.contextualEmbedding.reset()
+      .register { UnavailableCountingContextualEmbedding(probe: probe) }
+      .scope(.cached)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Unavailable Embedding Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unavailable-embedding",
+        title: "Unavailable Embedding Episode"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { probe.loadAssetsIfAvailableCount() > 0 },
+      {
+        """
+        Expected unsaved scoring to check whether embedding assets are available.
+        loadAssetsIfAvailableCount: \(probe.loadAssetsIfAvailableCount())
+        """
+      }
+    )
+
+    let observedVectorRequest: Bool
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        delay: .milliseconds(10),
+        priority: .userInitiated,
+        { probe.vectorRequestCount() > 0 },
+        { "no vector request observed within polling window" }
+      )
+      observedVectorRequest = true
+    } catch {
+      // Timeout means the unavailable-assets path stayed quiet, which is
+      // the expected behavior.
+      observedVectorRequest = false
+    }
+
+    #expect(observedVectorRequest == false)
     #expect(viewModel.displayedScore == nil)
   }
 
@@ -532,31 +601,28 @@ import Testing
     // dropped and `.similarity` remains the stable terminal state.
     await fakeRepo.resumeAllEpisodeFetchSuspensions()
 
-    // Poll for the stale-write surface within a bounded window. If we
-    // ever observe `.recommendation` while `!isSaved`, the guard failed.
-    // If the window elapses without seeing it, the guard held.
-    var observedStaleWrite = false
-    do {
-      try await Wait.until(
-        maxAttempts: 100,
-        delay: .milliseconds(10),
-        priority: .userInitiated,
-        { @MainActor in
-          if case .recommendation = viewModel.displayedScore, !viewModel.episode.isSaved {
-            observedStaleWrite = true
-            return true
-          }
-          return false
-        },
-        { @MainActor in "no stale .recommendation write observed within polling window" }
-      )
-    } catch {
-      // Timeout — no stale write observed within the window. Expected
-      // with the identity guard in place.
-    }
+    // Event-driven barrier: wait for the held `repo.episode` call to
+    // fully unwind (deterministic — fires the instant the suspended
+    // continuation returns). After that, the saved-side fetch's tail
+    // (engine embeddings + score compute, then a MainActor hop into the
+    // state-kind guard) is the only outstanding work; once it drains,
+    // the score is final and no further fetches are scheduled.
+    try await fakeRepo.waitForEpisodeFetchCompleted(count: 1)
+    // Yield repeatedly so any MainActor continuation queued behind us —
+    // including the saved-side fetch's guard/write — runs before we
+    // assert. Each yield re-queues us at the back of the MainActor
+    // scheduler, letting one pending task advance per round.
+    for _ in 0..<30 { await Task.yield() }
 
-    #expect(observedStaleWrite == false)
     #expect(viewModel.episode.isSaved == false)
+    if case .recommendation = viewModel.displayedScore {
+      Issue.record(
+        """
+        Stale .recommendation write landed after saved → unsaved transition; \
+        the state-kind guard in fetchRecommendation regressed.
+        """
+      )
+    }
     if case .similarity = viewModel.displayedScore {
       // Good — terminal state held.
     } else {
@@ -767,5 +833,83 @@ import Testing
     #expect(savedEpisode != nil)
     #expect(savedEpisode?.episode.finishDate != nil)
     #expect(savedEpisode?.episode.currentTime == .zero)
+  }
+}
+
+private struct EmbeddingProbe: Sendable {
+  let loadAssetsIfAvailableCount = ThreadSafe<Int>(0)
+  let vectorRequestCount = ThreadSafe<Int>(0)
+}
+
+private final class UnavailableCountingContextualEmbedding: ContextualEmbedding {
+  private let probe: EmbeddingProbe
+
+  init(probe: EmbeddingProbe) {
+    self.probe = probe
+    super.init(embedding: UnavailableEmbeddable())
+  }
+
+  override func loadAssetsIfAvailable() {
+    probe.loadAssetsIfAvailableCount { $0 += 1 }
+  }
+
+  override func vector(for text: String) throws -> [Float] {
+    probe.vectorRequestCount { $0 += 1 }
+    return [1, 0, 0]
+  }
+}
+
+private struct UnavailableEmbeddable: Embeddable {
+  let hasAvailableAssets = false
+  let revision = 1
+
+  func load() throws {}
+
+  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) {
+    completion(nil)
+  }
+
+  func embeddingResult(for string: String) throws -> any EmbeddableResult {
+    FakeEmbeddingResult(vectors: [[1, 0, 0]])
+  }
+}
+
+// Counterpart to `UnavailableCountingContextualEmbedding` whose assets
+// load successfully (so `isAvailable` becomes true and the unsaved
+// scorer continues past the early-exit guard into the embedding + cold-
+// cache path). Lets the cold-cache test wait on a deterministic signal
+// that the scoring path actually ran before asserting the score stays
+// nil.
+private final class AvailableCountingContextualEmbedding: ContextualEmbedding {
+  private let probe: EmbeddingProbe
+
+  init(probe: EmbeddingProbe) {
+    self.probe = probe
+    super.init(embedding: AvailableEmbeddable())
+  }
+
+  override func loadAssetsIfAvailable() {
+    probe.loadAssetsIfAvailableCount { $0 += 1 }
+    super.loadAssetsIfAvailable()
+  }
+
+  override func vector(for text: String) throws -> [Float] {
+    probe.vectorRequestCount { $0 += 1 }
+    return [1, 0, 0]
+  }
+}
+
+private struct AvailableEmbeddable: Embeddable {
+  let hasAvailableAssets = true
+  let revision = 1
+
+  func load() throws {}
+
+  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) {
+    completion(nil)
+  }
+
+  func embeddingResult(for string: String) throws -> any EmbeddableResult {
+    FakeEmbeddingResult(vectors: [[1, 0, 0]])
   }
 }
