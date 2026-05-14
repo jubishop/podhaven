@@ -23,8 +23,13 @@ struct EpisodeDetailView: View {
 
         Divider()
 
-        if let recommendationScore = viewModel.displayedRecommendationScore {
-          recommendationSection(score: recommendationScore)
+        if let displayedScore = viewModel.displayedScore {
+          switch displayedScore {
+          case .recommendation(let score):
+            recommendationSection(score: score)
+          case .similarity(let value):
+            similaritySection(value: value)
+          }
 
           Divider()
         }
@@ -228,6 +233,18 @@ struct EpisodeDetailView: View {
   private func recommendationScoreText(_ value: Float) -> String {
     let clamped = max(0, min(1, value))
     return "\(Int((clamped * 100).rounded()))%"
+  }
+
+  private func similaritySection(value: Float) -> some View {
+    HStack(spacing: 8) {
+      AppIcon.similarityScore.label
+      Spacer()
+      Text(recommendationScoreText(value))
+        .monospacedDigit()
+        .foregroundStyle(.secondary)
+    }
+    .font(.headline)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   // MARK: - Metadata Row
@@ -483,10 +500,12 @@ struct EpisodeDetailView: View {
       )
     )
   )
-  viewModel.previewSeedRecommendationScore(
-    RecommendationScore(
-      value: 0.87,
-      reasons: [.similarToLiked, .podcastAffinity, .recentlyPublished]
+  viewModel.previewSeedDisplayedScore(
+    .recommendation(
+      RecommendationScore(
+        value: 0.87,
+        reasons: [.similarToLiked, .podcastAffinity, .recentlyPublished]
+      )
     )
   )
   return NavigationStack {
@@ -512,9 +531,33 @@ struct EpisodeDetailView: View {
       )
     )
   )
-  viewModel.previewSeedRecommendationScore(
-    RecommendationScore(value: 0.42, reasons: [.similarToLiked])
+  viewModel.previewSeedDisplayedScore(
+    .recommendation(RecommendationScore(value: 0.42, reasons: [.similarToLiked]))
   )
+  return NavigationStack {
+    EpisodeDetailView(viewModel: viewModel)
+      .preview()
+  }
+}
+
+#Preview("Similarity Score (Unsaved)") {
+  let viewModel = EpisodeDetailViewModel(
+    episode: DisplayedEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try! Create.unsavedPodcast(
+          title: "Search Result Podcast",
+          description: "A podcast surfaced from search"
+        ),
+        unsavedEpisode: try! Create.unsavedEpisode(
+          title: "An Unsaved Discovery",
+          pubDate: Date().addingTimeInterval(-86400 * 7),
+          duration: CMTime(seconds: 2400, preferredTimescale: 1),
+          description: "<p>An episode the user hasn't saved yet.</p>"
+        )
+      )
+    )
+  )
+  viewModel.previewSeedDisplayedScore(.similarity(0.73))
   return NavigationStack {
     EpisodeDetailView(viewModel: viewModel)
       .preview()

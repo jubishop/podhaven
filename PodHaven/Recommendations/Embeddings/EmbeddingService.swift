@@ -158,6 +158,40 @@ enum EmbeddingService {
     if let caughtCancellation { throw caughtCancellation }
   }
 
+  // MARK: - Unsaved Embedding
+
+  // Mirrors the saved-side recipe so an unsaved row scores against the same
+  // vector space. `async` (even though the body is sync) so `@MainActor`
+  // callers hop the CPU-bound embedding work — and the rare first-time
+  // CoreML model load — off main.
+  static func embeddingVector(
+    for unsavedPodcastEpisode: UnsavedPodcastEpisode,
+    embedding: ContextualEmbedding
+  ) async throws -> [Float] {
+    embedding.loadAssetsIfAvailable()
+
+    let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
+    let unsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
+
+    let cleanedPodcastTitle = cleanText(unsavedPodcast.title)
+    let cleanedPodcastDescription = cleanText(unsavedPodcast.description)
+    let podcastVector: [Float]? =
+      cleanedPodcastTitle.isEmpty
+      ? nil
+      : try computePodcastVector(
+        cleanedTitle: cleanedPodcastTitle,
+        cleanedDescription: cleanedPodcastDescription,
+        embedding: embedding
+      )
+
+    return try computeEpisodeEmbedding(
+      cleanedTitle: cleanText(unsavedEpisode.title),
+      cleanedDescription: cleanText(unsavedEpisode.description ?? ""),
+      embedding: embedding,
+      podcastVector: podcastVector
+    )
+  }
+
   // MARK: - Helpers
 
   // `fresh` is non-nil when a new row needs to be persisted; the caller
@@ -188,6 +222,27 @@ enum EmbeddingService {
       return (cached.floatVector, nil)
     }
 
+    let normalized = try computePodcastVector(
+      cleanedTitle: cleanedTitle,
+      cleanedDescription: cleanedDescription,
+      embedding: embedding
+    )
+
+    let fresh = UnsavedPodcastEmbedding(
+      podcastId: podcast.id,
+      vector: UnsavedPodcastEmbedding.vectorData(from: normalized),
+      sourceHash: hash,
+      embeddingRevision: embedding.revision,
+      dimension: normalized.count
+    )
+    return (normalized, fresh)
+  }
+
+  private static func computePodcastVector(
+    cleanedTitle: String,
+    cleanedDescription: String,
+    embedding: ContextualEmbedding
+  ) throws -> [Float] {
     let titleVector = try embedding.vector(for: cleanedTitle)
     let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
     let descriptionVector = try embedding.vector(for: descriptionText)
@@ -198,16 +253,7 @@ enum EmbeddingService {
       descriptionVector,
       weight2: podcastDescriptionWeight
     )
-    let normalized = VectorMath.normalize(blended)
-
-    let fresh = UnsavedPodcastEmbedding(
-      podcastId: podcast.id,
-      vector: UnsavedPodcastEmbedding.vectorData(from: normalized),
-      sourceHash: hash,
-      embeddingRevision: embedding.revision,
-      dimension: normalized.count
-    )
-    return (normalized, fresh)
+    return VectorMath.normalize(blended)
   }
 
   private static func buildUnsavedEpisodeEmbedding(
@@ -238,9 +284,20 @@ enum EmbeddingService {
     embedding: ContextualEmbedding,
     podcastVector: [Float]?
   ) throws -> [Float] {
-    let cleanedTitle = cleanText(episode.title)
-    let cleanedDescription = cleanText(episode.description ?? "")
+    try computeEpisodeEmbedding(
+      cleanedTitle: cleanText(episode.title),
+      cleanedDescription: cleanText(episode.description ?? ""),
+      embedding: embedding,
+      podcastVector: podcastVector
+    )
+  }
 
+  private static func computeEpisodeEmbedding(
+    cleanedTitle: String,
+    cleanedDescription: String,
+    embedding: ContextualEmbedding,
+    podcastVector: [Float]?
+  ) throws -> [Float] {
     let titleVector = try embedding.vector(for: cleanedTitle)
     let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
     let descriptionVector = try embedding.vector(for: descriptionText)

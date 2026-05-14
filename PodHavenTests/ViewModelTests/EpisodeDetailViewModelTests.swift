@@ -241,10 +241,8 @@ import Testing
     )
   }
 
-  @Test(
-    "recommendation observation clears and bootstraps after saved episode is deleted and re-saved"
-  )
-  func recommendationObservationClearsAndBootstrapsAfterDeleteAndResave() async throws {
+  @Test("saved episode bootstraps a recommendation score and re-bootstraps after delete + re-save")
+  func savedEpisodeBootstrapsRecommendationScoreAfterDeleteAndResave() async throws {
     let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 3,
       podcastTitle: "Detail Signal",
@@ -268,8 +266,16 @@ import Testing
     try await viewModel.performAppear()
 
     try await Wait.until(
-      { @MainActor in viewModel.displayedRecommendationScore != nil },
-      { @MainActor in "Expected recommendation score to bootstrap for the saved episode." }
+      { @MainActor in
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected saved episode to bootstrap a recommendation-kind score.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
     )
 
     _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
@@ -280,22 +286,333 @@ import Testing
         "Expected deleted saved episode to revert before re-saving. episode: \(viewModel.episode.toString)"
       }
     )
-    #expect(viewModel.displayedRecommendationScore == nil)
 
     viewModel.addToTopOfQueue()
 
     try await Wait.until(
       { @MainActor in
-        viewModel.episode.isSaved && viewModel.displayedRecommendationScore != nil
+        guard viewModel.episode.isSaved else { return false }
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
       },
       { @MainActor in
         """
-        Expected re-saved episode to bootstrap recommendation score without waiting for a new engine revision.
+        Expected re-saved episode to bootstrap a recommendation-kind score.
         saved: \(viewModel.episode.isSaved)
-        score: \(String(describing: viewModel.displayedRecommendationScore?.value))
+        score: \(String(describing: viewModel.displayedScore))
         """
       }
     )
+  }
+
+  @Test("unsaved episode opened from search shows a similarity score without persisting")
+  func unsavedEpisodeShowsSimilarityScoreWithoutPersisting() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Unsaved Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(
+        title: "Discovery Podcast",
+        description: "An undiscovered show similar to the signals"
+      ),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-similarity",
+        title: "Discovery Episode",
+        description: "An episode about topics the user likes"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .similarity = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected unsaved episode to show a similarity-kind score.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+
+    #expect(viewModel.episode.isSaved == false)
+    #expect(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID) == nil)
+  }
+
+  @Test("unsaved episode hides the score when the engine cache is cold")
+  func unsavedEpisodeHidesScoreWhenCacheIsCold() async throws {
+    // Probe-then-assert pattern: no signals planted means similarityScore
+    // returns nil for every tick, so waiting on a probe-observed vector
+    // request is the only way to distinguish "scoring ran and produced nil"
+    // from the VM's default state.
+    let probe = EmbeddingProbe()
+    Container.shared.contextualEmbedding.reset()
+      .register { AvailableCountingContextualEmbedding(probe: probe) }
+      .scope(.cached)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Cold Cache Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-cold",
+        title: "Cold Cache Episode"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { probe.vectorRequestCount() > 0 },
+      {
+        """
+        Expected unsaved scoring to request at least one embedding vector. \
+        vectorRequestCount: \(probe.vectorRequestCount())
+        """
+      }
+    )
+    for _ in 0..<30 { await Task.yield() }
+
+    #expect(viewModel.displayedScore == nil)
+  }
+
+  @Test("unsaved episode skips vector scoring when embedding assets are unavailable")
+  func unsavedEpisodeSkipsVectorScoringWhenEmbeddingAssetsUnavailable() async throws {
+    let probe = EmbeddingProbe()
+    Container.shared.contextualEmbedding.reset()
+      .register { UnavailableCountingContextualEmbedding(probe: probe) }
+      .scope(.cached)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Unavailable Embedding Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unavailable-embedding",
+        title: "Unavailable Embedding Episode"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { probe.loadAssetsIfAvailableCount() > 0 },
+      {
+        """
+        Expected unsaved scoring to check whether embedding assets are available.
+        loadAssetsIfAvailableCount: \(probe.loadAssetsIfAvailableCount())
+        """
+      }
+    )
+
+    let observedVectorRequest: Bool
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        delay: .milliseconds(10),
+        priority: .userInitiated,
+        { probe.vectorRequestCount() > 0 },
+        { "no vector request observed within polling window" }
+      )
+      observedVectorRequest = true
+    } catch {
+      // Timeout is the success case — the unavailable-assets path stayed quiet.
+      observedVectorRequest = false
+    }
+
+    #expect(observedVectorRequest == false)
+    #expect(viewModel.displayedScore == nil)
+  }
+
+  @Test("unsaved episode hides the similarity score once the episode is rated")
+  func unsavedEpisodeHidesScoreWhenRated() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Rated Guard Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    let ratedUnsaved = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Rated Guard Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-rated",
+        title: "Already Rated Episode",
+        rating: .liked,
+        ratingDate: Date()
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(ratedUnsaved))
+
+    try await viewModel.performAppear()
+
+    #expect(viewModel.displayedScore == nil)
+  }
+
+  @Test("unsaved episode hides the similarity score once the episode is finished")
+  func unsavedEpisodeHidesScoreWhenFinished() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Finished Guard Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    let finishedUnsaved = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Finished Guard Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-finished",
+        title: "Already Finished Episode",
+        finishDate: Date()
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(finishedUnsaved))
+
+    try await viewModel.performAppear()
+
+    #expect(viewModel.displayedScore == nil)
+  }
+
+  @Test("transitioning an unsaved episode to saved swaps the similarity score for a recommendation")
+  func unsavedToSavedTransitionSwitchesToRecommendationScore() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Transition Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Transition Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "unsaved-transition",
+        title: "Will Be Saved"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .similarity = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        "Expected unsaved episode to show similarity score before save action."
+      }
+    )
+
+    viewModel.addToTopOfQueue()
+
+    try await Wait.until(
+      { @MainActor in
+        guard viewModel.episode.isSaved else { return false }
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected unsaved → saved transition to switch to the recommendation-kind score.
+        saved: \(viewModel.episode.isSaved)
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+  }
+
+  @Test("a saved-side fetch resolving after delete reverts state does not stale-write")
+  func savedSideStaleWriteIsDiscardedAfterUnsavedTransition() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Stale Write Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Stale Write Target"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "stale-write-target",
+          title: "Stale Write Target"
+        )
+      )
+    )
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
+
+    // Arm the suspend hook before opening the view so the bootstrap fetch
+    // parks inside `engine.recommendation(for:)` → `repo.episode(_:)`.
+    let fakeRepo = repo as! FakeRepo
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    try await viewModel.performAppear()
+
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+
+    // Saved-side scoring is parked. Delete the podcast — observation flips
+    // state to `.unsaved` and the kind-change refresh runs a fresh fetch.
+    _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
+
+    // Wait for `.similarity` on the new `.unsaved` state — the correct
+    // terminal. Anything that overwrites this after release is a stale
+    // saved-side write.
+    try await Wait.until(
+      { @MainActor in
+        guard !viewModel.episode.isSaved else { return false }
+        if case .similarity = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected unsaved-side refresh task to land .similarity before releasing the held fetch.
+        isSaved: \(viewModel.episode.isSaved)
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+
+    // Release the parked saved-side fetch. Without the kind guard, its tail
+    // overwrites `.similarity` with a stale `.recommendation`.
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+
+    // Deterministic barrier — fires the instant the parked continuation
+    // returns; the saved-side tail (score compute + MainActor hop into the
+    // kind guard) is then the only outstanding work.
+    try await fakeRepo.waitForEpisodeFetchCompleted(count: 1)
+    // Drain the MainActor queue so the saved-side tail's guard/write runs
+    // before we assert.
+    for _ in 0..<30 { await Task.yield() }
+
+    #expect(viewModel.episode.isSaved == false)
+    if case .recommendation = viewModel.displayedScore {
+      Issue.record(
+        """
+        Stale .recommendation write landed after saved → unsaved transition; \
+        the state-kind guard in fetchRecommendation regressed.
+        """
+      )
+    }
+    if case .similarity = viewModel.displayedScore {
+      // Good — terminal state held.
+    } else {
+      Issue.record(
+        """
+        Expected stable .similarity post-release, got \
+        \(String(describing: viewModel.displayedScore))
+        """
+      )
+    }
   }
 
   @Test("observation restarts after a podcastEpisodeWithTags failure")
@@ -496,5 +813,83 @@ import Testing
     #expect(savedEpisode != nil)
     #expect(savedEpisode?.episode.finishDate != nil)
     #expect(savedEpisode?.episode.currentTime == .zero)
+  }
+}
+
+private struct EmbeddingProbe: Sendable {
+  let loadAssetsIfAvailableCount = ThreadSafe<Int>(0)
+  let vectorRequestCount = ThreadSafe<Int>(0)
+}
+
+private final class UnavailableCountingContextualEmbedding: ContextualEmbedding {
+  private let probe: EmbeddingProbe
+
+  init(probe: EmbeddingProbe) {
+    self.probe = probe
+    super.init(embedding: UnavailableEmbeddable())
+  }
+
+  override func loadAssetsIfAvailable() {
+    probe.loadAssetsIfAvailableCount { $0 += 1 }
+  }
+
+  override func vector(for text: String) throws -> [Float] {
+    probe.vectorRequestCount { $0 += 1 }
+    return [1, 0, 0]
+  }
+}
+
+private struct UnavailableEmbeddable: Embeddable {
+  let hasAvailableAssets = false
+  let revision = 1
+
+  func load() throws {}
+
+  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) {
+    completion(nil)
+  }
+
+  func embeddingResult(for string: String) throws -> any EmbeddableResult {
+    FakeEmbeddingResult(vectors: [[1, 0, 0]])
+  }
+}
+
+// Counterpart to `UnavailableCountingContextualEmbedding` whose assets
+// load successfully (so `isAvailable` becomes true and the unsaved
+// scorer continues past the early-exit guard into the embedding + cold-
+// cache path). Lets the cold-cache test wait on a deterministic signal
+// that the scoring path actually ran before asserting the score stays
+// nil.
+private final class AvailableCountingContextualEmbedding: ContextualEmbedding {
+  private let probe: EmbeddingProbe
+
+  init(probe: EmbeddingProbe) {
+    self.probe = probe
+    super.init(embedding: AvailableEmbeddable())
+  }
+
+  override func loadAssetsIfAvailable() {
+    probe.loadAssetsIfAvailableCount { $0 += 1 }
+    super.loadAssetsIfAvailable()
+  }
+
+  override func vector(for text: String) throws -> [Float] {
+    probe.vectorRequestCount { $0 += 1 }
+    return [1, 0, 0]
+  }
+}
+
+private struct AvailableEmbeddable: Embeddable {
+  let hasAvailableAssets = true
+  let revision = 1
+
+  func load() throws {}
+
+  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) {
+    completion(nil)
+  }
+
+  func embeddingResult(for string: String) throws -> any EmbeddableResult {
+    FakeEmbeddingResult(vectors: [[1, 0, 0]])
   }
 }

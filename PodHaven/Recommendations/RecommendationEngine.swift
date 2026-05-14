@@ -15,11 +15,15 @@ struct RecommendationScore: Sendable {
 
   // Stretches the [0.5, max] segment onto [0.5, 1.0] so the top observed
   // candidate displays as 100%, leaving sub-baseline scores untouched.
-  func rescaledForDisplay(max: Float) -> RecommendationScore {
-    guard value > 0.5, max > 0.5 else { return self }
+  fileprivate static func rescaledForDisplay(value: Float, max: Float) -> Float {
+    guard value > 0.5, max > 0.5 else { return value }
     let stretched = (value - 0.5) * 0.5 / (max - 0.5)
-    return RecommendationScore(
-      value: Swift.min(1.0, 0.5 + stretched),
+    return Swift.min(1.0, 0.5 + stretched)
+  }
+
+  fileprivate func rescaledForDisplay(max: Float) -> RecommendationScore {
+    RecommendationScore(
+      value: Self.rescaledForDisplay(value: value, max: max),
       reasons: reasons
     )
   }
@@ -133,6 +137,42 @@ struct RecommendationEngine: Sendable {
   func recommendation(for episodeID: Episode.ID) async throws -> RecommendationScore? {
     guard let episode = try await repo.episode(episodeID) else { return nil }
     return try await recommendations(for: [episode])[episodeID]
+  }
+
+  // Returns nil while the cache is cold so callers can hide the section
+  // instead of rendering a meaningless score.
+  func similarityScore(forEmbedding embedding: [Float]) -> Float? {
+    guard let context = cache() else { return nil }
+    guard embedding.count == context.positiveCentroid.count else { return nil }
+
+    let stripCount = Self.principalComponentStripCount(for: context.deconeMode)
+    var scratch = [Float](repeating: 0, count: embedding.count)
+    let raw = unsafe embedding.withUnsafeBufferPointer { vec -> Float in
+      unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+        if let whiteningTransform = context.whiteningTransform {
+          unsafe whiteningTransform.apply(vec, strippingTopK: stripCount, into: scratchPtr)
+          let projected = UnsafeBufferPointer(scratchPtr)
+          return unsafe Self.similarity(
+            of: projected,
+            positive: context.positiveCentroid,
+            negative: context.negativeCentroid
+          )
+        }
+        return unsafe Self.similarity(
+          of: vec,
+          positive: context.positiveCentroid,
+          negative: context.negativeCentroid
+        )
+      }
+    }
+
+    // Same [-2, 2] → [0, 1] remap + display rescale the per-candidate scorer
+    // uses, so this surface and recommendation(for:) read on the same scale.
+    let similarityValue = (raw + 2.0) / 4.0
+    return RecommendationScore.rescaledForDisplay(
+      value: similarityValue,
+      max: observedMaxScore()
+    )
   }
 
   func topRecommendations(limit: Int = 10) async throws -> [RankedRecommendation] {

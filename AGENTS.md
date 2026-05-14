@@ -27,6 +27,7 @@ Three places hold persistent project context — pick the right one when saving 
 - `Assert` funnels invariants through structured fatal logging; avoid `fatalError`/`precondition` outside this helper.
 - `ThreadSafe` supports concurrency-safe storage.  `Broadcast` adds AsyncStreams and Observability.
 - Never use `Task.sleep` in production code; always use the injected `Sleepable` (`sleeper`) so tests can control timing.
+- Never use `Task.detached` — it strips priority, cancellation, and actor inheritance, and produces orphan work that's invisible to the parent. Use `Task { ... }` (and store the handle when the task outlives the call). To hop off `@MainActor` for CPU work, declare the work as a `nonisolated async` function on a Sendable/value-type (e.g., a static method on an `enum`); `await`-ing it from `@MainActor` runs the body on the cooperative pool while preserving priority, cancellation, and the structured-concurrency chain.
 
 ## Factories
 - Types intended to be constructed only through a `Container` factory must declare their `init` as `fileprivate`, so callers are forced to go through the registered factory and can't bypass it (see `AppLauncher`, `Repo`, `StateManager` for examples).

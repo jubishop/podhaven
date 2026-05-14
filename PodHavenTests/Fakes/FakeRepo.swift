@@ -15,6 +15,17 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // Cleared on use so subsequent calls reach the real repo.
   nonisolated let updateSaveInCacheBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
 
+  // When true, the next `episode(_:Episode.ID)` call parks until
+  // `resumeAllEpisodeFetchSuspensions()` fires; cleared on use. Counts are
+  // nonisolated so tests poll without contending for the actor (same pattern
+  // as FakeSleeper). `completedEpisodeFetchCount` increments only after a
+  // parked call has resumed and unwound, giving tests an event-driven
+  // barrier instead of a timed poll.
+  nonisolated let pendingEpisodeFetchSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedEpisodeFetchCount = ThreadSafe<Int>(0)
+  nonisolated let completedEpisodeFetchCount = ThreadSafe<Int>(0)
+  private var episodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
+
   private let repo: Repo
 
   init(_ repo: Repo) {
@@ -81,7 +92,47 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode? {
     recordCall(methodName: "episode", parameters: episodeID)
-    return try await repo.episode(episodeID)
+    let result = try await repo.episode(episodeID)
+    if pendingEpisodeFetchSuspend() {
+      pendingEpisodeFetchSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        episodeFetchSuspensions.append(continuation)
+        suspendedEpisodeFetchCount(episodeFetchSuspensions.count)
+      }
+    }
+    completedEpisodeFetchCount { $0 += 1 }
+    return result
+  }
+
+  func resumeAllEpisodeFetchSuspensions() {
+    let toResume = episodeFetchSuspensions
+    episodeFetchSuspensions.removeAll()
+    suspendedEpisodeFetchCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForEpisodeFetchSuspended(count: Int) async throws {
+    try await Wait.until(
+      { self.suspendedEpisodeFetchCount() >= count },
+      {
+        """
+        Expected at least \(count) suspended episode fetches, \
+        got \(self.suspendedEpisodeFetchCount())
+        """
+      }
+    )
+  }
+
+  nonisolated func waitForEpisodeFetchCompleted(count: Int) async throws {
+    try await Wait.until(
+      { self.completedEpisodeFetchCount() >= count },
+      {
+        """
+        Expected at least \(count) completed episode fetches, \
+        got \(self.completedEpisodeFetchCount())
+        """
+      }
+    )
   }
 
   func episode(_ mediaGUID: MediaGUID) async throws -> Episode? {

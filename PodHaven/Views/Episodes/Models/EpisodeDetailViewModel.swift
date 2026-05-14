@@ -53,12 +53,35 @@ enum EpisodeDetailState: Sendable, Stringable {
     case .saved(let podcastEpisode): return "saved(\(podcastEpisode.toString))"
     }
   }
+
+  enum Kind: Sendable {
+    case initial
+    case unsaved
+    case saved
+  }
+
+  var kind: Kind {
+    switch self {
+    case .initial: .initial
+    case .unsaved: .unsaved
+    case .saved: .saved
+    }
+  }
+}
+
+// Saved episodes render the full recommendation with reason pills; unsaved
+// episodes render a similarity-only number — the unsaved scorer skips
+// affinity and freshness, so a lone `.similarToLiked` pill would be
+// misleading.
+enum EpisodeDetailDisplayedScore: Sendable {
+  case recommendation(RecommendationScore)
+  case similarity(Float)
 }
 
 @Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
-
+  @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
@@ -66,6 +89,7 @@ enum EpisodeDetailState: Sendable, Stringable {
   @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
@@ -74,7 +98,7 @@ enum EpisodeDetailState: Sendable, Stringable {
   private let originTab: Navigation.Tab
   private(set) var state: EpisodeDetailState
   var tags: IdentifiedArrayOf<Tag> = []
-  private var recommendationScore: RecommendationScore?
+  private var score: EpisodeDetailDisplayedScore?
 
   var episode: EpisodeDetailContent { state.detailContent }
 
@@ -106,9 +130,9 @@ enum EpisodeDetailState: Sendable, Stringable {
   // Hide the score once the user has rated or finished the episode: a
   // direct rating outweighs similarity-to-liked, and a finished episode
   // is itself a signal — its own score is circular.
-  var displayedRecommendationScore: RecommendationScore? {
+  var displayedScore: EpisodeDetailDisplayedScore? {
     guard episode.rating == nil, !episode.finished else { return nil }
-    return recommendationScore
+    return score
   }
 
   private let startTime: Int?
@@ -146,7 +170,6 @@ enum EpisodeDetailState: Sendable, Stringable {
 
       transition(to: .saved(podcastEpisode))
       startObservation(podcastEpisode)
-      startRecommendationObservation()
     } else {
       Self.log.debug("Podcast episode: \(state.toString) does not exist in db")
 
@@ -172,6 +195,8 @@ enum EpisodeDetailState: Sendable, Stringable {
         return
       }
     }
+
+    startRecommendationObservation()
 
     if let startTime {
       Self.log.debug("Auto-playing from startTime: \(startTime)s")
@@ -371,8 +396,9 @@ enum EpisodeDetailState: Sendable, Stringable {
             return
           }
           tags = []
-          clearRecommendationTask()
-          recommendationScore = nil
+          // Wipe the stale saved score before transition() queues the
+          // unsaved-side refetch.
+          score = nil
           transition(to: .unsaved(deletedAsUnsaved))
           return
         }
@@ -400,6 +426,13 @@ enum EpisodeDetailState: Sendable, Stringable {
   // MARK: - Recommendation Observation
 
   @ObservationIgnored private var recommendationTask: Task<Void, Never>?
+  @ObservationIgnored private var recommendationRefreshTask: Task<Void, Never>?
+
+  // Skips a CoreML inference on every contextRevision tick after the first.
+  // Cleared in scheduleRecommendationRefresh because every refresh trigger
+  // is a kind change that may bring a different `.unsaved` payload (e.g.
+  // post-deletion synthesis).
+  @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
 
   // Re-fetches this episode's score whenever the engine bumps
   // `contextRevision`, i.e. every time its scoring cache rebuilds. The
@@ -412,7 +445,7 @@ enum EpisodeDetailState: Sendable, Stringable {
       return
     }
 
-    recommendationTask = Task { [weak self] in
+    recommendationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
 
       for await _ in recommendationEngine.$contextRevision.stream() {
@@ -423,23 +456,97 @@ enum EpisodeDetailState: Sendable, Stringable {
   }
 
   private func fetchRecommendation() async {
-    guard let podcastEpisode = state.savedPodcastEpisode else { return }
-
-    do {
-      recommendationScore = try await recommendationEngine.recommendation(
-        for: podcastEpisode.id
+    // Snapshot at entry — if a state-kind change races the scoring await,
+    // the kind guard below drops the stale write before it overwrites the
+    // fresh path's score.
+    let entryState = state
+    let newScore: EpisodeDetailDisplayedScore?
+    switch entryState {
+    case .initial:
+      newScore = nil
+    case .saved(let podcastEpisode):
+      newScore = await scoreSavedEpisode(podcastEpisode)
+    case .unsaved(let unsavedPodcastEpisode):
+      newScore = await scoreUnsavedEpisode(unsavedPodcastEpisode)
+    }
+    guard entryState.kind == state.kind else {
+      Self.log.debug(
+        """
+        fetchRecommendation: state kind changed during scoring; \
+        dropping stale write
+        """
       )
+      return
+    }
+    score = newScore
+  }
+
+  private func scoreSavedEpisode(
+    _ podcastEpisode: PodcastEpisode
+  ) async -> EpisodeDetailDisplayedScore? {
+    do {
+      guard let score = try await recommendationEngine.recommendation(for: podcastEpisode.id)
+      else { return nil }
+      return .recommendation(score)
     } catch {
       Self.log.caughtError(
-        "fetchRecommendation: failed for \(podcastEpisode.toString)",
+        "fetchRecommendation: saved scorer failed for \(podcastEpisode.toString)",
         error
       )
+      return nil
     }
   }
 
-  private func clearRecommendationTask() {
+  private func scoreUnsavedEpisode(
+    _ unsavedPodcastEpisode: UnsavedPodcastEpisode
+  ) async -> EpisodeDetailDisplayedScore? {
+    contextualEmbedding.loadAssetsIfAvailable()
+    guard contextualEmbedding.isAvailable else { return nil }
+
+    let revision = contextualEmbedding.revision
+    let vector: [Float]
+    if let cached = unsavedEmbeddingCache, cached.revision == revision {
+      vector = cached.vector
+    } else {
+      do {
+        vector = try await EmbeddingService.embeddingVector(
+          for: unsavedPodcastEpisode,
+          embedding: contextualEmbedding
+        )
+      } catch {
+        Self.log.caughtError(
+          """
+          fetchRecommendation: unsaved embedding failed for \
+          \(unsavedPodcastEpisode.toString)
+          """,
+          error
+        )
+        return nil
+      }
+      unsavedEmbeddingCache = (revision: revision, vector: vector)
+    }
+    guard let value = recommendationEngine.similarityScore(forEmbedding: vector) else {
+      return nil
+    }
+    return .similarity(value)
+  }
+
+  // Cancel-and-replace so rapid kind changes don't pile up in-flight fetches
+  // racing on `score`.
+  private func scheduleRecommendationRefresh() {
+    unsavedEmbeddingCache = nil
+    recommendationRefreshTask?.cancel()
+    recommendationRefreshTask = Task(priority: taskPriority(.utility)) { [weak self] in
+      guard let self else { return }
+      await fetchRecommendation()
+    }
+  }
+
+  private func clearRecommendationTasks() {
     recommendationTask?.cancel()
     recommendationTask = nil
+    recommendationRefreshTask?.cancel()
+    recommendationRefreshTask = nil
   }
 
   // MARK: - Disappear
@@ -447,14 +554,18 @@ enum EpisodeDetailState: Sendable, Stringable {
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
-    clearRecommendationTask()
+    clearRecommendationTasks()
   }
 
   // MARK: - Private Helpers
 
   private func transition(to newState: EpisodeDetailState) {
+    let recommendationKindChanged = state.kind != newState.kind
     logStateTransition(to: newState)
     state = newState
+    if recommendationKindChanged {
+      scheduleRecommendationRefresh()
+    }
   }
 
   private func loadAndPlay(_ podcastEpisode: PodcastEpisode, seekTo seconds: Int) async throws {
@@ -482,10 +593,9 @@ enum EpisodeDetailState: Sendable, Stringable {
   // MARK: - Preview Helpers
 
   #if DEBUG
-  // Preview-only seed; production code drives `recommendationScore`
-  // exclusively through `startRecommendationObservation`.
-  func previewSeedRecommendationScore(_ score: RecommendationScore?) {
-    recommendationScore = score
+  // Preview-only seed; production goes through startRecommendationObservation.
+  func previewSeedDisplayedScore(_ value: EpisodeDetailDisplayedScore?) {
+    score = value
   }
   #endif
 }
