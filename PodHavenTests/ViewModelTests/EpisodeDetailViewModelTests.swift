@@ -343,19 +343,16 @@ import Testing
       }
     )
 
-    // The whole point of unsaved scoring is that the row never gets
-    // materialized — exercise the same guard the issue calls out.
     #expect(viewModel.episode.isSaved == false)
     #expect(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID) == nil)
   }
 
   @Test("unsaved episode hides the score when the engine cache is cold")
   func unsavedEpisodeHidesScoreWhenCacheIsCold() async throws {
-    // No signal data planted — the engine never builds a context, so
-    // similarityScore returns nil regardless of how many revisions tick.
-    // The probe lets us assert the scoring path actually ran (vector
-    // request observed) before concluding the score "stayed" nil; without
-    // it, the assertion is indistinguishable from the VM's default state.
+    // Probe-then-assert pattern: no signals planted means similarityScore
+    // returns nil for every tick, so waiting on a probe-observed vector
+    // request is the only way to distinguish "scoring ran and produced nil"
+    // from the VM's default state.
     let probe = EmbeddingProbe()
     Container.shared.contextualEmbedding.reset()
       .register { AvailableCountingContextualEmbedding(probe: probe) }
@@ -372,10 +369,6 @@ import Testing
 
     try await viewModel.performAppear()
 
-    // Wait until the bootstrap fetch has computed an embedding, proving
-    // the unsaved scoring path reached `similarityScore`. From there the
-    // cold cache forces a nil return, which `fetchRecommendation` writes
-    // back as `score = nil` on the next MainActor turn.
     try await Wait.until(
       { probe.vectorRequestCount() > 0 },
       {
@@ -429,8 +422,7 @@ import Testing
       )
       observedVectorRequest = true
     } catch {
-      // Timeout means the unavailable-assets path stayed quiet, which is
-      // the expected behavior.
+      // Timeout is the success case — the unavailable-assets path stayed quiet.
       observedVectorRequest = false
     }
 
@@ -461,8 +453,6 @@ import Testing
 
     try await viewModel.performAppear()
 
-    // The display guard hides the section irrespective of what the scorer
-    // computes, so the same invariant as the cold-cache test applies.
     #expect(viewModel.displayedScore == nil)
   }
 
@@ -560,9 +550,8 @@ import Testing
     )
     _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
 
-    // Arm the FakeRepo suspend hook BEFORE opening the view: the
-    // recommendationTask's bootstrap fetch will park inside
-    // `engine.recommendation(for:)` → `repo.episode(_:Episode.ID)`.
+    // Arm the suspend hook before opening the view so the bootstrap fetch
+    // parks inside `engine.recommendation(for:)` → `repo.episode(_:)`.
     let fakeRepo = repo as! FakeRepo
     fakeRepo.pendingEpisodeFetchSuspend(true)
 
@@ -571,15 +560,13 @@ import Testing
 
     try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
 
-    // Saved-side scoring is parked. Delete the podcast — observation
-    // transitions the view model to `.unsaved` and the kind-change refresh
-    // task spins up a fresh unsaved-side fetch.
+    // Saved-side scoring is parked. Delete the podcast — observation flips
+    // state to `.unsaved` and the kind-change refresh runs a fresh fetch.
     _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
 
-    // Wait until the refresh task produces a .similarity score on the new
-    // .unsaved state. This is the post-deletion correct terminal state
-    // and isolates the stale-write race: anything that overwrites this
-    // after release must be a stale saved-side write.
+    // Wait for `.similarity` on the new `.unsaved` state — the correct
+    // terminal. Anything that overwrites this after release is a stale
+    // saved-side write.
     try await Wait.until(
       { @MainActor in
         guard !viewModel.episode.isSaved else { return false }
@@ -595,23 +582,16 @@ import Testing
       }
     )
 
-    // Release the suspended saved-side fetch. Without the identity guard
-    // in `fetchRecommendation`, its tail overwrites the `.similarity`
-    // above with a stale `.recommendation`. With the guard, the write is
-    // dropped and `.similarity` remains the stable terminal state.
+    // Release the parked saved-side fetch. Without the kind guard, its tail
+    // overwrites `.similarity` with a stale `.recommendation`.
     await fakeRepo.resumeAllEpisodeFetchSuspensions()
 
-    // Event-driven barrier: wait for the held `repo.episode` call to
-    // fully unwind (deterministic — fires the instant the suspended
-    // continuation returns). After that, the saved-side fetch's tail
-    // (engine embeddings + score compute, then a MainActor hop into the
-    // state-kind guard) is the only outstanding work; once it drains,
-    // the score is final and no further fetches are scheduled.
+    // Deterministic barrier — fires the instant the parked continuation
+    // returns; the saved-side tail (score compute + MainActor hop into the
+    // kind guard) is then the only outstanding work.
     try await fakeRepo.waitForEpisodeFetchCompleted(count: 1)
-    // Yield repeatedly so any MainActor continuation queued behind us —
-    // including the saved-side fetch's guard/write — runs before we
-    // assert. Each yield re-queues us at the back of the MainActor
-    // scheduler, letting one pending task advance per round.
+    // Drain the MainActor queue so the saved-side tail's guard/write runs
+    // before we assert.
     for _ in 0..<30 { await Task.yield() }
 
     #expect(viewModel.episode.isSaved == false)

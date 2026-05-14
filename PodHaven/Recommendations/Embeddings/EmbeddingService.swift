@@ -160,19 +160,14 @@ enum EmbeddingService {
 
   // MARK: - Unsaved Embedding
 
-  // Runs the saved-side episode embedding recipe against unsaved title /
-  // description text — no DB reads, no DB writes. Yields the same vector
-  // the saved path would produce if the row were persisted. `async` so
-  // `@MainActor` callers hop the (synchronous, CPU-bound) embedding work
-  // — and the rare first-time CoreML model load — onto the cooperative
-  // pool instead of blocking main.
+  // Mirrors the saved-side recipe so an unsaved row scores against the same
+  // vector space. `async` (even though the body is sync) so `@MainActor`
+  // callers hop the CPU-bound embedding work — and the rare first-time
+  // CoreML model load — off main.
   static func embeddingVector(
     for unsavedPodcastEpisode: UnsavedPodcastEpisode,
     embedding: ContextualEmbedding
   ) async throws -> [Float] {
-    // Idempotent — picks up assets the embedding background task has
-    // already downloaded without triggering a fresh request when they
-    // haven't, so this call can't kick off an unrelated download.
     embedding.loadAssetsIfAvailable()
 
     let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast

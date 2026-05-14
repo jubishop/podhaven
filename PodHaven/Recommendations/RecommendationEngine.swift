@@ -15,13 +15,13 @@ struct RecommendationScore: Sendable {
 
   // Stretches the [0.5, max] segment onto [0.5, 1.0] so the top observed
   // candidate displays as 100%, leaving sub-baseline scores untouched.
-  static func rescaledForDisplay(value: Float, max: Float) -> Float {
+  fileprivate static func rescaledForDisplay(value: Float, max: Float) -> Float {
     guard value > 0.5, max > 0.5 else { return value }
     let stretched = (value - 0.5) * 0.5 / (max - 0.5)
     return Swift.min(1.0, 0.5 + stretched)
   }
 
-  func rescaledForDisplay(max: Float) -> RecommendationScore {
+  fileprivate func rescaledForDisplay(max: Float) -> RecommendationScore {
     RecommendationScore(
       value: Self.rescaledForDisplay(value: value, max: max),
       reasons: reasons
@@ -139,10 +139,8 @@ struct RecommendationEngine: Sendable {
     return try await recommendations(for: [episode])[episodeID]
   }
 
-  // Pure-similarity scoring for a caller-supplied embedding — no podcast
-  // affinity, no freshness, no DB lookup, no reason pills. Returns nil
-  // if the cache is cold so callers can hide the section instead of
-  // rendering a meaningless score.
+  // Returns nil while the cache is cold so callers can hide the section
+  // instead of rendering a meaningless score.
   func similarityScore(forEmbedding embedding: [Float]) -> Float? {
     guard let context = cache() else { return nil }
     guard embedding.count == context.positiveCentroid.count else { return nil }
@@ -168,9 +166,8 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // Same [-2, 2] → [0, 1] remap + display rescale the per-candidate
-    // scorer uses, so this surface and recommendation(for:) read on the
-    // same scale.
+    // Same [-2, 2] → [0, 1] remap + display rescale the per-candidate scorer
+    // uses, so this surface and recommendation(for:) read on the same scale.
     let similarityValue = (raw + 2.0) / 4.0
     return RecommendationScore.rescaledForDisplay(
       value: similarityValue,

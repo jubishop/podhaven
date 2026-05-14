@@ -55,11 +55,10 @@ enum EpisodeDetailState: Sendable, Stringable {
   }
 }
 
-// Score surfaced by `EpisodeDetailViewModel` for the recommendation
-// section. Saved episodes render the full recommendation (with reason
-// pills); unsaved episodes render a similarity-only number with a
-// different header, since the unsaved scorer skips podcast affinity and
-// freshness and the single `.similarToLiked` reason pill is redundant.
+// Saved episodes render the full recommendation with reason pills; unsaved
+// episodes render a similarity-only number — the unsaved scorer skips
+// affinity and freshness, so a lone `.similarToLiked` pill would be
+// misleading.
 enum EpisodeDetailDisplayedScore: Sendable {
   case recommendation(RecommendationScore)
   case similarity(Float)
@@ -183,9 +182,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
       }
     }
 
-    // Run for both `.saved` (DB scorer) and `.unsaved` (in-memory
-    // similarity) — `fetchRecommendation` picks the path off the current
-    // state at each context-revision tick.
     startRecommendationObservation()
 
     if let startTime {
@@ -386,8 +382,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
             return
           }
           tags = []
-          // Clear immediately so the stale saved score isn't visible
-          // during the brief window before `transition(to:)` queues the
+          // Wipe the stale saved score before transition() queues the
           // unsaved-side refetch.
           score = nil
           transition(to: .unsaved(deletedAsUnsaved))
@@ -419,12 +414,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored private var recommendationTask: Task<Void, Never>?
   @ObservationIgnored private var recommendationRefreshTask: Task<Void, Never>?
 
-  // Memoized vector for the current `.unsaved` payload. Valid while
-  // `contextualEmbedding.revision` matches; cleared inside
-  // `scheduleRecommendationRefresh` since every refresh trigger today is
-  // a kind change, which may bring a different `.unsaved` payload
-  // (e.g. post-deletion synthesis). Skips a CoreML inference on every
-  // contextRevision tick after the first.
+  // Skips a CoreML inference on every contextRevision tick after the first.
+  // Cleared in scheduleRecommendationRefresh because every refresh trigger
+  // is a kind change that may bring a different `.unsaved` payload (e.g.
+  // post-deletion synthesis).
   @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
 
   // Re-fetches this episode's score whenever the engine bumps
@@ -449,10 +442,9 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   private func fetchRecommendation() async {
-    // Capture the state kind at entry. After the scoring await resumes,
-    // we may be in a different kind (e.g. a saved fetch races with a
-    // deletion that flipped state to .unsaved); writing the stale score
-    // would surface a saved-style recommendation pill on an unsaved row.
+    // Snapshot at entry — if a state-kind change races the scoring await,
+    // the kind guard below drops the stale write before it overwrites the
+    // fresh path's score.
     let entryState = state
     let newScore: EpisodeDetailDisplayedScore?
     switch entryState {
@@ -485,10 +477,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
   }
 
-  // Ask the engine for the full recommendation (similarity + podcast
-  // affinity + freshness, with reason pills). Returns nil if the episode
-  // doesn't have a score yet — the engine's cache is cold or the row
-  // isn't in the scoring set.
   private func scoreSavedEpisode(
     _ podcastEpisode: PodcastEpisode
   ) async -> EpisodeDetailDisplayedScore? {
@@ -505,9 +493,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
   }
 
-  // Compute the in-memory embedding and ask the engine for a pure
-  // similarity score. Returns nil if the embedding model isn't available
-  // or the engine's cache is cold — either way we hide the section.
   private func scoreUnsavedEpisode(
     _ unsavedPodcastEpisode: UnsavedPodcastEpisode
   ) async -> EpisodeDetailDisplayedScore? {
@@ -542,11 +527,8 @@ enum EpisodeDetailDisplayedScore: Sendable {
     return .similarity(value)
   }
 
-  // Re-route the score after a state-kind change (saved ↔ unsaved ↔
-  // initial) so users who save/restore an episode see the right scorer
-  // without waiting for the engine's next debounced rebuild. Cancel-and-
-  // replace keeps rapid kind-changes from piling up redundant in-flight
-  // fetches racing on `score`.
+  // Cancel-and-replace so rapid kind changes don't pile up in-flight fetches
+  // racing on `score`.
   private func scheduleRecommendationRefresh() {
     unsavedEmbeddingCache = nil
     recommendationRefreshTask?.cancel()
@@ -573,8 +555,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   // MARK: - Private Helpers
 
-  // `.saved` → `.saved` updates keep the same kind, so a re-score is only
-  // needed when the case itself changes.
   private func transition(to newState: EpisodeDetailState) {
     let recommendationKindChanged = !Self.sameRecommendationKind(state, newState)
     logStateTransition(to: newState)
@@ -609,8 +589,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // MARK: - Preview Helpers
 
   #if DEBUG
-  // Preview-only seed; production code drives `score` exclusively
-  // through `startRecommendationObservation`.
+  // Preview-only seed; production goes through startRecommendationObservation.
   func previewSeedDisplayedScore(_ value: EpisodeDetailDisplayedScore?) {
     score = value
   }

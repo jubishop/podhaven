@@ -15,14 +15,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // Cleared on use so subsequent calls reach the real repo.
   nonisolated let updateSaveInCacheBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
 
-  // When true, the next `episode(_:Episode.ID)` call holds its return
-  // until `resumeAllEpisodeFetchSuspensions()` fires. Cleared on use.
-  // `suspendedEpisodeFetchCount` is exposed nonisolated so tests can poll
-  // without contending for the actor (same pattern as FakeSleeper).
-  // `completedEpisodeFetchCount` increments after the suspension (if any)
-  // resolves and the method is about to return — letting tests turn
-  // "the held fetch has resumed and unwound" into an event-driven wait
-  // instead of a time-bounded poll.
+  // When true, the next `episode(_:Episode.ID)` call parks until
+  // `resumeAllEpisodeFetchSuspensions()` fires; cleared on use. Counts are
+  // nonisolated so tests poll without contending for the actor (same pattern
+  // as FakeSleeper). `completedEpisodeFetchCount` increments only after a
+  // parked call has resumed and unwound, giving tests an event-driven
+  // barrier instead of a timed poll.
   nonisolated let pendingEpisodeFetchSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedEpisodeFetchCount = ThreadSafe<Int>(0)
   nonisolated let completedEpisodeFetchCount = ThreadSafe<Int>(0)
@@ -106,9 +104,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return result
   }
 
-  // Release every parked `episode(_:Episode.ID)` call set up via
-  // `pendingEpisodeFetchSuspend`. Returns once all continuations have
-  // been resumed.
   func resumeAllEpisodeFetchSuspensions() {
     let toResume = episodeFetchSuspensions
     episodeFetchSuspensions.removeAll()
