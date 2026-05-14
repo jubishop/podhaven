@@ -19,7 +19,7 @@ import UIKit
 //   shared-from-share-sheet, or an unsaved search result. May carry zero or
 //   more pre-parsed episodes ready to be inserted on `subscribe()`.
 // - `.saved`: a fully-hydrated series under live observation.
-enum PodcastDetailState: Sendable, Stringable {
+enum PodcastDetailState: Equatable, Sendable, Stringable {
   case initial(ListedPodcast)
   case unsaved(UnsavedPodcast, episodes: IdentifiedArrayOf<UnsavedEpisode>)
   case saved(PodcastSeriesDetail)
@@ -72,6 +72,7 @@ class PodcastDetailViewModel:
   SortableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
@@ -183,16 +184,7 @@ class PodcastDetailViewModel:
       }
     }
   }
-  // `.recommendationScore` needs persisted `episodeID`s to score against the
-  // engine; unsaved/initial states carry rows whose `episodeID` is nil and
-  // would silently no-op the sort, so we hide the option until the series
-  // is saved and observed.
-  var allSortMethods: [SortMethod] {
-    guard saved else {
-      return SortMethod.allCases.filter { $0 != .recommendationScore }
-    }
-    return SortMethod.allCases
-  }
+  var allSortMethods: [SortMethod] { SortMethod.allCases }
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
       guard oldValue != currentSortMethod else { return }
@@ -311,6 +303,7 @@ class PodcastDetailViewModel:
     self.state = state
     episodeList.sortMethod = currentSortMethod.sortMethod
     refreshEpisodeList(from: state)
+    startObservation(state.savedSeries?.id)
 
     Task { [weak self] in
       guard let self else { return }
@@ -387,7 +380,6 @@ class PodcastDetailViewModel:
           return
         }
         transition(to: .saved(series))
-        startObservation(series.id)
         try await repo.markSubscribed(series.id)
       case .unsaved(let unsavedPodcast, let episodes):
         if let series = try await repo.podcastSeriesDetail(
@@ -395,14 +387,12 @@ class PodcastDetailViewModel:
           iTunesID: unsavedPodcast.iTunesID
         ) {
           transition(to: .saved(series))
-          startObservation(series.id)
           try await repo.markSubscribed(series.id)
         } else {
           let inserted = try await repo.insertSeries(
             UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast, unsavedEpisodes: episodes)
           )
           transition(to: .saved(inserted.toDetail()))
-          startObservation(inserted.id)
           try await repo.markSubscribed(inserted.id)
         }
       }
@@ -497,7 +487,6 @@ class PodcastDetailViewModel:
     }
 
     transition(to: .saved(savedSeries))
-    startObservation(savedSeries.id)
 
     Task { [weak self] in
       guard let self else { return }
@@ -507,8 +496,9 @@ class PodcastDetailViewModel:
     return true
   }
 
-  private func startObservation(_ podcastID: Podcast.ID) {
+  private func startObservation(_ podcastID: Podcast.ID? = nil) {
     startRecommendationObservation()
+    guard let podcastID else { return }
 
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
@@ -578,11 +568,10 @@ class PodcastDetailViewModel:
   // MARK: - Recommendation Sort
 
   @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
-  @ObservationIgnored private var lastRecommendationScores: [Episode.ID: Float]?
+  @ObservationIgnored private var lastRecommendationScores: [MediaGUID: Float]?
+  @ObservationIgnored private var unsavedEmbeddingCache:
+    (revision: Int, vectors: [MediaGUID: [Float]])?
 
-  // Started alongside `startObservation` so the engine's score map is warm
-  // by the time the user opens the sort menu, not on the moment they pick
-  // `.recommendationScore`. Idempotent.
   private func startRecommendationObservation() {
     if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
     recommendationObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
@@ -600,36 +589,115 @@ class PodcastDetailViewModel:
   }
 
   private func fetchAndApplyRecommendationScores() async {
-    guard let podcastID = state.savedSeries?.id else { return }
-    let candidates: [CandidateEpisode] = episodeList.allEntries.compactMap { episode in
-      guard let episodeID = episode.episodeID else { return nil }
-      return CandidateEpisode(id: episodeID, podcastID: podcastID, pubDate: episode.pubDate)
+    let entries = episodeList.allEntries
+    guard !entries.isEmpty else { return }
+
+    let valuesByMediaGUID: [MediaGUID: Float]
+    switch state {
+    case .initial:
+      return
+    case .saved(let series):
+      valuesByMediaGUID = await savedRecommendationScores(
+        podcastID: series.id,
+        entries: entries
+      )
+    case .unsaved:
+      valuesByMediaGUID = await unsavedSimilarityScores(entries: entries)
     }
-    guard !candidates.isEmpty else { return }
+
+    lastRecommendationScores = valuesByMediaGUID
+    guard currentSortMethod == .recommendationScore else { return }
+    episodeList.sortMethod = makeRecommendationComparator(valuesByMediaGUID)
+  }
+
+  private func savedRecommendationScores(
+    podcastID: Podcast.ID,
+    entries: IdentifiedArrayOf<ListedEpisode>
+  ) async -> [MediaGUID: Float] {
+    var candidates = [CandidateEpisode](capacity: entries.count)
+    var mediaGUIDByEpisodeID = [Episode.ID: MediaGUID](capacity: entries.count)
+    for episode in entries {
+      guard let episodeID = episode.episodeID else { continue }
+      candidates.append(
+        CandidateEpisode(id: episodeID, podcastID: podcastID, pubDate: episode.pubDate)
+      )
+      mediaGUIDByEpisodeID[episodeID] = episode.mediaGUID
+    }
+    guard !candidates.isEmpty else { return [:] }
 
     let scoreMap: [Episode.ID: RecommendationScore]
     do {
       scoreMap = try await recommendationEngine.recommendations(for: candidates)
     } catch {
       Self.log.caughtError(
-        "fetchAndApplyRecommendationScores failed for \(candidates.count) ids",
+        "savedRecommendationScores failed for \(candidates.count) ids",
         error
       )
-      return
+      return [:]
     }
 
-    let valuesByID = scoreMap.mapValues(\.value)
-    lastRecommendationScores = valuesByID
-    guard currentSortMethod == .recommendationScore else { return }
-    episodeList.sortMethod = makeRecommendationComparator(valuesByID)
+    var result = [MediaGUID: Float](capacity: scoreMap.count)
+    for (episodeID, score) in scoreMap {
+      guard let mediaGUID = mediaGUIDByEpisodeID[episodeID] else { continue }
+      result[mediaGUID] = score.value
+    }
+    return result
+  }
+
+  private func unsavedSimilarityScores(
+    entries: IdentifiedArrayOf<ListedEpisode>
+  ) async -> [MediaGUID: Float] {
+    contextualEmbedding.loadAssetsIfAvailable()
+    guard contextualEmbedding.isAvailable else { return [:] }
+
+    let revision = contextualEmbedding.revision
+    var cachedVectors: [MediaGUID: [Float]]
+    if let cache = unsavedEmbeddingCache, cache.revision == revision {
+      cachedVectors = cache.vectors
+    } else {
+      cachedVectors = [MediaGUID: [Float]](capacity: entries.count)
+    }
+
+    var result = [MediaGUID: Float](capacity: entries.count)
+    for episode in entries {
+      if Task.isCancelled { break }
+      guard let unsavedPodcastEpisode = episode.unsaved else { continue }
+      let vector: [Float]
+      if let cached = cachedVectors[episode.mediaGUID] {
+        vector = cached
+      } else {
+        do {
+          vector = try await EmbeddingService.embeddingVector(
+            for: unsavedPodcastEpisode,
+            embedding: contextualEmbedding
+          )
+        } catch {
+          Self.log.caughtError(
+            """
+            unsavedSimilarityScores: embedding failed for \
+            \(unsavedPodcastEpisode.toString)
+            """,
+            error
+          )
+          continue
+        }
+        cachedVectors[episode.mediaGUID] = vector
+      }
+      if let similarity = recommendationEngine.similarityScore(forEmbedding: vector) {
+        result[episode.mediaGUID] = similarity
+      }
+    }
+
+    unsavedEmbeddingCache = (revision: revision, vectors: cachedVectors)
+    return result
   }
 
   private func makeRecommendationComparator(
-    _ valuesByID: [Episode.ID: Float]
+    _ valuesByMediaGUID: [MediaGUID: Float]
   ) -> @Sendable (ListedEpisode, ListedEpisode) -> Bool {
     { lhs, rhs in
-      let lhsScore = lhs.episodeID.flatMap { valuesByID[$0] } ?? 0
-      let rhsScore = rhs.episodeID.flatMap { valuesByID[$0] } ?? 0
+      let lhsScore = valuesByMediaGUID[lhs.mediaGUID] ?? 0
+      let rhsScore = valuesByMediaGUID[rhs.mediaGUID] ?? 0
       if lhsScore != rhsScore { return lhsScore > rhsScore }
       if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
       if lhs.mediaGUID.guid != rhs.mediaGUID.guid {
@@ -651,9 +719,15 @@ class PodcastDetailViewModel:
   // MARK: - Private Helpers
 
   private func transition(to newState: PodcastDetailState) {
+    guard newState != state else { return }
     logStateTransition(to: newState)
     state = newState
     refreshEpisodeList(from: newState)
+    startObservation(newState.savedSeries?.id)
+    Task(priority: taskPriority(.utility)) { [weak self] in
+      guard let self else { return }
+      await fetchAndApplyRecommendationScores()
+    }
   }
 
   private func refreshEpisodeList(from state: PodcastDetailState) {
@@ -691,7 +765,6 @@ class PodcastDetailViewModel:
     guard let savedSeries = try await savedSeriesForCurrentState() else { return nil }
 
     transition(to: .saved(savedSeries))
-    startObservation(savedSeries.id)
     return savedSeries.id
   }
 

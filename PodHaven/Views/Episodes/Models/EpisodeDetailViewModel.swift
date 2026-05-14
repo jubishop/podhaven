@@ -19,7 +19,7 @@ import Tagged
 //   unsaved-source displayed/listed episode or a saved episode that was
 //   reverted after observation reported deletion.
 // - `.saved`: a fully-saved episode under live observation.
-enum EpisodeDetailState: Sendable, Stringable {
+enum EpisodeDetailState: Equatable, Sendable, Stringable {
   case initial(ListedEpisode)
   case unsaved(UnsavedPodcastEpisode)
   case saved(PodcastEpisode)
@@ -560,6 +560,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // MARK: - Private Helpers
 
   private func transition(to newState: EpisodeDetailState) {
+    guard newState != state else { return }
     let recommendationKindChanged = state.kind != newState.kind
     logStateTransition(to: newState)
     state = newState
