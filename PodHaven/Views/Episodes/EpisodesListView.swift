@@ -34,6 +34,7 @@ struct EpisodesListView: View {
       }
       .toolbarRole(.editor)
       .task(id: viewModel.observationKey, viewModel.startObservation)
+      .onDisappear { viewModel.disappear() }
   }
 
   @ViewBuilder

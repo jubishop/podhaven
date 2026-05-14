@@ -40,6 +40,11 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     return try await recommendationRepo.allCandidateEpisodes(excluding: excludedID)
   }
 
+  func candidateEpisodes(filter: SQLExpression) async throws -> [CandidateEpisode] {
+    recordCall(methodName: "candidateEpisodes", parameters: ())
+    return try await recommendationRepo.candidateEpisodes(filter: filter)
+  }
+
   func allScoringContextInputs() async throws -> ScoringContextInputs {
     recordCall(methodName: "allScoringContextInputs", parameters: ())
     return try await recommendationRepo.allScoringContextInputs()

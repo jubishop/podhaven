@@ -110,7 +110,7 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
 
   func listablePodcastEpisodes(
     filter: SQLExpression,
-    order: SQLOrdering,
+    order: SQLOrdering?,
     limit: Int
   ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
     recordCall(methodName: "listablePodcastEpisodes(filter:order:limit:)", parameters: limit)

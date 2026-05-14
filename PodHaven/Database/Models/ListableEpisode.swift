@@ -24,6 +24,7 @@ struct ListableEpisode:
   static var databaseSelection: [any SQLSelectable] {
     [
       Episode.Columns.id,
+      Episode.Columns.podcastId,
       Episode.Columns.guid,
       Episode.Columns.mediaURL,
       Episode.Columns.title,
@@ -47,6 +48,7 @@ struct ListableEpisode:
 
   let id: Episode.ID
   var episodeID: Episode.ID? { id }
+  let podcastID: Podcast.ID
   let guid: GUID
   let mediaURL: MediaURL
   let title: String
@@ -71,6 +73,7 @@ struct ListableEpisode:
 
   init(row: Row) throws {
     id = row[Episode.Columns.id]
+    podcastID = row[Episode.Columns.podcastId]
     guid = row[Episode.Columns.guid]
     mediaURL = row[Episode.Columns.mediaURL]
     title = row[Episode.Columns.title]
@@ -97,6 +100,7 @@ struct ListableEpisode:
 
   init(from episode: Episode, tagIDs: Set<Tag.ID> = []) {
     self.id = episode.id
+    self.podcastID = episode.podcastID
     self.guid = episode.guid
     self.mediaURL = episode.mediaURL
     self.title = episode.title
