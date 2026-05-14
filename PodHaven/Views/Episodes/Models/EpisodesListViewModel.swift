@@ -293,17 +293,14 @@ class EpisodesListViewModel:
 
     var values = [Episode.ID: Float](capacity: scoreMap.count)
     for (id, score) in scoreMap { values[id] = score.value }
-    let wasPending: Bool
-    if case .pending = recommendationScoresState { wasPending = true } else { wasPending = false }
     recommendationScoresState = .loaded(values)
     Self.log.debug(
       "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
     )
-    // Bump only when re-scoring an already-loaded map. The first .pending →
-    // .loaded transition lets the awaiter wake and fetch rows directly,
-    // avoiding a redundant .task(id:) cancel-and-restart cycle.
-    if !wasPending { recommendationScoresVersion += 1 }
-    resumeRecommendationScoresAwaiters()
+    // First load: a parked awaiter wakes and fetches rows directly. Later
+    // re-scores have no awaiter; bump so the .task(id:) restarts against
+    // the fresh top-N IDs.
+    if !resumeRecommendationScoresAwaiters() { recommendationScoresVersion += 1 }
   }
 
   // On a first-attempt failure, transition to `.loaded([:])` so awaiters
@@ -314,10 +311,12 @@ class EpisodesListViewModel:
     resumeRecommendationScoresAwaiters()
   }
 
-  private func resumeRecommendationScoresAwaiters() {
+  @discardableResult
+  private func resumeRecommendationScoresAwaiters() -> Bool {
     let continuations = recommendationScoresAwaiters
     recommendationScoresAwaiters.removeAll()
     for continuation in continuations { continuation.resume() }
+    return !continuations.isEmpty
   }
 
   private func awaitRecommendationScores() async {
@@ -344,7 +343,6 @@ class EpisodesListViewModel:
   func disappear() {
     recommendationObservationTask?.cancel()
     recommendationObservationTask = nil
-    for continuation in recommendationScoresAwaiters { continuation.resume() }
-    recommendationScoresAwaiters.removeAll()
+    resumeRecommendationScoresAwaiters()
   }
 }
