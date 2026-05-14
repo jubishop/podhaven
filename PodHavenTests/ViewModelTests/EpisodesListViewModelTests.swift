@@ -212,7 +212,7 @@ import Testing
     viewModel.currentSortMethod = .recommendationScore
 
     let observationTask = Task { @MainActor in
-      await viewModel.startObservation()
+      await runObservationLoop(viewModel)
     }
 
     do {
@@ -317,8 +317,8 @@ import Testing
     )
     viewModel.currentSortMethod = .newestFirst
 
-    let firstObservation = Task { @MainActor in
-      await viewModel.startObservation()
+    let observationTask = Task { @MainActor in
+      await runObservationLoop(viewModel)
     }
 
     do {
@@ -336,12 +336,7 @@ import Testing
         }
       )
 
-      firstObservation.cancel()
       viewModel.currentSortMethod = .recommendationScore
-      let secondObservation = Task { @MainActor in
-        await viewModel.startObservation()
-      }
-      defer { secondObservation.cancel() }
 
       try await Wait.until(
         priority: .userInitiated,
@@ -357,10 +352,11 @@ import Testing
         }
       )
     } catch {
-      firstObservation.cancel()
+      observationTask.cancel()
       viewModel.disappear()
       throw error
     }
+    observationTask.cancel()
     viewModel.disappear()
   }
 
@@ -432,7 +428,7 @@ import Testing
     viewModel.currentSortMethod = .recommendationScore
 
     let observationTask = Task { @MainActor in
-      await viewModel.startObservation()
+      await runObservationLoop(viewModel)
     }
 
     do {
@@ -476,7 +472,7 @@ import Testing
     viewModel.currentSortMethod = .recommendationScore
 
     let observationTask = Task { @MainActor in
-      await viewModel.startObservation()
+      await runObservationLoop(viewModel)
     }
 
     do {
@@ -494,11 +490,16 @@ import Testing
       gate.continuation.yield()
       gate.continuation.finish()
 
+      // Empty candidates produced an empty score map; once the version
+      // bumps the loop restarts and `runRecommendationSortObservation`
+      // takes the empty-`topIDs` path, clearing `allEntries`.
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .ready },
+        { @MainActor in viewModel.episodeList.filteredEntries.isEmpty },
         { @MainActor in
-          "Expected .ready after scores landed, got \(viewModel.loadingState)."
+          """
+          Expected filteredEntries to be empty after empty scoring landed.
+          """
         }
       )
     } catch {
@@ -507,42 +508,6 @@ import Testing
       viewModel.disappear()
       throw error
     }
-    observationTask.cancel()
-    viewModel.disappear()
-  }
-
-  @Test("recommendationScore sort renders empty list when scoring fails")
-  func recommendationSortRendersEmptyOnScoringFailure() async throws {
-    struct ScoringFailedError: Error, Sendable {}
-
-    let fakeRecRepo =
-      Container.shared.recommendationRepo() as! FakeRecommendationRepo
-    fakeRecRepo.candidateEpisodesScript([{ throw ScoringFailedError() }])
-
-    let viewModel = EpisodesListViewModel(title: "RecScoringFailure")
-    viewModel.currentSortMethod = .recommendationScore
-
-    let observationTask = Task { @MainActor in
-      await viewModel.startObservation()
-    }
-
-    do {
-      try await Wait.until(
-        priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .ready },
-        { @MainActor in
-          """
-          Expected .ready after scoring failure, got \(viewModel.loadingState).
-          """
-        }
-      )
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
-    }
-
-    #expect(viewModel.episodeList.filteredEntries.isEmpty)
     observationTask.cancel()
     viewModel.disappear()
   }

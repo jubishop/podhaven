@@ -171,7 +171,6 @@ class EpisodesListViewModel:
     )
 
     if keyChanged || episodeList.allEntries.isEmpty { loadingState = pendingLoadingState() }
-    defer { loadingState = .ready }
 
     startRecommendationObservation()
 
@@ -205,13 +204,9 @@ class EpisodesListViewModel:
   }
 
   private func runRecommendationSortObservation() async throws {
-    await awaitRecommendationScores()
-    try Task.checkCancellation()
-
     let topIDs = topEpisodeIDsByScore()
     guard !topIDs.isEmpty else {
       episodeList.allEntries = []
-      loadingState = .ready
       return
     }
 
@@ -250,8 +245,6 @@ class EpisodesListViewModel:
 
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
   @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
-  @ObservationIgnored private var recommendationScoresAwaiters: [CheckedContinuation<Void, Never>] =
-    []
 
   private func startRecommendationObservation() {
     if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
@@ -274,7 +267,6 @@ class EpisodesListViewModel:
         "fetchAndApplyRecommendationScores: candidate fetch failed",
         error
       )
-      markRecommendationScoresAttempted()
       return
     }
 
@@ -291,7 +283,6 @@ class EpisodesListViewModel:
           "fetchAndApplyRecommendationScores: scoring failed",
           error
         )
-        markRecommendationScoresAttempted()
         return
       }
     }
@@ -301,36 +292,10 @@ class EpisodesListViewModel:
     var values = [Episode.ID: Float](capacity: scoreMap.count)
     for (id, score) in scoreMap { values[id] = score.value }
     recommendationScoresState = .loaded(values)
+    recommendationScoresVersion += 1
     Self.log.debug(
       "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
     )
-    // First load: a parked awaiter wakes and fetches rows directly. Later
-    // re-scores have no awaiter; bump so the .task(id:) restarts against
-    // the fresh top-N IDs.
-    if !resumeRecommendationScoresAwaiters() { recommendationScoresVersion += 1 }
-  }
-
-  // On a first-attempt failure, transition to `.loaded([:])` so awaiters
-  // resume and the UI renders empty rather than hanging. Later failures leave
-  // any prior scores intact.
-  private func markRecommendationScoresAttempted() {
-    if case .pending = recommendationScoresState { recommendationScoresState = .loaded([:]) }
-    resumeRecommendationScoresAwaiters()
-  }
-
-  @discardableResult
-  private func resumeRecommendationScoresAwaiters() -> Bool {
-    let continuations = recommendationScoresAwaiters
-    recommendationScoresAwaiters.removeAll()
-    for continuation in continuations { continuation.resume() }
-    return !continuations.isEmpty
-  }
-
-  private func awaitRecommendationScores() async {
-    guard case .pending = recommendationScoresState else { return }
-    await withCheckedContinuation { continuation in
-      recommendationScoresAwaiters.append(continuation)
-    }
   }
 
   private func topEpisodeIDsByScore() -> [Episode.ID] {
@@ -350,6 +315,5 @@ class EpisodesListViewModel:
   func disappear() {
     recommendationObservationTask?.cancel()
     recommendationObservationTask = nil
-    resumeRecommendationScoresAwaiters()
   }
 }
