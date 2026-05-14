@@ -130,11 +130,6 @@ class EpisodesListViewModel:
 
   @ObservationIgnored private var lastObservationKey: String?
   var observationKey: String {
-    // `recommendationScoresVersion` participates only on the rec sort path:
-    // that's the path whose displayed top-N set has to roll forward when
-    // the scoring task lands a fresh map. Non-rec sorts ignore it so a
-    // context-revision tick doesn't pointlessly restart their SQL
-    // observation.
     let recPart =
       currentSortMethod == .recommendationScore ? "-\(recommendationScoresVersion)" : ""
     return "\(currentSortMethod.rawValue)-\(filterText)\(recPart)"
@@ -198,11 +193,6 @@ class EpisodesListViewModel:
     }
   }
 
-  // Recommendation sort runs on top of the scoring pipeline started by
-  // `startRecommendationObservation`: scores are computed against every
-  // matching candidate in the background, we read the cached top-N IDs,
-  // and the SQL observation here is narrowed to just those rows. Toggling
-  // is instant once `lastRecommendationScores` has landed.
   private func runRecommendationSortObservation() async throws {
     await awaitRecommendationScores()
     try Task.checkCancellation()
@@ -217,9 +207,6 @@ class EpisodesListViewModel:
     let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
       observatory.listablePodcastEpisodes(
         filter: topIDs.contains(Episode.Columns.id),
-        // SQL ordering is irrelevant here — `topIDs` already encodes the
-        // score order and the loop below restores it after each emit.
-        order: Episode.Columns.pubDate.desc,
         limit: topIDs.count
       )
     for try await rows in observation {
@@ -237,14 +224,15 @@ class EpisodesListViewModel:
 
   // MARK: - Recommendation Scoring
 
-  // Bumped after each scoring pass that lands a non-initial map; participates
-  // in `observationKey` so the rec-sort display observation restarts against
-  // the new top-N IDs.
+  private enum RecommendationScoresState {
+    case pending
+    case loaded([Episode.ID: Float])
+  }
+
   private var recommendationScoresVersion: Int = 0
 
-  @ObservationIgnored private var lastRecommendationScores: [Episode.ID: Float]?
+  @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
   @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
-  @ObservationIgnored private var recommendationScoresLoaded = false
   @ObservationIgnored private var recommendationScoresAwaiters: [CheckedContinuation<Void, Never>] =
     []
 
@@ -269,9 +257,7 @@ class EpisodesListViewModel:
         "fetchAndApplyRecommendationScores: candidate fetch failed",
         error
       )
-      // Unblock any rec-sort awaiter even when we have nothing to give it,
-      // so it can fall back to an empty list instead of waiting forever.
-      signalRecommendationScoresLoaded()
+      markRecommendationScoresAttempted()
       return
     }
 
@@ -288,44 +274,46 @@ class EpisodesListViewModel:
           "fetchAndApplyRecommendationScores: scoring failed",
           error
         )
-        signalRecommendationScoresLoaded()
+        markRecommendationScoresAttempted()
         return
       }
     }
 
     guard !Task.isCancelled else { return }
 
-    let isFirstLoad = !recommendationScoresLoaded
     var values = [Episode.ID: Float](capacity: scoreMap.count)
     for (id, score) in scoreMap { values[id] = score.value }
-    lastRecommendationScores = values
+    recommendationScoresState = .loaded(values)
     Self.log.debug(
       "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
     )
-    signalRecommendationScoresLoaded()
-    // Skip the version bump on the very first load: the rec-sort task is
-    // already awaiting `signalRecommendationScoresLoaded` and will pick up
-    // the fresh scores when it resumes. Bumping would just cancel and
-    // restart the work we're about to do.
-    if !isFirstLoad { recommendationScoresVersion += 1 }
+    recommendationScoresVersion += 1
+    resumeRecommendationScoresAwaiters()
   }
 
-  private func signalRecommendationScoresLoaded() {
-    recommendationScoresLoaded = true
+  // On a first-attempt failure, transition to `.loaded([:])` so awaiters
+  // resume and the UI renders empty rather than hanging. Later failures leave
+  // any prior scores intact.
+  private func markRecommendationScoresAttempted() {
+    if case .pending = recommendationScoresState { recommendationScoresState = .loaded([:]) }
+    resumeRecommendationScoresAwaiters()
+  }
+
+  private func resumeRecommendationScoresAwaiters() {
     let continuations = recommendationScoresAwaiters
     recommendationScoresAwaiters.removeAll()
     for continuation in continuations { continuation.resume() }
   }
 
   private func awaitRecommendationScores() async {
-    if recommendationScoresLoaded { return }
+    guard case .pending = recommendationScoresState else { return }
     await withCheckedContinuation { continuation in
       recommendationScoresAwaiters.append(continuation)
     }
   }
 
   private func topEpisodeIDsByScore() -> [Episode.ID] {
-    guard let scores = lastRecommendationScores, !scores.isEmpty else { return [] }
+    guard case .loaded(let scores) = recommendationScoresState, !scores.isEmpty else { return [] }
     return
       scores
       .sorted { lhs, rhs in

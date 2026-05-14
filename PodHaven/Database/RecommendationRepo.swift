@@ -154,10 +154,6 @@ struct RecommendationRepo: Recommending {
     }
   }
 
-  // Slim projection for in-memory recommendation scoring against an arbitrary
-  // filter — i.e. the candidate set a caller wants to rank, not the engine's
-  // built-in `Episode.candidate` pool. Reads just the columns scoring needs
-  // (`id`, `podcastId`, `pubDate`) so a five-figure result set stays light.
   func candidateEpisodes(filter: SQLExpression) async throws -> [CandidateEpisode] {
     try await appDB.db.read { db in
       try CandidateEpisode.filter(filter).fetchAll(db)
