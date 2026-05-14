@@ -38,7 +38,6 @@ struct ListablePodcastEpisode:
   // MARK: - Forwarded Episode Fields
 
   var episodeID: Episode.ID? { id }
-  var podcastID: Podcast.ID { core.podcastID }
   var mediaGUID: MediaGUID { core.mediaGUID }
   var title: String { core.title }
   var pubDate: Date { core.pubDate }

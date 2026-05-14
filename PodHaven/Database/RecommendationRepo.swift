@@ -156,7 +156,7 @@ struct RecommendationRepo: Recommending {
 
   func candidateEpisodes(filter: SQLExpression) async throws -> [CandidateEpisode] {
     try await appDB.db.read { db in
-      try CandidateEpisode.filter(filter).fetchAll(db)
+      try CandidateEpisode.filter(filter && Episode.hasEmbedding).fetchAll(db)
     }
   }
 
