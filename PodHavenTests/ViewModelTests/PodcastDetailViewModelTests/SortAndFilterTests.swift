@@ -323,44 +323,9 @@ import Testing
 
   @Test("recommendationScore sort orders unsaved-state episodes by similarity to liked centroid")
   func recommendationScoreSortOrdersUnsavedEpisodesBySimilarity() async throws {
-    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
-
-    let embeddable = ScriptedEmbeddable { text in
-      if text.contains("Filler") { return [0, 0, 1] }
-      if text.contains("Signal") { return [1, 0, 0] }
-      if text.contains("Discovery 0") { return [0.2, 0.98, 0] }
-      if text.contains("Discovery 1") { return [0.4, 0.917, 0] }
-      if text.contains("Discovery 2") { return [0.6, 0.8, 0] }
-      if text.contains("Discovery 3") { return [0.8, 0.6, 0] }
-      if text.contains("Discovery") { return [0, 1, 0] }
-      return [0, 0, 1]
-    }
-
-    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 10,
-      podcastTitle: "Filler",
-      podcastDescription: "Filler",
-      episodeDescriptions: Array(repeating: "Filler", count: 10),
-      ratings: Array(repeating: .notInterested, count: 10)
-    )
-    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
-
-    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 3,
-      podcastTitle: "Signal",
-      podcastDescription: "Signal",
-      episodeDescriptions: ["Signal", "Signal", "Signal"],
-      ratings: [.loved, .liked, .liked]
-    )
-    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
-    _ = try await RecommendationHelpers.startAndWaitForScores(for: signals)
-
-    // VM's unsaved scorer pulls `contextualEmbedding` from the container;
-    // it must be the same engineered embeddable that seeded the engine so
-    // centroid and candidate vectors share a coordinate system.
-    Container.shared.contextualEmbedding.reset()
-      .register { ContextualEmbedding(embedding: embeddable) }
-      .scope(.cached)
+    let embeddable = discoveryScriptedEmbeddable()
+    try await primeEngine(with: embeddable)
+    registerContainerEmbedding(embeddable)
 
     // Titles fall through to the [0,0,1] default and pubDates ascend with
     // index, so descriptions are the only discriminator and newest-first
@@ -407,19 +372,7 @@ import Testing
         unsavedEpisode: unsavedEpisode
       )
     }
-    let testContextualEmbedding = Container.shared.contextualEmbedding()
-    testContextualEmbedding.loadAssetsIfAvailable()
-    let testEngine = Container.shared.recommendationEngine()
-    var scoresByMediaGUID = [MediaGUID: Float](capacity: unsavedPodcastEpisodes.count)
-    for unsavedPodcastEpisode in unsavedPodcastEpisodes {
-      let vector = try await EmbeddingService.embeddingVector(
-        for: unsavedPodcastEpisode,
-        embedding: testContextualEmbedding
-      )
-      if let score = testEngine.similarityScore(forEmbedding: vector) {
-        scoresByMediaGUID[unsavedPodcastEpisode.mediaGUID] = score
-      }
-    }
+    let scoresByMediaGUID = try await unsavedSimilarityScores(unsavedPodcastEpisodes)
     let expectedOrder =
       unsavedPodcastEpisodes
       .sorted { lhs, rhs in
@@ -466,6 +419,197 @@ import Testing
         """
       }
     )
+  }
+
+  @Test(
+    "unsaved series: switching sorts replaces the recommendationScore comparator each direction"
+  )
+  func unsavedSeriesSortRoundTripsThroughRecommendationScore() async throws {
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Round Trip"),
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(
+          guid: "a",
+          title: "Older",
+          pubDate: Date(timeIntervalSince1970: 100)
+        ),
+        try Create.unsavedEpisode(
+          guid: "b",
+          title: "Middle",
+          pubDate: Date(timeIntervalSince1970: 200)
+        ),
+        try Create.unsavedEpisode(
+          guid: "c",
+          title: "Newer",
+          pubDate: Date(timeIntervalSince1970: 300)
+        ),
+      ]
+    )
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.title) == ["Newer", "Middle", "Older"]
+      },
+      { @MainActor in
+        """
+        Expected default newest-first order for the unsaved series.
+        titles: \(viewModel.episodeList.filteredEntries.map(\.title))
+        """
+      }
+    )
+
+    // No signal corpus means the engine cache stays cold and similarity
+    // scoring returns nil for every row; the comparator should still fall
+    // back to pubDate-descending so the user sees a stable, non-empty list.
+    viewModel.currentSortMethod = .recommendationScore
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.title) == ["Newer", "Middle", "Older"]
+      },
+      { @MainActor in
+        """
+        Expected recommendationScore with cold cache to fall back to pubDate-desc.
+        titles: \(viewModel.episodeList.filteredEntries.map(\.title))
+        """
+      }
+    )
+
+    viewModel.currentSortMethod = .oldestFirst
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.title) == ["Older", "Middle", "Newer"]
+      },
+      { @MainActor in
+        """
+        Expected oldestFirst to replace the recommendationScore comparator.
+        titles: \(viewModel.episodeList.filteredEntries.map(\.title))
+        """
+      }
+    )
+
+    viewModel.currentSortMethod = .recommendationScore
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.title) == ["Newer", "Middle", "Older"]
+      },
+      { @MainActor in
+        """
+        Expected recommendationScore to re-install after another sort took over.
+        titles: \(viewModel.episodeList.filteredEntries.map(\.title))
+        """
+      }
+    )
+  }
+
+  @Test(
+    "subscribing while recommendationScore is active preserves the sort selection and the episode set across the unsaved→saved transition"
+  )
+  func subscribingPreservesRecommendationSortAcrossUnsavedToSavedTransition() async throws {
+    let embeddable = discoveryScriptedEmbeddable()
+    try await primeEngine(with: embeddable)
+    registerContainerEmbedding(embeddable)
+
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(
+        title: "Discovery",
+        description: "Discovery"
+      ),
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(
+          guid: "discovery-0",
+          title: "Episode A",
+          pubDate: Date(timeIntervalSince1970: 400),
+          description: "Discovery 0"
+        ),
+        try Create.unsavedEpisode(
+          guid: "discovery-1",
+          title: "Episode B",
+          pubDate: Date(timeIntervalSince1970: 300),
+          description: "Discovery 1"
+        ),
+        try Create.unsavedEpisode(
+          guid: "discovery-2",
+          title: "Episode C",
+          pubDate: Date(timeIntervalSince1970: 200),
+          description: "Discovery 2"
+        ),
+        try Create.unsavedEpisode(
+          guid: "discovery-3",
+          title: "Episode D",
+          pubDate: Date(timeIntervalSince1970: 100),
+          description: "Discovery 3"
+        ),
+      ]
+    )
+
+    let unsavedPodcastEpisodes = unsavedSeries.unsavedEpisodes.map { unsavedEpisode in
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedSeries.unsavedPodcast,
+        unsavedEpisode: unsavedEpisode
+      )
+    }
+    let originalMediaGUIDs = Set(unsavedPodcastEpisodes.map(\.mediaGUID))
+    let scoresByMediaGUID = try await unsavedSimilarityScores(unsavedPodcastEpisodes)
+    let unsavedExpectedOrder =
+      unsavedPodcastEpisodes
+      .sorted { lhs, rhs in
+        let lhsScore = scoresByMediaGUID[lhs.mediaGUID] ?? 0
+        let rhsScore = scoresByMediaGUID[rhs.mediaGUID] ?? 0
+        if lhsScore != rhsScore { return lhsScore > rhsScore }
+        return lhs.unsavedEpisode.pubDate > rhs.unsavedEpisode.pubDate
+      }
+      .map(\.mediaGUID)
+
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in viewModel.episodeList.allEntries.count == unsavedPodcastEpisodes.count },
+      { @MainActor in "Expected all unsaved episodes to surface before subscribe." }
+    )
+
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.mediaGUID) == unsavedExpectedOrder
+      },
+      { @MainActor in
+        """
+        Expected unsaved similarity sort to apply before subscribe.
+        Expected: \(unsavedExpectedOrder)
+        Actual: \(viewModel.episodeList.filteredEntries.map(\.mediaGUID))
+        """
+      }
+    )
+
+    viewModel.subscribe()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in viewModel.saved },
+      { @MainActor in "Expected VM to transition to .saved after subscribe()." }
+    )
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        Set(viewModel.episodeList.allEntries.map(\.mediaGUID)) == originalMediaGUIDs
+      },
+      { @MainActor in
+        """
+        Expected the persisted episode set to match the unsaved seed by MediaGUID.
+        Expected: \(originalMediaGUIDs)
+        Actual: \(Set(viewModel.episodeList.allEntries.map(\.mediaGUID)))
+        """
+      }
+    )
+
+    // Sort selection survives the transition; the persisted-side scoring path
+    // takes over for subsequent contextRevision ticks.
+    #expect(viewModel.currentSortMethod == .recommendationScore)
   }
 
   // Saved podcast detail intentionally filters by row title and parent podcast
@@ -557,5 +701,78 @@ import Testing
         """
       }
     )
+  }
+
+  // MARK: - Recommendation Sort Helpers
+
+  // Engineered embeddable for the "Discovery" candidate fixtures: each
+  // description maps to a vector with a monotonically increasing first
+  // component, while the bare "Discovery" branch backs the podcast vector.
+  private func discoveryScriptedEmbeddable() -> ScriptedEmbeddable {
+    ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Discovery 0") { return [0.2, 0.98, 0] }
+      if text.contains("Discovery 1") { return [0.4, 0.917, 0] }
+      if text.contains("Discovery 2") { return [0.6, 0.8, 0] }
+      if text.contains("Discovery 3") { return [0.8, 0.6, 0] }
+      if text.contains("Discovery") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+  }
+
+  // Pins focused decone, plants the filler corpus + signal centroid, and
+  // waits for the engine cache to be hot. Decone is pinned because
+  // exploratory mode strips three principal components and collapses
+  // residuals on these small fixtures.
+  private func primeEngine(with embeddable: ScriptedEmbeddable) async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signals)
+  }
+
+  // Bind the same engineered embeddable into the container so the VM's
+  // unsaved scorer reads vectors from the same coordinate system the
+  // engine used to build its centroid.
+  private func registerContainerEmbedding(_ embeddable: ScriptedEmbeddable) {
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: embeddable) }
+      .scope(.cached)
+  }
+
+  private func unsavedSimilarityScores(
+    _ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]
+  ) async throws -> [MediaGUID: Float] {
+    let contextualEmbedding = Container.shared.contextualEmbedding()
+    contextualEmbedding.loadAssetsIfAvailable()
+    let engine = Container.shared.recommendationEngine()
+    var scores = [MediaGUID: Float](capacity: unsavedPodcastEpisodes.count)
+    for unsavedPodcastEpisode in unsavedPodcastEpisodes {
+      let vector = try await EmbeddingService.embeddingVector(
+        for: unsavedPodcastEpisode,
+        embedding: contextualEmbedding
+      )
+      if let score = engine.similarityScore(forEmbedding: vector) {
+        scores[unsavedPodcastEpisode.mediaGUID] = score
+      }
+    }
+    return scores
   }
 }
