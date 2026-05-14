@@ -120,13 +120,10 @@ class EpisodesListViewModel:
 
   // MARK: - State Management
 
+  private static let displayLimit = 100
   let title: String
   let filter: SQLExpression
   private(set) var isLoading = true
-
-  // Display cap. Non-rec sorts let SQLite enforce it via `LIMIT`; the rec
-  // sort enforces it in memory after ranking the cached score map.
-  private static let displayLimit = 100
 
   @ObservationIgnored private var lastObservationKey: String?
   var observationKey: String {
@@ -283,11 +280,16 @@ class EpisodesListViewModel:
 
     var values = [Episode.ID: Float](capacity: scoreMap.count)
     for (id, score) in scoreMap { values[id] = score.value }
+    let wasPending: Bool
+    if case .pending = recommendationScoresState { wasPending = true } else { wasPending = false }
     recommendationScoresState = .loaded(values)
     Self.log.debug(
       "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
     )
-    recommendationScoresVersion += 1
+    // Bump only when re-scoring an already-loaded map. The first .pending →
+    // .loaded transition lets the awaiter wake and fetch rows directly,
+    // avoiding a redundant .task(id:) cancel-and-restart cycle.
+    if !wasPending { recommendationScoresVersion += 1 }
     resumeRecommendationScoresAwaiters()
   }
 
