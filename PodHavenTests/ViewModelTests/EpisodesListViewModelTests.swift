@@ -11,6 +11,7 @@ import Testing
 
 @Suite("of EpisodesListViewModel tests", .container)
 @MainActor final class EpisodesListViewModelTests {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
@@ -473,7 +474,8 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          viewModel.loadingState == .ready && !viewModel.episodeList.filteredEntries.isEmpty
+          guard case .loaded(let episodes) = viewModel.loadingState else { return false }
+          return !episodes.isEmpty && !viewModel.episodeList.filteredEntries.isEmpty
         },
         { @MainActor in
           """
@@ -519,7 +521,10 @@ import Testing
         defer { _ = gate.signal() }
         try await Wait.until(
           priority: .userInitiated,
-          { @MainActor in viewModel.loadingState == .computingRecommendations },
+          { @MainActor in
+            if case .computingRecommendations = viewModel.loadingState { return true }
+            return false
+          },
           { @MainActor in
             """
             Expected .computingRecommendations while scoring is parked, got \
@@ -1061,7 +1066,8 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          viewModel.loadingState == .ready && !viewModel.episodeList.filteredEntries.isEmpty
+          if case .loaded(let episodes) = viewModel.loadingState, !episodes.isEmpty { return true }
+          return false
         },
         { @MainActor in "Expected non-rec sort to settle, got \(viewModel.loadingState)." }
       )
@@ -1091,7 +1097,8 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          viewModel.loadingState == .ready && !viewModel.episodeList.filteredEntries.isEmpty
+          if case .loaded(let episodes) = viewModel.loadingState, !episodes.isEmpty { return true }
+          return false
         },
         { @MainActor in
           "Expected non-rec sort to settle again, got \(viewModel.loadingState)."
@@ -1208,7 +1215,8 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          viewModel.loadingState == .ready && !viewModel.episodeList.filteredEntries.isEmpty
+          if case .loaded(let episodes) = viewModel.loadingState, !episodes.isEmpty { return true }
+          return false
         },
         { @MainActor in "Expected non-rec sort to settle, got \(viewModel.loadingState)." }
       )
@@ -1225,8 +1233,8 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          viewModel.loadingState == .ready
-            && Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
+          guard case .loaded = viewModel.loadingState else { return false }
+          return Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
         },
         { @MainActor in
           """
@@ -1237,20 +1245,20 @@ import Testing
         }
       )
 
-      let states = recorder.values
+      let recordedKinds = recorder.values.map(\.kind)
       #expect(
-        !states.contains(.computingRecommendations),
+        !recordedKinds.contains(.computingRecommendations),
         """
         Warm background scoring should have populated top IDs before the toggle, \
         letting startDisplayObservation skip .computingRecommendations. Recorded \
-        loadingState transitions: \(states)
+        loadingState transitions: \(recordedKinds)
         """
       )
     }
   }
 
-  @Test("rec-sort surfaces .recommendationFailed when candidate observation throws")
-  func loadingStateReachesRecommendationFailedWhenCandidateObservationThrows() async throws {
+  @Test("rec-sort surfaces an alert and empty list when candidate observation throws")
+  func candidateObservationFailureAlertsAndClearsList() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
     fakeObservatory.embeddedCandidateEpisodesScript([
@@ -1269,15 +1277,25 @@ import Testing
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .recommendationFailed },
+        { @MainActor in
+          guard case .loaded(let episodes) = viewModel.loadingState else { return false }
+          return episodes.isEmpty
+        },
         { @MainActor in
           """
-          Expected .recommendationFailed after candidate observation threw; got \
+          Expected .loaded([]) after candidate observation threw; got \
           \(viewModel.loadingState).
           """
         }
       )
       #expect(viewModel.episodeList.filteredEntries.isEmpty)
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor [self] in alert.config != nil },
+        { @MainActor [self] in
+          "Expected failure alert to be presented; alert.config = \(String(describing: alert.config))"
+        }
+      )
     }
   }
 
@@ -1346,11 +1364,14 @@ import Testing
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .recommendationFailed },
+        { @MainActor in
+          guard case .loaded(let episodes) = viewModel.loadingState else { return false }
+          return episodes.isEmpty
+        },
         { @MainActor in
           """
-          Expected .recommendationFailed after the first failed candidate \
-          fetch landed; got \(viewModel.loadingState).
+          Expected .loaded([]) after the first failed candidate fetch landed; got \
+          \(viewModel.loadingState).
           """
         }
       )
@@ -1389,18 +1410,21 @@ import Testing
     }
   }
 
-  @Test("rec-sort with empty scoring result reaches .ready so empty-state UI is reachable")
-  func loadingStateReachesReadyAfterEmptyRecScoring() async throws {
+  @Test("rec-sort with empty scoring result reaches .loaded([]) so empty-state UI is reachable")
+  func loadingStateReachesLoadedAfterEmptyRecScoring() async throws {
     let viewModel = EpisodesListViewModel(title: "EmptyRecReady")
     viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .ready },
+        { @MainActor in
+          guard case .loaded(let episodes) = viewModel.loadingState else { return false }
+          return episodes.isEmpty
+        },
         { @MainActor in
           """
-          Expected .ready after empty rec-scoring landed so emptyEpisodesMessage \
+          Expected .loaded([]) after empty rec-scoring landed so emptyEpisodesMessage \
           can render; got \(viewModel.loadingState).
           """
         }
@@ -1409,19 +1433,25 @@ import Testing
     }
   }
 
-  @Test("loadingState defaults to .loadingEpisodes and reaches .ready for non-rec sort")
+  @Test("loadingState defaults to .loadingEpisodes and reaches .loaded for non-rec sort")
   func loadingStateForNonRecSort() async throws {
     let setup = try await setupFourTaggedEpisodes()
 
     let viewModel = EpisodesListViewModel(title: "NonRecLoadingState")
-    #expect(viewModel.loadingState == .loadingEpisodes)
+    if case .loadingEpisodes = viewModel.loadingState {
+    } else {
+      Issue.record("Expected initial state .loadingEpisodes, got \(viewModel.loadingState)")
+    }
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .ready },
         { @MainActor in
-          "Expected .ready, got \(viewModel.loadingState)."
+          guard case .loaded(let episodes) = viewModel.loadingState else { return false }
+          return episodes.count == setup.episodes.count
+        },
+        { @MainActor in
+          "Expected .loaded with \(setup.episodes.count) episodes, got \(viewModel.loadingState)."
         }
       )
       #expect(viewModel.episodeList.filteredEntries.count == setup.episodes.count)
@@ -1564,12 +1594,28 @@ import Testing
   }
 }
 
+extension EpisodesListViewModel.LoadingState {
+  fileprivate enum Kind: Equatable {
+    case loadingEpisodes
+    case computingRecommendations
+    case loaded
+  }
+
+  fileprivate var kind: Kind {
+    switch self {
+    case .loadingEpisodes: return .loadingEpisodes
+    case .computingRecommendations: return .computingRecommendations
+    case .loaded: return .loaded
+    }
+  }
+}
+
 // Records every distinct loadingState transition by re-arming
 // `withObservationTracking` from the onChange callback. Apple's Observation
 // framework fires onChange at the willSet boundary, so the closure schedules
 // a MainActor read once the mutation lands; back-to-back transitions are
 // reliably caught for our purposes because the production gap between
-// `.computingRecommendations` and `.ready` always spans at least one GRDB
+// `.computingRecommendations` and `.loaded` always spans at least one GRDB
 // observation hop.
 @MainActor
 private final class LoadingStateRecorder {
@@ -1583,7 +1629,7 @@ private final class LoadingStateRecorder {
 
   private func capture() {
     let value = viewModel.loadingState
-    if values.last != value { values.append(value) }
+    if values.last?.kind != value.kind { values.append(value) }
     withObservationTracking {
       _ = viewModel.loadingState
     } onChange: { [weak self] in
