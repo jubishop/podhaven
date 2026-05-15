@@ -40,11 +40,13 @@ enum VectorMath {
     _ a: UnsafeBufferPointer<Float>,
     _ b: UnsafeBufferPointer<Float>
   ) -> Float {
+    let aBaseAddress = unsafe baseAddress(a, named: "a")
+    let bBaseAddress = unsafe baseAddress(b, named: "b")
     var result: Float = 0
     unsafe vDSP_dotpr(
-      a.baseAddress!,
+      aBaseAddress,
       1,
-      b.baseAddress!,
+      bBaseAddress,
       1,
       &result,
       vDSP_Length(a.count)
@@ -57,12 +59,14 @@ enum VectorMath {
     _ src: UnsafeBufferPointer<Float>,
     into dest: UnsafeMutableBufferPointer<Float>
   ) {
+    let srcBaseAddress = unsafe baseAddress(src, named: "src")
+    let destBaseAddress = unsafe baseAddress(dest, named: "dest")
     unsafe vDSP_vadd(
-      src.baseAddress!,
+      srcBaseAddress,
       1,
-      dest.baseAddress!,
+      destBaseAddress,
       1,
-      dest.baseAddress!,
+      destBaseAddress,
       1,
       vDSP_Length(dest.count)
     )
@@ -75,14 +79,16 @@ enum VectorMath {
     scalar: Float,
     into dest: UnsafeMutableBufferPointer<Float>
   ) {
+    let srcBaseAddress = unsafe baseAddress(src, named: "src")
+    let destBaseAddress = unsafe baseAddress(dest, named: "dest")
     var scalar = scalar
     unsafe vDSP_vsma(
-      src.baseAddress!,
+      srcBaseAddress,
       1,
       &scalar,
-      dest.baseAddress!,
+      destBaseAddress,
       1,
-      dest.baseAddress!,
+      destBaseAddress,
       1,
       vDSP_Length(dest.count)
     )
@@ -94,12 +100,15 @@ enum VectorMath {
     _ subtraction: UnsafeBufferPointer<Float>,
     into dest: UnsafeMutableBufferPointer<Float>
   ) {
+    let vectorBaseAddress = unsafe baseAddress(vector, named: "vector")
+    let subtractionBaseAddress = unsafe baseAddress(subtraction, named: "subtraction")
+    let destBaseAddress = unsafe baseAddress(dest, named: "dest")
     unsafe vDSP_vsub(
-      subtraction.baseAddress!,
+      subtractionBaseAddress,
       1,
-      vector.baseAddress!,
+      vectorBaseAddress,
       1,
-      dest.baseAddress!,
+      destBaseAddress,
       1,
       vDSP_Length(dest.count)
     )
@@ -110,12 +119,13 @@ enum VectorMath {
     _ dest: UnsafeMutableBufferPointer<Float>,
     by scalar: Float
   ) {
+    let destBaseAddress = unsafe baseAddress(dest, named: "dest")
     var scalar = scalar
     unsafe vDSP_vsdiv(
-      dest.baseAddress!,
+      destBaseAddress,
       1,
       &scalar,
-      dest.baseAddress!,
+      destBaseAddress,
       1,
       vDSP_Length(dest.count)
     )
@@ -126,11 +136,12 @@ enum VectorMath {
   // on residual collapse).
   @discardableResult
   static func normalizeInPlace(_ dest: UnsafeMutableBufferPointer<Float>) -> Float {
+    let destBaseAddress = unsafe baseAddress(dest, named: "dest")
     var normSq: Float = 0
     unsafe vDSP_dotpr(
-      dest.baseAddress!,
+      destBaseAddress,
       1,
-      dest.baseAddress!,
+      destBaseAddress,
       1,
       &normSq,
       vDSP_Length(dest.count)
@@ -148,12 +159,15 @@ enum VectorMath {
     into dest: UnsafeMutableBufferPointer<Float>,
     dim: Int
   ) {
+    let matrixBaseAddress = unsafe baseAddress(matrix, named: "matrix")
+    let vectorBaseAddress = unsafe baseAddress(vector, named: "vector")
+    let destBaseAddress = unsafe baseAddress(dest, named: "dest")
     unsafe vDSP_mmul(
-      matrix.baseAddress!,
+      matrixBaseAddress,
       1,
-      vector.baseAddress!,
+      vectorBaseAddress,
       1,
-      dest.baseAddress!,
+      destBaseAddress,
       1,
       vDSP_Length(dim),
       1,
@@ -172,12 +186,15 @@ enum VectorMath {
     scratch: UnsafeMutableBufferPointer<Float>,
     dim: Int
   ) {
+    let vectorBaseAddress = unsafe baseAddress(vector, named: "vector")
+    let matrixBaseAddress = unsafe baseAddress(matrix, named: "matrix")
+    let scratchBaseAddress = unsafe baseAddress(scratch, named: "scratch")
     unsafe vDSP_mmul(
-      vector.baseAddress!,
+      vectorBaseAddress,
       1,
-      vector.baseAddress!,
+      vectorBaseAddress,
       1,
-      scratch.baseAddress!,
+      scratchBaseAddress,
       1,
       vDSP_Length(dim),
       vDSP_Length(dim),
@@ -185,14 +202,36 @@ enum VectorMath {
     )
     var scalar = scalar
     unsafe vDSP_vsma(
-      scratch.baseAddress!,
+      scratchBaseAddress,
       1,
       &scalar,
-      matrix.baseAddress!,
+      matrixBaseAddress,
       1,
-      matrix.baseAddress!,
+      matrixBaseAddress,
       1,
       vDSP_Length(dim * dim)
     )
+  }
+
+  private static func baseAddress(
+    _ buffer: UnsafeBufferPointer<Float>,
+    named name: String
+  ) -> UnsafePointer<Float> {
+    guard let baseAddress = buffer.baseAddress else {
+      Assert.fatal("VectorMath buffer '\(name)' is missing storage")
+    }
+
+    return unsafe baseAddress
+  }
+
+  private static func baseAddress(
+    _ buffer: UnsafeMutableBufferPointer<Float>,
+    named name: String
+  ) -> UnsafeMutablePointer<Float> {
+    guard let baseAddress = buffer.baseAddress else {
+      Assert.fatal("VectorMath buffer '\(name)' is missing storage")
+    }
+
+    return unsafe baseAddress
   }
 }

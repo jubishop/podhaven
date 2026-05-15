@@ -221,7 +221,13 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   static let episodeTags = hasMany(EpisodeTag.self)
   static let podcast = belongsTo(Podcast.self)
   static let tags = hasMany(Tag.self, through: episodeTags, using: EpisodeTag.tag).order(\.name)
-  var podcastID: Podcast.ID { self.podcastId! }
+  var podcastID: Podcast.ID {
+    guard let podcastID = self.podcastId else {
+      Assert.fatal("Episode \(id) is missing required podcastId")
+    }
+
+    return podcastID
+  }
 
   // MARK: - SQL Expressions
 
