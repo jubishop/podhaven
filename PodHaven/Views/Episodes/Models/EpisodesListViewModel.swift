@@ -91,11 +91,7 @@ class EpisodesListViewModel:
       }
     }
   }
-  private static let sortMethodsWithoutRecommendations =
-    SortMethod.allCases.filter { $0 != .recommendationScore }
-  var allSortMethods: [SortMethod] {
-    recommendationSortAvailable ? SortMethod.allCases : Self.sortMethodsWithoutRecommendations
-  }
+  let allSortMethods = SortMethod.allCases
 
   @ObservationIgnored @PersistedBroadcast var currentSortMethod: SortMethod
 
@@ -132,7 +128,6 @@ class EpisodesListViewModel:
   let title: String
   let filter: SQLExpression
   private(set) var loadingState: LoadingState = .loadingEpisodes
-  private var recommendationSortAvailable = false
 
   @ObservationIgnored private var lastObservationKey: ObservationKey?
   struct ObservationKey: Hashable {
@@ -157,8 +152,6 @@ class EpisodesListViewModel:
   // MARK: - Observation
 
   func startObservation() async {
-    ensureRecommendationSortAvailability()
-
     let currentKey = observationKey
     let keyChanged = lastObservationKey != nil && lastObservationKey != currentKey
     lastObservationKey = currentKey
@@ -185,11 +178,6 @@ class EpisodesListViewModel:
         error
       )
     }
-  }
-
-  private func ensureRecommendationSortAvailability() {
-    guard currentSortMethod == .recommendationScore, !recommendationSortAvailable else { return }
-    currentSortMethod = .newestFirst
   }
 
   private func runStandardSortObservation() async throws {
@@ -318,22 +306,17 @@ class EpisodesListViewModel:
 
     var values = [Episode.ID: Float](capacity: scoreMap.count)
     for (id, score) in scoreMap { values[id] = score.value }
+    recommendationScoresState = .loaded(values)
     lastScoredCandidateIDs = Set(candidates.map(\.id))
-    applyRecommendationScores(values)
     Self.log.debug(
       "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
     )
+    applyScoresIfRecSort()
   }
 
   private func applyEmptyScores() {
     guard !Task.isCancelled else { return }
-    applyRecommendationScores([:])
-  }
-
-  private func applyRecommendationScores(_ values: [Episode.ID: Float]) {
-    recommendationScoresState = .loaded(values)
-    recommendationSortAvailable = !values.isEmpty
-    ensureRecommendationSortAvailability()
+    recommendationScoresState = .loaded([:])
     applyScoresIfRecSort()
   }
 
