@@ -195,9 +195,6 @@ class EpisodesListViewModel:
     }
   }
 
-  // Watches the full filter scope (not just the cached top-IDs) so rows
-  // entering or leaving the scope can drive a rescore — the engine doesn't
-  // bump `contextRevision` for candidate-gate transitions or new inserts.
   private func runRecommendationSortObservation() async throws {
     let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
       observatory.listablePodcastEpisodes(
@@ -206,8 +203,6 @@ class EpisodesListViewModel:
     for try await rows in observation {
       try Task.checkCancellation()
 
-      // Skipped on first emission (nil) since `contextRevision`'s bootstrap
-      // already kicks the initial fetch.
       let currentCandidateIDs = Set(rows.map(\.id))
       if let lastScoredCandidateIDs, currentCandidateIDs != lastScoredCandidateIDs {
         self.lastScoredCandidateIDs = currentCandidateIDs
@@ -320,8 +315,6 @@ class EpisodesListViewModel:
     applyScoresIfRecSort()
   }
 
-  // Score updates land out-of-band from the GRDB observation, so push them
-  // into the list directly when rec sort is active.
   private func applyScoresIfRecSort() {
     guard currentSortMethod == .recommendationScore else { return }
     applyOrderedEpisodes()
