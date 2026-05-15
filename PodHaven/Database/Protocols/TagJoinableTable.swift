@@ -26,7 +26,9 @@ extension TagJoinableTable {
   }
 
   static func decodeTagIDs(from row: Row) throws -> Set<Tag.ID> {
-    guard let tagIDsJSON: String = row[tagIDsColumnName] else { return [] }
+    guard let tagIDsJSON: String = row[tagIDsColumnName] else {
+      Assert.fatal("\(Self.self) requires tagIDs selection")
+    }
     return Set(
       try TagJoinableTableDecoder.shared.decode([Tag.ID].self, from: Data(tagIDsJSON.utf8))
     )

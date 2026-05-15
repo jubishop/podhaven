@@ -9,7 +9,13 @@ struct QueueEntry: TimelineEntry {
   let items: [QueueEntryItem]
   let totalCount: Int
 
-  private static let queueBaseURL = URL(string: "podhaven://widget/queue/")!
+  private static let queueBaseURL: URL = {
+    guard let url = URL(string: "podhaven://widget/queue/") else {
+      Assert.fatal("Failed to build widget queue URL")
+    }
+
+    return url
+  }()
 
   struct QueueEntryItem: Identifiable {
     let id: Int64

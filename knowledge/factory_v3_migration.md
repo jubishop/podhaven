@@ -30,3 +30,8 @@ The `@MainActor` on the var (not on the closure body) inherits into the closure 
 **swift-log**: same package-update window introduced `LogHandler.log(event: LogEvent)` as the new required impl. The old `log(level:message:metadata:source:file:function:line:)` is deprecated; default impl that forwards to it is `@available(*, deprecated)`.
 
 **Nuke**: `DataLoading` reverted from async-stream to callback-based `loadData(with:didReceiveData:completion:) -> any Cancellable`. Wrap async fakes by spawning a `Task` and returning a Cancellable that cancels it.
+
+## Related
+
+- [[flaky_test_observation_restarts]] — same family of Task/priority inheritance gotchas in the test target, surfaced by `Wait.until`'s `.background` default starving a spawned observation task.
+- [[observation_broadcast_viewmodel]] — when `@DynamicInjected` resolves a `@Broadcasted` value through an `@Observable` computed property, observation can silently miss conditional views.

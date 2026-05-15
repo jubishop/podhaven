@@ -261,9 +261,6 @@ struct RecommendationRepo: Recommending {
       let converged = unsafe covariance.withUnsafeBufferPointer { covPtr -> Bool in
         unsafe cv.withUnsafeMutableBufferPointer { cvPtr in
           unsafe v.withUnsafeMutableBufferPointer { vPtr in
-            guard let cvBase = cvPtr.baseAddress, let vBase = vPtr.baseAddress else {
-              return false
-            }
             var madeProgress = false
             for _ in 0..<50 {
               unsafe VectorMath.matrixVectorMultiply(
@@ -275,12 +272,17 @@ struct RecommendationRepo: Recommending {
               let cvBuf = UnsafeBufferPointer(cvPtr)
               let norm = sqrt(unsafe VectorMath.dotProduct(cvBuf, cvBuf))
               guard norm > 1e-12 else { break }
+              guard let cvBaseAddress = cvPtr.baseAddress,
+                let vBaseAddress = vPtr.baseAddress
+              else {
+                Assert.fatal("RecommendationRepo whitening buffers are missing storage")
+              }
               var divisor = norm
               unsafe vDSP_vsdiv(
-                cvBase,
+                cvBaseAddress,
                 1,
                 &divisor,
-                vBase,
+                vBaseAddress,
                 1,
                 vDSP_Length(dim)
               )
