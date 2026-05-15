@@ -42,6 +42,8 @@ struct EpisodesListView: View {
     switch viewModel.loadingState {
     case .computingRecommendations:
       loadingView(message: "Computing recommendations…")
+    case .recommendationFailed:
+      recommendationFailedMessage
     case .loadingEpisodes:
       loadingView(message: "Loading episodes…")
     case .ready:
@@ -84,6 +86,15 @@ struct EpisodesListView: View {
   private var noEpisodesMessage: some View {
     VStack {
       Text("No episodes match the filters.")
+        .foregroundColor(.secondary)
+        .padding()
+      Spacer()
+    }
+  }
+
+  private var recommendationFailedMessage: some View {
+    VStack {
+      Text("Couldn't compute recommendations.")
         .foregroundColor(.secondary)
         .padding()
       Spacer()

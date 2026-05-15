@@ -121,6 +121,7 @@ class EpisodesListViewModel:
   enum LoadingState {
     case loadingEpisodes
     case computingRecommendations
+    case recommendationFailed
     case ready
   }
 
@@ -226,16 +227,19 @@ class EpisodesListViewModel:
   }
 
   private func pendingLoadingState() -> LoadingState {
-    if currentSortMethod == .recommendationScore, case .pending = recommendationScoresState {
-      return .computingRecommendations
+    guard currentSortMethod == .recommendationScore else { return .loadingEpisodes }
+    switch recommendationScoresState {
+    case .pending: return .computingRecommendations
+    case .failed: return .recommendationFailed
+    case .loaded: return .loadingEpisodes
     }
-    return .loadingEpisodes
   }
 
   // MARK: - Recommendation Scoring
 
   private enum RecommendationScoresState {
     case pending
+    case failed
     case loaded([Episode.ID: Float])
   }
 
@@ -275,7 +279,7 @@ class EpisodesListViewModel:
         "fetchAndApplyRecommendationScores: candidate fetch failed",
         error
       )
-      applyEmptyScores()
+      applyFailedScores()
       return
     }
 
@@ -292,7 +296,7 @@ class EpisodesListViewModel:
           "fetchAndApplyRecommendationScores: scoring failed",
           error
         )
-        applyEmptyScores()
+        applyFailedScores()
         return
       }
     }
@@ -309,10 +313,11 @@ class EpisodesListViewModel:
     applyScoresIfRecSort()
   }
 
-  private func applyEmptyScores() {
+  private func applyFailedScores() {
     guard !Task.isCancelled else { return }
-    recommendationScoresState = .loaded([:])
-    applyScoresIfRecSort()
+    recommendationScoresState = .failed
+    guard currentSortMethod == .recommendationScore else { return }
+    loadingState = .recommendationFailed
   }
 
   private func applyScoresIfRecSort() {

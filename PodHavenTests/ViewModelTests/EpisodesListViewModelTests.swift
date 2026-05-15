@@ -734,8 +734,8 @@ import Testing
     }
   }
 
-  @Test("rec-sort reaches .ready when candidate fetch throws so the UI isn't stuck")
-  func loadingStateReachesReadyWhenCandidateFetchThrows() async throws {
+  @Test("rec-sort surfaces .recommendationFailed when candidate fetch throws")
+  func loadingStateReachesRecommendationFailedWhenCandidateFetchThrows() async throws {
     let fakeRecRepo =
       Container.shared.recommendationRepo() as! FakeRecommendationRepo
     fakeRecRepo.candidateEpisodesScript([
@@ -748,11 +748,11 @@ import Testing
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .ready },
+        { @MainActor in viewModel.loadingState == .recommendationFailed },
         { @MainActor in
           """
-          Expected .ready after candidate fetch threw so the UI can recover; \
-          got \(viewModel.loadingState).
+          Expected .recommendationFailed after candidate fetch threw; got \
+          \(viewModel.loadingState).
           """
         }
       )
@@ -790,20 +790,20 @@ import Testing
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .ready },
+        { @MainActor in viewModel.loadingState == .recommendationFailed },
         { @MainActor in
           """
-          Expected .ready after the first failed candidate fetch landed; got \
-          \(viewModel.loadingState).
+          Expected .recommendationFailed after the first failed candidate \
+          fetch landed; got \(viewModel.loadingState).
           """
         }
       )
 
-      // Under the bug, applyEmptyScores leaves lastScoredCandidateIDs = []
+      // Under the bug, the failure path leaves lastScoredCandidateIDs = nil
       // while the observation still emits the embedded row IDs, so the
       // version-bump-driven restart kicks another candidateEpisodes call,
       // throws again, bumps again, and never settles. This poll detects
-      // any post-.ready retry; under the fix the count is pinned at 1.
+      // any post-failure retry; under the fix the count is pinned at 1.
       @Sendable func candidateCallCount() -> Int {
         fakeRecRepo.callsByType()
           .values
