@@ -128,7 +128,7 @@ import SwiftUI
         guard let self else { return }
         await self.observeQueue()
       }
-      group.addTask { [weak self] in
+      group.addTask(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
         await self.observeRecommendations()
       }
