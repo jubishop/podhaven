@@ -263,12 +263,17 @@ struct RecommendationRepo: Recommending {
               let cvBuf = UnsafeBufferPointer(cvPtr)
               let norm = sqrt(unsafe VectorMath.dotProduct(cvBuf, cvBuf))
               guard norm > 1e-12 else { break }
+              guard let cvBaseAddress = cvPtr.baseAddress,
+                let vBaseAddress = vPtr.baseAddress
+              else {
+                Assert.fatal("RecommendationRepo whitening buffers are missing storage")
+              }
               var divisor = norm
               unsafe vDSP_vsdiv(
-                cvPtr.baseAddress!,
+                cvBaseAddress,
                 1,
                 &divisor,
-                vPtr.baseAddress!,
+                vBaseAddress,
                 1,
                 vDSP_Length(dim)
               )
