@@ -224,6 +224,15 @@ struct Observatory: Observing {
 
   // MARK: - Recommendations
 
+  func candidateEpisodes(filter: SQLExpression) -> AsyncValueObservation<[CandidateEpisode]> {
+    _observe { db in
+      try CandidateEpisode
+        .joining(required: CandidateEpisode.podcast)
+        .filter(filter && Episode.hasEmbedding)
+        .fetchAll(db)
+    }
+  }
+
   // GRDB-driven stream. Tracked region: rating columns + episodeEmbedding
   // table + freshness cadences. Playback-path columns (currentTime,
   // playbackCoverage, lastPlayedDate) are deliberately NOT referenced — the

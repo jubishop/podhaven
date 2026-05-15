@@ -74,6 +74,7 @@ protocol Observing: Sendable {
 
   // MARK: - Recommendations
 
+  func candidateEpisodes(filter: SQLExpression) -> AsyncValueObservation<[CandidateEpisode]>
   func scoringContextInputsWithoutPartialSignals() -> AsyncValueObservation<ScoringContextInputs>
   func candidateGateExclusions() -> AsyncValueObservation<Set<Episode.ID>>
 }

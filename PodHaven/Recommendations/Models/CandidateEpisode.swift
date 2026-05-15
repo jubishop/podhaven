@@ -15,6 +15,7 @@ struct CandidateEpisode:
   TableRecord
 {
   static let databaseTableName: String = Episode.databaseTableName
+  static let podcast = belongsTo(Podcast.self)
   static var databaseSelection: [any SQLSelectable] {
     [
       Episode.Columns.id,

@@ -10,6 +10,8 @@ import Testing
 
 @Suite("of EpisodesListViewModel tests", .container)
 @MainActor final class EpisodesListViewModelTests {
+  @DynamicInjected(\.appDB) private var appDB
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
   private var fakeRepo: FakeRepo { repo as! FakeRepo }
@@ -419,16 +421,97 @@ import Testing
     }
   }
 
+  @Test("rec-sort hydrates only the top display rows after scoring")
+  func recommendationSortHydratesOnlyTopDisplayRows() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0", "Target 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
+
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
+
+    let fakeObservatory = try #require(Container.shared.observatory() as? FakeObservatory)
+    fakeObservatory.clearAllCalls()
+    let fakeRecRepo = try #require(
+      Container.shared.recommendationRepo() as? FakeRecommendationRepo
+    )
+    fakeRecRepo.clearAllCalls()
+
+    let viewModel = EpisodesListViewModel(
+      title: "RecTopHydration",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .ready && !viewModel.episodeList.filteredEntries.isEmpty
+        },
+        { @MainActor in
+          """
+          Expected rec sort to hydrate visible entries.
+          State: \(viewModel.loadingState)
+          Entries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+          """
+        }
+      )
+
+      let listableLimits =
+        fakeObservatory
+        .calls(of: MethodCall<Int>.self)
+        .filter { $0.methodName == "listablePodcastEpisodes(filter:order:limit:)" }
+        .map(\.parameters)
+      #expect(listableLimits.contains(100))
+      #expect(!listableLimits.contains(Int.max))
+      try fakeRecRepo.expectNoCall(methodName: "candidateEpisodes")
+    }
+  }
+
   @Test("loadingState is .computingRecommendations during rec-sort cold start")
   func loadingStateIsComputingRecommendationsOnRecSortColdStart() async throws {
-    let fakeRecRepo =
-      Container.shared.recommendationRepo() as! FakeRecommendationRepo
-    let gate = AsyncStream<Void>.makeStream()
-    fakeRecRepo.candidateEpisodesScript([
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let dbReader = appDB.db
+    let gate = DispatchSemaphore(value: 0)
+    fakeObservatory.candidateEpisodesScript([
       {
-        var iterator = gate.stream.makeAsyncIterator()
-        _ = await iterator.next()
-        return []
+        ValueObservation
+          .tracking { _ -> [CandidateEpisode] in
+            _ = gate.wait()
+            return []
+          }
+          .values(in: dbReader)
       }
     ])
 
@@ -437,6 +520,7 @@ import Testing
 
     try await withRunningObservationLoop(viewModel) {
       do {
+        defer { _ = gate.signal() }
         try await Wait.until(
           priority: .userInitiated,
           { @MainActor in viewModel.loadingState == .computingRecommendations },
@@ -448,8 +532,7 @@ import Testing
           }
         )
 
-        gate.continuation.yield()
-        gate.continuation.finish()
+        _ = gate.signal()
 
         // Empty candidates produced an empty score map; once the version
         // bumps the loop restarts and `runRecommendationSortObservation`
@@ -463,10 +546,7 @@ import Testing
             """
           }
         )
-      } catch {
-        gate.continuation.finish()
-        throw error
-      }
+      } catch { throw error }
     }
   }
 
@@ -734,12 +814,99 @@ import Testing
     }
   }
 
-  @Test("rec-sort surfaces .recommendationFailed when candidate fetch throws")
-  func loadingStateReachesRecommendationFailedWhenCandidateFetchThrows() async throws {
-    let fakeRecRepo =
-      Container.shared.recommendationRepo() as! FakeRecommendationRepo
-    fakeRecRepo.candidateEpisodesScript([
-      { throw TestError.simulatedFailure }
+  @Test("rec-sort hydration observes visible episode title changes")
+  func recommendationSortHydrationObservesVisibleEpisodeTitleChanges() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0", "Target 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
+
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
+
+    let targetID = try #require(targets.first?.id)
+    let viewModel = EpisodesListViewModel(
+      title: "RecTitleHydration",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.episodeList.filteredEntries.compactMap(\.episodeID).contains(targetID)
+        },
+        { @MainActor in
+          """
+          Expected target \(targetID) to be visible before title mutation; got \
+          \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)).
+          """
+        }
+      )
+
+      let updatedTitle = "Retitled Target Episode"
+      _ = try await appDB.db.write { db in
+        try Episode.withID(targetID).updateAll(db, Episode.Columns.title.set(to: updatedTitle))
+      }
+
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.episodeList.filteredEntries[id: targetID]?.title == updatedTitle
+        },
+        { @MainActor in
+          """
+          Expected hydrated rec-sort row \(targetID) to observe updated title \
+          '\(updatedTitle)'; got \
+          \(String(describing: viewModel.episodeList.filteredEntries[id: targetID]?.title)).
+          """
+        }
+      )
+    }
+  }
+
+  @Test("rec-sort surfaces .recommendationFailed when candidate observation throws")
+  func loadingStateReachesRecommendationFailedWhenCandidateObservationThrows() async throws {
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let dbReader = appDB.db
+    fakeObservatory.candidateEpisodesScript([
+      {
+        ValueObservation
+          .tracking { _ -> [CandidateEpisode] in
+            throw TestError.simulatedFailure
+          }
+          .values(in: dbReader)
+      }
     ])
 
     let viewModel = EpisodesListViewModel(title: "RecFetchError")
@@ -751,7 +918,7 @@ import Testing
         { @MainActor in viewModel.loadingState == .recommendationFailed },
         { @MainActor in
           """
-          Expected .recommendationFailed after candidate fetch threw; got \
+          Expected .recommendationFailed after candidate observation threw; got \
           \(viewModel.loadingState).
           """
         }
@@ -760,8 +927,8 @@ import Testing
     }
   }
 
-  @Test("rec-sort doesn't loop refetching when scoring fails against a non-empty embedded set")
-  func recommendationSortDoesNotRetryLoopOnPersistentFetchError() async throws {
+  @Test("rec-sort doesn't loop refetching when candidate observation fails")
+  func recommendationSortDoesNotRetryLoopOnPersistentCandidateObservationError() async throws {
     // Embed real candidates so the rec-sort observation emits a non-empty
     // row set; without embedded rows the diff check against the cleared
     // marker is trivially equal and the loop can't manifest.
@@ -774,12 +941,47 @@ import Testing
     )
     try await RecommendationHelpers.embedEpisodes(episodes, embeddable: embeddable)
 
-    let fakeRecRepo =
-      Container.shared.recommendationRepo() as! FakeRecommendationRepo
-    let throwing: @Sendable () async throws -> [CandidateEpisode] = {
-      throw TestError.simulatedFailure
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let dbReader = appDB.db
+    fakeObservatory.candidateEpisodesScript([
+      {
+        ValueObservation
+          .tracking { _ -> [CandidateEpisode] in
+            throw TestError.simulatedFailure
+          }
+          .values(in: dbReader)
+      }
+    ])
+
+    // engine.start() is not called in this test, so $contextRevision should
+    // emit only its initial value of 0 (via Broadcast's on-subscribe yield)
+    // and never tick again. The no-retry-loop assertion below times out on
+    // the absence of a second candidateEpisodes call — a spurious tick from
+    // the engine would kick that second call and the assertion would still
+    // pass (we'd silently lose coverage of the view model's diff logic).
+    // This watcher records an Issue on any tick past the initial yield so a
+    // future engine-side regression surfaces explicitly instead of as flake.
+    let engine = Container.shared.recommendationEngine()
+    let revisionTickCount = ThreadSafe<Int>(0)
+    let revisionWatcher = Task(priority: .userInitiated) {
+      for await _ in engine.$contextRevision.stream() {
+        let count = revisionTickCount {
+          $0 += 1
+          return $0
+        }
+        if count > 1 {
+          Issue.record(
+            """
+            contextRevision ticked during a no-retry-loop test that assumes \
+            engine.start() was not called. A tick would kick a second \
+            candidateEpisodes fetch from recommendationObservationTask and \
+            mask the view-model diff logic this test is meant to pin down.
+            """
+          )
+        }
+      }
     }
-    fakeRecRepo.candidateEpisodesScript(Array(repeating: throwing, count: 50))
+    defer { revisionWatcher.cancel() }
 
     let viewModel = EpisodesListViewModel(
       title: "RecLoopGuard",
@@ -799,13 +1001,11 @@ import Testing
         }
       )
 
-      // Under the bug, the failure path leaves lastScoredCandidateIDs = nil
-      // while the observation still emits the embedded row IDs, so the
-      // version-bump-driven restart kicks another candidateEpisodes call,
-      // throws again, bumps again, and never settles. This poll detects
-      // any post-failure retry; under the fix the count is pinned at 1.
+      // A persistent candidate-source failure should not keep re-entering
+      // the candidate observation. This poll detects any post-failure retry;
+      // under the fixed implementation the count is pinned at 1.
       @Sendable func candidateCallCount() -> Int {
-        fakeRecRepo.callsByType()
+        fakeObservatory.callsByType()
           .values
           .flatMap { $0 }
           .filter { $0.methodName == "candidateEpisodes" }
@@ -822,7 +1022,7 @@ import Testing
         )
         Issue.record(
           """
-          regression: candidateEpisodes was retried after the first failure \
+          regression: candidateEpisodes observation was retried after the first failure \
           (count=\(candidateCallCount())); persistent rec errors trigger a \
           refetch loop while the observed embedded row set stays stable.
           """
@@ -831,18 +1031,12 @@ import Testing
         // Expected timeout under the fixed implementation.
       }
 
-      try fakeRecRepo.expectCalls(methodName: "candidateEpisodes", count: 1)
+      _ = try fakeObservatory.expectCalls(methodName: "candidateEpisodes", count: 1)
     }
   }
 
   @Test("rec-sort with empty scoring result reaches .ready so empty-state UI is reachable")
   func loadingStateReachesReadyAfterEmptyRecScoring() async throws {
-    let fakeRecRepo =
-      Container.shared.recommendationRepo() as! FakeRecommendationRepo
-    fakeRecRepo.candidateEpisodesScript([
-      { [] }
-    ])
-
     let viewModel = EpisodesListViewModel(title: "EmptyRecReady")
     viewModel.currentSortMethod = .recommendationScore
 

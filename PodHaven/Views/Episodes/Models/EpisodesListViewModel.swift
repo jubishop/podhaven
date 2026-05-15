@@ -6,7 +6,6 @@ import GRDB
 import IdentifiedCollections
 import Logging
 import SwiftUI
-import Tagged
 
 @Observable @MainActor
 class EpisodesListViewModel:
@@ -173,15 +172,20 @@ class EpisodesListViewModel:
       } else {
         try await runStandardSortObservation()
       }
+    } catch is CancellationError {
     } catch {
       Self.log.caughtError(
         "startObservation: observation failed for episode list '\(title)'",
         error
       )
+      if currentSortMethod == .recommendationScore { applyFailedScores() }
     }
   }
 
   private func runStandardSortObservation() async throws {
+    cancelRecommendationHydration()
+    lastObservedCandidates = nil
+
     let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
       observatory.listablePodcastEpisodes(
         filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
@@ -197,33 +201,19 @@ class EpisodesListViewModel:
   }
 
   private func runRecommendationSortObservation() async throws {
-    let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
-      observatory.listablePodcastEpisodes(
-        filter: filter && textSearchFilter && Episode.hasEmbedding
-      )
-    for try await rows in observation {
+    let observation: AsyncValueObservation<[CandidateEpisode]> =
+      observatory.candidateEpisodes(filter: filter && textSearchFilter)
+    for try await candidates in observation {
       try Task.checkCancellation()
 
-      let currentCandidateIDs = Set(rows.map(\.id))
-      if let lastScoredCandidateIDs, currentCandidateIDs != lastScoredCandidateIDs {
-        self.lastScoredCandidateIDs = currentCandidateIDs
-        kickRecommendationFetch()
+      lastObservedCandidates = candidates
+      if lastScoredCandidates != candidates {
+        lastScoredCandidates = candidates
+        kickRecommendationFetch(candidates: candidates)
       }
 
-      lastObservedCandidateRows = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
-      applyOrderedEpisodes()
-      if case .loaded = recommendationScoresState { loadingState = .ready }
+      applyScoresIfRecSort()
     }
-  }
-
-  private func applyOrderedEpisodes() {
-    let topIDs = topEpisodeIDsByScore()
-    var ordered = [ListablePodcastEpisode](capacity: topIDs.count)
-    for id in topIDs {
-      guard let row = lastObservedCandidateRows[id] else { continue }
-      ordered.append(row)
-    }
-    episodeList.allEntries = IdentifiedArray(uniqueElements: ordered)
   }
 
   private func pendingLoadingState() -> LoadingState {
@@ -244,43 +234,57 @@ class EpisodesListViewModel:
   }
 
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
-  @ObservationIgnored private var lastScoredCandidateIDs: Set<Episode.ID>?
-  @ObservationIgnored
-  private var lastObservedCandidateRows: [Episode.ID: ListablePodcastEpisode] = [:]
+  @ObservationIgnored private var lastObservedCandidates: [CandidateEpisode]?
+  @ObservationIgnored private var lastScoredCandidates: [CandidateEpisode]?
   @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
+  @ObservationIgnored private var recommendationHydrationTask: Task<Void, Never>?
+  @ObservationIgnored private var hydratedScoreIDs: [Episode.ID] = []
 
   private func startRecommendationObservation() {
     if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
-    recommendationObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
+    let skipInitialBootstrap = currentSortMethod == .recommendationScore
+    recommendationObservationTask = Task(priority: taskPriority(.utility)) {
+      [weak self, skipInitialBootstrap] in
       guard let self else { return }
+      var isBootstrap = skipInitialBootstrap
       for await _ in recommendationEngine.$contextRevision.stream() {
         guard !Task.isCancelled else { return }
-        self.kickRecommendationFetch()
+        if isBootstrap {
+          isBootstrap = false
+          continue
+        }
+        self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
       }
     }
   }
 
-  private func kickRecommendationFetch() {
+  private func kickRecommendationFetch(candidates: [CandidateEpisode]? = nil) {
     recommendationFetchTask?.cancel()
     recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      await self.fetchAndApplyRecommendationScores()
+      await self.fetchAndApplyRecommendationScores(candidates: candidates)
     }
   }
 
-  private func fetchAndApplyRecommendationScores() async {
-    let baseFilter = filter && textSearchFilter
+  private func fetchAndApplyRecommendationScores(candidates observedCandidates: [CandidateEpisode]?)
+    async
+  {
     let candidates: [CandidateEpisode]
-    do {
-      candidates = try await recommendationRepo.candidateEpisodes(filter: baseFilter)
-    } catch {
-      Self.log.caughtError(
-        "fetchAndApplyRecommendationScores: candidate fetch failed",
-        error
-      )
-      applyFailedScores()
-      return
+    if let observedCandidates {
+      candidates = observedCandidates
+    } else {
+      let baseFilter = filter && textSearchFilter
+      do {
+        candidates = try await recommendationRepo.candidateEpisodes(filter: baseFilter)
+      } catch {
+        Self.log.caughtError(
+          "fetchAndApplyRecommendationScores: candidate fetch failed",
+          error
+        )
+        applyFailedScores()
+        return
+      }
     }
 
     guard !Task.isCancelled else { return }
@@ -306,7 +310,7 @@ class EpisodesListViewModel:
     var values = [Episode.ID: Float](capacity: scoreMap.count)
     for (id, score) in scoreMap { values[id] = score.value }
     recommendationScoresState = .loaded(values)
-    lastScoredCandidateIDs = Set(candidates.map(\.id))
+    lastScoredCandidates = candidates
     Self.log.debug(
       "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
     )
@@ -322,8 +326,69 @@ class EpisodesListViewModel:
 
   private func applyScoresIfRecSort() {
     guard currentSortMethod == .recommendationScore else { return }
-    applyOrderedEpisodes()
+    guard case .loaded = recommendationScoresState else { return }
+    startRecommendationHydration(for: topEpisodeIDsByScore())
+  }
+
+  private func startRecommendationHydration(for topIDs: [Episode.ID]) {
+    if hydratedScoreIDs == topIDs,
+      let recommendationHydrationTask,
+      !recommendationHydrationTask.isCancelled
+    {
+      return
+    }
+
+    recommendationHydrationTask?.cancel()
+    hydratedScoreIDs = topIDs
+
+    guard !topIDs.isEmpty else {
+      recommendationHydrationTask = nil
+      episodeList.allEntries = []
+      loadingState = .ready
+      return
+    }
+
+    let idSet = Set(topIDs)
+    recommendationHydrationTask = Task(priority: taskPriority(.utility)) { [weak self] in
+      guard let self else { return }
+      do {
+        let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+          self.observatory.listablePodcastEpisodes(
+            filter: idSet.contains(Episode.Columns.id),
+            limit: Self.displayLimit
+          )
+        for try await listables in observation {
+          try Task.checkCancellation()
+          self.applyRecommendationHydration(listables, rankOrder: topIDs)
+        }
+      } catch is CancellationError {
+      } catch {
+        Self.log.caughtError(
+          "startRecommendationHydration: observation failed for \(topIDs.count) ids",
+          error
+        )
+      }
+    }
+  }
+
+  private func applyRecommendationHydration(
+    _ listables: [ListablePodcastEpisode],
+    rankOrder: [Episode.ID]
+  ) {
+    let byID = Dictionary(uniqueKeysWithValues: listables.map { ($0.id, $0) })
+    var ordered = [ListablePodcastEpisode](capacity: rankOrder.count)
+    for id in rankOrder {
+      guard let listable = byID[id] else { continue }
+      ordered.append(listable)
+    }
+    episodeList.allEntries = IdentifiedArray(uniqueElements: ordered)
     loadingState = .ready
+  }
+
+  private func cancelRecommendationHydration() {
+    recommendationHydrationTask?.cancel()
+    recommendationHydrationTask = nil
+    hydratedScoreIDs = []
   }
 
   private func topEpisodeIDsByScore() -> [Episode.ID] {
@@ -345,7 +410,8 @@ class EpisodesListViewModel:
     recommendationObservationTask = nil
     recommendationFetchTask?.cancel()
     recommendationFetchTask = nil
-    lastScoredCandidateIDs = nil
-    lastObservedCandidateRows = [:]
+    cancelRecommendationHydration()
+    lastObservedCandidates = nil
+    lastScoredCandidates = nil
   }
 }
