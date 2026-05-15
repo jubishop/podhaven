@@ -45,8 +45,8 @@ struct EpisodesListView: View {
       loadingView(message: "Computing recommendations…")
     case .loadingEpisodes:
       loadingView(message: "Loading episodes…")
-    case .loaded(let episodes):
-      if episodes.isEmpty {
+    case .loaded:
+      if viewModel.episodeList.filteredEntries.isEmpty {
         emptyEpisodesMessage
       } else {
         listView

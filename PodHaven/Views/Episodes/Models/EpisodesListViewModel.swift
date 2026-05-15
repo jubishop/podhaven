@@ -119,10 +119,10 @@ class EpisodesListViewModel:
 
   // MARK: - State Management
 
-  enum LoadingState {
+  enum LoadingState: Equatable {
     case loadingEpisodes
     case computingRecommendations
-    case loaded([ListablePodcastEpisode])
+    case loaded
     case failed
   }
 
@@ -253,7 +253,7 @@ class EpisodesListViewModel:
 
   private func transitionToLoaded(_ episodes: [ListablePodcastEpisode]) {
     episodeList.allEntries = IdentifiedArray(uniqueElements: episodes)
-    loadingState = .loaded(episodes)
+    loadingState = .loaded
   }
 
   private func handleLoadingFailure() {
@@ -404,13 +404,12 @@ class EpisodesListViewModel:
       return
     }
 
-    let idSet = Set(topIDs)
     recommendationHydrationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
       do {
         let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
           self.observatory.listablePodcastEpisodes(
-            filter: idSet.contains(Episode.Columns.id),
+            filter: topIDs.contains(Episode.Columns.id),
             limit: Self.displayLimit
           )
         for try await listables in observation {

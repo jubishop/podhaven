@@ -474,8 +474,7 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          guard case .loaded(let episodes) = viewModel.loadingState else { return false }
-          return !episodes.isEmpty && !viewModel.episodeList.filteredEntries.isEmpty
+          viewModel.loadingState == .loaded && !viewModel.episodeList.filteredEntries.isEmpty
         },
         { @MainActor in
           """
@@ -499,55 +498,40 @@ import Testing
 
   @Test("loadingState is .computingRecommendations during rec-sort cold start")
   func loadingStateIsComputingRecommendationsOnRecSortColdStart() async throws {
-    let fakeObservatory = try #require(observatory as? FakeObservatory)
-    let dbReader = appDB.db
-    let gate = DispatchSemaphore(value: 0)
-    fakeObservatory.embeddedCandidateEpisodesScript([
-      {
-        ValueObservation
-          .tracking { _ -> [CandidateEpisode] in
-            gate.wait()
-            return []
-          }
-          .values(in: dbReader)
-      }
-    ])
-
     let viewModel = EpisodesListViewModel(title: "RecLoadingState")
     viewModel.currentSortMethod = .recommendationScore
 
+    let recorder = LoadingStateRecorder(viewModel: viewModel)
+
     try await withRunningObservationLoop(viewModel) {
-      do {
-        defer { _ = gate.signal() }
-        try await Wait.until(
-          priority: .userInitiated,
-          { @MainActor in
-            if case .computingRecommendations = viewModel.loadingState { return true }
-            return false
-          },
-          { @MainActor in
-            """
-            Expected .computingRecommendations while scoring is parked, got \
-            \(viewModel.loadingState).
-            """
-          }
-        )
+      // The cold-start path is: startDisplayObservation runs sync and sets
+      // `.computingRecommendations` (rec sort + .pending scores) before the
+      // candidate observation has emitted. Once the candidate observation
+      // emits its empty list and scoring lands, state moves to `.loaded`.
+      // The recorder catches the intermediate state because the production
+      // gap between those two transitions spans at least one GRDB
+      // observation hop.
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .loaded && viewModel.episodeList.filteredEntries.isEmpty
+        },
+        { @MainActor in
+          """
+          Expected .loaded with empty filteredEntries after empty scoring landed; got \
+          state \(viewModel.loadingState) with \
+          \(viewModel.episodeList.filteredEntries.count) entries.
+          """
+        }
+      )
 
-        _ = gate.signal()
-
-        // Empty candidates produced an empty score map; once the version
-        // bumps the loop restarts and `runRecommendationSortObservation`
-        // takes the empty-`topIDs` path, clearing `allEntries`.
-        try await Wait.until(
-          priority: .userInitiated,
-          { @MainActor in viewModel.episodeList.filteredEntries.isEmpty },
-          { @MainActor in
-            """
-            Expected filteredEntries to be empty after empty scoring landed.
-            """
-          }
-        )
-      } catch { throw error }
+      #expect(
+        recorder.values.contains(.computingRecommendations),
+        """
+        Expected rec-sort cold start to pass through .computingRecommendations \
+        before reaching .loaded. Recorded loadingState transitions: \(recorder.values)
+        """
+      )
     }
   }
 
@@ -1066,8 +1050,7 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          if case .loaded(let episodes) = viewModel.loadingState, !episodes.isEmpty { return true }
-          return false
+          viewModel.loadingState == .loaded && !viewModel.episodeList.filteredEntries.isEmpty
         },
         { @MainActor in "Expected non-rec sort to settle, got \(viewModel.loadingState)." }
       )
@@ -1097,8 +1080,7 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          if case .loaded(let episodes) = viewModel.loadingState, !episodes.isEmpty { return true }
-          return false
+          viewModel.loadingState == .loaded && !viewModel.episodeList.filteredEntries.isEmpty
         },
         { @MainActor in
           "Expected non-rec sort to settle again, got \(viewModel.loadingState)."
@@ -1215,8 +1197,7 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          if case .loaded(let episodes) = viewModel.loadingState, !episodes.isEmpty { return true }
-          return false
+          viewModel.loadingState == .loaded && !viewModel.episodeList.filteredEntries.isEmpty
         },
         { @MainActor in "Expected non-rec sort to settle, got \(viewModel.loadingState)." }
       )
@@ -1245,13 +1226,12 @@ import Testing
         }
       )
 
-      let recordedKinds = recorder.values.map(\.kind)
       #expect(
-        !recordedKinds.contains(.computingRecommendations),
+        !recorder.values.contains(.computingRecommendations),
         """
         Warm background scoring should have populated top IDs before the toggle, \
         letting startDisplayObservation skip .computingRecommendations. Recorded \
-        loadingState transitions: \(recordedKinds)
+        loadingState transitions: \(recorder.values)
         """
       )
     }
@@ -1418,17 +1398,16 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          guard case .loaded(let episodes) = viewModel.loadingState else { return false }
-          return episodes.isEmpty
+          viewModel.loadingState == .loaded && viewModel.episodeList.filteredEntries.isEmpty
         },
         { @MainActor in
           """
-          Expected .loaded([]) after empty rec-scoring landed so emptyEpisodesMessage \
-          can render; got \(viewModel.loadingState).
+          Expected .loaded with empty filteredEntries after empty rec-scoring landed so \
+          emptyEpisodesMessage can render; got state \(viewModel.loadingState) with \
+          \(viewModel.episodeList.filteredEntries.count) entries.
           """
         }
       )
-      #expect(viewModel.episodeList.filteredEntries.isEmpty)
     }
   }
 
@@ -1446,14 +1425,16 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          guard case .loaded(let episodes) = viewModel.loadingState else { return false }
-          return episodes.count == setup.episodes.count
+          viewModel.loadingState == .loaded
+            && viewModel.episodeList.filteredEntries.count == setup.episodes.count
         },
         { @MainActor in
-          "Expected .loaded with \(setup.episodes.count) episodes, got \(viewModel.loadingState)."
+          """
+          Expected .loaded with \(setup.episodes.count) filteredEntries, got state \
+          \(viewModel.loadingState) with \(viewModel.episodeList.filteredEntries.count) entries.
+          """
         }
       )
-      #expect(viewModel.episodeList.filteredEntries.count == setup.episodes.count)
     }
   }
 
@@ -1593,24 +1574,6 @@ import Testing
   }
 }
 
-extension EpisodesListViewModel.LoadingState {
-  fileprivate enum Kind: Equatable {
-    case loadingEpisodes
-    case computingRecommendations
-    case loaded
-    case failed
-  }
-
-  fileprivate var kind: Kind {
-    switch self {
-    case .loadingEpisodes: return .loadingEpisodes
-    case .computingRecommendations: return .computingRecommendations
-    case .loaded: return .loaded
-    case .failed: return .failed
-    }
-  }
-}
-
 // Records every distinct loadingState transition by re-arming
 // `withObservationTracking` from the onChange callback. Apple's Observation
 // framework fires onChange at the willSet boundary, so the closure schedules
@@ -1630,7 +1593,7 @@ private final class LoadingStateRecorder {
 
   private func capture() {
     let value = viewModel.loadingState
-    if values.last?.kind != value.kind { values.append(value) }
+    if values.last != value { values.append(value) }
     withObservationTracking {
       _ = viewModel.loadingState
     } onChange: { [weak self] in

@@ -49,6 +49,7 @@ Three places hold persistent project context — pick the right one when saving 
 - Prefer suite/class-level `-only-testing:PodHavenTests/SomeSuite` filters for Swift Testing runs. Method-level filters are easy to mistype and can report success while running zero tests; use them only after confirming the exact discovered test identifier.
 - Tests should NEVER use `Task.sleep`, ever. Use `Wait.until` or similar polling helpers to await conditions.
 - Tests may use `sleeper.sleep` only to artificially advance time when testing production code that uses sleeps (e.g., debouncing, rate limiting).
+- Tests should NEVER use `DispatchSemaphore` (or any thread-blocking primitive like `RunLoop.run(until:)`, `Thread.sleep`, `NSCondition.wait()`) to gate or coordinate async work. They block a thread on the cooperative pool and can deadlock GRDB queues. Use `Wait.until`, an `AsyncStream` continuation, or capture state transitions via `withObservationTracking` instead.
 - In-memory GRDB (`AppDB.inMemory()`) powers repo tests; helpers under `Create` build realistic unsaved models.
 - Override factories with `.context(.test)` to plug in fakes from `PodHavenTests/Fakes`
 - All test files belong to the `PodHavenTests` target.
