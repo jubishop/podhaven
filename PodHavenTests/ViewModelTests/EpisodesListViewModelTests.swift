@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Observation
 import Testing
 
 @testable import PodHaven
@@ -1008,6 +1009,246 @@ import Testing
     }
   }
 
+  @Test("toggling between non-rec and rec sorts doesn't restart the candidate observation")
+  func togglingSortPreservesCandidateObservation() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0", "Target 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
+
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
+
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let targetIDs = Set(targets.map(\.id))
+
+    let viewModel = EpisodesListViewModel(
+      title: "ToggleStability",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .newestFirst
+
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .ready && !viewModel.episodeList.filteredEntries.isEmpty
+        },
+        { @MainActor in "Expected non-rec sort to settle, got \(viewModel.loadingState)." }
+      )
+      _ = try fakeObservatory.expectCalls(methodName: "embeddedCandidateEpisodes", count: 1)
+
+      // From here on, any new candidate-observation start would show up as
+      // another embeddedCandidateEpisodes call — that's the regression we
+      // want to prevent.
+      fakeObservatory.clearAllCalls()
+
+      viewModel.currentSortMethod = .recommendationScore
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
+        },
+        { @MainActor in
+          """
+          Expected rec-sort entries after toggle.
+          Expected: \(targetIDs)
+          Actual: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
+
+      viewModel.currentSortMethod = .newestFirst
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .ready && !viewModel.episodeList.filteredEntries.isEmpty
+        },
+        { @MainActor in
+          "Expected non-rec sort to settle again, got \(viewModel.loadingState)."
+        }
+      )
+
+      try fakeObservatory.expectNoCall(methodName: "embeddedCandidateEpisodes")
+    }
+  }
+
+  @Test("candidate observation runs in background even when sort is non-rec")
+  func candidateObservationRunsOnNonRecSort() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0", "Target 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
+
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    fakeObservatory.clearAllCalls()
+
+    let viewModel = EpisodesListViewModel(
+      title: "NonRecBackgroundObs",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .newestFirst
+
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          fakeObservatory.allCallsInOrder.contains { $0.methodName == "embeddedCandidateEpisodes" }
+        },
+        { @MainActor in
+          """
+          Expected the candidate observation to call embeddedCandidateEpisodes \
+          even on a non-rec sort, but it never did.
+          """
+        }
+      )
+    }
+  }
+
+  @Test("toggling to rec-sort after background scoring lands skips .computingRecommendations")
+  func togglingToRecAfterBackgroundScoringSkipsComputingState() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0", "Target 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
+
+    // Pre-warm the engine cache so the view model's background scoring is
+    // CPU-bound rather than waiting on a cold cache rebuild.
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
+
+    let viewModel = EpisodesListViewModel(
+      title: "WarmToggle",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .newestFirst
+
+    let recorder = LoadingStateRecorder(viewModel: viewModel)
+
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .ready && !viewModel.episodeList.filteredEntries.isEmpty
+        },
+        { @MainActor in "Expected non-rec sort to settle, got \(viewModel.loadingState)." }
+      )
+
+      // Yield generously so the background candidate observation has time
+      // to land its first scoring pass against the pre-warmed engine
+      // cache. Each hop unblocks the chain: candidate emission →
+      // kickRecommendationFetch → fetchAndApplyRecommendationScores →
+      // recommendationScoresState = .loaded.
+      for _ in 0..<200 { await Task.yield() }
+
+      let targetIDs = Set(targets.map(\.id))
+      viewModel.currentSortMethod = .recommendationScore
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .ready
+            && Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
+        },
+        { @MainActor in
+          """
+          Expected rec-sort entries to settle after toggle.
+          State: \(viewModel.loadingState)
+          Entries: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
+
+      let states = recorder.values
+      #expect(
+        !states.contains(.computingRecommendations),
+        """
+        Warm background scoring should have populated top IDs before the toggle, \
+        letting startDisplayObservation skip .computingRecommendations. Recorded \
+        loadingState transitions: \(states)
+        """
+      )
+    }
+  }
+
   @Test("rec-sort surfaces .recommendationFailed when candidate observation throws")
   func loadingStateReachesRecommendationFailedWhenCandidateObservationThrows() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
@@ -1319,6 +1560,37 @@ import Testing
   private func select(_ viewModel: EpisodesListViewModel, ids: [Episode.ID]) {
     for id in ids {
       viewModel.episodeList.isSelected[id] = true
+    }
+  }
+}
+
+// Records every distinct loadingState transition by re-arming
+// `withObservationTracking` from the onChange callback. Apple's Observation
+// framework fires onChange at the willSet boundary, so the closure schedules
+// a MainActor read once the mutation lands; back-to-back transitions are
+// reliably caught for our purposes because the production gap between
+// `.computingRecommendations` and `.ready` always spans at least one GRDB
+// observation hop.
+@MainActor
+private final class LoadingStateRecorder {
+  private(set) var values: [EpisodesListViewModel.LoadingState] = []
+  private let viewModel: EpisodesListViewModel
+
+  init(viewModel: EpisodesListViewModel) {
+    self.viewModel = viewModel
+    capture()
+  }
+
+  private func capture() {
+    let value = viewModel.loadingState
+    if values.last != value { values.append(value) }
+    withObservationTracking {
+      _ = viewModel.loadingState
+    } onChange: { [weak self] in
+      Task { @MainActor in
+        guard let self else { return }
+        self.capture()
+      }
     }
   }
 }
