@@ -256,8 +256,7 @@ class EpisodesListViewModel:
 
   private func startRecommendationObservation() {
     if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
-    recommendationObservationTask = Task(priority: taskPriority(.utility)) {
-      @MainActor [weak self] in
+    recommendationObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
       for await _ in recommendationEngine.$contextRevision.stream() {
         guard !Task.isCancelled else { return }
@@ -268,7 +267,7 @@ class EpisodesListViewModel:
 
   private func kickRecommendationFetch() {
     recommendationFetchTask?.cancel()
-    recommendationFetchTask = Task(priority: taskPriority(.utility)) { @MainActor [weak self] in
+    recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
       await self.fetchAndApplyRecommendationScores()
     }
