@@ -695,11 +695,6 @@ class PodcastDetailViewModel:
     return result
   }
 
-  // Saved series share the rec-score embedding gate with `EpisodesListView`:
-  // the engine only scores embedded candidates (issue #262), so a missing
-  // entry in `valuesByMediaGUID` means the episode has no `EpisodeEmbedding`
-  // row and must stay out of the rec-score list. Unsaved/initial states have
-  // no SQL embedding table to consult, so they keep the static filter.
   private func applyRecommendationDisplay(_ valuesByMediaGUID: [MediaGUID: Float]) {
     switch state {
     case .saved:

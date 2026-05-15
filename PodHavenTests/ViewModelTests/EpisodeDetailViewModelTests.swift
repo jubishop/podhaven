@@ -305,15 +305,19 @@ import Testing
       return
     }
     try await RecommendationHelpers.embedEpisodes([resavedEpisode])
-    // Drive the engine's 1s debounced cache rebuild via the fake sleeper so
-    // `$contextRevision` ticks and the VM re-runs `fetchRecommendation`.
-    _ = try await RecommendationHelpers.startAndWaitForScores(for: [resavedEpisode])
-
+    // The engine debounces cache rebuilds by 1s through the injected
+    // `sleeper`. Advance the fake clock inside the poll so the rebuild +
+    // contextRevision tick are guaranteed to land regardless of how the
+    // host machine schedules the task chain.
+    let sleeper = Container.shared.sleeper() as! FakeSleeper
     try await Wait.until(
-      { @MainActor in
-        guard viewModel.episode.isSaved else { return false }
-        if case .recommendation = viewModel.displayedScore { return true }
-        return false
+      { @Sendable in
+        await sleeper.advanceTime(by: .seconds(1))
+        return await MainActor.run {
+          guard viewModel.episode.isSaved else { return false }
+          if case .recommendation = viewModel.displayedScore { return true }
+          return false
+        }
       },
       { @MainActor in
         """
@@ -548,15 +552,19 @@ import Testing
       return
     }
     try await RecommendationHelpers.embedEpisodes([savedEpisode])
-    // Drive the engine's 1s debounced cache rebuild via the fake sleeper so
-    // `$contextRevision` ticks and the VM re-runs `fetchRecommendation`.
-    _ = try await RecommendationHelpers.startAndWaitForScores(for: [savedEpisode])
-
+    // The engine debounces cache rebuilds by 1s through the injected
+    // `sleeper`. Advance the fake clock inside the poll so the rebuild +
+    // contextRevision tick are guaranteed to land regardless of how the
+    // host machine schedules the task chain.
+    let sleeper = Container.shared.sleeper() as! FakeSleeper
     try await Wait.until(
-      { @MainActor in
-        guard viewModel.episode.isSaved else { return false }
-        if case .recommendation = viewModel.displayedScore { return true }
-        return false
+      { @Sendable in
+        await sleeper.advanceTime(by: .seconds(1))
+        return await MainActor.run {
+          guard viewModel.episode.isSaved else { return false }
+          if case .recommendation = viewModel.displayedScore { return true }
+          return false
+        }
       },
       { @MainActor in
         """

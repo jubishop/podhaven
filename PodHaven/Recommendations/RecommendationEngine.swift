@@ -509,11 +509,6 @@ struct RecommendationEngine: Sendable {
     var scores = [Episode.ID: RecommendationScore](capacity: candidates.count)
     unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
       for candidate in candidates {
-        // Unembedded candidates are dropped entirely: a neutral 0.5
-        // similarity prior would let affinity + freshness float them above
-        // genuine matches, and callers (PodcastDetail rec-score, episode
-        // detail score widget) need a clear "no signal" answer rather than
-        // a misleading fallback. See issues #262/#259.
         guard let embedding = embeddings[id: candidate.id] else { continue }
         scores[candidate.id] = unsafe scoreCandidate(
           embedding: embedding,
