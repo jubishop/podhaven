@@ -459,10 +459,6 @@ import Testing
 
     let fakeObservatory = try #require(Container.shared.observatory() as? FakeObservatory)
     fakeObservatory.clearAllCalls()
-    let fakeRecRepo = try #require(
-      Container.shared.recommendationRepo() as? FakeRecommendationRepo
-    )
-    fakeRecRepo.clearAllCalls()
 
     let viewModel = EpisodesListViewModel(
       title: "RecTopHydration",
@@ -492,7 +488,6 @@ import Testing
         .map(\.parameters)
       #expect(listableLimits.contains(100))
       #expect(!listableLimits.contains(Int.max))
-      try fakeRecRepo.expectNoCall(methodName: "embeddedCandidateEpisodes")
     }
   }
 

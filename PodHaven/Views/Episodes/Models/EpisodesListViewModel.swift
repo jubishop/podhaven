@@ -18,7 +18,6 @@ class EpisodesListViewModel:
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
-  @ObservationIgnored @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
@@ -354,30 +353,16 @@ class EpisodesListViewModel:
   @ObservationIgnored private var lastScoredCandidates: [CandidateEpisode]?
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
 
-  private func kickRecommendationFetch(candidates observedCandidates: [CandidateEpisode]? = nil) {
+  private func kickRecommendationFetch(candidates observedCandidates: [CandidateEpisode]?) {
+    // The candidate observation is the sole source of truth for which episodes
+    // to score. If it hasn't emitted yet (a context-revision tick can race
+    // ahead of the first observation yield on view appear), skip this kick —
+    // the imminent first candidate emission will call us back with fresh data.
+    guard let candidates = observedCandidates else { return }
+
     recommendationFetchTask?.cancel()
     recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      let candidates: [CandidateEpisode]
-      if let observedCandidates {
-        candidates = observedCandidates
-      } else {
-        do {
-          candidates = try await self.recommendationRepo.embeddedCandidateEpisodes(
-            filter: self.filter && self.textSearchFilter
-          )
-        } catch is CancellationError {
-          return
-        } catch {
-          Self.log.caughtError(
-            "kickRecommendationFetch: candidate fetch failed",
-            error
-          )
-          self.handleRecommendationFailure()
-          return
-        }
-      }
-
       guard !Task.isCancelled else { return }
 
       let scoreMap: [Episode.ID: RecommendationScore]
