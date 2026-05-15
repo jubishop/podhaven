@@ -259,6 +259,9 @@ import Testing
         )
       )
     )
+    // Embed the saved episode so the engine actually returns a score for it —
+    // `recommendation(for:)` returns nil for unembedded episodes (#262/#259).
+    try await RecommendationHelpers.embedEpisodes([podcastEpisode.episode])
     _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
@@ -288,6 +291,23 @@ import Testing
     )
 
     viewModel.addToTopOfQueue()
+
+    // The re-save inserts a new `Episode` row (new ID) without an embedding;
+    // embed it once it lands so the saved-side scoring path can resolve.
+    try await Wait.until(
+      { @MainActor in viewModel.episode.isSaved },
+      { @MainActor in
+        "Expected re-save to land before embedding. episode: \(viewModel.episode.toString)"
+      }
+    )
+    guard let resavedEpisode = try await repo.episode(podcastEpisode.mediaGUID) else {
+      Issue.record("Could not load re-saved episode by mediaGUID")
+      return
+    }
+    try await RecommendationHelpers.embedEpisodes([resavedEpisode])
+    // Drive the engine's 1s debounced cache rebuild via the fake sleeper so
+    // `$contextRevision` ticks and the VM re-runs `fetchRecommendation`.
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: [resavedEpisode])
 
     try await Wait.until(
       { @MainActor in
@@ -514,6 +534,24 @@ import Testing
 
     viewModel.addToTopOfQueue()
 
+    // Once the unsaved → saved transition lands, the new `Episode` row has
+    // no embedding yet. Embed it so the saved-side recommendation actually
+    // resolves; without that step the engine correctly returns nil.
+    try await Wait.until(
+      { @MainActor in viewModel.episode.isSaved },
+      { @MainActor in
+        "Expected save to land before embedding. episode: \(viewModel.episode.toString)"
+      }
+    )
+    guard let savedEpisode = try await repo.episode(unsavedPodcastEpisode.mediaGUID) else {
+      Issue.record("Could not load saved episode by mediaGUID")
+      return
+    }
+    try await RecommendationHelpers.embedEpisodes([savedEpisode])
+    // Drive the engine's 1s debounced cache rebuild via the fake sleeper so
+    // `$contextRevision` ticks and the VM re-runs `fetchRecommendation`.
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: [savedEpisode])
+
     try await Wait.until(
       { @MainActor in
         guard viewModel.episode.isSaved else { return false }
@@ -548,6 +586,10 @@ import Testing
         )
       )
     )
+    // Embedding is required for the engine to return a non-nil score
+    // (#262/#259); without it the saved-side fetch would resolve to nil and
+    // there would be no stale write to test.
+    try await RecommendationHelpers.embedEpisodes([podcastEpisode.episode])
     _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
 
     // Arm the suspend hook before opening the view so the bootstrap fetch
