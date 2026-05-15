@@ -19,9 +19,8 @@ import Testing
 
   private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
     try await repo.db.read { db in
-      try Episode.withID(episodeID)
-        .including(required: Episode.podcast)
-        .asRequest(of: ListablePodcastEpisode.self)
+      try ListablePodcastEpisode
+        .request(filter: Episode.Columns.id == episodeID)
         .fetchOne(db)!
     }
   }
