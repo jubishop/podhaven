@@ -154,15 +154,6 @@ struct RecommendationRepo: Recommending {
     }
   }
 
-  func embeddedCandidateEpisodes(filter: SQLExpression) async throws -> [CandidateEpisode] {
-    try await appDB.db.read { db in
-      try CandidateEpisode
-        .joining(required: CandidateEpisode.podcast)
-        .filter(filter && Episode.hasEmbedding)
-        .fetchAll(db)
-    }
-  }
-
   // Single-pass corpus scan: accumulates `sum` (for the mean) and
   // `outerSum = Σ xᵀx` simultaneously, then recovers the covariance via the
   // identity `Cov = outerSum/N - μμᵀ`. Skips the outer-product accumulation
