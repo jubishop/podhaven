@@ -33,17 +33,26 @@ struct EpisodesListView: View {
         selectableEpisodesToolbarItems(viewModel: viewModel)
       }
       .toolbarRole(.editor)
-      .task(id: viewModel.observationKey, viewModel.startObservation)
+      .task(id: viewModel.candidateObservationKey, viewModel.startCandidateObservation)
+      .task(id: viewModel.displayObservationKey, viewModel.startDisplayObservation)
+      .onDisappear { viewModel.disappear() }
   }
 
   @ViewBuilder
   private var episodesView: some View {
-    if viewModel.isLoading {
-      loadingView
-    } else if viewModel.episodeList.filteredEntries.isEmpty {
-      noEpisodesMessage
-    } else {
-      listView
+    switch viewModel.loadingState {
+    case .computingRecommendations:
+      loadingView(message: "Computing recommendations…")
+    case .loadingEpisodes:
+      loadingView(message: "Loading episodes…")
+    case .loaded:
+      if viewModel.episodeList.filteredEntries.isEmpty {
+        emptyEpisodesMessage
+      } else {
+        listView
+      }
+    case .failed:
+      failureMessage
     }
   }
 
@@ -66,18 +75,36 @@ struct EpisodesListView: View {
     }
   }
 
-  private var loadingView: some View {
+  private func loadingView(message: String) -> some View {
     VStack {
-      ProgressView("Loading episodes...")
+      ProgressView(message)
         .foregroundColor(.secondary)
         .padding()
       Spacer()
     }
   }
 
-  private var noEpisodesMessage: some View {
+  private var emptyEpisodesMessage: some View {
     VStack {
-      Text("No episodes match the filters.")
+      Text(emptyEpisodesMessageText)
+        .foregroundColor(.secondary)
+        .padding()
+      Spacer()
+    }
+  }
+
+  private var emptyEpisodesMessageText: String {
+    switch viewModel.currentSortMethod {
+    case .recommendationScore:
+      return "No episodes have recommendation scores for these filters."
+    default:
+      return "No episodes match the filters."
+    }
+  }
+
+  private var failureMessage: some View {
+    VStack {
+      Text("Couldn't load episodes.")
         .foregroundColor(.secondary)
         .padding()
       Spacer()
@@ -114,12 +141,13 @@ struct EpisodesListView: View {
       var queueOrder = 0
       var episodes = IdentifiedArrayOf<UnsavedEpisode>()
       for j in 0..<24 {
+        guard let thumbnail = allThumbnails.randomElement() else { return }
         let duration = CMTime.seconds(Double.random(in: 1200...3600))
         let episode = try Create.unsavedEpisode(
           title: "Episode \(j + 1) - \(String.random())",
           pubDate: j.daysAgo,
           duration: duration,
-          image: allThumbnails.randomElement()!.value.url,
+          image: thumbnail.value.url,
           currentTime: j % 2 == 0 ? CMTime.seconds(Double.random(in: 0..<duration.seconds)) : nil,
           queueOrder: j % 2 == 0
             ? {
@@ -176,11 +204,12 @@ struct EpisodesListView: View {
 
       var episodes = IdentifiedArrayOf<UnsavedEpisode>()
       for (index, entry) in cases.enumerated() {
+        guard let thumbnail = allThumbnails.randomElement() else { return }
         let episode = try Create.unsavedEpisode(
           title: entry.title,
           pubDate: index.daysAgo,
           duration: CMTime.seconds(2400),
-          image: allThumbnails.randomElement()!.value.url,
+          image: thumbnail.value.url,
           rating: entry.rating,
           ratingDate: entry.rating == nil ? nil : now
         )

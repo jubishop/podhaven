@@ -31,6 +31,10 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     [@Sendable (Podcast.ID) -> AsyncValueObservation<PodcastSeriesDetail?>]
   >([])
 
+  let embeddedCandidateEpisodesScript = ThreadSafe<
+    [@Sendable () -> AsyncValueObservation<[CandidateEpisode]>]
+  >([])
+
   private let observatory: any Observing
 
   init(_ observatory: any Observing) {
@@ -110,7 +114,7 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
 
   func listablePodcastEpisodes(
     filter: SQLExpression,
-    order: SQLOrdering,
+    order: SQLOrdering?,
     limit: Int
   ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
     recordCall(methodName: "listablePodcastEpisodes(filter:order:limit:)", parameters: limit)
@@ -182,6 +186,18 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
   }
 
   // MARK: - Recommendations
+
+  func embeddedCandidateEpisodes(filter: SQLExpression) -> AsyncValueObservation<[CandidateEpisode]>
+  {
+    recordCall(methodName: "embeddedCandidateEpisodes", parameters: ())
+    var script = embeddedCandidateEpisodesScript()
+    if let next = script.first {
+      script.removeFirst()
+      embeddedCandidateEpisodesScript(script)
+      return next()
+    }
+    return observatory.embeddedCandidateEpisodes(filter: filter)
+  }
 
   func scoringContextInputsWithoutPartialSignals()
     -> AsyncValueObservation<ScoringContextInputs>

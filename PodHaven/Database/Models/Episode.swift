@@ -252,6 +252,10 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   static let hasCoverage: SQLExpression = Columns.playbackCoverage != nil
   static let hasSignal: SQLExpression = hasRatingSignal || hasCoverage
   static let candidate: SQLExpression = unstarted && unfinished && !rated && unqueued
+  static let hasEmbedding: SQLExpression =
+    EpisodeEmbedding
+    .select(EpisodeEmbedding.Columns.episodeId)
+    .contains(Columns.id)
   static func contains(_ pattern: String) -> SQLExpression {
     Columns.title.lowercased.like(pattern) || Columns.description.lowercased.like(pattern)
   }

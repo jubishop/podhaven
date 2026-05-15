@@ -565,13 +565,6 @@ class PodcastDetailViewModel:
     }
   }
 
-  // MARK: - Recommendation Sort
-
-  @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
-  @ObservationIgnored private var lastRecommendationScores: [MediaGUID: Float]?
-  @ObservationIgnored private var unsavedEmbeddingCache:
-    (revision: Int, vectors: [MediaGUID: [Float]])?
-
   private func startRecommendationObservation() {
     if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
     recommendationObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
@@ -587,6 +580,13 @@ class PodcastDetailViewModel:
     recommendationObservationTask?.cancel()
     recommendationObservationTask = nil
   }
+
+  // MARK: - Recommendations
+
+  @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
+  @ObservationIgnored private var lastRecommendationScores: [MediaGUID: Float]?
+  @ObservationIgnored private var unsavedEmbeddingCache:
+    (revision: Int, vectors: [MediaGUID: [Float]])?
 
   private func fetchAndApplyRecommendationScores() async {
     let entries = episodeList.allEntries

@@ -99,14 +99,15 @@ struct ListablePodcastEpisode:
 
   static func request(
     filter: SQLExpression,
-    order: SQLOrdering = Episode.Columns.pubDate.desc,
+    order: SQLOrdering? = Episode.Columns.pubDate.desc,
     limit: Int = Int.max
   ) -> QueryInterfaceRequest<ListablePodcastEpisode> {
-    ListablePodcastEpisode
+    var request =
+      ListablePodcastEpisode
       .filter(filter)
       .including(required: ListablePodcastEpisode.podcast.select(podcastColumns))
-      .order(order)
-      .limit(limit)
+    if let order { request = request.order(order) }
+    return request.limit(limit)
   }
 
   func getPodcastEpisode() async throws -> PodcastEpisode {

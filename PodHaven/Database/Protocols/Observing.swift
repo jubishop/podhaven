@@ -46,7 +46,7 @@ protocol Observing: Sendable {
 
   func listablePodcastEpisodes(
     filter: SQLExpression,
-    order: SQLOrdering,
+    order: SQLOrdering?,
     limit: Int
   ) -> AsyncValueObservation<[ListablePodcastEpisode]>
 
@@ -74,6 +74,7 @@ protocol Observing: Sendable {
 
   // MARK: - Recommendations
 
+  func embeddedCandidateEpisodes(filter: SQLExpression) -> AsyncValueObservation<[CandidateEpisode]>
   func scoringContextInputsWithoutPartialSignals() -> AsyncValueObservation<ScoringContextInputs>
   func candidateGateExclusions() -> AsyncValueObservation<Set<Episode.ID>>
 }
@@ -170,12 +171,12 @@ extension Observing {
   func listablePodcastEpisodes(
     filter: SQLExpression
   ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
-    listablePodcastEpisodes(filter: filter, order: Episode.Columns.pubDate.desc, limit: Int.max)
+    listablePodcastEpisodes(filter: filter, order: nil, limit: Int.max)
   }
 
   func listablePodcastEpisodes(
     filter: SQLExpression,
-    order: SQLOrdering
+    order: SQLOrdering?
   ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
     listablePodcastEpisodes(filter: filter, order: order, limit: Int.max)
   }
@@ -184,7 +185,7 @@ extension Observing {
     filter: SQLExpression,
     limit: Int
   ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
-    listablePodcastEpisodes(filter: filter, order: Episode.Columns.pubDate.desc, limit: limit)
+    listablePodcastEpisodes(filter: filter, order: nil, limit: limit)
   }
 
   // Queue
