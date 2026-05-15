@@ -131,7 +131,7 @@ struct Observatory: Observing {
   ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
     observe { db in
       try ListablePodcastEpisode
-        .request(filter: filter, order: order ?? Episode.Columns.pubDate.desc, limit: limit)
+        .request(filter: filter, order: order, limit: limit)
         .fetchAll(db)
     }
   }

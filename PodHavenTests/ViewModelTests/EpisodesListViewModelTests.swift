@@ -1278,6 +1278,66 @@ import Testing
     }
   }
 
+  @Test(
+    "non-rec sort stays alert-free when the background candidate observation fails"
+  )
+  func nonRecSortSuppressesRecommendationFailureAlert() async throws {
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let dbReader = appDB.db
+    fakeObservatory.embeddedCandidateEpisodesScript([
+      {
+        ValueObservation
+          .tracking { _ -> [CandidateEpisode] in
+            throw TestError.simulatedFailure
+          }
+          .values(in: dbReader)
+      }
+    ])
+
+    let viewModel = EpisodesListViewModel(title: "NonRecFailureSilent")
+    viewModel.currentSortMethod = .newestFirst
+
+    try await withRunningObservationLoop(viewModel) {
+      // Wait for the failing candidate observation to be exercised so we
+      // know handleRecommendationFailure ran. expectCalls polls until the
+      // call lands.
+      _ = try await Wait.until(
+        priority: .userInitiated,
+        {
+          (try? fakeObservatory.expectCalls(
+            methodName: "embeddedCandidateEpisodes",
+            count: 1
+          )) != nil
+        },
+        { "Expected candidate observation to be invoked once for non-rec sort." }
+      )
+
+      // Now poll for a short window that no alert ever shows up. A failing
+      // background scoring path that pops a modal for users who aren't on
+      // rec sort is the regression this test pins down.
+      do {
+        try await Wait.until(
+          maxAttempts: 50,
+          delay: .milliseconds(20),
+          priority: .userInitiated,
+          { @MainActor [self] in alert.config != nil },
+          { "regression sentinel — see Issue.record below" }
+        )
+        Issue.record(
+          """
+          regression: candidate observation failure on a non-rec sort surfaced \
+          a 'Couldn't compute recommendations' alert. Background scoring \
+          failures must not interrupt users who aren't viewing the rec sort.
+          """
+        )
+      } catch {
+        // Expected timeout under the fixed implementation.
+      }
+
+      #expect(alert.config == nil)
+    }
+  }
+
   @Test("rec-sort doesn't loop refetching when candidate observation fails")
   func recommendationSortDoesNotRetryLoopOnPersistentCandidateObservationError() async throws {
     // Embed real candidates so the rec-sort observation emits a non-empty
