@@ -120,10 +120,41 @@ import Testing
     )
   }
 
-  @Test("recommendationScore is offered as a sort option")
-  func recommendationScoreOfferedAsSortOption() async throws {
+  @Test("recommendationScore is hidden until scores are available")
+  func recommendationScoreHiddenUntilScoresAvailable() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
     let viewModel = EpisodesListViewModel(title: "RecOption")
-    #expect(viewModel.allSortMethods.contains(.recommendationScore))
+    #expect(!viewModel.allSortMethods.contains(.recommendationScore))
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [1, 0, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target"]
+    )
+    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
+
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
+
+    try await withRunningObservationLoop(viewModel) {
+      try await waitForRecommendationSortOption(viewModel)
+    }
   }
 
   @Test("recommendationScore sort reorders cross-podcast episodes by score descending")
@@ -204,9 +235,11 @@ import Testing
       title: "RecSort",
       filter: Episode.candidate
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
+      try await waitForRecommendationSortOption(viewModel)
+      viewModel.currentSortMethod = .recommendationScore
+
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
@@ -316,6 +349,7 @@ import Testing
         }
       )
 
+      try await waitForRecommendationSortOption(viewModel)
       viewModel.currentSortMethod = .recommendationScore
 
       try await Wait.until(
@@ -399,9 +433,11 @@ import Testing
       title: "FinishedOnly",
       filter: Episode.finished
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
+      try await waitForRecommendationSortOption(viewModel)
+      viewModel.currentSortMethod = .recommendationScore
+
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
@@ -419,11 +455,12 @@ import Testing
     }
   }
 
-  @Test("loadingState is .computingRecommendations during rec-sort cold start")
-  func loadingStateIsComputingRecommendationsOnRecSortColdStart() async throws {
+  @Test("recommendationScore selection falls back while scores are unavailable")
+  func recommendationScoreSelectionFallsBackWhileScoresUnavailable() async throws {
     let fakeRecRepo =
       Container.shared.recommendationRepo() as! FakeRecommendationRepo
     let gate = AsyncStream<Void>.makeStream()
+    defer { gate.continuation.finish() }
     fakeRecRepo.candidateEpisodesScript([
       {
         var iterator = gate.stream.makeAsyncIterator()
@@ -436,37 +473,21 @@ import Testing
     viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
-      do {
-        try await Wait.until(
-          priority: .userInitiated,
-          { @MainActor in viewModel.loadingState == .computingRecommendations },
-          { @MainActor in
-            """
-            Expected .computingRecommendations while scoring is parked, got \
-            \(viewModel.loadingState).
-            """
-          }
-        )
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.currentSortMethod == .newestFirst
+            && !viewModel.allSortMethods.contains(.recommendationScore)
+        },
+        { @MainActor in
+          """
+          Expected unavailable recommendationScore to reset to newestFirst and \
+          stay hidden; sort=\(viewModel.currentSortMethod), methods=\(viewModel.allSortMethods).
+          """
+        }
+      )
 
-        gate.continuation.yield()
-        gate.continuation.finish()
-
-        // Empty candidates produced an empty score map; once the version
-        // bumps the loop restarts and `runRecommendationSortObservation`
-        // takes the empty-`topIDs` path, clearing `allEntries`.
-        try await Wait.until(
-          priority: .userInitiated,
-          { @MainActor in viewModel.episodeList.filteredEntries.isEmpty },
-          { @MainActor in
-            """
-            Expected filteredEntries to be empty after empty scoring landed.
-            """
-          }
-        )
-      } catch {
-        gate.continuation.finish()
-        throw error
-      }
+      gate.continuation.yield()
     }
   }
 
@@ -523,9 +544,11 @@ import Testing
       title: "RecSearch",
       filter: Episode.candidate
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
+      try await waitForRecommendationSortOption(viewModel)
+      viewModel.currentSortMethod = .recommendationScore
+
       let allIDs = Set((alphas + betas).map(\.id))
       try await Wait.until(
         priority: .userInitiated,
@@ -607,9 +630,11 @@ import Testing
       title: "RecBaseFilter",
       filter: Episode.unfinished
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
+      try await waitForRecommendationSortOption(viewModel)
+      viewModel.currentSortMethod = .recommendationScore
+
       let allIDs = Set(targets.map(\.id))
       try await Wait.until(
         priority: .userInitiated,
@@ -689,9 +714,11 @@ import Testing
       title: "RecSnapIn",
       filter: Episode.candidate
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
+      try await waitForRecommendationSortOption(viewModel)
+      viewModel.currentSortMethod = .recommendationScore
+
       let initialIDs = Set(initialTargets.map(\.id))
       try await Wait.until(
         priority: .userInitiated,
@@ -734,8 +761,8 @@ import Testing
     }
   }
 
-  @Test("rec-sort reaches .ready when candidate fetch throws so the UI isn't stuck")
-  func loadingStateReachesReadyWhenCandidateFetchThrows() async throws {
+  @Test("candidate fetch failure keeps recommendationScore hidden and reaches .ready")
+  func candidateFetchFailureKeepsRecommendationScoreHidden() async throws {
     let fakeRecRepo =
       Container.shared.recommendationRepo() as! FakeRecommendationRepo
     fakeRecRepo.candidateEpisodesScript([
@@ -751,11 +778,13 @@ import Testing
         { @MainActor in viewModel.loadingState == .ready },
         { @MainActor in
           """
-          Expected .ready after candidate fetch threw so the UI can recover; \
-          got \(viewModel.loadingState).
+          Expected .ready after candidate fetch threw so the UI can recover; got \
+          \(viewModel.loadingState).
           """
         }
       )
+      #expect(viewModel.currentSortMethod == .newestFirst)
+      #expect(!viewModel.allSortMethods.contains(.recommendationScore))
       #expect(viewModel.episodeList.filteredEntries.isEmpty)
     }
   }
@@ -835,8 +864,8 @@ import Testing
     }
   }
 
-  @Test("rec-sort with empty scoring result reaches .ready so empty-state UI is reachable")
-  func loadingStateReachesReadyAfterEmptyRecScoring() async throws {
+  @Test("empty scoring result keeps recommendationScore hidden and reaches .ready")
+  func emptyScoringResultKeepsRecommendationScoreHidden() async throws {
     let fakeRecRepo =
       Container.shared.recommendationRepo() as! FakeRecommendationRepo
     fakeRecRepo.candidateEpisodesScript([
@@ -852,11 +881,13 @@ import Testing
         { @MainActor in viewModel.loadingState == .ready },
         { @MainActor in
           """
-          Expected .ready after empty rec-scoring landed so noEpisodesMessage \
-          can render; got \(viewModel.loadingState).
+          Expected .ready after empty rec-scoring landed so noEpisodesMessage can render; \
+          got \(viewModel.loadingState).
           """
         }
       )
+      #expect(viewModel.currentSortMethod == .newestFirst)
+      #expect(!viewModel.allSortMethods.contains(.recommendationScore))
       #expect(viewModel.episodeList.filteredEntries.isEmpty)
     }
   }
@@ -1012,5 +1043,17 @@ import Testing
     for id in ids {
       viewModel.episodeList.isSelected[id] = true
     }
+  }
+
+  private func waitForRecommendationSortOption(
+    _ viewModel: EpisodesListViewModel
+  ) async throws {
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in viewModel.allSortMethods.contains(.recommendationScore) },
+      { @MainActor in
+        "Expected recommendationScore sort option to become available."
+      }
+    )
   }
 }
