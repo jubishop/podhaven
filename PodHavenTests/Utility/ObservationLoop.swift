@@ -4,28 +4,19 @@ import Observation
 
 @testable import PodHaven
 
-// Drives `viewModel.startObservation()` in a loop, restarting whenever
-// `viewModel.observationKey` changes. SwiftUI's `.task(id:)` machinery
-// provides this behavior in production but is unavailable in unit tests;
-// this helper replays the same semantics so tests can exercise observation
-// flows that depend on key changes (e.g., sort or filter-text transitions).
+// Drives `viewModel.startCandidateObservation()` and
+// `viewModel.startDisplayObservation()` in parallel loops, each restarting
+// whenever its own observation key changes. SwiftUI's two `.task(id:)`
+// blocks provide this behavior in production but are unavailable in unit
+// tests; this helper replays the same semantics so tests can exercise both
+// observation flows independently (sort toggles keep the candidate loop
+// alive, filterText changes restart both, etc.).
 @MainActor
 func runObservationLoop(_ viewModel: EpisodesListViewModel) async {
-  let (changes, continuation) = AsyncStream<Void>.makeStream()
-  let watcher = ObservationKeyWatcher(viewModel: viewModel, continuation: continuation)
-  _ = watcher
-
-  defer { continuation.finish() }
-
-  var iterator = changes.makeAsyncIterator()
-  while !Task.isCancelled {
-    let observationTask = Task { @MainActor in
-      await viewModel.startObservation()
-    }
-    _ = await iterator.next()
-    observationTask.cancel()
-    _ = await observationTask.value
-  }
+  async let candidate: Void = runCandidateObservationLoop(viewModel)
+  async let display: Void = runDisplayObservationLoop(viewModel)
+  _ = await candidate
+  _ = await display
 }
 
 // Wraps `runObservationLoop` so each test doesn't have to hand-roll the
@@ -47,7 +38,45 @@ func withRunningObservationLoop<T>(
 }
 
 @MainActor
-private final class ObservationKeyWatcher {
+private func runCandidateObservationLoop(_ viewModel: EpisodesListViewModel) async {
+  let (changes, continuation) = AsyncStream<Void>.makeStream()
+  let watcher = CandidateKeyWatcher(viewModel: viewModel, continuation: continuation)
+  _ = watcher
+
+  defer { continuation.finish() }
+
+  var iterator = changes.makeAsyncIterator()
+  while !Task.isCancelled {
+    let observationTask = Task { @MainActor in
+      await viewModel.startCandidateObservation()
+    }
+    _ = await iterator.next()
+    observationTask.cancel()
+    _ = await observationTask.value
+  }
+}
+
+@MainActor
+private func runDisplayObservationLoop(_ viewModel: EpisodesListViewModel) async {
+  let (changes, continuation) = AsyncStream<Void>.makeStream()
+  let watcher = DisplayKeyWatcher(viewModel: viewModel, continuation: continuation)
+  _ = watcher
+
+  defer { continuation.finish() }
+
+  var iterator = changes.makeAsyncIterator()
+  while !Task.isCancelled {
+    let observationTask = Task { @MainActor in
+      await viewModel.startDisplayObservation()
+    }
+    _ = await iterator.next()
+    observationTask.cancel()
+    _ = await observationTask.value
+  }
+}
+
+@MainActor
+private final class CandidateKeyWatcher {
   private let viewModel: EpisodesListViewModel
   private let continuation: AsyncStream<Void>.Continuation
 
@@ -59,7 +88,31 @@ private final class ObservationKeyWatcher {
 
   private func track() {
     withObservationTracking {
-      _ = viewModel.observationKey
+      _ = viewModel.candidateObservationKey
+    } onChange: { [weak self] in
+      Task { @MainActor in
+        guard let self else { return }
+        self.continuation.yield()
+        self.track()
+      }
+    }
+  }
+}
+
+@MainActor
+private final class DisplayKeyWatcher {
+  private let viewModel: EpisodesListViewModel
+  private let continuation: AsyncStream<Void>.Continuation
+
+  init(viewModel: EpisodesListViewModel, continuation: AsyncStream<Void>.Continuation) {
+    self.viewModel = viewModel
+    self.continuation = continuation
+    track()
+  }
+
+  private func track() {
+    withObservationTracking {
+      _ = viewModel.displayObservationKey
     } onChange: { [weak self] in
       Task { @MainActor in
         guard let self else { return }

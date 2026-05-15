@@ -130,13 +130,23 @@ class EpisodesListViewModel:
   let filter: SQLExpression
   private(set) var loadingState: LoadingState = .loadingEpisodes
 
-  @ObservationIgnored private var lastObservationKey: ObservationKey?
-  struct ObservationKey: Hashable {
+  // Two observation keys feed two `.task(id:)` blocks in the view. The
+  // candidate observation is filterText-only so it survives sort toggles —
+  // the top-100 recommendations stay warm in the background regardless of
+  // which sort the user is currently viewing.
+  @ObservationIgnored private var lastDisplayObservationKey: DisplayObservationKey?
+  struct CandidateObservationKey: Hashable {
+    let filterText: String
+  }
+  struct DisplayObservationKey: Hashable {
     let sort: SortMethod
     let filterText: String
   }
-  var observationKey: ObservationKey {
-    ObservationKey(sort: currentSortMethod, filterText: filterText)
+  var candidateObservationKey: CandidateObservationKey {
+    CandidateObservationKey(filterText: filterText)
+  }
+  var displayObservationKey: DisplayObservationKey {
+    DisplayObservationKey(sort: currentSortMethod, filterText: filterText)
   }
 
   // MARK: - Initialization
@@ -150,42 +160,76 @@ class EpisodesListViewModel:
     self.filter = filter
   }
 
-  // MARK: - Observation
+  // MARK: - Candidate Observation (always-on, background)
 
-  func startObservation() async {
-    let currentKey = observationKey
-    let keyChanged = lastObservationKey != nil && lastObservationKey != currentKey
-    lastObservationKey = currentKey
+  // Runs whenever the view is visible, independent of the current sort
+  // method. Maintains the top-100 recommendation IDs so that switching to
+  // recommendation sort can hydrate immediately instead of waiting for a
+  // cold scoring pass.
+  func startCandidateObservation() async {
+    startRecommendationContextObservation()
+    startRecommendationAffinityObservation()
+
+    do {
+      let observation: AsyncValueObservation<[CandidateEpisode]> =
+        observatory.embeddedCandidateEpisodes(filter: filter && textSearchFilter)
+      for try await candidates in observation {
+        try Task.checkCancellation()
+
+        lastObservedCandidates = candidates
+        if lastScoredCandidates != candidates {
+          lastScoredCandidates = candidates
+          kickRecommendationFetch(candidates: candidates)
+        }
+
+        applyScoresIfRecSort()
+      }
+    } catch is CancellationError {
+    } catch {
+      Self.log.caughtError(
+        "startCandidateObservation: observation failed for episode list '\(title)'",
+        error
+      )
+      applyFailedScores()
+    }
+  }
+
+  // MARK: - Display Observation
+
+  func startDisplayObservation() async {
+    let currentKey = displayObservationKey
+    let keyChanged = lastDisplayObservationKey != nil && lastDisplayObservationKey != currentKey
+    lastDisplayObservationKey = currentKey
 
     Self.log.debug(
       """
-      Executing observation for \(title) with key \(currentKey), changed: \(keyChanged)
+      Executing display observation for \(title) with key \(currentKey), changed: \(keyChanged)
       """
     )
 
     if keyChanged || episodeList.allEntries.isEmpty { loadingState = pendingLoadingState() }
 
-    startRecommendationObservation()
-
     do {
       if currentSortMethod == .recommendationScore {
-        try await runRecommendationSortObservation()
+        // The candidate observation drives the rec-sort flow end-to-end;
+        // this task only needs to (re)trigger hydration against whatever
+        // top IDs are currently cached, then return. SwiftUI restarts this
+        // body whenever sort or filterText changes.
+        applyScoresIfRecSort()
       } else {
         try await runStandardSortObservation()
       }
     } catch is CancellationError {
     } catch {
       Self.log.caughtError(
-        "startObservation: observation failed for episode list '\(title)'",
+        "startDisplayObservation: observation failed for episode list '\(title)'",
         error
       )
-      if currentSortMethod == .recommendationScore { applyFailedScores() }
     }
   }
 
   private func runStandardSortObservation() async throws {
     cancelRecommendationHydration()
-    lastObservedCandidates = nil
 
     let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
       observatory.listablePodcastEpisodes(
@@ -198,22 +242,6 @@ class EpisodesListViewModel:
       Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
       episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       loadingState = .ready
-    }
-  }
-
-  private func runRecommendationSortObservation() async throws {
-    let observation: AsyncValueObservation<[CandidateEpisode]> =
-      observatory.embeddedCandidateEpisodes(filter: filter && textSearchFilter)
-    for try await candidates in observation {
-      try Task.checkCancellation()
-
-      lastObservedCandidates = candidates
-      if lastScoredCandidates != candidates {
-        lastScoredCandidates = candidates
-        kickRecommendationFetch(candidates: candidates)
-      }
-
-      applyScoresIfRecSort()
     }
   }
 
@@ -243,20 +271,17 @@ class EpisodesListViewModel:
   @ObservationIgnored private var recommendationHydrationTask: Task<Void, Never>?
   @ObservationIgnored private var hydratedScoreIDs: [Episode.ID] = []
 
-  private func startRecommendationObservation() {
-    startRecommendationContextObservation()
-    startRecommendationAffinityObservation()
-  }
-
   private func startRecommendationContextObservation() {
     if let recommendationContextObservationTask, !recommendationContextObservationTask.isCancelled {
       return
     }
-    let skipInitialBootstrap = currentSortMethod == .recommendationScore
-    recommendationContextObservationTask = Task(priority: taskPriority(.utility)) {
-      [weak self, skipInitialBootstrap] in
+    recommendationContextObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      var isBootstrap = skipInitialBootstrap
+      // The first $contextRevision yield is Broadcast's on-subscribe
+      // bootstrap. The candidate observation's first emission is what
+      // kicks the initial fetch, so we drop the bootstrap here to avoid
+      // double-fetching on view appear.
+      var isBootstrap = true
       for await _ in self.recommendationEngine.$contextRevision.stream() {
         guard !Task.isCancelled else { return }
         if isBootstrap {
