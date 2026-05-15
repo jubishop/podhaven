@@ -11,11 +11,12 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
-  // Optional override for candidateEpisodes(filter:). Each call pops one entry
-  // off the front of the script; once empty, the fake falls through to the
-  // wrapped real repo. Tests use this to gate scoring (parking the closure on
-  // an AsyncStream) or to script a throw without involving a real DB error.
-  let candidateEpisodesScript = ThreadSafe<
+  // Optional override for embeddedCandidateEpisodes(filter:). Each call pops
+  // one entry off the front of the script; once empty, the fake falls through
+  // to the wrapped real repo. Tests use this to gate scoring (parking the
+  // closure on an AsyncStream) or to script a throw without involving a real
+  // DB error.
+  let embeddedCandidateEpisodesScript = ThreadSafe<
     [@Sendable () async throws -> [CandidateEpisode]]
   >([])
 
@@ -48,15 +49,15 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     return try await recommendationRepo.allCandidateEpisodes(excluding: excludedID)
   }
 
-  func candidateEpisodes(filter: SQLExpression) async throws -> [CandidateEpisode] {
-    recordCall(methodName: "candidateEpisodes", parameters: ())
-    var script = candidateEpisodesScript()
+  func embeddedCandidateEpisodes(filter: SQLExpression) async throws -> [CandidateEpisode] {
+    recordCall(methodName: "embeddedCandidateEpisodes", parameters: ())
+    var script = embeddedCandidateEpisodesScript()
     if let next = script.first {
       script.removeFirst()
-      candidateEpisodesScript(script)
+      embeddedCandidateEpisodesScript(script)
       return try await next()
     }
-    return try await recommendationRepo.candidateEpisodes(filter: filter)
+    return try await recommendationRepo.embeddedCandidateEpisodes(filter: filter)
   }
 
   func allScoringContextInputs() async throws -> ScoringContextInputs {

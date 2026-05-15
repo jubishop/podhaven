@@ -154,7 +154,7 @@ struct RecommendationRepo: Recommending {
     }
   }
 
-  func candidateEpisodes(filter: SQLExpression) async throws -> [CandidateEpisode] {
+  func embeddedCandidateEpisodes(filter: SQLExpression) async throws -> [CandidateEpisode] {
     try await appDB.db.read { db in
       try CandidateEpisode
         .joining(required: CandidateEpisode.podcast)
@@ -261,6 +261,9 @@ struct RecommendationRepo: Recommending {
       let converged = unsafe covariance.withUnsafeBufferPointer { covPtr -> Bool in
         unsafe cv.withUnsafeMutableBufferPointer { cvPtr in
           unsafe v.withUnsafeMutableBufferPointer { vPtr in
+            guard let cvBase = cvPtr.baseAddress, let vBase = vPtr.baseAddress else {
+              return false
+            }
             var madeProgress = false
             for _ in 0..<50 {
               unsafe VectorMath.matrixVectorMultiply(
@@ -274,10 +277,10 @@ struct RecommendationRepo: Recommending {
               guard norm > 1e-12 else { break }
               var divisor = norm
               unsafe vDSP_vsdiv(
-                cvPtr.baseAddress!,
+                cvBase,
                 1,
                 &divisor,
-                vPtr.baseAddress!,
+                vBase,
                 1,
                 vDSP_Length(dim)
               )

@@ -48,7 +48,7 @@ struct EpisodesListView: View {
       loadingView(message: "Loading episodes…")
     case .ready:
       if viewModel.episodeList.filteredEntries.isEmpty {
-        noEpisodesMessage
+        emptyEpisodesMessage
       } else {
         listView
       }
@@ -83,12 +83,21 @@ struct EpisodesListView: View {
     }
   }
 
-  private var noEpisodesMessage: some View {
+  private var emptyEpisodesMessage: some View {
     VStack {
-      Text("No episodes match the filters.")
+      Text(emptyEpisodesMessageText)
         .foregroundColor(.secondary)
         .padding()
       Spacer()
+    }
+  }
+
+  private var emptyEpisodesMessageText: String {
+    switch viewModel.currentSortMethod {
+    case .recommendationScore:
+      return "No episodes have recommendation scores for these filters."
+    default:
+      return "No episodes match the filters."
     }
   }
 
@@ -131,12 +140,13 @@ struct EpisodesListView: View {
       var queueOrder = 0
       var episodes = IdentifiedArrayOf<UnsavedEpisode>()
       for j in 0..<24 {
+        guard let thumbnail = allThumbnails.randomElement() else { return }
         let duration = CMTime.seconds(Double.random(in: 1200...3600))
         let episode = try Create.unsavedEpisode(
           title: "Episode \(j + 1) - \(String.random())",
           pubDate: j.daysAgo,
           duration: duration,
-          image: allThumbnails.randomElement()!.value.url,
+          image: thumbnail.value.url,
           currentTime: j % 2 == 0 ? CMTime.seconds(Double.random(in: 0..<duration.seconds)) : nil,
           queueOrder: j % 2 == 0
             ? {
@@ -193,11 +203,12 @@ struct EpisodesListView: View {
 
       var episodes = IdentifiedArrayOf<UnsavedEpisode>()
       for (index, entry) in cases.enumerated() {
+        guard let thumbnail = allThumbnails.randomElement() else { return }
         let episode = try Create.unsavedEpisode(
           title: entry.title,
           pubDate: index.daysAgo,
           duration: CMTime.seconds(2400),
-          image: allThumbnails.randomElement()!.value.url,
+          image: thumbnail.value.url,
           rating: entry.rating,
           ratingDate: entry.rating == nil ? nil : now
         )

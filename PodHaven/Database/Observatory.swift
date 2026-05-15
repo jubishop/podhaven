@@ -26,7 +26,7 @@ struct Observatory: Observing {
   // MARK: - Podcasts
 
   func podcasts(_ filter: SQLExpression, limit: Int = Int.max) -> AsyncValueObservation<[Podcast]> {
-    _observe { db in
+    observe { db in
       try Podcast
         .all()
         .filter(filter)
@@ -43,7 +43,7 @@ struct Observatory: Observing {
   }
 
   func podcastCounts() -> AsyncValueObservation<PodcastCounts> {
-    _observe { db in
+    observe { db in
       let subscribed = try Podcast.all().subscribed().fetchCount(db)
       let unsubscribed = try Podcast.all().unsubscribed().fetchCount(db)
       let untagged = try Podcast.all().having(Podcast.podcastTags.isEmpty).fetchCount(db)
@@ -52,7 +52,7 @@ struct Observatory: Observing {
         subscribed: subscribed,
         unsubscribed: unsubscribed,
         untagged: untagged,
-        byTag: try _tagCounts(
+        byTag: try tagCounts(
           PodcastTag.self,
           tagIdColumn: PodcastTag.Columns.tagId,
           countingColumn: PodcastTag.Columns.podcastId,
@@ -66,7 +66,7 @@ struct Observatory: Observing {
     _ filter: @escaping PodcastFilter = { $0 },
     limit: Int = Int.max
   ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> {
-    _observe { db in
+    observe { db in
       try PodcastWithEpisodeMetadata<Podcast>
         .all(filter)
         .limit(limit)
@@ -97,7 +97,7 @@ struct Observatory: Observing {
     _ filter: @escaping PodcastFilter = { $0 },
     limit: Int = Int.max
   ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> {
-    _observe { db in
+    observe { db in
       try PodcastWithEpisodeMetadata<ListablePodcast>
         .all(filter)
         .limit(limit)
@@ -129,7 +129,7 @@ struct Observatory: Observing {
     order: SQLOrdering? = nil,
     limit: Int = Int.max
   ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
-    _observe { db in
+    observe { db in
       try ListablePodcastEpisode
         .request(filter: filter, order: order ?? Episode.Columns.pubDate.desc, limit: limit)
         .fetchAll(db)
@@ -151,7 +151,7 @@ struct Observatory: Observing {
   // MARK: - Tags
 
   func tags() -> AsyncValueObservation<IdentifiedArrayOf<Tag>> {
-    _observe { db in
+    observe { db in
       try Tag
         .all()
         .orderedByName()
@@ -160,8 +160,8 @@ struct Observatory: Observing {
   }
 
   func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
-    _observe { db in
-      try _tagCounts(
+    observe { db in
+      try tagCounts(
         PodcastTag.self,
         tagIdColumn: PodcastTag.Columns.tagId,
         countingColumn: PodcastTag.Columns.podcastId,
@@ -171,8 +171,8 @@ struct Observatory: Observing {
   }
 
   func episodeCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
-    _observe { db in
-      try _tagCounts(
+    observe { db in
+      try tagCounts(
         EpisodeTag.self,
         tagIdColumn: EpisodeTag.Columns.tagId,
         countingColumn: EpisodeTag.Columns.episodeId,
@@ -184,7 +184,7 @@ struct Observatory: Observing {
   // MARK: - On Deck
 
   func onDeck(_ episodeID: Episode.ID) -> AsyncValueObservation<OnDeck?> {
-    _observe { db in
+    observe { db in
       try OnDeck.request(for: episodeID).fetchOne(db)
     }
   }
@@ -192,7 +192,7 @@ struct Observatory: Observing {
   // MARK: - Singular Observations
 
   func podcastSeries(_ podcastID: Podcast.ID) -> AsyncValueObservation<PodcastSeries?> {
-    _observe { db in
+    observe { db in
       try Podcast
         .withID(podcastID)
         .including(all: Podcast.episodes)
@@ -204,7 +204,7 @@ struct Observatory: Observing {
   func podcastSeriesDetail(_ podcastID: Podcast.ID)
     -> AsyncValueObservation<PodcastSeriesDetail?>
   {
-    _observe { db in
+    observe { db in
       try PodcastSeriesDetail.fetchOne(podcastID, in: db)
     }
   }
@@ -212,7 +212,7 @@ struct Observatory: Observing {
   func podcastEpisodeWithTags(_ episodeID: Episode.ID)
     -> AsyncValueObservation<PodcastEpisodeWithTags?>
   {
-    _observe { db in
+    observe { db in
       try Episode
         .withID(episodeID)
         .including(required: Episode.podcast)
@@ -224,8 +224,9 @@ struct Observatory: Observing {
 
   // MARK: - Recommendations
 
-  func candidateEpisodes(filter: SQLExpression) -> AsyncValueObservation<[CandidateEpisode]> {
-    _observe { db in
+  func embeddedCandidateEpisodes(filter: SQLExpression) -> AsyncValueObservation<[CandidateEpisode]>
+  {
+    observe { db in
       try CandidateEpisode
         .joining(required: CandidateEpisode.podcast)
         .filter(filter && Episode.hasEmbedding)
@@ -245,7 +246,7 @@ struct Observatory: Observing {
   func scoringContextInputsWithoutPartialSignals()
     -> AsyncValueObservation<ScoringContextInputs>
   {
-    _observe { db in
+    observe { db in
       try RecommendationRepo.scoringContextInputs(db)
     }
   }
@@ -274,7 +275,7 @@ struct Observatory: Observing {
   // dequeued in the same transaction, the count is unchanged but the set
   // membership is, so `.removeDuplicates()` no longer drops the emission.
   func candidateGateExclusions() -> AsyncValueObservation<Set<Episode.ID>> {
-    _observe { db in
+    observe { db in
       try Episode
         .filter(Episode.rated || Episode.finished || Episode.queued)
         .select(Episode.Columns.id, as: Episode.ID.self)
@@ -286,13 +287,13 @@ struct Observatory: Observing {
 
   private static let countKey = "count"
 
-  private func _tagCounts<T: TableRecord>(
+  private func tagCounts<T: TableRecord>(
     _ type: T.Type,
     tagIdColumn: Column,
     countingColumn: Column,
     in db: Database
   ) throws -> [Tag.ID: Int] {
-    Assert.precondition(db.isInsideTransaction, "_tagCounts requires a transaction")
+    Assert.precondition(db.isInsideTransaction, "tagCounts requires a transaction")
 
     let rows = try Row.fetchAll(
       db,
@@ -307,7 +308,7 @@ struct Observatory: Observing {
     )
   }
 
-  private func _observe<T: Equatable>(_ block: @escaping @Sendable (Database) throws -> T)
+  private func observe<T: Equatable>(_ block: @escaping @Sendable (Database) throws -> T)
     -> AsyncValueObservation<T>
   {
     ValueObservation.tracking(block)

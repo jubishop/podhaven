@@ -20,6 +20,7 @@ class EpisodesListViewModel:
   @ObservationIgnored @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
+  @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
 
   private static let log = Log.as(LogSubsystem.EpisodesView.list)
 
@@ -202,7 +203,7 @@ class EpisodesListViewModel:
 
   private func runRecommendationSortObservation() async throws {
     let observation: AsyncValueObservation<[CandidateEpisode]> =
-      observatory.candidateEpisodes(filter: filter && textSearchFilter)
+      observatory.embeddedCandidateEpisodes(filter: filter && textSearchFilter)
     for try await candidates in observation {
       try Task.checkCancellation()
 
@@ -236,19 +237,27 @@ class EpisodesListViewModel:
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
   @ObservationIgnored private var lastObservedCandidates: [CandidateEpisode]?
   @ObservationIgnored private var lastScoredCandidates: [CandidateEpisode]?
-  @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
+  @ObservationIgnored private var recommendationContextObservationTask: Task<Void, Never>?
+  @ObservationIgnored private var recommendationAffinityObservationTask: Task<Void, Never>?
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
   @ObservationIgnored private var recommendationHydrationTask: Task<Void, Never>?
   @ObservationIgnored private var hydratedScoreIDs: [Episode.ID] = []
 
   private func startRecommendationObservation() {
-    if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
+    startRecommendationContextObservation()
+    startRecommendationAffinityObservation()
+  }
+
+  private func startRecommendationContextObservation() {
+    if let recommendationContextObservationTask, !recommendationContextObservationTask.isCancelled {
+      return
+    }
     let skipInitialBootstrap = currentSortMethod == .recommendationScore
-    recommendationObservationTask = Task(priority: taskPriority(.utility)) {
+    recommendationContextObservationTask = Task(priority: taskPriority(.utility)) {
       [weak self, skipInitialBootstrap] in
       guard let self else { return }
       var isBootstrap = skipInitialBootstrap
-      for await _ in recommendationEngine.$contextRevision.stream() {
+      for await _ in self.recommendationEngine.$contextRevision.stream() {
         guard !Task.isCancelled else { return }
         if isBootstrap {
           isBootstrap = false
@@ -259,24 +268,38 @@ class EpisodesListViewModel:
     }
   }
 
+  private func startRecommendationAffinityObservation() {
+    if let recommendationAffinityObservationTask, !recommendationAffinityObservationTask.isCancelled
+    {
+      return
+    }
+    recommendationAffinityObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
+      guard let self else { return }
+      for await _ in self.userSettings.$podcastAffinityWeight.stream().dropFirst() {
+        guard !Task.isCancelled else { return }
+        self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
+      }
+    }
+  }
+
   private func kickRecommendationFetch(candidates: [CandidateEpisode]? = nil) {
     recommendationFetchTask?.cancel()
     recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      await self.fetchAndApplyRecommendationScores(candidates: candidates)
+      await self.fetchAndApplyRecommendationScores(observedCandidates: candidates)
     }
   }
 
-  private func fetchAndApplyRecommendationScores(candidates observedCandidates: [CandidateEpisode]?)
-    async
-  {
+  private func fetchAndApplyRecommendationScores(observedCandidates: [CandidateEpisode]?) async {
     let candidates: [CandidateEpisode]
     if let observedCandidates {
       candidates = observedCandidates
     } else {
       let baseFilter = filter && textSearchFilter
       do {
-        candidates = try await recommendationRepo.candidateEpisodes(filter: baseFilter)
+        candidates = try await recommendationRepo.embeddedCandidateEpisodes(filter: baseFilter)
+      } catch is CancellationError {
+        return
       } catch {
         Self.log.caughtError(
           "fetchAndApplyRecommendationScores: candidate fetch failed",
@@ -295,6 +318,8 @@ class EpisodesListViewModel:
     } else {
       do {
         scoreMap = try await recommendationEngine.recommendations(for: candidates)
+      } catch is CancellationError {
+        return
       } catch {
         Self.log.caughtError(
           "fetchAndApplyRecommendationScores: scoring failed",
@@ -406,8 +431,10 @@ class EpisodesListViewModel:
   // MARK: - Disappear
 
   func disappear() {
-    recommendationObservationTask?.cancel()
-    recommendationObservationTask = nil
+    recommendationContextObservationTask?.cancel()
+    recommendationContextObservationTask = nil
+    recommendationAffinityObservationTask?.cancel()
+    recommendationAffinityObservationTask = nil
     recommendationFetchTask?.cancel()
     recommendationFetchTask = nil
     cancelRecommendationHydration()

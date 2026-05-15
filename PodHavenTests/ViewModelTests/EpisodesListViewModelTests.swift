@@ -14,11 +14,6 @@ import Testing
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
-  private var fakeRepo: FakeRepo { repo as! FakeRepo }
-  private var fileManager: FakeFileManager {
-    Container.shared.fileManager() as! FakeFileManager
-  }
-
   private struct InjectedRepoError: Error, Sendable {}
 
   @Test("selectedEpisodesTagIntersection collapses to common tags across selection")
@@ -495,7 +490,7 @@ import Testing
         .map(\.parameters)
       #expect(listableLimits.contains(100))
       #expect(!listableLimits.contains(Int.max))
-      try fakeRecRepo.expectNoCall(methodName: "candidateEpisodes")
+      try fakeRecRepo.expectNoCall(methodName: "embeddedCandidateEpisodes")
     }
   }
 
@@ -504,11 +499,11 @@ import Testing
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
     let gate = DispatchSemaphore(value: 0)
-    fakeObservatory.candidateEpisodesScript([
+    fakeObservatory.embeddedCandidateEpisodesScript([
       {
         ValueObservation
           .tracking { _ -> [CandidateEpisode] in
-            _ = gate.wait()
+            gate.wait()
             return []
           }
           .values(in: dbReader)
@@ -622,7 +617,7 @@ import Testing
       )
 
       viewModel.filterDebouncer.currentValue = "Alphacand"
-      let fakeSleeper = Container.shared.sleeper() as! FakeSleeper
+      let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
       try await fakeSleeper.waitForSleepRequests(count: 1)
       await fakeSleeper.advanceTime(by: .milliseconds(500))
 
@@ -895,11 +890,129 @@ import Testing
     }
   }
 
+  @Test("rec-sort refreshes visible ordering when podcast affinity weight changes")
+  func recommendationSortRefreshesWhenPodcastAffinityWeightChanges() async throws {
+    let userSettings = Container.shared.userSettings()
+    userSettings.$recommendationDeconeMode.new(.focused)
+    userSettings.$podcastAffinityWeight.new(0)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Loved Signal") { return [1, 0, 0] }
+      if text.contains("Affinity Candidate") { return [0, 0, 1] }
+      if text.contains("Similarity Candidate") { return [1, 0, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (lovedPodcast, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Loved Signal",
+      podcastDescription: "Loved Signal",
+      episodeDescriptions: ["Loved Signal 0", "Loved Signal 1", "Loved Signal 2"],
+      ratings: [.loved, .loved, .loved]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let affinityCandidates = try await RecommendationHelpers.addEpisodes(
+      to: lovedPodcast,
+      count: 1,
+      episodeDescriptions: ["Affinity Candidate"],
+      pubDateOffset: { _ in 86400 }
+    )
+    try await RecommendationHelpers.embedEpisodes(affinityCandidates, embeddable: embeddable)
+
+    let (_, similarityCandidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Similarity Candidate",
+      podcastDescription: "Similarity Candidate",
+      episodeDescriptions: ["Similarity Candidate"],
+      pubDateOffset: { _ in 86400 }
+    )
+    try await RecommendationHelpers.embedEpisodes(similarityCandidates, embeddable: embeddable)
+
+    let affinityCandidate = try #require(affinityCandidates.first)
+    let similarityCandidate = try #require(similarityCandidates.first)
+    let candidates = [affinityCandidate, similarityCandidate]
+
+    let initialScores = try await RecommendationHelpers.startAndWaitForScores(for: candidates)
+    let initialOrder =
+      candidates
+      .sorted { lhs, rhs in
+        let lhsScore = initialScores[lhs.id]?.value ?? 0
+        let rhsScore = initialScores[rhs.id]?.value ?? 0
+        if lhsScore != rhsScore { return lhsScore > rhsScore }
+        return lhs.id > rhs.id
+      }
+      .map(\.id)
+    try #require(initialOrder == [similarityCandidate.id, affinityCandidate.id])
+
+    let viewModel = EpisodesListViewModel(
+      title: "RecAffinityWeight",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.episodeList.filteredEntries.compactMap(\.episodeID) == initialOrder
+        },
+        { @MainActor in
+          """
+          Expected initial rec-sort order to follow pure content similarity.
+          Expected: \(initialOrder)
+          Actual: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+          """
+        }
+      )
+
+      userSettings.$podcastAffinityWeight.new(1)
+      let updatedScores = try await Container.shared.recommendationEngine()
+        .recommendations(
+          for: candidates
+        )
+      let updatedOrder =
+        candidates
+        .sorted { lhs, rhs in
+          let lhsScore = updatedScores[lhs.id]?.value ?? 0
+          let rhsScore = updatedScores[rhs.id]?.value ?? 0
+          if lhsScore != rhsScore { return lhsScore > rhsScore }
+          return lhs.id > rhs.id
+        }
+        .map(\.id)
+      try #require(updatedOrder == [affinityCandidate.id, similarityCandidate.id])
+
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.episodeList.filteredEntries.compactMap(\.episodeID) == updatedOrder
+        },
+        { @MainActor in
+          """
+          Expected rec-sort order to refresh after podcastAffinityWeight changed.
+          Expected: \(updatedOrder)
+          Actual: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+          """
+        }
+      )
+    }
+  }
+
   @Test("rec-sort surfaces .recommendationFailed when candidate observation throws")
   func loadingStateReachesRecommendationFailedWhenCandidateObservationThrows() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
-    fakeObservatory.candidateEpisodesScript([
+    fakeObservatory.embeddedCandidateEpisodesScript([
       {
         ValueObservation
           .tracking { _ -> [CandidateEpisode] in
@@ -943,7 +1056,7 @@ import Testing
 
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
-    fakeObservatory.candidateEpisodesScript([
+    fakeObservatory.embeddedCandidateEpisodesScript([
       {
         ValueObservation
           .tracking { _ -> [CandidateEpisode] in
@@ -956,7 +1069,7 @@ import Testing
     // engine.start() is not called in this test, so $contextRevision should
     // emit only its initial value of 0 (via Broadcast's on-subscribe yield)
     // and never tick again. The no-retry-loop assertion below times out on
-    // the absence of a second candidateEpisodes call — a spurious tick from
+    // the absence of a second embeddedCandidateEpisodes call — a spurious tick from
     // the engine would kick that second call and the assertion would still
     // pass (we'd silently lose coverage of the view model's diff logic).
     // This watcher records an Issue on any tick past the initial yield so a
@@ -974,7 +1087,7 @@ import Testing
             """
             contextRevision ticked during a no-retry-loop test that assumes \
             engine.start() was not called. A tick would kick a second \
-            candidateEpisodes fetch from recommendationObservationTask and \
+            embeddedCandidateEpisodes fetch from recommendationContextObservationTask and \
             mask the view-model diff logic this test is meant to pin down.
             """
           )
@@ -1004,11 +1117,11 @@ import Testing
       // A persistent candidate-source failure should not keep re-entering
       // the candidate observation. This poll detects any post-failure retry;
       // under the fixed implementation the count is pinned at 1.
-      @Sendable func candidateCallCount() -> Int {
+      @Sendable func embeddedCandidateCallCount() -> Int {
         fakeObservatory.callsByType()
           .values
           .flatMap { $0 }
-          .filter { $0.methodName == "candidateEpisodes" }
+          .filter { $0.methodName == "embeddedCandidateEpisodes" }
           .count
       }
 
@@ -1017,13 +1130,13 @@ import Testing
           maxAttempts: 50,
           delay: .milliseconds(20),
           priority: .userInitiated,
-          { candidateCallCount() >= 2 },
+          { embeddedCandidateCallCount() >= 2 },
           { "regression sentinel — see Issue.record below" }
         )
         Issue.record(
           """
-          regression: candidateEpisodes observation was retried after the first failure \
-          (count=\(candidateCallCount())); persistent rec errors trigger a \
+          regression: embeddedCandidateEpisodes observation was retried after the first failure \
+          (count=\(embeddedCandidateCallCount())); persistent rec errors trigger a \
           refetch loop while the observed embedded row set stays stable.
           """
         )
@@ -1031,7 +1144,7 @@ import Testing
         // Expected timeout under the fixed implementation.
       }
 
-      _ = try fakeObservatory.expectCalls(methodName: "candidateEpisodes", count: 1)
+      _ = try fakeObservatory.expectCalls(methodName: "embeddedCandidateEpisodes", count: 1)
     }
   }
 
@@ -1046,7 +1159,7 @@ import Testing
         { @MainActor in viewModel.loadingState == .ready },
         { @MainActor in
           """
-          Expected .ready after empty rec-scoring landed so noEpisodesMessage \
+          Expected .ready after empty rec-scoring landed so emptyEpisodesMessage \
           can render; got \(viewModel.loadingState).
           """
         }
@@ -1082,6 +1195,7 @@ import Testing
       saveInCache: true
     )
     let cachedURL = try #require(cachedEpisode.cachedURL)
+    let fileManager = try #require(Container.shared.fileManager() as? FakeFileManager)
     #expect(fileManager.fileExists(at: cachedURL.rawValue))
 
     let listables = try await repo.db.read { db in
@@ -1093,7 +1207,7 @@ import Testing
     try await loadEntries(into: viewModel, episodes: listables)
     select(viewModel, ids: [cachedEpisode.id])
 
-    let fakeRepo = self.fakeRepo
+    let fakeRepo = try #require(repo as? FakeRepo)
     fakeRepo.updateSaveInCacheBulkError(InjectedRepoError())
     fakeRepo.clearAllCalls()
 
