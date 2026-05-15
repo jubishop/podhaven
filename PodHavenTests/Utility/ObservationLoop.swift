@@ -8,7 +8,7 @@ import Observation
 // `viewModel.observationKey` changes. SwiftUI's `.task(id:)` machinery
 // provides this behavior in production but is unavailable in unit tests;
 // this helper replays the same semantics so tests can exercise observation
-// flows that depend on key changes (e.g., recommendation score bumps).
+// flows that depend on key changes (e.g., sort or filter-text transitions).
 @MainActor
 func runObservationLoop(_ viewModel: EpisodesListViewModel) async {
   let (changes, continuation) = AsyncStream<Void>.makeStream()
@@ -26,6 +26,24 @@ func runObservationLoop(_ viewModel: EpisodesListViewModel) async {
     observationTask.cancel()
     _ = await observationTask.value
   }
+}
+
+// Wraps `runObservationLoop` so each test doesn't have to hand-roll the
+// `Task.cancel() + viewModel.disappear()` teardown in both the success and
+// catch arms — `defer` guarantees both fire.
+@MainActor
+func withRunningObservationLoop<T>(
+  _ viewModel: EpisodesListViewModel,
+  _ body: () async throws -> T
+) async throws -> T {
+  let task = Task { @MainActor in
+    await runObservationLoop(viewModel)
+  }
+  defer {
+    task.cancel()
+    viewModel.disappear()
+  }
+  return try await body()
 }
 
 @MainActor

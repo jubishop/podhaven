@@ -206,11 +206,7 @@ import Testing
     )
     viewModel.currentSortMethod = .recommendationScore
 
-    let observationTask = Task { @MainActor in
-      await runObservationLoop(viewModel)
-    }
-
-    do {
+    try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
@@ -224,13 +220,7 @@ import Testing
           """
         }
       )
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
     }
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("toggling from newestFirst to recommendationScore reorders the list by score")
@@ -311,11 +301,7 @@ import Testing
     )
     viewModel.currentSortMethod = .newestFirst
 
-    let observationTask = Task { @MainActor in
-      await runObservationLoop(viewModel)
-    }
-
-    do {
+    try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
@@ -345,13 +331,7 @@ import Testing
           """
         }
       )
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
     }
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("recommendationScore sort honors the view-model's base filter")
@@ -421,11 +401,7 @@ import Testing
     )
     viewModel.currentSortMethod = .recommendationScore
 
-    let observationTask = Task { @MainActor in
-      await runObservationLoop(viewModel)
-    }
-
-    do {
+    try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
@@ -440,13 +416,7 @@ import Testing
           """
         }
       )
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
     }
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("loadingState is .computingRecommendations during rec-sort cold start")
@@ -465,45 +435,39 @@ import Testing
     let viewModel = EpisodesListViewModel(title: "RecLoadingState")
     viewModel.currentSortMethod = .recommendationScore
 
-    let observationTask = Task { @MainActor in
-      await runObservationLoop(viewModel)
+    try await withRunningObservationLoop(viewModel) {
+      do {
+        try await Wait.until(
+          priority: .userInitiated,
+          { @MainActor in viewModel.loadingState == .computingRecommendations },
+          { @MainActor in
+            """
+            Expected .computingRecommendations while scoring is parked, got \
+            \(viewModel.loadingState).
+            """
+          }
+        )
+
+        gate.continuation.yield()
+        gate.continuation.finish()
+
+        // Empty candidates produced an empty score map; once the version
+        // bumps the loop restarts and `runRecommendationSortObservation`
+        // takes the empty-`topIDs` path, clearing `allEntries`.
+        try await Wait.until(
+          priority: .userInitiated,
+          { @MainActor in viewModel.episodeList.filteredEntries.isEmpty },
+          { @MainActor in
+            """
+            Expected filteredEntries to be empty after empty scoring landed.
+            """
+          }
+        )
+      } catch {
+        gate.continuation.finish()
+        throw error
+      }
     }
-
-    do {
-      try await Wait.until(
-        priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .computingRecommendations },
-        { @MainActor in
-          """
-          Expected .computingRecommendations while scoring is parked, got \
-          \(viewModel.loadingState).
-          """
-        }
-      )
-
-      gate.continuation.yield()
-      gate.continuation.finish()
-
-      // Empty candidates produced an empty score map; once the version
-      // bumps the loop restarts and `runRecommendationSortObservation`
-      // takes the empty-`topIDs` path, clearing `allEntries`.
-      try await Wait.until(
-        priority: .userInitiated,
-        { @MainActor in viewModel.episodeList.filteredEntries.isEmpty },
-        { @MainActor in
-          """
-          Expected filteredEntries to be empty after empty scoring landed.
-          """
-        }
-      )
-    } catch {
-      gate.continuation.finish()
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
-    }
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("rec-sort honors live filterText changes (rescore on text search)")
@@ -561,11 +525,7 @@ import Testing
     )
     viewModel.currentSortMethod = .recommendationScore
 
-    let observationTask = Task { @MainActor in
-      await runObservationLoop(viewModel)
-    }
-
-    do {
+    try await withRunningObservationLoop(viewModel) {
       let allIDs = Set((alphas + betas).map(\.id))
       try await Wait.until(
         priority: .userInitiated,
@@ -601,13 +561,7 @@ import Testing
           """
         }
       )
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
     }
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("rec-sort drops rows that stop matching the base SQL filter")
@@ -655,11 +609,7 @@ import Testing
     )
     viewModel.currentSortMethod = .recommendationScore
 
-    let observationTask = Task { @MainActor in
-      await runObservationLoop(viewModel)
-    }
-
-    do {
+    try await withRunningObservationLoop(viewModel) {
       let allIDs = Set(targets.map(\.id))
       try await Wait.until(
         priority: .userInitiated,
@@ -693,13 +643,7 @@ import Testing
           """
         }
       )
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
     }
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("rec-sort picks up a newly-embedded candidate without waiting on contextRevision")
@@ -747,11 +691,7 @@ import Testing
     )
     viewModel.currentSortMethod = .recommendationScore
 
-    let observationTask = Task { @MainActor in
-      await runObservationLoop(viewModel)
-    }
-
-    do {
+    try await withRunningObservationLoop(viewModel) {
       let initialIDs = Set(initialTargets.map(\.id))
       try await Wait.until(
         priority: .userInitiated,
@@ -791,13 +731,7 @@ import Testing
           """
         }
       )
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
     }
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("rec-sort reaches .ready when candidate fetch throws so the UI isn't stuck")
@@ -811,11 +745,7 @@ import Testing
     let viewModel = EpisodesListViewModel(title: "RecFetchError")
     viewModel.currentSortMethod = .recommendationScore
 
-    let observationTask = Task { @MainActor in
-      await runObservationLoop(viewModel)
-    }
-
-    do {
+    try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in viewModel.loadingState == .ready },
@@ -827,13 +757,7 @@ import Testing
         }
       )
       #expect(viewModel.episodeList.filteredEntries.isEmpty)
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
     }
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("rec-sort doesn't loop refetching when scoring fails against a non-empty embedded set")
@@ -863,11 +787,7 @@ import Testing
     )
     viewModel.currentSortMethod = .recommendationScore
 
-    let observationTask = Task { @MainActor in
-      await runObservationLoop(viewModel)
-    }
-
-    do {
+    try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in viewModel.loadingState == .ready },
@@ -912,13 +832,7 @@ import Testing
       }
 
       try fakeRecRepo.expectCalls(methodName: "candidateEpisodes", count: 1)
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
     }
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("rec-sort with empty scoring result reaches .ready so empty-state UI is reachable")
@@ -932,11 +846,7 @@ import Testing
     let viewModel = EpisodesListViewModel(title: "EmptyRecReady")
     viewModel.currentSortMethod = .recommendationScore
 
-    let observationTask = Task { @MainActor in
-      await runObservationLoop(viewModel)
-    }
-
-    do {
+    try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in viewModel.loadingState == .ready },
@@ -948,13 +858,7 @@ import Testing
         }
       )
       #expect(viewModel.episodeList.filteredEntries.isEmpty)
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
     }
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("loadingState defaults to .loadingEpisodes and reaches .ready for non-rec sort")
@@ -964,11 +868,7 @@ import Testing
     let viewModel = EpisodesListViewModel(title: "NonRecLoadingState")
     #expect(viewModel.loadingState == .loadingEpisodes)
 
-    let observationTask = Task { @MainActor in
-      await viewModel.startObservation()
-    }
-
-    do {
+    try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in viewModel.loadingState == .ready },
@@ -976,15 +876,8 @@ import Testing
           "Expected .ready, got \(viewModel.loadingState)."
         }
       )
-    } catch {
-      observationTask.cancel()
-      viewModel.disappear()
-      throw error
+      #expect(viewModel.episodeList.filteredEntries.count == setup.episodes.count)
     }
-
-    #expect(viewModel.episodeList.filteredEntries.count == setup.episodes.count)
-    observationTask.cancel()
-    viewModel.disappear()
   }
 
   @Test("uncacheSelectedEpisodes leaves cache files alone when bulk unsave throws")

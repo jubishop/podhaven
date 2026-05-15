@@ -114,8 +114,6 @@ class EpisodesListViewModel:
   ) { [weak self] filteredText in
     guard let self else { return }
     self.filterText = filteredText
-    // Rescore against the new filter scope.
-    self.kickRecommendationFetch()
   }
 
   // MARK: - State Management
@@ -135,15 +133,9 @@ class EpisodesListViewModel:
   struct ObservationKey: Hashable {
     let sort: SortMethod
     let filterText: String
-    let recScoresVersion: Int?
   }
   var observationKey: ObservationKey {
-    ObservationKey(
-      sort: currentSortMethod,
-      filterText: filterText,
-      recScoresVersion: currentSortMethod == .recommendationScore
-        ? recommendationScoresVersion : nil
-    )
+    ObservationKey(sort: currentSortMethod, filterText: filterText)
   }
 
   // MARK: - Initialization
@@ -222,16 +214,20 @@ class EpisodesListViewModel:
         kickRecommendationFetch()
       }
 
-      let topIDs = topEpisodeIDsByScore()
-      let rowsByID = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
-      var ordered = [ListablePodcastEpisode](capacity: topIDs.count)
-      for id in topIDs {
-        guard let row = rowsByID[id] else { continue }
-        ordered.append(row)
-      }
-      episodeList.allEntries = IdentifiedArray(uniqueElements: ordered)
+      lastObservedCandidateRows = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+      applyOrderedEpisodes()
       if case .loaded = recommendationScoresState { loadingState = .ready }
     }
+  }
+
+  private func applyOrderedEpisodes() {
+    let topIDs = topEpisodeIDsByScore()
+    var ordered = [ListablePodcastEpisode](capacity: topIDs.count)
+    for id in topIDs {
+      guard let row = lastObservedCandidateRows[id] else { continue }
+      ordered.append(row)
+    }
+    episodeList.allEntries = IdentifiedArray(uniqueElements: ordered)
   }
 
   private func pendingLoadingState() -> LoadingState {
@@ -247,10 +243,11 @@ class EpisodesListViewModel:
     case pending
     case loaded([Episode.ID: Float])
   }
-  private var recommendationScoresVersion: Int = 0
 
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
   @ObservationIgnored private var lastScoredCandidateIDs: Set<Episode.ID>?
+  @ObservationIgnored
+  private var lastObservedCandidateRows: [Episode.ID: ListablePodcastEpisode] = [:]
   @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
 
@@ -311,16 +308,24 @@ class EpisodesListViewModel:
     for (id, score) in scoreMap { values[id] = score.value }
     recommendationScoresState = .loaded(values)
     lastScoredCandidateIDs = Set(candidates.map(\.id))
-    recommendationScoresVersion += 1
     Self.log.debug(
       "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
     )
+    applyScoresIfRecSort()
   }
 
   private func applyEmptyScores() {
     guard !Task.isCancelled else { return }
     recommendationScoresState = .loaded([:])
-    recommendationScoresVersion += 1
+    applyScoresIfRecSort()
+  }
+
+  // Score updates land out-of-band from the GRDB observation, so push them
+  // into the list directly when rec sort is active.
+  private func applyScoresIfRecSort() {
+    guard currentSortMethod == .recommendationScore else { return }
+    applyOrderedEpisodes()
+    loadingState = .ready
   }
 
   private func topEpisodeIDsByScore() -> [Episode.ID] {
@@ -343,5 +348,6 @@ class EpisodesListViewModel:
     recommendationFetchTask?.cancel()
     recommendationFetchTask = nil
     lastScoredCandidateIDs = nil
+    lastObservedCandidateRows = [:]
   }
 }
