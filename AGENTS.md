@@ -1,10 +1,28 @@
 ## Project Memory & Tracking
 
-Three places hold persistent project context — pick the right one when saving or looking something up:
+Four places hold persistent project context — pick the right one when saving or looking something up. All four live in the repo and are readable by any LLM agent.
 
-- **Memory (`memory/`)** — non-derivable context: the *why* behind past decisions, user/feedback notes, references to external systems. `memory/MEMORY.md` is the canonical index with one linked Markdown file per entry. Read and write those files directly; check memory before guessing about prior project-specific decisions or environment details. Memory is **not** a task list — if it's a "we still need to do X," it belongs in a GitHub Issue, not here.
+- **Memory (`memory/`)** — short, currently-active context: open incidents, user/feedback rules, in-flight project state, references to external systems. **Convention: load `memory/MEMORY.md` at session start** so this context is available throughout the session. Keep it small. `MEMORY.md` is a one-line-per-entry catalog. Schema: `memory/README.md`. Append-only timeline of memory mutations: `memory/log.md`.
+- **Knowledge (`knowledge/`)** — long-form reference wiki (Karpathy LLM Wiki pattern): library quirks, debugging recipes, codebase patterns, migration notes, gotchas. **Convention: retrieve on demand** (see qmd hint below); don't load at session start. Add a page here (not memory) when the content is "you'll want this when working on X" rather than "you need this every session." Schema: `knowledge/README.md`. Timeline: `knowledge/log.md`.
 - **GitHub Issues (`jubishop/podhaven`)** — discrete TODOs, bug reports, and planned refactors. Use `gh issue list` / `gh issue create` / `gh issue view`. Anything with a clear open/closed lifecycle goes here so it can be linked from PRs and closed automatically when merged.
 - **Design docs (`docs/`)** — ongoing initiatives and architecture rationale, organized into category subfolders like `docs/initiatives/`. `docs/README.md` is the index with one-line pointers per doc; add an entry there when you add a doc. Use these for multi-PR efforts and "what we built / what's next" notes that should evolve in lockstep with the code and get reviewed in PRs.
+
+**Retrieving context efficiently — use `qmd`, not raw `grep` or speculative `Read`:**
+
+The repo is indexed by [qmd](https://github.com/tobi/qmd) (BM25 + vector embeddings + LLM reranking, all local). It searches across `memory/`, `knowledge/`, and `docs/` in a single call — this is how you find relevant pages without loading the whole tree.
+
+- `qmd query "natural language question"` — hybrid search with auto-expansion and reranking. **This is the default.** Use it whenever you need to find pages by topic.
+- `qmd search "exact phrase"` — BM25 only; use when you know the exact terminology.
+- `qmd vsearch "concept"` — vector only; for fuzzy semantic matches.
+- `qmd get <path>[:line] -l N` — fetch a specific page or line slice (cheaper than `Read` for large files).
+
+Run `qmd query` as the first step when looking for pages by topic. Only fall back to `Read`/`grep` when you already know the exact path. Collections are configured in `qmd.yml` at repo root; re-index after large changes with `qmd update && qmd embed`.
+
+**Other workflow hints:**
+
+- Before working in a non-trivial area, run a `qmd query` for the area — known gotchas and library quirks often have a page.
+- When adding a new memory or knowledge page, `qmd query` the topic first to scan for contradictions or duplicates; if the new info supersedes an old claim, update the old page (don't leave both).
+- A weekly scheduled agent routine performs auto-archive-with-veto lint across `memory/` and `knowledge/` — moves stale pages to `archive/` and reports the diff for review.
 
 ## MCP Usage
 - If discussing Swift, SwiftUI, and iOS: Consult the apple-docs mcp for up to date information.
@@ -27,7 +45,7 @@ Three places hold persistent project context — pick the right one when saving 
 - `Assert` funnels invariants through structured fatal logging; avoid `fatalError`/`precondition` outside this helper.
 - `ThreadSafe` supports concurrency-safe storage.  `Broadcast` adds AsyncStreams and Observability.
 - Never use `Task.sleep` in production code; always use the injected `Sleepable` (`sleeper`) so tests can control timing.
-- Never use `Task.detached` — it strips priority, cancellation, and actor inheritance, and produces orphan work that's invisible to the parent. Use `Task { ... }` (and store the handle when the task outlives the call). To hop off `@MainActor` for CPU work, declare the work as a `nonisolated async` function on a Sendable/value-type (e.g., a static method on an `enum`); `await`-ing it from `@MainActor` runs the body on the cooperative pool while preserving priority, cancellation, and the structured-concurrency chain.
+- Never use `Task.detached`. Use `Task { ... }` (store the handle when the task outlives the call). For the pattern to hop off `@MainActor` for CPU work without `Task.detached`, see [knowledge/task-detached-migration.md](knowledge/task-detached-migration.md).
 
 ## Factories
 - Types intended to be constructed only through a `Container` factory must declare their `init` as `fileprivate`, so callers are forced to go through the registered factory and can't bypass it (see `AppLauncher`, `Repo`, `StateManager` for examples).

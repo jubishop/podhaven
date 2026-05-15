@@ -17,3 +17,7 @@ originSessionId: 7b105ed2-7faf-438d-8ec3-602445f3ba1e
 **Why:** The test exercises a defer-based cleanup race in `EpisodeDetailViewModel.observePodcastEpisode`. Wait's `.background` default exists deliberately to avoid starving production tasks during normal polls; this test was an outlier because the poll closure itself spawns the work it's waiting on.
 
 **How to apply:** if any future polling test spawns its own `Task {}` from inside the poll closure (anything calling `performAppear`-style methods that fire-and-forget unstructured tasks), pass an explicit `priority:` to `Wait.until` / `Wait.forValue` rather than relying on the `.background` default — or that child task can be starved on CI even though it would never starve locally.
+
+## Related
+
+- [[factory_v3_migration]] — Factory v3 actor-isolation rules; the test target's `autoRegister` running on the cooperative pool is the same class of "spawned task inherits an unexpected execution context" issue.
