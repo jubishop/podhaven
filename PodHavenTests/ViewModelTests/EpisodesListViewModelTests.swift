@@ -188,12 +188,7 @@ import Testing
         let lhsScore = scoreMap[lhs.id]?.value ?? 0
         let rhsScore = scoreMap[rhs.id]?.value ?? 0
         if lhsScore != rhsScore { return lhsScore > rhsScore }
-        if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
-        if lhs.mediaGUID.guid != rhs.mediaGUID.guid {
-          return lhs.mediaGUID.guid > rhs.mediaGUID.guid
-        }
-        return lhs.mediaGUID.mediaURL.rawValue.absoluteString
-          > rhs.mediaGUID.mediaURL.rawValue.absoluteString
+        return lhs.id > rhs.id
       }
       .map(\.id)
     let newestFirstOrder =
@@ -298,7 +293,6 @@ import Testing
         let lhsScore = scoreMap[lhs.id]?.value ?? 0
         let rhsScore = scoreMap[rhs.id]?.value ?? 0
         if lhsScore != rhsScore { return lhsScore > rhsScore }
-        if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
         return lhs.id > rhs.id
       }
       .map(\.id)
@@ -797,6 +791,127 @@ import Testing
           """
         }
       )
+    } catch {
+      observationTask.cancel()
+      viewModel.disappear()
+      throw error
+    }
+    observationTask.cancel()
+    viewModel.disappear()
+  }
+
+  @Test("rec-sort reaches .ready when candidate fetch throws so the UI isn't stuck")
+  func loadingStateReachesReadyWhenCandidateFetchThrows() async throws {
+    let fakeRecRepo =
+      Container.shared.recommendationRepo() as! FakeRecommendationRepo
+    fakeRecRepo.candidateEpisodesScript([
+      { throw TestError.simulatedFailure }
+    ])
+
+    let viewModel = EpisodesListViewModel(title: "RecFetchError")
+    viewModel.currentSortMethod = .recommendationScore
+
+    let observationTask = Task { @MainActor in
+      await runObservationLoop(viewModel)
+    }
+
+    do {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.loadingState == .ready },
+        { @MainActor in
+          """
+          Expected .ready after candidate fetch threw so the UI can recover; \
+          got \(viewModel.loadingState).
+          """
+        }
+      )
+      #expect(viewModel.episodeList.filteredEntries.isEmpty)
+    } catch {
+      observationTask.cancel()
+      viewModel.disappear()
+      throw error
+    }
+    observationTask.cancel()
+    viewModel.disappear()
+  }
+
+  @Test("rec-sort doesn't loop refetching when scoring fails against a non-empty embedded set")
+  func recommendationSortDoesNotRetryLoopOnPersistentFetchError() async throws {
+    // Embed real candidates so the rec-sort observation emits a non-empty
+    // row set; without embedded rows the diff check against the cleared
+    // marker is trivially equal and the loop can't manifest.
+    let embeddable = ScriptedEmbeddable { _ in [1, 0, 0] }
+    let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Loop",
+      podcastDescription: "Loop",
+      episodeDescriptions: ["Loop 0", "Loop 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(episodes, embeddable: embeddable)
+
+    let fakeRecRepo =
+      Container.shared.recommendationRepo() as! FakeRecommendationRepo
+    let throwing: @Sendable () async throws -> [CandidateEpisode] = {
+      throw TestError.simulatedFailure
+    }
+    fakeRecRepo.candidateEpisodesScript(Array(repeating: throwing, count: 50))
+
+    let viewModel = EpisodesListViewModel(
+      title: "RecLoopGuard",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .recommendationScore
+
+    let observationTask = Task { @MainActor in
+      await runObservationLoop(viewModel)
+    }
+
+    do {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.loadingState == .ready },
+        { @MainActor in
+          """
+          Expected .ready after the first failed candidate fetch landed; got \
+          \(viewModel.loadingState).
+          """
+        }
+      )
+
+      // Under the bug, applyEmptyScores leaves lastScoredCandidateIDs = []
+      // while the observation still emits the embedded row IDs, so the
+      // version-bump-driven restart kicks another candidateEpisodes call,
+      // throws again, bumps again, and never settles. This poll detects
+      // any post-.ready retry; under the fix the count is pinned at 1.
+      @Sendable func candidateCallCount() -> Int {
+        fakeRecRepo.callsByType()
+          .values
+          .flatMap { $0 }
+          .filter { $0.methodName == "candidateEpisodes" }
+          .count
+      }
+
+      do {
+        try await Wait.until(
+          maxAttempts: 50,
+          delay: .milliseconds(20),
+          priority: .userInitiated,
+          { candidateCallCount() >= 2 },
+          { "regression sentinel — see Issue.record below" }
+        )
+        Issue.record(
+          """
+          regression: candidateEpisodes was retried after the first failure \
+          (count=\(candidateCallCount())); persistent rec errors trigger a \
+          refetch loop while the observed embedded row set stays stable.
+          """
+        )
+      } catch {
+        // Expected timeout under the fixed implementation.
+      }
+
+      try fakeRecRepo.expectCalls(methodName: "candidateEpisodes", count: 1)
     } catch {
       observationTask.cancel()
       viewModel.disappear()

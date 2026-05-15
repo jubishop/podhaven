@@ -218,6 +218,7 @@ class EpisodesListViewModel:
       // already kicks the initial fetch.
       let currentCandidateIDs = Set(rows.map(\.id))
       if let lastScoredCandidateIDs, currentCandidateIDs != lastScoredCandidateIDs {
+        self.lastScoredCandidateIDs = currentCandidateIDs
         kickRecommendationFetch()
       }
 
@@ -283,6 +284,7 @@ class EpisodesListViewModel:
         "fetchAndApplyRecommendationScores: candidate fetch failed",
         error
       )
+      applyEmptyScores()
       return
     }
 
@@ -299,6 +301,7 @@ class EpisodesListViewModel:
           "fetchAndApplyRecommendationScores: scoring failed",
           error
         )
+        applyEmptyScores()
         return
       }
     }
@@ -313,6 +316,12 @@ class EpisodesListViewModel:
     Self.log.debug(
       "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
     )
+  }
+
+  private func applyEmptyScores() {
+    guard !Task.isCancelled else { return }
+    recommendationScoresState = .loaded([:])
+    recommendationScoresVersion += 1
   }
 
   private func topEpisodeIDsByScore() -> [Episode.ID] {
