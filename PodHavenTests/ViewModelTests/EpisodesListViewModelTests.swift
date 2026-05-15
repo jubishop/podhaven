@@ -1257,8 +1257,8 @@ import Testing
     }
   }
 
-  @Test("rec-sort surfaces an alert and empty list when candidate observation throws")
-  func candidateObservationFailureAlertsAndClearsList() async throws {
+  @Test("rec-sort surfaces .failed and an alert when candidate observation throws")
+  func candidateObservationFailureSurfacesFailedState() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
     fakeObservatory.embeddedCandidateEpisodesScript([
@@ -1278,17 +1278,16 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          guard case .loaded(let episodes) = viewModel.loadingState else { return false }
-          return episodes.isEmpty
+          if case .failed = viewModel.loadingState { return true }
+          return false
         },
         { @MainActor in
           """
-          Expected .loaded([]) after candidate observation threw; got \
+          Expected .failed after candidate observation threw; got \
           \(viewModel.loadingState).
           """
         }
       )
-      #expect(viewModel.episodeList.filteredEntries.isEmpty)
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor [self] in alert.config != nil },
@@ -1365,12 +1364,12 @@ import Testing
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
-          guard case .loaded(let episodes) = viewModel.loadingState else { return false }
-          return episodes.isEmpty
+          if case .failed = viewModel.loadingState { return true }
+          return false
         },
         { @MainActor in
           """
-          Expected .loaded([]) after the first failed candidate fetch landed; got \
+          Expected .failed after the first failed candidate fetch landed; got \
           \(viewModel.loadingState).
           """
         }
@@ -1599,6 +1598,7 @@ extension EpisodesListViewModel.LoadingState {
     case loadingEpisodes
     case computingRecommendations
     case loaded
+    case failed
   }
 
   fileprivate var kind: Kind {
@@ -1606,6 +1606,7 @@ extension EpisodesListViewModel.LoadingState {
     case .loadingEpisodes: return .loadingEpisodes
     case .computingRecommendations: return .computingRecommendations
     case .loaded: return .loaded
+    case .failed: return .failed
     }
   }
 }

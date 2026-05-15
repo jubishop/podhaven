@@ -123,6 +123,7 @@ class EpisodesListViewModel:
     case loadingEpisodes
     case computingRecommendations
     case loaded([ListablePodcastEpisode])
+    case failed
   }
 
   private static let displayLimit = 100
@@ -211,10 +212,6 @@ class EpisodesListViewModel:
 
     do {
       if currentSortMethod == .recommendationScore {
-        // The candidate observation drives the rec-sort flow end-to-end;
-        // this task only needs to (re)trigger hydration against whatever
-        // top IDs are currently cached, then return. SwiftUI restarts this
-        // body whenever sort or filterText changes.
         kickRecommendationHydration()
       } else {
         try await runStandardSortObservation()
@@ -225,8 +222,7 @@ class EpisodesListViewModel:
         "startDisplayObservation: observation failed for episode list '\(title)'",
         error
       )
-      alert("Couldn't load episodes.")
-      transitionToLoaded([])
+      handleLoadingFailure()
     }
   }
 
@@ -250,7 +246,7 @@ class EpisodesListViewModel:
     guard currentSortMethod == .recommendationScore else { return .loadingEpisodes }
     switch recommendationScoresState {
     case .pending: return .computingRecommendations
-    case .failed: return .loaded([])
+    case .failed: return .failed
     case .loaded: return .loadingEpisodes
     }
   }
@@ -260,11 +256,14 @@ class EpisodesListViewModel:
     loadingState = .loaded(episodes)
   }
 
+  private func handleLoadingFailure() {
+    guard !Task.isCancelled else { return }
+    alert("Couldn't load episodes.")
+    loadingState = .failed
+  }
+
   // MARK: - Recommendation Scoring
 
-  // .failed is kept distinct from .loaded([:]) so the cold-start "rec sort
-  // toggle hits a failure" path can short-circuit straight to .loaded([])
-  // instead of looking like a fresh scoring pass that produced no results.
   private enum RecommendationScoresState {
     case pending
     case failed
@@ -286,10 +285,10 @@ class EpisodesListViewModel:
     }
     recommendationContextObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      // The first $contextRevision yield is Broadcast's on-subscribe
-      // bootstrap. The candidate observation's first emission is what
-      // kicks the initial fetch, so we drop the bootstrap here to avoid
-      // double-fetching on view appear.
+      // Drop the first emission — $contextRevision yields its current value
+      // on subscribe, and the candidate observation's first emission is what
+      // kicks the initial fetch. Skipping it here avoids double-fetching on
+      // view appear.
       for await _ in self.recommendationEngine.$contextRevision.stream().dropFirst() {
         guard !Task.isCancelled else { return }
         self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
@@ -319,10 +318,9 @@ class EpisodesListViewModel:
       if let observedCandidates {
         candidates = observedCandidates
       } else {
-        let baseFilter = self.filter && self.textSearchFilter
         do {
           candidates = try await self.recommendationRepo.embeddedCandidateEpisodes(
-            filter: baseFilter
+            filter: self.filter && self.textSearchFilter
           )
         } catch is CancellationError {
           return
@@ -374,7 +372,7 @@ class EpisodesListViewModel:
     recommendationScoresState = .failed
     alert("Couldn't compute recommendations.")
     guard currentSortMethod == .recommendationScore else { return }
-    transitionToLoaded([])
+    loadingState = .failed
   }
 
   private func kickRecommendationHydration() {
@@ -383,7 +381,7 @@ class EpisodesListViewModel:
     case .pending:
       return
     case .failed:
-      transitionToLoaded([])
+      loadingState = .failed
     case .loaded:
       startRecommendationHydration(for: topEpisodeIDsByScore())
     }
@@ -431,8 +429,7 @@ class EpisodesListViewModel:
           "startRecommendationHydration: observation failed for \(topIDs.count) ids",
           error
         )
-        self.alert("Couldn't load episodes.")
-        self.transitionToLoaded([])
+        self.handleLoadingFailure()
       }
     }
   }

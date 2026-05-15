@@ -51,6 +51,8 @@ struct EpisodesListView: View {
       } else {
         listView
       }
+    case .failed:
+      failureMessage
     }
   }
 
@@ -97,6 +99,15 @@ struct EpisodesListView: View {
       return "No episodes have recommendation scores for these filters."
     default:
       return "No episodes match the filters."
+    }
+  }
+
+  private var failureMessage: some View {
+    VStack {
+      Text("Couldn't load episodes.")
+        .foregroundColor(.secondary)
+        .padding()
+      Spacer()
     }
   }
 }
