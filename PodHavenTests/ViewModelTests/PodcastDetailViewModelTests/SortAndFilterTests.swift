@@ -321,6 +321,90 @@ import Testing
     )
   }
 
+  @Test(
+    "saved podcast: recommendationScore sort hides episodes without embeddings and re-shows them once an embedding lands"
+  )
+  func recommendationScoreSortHidesUnembeddedEpisodesInSavedPodcast() async throws {
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target 0") { return [0.2, 0.98, 0] }
+      if text.contains("Target 1") { return [0.4, 0.917, 0] }
+      if text.contains("Target 2") { return [0.6, 0.8, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+    try await primeEngine(with: embeddable)
+
+    let (targetPodcast, targetEpisodes) =
+      try await RecommendationHelpers
+      .createPodcastWithEpisodes(
+        count: 3,
+        podcastTitle: "Target",
+        podcastDescription: "Target",
+        episodeDescriptions: ["Target 0", "Target 1", "Target 2"]
+      )
+    // Embed only the first two episodes; the third deliberately has no
+    // EpisodeEmbedding row so the rec-score sort must hide it.
+    let embeddedEpisodes = Array(targetEpisodes.prefix(2))
+    let unembeddedEpisode = targetEpisodes[2]
+    try await RecommendationHelpers.embedEpisodes(embeddedEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: embeddedEpisodes)
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.saved && viewModel.episodeList.allEntries.count == targetEpisodes.count
+      },
+      { @MainActor in
+        """
+        Expected the saved series to load all \(targetEpisodes.count) episodes.
+        saved: \(viewModel.saved)
+        count: \(viewModel.episodeList.allEntries.count)
+        """
+      }
+    )
+
+    viewModel.currentSortMethod = .recommendationScore
+
+    let embeddedIDs = Set(embeddedEpisodes.map(\.id))
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == embeddedIDs
+      },
+      { @MainActor in
+        """
+        Expected rec-score sort to show only the two embedded episodes and \
+        hide the unembedded one (\(unembeddedEpisode.id)).
+        filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        """
+      }
+    )
+
+    // Embedding generation completes for the third episode: it must rejoin
+    // the rec-sorted list without requiring a sort toggle or app restart.
+    try await RecommendationHelpers.embedEpisodes([unembeddedEpisode], embeddable: embeddable)
+
+    let allIDs = Set(targetEpisodes.map(\.id))
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == allIDs
+      },
+      { @MainActor in
+        """
+        Expected the newly-embedded episode \(unembeddedEpisode.id) to rejoin \
+        the rec-sorted list once its embedding existed.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        """
+      }
+    )
+  }
+
   @Test("recommendationScore sort orders unsaved-state episodes by similarity to liked centroid")
   func recommendationScoreSortOrdersUnsavedEpisodesBySimilarity() async throws {
     let embeddable = discoveryScriptedEmbeddable()

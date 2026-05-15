@@ -188,14 +188,12 @@ class PodcastDetailViewModel:
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
       guard oldValue != currentSortMethod else { return }
-      episodeList.filterMethod = currentSortMethod.filterMethod
       if currentSortMethod == .recommendationScore {
         // Snap to whatever the prefetch task has produced so far; the
         // running observation will install fresh scores when they arrive.
-        if let cached = lastRecommendationScores {
-          episodeList.sortMethod = makeRecommendationComparator(cached)
-        }
+        installRecommendationDisplay()
       } else {
+        episodeList.filterMethod = currentSortMethod.filterMethod
         episodeList.sortMethod = currentSortMethod.sortMethod
       }
     }
@@ -499,6 +497,7 @@ class PodcastDetailViewModel:
   private func startObservation(_ podcastID: Podcast.ID? = nil) {
     startRecommendationObservation()
     guard let podcastID else { return }
+    startCandidateObservation(podcastID)
 
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
@@ -581,9 +580,45 @@ class PodcastDetailViewModel:
     recommendationObservationTask = nil
   }
 
+  // Mirrors `EpisodesListViewModel.startCandidateObservation`: drives both
+  // scoring (so embedding inserts re-rank) and the rec-score filter (so
+  // episodes without embeddings stay hidden until they have one).
+  private func startCandidateObservation(_ podcastID: Podcast.ID) {
+    if let candidateObservationTask, !candidateObservationTask.isCancelled { return }
+    candidateObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
+      guard let self else { return }
+      do {
+        let observation: AsyncValueObservation<[CandidateEpisode]> =
+          observatory.embeddedCandidateEpisodes(filter: Episode.Columns.podcastId == podcastID)
+        for try await candidates in observation {
+          try Task.checkCancellation()
+          lastObservedCandidates = candidates
+          if currentSortMethod == .recommendationScore {
+            installRecommendationFilter()
+          }
+          await fetchAndApplyRecommendationScores()
+        }
+      } catch is CancellationError {
+      } catch {
+        Self.log.caughtError(
+          "startCandidateObservation: observation failed for podcast \(podcastID)",
+          error
+        )
+      }
+    }
+  }
+
+  private func clearCandidateObservationTask() {
+    candidateObservationTask?.cancel()
+    candidateObservationTask = nil
+    lastObservedCandidates = nil
+  }
+
   // MARK: - Recommendations
 
   @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
+  @ObservationIgnored private var candidateObservationTask: Task<Void, Never>?
+  @ObservationIgnored private var lastObservedCandidates: [CandidateEpisode]?
   @ObservationIgnored private var lastRecommendationScores: [MediaGUID: Float]?
   @ObservationIgnored private var unsavedEmbeddingCache:
     (revision: Int, vectors: [MediaGUID: [Float]])?
@@ -596,11 +631,8 @@ class PodcastDetailViewModel:
     switch state {
     case .initial:
       return
-    case .saved(let series):
-      valuesByMediaGUID = await savedRecommendationScores(
-        podcastID: series.id,
-        entries: entries
-      )
+    case .saved:
+      valuesByMediaGUID = await savedRecommendationScores(entries: entries)
     case .unsaved:
       valuesByMediaGUID = await unsavedSimilarityScores(entries: entries)
     }
@@ -608,23 +640,25 @@ class PodcastDetailViewModel:
     guard !Task.isCancelled else { return }
     lastRecommendationScores = valuesByMediaGUID
     guard currentSortMethod == .recommendationScore else { return }
+    installRecommendationFilter()
     episodeList.sortMethod = makeRecommendationComparator(valuesByMediaGUID)
   }
 
+  // Scores only the embedded subset that the candidate observation has
+  // surfaced for this podcast. Mirrors the EpisodesListView rec-score
+  // semantics: episodes without an `EpisodeEmbedding` row contribute no
+  // score and the rec-score filter hides them from the list.
   private func savedRecommendationScores(
-    podcastID: Podcast.ID,
     entries: IdentifiedArrayOf<ListedEpisode>
   ) async -> [MediaGUID: Float] {
-    var candidates = [CandidateEpisode](capacity: entries.count)
+    guard let candidates = lastObservedCandidates, !candidates.isEmpty else { return [:] }
+
     var mediaGUIDByEpisodeID = [Episode.ID: MediaGUID](capacity: entries.count)
     for episode in entries {
       guard let episodeID = episode.episodeID else { continue }
-      candidates.append(
-        CandidateEpisode(id: episodeID, podcastID: podcastID, pubDate: episode.pubDate)
-      )
       mediaGUIDByEpisodeID[episodeID] = episode.mediaGUID
     }
-    guard !candidates.isEmpty else { return [:] }
+    guard !mediaGUIDByEpisodeID.isEmpty else { return [:] }
 
     let scoreMap: [Episode.ID: RecommendationScore]
     do {
@@ -709,12 +743,41 @@ class PodcastDetailViewModel:
     }
   }
 
+  // Called on entry to .recommendationScore: install the embedding-aware
+  // filter, then snap the comparator to whatever scores have already
+  // landed. Subsequent score/embedding updates re-install both halves
+  // through their own paths.
+  private func installRecommendationDisplay() {
+    installRecommendationFilter()
+    if let cached = lastRecommendationScores {
+      episodeList.sortMethod = makeRecommendationComparator(cached)
+    }
+  }
+
+  // Saved series: filter to episodes with an `EpisodeEmbedding` row so the
+  // rec-score list matches the embedded candidate set. Unsaved/initial
+  // states have no SQL embedding table to consult — they keep showing
+  // every row and let the unsaved similarity scorer order them.
+  private func installRecommendationFilter() {
+    switch state {
+    case .saved:
+      let embeddedIDs = Set(lastObservedCandidates?.map(\.id) ?? [])
+      episodeList.filterMethod = { episode in
+        guard let episodeID = episode.episodeID else { return false }
+        return embeddedIDs.contains(episodeID)
+      }
+    case .unsaved, .initial:
+      episodeList.filterMethod = currentSortMethod.filterMethod
+    }
+  }
+
   // MARK: - Disappear
 
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
     clearRecommendationObservationTask()
+    clearCandidateObservationTask()
   }
 
   // MARK: - Private Helpers
