@@ -305,15 +305,9 @@ import Testing
       return
     }
     try await RecommendationHelpers.embedEpisodes([resavedEpisode])
-    // The engine debounces cache rebuilds by 1s through the injected
-    // `sleeper`. Advance the fake clock inside the poll so the rebuild +
-    // contextRevision tick are guaranteed to land regardless of how the
-    // host machine schedules the task chain.
-    let sleeper = Container.shared.sleeper() as! FakeSleeper
-    try await Wait.until(
-      { @Sendable in
-        await sleeper.advanceTime(by: .seconds(1))
-        return await MainActor.run {
+    try await RecommendationHelpers.untilAdvancing(
+      {
+        await MainActor.run {
           guard viewModel.episode.isSaved else { return false }
           if case .recommendation = viewModel.displayedScore { return true }
           return false
@@ -552,15 +546,9 @@ import Testing
       return
     }
     try await RecommendationHelpers.embedEpisodes([savedEpisode])
-    // The engine debounces cache rebuilds by 1s through the injected
-    // `sleeper`. Advance the fake clock inside the poll so the rebuild +
-    // contextRevision tick are guaranteed to land regardless of how the
-    // host machine schedules the task chain.
-    let sleeper = Container.shared.sleeper() as! FakeSleeper
-    try await Wait.until(
-      { @Sendable in
-        await sleeper.advanceTime(by: .seconds(1))
-        return await MainActor.run {
+    try await RecommendationHelpers.untilAdvancing(
+      {
+        await MainActor.run {
           guard viewModel.episode.isSaved else { return false }
           if case .recommendation = viewModel.displayedScore { return true }
           return false

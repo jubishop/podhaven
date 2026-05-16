@@ -387,18 +387,13 @@ import Testing
 
     // Embedding generation completes for the third episode: it must rejoin
     // the rec-sorted list without requiring a sort toggle or app restart.
-    // The engine debounces cache rebuilds by 1s through the injected
-    // `sleeper`, so each poll iteration must advance the fake clock for the
-    // contextRevision observation to wake the view model.
     try await RecommendationHelpers.embedEpisodes([unembeddedEpisode], embeddable: embeddable)
-    let sleeper = Container.shared.sleeper() as! FakeSleeper
 
     let allIDs = Set(targetEpisodes.map(\.id))
-    try await Wait.until(
+    try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
-      { @Sendable in
-        await sleeper.advanceTime(by: .seconds(1))
-        return await MainActor.run {
+      {
+        await MainActor.run {
           Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == allIDs
         }
       },

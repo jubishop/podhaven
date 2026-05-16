@@ -110,9 +110,10 @@ struct RecommendationEngine: Sendable {
   }
 
   // Unlike `topRecommendations`, there's no candidate filter, no minimum
-  // floor, and no limit — every requested episode that has sufficient
-  // context gets a score. Returns empty if `start()` hasn't yet hydrated
-  // the cache.
+  // floor, and no limit. Returns empty if `start()` hasn't yet hydrated
+  // the cache. Candidates without an `EpisodeEmbedding` row are omitted
+  // from the result map, so callers can use map membership as an
+  // "is embedded" check.
   func recommendations(
     for episodes: [Episode]
   ) async throws -> [Episode.ID: RecommendationScore] {
@@ -133,7 +134,8 @@ struct RecommendationEngine: Sendable {
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
   }
 
-  // Returns nil if the episode doesn't exist or the cache is cold.
+  // Returns nil if the episode doesn't exist, has no embedding, or the
+  // cache is cold.
   func recommendation(for episodeID: Episode.ID) async throws -> RecommendationScore? {
     guard let episode = try await repo.episode(episodeID) else { return nil }
     return try await recommendations(for: [episode])[episodeID]

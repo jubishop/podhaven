@@ -11,8 +11,8 @@ import Testing
 class ArbitraryListScoringTests {
   @DynamicInjected(\.recommendationEngine) private var engine
 
-  @Test("recommendations(for:) scores every requested episode")
-  func recommendationsForArbitraryList() async throws {
+  @Test("recommendations(for:) scores every requested episode that has an embedding")
+  func recommendationsForArbitraryListWithEmbeddings() async throws {
     let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 3,
       podcastTitle: "Signal",
