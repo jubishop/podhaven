@@ -13,7 +13,7 @@ Persistent context is repo-readable; choose the right store.
 - `qmd vsearch "concept"`: vector only for fuzzy matches.
 - `qmd get <path>[:line] -l N`: cheap page/slice fetch.
 
-Run `qmd query` before non-trivial area work; use `Read`/`grep` only for known paths. Config: `qmd.yml`; after large doc changes: `qmd update && qmd embed`. Before adding memory/knowledge, query for duplicates or contradictions and update superseded pages. Weekly archive lint handles stale pages.
+Run `qmd query` before non-trivial area work; use `Read`/`grep` only for known paths. Config: `.config/qmd/index.yml`. after large doc changes: `qmd update && qmd embed`. Before adding memory/knowledge, query for duplicates or contradictions and update superseded pages. Weekly archive lint handles stale pages.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.

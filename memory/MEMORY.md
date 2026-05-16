@@ -1,5 +1,6 @@
 - [NowPlayingInfo desync bug](project_nowplaying_desync_bug.md) — iOS sends stale backward scrub ~30–33s after AirPods pause in background; 6 incidents, fb43f650 fix DID NOT hold (4/19 recurrence with dict only 2s stale at pause — refutes dict-staleness theory)
 - [PlayBar sheet stuck off-screen bug](sheet_presentation_desync.md) — chevron-up failed to present (2026-04-26, non-reproducible); theory is `Sheet.config` stuck non-nil leaving SwiftUI's `isPresented` wedged; fix on PR `worktree-sheetFixes` switches to `.sheet(item:)`
+- [Recommendation sort prewarming](recommendation_sort_prewarming.md) — precompute rec scores so PodcastDetail/EpisodesList rec-sort toggles stay snappy.
 
 ---
 
