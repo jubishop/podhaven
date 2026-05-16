@@ -58,6 +58,29 @@ class CandidateFilteringTests {
     #expect(!recommendedIDs.contains(rated[0].id))
   }
 
+  @Test("excludes unembedded candidates from topRecommendations")
+  func excludesUnembedded() async throws {
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals)
+
+    let (_, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Candidates"
+    )
+    let embeddedCandidate = try #require(candidates.first)
+    let unembeddedCandidate = try #require(candidates.last)
+    try await RecommendationHelpers.embedEpisodes([embeddedCandidate])
+
+    let recs = try await RecommendationHelpers.startAndWaitForRecs()
+    let recommendedIDs = Set(recs.map(\.id))
+    #expect(recommendedIDs.contains(embeddedCandidate.id))
+    #expect(!recommendedIDs.contains(unembeddedCandidate.id))
+  }
+
   @Test("excludes onDeck episode from candidates")
   func excludesOnDeck() async throws {
     let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(

@@ -90,6 +90,18 @@ actor CandidateEpisodeTests {
       )
     )
     let candidate = series.episodes[0]
+    try await recommendationRepo.upsertEmbeddings(
+      series.episodes.map {
+        UnsavedEpisodeEmbedding(
+          episodeId: $0.id,
+          vector: UnsavedEpisodeEmbedding.vectorData(from: [1, 0, 0]),
+          sourceHash: "test-hash",
+          embeddingRevision: 1,
+          dimension: 3,
+          verificationDate: Date()
+        )
+      }
+    )
 
     let candidates = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
     #expect(candidates.count == 1)
