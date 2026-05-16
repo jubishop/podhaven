@@ -69,12 +69,6 @@ enum EpisodeDetailState: Equatable, Sendable, Stringable {
   }
 }
 
-// Saved episodes render the full recommendation with reason pills; unsaved
-// episodes render a similarity-only number — the unsaved scorer skips
-// affinity and freshness, so a lone `.similarToLiked` pill would be
-// misleading. `.embeddingPending` covers saved episodes whose embedding
-// hasn't been computed yet: scoring those through the engine would surface
-// a meaningless 0.5 baseline, so we flag the missing embedding explicitly.
 enum EpisodeDetailDisplayedScore: Sendable {
   case recommendation(RecommendationScore)
   case similarity(Float)
@@ -489,10 +483,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     _ podcastEpisode: PodcastEpisode
   ) async -> EpisodeDetailDisplayedScore? {
     do {
-      // Embedding presence is the gate: the engine returns a 0.5 baseline
-      // when an embedding is missing, which would render as a misleading
-      // ~50% score. Surface the missing-embedding state explicitly so the
-      // detail view can communicate it instead.
       guard try await recommendationRepo.embedding(for: podcastEpisode.id) != nil else {
         return .embeddingPending
       }
