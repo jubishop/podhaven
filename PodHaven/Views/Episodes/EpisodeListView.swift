@@ -60,8 +60,8 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
       HStack {
         CompactMetadataItem(appIcon: .publishDate, value: episode.pubDate.usShort)
         Spacer()
-        if let rating = episode.rating {
-          AppIcon.rating(for: rating).image
+        if let middleIcon {
+          middleIcon.image
           Spacer()
         }
         CompactMetadataItem(appIcon: .duration, value: durationText)
@@ -78,6 +78,19 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
     userSettings.showTimeRemainingInEpisodeLists
       ? (episode.duration.safe - episode.currentTime.safe).shortDescription
       : episode.duration.safe.shortDescription
+  }
+
+  // Three-way pick for the icon between pubDate and duration: rating if set,
+  // otherwise an "awaiting embedding" hourglass for saved-but-unprocessed
+  // episodes, otherwise nothing.
+  private var middleIcon: AppIcon? {
+    if let rating = episode.rating {
+      return .rating(for: rating)
+    }
+    if episode.isSaved, !episode.hasEmbedding {
+      return .embeddingPending
+    }
+    return nil
   }
 }
 

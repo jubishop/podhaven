@@ -35,6 +35,7 @@ struct ListedEpisode:
     var podcastImage: URL { canonicalEpisode.podcastImage }
     var saveInCache: Bool { canonicalEpisode.saveInCache }
     var rating: EpisodeRating? { canonicalEpisode.rating }
+    var hasEmbedding: Bool { canonicalEpisode.hasEmbedding }
 
     // Header fields beyond `EpisodeListable`. The .saved arm has no list-row
     // source for `description` — surface the same nil placeholder the detail
@@ -120,6 +121,7 @@ struct ListedEpisode:
   var rating: EpisodeRating? { source.rating }
   var tagIDs: Set<Tag.ID>? { source.tagIDs }
   var creationDate: Date? { source.creationDate }
+  var hasEmbedding: Bool { source.hasEmbedding }
 
   // MARK: - EpisodeDisplayable
 

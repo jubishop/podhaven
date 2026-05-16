@@ -23,6 +23,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
   let saveInCache: Bool
   let rating: EpisodeRating?
   let tagIDs: Set<Tag.ID>
+  let hasEmbedding: Bool
 
   // MARK: - Podcast Fields
 
@@ -52,6 +53,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     queueOrder = row[Episode.Columns.queueOrder]
     saveInCache = row[Episode.Columns.saveInCache]
     rating = row[Episode.Columns.rating]
+    hasEmbedding = row["hasEmbedding"]
 
     tagIDs = try EpisodeTag.decodeTagIDs(from: row)
 
@@ -101,6 +103,9 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     // populates them on the next emission via the correlated subquery in
     // `request(for:)`, so seeding empty here is fine.
     tagIDs = []
+    // Same story for hasEmbedding — the next OnDeck observation overwrites
+    // this with the real value from the correlated subquery.
+    hasEmbedding = false
     podcastImage = podcastEpisode.podcastImage
     podcastTitle = podcastEpisode.podcastTitle
     feedURL = podcastEpisode.feedURL
@@ -135,6 +140,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       Episode.Columns.cachedFilename,
       Episode.Columns.downloading,
       EpisodeTag.tagIDsSelectable,
+      Episode.hasEmbeddingSelectable,
     ]
   }
 
@@ -189,6 +195,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     hasher.combine(saveInCache)
     hasher.combine(rating)
     hasher.combine(tagIDs)
+    hasher.combine(hasEmbedding)
     hasher.combine(podcastImage)
     hasher.combine(podcastTitle)
     hasher.combine(feedURL)
@@ -212,6 +219,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       && lhs.saveInCache == rhs.saveInCache
       && lhs.rating == rhs.rating
       && lhs.tagIDs == rhs.tagIDs
+      && lhs.hasEmbedding == rhs.hasEmbedding
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle
       && lhs.feedURL == rhs.feedURL

@@ -40,6 +40,7 @@ struct ListableEpisode:
       Episode.Columns.queueDate,
       Episode.Columns.rating,
       EpisodeTag.tagIDsSelectable,
+      Episode.hasEmbeddingSelectable,
     ]
   }
 
@@ -62,6 +63,7 @@ struct ListableEpisode:
   let queueDate: Date?
   let rating: EpisodeRating?
   let tagIDs: Set<Tag.ID>
+  let hasEmbedding: Bool
 
   // MARK: - EpisodeFoundational
 
@@ -84,6 +86,7 @@ struct ListableEpisode:
     creationDate = row[Episode.Columns.creationDate]
     queueDate = row[Episode.Columns.queueDate]
     rating = row[Episode.Columns.rating]
+    hasEmbedding = row["hasEmbedding"]
 
     tagIDs = try EpisodeTag.decodeTagIDs(from: row)
 
@@ -95,7 +98,7 @@ struct ListableEpisode:
 
   // MARK: - In-Memory Projection
 
-  init(from episode: Episode, tagIDs: Set<Tag.ID> = []) {
+  init(from episode: Episode, tagIDs: Set<Tag.ID> = [], hasEmbedding: Bool = false) {
     self.id = episode.id
     self.guid = episode.guid
     self.mediaURL = episode.mediaURL
@@ -112,5 +115,6 @@ struct ListableEpisode:
     self.rating = episode.rating
     self.tagIDs = tagIDs
     self.cacheStatus = episode.cacheStatus
+    self.hasEmbedding = hasEmbedding
   }
 }
