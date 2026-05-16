@@ -146,7 +146,7 @@ struct RecommendationRepo: Recommending {
     excluding excludedID: Episode.ID?
   ) async throws -> [CandidateEpisode] {
     try await appDB.db.read { db in
-      var request = CandidateEpisode.filter(Episode.candidate)
+      var request = CandidateEpisode.filter(Episode.candidate && Episode.hasEmbedding)
       if let excludedID {
         request = request.filter(Episode.Columns.id != excludedID)
       }
