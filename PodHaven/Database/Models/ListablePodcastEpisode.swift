@@ -52,6 +52,7 @@ struct ListablePodcastEpisode:
   var episodeImage: URL? { core.episodeImage }
   var creationDate: Date { core.creationDate }
   var queueDate: Date? { core.queueDate }
+  var hasEmbedding: Bool { core.hasEmbedding }
 
   // MARK: - EpisodeListable
 

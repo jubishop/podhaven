@@ -6,4 +6,9 @@ protocol EpisodeListable: EpisodeFoundational, Hashable {
   var feedURL: FeedURL { get }
   var image: URL { get }
   var podcastImage: URL { get }
+  var hasEmbedding: Bool { get }
+}
+
+extension EpisodeListable {
+  var hasEmbedding: Bool { false }
 }

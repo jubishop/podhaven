@@ -161,6 +161,7 @@ private struct SystemImageName:
 
   // Status Indicators
   static let waiting = SystemImageName("clock.arrow.circlepath")
+  static let embeddingPending = SystemImageName("hourglass")
 }
 
 // MARK: - AppIcon
@@ -193,6 +194,7 @@ private struct SystemImageName:
   case notInterestedEpisode
   case rateEpisode
   case clearRating
+  case embeddingPending
 
   // Podcast Actions
   case delete
@@ -420,6 +422,12 @@ private struct SystemImageName:
       return Data(text: "Rate Episode", systemImageName: .rateEpisode, color: .indigo)
     case .clearRating:
       return Data(text: "Clear Rating", systemImageName: .clear, color: .red)
+    case .embeddingPending:
+      return Data(
+        text: "Awaiting recommendation processing",
+        systemImageName: .embeddingPending,
+        color: .secondary
+      )
 
     // Podcast Actions
     case .delete:

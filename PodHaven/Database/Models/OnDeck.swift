@@ -23,6 +23,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
   let saveInCache: Bool
   let rating: EpisodeRating?
   let tagIDs: Set<Tag.ID>
+  let hasEmbedding: Bool
 
   // MARK: - Podcast Fields
 
@@ -52,6 +53,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     queueOrder = row[Episode.Columns.queueOrder]
     saveInCache = row[Episode.Columns.saveInCache]
     rating = row[Episode.Columns.rating]
+    hasEmbedding = row[EpisodeEmbedding.existsColumnName]
 
     tagIDs = try EpisodeTag.decodeTagIDs(from: row)
 
@@ -97,10 +99,11 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     cacheStatus = podcastEpisode.cacheStatus
     saveInCache = podcastEpisode.saveInCache
     rating = podcastEpisode.rating
-    // Tags aren't carried on PodcastEpisode; the on-deck observation
-    // populates them on the next emission via the correlated subquery in
-    // `request(for:)`, so seeding empty here is fine.
+    // Tags and hasEmbedding aren't carried on PodcastEpisode; the on-deck
+    // observation populates them on the next emission via the correlated
+    // subqueries in `request(for:)`, so seeding empty/false here is fine.
     tagIDs = []
+    hasEmbedding = false
     podcastImage = podcastEpisode.podcastImage
     podcastTitle = podcastEpisode.podcastTitle
     feedURL = podcastEpisode.feedURL
@@ -135,6 +138,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       Episode.Columns.cachedFilename,
       Episode.Columns.downloading,
       EpisodeTag.tagIDsSelectable,
+      EpisodeEmbedding.existsSelectable,
     ]
   }
 
@@ -189,6 +193,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     hasher.combine(saveInCache)
     hasher.combine(rating)
     hasher.combine(tagIDs)
+    hasher.combine(hasEmbedding)
     hasher.combine(podcastImage)
     hasher.combine(podcastTitle)
     hasher.combine(feedURL)
@@ -197,21 +202,25 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
 
   // MARK: - Equatable
 
+  // Split into two short-circuited guards — a single 19-clause `&&` chain
+  // tripped the Swift type-checker's complexity budget on CI cold builds.
   static func == (lhs: OnDeck, rhs: OnDeck) -> Bool {
-    lhs.id == rhs.id
-      && lhs.guid == rhs.guid
-      && lhs.mediaURL == rhs.mediaURL
-      && lhs.title == rhs.title
-      && lhs.pubDate == rhs.pubDate
-      && lhs.duration == rhs.duration
-      && lhs.description == rhs.description
-      && lhs.episodeImage == rhs.episodeImage
-      && lhs.finishDate == rhs.finishDate
-      && lhs.queueOrder == rhs.queueOrder
-      && lhs.cacheStatus == rhs.cacheStatus
+    guard lhs.id == rhs.id,
+      lhs.guid == rhs.guid,
+      lhs.mediaURL == rhs.mediaURL,
+      lhs.title == rhs.title,
+      lhs.pubDate == rhs.pubDate,
+      lhs.duration == rhs.duration,
+      lhs.description == rhs.description,
+      lhs.episodeImage == rhs.episodeImage,
+      lhs.finishDate == rhs.finishDate,
+      lhs.queueOrder == rhs.queueOrder
+    else { return false }
+    return lhs.cacheStatus == rhs.cacheStatus
       && lhs.saveInCache == rhs.saveInCache
       && lhs.rating == rhs.rating
       && lhs.tagIDs == rhs.tagIDs
+      && lhs.hasEmbedding == rhs.hasEmbedding
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle
       && lhs.feedURL == rhs.feedURL
