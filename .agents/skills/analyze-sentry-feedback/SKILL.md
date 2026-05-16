@@ -1,12 +1,13 @@
 ---
 name: analyze-sentry-feedback
 description: >-
-  Triage a Sentry user feedback item end to end: fetch the feedback, correlate
-  it to local PodHaven NDJSON logs (app and widget) around the report time, and
-  report what likely happened plus a suggested fix. Use when the user pastes a
-  Sentry feedback URL (e.g. .../issues/feedback/?feedbackSlug=podhaven:NNN...),
-  references a feedback by slug or ID, or asks to investigate a piece of user
-  feedback from Sentry.
+  Triage a Sentry user feedback item end to end: fetch the feedback, download
+  the reporter's NDJSON logs (app and widget) that PodHaven attaches to the
+  feedback event, correlate them to the report time, and explain what likely
+  happened plus a suggested fix. Use when the user pastes a Sentry feedback
+  URL (e.g. .../issues/feedback/?feedbackSlug=podhaven:NNN...), references a
+  feedback by slug or ID, or asks to investigate a piece of user feedback
+  from Sentry.
 user_invocable: true
 argument: >-
   A Sentry feedback URL, a feedbackSlug like `podhaven:7485822944`, or a bare
@@ -20,7 +21,10 @@ argument: >-
 
 Triage a single Sentry user feedback report by combining the Sentry side (the
 feedback text, contact info, replay/event/trace links, timestamp) with the
-local NDJSON logs that the iOS app and widget write to iCloud Drive.
+NDJSON logs the iOS app and widget attach directly to the feedback event in
+Sentry. Those attachments are the *reporter's* logs and the only logs that
+correctly correspond to the report — not the developer's local iCloud Drive
+copies.
 
 The goal is one focused report: what the user complained about, what the logs
 around that time show, the most likely root cause, and how to fix it.
@@ -111,23 +115,51 @@ the same Sentry integration. Note especially:
 
 If there is no linked event, that's fine — note it and proceed with logs only.
 
-## Step 4: Locate the local NDJSON logs
+## Step 4: Download the reporter's NDJSON logs from the feedback event
 
-Default paths:
+PodHaven attaches the reporter's local NDJSON logs to every feedback event,
+so the right logs to analyze are the ones on the Sentry event — **not** the
+developer's iCloud Drive copies. Different device, different user, different
+session.
 
-- App log:    `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`
-- Widget log: `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/widget-log.ndjson`
+1. List attachments on the feedback's event using the Sentry MCP:
+   `get_event_attachment(organizationSlug='artisanal-software',
+   projectSlug='podhaven', eventId='<feedback event id from Step 2>')`
+2. Expect at minimum two attachments named:
+   - `log.ndjson` — the app log
+   - `widget-log.ndjson` — the widget log
+   If other `.ndjson` files appear, download them too and mention them. If a
+   name diverges from the expected pair, note it and proceed with what you got.
+3. Create a per-feedback working directory and download each attachment by ID
+   into it, preserving the original filename:
+   `~/Library/Caches/analyze-sentry-feedback/<feedback-slug>/`
+   (replace `:` in the slug with `-` so it's path-safe, e.g.
+   `podhaven-7485822944`). Create the directory if it doesn't exist.
+4. Sanity-check the downloads: each file should be non-empty NDJSON, and the
+   latest entry should be near (within seconds to a few minutes of) the
+   feedback timestamp. If a file is empty, truncated, or its latest entry is
+   hours away from the feedback timestamp, call that out — it changes how
+   much weight the timeline deserves.
 
-If either file is missing or clearly stale (latest entry is hours older than
-the feedback timestamp), say so and continue with what's available.
+Fallbacks, in order, if the attachment route fails:
 
-If the user provides custom log paths in the same turn, use those instead.
+- If the event has zero attachments: say so plainly in the report. Do **not**
+  silently substitute the developer's iCloud Drive logs unless the reporter
+  is provably the developer themselves (e.g. matching `user.id` and a build
+  hash consistent with the local install). When in doubt, skip the fallback
+  and report "no logs available — feedback had no event attachments".
+- If the user provides explicit log paths in the same turn, prefer those over
+  both the attachments and any fallback.
+- The legacy local paths, used only when the fallback condition above holds:
+  - `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`
+  - `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/widget-log.ndjson`
 
 ## Step 5: Analyze logs around the feedback time
 
-Invoke the `analyze-logs` skill, scoped to the feedback's timestamp. Convert
-the Sentry timestamp to epoch milliseconds and use `--around` with a window
-wide enough to catch lead-up *and* aftermath:
+Invoke the `analyze-logs` skill against the **downloaded** log paths from
+Step 4, scoped to the feedback's timestamp. Convert the Sentry timestamp to
+epoch milliseconds and use `--around` with a window wide enough to catch
+lead-up *and* aftermath:
 
 - Start at `--window-ms 60000` (one minute on either side).
 - If that window is empty or has no errors/warnings, widen to `--window-ms 300000`
@@ -159,7 +191,8 @@ When forming the inferred root cause, weight signals in this rough order:
    already learned or ruled out since submission. A follow-up that says "turned
    out to be X" beats anything the original message implied.
 3. **Linked event / stack frame / breadcrumbs** — concrete crash or error data.
-4. **Local NDJSON log timeline** — broadest context, but also the noisiest.
+4. **Reporter's attached NDJSON log timeline** — broadest context, but also
+   the noisiest.
 5. **Original feedback text** — frames the user's experience but is often
    imprecise about cause.
 
