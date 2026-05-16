@@ -110,9 +110,10 @@ struct RecommendationEngine: Sendable {
   }
 
   // Unlike `topRecommendations`, there's no candidate filter, no minimum
-  // floor, and no limit — every requested episode that has sufficient
-  // context gets a score. Returns empty if `start()` hasn't yet hydrated
-  // the cache.
+  // floor, and no limit. Returns empty if `start()` hasn't yet hydrated
+  // the cache. Candidates without an `EpisodeEmbedding` row are omitted
+  // from the result map, so callers can use map membership as an
+  // "is embedded" check.
   func recommendations(
     for episodes: [Episode]
   ) async throws -> [Episode.ID: RecommendationScore] {
@@ -133,7 +134,8 @@ struct RecommendationEngine: Sendable {
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
   }
 
-  // Returns nil if the episode doesn't exist or the cache is cold.
+  // Returns nil if the episode doesn't exist, has no embedding, or the
+  // cache is cold.
   func recommendation(for episodeID: Episode.ID) async throws -> RecommendationScore? {
     guard let episode = try await repo.episode(episodeID) else { return nil }
     return try await recommendations(for: [episode])[episodeID]
@@ -509,8 +511,9 @@ struct RecommendationEngine: Sendable {
     var scores = [Episode.ID: RecommendationScore](capacity: candidates.count)
     unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
       for candidate in candidates {
+        guard let embedding = embeddings[id: candidate.id] else { continue }
         scores[candidate.id] = unsafe scoreCandidate(
-          embedding: embeddings[id: candidate.id],
+          embedding: embedding,
           podcastID: candidate.podcastID,
           pubDate: candidate.pubDate,
           positiveCentroid: context.positiveCentroid,
@@ -659,7 +662,7 @@ struct RecommendationEngine: Sendable {
   }
 
   private func scoreCandidate(
-    embedding: EpisodeEmbedding?,
+    embedding: EpisodeEmbedding,
     podcastID: Podcast.ID,
     pubDate: Date,
     positiveCentroid: [Float],
@@ -673,31 +676,24 @@ struct RecommendationEngine: Sendable {
     scratch: UnsafeMutableBufferPointer<Float>,
     now: Date
   ) -> RecommendationScore {
-    // Missing embedding → neutral 0.5. Dropping the feature would let
-    // renormalization promote affinity to 1.0 and overrank the candidate.
-    let similarityValue: Float
-    if let embedding {
-      let raw = unsafe embedding.withFloatBuffer { vec -> Float in
-        if let whiteningTransform {
-          unsafe whiteningTransform.apply(vec, strippingTopK: stripCount, into: scratch)
-          let projected = UnsafeBufferPointer(scratch)
-          return unsafe Self.similarity(
-            of: projected,
-            positive: positiveCentroid,
-            negative: negativeCentroid
-          )
-        }
+    let raw = unsafe embedding.withFloatBuffer { vec -> Float in
+      if let whiteningTransform {
+        unsafe whiteningTransform.apply(vec, strippingTopK: stripCount, into: scratch)
+        let projected = UnsafeBufferPointer(scratch)
         return unsafe Self.similarity(
-          of: vec,
+          of: projected,
           positive: positiveCentroid,
           negative: negativeCentroid
         )
       }
-      // Remap from [-2, 2] to [0, 1]
-      similarityValue = (raw + 2.0) / 4.0
-    } else {
-      similarityValue = 0.5
+      return unsafe Self.similarity(
+        of: vec,
+        positive: positiveCentroid,
+        negative: negativeCentroid
+      )
     }
+    // Remap from [-2, 2] to [0, 1]
+    let similarityValue = (raw + 2.0) / 4.0
 
     let affinity = podcastAffinities[podcastID] ?? 0
     // Remap from [-1, 1] to [0, 1]

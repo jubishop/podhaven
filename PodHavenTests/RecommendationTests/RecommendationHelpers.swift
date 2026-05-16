@@ -162,4 +162,23 @@ enum RecommendationHelpers {
       return try await block()
     }
   }
+
+  // Same per-iteration FakeSleeper advance as `waitAdvancing`, but for the
+  // boolean-condition + error-message shape of `Wait.until`. Use whenever a
+  // VM-level effect is gated on the engine's debounced contextRevision tick.
+  static func untilAdvancing(
+    priority: TaskPriority = .background,
+    _ block: @Sendable @escaping () async throws -> Bool,
+    _ errorMessage: @Sendable @escaping () async throws -> String
+  ) async throws {
+    let sleeper = Container.shared.sleeper() as! FakeSleeper
+    try await Wait.until(
+      priority: priority,
+      {
+        await sleeper.advanceTime(by: .seconds(1))
+        return try await block()
+      },
+      errorMessage
+    )
+  }
 }

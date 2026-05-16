@@ -188,14 +188,16 @@ class PodcastDetailViewModel:
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
       guard oldValue != currentSortMethod else { return }
-      episodeList.filterMethod = currentSortMethod.filterMethod
       if currentSortMethod == .recommendationScore {
         // Snap to whatever the prefetch task has produced so far; the
         // running observation will install fresh scores when they arrive.
         if let cached = lastRecommendationScores {
-          episodeList.sortMethod = makeRecommendationComparator(cached)
+          applyRecommendationDisplay(cached)
+        } else {
+          episodeList.filterMethod = currentSortMethod.filterMethod
         }
       } else {
+        episodeList.filterMethod = currentSortMethod.filterMethod
         episodeList.sortMethod = currentSortMethod.sortMethod
       }
     }
@@ -608,7 +610,7 @@ class PodcastDetailViewModel:
     guard !Task.isCancelled else { return }
     lastRecommendationScores = valuesByMediaGUID
     guard currentSortMethod == .recommendationScore else { return }
-    episodeList.sortMethod = makeRecommendationComparator(valuesByMediaGUID)
+    applyRecommendationDisplay(valuesByMediaGUID)
   }
 
   private func savedRecommendationScores(
@@ -691,6 +693,16 @@ class PodcastDetailViewModel:
 
     unsavedEmbeddingCache = (revision: revision, vectors: cachedVectors)
     return result
+  }
+
+  private func applyRecommendationDisplay(_ valuesByMediaGUID: [MediaGUID: Float]) {
+    switch state {
+    case .saved:
+      episodeList.filterMethod = { valuesByMediaGUID[$0.mediaGUID] != nil }
+    case .unsaved, .initial:
+      episodeList.filterMethod = currentSortMethod.filterMethod
+    }
+    episodeList.sortMethod = makeRecommendationComparator(valuesByMediaGUID)
   }
 
   private func makeRecommendationComparator(

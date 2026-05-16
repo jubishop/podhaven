@@ -290,6 +290,8 @@ import Testing
 
     viewModel.addToTopOfQueue()
 
+    // The re-save inserts a new `Episode` row (new ID) without an embedding;
+    // embed it once it lands so the saved-side scoring path can resolve.
     try await Wait.until(
       { @MainActor in viewModel.episode.isSaved },
       { @MainActor in
@@ -549,6 +551,9 @@ import Testing
 
     viewModel.addToTopOfQueue()
 
+    // Once the unsaved → saved transition lands, the new `Episode` row has
+    // no embedding yet. Embed it so the saved-side recommendation actually
+    // resolves; without that step the engine correctly returns nil.
     try await Wait.until(
       { @MainActor in viewModel.episode.isSaved },
       { @MainActor in

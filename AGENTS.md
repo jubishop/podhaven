@@ -79,6 +79,7 @@ Run `qmd query` before non-trivial area work; use `Read`/`grep` only for known p
 - Run `swift-format` on every Swift file you touch.
 - Comments use `//`, not `///`; no doc comments. `// MARK: - <Section>` is fine when useful.
 - Default to no comment. Only explain non-obvious why: hidden constraints, invariants, workarounds, surprises not recoverable from names, call site, or `git blame`. Most useful comments are one line; use multiline only when needed.
+- No issue/PR refs in production code comments (e.g., `#262`, `see #259`). They belong in the commit/PR. Tests are exempt.
 - Remove unused code, properties, and parameters immediately.
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
 - No non-specializing extension splits. Put conformances on the main declaration and requirements in the body. Use extensions only for constrained methods, retroactive external conformance, or `where Self == X`.

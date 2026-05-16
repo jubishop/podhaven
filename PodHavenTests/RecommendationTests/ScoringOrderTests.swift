@@ -77,19 +77,13 @@ class ScoringOrderTests {
     #expect(firstEpisode.pubDate > secondEpisode.pubDate)
   }
 
-  @Test("unembedded candidate doesn't outscore an embedded peer on the same podcast")
-  func unembeddedCandidateDoesNotOutscoreEmbedded() async throws {
-    // The test verifies the baseline-whitening behavior (corpus-mean centering
-    // only), where an embedded candidate's actual similarity to the signal
-    // centroid beats the unembedded sibling's neutral-0.5 default. Exploratory
-    // mode strips the next three principal components, which on a tiny fixture
-    // collapses the residual to zero — so we pin the test to focused mode.
-    //
-    // Filler episodes (rated notInterested so they don't enter centroids and
-    // aren't candidates) anchor the corpus mean against a different direction
-    // than the signal cluster. Without them the mean would be pulled toward
-    // the lone candidate, anti-aligning the signal residuals with it even
-    // under mean-only centering.
+  @Test("unembedded candidate is not scored at all (issues #262/#259)")
+  func unembeddedCandidateIsNotScored() async throws {
+    // Engine drops candidates without an `EpisodeEmbedding` row instead of
+    // assigning the old neutral-0.5 prior — a missing entry is the contract
+    // PodcastDetail rec-score sort relies on to filter embedding-less rows.
+    // Focused decone is still pinned so the embedded sibling produces a
+    // measurable similarity on this tiny fixture.
     Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
 
     let embeddable = ScriptedEmbeddable { text in
@@ -131,9 +125,8 @@ class ScoringOrderTests {
     )
 
     let scores = try await RecommendationHelpers.startAndWaitForScores(for: candidates)
-    let embeddedScore = try #require(scores[embeddedCandidate.id]).value
-    let unembeddedScore = try #require(scores[unembeddedCandidate.id]).value
-    #expect(embeddedScore > unembeddedScore)
+    #expect(scores[embeddedCandidate.id] != nil)
+    #expect(scores[unembeddedCandidate.id] == nil)
   }
 
   @Test("honors custom limit by truncating results")
