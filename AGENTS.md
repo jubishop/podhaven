@@ -4,7 +4,7 @@ Persistent context is repo-readable; choose the right store.
 - **Memory (`memory/`)**: active context (incidents, user rules, in-flight state, external refs). Load `memory/MEMORY.md` at session start. Keep small. Catalog is one line/entry. Schema: `memory/README.md`; log: `memory/log.md`.
 - **Knowledge (`knowledge/`)**: long-form reference wiki (library quirks, recipes, patterns, migrations, gotchas). Load on demand with `qmd`, not at startup. Add when useful for "working on X," not every session. Schema: `knowledge/README.md`; log: `knowledge/log.md`.
 - **GitHub Issues (`jubishop/podhaven`)**: lifecycle-tracked TODOs, bugs, refactors. Use `gh issue list/create/view`; link/close from PRs.
-- **Design docs (`docs/`)**: initiatives and architecture rationale, usually under `docs/initiatives/`. Update `docs/README.md` for new docs. Use for multi-PR efforts and reviewed "built / next" notes.
+- **Design docs (`docs/`)**: initiatives, architecture rationale, and investigations. Update `docs/README.md` for new docs. Use for multi-PR efforts and reviewed "built / next" notes.
 
 **Use `qmd` for topic lookup across `memory/`, `knowledge/`, and `docs/`; avoid raw `grep` or speculative `Read`.**
 
