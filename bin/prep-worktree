@@ -10,9 +10,27 @@ if [ -z "$1" ]; then
 fi
 
 WORKTREE_PATH="$(cd "$1" && pwd)"
-MAIN_REPO="$(cd "$(git -C "$WORKTREE_PATH" rev-parse --git-common-dir)/.." && pwd)"
+COMMON_GIT_DIR="$(git -C "$WORKTREE_PATH" rev-parse --path-format=absolute --git-common-dir)"
+MAIN_REPO="$(cd "$COMMON_GIT_DIR/.." && pwd)"
 DERIVED_DATA_DIR="$HOME/Library/Developer/Xcode/DerivedData"
 PROJECT_NAME="PodHaven"
+
+allow_direnv_envrc() {
+  if ! command -v direnv >/dev/null 2>&1 || [ ! -f "$WORKTREE_PATH/.envrc" ]; then
+    return
+  fi
+
+  if [ -f "$MAIN_REPO/.envrc" ] && cmp -s "$MAIN_REPO/.envrc" "$WORKTREE_PATH/.envrc"; then
+    if direnv allow "$WORKTREE_PATH/.envrc"; then
+      echo "Allowed .envrc for direnv"
+    else
+      echo "Warning: direnv allow failed for $WORKTREE_PATH/.envrc"
+    fi
+    return
+  fi
+
+  echo "Warning: .envrc differs from main repo; review it before running direnv allow"
+}
 
 xcode_hash() {
   python3 -c "
@@ -29,6 +47,8 @@ for i in range(27, 13, -1):
 print(''.join(r))
 " "$1"
 }
+
+allow_direnv_envrc
 
 MAIN_HASH=$(xcode_hash "$MAIN_REPO/$PROJECT_NAME.xcodeproj")
 MAIN_DD="$DERIVED_DATA_DIR/$PROJECT_NAME-$MAIN_HASH"

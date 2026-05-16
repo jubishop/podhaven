@@ -11,4 +11,4 @@ Catalog of long-form reference pages. One line per page. Grouped by area; alphab
 
 ## Workflow & tooling
 
-- [Worktree setup hooks](worktree_setup_hooks.md) — git post-checkout hook (preferred), failed approaches, Xcode build optimization for worktrees.
+- [Worktree setup hooks](worktree_setup_hooks.md) — git post-checkout hook (preferred), direnv approval, failed approaches, Xcode build optimization for worktrees.

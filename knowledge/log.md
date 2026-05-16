@@ -13,3 +13,7 @@ Initial scaffold: `README.md` (schema), `INDEX.md` (catalog), `log.md` (this fil
 ## [2026-05-15] add | task-detached-migration
 
 Extracted the `Task.detached` workaround pattern from AGENTS.md (Shared Utilities & Helpers section). The *ban* stays auto-loaded in AGENTS.md; the *migration pattern* (`nonisolated async` on a value type) lives here, consulted on demand when refactoring a `Task.detached` call site.
+
+## [2026-05-16] update | worktree_setup_hooks
+
+Recorded that `bin/prep-worktree` now auto-allows matching repo-standard `.envrc` files for direnv while leaving divergent worktree `.envrc` files blocked for manual review.

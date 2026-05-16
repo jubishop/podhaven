@@ -3,8 +3,16 @@
 # $1 = previous HEAD (null hash for new worktrees), $2 = new HEAD, $3 = branch flag
 
 if [ "$1" = "0000000000000000000000000000000000000000" ]; then
-  SCRIPT="$(git rev-parse --show-toplevel)/bin/prep-worktree"
+  WORKTREE_PATH="$(git rev-parse --show-toplevel)"
+  COMMON_GIT_DIR="$(git rev-parse --path-format=absolute --git-common-dir)"
+  MAIN_REPO="$(cd "$COMMON_GIT_DIR/.." && pwd)"
+  SCRIPT="$MAIN_REPO/bin/prep-worktree"
+
+  if [ ! -x "$SCRIPT" ]; then
+    SCRIPT="$WORKTREE_PATH/bin/prep-worktree"
+  fi
+
   if [ -x "$SCRIPT" ]; then
-    "$SCRIPT" "$(git rev-parse --show-toplevel)"
+    "$SCRIPT" "$WORKTREE_PATH"
   fi
 fi

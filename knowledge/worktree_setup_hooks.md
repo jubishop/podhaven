@@ -6,7 +6,7 @@ type: project
 
 ## Preferred Approach: git post-checkout hook
 
-Use a `post-checkout` hook in `.git/hooks/post-checkout` to detect new worktree creation. When the first arg is the null hash (`0000000000000000000000000000000000000000`), it's a fresh worktree (not a branch switch). Run setup logic (e.g. `bin/prep-worktree`) there.
+Use a `post-checkout` hook in `.git/hooks/post-checkout` to detect new worktree creation. When the first arg is the null hash (`0000000000000000000000000000000000000000`), it's a fresh worktree (not a branch switch). Run setup logic (e.g. `bin/prep-worktree`) there. PodHaven's hook prefers the common repo's `bin/prep-worktree` and passes the new worktree path into it.
 
 **Why:** Native git mechanism — works for `claude -w`, manual `git worktree add`, any tool. No Claude-specific workarounds needed.
 
@@ -20,10 +20,11 @@ Previously used a global `SessionStart` hook in `~/.claude/settings.json` that r
 
 ## PodHaven-specific: Xcode build optimization
 
-`bin/prep-worktree` does three things for PodHaven worktrees:
-1. **SourcePackages symlink** — pre-creates DerivedData folder with SourcePackages symlinked to main repo's, skipping package fetching
-2. **Compilation caching** — copies `CompilationCachingSetting = Enable` from main repo's xcuserdata (per-user, gitignored)
-3. **Background xcodebuild** — kicks off `xcodebuild build -quiet` in background to warm caches
+`bin/prep-worktree` does four things for PodHaven worktrees:
+1. **direnv approval** — runs `direnv allow` when the worktree `.envrc` matches the main repo's `.envrc`; divergent `.envrc` files stay blocked for manual review
+2. **SourcePackages symlink** — pre-creates DerivedData folder with SourcePackages symlinked to main repo's, skipping package fetching
+3. **Compilation caching** — copies `CompilationCachingSetting = Enable` from main repo's xcuserdata (per-user, gitignored)
+4. **Background xcodebuild** — kicks off `xcodebuild build -quiet` in background to warm caches
 
 ## Failed Approaches
 
