@@ -29,6 +29,8 @@ struct EpisodeDetailView: View {
             recommendationSection(score: score)
           case .similarity(let value):
             similaritySection(value: value)
+          case .embeddingPending:
+            embeddingPendingSection
           }
 
           Divider()
@@ -233,6 +235,17 @@ struct EpisodeDetailView: View {
   private func recommendationScoreText(_ value: Float) -> String {
     let clamped = max(0, min(1, value))
     return "\(Int((clamped * 100).rounded()))%"
+  }
+
+  private var embeddingPendingSection: some View {
+    HStack(spacing: 8) {
+      AppIcon.recommendation.label
+      Spacer()
+      Text("Embedding pending")
+        .foregroundStyle(.secondary)
+    }
+    .font(.headline)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private func similaritySection(value: Float) -> some View {
@@ -534,6 +547,31 @@ struct EpisodeDetailView: View {
   viewModel.previewSeedDisplayedScore(
     .recommendation(RecommendationScore(value: 0.42, reasons: [.similarToLiked]))
   )
+  return NavigationStack {
+    EpisodeDetailView(viewModel: viewModel)
+      .preview()
+  }
+}
+
+#Preview("Embedding Pending (Saved)") {
+  let viewModel = EpisodeDetailViewModel(
+    episode: DisplayedEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try! Create.unsavedPodcast(
+          title: "Newly Saved Podcast",
+          description: "Saved before the embedding pipeline has run"
+        ),
+        unsavedEpisode: try! Create.unsavedEpisode(
+          title: "Awaiting Embedding",
+          pubDate: Date().addingTimeInterval(-3600),
+          duration: CMTime(seconds: 1800, preferredTimescale: 1),
+          description:
+            "<p>The recommendation score will surface once the embedding is computed.</p>"
+        )
+      )
+    )
+  )
+  viewModel.previewSeedDisplayedScore(.embeddingPending)
   return NavigationStack {
     EpisodeDetailView(viewModel: viewModel)
       .preview()

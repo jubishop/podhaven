@@ -259,8 +259,6 @@ import Testing
         )
       )
     )
-    // Embed the saved episode so the engine actually returns a score for it —
-    // `recommendation(for:)` returns nil for unembedded episodes (#262/#259).
     try await RecommendationHelpers.embedEpisodes([podcastEpisode.episode])
     _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
 
@@ -297,26 +295,47 @@ import Testing
     try await Wait.until(
       { @MainActor in viewModel.episode.isSaved },
       { @MainActor in
-        "Expected re-save to land before embedding. episode: \(viewModel.episode.toString)"
+        "Expected re-save to land before embedding the re-created episode. saved: \(viewModel.episode.isSaved)"
       }
     )
-    guard let resavedEpisode = try await repo.episode(podcastEpisode.mediaGUID) else {
-      Issue.record("Could not load re-saved episode by mediaGUID")
-      return
+    let resaved = try #require(try await repo.podcastEpisode(podcastEpisode.episode.mediaGUID))
+    try await RecommendationHelpers.embedEpisodes([resaved.episode])
+
+    // Drive the engine's embedding-table observation through its 1s
+    // debounce so contextRevision bumps and the saved-side fetch re-runs
+    // with the newly-inserted embedding visible.
+    _ = try await RecommendationHelpers.waitAdvancing {
+      let isRecommendation = await MainActor.run {
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      }
+      return isRecommendation ? true : nil
     }
-    try await RecommendationHelpers.embedEpisodes([resavedEpisode])
-    try await RecommendationHelpers.untilAdvancing(
-      {
-        await MainActor.run {
-          guard viewModel.episode.isSaved else { return false }
-          if case .recommendation = viewModel.displayedScore { return true }
-          return false
-        }
+  }
+
+  @Test("saved episode without an embedding surfaces an embedding-pending indicator")
+  func savedEpisodeWithoutEmbeddingSurfacesEmbeddingPending() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Pending Embedding"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "pending-embedding",
+          title: "Pending Embedding"
+        )
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .embeddingPending = viewModel.displayedScore { return true }
+        return false
       },
       { @MainActor in
         """
-        Expected re-saved episode to bootstrap a recommendation-kind score.
-        saved: \(viewModel.episode.isSaved)
+        Expected saved episode without an embedding to surface .embeddingPending.
         score: \(String(describing: viewModel.displayedScore))
         """
       }
@@ -538,30 +557,22 @@ import Testing
     try await Wait.until(
       { @MainActor in viewModel.episode.isSaved },
       { @MainActor in
-        "Expected save to land before embedding. episode: \(viewModel.episode.toString)"
+        "Expected save to land before embedding the newly-saved episode. saved: \(viewModel.episode.isSaved)"
       }
     )
-    guard let savedEpisode = try await repo.episode(unsavedPodcastEpisode.mediaGUID) else {
-      Issue.record("Could not load saved episode by mediaGUID")
-      return
+    let saved = try #require(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID))
+    try await RecommendationHelpers.embedEpisodes([saved.episode])
+
+    // Drive the engine's embedding-table observation through its 1s
+    // debounce so contextRevision bumps and the saved-side fetch produces a
+    // recommendation-kind score with the new embedding visible.
+    _ = try await RecommendationHelpers.waitAdvancing {
+      let isRecommendation = await MainActor.run {
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      }
+      return isRecommendation ? true : nil
     }
-    try await RecommendationHelpers.embedEpisodes([savedEpisode])
-    try await RecommendationHelpers.untilAdvancing(
-      {
-        await MainActor.run {
-          guard viewModel.episode.isSaved else { return false }
-          if case .recommendation = viewModel.displayedScore { return true }
-          return false
-        }
-      },
-      { @MainActor in
-        """
-        Expected unsaved → saved transition to switch to the recommendation-kind score.
-        saved: \(viewModel.episode.isSaved)
-        score: \(String(describing: viewModel.displayedScore))
-        """
-      }
-    )
   }
 
   @Test("a saved-side fetch resolving after delete reverts state does not stale-write")
@@ -582,9 +593,6 @@ import Testing
         )
       )
     )
-    // Embedding is required for the engine to return a non-nil score
-    // (#262/#259); without it the saved-side fetch would resolve to nil and
-    // there would be no stale write to test.
     try await RecommendationHelpers.embedEpisodes([podcastEpisode.episode])
     _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
 
