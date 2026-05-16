@@ -1,10 +1,13 @@
 # Search Recommendations
 
-Rank the episodes of podcasts returned from a search or a trending-category chip by the existing ML recommendation engine, surfacing a "top recommended episodes from these results" list as a discovery tool. Design captured 2026-05-11; planning only.
+Rank the episodes of podcasts returned from a search or a trending-category chip by the existing ML recommendation engine, surfacing a "top recommended episodes from these results" list as a discovery tool. Design captured 2026-05-11; still planning for the search surface itself. Updated 2026-05-16 to reflect shipped foundations: unsaved episode embedding/scoring, unsaved podcast-detail recommendation sorting, and owner-aware `DownloadTask.cancel()`.
 
 ## Context
 
-The recommendation engine (`PodHaven/Recommendations/RecommendationEngine.swift`) is already decoupled enough to score arbitrary episodes — `recommendations(for: [Episode])` at line 111 takes any episode set and returns `[Episode.ID: RecommendationScore]` against the user's cached centroid + affinity context. Today it's only consumed by UpNext, which feeds it episodes already in the local DB.
+The recommendation engine (`PodHaven/Recommendations/RecommendationEngine.swift`) now has two relevant scoring paths:
+
+- `recommendations(for: [Episode])` / `recommendations(for: [CandidateEpisode])` score DB-backed episodes against the cached centroid + affinity + freshness context. These are used by UpNext, saved episode lists, and saved podcast-detail recommendation sorting.
+- `similarityScore(forEmbedding:)` scores a caller-supplied vector by content similarity only. It is already consumed by `EpisodeDetailViewModel` for unsaved episodes and by `PodcastDetailViewModel` when sorting unsaved podcast-detail episodes by recommendation score.
 
 The search tab has two primary podcast-list surfaces that share the same rendering:
 
@@ -13,14 +16,14 @@ The search tab has two primary podcast-list surfaces that share the same renderi
 
 Both surfaces yield `PodcastWithEpisodeMetadata<ListedPodcast>` — podcast-level results with lightweight episode metadata. The episodes themselves don't live in the local DB unless the user subscribes or has already interacted with an episode. This initiative bridges the gap: fetch the RSS feeds of the top podcasts from whichever surface is active, embed their recent episodes on the fly, score them through the engine, and present the result in a discovery episode list reached via a banner above the grid.
 
-The intended outcome: any time a podcast-list surface in the search tab has results, a banner appears above the grid showing a running count. For typed search: `"Top 14 from \"naval ravikant\" →"`. For trending: `"Top 14 from Technology →"` (or `"Top 14 picks →"` for the unbranded "Top" chip). Tapping pushes a search-discovery episode list titled with the originating query-or-category, sorted descending by recommendation score, that fills in episodes as background scoring completes.
+The intended outcome: any time a podcast-list surface in the search tab has results, a banner appears above the grid showing a running count. For typed search: `"Top 14 from \"naval ravikant\" →"`. For trending: `"Top 14 from Technology →"` (or `"Top 14 picks →"` for the unbranded "Top" chip). Tapping pushes a search-discovery episode list titled with the originating query-or-category, sorted descending by similarity score, that fills in episodes as background scoring completes.
 
 ### Why content-similarity-only scoring
 
-The new engine entry point this initiative adds scores by similarity to the user's centroid alone — no podcast affinity, no freshness gate. Both of those terms exist for a different question ("what should I play next from my subscriptions?") and would distort a discovery surface:
+The existing `similarityScore(forEmbedding:)` primitive scores by similarity to the user's centroid alone — no podcast affinity, no freshness gate. Both of those terms exist for a different question ("what should I play next from my subscriptions?") and would distort a discovery surface:
 
 - **Affinity** would heavily bias the list toward podcasts the user already rates highly — irrelevant for unsubscribed podcasts (no rating history) and counter-productive for subscribed ones (the discovery list would become "your top subscribed podcasts again").
-- **Freshness** is multiplicative (`RecommendationEngine.swift:531`), so a 2018 episode of a perfectly-matched podcast would be penalized into oblivion. For a search-driven view, the user's lens is content match, not recency.
+- **Freshness** is multiplicative (`RecommendationEngine.swift:712`), so a 2018 episode of a perfectly-matched podcast would be penalized into oblivion. For a search-driven view, the user's lens is content match, not recency.
 
 ### Why subscribed podcasts are still excluded
 
@@ -36,48 +39,41 @@ This applies uniformly to both surfaces. The "Top" trending chip in particular t
 
 ## Architecture
 
-### 1. Engine entry point — `PodHaven/Recommendations/RecommendationEngine.swift`
+### 1. Engine scoring primitive — `PodHaven/Recommendations/RecommendationEngine.swift`
 
-New public method, parallel to `recommendations(for:)`:
+Use the shipped content-similarity primitive:
 
 ```swift
-// Score discovery candidates by similarity alone. Used when the caller
-// already has the embeddings in hand and there is no meaningful podcast
-// affinity or freshness signal — search-driven discovery, where the
-// user's lens is content match, not recency, and affinity would just
-// re-rank by "podcasts you already like." Returns scores keyed by the
-// caller-supplied opaque ID. Returns empty if `start()` hasn't yet
-// hydrated the cache.
-func discoveryScores<ID: Hashable & Sendable>(
-  for candidates: [(id: ID, embedding: [Float])]
-) async -> [ID: RecommendationScore]
+func similarityScore(forEmbedding embedding: [Float]) -> Float?
 ```
 
-The collector's current use keys on a synthetic `(feedURL, guid)` composite, since unsubscribed-podcast episodes don't have an `Episode.ID`. The generic ID parameter keeps the entry point honest as a general-purpose primitive — future discovery callers (e.g. an "explore" tab seeded from elsewhere) can plug in their own key type without forcing the engine to know about RSS shapes.
+It returns `nil` when the scoring cache is cold or the vector dimension doesn't match the cached centroid. Internally it applies the same whitening/decone transform used by saved-episode scoring, then cosines the candidate against the cached positive centroid and subtracts the negative centroid if present. It skips podcast affinity and freshness entirely.
 
-Internally the method applies the cached whitening/decone transform to each caller-supplied embedding when the context has one, then cosines the candidate against the cached `positiveCentroid` (and subtracts against `negativeCentroid` if present) using the same primitive that `scoreCandidate` already calls. It skips the affinity blend, freshness multiply, and UpNext display-rescaling anchor (`observedMaxScore`). The result is a discovery-local raw similarity score in the same `[0, 1]` shape as the similarity feature, with `reasons: [.similarToLiked]` only — the other two reason variants don't apply.
+The result is a display-rescaled `Float` in the same percentage scale used by saved detail views. That rescale is monotonic, so it preserves ordering for a discovery list, but it does mean discovery currently carries a numeric score only — no `RecommendationScore` reasons. If batch scoring becomes necessary for collector throughput, add a tiny batch wrapper with these exact semantics and caller-owned IDs; don't add a separate `RecommendationScore`-returning API unless the UI actually needs reasons.
 
 This is additive — no changes to `recommendations(for:)` or `topRecommendations(limit:)`. Both keep their current contract for UpNext.
 
 ### 2. Unsaved episode embedding helper — `PodHaven/Recommendations/Embeddings/EmbeddingService.swift`
 
-New public helper, using the same recipe as saved-episode embeddings:
+Shipped public helper, using the same recipe as saved-episode embeddings:
 
 ```swift
-static func vector(
-  for candidate: UnsavedPodcastEpisode,
+static func embeddingVector(
+  for unsavedPodcastEpisode: UnsavedPodcastEpisode,
   embedding: ContextualEmbedding
-) throws -> [Float]
+) async throws -> [Float]
 ```
 
-This helper must share the saved-episode recipe exactly: clean title and description, title/description blend, podcast title/description vector, episode/podcast blend, and final normalization. The current saved-episode implementation computes that through private helpers that take a DB-backed `Episode` plus optional `Podcast`; discovery needs the same vector shape without allocating an `Episode.ID` or writing an `episodeEmbedding` row. If the contextual embedding assets are unavailable or the text produces no token vectors, the collector skips that episode and logs at debug/info rather than failing the whole podcast.
+This helper shares the saved-episode recipe: clean title and description, title/description blend, podcast title/description vector, episode/podcast blend, and final normalization. It is `async` so `@MainActor` callers hop the CPU-bound embedding work and possible first-time model load off main. Discovery needs this vector shape without allocating an `Episode.ID` or writing an `episodeEmbedding` row. If contextual embedding assets are unavailable or the text produces no token vectors, the collector should skip that episode and log at debug/info rather than failing the whole podcast.
 
 ### 3. Banner placement — `PodHaven/Views/Search/SearchView.swift`
 
 A single banner component renders just above the shared `resultsView` grid in both `searchResultsView` and `trendingView` (`SearchView.swift:122` and `SearchView.swift:151`). In the trending case it sits between the category chips and the grid; in the search case, between the search field area and the grid. It renders only when:
 
-- The cached `ScoringContext` exists (engine `start()` has hydrated). Cold-start users with no rated episodes get no banner — there's nothing to score against.
+- The cached `ScoringContext` exists (engine `start()` has hydrated). Cold-start users with no usable positive signal get no banner — there's nothing to score against.
 - The active surface has podcast results and a collector is pending, loading, or has at least one scored episode buffered.
+
+Current code does not expose a direct "similarity context is ready" boolean; `similarityScore(forEmbedding:)` only reports readiness after a caller already has a vector. To show the loading/stub banner before the first scored episode, add a small read-only readiness surface on `RecommendationEngine` or let the collector publish a loading state only after it has proved scoring can succeed. Do not infer readiness from `contextRevision` alone, because a revision can still correspond to a nil cache.
 
 Label format depends on the active surface, derived from the collector's `source`. While the collector is debouncing or loading and has no scored episodes yet, render a non-tappable loading/stub banner so the grid does not jump when the first recommendation arrives:
 
@@ -111,18 +107,18 @@ Responsibilities:
 - Treat the bound podcast list (`searchResults` for `.search`, `currentTrendingSection.results` for `.trending`) as an immutable input snapshot. If iTunes returns a new result set for the same query/category, discard the current collector and build a new one after the 1-second debounce; do not merge new results into the old collector. Within a collector, take the first **P** by surface-provided ranking, then run a batch DB reconciliation by result feed URL and iTunes ID before deciding what is subscribed. Do not rely only on `ListedPodcast.subscribed`: iTunes rows start life as unsaved results and can bridge to an already-saved podcast after observation. After reconciliation, drop any result whose canonical podcast is subscribed, then enqueue the survivors that aren't already in the seen-set. The cap happens *before* the subscription filter — we don't walk deeper into the result list to backfill the discovery budget, since the 30th-ranked result has no business being shown as a "top pick."
 - Take the most recent **E** episodes per enqueued podcast (by `pubDate` desc). Starting values: `P = 25`, `E = 10`. Both are **tunable** — they trade discovery surface area against RSS load + embedding cost, and the right values will fall out of measurement once the feature is wired up. Captured here as constants near the collector so they're easy to find and adjust. Note that with subscribed podcasts excluded, every enqueued podcast pays the full RSS+embed cost, so P caps the network/CPU load directly.
 - For each enqueued podcast, fan out a child Task at `taskPriority(.utility)`:
-  1. Fetch + parse RSS through `DownloadManager`, assuming #251 has landed first. The collector should keep the `DownloadTask` returned by `addURL` and call `downloadTask.cancel()` when its child Task is cancelled. With #251 in place, direct `DownloadTask` cancellation is owner-aware: the manager removes the active or pending task, starts the next queued download immediately, and proves cancellation reaches the underlying `URLSession.data(for:)` request. If #251 is not closed yet, do not wire the collector to `DownloadManager`; the cancellation contract is not strong enough for chip-flip/search-typing churn.
+  1. Fetch + parse RSS through `DownloadManager`. Issue #251 is closed and direct `DownloadTask.cancel()` is now owner-aware: the manager removes the active or pending task, starts the next queued download immediately, and cancels the underlying `URLSession.data(for:)` request. The collector should keep the `DownloadTask` returned by `addURL` and call `await downloadTask.cancel()` when its child Task is cancelled.
   2. Take the E most recent episodes from the parsed feed.
-  3. Apply the candidate filter. Most episodes from these podcasts won't have a DB row at all (so the filter is a no-op for them), but the user *might* have interacted with one previously — played, queued, or rated an episode from a podcast they never subscribed to. Reuse the podcast reconciliation from the enqueue step and resolve existing episodes under the resolved unsubscribed podcast ID, plus exact `(guid, mediaURL)` composite matches as a fallback. Avoid a broad unscoped `guid IN (…) OR mediaURL IN (…)` query; GUIDs and media URLs are good natural keys, but the filter should not accidentally match an unrelated podcast row. For each match, apply `Episode.candidate && id != onDeckID` (`Episode.swift:248`) — which excludes finished, queued, started, rated, and onDeck episodes — and drop the failures. Episodes with no matching row pass through.
-  4. For surviving episodes, call `EmbeddingService.vector(for:embedding:)` to produce a vector. Skip any episode that fails to embed.
-  5. Pass the batch to `engine.discoveryScores(for:)`.
-- Merge scored episodes into the published `episodes` array, keyed by `(feedURL, guid)`. Re-sort on every insert. UI observes and re-renders silently.
-- Track a discovery-specific minimum-score floor near the neutral midpoint, not UpNext's `minimumScoreThreshold`. UpNext's `0.1` floor is tuned for scores that can be multiplied down by freshness; discovery removes freshness, so neutral candidates cluster around `0.5` and a `0.1` floor would admit almost everything. Starting point: require `score.value > 0.5`, then tune from real-device samples.
+  3. Apply the candidate filter. Most episodes from these podcasts won't have a DB row at all (so the filter is a no-op for them), but the user *might* have interacted with one previously — played, queued, or rated an episode from a podcast they never subscribed to. Reuse the podcast reconciliation from the enqueue step and resolve existing episodes under the resolved unsubscribed podcast ID, plus exact `(guid, mediaURL)` composite matches as a fallback. Avoid a broad unscoped `guid IN (…) OR mediaURL IN (…)` query; GUIDs and media URLs are good natural keys, but the filter should not accidentally match an unrelated podcast row. For each match, apply `Episode.candidate && id != onDeckID` (`Episode.swift:254`) — which excludes finished, queued, started, rated, and onDeck episodes — and drop the failures. Episodes with no matching row pass through.
+  4. For surviving episodes, call `EmbeddingService.embeddingVector(for:embedding:)` to produce a vector. Skip any episode that fails to embed.
+  5. Pass each vector to `engine.similarityScore(forEmbedding:)`, or to a batch wrapper with the same semantics if profiling shows per-vector calls are too awkward.
+- Merge scored episodes into the published `episodes` array, keyed by `(feedURL, guid)`, carrying a `Float` similarity score for sorting. Re-sort on every insert. UI observes and re-renders silently.
+- Track a discovery-specific minimum-score floor near the neutral midpoint, not UpNext's `minimumScoreThreshold`. UpNext's `0.1` floor is tuned for scores that can be multiplied down by freshness; discovery removes freshness, so neutral candidates cluster around `0.5` and a `0.1` floor would admit almost everything. Starting point: require `score > 0.5`, then tune from real-device samples.
 - Throttle the collector as two separate resources: RSS fetches can run with a small parallel cap, but embedding should be serialized or protected by a tiny concurrency cap around the shared `ContextualEmbedding` until measurement proves it is safe to run wider.
 
 Cancellation lifecycle:
 
-- The collector holds a stored root `Task<Void, Never>` that owns a `withTaskGroup` / `withThrowingTaskGroup`, or it stores explicit child `Task` handles. `TaskGroup` itself does not escape the closure. On `deinit`, on source change (query change, fresh iTunes result snapshot, category chip change, or search↔trending flip), and when the user leaves the search tab, cancel the root/children. RSS work uses the `DownloadTask` returned by `DownloadManager.addURL`; child cancellation calls `downloadTask.cancel()`, relying on #251 for immediate manager cleanup, queue advancement, and underlying URLSession cancellation. Embedding work checks `Task.isCancelled` between episodes.
+- The collector holds a stored root `Task<Void, Never>` that owns a `withTaskGroup` / `withThrowingTaskGroup`, or it stores explicit child `Task` handles. `TaskGroup` itself does not escape the closure. On `deinit`, on source change (query change, fresh iTunes result snapshot, category chip change, or search↔trending flip), and when the user leaves the search tab, cancel the root/children. RSS work uses the `DownloadTask` returned by `DownloadManager.addURL`; child cancellation calls `await downloadTask.cancel()`. Embedding work checks `Task.isCancelled` between episodes.
 - The published `episodes` array is the collector's source of truth — it persists for the collector's lifetime (i.e. for as long as the bound surface is unchanged and search is on-screen) and is dropped when the collector is.
 
 Post-action lifecycle:
@@ -131,9 +127,9 @@ Post-action lifecycle:
 
 ### 5. Discovery list view
 
-A new search-specific list view and view model backed by the collector's `episodes` array. Do not wire this through the existing `EpisodesListView` unchanged: that view is currently coupled to `EpisodesListViewModel`, SQL observation, `PowerList<ListablePodcastEpisode>`, and saved DB rows.
+A new search-specific list view and view model backed by the collector's `episodes` array. Do not wire this through the existing `EpisodesListView` unchanged: that view is still coupled to `EpisodesListViewModel`, SQL observation, `PowerList<ListablePodcastEpisode>`, and saved DB rows. But the newer `PodcastDetailViewModel` work proves that `PowerList<ListedEpisode>`, row actions, and unsaved similarity scoring already work for unsaved episodes, so the search-specific list should reuse those patterns instead of inventing a parallel row/action stack.
 
-- Add a lightweight `SearchRecommendedEpisode` (name bikesheddable) that wraps `ListedEpisode` plus its `RecommendationScore`. Every entry starts as the `UnsavedPodcastEpisode` case, since the collector only surfaces episodes from unsubscribed podcasts.
+- Add a lightweight search-discovery view model that owns `PowerList<ListedEpisode>` plus a `[MediaGUID: Float]` score map, or a small wrapper if that makes the collector boundary cleaner. Every entry starts as the `UnsavedPodcastEpisode` case, since the collector only surfaces episodes from unsubscribed podcasts.
 - The list can reuse row-level pieces (`EpisodeListView`, `episodeSwipeActions`, `episodeContextMenu`, `Navigation.Destination.listedEpisode`) because those are generic over `EpisodeListable` / `ManagingEpisodes` and already handle `ListedEpisode`. It still needs its own view model because filtering, sorting, loading state, and source updates are collector-driven rather than SQL-driven.
 - The view's navigation title is the search query string for `.search`, or the category title for `.trending` (and just "Top picks" for the unbranded "Top" chip). Subtitle (if the existing view supports one) shows "Recommended for you" or similar.
 - Sort is fixed: score desc, then pubDate desc, then guid. The standard sort toolbar is hidden here — the whole point of this view is "ranked by recommendation," and exposing the sort menu would invite a confusing "what does the engine think of these in pubDate order?" reading. The score stays invisible in the list; rows render like normal episode rows, and the score is ranking metadata only.
@@ -141,43 +137,45 @@ A new search-specific list view and view model backed by the collector's `episod
 
 ### 6. Episode detail recommendation scoring — `PodHaven/Views/Episodes/Models/EpisodeDetailViewModel.swift`
 
-The discovery list does not show recommendation scores, but episode detail should still be able to show the existing recommendation section when the episode is backed only by an `UnsavedPodcastEpisode`. This should not depend on the discovery list passing a precomputed score; any unsaved episode detail opened from search/share/deep-link can compute its own score when the engine context is warm.
+Issue #250 is closed. The discovery list does not show recommendation scores, but episode detail can now show a similarity score when the episode is backed only by an `UnsavedPodcastEpisode`. This does not depend on the discovery list passing a precomputed score; any unsaved episode detail opened from search/share/deep-link can compute its own score when the engine context is warm.
 
 - Keep the existing saved-episode path: when the detail state is `.saved`, use `recommendationEngine.recommendation(for: episodeID)` so DB-backed episodes keep the normal UpNext-style score.
-- Add an unsaved path: when the detail state is `.unsaved`, compute the vector with `EmbeddingService.vector(for:embedding:)`, then call `recommendationEngine.discoveryScores(for:)` with the episode's `MediaGUID` as the opaque ID. Apply the same discovery score floor used by the collector before assigning `recommendationScore`; below-floor scores stay hidden.
+- Current unsaved path: when the detail state is `.unsaved`, compute and cache the vector with `EmbeddingService.embeddingVector(for:embedding:)`, then call `recommendationEngine.similarityScore(forEmbedding:)`. The view renders this through `EpisodeDetailDisplayedScore.similarity(Float)`, not a `RecommendationScore`, because there are no reasons for the content-only path.
 - Start recommendation observation for both `.saved` and `.unsaved` states. The existing `contextRevision` stream can still drive re-fetches; the fetch method chooses the saved or unsaved scoring path based on current state. If an action materializes the episode and transitions state to `.saved`, subsequent refreshes naturally switch to the saved path.
-- Preserve the existing display guard: once the episode is rated or finished, hide the recommendation section because the episode has become an explicit signal or completed item.
+- Preserve the existing display guard: once the episode is rated or finished, hide the score because the episode has become an explicit signal or completed item.
 - Log and hide the section if the unsaved embedding cannot be computed because the contextual embedding model is unavailable or the text yields no vector. This should not block detail rendering or the play/queue actions.
 
 ### 7. Search VM integration — `PodHaven/Views/Search/Models/SearchViewModel.swift`
 
 - Hold an optional `collector: SearchRecommendationCollector?`.
 - Recreate the collector on any surface change, after a 1-second stable-source debounce:
-  - Query change (existing branches around `SearchViewModel.swift:404`) → new `.search(query:)` collector bound to `searchResults`.
+  - Query change (existing search execution around `SearchViewModel.swift:357`) → new `.search(query:)` collector bound to `searchResults`.
   - Fresh iTunes result snapshot for the same query/category → cancel and rebuild from the new snapshot, because the server may have returned a materially different podcast ordering or feed set.
   - `showTrendingSection(_:)` (`SearchViewModel.swift:259`) → new `.trending(genreID:title:)` collector bound to `currentTrendingSection.results`.
   - Flip between search-mode and trending-mode (driven by `isShowingSearchResults`) → tear down whatever's bound and rebind to the now-active surface.
 - Implement the debounce with the injected `Sleepable`/`sleeper` or an existing debounce helper, not `Task.sleep`, so tests can control timing.
+- Keep this separate from the existing 400ms search debouncer. That debouncer controls when iTunes search runs; the collector's 1s debounce controls when RSS fan-out starts after a stable result snapshot exists.
 - Show the loading/stub banner as soon as the active surface has results and the scoring context exists, even during the 1-second debounce. New source changes cancel any pending debounce task and replace the banner source immediately.
 - Expose `collector?.episodes.count` and `collector?.source` so the banner view can render its label without reaching into the collector directly.
-- Add a search-navigation destination for the discovery list, keyed by `collector.source` (or an explicit route object) so tapping the banner pushes a stable list bound to the current collector. Do not persist this destination across launches; persistent results are a non-goal.
+- Add a search-navigation destination for the discovery list, keyed by `collector.source` (or an explicit route object) so tapping the banner pushes a stable list bound to the current collector. `Navigation.Destination` currently has no discovery-list case. Do not persist this destination across launches; persistent results are a non-goal.
+- `SearchView` currently calls `viewModel.disappear()` from `.onDisappear`, which resets search/trending tasks. Before using that hook for collector teardown, verify whether it fires when pushing deeper in the search navigation stack; if it does, move collector cancellation to explicit source changes and tab-leave handling so the pushed discovery list does not lose its backing collector.
 
 ---
 
 ## Scoring nuances
 
-- **Centroid availability.** `discoveryScores(for:)` returns empty when the engine cache is cold. The banner stays hidden in that case — there's no graceful "partial discovery" mode worth building before the user has any liked/loved episodes. Cold-start cohort is small.
+- **Centroid availability.** `similarityScore(forEmbedding:)` returns `nil` when the engine cache is cold. The banner stays hidden in that case — there's no graceful "partial discovery" mode worth building before the user has enough positive signal. Cold-start cohort is small.
 - **Negative centroid.** If the user has disliked episodes, the negative centroid is subtracted as today. This is desirable for discovery — content the user has actively rejected shouldn't bubble up via search.
 - **English-only embeddings.** `NLContextualEmbedding` is English in this app's recipe (`NLContextualEmbedding.swift:12-28`). Episodes whose title/description can't be embedded are silently skipped. Acceptable for v1; non-English handling is a separate concern.
 - **No freshness penalty.** Stated explicitly because it differs from UpNext. A 2018 episode of a newly-discovered podcast that perfectly matches the user's taste should rank above a 2026 episode that doesn't.
-- **Score floor.** Discovery uses a separate floor from UpNext. Start with `score.value > 0.5` because `0.5` is the remapped neutral similarity baseline; tune only after logging real candidate distributions.
-- **Score display.** The discovery list does not show scores or reasons. Keep `RecommendationScore` as metadata on `SearchRecommendedEpisode` for ranking only, and render normal episode rows. Episode detail may still show its existing recommendation section by fetching a saved score or computing an unsaved discovery score for itself.
+- **Score floor.** Discovery uses a separate floor from UpNext. Start with `score > 0.5` because `0.5` is the remapped neutral similarity baseline; tune only after logging real candidate distributions.
+- **Score display.** The discovery list does not show scores or reasons. Keep the `Float` score as ranking metadata only, and render normal episode rows. Episode detail may still show its existing recommendation/similarity section by fetching a saved score or computing an unsaved similarity score for itself.
 
 ## Cancellation & cost ceiling
 
 At the starting `P = 25`, `E = 10` caps, every enqueued podcast is unsubscribed, so every podcast costs one RSS fetch (200ms–2s, parallel) + E embeddings (~10ms each on-device). Typical case is **3–8s wall clock** at utility priority, RSS-bound. If a surface returns mostly subscribed podcasts (e.g. the user searches a term that matches several of their subscriptions, or selects the "Top" trending chip on a heavily-curated subscription list), the collector fills its P budget from fewer results and may end up with a shorter list — acceptable, and arguably correct: those subscribed matches are UpNext's job.
 
-Cancellation matters because users tab out of search quickly *and* chip-flip rapidly between trending categories. Per the lifecycle decision, every source change cancels every in-flight Task and the underlying URLSession work must be cancellable, not just the Swift wrapper waiting for a result. This initiative assumes #251 closes that gap in `DownloadManager` before the search collector is implemented. Collector startup also waits for a 1-second stable-source debounce; the loading banner appears during that delay, but RSS work does not start until the source remains stable. The cost of churn is still real for the trending surface: tapping Comedy → Technology → Comedy across several seconds can pay the full RSS+embed cost multiple times in v1. The persisted feed + embedding cache below is the planned mitigation.
+Cancellation matters because users tab out of search quickly *and* chip-flip rapidly between trending categories. Per the lifecycle decision, every source change cancels every in-flight Task and the underlying URLSession work must be cancellable, not just the Swift wrapper waiting for a result. Issue #251 closed that gap in `DownloadManager`; the collector can use `DownloadTask.cancel()` directly. Collector startup also waits for a 1-second stable-source debounce; the loading banner appears during that delay, but RSS work does not start until the source remains stable. The cost of churn is still real for the trending surface: tapping Comedy → Technology → Comedy across several seconds can pay the full RSS+embed cost multiple times in v1. The persisted feed + embedding cache below is the planned mitigation.
 
 ---
 
@@ -218,7 +216,7 @@ A first pass would measure: how much network, CPU, and battery v1 actually uses 
 
 These are settled implementation choices plus the remaining verification work to keep visible during implementation.
 
-- **DownloadManager prerequisite.** A user typing quickly — or chip-flipping rapidly between trending categories — triggers a new collector per change, each one cancelling its predecessor. The collector's RSS path should use `DownloadManager` only after #251 proves direct `DownloadTask.cancel()` removes manager state, advances the queue, and cancels the underlying `URLSession.data(for:)` request.
+- **DownloadManager integration.** A user typing quickly — or chip-flipping rapidly between trending categories — triggers a new collector per change, each one cancelling its predecessor. The prerequisite is now done: direct `DownloadTask.cancel()` removes manager state, advances the queue, and cancels the underlying `URLSession.data(for:)` request. The collector should use that path instead of adding a separate downloader.
 - **Chip-toggle thrash.** Tapping Comedy → Technology → Comedy in a few seconds should not spin up three immediate RSS fan-outs. v1 waits for a 1-second stable-source debounce before starting collector RSS work. If users still churn through network after that, the deferred parsed-feed + embedding cache is the next mitigation.
 - **Banner loading state.** Results render the moment the iTunes call returns (for typed search) or the trending fetch completes. The banner should reserve space immediately with a loading/stub state ("Finding top picks…") while the collector debounces and scores, then switch to the count label once the first scored episode arrives.
 - **Banner stickiness across surface flips.** Typing in the search field flips from trending-mode to search-mode and vice versa via the search field clearing. Default behavior is strict tear-down: a partly-built Technology discovery list is discarded when the user starts typing, and rebuilt for Technology if they return to the trending chip. Fresh iTunes data gets the same treatment because the server may return different podcasts. The deferred cache should make rebuilds cheap when many feeds/episodes overlap; keeping stale collectors alive is not the plan.
