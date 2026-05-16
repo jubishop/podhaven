@@ -122,6 +122,15 @@ so the right logs to analyze are the ones on the Sentry event — **not** the
 developer's iCloud Drive copies. Different device, different user, different
 session.
 
+**Mental model — who owns these files:**
+
+- The NDJSON files are written by the app (`log.ndjson` by PodHaven, `widget-log.ndjson` by the widget extension — separate processes, separate loggers). The app attaches them at feedback-submission time.
+- Sentry is purely the courier. It doesn't generate, parse, rotate, trim, or expire the logs. Whatever the app uploaded is what's there.
+- Retention is entirely an app-side decision: per-launch reset vs. rolling buffer vs. size cap are all logger policies. If the window looks suspiciously short or stale, the explanation is in PodHaven's logger code, not anywhere in Sentry.
+- App-log and widget-log retention differ because they're two different processes with two different loggers. Apples-to-apples "freshness" comparisons across them don't hold.
+- "Missing attachments" means the *app* failed to attach (timing, disk, code path), not that Sentry lost them.
+- This also bounds what fixes you can recommend: if the conclusion is "we couldn't tell because the log only goes back X seconds," the action is to change PodHaven's logger policy, not to ask Sentry for more data.
+
 1. List attachments on the feedback's event using the Sentry MCP:
    `get_event_attachment(organizationSlug='artisanal-software',
    projectSlug='podhaven', eventId='<feedback event id from Step 2>')`
