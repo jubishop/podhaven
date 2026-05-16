@@ -80,9 +80,6 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
       : episode.duration.safe.shortDescription
   }
 
-  // Three-way pick for the icon between pubDate and duration: rating if set,
-  // otherwise an "awaiting embedding" hourglass for saved-but-unprocessed
-  // episodes, otherwise nothing.
   private var middleIcon: AppIcon? {
     if let rating = episode.rating {
       return .rating(for: rating)

@@ -53,7 +53,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     queueOrder = row[Episode.Columns.queueOrder]
     saveInCache = row[Episode.Columns.saveInCache]
     rating = row[Episode.Columns.rating]
-    hasEmbedding = row["hasEmbedding"]
+    hasEmbedding = row[EpisodeEmbedding.existsColumnName]
 
     tagIDs = try EpisodeTag.decodeTagIDs(from: row)
 
@@ -99,12 +99,10 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     cacheStatus = podcastEpisode.cacheStatus
     saveInCache = podcastEpisode.saveInCache
     rating = podcastEpisode.rating
-    // Tags aren't carried on PodcastEpisode; the on-deck observation
-    // populates them on the next emission via the correlated subquery in
-    // `request(for:)`, so seeding empty here is fine.
+    // Tags and hasEmbedding aren't carried on PodcastEpisode; the on-deck
+    // observation populates them on the next emission via the correlated
+    // subqueries in `request(for:)`, so seeding empty/false here is fine.
     tagIDs = []
-    // Same story for hasEmbedding — the next OnDeck observation overwrites
-    // this with the real value from the correlated subquery.
     hasEmbedding = false
     podcastImage = podcastEpisode.podcastImage
     podcastTitle = podcastEpisode.podcastTitle
@@ -140,7 +138,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       Episode.Columns.cachedFilename,
       Episode.Columns.downloading,
       EpisodeTag.tagIDsSelectable,
-      Episode.hasEmbeddingSelectable,
+      EpisodeEmbedding.existsSelectable,
     ]
   }
 

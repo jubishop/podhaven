@@ -256,9 +256,6 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     EpisodeEmbedding
     .select(EpisodeEmbedding.Columns.episodeId)
     .contains(Columns.id)
-  static var hasEmbeddingSelectable: any SQLSelectable {
-    hasEmbedding.forKey("hasEmbedding")
-  }
   static func contains(_ pattern: String) -> SQLExpression {
     Columns.title.lowercased.like(pattern) || Columns.description.lowercased.like(pattern)
   }

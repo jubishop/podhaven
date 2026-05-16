@@ -40,7 +40,7 @@ struct ListableEpisode:
       Episode.Columns.queueDate,
       Episode.Columns.rating,
       EpisodeTag.tagIDsSelectable,
-      Episode.hasEmbeddingSelectable,
+      EpisodeEmbedding.existsSelectable,
     ]
   }
 
@@ -86,7 +86,7 @@ struct ListableEpisode:
     creationDate = row[Episode.Columns.creationDate]
     queueDate = row[Episode.Columns.queueDate]
     rating = row[Episode.Columns.rating]
-    hasEmbedding = row["hasEmbedding"]
+    hasEmbedding = row[EpisodeEmbedding.existsColumnName]
 
     tagIDs = try EpisodeTag.decodeTagIDs(from: row)
 

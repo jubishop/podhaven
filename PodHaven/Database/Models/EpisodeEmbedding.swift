@@ -57,4 +57,14 @@ struct EpisodeEmbedding: Equatable, Saved, VectorStorable {
   var embeddingRevision: Int { unsaved.embeddingRevision }
   var dimension: Int { unsaved.dimension }
   var verificationDate: Date { unsaved.verificationDate }
+
+  // MARK: - Correlated Existence Selection
+
+  // The column-name string for the existence flag we expose on an Episode
+  // row via `existsSelectable`. Shared so callers (selectable + row decoders)
+  // never disagree on the alias.
+  static let existsColumnName: String = "hasEmbedding"
+  static var existsSelectable: any SQLSelectable {
+    Episode.hasEmbedding.forKey(existsColumnName)
+  }
 }
