@@ -72,10 +72,13 @@ enum EpisodeDetailState: Equatable, Sendable, Stringable {
 // Saved episodes render the full recommendation with reason pills; unsaved
 // episodes render a similarity-only number — the unsaved scorer skips
 // affinity and freshness, so a lone `.similarToLiked` pill would be
-// misleading.
+// misleading. `.embeddingPending` covers saved episodes whose embedding
+// hasn't been computed yet: scoring those through the engine would surface
+// a meaningless 0.5 baseline, so we flag the missing embedding explicitly.
 enum EpisodeDetailDisplayedScore: Sendable {
   case recommendation(RecommendationScore)
   case similarity(Float)
+  case embeddingPending
 }
 
 @Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
@@ -87,6 +90,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
+  @ObservationIgnored @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
@@ -485,6 +489,13 @@ enum EpisodeDetailDisplayedScore: Sendable {
     _ podcastEpisode: PodcastEpisode
   ) async -> EpisodeDetailDisplayedScore? {
     do {
+      // Embedding presence is the gate: the engine returns a 0.5 baseline
+      // when an embedding is missing, which would render as a misleading
+      // ~50% score. Surface the missing-embedding state explicitly so the
+      // detail view can communicate it instead.
+      guard try await recommendationRepo.embedding(for: podcastEpisode.id) != nil else {
+        return .embeddingPending
+      }
       guard let score = try await recommendationEngine.recommendation(for: podcastEpisode.id)
       else { return nil }
       return .recommendation(score)

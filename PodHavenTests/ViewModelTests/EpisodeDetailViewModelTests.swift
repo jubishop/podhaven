@@ -259,6 +259,7 @@ import Testing
         )
       )
     )
+    try await RecommendationHelpers.embedEpisodes([podcastEpisode.episode])
     _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
@@ -290,15 +291,49 @@ import Testing
     viewModel.addToTopOfQueue()
 
     try await Wait.until(
+      { @MainActor in viewModel.episode.isSaved },
       { @MainActor in
-        guard viewModel.episode.isSaved else { return false }
+        "Expected re-save to land before embedding the re-created episode. saved: \(viewModel.episode.isSaved)"
+      }
+    )
+    let resaved = try #require(try await repo.podcastEpisode(podcastEpisode.episode.mediaGUID))
+    try await RecommendationHelpers.embedEpisodes([resaved.episode])
+
+    // Drive the engine's embedding-table observation through its 1s
+    // debounce so contextRevision bumps and the saved-side fetch re-runs
+    // with the newly-inserted embedding visible.
+    _ = try await RecommendationHelpers.waitAdvancing {
+      let isRecommendation = await MainActor.run {
         if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      }
+      return isRecommendation ? true : nil
+    }
+  }
+
+  @Test("saved episode without an embedding surfaces an embedding-pending indicator")
+  func savedEpisodeWithoutEmbeddingSurfacesEmbeddingPending() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Pending Embedding"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "pending-embedding",
+          title: "Pending Embedding"
+        )
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .embeddingPending = viewModel.displayedScore { return true }
         return false
       },
       { @MainActor in
         """
-        Expected re-saved episode to bootstrap a recommendation-kind score.
-        saved: \(viewModel.episode.isSaved)
+        Expected saved episode without an embedding to surface .embeddingPending.
         score: \(String(describing: viewModel.displayedScore))
         """
       }
@@ -515,19 +550,24 @@ import Testing
     viewModel.addToTopOfQueue()
 
     try await Wait.until(
+      { @MainActor in viewModel.episode.isSaved },
       { @MainActor in
-        guard viewModel.episode.isSaved else { return false }
-        if case .recommendation = viewModel.displayedScore { return true }
-        return false
-      },
-      { @MainActor in
-        """
-        Expected unsaved → saved transition to switch to the recommendation-kind score.
-        saved: \(viewModel.episode.isSaved)
-        score: \(String(describing: viewModel.displayedScore))
-        """
+        "Expected save to land before embedding the newly-saved episode. saved: \(viewModel.episode.isSaved)"
       }
     )
+    let saved = try #require(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID))
+    try await RecommendationHelpers.embedEpisodes([saved.episode])
+
+    // Drive the engine's embedding-table observation through its 1s
+    // debounce so contextRevision bumps and the saved-side fetch produces a
+    // recommendation-kind score with the new embedding visible.
+    _ = try await RecommendationHelpers.waitAdvancing {
+      let isRecommendation = await MainActor.run {
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      }
+      return isRecommendation ? true : nil
+    }
   }
 
   @Test("a saved-side fetch resolving after delete reverts state does not stale-write")
@@ -548,6 +588,7 @@ import Testing
         )
       )
     )
+    try await RecommendationHelpers.embedEpisodes([podcastEpisode.episode])
     _ = try await RecommendationHelpers.startAndWaitForScores(for: [podcastEpisode.episode])
 
     // Arm the suspend hook before opening the view so the bootstrap fetch
