@@ -204,18 +204,21 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
 
   // MARK: - Equatable
 
+  // Split into two short-circuited guards — a single 19-clause `&&` chain
+  // tripped the Swift type-checker's complexity budget on CI cold builds.
   static func == (lhs: OnDeck, rhs: OnDeck) -> Bool {
-    lhs.id == rhs.id
-      && lhs.guid == rhs.guid
-      && lhs.mediaURL == rhs.mediaURL
-      && lhs.title == rhs.title
-      && lhs.pubDate == rhs.pubDate
-      && lhs.duration == rhs.duration
-      && lhs.description == rhs.description
-      && lhs.episodeImage == rhs.episodeImage
-      && lhs.finishDate == rhs.finishDate
-      && lhs.queueOrder == rhs.queueOrder
-      && lhs.cacheStatus == rhs.cacheStatus
+    guard lhs.id == rhs.id,
+      lhs.guid == rhs.guid,
+      lhs.mediaURL == rhs.mediaURL,
+      lhs.title == rhs.title,
+      lhs.pubDate == rhs.pubDate,
+      lhs.duration == rhs.duration,
+      lhs.description == rhs.description,
+      lhs.episodeImage == rhs.episodeImage,
+      lhs.finishDate == rhs.finishDate,
+      lhs.queueOrder == rhs.queueOrder
+    else { return false }
+    return lhs.cacheStatus == rhs.cacheStatus
       && lhs.saveInCache == rhs.saveInCache
       && lhs.rating == rhs.rating
       && lhs.tagIDs == rhs.tagIDs
