@@ -11,10 +11,44 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
+  // Suspends the next `embeddings(for:)` call whose id set matches
+  // `armedTarget` so tests can interleave state changes with an in-flight
+  // scoring pass. One-shot: cleared as soon as a matching call hits.
+  struct EmbeddingsGateState: Sendable {
+    var armedTarget: Set<Episode.ID>?
+    var pendingContinuation: CheckedContinuation<Void, Never>?
+    var didSuspend: Bool = false
+  }
+  let embeddingsGateState = ThreadSafe<EmbeddingsGateState>(EmbeddingsGateState())
+
   private let recommendationRepo: RecommendationRepo
 
   init(_ recommendationRepo: RecommendationRepo) {
     self.recommendationRepo = recommendationRepo
+  }
+
+  // MARK: - Embeddings Gate (test-facing)
+
+  func armEmbeddingsGate(matching ids: Set<Episode.ID>) {
+    embeddingsGateState { state in
+      state.armedTarget = ids
+      state.didSuspend = false
+    }
+  }
+
+  func releaseEmbeddingsGate() {
+    let continuation = embeddingsGateState { state -> CheckedContinuation<Void, Never>? in
+      let pending = state.pendingContinuation
+      state.pendingContinuation = nil
+      return pending
+    }
+    continuation?.resume()
+  }
+
+  var isEmbeddingsGateSuspended: Bool {
+    embeddingsGateState { state in
+      state.didSuspend && state.pendingContinuation != nil
+    }
   }
 
   // MARK: - Recommending
@@ -91,6 +125,19 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
   {
     recordCall(methodName: "embeddings", parameters: episodeIDs)
+    let shouldGate: Bool = embeddingsGateState { state -> Bool in
+      guard let target = state.armedTarget, Set(episodeIDs) == target else { return false }
+      state.armedTarget = nil
+      return true
+    }
+    if shouldGate {
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        embeddingsGateState { state in
+          state.pendingContinuation = continuation
+          state.didSuspend = true
+        }
+      }
+    }
     return try await recommendationRepo.embeddings(for: episodeIDs)
   }
 

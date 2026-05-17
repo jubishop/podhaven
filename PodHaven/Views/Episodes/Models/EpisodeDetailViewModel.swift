@@ -424,7 +424,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // MARK: - Recommendation Observation
 
   @ObservationIgnored private var recommendationTask: Task<Void, Never>?
-  @ObservationIgnored private var recommendationRefreshTask: Task<Void, Never>?
 
   // Skips a CoreML inference on every contextRevision tick after the first.
   // Cleared in scheduleRecommendationRefresh because every refresh trigger
@@ -434,21 +433,23 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   // Re-fetches this episode's score whenever the engine bumps
   // `contextRevision`, i.e. every time its scoring cache rebuilds. The
-  // bootstrap emit covers the "cache is already hot when the view opens"
-  // case; cold caches yield nil and the section stays hidden until the
-  // engine warms up.
+  // `.initial` schedule covers the "cache is already hot when the view
+  // opens" case (the stream's `.dropFirst()` then skips Broadcast's replay
+  // emit so we don't double-fire); cold caches yield nil and the section
+  // stays hidden until the engine warms up.
   private func startRecommendationObservation() {
     if let recommendationTask, !recommendationTask.isCancelled {
       Self.log.debug("Recommendation observation already active; not starting again")
       return
     }
 
+    scheduleRecommendationRefresh(reason: .initial)
     recommendationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
 
-      for await _ in recommendationEngine.$contextRevision.stream() {
+      for await _ in recommendationEngine.$contextRevision.stream().dropFirst() {
         guard !Task.isCancelled else { return }
-        await fetchRecommendation()
+        scheduleRecommendationRefresh(reason: .contextRevision)
       }
     }
   }
@@ -532,22 +533,47 @@ enum EpisodeDetailDisplayedScore: Sendable {
     return .similarity(value)
   }
 
-  // Cancel-and-replace so rapid kind changes don't pile up in-flight fetches
-  // racing on `score`.
-  private func scheduleRecommendationRefresh() {
-    unsavedEmbeddingCache = nil
-    recommendationRefreshTask?.cancel()
-    recommendationRefreshTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      guard let self else { return }
-      await fetchRecommendation()
+  // Cancel-and-replace task per kind change / bootstrap so a brand-new
+  // payload (e.g. post-deletion `.unsaved` synthesis) doesn't wait on a
+  // parked saved-side fetch. Context-revision bursts coalesce through the
+  // debounce instead — they're high-volume and don't change the payload's
+  // identity, so the in-flight pass's kind guard already drops stale
+  // writes without needing to cancel.
+  @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
+  @ObservationIgnored private let recommendationDebounce = Debounce(
+    duration: .milliseconds(150),
+    priority: .utility
+  )
+
+  private enum EpisodeRecommendationRefreshReason {
+    case initial
+    case contextRevision
+    case kindChanged
+  }
+
+  private func scheduleRecommendationRefresh(
+    reason: EpisodeRecommendationRefreshReason
+  ) {
+    if case .kindChanged = reason { unsavedEmbeddingCache = nil }
+    switch reason {
+    case .initial, .kindChanged:
+      recommendationFetchTask?.cancel()
+      recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
+        await self?.fetchRecommendation()
+      }
+    case .contextRevision:
+      recommendationDebounce { [weak self] in
+        await self?.fetchRecommendation()
+      }
     }
   }
 
   private func clearRecommendationTasks() {
     recommendationTask?.cancel()
     recommendationTask = nil
-    recommendationRefreshTask?.cancel()
-    recommendationRefreshTask = nil
+    recommendationFetchTask?.cancel()
+    recommendationFetchTask = nil
+    recommendationDebounce.cancel()
   }
 
   // MARK: - Disappear
@@ -566,7 +592,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     logStateTransition(to: newState)
     state = newState
     if recommendationKindChanged {
-      scheduleRecommendationRefresh()
+      scheduleRecommendationRefresh(reason: .kindChanged)
     }
   }
 
