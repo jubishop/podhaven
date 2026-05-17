@@ -1,3 +1,7 @@
+---
+status: planning
+---
+
 # Smart Lists
 
 User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; planning only.

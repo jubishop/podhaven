@@ -1,3 +1,7 @@
+---
+status: in-progress
+---
+
 # ML Recommendations
 
 On-device ML recommendation engine for podcast episodes — infrastructure in PR #117, engine + UI on `worktree-appleMLRecommendations-UI`.

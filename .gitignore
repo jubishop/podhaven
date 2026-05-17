@@ -42,8 +42,8 @@ worktrees
 *.save
 .tmp/
 
-# qmd local cache (config at .config/qmd/index.yml is committed)
-.cache/qmd/
+# Local
+.cache/
 .envrc.local
 
 # Sidecar

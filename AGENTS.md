@@ -1,10 +1,11 @@
 ## Project Memory & Tracking
-Persistent context is repo-readable; choose the right store.
+Persistent context is repo-readable; choose the right store. The split is **intentional vs discovered** for `docs/` vs `knowledge/`, plus auto-load tiers for `memory/`.
 
-- **Memory (`memory/`)**: active context (incidents, bug investigations, user rules, in-flight state, external refs). Load `memory/MEMORY.md` at session start. Keep small. Catalog is one line/entry. Schema: `memory/README.md`; log: `memory/log.md`.
-- **Knowledge (`knowledge/`)**: long-form reference wiki (library quirks, recipes, patterns, migrations, gotchas). Load on demand with `qmd`, not at startup. Add when useful for "working on X," not every session. Schema: `knowledge/README.md`; log: `knowledge/log.md`.
+- **Memory (`memory/`)**: active context (open incidents, user rules, in-flight state, external refs). Auto-loads `memory/MEMORY.md` (the hot tier, capped at 25). Cold tier in `memory/cold/` is queryable but not auto-loaded. `type: project` pages with a linked issue hold post-landing verification instructions only; investigation/fix-plan live in the issue. Schema: `memory/README.md`; log: `memory/log.md`.
+- **Knowledge (`knowledge/`)**: *discovered* learnings — gotchas, post-mortems, workarounds, library quirks. Agent-curated, on-demand via `qmd`. Schema: `knowledge/README.md`; log: `knowledge/log.md`.
+- **Design docs (`docs/`)**: *intentional* artifacts — architecture, initiatives, research. PR-reviewed. Status lives in frontmatter `status:` field (`planning | in-progress | shipped | blocked | abandoned`). Update `docs/README.md` for new docs.
 - **GitHub Issues (`jubishop/podhaven`)**: lifecycle-tracked TODOs, bugs, refactors. Use `gh issue list/create/view`; link/close from PRs.
-- **Design docs (`docs/`)**: initiatives and architecture rationale. Update `docs/README.md` for new docs. Use for multi-PR efforts and reviewed "built / next" notes.
+- **Automation log (`automation-log.md`)**: append-only telemetry from scheduled routines (daily lint, cross-link pass, knowledge writer, status sync). One line per run including no-ops.
 
 **Use `qmd` for topic lookup across `memory/`, `knowledge/`, and `docs/`; avoid raw `grep` or speculative `Read`.**
 
