@@ -432,11 +432,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
 
   // Re-fetches this episode's score whenever the engine bumps
-  // `contextRevision`, i.e. every time its scoring cache rebuilds. The
-  // `.initial` schedule covers the "cache is already hot when the view
-  // opens" case (the stream's `.dropFirst()` then skips Broadcast's replay
-  // emit so we don't double-fire); cold caches yield nil and the section
-  // stays hidden until the engine warms up.
+  // `contextRevision`, i.e. every time its scoring cache rebuilds. Pair
+  // `.dropFirst()` with an explicit `.initial` kick so hot-cache opens
+  // still score without double-firing the replay emit; cold caches yield
+  // nil and the section stays hidden until the engine warms up.
   private func startRecommendationObservation() {
     if let recommendationTask, !recommendationTask.isCancelled {
       Self.log.debug("Recommendation observation already active; not starting again")
@@ -533,12 +532,8 @@ enum EpisodeDetailDisplayedScore: Sendable {
     return .similarity(value)
   }
 
-  // Cancel-and-replace task per kind change / bootstrap so a brand-new
-  // payload (e.g. post-deletion `.unsaved` synthesis) doesn't wait on a
-  // parked saved-side fetch. Context-revision bursts coalesce through the
-  // debounce instead — they're high-volume and don't change the payload's
-  // identity, so the in-flight pass's kind guard already drops stale
-  // writes without needing to cancel.
+  // Kind changes cancel any in-flight fetch so a post-deletion `.unsaved`
+  // payload doesn't wait on a parked saved-side scoring pass.
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
   @ObservationIgnored private let recommendationDebounce = Debounce(
     duration: .milliseconds(150),

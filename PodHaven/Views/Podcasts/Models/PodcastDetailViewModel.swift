@@ -189,9 +189,6 @@ class PodcastDetailViewModel:
     didSet {
       guard oldValue != currentSortMethod else { return }
       if currentSortMethod == .recommendationScore {
-        // Snap to whatever the prefetch task has produced so far; if the
-        // cache is empty kick a non-debounced refresh so the user sees
-        // ordering land as soon as scoring completes.
         if let cached = lastRecommendationScores {
           applyRecommendationDisplay(cached)
         } else {
@@ -571,10 +568,8 @@ class PodcastDetailViewModel:
 
   private func startRecommendationObservation() {
     if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
-    // Bootstrap: `.dropFirst()` skips Broadcast's replay emit so we don't
-    // double-fire alongside the explicit `.initial` schedule below. The
-    // explicit kick keeps hot-cache bootstrapping working when the stream
-    // has nothing new to yield on subscription.
+    // Pair `.dropFirst()` with an explicit `.initial` kick so hot-cache
+    // bootstrapping still works without double-firing the replay emit.
     scheduleRecommendationScoreRefresh(reason: .initial)
     recommendationObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
@@ -598,8 +593,6 @@ class PodcastDetailViewModel:
   @ObservationIgnored private var unsavedEmbeddingCache:
     (revision: Int, vectors: [MediaGUID: [Float]])?
 
-  // Coalescer state. `inFlight` gates concurrent passes; `dirty` queues a
-  // single trailing rerun so the latest snapshot wins after a burst settles.
   @ObservationIgnored private var recommendationScoresInFlight = false
   @ObservationIgnored private var recommendationScoresDirty = false
   @ObservationIgnored private let recommendationScoresDebounce = Debounce(
@@ -607,9 +600,6 @@ class PodcastDetailViewModel:
     priority: .utility
   )
 
-  // Why per-reason urgency: background prewarming and observation storms
-  // should coalesce through a debounce; user-initiated sort selection and
-  // the bootstrap of a freshly-subscribed observation need to feel snappy.
   private enum RecommendationRefreshReason {
     case initial
     case stateTransition
@@ -622,9 +612,9 @@ class PodcastDetailViewModel:
   ) {
     switch reason {
     case .sortSelected:
-      // If a prewarm pass is already in flight it will apply on completion —
-      // `currentSortMethod` is read at apply time. Don't mark dirty here or
-      // we'd force a redundant rerun right after the cache lands.
+      // An in-flight prewarm pass will apply on completion via the
+      // `currentSortMethod` check; marking dirty here would force a
+      // redundant rerun right after the cache lands.
       guard !recommendationScoresInFlight else { return }
       Task(priority: taskPriority(.utility)) { [weak self] in
         await self?.refreshRecommendationScoresCoalesced()
@@ -654,10 +644,6 @@ class PodcastDetailViewModel:
     } while recommendationScoresDirty && !Task.isCancelled
   }
 
-  // Snapshot of the inputs a pass started with. Compared against the live
-  // state/list after `await`s — if the user navigated, the series rebuilt,
-  // or observation grew the list, the pass's score map is stale and must
-  // not overwrite scores produced by a fresher pass.
   private struct RecommendationScoringSnapshot: Equatable {
     let stateKind: StateKind
     let savedPodcastID: Podcast.ID?
@@ -711,9 +697,6 @@ class PodcastDetailViewModel:
 
     guard !Task.isCancelled else { return }
     guard snapshot == currentScoringSnapshot() else {
-      // The state/list shifted under us; flag a trailing rerun so the
-      // coalescer recomputes against the new identity instead of stomping
-      // freshly-published scores with this stale map.
       recommendationScoresDirty = true
       return
     }

@@ -6,9 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-// Regression tests for the PodcastDetail recommendation-score fan-out OOM
-// (issue #274). Each test pins one piece of the coalescing / latest-state /
-// bootstrap / prewarming contract that the per-VM scheduler must preserve.
+// Regression tests for the recommendation-score fan-out OOM (issue #274).
 @Suite("of PodcastDetailViewModel recommendation scoring coalescing tests", .container)
 @MainActor final class RecommendationScoringTests {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -60,11 +58,8 @@ import Testing
       }
     )
 
-    // Background prewarming should fetch embeddings for the candidate set
-    // while we're on .newestFirst, so the eventual sort flip is snappy. A
-    // naive fix that gates *all* scoring behind `currentSortMethod ==
-    // .recommendationScore` would defeat this and the assertion would fail
-    // because nothing scored before the switch.
+    // Gating all scoring behind `.recommendationScore` would fail this:
+    // nothing would score on .newestFirst.
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
       { [self] in
@@ -83,9 +78,6 @@ import Testing
     let newestFirstOrder = viewModel.episodeList.filteredEntries.compactMap(\.episodeID)
     viewModel.currentSortMethod = .recommendationScore
 
-    // Cached scores should apply once the in-flight prewarm pass lands; the
-    // visible order flips off newest-first. The untilAdvancing form drains
-    // any pending VM/engine debounces while polling.
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
       { @MainActor in
@@ -137,8 +129,7 @@ import Testing
       }
     )
 
-    // Drain the initial bootstrap scoring pass so we measure only the
-    // burst's fan-out afterwards.
+    // Drain the bootstrap pass so we only measure the burst's fan-out.
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
       { [self] in
@@ -150,25 +141,15 @@ import Testing
     )
     fakeRecommendationRepo.clearAllCalls()
 
-    // Fire 50 $contextRevision bumps in tight succession. Without coalescing
-    // each bump runs a full scoring pass against the candidate id set; with
-    // coalescing the burst collapses into ≤ 2 passes (in-flight + 1 trailing).
     for _ in 0..<50 {
       recommendationEngine.$contextRevision.update { $0 += 1 }
     }
 
-    // Give the system plenty of headroom to settle: advance the fake sleeper
-    // (so any debounced refresh fires) and yield the main actor (so for-await
-    // loops in the buggy code path can chew through all 50 emissions).
     for _ in 0..<80 {
       await fakeSleeper.advanceTime(by: .milliseconds(200))
       await Task.yield()
     }
 
-    // Allow a small headroom (≤ 5) for trailing reruns that legitimately
-    // recompute when a state-transition or context bump arrived mid-pass. The
-    // bug shape is fan-out proportional to bump volume (50+); anything within
-    // single digits demonstrates the coalescer collapses the storm.
     let count = scopedEmbeddingsCallCount(matching: targetIDs)
     #expect(
       count <= 5,
@@ -182,11 +163,6 @@ import Testing
 
   // MARK: - Latest-state-only publish
 
-  // Pins the (state, list-identity) snapshot check: a scoring pass kicked
-  // against an older list must not overwrite the scores produced by a newer
-  // pass against the post-growth list. The gate suspends the pass *after* its
-  // embeddings DB read so its captured score map is necessarily stale once
-  // observation grows the series mid-flight.
   @Test(
     "a scoring pass against a stale list-identity must not overwrite scores from a newer pass"
   )
@@ -269,9 +245,6 @@ import Testing
     let newGUID = GUID("target-4")
     let newPubDate = Date(timeIntervalSince1970: 500)
 
-    // Arm a one-shot gate against the original four-id candidate set. The
-    // next scoring pass for these ids will suspend after the embeddings DB
-    // read, so its captured map is the four-entry "stale" snapshot.
     let fakeRepo = fakeRecommendationRepo
     fakeRepo.armEmbeddingsGate(matching: initialIDs)
     recommendationEngine.$contextRevision.update { $0 += 1 }
@@ -282,10 +255,6 @@ import Testing
       { "Expected scoring pass to suspend on gated embeddings call before list change." }
     )
 
-    // While the stale pass is suspended, grow the saved series to five
-    // episodes via the same DB observation path the production VM listens
-    // on. The new list-identity must invalidate any in-flight pass scoped
-    // to the old four-id snapshot.
     try await repo.updateSeriesFromFeed(
       podcastSeries: savedSeries,
       podcast: nil,
@@ -311,7 +280,6 @@ import Testing
       }
     )
 
-    // Embed the new 5th episode so a re-scored {5-id} map has all five entries.
     let newEpisode = try #require(
       viewModel.episodeList.allEntries.first { $0.mediaGUID.guid == newGUID }
     )
@@ -319,11 +287,6 @@ import Testing
     let newEpisodeModel = try #require(try await repo.episode(newEpisodeID))
     try await RecommendationHelpers.embedEpisodes([newEpisodeModel], embeddable: embeddable)
 
-    // Release the gate. In the buggy path the woken pass's stale 4-id score
-    // map overwrites lastRecommendationScores and applyRecommendationDisplay
-    // filters out the 5th episode. The fix's (state, list) snapshot check
-    // bails the stale pass and reruns against the new identity, keeping all
-    // five episodes visible under the rec-score sort.
     fakeRepo.releaseEmbeddingsGate()
 
     let expectedIDs = initialIDs.union([newEpisodeID])
@@ -480,8 +443,6 @@ import Testing
 
     viewModel.currentSortMethod = .recommendationScore
 
-    // Capture the initial visible order under rec-score so we can confirm a
-    // *different* order materializes after the inputs change.
     let initialOrder: [Episode.ID] = try await RecommendationHelpers.waitAdvancing {
       let order = await MainActor.run {
         viewModel.episodeList.filteredEntries.compactMap(\.episodeID)
@@ -489,8 +450,6 @@ import Testing
       return order.count == candidateEpisodes.count ? order : nil
     }
 
-    // Flip the embedding script so re-embedding the same episodes produces
-    // a different similarity gradient, then push fresh embeddings through.
     embeddable.swap { text in
       if text.contains("Filler") { return [0, 0, 1] }
       if text.contains("Signal") { return [1, 0, 0] }
@@ -593,9 +552,6 @@ import Testing
 
 // MARK: - MutableScriptedEmbeddable
 
-// Wraps a ScriptedEmbeddable whose vector function can be swapped mid-test so
-// re-embedding episodes produces fresh similarity gradients without rebuilding
-// the surrounding fixture.
 private final class MutableScriptedEmbeddable: @unchecked Sendable {
   private let vectorFor = ThreadSafe<@Sendable (String) -> [Double]>({ _ in [0, 0, 1] })
 

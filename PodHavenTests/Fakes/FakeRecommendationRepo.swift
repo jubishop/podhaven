@@ -11,9 +11,8 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
-  // Suspends the next `embeddings(for:)` call whose id set matches
-  // `armedTarget` so tests can interleave state changes with an in-flight
-  // scoring pass. One-shot: cleared as soon as a matching call hits.
+  // One-shot suspend for the next matching `embeddings(for:)` call so tests
+  // can interleave state changes with an in-flight scoring pass.
   struct EmbeddingsGateState: Sendable {
     var armedTarget: Set<Episode.ID>?
     var pendingContinuation: CheckedContinuation<Void, Never>?
