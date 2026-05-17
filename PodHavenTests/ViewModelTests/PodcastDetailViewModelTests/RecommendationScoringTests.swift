@@ -152,11 +152,12 @@ import Testing
 
     let count = scopedEmbeddingsCallCount(matching: targetIDs)
     #expect(
-      count <= 5,
+      count <= 2,
       """
       Expected per-VM coalescing to bound the scoring fan-out, but \(count) \
       scoring passes fired for the same candidate set during a burst of 50 \
-      $contextRevision bumps.
+      $contextRevision bumps. The contract is one trailing pass per debounce \
+      window, plus at most one runningDirty rerun.
       """
     )
   }
@@ -502,6 +503,80 @@ import Testing
         Actual: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
         """
       }
+    )
+  }
+
+  // MARK: - Disappear cancels in-flight scoring
+
+  @Test(
+    "disappear cancels the in-flight immediate scoring task so its runningDirty rerun is dropped"
+  )
+  func disappearCancelsInflightScoringPass() async throws {
+    let embeddable = scoringEmbeddable()
+    try await primeEngine(with: embeddable)
+
+    let (targetPodcast, candidateEpisodes) =
+      try await RecommendationHelpers
+      .createPodcastWithEpisodes(
+        count: 4,
+        podcastTitle: "Target",
+        podcastDescription: "Target",
+        episodeDescriptions: ["Target 0", "Target 1", "Target 2", "Target 3"]
+      )
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+
+    let targetIDs = Set(candidateEpisodes.map(\.id))
+    let fakeRepo = fakeRecommendationRepo
+    fakeRepo.armEmbeddingsGate(matching: targetIDs)
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.saved && viewModel.episodeList.allEntries.count == candidateEpisodes.count
+      },
+      { @MainActor in
+        "Expected target podcast loaded with \(candidateEpisodes.count) episodes."
+      }
+    )
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { fakeRepo.isEmbeddingsGateSuspended },
+      { "Expected the bootstrap scoring pass to suspend on the gated embeddings call." }
+    )
+
+    // Force the coalescer into `.runningDirty` so the surrounding `repeat`
+    // loop would re-run compute and call embeddings again on resume — unless
+    // disappear cancels the in-flight task and the `!Task.isCancelled` guard
+    // in the loop exits cleanly.
+    recommendationEngine.$contextRevision.update { $0 += 1 }
+    for _ in 0..<3 {
+      await fakeSleeper.advanceTime(by: .seconds(2))
+      await Task.yield()
+    }
+
+    viewModel.disappear()
+    fakeRecommendationRepo.clearAllCalls()
+    fakeRepo.releaseEmbeddingsGate()
+
+    for _ in 0..<10 {
+      await fakeSleeper.advanceTime(by: .seconds(2))
+      await Task.yield()
+    }
+
+    let postDisappearCalls = scopedEmbeddingsCallCount(matching: targetIDs)
+    #expect(
+      postDisappearCalls == 0,
+      """
+      Expected disappear() to cancel the in-flight immediate scoring task. \
+      Instead, \(postDisappearCalls) embeddings(for:) calls fired for the \
+      target IDs after disappear — the runningDirty rerun completed on a \
+      torn-down view model.
+      """
     )
   }
 

@@ -351,13 +351,15 @@ class EpisodePersistenceTests {
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
     )
 
+    // Bumped accuracy because GitHub-hosted runners under contention can take
+    // >10s between the `Date()` snapshot and `insertSeries` returning.
     #expect(
-      series.podcast.creationDate.approximatelyEquals(creationDate),
+      series.podcast.creationDate.approximatelyEquals(creationDate, accuracy: .seconds(60)),
       "Podcast should have creationDate"
     )
     for episode in series.episodes {
       #expect(
-        episode.creationDate.approximatelyEquals(creationDate),
+        episode.creationDate.approximatelyEquals(creationDate, accuracy: .seconds(60)),
         "Episode '\(episode.title)' should have creationDate"
       )
     }

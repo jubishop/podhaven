@@ -83,7 +83,7 @@ Run `qmd query` before non-trivial area work; use `Read`/`grep` only for known p
 - Remove unused code, properties, and parameters immediately.
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
 - No non-specializing extension splits. Put conformances on the main declaration and requirements in the body. Use extensions only for constrained methods, retroactive external conformance, or `where Self == X`.
-- Avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary.
+- In production code, avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary. Test code may use them freely.
 - Avoid `inout`; return values instead.
 - Prefer `@MainActor` on declarations over `MainActor.run`.
 - Named tuples only: label every element and access by name.

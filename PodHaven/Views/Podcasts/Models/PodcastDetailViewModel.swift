@@ -580,15 +580,10 @@ class PodcastDetailViewModel:
     }
   }
 
-  private func clearRecommendationObservationTask() {
-    recommendationObservationTask?.cancel()
-    recommendationObservationTask = nil
-    recommendationScoresDebounce.cancel()
-  }
-
   // MARK: - Recommendations
 
   @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
+  @ObservationIgnored private var recommendationScoreTask: Task<Void, Never>?
   @ObservationIgnored private var lastRecommendationScores: [MediaGUID: Float]?
   @ObservationIgnored private var unsavedEmbeddingCache:
     (revision: Int, vectors: [MediaGUID: [Float]])?
@@ -613,7 +608,8 @@ class PodcastDetailViewModel:
   // marking dirty here would force a redundant rerun right after.
   private func scheduleImmediateRecommendationScoreRefresh() {
     guard scoringStatus == .idle else { return }
-    Task(priority: taskPriority(.utility)) { [weak self] in
+    recommendationScoreTask?.cancel()
+    recommendationScoreTask = Task(priority: taskPriority(.utility)) { [weak self] in
       await self?.refreshRecommendationScoresCoalesced()
     }
   }
@@ -673,6 +669,7 @@ class PodcastDetailViewModel:
   }
 
   private func computeAndPublishRecommendationScores() async {
+    if Task.isCancelled { return }
     let snapshot = currentScoringSnapshot()
     let entries = episodeList.allEntries
     guard !entries.isEmpty else { return }
@@ -813,7 +810,15 @@ class PodcastDetailViewModel:
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
-    clearRecommendationObservationTask()
+    clearRecommendationTasks()
+  }
+
+  private func clearRecommendationTasks() {
+    recommendationObservationTask?.cancel()
+    recommendationObservationTask = nil
+    recommendationScoreTask?.cancel()
+    recommendationScoreTask = nil
+    recommendationScoresDebounce.cancel()
   }
 
   // MARK: - Private Helpers
