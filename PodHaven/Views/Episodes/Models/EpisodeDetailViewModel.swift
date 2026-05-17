@@ -536,7 +536,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // payload doesn't wait on a parked saved-side scoring pass.
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
   @ObservationIgnored private let recommendationDebounce = Debounce(
-    duration: .milliseconds(150),
+    duration: .seconds(1),
     priority: .utility
   )
 
