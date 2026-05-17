@@ -17,7 +17,7 @@ actor DownloadTask: Identifiable {
   nonisolated var id: URL { url }
 
   let url: URL
-  var finished: Bool { finishedLatch.isTripped }
+  var finished: Bool { finishedLatch.isFinished }
 
   private let session: any DataFetchable
   private let beganLatch = AsyncLatch<Void>()
@@ -25,12 +25,8 @@ actor DownloadTask: Identifiable {
   private var fetchTask: Task<Data, any Error>?
   private weak var owner: DownloadManager?
 
-  func downloadBegan() async {
-    do {
-      try await beganLatch.wait()
-    } catch {
-      // Cancellation propagates via Task.isCancelled at the call site.
-    }
+  func downloadBegan() async throws {
+    try await beganLatch.wait()
   }
 
   func downloadFinished() async throws -> DownloadData {
@@ -39,7 +35,7 @@ actor DownloadTask: Identifiable {
   }
 
   func cancel() async {
-    guard !finishedLatch.isTripped else { return }
+    guard !finishedLatch.isFinished else { return }
     // Capture-then-clear so concurrent cancel()s after this point are no-ops
     // and the owner is notified at most once per task.
     let owner = self.owner
@@ -59,15 +55,15 @@ actor DownloadTask: Identifiable {
   // Cancellation initiated by the owning manager. The manager has already
   // removed the task from its state, so we skip the owner callback.
   fileprivate func cancelFromOwner() {
-    guard !finishedLatch.isTripped else { return }
+    guard !finishedLatch.isFinished else { return }
     owner = nil
     finalizeCancelled()
   }
 
   fileprivate func download() async {
-    guard !finishedLatch.isTripped else { return }
+    guard !finishedLatch.isFinished else { return }
 
-    beganLatch.trip()
+    beganLatch.finish()
 
     let fetchTask = Task { [session, url] () async throws -> Data in
       try await session.validatedData(from: url)
@@ -77,9 +73,9 @@ actor DownloadTask: Identifiable {
 
     do {
       let data = try await fetchTask.value
-      finishedLatch.trip(.success(DownloadData(url: url, data: data)))
+      finishedLatch.finish(.success(DownloadData(url: url, data: data)))
     } catch {
-      finishedLatch.trip(.failure(error))
+      finishedLatch.finish(.failure(error))
     }
   }
 
@@ -87,8 +83,8 @@ actor DownloadTask: Identifiable {
 
   private func finalizeCancelled() {
     fetchTask?.cancel()
-    beganLatch.trip()
-    finishedLatch.trip(.failure(CancellationError()))
+    beganLatch.finish()
+    finishedLatch.finish(.failure(CancellationError()))
   }
 }
 

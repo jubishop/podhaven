@@ -411,8 +411,8 @@ struct RecommendationRepo: Recommending {
     }
   }
 
-  // Shared builder for both the async repo function (above) and the GRDB
-  // observation in `Observatory.episodesNeedingEmbeddings(revision:)`.
+  // Shared builder for both the async repo function and the GRDB observation
+  // in `Observatory.episodesNeedingEmbeddings(revision:)`.
   static func episodesNeedingEmbeddings(
     _ db: Database,
     revision: Int

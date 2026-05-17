@@ -15,9 +15,9 @@ struct ContextualEmbeddingTests {
     let fake = ControllableEmbeddable(hasAvailableAssets: true)
     let embedding = ContextualEmbedding(embedding: fake)
 
-    #expect(!embedding.assetsLoaded.isTripped)
+    #expect(!embedding.assetsLoaded.isFinished)
     embedding.requestAndLoadAssetsIfNeeded()
-    #expect(embedding.assetsLoaded.isTripped)
+    #expect(embedding.assetsLoaded.isFinished)
     #expect(fake.loadCount == 1)
     #expect(fake.requestAssetsCount == 0)
   }
@@ -28,7 +28,7 @@ struct ContextualEmbeddingTests {
     let embedding = ContextualEmbedding(embedding: fake)
 
     embedding.requestAndLoadAssetsIfNeeded()
-    #expect(!embedding.assetsLoaded.isTripped)
+    #expect(!embedding.assetsLoaded.isFinished)
     #expect(fake.loadCount == 0)
     #expect(fake.requestAssetsCount == 1)
   }
@@ -56,7 +56,7 @@ struct ContextualEmbeddingTests {
     // Simulate assets arriving
     fake.hasAvailableAssets = true
     embedding.requestAndLoadAssetsIfNeeded()
-    #expect(embedding.assetsLoaded.isTripped)
+    #expect(embedding.assetsLoaded.isFinished)
     #expect(fake.loadCount == 1)
     #expect(fake.requestAssetsCount == 1)
   }
@@ -69,7 +69,7 @@ struct ContextualEmbeddingTests {
     let embedding = ContextualEmbedding(embedding: fake)
 
     embedding.loadAssetsIfAvailable()
-    #expect(embedding.assetsLoaded.isTripped)
+    #expect(embedding.assetsLoaded.isFinished)
     #expect(fake.loadCount == 1)
     #expect(fake.requestAssetsCount == 0)
   }
@@ -80,7 +80,7 @@ struct ContextualEmbeddingTests {
     let embedding = ContextualEmbedding(embedding: fake)
 
     embedding.loadAssetsIfAvailable()
-    #expect(!embedding.assetsLoaded.isTripped)
+    #expect(!embedding.assetsLoaded.isFinished)
     #expect(fake.loadCount == 0)
     #expect(fake.requestAssetsCount == 0)
   }

@@ -2,10 +2,10 @@
 
 import Foundation
 
-// One-shot async latch. Initially closed; tasks awaiting `wait()` suspend
-// until any caller invokes `trip(_:)`, at which point all current and
-// future awaiters receive the tripped value. A tripped latch stays
-// tripped — unlike AsyncSemaphore, which decrements per signal, this is
+// One-shot async latch. Initially open; tasks awaiting `wait()` suspend
+// until any caller invokes `finish(_:)`, at which point all current and
+// future awaiters receive the finished value. A finished latch stays
+// finished — unlike AsyncSemaphore, which decrements per signal, this is
 // monotonic. Cancellation of an awaiting task throws CancellationError
 // and removes the continuation cleanly, so cancelled callers don't leak.
 //
@@ -16,24 +16,24 @@ final class AsyncLatch<Value: Sendable>: Sendable {
   private struct State: Sendable {
     var value: Value?
     var continuations: [UUID: CheckedContinuation<Value, any Error>] = [:]
-    var isTripped: Bool { value != nil }
+    var isFinished: Bool { value != nil }
   }
 
   private let state = ThreadSafe(State())
 
   init() {}
 
-  var isTripped: Bool {
-    state { $0.isTripped }
+  var isFinished: Bool {
+    state { $0.isFinished }
   }
 
-  var trippedValue: Value? {
+  var finishedValue: Value? {
     state { $0.value }
   }
 
-  func trip(_ value: Value) {
+  func finish(_ value: Value) {
     let pending: [CheckedContinuation<Value, any Error>] = state { s in
-      guard !s.isTripped else { return [] }
+      guard !s.isFinished else { return [] }
       s.value = value
       let continuations = Array(s.continuations.values)
       s.continuations.removeAll()
@@ -46,7 +46,7 @@ final class AsyncLatch<Value: Sendable>: Sendable {
 
   @discardableResult
   func wait() async throws -> Value {
-    if let value = trippedValue { return value }
+    if let value = finishedValue { return value }
 
     let id = UUID()
     return try await withTaskCancellationHandler {
@@ -69,7 +69,7 @@ final class AsyncLatch<Value: Sendable>: Sendable {
 }
 
 extension AsyncLatch where Value == Void {
-  func trip() {
-    trip(())
+  func finish() {
+    finish(())
   }
 }

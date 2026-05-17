@@ -68,12 +68,12 @@ class ContextualEmbedding {
   // Load on-disk assets without triggering a download. Safe from a
   // BG-launched task handler where the scene never went active.
   func loadAssetsIfAvailable() {
-    guard !assetsLoaded.isTripped, embedding.hasAvailableAssets else { return }
+    guard !assetsLoaded.isFinished, embedding.hasAvailableAssets else { return }
     loadAssets()
   }
 
   func vector(for text: String) throws -> [Float] {
-    guard assetsLoaded.isTripped else { throw EmbeddingError.modelUnavailable }
+    guard assetsLoaded.isFinished else { throw EmbeddingError.modelUnavailable }
 
     let result = try embedding.embeddingResult(for: text)
 
@@ -101,7 +101,7 @@ class ContextualEmbedding {
 
     do {
       try embedding.load()
-      assetsLoaded.trip()
+      assetsLoaded.finish()
     } catch {
       Self.log.caughtError("Failed to load contextual embedding", error)
       isLoading.release()

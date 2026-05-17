@@ -83,6 +83,33 @@ struct DownloadManagerTests {
     }
   }
 
+  @Test("downloadBegan throws CancellationError when the awaiting task is cancelled")
+  func downloadBeganThrowsOnCancellation() async throws {
+    // First URL holds the queue so the second never begins.
+    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+    let blockingURL = URL.valid()
+    _ = await session.waitRespond(to: blockingURL)
+    _ = await downloadManager.addURL(blockingURL)
+
+    let pendingURL = URL.valid()
+    let pendingTask = await downloadManager.addURL(pendingURL)
+
+    let caught = ThreadSafe<(any Error)?>(nil)
+    let waiter = Task {
+      do {
+        try await pendingTask.downloadBegan()
+      } catch {
+        caught(error)
+      }
+    }
+
+    for _ in 0..<10 { await Task.yield() }
+    waiter.cancel()
+    await waiter.value
+
+    #expect(caught() is CancellationError)
+  }
+
   @Test("that you can cancel a mid-flight download")
   func cancelActiveDownload() async throws {
     let downloadManager = DownloadManager(session: session)
@@ -93,7 +120,7 @@ struct DownloadManagerTests {
 
     // Cancels the task, not immediately but before it is done
     Task {
-      await task.downloadBegan()
+      try? await task.downloadBegan()
       await task.cancel()
     }
 
@@ -439,7 +466,7 @@ struct DownloadManagerTests {
     let activeURL = URL.valid()
     _ = await session.waitRespond(to: activeURL)
     let activeTask = await downloadManager.addURL(activeURL)
-    await activeTask.downloadBegan()
+    try await activeTask.downloadBegan()
 
     let nextURL = URL.valid()
     let nextTask = await downloadManager.addURL(nextURL)
@@ -466,7 +493,7 @@ struct DownloadManagerTests {
     let url = URL.valid()
     _ = await session.waitRespond(to: url)
     let task = await downloadManager.addURL(url)
-    await task.downloadBegan()
+    try await task.downloadBegan()
 
     await task.cancel()
 
@@ -486,7 +513,7 @@ struct DownloadManagerTests {
     let url = URL.valid()
     _ = await session.waitRespond(to: url)
     let task = await downloadManager.addURL(url)
-    await task.downloadBegan()
+    try await task.downloadBegan()
 
     await task.cancel()
     await task.cancel()
@@ -534,7 +561,7 @@ struct DownloadManagerTests {
     let succeedTask1 = await downloadManager.addURL(succeedURL1)
     let succeedTask2 = await downloadManager.addURL(succeedURL2)
 
-    await cancelTask.downloadBegan()
+    try await cancelTask.downloadBegan()
     await cancelTask.cancel()
 
     let data1 = try await succeedTask1.downloadFinished()
@@ -575,7 +602,7 @@ struct DownloadManagerTests {
     let activeURL = URL.valid()
     _ = await session.waitRespond(to: activeURL)
     let activeTask = await downloadManager.addURL(activeURL)
-    await activeTask.downloadBegan()
+    try await activeTask.downloadBegan()
 
     let nextURL = URL.valid()
     let nextTask = await downloadManager.addURL(nextURL)
@@ -597,7 +624,7 @@ struct DownloadManagerTests {
     let url = URL.valid()
     _ = await session.waitRespond(to: url)
     let task = await downloadManager.addURL(url)
-    await task.downloadBegan()
+    try await task.downloadBegan()
 
     await downloadManager.cancelDownload(url: url)
 
@@ -620,8 +647,8 @@ struct DownloadManagerTests {
     _ = await session.waitRespond(to: url2)
     let task1 = await downloadManager.addURL(url1)
     let task2 = await downloadManager.addURL(url2)
-    await task1.downloadBegan()
-    await task2.downloadBegan()
+    try await task1.downloadBegan()
+    try await task2.downloadBegan()
 
     await downloadManager.cancelAllDownloads()
 
@@ -659,7 +686,7 @@ struct DownloadManagerTests {
       return await downloadManager.addURL(url)
     }
     for activeTask in activeTasks {
-      await activeTask.downloadBegan()
+      try await activeTask.downloadBegan()
     }
 
     let pendingURL = URL.valid()
@@ -696,7 +723,7 @@ struct DownloadManagerTests {
     let url = URL.valid()
     _ = await session.waitRespond(to: url)
     let task1 = await downloadManager.addURL(url)
-    await task1.downloadBegan()
+    try await task1.downloadBegan()
 
     let task2 = await downloadManager.addURL(url)
     #expect(task1 === task2)

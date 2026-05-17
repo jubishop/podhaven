@@ -18,10 +18,19 @@ extension Container {
 // MARK: - EmbeddingProcessor
 
 struct EmbeddingProcessor: Sendable {
-  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.sleeper) private var sleeper
   @DynamicInjected(\.taskPriority) private var taskPriority
+
+  // ContextualEmbedding is intentionally non-Sendable (it owns
+  // NLContextualEmbedding, an Apple class without a known Sendable
+  // conformance — see ml-recommendations.md "Known item #14"). It can't
+  // be a stored @DynamicInjected property on this Sendable struct;
+  // resolve from the container at each use site instead.
+  private var contextualEmbedding: ContextualEmbedding {
+    Container.shared.contextualEmbedding()
+  }
 
   private static let log = Log.as(LogSubsystem.Recommendations.processor)
 
@@ -44,9 +53,8 @@ struct EmbeddingProcessor: Sendable {
     backgroundTaskScheduler.register { complete in
       Self.log.info("Starting embedding background task")
 
-      let embedding = Container.shared.contextualEmbedding()
-      embedding.loadAssetsIfAvailable()
-      guard embedding.assetsLoaded.isTripped else {
+      contextualEmbedding.loadAssetsIfAvailable()
+      guard contextualEmbedding.assetsLoaded.isFinished else {
         Self.log.info("Contextual embedding assets not available yet, skipping")
         complete(true)
         return
@@ -58,7 +66,7 @@ struct EmbeddingProcessor: Sendable {
         // pass. Newest episodes (by pubDate) are ordered first.
         let queryStart = ContinuousClock.now
         let idsToProcess = try await recommendationRepo.episodesNeedingEmbeddings(
-          revision: embedding.revision
+          revision: contextualEmbedding.revision
         )
         let queryDuration = ContinuousClock.now - queryStart
         Self.log.debug("episodesNeedingEmbeddings query took \(queryDuration)")
@@ -73,7 +81,7 @@ struct EmbeddingProcessor: Sendable {
 
         try await EmbeddingService.upsertEpisodeEmbeddings(
           forIDs: idsToProcess,
-          embedding: embedding
+          embedding: contextualEmbedding
         )
 
         Self.log.info("Embedding background task completed successfully")
@@ -95,7 +103,6 @@ struct EmbeddingProcessor: Sendable {
     case .active:
       Self.log.debug("activated")
 
-      Container.shared.contextualEmbedding().requestAndLoadAssetsIfNeeded()
       startForegroundObservation()
     case .background:
       Self.log.debug("backgrounded")
@@ -114,13 +121,17 @@ struct EmbeddingProcessor: Sendable {
   // next BG-task window. Runs at `.background` Task priority — the BG task
   // remains the safety net when the app is suspended.
   private func startForegroundObservation() {
+    contextualEmbedding.requestAndLoadAssetsIfNeeded()
     foregroundTask { task in
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
-        let embedding = Container.shared.contextualEmbedding()
         do {
-          try await embedding.assetsLoaded.wait()
+          try await contextualEmbedding.assetsLoaded.wait()
         } catch {
+          Self.log.caughtError(
+            "Foreground embedding observation cancelled before assets loaded",
+            error
+          )
           return
         }
         guard !Task.isCancelled else { return }
@@ -129,14 +140,14 @@ struct EmbeddingProcessor: Sendable {
         while !Task.isCancelled {
           do {
             for try await ids in observatory.episodesNeedingEmbeddings(
-              revision: embedding.revision
+              revision: contextualEmbedding.revision
             ) {
               guard !Task.isCancelled else { return }
               guard !ids.isEmpty else { continue }
               retryDelay = .seconds(1)
               try await EmbeddingService.upsertEpisodeEmbeddings(
                 forIDs: ids,
-                embedding: embedding
+                embedding: contextualEmbedding
               )
             }
           } catch is CancellationError {
