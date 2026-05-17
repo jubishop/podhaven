@@ -3,6 +3,7 @@
 import BackgroundTasks
 import FactoryKit
 import Foundation
+import GRDB
 import Logging
 import SwiftUI
 
@@ -18,12 +19,16 @@ extension Container {
 
 struct EmbeddingProcessor: Sendable {
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
+  @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.sleeper) private var sleeper
+  @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.Recommendations.processor)
 
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).embeddingComputation"
 
   private let backgroundTaskScheduler: BackgroundTaskScheduler
+  private let foregroundTask = ThreadSafe<Task<Void, Never>?>(nil)
 
   init() {
     backgroundTaskScheduler = BackgroundTaskScheduler(
@@ -41,7 +46,7 @@ struct EmbeddingProcessor: Sendable {
 
       let embedding = Container.shared.contextualEmbedding()
       embedding.loadAssetsIfAvailable()
-      guard embedding.isAvailable else {
+      guard embedding.assetsLoaded.isTripped else {
         Self.log.info("Contextual embedding assets not available yet, skipping")
         complete(true)
         return
@@ -91,12 +96,65 @@ struct EmbeddingProcessor: Sendable {
       Self.log.debug("activated")
 
       Container.shared.contextualEmbedding().requestAndLoadAssetsIfNeeded()
+      startForegroundObservation()
     case .background:
       Self.log.debug("backgrounded")
 
+      stopForegroundObservation()
       backgroundTaskScheduler.scheduleNext()
     default:
       break
+    }
+  }
+
+  // MARK: - Foreground Observation
+
+  // Drains episodesNeedingEmbeddings while the app is active so newly-fetched
+  // episodes pick up embeddings within seconds instead of waiting for the
+  // next BG-task window. Runs at `.background` Task priority — the BG task
+  // remains the safety net when the app is suspended.
+  private func startForegroundObservation() {
+    foregroundTask { task in
+      guard task == nil else { return }
+      task = Task(priority: taskPriority(.background)) {
+        let embedding = Container.shared.contextualEmbedding()
+        do {
+          try await embedding.assetsLoaded.wait()
+        } catch {
+          return
+        }
+        guard !Task.isCancelled else { return }
+
+        var retryDelay: Duration = .seconds(1)
+        while !Task.isCancelled {
+          do {
+            for try await ids in observatory.episodesNeedingEmbeddings(
+              revision: embedding.revision
+            ) {
+              guard !Task.isCancelled else { return }
+              guard !ids.isEmpty else { continue }
+              retryDelay = .seconds(1)
+              try await EmbeddingService.upsertEpisodeEmbeddings(
+                forIDs: ids,
+                embedding: embedding
+              )
+            }
+          } catch is CancellationError {
+            return
+          } catch {
+            Self.log.caughtError("Foreground embedding observation failed", error)
+            try? await sleeper.sleep(for: retryDelay)
+            retryDelay = min(retryDelay * 2, .seconds(60))
+          }
+        }
+      }
+    }
+  }
+
+  private func stopForegroundObservation() {
+    foregroundTask { task in
+      task?.cancel()
+      task = nil
     }
   }
 }

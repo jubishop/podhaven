@@ -283,6 +283,18 @@ struct Observatory: Observing {
     }
   }
 
+  // Wakes when the set of episodes that need an embedding (computed or
+  // re-verified against the current model revision) changes. `revision`
+  // is captured at subscription time; if the model revision changes, the
+  // caller restarts the observation. Emits the full ID list — GRDB's
+  // `.values(in:)` coalesces during long consumer work, so intermediate
+  // shrinking-list emissions during a multi-episode upsert don't queue up.
+  func episodesNeedingEmbeddings(revision: Int) -> AsyncValueObservation<[Episode.ID]> {
+    observe { db in
+      try RecommendationRepo.episodesNeedingEmbeddings(db, revision: revision)
+    }
+  }
+
   // MARK: - Private Helpers
 
   private static let countKey = "count"

@@ -651,7 +651,7 @@ class PodcastDetailViewModel:
     entries: IdentifiedArrayOf<ListedEpisode>
   ) async -> [MediaGUID: Float] {
     contextualEmbedding.loadAssetsIfAvailable()
-    guard contextualEmbedding.isAvailable else { return [:] }
+    guard contextualEmbedding.assetsLoaded.isTripped else { return [:] }
 
     let revision = contextualEmbedding.revision
     var cachedVectors: [MediaGUID: [Float]]
