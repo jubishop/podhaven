@@ -5,14 +5,13 @@ Persistent context is repo-readable, organized into two flat stores plus GitHub 
 - **Design docs (`docs/`)** — intentional artifacts: architecture, initiatives, research. PR-reviewed. Status lives in frontmatter `status:` (`planning | in-progress | shipped | blocked | abandoned`). When adding or removing a doc, update the human-readable list in `docs/README.md`.
 - **GitHub Issues (`jubishop/podhaven`)** — lifecycle-tracked TODOs, bugs, refactors. Use `gh issue list/create/view`; link/close from PRs.
 
-**Use `qmd` for topic lookup across `memory/` and `docs/`; avoid raw `grep` or speculative `Read`.**
+**Use `qmd` for topic lookup across `memory/` and `docs/`; avoid raw `grep` or speculative `Read`. Use the cheapest mode that fits.**
 
-- `qmd query "question"`: hybrid BM25 + vector + rerank (default).
-- `qmd search "exact phrase"`: BM25 only for known terms.
-- `qmd vsearch "concept"`: vector only for fuzzy matches.
+- `qmd search "known term"`: first choice for names, files, APIs, issue numbers, and exact concepts.
+- `qmd query "question" --no-rerank`: default for fuzzy or open-ended topic lookup.
 - `qmd get <path>[:line] -l N`: cheap page/slice fetch.
 
-Run `qmd query` before non-trivial area work; use `Read`/`grep` only for known paths. Config: `.config/qmd/index.yml`. Git hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite — no manual `qmd update` needed.
+Run a qmd lookup before non-trivial area work; use `Read`/`grep` only for known paths. Config: `.config/qmd/index.yml`. Git hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite — no manual `qmd update` needed.
 
 **Writing memories.** Write freely whenever you learn something worth keeping (user preferences, validated approaches, gotchas, incidents, external refs). **Always `qmd search` the topic first** — if a related page exists, update it rather than creating a new one. Avoid duplicates and contradictions. Do **not** create or maintain a index; `qmd` is the lookup mechanism.
 
