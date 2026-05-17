@@ -241,7 +241,7 @@ struct EpisodeDetailView: View {
     HStack(spacing: 8) {
       AppIcon.recommendation.label
       Spacer()
-      Text("Embedding pending")
+      Text("Pending")
         .foregroundStyle(.secondary)
     }
     .font(.headline)
