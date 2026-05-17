@@ -250,7 +250,6 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   // contributes no positive or negative signal to the recommendation engine.
   static let hasRatingSignal: SQLExpression = loved || liked || disliked
   static let hasCoverage: SQLExpression = Columns.playbackCoverage != nil
-  static let hasSignal: SQLExpression = hasRatingSignal || hasCoverage
   static let candidate: SQLExpression = unstarted && unfinished && !rated && unqueued
   static let hasEmbedding: SQLExpression =
     EpisodeEmbedding

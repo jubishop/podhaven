@@ -414,7 +414,6 @@ struct RecommendationRepo: Recommending {
         try Episode
         .joining(required: Episode.podcast.aliased(podcastAlias))
         .joining(optional: Episode.embedding.aliased(embeddingAlias))
-        .filter(Episode.hasSignal || Episode.candidate)
         .filter(
           embeddingAlias[EpisodeEmbedding.Columns.id] == nil
             || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
@@ -423,7 +422,7 @@ struct RecommendationRepo: Recommending {
             || podcastAlias[Podcast.Columns.contentUpdatedAt]
               > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
         )
-        .order(Episode.hasSignal.desc)
+        .order(Episode.Columns.pubDate.desc)
         .select(Episode.Columns.id, as: Episode.ID.self)
         .fetchAll(db)
     }

@@ -22,6 +22,7 @@ class EmbeddingRepoTests {
     description: String? = nil,
     podcastDescription: String = String.random(),
     rating: EpisodeRating? = nil,
+    pubDate: Date? = Date(),
     finishDate: Date? = nil,
     currentTime: CMTime? = nil,
     queueOrder: Int? = nil
@@ -31,6 +32,7 @@ class EmbeddingRepoTests {
         unsavedPodcast: try Create.unsavedPodcast(description: podcastDescription),
         unsavedEpisode: try Create.unsavedEpisode(
           title: title,
+          pubDate: pubDate,
           description: description,
           finishDate: finishDate,
           currentTime: currentTime,
@@ -215,12 +217,12 @@ class EmbeddingRepoTests {
     #expect(result.contains(pe.episode.id))
   }
 
-  @Test("excludes finished episodes that have no rating and no playback bitmap")
-  func finishedNoBitmapExcluded() async throws {
+  @Test("includes finished episodes that have no rating and no playback bitmap")
+  func finishedNoBitmapIncluded() async throws {
     let pe = try await createPodcastEpisode(finishDate: Date())
 
     let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
-    #expect(!result.contains(pe.episode.id))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("includes episodes with a playback bitmap even after finish")
@@ -247,20 +249,20 @@ class EmbeddingRepoTests {
     #expect(result.contains(pe.episode.id))
   }
 
-  @Test("excludes queued episodes that are otherwise candidates")
-  func queuedEpisodesExcluded() async throws {
+  @Test("includes queued episodes")
+  func queuedEpisodesIncluded() async throws {
     let pe = try await createPodcastEpisode(queueOrder: 1)
 
     let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
-    #expect(!result.contains(pe.episode.id))
+    #expect(result.contains(pe.episode.id))
   }
 
-  @Test("excludes started episodes that are otherwise candidates")
-  func startedEpisodesExcluded() async throws {
+  @Test("includes started episodes")
+  func startedEpisodesIncluded() async throws {
     let pe = try await createPodcastEpisode(currentTime: CMTime(seconds: 60, preferredTimescale: 1))
 
     let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
-    #expect(!result.contains(pe.episode.id))
+    #expect(result.contains(pe.episode.id))
   }
 
   @Test("excludes episodes with fresh embeddings at correct revision")
@@ -307,21 +309,16 @@ class EmbeddingRepoTests {
     #expect(result.contains(pe.episode.id))
   }
 
-  @Test("signal episodes ordered before candidate episodes")
-  func signalEpisodesFirst() async throws {
-    // Create candidate first (unstarted, unfinished, unrated, unqueued)
-    let candidate = try await createPodcastEpisode()
-    // Create signal second (rated)
-    let signal = try await createPodcastEpisode(rating: .loved)
+  @Test("newer episodes ordered before older episodes")
+  func newerPubDateFirst() async throws {
+    let older = try await createPodcastEpisode(pubDate: Date(timeIntervalSince1970: 1_000_000))
+    let newer = try await createPodcastEpisode(pubDate: Date(timeIntervalSince1970: 2_000_000))
 
     let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
 
-    let signalIndex = result.firstIndex(of: signal.episode.id)
-    let candidateIndex = result.firstIndex(of: candidate.episode.id)
-
-    let unwrappedSignal = try #require(signalIndex)
-    let unwrappedCandidate = try #require(candidateIndex)
-    #expect(unwrappedSignal < unwrappedCandidate)
+    let newerIndex = try #require(result.firstIndex(of: newer.episode.id))
+    let olderIndex = try #require(result.firstIndex(of: older.episode.id))
+    #expect(newerIndex < olderIndex)
   }
 
   @Test("returns empty when no episodes exist")

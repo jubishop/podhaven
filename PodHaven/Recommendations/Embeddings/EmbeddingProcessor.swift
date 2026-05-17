@@ -50,7 +50,7 @@ struct EmbeddingProcessor: Sendable {
       do {
         // IDs only — full Episode rows are hydrated in chunks during
         // processing so a BG-expiry doesn't waste a multi-second hydration
-        // pass. Signals (rated/finished) are ordered first.
+        // pass. Newest episodes (by pubDate) are ordered first.
         let queryStart = ContinuousClock.now
         let idsToProcess = try await recommendationRepo.episodesNeedingEmbeddings(
           revision: embedding.revision
