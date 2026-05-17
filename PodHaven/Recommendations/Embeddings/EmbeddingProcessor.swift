@@ -25,9 +25,8 @@ struct EmbeddingProcessor: Sendable {
 
   // ContextualEmbedding is intentionally non-Sendable (it owns
   // NLContextualEmbedding, an Apple class without a known Sendable
-  // conformance — see ml-recommendations.md "Known item #14"). It can't
-  // be a stored @DynamicInjected property on this Sendable struct;
-  // resolve from the container at each use site instead.
+  // conformance). It can't be a stored @DynamicInjected property on
+  // this Sendable struct; resolve from the container at each use site.
   private var contextualEmbedding: ContextualEmbedding {
     Container.shared.contextualEmbedding()
   }
@@ -116,10 +115,6 @@ struct EmbeddingProcessor: Sendable {
 
   // MARK: - Foreground Observation
 
-  // Drains episodesNeedingEmbeddings while the app is active so newly-fetched
-  // episodes pick up embeddings within seconds instead of waiting for the
-  // next BG-task window. Runs at `.background` Task priority — the BG task
-  // remains the safety net when the app is suspended.
   private func startForegroundObservation() {
     contextualEmbedding.requestAndLoadAssetsIfNeeded()
     foregroundTask { task in
