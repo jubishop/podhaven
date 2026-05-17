@@ -2,7 +2,6 @@
 name: Factory v3 actor-isolation pattern
 description: How to define and migrate Factory closures for @MainActor / global-actor types after Factory v3.0
 type: reference
-originSessionId: 004785e6-d902-4676-82f6-2ff941067ffb
 ---
 Factory v3.0 changed the closure typealias from `@Sendable @isolated(any) () -> T` to plain `() -> T`. Old `Factory(self) { @MainActor in Foo() }` no longer compiles.
 

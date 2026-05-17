@@ -2,9 +2,6 @@ collections:
   memory:
     path: ./memory
     pattern: '**/*.md'
-  knowledge:
-    path: ./knowledge
-    pattern: '**/*.md'
   docs:
     path: ./docs
     pattern: '**/*.md'

@@ -1,7 +1,7 @@
 ---
 name: task-detached-migration
 description: Why `Task.detached` is banned and how to hop off `@MainActor` for CPU work without it.
-tags: [swift-concurrency, mainactor]
+type: reference
 ---
 
 # `Task.detached` migration pattern

@@ -1,0 +1,13 @@
+#!/bin/bash
+# Re-index qmd after rebases / commit amends so local hybrid search stays fresh.
+# Backgrounded so it doesn't block git. Silent unless invoked manually.
+# Skipped cleanly if qmd isn't installed.
+
+command -v qmd >/dev/null 2>&1 || exit 0
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+(
+  cd "$REPO_ROOT"
+  qmd update >/dev/null 2>&1
+  qmd embed >/dev/null 2>&1
+) &

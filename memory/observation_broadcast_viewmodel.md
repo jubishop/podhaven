@@ -2,7 +2,6 @@
 name: Observable + Broadcast observation gap
 description: Reading SharedState's @Broadcasted properties through an @Observable viewModel's computed property may silently fail to trigger SwiftUI re-renders, especially for conditional view creation (if let)
 type: feedback
-originSessionId: b19353f7-b324-4393-a540-258ceaa3b582
 ---
 Reading `sharedState.onDeck` through a computed property on an `@Observable` viewModel (where `sharedState` is `@ObservationIgnored`) caused the PlayBarSheet's share button to never appear. The `if let onDeck = viewModel.onDeck` check silently failed despite onDeck being set.
 

@@ -1,20 +1,20 @@
 ## Project Memory & Tracking
-Persistent context is repo-readable; choose the right store. The split is **intentional vs discovered** for `docs/` vs `knowledge/`, plus auto-load tiers for `memory/`.
+Persistent context is repo-readable, organized into two flat stores plus GitHub issues:
 
-- **Memory (`memory/`)**: active context (open incidents, user rules, in-flight state, external refs). Auto-loads `memory/MEMORY.md` (the hot tier, capped at 25). Cold tier in `memory/cold/` is queryable but not auto-loaded. `type: project` pages with a linked issue hold post-landing verification instructions only; investigation/fix-plan live in the issue. Schema: `memory/README.md`; log: `memory/log.md`.
-- **Knowledge (`knowledge/`)**: *discovered* learnings — gotchas, post-mortems, workarounds, library quirks. Agent-curated, on-demand via `qmd`. Schema: `knowledge/README.md`; log: `knowledge/log.md`.
-- **Design docs (`docs/`)**: *intentional* artifacts — architecture, initiatives, research. PR-reviewed. Status lives in frontmatter `status:` field (`planning | in-progress | shipped | blocked | abandoned`). Update `docs/README.md` for new docs.
-- **GitHub Issues (`jubishop/podhaven`)**: lifecycle-tracked TODOs, bugs, refactors. Use `gh issue list/create/view`; link/close from PRs.
-- **Automation log (`automation-log.md`)**: append-only telemetry from scheduled routines (daily lint, cross-link pass, knowledge writer, status sync). One line per run including no-ops.
+- **Memory (`memory/`)** — one flat list of long-lived notes. Not auto-loaded into sessions; agents discover pages via `qmd`. Schema in `memory/README.md`.
+- **Design docs (`docs/`)** — intentional artifacts: architecture, initiatives, research. PR-reviewed. Status lives in frontmatter `status:` (`planning | in-progress | shipped | blocked | abandoned`). When adding or removing a doc, update the human-readable list in `docs/README.md`.
+- **GitHub Issues (`jubishop/podhaven`)** — lifecycle-tracked TODOs, bugs, refactors. Use `gh issue list/create/view`; link/close from PRs.
 
-**Use `qmd` for topic lookup across `memory/`, `knowledge/`, and `docs/`; avoid raw `grep` or speculative `Read`.**
+**Use `qmd` for topic lookup across `memory/` and `docs/`; avoid raw `grep` or speculative `Read`.**
 
-- `qmd query "question"`: default hybrid BM25 + vector + rerank.
+- `qmd query "question"`: hybrid BM25 + vector + rerank (default).
 - `qmd search "exact phrase"`: BM25 only for known terms.
 - `qmd vsearch "concept"`: vector only for fuzzy matches.
 - `qmd get <path>[:line] -l N`: cheap page/slice fetch.
 
-Run `qmd query` before non-trivial area work; use `Read`/`grep` only for known paths. Config: `.config/qmd/index.yml`. Before adding memory/knowledge, query for duplicates or contradictions and update superseded pages. Weekly archive lint handles stale pages.
+Run `qmd query` before non-trivial area work; use `Read`/`grep` only for known paths. Config: `.config/qmd/index.yml`. Git hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite — no manual `qmd update` needed.
+
+**Writing memories.** Write freely whenever you learn something worth keeping (user preferences, validated approaches, gotchas, incidents, external refs). **Always `qmd search` the topic first** — if a related page exists, update it rather than creating a new one. Avoid duplicates and contradictions. Do **not** create or maintain a index; `qmd` is the lookup mechanism.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
@@ -37,7 +37,7 @@ Run `qmd query` before non-trivial area work; use `Read`/`grep` only for known p
 - `Assert` funnels invariants through structured fatal logging; avoid `fatalError`/`precondition` outside it.
 - `ThreadSafe` provides concurrency-safe storage. `Broadcast` adds AsyncStreams and Observability.
 - Production timing uses injected `Sleepable` (`sleeper`), never `Task.sleep`.
-- No `Task.detached`; use `Task { ... }` and store long-lived handles. For CPU work off `@MainActor`, see [knowledge/task-detached-migration.md](knowledge/task-detached-migration.md).
+- No `Task.detached`; use `Task { ... }` and store long-lived handles.
 
 ## Factories
 - Container-built types use `fileprivate init` to force factories. See `AppLauncher`, `Repo`, and `StateManager`.

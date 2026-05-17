@@ -2,7 +2,6 @@
 name: observationRestartsAfterPodcastEpisodeWithTagsFailure CI flake (resolved)
 description: Three CI timeouts of EpisodeDetailViewModelTests/observationRestartsAfterPodcastEpisodeWithTagsFailure resolved by raising Wait.until's priority for that test — root cause was the polled performAppear() spawning a Task that inherited .background and got starved
 type: project
-originSessionId: 7b105ed2-7faf-438d-8ec3-602445f3ba1e
 ---
 `PodHavenTests/EpisodeDetailViewModelTests/observationRestartsAfterPodcastEpisodeWithTagsFailure` flaked on CI three times — bumping `maxAttempts` 200 → 400 (10s → 20s ceiling) did NOT help, so the original "slow runner" theory was wrong.
 
