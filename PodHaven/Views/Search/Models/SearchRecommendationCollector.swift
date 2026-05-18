@@ -8,6 +8,17 @@ import IdentifiedCollections
 import Logging
 import Tagged
 
+// MARK: - Container
+
+extension Container {
+  // `.cached` so a single instance survives across Search-tab visits inside
+  // one app session; `SearchViewModel.disappear` invokes `teardown()` to
+  // clear cache state when the tab is left.
+  @MainActor var searchRecommendationCollector: Factory<SearchRecommendationCollector> {
+    Factory(self) { SearchRecommendationCollector() }.scope(.cached)
+  }
+}
+
 // MARK: - SearchRecommendationCollector
 
 // Lives for the duration of the Search tab visit. Owns RSS fetch + embed +
@@ -147,7 +158,7 @@ final class SearchRecommendationCollector {
 
   // MARK: - Lifecycle
 
-  init() {}
+  fileprivate init() {}
 
   // MARK: - Public API
 

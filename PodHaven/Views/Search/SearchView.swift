@@ -55,7 +55,6 @@ struct SearchView: View {
         Self.log.debug("ManualFeedEntry sheet dismissed")
       }
     }
-    .environment(\.searchRecommendationCollector, viewModel.recommendationCollector)
     .onAppear { viewModel.appear() }
     .onDisappear { viewModel.disappear() }
   }

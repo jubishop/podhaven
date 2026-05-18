@@ -23,10 +23,12 @@ class SearchViewModel:
 
   // MARK: - Recommendation Collector
 
-  // Lives for the duration of the Search-tab visit. SearchView exposes it
-  // to the discovery list via environment so the pushed list can read the
-  // active source's scored picks without holding a stale binding.
-  let recommendationCollector = SearchRecommendationCollector()
+  // Container-cached so it survives across Search-tab visits and so each
+  // test gets its own instance (the `.container` test trait gives each test
+  // a fresh Container). `disappear()` calls `teardown()` to clear cache
+  // state on real Search-tab exit.
+  @ObservationIgnored @DynamicInjected(\.searchRecommendationCollector)
+  var recommendationCollector
 
   // MARK: - ManagingPodcasts
 

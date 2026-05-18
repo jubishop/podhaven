@@ -10,11 +10,12 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of SearchRecommendationCollector tests", .container, .serialized)
+@Suite("of SearchRecommendationCollector tests", .container)
 @MainActor final class SearchRecommendationCollectorTests {
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.recommendationEngine) private var engine
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.searchRecommendationCollector) private var collector
   @DynamicInjected(\.sleeper) private var sleeper
 
   private var session: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
@@ -24,13 +25,13 @@ import Testing
 
   @Test("recordSourcePodcasts → picks land after stable-source debounce")
   func happyPath() async throws {
+    let collector = self.collector
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
     let feedURL = FeedURL(URL(string: "https://example.com/discovery.rss")!)
     await respondWithFeed(at: feedURL, title: "Discovery", episodes: 3)
 
-    let collector = SearchRecommendationCollector()
     let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
@@ -56,13 +57,13 @@ import Testing
 
   @Test("stable-source debounce holds RSS fan-out for 1 s")
   func stableSourceDebounce() async throws {
+    let collector = self.collector
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
     let feedURL = FeedURL(URL(string: "https://example.com/slow.rss")!)
     await respondWithFeed(at: feedURL, title: "Slow", episodes: 2)
 
-    let collector = SearchRecommendationCollector()
     let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
@@ -90,6 +91,7 @@ import Testing
 
   @Test("subscribed podcast is excluded after DB reconciliation by iTunes ID")
   func subscribedExclusionByITunesID() async throws {
+    let collector = self.collector
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -114,7 +116,6 @@ import Testing
     let alsoUnsubscribedFeedURL = FeedURL(URL(string: "https://example.com/pass.rss")!)
     await respondWithFeed(at: alsoUnsubscribedFeedURL, title: "Pass-Through", episodes: 2)
 
-    let collector = SearchRecommendationCollector()
     let source = SearchRecommendationCollector.Source.trending(genreID: 1303, title: "Comedy")
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
@@ -147,6 +148,7 @@ import Testing
 
   @Test("candidate gate drops episodes matching a rated DB row")
   func candidateGateFiltersRatedEpisodes() async throws {
+    let collector = self.collector
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -185,7 +187,6 @@ import Testing
       )
     )
 
-    let collector = SearchRecommendationCollector()
     let source = SearchRecommendationCollector.Source.trending(genreID: 1303, title: "Comedy")
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
@@ -216,6 +217,7 @@ import Testing
     // The signal centroid is built from three orthogonal signals, so the
     // discovery candidates' default direction lands above the 0.5 floor and
     // anything anti-aligned ("Below Floor") gets filtered out.
+    let collector = self.collector
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -232,7 +234,6 @@ import Testing
       )
     )
 
-    let collector = SearchRecommendationCollector()
     let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
@@ -259,13 +260,13 @@ import Testing
 
   @Test("removePick drops the entry from visible picks")
   func postActionRemoval() async throws {
+    let collector = self.collector
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
     let feedURL = FeedURL(URL(string: "https://example.com/remove.rss")!)
     await respondWithFeed(at: feedURL, title: "Remove", episodes: 2)
 
-    let collector = SearchRecommendationCollector()
     let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
@@ -291,6 +292,7 @@ import Testing
 
   @Test("a new query replaces the typed-search overlay and cancels its work")
   func typedSearchOverlayReplacement() async throws {
+    let collector = self.collector
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -301,7 +303,6 @@ import Testing
     let firstSemaphore = await session.waitRespond(to: firstQueryFeed.rawValue, data: nil)
     await respondWithFeed(at: secondQueryFeed, title: "Second", episodes: 2)
 
-    let collector = SearchRecommendationCollector()
     let firstSource = SearchRecommendationCollector.Source.search(query: "first")
     collector.setActiveSource(firstSource)
     collector.recordSourcePodcasts(
@@ -344,13 +345,13 @@ import Testing
 
   @Test("teardown clears banner, picks, and caches")
   func teardownClearsState() async throws {
+    let collector = self.collector
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
     let feedURL = FeedURL(URL(string: "https://example.com/teardown.rss")!)
     await respondWithFeed(at: feedURL, title: "Tear", episodes: 2)
 
-    let collector = SearchRecommendationCollector()
     let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
@@ -375,13 +376,13 @@ import Testing
 
   @Test("trending categories share the per-feed cache (one RSS request per feed)")
   func crossCategoryCacheReuse() async throws {
+    let collector = self.collector
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
     let sharedFeed = FeedURL(URL(string: "https://example.com/shared.rss")!)
     await respondWithFeed(at: sharedFeed, title: "Shared", episodes: 2)
 
-    let collector = SearchRecommendationCollector()
     let row = makeUnsavedRow(feedURL: sharedFeed, iTunesID: ITunesPodcastID(808))
 
     let comedy = SearchRecommendationCollector.Source.trending(genreID: 1303, title: "Comedy")

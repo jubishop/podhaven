@@ -4,26 +4,11 @@ import FactoryKit
 import Logging
 import SwiftUI
 
-// MARK: - Environment
-
-private struct SearchRecommendationCollectorKey: EnvironmentKey {
-  static let defaultValue: SearchRecommendationCollector? = nil
-}
-
-extension EnvironmentValues {
-  // SearchView sets this so the pushed discovery list reads the active
-  // source's scored picks without re-instantiating its own collector.
-  var searchRecommendationCollector: SearchRecommendationCollector? {
-    get { self[SearchRecommendationCollectorKey.self] }
-    set { self[SearchRecommendationCollectorKey.self] = newValue }
-  }
-}
-
 // MARK: - View
 
 struct SearchDiscoveryListView: View {
-  @Environment(\.searchRecommendationCollector) private var collector
   @DynamicInjected(\.navigation) private var navigation
+  @DynamicInjected(\.searchRecommendationCollector) private var collector
 
   private let source: SearchRecommendationCollector.Source
 
@@ -33,14 +18,10 @@ struct SearchDiscoveryListView: View {
 
   var body: some View {
     Group {
-      if let collector {
-        if collector.visiblePicks.isEmpty {
-          emptyPlaceholder
-        } else {
-          listView(picks: collector.visiblePicks, collector: collector)
-        }
-      } else {
+      if collector.visiblePicks.isEmpty {
         emptyPlaceholder
+      } else {
+        listView(picks: collector.visiblePicks, collector: collector)
       }
     }
     .navigationTitle(source.discoveryListTitle)
