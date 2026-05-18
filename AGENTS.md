@@ -88,3 +88,4 @@ Run a qmd lookup before non-trivial area work; use `Read`/`grep` only for known 
 - Prefer `@MainActor` on declarations over `MainActor.run`.
 - Named tuples only: label every element and access by name.
 - When filling an `Array`, `Dictionary`, `Set`, `ContiguousArray`, `Data`, or `String` with known/bounded final size, use `CapacityReservable init(capacity:)`, not `[]` / `[:]`.
+- Model state transitions as enums, not `Bool` flags.
