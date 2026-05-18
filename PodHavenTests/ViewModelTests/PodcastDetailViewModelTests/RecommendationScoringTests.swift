@@ -613,6 +613,61 @@ import Testing
   }
 
   @Test(
+    "EpisodeDetailViewModel observes the first contextRevision emitted immediately after recommendation observation starts"
+  )
+  func episodeDetailDoesNotDropFirstContextRevisionAfterObservationStarts() async throws {
+    let embeddable = scoringEmbeddable()
+    try await primeEngine(with: embeddable)
+
+    let (_, candidateEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0"]
+    )
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+
+    let targetEpisodeID = try #require(candidateEpisodes.first?.id)
+    let podcastEpisode = try #require(try await repo.podcastEpisode(targetEpisodeID))
+
+    let fakeRepo = fakeRecommendationRepo
+    let targetIDs = Set([targetEpisodeID])
+    fakeRepo.armEmbeddingsGate(matching: targetIDs)
+
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    try await viewModel.performAppear()
+
+    recommendationEngine.$contextRevision.update { $0 += 1 }
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { fakeRepo.isEmbeddingsGateSuspended },
+      { "Expected bootstrap scoring to suspend before releasing it." }
+    )
+
+    fakeRecommendationRepo.clearAllCalls()
+    fakeRepo.releaseEmbeddingsGate()
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { [self] in
+        await MainActor.run { scopedEmbeddingsCallCount(matching: targetIDs) >= 1 }
+      },
+      { [self] in
+        await MainActor.run {
+          """
+          Expected the first post-start contextRevision to schedule a trailing \
+          refresh after the gated bootstrap pass completed.
+          calls: \(scopedEmbeddingsCallCount(matching: targetIDs))
+          displayedScore: \(String(describing: viewModel.displayedScore))
+          """
+        }
+      }
+    )
+  }
+
+  @Test(
     "EpisodeDetailViewModel opened against a hot engine cache surfaces a displayedScore without a subsequent $contextRevision bump"
   )
   func episodeDetailHotCacheBootstrapScoresImmediately() async throws {

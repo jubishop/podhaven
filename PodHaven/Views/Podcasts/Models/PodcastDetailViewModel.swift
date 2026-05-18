@@ -579,12 +579,11 @@ class PodcastDetailViewModel:
 
   private func startRecommendationObservation() {
     if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
-    // Pair `.dropFirst()` with an explicit bootstrap kick so hot-cache
-    // opens still score without double-firing the replay emit.
+    let contextRevisions = recommendationEngine.$contextRevision.stream().dropFirst()
     scheduleImmediateRecommendationScoreRefresh()
     recommendationObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      for await _ in recommendationEngine.$contextRevision.stream().dropFirst() {
+      for await _ in contextRevisions {
         guard !Task.isCancelled else { return }
         scheduleDebouncedRecommendationScoreRefresh()
       }

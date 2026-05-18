@@ -429,21 +429,21 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
 
   // Re-fetches this episode's score whenever the engine bumps
-  // `contextRevision`, i.e. every time its scoring cache rebuilds. Pair
-  // `.dropFirst()` with an explicit `.initial` kick so hot-cache opens
-  // still score without double-firing the replay emit; cold caches yield
-  // nil and the section stays hidden until the engine warms up.
+  // `contextRevision`, i.e. every time its scoring cache rebuilds. Create the
+  // stream before the bootstrap kick so a revision emitted during the initial
+  // fetch is queued instead of becoming a dropped replay value.
   private func startRecommendationObservation() {
     if let recommendationTask, !recommendationTask.isCancelled {
       Self.log.debug("Recommendation observation already active; not starting again")
       return
     }
 
+    let contextRevisions = recommendationEngine.$contextRevision.stream().dropFirst()
     scheduleRecommendationRefresh(reason: .initial)
     recommendationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
 
-      for await _ in recommendationEngine.$contextRevision.stream().dropFirst() {
+      for await _ in contextRevisions {
         guard !Task.isCancelled else { return }
         scheduleRecommendationRefresh(reason: .contextRevision)
       }
