@@ -764,6 +764,101 @@ import Testing
   }
 
   @Test(
+    "EpisodeDetailViewModel drops a stale bootstrap recommendation if a newer context refresh publishes first"
+  )
+  func episodeDetailStaleContextFetchDoesNotOverwriteNewerScore() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+    Container.shared.userSettings().$podcastAffinityWeight.new(0)
+
+    let embeddable = MutableScriptedEmbeddable { text in
+      if text.contains("Anchor") { return [0, 1, 0] }
+      if text.contains("Old Signal") { return [1, 0, 0] }
+      if text.contains("Fresh Signal") { return [0, 1, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, oldSignals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Old Signal",
+      podcastDescription: "Old Signal",
+      episodeDescriptions: Array(repeating: "Old Signal", count: 3),
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(oldSignals, embeddable: embeddable.scripted)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: oldSignals)
+
+    let (_, candidateEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target", "Anchor"],
+      pubDateOffset: { index in index == 0 ? -90 * 86400 : 0 }
+    )
+    try await RecommendationHelpers.embedEpisodes(
+      candidateEpisodes,
+      embeddable: embeddable.scripted
+    )
+    let targetEpisode = try #require(candidateEpisodes.first)
+    let targetID = targetEpisode.id
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+
+    let podcastEpisode = try #require(try await repo.podcastEpisode(targetID))
+    let fakeRepo = fakeRecommendationRepo
+    fakeRepo.armEmbeddingsGate(matching: Set([targetID]))
+
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    try await viewModel.performAppear()
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { fakeRepo.isEmbeddingsGateSuspended },
+      { "Expected the bootstrap recommendation fetch to suspend." }
+    )
+
+    let (_, freshSignals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 12,
+      podcastTitle: "Fresh Signal",
+      podcastDescription: "Fresh Signal",
+      episodeDescriptions: Array(repeating: "Fresh Signal", count: 12),
+      ratings: Array(repeating: .loved, count: 12)
+    )
+    try await RecommendationHelpers.embedEpisodes(freshSignals, embeddable: embeddable.scripted)
+
+    let freshScore: Float = try await RecommendationHelpers.waitAdvancing {
+      await MainActor.run {
+        guard case .recommendation(let score) = viewModel.displayedScore else {
+          return nil
+        }
+        return score.value
+      }
+    }
+
+    fakeRepo.releaseEmbeddingsGate()
+    try await Wait.until(
+      priority: .userInitiated,
+      { fakeRepo.didEmbeddingsGateComplete },
+      { "Expected the stale bootstrap embeddings call to complete after release." }
+    )
+    await Task.yield()
+
+    guard case .recommendation(let finalScore) = viewModel.displayedScore else {
+      Issue.record(
+        "Expected final displayedScore to remain a recommendation, got \(String(describing: viewModel.displayedScore))"
+      )
+      return
+    }
+    #expect(
+      abs(finalScore.value - freshScore) < 0.001,
+      """
+      The stale bootstrap fetch overwrote the newer context-refresh score.
+      freshScore: \(freshScore)
+      finalScore: \(finalScore.value)
+      """
+    )
+  }
+
+  @Test(
     "EpisodeDetailViewModel opened against a hot engine cache surfaces a displayedScore without a subsequent $contextRevision bump"
   )
   func episodeDetailHotCacheBootstrapScoresImmediately() async throws {
@@ -966,6 +1061,10 @@ import Testing
     )
     viewModel.currentSortMethod = .newestFirst
 
+    for _ in 0..<10 {
+      await fakeSleeper.advanceTime(by: .seconds(2))
+      await Task.yield()
+    }
     fakeRecommendationRepo.clearAllCalls()
 
     // markFinished writes finishDate / currentTime / maxPlaybackTime — none

@@ -17,6 +17,7 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     var armedTarget: Set<Episode.ID>?
     var pendingContinuation: CheckedContinuation<Void, Never>?
     var didSuspend: Bool = false
+    var didComplete: Bool = false
   }
   let embeddingsGateState = ThreadSafe<EmbeddingsGateState>(EmbeddingsGateState())
 
@@ -38,6 +39,7 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
       state.pendingContinuation = nil
       state.armedTarget = ids
       state.didSuspend = false
+      state.didComplete = false
       return pending
     }
     stale?.resume()
@@ -55,6 +57,12 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   var isEmbeddingsGateSuspended: Bool {
     embeddingsGateState { state in
       state.didSuspend && state.pendingContinuation != nil
+    }
+  }
+
+  var didEmbeddingsGateComplete: Bool {
+    embeddingsGateState { state in
+      state.didComplete
     }
   }
 
@@ -145,7 +153,13 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
         }
       }
     }
-    return try await recommendationRepo.embeddings(for: episodeIDs)
+    let embeddings = try await recommendationRepo.embeddings(for: episodeIDs)
+    if shouldGate {
+      embeddingsGateState { state in
+        state.didComplete = true
+      }
+    }
+    return embeddings
   }
 
   func podcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding? {

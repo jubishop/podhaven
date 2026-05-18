@@ -428,6 +428,44 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
 
+  private struct RecommendationScoringSnapshot: Equatable {
+    let contextRevision: Int
+    let state: State
+
+    enum State: Equatable {
+      case initial(mediaGUID: MediaGUID)
+      case unsaved(
+        mediaGUID: MediaGUID,
+        embeddingRevision: Int,
+        embeddingSource: String
+      )
+      case saved(mediaGUID: MediaGUID, episodeID: Episode.ID)
+    }
+  }
+
+  private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot {
+    let snapshotState: RecommendationScoringSnapshot.State
+    switch state {
+    case .initial(let listed):
+      snapshotState = .initial(mediaGUID: listed.mediaGUID)
+    case .unsaved(let unsaved):
+      snapshotState = .unsaved(
+        mediaGUID: unsaved.mediaGUID,
+        embeddingRevision: contextualEmbedding.revision,
+        embeddingSource: unsaved.searchableString
+      )
+    case .saved(let podcastEpisode):
+      snapshotState = .saved(
+        mediaGUID: podcastEpisode.mediaGUID,
+        episodeID: podcastEpisode.id
+      )
+    }
+    return RecommendationScoringSnapshot(
+      contextRevision: recommendationEngine.contextRevision,
+      state: snapshotState
+    )
+  }
+
   // Re-fetches this episode's score whenever the engine bumps
   // `contextRevision`, i.e. every time its scoring cache rebuilds. Create the
   // stream before the bootstrap kick so a revision emitted during the initial
@@ -451,12 +489,9 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   private func fetchRecommendation() async {
-    // Snapshot at entry — if a state-kind change races the scoring await,
-    // the kind guard below drops the stale write before it overwrites the
-    // fresh path's score.
-    let entryState = state
+    let snapshot = currentRecommendationScoringSnapshot()
     let newScore: EpisodeDetailDisplayedScore?
-    switch entryState {
+    switch state {
     case .initial:
       newScore = nil
     case .saved(let podcastEpisode):
@@ -464,10 +499,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
     case .unsaved(let unsavedPodcastEpisode):
       newScore = await scoreUnsavedEpisode(unsavedPodcastEpisode)
     }
-    guard entryState.kind == state.kind else {
+    guard snapshot == currentRecommendationScoringSnapshot() else {
       Self.log.debug(
         """
-        fetchRecommendation: state kind changed during scoring; \
+        fetchRecommendation: scoring snapshot changed during scoring; \
         dropping stale write
         """
       )
