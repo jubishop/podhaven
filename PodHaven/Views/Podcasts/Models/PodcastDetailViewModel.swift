@@ -602,10 +602,6 @@ class PodcastDetailViewModel:
     priority: .utility
   )
 
-  // Bootstrap / sort-selected path: only fires when no pass is in flight.
-  // An in-flight prewarm will apply on completion via the
-  // `currentSortMethod == .recommendationScore` check in compute, so
-  // marking dirty here would force a redundant rerun right after.
   private func scheduleImmediateRecommendationScoreRefresh() {
     guard scoringStatus == .idle else { return }
     recommendationScoreTask?.cancel()
@@ -614,8 +610,6 @@ class PodcastDetailViewModel:
     }
   }
 
-  // Engine bumps and state transitions go through the debounce so bursts
-  // collapse before reaching the coalescer.
   private func scheduleDebouncedRecommendationScoreRefresh() {
     recommendationScoresDebounce { [weak self] in
       await self?.refreshRecommendationScoresCoalesced()

@@ -532,8 +532,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     return .similarity(value)
   }
 
-  // Kind changes cancel any in-flight fetch so a post-deletion `.unsaved`
-  // payload doesn't wait on a parked saved-side scoring pass.
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
   @ObservationIgnored private let recommendationDebounce = Debounce(
     duration: .seconds(1),
