@@ -29,10 +29,18 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   // MARK: - Embeddings Gate (test-facing)
 
   func armEmbeddingsGate(matching ids: Set<Episode.ID>) {
-    embeddingsGateState { state in
+    // Resume any continuation left over from a previous arm so a re-arm
+    // doesn't leak the prior suspended call. The previous gated task would
+    // otherwise wedge forever once `pendingContinuation` is overwritten by
+    // the next gated invocation.
+    let stale = embeddingsGateState { state -> CheckedContinuation<Void, Never>? in
+      let pending = state.pendingContinuation
+      state.pendingContinuation = nil
       state.armedTarget = ids
       state.didSuspend = false
+      return pending
     }
+    stale?.resume()
   }
 
   func releaseEmbeddingsGate() {

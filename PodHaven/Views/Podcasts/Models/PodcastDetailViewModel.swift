@@ -701,6 +701,13 @@ class PodcastDetailViewModel:
     let entries = episodeList.allEntries
     guard !entries.isEmpty else { return }
 
+    if let cached = lastRecommendationScores, cached.snapshot == snapshot {
+      guard currentSortMethod == .recommendationScore else { return }
+      applyRecommendationDisplay(cached.scores)
+      recommendationDisplay = .idle
+      return
+    }
+
     let valuesByMediaGUID: [MediaGUID: Float]
     switch state {
     case .initial:
