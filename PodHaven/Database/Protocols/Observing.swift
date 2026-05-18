@@ -77,6 +77,7 @@ protocol Observing: Sendable {
   func embeddedCandidateEpisodes(filter: SQLExpression) -> AsyncValueObservation<[CandidateEpisode]>
   func scoringContextInputsWithoutPartialSignals() -> AsyncValueObservation<ScoringContextInputs>
   func candidateGateExclusions() -> AsyncValueObservation<Set<Episode.ID>>
+  func episodesNeedingEmbeddings(revision: Int) -> AsyncValueObservation<[Episode.ID]>
 }
 
 // MARK: - Defaulted Convenience Overloads

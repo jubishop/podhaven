@@ -15,9 +15,9 @@ struct ContextualEmbeddingTests {
     let fake = ControllableEmbeddable(hasAvailableAssets: true)
     let embedding = ContextualEmbedding(embedding: fake)
 
-    #expect(!embedding.isAvailable)
+    #expect(!embedding.assetsLoaded.isFinished)
     embedding.requestAndLoadAssetsIfNeeded()
-    #expect(embedding.isAvailable)
+    #expect(embedding.assetsLoaded.isFinished)
     #expect(fake.loadCount == 1)
     #expect(fake.requestAssetsCount == 0)
   }
@@ -28,7 +28,7 @@ struct ContextualEmbeddingTests {
     let embedding = ContextualEmbedding(embedding: fake)
 
     embedding.requestAndLoadAssetsIfNeeded()
-    #expect(!embedding.isAvailable)
+    #expect(!embedding.assetsLoaded.isFinished)
     #expect(fake.loadCount == 0)
     #expect(fake.requestAssetsCount == 1)
   }
@@ -56,7 +56,7 @@ struct ContextualEmbeddingTests {
     // Simulate assets arriving
     fake.hasAvailableAssets = true
     embedding.requestAndLoadAssetsIfNeeded()
-    #expect(embedding.isAvailable)
+    #expect(embedding.assetsLoaded.isFinished)
     #expect(fake.loadCount == 1)
     #expect(fake.requestAssetsCount == 1)
   }
@@ -69,7 +69,7 @@ struct ContextualEmbeddingTests {
     let embedding = ContextualEmbedding(embedding: fake)
 
     embedding.loadAssetsIfAvailable()
-    #expect(embedding.isAvailable)
+    #expect(embedding.assetsLoaded.isFinished)
     #expect(fake.loadCount == 1)
     #expect(fake.requestAssetsCount == 0)
   }
@@ -80,7 +80,7 @@ struct ContextualEmbeddingTests {
     let embedding = ContextualEmbedding(embedding: fake)
 
     embedding.loadAssetsIfAvailable()
-    #expect(!embedding.isAvailable)
+    #expect(!embedding.assetsLoaded.isFinished)
     #expect(fake.loadCount == 0)
     #expect(fake.requestAssetsCount == 0)
   }
@@ -157,6 +157,29 @@ struct ContextualEmbeddingTests {
     let fake = ControllableEmbeddable(hasAvailableAssets: true, revision: 42)
     let embedding = ContextualEmbedding(embedding: fake)
     #expect(embedding.revision == 42)
+  }
+
+  // MARK: - assetsLoaded latch
+
+  @Test("assetsLoaded.wait resumes when loadAssetsIfAvailable succeeds")
+  func assetsLoadedLatchResumesOnLoad() async throws {
+    let fake = ControllableEmbeddable(hasAvailableAssets: false)
+    let embedding = ContextualEmbedding(embedding: fake)
+    let resumed = ThreadSafe(false)
+    let latch = embedding.assetsLoaded
+
+    let waiter = Task {
+      try await latch.wait()
+      resumed(true)
+    }
+
+    for _ in 0..<10 { await Task.yield() }
+    #expect(!resumed())
+
+    fake.hasAvailableAssets = true
+    embedding.loadAssetsIfAvailable()
+    try await waiter.value
+    #expect(resumed())
   }
 }
 

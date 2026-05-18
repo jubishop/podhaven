@@ -35,7 +35,7 @@ enum EmbeddingError: LocalizedError {
 class ContextualEmbedding {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
-  private(set) var isAvailable = false
+  let assetsLoaded = AsyncLatch<Void>()
 
   private let embedding: any Embeddable
   private let isLoading = ThreadLock()
@@ -68,12 +68,12 @@ class ContextualEmbedding {
   // Load on-disk assets without triggering a download. Safe from a
   // BG-launched task handler where the scene never went active.
   func loadAssetsIfAvailable() {
-    guard !isAvailable, embedding.hasAvailableAssets else { return }
+    guard !assetsLoaded.isFinished, embedding.hasAvailableAssets else { return }
     loadAssets()
   }
 
   func vector(for text: String) throws -> [Float] {
-    guard isAvailable else { throw EmbeddingError.modelUnavailable }
+    guard assetsLoaded.isFinished else { throw EmbeddingError.modelUnavailable }
 
     let result = try embedding.embeddingResult(for: text)
 
@@ -101,7 +101,7 @@ class ContextualEmbedding {
 
     do {
       try embedding.load()
-      isAvailable = true
+      assetsLoaded.finish()
     } catch {
       Self.log.caughtError("Failed to load contextual embedding", error)
       isLoading.release()

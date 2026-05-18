@@ -17,35 +17,25 @@ actor DownloadTask: Identifiable {
   nonisolated var id: URL { url }
 
   let url: URL
-  var finished: Bool { result != nil }
+  var finished: Bool { finishedLatch.isFinished }
 
   private let session: any DataFetchable
-  private var beganContinuations: [CheckedContinuation<Void, Never>] = []
-  private var finishedContinuations: [CheckedContinuation<DownloadResult, Never>] = []
-  private var begun: Bool = false
-  private var result: DownloadResult?
+  private let beganLatch = AsyncLatch<Void>()
+  private let finishedLatch = AsyncLatch<DownloadResult>()
   private var fetchTask: Task<Data, any Error>?
   private weak var owner: DownloadManager?
 
-  func downloadBegan() async {
-    guard !begun else { return }
-
-    await withCheckedContinuation { continuation in
-      beganContinuations.append(continuation)
-    }
+  func downloadBegan() async throws {
+    try await beganLatch.wait()
   }
 
   func downloadFinished() async throws -> DownloadData {
-    if let result { return try result.get() }
-
-    let result = await withCheckedContinuation { continuation in
-      finishedContinuations.append(continuation)
-    }
+    let result = try await finishedLatch.wait()
     return try result.get()
   }
 
   func cancel() async {
-    guard result == nil else { return }
+    guard !finishedLatch.isFinished else { return }
     // Capture-then-clear so concurrent cancel()s after this point are no-ops
     // and the owner is notified at most once per task.
     let owner = self.owner
@@ -65,15 +55,15 @@ actor DownloadTask: Identifiable {
   // Cancellation initiated by the owning manager. The manager has already
   // removed the task from its state, so we skip the owner callback.
   fileprivate func cancelFromOwner() {
-    guard result == nil else { return }
+    guard !finishedLatch.isFinished else { return }
     owner = nil
     finalizeCancelled()
   }
 
   fileprivate func download() async {
-    guard result == nil else { return }
+    guard !finishedLatch.isFinished else { return }
 
-    haveBegun()
+    beganLatch.finish()
 
     let fetchTask = Task { [session, url] () async throws -> Data in
       try await session.validatedData(from: url)
@@ -83,9 +73,9 @@ actor DownloadTask: Identifiable {
 
     do {
       let data = try await fetchTask.value
-      haveFinished(.success(DownloadData(url: url, data: data)))
+      finishedLatch.finish(.success(DownloadData(url: url, data: data)))
     } catch {
-      haveFinished(.failure(error))
+      finishedLatch.finish(.failure(error))
     }
   }
 
@@ -93,29 +83,8 @@ actor DownloadTask: Identifiable {
 
   private func finalizeCancelled() {
     fetchTask?.cancel()
-    haveFinished(.failure(CancellationError()))
-  }
-
-  private func haveBegun() {
-    guard !begun else { return }
-    begun = true
-
-    for beganContinuation in beganContinuations {
-      beganContinuation.resume()
-    }
-    beganContinuations.removeAll()
-  }
-
-  private func haveFinished(_ result: DownloadResult) {
-    guard self.result == nil else { return }
-    self.result = result
-
-    haveBegun()
-
-    for finishedContinuation in finishedContinuations {
-      finishedContinuation.resume(returning: result)
-    }
-    finishedContinuations.removeAll()
+    beganLatch.finish()
+    finishedLatch.finish(.failure(CancellationError()))
   }
 }
 

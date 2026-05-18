@@ -502,7 +502,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     _ unsavedPodcastEpisode: UnsavedPodcastEpisode
   ) async -> EpisodeDetailDisplayedScore? {
     contextualEmbedding.loadAssetsIfAvailable()
-    guard contextualEmbedding.isAvailable else { return nil }
+    guard contextualEmbedding.assetsLoaded.isFinished else { return nil }
 
     let revision = contextualEmbedding.revision
     let vector: [Float]

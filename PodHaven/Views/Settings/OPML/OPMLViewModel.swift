@@ -136,10 +136,10 @@ import UniformTypeIdentifiers
           guard let self = self else { return }
 
           let downloadTask = await downloadManager.addURL(outline.feedURL.rawValue)
-          await downloadTask.downloadBegan()
-          await updateOutlineStatus(outline, in: opmlFile, to: .downloading)
 
           do {
+            try await downloadTask.downloadBegan()
+            await updateOutlineStatus(outline, in: opmlFile, to: .downloading)
             let podcastFeed = try await PodcastFeed.parse(downloadTask.downloadFinished())
             let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
 

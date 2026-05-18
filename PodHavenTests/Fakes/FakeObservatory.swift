@@ -35,6 +35,10 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     [@Sendable () -> AsyncValueObservation<[CandidateEpisode]>]
   >([])
 
+  let episodesNeedingEmbeddingsScript = ThreadSafe<
+    [@Sendable (Int) -> AsyncValueObservation<[Episode.ID]>]
+  >([])
+
   private let observatory: any Observing
 
   init(_ observatory: any Observing) {
@@ -215,5 +219,16 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
   func candidateGateExclusions() -> AsyncValueObservation<Set<Episode.ID>> {
     recordCall(methodName: "candidateGateExclusions", parameters: ())
     return observatory.candidateGateExclusions()
+  }
+
+  func episodesNeedingEmbeddings(revision: Int) -> AsyncValueObservation<[Episode.ID]> {
+    recordCall(methodName: "episodesNeedingEmbeddings", parameters: revision)
+    var script = episodesNeedingEmbeddingsScript()
+    if let next = script.first {
+      script.removeFirst()
+      episodesNeedingEmbeddingsScript(script)
+      return next(revision)
+    }
+    return observatory.episodesNeedingEmbeddings(revision: revision)
   }
 }
