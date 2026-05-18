@@ -110,10 +110,10 @@ enum RecommendationHelpers {
 
   static func embedEpisodes(
     _ episodes: [Episode],
-    embeddable: any Embeddable = FakeEmbeddable()
+    embeddable: any Embeddable & Sendable = FakeEmbeddable()
   ) async throws {
     let embedding = ContextualEmbedding(embedding: embeddable)
-    embedding.requestAndLoadAssetsIfNeeded()
+    await embedding.requestAndLoadAssetsIfNeeded()
     try await EmbeddingService.upsertEpisodeEmbeddings(
       for: episodes,
       embedding: embedding

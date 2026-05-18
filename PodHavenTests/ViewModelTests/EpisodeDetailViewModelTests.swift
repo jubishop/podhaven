@@ -392,7 +392,11 @@ import Testing
     // from the VM's default state.
     let probe = EmbeddingProbe()
     Container.shared.contextualEmbedding.reset()
-      .register { AvailableCountingContextualEmbedding(probe: probe) }
+      .register {
+        ContextualEmbedding(
+          embedding: ProbingEmbeddable(assetsAvailable: true, probe: probe)
+        )
+      }
       .scope(.cached)
 
     let unsavedPodcastEpisode = UnsavedPodcastEpisode(
@@ -424,7 +428,11 @@ import Testing
   func unsavedEpisodeSkipsVectorScoringWhenEmbeddingAssetsUnavailable() async throws {
     let probe = EmbeddingProbe()
     Container.shared.contextualEmbedding.reset()
-      .register { UnavailableCountingContextualEmbedding(probe: probe) }
+      .register {
+        ContextualEmbedding(
+          embedding: ProbingEmbeddable(assetsAvailable: false, probe: probe)
+        )
+      }
       .scope(.cached)
 
     let unsavedPodcastEpisode = UnsavedPodcastEpisode(
@@ -867,27 +875,19 @@ private struct EmbeddingProbe: Sendable {
   let vectorRequestCount = ThreadSafe<Int>(0)
 }
 
-private final class UnavailableCountingContextualEmbedding: ContextualEmbedding {
-  private let probe: EmbeddingProbe
-
-  init(probe: EmbeddingProbe) {
-    self.probe = probe
-    super.init(embedding: UnavailableEmbeddable())
-  }
-
-  override func loadAssetsIfAvailable() {
-    probe.loadAssetsIfAvailableCount { $0 += 1 }
-  }
-
-  override func vector(for text: String) throws -> [Float] {
-    probe.vectorRequestCount { $0 += 1 }
-    return [1, 0, 0]
-  }
-}
-
-private struct UnavailableEmbeddable: Embeddable {
-  let hasAvailableAssets = false
+// ContextualEmbedding is an actor and can't be subclassed, so the probe
+// counts at the Embeddable boundary instead. `hasAvailableAssets` is
+// touched on every loadAssetsIfAvailable() the actor hasn't already
+// finished, and `embeddingResult(for:)` is touched on every vector(for:).
+private struct ProbingEmbeddable: Embeddable {
+  let assetsAvailable: Bool
+  let probe: EmbeddingProbe
   let revision = 1
+
+  var hasAvailableAssets: Bool {
+    probe.loadAssetsIfAvailableCount { $0 += 1 }
+    return assetsAvailable
+  }
 
   func load() throws {}
 
@@ -896,46 +896,7 @@ private struct UnavailableEmbeddable: Embeddable {
   }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
-    FakeEmbeddingResult(vectors: [[1, 0, 0]])
-  }
-}
-
-// Counterpart to `UnavailableCountingContextualEmbedding` whose assets
-// load successfully (so `isAvailable` becomes true and the unsaved
-// scorer continues past the early-exit guard into the embedding + cold-
-// cache path). Lets the cold-cache test wait on a deterministic signal
-// that the scoring path actually ran before asserting the score stays
-// nil.
-private final class AvailableCountingContextualEmbedding: ContextualEmbedding {
-  private let probe: EmbeddingProbe
-
-  init(probe: EmbeddingProbe) {
-    self.probe = probe
-    super.init(embedding: AvailableEmbeddable())
-  }
-
-  override func loadAssetsIfAvailable() {
-    probe.loadAssetsIfAvailableCount { $0 += 1 }
-    super.loadAssetsIfAvailable()
-  }
-
-  override func vector(for text: String) throws -> [Float] {
     probe.vectorRequestCount { $0 += 1 }
-    return [1, 0, 0]
-  }
-}
-
-private struct AvailableEmbeddable: Embeddable {
-  let hasAvailableAssets = true
-  let revision = 1
-
-  func load() throws {}
-
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) {
-    completion(nil)
-  }
-
-  func embeddingResult(for string: String) throws -> any EmbeddableResult {
-    FakeEmbeddingResult(vectors: [[1, 0, 0]])
+    return FakeEmbeddingResult(vectors: [[1, 0, 0]])
   }
 }

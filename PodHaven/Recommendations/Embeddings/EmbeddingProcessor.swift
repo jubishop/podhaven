@@ -23,10 +23,6 @@ struct EmbeddingProcessor: Sendable {
   @DynamicInjected(\.sleeper) private var sleeper
   @DynamicInjected(\.taskPriority) private var taskPriority
 
-  // ContextualEmbedding is intentionally non-Sendable (it owns
-  // NLContextualEmbedding, an Apple class without a known Sendable
-  // conformance). It can't be a stored @DynamicInjected property on
-  // this Sendable struct; resolve from the container at each use site.
   private var contextualEmbedding: ContextualEmbedding {
     Container.shared.contextualEmbedding()
   }
@@ -52,7 +48,7 @@ struct EmbeddingProcessor: Sendable {
     backgroundTaskScheduler.register { complete in
       Self.log.info("Starting embedding background task")
 
-      contextualEmbedding.loadAssetsIfAvailable()
+      await contextualEmbedding.loadAssetsIfAvailable()
       guard contextualEmbedding.assetsLoaded.isFinished else {
         Self.log.info("Contextual embedding assets not available yet, skipping")
         complete(true)
@@ -116,10 +112,10 @@ struct EmbeddingProcessor: Sendable {
   // MARK: - Foreground Observation
 
   private func startForegroundObservation() {
-    contextualEmbedding.requestAndLoadAssetsIfNeeded()
     foregroundTask { task in
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
+        await contextualEmbedding.requestAndLoadAssetsIfNeeded()
         do {
           try await contextualEmbedding.assetsLoaded.wait()
         } catch {
