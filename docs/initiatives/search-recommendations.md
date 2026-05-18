@@ -30,6 +30,10 @@ pieces are already shipped.
   Arts, Business, Comedy, Education, Government, Health, History, Kids, Leisure,
   Music, News, Science, Society & Culture, Sports, Technology, True Crime, and
   TV & Film.
+- Each `TrendingSection` owns its fetched `results` and `task`.
+  `loadTrendingSection` skips sections that are already `.loaded` or `.loading`,
+  so top-category podcast rows stay cached while the Search tab is alive and
+  repeat chip switches can be instant after first load.
 - Search and trending results are
   `PodcastWithEpisodeMetadata<ListedPodcast>` rows, not episode rows. Episodes
   usually are not in the local DB unless the user subscribes or has interacted
@@ -80,7 +84,10 @@ score by recomputing through the existing detail-view path.
 ## V1 Implementation Shape
 
 Add `SearchRecommendationCollector`, a `@MainActor @Observable` object owned by
-`SearchViewModel`.
+`SearchViewModel` for the lifetime of the Search tab. The collector should mirror
+the existing top-category result cache: keep computed recommendation work in
+memory across top-category chip switches, and clear it when the user really
+navigates away from Search.
 
 ```swift
 enum Source: Sendable, Equatable {
@@ -89,12 +96,38 @@ enum Source: Sendable, Equatable {
 }
 ```
 
-One collector is bound to one immutable source snapshot. Replace it on query
-change, fresh iTunes result snapshot, trending chip change, or search/trending
-mode flip. Replacement waits for a 1 second stable-source debounce before RSS
-fan-out begins, using `Sleepable` or the existing debounce utility. Keep this
-separate from the current 400 ms search debouncer, which only controls iTunes
-search execution.
+The collector maintains two cache layers:
+
+- A shared podcast cache keyed by normalized, reconciled feed URL. Each entry
+  owns the podcast's RSS fetch/parse state, candidate episode snapshots,
+  embedding/scoring state, scored episodes, and score map. This cache is
+  source-agnostic, so a podcast that appears in "Top", Comedy, and Technology is
+  downloaded, embedded, and scored once.
+- A top-category source index keyed by `Source.trending`, where each category
+  stores only the ordered feed URLs selected from its current iTunes result
+  snapshot. Do not copy scored episodes into each category. Build the active
+  category output by walking that category's feed URL array, reading shared
+  podcast cache entries, applying the score floor, and sorting the resulting
+  episodes.
+
+Typed search is intentionally different. Do not add typed-search result sets, or
+podcasts discovered only through typed search, to the long-lived top-category
+cache. A new debounced query should build a per-query overlay: first check the
+shared podcast cache so results can reuse top-category podcasts that were
+already scored, then fetch/score any query-only misses into overlay storage that
+is discarded on the next query, on mode flip back to trending, or when Search is
+left. This bounds memory for arbitrary search terms while still reusing category
+work when the same podcast appears in search.
+
+One stored `Task(priority: taskPriority(.utility))` should drain pending feed
+URLs. Switching to a new top category updates the active source, records that
+category's feed URL array if needed, and adds only feed URLs missing from the
+shared cache or in-flight set to the utility worker. Do not cancel already-scored
+or in-flight category podcast work just because the active category changed.
+Replacement/cancellation should happen for the typed-search overlay when the
+query changes, and for all collector work when Search is torn down. Keep the
+existing 400 ms search debouncer for iTunes search execution; use a separate 1
+second stable-query debounce before starting typed-search RSS fan-out.
 
 Collector flow:
 
@@ -106,24 +139,29 @@ Collector flow:
 3. Drop subscribed podcasts. Do not backfill deeper than `P`; lower-ranked
    source results should not become "top picks" just because the first page was
    already subscribed.
-4. For each remaining podcast, fetch and parse RSS through `DownloadManager`.
-   Store the returned `DownloadTask` and call `await downloadTask.cancel()` when
-   the child task is cancelled.
-5. Take the newest `E = 10` episodes by `pubDate`.
-6. Apply the existing candidate gate to materialized matches only. Resolve
+4. Store the remaining ordered feed URLs in either the top-category source index
+   or the current typed-search overlay. For top categories, point each feed URL
+   at the shared podcast cache. For typed search, point at the shared cache when
+   an entry already exists; otherwise point at query-local overlay storage.
+5. For each cache miss, fetch and parse RSS through `DownloadManager`. Store the
+   returned `DownloadTask` and call `await downloadTask.cancel()` when the child
+   task is cancelled.
+6. Take the newest `E = 10` episodes by `pubDate`.
+7. Apply the existing candidate gate to materialized matches only. Resolve
    existing rows under the reconciled unsubscribed podcast ID, with exact
    `(guid, mediaURL)` matching as a fallback; avoid a broad unscoped
    `guid IN (...) OR mediaURL IN (...)` query. Existing rows must satisfy
    `Episode.candidate && id != onDeckID`; rows with no DB match pass through.
-7. Embed each surviving `UnsavedPodcastEpisode` through
+8. Embed each surviving `UnsavedPodcastEpisode` through
    `EmbeddingService.embeddingVector(for:embedding:)`. Skip and log individual
    embedding failures instead of failing the whole source.
-8. Score with `RecommendationEngine.similarityScore(forEmbedding:)`, or a batch
+9. Score with `RecommendationEngine.similarityScore(forEmbedding:)`, or a batch
    wrapper with the exact same semantics if profiling shows per-vector calls are
    too awkward.
-9. Publish scored episodes keyed by `(feedURL, guid)` or the existing
+10. Publish scored episodes keyed by `(feedURL, guid)` or the existing
    `MediaGUID` shape plus feed provenance, keep a `Float` score map, and re-sort
-   on insert.
+   on insert. Updating one shared podcast cache entry should update every active
+   or cached top-category source that references its feed URL.
 
 Initial caps are tunable constants near the collector: `P = 25`, `E = 10`, score
 floor `score > 0.5`. The floor is separate from UpNext's `0.1` threshold because
@@ -135,9 +173,10 @@ embedding should start serialized or under a tiny cap around the shared
 `ContextualEmbedding` until measurement proves wider concurrency is safe.
 
 The collector owns one stored root task or explicit child handles. Task groups
-must not escape their closure. Cancel on source replacement, collector deinit,
-or leaving the search tab. Check cancellation between episodes and cancel any
-in-flight `DownloadTask`.
+must not escape their closure. Cancel typed-search overlay work on query
+replacement. Cancel all shared category work on collector deinit or leaving the
+search tab. Check cancellation between episodes and cancel any in-flight
+`DownloadTask`.
 
 ## View Model And Navigation
 
@@ -151,7 +190,8 @@ can still correspond to a nil scoring cache.
 
 Add a search-navigation destination for the discovery list. The search path is a
 plain `PathManager`, not a persisted `SavedPathManager`, and discovery results
-should remain ephemeral.
+should remain ephemeral. Category-scoring cache may live for the current Search
+tab visit, but must be released when Search is left.
 
 The discovery list should have its own lightweight view model rather than
 reusing `EpisodesListViewModel` unchanged. That existing list model is coupled
@@ -167,12 +207,16 @@ the discovery row. Episode detail can handle its own unsaved-to-saved transition
 Tag UI stays hidden for unsaved rows until a materialized row is observed with
 tags.
 
-## Deferred Cache
+## Persistent Cache Deferred
 
-V1 persists nothing new. Every collector lifetime fetches, parses, embeds, and
-discards unsubscribed discovery candidates.
+V1 persists nothing new. The only durable-in-practice cache is in memory, scoped
+to the active Search tab visit: shared category podcast scores plus the current
+typed-search overlay. `SearchViewModel.disappear()` or the equivalent verified
+Search-exit signal must clear it so arbitrary discovery candidates do not live
+in memory forever.
 
-If v1 is too slow or wasteful, add a local discovery cache later:
+If the in-memory Search-tab cache is still too slow or wasteful, add a local
+discovery cache later:
 
 - A parsed-feed cache keyed by normalized feed URL, with short TTL, conditional
   refresh metadata, and enough episode/podcast fields to rebuild
@@ -186,31 +230,36 @@ If v1 is too slow or wasteful, add a local discovery cache later:
 - Time-based plus least-recently-used eviction, with `lastAccessedDate` touched
   on reads.
 
-This cache mainly pays off for trending-chip toggling, where category feeds are
-stable and users can revisit the same top podcasts quickly. Repeat typed queries
-also benefit, but are secondary.
+This persistent cache would mainly pay off across Search-tab visits. The V1
+in-memory cache already handles trending-chip toggling inside one visit, where
+category feeds are stable and many categories share the same podcasts. Repeat
+typed queries are not a V1 cache target because they can grow without bound.
 
 ## Risks And Follow-Ups
 
 - **Banner lifecycle.** Preserve the collector while the pushed discovery list is
   visible. Do not let root `SearchView.onDisappear` discard the backing episodes
   if that disappear is only a navigation push.
-- **Churn.** The 1 second stable-source debounce prevents immediate fan-out for
-  fast typing or chip tapping, but users can still pay repeated RSS/embedding
-  cost across slower Comedy -> Technology -> Comedy toggles. Measure before
-  adding the deferred cache.
+- **Churn.** Category switches should enqueue only new feed URLs and reuse
+  shared scored podcast entries. Typed-search churn should cancel and discard the
+  previous query overlay without promoting query-only podcasts into the shared
+  category cache.
 - **Budget.** Log RSS count/duration, embedding count/duration, cancellation
   count, score-floor drops, and final visible count for typed search and
   trending. Use real-device data before changing P/E caps, concurrency, score
   floor, TTL, or eviction policy.
-- **Tests.** Cover source replacement, stable-source debounce, subscribed-podcast
-  exclusion after feed URL/iTunes ID reconciliation, cancellation of active and
-  pending downloads, candidate-gate filtering for materialized episodes, score
-  ordering, and post-action removal.
+- **Tests.** Cover top-category feed URL index reuse, shared podcast cache reuse
+  across categories, typed-search reuse of shared cached podcasts without adding
+  query-only misses to the category cache, typed-query overlay replacement,
+  Search-exit cache teardown, subscribed-podcast exclusion after feed URL/iTunes
+  ID reconciliation, cancellation of active and pending downloads,
+  candidate-gate filtering for materialized episodes, score ordering, and
+  post-action removal.
 
 ## Non-Goals
 
 - Changing the recommendation algorithm or weights.
 - Surfacing these recommendations outside the search tab.
 - Cross-query or cross-category ranking.
+- Caching typed-search result sets across queries.
 - Persistent discovery results in v1.
