@@ -144,10 +144,6 @@ struct Repo: Databasing {
     }
   }
 
-  // Scoped lookup for the search-discovery candidate gate: returns episodes
-  // for the given podcast whose guid or mediaURL appears in the supplied
-  // lists. Scoping by podcastId avoids a broad unscoped IN query across
-  // every episode in the library.
   func episodesMatching(
     podcastID: Podcast.ID,
     guids: [GUID],

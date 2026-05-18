@@ -1,0 +1,102 @@
+// Copyright Justin Bishop, 2026
+
+import FactoryKit
+import Logging
+import SwiftUI
+
+// Thin wrapper around the collector that adapts ManagingEpisodes to remove
+// each pick after the underlying action succeeds. The protocol's default
+// implementations are fire-and-forget Tasks, so each overridden method
+// reruns the materialize → action → removePick sequence here.
+@Observable @MainActor
+final class SearchDiscoveryActionsViewModel: ManagingEpisodes {
+  typealias EpisodeType = ListedEpisode
+
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
+  @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
+  @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+
+  nonisolated private static let log = Log.as(LogSubsystem.SearchView.recommendations)
+
+  private weak var collector: SearchRecommendationCollector?
+
+  init(collector: SearchRecommendationCollector) {
+    self.collector = collector
+  }
+
+  // MARK: - Actions With Post-Removal
+
+  func playEpisode(_ episode: ListedEpisode) {
+    performAfterMaterialize(episode, context: "playEpisode") { [playManager] episodeID in
+      let podcastEpisode = try await Container.shared.repo().podcastEpisode(episodeID)
+      guard let podcastEpisode else { return }
+      try await playManager.load(podcastEpisode)
+      await playManager.play()
+    }
+  }
+
+  func queueEpisodeOnTop(_ episode: ListedEpisode, swipeAction: Bool = false) {
+    guard episode.queueOrder != 0 else { return }
+    performAfterMaterialize(episode, context: "queueEpisodeOnTop") { [queue] episodeID in
+      try await queue.unshift(episodeID)
+    }
+  }
+
+  func queueEpisodeAtBottom(_ episode: ListedEpisode, swipeAction: Bool = false) {
+    performAfterMaterialize(episode, context: "queueEpisodeAtBottom") { [queue] episodeID in
+      try await queue.append(episodeID)
+    }
+  }
+
+  func cacheEpisode(_ episode: ListedEpisode) {
+    performAfterMaterialize(episode, context: "cacheEpisode") { [cacheManager] episodeID in
+      try await cacheManager.downloadToCache(for: episodeID)
+    }
+  }
+
+  func saveEpisodeInCache(_ episode: ListedEpisode) {
+    performAfterMaterialize(episode, context: "saveEpisodeInCache") {
+      [cacheManager, repo] episodeID in
+      _ = try await repo.updateSaveInCache(episodeID, saveInCache: true)
+      try await cacheManager.downloadToCache(for: episodeID)
+    }
+  }
+
+  func rateEpisode(_ episode: ListedEpisode, rating: EpisodeRating?) {
+    guard episode.rating != rating else { return }
+    performAfterMaterialize(episode, context: "rateEpisode") { [repo] episodeID in
+      _ = try await repo.updateRating(episodeID, rating: rating)
+    }
+  }
+
+  func markEpisodeFinished(_ episode: ListedEpisode) {
+    guard !episode.finished else { return }
+    performAfterMaterialize(episode, context: "markEpisodeFinished") { [repo] episodeID in
+      _ = try await repo.markFinished(episodeID)
+    }
+  }
+
+  private func performAfterMaterialize(
+    _ episode: ListedEpisode,
+    context: String,
+    perform: @escaping @Sendable (Episode.ID) async throws -> Void
+  ) {
+    let collector = collector
+    let alertProxy = alert
+    let mediaGUID = episode.mediaGUID
+    Task {
+      do {
+        let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
+        try await perform(podcastEpisode.id)
+        collector?.removePick(mediaGUID: mediaGUID)
+      } catch {
+        Self.log.caughtError("\(context): failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alertProxy(ErrorKit.message(for: error))
+      }
+    }
+  }
+}

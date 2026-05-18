@@ -99,12 +99,12 @@ final class SearchRecommendationCollector {
 
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
-  @ObservationIgnored @DynamicInjected(\.searchDiscoveryDownloadManager)
-  private var downloadManager
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
+
+  @ObservationIgnored private let downloadManager: DownloadManager
 
   // MARK: - Observed Outputs
 
@@ -158,7 +158,9 @@ final class SearchRecommendationCollector {
 
   // MARK: - Lifecycle
 
-  fileprivate init() {}
+  fileprivate init() {
+    downloadManager = DownloadManager(session: Container.shared.podcastFeedSession())
+  }
 
   // MARK: - Public API
 
