@@ -37,3 +37,4 @@ When adding or removing a doc, **update the lists below**. They exist as a quick
 ## Research
 
 - [Embedding Model Alternatives](research/embedding-model-alternatives.md) — survey of replacements for `NLContextualEmbedding`; on-device-only constraint narrows it to CoreML-converted Sentence-BERT (MiniLM/BGE), but holding for WWDC '26 in case `FoundationModels` exposes an embedding API
+- [Swift Backtrace API for Telemetry](research/swift-backtrace-telemetry.md) — evaluates SE-0419 `Backtrace` for PodHaven logs; blocked because Swift 6.3.2 exposes `Runtime` on macOS but not `iphoneos` or `iphonesimulator`
