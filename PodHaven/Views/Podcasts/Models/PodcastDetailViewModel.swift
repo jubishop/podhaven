@@ -598,7 +598,7 @@ class PodcastDetailViewModel:
   @ObservationIgnored private var lastRecommendationScores:
     (snapshot: RecommendationScoringSnapshot, scores: [MediaGUID: Float])?
   @ObservationIgnored private var unsavedEmbeddingCache:
-    (revision: Int, vectors: [MediaGUID: [Float]])?
+    (revision: Int, vectors: [MediaGUID: (source: String, vector: [Float])])?
   @ObservationIgnored private var recommendationScoreGeneration = 0
 
   // Tristate coalescer. `.runningDirty` means another refresh request landed
@@ -717,7 +717,10 @@ class PodcastDetailViewModel:
     guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     let snapshot = currentScoringSnapshot()
     let entries = episodeList.allEntries
-    guard !entries.isEmpty else { return }
+    guard !entries.isEmpty else {
+      recommendationDisplay = .idle
+      return
+    }
 
     if let cached = lastRecommendationScores, cached.snapshot == snapshot {
       guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
@@ -730,6 +733,7 @@ class PodcastDetailViewModel:
     let valuesByMediaGUID: [MediaGUID: Float]
     switch state {
     case .initial:
+      recommendationDisplay = .idle
       return
     case .saved(let series):
       valuesByMediaGUID = await savedRecommendationScores(
@@ -792,20 +796,21 @@ class PodcastDetailViewModel:
     guard contextualEmbedding.assetsLoaded.isFinished else { return [:] }
 
     let revision = contextualEmbedding.revision
-    var cachedVectors: [MediaGUID: [Float]]
+    var cachedVectors: [MediaGUID: (source: String, vector: [Float])]
     if let cache = unsavedEmbeddingCache, cache.revision == revision {
       cachedVectors = cache.vectors
     } else {
-      cachedVectors = [MediaGUID: [Float]](capacity: entries.count)
+      cachedVectors = [MediaGUID: (source: String, vector: [Float])](capacity: entries.count)
     }
 
     var result = [MediaGUID: Float](capacity: entries.count)
     for episode in entries {
       if Task.isCancelled { break }
       guard let unsavedPodcastEpisode = episode.unsaved else { continue }
+      let source = unsavedPodcastEpisode.searchableString
       let vector: [Float]
-      if let cached = cachedVectors[episode.mediaGUID] {
-        vector = cached
+      if let cached = cachedVectors[episode.mediaGUID], cached.source == source {
+        vector = cached.vector
       } else {
         do {
           vector = try await EmbeddingService.embeddingVector(
@@ -822,7 +827,7 @@ class PodcastDetailViewModel:
           )
           continue
         }
-        cachedVectors[episode.mediaGUID] = vector
+        cachedVectors[episode.mediaGUID] = (source: source, vector: vector)
       }
       if let similarity = recommendationEngine.similarityScore(forEmbedding: vector) {
         result[episode.mediaGUID] = similarity

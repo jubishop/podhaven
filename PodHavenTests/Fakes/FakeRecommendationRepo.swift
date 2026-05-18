@@ -13,9 +13,17 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   // One-shot suspend for the next matching `embeddings(for:)` call so tests
   // can interleave state changes with an in-flight scoring pass.
+  //
+  // `pendingRelease` closes a TOCTOU window: the gated call's `shouldGate`
+  // decision and its `pendingContinuation` installation happen in two
+  // separate locked regions, so a `releaseEmbeddingsGate()` arriving in
+  // between would otherwise see a nil continuation and the gated call
+  // would suspend forever. With `pendingRelease`, an early release is
+  // recorded under lock and the next suspend resumes immediately.
   struct EmbeddingsGateState: Sendable {
     var armedTarget: Set<Episode.ID>?
     var pendingContinuation: CheckedContinuation<Void, Never>?
+    var pendingRelease: Bool = false
     var didSuspend: Bool = false
     var didComplete: Bool = false
   }
@@ -37,6 +45,7 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     let stale = embeddingsGateState { state -> CheckedContinuation<Void, Never>? in
       let pending = state.pendingContinuation
       state.pendingContinuation = nil
+      state.pendingRelease = false
       state.armedTarget = ids
       state.didSuspend = false
       state.didComplete = false
@@ -47,9 +56,15 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   func releaseEmbeddingsGate() {
     let continuation = embeddingsGateState { state -> CheckedContinuation<Void, Never>? in
-      let pending = state.pendingContinuation
-      state.pendingContinuation = nil
-      return pending
+      if let pending = state.pendingContinuation {
+        state.pendingContinuation = nil
+        return pending
+      }
+      // Race with an in-flight gated call that's decided to suspend but
+      // hasn't yet installed its continuation. Record the release so the
+      // upcoming suspend resumes immediately.
+      state.pendingRelease = true
+      return nil
     }
     continuation?.resume()
   }
@@ -147,9 +162,18 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     }
     if shouldGate {
       await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-        embeddingsGateState { state in
+        let resumeImmediately = embeddingsGateState { state -> Bool in
+          if state.pendingRelease {
+            state.pendingRelease = false
+            state.didSuspend = true
+            return true
+          }
           state.pendingContinuation = continuation
           state.didSuspend = true
+          return false
+        }
+        if resumeImmediately {
+          continuation.resume()
         }
       }
     }

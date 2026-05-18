@@ -617,6 +617,36 @@ import Testing
     )
   }
 
+  @Test(
+    "recommendationDisplay clears to .idle when the scoring pass returns early on an empty entries list"
+  )
+  func recommendationDisplayClearsOnEmptyEntriesEarlyReturn() async throws {
+    // Unsaved VM with zero episodes — the immediate scoring pass scheduled
+    // from the rec-sort setter exits via the `entries.isEmpty` early-return
+    // in `computeAndPublishRecommendationScores`. That path must still
+    // clear the `.computing` banner.
+    let unsavedPodcast = try Create.unsavedPodcast(
+      title: "Empty Podcast",
+      description: "Empty Podcast"
+    )
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(unsavedPodcast))
+
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in viewModel.recommendationDisplay == .idle },
+      { @MainActor in
+        """
+        Expected recommendationDisplay to return to .idle once the scoring \
+        pass exited via the empty-entries early-return.
+        actual: \(viewModel.recommendationDisplay)
+        """
+      }
+    )
+  }
+
   // MARK: - Hot-cache bootstrap preserved
 
   @Test(
