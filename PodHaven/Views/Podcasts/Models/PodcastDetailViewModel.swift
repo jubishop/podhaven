@@ -580,12 +580,13 @@ class PodcastDetailViewModel:
   private func startRecommendationObservation() {
     if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
     let contextRevisions = recommendationEngine.$contextRevision.stream().dropFirst()
-    scheduleImmediateRecommendationScoreRefresh()
+    let generation = recommendationScoreGeneration
+    scheduleImmediateRecommendationScoreRefresh(generation: generation)
     recommendationObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
       for await _ in contextRevisions {
         guard !Task.isCancelled else { return }
-        scheduleDebouncedRecommendationScoreRefresh()
+        scheduleDebouncedRecommendationScoreRefresh(generation: generation)
       }
     }
   }
@@ -598,6 +599,7 @@ class PodcastDetailViewModel:
     (snapshot: RecommendationScoringSnapshot, scores: [MediaGUID: Float])?
   @ObservationIgnored private var unsavedEmbeddingCache:
     (revision: Int, vectors: [MediaGUID: [Float]])?
+  @ObservationIgnored private var recommendationScoreGeneration = 0
 
   // Tristate coalescer. `.runningDirty` means another refresh request landed
   // while a pass was already running — the running pass loops once more once
@@ -613,32 +615,48 @@ class PodcastDetailViewModel:
     priority: .utility
   )
 
-  private func scheduleImmediateRecommendationScoreRefresh() {
+  private func scheduleImmediateRecommendationScoreRefresh(
+    generation: Int? = nil
+  ) {
+    let generation = generation ?? recommendationScoreGeneration
+    guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     if case .initial = state { return }
     guard scoringStatus == .idle else { return }
     recommendationScoreTask?.cancel()
     recommendationScoreTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      await self?.refreshRecommendationScoresCoalesced()
+      await self?.refreshRecommendationScoresCoalesced(generation: generation)
     }
   }
 
-  private func scheduleDebouncedRecommendationScoreRefresh() {
+  private func scheduleDebouncedRecommendationScoreRefresh(
+    generation: Int? = nil
+  ) {
+    let generation = generation ?? recommendationScoreGeneration
+    guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     recommendationScoresDebounce { [weak self] in
-      await self?.refreshRecommendationScoresCoalesced()
+      await self?.refreshRecommendationScoresCoalesced(generation: generation)
     }
   }
 
-  private func refreshRecommendationScoresCoalesced() async {
+  private func refreshRecommendationScoresCoalesced(generation: Int) async {
+    guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     guard scoringStatus == .idle else {
       scoringStatus = .runningDirty
       return
     }
-    defer { scoringStatus = .idle }
+    defer {
+      if recommendationScoreGeneration == generation {
+        scoringStatus = .idle
+      }
+    }
 
     repeat {
+      guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
       scoringStatus = .running
-      await computeAndPublishRecommendationScores()
-    } while scoringStatus == .runningDirty && !Task.isCancelled
+      await computeAndPublishRecommendationScores(generation: generation)
+    } while recommendationScoreGeneration == generation
+      && scoringStatus == .runningDirty
+      && !Task.isCancelled
   }
 
   private struct RecommendationScoringSnapshot: Equatable {
@@ -695,13 +713,14 @@ class PodcastDetailViewModel:
     return .unscored(mediaGUID: episode.mediaGUID)
   }
 
-  private func computeAndPublishRecommendationScores() async {
-    if Task.isCancelled { return }
+  private func computeAndPublishRecommendationScores(generation: Int) async {
+    guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     let snapshot = currentScoringSnapshot()
     let entries = episodeList.allEntries
     guard !entries.isEmpty else { return }
 
     if let cached = lastRecommendationScores, cached.snapshot == snapshot {
+      guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
       guard currentSortMethod == .recommendationScore else { return }
       applyRecommendationDisplay(cached.scores)
       recommendationDisplay = .idle
@@ -721,7 +740,7 @@ class PodcastDetailViewModel:
       valuesByMediaGUID = await unsavedSimilarityScores(entries: entries)
     }
 
-    guard !Task.isCancelled else { return }
+    guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     guard snapshot == currentScoringSnapshot() else {
       scoringStatus = .runningDirty
       return
@@ -849,6 +868,8 @@ class PodcastDetailViewModel:
   }
 
   private func clearRecommendationTasks() {
+    recommendationScoreGeneration += 1
+    scoringStatus = .idle
     recommendationObservationTask?.cancel()
     recommendationObservationTask = nil
     recommendationScoreTask?.cancel()

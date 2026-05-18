@@ -483,6 +483,23 @@ import Testing
       },
       { "Expected background scoring to populate the cached scores." }
     )
+
+    viewModel.currentSortMethod = .recommendationScore
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.recommendationDisplay == .idle
+          && Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
+      },
+      { @MainActor in
+        """
+        Expected initial cached scores to settle before testing pubDate invalidation.
+        display: \(viewModel.recommendationDisplay)
+        filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        """
+      }
+    )
+    viewModel.currentSortMethod = .newestFirst
     fakeRecommendationRepo.clearAllCalls()
 
     let updatedEpisodeID = try #require(candidateEpisodes.first?.id)
@@ -689,6 +706,12 @@ import Testing
         actual: \(String(describing: viewModel.displayedScore))
         """
       }
+    )
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { fakeRepo.isEmbeddingsGateSuspended },
+      { "Expected scoring fetch to suspend on the gated embeddings call." }
     )
 
     fakeRepo.releaseEmbeddingsGate()
@@ -1150,9 +1173,11 @@ import Testing
     // loop would re-run compute and call embeddings again on resume — unless
     // disappear cancels the in-flight task and the `!Task.isCancelled` guard
     // in the loop exits cleanly.
+    let pendingSleepRequests = fakeSleeper.pendingCount()
     recommendationEngine.$contextRevision.update { $0 += 1 }
+    try await fakeSleeper.waitForSleepRequests(count: pendingSleepRequests + 1)
+    await fakeSleeper.advanceTime(by: .seconds(1))
     for _ in 0..<3 {
-      await fakeSleeper.advanceTime(by: .seconds(2))
       await Task.yield()
     }
 
