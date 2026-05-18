@@ -50,9 +50,9 @@ Run a qmd lookup before non-trivial area work; use `Read`/`grep` only for known 
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
-- Swift Testing: `@Suite("...", .container)`, `#expect`, and structured concurrency for async tests.
+- Swift Testing: `@Suite("...", .container)`, `#expect`, and structured concurrency for async tests.  Do not use `.serialized`.
 - Bugfixes require a regression test proven failing before the fix; if it passes before and after, it is not a regression test and the bug may not be real.
-- Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests; use them only after confirming the exact discovered ID.
+- Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
 - Tests never use `Task.sleep`; use `Wait.until` or polling helpers.
 - Use `sleeper.sleep` only to advance time when testing production sleeps.
 - No thread blockers for async coordination: `DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`. They can deadlock the cooperative pool and GRDB. Use `Wait.until`, an `AsyncStream` continuation, or `withObservationTracking`.
