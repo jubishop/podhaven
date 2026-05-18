@@ -52,12 +52,20 @@ final class AsyncLatch<Value: Sendable>: Sendable {
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation {
         (continuation: CheckedContinuation<Value, any Error>) in
-        let immediate: Value? = state { s in
-          if let value = s.value { return value }
+        let immediate: Result<Value, any Error>? = state { s in
+          if let value = s.value { return .success(value) }
+          if Task.isCancelled { return .failure(CancellationError()) }
           s.continuations[id] = continuation
           return nil
         }
-        if let immediate { continuation.resume(returning: immediate) }
+        switch immediate {
+        case .success(let value):
+          continuation.resume(returning: value)
+        case .failure(let error):
+          continuation.resume(throwing: error)
+        case nil:
+          break
+        }
       }
     } onCancel: {
       let continuation: CheckedContinuation<Value, any Error>? = state { s in

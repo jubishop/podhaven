@@ -111,4 +111,50 @@ struct AsyncLatchTests {
     #expect(caught() is CancellationError)
     #expect(!latch.isFinished)
   }
+
+  @Test("already-cancelled wait throws CancellationError without waiting for finish")
+  func alreadyCancelledWaitThrowsWithoutWaitingForFinish() async throws {
+    let latch = AsyncLatch<Int>()
+    let (stream, continuation) = AsyncStream<Void>.makeStream()
+    let waiting = ThreadSafe(false)
+    let completed = ThreadSafe(false)
+    let caught = ThreadSafe<(any Error)?>(nil)
+
+    let waiter = Task {
+      waiting(true)
+      for await _ in stream {}
+      #expect(Task.isCancelled)
+      do {
+        _ = try await latch.wait()
+      } catch {
+        caught(error)
+      }
+      completed(true)
+    }
+
+    try await Wait.until(
+      maxAttempts: 50,
+      { waiting() },
+      { "Expected waiter to reach the pre-cancel gate" }
+    )
+
+    waiter.cancel()
+    continuation.finish()
+
+    do {
+      try await Wait.until(
+        maxAttempts: 50,
+        { completed() },
+        { "Expected already-cancelled waiter to complete without latch.finish()" }
+      )
+    } catch {
+      latch.finish(0)
+      await waiter.value
+      throw error
+    }
+
+    await waiter.value
+    #expect(caught() is CancellationError)
+    #expect(!latch.isFinished)
+  }
 }
