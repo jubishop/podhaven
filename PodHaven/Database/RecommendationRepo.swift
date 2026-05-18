@@ -407,25 +407,34 @@ struct RecommendationRepo: Recommending {
 
   func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID] {
     try await appDB.db.read { db in
-      let embeddingAlias = TableAlias()
-      let podcastAlias = TableAlias()
-
-      return
-        try Episode
-        .joining(required: Episode.podcast.aliased(podcastAlias))
-        .joining(optional: Episode.embedding.aliased(embeddingAlias))
-        .filter(
-          embeddingAlias[EpisodeEmbedding.Columns.id] == nil
-            || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
-            || Episode.Columns.contentUpdatedAt
-              > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
-            || podcastAlias[Podcast.Columns.contentUpdatedAt]
-              > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
-        )
-        .order(Episode.Columns.pubDate.desc)
-        .select(Episode.Columns.id, as: Episode.ID.self)
-        .fetchAll(db)
+      try Self.episodesNeedingEmbeddings(db, revision: revision)
     }
+  }
+
+  // Shared builder for both the async repo function and the GRDB observation
+  // in `Observatory.episodesNeedingEmbeddings(revision:)`.
+  static func episodesNeedingEmbeddings(
+    _ db: Database,
+    revision: Int
+  ) throws -> [Episode.ID] {
+    let embeddingAlias = TableAlias()
+    let podcastAlias = TableAlias()
+
+    return
+      try Episode
+      .joining(required: Episode.podcast.aliased(podcastAlias))
+      .joining(optional: Episode.embedding.aliased(embeddingAlias))
+      .filter(
+        embeddingAlias[EpisodeEmbedding.Columns.id] == nil
+          || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
+          || Episode.Columns.contentUpdatedAt
+            > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
+          || podcastAlias[Podcast.Columns.contentUpdatedAt]
+            > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
+      )
+      .order(Episode.Columns.pubDate.desc)
+      .select(Episode.Columns.id, as: Episode.ID.self)
+      .fetchAll(db)
   }
 
   // The hash check in EmbeddingService skips embeddings whose cleaned source

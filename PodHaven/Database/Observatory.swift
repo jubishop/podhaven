@@ -283,6 +283,12 @@ struct Observatory: Observing {
     }
   }
 
+  func episodesNeedingEmbeddings(revision: Int) -> AsyncValueObservation<[Episode.ID]> {
+    observe { db in
+      try RecommendationRepo.episodesNeedingEmbeddings(db, revision: revision)
+    }
+  }
+
   // MARK: - Private Helpers
 
   private static let countKey = "count"

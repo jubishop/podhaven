@@ -32,8 +32,9 @@ When adding or removing a doc, **update the lists below**. They exist as a quick
 - [ML Recommendations](initiatives/ml-recommendations.md) — on-device ML episode recommendation engine using `NLContextualEmbedding`; v1 across PR #117 + `worktree-appleMLRecommendations-UI`
 - [Episode Transcripts](initiatives/transcripts.md) — three-tier on-device transcript strategy (`<podcast:transcript>` RSS parse + opportunistic `BGProcessingTask` for queue/On Deck/top-rec + user-initiated `BGContinuedProcessingTask`); planning only
 - [Smart Lists](initiatives/smart-lists.md) — user-editable filter rules replacing the hardcoded `EpisodesView` lists; one-level-nested any/all groups, drag-to-reorder hub, per-list editor sheet, sort persisted on row; planning only
-- [Search Recommendations](initiatives/search-recommendations.md) — rank episodes of unsubscribed podcasts from search results *and* trending-category chips (including "Top") via the existing similarity scorer; banner above grid opens a search-specific discovery episode list that fills in rolling as RSS fetches + on-the-fly embeddings complete; planning only
+- [Search Recommendations](initiatives/search-recommendations.md) — rank unsubscribed-podcast episodes from search results and trending chips via the existing similarity scorer; scoring foundations are shipped, while the search banner, collector, and discovery list remain planned
 
 ## Research
 
 - [Embedding Model Alternatives](research/embedding-model-alternatives.md) — survey of replacements for `NLContextualEmbedding`; on-device-only constraint narrows it to CoreML-converted Sentence-BERT (MiniLM/BGE), but holding for WWDC '26 in case `FoundationModels` exposes an embedding API
+- [Swift Backtrace API for Telemetry](research/swift-backtrace-telemetry.md) — evaluates SE-0419 `Backtrace` for PodHaven logs; blocked because Swift 6.3.2 exposes `Runtime` on macOS but not `iphoneos` or `iphonesimulator`

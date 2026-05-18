@@ -115,7 +115,42 @@ the same Sentry integration. Note especially:
 
 If there is no linked event, that's fine — note it and proceed with logs only.
 
-## Step 4: Download the reporter's NDJSON logs from the feedback event
+## Step 4: Hunt for related Sentry issues right before the feedback
+
+Users typically file feedback in the moments after something went wrong, so
+the most useful issue is often *not* the one Sentry auto-linked (or none was
+linked). Search Sentry for issues whose events fired in the window leading up
+to the feedback submission and surface them even when nothing is attached to
+the feedback itself.
+
+Use the Sentry MCP `search_events` / `search_issues` with:
+
+- **Time range:** feedback timestamp minus 10 minutes through feedback
+  timestamp plus 1 minute. Widen to 30 minutes prior only if the 10-minute
+  window is empty.
+- **Reporter scope:** if the feedback exposes a `user.id`, `user.email`, or
+  installation ID, filter on it first — same-user events in that window are
+  almost always the proximate cause.
+- **Fallback scope:** if no reporter identifier is available, filter by the
+  same `release` and `environment` as the feedback and rank candidates by
+  timestamp proximity and severity. Be explicit in the report that the match
+  is release-wide, not reporter-specific.
+- **Sort:** most recent first.
+
+For each candidate capture: issue short ID, title, error type, last-seen
+timestamp (PT), event count in the window, and whether the reporter's
+identifier appears on at least one event. Keep the top ~5.
+
+If Step 3 already pulled a linked event, this search may rediscover the same
+issue group — fine, but still surface any *other* issues clustered around the
+same time. Multiple distinct errors right before a feedback usually mean one
+underlying failure produced several symptoms; the linked event is often just
+whichever one Sentry happened to attach.
+
+If nothing relevant turns up, say so plainly ("no Sentry issues from this
+reporter in the 10 minutes before feedback") rather than omitting the section.
+
+## Step 5: Download the reporter's NDJSON logs from the feedback event
 
 PodHaven attaches the reporter's local NDJSON logs to every feedback event,
 so the right logs to analyze are the ones on the Sentry event — **not** the
@@ -133,7 +168,9 @@ session.
 
 1. List attachments on the feedback's event using the Sentry MCP:
    `get_event_attachment(organizationSlug='artisanal-software',
-   projectSlug='podhaven', eventId='<feedback event id from Step 2>')`
+   projectSlug='podhaven', eventId='<feedback event id from Step 2>')`. If the
+   feedback had no linked event, fall back to the highest-ranked event from a
+   related issue in Step 4 — its attachments are still the reporter's logs.
 2. Expect at minimum two attachments named:
    - `log.ndjson` — the app log
    - `widget-log.ndjson` — the widget log
@@ -163,10 +200,10 @@ Fallbacks, in order, if the attachment route fails:
   - `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`
   - `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/widget-log.ndjson`
 
-## Step 5: Analyze logs around the feedback time
+## Step 6: Analyze logs around the feedback time
 
 Invoke the `analyze-logs` skill against the **downloaded** log paths from
-Step 4, scoped to the feedback's timestamp. Convert the Sentry timestamp to
+Step 5, scoped to the feedback's timestamp. Convert the Sentry timestamp to
 epoch milliseconds and use `--around` with a window wide enough to catch
 lead-up *and* aftermath:
 
@@ -186,7 +223,7 @@ If the feedback comment names a specific feature (search, downloads, playback,
 sync, etc.), also re-run `analyze-logs` filtered by the corresponding
 subsystem/category/source-file once you've eyeballed the time-window output.
 
-## Step 6: Synthesize
+## Step 7: Synthesize
 
 Build one report. Lead with the user's words, then the evidence, then the
 verdict and suggested fix. The reader should be able to act on this without
@@ -200,9 +237,13 @@ When forming the inferred root cause, weight signals in this rough order:
    already learned or ruled out since submission. A follow-up that says "turned
    out to be X" beats anything the original message implied.
 3. **Linked event / stack frame / breadcrumbs** — concrete crash or error data.
-4. **Reporter's attached NDJSON log timeline** — broadest context, but also
+4. **Related Sentry issues from Step 4** — same-user errors in the minutes
+   before submission are usually the trigger, especially when no event was
+   directly linked to the feedback. Treat them as peers to the linked event;
+   prefer same-user matches over release-wide ones.
+5. **Reporter's attached NDJSON log timeline** — broadest context, but also
    the noisiest.
-5. **Original feedback text** — frames the user's experience but is often
+6. **Original feedback text** — frames the user's experience but is often
    imprecise about cause.
 
 If two sources disagree, name the disagreement in *Alternatives considered*
@@ -229,6 +270,13 @@ Report format:
 feedback after submission. Format each as `<PT timestamp> — <author>: <verbatim
 text>`. If none exist, write "None." If the integration couldn't fetch the
 thread, write "Not fetched — <reason>".)
+
+## Related Sentry issues near feedback time
+(Issues from Step 4 whose events fired in the window leading up to the
+feedback. Format each line as `<PT timestamp> — <issue short id> — <title>
+(<error type>, <N events>, <same-user|release-wide>)`. List most recent first.
+Note the search window used (e.g. "10 min before, 1 min after"). If none, write
+"None found in <window>".)
 
 ## Triage notes from this invocation
 (Any free-text the user attached alongside the URL when they ran the skill,

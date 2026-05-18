@@ -762,8 +762,8 @@ class PodcastDetailViewModel:
   private func unsavedSimilarityScores(
     entries: IdentifiedArrayOf<ListedEpisode>
   ) async -> [MediaGUID: Float] {
-    contextualEmbedding.loadAssetsIfAvailable()
-    guard contextualEmbedding.isAvailable else { return [:] }
+    await contextualEmbedding.loadAssetsIfAvailable()
+    guard contextualEmbedding.assetsLoaded.isFinished else { return [:] }
 
     let revision = contextualEmbedding.revision
     var cachedVectors: [MediaGUID: [Float]]

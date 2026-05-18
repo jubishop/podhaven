@@ -75,7 +75,7 @@ class EmbeddingServiceTests {
     )
 
     let recorder = RecordingEmbeddable()
-    let embedding = makeContextualEmbedding(recorder)
+    let embedding = await makeContextualEmbedding(recorder)
 
     try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [podcastEpisode.episode],
@@ -98,7 +98,7 @@ class EmbeddingServiceTests {
     )
     let episode = podcastEpisode.episode
 
-    let embedding = makeContextualEmbedding()
+    let embedding = await makeContextualEmbedding()
 
     // First call should compute and cache
     try await EmbeddingService.upsertEpisodeEmbeddings(
@@ -131,7 +131,7 @@ class EmbeddingServiceTests {
       episodeDescription: "Test description"
     )
     let episode = podcastEpisode.episode
-    let embedding = makeContextualEmbedding()
+    let embedding = await makeContextualEmbedding()
 
     // First compute normally to get the correct hash
     try await EmbeddingService.upsertEpisodeEmbeddings(
@@ -176,10 +176,10 @@ class EmbeddingServiceTests {
       episodeDescription: "Episode description"
     )
     let episode = podcastEpisode.episode
-    let firstEmbedding = makeContextualEmbedding(
+    let firstEmbedding = await makeContextualEmbedding(
       RevisionedEmbeddable(revision: 1)
     )
-    let secondEmbedding = makeContextualEmbedding(
+    let secondEmbedding = await makeContextualEmbedding(
       RevisionedEmbeddable(revision: 2)
     )
 
@@ -209,7 +209,7 @@ class EmbeddingServiceTests {
       episodeTitle: "Podcast Refresh",
       episodeDescription: "Episode description"
     )
-    let embedding = makeContextualEmbedding()
+    let embedding = await makeContextualEmbedding()
 
     try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [podcastEpisode.episode],
@@ -259,7 +259,7 @@ class EmbeddingServiceTests {
       episodeTitle: "Podcast Cache Refresh",
       episodeDescription: "Episode description"
     )
-    let embedding = makeContextualEmbedding()
+    let embedding = await makeContextualEmbedding()
 
     let staleVector: [Float] = [99.0, 99.0, 99.0]
     let staleEmbedding = UnsavedPodcastEmbedding(
@@ -383,7 +383,7 @@ class EmbeddingServiceTests {
       episodeTitle: "Stable Title",
       episodeDescription: "Stable desc"
     )
-    let embedding = makeContextualEmbedding()
+    let embedding = await makeContextualEmbedding()
 
     try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [pe.episode],
@@ -444,7 +444,7 @@ class EmbeddingServiceTests {
       episodeTitle: "Known title",
       episodeDescription: "Known ep desc"
     )
-    let embedding = makeContextualEmbedding()
+    let embedding = await makeContextualEmbedding()
 
     try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [pe.episode],
@@ -467,7 +467,7 @@ class EmbeddingServiceTests {
       episodeTitle: "Title",
       episodeDescription: "Description"
     )
-    let embedding = makeContextualEmbedding()
+    let embedding = await makeContextualEmbedding()
 
     try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [pe.episode],
@@ -505,7 +505,7 @@ class EmbeddingServiceTests {
     // FailOnMarkerEmbeddable throws .noResult for any input containing "Bad",
     // simulating an episode whose cleaned text tokenizes to something the
     // model can't handle.
-    let embedding = makeContextualEmbedding(
+    let embedding = await makeContextualEmbedding(
       FailOnMarkerEmbeddable(failIfInputContains: "Bad")
     )
 
@@ -544,7 +544,7 @@ class EmbeddingServiceTests {
     // episode 2's compute. Episode 1 finishes fully (podcast + title + desc
     // all pre-"CancelMe"), its embedding is written, and the for-loop's
     // do/catch rethrows CancellationError out of upsertEpisodeEmbeddings.
-    let embedding = makeContextualEmbedding(
+    let embedding = await makeContextualEmbedding(
       CancelOnMarkerEmbeddable(cancelIfInputContains: "CancelMe")
     )
 
@@ -575,7 +575,7 @@ class EmbeddingServiceTests {
       "EP_B_TITLE": [0, 0, 1],
       "EP_B_DESC": [0, 0, 1],
     ]
-    let embedding = makeContextualEmbedding(
+    let embedding = await makeContextualEmbedding(
       DeterministicEmbeddable(mapping: mapping)
     )
 
@@ -622,7 +622,7 @@ class EmbeddingServiceTests {
       "POD_TITLE": [0, 0, 1, 0],
       "POD_DESC": [0, 0, 0, 1],
     ]
-    let embedding = makeContextualEmbedding(
+    let embedding = await makeContextualEmbedding(
       DeterministicEmbeddable(mapping: mapping)
     )
 
@@ -652,7 +652,7 @@ class EmbeddingServiceTests {
       "EP_TITLE": [0, 0, 1],
       "EP_DESC": [0, 0, 1],
     ]
-    let embedding = makeContextualEmbedding(
+    let embedding = await makeContextualEmbedding(
       DeterministicEmbeddable(mapping: mapping)
     )
 
@@ -678,10 +678,10 @@ class EmbeddingServiceTests {
   // MARK: - Helpers
 
   private func makeContextualEmbedding(
-    _ embeddable: some Embeddable = FakeEmbeddable()
-  ) -> ContextualEmbedding {
+    _ embeddable: some Embeddable & Sendable = FakeEmbeddable()
+  ) async -> ContextualEmbedding {
     let embedding = ContextualEmbedding(embedding: embeddable)
-    embedding.requestAndLoadAssetsIfNeeded()
+    await embedding.requestAndLoadAssetsIfNeeded()
     return embedding
   }
 
@@ -739,7 +739,7 @@ private struct RevisionedEmbeddable: Embeddable {
   }
 }
 
-private final class RecordingEmbeddable: Embeddable {
+private final class RecordingEmbeddable: Embeddable, Sendable {
   let hasAvailableAssets = true
   let revision: Int = 1
 
