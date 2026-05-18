@@ -189,18 +189,29 @@ class PodcastDetailViewModel:
     didSet {
       guard oldValue != currentSortMethod else { return }
       if currentSortMethod == .recommendationScore {
-        if let cached = lastRecommendationScores {
-          applyRecommendationDisplay(cached)
+        if let cached = lastRecommendationScores,
+          cached.snapshot == currentScoringSnapshot()
+        {
+          applyRecommendationDisplay(cached.scores)
+          recommendationDisplay = .idle
         } else {
           episodeList.filterMethod = currentSortMethod.filterMethod
+          recommendationDisplay = .computing
           scheduleImmediateRecommendationScoreRefresh()
         }
       } else {
         episodeList.filterMethod = currentSortMethod.filterMethod
         episodeList.sortMethod = currentSortMethod.sortMethod
+        recommendationDisplay = .idle
       }
     }
   }
+
+  enum RecommendationDisplay: Sendable {
+    case idle
+    case computing
+  }
+  private(set) var recommendationDisplay: RecommendationDisplay = .idle
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
@@ -584,7 +595,8 @@ class PodcastDetailViewModel:
 
   @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
   @ObservationIgnored private var recommendationScoreTask: Task<Void, Never>?
-  @ObservationIgnored private var lastRecommendationScores: [MediaGUID: Float]?
+  @ObservationIgnored private var lastRecommendationScores:
+    (snapshot: RecommendationScoringSnapshot, scores: [MediaGUID: Float])?
   @ObservationIgnored private var unsavedEmbeddingCache:
     (revision: Int, vectors: [MediaGUID: [Float]])?
 
@@ -603,6 +615,7 @@ class PodcastDetailViewModel:
   )
 
   private func scheduleImmediateRecommendationScoreRefresh() {
+    if case .initial = state { return }
     guard scoringStatus == .idle else { return }
     recommendationScoreTask?.cancel()
     recommendationScoreTask = Task(priority: taskPriority(.utility)) { [weak self] in
@@ -688,9 +701,10 @@ class PodcastDetailViewModel:
       scoringStatus = .runningDirty
       return
     }
-    lastRecommendationScores = valuesByMediaGUID
+    lastRecommendationScores = (snapshot: snapshot, scores: valuesByMediaGUID)
     guard currentSortMethod == .recommendationScore else { return }
     applyRecommendationDisplay(valuesByMediaGUID)
+    recommendationDisplay = .idle
   }
 
   private func savedRecommendationScores(
@@ -825,6 +839,11 @@ class PodcastDetailViewModel:
     state = newState
     refreshEpisodeList(from: newState)
     startObservation(newState.savedSeries?.id)
+    if currentSortMethod == .recommendationScore,
+      lastRecommendationScores?.snapshot != currentScoringSnapshot()
+    {
+      recommendationDisplay = .computing
+    }
     scheduleDebouncedRecommendationScoreRefresh()
   }
 

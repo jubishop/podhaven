@@ -306,6 +306,204 @@ import Testing
     )
   }
 
+  // MARK: - Snapshot-validated cache apply on sort-switch
+
+  @Test(
+    "switching to .recommendationScore while the cached scores are stale must not hide newly-arrived episodes during the refresh window"
+  )
+  func staleCacheOnSortSwitchDoesNotHideNewEpisodes() async throws {
+    let embeddable = scoringEmbeddable()
+    try await primeEngine(with: embeddable)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/stale-sort-switch.rss")!)
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: feedURL,
+          title: "Target",
+          description: "Target"
+        ),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "target-0",
+            title: "Target 0",
+            pubDate: Date(timeIntervalSince1970: 100),
+            description: "Target 0"
+          ),
+          try Create.unsavedEpisode(
+            guid: "target-1",
+            title: "Target 1",
+            pubDate: Date(timeIntervalSince1970: 200),
+            description: "Target 1"
+          ),
+          try Create.unsavedEpisode(
+            guid: "target-2",
+            title: "Target 2",
+            pubDate: Date(timeIntervalSince1970: 300),
+            description: "Target 2"
+          ),
+          try Create.unsavedEpisode(
+            guid: "target-3",
+            title: "Target 3",
+            pubDate: Date(timeIntervalSince1970: 400),
+            description: "Target 3"
+          ),
+        ]
+      )
+    )
+    let savedEpisodes = Array(savedSeries.episodes)
+    try await RecommendationHelpers.embedEpisodes(savedEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: savedEpisodes)
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await viewModel.performAppear()
+
+    let initialIDs = Set(savedEpisodes.map(\.id))
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.saved
+          && Set(viewModel.episodeList.allEntries.compactMap(\.episodeID)) == initialIDs
+      },
+      { @MainActor in
+        "Expected all four initial episodes to load before priming the cache."
+      }
+    )
+
+    viewModel.currentSortMethod = .recommendationScore
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in
+        Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == initialIDs
+      },
+      { @MainActor in
+        """
+        Expected initial scoring pass to populate the rec-score sort with all \
+        four episodes before adding the fifth.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        """
+      }
+    )
+    viewModel.currentSortMethod = .newestFirst
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in viewModel.episodeList.filteredEntries.count == 4 },
+      { @MainActor in
+        "Expected sort to return to .newestFirst with all four entries visible."
+      }
+    )
+
+    let fakeRepo = fakeRecommendationRepo
+    fakeRepo.armEmbeddingsGate(matching: initialIDs)
+    recommendationEngine.$contextRevision.update { $0 += 1 }
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { fakeRepo.isEmbeddingsGateSuspended },
+      { "Expected the post-bump scoring pass to suspend before list change." }
+    )
+
+    try await repo.updateSeriesFromFeed(
+      podcastSeries: savedSeries,
+      podcast: nil,
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(
+          guid: GUID("target-4"),
+          title: "Target 4",
+          pubDate: Date(timeIntervalSince1970: 500),
+          description: "Target 4"
+        )
+      ],
+      existingEpisodes: []
+    )
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in viewModel.episodeList.allEntries.count == 5 },
+      { @MainActor in
+        """
+        Expected observation to grow the list to five before switching to rec-score sort.
+        count: \(viewModel.episodeList.allEntries.count)
+        """
+      }
+    )
+
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in viewModel.episodeList.filteredEntries.count == 5 },
+      { @MainActor in
+        """
+        Applying the stale four-ID cache filtered out the newly-arrived \
+        fifth episode. Expected snapshot validation to keep all five visible.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        """
+      }
+    )
+  }
+
+  @Test(
+    "recommendationDisplay reflects an in-flight refresh while rec-sort is active and clears once scores apply"
+  )
+  func recommendationDisplayToggles() async throws {
+    let embeddable = scoringEmbeddable()
+    try await primeEngine(with: embeddable)
+
+    let (targetPodcast, candidateEpisodes) =
+      try await RecommendationHelpers
+      .createPodcastWithEpisodes(
+        count: 4,
+        podcastTitle: "Target",
+        podcastDescription: "Target",
+        episodeDescriptions: ["Target 0", "Target 1", "Target 2", "Target 3"]
+      )
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.saved && viewModel.episodeList.allEntries.count == candidateEpisodes.count
+      },
+      { @MainActor in
+        "Expected target podcast loaded with \(candidateEpisodes.count) episodes."
+      }
+    )
+
+    let fakeRepo = fakeRecommendationRepo
+    fakeRepo.armEmbeddingsGate(matching: Set(candidateEpisodes.map(\.id)))
+
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in viewModel.recommendationDisplay == .computing },
+      { @MainActor in
+        """
+        Expected recommendationDisplay to be .computing while the rec-sort \
+        scoring pass is in flight.
+        actual: \(viewModel.recommendationDisplay)
+        """
+      }
+    )
+
+    fakeRepo.releaseEmbeddingsGate()
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in viewModel.recommendationDisplay == .idle },
+      { @MainActor in
+        """
+        Expected recommendationDisplay to return to .idle once scoring completes.
+        actual: \(viewModel.recommendationDisplay)
+        """
+      }
+    )
+  }
+
   // MARK: - Hot-cache bootstrap preserved
 
   @Test(
@@ -353,6 +551,62 @@ import Testing
         when the engine cache is already hot and no further \
         $contextRevision bump arrives.
         filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        """
+      }
+    )
+  }
+
+  @Test(
+    "EpisodeDetailViewModel surfaces .computing on displayedScore while a fetch is in flight and replaces it on completion"
+  )
+  func episodeDetailScoringIndicatorToggles() async throws {
+    let embeddable = scoringEmbeddable()
+    try await primeEngine(with: embeddable)
+
+    let (_, candidateEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0"]
+    )
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+
+    let targetEpisodeID = try #require(candidateEpisodes.first?.id)
+    let podcastEpisode = try #require(try await repo.podcastEpisode(targetEpisodeID))
+
+    let fakeRepo = fakeRecommendationRepo
+    fakeRepo.armEmbeddingsGate(matching: Set([targetEpisodeID]))
+
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    try await viewModel.performAppear()
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in
+        if case .computing = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected displayedScore to be .computing while the fetch is in flight.
+        actual: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+
+    fakeRepo.releaseEmbeddingsGate()
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected displayedScore to settle on .recommendation once the fetch completes.
+        actual: \(String(describing: viewModel.displayedScore))
         """
       }
     )

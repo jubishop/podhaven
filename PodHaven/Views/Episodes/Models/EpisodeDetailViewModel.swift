@@ -73,6 +73,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   case recommendation(RecommendationScore)
   case similarity(Float)
   case embeddingPending
+  case computing
 }
 
 @Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
@@ -544,6 +545,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     reason: EpisodeRecommendationRefreshReason
   ) {
     if case .kindChanged = reason { unsavedEmbeddingCache = nil }
+    if score == nil { score = .computing }
     switch reason {
     case .initial, .kindChanged:
       recommendationFetchTask?.cancel()
