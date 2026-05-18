@@ -32,35 +32,43 @@ enum EmbeddingError: LocalizedError {
 
 // MARK: - ContextualEmbedding
 
-class ContextualEmbedding {
+// Actor so the synchronous NLContextualEmbedding work (BNNS-heavy
+// embeddingResult, asset load) runs on the actor's executor instead of
+// being pinned to a @MainActor caller's executor via the non-Sendable
+// parameter.
+actor ContextualEmbedding {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
-  let assetsLoaded = AsyncLatch<Void>()
-
-  private let embedding: any Embeddable
-  private let isLoading = ThreadLock()
-  private let isRequesting = ThreadLock()
-
-  init(embedding: any Embeddable) {
-    self.embedding = embedding
+  // .requesting is sticky across a successful request → loadAssets sequence;
+  // loadAssets() restores the prior state on failure so a post-request load
+  // failure doesn't unblock a fresh download request.
+  private enum AssetState {
+    case idle
+    case requesting
+    case loading
   }
 
-  var revision: Int { embedding.revision }
+  nonisolated let assetsLoaded = AsyncLatch<Void>()
+  nonisolated let revision: Int
+
+  private let embedding: any Embeddable
+  private var state: AssetState = .idle
+
+  init(embedding: sending any Embeddable) {
+    self.embedding = embedding
+    revision = embedding.revision
+  }
 
   func requestAndLoadAssetsIfNeeded() {
     loadAssetsIfAvailable()
     guard !embedding.hasAvailableAssets else { return }
-    guard isRequesting.claim() else { return }
+    guard state == .idle else { return }
+    state = .requesting
 
     Self.log.info("Requesting contextual embedding assets download")
-    let isRequesting = isRequesting
     embedding.requestAssets { error in
-      if let error {
-        Self.log.caughtError("Failed to download contextual embedding assets", error)
-        isRequesting.release()
-      } else {
-        Self.log.info("Contextual embedding assets downloaded")
-        Container.shared.contextualEmbedding().loadAssets()
+      Task {
+        await Container.shared.contextualEmbedding().completeAssetRequest(error: error)
       }
     }
   }
@@ -96,15 +104,27 @@ class ContextualEmbedding {
     return sum.map { $0 / Float(count) }
   }
 
-  fileprivate func loadAssets() {
-    guard isLoading.claim() else { return }
+  private func loadAssets() {
+    guard state != .loading else { return }
+    let prior = state
+    state = .loading
 
     do {
       try embedding.load()
       assetsLoaded.finish()
     } catch {
       Self.log.caughtError("Failed to load contextual embedding", error)
-      isLoading.release()
+      state = prior
+    }
+  }
+
+  private func completeAssetRequest(error: (any Error)?) {
+    if let error {
+      Self.log.caughtError("Failed to download contextual embedding assets", error)
+      state = .idle
+    } else {
+      Self.log.info("Contextual embedding assets downloaded")
+      loadAssets()
     }
   }
 }

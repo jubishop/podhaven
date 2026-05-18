@@ -847,7 +847,7 @@ import Testing
     _ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]
   ) async throws -> [MediaGUID: Float] {
     let contextualEmbedding = Container.shared.contextualEmbedding()
-    contextualEmbedding.loadAssetsIfAvailable()
+    await contextualEmbedding.loadAssetsIfAvailable()
     let engine = Container.shared.recommendationEngine()
     var scores = [MediaGUID: Float](capacity: unsavedPodcastEpisodes.count)
     for unsavedPodcastEpisode in unsavedPodcastEpisodes {

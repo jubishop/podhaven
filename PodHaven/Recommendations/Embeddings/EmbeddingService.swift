@@ -115,7 +115,7 @@ enum EmbeddingService {
         if let cached = podcastVectorCache[episode.podcastID] {
           podcastVector = cached
         } else {
-          let resolved = try resolvePodcastVector(
+          let resolved = try await resolvePodcastVector(
             podcast: podcast,
             embedding: embedding,
             cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
@@ -127,7 +127,7 @@ enum EmbeddingService {
           podcastVectorCache[episode.podcastID] = podcastVector
         }
 
-        let unsavedEpisode = try buildUnsavedEpisodeEmbedding(
+        let unsavedEpisode = try await buildUnsavedEpisodeEmbedding(
           episode,
           hash: hash,
           embedding: embedding,
@@ -161,14 +161,12 @@ enum EmbeddingService {
   // MARK: - Unsaved Embedding
 
   // Mirrors the saved-side recipe so an unsaved row scores against the same
-  // vector space. `async` (even though the body is sync) so `@MainActor`
-  // callers hop the CPU-bound embedding work — and the rare first-time
-  // CoreML model load — off main.
+  // vector space.
   static func embeddingVector(
     for unsavedPodcastEpisode: UnsavedPodcastEpisode,
     embedding: ContextualEmbedding
   ) async throws -> [Float] {
-    embedding.loadAssetsIfAvailable()
+    await embedding.loadAssetsIfAvailable()
 
     let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
     let unsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
@@ -178,13 +176,13 @@ enum EmbeddingService {
     let podcastVector: [Float]? =
       cleanedPodcastTitle.isEmpty
       ? nil
-      : try computePodcastVector(
+      : try await computePodcastVector(
         cleanedTitle: cleanedPodcastTitle,
         cleanedDescription: cleanedPodcastDescription,
         embedding: embedding
       )
 
-    return try computeEpisodeEmbedding(
+    return try await computeEpisodeEmbedding(
       cleanedTitle: cleanText(unsavedEpisode.title),
       cleanedDescription: cleanText(unsavedEpisode.description ?? ""),
       embedding: embedding,
@@ -200,7 +198,7 @@ enum EmbeddingService {
     podcast: Podcast?,
     embedding: ContextualEmbedding,
     cachedEmbedding: PodcastEmbedding?
-  ) throws -> (vector: [Float]?, fresh: UnsavedPodcastEmbedding?) {
+  ) async throws -> (vector: [Float]?, fresh: UnsavedPodcastEmbedding?) {
     guard let podcast else { return (nil, nil) }
 
     let cleanedTitle = cleanText(podcast.title)
@@ -222,7 +220,7 @@ enum EmbeddingService {
       return (cached.floatVector, nil)
     }
 
-    let normalized = try computePodcastVector(
+    let normalized = try await computePodcastVector(
       cleanedTitle: cleanedTitle,
       cleanedDescription: cleanedDescription,
       embedding: embedding
@@ -242,10 +240,10 @@ enum EmbeddingService {
     cleanedTitle: String,
     cleanedDescription: String,
     embedding: ContextualEmbedding
-  ) throws -> [Float] {
-    let titleVector = try embedding.vector(for: cleanedTitle)
+  ) async throws -> [Float] {
+    let titleVector = try await embedding.vector(for: cleanedTitle)
     let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
-    let descriptionVector = try embedding.vector(for: descriptionText)
+    let descriptionVector = try await embedding.vector(for: descriptionText)
 
     let blended = VectorMath.weightedAverage(
       titleVector,
@@ -262,8 +260,8 @@ enum EmbeddingService {
     embedding: ContextualEmbedding,
     podcastVector: [Float]?,
     verificationDate: Date
-  ) throws -> UnsavedEpisodeEmbedding {
-    let vector = try computeEpisodeEmbedding(
+  ) async throws -> UnsavedEpisodeEmbedding {
+    let vector = try await computeEpisodeEmbedding(
       for: episode,
       embedding: embedding,
       podcastVector: podcastVector
@@ -283,8 +281,8 @@ enum EmbeddingService {
     for episode: Episode,
     embedding: ContextualEmbedding,
     podcastVector: [Float]?
-  ) throws -> [Float] {
-    try computeEpisodeEmbedding(
+  ) async throws -> [Float] {
+    try await computeEpisodeEmbedding(
       cleanedTitle: cleanText(episode.title),
       cleanedDescription: cleanText(episode.description ?? ""),
       embedding: embedding,
@@ -297,10 +295,10 @@ enum EmbeddingService {
     cleanedDescription: String,
     embedding: ContextualEmbedding,
     podcastVector: [Float]?
-  ) throws -> [Float] {
-    let titleVector = try embedding.vector(for: cleanedTitle)
+  ) async throws -> [Float] {
+    let titleVector = try await embedding.vector(for: cleanedTitle)
     let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
-    let descriptionVector = try embedding.vector(for: descriptionText)
+    let descriptionVector = try await embedding.vector(for: descriptionText)
 
     var episodeVector = VectorMath.weightedAverage(
       titleVector,
