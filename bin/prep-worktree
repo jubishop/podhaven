@@ -67,6 +67,19 @@ elif [ ! -d "$MAIN_DD/SourcePackages" ]; then
   echo "Warning: main repo SourcePackages not found — build in Xcode from main first"
 fi
 
+# Symlink qmd model cache (~2GB of immutable HF GGUFs) from main repo
+MAIN_QMD_MODELS="$MAIN_REPO/.cache/qmd/models"
+WT_QMD_MODELS="$WORKTREE_PATH/.cache/qmd/models"
+if [ -d "$MAIN_QMD_MODELS" ] && [ ! -e "$WT_QMD_MODELS" ]; then
+  mkdir -p "$(dirname "$WT_QMD_MODELS")"
+  ln -s "$MAIN_QMD_MODELS" "$WT_QMD_MODELS"
+  echo "Linked qmd models"
+elif [ -L "$WT_QMD_MODELS" ]; then
+  echo "qmd models already linked"
+elif [ ! -d "$MAIN_QMD_MODELS" ]; then
+  echo "Warning: main repo qmd models not found — first qmd run will download ~2GB"
+fi
+
 # Copy compilation caching settings
 SETTINGS_SRC="$MAIN_REPO/$PROJECT_NAME.xcodeproj/project.xcworkspace/xcuserdata/$(whoami).xcuserdatad/WorkspaceSettings.xcsettings"
 SETTINGS_DST="$WORKTREE_PATH/$PROJECT_NAME.xcodeproj/project.xcworkspace/xcuserdata/$(whoami).xcuserdatad/WorkspaceSettings.xcsettings"

@@ -2,7 +2,6 @@
 name: NowPlayingInfo elapsed time desync bug
 description: Recurring bug where iOS sends a stale backward scrub ~30–33s after AirPods-triggered background pause. 6 confirmed incidents. Both the incident-3 fix (event-driven writes) and the incident-5 fix (fb43f650, periodic CurrentPlaybackDate anchor + playbackState mirror) FAILED to prevent recurrence on 4/19. Response: removed CurrentPlaybackDate entirely (on-demand audio doesn't need it) and added a 30s wall-clock diagnostic snapshot to catch AVPlayer/dict/mediaserverd drift on the next incident.
 type: project
-originSessionId: 03a15cba-4c43-4960-b7e0-311fae53bf03
 ---
 ## NowPlayingInfo Elapsed Time Desync Bug
 

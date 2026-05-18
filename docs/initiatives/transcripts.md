@@ -1,3 +1,7 @@
+---
+status: planning
+---
+
 # Episode Transcripts
 
 On-device transcription of podcast episodes for search and (future) summary generation. No code yet — design conclusions captured 2026-05-05.

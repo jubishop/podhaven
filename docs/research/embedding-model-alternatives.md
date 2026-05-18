@@ -1,3 +1,7 @@
+---
+status: blocked
+---
+
 # Embedding Model Alternatives
 
 Survey of replacements for `NLContextualEmbedding` in the recommendation engine. Researched 2026-05-11 after shipping the corpus-mean whitening fix that worked around `NLContextualEmbedding`'s narrow-cone anisotropy.

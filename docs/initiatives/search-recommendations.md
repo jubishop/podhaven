@@ -1,3 +1,7 @@
+---
+status: in-progress
+---
+
 # Search Recommendations
 
 Rank the episodes of podcasts returned from a search or a trending-category chip by the existing ML recommendation engine, surfacing a "top recommended episodes from these results" list as a discovery tool. Design captured 2026-05-11; still planning for the search surface itself. Updated 2026-05-16 to reflect shipped foundations: unsaved episode embedding/scoring, unsaved podcast-detail recommendation sorting, and owner-aware `DownloadTask.cancel()`.

@@ -1,3 +1,7 @@
+---
+status: in-progress
+---
+
 # ML Recommendations
 
 On-device ML recommendation engine for podcast episodes — infrastructure in PR #117, engine + UI on `worktree-appleMLRecommendations-UI`.
@@ -25,7 +29,7 @@ Users have no intelligent help choosing which episode to listen to next from the
 - `EmbeddingTask` background processing using existing `BackgroundTaskScheduler`, serial computation, prioritized ordering. `Task.checkCancellation()` per episode means BG expiry preserves partial progress; next run resumes via `episodesNeedingEmbeddings`.
 - `VectorStorable` protocol for DRY vector serialization across `EpisodeEmbedding` and `PodcastEmbedding`. Protocol requires `dimension` and asserts `dimension * 4 == vector.count` on read.
 - `VectorMath` uses Accelerate `vDSP` (dot, multiply, add, sumOfSquares, divide) — cheap win since it's called per-candidate in the ranker.
-- `Episode.hasSignal` and `Episode.candidate` SQL expressions defined once on `Episode` and reused across the signal/candidate fetches and `episodesNeedingEmbeddings`. (`Episode.hasSignal` is now `rated || (playbackCoverage IS NOT NULL)` — see "In progress.")
+- `Episode.hasSignal` and `Episode.candidate` SQL expressions defined once on `Episode` and reused across the signal/candidate fetches and `episodesNeedingEmbeddings`. (`Episode.hasSignal` is now `rated || (playbackCoverage IS NOT NULL)` — see "In progress." `episodesNeedingEmbeddings` no longer applies the `hasSignal || candidate` filter and embeds every episode ordered by `pubDate.desc` — see "Embed every episode".)
 - Repo naming follows project conventions: `podcast(_)`, `embedding(for:)`, `embeddings(for:)`, `insertEmbedding`, `allUnratedListenedEpisodes`, `allCandidateEpisodes`. (Originally also `allSignalEpisodes` and `allPodcastTags` — both removed; see "In progress" and the deferred / dropped items list.)
 
 ## Key architectural decisions
@@ -139,6 +143,10 @@ Revisit when there's an actual suggestions UI consuming this — design choice w
 Files: `PodHaven/Recommendations/Models/ScoringContextInputs.swift`, `Observatory.scoringContextInputsWithoutPartialSignals()`, `RecommendationEngine.start()`. Tests: `ObservatoryScoringContextInputsTests` (initial empty, projection, embeddingCount semantics, re-emit on rating, re-emit on embedding, ignores irrelevant column changes) — engine end-to-end behavior covered by the existing `RecommendationEngineTests` with two helpers (`startAndWaitForRecs`, `startAndWaitForScores`) that capture engine into a local before the polling closure to dodge the test class's non-Sendable `self`.
 
 Rejected alternatives: TTL cache, waiter-dict pattern (cache state ballooned to context+initialized+waiters), AsyncOnce-gated `start() async` (let public methods stay non-blocking instead), denormalized score column, bundling scores into Repo queries.
+
+### Embed every episode — shipped 2026-05-17
+
+`episodesNeedingEmbeddings` previously gated on `Episode.hasSignal || Episode.candidate`, so queued, started-without-coverage, `notInterested`-rated, and finished-without-coverage rows never got embeddings. That surfaced as a "no embedding" indicator on every queued episode in `EpisodeListView`, and meant that any state transition flipping a row into `candidate` (unqueue, clear rating) waited for the next BG run to embed. Filter dropped; ordering switched from `hasSignal.desc` to `pubDate.desc` so freshest episodes get embeddings first when BG time is scarce. `Episode.hasSignal` itself removed (last caller gone). Downstream consumers (`allCandidateEpisodes`, `Observatory.recommendableListedEpisodes`, signal-embedding lookups) all still gate on `Episode.candidate && Episode.hasEmbedding` or on signal IDs, so the extra embeddings don't pollute recs. The whitening transform now scans a slightly larger corpus (includes queued / `notInterested`); growth-ratio guard at `RecommendationEngine.currentWhiteningTransform` absorbs the one-time count jump.
 
 ### Dislike bleed mitigation — addressed 2026-04-23
 

@@ -1,19 +1,19 @@
 ## Project Memory & Tracking
-Persistent context is repo-readable; choose the right store.
+Persistent context is repo-readable, organized into two flat stores plus GitHub issues:
 
-- **Memory (`memory/`)**: active context (incidents, bug investigations, user rules, in-flight state, external refs). Load `memory/MEMORY.md` at session start. Keep small. Catalog is one line/entry. Schema: `memory/README.md`; log: `memory/log.md`.
-- **Knowledge (`knowledge/`)**: long-form reference wiki (library quirks, recipes, patterns, migrations, gotchas). Load on demand with `qmd`, not at startup. Add when useful for "working on X," not every session. Schema: `knowledge/README.md`; log: `knowledge/log.md`.
-- **GitHub Issues (`jubishop/podhaven`)**: lifecycle-tracked TODOs, bugs, refactors. Use `gh issue list/create/view`; link/close from PRs.
-- **Design docs (`docs/`)**: initiatives and architecture rationale. Update `docs/README.md` for new docs. Use for multi-PR efforts and reviewed "built / next" notes.
+- **Memory (`memory/`)** — one flat list of long-lived notes. Not auto-loaded into sessions; agents discover pages via `qmd`. Schema in `memory/README.md`.
+- **Design docs (`docs/`)** — intentional artifacts: architecture, initiatives, research. PR-reviewed. Status lives in frontmatter `status:` (`planning | in-progress | shipped | blocked | abandoned`). When adding or removing a doc, update the human-readable list in `docs/README.md`.
+- **GitHub Issues (`jubishop/podhaven`)** — lifecycle-tracked TODOs, bugs, refactors. Use `gh issue list/create/view`; link/close from PRs.
 
-**Use `qmd` for topic lookup across `memory/`, `knowledge/`, and `docs/`; avoid raw `grep` or speculative `Read`.**
+**Use `qmd` for topic lookup across `memory/` and `docs/`; avoid raw `grep` or speculative `Read`. Use the cheapest mode that fits.**
 
-- `qmd query "question"`: default hybrid BM25 + vector + rerank.
-- `qmd search "exact phrase"`: BM25 only for known terms.
-- `qmd vsearch "concept"`: vector only for fuzzy matches.
+- `qmd search "known term"`: first choice for names, files, APIs, issue numbers, and exact concepts.
+- `qmd query "question" --no-rerank`: default for fuzzy or open-ended topic lookup.
 - `qmd get <path>[:line] -l N`: cheap page/slice fetch.
 
-Run `qmd query` before non-trivial area work; use `Read`/`grep` only for known paths. Config: `.config/qmd/index.yml`. Before adding memory/knowledge, query for duplicates or contradictions and update superseded pages. Weekly archive lint handles stale pages.
+Run a qmd lookup before non-trivial area work; use `Read`/`grep` only for known paths. Config: `.config/qmd/index.yml`. Git hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite — no manual `qmd update` needed.
+
+**Writing memories.** Write freely whenever you learn something worth keeping (user preferences, validated approaches, gotchas, incidents, external refs). **Always `qmd search` the topic first** — if a related page exists, update it rather than creating a new one. Avoid duplicates and contradictions. Do **not** create or maintain a index; `qmd` is the lookup mechanism.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
@@ -36,7 +36,7 @@ Run `qmd query` before non-trivial area work; use `Read`/`grep` only for known p
 - `Assert` funnels invariants through structured fatal logging; avoid `fatalError`/`precondition` outside it.
 - `ThreadSafe` provides concurrency-safe storage. `Broadcast` adds AsyncStreams and Observability.
 - Production timing uses injected `Sleepable` (`sleeper`), never `Task.sleep`.
-- No `Task.detached`; use `Task { ... }` and store long-lived handles. For CPU work off `@MainActor`, see [knowledge/task-detached-migration.md](knowledge/task-detached-migration.md).
+- No `Task.detached`; use `Task { ... }` and store long-lived handles.
 
 ## Factories
 - Container-built types use `fileprivate init` to force factories. See `AppLauncher`, `Repo`, and `StateManager`.

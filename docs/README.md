@@ -1,5 +1,32 @@
 # Design Docs
 
+Intentional artifacts — architecture, initiatives, and research written on purpose. PR-reviewed. Contrast with [`memory/`](../memory/README.md), which holds shorter notes captured as work happens.
+
+## Frontmatter
+
+Each doc starts with:
+
+```yaml
+---
+status: planning | in-progress | shipped | blocked | abandoned
+---
+```
+
+- `planning` — design captured, no implementation merged
+- `in-progress` — implementation work has merged
+- `shipped` — feature complete; no remaining TODOs in the body
+- `blocked` — paused pending an external event
+- `abandoned` — explicitly dropped; doc kept for history
+
+Edit `status:` by hand when it changes.
+
+## Where to put a new doc
+
+- `docs/initiatives/` — multi-PR design work you intend to build (or are building).
+- `docs/research/` — surveys, evaluations, option analyses where the output is a decision or recommendation rather than an implementation.
+
+When adding or removing a doc, **update the lists below**. They exist as a quick human-readable index.
+
 ## Initiatives
 
 - [ML Recommendations](initiatives/ml-recommendations.md) — on-device ML episode recommendation engine using `NLContextualEmbedding`; v1 across PR #117 + `worktree-appleMLRecommendations-UI`
