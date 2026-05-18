@@ -42,7 +42,7 @@ worktrees
 *.save
 .tmp/
 
-# Local
+# Local cache
 .cache/
 .envrc.local
 
