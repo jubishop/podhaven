@@ -642,38 +642,57 @@ class PodcastDetailViewModel:
   }
 
   private struct RecommendationScoringSnapshot: Equatable {
-    let stateKind: StateKind
-    let savedPodcastID: Podcast.ID?
-    // Set, not array — scoring is per-episode; a sort-method change that only
-    // reorders `episodeList.allEntries` must not invalidate an in-flight pass.
-    let listIdentity: Set<MediaGUID>
+    let contextRevision: Int
+    let state: State
+    let entries: Set<Entry>
 
-    enum StateKind: Equatable {
+    enum State: Hashable {
       case initial
-      case unsaved
-      case saved
+      case unsaved(embeddingRevision: Int)
+      case saved(Podcast.ID)
+    }
+
+    enum Entry: Hashable {
+      case saved(mediaGUID: MediaGUID, episodeID: Episode.ID, pubDate: Date)
+      case unsaved(mediaGUID: MediaGUID, embeddingSource: String)
+      case unscored(mediaGUID: MediaGUID)
     }
   }
 
   private func currentScoringSnapshot() -> RecommendationScoringSnapshot {
-    let kind: RecommendationScoringSnapshot.StateKind
-    let savedPodcastID: Podcast.ID?
+    let snapshotState: RecommendationScoringSnapshot.State
     switch state {
     case .initial:
-      kind = .initial
-      savedPodcastID = nil
+      snapshotState = .initial
     case .unsaved:
-      kind = .unsaved
-      savedPodcastID = nil
+      snapshotState = .unsaved(embeddingRevision: contextualEmbedding.revision)
     case .saved(let series):
-      kind = .saved
-      savedPodcastID = series.id
+      snapshotState = .saved(series.id)
     }
     return RecommendationScoringSnapshot(
-      stateKind: kind,
-      savedPodcastID: savedPodcastID,
-      listIdentity: Set(episodeList.allEntries.map(\.mediaGUID))
+      contextRevision: recommendationEngine.contextRevision,
+      state: snapshotState,
+      entries: Set(episodeList.allEntries.map(scoringSnapshotEntry))
     )
+  }
+
+  private func scoringSnapshotEntry(
+    _ episode: ListedEpisode
+  ) -> RecommendationScoringSnapshot.Entry {
+    if let episodeID = episode.episodeID {
+      return .saved(
+        mediaGUID: episode.mediaGUID,
+        episodeID: episodeID,
+        pubDate: episode.pubDate
+      )
+    }
+    if let unsaved = episode.unsaved {
+      return .unsaved(
+        mediaGUID: episode.mediaGUID,
+        embeddingSource: unsaved.searchableString
+      )
+    }
+    return .unscored(mediaGUID: episode.mediaGUID)
   }
 
   private func computeAndPublishRecommendationScores() async {

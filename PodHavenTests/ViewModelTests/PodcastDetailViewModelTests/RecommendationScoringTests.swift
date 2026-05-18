@@ -9,6 +9,7 @@ import Testing
 // Regression tests for the recommendation-score fan-out OOM (issue #274).
 @Suite("of PodcastDetailViewModel recommendation scoring coalescing tests", .container)
 @MainActor final class RecommendationScoringTests {
+  @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
@@ -440,6 +441,101 @@ import Testing
         """
       }
     )
+  }
+
+  @Test(
+    "switching to .recommendationScore while same-episode cached scores have stale pubDates keeps the refresh visible"
+  )
+  func stalePubDateCacheOnSortSwitchShowsRefresh() async throws {
+    let embeddable = scoringEmbeddable()
+    try await primeEngine(with: embeddable)
+
+    let (targetPodcast, candidateEpisodes) =
+      try await RecommendationHelpers
+      .createPodcastWithEpisodes(
+        count: 4,
+        podcastTitle: "Target",
+        podcastDescription: "Target",
+        episodeDescriptions: ["Target 0", "Target 1", "Target 2", "Target 3"]
+      )
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
+    try await viewModel.performAppear()
+
+    let targetIDs = Set(candidateEpisodes.map(\.id))
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.saved
+          && Set(viewModel.episodeList.allEntries.compactMap(\.episodeID)) == targetIDs
+      },
+      { @MainActor in
+        "Expected all target episodes to load before priming cached scores."
+      }
+    )
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { [self] in
+        await MainActor.run { scopedEmbeddingsCallCount(matching: targetIDs) >= 1 }
+      },
+      { "Expected background scoring to populate the cached scores." }
+    )
+    fakeRecommendationRepo.clearAllCalls()
+
+    let updatedEpisodeID = try #require(candidateEpisodes.first?.id)
+    let updatedPubDate = Date().addingTimeInterval(.days(7))
+    let fakeRepo = fakeRecommendationRepo
+    fakeRepo.armEmbeddingsGate(matching: targetIDs)
+
+    try await appDB.db.write { db in
+      _ =
+        try Episode
+        .withID(updatedEpisodeID)
+        .updateAll(db, Episode.Columns.pubDate.set(to: updatedPubDate))
+    }
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        guard
+          let updated = viewModel.episodeList.allEntries.first(where: {
+            $0.episodeID == updatedEpisodeID
+          })
+        else { return false }
+        return abs(updated.pubDate.timeIntervalSince(updatedPubDate)) < 1
+      },
+      { @MainActor in
+        let entryDescriptions = viewModel.episodeList.allEntries.map {
+          let episodeID = $0.episodeID.map { String(describing: $0) } ?? "nil"
+          return "\(episodeID): \($0.pubDate)"
+        }
+        return """
+          Expected observation to update the existing episode row's pubDate.
+          entries: \(entryDescriptions)
+          """
+      }
+    )
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { fakeRepo.isEmbeddingsGateSuspended },
+      { "Expected the pubDate refresh scoring pass to suspend before sort switch." }
+    )
+
+    viewModel.currentSortMethod = .recommendationScore
+    #expect(
+      viewModel.recommendationDisplay == .computing,
+      """
+      Expected same-episode pubDate changes to invalidate cached recommendation \
+      scores while the refresh is in flight.
+      actual: \(viewModel.recommendationDisplay)
+      """
+    )
+
+    fakeRepo.releaseEmbeddingsGate()
   }
 
   @Test(
