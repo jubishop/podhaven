@@ -7,29 +7,29 @@ import Testing
 
 @Suite("of AsyncLatch tests")
 struct AsyncLatchTests {
-  @Test("isTripped is false on a fresh latch")
-  func freshLatchIsNotTripped() {
+  @Test("isFinished is false on a fresh latch")
+  func freshLatchIsNotFinished() {
     let latch = AsyncLatch<Void>()
     #expect(!latch.isFinished)
     #expect(latch.finishedValue == nil)
   }
 
-  @Test("trip flips isTripped and exposes the value")
-  func tripStoresValue() {
+  @Test("finish flips isFinished and exposes the value")
+  func finishStoresValue() {
     let latch = AsyncLatch<Int>()
     latch.finish(42)
     #expect(latch.isFinished)
     #expect(latch.finishedValue == 42)
   }
 
-  @Test("wait returns immediately on a pre-tripped void latch")
-  func waitReturnsImmediatelyWhenTripped() async throws {
+  @Test("wait returns immediately on a pre-finished void latch")
+  func waitReturnsImmediatelyWhenFinished() async throws {
     let latch = AsyncLatch<Void>()
     latch.finish()
     try await latch.wait()
   }
 
-  @Test("wait returns the tripped value on a pre-tripped valued latch")
+  @Test("wait returns the finished value on a pre-finished valued latch")
   func waitReturnsValue() async throws {
     let latch = AsyncLatch<String>()
     latch.finish("hello")
@@ -37,8 +37,8 @@ struct AsyncLatchTests {
     #expect(value == "hello")
   }
 
-  @Test("wait suspends until trip is called")
-  func waitSuspendsUntilTrip() async throws {
+  @Test("wait suspends until finish is called")
+  func waitSuspendsUntilFinish() async throws {
     let latch = AsyncLatch<Int>()
     let resumed = ThreadSafe<Int?>(nil)
 
@@ -55,7 +55,7 @@ struct AsyncLatchTests {
     #expect(resumed() == 7)
   }
 
-  @Test("multiple concurrent waiters all receive the tripped value")
+  @Test("multiple concurrent waiters all receive the finished value")
   func multipleWaitersAllReceiveValue() async throws {
     let latch = AsyncLatch<Int>()
     let received = ThreadSafe<[Int]>([])
@@ -81,8 +81,8 @@ struct AsyncLatchTests {
     #expect(values.allSatisfy { $0 == 99 })
   }
 
-  @Test("second trip is a no-op — value does not change")
-  func secondTripIsNoOp() async throws {
+  @Test("second finish is a no-op — value does not change")
+  func secondFinishIsNoOp() async throws {
     let latch = AsyncLatch<Int>()
     latch.finish(1)
     latch.finish(2)
@@ -91,8 +91,8 @@ struct AsyncLatchTests {
     #expect(value == 1)
   }
 
-  @Test("cancelling a waiting task throws CancellationError without tripping the latch")
-  func cancellationThrowsWithoutTripping() async {
+  @Test("cancelling a waiting task throws CancellationError without finishing the latch")
+  func cancellationThrowsWithoutFinishing() async {
     let latch = AsyncLatch<Int>()
     let caught = ThreadSafe<(any Error)?>(nil)
 

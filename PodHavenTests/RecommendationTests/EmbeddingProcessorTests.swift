@@ -50,17 +50,36 @@ class EmbeddingProcessorTests {
       pubDateOffset: { i in TimeInterval(-(i + 100) * 86400) }
     )
 
-    for _ in 0..<50 { await Task.yield() }
+    // If the cancelled task were still alive, the GRDB emission triggered
+    // by inserting `newEpisodes` would feed `upsertEpisodeEmbeddings` and
+    // pendingNew would shrink. Poll for consecutive stable reads instead
+    // of a fixed yield count — cancellation leaks fail loudly via timeout.
+    let recommendationRepo = self.recommendationRepo
+    let revision = contextualEmbedding.revision
+    let newIDs = Set(newEpisodes.map(\.id))
+    let stableReads = ThreadSafe(0)
+    let requiredStable = 30
 
-    let pending = try await recommendationRepo.episodesNeedingEmbeddings(
-      revision: contextualEmbedding.revision
-    )
-    let pendingNew = Set(pending).intersection(Set(newEpisodes.map(\.id)))
-    #expect(pendingNew.count == newEpisodes.count)
+    try await Wait.until({
+      let pending = try await recommendationRepo.episodesNeedingEmbeddings(revision: revision)
+      let pendingNew = Set(pending).intersection(newIDs)
+      guard pendingNew.count == newEpisodes.count else {
+        stableReads { $0 = 0 }
+        return false
+      }
+      let current = stableReads { reads in
+        reads += 1
+        return reads
+      }
+      return current >= requiredStable
+    }) {
+      "Foreground task processed new episodes after .background (cancellation leaked)"
+    }
   }
 
   @Test("repeated .active is idempotent — one task at a time")
   func repeatedActiveIsIdempotent() async throws {
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
     let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 2,
       podcastTitle: "Idempotent"
@@ -72,6 +91,11 @@ class EmbeddingProcessorTests {
     processor.handleScenePhaseChange(to: .active)
 
     try await waitForEmbeddings(of: episodes, reason: "Episodes not embedded after repeated .active")
+
+    // Verify the single-task guard: three .active calls but only one
+    // observatory subscription. Without the `guard task == nil` in
+    // startForegroundObservation, this would be 3.
+    _ = try fakeObservatory.expectCalls(methodName: "episodesNeedingEmbeddings", count: 1)
 
     processor.handleScenePhaseChange(to: .background)
   }
