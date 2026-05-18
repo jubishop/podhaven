@@ -101,6 +101,11 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Public API
 
+  // Snapshot of whether a scoring pass can return non-nil. Pair with
+  // `$contextRevision.stream()` to react to readiness changes — checking the
+  // revision alone isn't enough, since a rebuild can land a nil cache.
+  var hasScoringContext: Bool { cache() != nil }
+
   // Idempotent. Public scoring methods do NOT auto-call `start()` — they
   // read whatever the cache currently has and return empty when it's nil.
   func start() {

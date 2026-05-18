@@ -21,6 +21,13 @@ class SearchViewModel:
 
   nonisolated private static let log = Log.as(LogSubsystem.SearchView.main)
 
+  // MARK: - Recommendation Collector
+
+  // Lives for the duration of the Search-tab visit. SearchView exposes it
+  // to the discovery list via environment so the pushed list can read the
+  // active source's scored picks without holding a stale binding.
+  let recommendationCollector = SearchRecommendationCollector()
+
   // MARK: - ManagingPodcasts
 
   func getOrCreatePodcast(_ listedPodcast: ListedPodcast) async throws -> Podcast {
@@ -252,6 +259,7 @@ class SearchViewModel:
       section.owner = self
     }
     showTrendingSection(currentTrendingSection)
+    syncCollectorActiveSource()
   }
 
   // MARK: - Trending
@@ -261,7 +269,9 @@ class SearchViewModel:
     syncPodcastListToTrendingResults(trendingSection)
     if !loadTrendingSection(trendingSection) {
       restartObservationForTrendingSection(trendingSection)
+      pushTrendingResultsToCollector(trendingSection)
     }
+    syncCollectorActiveSource()
   }
 
   func refreshCurrentTrendingSection() async {
@@ -323,6 +333,7 @@ class SearchViewModel:
           uniquingIDsWith: { _, new in new }
         )
         trendingSection.state = .loaded
+        pushTrendingResultsToCollector(trendingSection)
         Self.log.debug(
           """
           Set trending results for trending section: \(trendingSection)
@@ -381,6 +392,8 @@ class SearchViewModel:
           uniquingIDsWith: { _, new in new }
         )
         searchState = .loaded
+        pushSearchResultsToCollector(query: term)
+        syncCollectorActiveSource()
         Self.log.debug(
           """
           Set search results for search term: \(term)
@@ -649,5 +662,38 @@ class SearchViewModel:
     }
     currentResultsObservationTask?.cancel()
     currentResultsObservationTask = nil
+    recommendationCollector.teardown()
+  }
+
+  // MARK: - Recommendation Collector Wiring
+
+  fileprivate func syncCollectorActiveSource() {
+    let source: SearchRecommendationCollector.Source?
+    if isShowingSearchResults {
+      source = .search(query: searchedText)
+    } else {
+      source = .trending(
+        genreID: currentTrendingSection.genreID,
+        title: currentTrendingSection.title
+      )
+    }
+    recommendationCollector.setActiveSource(source)
+  }
+
+  fileprivate func pushTrendingResultsToCollector(_ trendingSection: TrendingSection) {
+    guard trendingSection.state == .loaded, !trendingSection.results.isEmpty else { return }
+    recommendationCollector.recordSourcePodcasts(
+      source: .trending(genreID: trendingSection.genreID, title: trendingSection.title),
+      podcasts: Array(trendingSection.results)
+    )
+  }
+
+  fileprivate func pushSearchResultsToCollector(query: String) {
+    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty, !searchResults.isEmpty else { return }
+    recommendationCollector.recordSourcePodcasts(
+      source: .search(query: trimmed),
+      podcasts: Array(searchResults)
+    )
   }
 }

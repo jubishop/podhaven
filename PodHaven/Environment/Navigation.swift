@@ -116,6 +116,7 @@ extension Container {
     case listedPodcast(ListedPodcast)
     case listedEpisode(ListedEpisode)
     case unsavedPodcastSeries(UnsavedPodcastSeries)
+    case searchDiscovery(SearchRecommendationCollector.Source)
 
     static func episode(_ episode: DisplayedEpisode) -> Destination {
       .episode(episode, startTime: nil)
@@ -325,6 +326,9 @@ extension Container {
         viewModel: PodcastDetailViewModel(unsavedPodcastSeries: unsavedPodcastSeries)
       )
       .id(unsavedPodcastSeries.id)
+    case .searchDiscovery(let source):
+      SearchDiscoveryListView(source: source)
+        .id("searchDiscovery-\(source)")
     }
   }
 

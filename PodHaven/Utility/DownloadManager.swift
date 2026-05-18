@@ -1,8 +1,22 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
+
+extension Container {
+  // Standalone DownloadManager that the Search-tab recommendation collector
+  // uses for RSS fan-out. Lives in its own factory so refresh and discovery
+  // don't share a concurrency budget; `.scope(.cached)` keeps a single
+  // instance alive across the app session.
+  var searchDiscoveryDownloadManager: Factory<DownloadManager> {
+    Factory(self) {
+      DownloadManager(session: self.podcastFeedSession())
+    }
+    .scope(.cached)
+  }
+}
 
 typealias DownloadResult = Result<DownloadData, any Error>
 

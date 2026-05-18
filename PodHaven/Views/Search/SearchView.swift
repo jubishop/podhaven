@@ -55,6 +55,7 @@ struct SearchView: View {
         Self.log.debug("ManualFeedEntry sheet dismissed")
       }
     }
+    .environment(\.searchRecommendationCollector, viewModel.recommendationCollector)
     .onAppear { viewModel.appear() }
     .onDisappear { viewModel.disappear() }
   }
@@ -181,12 +182,92 @@ struct SearchView: View {
 
   @ViewBuilder
   private var resultsView: some View {
-    switch viewModel.displayMode {
-    case .grid:
-      resultsGrid
-    case .list:
-      resultsList
+    VStack(spacing: 0) {
+      recommendationBanner
+      switch viewModel.displayMode {
+      case .grid:
+        resultsGrid
+      case .list:
+        resultsList
+      }
     }
+  }
+
+  // MARK: - Recommendation Banner
+
+  @ViewBuilder
+  private var recommendationBanner: some View {
+    let collector = viewModel.recommendationCollector
+    switch collector.bannerState {
+    case .hidden:
+      EmptyView()
+    case .loading:
+      bannerStrip(text: loadingBannerCopy, tappable: false)
+    case .loaded(let count):
+      bannerStrip(text: loadedBannerCopy(count: count), tappable: true)
+    }
+  }
+
+  @ViewBuilder
+  private func bannerStrip(text: String, tappable: Bool) -> some View {
+    if tappable, let source = recommendationBannerSource {
+      Button {
+        navigation.search.path.append(.searchDiscovery(source))
+      } label: {
+        bannerLabel(text: text, showsChevron: true)
+      }
+      .buttonStyle(.plain)
+    } else {
+      bannerLabel(text: text, showsChevron: false)
+    }
+  }
+
+  private func bannerLabel(text: String, showsChevron: Bool) -> some View {
+    HStack(spacing: 6) {
+      Text(text)
+        .font(.subheadline.weight(.semibold))
+        .foregroundColor(.primary)
+        .lineLimit(1)
+      Spacer(minLength: 8)
+      if showsChevron {
+        AppIcon.navigateInto.image
+          .font(.subheadline.weight(.semibold))
+          .foregroundColor(.accentColor)
+      }
+    }
+    .padding(.horizontal)
+    .padding(.vertical, 10)
+    .background(Color.secondary.opacity(0.08))
+  }
+
+  private var recommendationBannerSource: SearchRecommendationCollector.Source? {
+    if viewModel.isShowingSearchResults {
+      let trimmed = viewModel.searchedText.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty else { return nil }
+      return .search(query: trimmed)
+    }
+    let section = viewModel.currentTrendingSection
+    return .trending(genreID: section.genreID, title: section.title)
+  }
+
+  private var loadingBannerCopy: String {
+    if viewModel.isShowingSearchResults {
+      let trimmed = viewModel.searchedText.trimmingCharacters(in: .whitespacesAndNewlines)
+      return "Finding top picks from \"\(trimmed)\"..."
+    }
+    let section = viewModel.currentTrendingSection
+    if section.genreID == nil { return "Finding top picks..." }
+    return "Finding top picks from \(section.title)..."
+  }
+
+  private func loadedBannerCopy(count: Int) -> String {
+    if viewModel.isShowingSearchResults {
+      let trimmed = viewModel.searchedText.trimmingCharacters(in: .whitespacesAndNewlines)
+      return "Top \(count) from \"\(trimmed)\""
+    }
+    let section = viewModel.currentTrendingSection
+    if section.genreID == nil { return "Top \(count) picks" }
+    return "Top \(count) from \(section.title)"
   }
 
   private var resultsGrid: some View {

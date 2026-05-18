@@ -144,6 +144,32 @@ struct Repo: Databasing {
     }
   }
 
+  // Scoped lookup for the search-discovery candidate gate: returns episodes
+  // for the given podcast whose guid or mediaURL appears in the supplied
+  // lists. Scoping by podcastId avoids a broad unscoped IN query across
+  // every episode in the library.
+  func episodesMatching(
+    podcastID: Podcast.ID,
+    guids: [GUID],
+    mediaURLs: [MediaURL]
+  ) async throws -> [Episode] {
+    guard !guids.isEmpty || !mediaURLs.isEmpty else { return [] }
+    return try await appDB.db.read { db in
+      var filter: SQLExpression = Episode.Columns.podcastId == podcastID
+      if !guids.isEmpty, !mediaURLs.isEmpty {
+        filter =
+          filter
+          && (guids.contains(Episode.Columns.guid)
+            || mediaURLs.contains(Episode.Columns.mediaURL))
+      } else if !guids.isEmpty {
+        filter = filter && guids.contains(Episode.Columns.guid)
+      } else {
+        filter = filter && mediaURLs.contains(Episode.Columns.mediaURL)
+      }
+      return try Episode.filter(filter).fetchAll(db)
+    }
+  }
+
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
