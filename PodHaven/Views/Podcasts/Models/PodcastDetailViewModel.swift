@@ -632,7 +632,9 @@ class PodcastDetailViewModel:
   private struct RecommendationScoringSnapshot: Equatable {
     let stateKind: StateKind
     let savedPodcastID: Podcast.ID?
-    let listIdentity: [MediaGUID]
+    // Set, not array — scoring is per-episode; a sort-method change that only
+    // reorders `episodeList.allEntries` must not invalidate an in-flight pass.
+    let listIdentity: Set<MediaGUID>
 
     enum StateKind: Equatable {
       case initial
@@ -658,7 +660,7 @@ class PodcastDetailViewModel:
     return RecommendationScoringSnapshot(
       stateKind: kind,
       savedPodcastID: savedPodcastID,
-      listIdentity: episodeList.allEntries.map(\.mediaGUID)
+      listIdentity: Set(episodeList.allEntries.map(\.mediaGUID))
     )
   }
 

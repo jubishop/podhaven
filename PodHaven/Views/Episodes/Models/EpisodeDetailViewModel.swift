@@ -425,10 +425,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   @ObservationIgnored private var recommendationTask: Task<Void, Never>?
 
-  // Skips a CoreML inference on every contextRevision tick after the first.
-  // Cleared in scheduleRecommendationRefresh because every refresh trigger
-  // is a kind change that may bring a different `.unsaved` payload (e.g.
-  // post-deletion synthesis).
   @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
 
   // Re-fetches this episode's score whenever the engine bumps
