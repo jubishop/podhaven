@@ -1,28 +1,25 @@
 ## Project Memory & Tracking
-Persistent context is repo-readable, organized into two flat stores plus GitHub issues:
+Repo context lives in `memory/`, `docs/`, and GitHub issues:
 
-- **Memory (`memory/`)** — one flat list of long-lived notes. Not auto-loaded into sessions; agents discover pages via `qmd`. Schema in `memory/README.md`.
-- **Design docs (`docs/`)** — intentional artifacts: architecture, initiatives, research. PR-reviewed. Status lives in frontmatter `status:` (`planning | in-progress | shipped | blocked | abandoned`). When adding or removing a doc, update the human-readable list in `docs/README.md`.
-- **GitHub Issues (`jubishop/podhaven`)** — lifecycle-tracked TODOs, bugs, refactors. Use `gh issue list/create/view`; link/close from PRs.
+- `memory/`: long-lived notes; search before writing and update existing notes when possible.
+- `docs/`: PR-reviewed design docs; update `docs/README.md` when adding/removing docs.
+- GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
-**Use `qmd` for topic lookup across `memory/` and `docs/`; avoid raw `grep` or speculative `Read`. Use the cheapest mode that fits.**
+Use `qmd` for topic lookup across `memory/` and `docs`; cheapest mode that fits:
 
 - `qmd search "known term"`: first choice for names, files, APIs, issue numbers, and exact concepts.
 - `qmd query "question" --no-rerank`: default for fuzzy or open-ended topic lookup.
 - `qmd get <path>[:line] -l N`: cheap page/slice fetch.
 
-Run a qmd lookup before non-trivial area work; use `Read`/`grep` only for known paths. Config: `.config/qmd/index.yml`. Git hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite — no manual `qmd update` needed.
-
-**Writing memories.** Write freely whenever you learn something worth keeping (user preferences, validated approaches, gotchas, incidents, external refs). **Always `qmd search` the topic first** — if a related page exists, update it rather than creating a new one. Avoid duplicates and contradictions. Do **not** create or maintain a index; `qmd` is the lookup mechanism.
+Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known paths. Hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite; no manual `qmd update` normally needed.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
 
 ## Repo Guardrails
 - Public repo: no secrets, API keys, tokens, or credentials.
-- No commits or pushes unless explicitly asked.
-- Preserve user edits; no resets/reverts of unknown changes.
-- Fix all compiler/linker/runtime/deprecation/unused-result/Sendable warnings at the root. Build/test must end with zero warnings; do not ignore, suppress, or leave noise.
+- No commits or pushes unless explicitly asked; preserve user edits and never reset/revert unknown changes.
+- Build/test must end with zero compiler/linker/runtime/deprecation/unused-result/Sendable warnings.
 
 ## Compatibility
 - No backward compatibility requirement for older iOS or library versions; use the latest.
@@ -33,13 +30,11 @@ Run a qmd lookup before non-trivial area work; use `Read`/`grep` only for known 
 - Labels/images use `AppIcon`, e.g. `AppIcon.play`, not `Image(systemName: "play.fill")`.
 
 ## Shared Utilities & Helpers
-- `Assert` funnels invariants through structured fatal logging; avoid `fatalError`/`precondition` outside it.
-- `ThreadSafe` provides concurrency-safe storage. `Broadcast` adds AsyncStreams and Observability.
-- Production timing uses injected `Sleepable` (`sleeper`), never `Task.sleep`.
+- Use existing helpers: `Assert` for invariants/fatal logging; `ThreadSafe`/`Broadcast` for safe storage, streams, and observability; injected `Sleepable`/`sleeper` for production timing.
 - No `Task.detached`; use `Task { ... }` and store long-lived handles.
 
 ## Factories
-- Container-built types use `fileprivate init` to force factories. See `AppLauncher`, `Repo`, and `StateManager`.
+- New container-built types follow the existing factory + `fileprivate init` pattern.
 
 ## Errors and Logging
 - Log with `ErrorKit` formatting at the appropriate level; use static `Logger`s from `Log.as`.
@@ -50,14 +45,10 @@ Run a qmd lookup before non-trivial area work; use `Read`/`grep` only for known 
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
-- Swift Testing: `@Suite("...", .container)`, `#expect`, and structured concurrency for async tests.
+- Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `.context(.test)`, `PodHavenTests/Fakes`). Do not use `.serialized`.
 - Bugfixes require a regression test proven failing before the fix; if it passes before and after, it is not a regression test and the bug may not be real.
-- Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests; use them only after confirming the exact discovered ID.
-- Tests never use `Task.sleep`; use `Wait.until` or polling helpers.
-- Use `sleeper.sleep` only to advance time when testing production sleeps.
-- No thread blockers for async coordination: `DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`. They can deadlock the cooperative pool and GRDB. Use `Wait.until`, an `AsyncStream` continuation, or `withObservationTracking`.
-- Repo tests use `AppDB.inMemory()`; `Create` helpers build realistic unsaved models.
-- Override factories with `.context(.test)` and `PodHavenTests/Fakes`.
+- Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
+- Async tests use `Wait.until`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
 - All test files belong to `PodHavenTests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete test-only surface; improve the API or fixture if needed.
@@ -69,23 +60,17 @@ Run a qmd lookup before non-trivial area work; use `Read`/`grep` only for known 
 - Prefer pure GRDB APIs (associations, aggregates, column expressions, `joining()`, `having()`, `filter()`, etc.) over raw SQL strings.
 
 ## Migrations
-- Migration code uses only literals: table/column strings, inline allowed values, and no model types/enums/drifting refs. Renames must not alter shipped behavior. Same rule as migration tests.
+- Migration code uses only literals: table/column strings and inline allowed values; no model types/enums/drifting refs. Renames must not alter shipped behavior.
 
 ## Coding Standards
 - Use `[weak self]` in closures/Tasks that capture `self` unless a strong reference is required. Unwrap with `guard let self else { return }`; use `self.x`, not `self?.x`.
-- `.map`/`.compactMap` transform lists, not optionals. Use `x?.rawValue`, `if let`, or `guard let`; not `x.map { $0.rawValue }` or `[x].compactMap { $0 }`.
 - No force unwraps (`!`) in production; use `Assert` or guarded error handling.
-- Prefer triple-quoted strings for multiline or >100-character literals.
 - Run `swift-format` on every Swift file you touch.
-- Comments use `//`, not `///`; no doc comments. `// MARK: - <Section>` is fine when useful.
-- Default to no comment. Only explain non-obvious why: hidden constraints, invariants, workarounds, surprises not recoverable from names, call site, or `git blame`. Most useful comments are one line; use multiline only when needed.
+- Comments use `//`, not `///`; no doc comments. Default to no comment except non-obvious why.
 - No external refs in production code comments — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`), etc. They move or disappear; context belongs in the commit/PR. Tests are exempt.
-- Remove unused code, properties, and parameters immediately.
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
 - No non-specializing extension splits. Put conformances on the main declaration and requirements in the body. Use extensions only for constrained methods, retroactive external conformance, or `where Self == X`.
 - In production code, avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary. Test code may use them freely.
 - Avoid `inout`; return values instead.
 - Prefer `@MainActor` on declarations over `MainActor.run`.
-- Named tuples only: label every element and access by name.
-- When filling an `Array`, `Dictionary`, `Set`, `ContiguousArray`, `Data`, or `String` with known/bounded final size, use `CapacityReservable init(capacity:)`, not `[]` / `[:]`.
 - Model state transitions as enums, not `Bool` flags.
