@@ -39,6 +39,7 @@ worktrees
 
 # Claude
 .claude/plans
+.claude/scheduled_tasks.lock
 *.save
 .tmp/
 
