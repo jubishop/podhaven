@@ -394,21 +394,13 @@ import Testing
       }
     )
 
-    let fakeRepo = fakeRecommendationRepo
-    fakeRepo.armEmbeddingsGate(matching: initialIDs)
-    recommendationEngine.$contextRevision.update { $0 += 1 }
-    try await RecommendationHelpers.untilAdvancing(
-      priority: .userInitiated,
-      { fakeRepo.isEmbeddingsGateSuspended },
-      { "Expected the post-bump scoring pass to suspend before list change." }
-    )
-
+    let newGUID = GUID("target-4")
     try await repo.updateSeriesFromFeed(
       podcastSeries: savedSeries,
       podcast: nil,
       unsavedEpisodes: [
         try Create.unsavedEpisode(
-          guid: GUID("target-4"),
+          guid: newGUID,
           title: "Target 4",
           pubDate: Date(timeIntervalSince1970: 500),
           description: "Target 4"
@@ -428,15 +420,75 @@ import Testing
       }
     )
 
+    let newEpisode = try #require(
+      viewModel.episodeList.allEntries.first { $0.mediaGUID.guid == newGUID }
+    )
+    let newEpisodeID = try #require(newEpisode.episodeID)
+    let allIDs = initialIDs.union([newEpisodeID])
+
+    let fakeRepo = fakeRecommendationRepo
+    fakeRepo.clearAllCalls()
+    fakeRepo.armEmbeddingsGate(matching: allIDs)
+    recommendationEngine.$contextRevision.update { $0 += 1 }
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { fakeRepo.isEmbeddingsGateSuspended },
+      { "Expected the five-ID background scoring pass to suspend before cache publish." }
+    )
+
+    fakeRepo.releaseEmbeddingsGate()
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { [self] in
+        let callCount = await MainActor.run { scopedEmbeddingsCallCount(matching: allIDs) }
+        return fakeRepo.didEmbeddingsGateComplete && callCount >= 1
+      },
+      { "Expected the five-ID background scoring pass to complete." }
+    )
+    for _ in 0..<10 {
+      await Task.yield()
+    }
+
+    fakeRepo.armEmbeddingsGate(matching: allIDs)
     viewModel.currentSortMethod = .recommendationScore
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
-      { @MainActor in viewModel.episodeList.filteredEntries.count == 5 },
+      { fakeRepo.isEmbeddingsGateSuspended },
+      { "Expected the partial cached sort switch to start a visible refresh." }
+    )
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.recommendationDisplay == .computing
+          && viewModel.episodeList.filteredEntries.count == 5
+      },
       { @MainActor in
         """
-        Applying the stale four-ID cache filtered out the newly-arrived \
-        fifth episode. Expected snapshot validation to keep all five visible.
+        Applying the partial five-ID cache filtered out the newly-arrived \
+        fifth episode before the foreground refresh could settle.
+        display: \(viewModel.recommendationDisplay)
+        filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        """
+      }
+    )
+
+    fakeRepo.releaseEmbeddingsGate()
+
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.recommendationDisplay == .idle
+          && Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == initialIDs
+      },
+      { @MainActor in
+        """
+        Expected the settled recommendation sort to hide the still-unembedded \
+        fifth episode after the foreground refresh completed.
+        display: \(viewModel.recommendationDisplay)
         filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
         """
       }

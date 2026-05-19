@@ -190,7 +190,8 @@ class PodcastDetailViewModel:
       guard oldValue != currentSortMethod else { return }
       if currentSortMethod == .recommendationScore {
         if let cached = lastRecommendationScores,
-          cached.snapshot == currentScoringSnapshot()
+          cached.snapshot == currentScoringSnapshot(),
+          cached.state == .readyToDisplay
         {
           applyRecommendationDisplay(cached.scores)
           recommendationDisplay = .idle
@@ -595,8 +596,7 @@ class PodcastDetailViewModel:
 
   @ObservationIgnored private var recommendationObservationTask: Task<Void, Never>?
   @ObservationIgnored private var recommendationScoreTask: Task<Void, Never>?
-  @ObservationIgnored private var lastRecommendationScores:
-    (snapshot: RecommendationScoringSnapshot, scores: [MediaGUID: Float])?
+  @ObservationIgnored private var lastRecommendationScores: RecommendationScoreCache?
   @ObservationIgnored private var unsavedEmbeddingCache:
     (revision: Int, vectors: [MediaGUID: (source: String, vector: [Float])])?
   @ObservationIgnored private var recommendationScoreGeneration = 0
@@ -659,6 +659,17 @@ class PodcastDetailViewModel:
       && !Task.isCancelled
   }
 
+  private struct RecommendationScoreCache {
+    let snapshot: RecommendationScoringSnapshot
+    let scores: [MediaGUID: Float]
+    let state: State
+
+    enum State {
+      case readyToDisplay
+      case needsForegroundRefresh
+    }
+  }
+
   private struct RecommendationScoringSnapshot: Equatable {
     let contextRevision: Int
     let state: State
@@ -674,6 +685,18 @@ class PodcastDetailViewModel:
       case saved(mediaGUID: MediaGUID, episodeID: Episode.ID, pubDate: Date)
       case unsaved(mediaGUID: MediaGUID, embeddingSource: String)
       case unscored(mediaGUID: MediaGUID)
+    }
+
+    func hasSavedEntriesMissingScores(_ scores: [MediaGUID: Float]) -> Bool {
+      for entry in entries {
+        switch entry {
+        case .saved(let mediaGUID, _, _):
+          if scores[mediaGUID] == nil { return true }
+        case .unsaved, .unscored:
+          continue
+        }
+      }
+      return false
     }
   }
 
@@ -722,7 +745,10 @@ class PodcastDetailViewModel:
       return
     }
 
-    if let cached = lastRecommendationScores, cached.snapshot == snapshot {
+    if let cached = lastRecommendationScores,
+      cached.snapshot == snapshot,
+      cached.state == .readyToDisplay
+    {
       guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
       guard currentSortMethod == .recommendationScore else { return }
       applyRecommendationDisplay(cached.scores)
@@ -749,7 +775,19 @@ class PodcastDetailViewModel:
       scoringStatus = .runningDirty
       return
     }
-    lastRecommendationScores = (snapshot: snapshot, scores: valuesByMediaGUID)
+    let cacheState: RecommendationScoreCache.State
+    if currentSortMethod != .recommendationScore,
+      snapshot.hasSavedEntriesMissingScores(valuesByMediaGUID)
+    {
+      cacheState = .needsForegroundRefresh
+    } else {
+      cacheState = .readyToDisplay
+    }
+    lastRecommendationScores = RecommendationScoreCache(
+      snapshot: snapshot,
+      scores: valuesByMediaGUID,
+      state: cacheState
+    )
     guard currentSortMethod == .recommendationScore else { return }
     applyRecommendationDisplay(valuesByMediaGUID)
     recommendationDisplay = .idle
