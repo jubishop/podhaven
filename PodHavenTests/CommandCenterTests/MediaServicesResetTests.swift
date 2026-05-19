@@ -48,7 +48,7 @@ import Testing
     // Trigger media services reset notification
     notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
-    try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
+    try await PlayHelpers.waitForConfigureCallCount(atLeast: initialCallCount + 2)
     try await PlayHelpers.waitForLoadResponse(
       for: podcastEpisode.episode.mediaURL,
       count: initialLoadCount + 1
@@ -121,7 +121,7 @@ import Testing
     // Trigger media services reset
     notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
-    try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
+    try await PlayHelpers.waitForConfigureCallCount(atLeast: initialCallCount + 2)
 
     // The episode from the top of the queue should now be loaded on deck
     try await PlayHelpers.waitForOnDeck(podcastEpisode)

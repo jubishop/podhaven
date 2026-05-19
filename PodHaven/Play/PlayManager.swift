@@ -527,6 +527,7 @@ final class PlayManager {
 
     NowPlayingInfo.setOnDeck(podcastEpisode)
     stateManager.setOnDeck(podcastEpisode)
+    CommandCenter.updateNextTrack()
     fetchImage(for: podcastEpisode)
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
@@ -582,6 +583,7 @@ final class PlayManager {
     await podAVPlayer.clear()
     NowPlayingInfo.clear()
     stateManager.clearOnDeck()
+    CommandCenter.updateNextTrack()
   }
 
   func setCurrentTime(_ currentTime: CMTime) {
