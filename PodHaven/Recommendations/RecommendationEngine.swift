@@ -69,7 +69,7 @@ struct RecommendationEngine: Sendable {
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
-  private let cacheDebounce = Debounce(duration: .seconds(400))
+  private let cacheDebounce = Debounce(duration: .milliseconds(400))
   private let recommendationsDebounce = Debounce(duration: .milliseconds(400))
   private let startOnce = Once()
 
