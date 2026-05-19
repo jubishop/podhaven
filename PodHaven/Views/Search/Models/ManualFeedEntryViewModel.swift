@@ -11,7 +11,7 @@ import Tagged
 
   // MARK: - Configuration
 
-  private static let previewDebounceDuration: Duration = .milliseconds(500)
+  private static let previewDebounceDuration: Duration = .milliseconds(400)
 
   // MARK: - State
 
