@@ -48,6 +48,7 @@ struct SearchView: View {
       prompt: Text("Search podcasts")
     )
     .searchPresentationToolbarBehavior(.avoidHidingContent)
+    .environment(viewModel.recommendationCollector)
     .onChange(of: isShowingManualFeedEntry) { _, showing in
       if showing {
         Self.log.debug("ManualFeedEntry sheet presented")

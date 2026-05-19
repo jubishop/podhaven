@@ -8,21 +8,10 @@ import IdentifiedCollections
 import Logging
 import Tagged
 
-// MARK: - Container
-
-extension Container {
-  // `.cached` so a single instance survives across Search-tab visits inside
-  // one app session; `SearchViewModel.disappear` invokes `teardown()` to
-  // clear cache state when the tab is left.
-  @MainActor var searchRecommendationCollector: Factory<SearchRecommendationCollector> {
-    Factory(self) { SearchRecommendationCollector() }.scope(.cached)
-  }
-}
-
 // MARK: - SearchRecommendationCollector
 
-// Lives for the duration of the Search tab visit. Owns RSS fetch + embed +
-// score work for two surfaces:
+// Owned by SearchViewModel for the lifetime of the Search tab. Owns RSS
+// fetch + embed + score work for two surfaces:
 //
 //   - Top-category trending: chip switches reuse a long-lived shared podcast
 //     cache so a podcast that appears in multiple chips is downloaded and
@@ -31,18 +20,15 @@ extension Container {
 //     reuses already-scored shared podcasts and discards query-only misses
 //     when the query changes.
 //
-// Cancellation rules differ: trending work isn't cancelled when the active
-// chip switches, only when the collector tears down. Typed-search overlay
-// work is cancelled when the query changes.
+// Trending work isn't cancelled when the active chip switches. Typed-search
+// overlay work is cancelled when the query changes.
 @Observable @MainActor
 final class SearchRecommendationCollector {
   nonisolated private static let log = Log.as(LogSubsystem.SearchView.recommendations)
 
   // MARK: - Tunable Caps
 
-  // First P podcasts from each source ranking are eligible. We don't
-  // backfill deeper than P; lower-ranked source results shouldn't become
-  // "top picks" just because the first page was already subscribed.
+  // First P podcasts from each source ranking are eligible.
   nonisolated static let podcastCap = 25
 
   // Newest E episodes per podcast feed enter the candidate gate / embedding
@@ -50,8 +36,7 @@ final class SearchRecommendationCollector {
   nonisolated static let episodesPerPodcast = 10
 
   // Discovery removes freshness, so neutral content clusters around the
-  // remapped 0.5 baseline. UpNext's 0.1 floor is for a freshness-modulated
-  // composite and doesn't apply here.
+  // remapped 0.5 baseline.
   nonisolated static let scoreFloor: Float = 0.5
 
   // RSS fan-out concurrency. Embedding still serializes through the
@@ -158,7 +143,7 @@ final class SearchRecommendationCollector {
 
   // MARK: - Lifecycle
 
-  fileprivate init() {
+  init() {
     downloadManager = DownloadManager(session: Container.shared.podcastFeedSession())
   }
 
@@ -175,10 +160,10 @@ final class SearchRecommendationCollector {
 
   // Called by SearchViewModel after iTunes search / trending returns. The
   // collector reconciles `podcasts` against the DB, drops subscribed ones,
-  // takes the first 25 survivors as the source's ranking, and queues the
-  // missing podcasts for RSS+embed+score work after the 1 s stable-source
-  // debounce. Typed-search recordings replace the prior overlay if
-  // `source.query` differs.
+  // takes the first `podcastCap` survivors as the source's ranking, and
+  // queues the missing podcasts for RSS+embed+score work after the
+  // `stableSourceDebounce`. Typed-search recordings replace the prior
+  // overlay if `source.query` differs.
   func recordSourcePodcasts(
     source: Source,
     podcasts: [PodcastWithEpisodeMetadata<ListedPodcast>]
@@ -205,41 +190,6 @@ final class SearchRecommendationCollector {
     Self.log.debug("Removing pick \(mediaGUID)")
     removedMediaGUIDs.insert(mediaGUID)
     refreshOutputs()
-  }
-
-  // Called by SearchViewModel when the Search tab is actually torn down
-  // (not on a navigation push that's still rooted in Search). Cancels all
-  // in-flight RSS downloads and clears every cache layer.
-  func teardown() {
-    Self.log.debug("Teardown")
-
-    drainTask?.cancel()
-    drainTask = nil
-    drainContinuation?.resume()
-    drainContinuation = nil
-    pendingDrainQueue.removeAll()
-    inFlight.removeAll()
-
-    for debouncer in debouncers.values { debouncer.cancel() }
-    debouncers.removeAll()
-
-    let entriesToCancel =
-      Array(sharedPodcastCache.values)
-      + Array(typedSearchOverlay?.localEntries.values ?? [:].values)
-    sharedPodcastCache.removeAll()
-    trendingSourceIndex.removeAll()
-    let prior = typedSearchOverlay
-    typedSearchOverlay = nil
-    removedMediaGUIDs.removeAll()
-
-    Task { [entriesToCancel, prior] in
-      for entry in entriesToCancel { await entry.cancel() }
-      await prior?.cancel()
-    }
-
-    activeSource = nil
-    bannerState = .hidden
-    visiblePicks = []
   }
 
   // MARK: - Reconcile & Ingest
@@ -593,12 +543,24 @@ final class SearchRecommendationCollector {
     var result = [UnsavedEpisode](capacity: newest.count)
     for unsaved in newest {
       let match = existingByGUID[unsaved.guid] ?? existingByMediaURL[unsaved.mediaURL]
-      if let match, !match.isDiscoveryCandidate(excludingOnDeck: onDeckID) {
+      if let match, !isDiscoveryCandidate(match, excludingOnDeck: onDeckID) {
         continue
       }
       result.append(unsaved)
     }
     return result
+  }
+
+  private nonisolated static func isDiscoveryCandidate(
+    _ episode: Episode,
+    excludingOnDeck onDeckID: Episode.ID?
+  ) -> Bool {
+    if let onDeckID, episode.id == onDeckID { return false }
+    if episode.currentTime != .zero { return false }
+    if episode.finishDate != nil { return false }
+    if episode.rating != nil { return false }
+    if episode.queueOrder != nil { return false }
+    return true
   }
 
   // MARK: - Output Refresh
@@ -749,18 +711,5 @@ private final class TypedSearchOverlay {
     let toCancel = Array(localEntries.values)
     localEntries.removeAll()
     for entry in toCancel { await entry.cancel() }
-  }
-}
-
-// MARK: - Episode Candidate Gate
-
-extension Episode {
-  fileprivate func isDiscoveryCandidate(excludingOnDeck onDeckID: Episode.ID?) -> Bool {
-    if let onDeckID, id == onDeckID { return false }
-    if currentTime != .zero { return false }
-    if finishDate != nil { return false }
-    if rating != nil { return false }
-    if queueOrder != nil { return false }
-    return true
   }
 }

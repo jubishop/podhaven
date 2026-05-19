@@ -5,7 +5,7 @@ import SwiftUI
 
 struct SearchDiscoveryListView: View {
   @DynamicInjected(\.navigation) private var navigation
-  @DynamicInjected(\.searchRecommendationCollector) private var collector
+  @Environment(SearchRecommendationCollector.self) private var collector
 
   private let source: SearchRecommendationCollector.Source
 

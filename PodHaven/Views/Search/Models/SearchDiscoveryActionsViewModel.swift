@@ -12,7 +12,6 @@ import SwiftUI
 final class SearchDiscoveryActionsViewModel: ManagingEpisodes {
   typealias EpisodeType = ListedEpisode
 
-  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
@@ -84,18 +83,15 @@ final class SearchDiscoveryActionsViewModel: ManagingEpisodes {
     context: String,
     perform: @escaping @Sendable (Episode.ID) async throws -> Void
   ) {
-    let collector = collector
-    let alertProxy = alert
-    let mediaGUID = episode.mediaGUID
     Task {
       do {
         let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
         try await perform(podcastEpisode.id)
-        collector?.removePick(mediaGUID: mediaGUID)
+        collector?.removePick(mediaGUID: episode.mediaGUID)
       } catch {
         Self.log.caughtError("\(context): failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alertProxy(ErrorKit.message(for: error))
+        Container.shared.alert()(ErrorKit.message(for: error))
       }
     }
   }

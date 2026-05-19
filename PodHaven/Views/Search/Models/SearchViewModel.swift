@@ -23,12 +23,7 @@ class SearchViewModel:
 
   // MARK: - Recommendation Collector
 
-  // Container-cached so it survives across Search-tab visits and so each
-  // test gets its own instance (the `.container` test trait gives each test
-  // a fresh Container). `disappear()` calls `teardown()` to clear cache
-  // state on real Search-tab exit.
-  @ObservationIgnored @DynamicInjected(\.searchRecommendationCollector)
-  var recommendationCollector
+  let recommendationCollector = SearchRecommendationCollector()
 
   // MARK: - ManagingPodcasts
 
@@ -664,7 +659,6 @@ class SearchViewModel:
     }
     currentResultsObservationTask?.cancel()
     currentResultsObservationTask = nil
-    recommendationCollector.teardown()
   }
 
   // MARK: - Recommendation Collector Wiring

@@ -15,7 +15,6 @@ import Testing
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.recommendationEngine) private var engine
   @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.searchRecommendationCollector) private var collector
   @DynamicInjected(\.sleeper) private var sleeper
 
   private var session: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
@@ -25,7 +24,7 @@ import Testing
 
   @Test("recordSourcePodcasts → picks land after stable-source debounce")
   func happyPath() async throws {
-    let collector = self.collector
+    let collector = SearchRecommendationCollector()
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -57,7 +56,7 @@ import Testing
 
   @Test("stable-source debounce holds RSS fan-out for 1 s")
   func stableSourceDebounce() async throws {
-    let collector = self.collector
+    let collector = SearchRecommendationCollector()
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -91,7 +90,7 @@ import Testing
 
   @Test("subscribed podcast is excluded after DB reconciliation by iTunes ID")
   func subscribedExclusionByITunesID() async throws {
-    let collector = self.collector
+    let collector = SearchRecommendationCollector()
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -148,7 +147,7 @@ import Testing
 
   @Test("candidate gate drops episodes matching a rated DB row")
   func candidateGateFiltersRatedEpisodes() async throws {
-    let collector = self.collector
+    let collector = SearchRecommendationCollector()
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -217,7 +216,7 @@ import Testing
     // The signal centroid is built from three orthogonal signals, so the
     // discovery candidates' default direction lands above the 0.5 floor and
     // anything anti-aligned ("Below Floor") gets filtered out.
-    let collector = self.collector
+    let collector = SearchRecommendationCollector()
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -260,7 +259,7 @@ import Testing
 
   @Test("removePick drops the entry from visible picks")
   func postActionRemoval() async throws {
-    let collector = self.collector
+    let collector = SearchRecommendationCollector()
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -292,7 +291,7 @@ import Testing
 
   @Test("a new query replaces the typed-search overlay and cancels its work")
   func typedSearchOverlayReplacement() async throws {
-    let collector = self.collector
+    let collector = SearchRecommendationCollector()
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
@@ -341,42 +340,11 @@ import Testing
     #expect(pickTitles.contains(where: { $0.starts(with: "Second") }))
   }
 
-  // MARK: - Test: Teardown
-
-  @Test("teardown clears banner, picks, and caches")
-  func teardownClearsState() async throws {
-    let collector = self.collector
-    let scripted = makeScriptedEmbeddable()
-    try await primeEngine(embeddable: scripted)
-
-    let feedURL = FeedURL(URL(string: "https://example.com/teardown.rss")!)
-    await respondWithFeed(at: feedURL, title: "Tear", episodes: 2)
-
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
-    collector.setActiveSource(source)
-    collector.recordSourcePodcasts(
-      source: source,
-      podcasts: [makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(707))]
-    )
-    try await advanceStableSourceDebounce()
-
-    try await Wait.until(
-      { @MainActor in collector.visiblePicks.count >= 1 },
-      { @MainActor in "Expected picks before teardown" }
-    )
-
-    collector.teardown()
-
-    #expect(collector.bannerState == .hidden)
-    #expect(collector.visiblePicks.isEmpty)
-    #expect(collector.activeSource == nil)
-  }
-
   // MARK: - Test: Cross-Category Cache Reuse
 
   @Test("trending categories share the per-feed cache (one RSS request per feed)")
   func crossCategoryCacheReuse() async throws {
-    let collector = self.collector
+    let collector = SearchRecommendationCollector()
     let scripted = makeScriptedEmbeddable()
     try await primeEngine(embeddable: scripted)
 
