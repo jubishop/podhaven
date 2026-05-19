@@ -55,8 +55,8 @@ import Testing
     #expect(nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] == nil)
   }
 
-  @Test("skipInterval mode keeps next and previous track commands always enabled")
-  func skipIntervalModeKeepsNextAndPreviousTrackCommandsAlwaysEnabled() async throws {
+  @Test("skipInterval mode enables next and previous track commands with OnDeck")
+  func skipIntervalModeEnablesNextAndPreviousTrackCommandsWithOnDeck() async throws {
     userSettings.$nextTrackBehavior.new(.skipInterval)
 
     await playManager.start()

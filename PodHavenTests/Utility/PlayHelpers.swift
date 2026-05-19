@@ -201,6 +201,18 @@ enum PlayHelpers {
     )
   }
 
+  static func waitForConfigureCallCount(atLeast callCount: Int) async throws {
+    try await Wait.until(
+      { await audioSession.configureCallCount >= callCount },
+      {
+        """
+        Expected callCount to be at least \(callCount), \
+        but was \(await audioSession.configureCallCount)
+        """
+      }
+    )
+  }
+
   static func waitForEpisode<Value: Equatable & Sendable>(
     _ episodeID: Episode.ID,
     attribute keyPath: KeyPath<Episode, Value> & Sendable,
