@@ -643,6 +643,7 @@ class SearchViewModel:
     searchDebouncer.reset()
     searchTask?.cancel()
     searchTask = nil
+    searchState = .idle
     for trendingSection in trendingSections {
       trendingSection.task?.cancel()
       trendingSection.task = nil
