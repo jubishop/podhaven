@@ -181,6 +181,9 @@ struct PodcastDetailView: View {
   @ViewBuilder
   private var episodeList: some View {
     VStack {
+      if viewModel.recommendationDisplay == .computing {
+        computingRecommendationsBanner
+      }
       if !viewModel.episodeList.filteredEntries.isEmpty {
         List(viewModel.episodeList.filteredEntries) { episode in
           NavigationLink(
@@ -230,6 +233,19 @@ struct PodcastDetailView: View {
         .padding()
       Spacer()
     }
+  }
+
+  private var computingRecommendationsBanner: some View {
+    HStack(spacing: 8) {
+      ProgressView()
+        .controlSize(.small)
+      Text("Computing recommendations…")
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.horizontal)
+    .padding(.vertical, 6)
   }
 
   // MARK: - Expanded About

@@ -344,21 +344,31 @@ class EpisodePersistenceTests {
 
   @Test("that insertSeries adds creationDates")
   func testInsertSeriesCreationDate() async throws {
-    let creationDate = Date()
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsavedEpisodes = try [Create.unsavedEpisode(), Create.unsavedEpisode()]
+
+    let start = Date()
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
     )
+    let end = Date()
+    let lowerBound = Date(timeIntervalSince1970: start.timeIntervalSince1970.rounded(.down))
+    let upperBound = Date(timeIntervalSince1970: end.timeIntervalSince1970.rounded(.up))
 
     #expect(
-      series.podcast.creationDate.approximatelyEquals(creationDate),
-      "Podcast should have creationDate"
+      series.podcast.creationDate >= lowerBound && series.podcast.creationDate <= upperBound,
+      """
+      Podcast creationDate \(series.podcast.creationDate) outside \
+      insertSeries window [\(lowerBound), \(upperBound)]
+      """
     )
     for episode in series.episodes {
       #expect(
-        episode.creationDate.approximatelyEquals(creationDate),
-        "Episode '\(episode.title)' should have creationDate"
+        episode.creationDate >= lowerBound && episode.creationDate <= upperBound,
+        """
+        Episode '\(episode.title)' creationDate \(episode.creationDate) outside \
+        insertSeries window [\(lowerBound), \(upperBound)]
+        """
       )
     }
   }

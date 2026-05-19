@@ -73,6 +73,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   case recommendation(RecommendationScore)
   case similarity(Float)
   case embeddingPending
+  case computing
 }
 
 @Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
@@ -424,42 +425,73 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // MARK: - Recommendation Observation
 
   @ObservationIgnored private var recommendationTask: Task<Void, Never>?
-  @ObservationIgnored private var recommendationRefreshTask: Task<Void, Never>?
 
-  // Skips a CoreML inference on every contextRevision tick after the first.
-  // Cleared in scheduleRecommendationRefresh because every refresh trigger
-  // is a kind change that may bring a different `.unsaved` payload (e.g.
-  // post-deletion synthesis).
   @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
 
+  private struct RecommendationScoringSnapshot: Equatable {
+    let contextRevision: Int
+    let state: State
+
+    enum State: Equatable {
+      case initial(mediaGUID: MediaGUID)
+      case unsaved(
+        mediaGUID: MediaGUID,
+        embeddingRevision: Int,
+        embeddingSource: String
+      )
+      case saved(mediaGUID: MediaGUID, episodeID: Episode.ID)
+    }
+  }
+
+  private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot {
+    let snapshotState: RecommendationScoringSnapshot.State
+    switch state {
+    case .initial(let listed):
+      snapshotState = .initial(mediaGUID: listed.mediaGUID)
+    case .unsaved(let unsaved):
+      snapshotState = .unsaved(
+        mediaGUID: unsaved.mediaGUID,
+        embeddingRevision: contextualEmbedding.revision,
+        embeddingSource: unsaved.searchableString
+      )
+    case .saved(let podcastEpisode):
+      snapshotState = .saved(
+        mediaGUID: podcastEpisode.mediaGUID,
+        episodeID: podcastEpisode.id
+      )
+    }
+    return RecommendationScoringSnapshot(
+      contextRevision: recommendationEngine.contextRevision,
+      state: snapshotState
+    )
+  }
+
   // Re-fetches this episode's score whenever the engine bumps
-  // `contextRevision`, i.e. every time its scoring cache rebuilds. The
-  // bootstrap emit covers the "cache is already hot when the view opens"
-  // case; cold caches yield nil and the section stays hidden until the
-  // engine warms up.
+  // `contextRevision`, i.e. every time its scoring cache rebuilds. Create the
+  // stream before the bootstrap kick so a revision emitted during the initial
+  // fetch is queued instead of becoming a dropped replay value.
   private func startRecommendationObservation() {
     if let recommendationTask, !recommendationTask.isCancelled {
       Self.log.debug("Recommendation observation already active; not starting again")
       return
     }
 
+    let contextRevisions = recommendationEngine.$contextRevision.stream().dropFirst()
+    scheduleRecommendationRefresh(reason: .initial)
     recommendationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
 
-      for await _ in recommendationEngine.$contextRevision.stream() {
+      for await _ in contextRevisions {
         guard !Task.isCancelled else { return }
-        await fetchRecommendation()
+        scheduleRecommendationRefresh(reason: .contextRevision)
       }
     }
   }
 
   private func fetchRecommendation() async {
-    // Snapshot at entry — if a state-kind change races the scoring await,
-    // the kind guard below drops the stale write before it overwrites the
-    // fresh path's score.
-    let entryState = state
+    let snapshot = currentRecommendationScoringSnapshot()
     let newScore: EpisodeDetailDisplayedScore?
-    switch entryState {
+    switch state {
     case .initial:
       newScore = nil
     case .saved(let podcastEpisode):
@@ -467,10 +499,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
     case .unsaved(let unsavedPodcastEpisode):
       newScore = await scoreUnsavedEpisode(unsavedPodcastEpisode)
     }
-    guard entryState.kind == state.kind else {
+    guard snapshot == currentRecommendationScoringSnapshot() else {
       Self.log.debug(
         """
-        fetchRecommendation: state kind changed during scoring; \
+        fetchRecommendation: scoring snapshot changed during scoring; \
         dropping stale write
         """
       )
@@ -532,22 +564,42 @@ enum EpisodeDetailDisplayedScore: Sendable {
     return .similarity(value)
   }
 
-  // Cancel-and-replace so rapid kind changes don't pile up in-flight fetches
-  // racing on `score`.
-  private func scheduleRecommendationRefresh() {
-    unsavedEmbeddingCache = nil
-    recommendationRefreshTask?.cancel()
-    recommendationRefreshTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      guard let self else { return }
-      await fetchRecommendation()
+  @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
+  @ObservationIgnored private let recommendationDebounce = Debounce(
+    duration: .milliseconds(400),
+    priority: .utility
+  )
+
+  private enum EpisodeRecommendationRefreshReason {
+    case initial
+    case contextRevision
+    case kindChanged
+  }
+
+  private func scheduleRecommendationRefresh(
+    reason: EpisodeRecommendationRefreshReason
+  ) {
+    if case .kindChanged = reason { unsavedEmbeddingCache = nil }
+    if score == nil { score = .computing }
+    switch reason {
+    case .initial, .kindChanged:
+      recommendationFetchTask?.cancel()
+      recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
+        await self?.fetchRecommendation()
+      }
+    case .contextRevision:
+      recommendationDebounce { [weak self] in
+        await self?.fetchRecommendation()
+      }
     }
   }
 
   private func clearRecommendationTasks() {
     recommendationTask?.cancel()
     recommendationTask = nil
-    recommendationRefreshTask?.cancel()
-    recommendationRefreshTask = nil
+    recommendationFetchTask?.cancel()
+    recommendationFetchTask = nil
+    recommendationDebounce.cancel()
   }
 
   // MARK: - Disappear
@@ -566,7 +618,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     logStateTransition(to: newState)
     state = newState
     if recommendationKindChanged {
-      scheduleRecommendationRefresh()
+      scheduleRecommendationRefresh(reason: .kindChanged)
     }
   }
 
