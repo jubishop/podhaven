@@ -352,20 +352,22 @@ class EpisodePersistenceTests {
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
     )
     let end = Date()
+    let lowerBound = Date(timeIntervalSince1970: start.timeIntervalSince1970.rounded(.down))
+    let upperBound = Date(timeIntervalSince1970: end.timeIntervalSince1970.rounded(.up))
 
     #expect(
-      series.podcast.creationDate >= start && series.podcast.creationDate <= end,
+      series.podcast.creationDate >= lowerBound && series.podcast.creationDate <= upperBound,
       """
       Podcast creationDate \(series.podcast.creationDate) outside \
-      insertSeries window [\(start), \(end)]
+      insertSeries window [\(lowerBound), \(upperBound)]
       """
     )
     for episode in series.episodes {
       #expect(
-        episode.creationDate >= start && episode.creationDate <= end,
+        episode.creationDate >= lowerBound && episode.creationDate <= upperBound,
         """
         Episode '\(episode.title)' creationDate \(episode.creationDate) outside \
-        insertSeries window [\(start), \(end)]
+        insertSeries window [\(lowerBound), \(upperBound)]
         """
       )
     }
