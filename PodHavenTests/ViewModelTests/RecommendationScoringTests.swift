@@ -7,7 +7,10 @@ import Testing
 @testable import PodHaven
 
 // Regression tests for the recommendation-score fan-out OOM (issue #274).
-@Suite("of PodcastDetailViewModel recommendation scoring coalescing tests", .container)
+@Suite(
+  "of PodcastDetailViewModel + EpisodeDetailViewModel recommendation scoring coalescing tests",
+  .container
+)
 @MainActor final class RecommendationScoringTests {
   @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -142,9 +145,11 @@ import Testing
     )
     fakeRecommendationRepo.clearAllCalls()
 
+    let pendingSleepRequests = fakeSleeper.pendingCount()
     for _ in 0..<50 {
       recommendationEngine.$contextRevision.update { $0 += 1 }
     }
+    try await fakeSleeper.waitForSleepRequests(count: pendingSleepRequests + 1)
 
     for _ in 0..<80 {
       await fakeSleeper.advanceTime(by: .milliseconds(200))
