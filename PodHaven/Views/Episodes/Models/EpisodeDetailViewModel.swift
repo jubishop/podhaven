@@ -566,7 +566,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
   @ObservationIgnored private let recommendationDebounce = Debounce(
-    duration: .seconds(1),
+    duration: .milliseconds(400),
     priority: .utility
   )
 

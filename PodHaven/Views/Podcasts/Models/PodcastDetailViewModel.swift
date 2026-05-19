@@ -611,7 +611,7 @@ class PodcastDetailViewModel:
   }
   @ObservationIgnored private var scoringStatus: ScoringStatus = .idle
   @ObservationIgnored private let recommendationScoresDebounce = Debounce(
-    duration: .seconds(1),
+    duration: .milliseconds(400),
     priority: .utility
   )
 
