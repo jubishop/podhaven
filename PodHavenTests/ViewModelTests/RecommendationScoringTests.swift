@@ -1322,7 +1322,7 @@ import Testing
   }
 
   private func drainRecommendationSleeper(
-    by duration: Duration = .seconds(1),
+    by duration: Duration = .milliseconds(400),
     maxRounds: Int = 20
   ) async {
     var idleRounds = 0

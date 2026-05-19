@@ -147,7 +147,7 @@ enum RecommendationHelpers {
     }
   }
 
-  // The engine batches cache rebuilds through a 1s Debounce. New triggers
+  // The engine batches cache rebuilds through a 400ms Debounce. New triggers
   // can land at any time during the test, each cancelling the prior sleep
   // and arming a fresh one (FakeSleeper requires manual advance). Polling
   // with a per-iteration advance fires whatever sleep is currently armed
@@ -158,7 +158,7 @@ enum RecommendationHelpers {
   ) async throws -> T {
     let sleeper = Container.shared.sleeper() as! FakeSleeper
     return try await Wait.forValue {
-      await sleeper.advanceTime(by: .seconds(1))
+      await sleeper.advanceTime(by: .milliseconds(400))
       return try await block()
     }
   }
@@ -175,7 +175,7 @@ enum RecommendationHelpers {
     try await Wait.until(
       priority: priority,
       {
-        await sleeper.advanceTime(by: .seconds(1))
+        await sleeper.advanceTime(by: .milliseconds(400))
         return try await block()
       },
       errorMessage

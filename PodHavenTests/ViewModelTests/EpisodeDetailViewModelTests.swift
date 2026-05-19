@@ -301,7 +301,7 @@ import Testing
     let resaved = try #require(try await repo.podcastEpisode(podcastEpisode.episode.mediaGUID))
     try await RecommendationHelpers.embedEpisodes([resaved.episode])
 
-    // Drive the engine's embedding-table observation through its 1s
+    // Drive the engine's embedding-table observation through its 400ms
     // debounce so contextRevision bumps and the saved-side fetch re-runs
     // with the newly-inserted embedding visible.
     _ = try await RecommendationHelpers.waitAdvancing {
@@ -571,7 +571,7 @@ import Testing
     let saved = try #require(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID))
     try await RecommendationHelpers.embedEpisodes([saved.episode])
 
-    // Drive the engine's embedding-table observation through its 1s
+    // Drive the engine's embedding-table observation through its 400ms
     // debounce so contextRevision bumps and the saved-side fetch produces a
     // recommendation-kind score with the new embedding visible.
     _ = try await RecommendationHelpers.waitAdvancing {
