@@ -99,7 +99,10 @@ import Testing
     let newGUID = GUID("target-4")
     let newPubDate = Date(timeIntervalSince1970: 500)
 
+    await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+
     let fakeRepo = fakeRecommendationRepo
+    fakeRepo.clearAllCalls()
     fakeRepo.armEmbeddingsGate(matching: initialIDs)
     recommendationEngine.$contextRevision.update { $0 += 1 }
 
@@ -144,6 +147,13 @@ import Testing
     fakeRepo.releaseEmbeddingsGate()
 
     let expectedIDs = initialIDs.union([newEpisodeID])
+    try await RecommendationScoringTestHelpers.waitForScopedEmbeddingsCalls(
+      matching: expectedIDs,
+      atLeast: 1,
+      reason: "Expected stale-pass discard to rerun scoring against the newer list-identity."
+    )
+    await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
       { @MainActor in
