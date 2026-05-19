@@ -143,6 +143,7 @@ import Testing
         "Expected at least one initial scoring pass before the burst."
       }
     )
+    await drainRecommendationSleeper()
     fakeRecommendationRepo.clearAllCalls()
 
     let pendingSleepRequests = fakeSleeper.pendingCount()
@@ -151,10 +152,12 @@ import Testing
     }
     try await fakeSleeper.waitForSleepRequests(count: pendingSleepRequests + 1)
 
-    for _ in 0..<80 {
-      await fakeSleeper.advanceTime(by: .milliseconds(200))
-      await Task.yield()
-    }
+    try await waitForScopedEmbeddingsCalls(
+      matching: targetIDs,
+      atLeast: 1,
+      reason: "Expected the debounced burst refresh to perform one scoring pass."
+    )
+    await drainRecommendationSleeper(by: .milliseconds(400))
 
     let count = scopedEmbeddingsCallCount(matching: targetIDs)
     #expect(
@@ -1177,10 +1180,7 @@ import Testing
     )
     viewModel.currentSortMethod = .newestFirst
 
-    for _ in 0..<10 {
-      await fakeSleeper.advanceTime(by: .seconds(2))
-      await Task.yield()
-    }
+    await drainRecommendationSleeper(by: .seconds(2))
     fakeRecommendationRepo.clearAllCalls()
 
     // markFinished writes finishDate / currentTime / maxPlaybackTime — none
@@ -1202,10 +1202,7 @@ import Testing
       }
     )
 
-    for _ in 0..<10 {
-      await fakeSleeper.advanceTime(by: .seconds(2))
-      await Task.yield()
-    }
+    await drainRecommendationSleeper(by: .seconds(2))
 
     let postTransitionCalls = scopedEmbeddingsCallCount(matching: targetIDs)
     #expect(
@@ -1278,10 +1275,7 @@ import Testing
     fakeRecommendationRepo.clearAllCalls()
     fakeRepo.releaseEmbeddingsGate()
 
-    for _ in 0..<10 {
-      await fakeSleeper.advanceTime(by: .seconds(2))
-      await Task.yield()
-    }
+    await drainRecommendationSleeper(by: .seconds(2))
 
     let postDisappearCalls = scopedEmbeddingsCallCount(matching: targetIDs)
     #expect(
@@ -1296,6 +1290,49 @@ import Testing
   }
 
   // MARK: - Helpers
+
+  private func waitForScopedEmbeddingsCalls(
+    matching ids: Set<Episode.ID>,
+    atLeast expectedCount: Int,
+    reason: String
+  ) async throws {
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { [self] in
+        await MainActor.run {
+          scopedEmbeddingsCallCount(matching: ids) >= expectedCount
+        }
+      },
+      { [self] in
+        await MainActor.run {
+          """
+          \(reason)
+          expected: >= \(expectedCount)
+          actual: \(scopedEmbeddingsCallCount(matching: ids))
+          """
+        }
+      }
+    )
+  }
+
+  private func drainRecommendationSleeper(
+    by duration: Duration = .seconds(1),
+    maxRounds: Int = 20
+  ) async {
+    var idleRounds = 0
+    for _ in 0..<maxRounds {
+      await fakeSleeper.advanceTime(by: duration)
+      for _ in 0..<3 {
+        await Task.yield()
+      }
+      if fakeSleeper.pendingCount() == 0 {
+        idleRounds += 1
+        if idleRounds >= 2 { return }
+      } else {
+        idleRounds = 0
+      }
+    }
+  }
 
   private func scopedEmbeddingsCallCount(matching ids: Set<Episode.ID>) -> Int {
     fakeRecommendationRepo.calls(of: MethodCall<[Episode.ID]>.self)
