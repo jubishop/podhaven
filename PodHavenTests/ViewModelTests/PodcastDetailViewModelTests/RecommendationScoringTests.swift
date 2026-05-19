@@ -99,7 +99,7 @@ import Testing
   // MARK: - Burst coalescing
 
   @Test(
-    "a burst of $contextRevision bumps must coalesce into a bounded number of scoring passes (≤ 2)"
+    "a burst of $contextRevision bumps must coalesce into 1...2 scoring passes"
   )
   func burstContextRevisionBumpsCoalesce() async throws {
     let embeddable = scoringEmbeddable()
@@ -153,12 +153,12 @@ import Testing
 
     let count = scopedEmbeddingsCallCount(matching: targetIDs)
     #expect(
-      count <= 2,
+      (1...2).contains(count),
       """
       Expected per-VM coalescing to bound the scoring fan-out, but \(count) \
       scoring passes fired for the same candidate set during a burst of 50 \
-      $contextRevision bumps. The contract is one trailing pass per debounce \
-      window, plus at most one runningDirty rerun.
+      $contextRevision bumps. The contract is exactly one trailing pass per \
+      debounce window, plus at most one runningDirty rerun.
       """
     )
   }
@@ -659,13 +659,17 @@ import Testing
     let (targetPodcast, candidateEpisodes) =
       try await RecommendationHelpers
       .createPodcastWithEpisodes(
-        count: 3,
+        count: 4,
         podcastTitle: "Target",
         podcastDescription: "Target",
-        episodeDescriptions: ["Target 0", "Target 1", "Target 2"]
+        episodeDescriptions: ["Target 0", "Target 1", "Target 2", "Target 3"]
       )
     try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
     _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+    let newestFirstOrder =
+      candidateEpisodes
+      .sorted { $0.pubDate > $1.pubDate }
+      .map(\.id)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
     try await viewModel.performAppear()
@@ -682,18 +686,19 @@ import Testing
 
     viewModel.currentSortMethod = .recommendationScore
 
-    let expectedIDs = Set(candidateEpisodes.map(\.id))
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
       { @MainActor in
-        Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == expectedIDs
+        let order = viewModel.episodeList.filteredEntries.compactMap(\.episodeID)
+        return order.count == candidateEpisodes.count && order != newestFirstOrder
       },
       { @MainActor in
         """
         Expected initial bootstrap scoring to populate the rec-score sort even \
         when the engine cache is already hot and no further \
         $contextRevision bump arrives.
-        filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        Newest-first: \(newestFirstOrder)
+        Actual: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
         """
       }
     )
@@ -955,19 +960,18 @@ import Testing
     "while .recommendationScore is active, a $contextRevision bump triggers a coalesced refresh that updates the visible order"
   )
   func activeRecSortLiveUpdatesAfterCoalescedRefresh() async throws {
-    let embeddable = MutableScriptedEmbeddable(
-      initial: { text in
-        if text.contains("Filler") { return [0, 0, 1] }
-        if text.contains("Signal") { return [1, 0, 0] }
-        if text.contains("Target 0") { return [0.2, 0.98, 0] }
-        if text.contains("Target 1") { return [0.4, 0.917, 0] }
-        if text.contains("Target 2") { return [0.6, 0.8, 0] }
-        if text.contains("Target 3") { return [0.8, 0.6, 0] }
-        if text.contains("Target") { return [0, 1, 0] }
-        return [0, 0, 1]
-      }
-    )
-    try await primeEngine(with: embeddable.scripted)
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Fresh Signal") { return [0, 1, 0] }
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target 0") { return [0.2, 0.98, 0] }
+      if text.contains("Target 1") { return [0.4, 0.917, 0] }
+      if text.contains("Target 2") { return [0.6, 0.8, 0] }
+      if text.contains("Target 3") { return [0.8, 0.6, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+    try await primeEngine(with: embeddable)
 
     let (targetPodcast, candidateEpisodes) =
       try await RecommendationHelpers
@@ -979,9 +983,13 @@ import Testing
       )
     try await RecommendationHelpers.embedEpisodes(
       candidateEpisodes,
-      embeddable: embeddable.scripted
+      embeddable: embeddable
     )
     _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+    let newestFirstOrder =
+      candidateEpisodes
+      .sorted { $0.pubDate > $1.pubDate }
+      .map(\.id)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
     try await viewModel.performAppear()
@@ -1001,57 +1009,55 @@ import Testing
       let order = await MainActor.run {
         viewModel.episodeList.filteredEntries.compactMap(\.episodeID)
       }
-      return order.count == candidateEpisodes.count ? order : nil
+      return order.count == candidateEpisodes.count && order != newestFirstOrder
+        ? order
+        : nil
     }
 
-    embeddable.swap { text in
-      if text.contains("Filler") { return [0, 0, 1] }
-      if text.contains("Signal") { return [1, 0, 0] }
-      if text.contains("Target 0") { return [0.8, 0.6, 0] }
-      if text.contains("Target 1") { return [0.6, 0.8, 0] }
-      if text.contains("Target 2") { return [0.4, 0.917, 0] }
-      if text.contains("Target 3") { return [0.2, 0.98, 0] }
-      if text.contains("Target") { return [0, 1, 0] }
-      return [0, 0, 1]
-    }
-    try await RecommendationHelpers.embedEpisodes(
-      candidateEpisodes,
-      embeddable: embeddable.scripted
+    let (_, freshSignals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 12,
+      podcastTitle: "Fresh Signal",
+      podcastDescription: "Fresh Signal",
+      episodeDescriptions: Array(repeating: "Fresh Signal", count: 12),
+      ratings: Array(repeating: .loved, count: 12)
     )
-    let refreshedScores = try await RecommendationHelpers.startAndWaitForScores(
-      for: candidateEpisodes
-    )
+    try await RecommendationHelpers.embedEpisodes(freshSignals, embeddable: embeddable)
 
-    let expectedOrder =
-      candidateEpisodes
-      .sorted { lhs, rhs in
-        let lhsScore = refreshedScores[lhs.id]?.value ?? 0
-        let rhsScore = refreshedScores[rhs.id]?.value ?? 0
-        if lhsScore != rhsScore { return lhsScore > rhsScore }
-        if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
-        if lhs.mediaGUID.guid != rhs.mediaGUID.guid {
-          return lhs.mediaGUID.guid > rhs.mediaGUID.guid
-        }
-        return lhs.mediaGUID.mediaURL.rawValue.absoluteString
-          > rhs.mediaGUID.mediaURL.rawValue.absoluteString
+    let engine = recommendationEngine
+    let revisionBeforeRefresh = engine.contextRevision
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { engine.contextRevision > revisionBeforeRefresh },
+      {
+        """
+        Expected embedding the fresh signal episodes to rebuild the scoring \
+        context and bump $contextRevision.
+        before: \(revisionBeforeRefresh)
+        current: \(engine.contextRevision)
+        """
       }
-      .map(\.id)
+    )
+
+    let refreshedScores = try await engine.recommendations(for: candidateEpisodes)
+    let expectedOrder = Self.recommendationOrder(candidateEpisodes, scores: refreshedScores)
     try #require(
-      initialOrder != expectedOrder,
+      expectedOrder != initialOrder,
       """
-      Flipping the embedding script must produce a different rec-score order; \
-      otherwise the test cannot observe the live-update.
+      Adding fresh signals must produce a different rec-score order; otherwise \
+      the test cannot observe the live-update.
       """
     )
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
       { @MainActor in
-        viewModel.episodeList.filteredEntries.compactMap(\.episodeID) == expectedOrder
+        let order = viewModel.episodeList.filteredEntries.compactMap(\.episodeID)
+        return order == expectedOrder
       },
       { @MainActor in
         """
-        Expected coalesced refresh to publish the updated rec-score order.
+        Expected coalesced refresh to publish an updated rec-score order.
+        Initial: \(initialOrder)
         Expected: \(expectedOrder)
         Actual: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
         """
@@ -1238,6 +1244,25 @@ import Testing
     fakeRecommendationRepo.calls(of: MethodCall<[Episode.ID]>.self)
       .filter { $0.methodName == "embeddings" && Set($0.parameters) == ids }
       .count
+  }
+
+  private nonisolated static func recommendationOrder(
+    _ episodes: [Episode],
+    scores: [Episode.ID: RecommendationScore]
+  ) -> [Episode.ID] {
+    episodes
+      .sorted { lhs, rhs in
+        let lhsScore = scores[lhs.id]?.value ?? 0
+        let rhsScore = scores[rhs.id]?.value ?? 0
+        if lhsScore != rhsScore { return lhsScore > rhsScore }
+        if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
+        if lhs.mediaGUID.guid != rhs.mediaGUID.guid {
+          return lhs.mediaGUID.guid > rhs.mediaGUID.guid
+        }
+        return lhs.mediaGUID.mediaURL.rawValue.absoluteString
+          > rhs.mediaGUID.mediaURL.rawValue.absoluteString
+      }
+      .map(\.id)
   }
 
   private func scoringEmbeddable() -> ScriptedEmbeddable {
