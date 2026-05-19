@@ -434,6 +434,12 @@ import Testing
     let newEpisodeID = try #require(newEpisode.episodeID)
     let allIDs = initialIDs.union([newEpisodeID])
 
+    // Settle the engine's in-flight cache rebuild + the VM's debounced refresh
+    // that the new-episode insertion triggered. Without this, those pending
+    // tasks land on top of the manual contextRevision bump below and cancel
+    // the gated scoring pass mid-flight.
+    await drainRecommendationSleeper()
+
     let fakeRepo = fakeRecommendationRepo
     fakeRepo.clearAllCalls()
     fakeRepo.armEmbeddingsGate(matching: allIDs)
