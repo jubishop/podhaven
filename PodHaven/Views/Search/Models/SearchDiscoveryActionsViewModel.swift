@@ -87,7 +87,7 @@ final class SearchDiscoveryActionsViewModel: ManagingEpisodes {
       do {
         let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
         try await perform(podcastEpisode.id)
-        collector?.removePick(mediaGUID: episode.mediaGUID)
+        collector?.removePick(feedURL: episode.feedURL, mediaGUID: episode.mediaGUID)
       } catch {
         Self.log.caughtError("\(context): failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }

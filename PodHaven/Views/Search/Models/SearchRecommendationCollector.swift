@@ -97,30 +97,24 @@ final class SearchRecommendationCollector {
   // SearchViewModel; changes the banner / discovery list reads only.
   var activeSource: Source? = nil
 
-  // `.hidden` when no source, no podcasts, or scoring unavailable;
-  // `.loading` while the pipeline is still warming; `.loaded(count)` once
-  // at least one pick is ready.
-  var bannerState: BannerState = .hidden
-
-  // Ordered scored picks for the active source. The discovery list reads
-  // this directly. Row actions in the list call `removePick` to drop
-  // entries after a successful materialization or mutation.
-  private(set) var visiblePicks: [ScoredEpisode] = []
-
   // MARK: - Internal State
 
-  // Shared cache that survives top-category chip switches inside one
-  // Search-tab visit. Keyed by the canonical (reconciled) feed URL.
-  // Typed-search-only podcasts are NOT promoted here.
-  private var sharedPodcastCache: [FeedURL: CachedPodcastEntry] = [:]
+  // Entries referenced by any loaded trending chip's ranking. An entry
+  // here survives chip switches and search-query changes for the
+  // SearchViewModel's lifetime.
+  private var permanent: [FeedURL: CachedPodcastEntry] = [:]
+
+  // Entries referenced only by the current typed-search ranking. Purged
+  // (with their in-flight `DownloadTask`s cancelled) whenever the active
+  // query changes.
+  private var temporary: [FeedURL: CachedPodcastEntry] = [:]
 
   // Per top-category source: the ordered feed URLs selected from that
-  // category's current iTunes result snapshot. Points into the shared
-  // cache.
+  // category's current iTunes result snapshot.
   private var trendingSourceIndex: [Source: [FeedURL]] = [:]
 
-  // Current typed-search overlay. Holds feed URLs and any entries that
-  // don't already exist in sharedPodcastCache; replaced on query change.
+  // Current typed-search ranking; replaced on every recordSourcePodcasts
+  // call. Purging `temporary` is gated on the embedded `query` changing.
   private var typedSearchOverlay: TypedSearchOverlay? = nil
 
   // Per-source stable-source debouncer. Restarted whenever a new ranking
@@ -137,10 +131,6 @@ final class SearchRecommendationCollector {
   // Feed URLs whose pipeline is mid-flight.
   private var inFlight: Set<FeedURL> = []
 
-  // Episode IDs the discovery list has already acted on. Survives cache
-  // updates so post-action removal isn't undone by later re-scores.
-  private var removedMediaGUIDs: Set<MediaGUID> = []
-
   // MARK: - Lifecycle
 
   init() {
@@ -155,7 +145,6 @@ final class SearchRecommendationCollector {
     Self.log.debug("Active source -> \(String(describing: source))")
     guard source != activeSource else { return }
     activeSource = source
-    refreshOutputs()
   }
 
   // Called by SearchViewModel after iTunes search / trending returns. The
@@ -183,13 +172,13 @@ final class SearchRecommendationCollector {
   }
 
   // The discovery list calls this after a successful row action that
-  // materialized or mutated the episode. We drop the entry instead of
-  // live-converting it in place; the row's episode detail handles the
-  // unsaved→saved transition on its own.
-  func removePick(mediaGUID: MediaGUID) {
+  // materialized or mutated the episode. We drop the pick from its
+  // owning entry's scored episodes; the row's episode detail handles
+  // the unsaved→saved transition on its own.
+  func removePick(feedURL: FeedURL, mediaGUID: MediaGUID) {
     Self.log.debug("Removing pick \(mediaGUID)")
-    removedMediaGUIDs.insert(mediaGUID)
-    refreshOutputs()
+    let entry = permanent[feedURL] ?? temporary[feedURL]
+    entry?.scoredEpisodes.removeAll { $0.id == mediaGUID }
   }
 
   // MARK: - Reconcile & Ingest
@@ -266,8 +255,10 @@ final class SearchRecommendationCollector {
     case .trending:
       trendingSourceIndex[source] = feedURLs
       for feedURL in feedURLs {
-        if sharedPodcastCache[feedURL] == nil {
-          sharedPodcastCache[feedURL] = CachedPodcastEntry(
+        if let promoted = temporary.removeValue(forKey: feedURL) {
+          permanent[feedURL] = promoted
+        } else if permanent[feedURL] == nil {
+          permanent[feedURL] = CachedPodcastEntry(
             feedURL: feedURL,
             podcastID: podcastIDs[feedURL]
           )
@@ -276,22 +267,12 @@ final class SearchRecommendationCollector {
       }
 
     case .search(let query):
-      if let existing = typedSearchOverlay, existing.query == query {
-        existing.feedURLs = feedURLs
-      } else {
-        let prior = typedSearchOverlay
-        typedSearchOverlay = TypedSearchOverlay(query: query, feedURLs: feedURLs)
-        if let prior {
-          for feedURL in prior.localEntries.keys {
-            pendingDrainQueue.removeAll { $0 == feedURL }
-          }
-          Task { await prior.cancel() }
-        }
-      }
-      guard let overlay = typedSearchOverlay else { return }
+      let queryChanged = typedSearchOverlay?.query != query
+      typedSearchOverlay = TypedSearchOverlay(query: query, feedURLs: feedURLs)
+      if queryChanged { purgeTemporary() }
       for feedURL in feedURLs {
-        if sharedPodcastCache[feedURL] == nil, overlay.localEntries[feedURL] == nil {
-          overlay.localEntries[feedURL] = CachedPodcastEntry(
+        if permanent[feedURL] == nil, temporary[feedURL] == nil {
+          temporary[feedURL] = CachedPodcastEntry(
             feedURL: feedURL,
             podcastID: podcastIDs[feedURL]
           )
@@ -300,8 +281,21 @@ final class SearchRecommendationCollector {
       }
     }
 
-    refreshOutputs()
     ensureDrainTaskRunning()
+  }
+
+  // Cancel and drop every entry in `temporary`, and strip their feed URLs
+  // from the pending drain queue. Called when the typed-search query
+  // changes; trending entries (in `permanent`) are untouched.
+  private func purgeTemporary() {
+    guard !temporary.isEmpty else { return }
+    let toCancel = Array(temporary.values)
+    let purgedURLs = Set(temporary.keys)
+    temporary.removeAll()
+    pendingDrainQueue.removeAll { purgedURLs.contains($0) }
+    Task {
+      for entry in toCancel { await entry.cancel() }
+    }
   }
 
   private func scheduleDrain(for feedURL: FeedURL) {
@@ -315,8 +309,8 @@ final class SearchRecommendationCollector {
   }
 
   private func entry(for feedURL: FeedURL) -> CachedPodcastEntry? {
-    if let entry = sharedPodcastCache[feedURL] { return entry }
-    return typedSearchOverlay?.localEntries[feedURL]
+    if let entry = permanent[feedURL] { return entry }
+    return temporary[feedURL]
   }
 
   // MARK: - Drain Task
@@ -419,7 +413,6 @@ final class SearchRecommendationCollector {
     }
 
     inFlight.remove(feedURL)
-    refreshOutputs()
 
     if !pendingDrainQueue.isEmpty {
       drainContinuation?.resume()
@@ -563,52 +556,41 @@ final class SearchRecommendationCollector {
     return true
   }
 
-  // MARK: - Output Refresh
+  // MARK: - Computed Outputs
 
-  // Recomputes banner state and visible picks from whichever source is
-  // currently active. Called any time cache state changes: new recordings,
-  // new scored entries, active-source switches, post-action removals.
-  private func refreshOutputs() {
-    guard let activeSource else {
-      bannerState = .hidden
-      visiblePicks = []
-      return
-    }
-
+  // Ordered scored picks for the active source. Reads `permanent` /
+  // `temporary` / `trendingSourceIndex` / `typedSearchOverlay` and each
+  // entry's `status` / `scoredEpisodes`; SwiftUI observation invalidates
+  // on any of those mutations.
+  var visiblePicks: [ScoredEpisode] {
+    guard let activeSource else { return [] }
     let feedURLs = activeFeedURLs(for: activeSource)
-    guard !feedURLs.isEmpty else {
-      bannerState = .hidden
-      visiblePicks = []
-      return
-    }
-
     var collected: [ScoredEpisode] = []
-    var anyInFlight = false
     for feedURL in feedURLs {
-      guard let entry = entry(for: feedURL) else {
-        anyInFlight = true
-        continue
-      }
-      switch entry.status {
-      case .pending, .fetching, .embedding:
-        anyInFlight = true
-      case .failed, .cancelled:
-        continue
-      case .scored:
-        collected.append(contentsOf: entry.scoredEpisodes)
-      }
+      guard let entry = entry(for: feedURL), entry.status == .scored else { continue }
+      collected.append(contentsOf: entry.scoredEpisodes)
     }
-
-    collected.removeAll { removedMediaGUIDs.contains($0.id) }
     collected.sort(by: Self.rankComparator)
+    return collected
+  }
 
-    if collected.isEmpty {
-      bannerState = anyInFlight ? .loading : .hidden
-      visiblePicks = []
-    } else {
-      bannerState = .loaded(count: collected.count)
-      visiblePicks = collected
+  // `.loaded(count)` once any scored picks exist; `.loading` while the
+  // pipeline is still warming; `.hidden` when there's nothing to show and
+  // nothing in flight.
+  var bannerState: BannerState {
+    guard let activeSource else { return .hidden }
+    let feedURLs = activeFeedURLs(for: activeSource)
+    guard !feedURLs.isEmpty else { return .hidden }
+    let picks = visiblePicks
+    if !picks.isEmpty { return .loaded(count: picks.count) }
+    let anyInFlight = feedURLs.contains { url in
+      guard let entry = entry(for: url) else { return true }
+      switch entry.status {
+      case .pending, .fetching, .embedding: return true
+      case .scored, .failed, .cancelled: return false
+      }
     }
+    return anyInFlight ? .loading : .hidden
   }
 
   private func activeFeedURLs(for source: Source) -> [FeedURL] {
@@ -663,7 +645,7 @@ final class SearchRecommendationCollector {
 
 // MARK: - CachedPodcastEntry
 
-@MainActor
+@Observable @MainActor
 private final class CachedPodcastEntry {
   enum Status: Equatable {
     case pending
@@ -678,7 +660,7 @@ private final class CachedPodcastEntry {
   let podcastID: Podcast.ID?
   var status: Status = .pending
   var scoredEpisodes: [SearchRecommendationCollector.ScoredEpisode] = []
-  var fetchToken: DownloadTask?
+  @ObservationIgnored var fetchToken: DownloadTask?
 
   init(feedURL: FeedURL, podcastID: Podcast.ID?) {
     self.feedURL = feedURL
@@ -698,18 +680,10 @@ private final class CachedPodcastEntry {
 @MainActor
 private final class TypedSearchOverlay {
   let query: String
-  var feedURLs: [FeedURL]
-  var localEntries: [FeedURL: CachedPodcastEntry]
+  let feedURLs: [FeedURL]
 
-  init(query: String, feedURLs: [FeedURL], localEntries: [FeedURL: CachedPodcastEntry] = [:]) {
+  init(query: String, feedURLs: [FeedURL]) {
     self.query = query
     self.feedURLs = feedURLs
-    self.localEntries = localEntries
-  }
-
-  func cancel() async {
-    let toCancel = Array(localEntries.values)
-    localEntries.removeAll()
-    for entry in toCancel { await entry.cancel() }
   }
 }

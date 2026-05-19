@@ -281,7 +281,7 @@ import Testing
 
     let initialCount = collector.visiblePicks.count
     let removed = collector.visiblePicks[0].episode.mediaGUID
-    collector.removePick(mediaGUID: removed)
+    collector.removePick(feedURL: feedURL, mediaGUID: removed)
 
     #expect(collector.visiblePicks.count == initialCount - 1)
     #expect(!collector.visiblePicks.contains { $0.episode.mediaGUID == removed })
