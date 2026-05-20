@@ -111,9 +111,33 @@ the same Sentry integration. Note especially:
 - The event's exception type and top stack frame (if any).
 - Breadcrumbs in the minute leading up to the feedback.
 - Replay URL (don't try to render it — just include the link).
-- Tags: device model, iOS version, app version, locale, network.
+- Tags: device model, iOS version, app version, locale, network, plus the
+  build's `release` and `git-commit-hash` — keep both for the correlation below.
 
 If there is no linked event, that's fine — note it and proceed with logs only.
+
+### Correlate the reporter's build to shipped fixes
+
+The feedback event stamps the exact build the reporter was running: the
+`release` tag (e.g. `com.artisanalsoftware.PodHaven@1.0+498`) and a
+`git-commit-hash` tag (e.g. `967ddf79`). Use them — this is the only reliable
+way to answer "did my fix actually reach this user?" and "is this a recurrence
+of something I already fixed?".
+
+- The build number `NNN` from the release maps to git tag `v1.0bNNN` (build
+  498 → `v1.0b498`); `git rev-list -n1 v1.0bNNN` resolves that tag's commit.
+- The `git-commit-hash` tag is the exact commit the build was cut from — prefer
+  it over the tag when both are present (they should agree).
+- To test whether a specific fix shipped in the reporter's build, use
+  `git merge-base --is-ancestor <fix-commit> <build-commit>` (exit 0 = the fix
+  IS in the build). Check the fix commit *and* the PR merge commit if unsure.
+- Whenever the feedback resembles a known or previously-"fixed" bug, run this
+  check and state the result verbatim in the report, e.g. "build 498 (commit
+  967ddf79) **does** contain the #274 fix `0cc82c8c`". A failure that recurs on
+  a build which already has the fix means the fix is incomplete — not that the
+  reporter is on a stale build. That distinction changes the whole verdict.
+- Search `memory/` and closed GitHub issues for the suspected bug first, so you
+  have concrete fix commits / PR numbers to test ancestry against.
 
 ## Step 4: Hunt for related Sentry issues right before the feedback
 
@@ -258,6 +282,9 @@ Report format:
 - **Submitted:** <PT timestamp>  (<UTC timestamp>)
 - **From:** <email or "anonymous">
 - **Release / env:** <release> / <environment>
+- **Build vs. known fixes:** <build number + git-commit-hash, and which
+  relevant fixes it does/does not contain per Step 3; omit if not a suspected
+  recurrence of a known bug>
 - **Device:** <model, OS version> (if known)
 - **Replay:** <link or "none">
 - **Event:** <event id and short type, or "none linked">
@@ -322,3 +349,7 @@ Omit this section if there are no useful follow-ups.
   don't pad the report with unrelated warnings.
 - Keep the report dense. Every line should help the reader either understand
   what happened or decide what to do next.
+- When the feedback looks like a known or already-"fixed" bug, correlate the
+  reporter's build/commit to git ancestry (Step 3) before concluding. A
+  recurrence on a build that already contains the fix is an incomplete fix —
+  the report must say so explicitly rather than blaming a stale build.
