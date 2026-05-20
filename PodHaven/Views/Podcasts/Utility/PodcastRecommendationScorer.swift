@@ -7,16 +7,6 @@ import Logging
 import Observation
 import Tagged
 
-// Surface `PodcastRecommendationScorer` needs from the view model that owns it.
-// Keeping it to four members documents the seam: the scorer reads live state
-// and the episode list, and writes the list's sort/filter closures back.
-@MainActor protocol RecommendationScoringHost: AnyObject {
-  var state: PodcastDetailState { get }
-  var episodeList: PowerList<ListedEpisode> { get }
-  var isSortingByRecommendationScore: Bool { get }
-  var recommendationFallbackFilter: (@Sendable (ListedEpisode) -> Bool)? { get }
-}
-
 // Owns recommendation-score sorting for `PodcastDetailViewModel`: observes the
 // engine's context revisions, computes per-episode scores (saved podcasts via
 // the recommendation engine, unsaved ones via on-device similarity), and
