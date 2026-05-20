@@ -30,6 +30,7 @@ LEVEL_NAMES = {
     6: "critical",
 }
 LEVEL_VALUES = {name: value for value, name in LEVEL_NAMES.items()}
+LEVEL_ABBR = {name: name[0].upper() for name in LEVEL_VALUES}
 URL_ERROR_CODES: dict[int, tuple[str, str]] = {
     -1001: ("timedOut", "An asynchronous operation timed out."),
     -1003: ("cannotFindHost", "The system couldn't find the host."),
@@ -200,6 +201,11 @@ def parse_args() -> argparse.Namespace:
         help="Restrict the active view to the last N entries after other scope filters are applied.",
     )
     parser.add_argument(
+        "--session",
+        type=int,
+        help="Restrict the active view to a single detected session by number (see --sessions).",
+    )
+    parser.add_argument(
         "--top",
         type=int,
         default=8,
@@ -230,6 +236,17 @@ def parse_args() -> argparse.Namespace:
         "--sessions",
         action="store_true",
         help="Detect and list app sessions (launch boundaries) with problem counts.",
+    )
+    parser.add_argument(
+        "--call-sites",
+        dest="call_sites",
+        action="store_true",
+        help="Print a histogram of selected entries grouped by source file:line and function.",
+    )
+    parser.add_argument(
+        "--oneline",
+        action="store_true",
+        help="Print each selected entry as one dense line instead of the multi-line format.",
     )
     return parser.parse_args()
 
@@ -337,6 +354,8 @@ def matches_text(value: str, needle: str | None) -> bool:
 
 def scope_description(args: argparse.Namespace) -> str | None:
     parts: list[str] = []
+    if args.session is not None:
+        parts.append(f"session {args.session}")
     if args.after is not None:
         parts.append(f"after {args.after}")
     if args.before is not None:
@@ -350,6 +369,22 @@ def scope_description(args: argparse.Namespace) -> str | None:
 
 def apply_scope(entries: list[Entry], args: argparse.Namespace) -> list[Entry]:
     scoped_entries = entries
+
+    if args.session is not None and scoped_entries:
+        sessions = detect_sessions(scoped_entries)
+        match = next((s for s in sessions if s["number"] == args.session), None)
+        if match is None:
+            print(
+                f"error: session {args.session} not found "
+                f"({len(sessions)} sessions detected; run --sessions to list them)",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        scoped_entries = [
+            entry
+            for entry in scoped_entries
+            if match["start_ms"] <= entry.timestamp_ms <= match["end_ms"]
+        ]
 
     if args.after is not None and scoped_entries:
         cutoff_ms = parse_time_arg(args.after)
@@ -408,6 +443,7 @@ def selection_constraints(args: argparse.Namespace) -> dict[str, Any]:
         "before",
         "last_hours",
         "tail",
+        "session",
         "coalesce_window_ms",
     ]:
         value = getattr(args, key)
@@ -672,6 +708,19 @@ def report_to_dict(report: Report, args: argparse.Namespace) -> dict[str, Any]:
     active_subsystems = Counter(entry.subsystem for entry in report.active_entries)
     selected_levels = Counter(entry.level_name for entry in report.selection_entries)
 
+    selection: dict[str, Any] = {
+        "constraints": selection_constraints(args),
+        "entry_count": len(report.selection_entries),
+        "burst_count": len(report.selection_bursts),
+        "range": range_summary(report.selection_entries),
+        "levels": counter_to_dict(selected_levels),
+        "bursts": [
+            serialize_burst(burst) for burst in report.selection_bursts[: args.limit]
+        ],
+    }
+    if args.call_sites:
+        selection["call_sites"] = serialize_call_sites(report.selection_entries, args.limit)
+
     return {
         "file": str(report.path),
         "parsed_entries": len(report.file_entries),
@@ -688,16 +737,7 @@ def report_to_dict(report: Report, args: argparse.Namespace) -> dict[str, Any]:
         "active_sources": counter_to_dict(active_sources),
         "active_subsystems": counter_to_dict(active_subsystems, limit=8),
         "top_issues": [serialize_issue_group(group) for group in report.issue_groups[: args.top]],
-        "selection": {
-            "constraints": selection_constraints(args),
-            "entry_count": len(report.selection_entries),
-            "burst_count": len(report.selection_bursts),
-            "range": range_summary(report.selection_entries),
-            "levels": counter_to_dict(selected_levels),
-            "bursts": [
-                serialize_burst(burst) for burst in report.selection_bursts[: args.limit]
-            ],
-        },
+        "selection": selection,
     }
 
 
@@ -757,10 +797,26 @@ def print_issue_groups(issue_groups: list[IssueGroup], top: int) -> None:
         print(indent_block(entry.message))
 
 
-def print_bursts(bursts: list[EntryBurst], limit: int) -> None:
+def print_bursts(bursts: list[EntryBurst], limit: int, oneline: bool = False) -> None:
     print(f"Entries (showing up to {limit}):")
     if not bursts:
         print("  none")
+        return
+
+    if oneline:
+        for burst in bursts[:limit]:
+            entry = burst.first_entry
+            abbr = LEVEL_ABBR.get(entry.level_name, "?")
+            message_lines = entry.message.splitlines() or [""]
+            message = message_lines[0]
+            if len(message_lines) > 1:
+                message += " …"
+            if len(message) > 110:
+                message = f"{message[:109]}…"
+            origin = f"{entry.file}:{entry.line}" if entry.file else "<unknown>"
+            clock = format_timestamp(entry.timestamp_ms).split(" ")[1]
+            suffix = f" ({burst.count}x burst)" if burst.count > 1 else ""
+            print(f"  {clock} {abbr} {origin} {entry.function}  {message}{suffix}")
         return
 
     for burst in bursts[:limit]:
@@ -793,6 +849,33 @@ def print_bursts(bursts: list[EntryBurst], limit: int) -> None:
                 f"{annotation['domain']} {annotation['code']} "
                 f"({annotation['name']}) - {annotation['description']}"
             )
+
+
+def call_site_histogram(entries: list[Entry]) -> Counter[tuple[str, int, str]]:
+    histogram: Counter[tuple[str, int, str]] = Counter()
+    for entry in entries:
+        histogram[(entry.file, entry.line, entry.function)] += 1
+    return histogram
+
+
+def serialize_call_sites(entries: list[Entry], limit: int) -> list[dict[str, Any]]:
+    histogram = call_site_histogram(entries)
+    return [
+        {"file": file, "line": line, "function": function, "count": count}
+        for (file, line, function), count in histogram.most_common(limit)
+    ]
+
+
+def print_call_sites(entries: list[Entry], limit: int) -> None:
+    histogram = call_site_histogram(entries)
+    print(f"Call sites: {len(histogram)} distinct (showing up to {limit})")
+    if not histogram:
+        print("  none")
+        return
+
+    for (file, line, function), count in histogram.most_common(limit):
+        origin = f"{file}:{line}" if file else "<unknown>"
+        print(f"  {count:6d}  {origin}  {function}")
 
 
 def compare_counter_maps(left: Counter[str], right: Counter[str], limit: int = 8) -> list[dict[str, Any]]:
@@ -896,6 +979,10 @@ def print_report(report: Report, args: argparse.Namespace) -> None:
 
     print_issue_groups(report.issue_groups, args.top)
 
+    if args.call_sites:
+        print()
+        print_call_sites(report.selection_entries, args.limit)
+
     should_show_selection = report.scope_applied or report.filters_applied
     if should_show_selection:
         print()
@@ -910,7 +997,7 @@ def print_report(report: Report, args: argparse.Namespace) -> None:
             "Matching levels: "
             f"{format_counter(Counter(entry.level_name for entry in report.selection_entries))}"
         )
-        print_bursts(report.selection_bursts, args.limit)
+        print_bursts(report.selection_bursts, args.limit, oneline=args.oneline)
 
 
 def print_comparison(left: Report, right: Report, args: argparse.Namespace) -> None:
@@ -1033,7 +1120,7 @@ def main() -> int:
         return 1
 
     if args.sessions:
-        file_entries, parse_errors = load_entries(path)
+        file_entries, _ = load_entries(path)
         if not file_entries:
             print("No entries found.")
             return 0
