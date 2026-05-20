@@ -134,6 +134,22 @@ struct RecommendationEngine: Sendable {
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
   }
 
+  // Same scoring as `recommendations(for:)`, reduced to display values only.
+  // The engine is non-isolated, so a caller `await`ing this gets the whole
+  // map built off its own actor — a candidate-set-sized result no longer
+  // lands as a remarshal loop on the caller's (often main) actor.
+  func recommendationScores(
+    for candidates: [CandidateEpisode]
+  ) async throws -> [Episode.ID: Float] {
+    guard !candidates.isEmpty else { return [:] }
+    guard let context = cache() else { return [:] }
+    let scores = try await scoreEpisodes(candidates, context: context)
+    let displayMax = observedMaxScore()
+    return scores.mapValues {
+      RecommendationScore.rescaledForDisplay(value: $0.value, max: displayMax)
+    }
+  }
+
   // Returns nil if the episode doesn't exist, has no embedding, or the
   // cache is cold.
   func recommendation(for episodeID: Episode.ID) async throws -> RecommendationScore? {

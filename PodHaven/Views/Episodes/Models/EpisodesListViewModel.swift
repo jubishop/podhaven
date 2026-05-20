@@ -175,11 +175,7 @@ class EpisodesListViewModel:
         try Task.checkCancellation()
 
         lastObservedCandidates = candidates
-        if lastScoredCandidates != candidates {
-          lastScoredCandidates = candidates
-          kickRecommendationFetch(candidates: candidates)
-        }
-
+        kickRecommendationFetch(candidates: candidates)
         kickRecommendationHydration()
       }
     } catch is CancellationError {
@@ -349,9 +345,22 @@ class EpisodesListViewModel:
     case loaded([Episode.ID: Float])
   }
 
+  // A scoring pass is fully determined by the candidate set and the engine's
+  // contextRevision. Recording the last successfully-scored pair lets a
+  // duplicate kick — a tab switch back to the list, a re-emission of an
+  // unchanged candidate set — skip rescanning the whole library.
+  private struct ScoredInputsKey: Equatable {
+    let candidates: [CandidateEpisode]
+    let contextRevision: Int
+  }
+
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
-  @ObservationIgnored private var lastScoredCandidates: [CandidateEpisode]?
+  @ObservationIgnored private var lastScoredKey: ScoredInputsKey?
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
+  @ObservationIgnored private var recommendationFetchGeneration = 0
+  @ObservationIgnored private let recommendationFetchDebounce = Debounce(
+    duration: .milliseconds(400)
+  )
 
   private func kickRecommendationFetch(candidates observedCandidates: [CandidateEpisode]?) {
     // The candidate observation is the sole source of truth for which episodes
@@ -360,17 +369,43 @@ class EpisodesListViewModel:
     // the imminent first candidate emission will call us back with fresh data.
     guard let candidates = observedCandidates else { return }
 
-    recommendationFetchTask?.cancel()
+    let key = ScoredInputsKey(
+      candidates: candidates,
+      contextRevision: recommendationEngine.contextRevision
+    )
+    // Same candidates and same scoring context as the last completed pass —
+    // the cached scores still hold, so don't rescan the library.
+    guard key != lastScoredKey else { return }
+
+    // A pass is already running, most likely a feed-refresh write storm
+    // walking the candidate set. Coalesce into a single trailing pass once
+    // the writes settle instead of restarting a full scan on every emission.
+    guard recommendationFetchTask == nil else {
+      recommendationFetchDebounce { [weak self] in
+        await self?.kickRecommendationFetch(candidates: candidates)
+      }
+      return
+    }
+
+    recommendationFetchGeneration += 1
+    let generation = recommendationFetchGeneration
     recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
+      // Release the in-flight slot only if a newer pass hasn't claimed it, so
+      // the leading-edge check above sees an idle slot once this one ends.
+      defer {
+        if self.recommendationFetchGeneration == generation {
+          self.recommendationFetchTask = nil
+        }
+      }
       guard !Task.isCancelled else { return }
 
-      let scoreMap: [Episode.ID: RecommendationScore]
+      let values: [Episode.ID: Float]
       if candidates.isEmpty {
-        scoreMap = [:]
+        values = [:]
       } else {
         do {
-          scoreMap = try await self.recommendationEngine.recommendations(for: candidates)
+          values = try await self.recommendationEngine.recommendationScores(for: candidates)
         } catch is CancellationError {
           return
         } catch {
@@ -385,10 +420,8 @@ class EpisodesListViewModel:
 
       guard !Task.isCancelled else { return }
 
-      var values = [Episode.ID: Float](capacity: scoreMap.count)
-      for (id, score) in scoreMap { values[id] = score.value }
       self.recommendationScoresState = .loaded(values)
-      self.lastScoredCandidates = candidates
+      self.lastScoredKey = key
       Self.log.debug(
         "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
       )
@@ -432,8 +465,10 @@ class EpisodesListViewModel:
   private func cancelRecommendationFetch() {
     recommendationFetchTask?.cancel()
     recommendationFetchTask = nil
+    recommendationFetchDebounce.cancel()
     lastObservedCandidates = nil
-    lastScoredCandidates = nil
+    // lastScoredKey is deliberately kept: a completed score survives a tab
+    // switch so re-appearing with unchanged inputs skips a redundant rescan.
   }
 
   private func cancelRecommendationHydration() {
