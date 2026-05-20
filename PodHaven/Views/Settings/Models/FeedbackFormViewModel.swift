@@ -3,11 +3,24 @@
 import FactoryKit
 import Foundation
 import PhotosUI
+import Sentry
 import SwiftUI
+import UIKit
+
+extension Container {
+  var captureSentryFeedback: Factory<(SentryFeedback) -> Void> {
+    Factory(self) {
+      { feedback in
+        SentrySDK.capture(feedback: feedback)
+      }
+    }
+    .scope(.cached)
+  }
+}
 
 @Observable @MainActor class FeedbackFormViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
-  @ObservationIgnored @DynamicInjected(\.feedbackSender) private var feedbackSender
+  @ObservationIgnored @DynamicInjected(\.captureSentryFeedback) private var captureSentryFeedback
 
   var message = ""
   var name = ""
@@ -39,12 +52,25 @@ import SwiftUI
   }
 
   func sendFeedback() {
-    feedbackSender.send(
-      FeedbackReport(
+    var attachments: [Attachment] = [
+      Attachment(path: AppInfo.logFileURL.path, filename: "log.ndjson"),
+      Attachment(path: WidgetInfo.logFileURL.path, filename: "widget-log.ndjson"),
+    ]
+    if let data = screenshotData.current,
+      let pngData = UIImage(data: data)?.pngData()
+    {
+      attachments.append(
+        Attachment(data: pngData, filename: "screenshot.png", contentType: "image/png")
+      )
+    }
+
+    captureSentryFeedback(
+      SentryFeedback(
         message: message,
         name: name.isEmpty ? nil : name,
         email: email.isEmpty ? nil : email,
-        screenshotData: screenshotData.current
+        source: .custom,
+        attachments: attachments
       )
     )
     alert(title: "Feedback Sent", "Thanks for sending feedback.")
