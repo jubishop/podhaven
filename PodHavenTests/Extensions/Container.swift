@@ -73,6 +73,9 @@ extension Container: @retroactive AutoRegistering {
 
     fileManager.context(.test) { FakeFileManager() }.scope(.cached)
 
+    captureSentryFeedback.context(.test) { self.fakeSentryFeedbackCapture().capture }
+      .scope(.cached)
+
     controlCenter.context(.test) { FakeControlCenter() }.scope(.cached)
 
     widgetCenter.context(.test) { FakeWidgetCenter() }.scope(.cached)
