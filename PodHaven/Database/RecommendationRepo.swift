@@ -321,10 +321,6 @@ struct RecommendationRepo: Recommending {
   // MARK: - Embedding Writers
 
   // Batch upsert: one transaction per chunk instead of one per episode.
-  // A podcast delete cascades to its episodes; an embedding computed for an
-  // episode deleted mid-flight references a row that is already gone. SQLite
-  // aborts only that statement on the foreign-key violation, so swallow it and
-  // keep the rest of the batch instead of failing the whole write.
   func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {
     guard !unsaved.isEmpty else { return }
     try await appDB.db.write { db in
@@ -342,8 +338,6 @@ struct RecommendationRepo: Recommending {
     }
   }
 
-  // Same mid-flight delete race as upsertEmbeddings: a deleted podcast leaves
-  // an orphaned podcastEmbedding insert that SQLite aborts on its own.
   func upsertPodcastEmbeddings(_ unsaved: [UnsavedPodcastEmbedding]) async throws {
     guard !unsaved.isEmpty else { return }
     try await appDB.db.write { db in
