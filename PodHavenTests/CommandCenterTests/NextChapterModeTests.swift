@@ -33,8 +33,8 @@ import Testing
 
   // MARK: - Next Chapter Mode
 
-  @Test("nextChapter mode keeps next and previous track always enabled")
-  func nextChapterModeKeepsNextAndPreviousTrackAlwaysEnabled() async throws {
+  @Test("nextChapter mode enables next and previous track with OnDeck")
+  func nextChapterModeEnablesNextAndPreviousTrackWithOnDeck() async throws {
     userSettings.$nextTrackBehavior.new(.nextChapter)
 
     await playManager.start()

@@ -21,10 +21,19 @@ struct FileLogHandler: LogHandler {
     private static let log = Log.as("FileLogWriter")
     private static let fallbackLog = os.Logger(subsystem: "PodHaven", category: "FileLogWriter")
 
+    // Per-call-site rate limit. A runaway log site (e.g. a tight observation
+    // loop) can otherwise fill the whole rolling buffer in seconds, evicting
+    // the history that explains how the runaway began. Each call site gets a
+    // token bucket; once it is spent, further entries are dropped and counted,
+    // and the next entry that gets through is preceded by a one-line summary.
+    private static let rateLimitBurst = 50.0
+    private static let rateLimitTokensPerSecond = 1.0
+
     let fileURL: URL
     let maxFileSizeBytes: Int
     let targetFileSizeBytes: Int
     private let queue: DispatchQueue
+    private let rateLimitBuckets = ThreadSafe<[RateKey: RateBucket]>([:])
 
     init(fileURL: URL, maxFileSizeBytes: Int, targetFileSizeBytes: Int) {
       self.fileURL = fileURL
@@ -64,7 +73,14 @@ struct FileLogHandler: LogHandler {
 
     // Must be called on `queue`.
     private func writeEntry(_ entry: Entry) -> WriteResult {
+      guard case .write(let suppressed) = rateLimitDecision(for: entry) else { return .ok }
       do {
+        // The real entry is always appended right after, and appendEntry
+        // returns the post-write file size — so the single truncation check
+        // below already accounts for this summary line's bytes too.
+        if suppressed > 0 {
+          try appendEntry(suppressionSummary(for: entry, suppressed: suppressed))
+        }
         let currentSize = try appendEntry(entry)
         if currentSize > UInt64(maxFileSizeBytes) {
           if let truncation = try truncateIfNeeded() {
@@ -93,6 +109,7 @@ struct FileLogHandler: LogHandler {
       }
     }
 
+    @discardableResult
     private func appendEntry(_ entry: Entry) throws -> UInt64 {
       var data = try JSONEncoder().encode(entry)
       data.append(0x0A)
@@ -123,6 +140,70 @@ struct FileLogHandler: LogHandler {
       try truncated.write(to: fileURL, options: .atomic)
 
       return (originalSize: data.count, newSize: truncated.count)
+    }
+
+    // MARK: - Rate Limiting
+
+    private struct RateKey: Hashable {
+      let file: String
+      let line: UInt
+    }
+
+    private struct RateBucket {
+      var tokens: Double
+      var lastRefillMs: Int64
+      var suppressedCount: Int
+    }
+
+    private enum RateLimitDecision {
+      case write(suppressed: Int)
+      case drop
+    }
+
+    // Must be called on `queue`.
+    private func rateLimitDecision(for entry: Entry) -> RateLimitDecision {
+      let key = RateKey(file: entry.file, line: entry.line)
+      let now = entry.timestamp
+      return rateLimitBuckets { buckets in
+        var bucket =
+          buckets[key]
+          ?? RateBucket(tokens: Self.rateLimitBurst, lastRefillMs: now, suppressedCount: 0)
+        let elapsedMs = max(0, now - bucket.lastRefillMs)
+        bucket.tokens = min(
+          Self.rateLimitBurst,
+          bucket.tokens + Double(elapsedMs) / 1000 * Self.rateLimitTokensPerSecond
+        )
+        bucket.lastRefillMs = now
+
+        let decision: RateLimitDecision
+        if bucket.tokens >= 1 {
+          bucket.tokens -= 1
+          decision = .write(suppressed: bucket.suppressedCount)
+          bucket.suppressedCount = 0
+        } else {
+          bucket.suppressedCount += 1
+          decision = .drop
+        }
+        buckets[key] = bucket
+        return decision
+      }
+    }
+
+    private func suppressionSummary(for entry: Entry, suppressed: Int) -> Entry {
+      Entry(
+        level: Logging.Logger.Level.info.intValue,
+        levelName: Logging.Logger.Level.info.rawValue,
+        timestamp: entry.timestamp,
+        subsystem: entry.subsystem,
+        category: entry.category,
+        message:
+          "FileLogHandler rate limit — dropped \(suppressed) repeated entries from this log site",
+        metadata: nil,
+        source: entry.source,
+        file: entry.file,
+        function: entry.function,
+        line: entry.line
+      )
     }
   }
 

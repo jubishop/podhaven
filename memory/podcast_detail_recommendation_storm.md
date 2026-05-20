@@ -1,10 +1,18 @@
 ---
 name: PodcastDetail recommendation-score fan-out OOM
-description: Post-landing verification procedure for issue #274's recommendation-scoring fan-out fix. Read before validating a PR for #274.
+description: PodcastDetail observation storm. #274 shipped only the scoring-fan-out fix; the observation storm itself (plan item #4) was never shipped and recurred on build 498 — now tracked in #293. Includes the verification procedure for the #4 PR.
 type: project
 ---
 
 # PodcastDetail Recommendation-Score Fan-Out — Verification
+
+## Status (2026-05-19)
+
+#274 shipped only plan items `#1`–`#3` (the scoring coalescer — commit `0cc82c8c` / PR #275) and was closed; plan item `#4`, the observation storm itself, was deferred and **never shipped**.
+
+The storm then **recurred on build 498** (TestFlight, commit `967ddf79`), which already contains the #274 fix. Two user feedbacks 35 s apart — Sentry `podhaven:7493496709` and `podhaven:7493497368` — carry the same log signature this page describes (~2,200 / ~2,200 / 3). That is the Decision Rule's "log counts still high → `#4` required" branch.
+
+`#4` is now tracked in **#293**, diagnose-first: the root cause still has a genuine open question (6,833 `ValueObservation` emissions vs only 2 logged DB writes in the same 12.8 s window), so `currentTime`-decoupling is a hypothesis, not a confirmed fix. The verification procedure below still applies to the eventual `#4` PR.
 
 Verification procedure for issue #274. Diagnosis, fix plan, reproducer, and source-feedback metadata all live on the issue; this page is the operational checklist for confirming the fix worked after the PR lands.
 
@@ -119,3 +127,4 @@ This is lower-friction than Instruments and works whether or not the storm fires
 ## Related
 
 - [[recommendation_sort_prewarming]] — intentional prewarming behaviour the fix must preserve.
+- [[device_debug_builds_break_background_scheduling]] — why this page's verification splits "Simulator, scripted" from "on-device": there are no debug builds on the physical device.

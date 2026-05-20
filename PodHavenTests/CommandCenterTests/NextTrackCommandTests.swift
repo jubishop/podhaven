@@ -272,6 +272,41 @@ import Testing
 
   // MARK: - Next Episode Previous Track
 
+  @Test("previousTrackCommand is disabled without OnDeck")
+  func previousTrackCommandIsDisabledWithoutOnDeck() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
+
+    await playManager.start()
+
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.previousTrack.isEnabled == false },
+      { "Expected previousTrack to be disabled without OnDeck" }
+    )
+  }
+
+  @Test("previousTrackCommand disables after OnDeck clears")
+  func previousTrackCommandDisablesAfterOnDeckClears() async throws {
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
+
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.previousTrack.isEnabled == true },
+      { "Expected previousTrack to be enabled with OnDeck" }
+    )
+
+    await playManager.stop()
+
+    try await PlayHelpers.waitForOnDeck(nil)
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.previousTrack.isEnabled == false },
+      { "Expected previousTrack to be disabled after OnDeck clears" }
+    )
+  }
+
   @Test("nextEpisode mode previousTrack is enabled")
   func nextEpisodeModePreviousTrackIsEnabled() async throws {
     userSettings.$nextTrackBehavior.new(.nextEpisode)

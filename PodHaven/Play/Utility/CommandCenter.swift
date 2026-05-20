@@ -152,11 +152,20 @@ enum CommandCenter: Sendable {
 
   static func updateNextTrack() {
     let commandCenter = Container.shared.mpRemoteCommandCenter()
-    commandCenter.previousTrack.isEnabled = true
+    let sharedState = Container.shared.sharedState()
+    let onDeckID = sharedState.onDeck?.id
+    let previousTrackEnabled = onDeckID != nil
+    commandCenter.previousTrack.isEnabled = previousTrackEnabled
+    log.debug(
+      """
+      updateNextTrack: previousTrack enabled: \(previousTrackEnabled) \
+      (onDeckID: \(String(describing: onDeckID)))
+      """
+    )
 
     switch Container.shared.userSettings().nextTrackBehavior {
     case .nextEpisode:
-      let queueCount = Container.shared.sharedState().queueCount
+      let queueCount = sharedState.queueCount
       let enabled = queueCount > 0
       log.debug("updateNextTrack: nextEpisode, enabled: \(enabled) (queueCount: \(queueCount))")
       commandCenter.nextTrack.isEnabled = enabled

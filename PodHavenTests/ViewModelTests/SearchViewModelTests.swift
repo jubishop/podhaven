@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -223,6 +224,43 @@ import Testing
     let bridged = try #require(viewModel.searchResults[id: searchFeedURL])
     let resolved = try await bridged.podcast.getOrCreatePodcast()
     #expect(resolved.id == savedSeries.podcast.id)
+  }
+
+  @Test("disappear clears stuck .loading state when a search is cancelled in flight")
+  func disappearClearsStuckLoadingState() async throws {
+    let topFeed = PreviewBundle.loadAsset(named: "top_feed", in: .iTunesResults)
+    let topLookup = PreviewBundle.loadAsset(named: "top_lookup", in: .iTunesResults)
+    let searchHang = AsyncSemaphore(value: 0)
+
+    await session.setDefaultHandler { url in
+      if url.path.contains("/rss/toppodcasts") {
+        return (topFeed, URL.response(url))
+      }
+      if url.path.contains("/lookup") {
+        return (topLookup, URL.response(url))
+      }
+      if url.path.contains("/search") {
+        try await searchHang.waitUnlessCancelled()
+        return (url.dataRepresentation, URL.response(url))
+      }
+      return (url.dataRepresentation, URL.response(url))
+    }
+
+    let viewModel = SearchViewModel()
+    viewModel.searchText = "growth"
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: .milliseconds(400))
+
+    try await Wait.until(
+      { @MainActor in viewModel.searchState == .loading },
+      { @MainActor in
+        "Expected search to enter .loading state, was \(viewModel.searchState)"
+      }
+    )
+
+    viewModel.disappear()
+
+    #expect(viewModel.searchState != .loading)
   }
 
   private func configureITunesResponses() async {

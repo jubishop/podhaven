@@ -11,10 +11,74 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
+  // One-shot suspend for the next matching `embeddings(for:)` call so tests
+  // can interleave state changes with an in-flight scoring pass.
+  //
+  // `pendingRelease` closes a TOCTOU window: the gated call's `shouldGate`
+  // decision and its `pendingContinuation` installation happen in two
+  // separate locked regions, so a `releaseEmbeddingsGate()` arriving in
+  // between would otherwise see a nil continuation and the gated call
+  // would suspend forever. With `pendingRelease`, an early release is
+  // recorded under lock and the next suspend resumes immediately.
+  struct EmbeddingsGateState: Sendable {
+    var armedTarget: Set<Episode.ID>?
+    var pendingContinuation: CheckedContinuation<Void, Never>?
+    var pendingRelease: Bool = false
+    var didSuspend: Bool = false
+    var didComplete: Bool = false
+  }
+  let embeddingsGateState = ThreadSafe<EmbeddingsGateState>(EmbeddingsGateState())
+
   private let recommendationRepo: RecommendationRepo
 
   init(_ recommendationRepo: RecommendationRepo) {
     self.recommendationRepo = recommendationRepo
+  }
+
+  // MARK: - Embeddings Gate (test-facing)
+
+  func armEmbeddingsGate(matching ids: Set<Episode.ID>) {
+    // Resume any continuation left over from a previous arm so a re-arm
+    // doesn't leak the prior suspended call. The previous gated task would
+    // otherwise wedge forever once `pendingContinuation` is overwritten by
+    // the next gated invocation.
+    let stale = embeddingsGateState { state -> CheckedContinuation<Void, Never>? in
+      let pending = state.pendingContinuation
+      state.pendingContinuation = nil
+      state.pendingRelease = false
+      state.armedTarget = ids
+      state.didSuspend = false
+      state.didComplete = false
+      return pending
+    }
+    stale?.resume()
+  }
+
+  func releaseEmbeddingsGate() {
+    let continuation = embeddingsGateState { state -> CheckedContinuation<Void, Never>? in
+      if let pending = state.pendingContinuation {
+        state.pendingContinuation = nil
+        return pending
+      }
+      // Race with an in-flight gated call that's decided to suspend but
+      // hasn't yet installed its continuation. Record the release so the
+      // upcoming suspend resumes immediately.
+      state.pendingRelease = true
+      return nil
+    }
+    continuation?.resume()
+  }
+
+  var isEmbeddingsGateSuspended: Bool {
+    embeddingsGateState { state in
+      state.didSuspend && state.pendingContinuation != nil
+    }
+  }
+
+  var didEmbeddingsGateComplete: Bool {
+    embeddingsGateState { state in
+      state.didComplete
+    }
   }
 
   // MARK: - Recommending
@@ -91,7 +155,35 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
   {
     recordCall(methodName: "embeddings", parameters: episodeIDs)
-    return try await recommendationRepo.embeddings(for: episodeIDs)
+    let shouldGate: Bool = embeddingsGateState { state -> Bool in
+      guard let target = state.armedTarget, Set(episodeIDs) == target else { return false }
+      state.armedTarget = nil
+      return true
+    }
+    if shouldGate {
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        let resumeImmediately = embeddingsGateState { state -> Bool in
+          if state.pendingRelease {
+            state.pendingRelease = false
+            state.didSuspend = true
+            return true
+          }
+          state.pendingContinuation = continuation
+          state.didSuspend = true
+          return false
+        }
+        if resumeImmediately {
+          continuation.resume()
+        }
+      }
+    }
+    let embeddings = try await recommendationRepo.embeddings(for: episodeIDs)
+    if shouldGate {
+      embeddingsGateState { state in
+        state.didComplete = true
+      }
+    }
+    return embeddings
   }
 
   func podcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding? {
