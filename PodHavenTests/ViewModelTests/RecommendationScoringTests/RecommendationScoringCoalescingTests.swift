@@ -63,7 +63,9 @@ import Testing
         "Expected at least one initial scoring pass before the burst."
       }
     )
-    await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+    // Quiesce setup-driven rebuilds: a late $contextRevision bump landing
+    // during the burst's pass would add an uncounted-for rerun.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
     fakeRecommendationRepo.clearAllCalls()
 
     let pendingSleepRequests = fakeSleeper.pendingCount()
@@ -88,6 +90,76 @@ import Testing
       $contextRevision bumps. The contract is exactly one trailing pass per \
       debounce window, plus at most one runningDirty rerun.
       """
+    )
+  }
+
+  @Test(
+    "a $contextRevision bump landing while a scoring pass is suspended must rerun once the pass releases, not be lost to the debounce re-trigger"
+  )
+  func contextRevisionBumpDuringSuspendedPassReruns() async throws {
+    let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
+    try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
+
+    let (targetPodcast, candidateEpisodes) =
+      try await RecommendationHelpers
+      .createPodcastWithEpisodes(
+        count: 4,
+        podcastTitle: "Target",
+        podcastDescription: "Target",
+        episodeDescriptions: (0..<4).map { "Target \($0)" }
+      )
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
+    try await viewModel.performAppear()
+
+    let targetIDs = Set(candidateEpisodes.map(\.id))
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.saved && viewModel.episodeList.allEntries.count == candidateEpisodes.count
+      },
+      { @MainActor in
+        "Expected target podcast loaded with \(candidateEpisodes.count) episodes."
+      }
+    )
+
+    // Quiesce every rebuild the setup writes triggered. Otherwise a late
+    // $contextRevision bump could reschedule the stranded pass and mask the
+    // regression: the bug is that the bump-driven rerun is lost on its own.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+    let fakeRepo = fakeRecommendationRepo
+    fakeRepo.clearAllCalls()
+
+    // Bump #1 drives a scoring pass that suspends mid-flight on the gated
+    // embeddings read.
+    fakeRepo.armEmbeddingsGate(matching: targetIDs)
+    recommendationEngine.$contextRevision.update { $0 += 1 }
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { fakeRepo.isEmbeddingsGateSuspended },
+      { "Expected the first scoring pass to suspend on the gated embeddings read." }
+    )
+
+    // Bump #2 lands while that pass is still suspended. Wait for its debounce
+    // window to arm, then fire it — re-triggering the debounce against the
+    // still-in-flight pass. The pass must survive that re-trigger and rerun
+    // for the newer revision once released.
+    let pendingBeforeBump2 = fakeSleeper.pendingCount()
+    recommendationEngine.$contextRevision.update { $0 += 1 }
+    try await fakeSleeper.waitForSleepRequests(count: pendingBeforeBump2 + 1)
+    await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+
+    fakeRepo.releaseEmbeddingsGate()
+
+    try await RecommendationScoringTestHelpers.waitForScopedEmbeddingsCalls(
+      matching: targetIDs,
+      atLeast: 2,
+      reason: """
+        A $contextRevision bump that arrived while a scoring pass was \
+        suspended was dropped: the pass never reran for the newer revision.
+        """
     )
   }
 
