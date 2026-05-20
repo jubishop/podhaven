@@ -1,18 +1,8 @@
 // Copyright Justin Bishop, 2026
 
-import FactoryKit
 import Foundation
 import Logging
 import os
-
-extension Container {
-  fileprivate var fileLogWriter: ParameterFactory<(URL, Int, Int), FileLogHandler.Writer> {
-    ParameterFactory(self) {
-      FileLogHandler.Writer(fileURL: $0.0, maxFileSizeBytes: $0.1, targetFileSizeBytes: $0.2)
-    }
-    .scope(.cached)
-  }
-}
 
 struct FileLogHandler: LogHandler {
   // MARK: - Writer
@@ -330,7 +320,10 @@ struct FileLogHandler: LogHandler {
 
   // MARK: - State
 
-  private static let writer = ThreadSafe<Writer?>(nil)
+  // FileLogHandler is rebuilt for every logger label, but all instances for a
+  // given file must share one Writer — one serial queue, one file handle, one
+  // rate-limit state. Writers are deduplicated by file URL here.
+  private static let writers = ThreadSafe<[URL: Writer]>([:])
   private let subsystem: String
   private let category: String
   private let writer: Writer
@@ -350,9 +343,16 @@ struct FileLogHandler: LogHandler {
     self.category = category
     self.writeSynchronously = writeSynchronously
 
-    let writer = Container.shared.fileLogWriter((fileURL, maxFileSizeBytes, targetFileSizeBytes))
-    Self.writer(writer)
-    self.writer = writer
+    self.writer = Self.writers { writers in
+      if let existing = writers[fileURL] { return existing }
+      let writer = Writer(
+        fileURL: fileURL,
+        maxFileSizeBytes: maxFileSizeBytes,
+        targetFileSizeBytes: targetFileSizeBytes
+      )
+      writers[fileURL] = writer
+      return writer
+    }
   }
 
   // MARK: - Logging
@@ -386,6 +386,8 @@ struct FileLogHandler: LogHandler {
   // MARK: - Flush
 
   static func flush() {
-    writer()?.flush()
+    for writer in writers().values {
+      writer.flush()
+    }
   }
 }

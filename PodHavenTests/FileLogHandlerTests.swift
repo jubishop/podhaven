@@ -1,14 +1,12 @@
 // Copyright Justin Bishop, 2026
 
-import FactoryKit
-import FactoryTesting
 import Foundation
 import Logging
 import Testing
 
 @testable import PodHaven
 
-@Suite("of FileLogHandler tests", .container)
+@Suite("of FileLogHandler tests")
 struct FileLogHandlerTests {
   private struct DecodedEntry: Decodable {
     let message: String
