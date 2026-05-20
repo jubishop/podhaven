@@ -687,4 +687,128 @@ import Testing
       )
     }
   }
+
+  @Test("a trailing-coalesced rescan scores the latest candidate set, not a stale captured one")
+  func trailingCoalescedRescanScoresLatestCandidates() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0", "Target 1", "Target 2"]
+    )
+    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
+
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
+    // Quiesce setup-driven rebuilds so the only sleeper-gated work left is the
+    // trailing debounce this test orchestrates.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    let fakeRecommendationRepo = try #require(
+      Container.shared.recommendationRepo() as? FakeRecommendationRepo
+    )
+    let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
+    fakeRecommendationRepo.clearAllCalls()
+
+    let allTargetIDs = Set(targets.map(\.id))
+    // The candidate set the trailing debounce captures mid-pass: {Target 0,
+    // Target 1}, after Target 2 leaves the pool but before Target 1 does.
+    let staleCandidateIDs = Set(targets.prefix(2).map(\.id))
+    let latestCandidateIDs = Set([targets[0].id])
+
+    let viewModel = EpisodesListViewModel(
+      title: "RecTrailingCoalesce",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .recommendationScore
+
+    // Strand the first scoring pass mid-flight so candidate-set churn can
+    // interleave with an in-flight pass.
+    fakeRecommendationRepo.armEmbeddingsGate(matching: allTargetIDs)
+
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { fakeRecommendationRepo.isEmbeddingsGateSuspended },
+        { "Expected the first scoring pass to suspend on the gated embeddings read." }
+      )
+
+      // Churn #1 lands while the pass is in flight: Target 2 leaves the
+      // candidate pool, so the kick is coalesced — arming the trailing
+      // debounce with the {Target 0, Target 1} snapshot. Two debounces arm:
+      // the engine's re-rank and the view model's trailing rescan.
+      let pendingBeforeChurn = fakeSleeper.pendingCount()
+      _ = try await repo.markFinished(targets[2].id)
+      try await fakeSleeper.waitForSleepRequests(count: pendingBeforeChurn + 2)
+
+      // Release the stranded pass and let it fully land, freeing the slot.
+      fakeRecommendationRepo.releaseEmbeddingsGate()
+      try await Wait.until(
+        priority: .userInitiated,
+        { fakeRecommendationRepo.didEmbeddingsGateComplete },
+        { "Expected the stranded scoring pass to complete once the gate released." }
+      )
+      for _ in 0..<200 { await Task.yield() }
+
+      // Churn #2 lands with the slot free: Target 1 leaves the pool, so this
+      // kick runs immediately via the direct path and scores {Target 0}. The
+      // trailing debounce still holds the older {Target 0, Target 1} snapshot.
+      _ = try await repo.markFinished(targets[1].id)
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
+            matching: latestCandidateIDs
+          ) >= 1
+        },
+        { "Expected the direct-path rescan to score the latest {Target 0} candidate set." }
+      )
+      for _ in 0..<200 { await Task.yield() }
+
+      // Fire the trailing debounce. It must rescan the latest observed
+      // candidates ({Target 0} — already scored, so the kick is skipped),
+      // never the stale {Target 0, Target 1} snapshot captured when it armed.
+      await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+      for _ in 0..<200 { await Task.yield() }
+
+      let staleRescans = RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
+        matching: staleCandidateIDs
+      )
+      #expect(
+        staleRescans == 0,
+        """
+        The trailing-coalesced rescan scored a stale candidate snapshot: \
+        \(staleRescans) embeddings(for:) call(s) for {Target 0, Target 1} after \
+        the candidate set had already moved on to {Target 0}. The debounce must \
+        rescan the latest observed candidates, not the set captured when it armed.
+        """
+      )
+    }
+  }
 }

@@ -373,9 +373,14 @@ class EpisodesListViewModel:
     guard key != lastScoredKey else { return }
 
     // A pass is in flight — coalesce further kicks into one trailing pass.
+    // The trailing kick re-reads the latest observed candidates at fire time
+    // instead of capturing this kick's set, so it can't rescan a stale
+    // snapshot after a newer pass already scored fresher candidates — and it
+    // no-ops after disappear, when lastObservedCandidates is nil.
     guard recommendationFetchTask == nil else {
-      recommendationFetchDebounce { [weak self] in
-        await self?.kickRecommendationFetch(candidates: candidates)
+      recommendationFetchDebounce { @MainActor [weak self] in
+        guard let self else { return }
+        self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
       }
       return
     }

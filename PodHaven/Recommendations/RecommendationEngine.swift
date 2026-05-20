@@ -124,23 +124,28 @@ struct RecommendationEngine: Sendable {
     )
   }
 
+  // Scores `candidates` against the current cache, paired with the display
+  // anchor. Returns nil when there's nothing to score or the cache is cold.
+  private func scoredCandidates(
+    _ candidates: [CandidateEpisode]
+  ) async throws -> (scores: [Episode.ID: RecommendationScore], displayMax: Float)? {
+    guard !candidates.isEmpty else { return nil }
+    guard let context = cache() else { return nil }
+    let scores = try await scoreEpisodes(candidates, context: context)
+    return (scores, observedMaxScore())
+  }
+
   func recommendations(
     for candidates: [CandidateEpisode]
   ) async throws -> [Episode.ID: RecommendationScore] {
-    guard !candidates.isEmpty else { return [:] }
-    guard let context = cache() else { return [:] }
-    let scores = try await scoreEpisodes(candidates, context: context)
-    let displayMax = observedMaxScore()
+    guard let (scores, displayMax) = try await scoredCandidates(candidates) else { return [:] }
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
   }
 
   func recommendationScores(
     for candidates: [CandidateEpisode]
   ) async throws -> [Episode.ID: Float] {
-    guard !candidates.isEmpty else { return [:] }
-    guard let context = cache() else { return [:] }
-    let scores = try await scoreEpisodes(candidates, context: context)
-    let displayMax = observedMaxScore()
+    guard let (scores, displayMax) = try await scoredCandidates(candidates) else { return [:] }
     return scores.mapValues {
       RecommendationScore.rescaledForDisplay(value: $0.value, max: displayMax)
     }
