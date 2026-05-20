@@ -11,8 +11,6 @@ struct FileLogHandler: LogHandler {
     private static let log = Log.as("FileLogWriter")
     private static let fallbackLog = os.Logger(subsystem: "PodHaven", category: "FileLogWriter")
 
-    // Window size for the streaming reads in truncateIfNeeded, so the whole
-    // log file is never resident in memory at once.
     private static let truncationWindowBytes = 64 * 1024
 
     // Per-call-site rate limit. A runaway log site (e.g. a tight observation
@@ -29,16 +27,9 @@ struct FileLogHandler: LogHandler {
     private let queue: DispatchQueue
     private let rateLimitBuckets = ThreadSafe<[RateKey: RateBucket]>([:])
 
-    // JSONEncoder is a non-Sendable class, so it cannot be a plain stored
-    // property of this Sendable class. Encoding only ever runs on the serial
-    // `queue`, so the wrapper's lock is redundant but cheap — and reusing one
-    // encoder avoids allocating and configuring a fresh one per log line.
     private let encoder = ThreadSafe(JSONEncoder())
 
-    // A long-lived append handle, opened lazily and reused across log lines so
-    // each entry costs a single write syscall instead of open + seek + close.
-    // truncateIfNeeded() swaps the file in via a fresh inode, so this handle is
-    // closed after every truncation and reopened on the next append.
+    // Reused across writes; closed and reopened around truncation's inode swap.
     private let appendHandle = ThreadSafe<FileHandle?>(nil)
 
     init(fileURL: URL, maxFileSizeBytes: Int, targetFileSizeBytes: Int) {
@@ -160,9 +151,7 @@ struct FileLogHandler: LogHandler {
       }
     }
 
-    // Scans forward in fixed windows so the whole file is never read into
-    // memory at once. Returns the offset just past the first newline at or
-    // after `start`, or nil if there is no newline beyond that point.
+    // Windowed scan so the whole file is never read into memory at once.
     private static func firstNewlineOffset(
       in reader: FileHandle,
       atOrAfter start: Int
@@ -188,13 +177,11 @@ struct FileLogHandler: LogHandler {
       let bytesToRemove = Int(fileSize) - targetFileSizeBytes
       guard bytesToRemove > 0 else { return nil }
 
-      // Truncating mid-line would corrupt the log, so cut at the first whole
-      // newline boundary at or after the computed offset.
+      // Cut on a newline boundary; truncating mid-line would corrupt the log.
       guard let cutOffset = try Self.firstNewlineOffset(in: reader, atOrAfter: bytesToRemove)
       else { return nil }
 
-      // Stream the surviving tail into a sibling temp file, then swap it in
-      // atomically so a crash mid-rewrite can never leave a corrupt log.
+      // Atomic swap so a crash mid-rewrite can't leave a corrupt log.
       let tempURL = fileURL.deletingLastPathComponent()
         .appendingPathComponent("truncate-\(UUID().uuidString)")
       do {
@@ -210,7 +197,7 @@ struct FileLogHandler: LogHandler {
         do {
           try FileManager.default.removeItem(at: tempURL)
         } catch CocoaError.fileNoSuchFile {
-          // Temp file was never created — nothing to clean up.
+          // Temp file was never created.
         } catch {
           Self.fallbackLog.error(
             "Failed to remove truncation temp file: \(error.localizedDescription, privacy: .public)"
@@ -219,9 +206,7 @@ struct FileLogHandler: LogHandler {
         throw error
       }
 
-      // The atomic swap rebinds the path to a new inode; the cached append
-      // handle now points at the orphaned file, so close it and let the next
-      // append reopen against the truncated file.
+      // The swap gave the file a new inode; drop the now-stale append handle.
       closeAppendHandle()
 
       return (originalSize: Int(fileSize), newSize: Int(fileSize - cutOffset))
@@ -320,9 +305,7 @@ struct FileLogHandler: LogHandler {
 
   // MARK: - State
 
-  // FileLogHandler is rebuilt for every logger label, but all instances for a
-  // given file must share one Writer — one serial queue, one file handle, one
-  // rate-limit state. Writers are deduplicated by file URL here.
+  // One handler is built per logger label; all must share one Writer per file.
   private static let writers = ThreadSafe<[URL: Writer]>([:])
   private let subsystem: String
   private let category: String

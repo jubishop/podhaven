@@ -16,19 +16,26 @@ struct FileLogHandlerTests {
   private func makeHandler(
     fileURL: URL,
     maxFileSizeBytes: Int,
-    targetFileSizeBytes: Int
+    targetFileSizeBytes: Int,
+    synchronous: Bool = true
   ) -> FileLogHandler {
     FileLogHandler(
       label: "PodHaven/FileLogTest",
       fileURL: fileURL,
       maxFileSizeBytes: maxFileSizeBytes,
       targetFileSizeBytes: targetFileSizeBytes,
-      writeSynchronously: { _ in true }
+      writeSynchronously: { _ in synchronous }
     )
   }
 
-  // A unique `line` per entry hands each call site its own rate-limit bucket,
-  // so every entry is written and the file contents stay deterministic.
+  private func tempFileURL() -> URL {
+    FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("ndjson")
+  }
+
+  // A unique `line` per entry gives each its own rate-limit bucket, so the
+  // writer drops nothing and the file stays deterministic.
   private func log(_ handler: FileLogHandler, message: String, line: UInt) {
     handler.log(
       event: LogEvent(
@@ -43,8 +50,7 @@ struct FileLogHandlerTests {
     )
   }
 
-  // Decoding each line independently fails loudly if truncation ever leaves a
-  // partial line behind.
+  // A partial line left behind by truncation fails to decode here.
   private func decodedEntries(at fileURL: URL) throws -> [DecodedEntry] {
     let decoder = JSONDecoder()
     return try String(decoding: try Data(contentsOf: fileURL), as: UTF8.self)
@@ -54,9 +60,7 @@ struct FileLogHandlerTests {
 
   @Test("writes each entry as its own newline-delimited JSON line")
   func writesEntriesAsNewlineDelimitedJSON() throws {
-    let fileURL = FileManager.default.temporaryDirectory
-      .appendingPathComponent(UUID().uuidString)
-      .appendingPathExtension("ndjson")
+    let fileURL = tempFileURL()
     defer { try? FileManager.default.removeItem(at: fileURL) }
 
     let handler = makeHandler(
@@ -76,19 +80,19 @@ struct FileLogHandlerTests {
 
   @Test("truncation keeps whole JSON lines and keeps appending to the live file")
   func truncationKeepsWholeLinesAndKeepsAppending() throws {
-    let fileURL = FileManager.default.temporaryDirectory
-      .appendingPathComponent(UUID().uuidString)
-      .appendingPathExtension("ndjson")
+    let fileURL = tempFileURL()
     defer { try? FileManager.default.removeItem(at: fileURL) }
 
-    let maxFileSizeBytes = 5_000
+    // targetFileSizeBytes is well above the 64 KB read window, so each
+    // truncation streams its surviving tail across several windows.
+    let maxFileSizeBytes = 200_000
     let handler = makeHandler(
       fileURL: fileURL,
       maxFileSizeBytes: maxFileSizeBytes,
-      targetFileSizeBytes: 2_500
+      targetFileSizeBytes: 130_000
     )
 
-    let written = 60
+    let written = 1_000
     let padding = String(repeating: "x", count: 120)
     for index in 0..<written {
       log(
@@ -105,12 +109,61 @@ struct FileLogHandlerTests {
     #expect(!entries.isEmpty)
     #expect(entries.count < written)
 
-    // Truncation drops a whole prefix, so the retained entries must be a
-    // contiguous, in-order suffix ending at the final write. A gap or a
-    // missing tail would mean a write landed somewhere other than the live
-    // file (e.g. a stale handle pointing at the pre-truncation inode).
+    // Truncation drops a whole prefix, so survivors are a contiguous suffix
+    // ending at the final write — a gap would mean a write missed the live file.
     let firstIndex = try #require(entries.first.map { Int($0.line) })
     #expect(entries.map { Int($0.line) } == Array(firstIndex..<written))
     #expect(entries.last?.message == "entry-\(String(format: "%04d", written - 1))-\(padding)")
+  }
+
+  @Test("truncation finds the cut boundary when an entry exceeds the read window")
+  func truncationFindsBoundaryWhenEntryExceedsReadWindow() throws {
+    let fileURL = tempFileURL()
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 150_000,
+      targetFileSizeBytes: 100_000
+    )
+
+    // One entry far larger than the 64 KB read window: the truncation scan
+    // must cross several windows to find its terminating newline. The giant
+    // entry alone overflows the cap, so it is truncated away whole.
+    log(handler, message: String(repeating: "z", count: 200_000), line: 0)
+
+    for index in 1...40 {
+      log(handler, message: "post-\(index)", line: UInt(index))
+    }
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.map(\.message) == (1...40).map { "post-\($0)" })
+  }
+
+  @Test("asynchronous writes reach the file once flushed")
+  func asynchronousWritesReachFileOnceFlushed() throws {
+    let fileURL = tempFileURL()
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000,
+      synchronous: false
+    )
+
+    // flush() drains the queue and closes the append handle; the second
+    // batch then exercises reopening it.
+    for index in 0..<10 {
+      log(handler, message: "entry-\(index)", line: UInt(index))
+    }
+    FileLogHandler.flush()
+    for index in 10..<20 {
+      log(handler, message: "entry-\(index)", line: UInt(index))
+    }
+    FileLogHandler.flush()
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.map(\.message) == (0..<20).map { "entry-\($0)" })
   }
 }
