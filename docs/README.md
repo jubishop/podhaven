@@ -18,6 +18,7 @@ status: planning | in-progress | shipped | blocked | abandoned
 - [Episode Transcripts](initiatives/transcripts.md): RSS transcript parsing plus background/user-initiated transcript fetching
 - [Smart Lists](initiatives/smart-lists.md): editable nested episode-list filters with persisted ordering
 - [Search Recommendations](initiatives/search-recommendations.md): rank unsubscribed-podcast episodes in search/trending with existing similarity scoring
+- [Scaling Memory Search](initiatives/scaling_memory.md): lifecycle, consolidation, and indexing changes to keep `qmd` memory search relevant as the corpus grows
 
 ## Research
 
