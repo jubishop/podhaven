@@ -5,13 +5,6 @@ import Foundation
 import Sentry
 import UIKit
 
-struct FeedbackReport {
-  let message: String
-  let name: String?
-  let email: String?
-  let screenshotData: Data?
-}
-
 protocol FeedbackSending {
   func send(_ report: FeedbackReport)
 }
@@ -20,6 +13,13 @@ extension Container {
   var feedbackSender: Factory<any FeedbackSending> {
     Factory(self) { SentryFeedbackSender() }.scope(.cached)
   }
+}
+
+struct FeedbackReport {
+  let message: String
+  let name: String?
+  let email: String?
+  let screenshotData: Data?
 }
 
 struct SentryFeedbackSender: FeedbackSending {
