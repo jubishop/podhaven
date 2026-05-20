@@ -74,6 +74,13 @@ suspect `EmbeddingProcessor` churning `episodeEmbedding` rows (batches of 64
 - And/or coalesce/debounce emissions. `removeDuplicates` cannot help; the data
   really changes.
 
+Not turnkey: `EpisodeEmbedding.existsSelectable` lives in the **shared**
+`ListableEpisode.databaseSelection` and feeds a stored `hasEmbedding` field —
+narrowing needs a separate slim selection for the detail fetch, not a line
+delete. And the catastrophic ~178/s rate was never captured with the probe, so
+the `EmbeddingProcessor` attribution is unproven — verify the fix against the
+original repro before closing. See the **#293 "Implementer handoff" comment**.
+
 ## In-flight instrumentation — KEEP until #293 + #296 fixed and confirmed
 
 Commit **`c45e2908`** (`🔬 chore(diagnostics)…`) — temporary, three files;

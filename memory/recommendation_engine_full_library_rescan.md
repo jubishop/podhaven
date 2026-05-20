@@ -75,6 +75,11 @@ gated by priority:
   unchanged.
 - Cache the embedding matrix in memory; invalidate only on embedding writes.
 
+The embedding cache is real design work, not transcription — `RecommendationEngine`
+is a `Sendable struct` and cannot own it; needs a dedicated `actor`, incremental
+invalidation, and a memory budget. See the **#296 "Implementer handoff" comment**
+for the gaps the one-line fix direction glosses, plus the regression-test approach.
+
 ## Related
 
 - [[podcast_detail_recommendation_storm]] — #293, the sibling bug: same
