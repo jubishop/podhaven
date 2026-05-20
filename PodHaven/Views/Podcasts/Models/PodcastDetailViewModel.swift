@@ -200,8 +200,6 @@ class PodcastDetailViewModel:
 
   private let recommendationScorer = PodcastRecommendationScorer()
 
-  // The view (and tests) read recommendation progress through the view model;
-  // the scorer owns the actual transitions.
   var recommendationDisplay: PodcastRecommendationScorer.Display {
     recommendationScorer.display
   }
