@@ -11,7 +11,7 @@ Use `qmd` for topic lookup across `memory/` and `docs`; cheapest mode that fits:
 - `qmd query "question" --no-rerank`: default for fuzzy or open-ended topic lookup.
 - `qmd get <path>[:line] -l N`: cheap page/slice fetch.
 
-Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known paths. Hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite; no manual `qmd update` normally needed.
+Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known paths. Hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite; no manual `qmd update` or `qmd embed` needed.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
