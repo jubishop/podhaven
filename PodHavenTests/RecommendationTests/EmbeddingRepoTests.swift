@@ -463,4 +463,66 @@ class EmbeddingRepoTests {
     let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
     #expect(!result.map(\.id).contains(pe.episode.id))
   }
+
+  // MARK: - Mid-Delete FK Race Tests
+
+  private func unsavedEmbedding(for episodeID: Episode.ID) -> UnsavedEpisodeEmbedding {
+    UnsavedEpisodeEmbedding(
+      episodeId: episodeID,
+      vector: UnsavedEpisodeEmbedding.vectorData(from: [1.0, 0.0, 0.0]),
+      sourceHash: "test-hash",
+      embeddingRevision: 1,
+      dimension: 3,
+      verificationDate: Date()
+    )
+  }
+
+  @Test("upsertEmbeddings skips an episode deleted mid-flight instead of failing")
+  func upsertEmbeddingsSkipsDeletedEpisode() async throws {
+    let pe = try await createPodcastEpisode()
+    let unsaved = unsavedEmbedding(for: pe.episode.id)
+
+    // The podcast — and, via cascade, its episode — is gone before the
+    // embedding lands, mirroring a delete that races a foreground embedding.
+    try await repo.deletePodcast(pe.podcast.id)
+
+    try await recommendationRepo.upsertEmbeddings([unsaved])
+
+    #expect(try await recommendationRepo.embedding(for: pe.episode.id) == nil)
+  }
+
+  @Test("upsertEmbeddings writes live episodes when a sibling was deleted mid-flight")
+  func upsertEmbeddingsWritesLiveAlongsideDeleted() async throws {
+    let live = try await createPodcastEpisode()
+    let doomed = try await createPodcastEpisode()
+    let batch = [
+      unsavedEmbedding(for: live.episode.id),
+      unsavedEmbedding(for: doomed.episode.id),
+    ]
+
+    try await repo.deletePodcast(doomed.podcast.id)
+
+    try await recommendationRepo.upsertEmbeddings(batch)
+
+    #expect(try await recommendationRepo.embedding(for: live.episode.id) != nil)
+    #expect(try await recommendationRepo.embedding(for: doomed.episode.id) == nil)
+  }
+
+  @Test("upsertPodcastEmbeddings skips a podcast deleted mid-flight instead of failing")
+  func upsertPodcastEmbeddingsSkipsDeletedPodcast() async throws {
+    let pe = try await createPodcastEpisode()
+    let unsaved = UnsavedPodcastEmbedding(
+      podcastId: pe.podcast.id,
+      vector: UnsavedPodcastEmbedding.vectorData(from: [1.0, 0.0, 0.0]),
+      sourceHash: "test-hash",
+      embeddingRevision: 1,
+      dimension: 3
+    )
+
+    try await repo.deletePodcast(pe.podcast.id)
+
+    try await recommendationRepo.upsertPodcastEmbeddings([unsaved])
+
+    #expect(try await recommendationRepo.podcastEmbedding(for: pe.podcast.id) == nil)
+  }
 }

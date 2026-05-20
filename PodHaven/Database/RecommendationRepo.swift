@@ -323,21 +323,35 @@ struct RecommendationRepo: Recommending {
   // Batch upsert: one transaction per chunk instead of one per episode.
   func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {
     guard !unsaved.isEmpty else { return }
-    Self.log.debug("upsertEmbeddings: \(unsaved.count) episodes")
     try await appDB.db.write { db in
+      var skipped = 0
       for entry in unsaved {
-        try entry.upsert(db)
+        do {
+          try entry.upsert(db)
+        } catch DatabaseError.SQLITE_CONSTRAINT_FOREIGNKEY {
+          skipped += 1
+        }
       }
+      Self.log.debug(
+        "upsertEmbeddings: wrote \(unsaved.count - skipped) of \(unsaved.count) episodes"
+      )
     }
   }
 
   func upsertPodcastEmbeddings(_ unsaved: [UnsavedPodcastEmbedding]) async throws {
     guard !unsaved.isEmpty else { return }
-    Self.log.debug("upsertPodcastEmbeddings: \(unsaved.count) podcasts")
     try await appDB.db.write { db in
+      var skipped = 0
       for entry in unsaved {
-        try entry.upsert(db)
+        do {
+          try entry.upsert(db)
+        } catch DatabaseError.SQLITE_CONSTRAINT_FOREIGNKEY {
+          skipped += 1
+        }
       }
+      Self.log.debug(
+        "upsertPodcastEmbeddings: wrote \(unsaved.count - skipped) of \(unsaved.count) podcasts"
+      )
     }
   }
 
