@@ -121,11 +121,7 @@ final class PodcastRecommendationScorer {
     guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     guard let host else { return }
     if case .initial = host.state { return }
-    guard scoringStatus == .idle else { return }
-    recommendationScoreTask?.cancel()
-    recommendationScoreTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      await self?.refreshRecommendationScoresCoalesced(generation: generation)
-    }
+    requestRecommendationScoreRefresh(generation: generation)
   }
 
   private func scheduleDebouncedRecommendationScoreRefresh(
@@ -134,29 +130,36 @@ final class PodcastRecommendationScorer {
     let generation = generation ?? recommendationScoreGeneration
     guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     recommendationScoresDebounce { [weak self] in
-      await self?.refreshRecommendationScoresCoalesced(generation: generation)
+      await self?.requestRecommendationScoreRefresh(generation: generation)
     }
   }
 
-  private func refreshRecommendationScoresCoalesced(generation: Int) async {
+  private func requestRecommendationScoreRefresh(generation: Int) {
     guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     guard scoringStatus == .idle else {
       scoringStatus = .runningDirty
       return
     }
+    scoringStatus = .running
+    recommendationScoreTask = Task(priority: taskPriority(.utility)) { [weak self] in
+      await self?.runRecommendationScorePasses(generation: generation)
+    }
+  }
+
+  private func runRecommendationScorePasses(generation: Int) async {
     defer {
       if recommendationScoreGeneration == generation {
         scoringStatus = .idle
       }
     }
-
-    repeat {
-      guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
-      scoringStatus = .running
+    while recommendationScoreGeneration == generation, !Task.isCancelled {
       await computeAndPublishRecommendationScores(generation: generation)
-    } while recommendationScoreGeneration == generation
-      && scoringStatus == .runningDirty
-      && !Task.isCancelled
+      guard recommendationScoreGeneration == generation,
+        !Task.isCancelled,
+        scoringStatus == .runningDirty
+      else { return }
+      scoringStatus = .running
+    }
   }
 
   // MARK: - Snapshot
