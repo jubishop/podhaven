@@ -38,7 +38,10 @@ struct AppDB {
         "Creating onDisk AppDB in preview is not supported"
       )
       let dbPool = try DatabasePool(path: sqlitePath, configuration: makeConfiguration())
-      return AppDB(dbPool)
+      let appDB = AppDB(dbPool)
+      // Temporary diagnostic: trace runaway DB-write transactions.
+      WriteProbe.install(on: dbPool)
+      return appDB
     } catch {
       Assert.fatal("Failed to initialize onDisk AppDB pool: \(ErrorKit.message(for: error))")
     }

@@ -574,8 +574,45 @@ class PodcastDetailViewModel:
         continue
       }
 
+      // Temporary diagnostic: log which field changed between consecutive
+      // observation emissions, to trace the PodcastDetail observation storm.
+      if let previous = state.savedSeries {
+        let diff = Self.emissionDiff(from: previous, to: updatedSeries)
+        Self.log.notice("podcastSeriesDetail emission diff: \(diff)")
+      }
       transition(to: .saved(updatedSeries))
     }
+  }
+
+  // Temporary diagnostic helper for the PodcastDetail observation-storm
+  // investigation. Remove alongside WriteProbe once the storm is diagnosed.
+  private static func emissionDiff(
+    from old: PodcastSeriesDetail,
+    to new: PodcastSeriesDetail
+  ) -> String {
+    var parts: [String] = []
+    if old.podcast != new.podcast {
+      parts.append("podcast row changed")
+    }
+    if old.tags != new.tags {
+      parts.append("tags changed (\(old.tags.count) → \(new.tags.count))")
+    }
+    if old.episodes != new.episodes {
+      if old.episodes.count != new.episodes.count {
+        parts.append("episode count \(old.episodes.count) → \(new.episodes.count)")
+      } else if old.episodes.ids != new.episodes.ids {
+        parts.append("episode order changed (same \(new.episodes.count) ids)")
+      } else if let changedID = new.episodes.ids.first(where: {
+        old.episodes[id: $0] != new.episodes[id: $0]
+      }) {
+        parts.append("episode \(changedID) content changed")
+      } else {
+        parts.append("episodes differ but no single row isolated")
+      }
+    }
+    return parts.isEmpty
+      ? "values unequal yet every field compares equal (non-deterministic Equatable)"
+      : parts.joined(separator: "; ")
   }
 
   private func startRecommendationObservation() {
