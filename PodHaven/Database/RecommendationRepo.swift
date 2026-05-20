@@ -321,23 +321,45 @@ struct RecommendationRepo: Recommending {
   // MARK: - Embedding Writers
 
   // Batch upsert: one transaction per chunk instead of one per episode.
+  // A podcast delete cascades to its episodes; an embedding computed for an
+  // episode deleted mid-flight would trip the episodeEmbedding -> episode
+  // foreign key and fail the whole batch. Re-check existence inside the write
+  // transaction and drop stale rows so a concurrent delete is a benign skip.
   func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {
     guard !unsaved.isEmpty else { return }
-    Self.log.debug("upsertEmbeddings: \(unsaved.count) episodes")
     try await appDB.db.write { db in
-      for entry in unsaved {
+      let liveEpisodeIDs = try Set(
+        Episode
+          .filter(unsaved.map(\.episodeId).contains(Episode.Columns.id))
+          .select(Episode.Columns.id, as: Episode.ID.self)
+          .fetchAll(db)
+      )
+      let writable = unsaved.filter { liveEpisodeIDs.contains($0.episodeId) }
+      for entry in writable {
         try entry.upsert(db)
       }
+      Self.log.debug("upsertEmbeddings: wrote \(writable.count) of \(unsaved.count) episodes")
     }
   }
 
+  // Same mid-flight delete race as upsertEmbeddings: a deleted podcast would
+  // trip the podcastEmbedding -> podcast foreign key.
   func upsertPodcastEmbeddings(_ unsaved: [UnsavedPodcastEmbedding]) async throws {
     guard !unsaved.isEmpty else { return }
-    Self.log.debug("upsertPodcastEmbeddings: \(unsaved.count) podcasts")
     try await appDB.db.write { db in
-      for entry in unsaved {
+      let livePodcastIDs = try Set(
+        Podcast
+          .filter(unsaved.map(\.podcastId).contains(Podcast.Columns.id))
+          .select(Podcast.Columns.id, as: Podcast.ID.self)
+          .fetchAll(db)
+      )
+      let writable = unsaved.filter { livePodcastIDs.contains($0.podcastId) }
+      for entry in writable {
         try entry.upsert(db)
       }
+      Self.log.debug(
+        "upsertPodcastEmbeddings: wrote \(writable.count) of \(unsaved.count) podcasts"
+      )
     }
   }
 
