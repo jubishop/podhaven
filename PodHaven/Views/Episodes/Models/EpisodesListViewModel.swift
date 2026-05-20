@@ -345,10 +345,6 @@ class EpisodesListViewModel:
     case loaded([Episode.ID: Float])
   }
 
-  // A scoring pass is fully determined by the candidate set and the engine's
-  // contextRevision. Recording the last successfully-scored pair lets a
-  // duplicate kick — a tab switch back to the list, a re-emission of an
-  // unchanged candidate set — skip rescanning the whole library.
   private struct ScoredInputsKey: Equatable {
     let candidates: [CandidateEpisode]
     let contextRevision: Int
@@ -373,13 +369,10 @@ class EpisodesListViewModel:
       candidates: candidates,
       contextRevision: recommendationEngine.contextRevision
     )
-    // Same candidates and same scoring context as the last completed pass —
-    // the cached scores still hold, so don't rescan the library.
+    // Skip when neither the candidates nor the engine's scoring context changed.
     guard key != lastScoredKey else { return }
 
-    // A pass is already running, most likely a feed-refresh write storm
-    // walking the candidate set. Coalesce into a single trailing pass once
-    // the writes settle instead of restarting a full scan on every emission.
+    // A pass is in flight — coalesce further kicks into one trailing pass.
     guard recommendationFetchTask == nil else {
       recommendationFetchDebounce { [weak self] in
         await self?.kickRecommendationFetch(candidates: candidates)
@@ -391,8 +384,7 @@ class EpisodesListViewModel:
     let generation = recommendationFetchGeneration
     recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      // Release the in-flight slot only if a newer pass hasn't claimed it, so
-      // the leading-edge check above sees an idle slot once this one ends.
+      // Clear the slot only if a newer pass hasn't already replaced this task.
       defer {
         if self.recommendationFetchGeneration == generation {
           self.recommendationFetchTask = nil
@@ -467,8 +459,7 @@ class EpisodesListViewModel:
     recommendationFetchTask = nil
     recommendationFetchDebounce.cancel()
     lastObservedCandidates = nil
-    // lastScoredKey is deliberately kept: a completed score survives a tab
-    // switch so re-appearing with unchanged inputs skips a redundant rescan.
+    // lastScoredKey is deliberately kept so a completed score survives a tab switch.
   }
 
   private func cancelRecommendationHydration() {
