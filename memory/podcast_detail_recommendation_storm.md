@@ -1,6 +1,6 @@
 ---
 name: podcast-detail-observation-storm
-description: Active investigation (#293) of the PodcastDetail observation storm — observePodcastSeries/transition runaway. Current state as of 2026-05-19, what is ruled out, the in-flight diagnostic probes (revert commit c45e2908 after the TestFlight run), and the next step.
+description: Active investigation (#293) of the PodcastDetail observation storm — observePodcastSeries/transition runaway. State 2026-05-20 — build-499 diagnostic run did NOT reproduce it; instrumentation (c45e2908) kept for another run. Sibling bug #296 in [[recommendation_engine_full_library_rescan]].
 type: project
 ---
 
@@ -32,6 +32,11 @@ Storm log signature — three `.debug` lines, each ~2,200× per ~12 s window:
   + `podhaven:7493497368` (2026-05-19), back-to-back.
 - Tracked as **#293** (diagnose + fix). FileLogHandler perf tech-debt spun off
   as **#294**.
+- **Build 499 diagnostic run (2026-05-20):** TestFlight build from commit
+  `8a4aa613` (carries the `c45e2908` probes). Sentry feedbacks
+  `podhaven:7495117741` + `podhaven:7495118557`. This run **did not reproduce
+  #293** — the reporter never opened a `PodcastDetailView`. It surfaced a
+  separate bug instead: #296 / [[recommendation_engine_full_library_rescan]].
 
 ## Established / ruled out
 
@@ -48,9 +53,10 @@ Storm log signature — three `.debug` lines, each ~2,200× per ~12 s window:
   (committed) passes: a fetched detail is reflexively equal and stable across
   re-fetch and an unrelated write. Gross `removeDuplicates` breakage unlikely.
 - **Device-specific.** Does NOT reproduce in a Simulator Development build even
-  with the real device DB loaded (978 MB — 171 podcasts, 96,037 episodes); the
-  Simulator shows normal, non-excessive DB-commit activity. Trigger is
-  environmental (Release config / real device / background-driven work), not data.
+  with the real device DB loaded (978 MB — 171 podcasts, 96,037 episodes).
+- **`WriteProbe` has NOT yet seen a storming session.** In the build-499 run
+  (which did not storm) it showed a normal ~2.6 commits/s baseline. It still
+  needs to run during an actual #293 storm to answer the open question below.
 
 ## The open question
 
@@ -63,33 +69,37 @@ only ~2 DB writes**. Still unresolved which:
 3. an unstable `Equatable` (e.g. tied-pubDate episode ordering, tag-ID order)
    defeating `removeDuplicates`, so any steady background write storms it.
 
-Needs device runtime data — the Simulator can't reproduce it.
+Needs a `WriteProbe` + emission-diff capture from a session that actually
+opens a `PodcastDetailView` and storms. The build-499 run did not provide it.
 
-## In-flight instrumentation — REVERT after the TestFlight run
+## In-flight instrumentation — DO NOT revert yet
 
-Commit **`c45e2908`** (`🔬 chore(diagnostics)…`) — temporary, three files.
-After the diagnostic run: `git revert c45e2908`.
+Commit **`c45e2908`** (`🔬 chore(diagnostics)…`) — temporary, three files;
+present in build 499. **Keep it** until a TestFlight run reproduces the #293
+storm — the build-499 run did not, so it has not yet done its job for #293.
+After a storming run is captured: `git revert c45e2908`.
 
 - `WriteProbe.swift` — a GRDB `TransactionObserver` (installed in
   `AppDB._onDisk`) logging committed-write rate, tables, and a sampled
   backtrace → names the writer, or shows there are none.
 - `observePodcastSeries` emission-diff (probe 3b) — logs
   `podcastSeriesDetail emission diff:` = which `PodcastSeriesDetail` field
-  differs between consecutive emissions.
+  differs between consecutive emissions. Did not fire in build 499 (no detail
+  view opened).
 
 Keepers (do NOT revert): `FileLogHandler` per-call-site rate-limit dedup
 (`b7be5ebd`); `PodcastSeriesDetailTests` (`c94edefd`).
 
 ## Next step
 
-1. Archive a TestFlight build from `c45e2908`; install on device.
-2. Reproduce the storm (open the storming `PodcastDetailView`).
-3. **Settings → Debug → "Share PodHaven Logs"** → `log.ndjson` (dedup-collapsed,
-   legible).
-4. Read it: `WriteProbe` "DB commit" rate (via the *dropped N* counts) +
-   sampled backtrace = the writer; `podcastSeriesDetail emission diff:` = the
+1. TestFlight run from build 499 (or later, still carrying `c45e2908`):
+   **open a storming `PodcastDetailView`** and let it run.
+2. Settings → Debug → "Share PodHaven Logs" → `log.ndjson`.
+3. Analyse with the `analyze-logs` `log_summary.py` script: `--sessions` →
+   `--session N` → `--call-sites`. `WriteProbe` "DB commit" rate + sampled
+   backtrace = the writer; `podcastSeriesDetail emission diff:` = the
    differing field. Together → the diagnosis.
-5. Implement the #4 fix in #293; then `git revert c45e2908`.
+4. Implement the #4 fix in #293; then `git revert c45e2908`.
 
 ## Key references
 
@@ -100,6 +110,9 @@ Keepers (do NOT revert): `FileLogHandler` per-call-site rate-limit dedup
 
 ## Related
 
+- [[recommendation_engine_full_library_rescan]] — #296, the sibling bug found
+  in the build-499 run: same architectural weakness (a SwiftUI observation
+  triggering uncoalesced heavy work), different loop. Either alone pegs the app.
 - [[recommendation_sort_prewarming]] — prewarming behaviour any fix must preserve.
 - [[device_debug_builds_break_background_scheduling]] — no on-device debugging; TestFlight only.
 - [[build_variants_dev_debug_release]] — dev/debug/release variants, data dirs, and why `log.ndjson` exists only on device Release builds.
