@@ -73,9 +73,6 @@ struct AppDB {
     var config = Configuration()
     if let qos = qos { config.qos = qos }
 
-    // A full-library recommendation read can hold a pool reader for over a
-    // second; the default reader count is small enough that such a read can
-    // starve interactive UI and queue reads waiting for a free connection.
     config.maximumReaderCount = 10
 
     #if DEBUG
