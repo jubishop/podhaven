@@ -75,8 +75,11 @@ struct FileLogHandler: LogHandler {
     private func writeEntry(_ entry: Entry) -> WriteResult {
       guard case .write(let suppressed) = rateLimitDecision(for: entry) else { return .ok }
       do {
+        // The real entry is always appended right after, and appendEntry
+        // returns the post-write file size — so the single truncation check
+        // below already accounts for this summary line's bytes too.
         if suppressed > 0 {
-          _ = try appendEntry(suppressionSummary(for: entry, suppressed: suppressed))
+          try appendEntry(suppressionSummary(for: entry, suppressed: suppressed))
         }
         let currentSize = try appendEntry(entry)
         if currentSize > UInt64(maxFileSizeBytes) {
@@ -106,6 +109,7 @@ struct FileLogHandler: LogHandler {
       }
     }
 
+    @discardableResult
     private func appendEntry(_ entry: Entry) throws -> UInt64 {
       var data = try JSONEncoder().encode(entry)
       data.append(0x0A)
