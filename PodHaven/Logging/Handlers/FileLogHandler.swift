@@ -21,6 +21,10 @@ struct FileLogHandler: LogHandler {
     private static let log = Log.as("FileLogWriter")
     private static let fallbackLog = os.Logger(subsystem: "PodHaven", category: "FileLogWriter")
 
+    // Window size for the streaming reads in truncateIfNeeded, so the whole
+    // log file is never resident in memory at once.
+    private static let truncationWindowBytes = 64 * 1024
+
     // Per-call-site rate limit. A runaway log site (e.g. a tight observation
     // loop) can otherwise fill the whole rolling buffer in seconds, evicting
     // the history that explains how the runaway began. Each call site gets a
@@ -35,6 +39,18 @@ struct FileLogHandler: LogHandler {
     private let queue: DispatchQueue
     private let rateLimitBuckets = ThreadSafe<[RateKey: RateBucket]>([:])
 
+    // JSONEncoder is a non-Sendable class, so it cannot be a plain stored
+    // property of this Sendable class. Encoding only ever runs on the serial
+    // `queue`, so the wrapper's lock is redundant but cheap — and reusing one
+    // encoder avoids allocating and configuring a fresh one per log line.
+    private let encoder = ThreadSafe(JSONEncoder())
+
+    // A long-lived append handle, opened lazily and reused across log lines so
+    // each entry costs a single write syscall instead of open + seek + close.
+    // truncateIfNeeded() swaps the file in via a fresh inode, so this handle is
+    // closed after every truncation and reopened on the next append.
+    private let appendHandle = ThreadSafe<FileHandle?>(nil)
+
     init(fileURL: URL, maxFileSizeBytes: Int, targetFileSizeBytes: Int) {
       self.fileURL = fileURL
       self.maxFileSizeBytes = maxFileSizeBytes
@@ -44,6 +60,10 @@ struct FileLogHandler: LogHandler {
         label: "\(AppInfo.bundleIdentifier).FileLogHandler.Writer.\(fileName)",
         qos: .background
       )
+    }
+
+    deinit {
+      closeAppendHandle()
     }
 
     func write(_ entry: Entry, synchronously: Bool) {
@@ -62,7 +82,7 @@ struct FileLogHandler: LogHandler {
     }
 
     func flush() {
-      queue.sync {}
+      queue.sync { closeAppendHandle() }
     }
 
     private enum WriteResult {
@@ -111,35 +131,110 @@ struct FileLogHandler: LogHandler {
 
     @discardableResult
     private func appendEntry(_ entry: Entry) throws -> UInt64 {
-      var data = try JSONEncoder().encode(entry)
+      var data = try encoder { try $0.encode(entry) }
       data.append(0x0A)
 
-      do {
-        let handle = try FileHandle(forWritingTo: fileURL)
-        defer { handle.closeFile() }
-        handle.seekToEndOfFile()
-        handle.write(data)
-        return handle.offsetInFile
-      } catch CocoaError.fileNoSuchFile {
-        try data.write(to: fileURL)
-        return UInt64(data.count)
+      return try appendHandle { handle in
+        let writeHandle = try handle ?? Self.openForAppending(at: fileURL)
+        handle = writeHandle
+        try writeHandle.write(contentsOf: data)
+        return try writeHandle.offset()
       }
     }
 
-    private func truncateIfNeeded() throws -> (originalSize: Int, newSize: Int)? {
-      let data = try Data(contentsOf: fileURL)
-      guard data.count > maxFileSizeBytes else { return nil }
+    private static func openForAppending(at fileURL: URL) throws -> FileHandle {
+      if !FileManager.default.fileExists(atPath: fileURL.path) {
+        FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+      }
+      let handle = try FileHandle(forWritingTo: fileURL)
+      _ = try handle.seekToEnd()
+      return handle
+    }
 
-      let bytesToRemove = data.count - targetFileSizeBytes
+    private func closeAppendHandle() {
+      appendHandle { handle in
+        if let openHandle = handle {
+          Self.close(openHandle)
+        }
+        handle = nil
+      }
+    }
+
+    private static func close(_ handle: FileHandle) {
+      do {
+        try handle.close()
+      } catch {
+        fallbackLog.error(
+          "Failed to close log file handle: \(error.localizedDescription, privacy: .public)"
+        )
+      }
+    }
+
+    // Scans forward in fixed windows so the whole file is never read into
+    // memory at once. Returns the offset just past the first newline at or
+    // after `start`, or nil if there is no newline beyond that point.
+    private static func firstNewlineOffset(
+      in reader: FileHandle,
+      atOrAfter start: Int
+    ) throws -> UInt64? {
+      try reader.seek(toOffset: UInt64(start))
+      var offset = UInt64(start)
+      while let window = try reader.read(upToCount: truncationWindowBytes), !window.isEmpty {
+        if let newlineIndex = window.firstIndex(of: 0x0A) {
+          return offset + UInt64(window.distance(from: window.startIndex, to: newlineIndex)) + 1
+        }
+        offset += UInt64(window.count)
+      }
+      return nil
+    }
+
+    private func truncateIfNeeded() throws -> (originalSize: Int, newSize: Int)? {
+      let reader = try FileHandle(forReadingFrom: fileURL)
+      defer { Self.close(reader) }
+
+      let fileSize = try reader.seekToEnd()
+      guard fileSize > UInt64(maxFileSizeBytes) else { return nil }
+
+      let bytesToRemove = Int(fileSize) - targetFileSizeBytes
       guard bytesToRemove > 0 else { return nil }
 
-      let searchRange = bytesToRemove..<data.count
-      guard let newlineIndex = data[searchRange].firstIndex(of: 0x0A) else { return nil }
+      // Truncating mid-line would corrupt the log, so cut at the first whole
+      // newline boundary at or after the computed offset.
+      guard let cutOffset = try Self.firstNewlineOffset(in: reader, atOrAfter: bytesToRemove)
+      else { return nil }
 
-      let truncated = data[(newlineIndex + 1)...]
-      try truncated.write(to: fileURL, options: .atomic)
+      // Stream the surviving tail into a sibling temp file, then swap it in
+      // atomically so a crash mid-rewrite can never leave a corrupt log.
+      let tempURL = fileURL.deletingLastPathComponent()
+        .appendingPathComponent("truncate-\(UUID().uuidString)")
+      do {
+        FileManager.default.createFile(atPath: tempURL.path, contents: nil)
+        let writer = try FileHandle(forWritingTo: tempURL)
+        defer { Self.close(writer) }
+        try reader.seek(toOffset: cutOffset)
+        while let chunk = try reader.read(upToCount: Self.truncationWindowBytes), !chunk.isEmpty {
+          try writer.write(contentsOf: chunk)
+        }
+        _ = try FileManager.default.replaceItemAt(fileURL, withItemAt: tempURL)
+      } catch {
+        do {
+          try FileManager.default.removeItem(at: tempURL)
+        } catch CocoaError.fileNoSuchFile {
+          // Temp file was never created — nothing to clean up.
+        } catch {
+          Self.fallbackLog.error(
+            "Failed to remove truncation temp file: \(error.localizedDescription, privacy: .public)"
+          )
+        }
+        throw error
+      }
 
-      return (originalSize: data.count, newSize: truncated.count)
+      // The atomic swap rebinds the path to a new inode; the cached append
+      // handle now points at the orphaned file, so close it and let the next
+      // append reopen against the truncated file.
+      closeAppendHandle()
+
+      return (originalSize: Int(fileSize), newSize: Int(fileSize - cutOffset))
     }
 
     // MARK: - Rate Limiting
