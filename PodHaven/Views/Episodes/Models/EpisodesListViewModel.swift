@@ -355,7 +355,8 @@ class EpisodesListViewModel:
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
   @ObservationIgnored private var recommendationFetchGeneration = 0
   @ObservationIgnored private let recommendationFetchDebounce = Debounce(
-    duration: .milliseconds(400)
+    duration: .milliseconds(400),
+    priority: .utility
   )
 
   private func kickRecommendationFetch(candidates observedCandidates: [CandidateEpisode]?) {
