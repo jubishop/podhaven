@@ -55,12 +55,12 @@ final class PodcastRecommendationScorer {
 
   func startObservation() {
     if let recommendationObservationTask, !recommendationObservationTask.isCancelled { return }
-    let contextRevisions = recommendationEngine.$contextRevision.stream().dropFirst()
+    let scoringRevisions = recommendationEngine.$scoringRevision.stream().dropFirst()
     let generation = recommendationScoreGeneration
     scheduleImmediateRecommendationScoreRefresh(generation: generation)
     recommendationObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      for await _ in contextRevisions {
+      for await _ in scoringRevisions {
         guard !Task.isCancelled else { return }
         scheduleDebouncedRecommendationScoreRefresh(generation: generation)
       }
@@ -176,7 +176,7 @@ final class PodcastRecommendationScorer {
   }
 
   private struct RecommendationScoringSnapshot: Equatable {
-    let contextRevision: Int
+    let scoringRevision: Int
     let state: State
     let entries: Set<Entry>
 
@@ -218,7 +218,7 @@ final class PodcastRecommendationScorer {
       snapshotState = .saved(series.id)
     }
     return RecommendationScoringSnapshot(
-      contextRevision: recommendationEngine.contextRevision,
+      scoringRevision: recommendationEngine.scoringRevision,
       state: snapshotState,
       entries: Set(host.episodeList.allEntries.map(scoringSnapshotEntry))
     )

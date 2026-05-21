@@ -138,14 +138,14 @@ import Testing
 
     // Settle the engine's in-flight cache rebuild + the VM's debounced refresh
     // that the new-episode insertion triggered. Without this, those pending
-    // tasks land on top of the manual contextRevision bump below and cancel
+    // tasks land on top of the manual scoringRevision bump below and cancel
     // the gated scoring pass mid-flight.
     await RecommendationScoringTestHelpers.drainRecommendationSleeper()
 
     let fakeRepo = fakeRecommendationRepo
     fakeRepo.clearAllCalls()
     fakeRepo.armEmbeddingsGate(matching: allIDs)
-    recommendationEngine.$contextRevision.update { $0 += 1 }
+    recommendationEngine.$scoringRevision.update { $0 += 1 }
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,

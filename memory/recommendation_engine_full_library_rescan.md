@@ -73,7 +73,7 @@ things that actually hit the UI (the `@MainActor` remarshal and the held
 reader connections) plus reducing redundant passes:
 
 - `EpisodesListViewModel` keys each scoring pass on `(candidates,
-  contextRevision)` and skips a kick whose key matches the last completed
+  scoringRevision)` and skips a kick whose key matches the last completed
   pass. The key is kept across `disappear()`, so a tab switch back to the
   list no longer rescans.
 - A leading-edge debounce runs an isolated kick immediately but coalesces

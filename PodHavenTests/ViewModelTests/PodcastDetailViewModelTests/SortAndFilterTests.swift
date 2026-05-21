@@ -694,7 +694,7 @@ import Testing
     )
 
     // Sort selection survives the transition; the persisted-side scoring path
-    // takes over for subsequent contextRevision ticks.
+    // takes over for subsequent scoringRevision ticks.
     #expect(viewModel.currentSortMethod == .recommendationScore)
   }
 

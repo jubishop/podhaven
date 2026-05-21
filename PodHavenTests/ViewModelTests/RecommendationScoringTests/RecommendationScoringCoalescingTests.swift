@@ -20,7 +20,7 @@ import Testing
   private var fakeSleeper: FakeSleeper { sleeperFactory as! FakeSleeper }
 
   @Test(
-    "a burst of $contextRevision bumps must coalesce into 1...2 scoring passes"
+    "a burst of $scoringRevision bumps must coalesce into 1...2 scoring passes"
   )
   func burstContextRevisionBumpsCoalesce() async throws {
     let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
@@ -63,14 +63,14 @@ import Testing
         "Expected at least one initial scoring pass before the burst."
       }
     )
-    // Quiesce setup-driven rebuilds: a late $contextRevision bump landing
+    // Quiesce setup-driven rebuilds: a late $scoringRevision bump landing
     // during the burst's pass would add an uncounted-for rerun.
     try await RecommendationScoringTestHelpers.settleRecommendationEngine()
     fakeRecommendationRepo.clearAllCalls()
 
     let pendingSleepRequests = fakeSleeper.pendingCount()
     for _ in 0..<50 {
-      recommendationEngine.$contextRevision.update { $0 += 1 }
+      recommendationEngine.$scoringRevision.update { $0 += 1 }
     }
     try await fakeSleeper.waitForSleepRequests(count: pendingSleepRequests + 1)
 
@@ -87,16 +87,16 @@ import Testing
       """
       Expected per-VM coalescing to bound the scoring fan-out, but \(count) \
       scoring passes fired for the same candidate set during a burst of 50 \
-      $contextRevision bumps. The contract is exactly one trailing pass per \
+      $scoringRevision bumps. The contract is exactly one trailing pass per \
       debounce window, plus at most one runningDirty rerun.
       """
     )
   }
 
   @Test(
-    "a $contextRevision bump landing while a scoring pass is suspended must rerun once the pass releases, not be lost to the debounce re-trigger"
+    "a $scoringRevision bump landing while a scoring pass is suspended must rerun once the pass releases, not be lost to the debounce re-trigger"
   )
-  func contextRevisionBumpDuringSuspendedPassReruns() async throws {
+  func scoringRevisionBumpDuringSuspendedPassReruns() async throws {
     let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
     try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
 
@@ -126,7 +126,7 @@ import Testing
     )
 
     // Quiesce every rebuild the setup writes triggered. Otherwise a late
-    // $contextRevision bump could reschedule the stranded pass and mask the
+    // $scoringRevision bump could reschedule the stranded pass and mask the
     // regression: the bug is that the bump-driven rerun is lost on its own.
     try await RecommendationScoringTestHelpers.settleRecommendationEngine()
     let fakeRepo = fakeRecommendationRepo
@@ -135,7 +135,7 @@ import Testing
     // Bump #1 drives a scoring pass that suspends mid-flight on the gated
     // embeddings read.
     fakeRepo.armEmbeddingsGate(matching: targetIDs)
-    recommendationEngine.$contextRevision.update { $0 += 1 }
+    recommendationEngine.$scoringRevision.update { $0 += 1 }
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
       { fakeRepo.isEmbeddingsGateSuspended },
@@ -147,7 +147,7 @@ import Testing
     // still-in-flight pass. The pass must survive that re-trigger and rerun
     // for the newer revision once released.
     let pendingBeforeBump2 = fakeSleeper.pendingCount()
-    recommendationEngine.$contextRevision.update { $0 += 1 }
+    recommendationEngine.$scoringRevision.update { $0 += 1 }
     try await fakeSleeper.waitForSleepRequests(count: pendingBeforeBump2 + 1)
     await RecommendationScoringTestHelpers.drainRecommendationSleeper()
 
@@ -157,14 +157,14 @@ import Testing
       matching: targetIDs,
       atLeast: 2,
       reason: """
-        A $contextRevision bump that arrived while a scoring pass was \
+        A $scoringRevision bump that arrived while a scoring pass was \
         suspended was dropped: the pass never reran for the newer revision.
         """
     )
   }
 
   @Test(
-    "while .recommendationScore is active, a $contextRevision bump triggers a coalesced refresh that updates the visible order"
+    "while .recommendationScore is active, a $scoringRevision bump triggers a coalesced refresh that updates the visible order"
   )
   func activeRecSortLiveUpdatesAfterCoalescedRefresh() async throws {
     let embeddable = ScriptedEmbeddable { text in
@@ -231,16 +231,16 @@ import Testing
     try await RecommendationHelpers.embedEpisodes(freshSignals, embeddable: embeddable)
 
     let engine = recommendationEngine
-    let revisionBeforeRefresh = engine.contextRevision
+    let revisionBeforeRefresh = engine.scoringRevision
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
-      { engine.contextRevision > revisionBeforeRefresh },
+      { engine.scoringRevision > revisionBeforeRefresh },
       {
         """
         Expected embedding the fresh signal episodes to rebuild the scoring \
-        context and bump $contextRevision.
+        context and bump $scoringRevision.
         before: \(revisionBeforeRefresh)
-        current: \(engine.contextRevision)
+        current: \(engine.scoringRevision)
         """
       }
     )

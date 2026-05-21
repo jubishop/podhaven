@@ -92,10 +92,10 @@ struct RecommendationEngine: Sendable {
     )?
   >(nil)
 
-  // Bumps once per cache rebuild. Subscribers watch
-  // `$contextRevision.stream()` to know when to re-query; the value itself
-  // is uninteresting.
-  @Broadcasted var contextRevision: Int = 0
+  // Bumps whenever scoring output can change — a context-cache rebuild or a
+  // `podcastAffinityWeight` change. Subscribers watch `$scoringRevision.stream()`
+  // to know when to re-score; the value itself is uninteresting.
+  @Broadcasted var scoringRevision: Int = 0
 
   fileprivate init() {}
 
@@ -363,11 +363,15 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // Weight only affects per-candidate scoring; `scoreEpisodes` reads it live.
+    // Weight is applied live in `scoreEpisodes`, not baked into the cached
+    // context, so it needs no rebuild — but every scoring surface still has to
+    // re-score: bump `scoringRevision` for the per-list scorers and rebuild the
+    // Up Next set.
     Task(priority: taskPriority(.utility)) {
       let userSettings = Container.shared.userSettings()
       for await _ in userSettings.$podcastAffinityWeight.stream().dropFirst() {
         guard !Task.isCancelled else { return }
+        $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
       }
     }
@@ -427,7 +431,7 @@ struct RecommendationEngine: Sendable {
         )
 
         cache(context)
-        $contextRevision.update { $0 += 1 }
+        $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)

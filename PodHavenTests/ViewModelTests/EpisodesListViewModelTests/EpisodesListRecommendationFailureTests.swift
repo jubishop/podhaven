@@ -139,7 +139,7 @@ import Testing
       }
     ])
 
-    // engine.start() is not called in this test, so $contextRevision should
+    // engine.start() is not called in this test, so $scoringRevision should
     // emit only its initial value of 0 (via Broadcast's on-subscribe yield)
     // and never tick again. The no-retry-loop assertion below times out on
     // the absence of a second embeddedCandidateEpisodes call — a spurious tick from
@@ -150,7 +150,7 @@ import Testing
     let engine = Container.shared.recommendationEngine()
     let revisionTickCount = ThreadSafe<Int>(0)
     let revisionWatcher = Task(priority: .userInitiated) {
-      for await _ in engine.$contextRevision.stream() {
+      for await _ in engine.$scoringRevision.stream() {
         let count = revisionTickCount {
           $0 += 1
           return $0
@@ -158,7 +158,7 @@ import Testing
         if count > 1 {
           Issue.record(
             """
-            contextRevision ticked during a no-retry-loop test that assumes \
+            scoringRevision ticked during a no-retry-loop test that assumes \
             engine.start() was not called. A tick would kick a second \
             embeddedCandidateEpisodes fetch from recommendationContextObservationTask and \
             mask the view-model diff logic this test is meant to pin down.

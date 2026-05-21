@@ -169,7 +169,7 @@ import Testing
         }
       )
 
-      // markFinished is a candidate-gate transition; it doesn't bump `contextRevision`.
+      // markFinished is a candidate-gate transition; it doesn't bump `scoringRevision`.
       let finishedID = targets[0].id
       _ = try await repo.markFinished(finishedID)
 
@@ -189,7 +189,7 @@ import Testing
     }
   }
 
-  @Test("rec-sort picks up a newly-embedded candidate without waiting on contextRevision")
+  @Test("rec-sort picks up a newly-embedded candidate without waiting on scoringRevision")
   func recommendationSortSnapsInNewlyEmbeddedCandidate() async throws {
     Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
 
@@ -250,7 +250,7 @@ import Testing
         }
       )
 
-      // Adding an embedded candidate doesn't bump `contextRevision`; the view
+      // Adding an embedded candidate doesn't bump `scoringRevision`; the view
       // model has to pick it up from the candidate-set observation.
       let newCandidates = try await RecommendationHelpers.addEpisodes(
         to: signalPodcast,
@@ -667,7 +667,7 @@ import Testing
     )
     fakeRecommendationRepo.clearAllCalls()
 
-    // Re-appear (tab switch back) with the candidate set and contextRevision
+    // Re-appear (tab switch back) with the candidate set and scoringRevision
     // unchanged. The scores computed before the switch are still valid, so no
     // full-library scoring pass should run.
     try await withRunningObservationLoop(viewModel) {
@@ -807,6 +807,107 @@ import Testing
         \(staleRescans) embeddings(for:) call(s) for {Target 0, Target 1} after \
         the candidate set had already moved on to {Target 0}. The debounce must \
         rescan the latest observed candidates, not the set captured when it armed.
+        """
+      )
+    }
+  }
+
+  @Test("re-appearing after a podcastAffinityWeight change rescores the candidate set")
+  func reappearAfterAffinityWeightChangeRescores() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+    // A podcastAffinityWeight change also rebuilds the Up Next set, and that
+    // pass reads embeddings for the same candidate IDs. Disabling it leaves the
+    // view model's own rescan as the only embeddings(for:) read to assert on.
+    Container.shared.userSettings().$maxRecommendedEpisodesInUpNext.new(0)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0", "Target 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
+
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
+
+    let targetIDs = Set(targets.map(\.id))
+    let viewModel = EpisodesListViewModel(
+      title: "RecAffinityReappear",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .recommendationScore
+
+    // First appear: let the initial scoring pass land and surface both targets.
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
+        },
+        { @MainActor in
+          """
+          Expected the initial scoring pass to surface both targets under rec sort.
+          Actual: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
+    }
+    // withRunningObservationLoop's teardown already called viewModel.disappear()
+    // — the tab switch away from the Episodes list.
+
+    await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+    let fakeRecommendationRepo = try #require(
+      Container.shared.recommendationRepo() as? FakeRecommendationRepo
+    )
+    fakeRecommendationRepo.clearAllCalls()
+
+    // The affinity slider moves while the user is away on the Settings screen.
+    // podcastAffinityWeight feeds scoreEpisodes live, so the score retained
+    // across disappear() is now stale even though the candidate set is unchanged.
+    Container.shared.userSettings().$podcastAffinityWeight.new(0.8)
+    await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+
+    // Re-appear (tab switch back) with the candidate set unchanged. The retained
+    // key must not suppress the rescore — the weight changed the scoring inputs.
+    try await withRunningObservationLoop(viewModel) {
+      for _ in 0..<200 { await Task.yield() }
+      await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+
+      let rescans = RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
+        matching: targetIDs
+      )
+      #expect(
+        rescans >= 1,
+        """
+        Re-appearing on the Episodes tab after a podcastAffinityWeight change \
+        skipped rescoring: \(rescans) embeddings(for:) call(s) for the candidate \
+        IDs. podcastAffinityWeight feeds scoreEpisodes, so the score retained \
+        across the tab switch is stale and must be recomputed.
         """
       )
     }

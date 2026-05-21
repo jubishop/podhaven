@@ -268,11 +268,11 @@ class EpisodesListViewModel:
     }
     recommendationContextObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      // Drop the first emission — $contextRevision yields its current value
+      // Drop the first emission — $scoringRevision yields its current value
       // on subscribe, and the candidate observation's first emission is what
       // kicks the initial fetch. Skipping it here avoids double-fetching on
       // view appear.
-      for await _ in self.recommendationEngine.$contextRevision.stream().dropFirst() {
+      for await _ in self.recommendationEngine.$scoringRevision.stream().dropFirst() {
         guard !Task.isCancelled else { return }
         self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
       }
@@ -347,7 +347,7 @@ class EpisodesListViewModel:
 
   private struct ScoredInputsKey: Equatable {
     let candidates: [CandidateEpisode]
-    let contextRevision: Int
+    let scoringRevision: Int
   }
 
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
@@ -367,7 +367,7 @@ class EpisodesListViewModel:
 
     let key = ScoredInputsKey(
       candidates: candidates,
-      contextRevision: recommendationEngine.contextRevision
+      scoringRevision: recommendationEngine.scoringRevision
     )
     // Skip when neither the candidates nor the engine's scoring context changed.
     guard key != lastScoredKey else { return }
