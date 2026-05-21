@@ -956,4 +956,149 @@ import Testing
       )
     }
   }
+
+  @Test("re-entering rec sort under a new search shows computing, not stale rows")
+  func reEnteringRecSortUnderNewSearchShowsComputingNotStaleRows() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, alphas) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target Alphacand",
+      podcastDescription: "Target Alphacand",
+      episodeDescriptions: ["Target Alphacand 0", "Target Alphacand 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(alphas, embeddable: embeddable)
+
+    let (_, betas) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target Betacand",
+      podcastDescription: "Target Betacand",
+      episodeDescriptions: ["Target Betacand 0", "Target Betacand 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(betas, embeddable: embeddable)
+
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: alphas + betas)
+    // Quiesce setup-driven rebuilds so the gate below catches the re-entry's
+    // own scoring pass, not a stray Up Next rebuild.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    let fakeRecommendationRepo = try #require(
+      Container.shared.recommendationRepo() as? FakeRecommendationRepo
+    )
+    let alphaIDs = Set(alphas.map(\.id))
+    let betaIDs = Set(betas.map(\.id))
+
+    let viewModel = EpisodesListViewModel(
+      title: "RecReEnterNewSearch",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await withRunningObservationLoop(viewModel) {
+      // Score the rec sort under the empty search: all four targets land.
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+            == alphaIDs.union(betaIDs)
+        },
+        { @MainActor in
+          """
+          Expected all four targets scored under the empty search first.
+          Actual: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
+
+      // Leave rec sort, then change the search text while on a standard sort.
+      viewModel.currentSortMethod = .newestFirst
+      let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
+      let pendingBeforeSearch = fakeSleeper.pendingCount()
+      viewModel.filterDebouncer.currentValue = "Betacand"
+      try await fakeSleeper.waitForSleepRequests(count: pendingBeforeSearch + 1)
+      await fakeSleeper.advanceTime(by: .milliseconds(500))
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .loaded
+            && Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == betaIDs
+        },
+        { @MainActor in
+          "Expected the standard sort to narrow to Betacand, got \(viewModel.loadingState)."
+        }
+      )
+
+      // Strand the re-entry's scoring pass so the computing window is stable.
+      fakeRecommendationRepo.armEmbeddingsGate(matching: betaIDs)
+
+      // Re-enter rec sort. The retained score map was computed for the empty
+      // search; it must NOT hydrate as loaded under the new search — that
+      // would surface Alphacand rows that don't match "Betacand". The honest
+      // state is .computingRecommendations until the fresh pass lands.
+      viewModel.currentSortMethod = .recommendationScore
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.loadingState == .computingRecommendations },
+        { @MainActor in
+          """
+          Expected .computingRecommendations on rec-sort re-entry under the new \
+          search; a stale retained score map hydrated as loaded instead.
+          State: \(viewModel.loadingState)
+          Entries: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
+      #expect(
+        Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+          .isDisjoint(with: alphaIDs),
+        """
+        Stale Alphacand rows surfaced under the "Betacand" search while the \
+        on-demand scoring pass was still computing.
+        Entries: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+        """
+      )
+
+      // Releasing the pass lets the correct, search-scoped list load.
+      fakeRecommendationRepo.releaseEmbeddingsGate()
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          guard case .loaded = viewModel.loadingState else { return false }
+          return Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == betaIDs
+        },
+        { @MainActor in
+          """
+          Expected the rec-sorted list to settle to the Betacand candidates.
+          Expected: \(betaIDs)
+          Actual: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
+    }
+  }
 }

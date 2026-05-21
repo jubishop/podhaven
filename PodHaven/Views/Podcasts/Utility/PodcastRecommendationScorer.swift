@@ -131,7 +131,7 @@ final class PodcastRecommendationScorer {
     guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     recommendationScoresDebounce { [weak self] in
       guard let self else { return }
-      await requestRecommendationScoreRefresh(generation: generation)
+      await self.requestRecommendationScoreRefresh(generation: generation)
     }
   }
 

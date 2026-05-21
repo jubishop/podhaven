@@ -178,10 +178,6 @@ class EpisodesListViewModel:
   // sort is the selected one. Two producers feed the scoring pass: the
   // candidate set and the engine's scoring revision.
   private func runRecommendationObservation() async {
-    // Hydrate straight from a score retained across an earlier selection so
-    // toggling back to rec sort doesn't re-flash "Computing recommendations…".
-    kickRecommendationHydration()
-
     await withTaskGroup(of: Void.self) { group in
       group.addTask { [weak self] in
         guard let self else { return }
@@ -202,10 +198,16 @@ class EpisodesListViewModel:
         try Task.checkCancellation()
 
         lastObservedCandidates = candidates
-        restartRecommendationScoring(candidates: candidates)
-        kickRecommendationHydration()
+        let key = ScoredInputsKey(
+          candidates: candidates,
+          scoringRevision: recommendationEngine.scoringRevision
+        )
+        if case .loaded(let scoredKey, _) = recommendationScoresState, scoredKey == key {
+          kickRecommendationHydration()
+        } else {
+          recomputeRecommendations(for: candidates)
+        }
       }
-    } catch is CancellationError {
     } catch {
       Self.log.caughtError(
         "observeCandidateSet: observation failed for episode list '\(title)'",
@@ -220,7 +222,7 @@ class EpisodesListViewModel:
     // subscribe, and the candidate observation already kicks the initial pass.
     for await _ in recommendationEngine.$scoringRevision.stream().dropFirst() {
       guard !Task.isCancelled else { return }
-      restartRecommendationScoring(candidates: lastObservedCandidates)
+      recomputeRecommendations(for: lastObservedCandidates)
     }
   }
 
@@ -239,7 +241,6 @@ class EpisodesListViewModel:
         Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
         transitionToLoaded(podcastEpisodes)
       }
-    } catch is CancellationError {
     } catch {
       Self.log.caughtError(
         "runStandardSortObservation: observation failed for episode list '\(title)'",
@@ -322,7 +323,6 @@ class EpisodesListViewModel:
           }
           self.transitionToLoaded(ordered)
         }
-      } catch is CancellationError {
       } catch {
         Self.log.caughtError(
           "startRecommendationHydration: observation failed for \(topIDs.count) ids",
@@ -338,7 +338,7 @@ class EpisodesListViewModel:
   private enum RecommendationScoresState {
     case pending
     case failed
-    case loaded([Episode.ID: Float])
+    case loaded(ScoredInputsKey, [Episode.ID: Float])
   }
 
   private struct ScoredInputsKey: Equatable {
@@ -347,20 +347,17 @@ class EpisodesListViewModel:
   }
 
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
-  @ObservationIgnored private var lastScoredKey: ScoredInputsKey?
   @ObservationIgnored private var recommendationScoringTask: Task<Void, Never>?
 
-  // Cancel-and-restart: any in-flight pass is cancelled so the latest inputs
-  // win and a superseded pass never publishes stale rows.
-  private func restartRecommendationScoring(candidates observedCandidates: [CandidateEpisode]?) {
+  private func recomputeRecommendations(for observedCandidates: [CandidateEpisode]?) {
     guard let candidates = observedCandidates else { return }
+    // Keep loaded rows visible during a mid-view rescore.
+    if loadingState != .loaded { loadingState = .computingRecommendations }
 
     let key = ScoredInputsKey(
       candidates: candidates,
       scoringRevision: recommendationEngine.scoringRevision
     )
-    guard key != lastScoredKey else { return }
-
     recommendationScoringTask?.cancel()
     recommendationScoringTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
@@ -372,11 +369,9 @@ class EpisodesListViewModel:
       } else {
         do {
           values = try await self.recommendationEngine.recommendationScores(for: candidates)
-        } catch is CancellationError {
-          return
         } catch {
           Self.log.caughtError(
-            "restartRecommendationScoring: scoring failed",
+            "recomputeRecommendations: scoring failed",
             error
           )
           self.handleRecommendationFailure()
@@ -386,8 +381,7 @@ class EpisodesListViewModel:
 
       guard !Task.isCancelled else { return }
 
-      self.recommendationScoresState = .loaded(values)
-      self.lastScoredKey = key
+      self.recommendationScoresState = .loaded(key, values)
       Self.log.debug(
         "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
       )
@@ -398,14 +392,15 @@ class EpisodesListViewModel:
   private func handleRecommendationFailure() {
     guard !Task.isCancelled else { return }
     recommendationScoresState = .failed
-    lastScoredKey = nil
     guard currentSortMethod == .recommendationScore else { return }
     alert("Couldn't compute recommendations.")
     loadingState = .failed
   }
 
   private func topEpisodeIDsByScore() -> [Episode.ID] {
-    guard case .loaded(let scores) = recommendationScoresState, !scores.isEmpty else { return [] }
+    guard case .loaded(_, let scores) = recommendationScoresState, !scores.isEmpty else {
+      return []
+    }
     return
       scores
       .sorted { lhs, rhs in
@@ -422,8 +417,8 @@ class EpisodesListViewModel:
     cancelRecommendationWork()
   }
 
-  // `lastScoredKey` deliberately survives this teardown (see
-  // `cancelRecommendationScoring`) so re-selecting the rec sort is instant.
+  // `recommendationScoresState` deliberately survives teardown so re-selecting
+  // the rec sort can hydrate without recomputing.
   private func cancelRecommendationWork() {
     cancelRecommendationScoring()
     cancelRecommendationHydration()
@@ -433,7 +428,6 @@ class EpisodesListViewModel:
     recommendationScoringTask?.cancel()
     recommendationScoringTask = nil
     lastObservedCandidates = nil
-    // lastScoredKey is deliberately kept so a completed score survives a tab switch.
   }
 
   private func cancelRecommendationHydration() {
