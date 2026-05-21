@@ -8,7 +8,7 @@ import Observation
 import Tagged
 
 // Owns recommendation-score sorting for `PodcastDetailViewModel`: observes the
-// engine's context revisions, computes per-episode scores (saved podcasts via
+// engine's scoring revisions, computes per-episode scores (saved podcasts via
 // the recommendation engine, unsaved ones via on-device similarity), and
 // installs the resulting sort/filter onto the host's episode list. The host
 // forwards lifecycle and sort/state events here and reads `display` back.

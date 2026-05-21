@@ -360,7 +360,7 @@ class EpisodesListViewModel:
 
   private func kickRecommendationFetch(candidates observedCandidates: [CandidateEpisode]?) {
     // The candidate observation is the sole source of truth for which episodes
-    // to score. If it hasn't emitted yet (a context-revision tick can race
+    // to score. If it hasn't emitted yet (a scoring-revision tick can race
     // ahead of the first observation yield on view appear), skip this kick —
     // the imminent first candidate emission will call us back with fresh data.
     guard let candidates = observedCandidates else { return }
