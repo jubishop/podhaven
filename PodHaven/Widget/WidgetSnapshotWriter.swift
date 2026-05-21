@@ -29,7 +29,7 @@ final class WidgetSnapshotWriter: Sendable {
   private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
-  private var taskPriority: @Sendable (TaskPriority) -> TaskPriority? {
+  private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
     Container.shared.taskPriority()
   }
   private var userSettings: UserSettings { Container.shared.userSettings() }

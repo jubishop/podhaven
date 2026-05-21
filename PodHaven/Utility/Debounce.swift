@@ -4,11 +4,14 @@ import FactoryKit
 import Foundation
 
 final class Debounce: Sendable {
+  private var sleeper: any Sleepable { Container.shared.sleeper() }
+  private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
+    Container.shared.taskPriority()
+  }
+
   private let duration: Duration
   private let priority: TaskPriority?
   private let task = ThreadSafe<Task<Void, Never>?>(nil)
-
-  private var sleeper: any Sleepable { Container.shared.sleeper() }
 
   init(duration: Duration, priority: TaskPriority? = nil) {
     self.duration = duration
@@ -18,7 +21,7 @@ final class Debounce: Sendable {
   func callAsFunction(_ action: @escaping @Sendable () async -> Void) {
     task { existing in
       existing?.cancel()
-      existing = Task(priority: priority) {
+      existing = Task(priority: taskPriority(priority)) {
         if duration > .zero {
           try? await sleeper.sleep(for: duration)
         }
