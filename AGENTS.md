@@ -47,6 +47,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 ## Testing
 - Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `.context(.test)`, `PodHavenTests/Fakes`). Do not use `.serialized`.
 - Bugfixes require a regression test proven failing before the fix; if it passes before and after, it is not a regression test and the bug may not be real.
+- Default local test runs to My Mac (Designed for iPhone): `-destination 'platform=macOS,name=My Mac'`.
 - Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
 - Async tests use `Wait.until`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
 - All test files belong to `PodHavenTests`.

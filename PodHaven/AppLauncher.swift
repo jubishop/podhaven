@@ -45,6 +45,7 @@ struct AppLauncher: Sendable {
     guard AppInfo.environment != .preview else { return }
 
     configureLogging()
+    guard AppInfo.environment != .testing else { return }
 
     // Force DB initialization so schema migrations run immediately.
     _ = Container.shared.appDB()
@@ -114,6 +115,7 @@ struct AppLauncher: Sendable {
 
       await AppInfo.finalizeEnvironment()
       Self.applySentryEnvironment()
+      guard AppInfo.environment != .testing else { return }
       guard !Task.isCancelled else { return }
 
       await self.userNotificationManager.initialize()
@@ -127,7 +129,6 @@ struct AppLauncher: Sendable {
 
       // No-op if an intent already triggered prepareForPlayback during the cold launch.
       await self.prepareForPlayback()
-      guard AppInfo.environment != .testing else { return }
       guard !Task.isCancelled else { return }
 
       self.cacheManager.start()
