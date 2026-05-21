@@ -176,9 +176,7 @@ class EpisodesListViewModel:
 
   // Recommendation scoring runs only on demand — while the recommendationScore
   // sort is the selected one. Two producers feed the scoring pass: the
-  // candidate set and the engine's scoring revision. They run as structured
-  // children so both stop the moment this observation is torn down — a sort
-  // switch (`.task(id:)` restart) or the view disappearing.
+  // candidate set and the engine's scoring revision.
   private func runRecommendationObservation() async {
     // Hydrate straight from a score retained across an earlier selection so
     // toggling back to rec sort doesn't re-flash "Computing recommendations…".
@@ -218,11 +216,8 @@ class EpisodesListViewModel:
   }
 
   private func observeScoringRevision() async {
-    // Drop the first emission — $scoringRevision yields its current value on
-    // subscribe, and the candidate observation's first emission already kicks
-    // the initial scoring pass. Skipping it here avoids a double-fetch on
-    // appear. Before that first candidate emission `lastObservedCandidates` is
-    // nil, so an early revision tick scores nothing and waits for real data.
+    // Drop the first emission — $scoringRevision replays its current value on
+    // subscribe, and the candidate observation already kicks the initial pass.
     for await _ in recommendationEngine.$scoringRevision.stream().dropFirst() {
       guard !Task.isCancelled else { return }
       restartRecommendationScoring(candidates: lastObservedCandidates)
@@ -355,21 +350,15 @@ class EpisodesListViewModel:
   @ObservationIgnored private var lastScoredKey: ScoredInputsKey?
   @ObservationIgnored private var recommendationScoringTask: Task<Void, Never>?
 
-  // Cancels any in-flight scoring pass and starts a fresh one for the current
-  // inputs. Both producers — the candidate set and the engine's scoring
-  // revision — funnel through here. Cancel-and-restart keeps the latest inputs
-  // winning: a superseded pass is cancelled, so it never publishes stale rows.
+  // Cancel-and-restart: any in-flight pass is cancelled so the latest inputs
+  // win and a superseded pass never publishes stale rows.
   private func restartRecommendationScoring(candidates observedCandidates: [CandidateEpisode]?) {
-    // A scoring-revision tick can race ahead of the first candidate emission;
-    // with nothing observed yet there's nothing to score — the imminent first
-    // emission will call back with fresh data.
     guard let candidates = observedCandidates else { return }
 
     let key = ScoredInputsKey(
       candidates: candidates,
       scoringRevision: recommendationEngine.scoringRevision
     )
-    // Skip when neither the candidates nor the engine's scoring context changed.
     guard key != lastScoredKey else { return }
 
     recommendationScoringTask?.cancel()
@@ -395,8 +384,6 @@ class EpisodesListViewModel:
         }
       }
 
-      // A newer pass cancels this one; bail before publishing so a superseded
-      // pass never leaks rows past the list's current filter.
       guard !Task.isCancelled else { return }
 
       self.recommendationScoresState = .loaded(values)
@@ -435,12 +422,8 @@ class EpisodesListViewModel:
     cancelRecommendationWork()
   }
 
-  // Cancels the scoring and hydration tasks — the unstructured work the
-  // candidate/revision observations spawn. The observations themselves are
-  // structured children of `runRecommendationObservation`, so a `.task(id:)`
-  // restart (sort switch) or view teardown already cancels those. Called both
-  // when the view disappears and when a non-rec sort takes over. `lastScoredKey`
-  // survives (see `cancelRecommendationScoring`) so a re-selection is instant.
+  // `lastScoredKey` deliberately survives this teardown (see
+  // `cancelRecommendationScoring`) so re-selecting the rec sort is instant.
   private func cancelRecommendationWork() {
     cancelRecommendationScoring()
     cancelRecommendationHydration()
