@@ -445,6 +445,7 @@ class EpisodesListViewModel:
   private func handleRecommendationFailure() {
     guard !Task.isCancelled else { return }
     recommendationScoresState = .failed
+    lastScoredKey = nil
     guard currentSortMethod == .recommendationScore else { return }
     alert("Couldn't compute recommendations.")
     loadingState = .failed
