@@ -56,24 +56,30 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
   // MARK: - Broadcasting
 
   func new(_ value: T) {
-    state { state in
-      state.current = value
-      for continuation in state.continuations.values {
-        continuation.yield(value)
-      }
-    }
-    notifyObservers(value)
+    write({ $0 = value }, isDuplicate: nil)
   }
 
   func update(_ transform: (inout T) -> Void) {
-    let updated: T = state { state in
+    write(transform, isDuplicate: nil)
+  }
+
+  // `isDuplicate` is checked inside the state lock so the compare and the
+  // mutation+yield are atomic — an outside check would race a concurrent writer.
+  private func write(
+    _ transform: (inout T) -> Void,
+    isDuplicate: ((T, T) -> Bool)?
+  ) {
+    let broadcastValue: T? = state { state in
+      let previous = state.current
       transform(&state.current)
+      if let isDuplicate, isDuplicate(previous, state.current) { return nil }
       for continuation in state.continuations.values {
         continuation.yield(state.current)
       }
       return state.current
     }
-    notifyObservers(updated)
+    guard let broadcastValue else { return }
+    notifyObservers(broadcastValue)
   }
 
   // Hop to MainActor so SwiftUI picks up the change regardless of which thread mutated.
@@ -103,6 +109,21 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
         self.state { _ = $0.continuations.removeValue(forKey: id) }
       }
     }
+  }
+}
+
+// MARK: - Equatable Deduplication
+
+// Equatable values are deduplicated: a write that doesn't change the value
+// wakes no stream or SwiftUI observer. Overload resolution prefers these over
+// the unconstrained `new`/`update` whenever `T: Equatable`.
+extension Broadcast where T: Equatable {
+  func new(_ value: T) {
+    write({ $0 = value }, isDuplicate: ==)
+  }
+
+  func update(_ transform: (inout T) -> Void) {
+    write(transform, isDuplicate: ==)
   }
 }
 
