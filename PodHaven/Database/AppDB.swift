@@ -73,6 +73,8 @@ struct AppDB {
     var config = Configuration()
     if let qos = qos { config.qos = qos }
 
+    config.maximumReaderCount = 10
+
     #if DEBUG
     config.publicStatementArguments = true
     config.prepareDatabase { db in

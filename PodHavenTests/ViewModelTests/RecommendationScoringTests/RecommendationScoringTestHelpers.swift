@@ -82,9 +82,9 @@ import Testing
   }
 
   // Drains every cache rebuild the setup writes kicked off, polling until the
-  // engine's `$contextRevision` holds steady across `stableRounds` consecutive
+  // engine's `$scoringRevision` holds steady across `stableRounds` consecutive
   // drains. Tests that deliberately strand a scoring pass need this: a late
-  // rebuild's `$contextRevision` bump would otherwise reschedule the pass and
+  // rebuild's `$scoringRevision` bump would otherwise reschedule the pass and
   // mask the regression under test.
   static func settleRecommendationEngine(stableRounds: Int = 20) async throws {
     let engine = Container.shared.recommendationEngine()
@@ -93,7 +93,7 @@ import Testing
       priority: .userInitiated,
       {
         await drainRecommendationSleeper()
-        let current = engine.contextRevision
+        let current = engine.scoringRevision
         return progress { box in
           if current == box.revision {
             box.stable += 1
@@ -104,7 +104,7 @@ import Testing
           return box.stable >= stableRounds
         }
       },
-      { "Expected the recommendation engine's $contextRevision to quiesce." }
+      { "Expected the recommendation engine's $scoringRevision to quiesce." }
     )
   }
 

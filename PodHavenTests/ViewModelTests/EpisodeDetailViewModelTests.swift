@@ -302,7 +302,7 @@ import Testing
     try await RecommendationHelpers.embedEpisodes([resaved.episode])
 
     // Drive the engine's embedding-table observation through its 400ms
-    // debounce so contextRevision bumps and the saved-side fetch re-runs
+    // debounce so scoringRevision bumps and the saved-side fetch re-runs
     // with the newly-inserted embedding visible.
     _ = try await RecommendationHelpers.waitAdvancing {
       let isRecommendation = await MainActor.run {
@@ -572,7 +572,7 @@ import Testing
     try await RecommendationHelpers.embedEpisodes([saved.episode])
 
     // Drive the engine's embedding-table observation through its 400ms
-    // debounce so contextRevision bumps and the saved-side fetch produces a
+    // debounce so scoringRevision bumps and the saved-side fetch produces a
     // recommendation-kind score with the new embedding visible.
     _ = try await RecommendationHelpers.waitAdvancing {
       let isRecommendation = await MainActor.run {

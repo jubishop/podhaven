@@ -1,13 +1,13 @@
 ---
 name: recommendation-engine-full-library-rescan
-description: Active investigation (#296) — RecommendationEngine rescans the entire ~95.5K-episode library on every Unqueued-list display / tab switch, and the result-marshalling lands on @MainActor, pegging the app. Distinct from the #293 PodcastDetail storm; same architectural pattern.
+description: #296 — RecommendationEngine rescanned the entire ~95.5K-episode library on every Unqueued-list display / tab switch, pegging the app on a cold launch. Fixed via Option C (PR #305): coalescing + leading-edge debounce + off-main marshalling + wider reader pool. The in-memory embedding cache that would stop the rescan entirely is deferred to #304.
 type: project
 ---
 
 # RecommendationEngine full-library rescan (#296)
 
-Active investigation. Root cause confirmed from a diagnostic TestFlight build
-and a code read.
+Fixed via Option C in PR #305. Root cause was confirmed from a diagnostic
+TestFlight build and a code read; the diagnosis below is retained as reference.
 
 ## The bug
 
@@ -66,19 +66,37 @@ gated by priority:
    deprioritized off it; a user-interactive UI read just waits. QoS schedules
    CPU; it does not reclaim a held connection.
 
-## Fix direction
+## Fix shipped — Option C (PR #305)
 
-- Have `recommendations(for:)` return the final `[Episode.ID: Float]` so there
-  is no ~95K remarshal on the main actor — only the small `.loaded` assignment
-  lands on `@MainActor`.
-- Coalesce/debounce `kickRecommendationFetch`; skip when scoring inputs are
-  unchanged.
-- Cache the embedding matrix in memory; invalidate only on embedding writes.
+The freeze is addressed without the embedding cache, by attacking the two
+things that actually hit the UI (the `@MainActor` remarshal and the held
+reader connections) plus reducing redundant passes:
 
-The embedding cache is real design work, not transcription — `RecommendationEngine`
-is a `Sendable struct` and cannot own it; needs a dedicated `actor`, incremental
-invalidation, and a memory budget. See the **#296 "Implementer handoff" comment**
-for the gaps the one-line fix direction glosses, plus the regression-test approach.
+- `EpisodesListViewModel` keys each scoring pass on `(candidates,
+  scoringRevision)` and skips a kick whose key matches the last completed
+  pass. The key is kept across `disappear()`, so a tab switch back to the
+  list no longer rescans.
+- A leading-edge debounce runs an isolated kick immediately but coalesces
+  mid-pass kicks (a feed-refresh write storm) into one trailing pass.
+- `RecommendationEngine.recommendationScores(for:)` returns `[Episode.ID:
+  Float]` directly, so the candidate-set-sized result is reduced off the
+  main actor — no ~95K remarshal loop on `@MainActor`.
+- `AppDB.makeConfiguration()` sets `maximumReaderCount = 10` so a long
+  recommendation read can't starve interactive UI/queue reads.
+
+What Option C does **not** do: during a cold-launch feed-refresh storm the
+candidate set genuinely changes each kick (feed refresh rewrites `pubDate`,
+which `CandidateEpisode` carries), so the coalescing key differs and the
+engine still re-reads + re-decodes the full embedding set per pass. It runs
+off-main and out of the reader pool's way, but the work still happens.
+
+## Deferred — #304 (embedding cache)
+
+Eliminating the rescan entirely needs the in-memory embedding cache. That is
+real design work: `RecommendationEngine` is a `Sendable struct` and cannot
+own it, so it needs a dedicated `actor`, incremental invalidation scoped to
+`episodeEmbedding`, and a memory budget (~190 MB for ~95.5K × 512 floats;
+drop on background / memory warning). Tracked in #304.
 
 ## Related
 
@@ -86,4 +104,4 @@ for the gaps the one-line fix direction glosses, plus the regression-test approa
   architectural weakness (a SwiftUI observation triggering uncoalesced heavy
   work), different loop. Either one alone pegs the whole app.
 - #298 — revert of the `c45e2908` diagnostic probes, blocked by #293 + #296.
-- [[recommendation_sort_prewarming]] — recommendation behaviour a fix must preserve.
+- [[recommendation_sort_prewarming]] — recommendation behaviour the fix preserves.

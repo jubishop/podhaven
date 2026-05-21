@@ -165,7 +165,7 @@ enum RecommendationHelpers {
 
   // Same per-iteration FakeSleeper advance as `waitAdvancing`, but for the
   // boolean-condition + error-message shape of `Wait.until`. Use whenever a
-  // VM-level effect is gated on the engine's debounced contextRevision tick.
+  // VM-level effect is gated on the engine's debounced scoringRevision tick.
   static func untilAdvancing(
     priority: TaskPriority = .background,
     _ block: @Sendable @escaping () async throws -> Bool,

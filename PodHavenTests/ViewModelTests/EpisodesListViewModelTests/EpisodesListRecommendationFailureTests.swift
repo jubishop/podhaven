@@ -139,7 +139,7 @@ import Testing
       }
     ])
 
-    // engine.start() is not called in this test, so $contextRevision should
+    // engine.start() is not called in this test, so $scoringRevision should
     // emit only its initial value of 0 (via Broadcast's on-subscribe yield)
     // and never tick again. The no-retry-loop assertion below times out on
     // the absence of a second embeddedCandidateEpisodes call — a spurious tick from
@@ -150,7 +150,7 @@ import Testing
     let engine = Container.shared.recommendationEngine()
     let revisionTickCount = ThreadSafe<Int>(0)
     let revisionWatcher = Task(priority: .userInitiated) {
-      for await _ in engine.$contextRevision.stream() {
+      for await _ in engine.$scoringRevision.stream() {
         let count = revisionTickCount {
           $0 += 1
           return $0
@@ -158,7 +158,7 @@ import Testing
         if count > 1 {
           Issue.record(
             """
-            contextRevision ticked during a no-retry-loop test that assumes \
+            scoringRevision ticked during a no-retry-loop test that assumes \
             engine.start() was not called. A tick would kick a second \
             embeddedCandidateEpisodes fetch from recommendationContextObservationTask and \
             mask the view-model diff logic this test is meant to pin down.
@@ -221,6 +221,150 @@ import Testing
       }
 
       _ = try fakeObservatory.expectCalls(methodName: "embeddedCandidateEpisodes", count: 1)
+    }
+  }
+
+  @Test("rec-sort recovers on reappear after a transient candidate-observation failure")
+  func transientCandidateObservationFailureDoesNotStickAcrossReappear() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0", "Target 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
+
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
+    // Quiesce engine rebuilds before the first appear so scoringRevision — half
+    // the scoring key — holds steady across all three appears below.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    let targetIDs = Set(targets.map(\.id))
+    let viewModel = EpisodesListViewModel(
+      title: "RecTransientFailure",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .recommendationScore
+
+    // First appear: the candidate observation succeeds and the scoring pass
+    // lands, so the view model records a completed `lastScoredKey`.
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
+        },
+        { @MainActor in
+          """
+          Expected the initial scoring pass to surface both targets under rec sort.
+          Actual: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
+    }
+
+    // Second appear: the candidate observation throws. handleRecommendationFailure
+    // forces recommendationScoresState to .failed; the failure alert it raises
+    // proves it ran past the cancellation guard.
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let dbReader = appDB.db
+    fakeObservatory.embeddedCandidateEpisodesScript([
+      {
+        ValueObservation
+          .tracking { _ -> [CandidateEpisode] in
+            throw TestError.simulatedFailure
+          }
+          .values(in: dbReader)
+      }
+    ])
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor [self] in alert.config != nil },
+        { @MainActor [self] in
+          """
+          Expected the candidate-observation failure to surface a failure alert.
+          alert.config = \(String(describing: alert.config))
+          """
+        }
+      )
+    }
+
+    // Third appear: the candidate observation recovers and emits the same
+    // candidate set at the same scoringRevision as the first appear. The
+    // failure above clobbered recommendationScoresState to .failed, so the
+    // retained completed-pass key must not suppress the rescore — skipping it
+    // leaves rec sort stuck on the failure state forever. A scoped
+    // embeddings(for:) call is the unambiguous signal that the kick ran;
+    // loadingState alone is racy because episodeList still holds the stale
+    // rows the first appear surfaced.
+    let fakeRecommendationRepo = try #require(
+      Container.shared.recommendationRepo() as? FakeRecommendationRepo
+    )
+    fakeRecommendationRepo.clearAllCalls()
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        {
+          await MainActor.run {
+            RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
+              matching: targetIDs
+            ) >= 1
+          }
+        },
+        { @MainActor in
+          """
+          Re-appearing after a transient candidate-observation failure left rec \
+          sort stuck: the retained completed-pass key suppressed the kick, so \
+          the candidate set was never rescored and recommendationScoresState \
+          stayed .failed.
+          embeddings(for:) calls for the candidate set: \
+          \(RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs))
+          """
+        }
+      )
+      // The rescore ran — confirm it cleared the stuck failure state.
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .loaded
+            && Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
+        },
+        { @MainActor in
+          """
+          The post-failure rescore ran but rec sort did not recover to .loaded.
+          loadingState: \(viewModel.loadingState)
+          entries: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
     }
   }
 }

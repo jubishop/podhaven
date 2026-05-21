@@ -87,7 +87,7 @@ import Testing
   }
 
   @Test(
-    "PodcastDetailViewModel opened against a hot engine cache scores without a subsequent $contextRevision bump"
+    "PodcastDetailViewModel opened against a hot engine cache scores without a subsequent $scoringRevision bump"
   )
   func podcastDetailHotCacheBootstrapScoresImmediately() async throws {
     let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
@@ -133,7 +133,7 @@ import Testing
         """
         Expected initial bootstrap scoring to populate the rec-score sort even \
         when the engine cache is already hot and no further \
-        $contextRevision bump arrives.
+        $scoringRevision bump arrives.
         Newest-first: \(newestFirstOrder)
         Actual: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
         """
@@ -142,7 +142,7 @@ import Testing
   }
 
   @Test(
-    "EpisodeDetailViewModel opened against a hot engine cache surfaces a displayedScore without a subsequent $contextRevision bump"
+    "EpisodeDetailViewModel opened against a hot engine cache surfaces a displayedScore without a subsequent $scoringRevision bump"
   )
   func episodeDetailHotCacheBootstrapScoresImmediately() async throws {
     let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
@@ -172,7 +172,7 @@ import Testing
       { @MainActor in
         """
         Expected hot-cache bootstrap to surface a recommendation score for the \
-        saved episode without a subsequent $contextRevision bump.
+        saved episode without a subsequent $scoringRevision bump.
         displayedScore: \(String(describing: viewModel.displayedScore))
         """
       }

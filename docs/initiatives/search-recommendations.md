@@ -185,7 +185,7 @@ visible count so `SearchView` can render the banner without reaching into
 collector internals. Current code has no direct "similarity context is ready"
 boolean; either add a small read-only readiness surface to `RecommendationEngine`
 or publish the banner loading state only after the collector proves scoring can
-succeed. Do not infer readiness from `contextRevision` alone, because a revision
+succeed. Do not infer readiness from `scoringRevision` alone, because a revision
 can still correspond to a nil scoring cache.
 
 Add a search-navigation destination for the discovery list. The search path is a

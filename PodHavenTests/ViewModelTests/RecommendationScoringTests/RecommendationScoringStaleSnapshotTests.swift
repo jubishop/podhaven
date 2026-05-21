@@ -104,7 +104,7 @@ import Testing
     let fakeRepo = fakeRecommendationRepo
     fakeRepo.clearAllCalls()
     fakeRepo.armEmbeddingsGate(matching: initialIDs)
-    recommendationEngine.$contextRevision.update { $0 += 1 }
+    recommendationEngine.$scoringRevision.update { $0 += 1 }
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,

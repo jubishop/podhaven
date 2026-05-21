@@ -175,11 +175,7 @@ class EpisodesListViewModel:
         try Task.checkCancellation()
 
         lastObservedCandidates = candidates
-        if lastScoredCandidates != candidates {
-          lastScoredCandidates = candidates
-          kickRecommendationFetch(candidates: candidates)
-        }
-
+        kickRecommendationFetch(candidates: candidates)
         kickRecommendationHydration()
       }
     } catch is CancellationError {
@@ -272,11 +268,11 @@ class EpisodesListViewModel:
     }
     recommendationContextObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      // Drop the first emission — $contextRevision yields its current value
+      // Drop the first emission — $scoringRevision yields its current value
       // on subscribe, and the candidate observation's first emission is what
       // kicks the initial fetch. Skipping it here avoids double-fetching on
       // view appear.
-      for await _ in self.recommendationEngine.$contextRevision.stream().dropFirst() {
+      for await _ in self.recommendationEngine.$scoringRevision.stream().dropFirst() {
         guard !Task.isCancelled else { return }
         self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
       }
@@ -349,28 +345,59 @@ class EpisodesListViewModel:
     case loaded([Episode.ID: Float])
   }
 
+  private struct ScoredInputsKey: Equatable {
+    let candidates: [CandidateEpisode]
+    let scoringRevision: Int
+  }
+
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
-  @ObservationIgnored private var lastScoredCandidates: [CandidateEpisode]?
+  @ObservationIgnored private var lastScoredKey: ScoredInputsKey?
   @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
+  @ObservationIgnored private var recommendationFetchGeneration = 0
+  @ObservationIgnored private let recommendationFetchDebounce = Debounce(
+    duration: .milliseconds(400),
+    priority: .utility
+  )
 
   private func kickRecommendationFetch(candidates observedCandidates: [CandidateEpisode]?) {
     // The candidate observation is the sole source of truth for which episodes
-    // to score. If it hasn't emitted yet (a context-revision tick can race
+    // to score. If it hasn't emitted yet (a scoring-revision tick can race
     // ahead of the first observation yield on view appear), skip this kick —
     // the imminent first candidate emission will call us back with fresh data.
     guard let candidates = observedCandidates else { return }
 
-    recommendationFetchTask?.cancel()
+    let key = ScoredInputsKey(
+      candidates: candidates,
+      scoringRevision: recommendationEngine.scoringRevision
+    )
+    // Skip when neither the candidates nor the engine's scoring context changed.
+    guard key != lastScoredKey else { return }
+
+    // Coalesce mid-pass kicks into one trailing pass; cancel-and-restart is the
+    // rescan storm this path avoids.
+    guard recommendationFetchTask == nil else {
+      scheduleTrailingRecommendationFetch()
+      return
+    }
+
+    recommendationFetchGeneration += 1
+    let generation = recommendationFetchGeneration
     recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
+      // Clear the slot only if a newer pass hasn't already replaced this task.
+      defer {
+        if self.recommendationFetchGeneration == generation {
+          self.recommendationFetchTask = nil
+        }
+      }
       guard !Task.isCancelled else { return }
 
-      let scoreMap: [Episode.ID: RecommendationScore]
+      let values: [Episode.ID: Float]
       if candidates.isEmpty {
-        scoreMap = [:]
+        values = [:]
       } else {
         do {
-          scoreMap = try await self.recommendationEngine.recommendations(for: candidates)
+          values = try await self.recommendationEngine.recommendationScores(for: candidates)
         } catch is CancellationError {
           return
         } catch {
@@ -385,10 +412,22 @@ class EpisodesListViewModel:
 
       guard !Task.isCancelled else { return }
 
-      var values = [Episode.ID: Float](capacity: scoreMap.count)
-      for (id, score) in scoreMap { values[id] = score.value }
+      // A coalesced pass isn't cancelled, so its inputs can be stale by the
+      // time it lands; publishing then leaks rows past the list's filter.
+      let currentKey = ScoredInputsKey(
+        candidates: self.lastObservedCandidates ?? [],
+        scoringRevision: self.recommendationEngine.scoringRevision
+      )
+      guard key == currentKey else {
+        Self.log.debug(
+          "Dropped a stale recommendation pass for \(candidates.count) candidates"
+        )
+        self.scheduleTrailingRecommendationFetch()
+        return
+      }
+
       self.recommendationScoresState = .loaded(values)
-      self.lastScoredCandidates = candidates
+      self.lastScoredKey = key
       Self.log.debug(
         "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
       )
@@ -396,9 +435,18 @@ class EpisodesListViewModel:
     }
   }
 
+  // Reads the latest observed candidates at fire time; no-ops after disappear.
+  private func scheduleTrailingRecommendationFetch() {
+    recommendationFetchDebounce { @MainActor [weak self] in
+      guard let self else { return }
+      self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
+    }
+  }
+
   private func handleRecommendationFailure() {
     guard !Task.isCancelled else { return }
     recommendationScoresState = .failed
+    lastScoredKey = nil
     guard currentSortMethod == .recommendationScore else { return }
     alert("Couldn't compute recommendations.")
     loadingState = .failed
@@ -432,8 +480,9 @@ class EpisodesListViewModel:
   private func cancelRecommendationFetch() {
     recommendationFetchTask?.cancel()
     recommendationFetchTask = nil
+    recommendationFetchDebounce.cancel()
     lastObservedCandidates = nil
-    lastScoredCandidates = nil
+    // lastScoredKey is deliberately kept so a completed score survives a tab switch.
   }
 
   private func cancelRecommendationHydration() {

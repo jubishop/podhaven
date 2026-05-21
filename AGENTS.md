@@ -65,6 +65,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 ## Coding Standards
 - Use `[weak self]` in closures/Tasks that capture `self` unless a strong reference is required. Unwrap with `guard let self else { return }`; use `self.x`, not `self?.x`.
 - No force unwraps (`!`) in production; use `Assert` or guarded error handling.
+- Never use `map`/`flatMap` to unwrap optionals; use `if let`/`guard let`. Reserve `map`/`flatMap` for collections.
 - Run `swift-format` on every Swift file you touch.
 - Comments use `//`, not `///`; no doc comments. Default to no comment except non-obvious why.
 - No external refs in production code comments — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`), etc. They move or disappear; context belongs in the commit/PR. Tests are exempt.

@@ -69,8 +69,11 @@ struct RecommendationEngine: Sendable {
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
-  private let cacheDebounce = Debounce(duration: .milliseconds(400))
-  private let recommendationsDebounce = Debounce(duration: .milliseconds(400))
+  private let cacheDebounce = Debounce(duration: .milliseconds(400), priority: .utility)
+  private let recommendationsDebounce = Debounce(
+    duration: .milliseconds(400),
+    priority: .utility
+  )
   private let startOnce = Once()
 
   // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
@@ -92,10 +95,10 @@ struct RecommendationEngine: Sendable {
     )?
   >(nil)
 
-  // Bumps once per cache rebuild. Subscribers watch
-  // `$contextRevision.stream()` to know when to re-query; the value itself
-  // is uninteresting.
-  @Broadcasted var contextRevision: Int = 0
+  // Bumps whenever scoring output can change — a context-cache rebuild or a
+  // `podcastAffinityWeight` change. Subscribers watch `$scoringRevision.stream()`
+  // to know when to re-score; the value itself is uninteresting.
+  @Broadcasted var scoringRevision: Int = 0
 
   fileprivate init() {}
 
@@ -124,14 +127,31 @@ struct RecommendationEngine: Sendable {
     )
   }
 
+  // Scores `candidates` against the current cache, paired with the display
+  // anchor. Returns nil when there's nothing to score or the cache is cold.
+  private func scoredCandidates(
+    _ candidates: [CandidateEpisode]
+  ) async throws -> (scores: [Episode.ID: RecommendationScore], displayMax: Float)? {
+    guard !candidates.isEmpty else { return nil }
+    guard let context = cache() else { return nil }
+    let scores = try await scoreEpisodes(candidates, context: context)
+    return (scores, observedMaxScore())
+  }
+
   func recommendations(
     for candidates: [CandidateEpisode]
   ) async throws -> [Episode.ID: RecommendationScore] {
-    guard !candidates.isEmpty else { return [:] }
-    guard let context = cache() else { return [:] }
-    let scores = try await scoreEpisodes(candidates, context: context)
-    let displayMax = observedMaxScore()
+    guard let (scores, displayMax) = try await scoredCandidates(candidates) else { return [:] }
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
+  }
+
+  func recommendationScores(
+    for candidates: [CandidateEpisode]
+  ) async throws -> [Episode.ID: Float] {
+    guard let (scores, displayMax) = try await scoredCandidates(candidates) else { return [:] }
+    return scores.mapValues {
+      RecommendationScore.rescaledForDisplay(value: $0.value, max: displayMax)
+    }
   }
 
   // Returns nil if the episode doesn't exist, has no embedding, or the
@@ -346,11 +366,15 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // Weight only affects per-candidate scoring; `scoreEpisodes` reads it live.
+    // Weight is applied live in `scoreEpisodes`, not baked into the cached
+    // context, so it needs no rebuild — but every scoring surface still has to
+    // re-score: bump `scoringRevision` for the per-list scorers and rebuild the
+    // Up Next set.
     Task(priority: taskPriority(.utility)) {
       let userSettings = Container.shared.userSettings()
       for await _ in userSettings.$podcastAffinityWeight.stream().dropFirst() {
         guard !Task.isCancelled else { return }
+        $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
       }
     }
@@ -410,7 +434,7 @@ struct RecommendationEngine: Sendable {
         )
 
         cache(context)
-        $contextRevision.update { $0 += 1 }
+        $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)

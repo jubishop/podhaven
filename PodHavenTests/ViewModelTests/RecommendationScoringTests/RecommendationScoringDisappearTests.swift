@@ -65,7 +65,7 @@ import Testing
     // disappear cancels the in-flight task and the `!Task.isCancelled` guard
     // in the loop exits cleanly.
     let pendingSleepRequests = fakeSleeper.pendingCount()
-    recommendationEngine.$contextRevision.update { $0 += 1 }
+    recommendationEngine.$scoringRevision.update { $0 += 1 }
     try await fakeSleeper.waitForSleepRequests(count: pendingSleepRequests + 1)
     await fakeSleeper.advanceTime(by: .seconds(1))
     for _ in 0..<3 {
