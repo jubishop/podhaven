@@ -1,6 +1,6 @@
 ---
 name: podcast-detail-observation-storm
-description: Investigation (#293) of the PodcastDetail observation storm. Root cause RESOLVED 2026-05-20 — real writes; Observatory.podcastSeriesDetail tracks too wide a region. WriteProbe promoted to a permanent enableWriteProbe debug toggle; emission-diff probe kept until #293 confirmed, removal tracked by #298.
+description: Investigation (#293) of the PodcastDetail observation storm. Root cause RESOLVED 2026-05-20 — real writes in the wide podcastSeriesDetail region. Fix = debounce the observation (column-drop disproven). WriteProbe is a permanent enableWriteProbe debug toggle; the emission-diff probe stays until #293 is confirmed, with targeted removal tracked by #298.
 type: project
 ---
 
@@ -66,25 +66,31 @@ storm is the same path with a far denser writer on the open podcast — prime
 suspect `EmbeddingProcessor` churning `episodeEmbedding` rows (batches of 64
 `upsertEmbeddings` seen in the same log).
 
-## Fix direction (plan-item #4)
+## Fix — debounce the observation (issue #293 body has the full spec)
 
-- Narrow the tracked region: drop `episodeEmbedding` existence — and any
-  per-episode column the detail view does not render — from
-  `Observatory.podcastSeriesDetail`.
-- And/or coalesce/debounce emissions. `removeDuplicates` cannot help; the data
-  really changes.
+The "narrow the tracked region" direction is **disproven**: `hasEmbedding` and
+`currentTime` are both rendered by the detail screen (`EpisodeListView.swift:87`
+shows `.embeddingPending`; `durationText` shows live `currentTime`), so the
+observation legitimately reads those columns — there is no dead column to drop.
 
-Not turnkey: `EpisodeEmbedding.existsSelectable` lives in the **shared**
-`ListableEpisode.databaseSelection` and feeds a stored `hasEmbedding` field —
-narrowing needs a separate slim selection for the detail fetch, not a line
-delete. And the catastrophic ~178/s rate was never captured with the probe, so
-the `EmbeddingProcessor` attribution is unproven — verify the fix against the
-original repro before closing. See the **#293 "Implementer handoff" comment**.
+The fix is a **trailing-edge debounce** on the `podcastSeriesDetail` observation
+(route `updatedSeries` in `observePodcastSeries`'s loop through the existing
+`Debounce` utility; keep the `nil`/deletion path immediate). A time debounce
+caps the emission→`transition` rate regardless of writer; `.removeDuplicates`
+cannot help because the data genuinely changes. Do NOT debounce the shared
+`Observatory.observe`. The full single-source spec — root cause, why the column
+drop fails, regression test, verification — is the regenerated **#293 issue
+body** (stream-of-thought comments were deleted 2026-05-21).
 
-## In-flight instrumentation
+Note: #303 extracted recommendation scoring into `PodcastRecommendationScorer`
+(own debounce); that cut per-emission cost but did NOT touch the storm — #293
+is still open and unfixed.
 
-Commit **`c45e2908`** (`🔬 chore(diagnostics)…`) added three diagnostic pieces,
-present from build 499. Their fate has since diverged:
+## In-flight instrumentation — KEEP emission-diff until #293 fixed and confirmed
+
+Commit **`c45e2908`** (`🔬 chore(diagnostics)…`) added diagnostics present in
+build 499. #296 is shipped, so **#293 is now the only remaining blocker** for
+cleaning up the temporary piece. Their fate has since diverged:
 
 - `WriteProbe.swift` + its registration in `AppDB._onDisk` — **now
   permanent.** Promoted to a debug facility gated by the `enableWriteProbe`
@@ -105,9 +111,9 @@ rate-limit dedup (`b7be5ebd`); `PodcastSeriesDetailTests` (`c94edefd`).
 
 ## Next step
 
-1. Implement the #4 fix (narrow `Observatory.podcastSeriesDetail`'s region).
-2. Ship a TestFlight build; confirm via the emission-diff probe that
-   re-emissions stop.
+1. Implement the debounce fix per the #293 issue body, with the regression test.
+2. Ship a TestFlight build carrying the emission-diff probe; confirm that the
+   emission→`transition` rate is capped.
 3. Then remove the emission-diff probe per #298.
 
 Analyse logs with the `analyze-logs` `log_summary.py` script: `--sessions` →
