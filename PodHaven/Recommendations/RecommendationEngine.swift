@@ -69,8 +69,11 @@ struct RecommendationEngine: Sendable {
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
-  private let cacheDebounce = Debounce(duration: .milliseconds(400))
-  private let recommendationsDebounce = Debounce(duration: .milliseconds(400))
+  private let cacheDebounce = Debounce(duration: .milliseconds(400), priority: .utility)
+  private let recommendationsDebounce = Debounce(
+    duration: .milliseconds(400),
+    priority: .utility
+  )
   private let startOnce = Once()
 
   // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
