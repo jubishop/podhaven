@@ -10,6 +10,7 @@ struct DebugSection: View {
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
+  @DynamicInjected(\.userSettings) private var userSettings
 
   @State private var pendingEmbeddings: Int? = nil
 
@@ -40,6 +41,16 @@ struct DebugSection: View {
 
       Button("Copy Device ID") {
         UIPasteboard.general.string = AppInfo.deviceIdentifier
+      }
+
+      SettingsRow(
+        infoText: """
+          Installs a database write probe that logs commit rate, affected \
+          tables, and sampled backtraces for every committed transaction — \
+          used to trace runaway DB-write loops.
+          """
+      ) {
+        Toggle("DB Write Probe", isOn: userSettings.$enableWriteProbe.binding)
       }
 
       #if DEBUG

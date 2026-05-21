@@ -1,6 +1,6 @@
 ---
 name: podcast-detail-observation-storm
-description: Investigation (#293) of the PodcastDetail observation storm. Root cause RESOLVED 2026-05-20 — real writes; Observatory.podcastSeriesDetail tracks too wide a region. Diagnostic probes (c45e2908) kept until #293 + #296 fixes confirmed; revert tracked by #298.
+description: Investigation (#293) of the PodcastDetail observation storm. Root cause RESOLVED 2026-05-20 — real writes; Observatory.podcastSeriesDetail tracks too wide a region. WriteProbe promoted to a permanent enableWriteProbe debug toggle; emission-diff probe kept until #293 confirmed, removal tracked by #298.
 type: project
 ---
 
@@ -81,17 +81,24 @@ delete. And the catastrophic ~178/s rate was never captured with the probe, so
 the `EmbeddingProcessor` attribution is unproven — verify the fix against the
 original repro before closing. See the **#293 "Implementer handoff" comment**.
 
-## In-flight instrumentation — KEEP until #293 + #296 fixed and confirmed
+## In-flight instrumentation
 
-Commit **`c45e2908`** (`🔬 chore(diagnostics)…`) — temporary, three files;
-present in build 499. Per the maintainer: keep until #293 *and* #296 fixes are
-shipped and verified on a TestFlight build — the emission-diff probe is the
-verification tool (confirms the fix stops the re-emissions). Revert is tracked
-by **#298** (`git revert c45e2908`), blocked by #293 + #296.
+Commit **`c45e2908`** (`🔬 chore(diagnostics)…`) added three diagnostic pieces,
+present from build 499. Their fate has since diverged:
 
-- `WriteProbe.swift` + its `install` call in `AppDB._onDisk` — a GRDB
-  `TransactionObserver` logging commit rate, tables, sampled backtraces.
-- `observePodcastSeries` emission-diff probe in `PodcastDetailViewModel`.
+- `WriteProbe.swift` + its registration in `AppDB._onDisk` — **now
+  permanent.** Promoted to a debug facility gated by the `enableWriteProbe`
+  user setting (off by default, toggled live in the Settings Debug section).
+  `WriteProbe` is registered on the DB once (`AppDB` passes it the setting's
+  `Broadcast` via `init`); its `observes(eventsOfKind:)` returns the setting,
+  which GRDB re-checks before every statement — so the toggle is live with no
+  relaunch and the probe sees no per-row events while off. Do NOT revert.
+- `observePodcastSeries` emission-diff probe in `PodcastDetailViewModel` —
+  **still temporary.** It is the verification tool for the #293 fix (confirms
+  the re-emissions stop). Keep until #293 is shipped and confirmed on a
+  TestFlight build; removal tracked by **#298** — a targeted removal of the
+  `emissionDiff` helper + its `.notice` call, NOT `git revert c45e2908` (that
+  would tear out `WriteProbe` too).
 
 Keepers (NOT part of `c45e2908`, do NOT revert): `FileLogHandler` per-call-site
 rate-limit dedup (`b7be5ebd`); `PodcastSeriesDetailTests` (`c94edefd`).
@@ -99,9 +106,9 @@ rate-limit dedup (`b7be5ebd`); `PodcastSeriesDetailTests` (`c94edefd`).
 ## Next step
 
 1. Implement the #4 fix (narrow `Observatory.podcastSeriesDetail`'s region).
-2. Ship a TestFlight build (still carrying `c45e2908`); confirm via the
-   emission-diff probe that re-emissions stop.
-3. Then revert `c45e2908` per #298.
+2. Ship a TestFlight build; confirm via the emission-diff probe that
+   re-emissions stop.
+3. Then remove the emission-diff probe per #298.
 
 Analyse logs with the `analyze-logs` `log_summary.py` script: `--sessions` →
 `--session N` → `--call-sites`.

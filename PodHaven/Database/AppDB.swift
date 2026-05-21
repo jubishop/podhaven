@@ -39,8 +39,10 @@ struct AppDB {
       )
       let dbPool = try DatabasePool(path: sqlitePath, configuration: makeConfiguration())
       let appDB = AppDB(dbPool)
-      // Temporary diagnostic: trace runaway DB-write transactions.
-      WriteProbe.install(on: dbPool)
+      dbPool.add(
+        transactionObserver: WriteProbe(enabled: Container.shared.userSettings().$enableWriteProbe),
+        extent: .databaseLifetime
+      )
       return appDB
     } catch {
       Assert.fatal("Failed to initialize onDisk AppDB pool: \(ErrorKit.message(for: error))")
