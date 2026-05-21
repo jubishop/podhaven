@@ -372,16 +372,10 @@ class EpisodesListViewModel:
     // Skip when neither the candidates nor the engine's scoring context changed.
     guard key != lastScoredKey else { return }
 
-    // A pass is in flight — coalesce further kicks into one trailing pass.
-    // The trailing kick re-reads the latest observed candidates at fire time
-    // instead of capturing this kick's set, so it can't rescan a stale
-    // snapshot after a newer pass already scored fresher candidates — and it
-    // no-ops after disappear, when lastObservedCandidates is nil.
+    // Coalesce mid-pass kicks into one trailing pass; cancel-and-restart is the
+    // rescan storm this path avoids.
     guard recommendationFetchTask == nil else {
-      recommendationFetchDebounce { @MainActor [weak self] in
-        guard let self else { return }
-        self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
-      }
+      scheduleTrailingRecommendationFetch()
       return
     }
 
@@ -417,12 +411,34 @@ class EpisodesListViewModel:
 
       guard !Task.isCancelled else { return }
 
+      // A coalesced pass isn't cancelled, so its inputs can be stale by the
+      // time it lands; publishing then leaks rows past the list's filter.
+      let currentKey = ScoredInputsKey(
+        candidates: self.lastObservedCandidates ?? [],
+        scoringRevision: self.recommendationEngine.scoringRevision
+      )
+      guard key == currentKey else {
+        Self.log.debug(
+          "Dropped a stale recommendation pass for \(candidates.count) candidates"
+        )
+        self.scheduleTrailingRecommendationFetch()
+        return
+      }
+
       self.recommendationScoresState = .loaded(values)
       self.lastScoredKey = key
       Self.log.debug(
         "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
       )
       self.kickRecommendationHydration()
+    }
+  }
+
+  // Reads the latest observed candidates at fire time; no-ops after disappear.
+  private func scheduleTrailingRecommendationFetch() {
+    recommendationFetchDebounce { @MainActor [weak self] in
+      guard let self else { return }
+      self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
     }
   }
 

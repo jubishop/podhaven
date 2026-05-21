@@ -912,4 +912,125 @@ import Testing
       )
     }
   }
+
+  @Test(
+    "a scoring pass whose candidate set changed mid-flight is dropped, not hydrated as stale rows"
+  )
+  func staleMidFlightScoringPassIsDroppedNotHydrated() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Target",
+      podcastDescription: "Target",
+      episodeDescriptions: ["Target 0", "Target 1", "Target 2"]
+    )
+    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
+
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
+    // Quiesce setup-driven rebuilds so the only sleeper-gated work left is the
+    // trailing debounce this test orchestrates.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    let fakeRecommendationRepo = try #require(
+      Container.shared.recommendationRepo() as? FakeRecommendationRepo
+    )
+    let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
+    fakeRecommendationRepo.clearAllCalls()
+
+    let allTargetIDs = Set(targets.map(\.id))
+    let finishedID = targets[2].id
+    let liveIDs = Set(targets.prefix(2).map(\.id))
+
+    let viewModel = EpisodesListViewModel(
+      title: "RecStaleMidFlight",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .recommendationScore
+
+    // Strand the initial scoring pass mid-flight so a candidate-set change can
+    // land while it runs.
+    fakeRecommendationRepo.armEmbeddingsGate(matching: allTargetIDs)
+
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { fakeRecommendationRepo.isEmbeddingsGateSuspended },
+        { "Expected the initial scoring pass to suspend on the gated embeddings read." }
+      )
+
+      // Target 2 leaves the candidate pool while the pass is gated. The kick is
+      // coalesced into a trailing debounce; the gated pass is NOT cancelled.
+      // Two debounces arm: the engine's re-rank and the view model's rescan.
+      let pendingBeforeChurn = fakeSleeper.pendingCount()
+      _ = try await repo.markFinished(finishedID)
+      try await fakeSleeper.waitForSleepRequests(count: pendingBeforeChurn + 2)
+
+      // Release the stranded pass: it finishes scoring the now-stale
+      // {Target 0, 1, 2} set captured before Target 2 was finished.
+      fakeRecommendationRepo.releaseEmbeddingsGate()
+      try await Wait.until(
+        priority: .userInitiated,
+        { fakeRecommendationRepo.didEmbeddingsGateComplete },
+        { "Expected the stranded scoring pass to complete once the gate released." }
+      )
+      for _ in 0..<200 { await Task.yield() }
+
+      // The trailing debounce has NOT been drained, so the stale pass is the
+      // only one that has landed. Hydration filters by score-map IDs alone, so
+      // publishing the stale set would surface the finished episode in the
+      // rec-sorted unfinished list until a later pass corrects it.
+      #expect(
+        !viewModel.episodeList.filteredEntries.compactMap(\.episodeID).contains(finishedID),
+        """
+        A scoring pass stranded mid-flight published its stale candidate set: \
+        the finished episode \(finishedID) surfaced in the rec-sorted unfinished \
+        list. A pass whose candidate set changed while it ran must be dropped.
+        Actual: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        """
+      )
+
+      // The trailing pass still rescans and surfaces only the live candidates.
+      await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == liveIDs
+        },
+        { @MainActor in
+          """
+          Expected the trailing pass to surface only the live candidates after \
+          the stale pass was dropped.
+          Expected: \(liveIDs)
+          Actual: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
+    }
+  }
 }

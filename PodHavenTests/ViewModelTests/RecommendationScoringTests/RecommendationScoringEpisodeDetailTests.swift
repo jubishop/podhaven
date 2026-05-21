@@ -82,7 +82,7 @@ import Testing
   @Test(
     "EpisodeDetailViewModel observes the first scoringRevision emitted immediately after recommendation observation starts"
   )
-  func episodeDetailDoesNotDropFirstContextRevisionAfterObservationStarts() async throws {
+  func episodeDetailDoesNotDropFirstScoringRevisionAfterObservationStarts() async throws {
     let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
     try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
 

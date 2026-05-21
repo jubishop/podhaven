@@ -22,7 +22,7 @@ import Testing
   @Test(
     "a burst of $scoringRevision bumps must coalesce into 1...2 scoring passes"
   )
-  func burstContextRevisionBumpsCoalesce() async throws {
+  func burstScoringRevisionBumpsCoalesce() async throws {
     let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
     try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
 
