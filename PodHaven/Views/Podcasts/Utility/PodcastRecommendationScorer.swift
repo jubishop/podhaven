@@ -130,7 +130,8 @@ final class PodcastRecommendationScorer {
     let generation = generation ?? recommendationScoreGeneration
     guard recommendationScoreGeneration == generation, !Task.isCancelled else { return }
     recommendationScoresDebounce { [weak self] in
-      await self?.requestRecommendationScoreRefresh(generation: generation)
+      guard let self else { return }
+      await requestRecommendationScoreRefresh(generation: generation)
     }
   }
 
@@ -142,7 +143,8 @@ final class PodcastRecommendationScorer {
     }
     scoringStatus = .running
     recommendationScoreTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      await self?.runRecommendationScorePasses(generation: generation)
+      guard let self else { return }
+      await self.runRecommendationScorePasses(generation: generation)
     }
   }
 

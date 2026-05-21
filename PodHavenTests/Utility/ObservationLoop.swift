@@ -4,19 +4,27 @@ import Observation
 
 @testable import PodHaven
 
-// Drives `viewModel.startCandidateObservation()` and
-// `viewModel.startDisplayObservation()` in parallel loops, each restarting
-// whenever its own observation key changes. SwiftUI's two `.task(id:)`
-// blocks provide this behavior in production but are unavailable in unit
-// tests; this helper replays the same semantics so tests can exercise both
-// observation flows independently (sort toggles keep the candidate loop
-// alive, filterText changes restart both, etc.).
+// Drives `viewModel.startDisplayObservation()`, restarting it whenever the
+// display observation key changes. SwiftUI's `.task(id:)` block provides this
+// behavior in production but is unavailable in unit tests; this helper replays
+// the same semantics so tests can exercise sort toggles and filterText changes.
 @MainActor
 func runObservationLoop(_ viewModel: EpisodesListViewModel) async {
-  async let candidate: Void = runCandidateObservationLoop(viewModel)
-  async let display: Void = runDisplayObservationLoop(viewModel)
-  _ = await candidate
-  _ = await display
+  let (changes, continuation) = AsyncStream<Void>.makeStream()
+  let watcher = DisplayKeyWatcher(viewModel: viewModel, continuation: continuation)
+  _ = watcher
+
+  defer { continuation.finish() }
+
+  var iterator = changes.makeAsyncIterator()
+  while !Task.isCancelled {
+    let observationTask = Task { @MainActor in
+      await viewModel.startDisplayObservation()
+    }
+    _ = await iterator.next()
+    observationTask.cancel()
+    _ = await observationTask.value
+  }
 }
 
 // Wraps `runObservationLoop` so each test doesn't have to hand-roll the
@@ -35,68 +43,6 @@ func withRunningObservationLoop<T>(
     viewModel.disappear()
   }
   return try await body()
-}
-
-@MainActor
-private func runCandidateObservationLoop(_ viewModel: EpisodesListViewModel) async {
-  let (changes, continuation) = AsyncStream<Void>.makeStream()
-  let watcher = CandidateKeyWatcher(viewModel: viewModel, continuation: continuation)
-  _ = watcher
-
-  defer { continuation.finish() }
-
-  var iterator = changes.makeAsyncIterator()
-  while !Task.isCancelled {
-    let observationTask = Task { @MainActor in
-      await viewModel.startCandidateObservation()
-    }
-    _ = await iterator.next()
-    observationTask.cancel()
-    _ = await observationTask.value
-  }
-}
-
-@MainActor
-private func runDisplayObservationLoop(_ viewModel: EpisodesListViewModel) async {
-  let (changes, continuation) = AsyncStream<Void>.makeStream()
-  let watcher = DisplayKeyWatcher(viewModel: viewModel, continuation: continuation)
-  _ = watcher
-
-  defer { continuation.finish() }
-
-  var iterator = changes.makeAsyncIterator()
-  while !Task.isCancelled {
-    let observationTask = Task { @MainActor in
-      await viewModel.startDisplayObservation()
-    }
-    _ = await iterator.next()
-    observationTask.cancel()
-    _ = await observationTask.value
-  }
-}
-
-@MainActor
-private final class CandidateKeyWatcher {
-  private let viewModel: EpisodesListViewModel
-  private let continuation: AsyncStream<Void>.Continuation
-
-  init(viewModel: EpisodesListViewModel, continuation: AsyncStream<Void>.Continuation) {
-    self.viewModel = viewModel
-    self.continuation = continuation
-    track()
-  }
-
-  private func track() {
-    withObservationTracking {
-      _ = viewModel.candidateObservationKey
-    } onChange: { [weak self] in
-      Task { @MainActor in
-        guard let self else { return }
-        self.continuation.yield()
-        self.track()
-      }
-    }
-  }
 }
 
 @MainActor

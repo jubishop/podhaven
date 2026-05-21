@@ -129,20 +129,13 @@ class EpisodesListViewModel:
   let filter: SQLExpression
   private(set) var loadingState: LoadingState = .loadingEpisodes
 
-  // Two observation keys feed two `.task(id:)` blocks in the view. The
-  // candidate observation is filterText-only so it survives sort toggles —
-  // the top-100 recommendations stay warm in the background regardless of
-  // which sort the user is currently viewing.
+  // Keys the single `.task(id:)` block in the view. A sort or filterText
+  // change restarts the observation; recommendation scoring runs only while
+  // the recommendationScore sort is the one keyed here.
   @ObservationIgnored private var lastDisplayObservationKey: DisplayObservationKey?
-  struct CandidateObservationKey: Hashable {
-    let filterText: String
-  }
   struct DisplayObservationKey: Hashable {
     let sort: SortMethod
     let filterText: String
-  }
-  var candidateObservationKey: CandidateObservationKey {
-    CandidateObservationKey(filterText: filterText)
   }
   var displayObservationKey: DisplayObservationKey {
     DisplayObservationKey(sort: currentSortMethod, filterText: filterText)
@@ -157,35 +150,6 @@ class EpisodesListViewModel:
     )
     self.title = title
     self.filter = filter
-  }
-
-  // MARK: - Candidate Observation
-
-  // Runs whenever the view is visible, independent of the current sort
-  // method. Maintains the top-100 recommendation IDs so that switching to
-  // recommendation sort can hydrate immediately instead of waiting for a
-  // cold scoring pass.
-  func startCandidateObservation() async {
-    startRecommendationContextObservation()
-
-    do {
-      let observation: AsyncValueObservation<[CandidateEpisode]> =
-        observatory.embeddedCandidateEpisodes(filter: filter && textSearchFilter)
-      for try await candidates in observation {
-        try Task.checkCancellation()
-
-        lastObservedCandidates = candidates
-        kickRecommendationFetch(candidates: candidates)
-        kickRecommendationHydration()
-      }
-    } catch is CancellationError {
-    } catch {
-      Self.log.caughtError(
-        "startCandidateObservation: observation failed for episode list '\(title)'",
-        error
-      )
-      handleRecommendationFailure()
-    }
   }
 
   // MARK: - Display Observation
@@ -203,35 +167,90 @@ class EpisodesListViewModel:
 
     if keyChanged || episodeList.allEntries.isEmpty { loadingState = pendingLoadingState() }
 
+    if currentSortMethod == .recommendationScore {
+      await runRecommendationObservation()
+    } else {
+      await runStandardSortObservation()
+    }
+  }
+
+  // Recommendation scoring runs only on demand — while the recommendationScore
+  // sort is the selected one. Two producers feed the scoring pass: the
+  // candidate set and the engine's scoring revision. They run as structured
+  // children so both stop the moment this observation is torn down — a sort
+  // switch (`.task(id:)` restart) or the view disappearing.
+  private func runRecommendationObservation() async {
+    // Hydrate straight from a score retained across an earlier selection so
+    // toggling back to rec sort doesn't re-flash "Computing recommendations…".
+    kickRecommendationHydration()
+
+    await withTaskGroup(of: Void.self) { group in
+      group.addTask { [weak self] in
+        guard let self else { return }
+        await self.observeCandidateSet()
+      }
+      group.addTask { [weak self] in
+        guard let self else { return }
+        await self.observeScoringRevision()
+      }
+    }
+  }
+
+  private func observeCandidateSet() async {
     do {
-      if currentSortMethod == .recommendationScore {
+      let observation: AsyncValueObservation<[CandidateEpisode]> =
+        observatory.embeddedCandidateEpisodes(filter: filter && textSearchFilter)
+      for try await candidates in observation {
+        try Task.checkCancellation()
+
+        lastObservedCandidates = candidates
+        restartRecommendationScoring(candidates: candidates)
         kickRecommendationHydration()
-      } else {
-        try await runStandardSortObservation()
       }
     } catch is CancellationError {
     } catch {
       Self.log.caughtError(
-        "startDisplayObservation: observation failed for episode list '\(title)'",
+        "observeCandidateSet: observation failed for episode list '\(title)'",
         error
       )
-      handleLoadingFailure()
+      handleRecommendationFailure()
     }
   }
 
-  private func runStandardSortObservation() async throws {
-    cancelRecommendationHydration()
+  private func observeScoringRevision() async {
+    // Drop the first emission — $scoringRevision yields its current value on
+    // subscribe, and the candidate observation's first emission already kicks
+    // the initial scoring pass. Skipping it here avoids a double-fetch on
+    // appear. Before that first candidate emission `lastObservedCandidates` is
+    // nil, so an early revision tick scores nothing and waits for real data.
+    for await _ in recommendationEngine.$scoringRevision.stream().dropFirst() {
+      guard !Task.isCancelled else { return }
+      restartRecommendationScoring(candidates: lastObservedCandidates)
+    }
+  }
 
-    let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
-      observatory.listablePodcastEpisodes(
-        filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
-        order: currentSortMethod.sqlOrdering,
-        limit: Self.displayLimit
+  private func runStandardSortObservation() async {
+    cancelRecommendationWork()
+
+    do {
+      let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+        observatory.listablePodcastEpisodes(
+          filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
+          order: currentSortMethod.sqlOrdering,
+          limit: Self.displayLimit
+        )
+      for try await podcastEpisodes in observation {
+        try Task.checkCancellation()
+        Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
+        transitionToLoaded(podcastEpisodes)
+      }
+    } catch is CancellationError {
+    } catch {
+      Self.log.caughtError(
+        "runStandardSortObservation: observation failed for episode list '\(title)'",
+        error
       )
-    for try await podcastEpisodes in observation {
-      try Task.checkCancellation()
-      Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
-      transitionToLoaded(podcastEpisodes)
+      handleLoadingFailure()
     }
   }
 
@@ -255,29 +274,11 @@ class EpisodesListViewModel:
     loadingState = .failed
   }
 
-  // MARK: - Recommendation Observation
+  // MARK: - Recommendation Hydration
 
   @ObservationIgnored private var lastObservedCandidates: [CandidateEpisode]?
-  @ObservationIgnored private var recommendationContextObservationTask: Task<Void, Never>?
   @ObservationIgnored private var recommendationHydrationTask: Task<Void, Never>?
   @ObservationIgnored private var hydratedScoreIDs: [Episode.ID] = []
-
-  private func startRecommendationContextObservation() {
-    if let recommendationContextObservationTask, !recommendationContextObservationTask.isCancelled {
-      return
-    }
-    recommendationContextObservationTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      guard let self else { return }
-      // Drop the first emission — $scoringRevision yields its current value
-      // on subscribe, and the candidate observation's first emission is what
-      // kicks the initial fetch. Skipping it here avoids double-fetching on
-      // view appear.
-      for await _ in self.recommendationEngine.$scoringRevision.stream().dropFirst() {
-        guard !Task.isCancelled else { return }
-        self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
-      }
-    }
-  }
 
   private func kickRecommendationHydration() {
     guard currentSortMethod == .recommendationScore else { return }
@@ -352,18 +353,16 @@ class EpisodesListViewModel:
 
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
   @ObservationIgnored private var lastScoredKey: ScoredInputsKey?
-  @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
-  @ObservationIgnored private var recommendationFetchGeneration = 0
-  @ObservationIgnored private let recommendationFetchDebounce = Debounce(
-    duration: .milliseconds(400),
-    priority: .utility
-  )
+  @ObservationIgnored private var recommendationScoringTask: Task<Void, Never>?
 
-  private func kickRecommendationFetch(candidates observedCandidates: [CandidateEpisode]?) {
-    // The candidate observation is the sole source of truth for which episodes
-    // to score. If it hasn't emitted yet (a scoring-revision tick can race
-    // ahead of the first observation yield on view appear), skip this kick —
-    // the imminent first candidate emission will call us back with fresh data.
+  // Cancels any in-flight scoring pass and starts a fresh one for the current
+  // inputs. Both producers — the candidate set and the engine's scoring
+  // revision — funnel through here. Cancel-and-restart keeps the latest inputs
+  // winning: a superseded pass is cancelled, so it never publishes stale rows.
+  private func restartRecommendationScoring(candidates observedCandidates: [CandidateEpisode]?) {
+    // A scoring-revision tick can race ahead of the first candidate emission;
+    // with nothing observed yet there's nothing to score — the imminent first
+    // emission will call back with fresh data.
     guard let candidates = observedCandidates else { return }
 
     let key = ScoredInputsKey(
@@ -373,23 +372,9 @@ class EpisodesListViewModel:
     // Skip when neither the candidates nor the engine's scoring context changed.
     guard key != lastScoredKey else { return }
 
-    // Coalesce mid-pass kicks into one trailing pass; cancel-and-restart is the
-    // rescan storm this path avoids.
-    guard recommendationFetchTask == nil else {
-      scheduleTrailingRecommendationFetch()
-      return
-    }
-
-    recommendationFetchGeneration += 1
-    let generation = recommendationFetchGeneration
-    recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
+    recommendationScoringTask?.cancel()
+    recommendationScoringTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      // Clear the slot only if a newer pass hasn't already replaced this task.
-      defer {
-        if self.recommendationFetchGeneration == generation {
-          self.recommendationFetchTask = nil
-        }
-      }
       guard !Task.isCancelled else { return }
 
       let values: [Episode.ID: Float]
@@ -402,7 +387,7 @@ class EpisodesListViewModel:
           return
         } catch {
           Self.log.caughtError(
-            "kickRecommendationFetch: scoring failed",
+            "restartRecommendationScoring: scoring failed",
             error
           )
           self.handleRecommendationFailure()
@@ -410,21 +395,9 @@ class EpisodesListViewModel:
         }
       }
 
+      // A newer pass cancels this one; bail before publishing so a superseded
+      // pass never leaks rows past the list's current filter.
       guard !Task.isCancelled else { return }
-
-      // A coalesced pass isn't cancelled, so its inputs can be stale by the
-      // time it lands; publishing then leaks rows past the list's filter.
-      let currentKey = ScoredInputsKey(
-        candidates: self.lastObservedCandidates ?? [],
-        scoringRevision: self.recommendationEngine.scoringRevision
-      )
-      guard key == currentKey else {
-        Self.log.debug(
-          "Dropped a stale recommendation pass for \(candidates.count) candidates"
-        )
-        self.scheduleTrailingRecommendationFetch()
-        return
-      }
 
       self.recommendationScoresState = .loaded(values)
       self.lastScoredKey = key
@@ -432,14 +405,6 @@ class EpisodesListViewModel:
         "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
       )
       self.kickRecommendationHydration()
-    }
-  }
-
-  // Reads the latest observed candidates at fire time; no-ops after disappear.
-  private func scheduleTrailingRecommendationFetch() {
-    recommendationFetchDebounce { @MainActor [weak self] in
-      guard let self else { return }
-      self.kickRecommendationFetch(candidates: self.lastObservedCandidates)
     }
   }
 
@@ -467,20 +432,23 @@ class EpisodesListViewModel:
   // MARK: - Disappear
 
   func disappear() {
-    cancelRecommendationContextObservation()
-    cancelRecommendationFetch()
+    cancelRecommendationWork()
+  }
+
+  // Cancels the scoring and hydration tasks — the unstructured work the
+  // candidate/revision observations spawn. The observations themselves are
+  // structured children of `runRecommendationObservation`, so a `.task(id:)`
+  // restart (sort switch) or view teardown already cancels those. Called both
+  // when the view disappears and when a non-rec sort takes over. `lastScoredKey`
+  // survives (see `cancelRecommendationScoring`) so a re-selection is instant.
+  private func cancelRecommendationWork() {
+    cancelRecommendationScoring()
     cancelRecommendationHydration()
   }
 
-  private func cancelRecommendationContextObservation() {
-    recommendationContextObservationTask?.cancel()
-    recommendationContextObservationTask = nil
-  }
-
-  private func cancelRecommendationFetch() {
-    recommendationFetchTask?.cancel()
-    recommendationFetchTask = nil
-    recommendationFetchDebounce.cancel()
+  private func cancelRecommendationScoring() {
+    recommendationScoringTask?.cancel()
+    recommendationScoringTask = nil
     lastObservedCandidates = nil
     // lastScoredKey is deliberately kept so a completed score survives a tab switch.
   }
