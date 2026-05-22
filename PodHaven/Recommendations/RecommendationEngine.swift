@@ -242,6 +242,8 @@ struct RecommendationEngine: Sendable {
     let batchMax = scores.values.map(\.value).max() ?? 1.0
     observedMaxScore(batchMax)
 
+    guard limit > 0 else { return [] }
+
     struct ScoredCandidate {
       let id: Episode.ID
       let pubDate: Date
