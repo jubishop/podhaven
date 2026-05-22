@@ -134,7 +134,7 @@ import Testing
     Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
     Container.shared.userSettings().$podcastAffinityWeight.new(0)
 
-    let embeddable = MutableScriptedEmbeddable { text in
+    let embeddable = ScriptedEmbeddable { text in
       if text.contains("Anchor") { return [0, 1, 0] }
       if text.contains("Old Signal") { return [1, 0, 0] }
       if text.contains("Fresh Signal") { return [0, 1, 0] }
@@ -149,7 +149,7 @@ import Testing
       episodeDescriptions: Array(repeating: "Old Signal", count: 3),
       ratings: [.loved, .liked, .liked]
     )
-    try await RecommendationHelpers.embedEpisodes(oldSignals, embeddable: embeddable.scripted)
+    try await RecommendationHelpers.embedEpisodes(oldSignals, embeddable: embeddable)
     _ = try await RecommendationHelpers.startAndWaitForScores(for: oldSignals)
 
     let (_, candidateEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
@@ -161,7 +161,7 @@ import Testing
     )
     try await RecommendationHelpers.embedEpisodes(
       candidateEpisodes,
-      embeddable: embeddable.scripted
+      embeddable: embeddable
     )
     let targetEpisode = try #require(candidateEpisodes.first)
     let targetID = targetEpisode.id
@@ -190,7 +190,7 @@ import Testing
       episodeDescriptions: Array(repeating: "Fresh Signal", count: 12),
       ratings: Array(repeating: .loved, count: 12)
     )
-    try await RecommendationHelpers.embedEpisodes(freshSignals, embeddable: embeddable.scripted)
+    try await RecommendationHelpers.embedEpisodes(freshSignals, embeddable: embeddable)
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
@@ -234,23 +234,5 @@ import Testing
       finalScore: \(finalScore.value)
       """
     )
-  }
-}
-
-private final class MutableScriptedEmbeddable: @unchecked Sendable {
-  private let vectorFor = ThreadSafe<@Sendable (String) -> [Double]>({ _ in [0, 0, 1] })
-
-  let scripted: ScriptedEmbeddable
-
-  init(initial: @escaping @Sendable (String) -> [Double]) {
-    vectorFor(initial)
-    let vectorForBox = vectorFor
-    scripted = ScriptedEmbeddable { text in
-      vectorForBox()(text)
-    }
-  }
-
-  func swap(_ next: @escaping @Sendable (String) -> [Double]) {
-    vectorFor(next)
   }
 }

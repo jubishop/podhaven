@@ -27,6 +27,7 @@ import Testing
 
     var input = 1
     var returnsNilSnapshot = false
+    var cacheable = true
     var scoreError: (any Error)?
 
     private(set) var scoreStarts = 0
@@ -73,6 +74,7 @@ import Testing
       makeSnapshot: { probe.snapshot() },
       willScore: { probe.willScore() },
       score: { try await probe.score() },
+      shouldCache: { probe.cacheable },
       apply: { probe.apply($0) },
       onFailure: { probe.onFailure($0) }
     )
@@ -268,6 +270,54 @@ import Testing
 
     #expect(probe.applied == [9, 9])
     #expect(probe.scoreStarts == 1)
+  }
+
+  @Test(
+    "shouldCache=false applies the result but skips caching so the next same-snapshot refresh re-scores"
+  )
+  func shouldCacheFalseSkipsCacheSoFutureRefreshRecomputes() async throws {
+    let probe = Probe()
+    let coordinator = makeCoordinator(probe)
+
+    probe.input = 4
+    probe.cacheable = false
+    coordinator.refresh()
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.applied == [4] },
+      { @MainActor in
+        "Expected the provisional pass to apply [4], got \(probe.applied)."
+      }
+    )
+
+    // Same snapshot, but the prior pass was provisional — refresh must re-run
+    // score() instead of replaying a cached result.
+    coordinator.refresh()
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.applied == [4, 4] },
+      { @MainActor in
+        "Expected the same-snapshot refresh to recompute and apply [4, 4], got \(probe.applied)."
+      }
+    )
+    #expect(probe.scoreStarts == 2)
+
+    // Flipping shouldCache to true lets the next pass settle into the cache;
+    // a subsequent same-snapshot refresh then hits without recomputing.
+    probe.cacheable = true
+    probe.input = 5
+    coordinator.refresh()
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.applied == [4, 4, 5] },
+      { @MainActor in
+        "Expected the cacheable pass to apply [4, 4, 5], got \(probe.applied)."
+      }
+    )
+
+    coordinator.refresh()
+    #expect(probe.applied == [4, 4, 5, 5])
+    #expect(probe.scoreStarts == 3)
   }
 
   @Test("a thrown scoring error routes to onFailure without applying")
