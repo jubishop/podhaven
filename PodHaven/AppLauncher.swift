@@ -191,8 +191,8 @@ struct AppLauncher: Sendable {
           FileLogHandler(
             label: label,
             fileURL: AppInfo.logFileURL,
-            maxFileSizeBytes: 4_000_000,
-            targetFileSizeBytes: 3_000_000,
+            maxFileSizeBytes: 8_000_000,
+            targetFileSizeBytes: 6_000_000,
             writeSynchronously: { $0 >= .critical || !sharedState.isActive }
           ),
           SentryLogHandler(label: label),
