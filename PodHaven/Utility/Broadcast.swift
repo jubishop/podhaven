@@ -35,7 +35,7 @@ extension BroadcastDuplicatePolicy where T: Equatable {
 //
 // Usage:
 // ```swift
-// let broadcast = Broadcast<Int>(0, policy: .equatable)
+// let broadcast = Broadcast<Int>(0)
 //
 // // Read current value (also registers SwiftUI observation)
 // print(broadcast.current) // 0
@@ -66,6 +66,9 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 
   // MARK: - Initialization
 
+  // Designated initializer with an explicit policy. The convenience
+  // initializers below supply the per-type default — `.equatable` for
+  // Equatable values, `.notifyAlways` otherwise — so most callers omit it.
   init(
     _ initialValue: T,
     policy: BroadcastDuplicatePolicy<T>,
@@ -74,6 +77,11 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
     state = ThreadSafe(State(current: initialValue))
     duplicatePolicy = policy
     self.onChange = onChange
+  }
+
+  // A non-Equatable value can't be compared, so it always notifies.
+  convenience init(_ initialValue: T, onChange: (@Sendable (T) -> Void)? = nil) {
+    self.init(initialValue, policy: .notifyAlways, onChange: onChange)
   }
 
   // MARK: - Current Value
@@ -155,6 +163,16 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
   }
 }
 
+// MARK: - Equatable Default
+
+extension Broadcast where T: Equatable {
+  // Equatable values deduplicate no-op writes by default. Overload resolution
+  // prefers this over the unconstrained initializer whenever `T: Equatable`.
+  convenience init(_ initialValue: T, onChange: (@Sendable (T) -> Void)? = nil) {
+    self.init(initialValue, policy: .equatable, onChange: onChange)
+  }
+}
+
 // MARK: - Broadcasted
 
 // Property wrapper that pairs a Broadcast with a clean read API.
@@ -164,9 +182,9 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 struct Broadcasted<T: Sendable>: Sendable {
   private let broadcast: Broadcast<T>
 
-  // Non-Equatable values can't be compared, so they always notify.
+  // Non-Equatable value: Broadcast's default policy is `.notifyAlways`.
   init(wrappedValue: T) {
-    broadcast = Broadcast(wrappedValue, policy: .notifyAlways)
+    broadcast = Broadcast(wrappedValue)
   }
 
   var wrappedValue: T {
@@ -179,9 +197,9 @@ struct Broadcasted<T: Sendable>: Sendable {
 }
 
 extension Broadcasted where T: Equatable {
-  // Equatable values deduplicate no-op writes by default.
+  // Equatable value: Broadcast's default policy is `.equatable`.
   init(wrappedValue: T) {
-    broadcast = Broadcast(wrappedValue, policy: .equatable)
+    broadcast = Broadcast(wrappedValue)
   }
 
   // Opt out (or supply a custom policy) for Equatable values whose `==` is not
@@ -206,10 +224,7 @@ struct PersistedBroadcast<T: DefaultsStorable>: Sendable {
     store: any KeyValueStore = Container.shared.standardDefaults(),
     onChange: (@Sendable (T) -> Void)? = nil
   ) {
-    broadcast = Broadcast(
-      T.load(from: store, forKey: key) ?? wrappedValue,
-      policy: .equatable
-    ) {
+    broadcast = Broadcast(T.load(from: store, forKey: key) ?? wrappedValue) {
       $0.store(to: store, forKey: key)
       onChange?($0)
     }

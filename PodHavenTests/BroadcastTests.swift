@@ -10,7 +10,7 @@ import Testing
 struct BroadcastTests {
   @Test("new(_:) suppresses re-publishes of an unchanged Equatable value")
   func newSuppressesIdenticalRepublishes() async throws {
-    let broadcast = Broadcast<Int>(0, policy: .equatable)
+    let broadcast = Broadcast<Int>(0)
     // stream() buffers the bootstrap value (0) before any new() call lands.
     let stream = broadcast.stream()
 
@@ -29,7 +29,7 @@ struct BroadcastTests {
 
   @Test("update(_:) suppresses transforms that leave an Equatable value unchanged")
   func updateSuppressesNoOpTransforms() async throws {
-    let broadcast = Broadcast<Int>(0, policy: .equatable)
+    let broadcast = Broadcast<Int>(0)
     let stream = broadcast.stream()
 
     broadcast.update { _ in }  // value unchanged — must not broadcast
@@ -112,7 +112,7 @@ struct BroadcastTests {
 
   @Test("binding's setter suppresses same-value writes")
   func bindingSetterSuppressesIdenticalWrites() async throws {
-    let broadcast = Broadcast<Int>(0, policy: .equatable)
+    let broadcast = Broadcast<Int>(0)
     let stream = broadcast.stream()
     let binding = broadcast.binding
 
