@@ -458,7 +458,9 @@ enum EpisodeDetailDisplayedScore: Sendable {
     },
     // An unsaved pass that ran before embedding assets finished downloading
     // produced a provisional nil; caching it would re-apply that nil on the
-    // next refresh even after the assets land.
+    // next refresh even after the assets land. Recovery relies on a later
+    // state or `$scoringRevision` change to retrigger — `assetsLoaded` has
+    // no dedicated observer wired here.
     shouldCache: { [weak self] in
       guard let self else { return false }
       if case .unsaved = state {
@@ -496,10 +498,13 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   // Start the revision observation before the bootstrap refresh so a revision
-  // emitted during the initial fetch is queued, not dropped.
+  // emitted during the initial fetch is queued, not dropped. The refresh is
+  // gated: a kind-changing `transition()` already kicks one, so we skip when
+  // that pass is in flight (or its result is cached) instead of cancel-and-
+  // restarting an identical-input pass.
   private func startRecommendationObservation() {
     recommendationCoordinator.startObservingScoringRevision()
-    recommendationCoordinator.refresh()
+    recommendationCoordinator.refreshIfNeeded()
   }
 
   private func computeRecommendation() async -> EpisodeDetailDisplayedScore? {

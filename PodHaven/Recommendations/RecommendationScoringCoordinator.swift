@@ -12,7 +12,9 @@ import Logging
 //
 // `Snapshot` is an `Equatable` change-detection key embedding `scoringRevision`;
 // a `nil` snapshot no-ops the refresh. `Score` is the per-surface score
-// payload, retained across `cancel()`.
+// payload, retained across `cancel()`. Every input read by `score` must be
+// reflected in `Snapshot` — a cache hit replays the prior result on an
+// unchanged snapshot, so any unobserved input would let a stale result stick.
 @MainActor
 final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Score: Sendable> {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -29,6 +31,7 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
 
   private var revisionTask: Task<Void, Never>?
   private var scoringTask: Task<Void, Never>?
+  private var pendingSnapshot: Snapshot?
   private var cached: (snapshot: Snapshot, score: Score)?
 
   // `willScore` fires on a cache miss before the pass spawns; `shouldCache`
@@ -74,13 +77,33 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
     }
     willScore()
     scoringTask?.cancel()
+    pendingSnapshot = snapshot
     scoringTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
       await runPass(for: snapshot)
     }
   }
 
+  // Gated entry point: skip when the current snapshot is already either cached
+  // or being processed by an in-flight pass. Use this from a caller that may
+  // run alongside another path that already kicked the refresh, to avoid
+  // redundantly cancel-and-restarting an identical-input pass.
+  func refreshIfNeeded() {
+    guard let snapshot = makeSnapshot() else { return }
+    if let cached, cached.snapshot == snapshot {
+      apply(cached.score)
+      return
+    }
+    guard pendingSnapshot != snapshot else { return }
+    refresh()
+  }
+
   private func runPass(for snapshot: Snapshot) async {
+    // Only clear when no newer pass has taken over `pendingSnapshot`; a later
+    // refresh() may have replaced it with a different snapshot.
+    defer {
+      if pendingSnapshot == snapshot { pendingSnapshot = nil }
+    }
     do {
       let result = try await score()
       guard !Task.isCancelled else { return }
@@ -103,5 +126,6 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
     revisionTask = nil
     scoringTask?.cancel()
     scoringTask = nil
+    pendingSnapshot = nil
   }
 }

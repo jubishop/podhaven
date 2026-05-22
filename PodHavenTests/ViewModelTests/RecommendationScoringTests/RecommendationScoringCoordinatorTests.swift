@@ -335,4 +335,73 @@ import Testing
     )
     #expect(probe.applied.isEmpty)
   }
+
+  @Test("refreshIfNeeded with neither cache nor in-flight pass kicks a fresh pass")
+  func refreshIfNeededKicksFreshPassWhenNothingPending() async throws {
+    let probe = Probe()
+    let coordinator = makeCoordinator(probe)
+
+    probe.input = 11
+    coordinator.refreshIfNeeded()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.applied == [11] },
+      { @MainActor in "Expected the gated refresh to apply [11], got \(probe.applied)." }
+    )
+    #expect(probe.scoreStarts == 1)
+  }
+
+  @Test("refreshIfNeeded applies the cached result without re-scoring")
+  func refreshIfNeededHitsCacheWithoutRescoring() async throws {
+    let probe = Probe()
+    let coordinator = makeCoordinator(probe)
+
+    probe.input = 13
+    coordinator.refresh()
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.applied == [13] },
+      { @MainActor in "Expected the initial pass to apply [13], got \(probe.applied)." }
+    )
+
+    coordinator.refreshIfNeeded()
+
+    #expect(probe.applied == [13, 13])
+    #expect(probe.scoreStarts == 1)
+    // Cache hit must not flash the "computing" indicator.
+    #expect(probe.willScoreCount == 1)
+  }
+
+  @Test(
+    "refreshIfNeeded is a no-op while an in-flight pass already covers the current snapshot"
+  )
+  func refreshIfNeededSkipsWhileInFlightMatches() async throws {
+    let probe = Probe()
+    let coordinator = makeCoordinator(probe)
+    probe.closeGate()
+
+    probe.input = 21
+    coordinator.refresh()
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.scoreStarts == 1 },
+      { @MainActor in "Expected the in-flight pass to start." }
+    )
+
+    coordinator.refreshIfNeeded()
+
+    // The in-flight pass matches the current snapshot, so the gated call
+    // must not cancel-and-restart it.
+    #expect(probe.scoreStarts == 1)
+    #expect(probe.willScoreCount == 1)
+
+    probe.openGate()
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.applied == [21] },
+      { @MainActor in "Expected the original pass to apply [21], got \(probe.applied)." }
+    )
+    #expect(probe.scoreStarts == 1)
+  }
 }

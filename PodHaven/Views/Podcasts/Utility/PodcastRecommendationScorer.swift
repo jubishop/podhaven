@@ -49,7 +49,9 @@ final class PodcastRecommendationScorer {
     },
     // An unsaved pass that ran before embedding assets finished downloading
     // produced a provisional empty map; caching it would re-apply that map
-    // on the next refresh even after the assets land.
+    // on the next refresh even after the assets land. Recovery relies on a
+    // later state or `$scoringRevision` change to retrigger — `assetsLoaded`
+    // has no dedicated observer wired here.
     shouldCache: { [weak self] in
       guard let self, let host else { return false }
       if case .unsaved = host.state {
