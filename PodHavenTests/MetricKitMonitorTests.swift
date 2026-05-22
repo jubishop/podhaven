@@ -25,10 +25,18 @@ struct MetricKitMonitorTests {
     #expect(directive.message.contains("cpuResourceLimit: 1"))
   }
 
-  @Test("a background memory-pressure kill escalates to .critical")
-  func memoryPressureKillEscalatesToCritical() {
+  @Test("a background memory-pressure exit is routine iOS reclaim and logs at .info")
+  func memoryPressureExitLogsAtInfo() {
     let directive = MetricKitMonitor.exitMetricDirective(
       for: BackgroundExitCounts(memoryPressure: 2)
+    )
+    #expect(directive.level == .info)
+  }
+
+  @Test("a background memory resource-limit kill escalates to .critical")
+  func memoryResourceLimitKillEscalatesToCritical() {
+    let directive = MetricKitMonitor.exitMetricDirective(
+      for: BackgroundExitCounts(memoryResourceLimit: 1)
     )
     #expect(directive.level == .critical)
   }

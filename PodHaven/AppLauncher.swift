@@ -51,6 +51,11 @@ struct AppLauncher: Sendable {
     configureLogging()
     guard AppInfo.environment != .testing else { return }
 
+    // Registered here rather than in the foreground-gated startSystemMonitoring
+    // so background-only launches still capture exit metrics.
+    MXMetricManager.shared.add(metricKitMonitor)
+    Self.log.debug("Registered MetricKit subscriber")
+
     // Force DB initialization so schema migrations run immediately.
     _ = Container.shared.appDB()
 
@@ -146,9 +151,6 @@ struct AppLauncher: Sendable {
 
   private func startSystemMonitoring() {
     startSystemMonitoringOnce.run {
-      MXMetricManager.shared.add(metricKitMonitor)
-      Self.log.debug("Registered MetricKit subscriber")
-
       Task(priority: taskPriority(.utility)) {
         for await _ in self.notifications(UIApplication.didReceiveMemoryWarningNotification) {
           Self.log.warning("System memory warning received")

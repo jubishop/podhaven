@@ -57,9 +57,11 @@ struct BackgroundExitCounts {
     )
   }
 
-  // Sum of every background-exit reason other than a graceful exit.
+  // Sum of the background-exit reasons that signal an app defect. A graceful
+  // exit and an iOS memory-pressure jettison of a suspended app are both
+  // routine reclaim, so neither counts.
   var abnormalExitTotal: Int {
-    memoryResourceLimit + cpuResourceLimit + memoryPressure + badAccess + abnormal
+    memoryResourceLimit + cpuResourceLimit + badAccess + abnormal
       + illegalInstruction + appWatchdog + suspendedWithLockedFile
       + backgroundTaskAssertionTimeout
   }
@@ -122,8 +124,9 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
 
   // MARK: - Decision
 
-  // Any non-graceful background exit escalates to .critical so CrashReportHandler
-  // files a Sentry issue; an all-normal payload is routine, so it stays .info.
+  // A background exit that signals an app defect escalates to .critical so
+  // CrashReportHandler files a Sentry issue; a routine payload — graceful exits
+  // and iOS memory-pressure jettisons — stays .info.
   static func exitMetricDirective(for counts: BackgroundExitCounts) -> MetricKitLogDirective {
     let message = """
       MetricKit background-exit metrics — \
