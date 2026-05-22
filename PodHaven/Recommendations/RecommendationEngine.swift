@@ -79,16 +79,37 @@ struct RecommendationEngine: Sendable {
   // first eviction target, so full-library scans triggered while backgrounded
   // are deferred and coalesced into a single rescan on the next foreground.
   // `isActive` is driven by `handleScenePhaseChange`; defaults to `true`
-  // because `start()` only runs after `prepareForForeground`. `.cache`
-  // supersedes `.recommendations` because a context rebuild already re-runs
-  // the recommendations pass.
-  private enum DeferredRescan {
+  // because `start()` only runs after `prepareForForeground`. The deferred
+  // kind is a lattice — case order encodes `none < recommendations < cache`
+  // — and writers only merge upward via `DeferredRescanState`, so a pending
+  // cache rebuild can't be silently downgraded by an incoming recommendations
+  // rebuild (a cache rebuild already re-runs the recommendations pass).
+  private enum DeferredRescan: Comparable {
     case none
     case recommendations
     case cache
   }
+  private final class DeferredRescanState: Sendable {
+    private let storage = ThreadSafe<DeferredRescan>(.none)
+
+    private func merge(_ kind: DeferredRescan) {
+      storage { $0 = max($0, kind) }
+    }
+
+    func deferCacheRebuild() { merge(.cache) }
+    func deferRecommendationsRebuild() { merge(.recommendations) }
+
+    // Returns the pending kind and resets to `.none`, atomically.
+    func drain() -> DeferredRescan {
+      storage { kind in
+        let snapshot = kind
+        kind = .none
+        return snapshot
+      }
+    }
+  }
   private let isActive = ThreadSafe<Bool>(true)
-  private let deferredRescan = ThreadSafe<DeferredRescan>(.none)
+  private let deferredRescan = DeferredRescanState()
 
   // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
   // so per-call surfaces share the same denominator. 1.0 until first rebuild.
@@ -133,12 +154,7 @@ struct RecommendationEngine: Sendable {
     case .active:
       Self.log.debug("activated")
       isActive(true)
-      let pending = deferredRescan { deferred -> DeferredRescan in
-        let snapshot = deferred
-        deferred = .none
-        return snapshot
-      }
-      switch pending {
+      switch deferredRescan.drain() {
       case .none:
         break
       case .recommendations:
@@ -445,7 +461,7 @@ struct RecommendationEngine: Sendable {
 
   private func scheduleCacheRebuild() {
     guard isActive() else {
-      deferredRescan { $0 = .cache }
+      deferredRescan.deferCacheRebuild()
       Self.log.debug("Cache rebuild deferred — app backgrounded")
       return
     }
@@ -492,7 +508,7 @@ struct RecommendationEngine: Sendable {
 
   private func scheduleRecommendationsRebuild() {
     guard isActive() else {
-      deferredRescan { if case .none = $0 { $0 = .recommendations } }
+      deferredRescan.deferRecommendationsRebuild()
       Self.log.debug("Recommendations rebuild deferred — app backgrounded")
       return
     }
