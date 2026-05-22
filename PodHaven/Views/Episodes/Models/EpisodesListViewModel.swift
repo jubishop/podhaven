@@ -210,6 +210,7 @@ class EpisodesListViewModel:
           recomputeRecommendations(for: candidates)
         }
       }
+    } catch is CancellationError {
     } catch {
       Self.log.caughtError(
         "observeCandidateSet: observation failed for episode list '\(title)'",
@@ -243,6 +244,7 @@ class EpisodesListViewModel:
         Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
         transitionToLoaded(podcastEpisodes)
       }
+    } catch is CancellationError {
     } catch {
       Self.log.caughtError(
         "runStandardSortObservation: observation failed for episode list '\(title)'",
@@ -325,6 +327,7 @@ class EpisodesListViewModel:
           }
           self.transitionToLoaded(ordered)
         }
+      } catch is CancellationError {
       } catch {
         Self.log.caughtError(
           "startRecommendationHydration: observation failed for \(topIDs.count) ids",
@@ -371,6 +374,8 @@ class EpisodesListViewModel:
       } else {
         do {
           values = try await self.recommendationEngine.recommendationScores(for: candidates)
+        } catch is CancellationError {
+          return
         } catch {
           Self.log.caughtError(
             "recomputeRecommendations: scoring failed",
