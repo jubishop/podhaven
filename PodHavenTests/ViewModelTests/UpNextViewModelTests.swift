@@ -30,10 +30,7 @@ import Testing
     let second = series.episodes[1]
 
     // Publish a ranking so the view model has something to hydrate.
-    sharedState.setTopRecommendations([
-      (id: first.id, score: RecommendationScore(value: 0.9, reasons: [])),
-      (id: second.id, score: RecommendationScore(value: 0.8, reasons: [])),
-    ])
+    sharedState.setTopRecommendations([first.id, second.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -106,10 +103,7 @@ import Testing
     // Older first, newer second — the engine's tiebreaker would normally
     // put newer first, but here we deliberately invert it to prove
     // hydration respects whatever order the engine published.
-    sharedState.setTopRecommendations([
-      (id: older.id, score: RecommendationScore(value: 0.9, reasons: [])),
-      (id: newer.id, score: RecommendationScore(value: 0.8, reasons: [])),
-    ])
+    sharedState.setTopRecommendations([older.id, newer.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -166,9 +160,7 @@ import Testing
     // StateManager isn't running in tests, so feed the queue broadcast
     // directly — same pattern as setTopRecommendations below.
     sharedState.setQueuedPodcastEpisodes([queuedListable])
-    sharedState.setTopRecommendations([
-      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
-    ])
+    sharedState.setTopRecommendations([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -207,9 +199,7 @@ import Testing
     )
     let rec = series.episodes[0]
 
-    sharedState.setTopRecommendations([
-      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
-    ])
+    sharedState.setTopRecommendations([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -237,9 +227,7 @@ import Testing
     )
     let rec = series.episodes[0]
 
-    sharedState.setTopRecommendations([
-      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
-    ])
+    sharedState.setTopRecommendations([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -284,9 +272,7 @@ import Testing
     try await queue.append([queued.id])
     let queuedListable = try await fetchListable(queued.id)
     sharedState.setQueuedPodcastEpisodes([queuedListable])
-    sharedState.setTopRecommendations([
-      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
-    ])
+    sharedState.setTopRecommendations([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -333,9 +319,7 @@ import Testing
     )
     let rec = series.episodes[0]
 
-    sharedState.setTopRecommendations([
-      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
-    ])
+    sharedState.setTopRecommendations([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -385,9 +369,7 @@ import Testing
     try await queue.append([queued.id])
     let queuedListable = try await fetchListable(queued.id)
     sharedState.setQueuedPodcastEpisodes([queuedListable])
-    sharedState.setTopRecommendations([
-      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
-    ])
+    sharedState.setTopRecommendations([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -443,9 +425,7 @@ import Testing
     try await queue.append([queued.id])
     let queuedListable = try await fetchListable(queued.id)
     sharedState.setQueuedPodcastEpisodes([queuedListable])
-    sharedState.setTopRecommendations([
-      (id: rec.id, score: RecommendationScore(value: 0.9, reasons: []))
-    ])
+    sharedState.setTopRecommendations([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -506,9 +486,7 @@ import Testing
     try await queue.append([shared.id])
     let sharedListable = try await fetchListable(shared.id)
     sharedState.setQueuedPodcastEpisodes([sharedListable])
-    sharedState.setTopRecommendations([
-      (id: shared.id, score: RecommendationScore(value: 0.9, reasons: []))
-    ])
+    sharedState.setTopRecommendations([shared.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }

@@ -40,7 +40,7 @@ class SliderTransitionTests {
     let userSettings = self.userSettings
 
     // Initial publish at the default limit (5) lands non-empty.
-    _ = try await RecommendationHelpers.waitAdvancing { () -> [RankedRecommendation]? in
+    _ = try await RecommendationHelpers.waitAdvancing { () -> [Episode.ID]? in
       let recs = sharedState.topRecommendations
       return recs.isEmpty ? nil : recs
     }
@@ -56,7 +56,7 @@ class SliderTransitionTests {
     // publishes a fresh top-N (capped at 3).
     userSettings.$maxRecommendedEpisodesInUpNext.new(3)
     let republished = try await RecommendationHelpers.waitAdvancing {
-      () -> [RankedRecommendation]? in
+      () -> [Episode.ID]? in
       let recs = sharedState.topRecommendations
       return recs.isEmpty ? nil : recs
     }

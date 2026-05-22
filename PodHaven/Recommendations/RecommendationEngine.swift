@@ -29,8 +29,6 @@ struct RecommendationScore: Sendable {
   }
 }
 
-typealias RankedRecommendation = (id: Episode.ID, score: RecommendationScore)
-
 enum RecommendationReason: Hashable, Sendable {
   case similarToLiked
   case podcastAffinity
@@ -197,7 +195,7 @@ struct RecommendationEngine: Sendable {
     )
   }
 
-  func topRecommendations(limit: Int = 10) async throws -> [RankedRecommendation] {
+  func topRecommendations(limit: Int) async throws -> [Episode.ID] {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
     let totalStart = ContinuousClock.now
 
@@ -244,6 +242,8 @@ struct RecommendationEngine: Sendable {
     let batchMax = scores.values.map(\.value).max() ?? 1.0
     observedMaxScore(batchMax)
 
+    guard limit > 0 else { return [] }
+
     struct ScoredCandidate {
       let id: Episode.ID
       let pubDate: Date
@@ -272,11 +272,7 @@ struct RecommendationEngine: Sendable {
       """
     )
 
-    let topRanked = ranked.prefix(limit)
-    var top = [RankedRecommendation](capacity: topRanked.count)
-    for entry in topRanked {
-      top.append((id: entry.id, score: entry.score.rescaledForDisplay(max: batchMax)))
-    }
+    let top = ranked.prefix(limit).map(\.id)
 
     let totalDuration = ContinuousClock.now - totalStart
     Self.log.debug(
@@ -446,10 +442,6 @@ struct RecommendationEngine: Sendable {
     recommendationsDebounce {
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
-      guard limit > 0 else {
-        sharedState.setTopRecommendations([])
-        return
-      }
       do {
         let top = try await topRecommendations(limit: limit)
         sharedState.setTopRecommendations(top)

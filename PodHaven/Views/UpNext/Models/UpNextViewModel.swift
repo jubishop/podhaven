@@ -164,7 +164,7 @@ import SwiftUI
         continue
       }
 
-      let rankOrder = ranking.map(\.id)
+      let rankOrder = ranking
       let idSet = Set(rankOrder)
       hydrationTask = Task(priority: taskPriority(.utility)) { @MainActor [weak self] in
         guard let self else { return }

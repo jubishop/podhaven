@@ -20,7 +20,7 @@ class MinimumThresholdTests {
     try await RecommendationHelpers.embedEpisodes(episodes)
 
     engine.start()
-    let recommendations = try await engine.topRecommendations()
+    let recommendations = try await engine.topRecommendations(limit: 10)
     #expect(recommendations.isEmpty)
   }
 
@@ -40,7 +40,7 @@ class MinimumThresholdTests {
 
     // Should return empty since there's no positive centroid
     engine.start()
-    let recommendations = try await engine.topRecommendations()
+    let recommendations = try await engine.topRecommendations(limit: 10)
     #expect(recommendations.isEmpty)
   }
 
@@ -64,7 +64,7 @@ class MinimumThresholdTests {
     try await RecommendationHelpers.embedEpisodes(candidates)
 
     engine.start()
-    let recs = try await engine.topRecommendations()
+    let recs = try await engine.topRecommendations(limit: 10)
     #expect(recs.isEmpty)
   }
 }

@@ -243,6 +243,37 @@ actor StateManagerTests {
     #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(75))
   }
 
+  // OnDeck.== deliberately ignores the in-memory fields (currentTime,
+  // maxPlaybackTime, artwork), so a setCurrentTime write produces a value that
+  // is `==` the previous one. The onDeck broadcast must still notify observers,
+  // or the play bar's live clock freezes during playback.
+  @Test("setCurrentTime notifies onDeck stream observers")
+  func setCurrentTimeNotifiesOnDeckObservers() async throws {
+    let podcastEpisode = try await fetchPodcastEpisode("episode1")
+    sharedState.$onDeck.new(OnDeck(from: podcastEpisode))
+
+    // Subscribe before mutating: stream() synchronously buffers the current
+    // (pre-change) value. A deduplicated setCurrentTime then leaves the stream
+    // with only that bootstrap and never delivers the 42-second update.
+    let stream = sharedState.$onDeck.stream()
+    stateManager.setCurrentTime(CMTime.seconds(42))
+
+    let observedTime = ActorContainer<CMTime>()
+    let task = Task {
+      for await onDeck in stream {
+        if let currentTime = onDeck?.currentTime {
+          await observedTime.set(currentTime)
+        }
+      }
+    }
+    defer { task.cancel() }
+
+    try await Wait.until(
+      { await observedTime.get() == CMTime.seconds(42) },
+      { "onDeck stream never emitted the setCurrentTime change" }
+    )
+  }
+
   // MARK: - Queue Count Observation Tests
 
   @Test("queueCount updates when episodes are added to queue")

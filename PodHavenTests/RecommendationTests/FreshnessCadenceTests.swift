@@ -174,9 +174,10 @@ class FreshnessCadenceTests {
     )
     try await RecommendationHelpers.embedEpisodes(fresh)
 
-    let recs = try await RecommendationHelpers.startAndWaitForRecs()
-    let freshRec = try #require(recs.first { $0.id == fresh.first?.id })
-    #expect(freshRec.score.reasons.contains(.recentlyPublished))
+    let scores = try await RecommendationHelpers.startAndWaitForScores(for: fresh)
+    let freshEpisode = try #require(fresh.first)
+    let freshScore = try #require(scores[freshEpisode.id])
+    #expect(freshScore.reasons.contains(.recentlyPublished))
   }
 
   @Test("recently-published reason is suppressed for evergreen podcasts even when fresh")
@@ -200,8 +201,9 @@ class FreshnessCadenceTests {
     evergreenSettings.freshnessCadence = .evergreen
     _ = try await repo.updatePodcastSettings(evergreenPodcast.id, evergreenSettings)
 
-    let recs = try await RecommendationHelpers.startAndWaitForRecs()
-    let candidateRec = try #require(recs.first { $0.id == candidates.first?.id })
-    #expect(!candidateRec.score.reasons.contains(.recentlyPublished))
+    let scores = try await RecommendationHelpers.startAndWaitForScores(for: candidates)
+    let candidate = try #require(candidates.first)
+    let candidateScore = try #require(scores[candidate.id])
+    #expect(!candidateScore.reasons.contains(.recentlyPublished))
   }
 }

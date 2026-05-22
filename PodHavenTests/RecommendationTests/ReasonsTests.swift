@@ -24,9 +24,10 @@ class ReasonsTests {
     )
     try await RecommendationHelpers.embedEpisodes(candidates)
 
-    let recommendations = try await RecommendationHelpers.startAndWaitForRecs()
-    for rec in recommendations {
-      #expect(!rec.score.reasons.isEmpty)
+    let scores = try await RecommendationHelpers.startAndWaitForScores(for: candidates)
+    for candidate in candidates {
+      let score = try #require(scores[candidate.id])
+      #expect(!score.reasons.isEmpty)
     }
   }
 
@@ -74,9 +75,10 @@ class ReasonsTests {
     )
     try await RecommendationHelpers.embedEpisodes(candidates)
 
-    let recs = try await RecommendationHelpers.startAndWaitForRecs()
-    for rec in recs where candidates.map(\.id).contains(rec.id) {
-      #expect(!rec.score.reasons.contains(.podcastAffinity))
+    let scores = try await RecommendationHelpers.startAndWaitForScores(for: candidates)
+    for candidate in candidates {
+      let score = try #require(scores[candidate.id])
+      #expect(!score.reasons.contains(.podcastAffinity))
     }
   }
 
@@ -110,12 +112,11 @@ class ReasonsTests {
     )
     try await RecommendationHelpers.embedEpisodes(opposites, embeddable: embeddable)
 
-    let recs = try await RecommendationHelpers.startAndWaitForRecs()
-    let oppositeIDs = Set(opposites.map(\.id))
-    let oppositeRecs = recs.filter { oppositeIDs.contains($0.id) }
-    #expect(!oppositeRecs.isEmpty)
-    for rec in oppositeRecs {
-      #expect(!rec.score.reasons.contains(.similarToLiked))
+    let scores = try await RecommendationHelpers.startAndWaitForScores(for: opposites)
+    #expect(!scores.isEmpty)
+    for opposite in opposites {
+      let score = try #require(scores[opposite.id])
+      #expect(!score.reasons.contains(.similarToLiked))
     }
   }
 
@@ -134,12 +135,11 @@ class ReasonsTests {
     let candidates = try await RecommendationHelpers.addEpisodes(to: lovedPodcast, count: 2)
     try await RecommendationHelpers.embedEpisodes(candidates)
 
-    let recs = try await RecommendationHelpers.startAndWaitForRecs()
-    let candidateIDs = Set(candidates.map(\.id))
-    let candidateRecs = recs.filter { candidateIDs.contains($0.id) }
-    #expect(!candidateRecs.isEmpty)
-    for rec in candidateRecs {
-      #expect(rec.score.reasons.contains(.podcastAffinity))
+    let scores = try await RecommendationHelpers.startAndWaitForScores(for: candidates)
+    #expect(!scores.isEmpty)
+    for candidate in candidates {
+      let score = try #require(scores[candidate.id])
+      #expect(score.reasons.contains(.podcastAffinity))
     }
   }
 }
