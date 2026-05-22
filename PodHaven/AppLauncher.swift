@@ -3,6 +3,7 @@
 import AVFoundation
 import FactoryKit
 import Logging
+import MetricKit
 import Sentry
 import UIKit
 
@@ -142,6 +143,9 @@ struct AppLauncher: Sendable {
 
   private func startSystemMonitoring() {
     startSystemMonitoringOnce.run {
+      MXMetricManager.shared.add(Container.shared.metricKitMonitor())
+      Self.log.debug("Registered MetricKit subscriber")
+
       Task(priority: taskPriority(.utility)) {
         for await _ in self.notifications(UIApplication.didReceiveMemoryWarningNotification) {
           Self.log.warning("System memory warning received")
@@ -218,6 +222,8 @@ struct AppLauncher: Sendable {
       options.sendDefaultPii = true
       options.enableAppHangTracking = true
       options.enableLogs = true
+      options.enableMetricKit = true
+      options.enableMetricKitRawPayload = true
       options.initialScope = { scope in
         scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
         scope.setUser(User(userId: AppInfo.deviceIdentifier))

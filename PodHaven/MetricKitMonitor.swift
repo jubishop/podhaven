@@ -1,0 +1,173 @@
+// Copyright Justin Bishop, 2026
+
+import FactoryKit
+import Foundation
+import Logging
+import MetricKit
+
+extension Container {
+  var metricKitMonitor: Factory<MetricKitMonitor> {
+    Factory(self) { MetricKitMonitor() }.scope(.cached)
+  }
+}
+
+// Counts lifted out of MXBackgroundExitData so the forwarding decision can be
+// exercised in tests — MXMetricPayload and friends have no public initializer.
+struct BackgroundExitCounts {
+  let normalAppExit: Int
+  let memoryResourceLimit: Int
+  let cpuResourceLimit: Int
+  let memoryPressure: Int
+  let badAccess: Int
+  let abnormal: Int
+  let illegalInstruction: Int
+  let appWatchdog: Int
+  let suspendedWithLockedFile: Int
+  let backgroundTaskAssertionTimeout: Int
+
+  init(
+    normalAppExit: Int = 0,
+    memoryResourceLimit: Int = 0,
+    cpuResourceLimit: Int = 0,
+    memoryPressure: Int = 0,
+    badAccess: Int = 0,
+    abnormal: Int = 0,
+    illegalInstruction: Int = 0,
+    appWatchdog: Int = 0,
+    suspendedWithLockedFile: Int = 0,
+    backgroundTaskAssertionTimeout: Int = 0
+  ) {
+    self.normalAppExit = normalAppExit
+    self.memoryResourceLimit = memoryResourceLimit
+    self.cpuResourceLimit = cpuResourceLimit
+    self.memoryPressure = memoryPressure
+    self.badAccess = badAccess
+    self.abnormal = abnormal
+    self.illegalInstruction = illegalInstruction
+    self.appWatchdog = appWatchdog
+    self.suspendedWithLockedFile = suspendedWithLockedFile
+    self.backgroundTaskAssertionTimeout = backgroundTaskAssertionTimeout
+  }
+
+  init(_ data: MXBackgroundExitData) {
+    self.init(
+      normalAppExit: data.cumulativeNormalAppExitCount,
+      memoryResourceLimit: data.cumulativeMemoryResourceLimitExitCount,
+      cpuResourceLimit: data.cumulativeCPUResourceLimitExitCount,
+      memoryPressure: data.cumulativeMemoryPressureExitCount,
+      badAccess: data.cumulativeBadAccessExitCount,
+      abnormal: data.cumulativeAbnormalExitCount,
+      illegalInstruction: data.cumulativeIllegalInstructionExitCount,
+      appWatchdog: data.cumulativeAppWatchdogExitCount,
+      suspendedWithLockedFile: data.cumulativeSuspendedWithLockedFileExitCount,
+      backgroundTaskAssertionTimeout: data.cumulativeBackgroundTaskAssertionTimeoutExitCount
+    )
+  }
+
+  // Sum of every background-exit reason other than a graceful exit.
+  var abnormalExitTotal: Int {
+    memoryResourceLimit + cpuResourceLimit + memoryPressure + badAccess + abnormal
+      + illegalInstruction + appWatchdog + suspendedWithLockedFile
+      + backgroundTaskAssertionTimeout
+  }
+}
+
+enum MetricKitDiagnosticCategory: String {
+  case crash
+  case hang
+  case cpuException
+  case diskWriteException
+}
+
+struct MetricKitLogDirective {
+  let level: Logging.Logger.Level
+  let message: String
+  let metadata: Logging.Logger.Metadata
+}
+
+final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
+  private static let log = Log.as("MetricKit")
+
+  fileprivate override init() {
+    super.init()
+  }
+
+  // MARK: - MXMetricManagerSubscriber
+
+  // MetricKit invokes both callbacks on a background queue: metrics roughly
+  // once per 24 h, diagnostics on the launch after the event.
+
+  func didReceive(_ payloads: [MXMetricPayload]) {
+    for payload in payloads {
+      guard let backgroundExit = payload.applicationExitMetrics?.backgroundExitData else {
+        continue
+      }
+      emit(Self.exitMetricDirective(for: BackgroundExitCounts(backgroundExit)))
+    }
+  }
+
+  func didReceive(_ payloads: [MXDiagnosticPayload]) {
+    for payload in payloads {
+      forward(payload.crashDiagnostics, as: .crash)
+      forward(payload.hangDiagnostics, as: .hang)
+      forward(payload.cpuExceptionDiagnostics, as: .cpuException)
+      forward(payload.diskWriteExceptionDiagnostics, as: .diskWriteException)
+    }
+  }
+
+  // MARK: - Forwarding
+
+  private func forward<Diagnostic: MXDiagnostic>(
+    _ diagnostics: [Diagnostic]?,
+    as category: MetricKitDiagnosticCategory
+  ) {
+    guard let diagnostics else { return }
+    for diagnostic in diagnostics {
+      emit(Self.diagnosticDirective(category: category, json: diagnostic.jsonRepresentation()))
+    }
+  }
+
+  private func emit(_ directive: MetricKitLogDirective) {
+    Self.log.log(level: directive.level, "\(directive.message)", metadata: directive.metadata)
+  }
+
+  // MARK: - Decision
+
+  // Any non-graceful background exit escalates to .critical so CrashReportHandler
+  // files a Sentry issue; an all-normal payload stays a quiet .notice.
+  static func exitMetricDirective(for counts: BackgroundExitCounts) -> MetricKitLogDirective {
+    let message = """
+      MetricKit background-exit metrics — \
+      normalAppExit: \(counts.normalAppExit), \
+      cpuResourceLimit: \(counts.cpuResourceLimit), \
+      memoryPressure: \(counts.memoryPressure), \
+      memoryResourceLimit: \(counts.memoryResourceLimit), \
+      appWatchdog: \(counts.appWatchdog), \
+      backgroundTaskAssertionTimeout: \(counts.backgroundTaskAssertionTimeout), \
+      badAccess: \(counts.badAccess), \
+      abnormal: \(counts.abnormal), \
+      illegalInstruction: \(counts.illegalInstruction), \
+      suspendedWithLockedFile: \(counts.suspendedWithLockedFile)
+      """
+    return MetricKitLogDirective(
+      level: counts.abnormalExitTotal > 0 ? .critical : .notice,
+      message: message,
+      metadata: [:]
+    )
+  }
+
+  // The raw jsonRepresentation() rides verbatim in metadata so the call-stack
+  // tree (binaryUUID + offset per frame) stays machine-parseable for offline
+  // symbolication; .notice keeps the entry out of Sentry Logs, since the native
+  // MetricKit integration already files the symbolicated issue.
+  static func diagnosticDirective(
+    category: MetricKitDiagnosticCategory,
+    json: Data
+  ) -> MetricKitLogDirective {
+    MetricKitLogDirective(
+      level: .notice,
+      message: "MetricKit \(category.rawValue) diagnostic received",
+      metadata: ["metricKitDiagnostic": .string(String(decoding: json, as: UTF8.self))]
+    )
+  }
+}
