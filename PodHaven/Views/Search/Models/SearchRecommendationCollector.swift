@@ -164,10 +164,37 @@ final class SearchRecommendationCollector {
     let debouncer = debouncers[source] ?? Debounce(duration: Self.stableSourceDebounce)
     debouncers[source] = debouncer
 
-    let capped = podcasts.prefix(Self.podcastCap).map { $0 }
+    let capped = Array(podcasts.prefix(Self.podcastCap))
     debouncer { [weak self] in
       guard let self else { return }
       await self.reconcileAndIngest(source: source, podcasts: capped)
+    }
+  }
+
+  // Cancel the drain task, cancel every entry's in-flight download, and
+  // empty all in-memory caches. Called when the Search tab is left so
+  // arbitrary discovery candidates don't live in memory forever.
+  func tearDown() {
+    Self.log.debug("Tearing down collector")
+    drainTask?.cancel()
+    if let continuation = drainContinuation {
+      drainContinuation = nil
+      continuation.resume()
+    }
+    drainTask = nil
+
+    let toCancel = Array(permanent.values) + Array(temporary.values)
+    permanent.removeAll()
+    temporary.removeAll()
+    trendingSourceIndex.removeAll()
+    typedSearchOverlay = nil
+    debouncers.removeAll()
+    pendingDrainQueue.removeAll()
+    inFlight.removeAll()
+    activeSource = nil
+
+    Task {
+      for entry in toCancel { await entry.cancel() }
     }
   }
 
@@ -267,9 +294,17 @@ final class SearchRecommendationCollector {
       }
 
     case .search(let query):
-      let queryChanged = typedSearchOverlay?.query != query
+      let previousQuery = typedSearchOverlay?.query
       typedSearchOverlay = TypedSearchOverlay(query: query, feedURLs: feedURLs)
-      if queryChanged { purgeTemporary() }
+      if previousQuery != query {
+        // Keep temporary entries whose feedURL re-appears under the new
+        // query: their in-flight RSS / embed work carries forward instead
+        // of being orphaned by the inFlight guard in `scheduleDrain`.
+        pruneTemporary(keeping: Set(feedURLs))
+        if let previousQuery {
+          debouncers.removeValue(forKey: .search(query: previousQuery))
+        }
+      }
       for feedURL in feedURLs {
         if permanent[feedURL] == nil, temporary[feedURL] == nil {
           temporary[feedURL] = CachedPodcastEntry(
@@ -284,14 +319,19 @@ final class SearchRecommendationCollector {
     ensureDrainTaskRunning()
   }
 
-  // Cancel and drop every entry in `temporary`, and strip their feed URLs
-  // from the pending drain queue. Called when the typed-search query
-  // changes; trending entries (in `permanent`) are untouched.
-  private func purgeTemporary() {
+  // Cancel and drop temporary entries whose feedURL is NOT in `survivors`,
+  // and strip their feed URLs from the pending drain queue. Survivors stay
+  // so already-in-flight work carries across a typed-search query change.
+  private func pruneTemporary(keeping survivors: Set<FeedURL>) {
     guard !temporary.isEmpty else { return }
-    let toCancel = Array(temporary.values)
-    let purgedURLs = Set(temporary.keys)
-    temporary.removeAll()
+    var toCancel: [CachedPodcastEntry] = []
+    var purgedURLs: Set<FeedURL> = []
+    for (url, entry) in temporary where !survivors.contains(url) {
+      toCancel.append(entry)
+      purgedURLs.insert(url)
+    }
+    guard !purgedURLs.isEmpty else { return }
+    for url in purgedURLs { temporary.removeValue(forKey: url) }
     pendingDrainQueue.removeAll { purgedURLs.contains($0) }
     Task {
       for entry in toCancel { await entry.cancel() }
@@ -313,16 +353,33 @@ final class SearchRecommendationCollector {
     return temporary[feedURL]
   }
 
+  private func awaitScoringContext() async {
+    if recommendationEngine.hasScoringContext { return }
+    recommendationEngine.start()
+    for await _ in recommendationEngine.$scoringRevision.stream() {
+      if Task.isCancelled { return }
+      if recommendationEngine.hasScoringContext { return }
+    }
+  }
+
   // MARK: - Drain Task
 
   private func ensureDrainTaskRunning() {
     if let drainTask, !drainTask.isCancelled { return }
     drainTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      await self?.runDrainLoop()
+      guard let self else { return }
+      await self.runDrainLoop()
     }
   }
 
   private func runDrainLoop() async {
+    // Without a hydrated scoring cache, `similarityScore(forEmbedding:)`
+    // returns nil for every candidate, all picks silently filter out, and
+    // each entry would be marked `.scored` with no episodes — permanent
+    // until the collector is torn down. Block until the engine is ready.
+    await awaitScoringContext()
+    if Task.isCancelled { return }
+
     await withTaskGroup(of: Void.self) { group in
       var activeChildren = 0
       while !Task.isCancelled {
@@ -461,11 +518,11 @@ final class SearchRecommendationCollector {
       return .failed(error)
     }
 
-    let newest: [UnsavedEpisode] =
+    let newest = Array(
       podcastFeed.toUnsavedEpisodes()
-      .sorted { $0.pubDate > $1.pubDate }
-      .prefix(episodesPerPodcast)
-      .map { $0 }
+        .sorted { $0.pubDate > $1.pubDate }
+        .prefix(episodesPerPodcast)
+    )
     let candidates = await filteredCandidates(
       newest: newest,
       podcastID: podcastID,
@@ -564,7 +621,22 @@ final class SearchRecommendationCollector {
   // on any of those mutations.
   var visiblePicks: [ScoredEpisode] {
     guard let activeSource else { return [] }
-    let feedURLs = activeFeedURLs(for: activeSource)
+    return picks(for: activeSource)
+  }
+
+  // `.loaded(count)` once any scored picks exist; `.loading` while the
+  // pipeline is still warming; `.hidden` when there's nothing to show and
+  // nothing in flight.
+  var bannerState: BannerState {
+    guard let activeSource else { return .hidden }
+    return bannerState(for: activeSource)
+  }
+
+  // Scored picks for a specific source. Decoupled from `activeSource` so
+  // a pushed discovery list keeps rendering its own source even if
+  // SearchView later swaps `activeSource` underneath it.
+  func picks(for source: Source) -> [ScoredEpisode] {
+    let feedURLs = activeFeedURLs(for: source)
     var collected: [ScoredEpisode] = []
     for feedURL in feedURLs {
       guard let entry = entry(for: feedURL), entry.status == .scored else { continue }
@@ -574,15 +646,11 @@ final class SearchRecommendationCollector {
     return collected
   }
 
-  // `.loaded(count)` once any scored picks exist; `.loading` while the
-  // pipeline is still warming; `.hidden` when there's nothing to show and
-  // nothing in flight.
-  var bannerState: BannerState {
-    guard let activeSource else { return .hidden }
-    let feedURLs = activeFeedURLs(for: activeSource)
+  func bannerState(for source: Source) -> BannerState {
+    let feedURLs = activeFeedURLs(for: source)
     guard !feedURLs.isEmpty else { return .hidden }
-    let picks = visiblePicks
-    if !picks.isEmpty { return .loaded(count: picks.count) }
+    let sourcePicks = picks(for: source)
+    if !sourcePicks.isEmpty { return .loaded(count: sourcePicks.count) }
     let anyInFlight = feedURLs.contains { url in
       guard let entry = entry(for: url) else { return true }
       switch entry.status {

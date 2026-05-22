@@ -14,11 +14,12 @@ struct SearchDiscoveryListView: View {
   }
 
   var body: some View {
+    let picks = collector.picks(for: source)
     Group {
-      if collector.visiblePicks.isEmpty {
+      if picks.isEmpty {
         emptyPlaceholder
       } else {
-        listView(picks: collector.visiblePicks, collector: collector)
+        listView(picks: picks, collector: collector)
       }
     }
     .navigationTitle(source.discoveryListTitle)

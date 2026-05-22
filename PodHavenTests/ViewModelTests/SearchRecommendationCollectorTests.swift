@@ -340,6 +340,183 @@ import Testing
     #expect(pickTitles.contains(where: { $0.starts(with: "Second") }))
   }
 
+  // MARK: - Test: Typed-Search Shared FeedURL Across Queries (Regression)
+
+  @Test("typed-search query change keeps in-flight entry when feedURL re-appears")
+  func typedSearchSharedFeedURLAcrossQueries() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+    try await primeEngine(embeddable: scripted)
+
+    let sharedFeed = FeedURL(URL(string: "https://example.com/shared-typed.rss")!)
+    let xml = rssXML(
+      title: "Shared Typed",
+      feedURL: sharedFeed,
+      episodes: [
+        ("shared-typed-ep", "Shared Typed Pick", Date(timeIntervalSince1970: 1_950_000_000))
+      ]
+    )
+    let firstSemaphore = await session.waitRespond(to: sharedFeed.rawValue, data: xml)
+
+    let row = makeUnsavedRow(feedURL: sharedFeed, iTunesID: ITunesPodcastID(701))
+    let firstSource = SearchRecommendationCollector.Source.search(query: "foo")
+    collector.setActiveSource(firstSource)
+    collector.recordSourcePodcasts(source: firstSource, podcasts: [row])
+    try await advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in await self.session.requests.contains(sharedFeed.rawValue) },
+      { @MainActor in "Expected RSS request for shared feed to be in flight" }
+    )
+
+    let secondSource = SearchRecommendationCollector.Source.search(query: "fooz")
+    collector.setActiveSource(secondSource)
+    collector.recordSourcePodcasts(source: secondSource, podcasts: [row])
+    try await advanceStableSourceDebounce()
+
+    firstSemaphore.signal()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .loaded(let count) = collector.bannerState(for: secondSource), count > 0 {
+          return true
+        }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected second query to load picks for shared feed; \
+        got \(collector.bannerState(for: secondSource))
+        """
+      }
+    )
+    #expect(!collector.picks(for: secondSource).isEmpty)
+  }
+
+  // MARK: - Test: Teardown Clears Caches
+
+  @Test("tearDown clears caches and the drain task")
+  func tearDownClearsCaches() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+    try await primeEngine(embeddable: scripted)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/teardown.rss")!)
+    await respondWithFeed(at: feedURL, title: "Teardown", episodes: 2)
+
+    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(801))]
+    )
+    try await advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .loaded(let count) = collector.bannerState, count > 0 { return true }
+        return false
+      },
+      { @MainActor in "Expected picks to land before teardown, got \(collector.bannerState)" }
+    )
+
+    collector.tearDown()
+
+    #expect(collector.picks(for: source).isEmpty)
+    #expect(collector.bannerState(for: source) == .hidden)
+    #expect(collector.visiblePicks.isEmpty)
+    #expect(collector.bannerState == .hidden)
+  }
+
+  // MARK: - Test: picks(for:) Is Independent Of activeSource
+
+  @Test("picks(for:) returns picks for the requested source regardless of activeSource")
+  func picksForSourceIndependentOfActiveSource() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+    try await primeEngine(embeddable: scripted)
+
+    let comedyFeed = FeedURL(URL(string: "https://example.com/independent-comedy.rss")!)
+    await respondWithFeed(at: comedyFeed, title: "Comedy", episodes: 2)
+
+    let comedy = SearchRecommendationCollector.Source.trending(genreID: 1303, title: "Comedy")
+    let tech = SearchRecommendationCollector.Source.trending(genreID: 1318, title: "Technology")
+
+    collector.setActiveSource(comedy)
+    collector.recordSourcePodcasts(
+      source: comedy,
+      podcasts: [makeUnsavedRow(feedURL: comedyFeed, iTunesID: ITunesPodcastID(901))]
+    )
+    try await advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in !collector.picks(for: comedy).isEmpty },
+      { @MainActor in "Expected comedy picks to land" }
+    )
+
+    collector.setActiveSource(tech)
+
+    #expect(!collector.picks(for: comedy).isEmpty)
+    #expect(
+      collector.bannerState(for: comedy) == .loaded(count: collector.picks(for: comedy).count)
+    )
+    #expect(collector.picks(for: tech).isEmpty)
+    #expect(collector.bannerState(for: tech) == .hidden)
+    #expect(collector.visiblePicks.isEmpty)
+  }
+
+  // MARK: - Test: Cold Engine Defers Pipeline Until Hot
+
+  @Test("recording before engine is hot yields picks once the engine warms")
+  func recordingBeforeEngineHotEventuallyYieldsPicks() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+
+    // Set up only the embedding factory. Do NOT seed signal episodes or
+    // start the engine yet, so `hasScoringContext` stays false until we
+    // explicitly prime it partway through the test.
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: scripted) }
+      .scope(.cached)
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/cold-engine.rss")!)
+    await respondWithFeed(at: feedURL, title: "Cold Engine", episodes: 2)
+
+    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1001))]
+    )
+    try await advanceStableSourceDebounce()
+
+    // Now hydrate the engine. Without the cold-engine gate, the pipeline
+    // has already raced through scoring with a nil cache and marked the
+    // entry `.scored` with no picks — and nothing retries it.
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: scripted)
+    let localEngine = Container.shared.recommendationEngine()
+    localEngine.start()
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in localEngine.hasScoringContext },
+      { @Sendable in "Expected scoring context to land" }
+    )
+
+    try await Wait.until(
+      { @MainActor in
+        if case .loaded(let count) = collector.bannerState, count > 0 { return true }
+        return false
+      },
+      { @MainActor in "Expected picks once engine warmed; got \(collector.bannerState)" }
+    )
+    #expect(!collector.visiblePicks.isEmpty)
+  }
+
   // MARK: - Test: Cross-Category Cache Reuse
 
   @Test("trending categories share the per-feed cache (one RSS request per feed)")

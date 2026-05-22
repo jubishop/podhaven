@@ -660,6 +660,7 @@ class SearchViewModel:
     }
     currentResultsObservationTask?.cancel()
     currentResultsObservationTask = nil
+    recommendationCollector.tearDown()
   }
 
   // MARK: - Recommendation Collector Wiring
@@ -686,10 +687,9 @@ class SearchViewModel:
   }
 
   fileprivate func pushSearchResultsToCollector(query: String) {
-    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty, !searchResults.isEmpty else { return }
+    guard !query.isEmpty, !searchResults.isEmpty else { return }
     recommendationCollector.recordSourcePodcasts(
-      source: .search(query: trimmed),
+      source: .search(query: query),
       podcasts: Array(searchResults)
     )
   }
