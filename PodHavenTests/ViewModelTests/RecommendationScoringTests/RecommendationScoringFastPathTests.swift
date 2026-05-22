@@ -7,19 +7,18 @@ import Testing
 @testable import PodHaven
 
 // Regression tests for the recommendation-score fan-out OOM (issue #274).
-@Suite("of recommendation scoring cached-snapshot fast-path tests", .container)
+@Suite("of recommendation scoring retained-score fast-path tests", .container)
 @MainActor final class RecommendationScoringFastPathTests {
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
-  @DynamicInjected(\.repo) private var repo
 
   private var fakeRecommendationRepo: FakeRecommendationRepo {
     recommendationRepo as! FakeRecommendationRepo
   }
 
   @Test(
-    "a transition whose snapshot equals the cached snapshot must not trigger a redundant scoring pass"
+    "re-selecting the rec sort with an unchanged candidate set reuses the retained score without recomputing"
   )
-  func sameSnapshotTransitionSkipsRedundantCompute() async throws {
+  func reselectingRecSortReusesRetainedScore() async throws {
     let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
     try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
 
@@ -32,12 +31,25 @@ import Testing
         episodeDescriptions: ["Target 0", "Target 1", "Target 2", "Target 3"]
       )
     try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
+
+    // A second unrated podcast widens the engine's global candidate pool, so
+    // only a VM scoring pass produces an `embeddings` call whose ID set equals
+    // `targetIDs` — the engine's own rebuilds fetch a superset.
+    let (_, decoyEpisodes) =
+      try await RecommendationHelpers
+      .createPodcastWithEpisodes(
+        count: 4,
+        podcastTitle: "Decoy",
+        podcastDescription: "Decoy",
+        episodeDescriptions: ["Decoy 0", "Decoy 1", "Decoy 2", "Decoy 3"]
+      )
+    try await RecommendationHelpers.embedEpisodes(decoyEpisodes, embeddable: embeddable)
     _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+
+    let targetIDs = Set(candidateEpisodes.map(\.id))
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
     try await viewModel.performAppear()
-
-    let targetIDs = Set(candidateEpisodes.map(\.id))
     try await Wait.until(
       priority: .userInitiated,
       { @MainActor in
@@ -48,61 +60,57 @@ import Testing
       }
     )
 
-    // Drive the bootstrap pass to publish. Switching to .recommendationScore
-    // and seeing the rec-score order land proves the score cache is populated
-    // — the setter only applies cached.scores when cached.snapshot equals the
-    // current snapshot, and the filteredEntries shift reflects that apply.
-    let preRecOrder = viewModel.episodeList.filteredEntries.compactMap(\.episodeID)
+    // First selection scores the candidates and applies the rec-score order.
     viewModel.currentSortMethod = .recommendationScore
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
       { @MainActor in
-        let order = viewModel.episodeList.filteredEntries.compactMap(\.episodeID)
-        return order.count == candidateEpisodes.count && order != preRecOrder
+        viewModel.recommendationDisplay == .idle
+          && viewModel.episodeList.filteredEntries.count == candidateEpisodes.count
       },
       { @MainActor in
         """
-        Expected rec-score sort to land before the same-snapshot transition.
-        order: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+        Expected the first on-demand scoring pass to settle.
+        display: \(viewModel.recommendationDisplay)
+        filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
         """
       }
     )
-    viewModel.currentSortMethod = .newestFirst
-
-    await RecommendationScoringTestHelpers.drainRecommendationSleeper(by: .seconds(2))
-    fakeRecommendationRepo.clearAllCalls()
-
-    // markFinished writes finishDate / currentTime / maxPlaybackTime — none
-    // are in the recommendation-scoring snapshot (mediaGUID, episodeID,
-    // pubDate). The observed PodcastSeriesDetail will change and transition()
-    // will fire, but the cached snapshot still equals the current one.
-    let targetEpisodeID = try #require(candidateEpisodes.first?.id)
-    _ = try await repo.markFinished(targetEpisodeID)
-
+    // Quiesce the engine so the retained snapshot's revision stays put across
+    // the sort round-trip below.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
-      { @MainActor in
-        viewModel.episodeList.allEntries.contains {
-          $0.episodeID == targetEpisodeID && $0.finished
-        }
-      },
-      { @MainActor in
-        "Expected observation to surface the finishedDate update on the target episode."
-      }
+      { @MainActor in viewModel.recommendationDisplay == .idle },
+      { @MainActor in "Expected the rec sort to be idle once the engine settled." }
+    )
+    let recOrder = viewModel.episodeList.filteredEntries.compactMap(\.episodeID)
+
+    viewModel.currentSortMethod = .newestFirst
+    fakeRecommendationRepo.clearAllCalls()
+
+    // Nothing in the scoring snapshot changed. Re-selecting must reuse the
+    // retained score — no "Computing recommendations…" banner.
+    viewModel.currentSortMethod = .recommendationScore
+    #expect(
+      viewModel.recommendationDisplay == .idle,
+      """
+      Expected re-selecting the rec sort with an unchanged candidate set to \
+      apply the retained score immediately, but the scorer fell back to a \
+      visible recompute (display: \(viewModel.recommendationDisplay)).
+      """
     )
 
     await RecommendationScoringTestHelpers.drainRecommendationSleeper(by: .seconds(2))
 
-    let postTransitionCalls = RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
-      matching: targetIDs
-    )
+    #expect(viewModel.episodeList.filteredEntries.compactMap(\.episodeID) == recOrder)
+
+    let calls = RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs)
     #expect(
-      postTransitionCalls == 0,
+      calls == 0,
       """
-      Expected the cached-snapshot fast path to skip the embedding round-trip \
-      for a same-snapshot transition, but \(postTransitionCalls) embeddings(for:) \
-      calls fired after marking an episode finished — the cache check failed to \
-      prevent the redundant compute.
+      Expected the retained score to short-circuit a recompute, but \(calls) \
+      embeddings(for:) calls fired for the target IDs on re-selection.
       """
     )
   }
