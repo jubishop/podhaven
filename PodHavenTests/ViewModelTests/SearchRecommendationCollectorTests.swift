@@ -428,6 +428,61 @@ import Testing
     #expect(collector.bannerState == .hidden)
   }
 
+  // MARK: - Test: Teardown Cancels In-Flight Download
+
+  @Test("tearDown cancels an in-flight RSS download")
+  func tearDownCancelsInFlightDownload() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+    try await primeEngine(embeddable: scripted)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/teardown-inflight.rss")!)
+    // Hold the RSS response so processFeedURL stays suspended on
+    // downloadFinished. tearDown must cancel the underlying DownloadTask,
+    // which in turn cancels this handler's wait.
+    let semaphore = await session.waitRespond(
+      to: feedURL.rawValue,
+      data: rssXML(
+        title: "Teardown InFlight",
+        feedURL: feedURL,
+        episodes: [
+          ("teardown-inflight-ep", "Pick", Date(timeIntervalSince1970: 1_950_000_000))
+        ]
+      )
+    )
+
+    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1102))]
+    )
+    try await advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in await self.session.requests.contains(feedURL.rawValue) },
+      { @MainActor in "Expected RSS request to be in flight before teardown" }
+    )
+
+    collector.tearDown()
+
+    try await Wait.until(
+      { @MainActor in await self.session.cancelledRequests.contains(feedURL.rawValue) },
+      { @MainActor in
+        let cancelled = await self.session.cancelledRequests
+        return "Expected RSS request to be cancelled after teardown; got \(cancelled)"
+      }
+    )
+
+    // Releasing the held response is a no-op now — cancellation took hold
+    // before the response could deliver.
+    semaphore.signal()
+
+    #expect(collector.visiblePicks.isEmpty)
+    #expect(collector.bannerState == .hidden)
+    #expect(collector.picks(for: source).isEmpty)
+  }
+
   // MARK: - Test: picks(for:) Is Independent Of activeSource
 
   @Test("picks(for:) returns picks for the requested source regardless of activeSource")
@@ -515,6 +570,84 @@ import Testing
       { @MainActor in "Expected picks once engine warmed; got \(collector.bannerState)" }
     )
     #expect(!collector.visiblePicks.isEmpty)
+  }
+
+  // MARK: - Test: Typed-Search Query Change Does Not Cancel Trending Work
+
+  @Test("typed-search query change does not cancel work owned by a trending source")
+  func typedSearchQueryChangeDoesNotCancelTrendingWork() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+    try await primeEngine(embeddable: scripted)
+
+    // Shared feed: lands in `permanent` via the trending source, then is
+    // re-referenced (but not owned) by typed-search "f".
+    let sharedFeed = FeedURL(URL(string: "https://example.com/cross-cache.rss")!)
+    let sharedSemaphore = await session.waitRespond(
+      to: sharedFeed.rawValue,
+      data: rssXML(
+        title: "Cross Cache",
+        feedURL: sharedFeed,
+        episodes: [
+          ("cross-cache-ep", "Cross Pick", Date(timeIntervalSince1970: 1_960_000_000))
+        ]
+      )
+    )
+
+    // Distinct feed so the "g" ranking is non-empty.
+    let gOnlyFeed = FeedURL(URL(string: "https://example.com/g-only.rss")!)
+    await respondWithFeed(at: gOnlyFeed, title: "G Only", episodes: 1)
+
+    let trending = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(trending)
+    collector.recordSourcePodcasts(
+      source: trending,
+      podcasts: [makeUnsavedRow(feedURL: sharedFeed, iTunesID: ITunesPodcastID(1201))]
+    )
+    try await advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in await self.session.requests.contains(sharedFeed.rawValue) },
+      { @MainActor in "Expected trending RSS request to be in flight" }
+    )
+
+    // Typed-search "f" references the same feed — reuses the trending entry
+    // without taking ownership.
+    let fSource = SearchRecommendationCollector.Source.search(query: "f")
+    collector.setActiveSource(fSource)
+    collector.recordSourcePodcasts(
+      source: fSource,
+      podcasts: [makeUnsavedRow(feedURL: sharedFeed, iTunesID: ITunesPodcastID(1201))]
+    )
+    try await advanceStableSourceDebounce()
+
+    // Typed-search "g" replaces the overlay with a different feed. Must NOT
+    // cancel the trending-owned in-flight work for sharedFeed.
+    let gSource = SearchRecommendationCollector.Source.search(query: "g")
+    collector.setActiveSource(gSource)
+    collector.recordSourcePodcasts(
+      source: gSource,
+      podcasts: [makeUnsavedRow(feedURL: gOnlyFeed, iTunesID: ITunesPodcastID(1202))]
+    )
+    try await advanceStableSourceDebounce()
+
+    sharedSemaphore.signal()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .loaded(let count) = collector.bannerState(for: trending), count > 0 {
+          return true
+        }
+        return false
+      },
+      { @MainActor in
+        "Expected trending picks after typed-search churn; got \(collector.bannerState(for: trending))"
+      }
+    )
+
+    let cancelled = await session.cancelledRequests
+    #expect(!cancelled.contains(sharedFeed.rawValue))
+    #expect(!collector.picks(for: trending).isEmpty)
   }
 
   // MARK: - Test: Cross-Category Cache Reuse

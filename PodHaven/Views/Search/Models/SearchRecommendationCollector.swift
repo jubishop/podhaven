@@ -193,7 +193,13 @@ final class SearchRecommendationCollector {
     inFlight.removeAll()
     activeSource = nil
 
-    Task {
+    // `drainTask?.cancel()` above propagates through structured concurrency,
+    // which causes each `processFeedURL` child to resume via `AsyncLatch`'s
+    // onCancel and clear `entry.fetchToken` before this Task body could run
+    // `entry.cancel()`. Go through the manager so the active downloads are
+    // cancelled even after the entries have lost their fetch tokens.
+    Task { [downloadManager] in
+      await downloadManager.cancelAllDownloads()
       for entry in toCancel { await entry.cancel() }
     }
   }
