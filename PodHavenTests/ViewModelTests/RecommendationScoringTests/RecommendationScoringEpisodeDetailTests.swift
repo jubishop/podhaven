@@ -105,35 +105,26 @@ import Testing
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
     try await viewModel.performAppear()
 
-    recommendationEngine.$scoringRevision.update { $0 += 1 }
-
+    // The bootstrap scoring pass suspends on the gated embeddings call.
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
       { fakeRepo.isEmbeddingsGateSuspended },
-      { "Expected bootstrap scoring to suspend before releasing it." }
+      { "Expected bootstrap scoring to suspend on the gated embeddings call." }
     )
 
     fakeRecommendationRepo.clearAllCalls()
-    fakeRepo.releaseEmbeddingsGate()
+    recommendationEngine.$scoringRevision.update { $0 += 1 }
 
-    try await RecommendationHelpers.untilAdvancing(
-      priority: .userInitiated,
-      {
-        await MainActor.run {
-          RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs) >= 1
-        }
-      },
-      {
-        await MainActor.run {
-          """
-          Expected the first post-start scoringRevision to schedule a trailing \
-          refresh after the gated bootstrap pass completed.
-          calls: \(RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs))
-          displayedScore: \(String(describing: viewModel.displayedScore))
-          """
-        }
-      }
+    // The scoringRevision bump emitted right after observation starts must not
+    // be dropped: it cancels the gated bootstrap pass and restarts a fresh one,
+    // which scores the target episode again.
+    try await RecommendationScoringTestHelpers.waitForScopedEmbeddingsCalls(
+      matching: targetIDs,
+      atLeast: 1,
+      reason: "Expected the post-start scoringRevision bump to trigger a re-score."
     )
+
+    fakeRepo.releaseEmbeddingsGate()
   }
 
   @Test(
@@ -189,6 +180,9 @@ import Testing
       { "Expected the bootstrap recommendation fetch to suspend." }
     )
 
+    // Fresh "loved" signals refresh the scoring context. The resulting
+    // $scoringRevision bump cancels the gated bootstrap pass and re-scores the
+    // target against the new context.
     let (_, freshSignals) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 12,
       podcastTitle: "Fresh Signal",
@@ -198,34 +192,45 @@ import Testing
     )
     try await RecommendationHelpers.embedEpisodes(freshSignals, embeddable: embeddable.scripted)
 
-    let freshScore: Float = try await RecommendationHelpers.waitAdvancing {
-      await MainActor.run {
-        guard case .recommendation(let score) = viewModel.displayedScore else {
-          return nil
-        }
-        return score.value
+    try await RecommendationHelpers.untilAdvancing(
+      priority: .userInitiated,
+      { @MainActor in
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected the context-refresh re-score to land a recommendation score.
+        actual: \(String(describing: viewModel.displayedScore))
+        """
       }
+    )
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    guard case .recommendation(let freshScore) = viewModel.displayedScore else {
+      Issue.record(
+        "Expected a fresh recommendation score, got \(String(describing: viewModel.displayedScore))"
+      )
+      return
     }
 
+    // Releasing the gated bootstrap embeddings call lets the now-cancelled
+    // stale pass drain. Its old-context result must be dropped, never written
+    // over the fresh score.
     fakeRepo.releaseEmbeddingsGate()
-    try await Wait.until(
-      priority: .userInitiated,
-      { fakeRepo.didEmbeddingsGateComplete },
-      { "Expected the stale bootstrap embeddings call to complete after release." }
-    )
-    await Task.yield()
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
 
     guard case .recommendation(let finalScore) = viewModel.displayedScore else {
       Issue.record(
-        "Expected final displayedScore to remain a recommendation, got \(String(describing: viewModel.displayedScore))"
+        "Expected the final score to remain a recommendation, got \(String(describing: viewModel.displayedScore))"
       )
       return
     }
     #expect(
-      abs(finalScore.value - freshScore) < 0.001,
+      abs(finalScore.value - freshScore.value) < 0.001,
       """
       The stale bootstrap fetch overwrote the newer context-refresh score.
-      freshScore: \(freshScore)
+      freshScore: \(freshScore.value)
       finalScore: \(finalScore.value)
       """
     )

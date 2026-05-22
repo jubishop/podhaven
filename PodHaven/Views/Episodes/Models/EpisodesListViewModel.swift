@@ -175,21 +175,14 @@ class EpisodesListViewModel:
   }
 
   // Recommendation scoring runs only on demand — while the recommendationScore
-  // sort is the selected one. Two producers feed the scoring pass: the
-  // candidate set and the engine's scoring revision.
+  // sort is the selected one. The candidate observation kicks a scoring pass on
+  // every candidate-set change; `RecommendationScoringCoordinator` owns the
+  // engine's `$scoringRevision` trigger plus the snapshot-keyed skip and the
+  // cancel-and-restart machinery.
   private func runRecommendationObservation() async {
     cancelRecommendationWork()
-
-    await withTaskGroup(of: Void.self) { group in
-      group.addTask { [weak self] in
-        guard let self else { return }
-        await self.observeCandidateSet()
-      }
-      group.addTask { [weak self] in
-        guard let self else { return }
-        await self.observeScoringRevision()
-      }
-    }
+    recommendationCoordinator.startObservingScoringRevision()
+    await observeCandidateSet()
   }
 
   private func observeCandidateSet() async {
@@ -200,15 +193,7 @@ class EpisodesListViewModel:
         try Task.checkCancellation()
 
         lastObservedCandidates = candidates
-        let key = ScoredInputsKey(
-          candidates: candidates,
-          scoringRevision: recommendationEngine.scoringRevision
-        )
-        if case .loaded(let scoredKey, _) = recommendationScoresState, scoredKey == key {
-          kickRecommendationHydration()
-        } else {
-          recomputeRecommendations(for: candidates)
-        }
+        recommendationCoordinator.refresh()
       }
     } catch is CancellationError {
     } catch {
@@ -217,15 +202,6 @@ class EpisodesListViewModel:
         error
       )
       handleRecommendationFailure()
-    }
-  }
-
-  private func observeScoringRevision() async {
-    // Drop the first emission — $scoringRevision replays its current value on
-    // subscribe, and the candidate observation already kicks the initial pass.
-    for await _ in recommendationEngine.$scoringRevision.stream().dropFirst() {
-      guard !Task.isCancelled else { return }
-      recomputeRecommendations(for: lastObservedCandidates)
     }
   }
 
@@ -280,18 +256,6 @@ class EpisodesListViewModel:
   @ObservationIgnored private var recommendationHydrationTask: Task<Void, Never>?
   @ObservationIgnored private var hydratedScoreIDs: [Episode.ID] = []
 
-  private func kickRecommendationHydration() {
-    guard currentSortMethod == .recommendationScore else { return }
-    switch recommendationScoresState {
-    case .pending:
-      return
-    case .failed:
-      loadingState = .failed
-    case .loaded:
-      startRecommendationHydration(for: topEpisodeIDsByScore())
-    }
-  }
-
   private func startRecommendationHydration(for topIDs: [Episode.ID]) {
     if hydratedScoreIDs == topIDs,
       let recommendationHydrationTask,
@@ -343,71 +307,69 @@ class EpisodesListViewModel:
   private enum RecommendationScoresState {
     case pending
     case failed
-    case loaded(ScoredInputsKey, [Episode.ID: Float])
+    case loaded
   }
 
-  private struct ScoredInputsKey: Equatable {
+  private struct ScoredInputsKey: Equatable, Sendable {
     let candidates: [CandidateEpisode]
     let scoringRevision: Int
   }
 
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
-  @ObservationIgnored private var recommendationScoringTask: Task<Void, Never>?
 
-  private func recomputeRecommendations(for observedCandidates: [CandidateEpisode]?) {
-    guard let candidates = observedCandidates else { return }
-    // Keep loaded rows visible during a mid-view rescore.
-    if loadingState != .loaded { loadingState = .computingRecommendations }
-
-    let key = ScoredInputsKey(
-      candidates: candidates,
-      scoringRevision: recommendationEngine.scoringRevision
-    )
-    recommendationScoringTask?.cancel()
-    recommendationScoringTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      guard let self else { return }
-      guard !Task.isCancelled else { return }
-
-      let values: [Episode.ID: Float]
-      if candidates.isEmpty {
-        values = [:]
-      } else {
-        do {
-          values = try await self.recommendationEngine.recommendationScores(for: candidates)
-        } catch is CancellationError {
-          return
-        } catch {
-          Self.log.caughtError(
-            "recomputeRecommendations: scoring failed",
-            error
-          )
-          self.handleRecommendationFailure()
-          return
-        }
-      }
-
-      guard !Task.isCancelled else { return }
-
-      self.recommendationScoresState = .loaded(key, values)
-      Self.log.debug(
-        "Recommendation scoring landed \(values.count) scores for \(candidates.count) candidates"
+  @ObservationIgnored
+  private lazy var recommendationCoordinator = RecommendationScoringCoordinator<
+    ScoredInputsKey, [Episode.ID: Float]
+  >(
+    makeSnapshot: { [weak self] in
+      guard let self, let candidates = lastObservedCandidates else { return nil }
+      return ScoredInputsKey(
+        candidates: candidates,
+        scoringRevision: recommendationEngine.scoringRevision
       )
-      self.kickRecommendationHydration()
+    },
+    willScore: { [weak self] in
+      guard let self else { return }
+      // Keep loaded rows visible during a mid-view rescore.
+      if loadingState != .loaded { loadingState = .computingRecommendations }
+    },
+    score: { [weak self] in
+      guard let self, let candidates = lastObservedCandidates, !candidates.isEmpty else {
+        return [:]
+      }
+      return try await recommendationEngine.recommendationScores(for: candidates)
+    },
+    apply: { [weak self] in
+      guard let self else { return }
+      applyRecommendationScores($0)
+    },
+    onFailure: { [weak self] error in
+      guard let self else { return }
+      Self.log.caughtError("recomputeRecommendations: scoring failed", error)
+      handleRecommendationFailure()
     }
+  )
+
+  private func applyRecommendationScores(_ scores: [Episode.ID: Float]) {
+    recommendationScoresState = .loaded
+    Self.log.debug("Recommendation scoring landed \(scores.count) scores")
+    guard currentSortMethod == .recommendationScore else { return }
+    startRecommendationHydration(for: topEpisodeIDsByScore(from: scores))
   }
 
   private func handleRecommendationFailure() {
     guard !Task.isCancelled else { return }
     recommendationScoresState = .failed
+    // A failed pass must not be papered over by a stale cache hit: force the
+    // next candidate emission to re-score even if its inputs are unchanged.
+    recommendationCoordinator.invalidateCache()
     guard currentSortMethod == .recommendationScore else { return }
     alert("Couldn't compute recommendations.")
     loadingState = .failed
   }
 
-  private func topEpisodeIDsByScore() -> [Episode.ID] {
-    guard case .loaded(_, let scores) = recommendationScoresState, !scores.isEmpty else {
-      return []
-    }
+  private func topEpisodeIDsByScore(from scores: [Episode.ID: Float]) -> [Episode.ID] {
+    guard !scores.isEmpty else { return [] }
     return
       scores
       .sorted { lhs, rhs in
@@ -424,17 +386,12 @@ class EpisodesListViewModel:
     cancelRecommendationWork()
   }
 
-  // `recommendationScoresState` deliberately survives teardown so re-selecting
-  // the rec sort can hydrate without recomputing.
+  // The coordinator's score cache deliberately survives teardown so
+  // re-selecting the rec sort can hydrate without recomputing.
   private func cancelRecommendationWork() {
-    cancelRecommendationScoring()
-    cancelRecommendationHydration()
-  }
-
-  private func cancelRecommendationScoring() {
-    recommendationScoringTask?.cancel()
-    recommendationScoringTask = nil
+    recommendationCoordinator.cancel()
     lastObservedCandidates = nil
+    cancelRecommendationHydration()
   }
 
   private func cancelRecommendationHydration() {

@@ -10,11 +10,12 @@ import Tagged
 // Owns recommendation-score sorting for `PodcastDetailViewModel`. Scoring runs
 // purely on demand while the `.recommendationScore` sort is selected; the last
 // computed score is retained so an unchanged re-selection applies instantly.
+// `RecommendationScoringCoordinator` owns the `$scoringRevision` observation,
+// the snapshot-keyed skip, and the cancel-and-restart task machinery.
 @Observable @MainActor
 final class PodcastRecommendationScorer {
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
-  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.PodcastsView.detail)
 
@@ -28,100 +29,68 @@ final class PodcastRecommendationScorer {
 
   // MARK: - State
 
-  @ObservationIgnored private var scoringRevisionTask: Task<Void, Never>?
-  @ObservationIgnored private var recommendationScoreTask: Task<Void, Never>?
-  @ObservationIgnored private var lastRecommendationScores: RecommendationScoreCache?
   @ObservationIgnored private var unsavedEmbeddingCache:
     (revision: Int, vectors: [MediaGUID: (source: String, vector: [Float])])?
+
+  @ObservationIgnored
+  private lazy var coordinator = RecommendationScoringCoordinator<
+    RecommendationScoringSnapshot, [MediaGUID: Float]
+  >(
+    makeSnapshot: { [weak self] in
+      guard let self, let host, host.isSortingByRecommendationScore else { return nil }
+      if case .initial = host.state { return nil }
+      return currentScoringSnapshot(host: host)
+    },
+    willScore: { [weak self] in
+      guard let self else { return }
+      display = .computing
+    },
+    score: { [weak self] in
+      guard let self else { return [:] }
+      return await computeRecommendationScores()
+    },
+    apply: { [weak self] in
+      guard let self else { return }
+      applyComputedScores($0)
+    }
+  )
 
   // MARK: - Host Events
 
   func applyRecommendationSort() {
     guard let host else { return }
-    startScoringRevisionObservation()
-    if let cached = lastRecommendationScores,
-      cached.snapshot == currentScoringSnapshot(host: host)
-    {
-      applyRecommendationDisplay(cached.scores, host: host)
-      display = .idle
-    } else {
-      host.episodeList.filterMethod = host.recommendationFallbackFilter
-      display = .computing
-      recompute()
-    }
+    host.episodeList.filterMethod = host.recommendationFallbackFilter
+    coordinator.startObservingScoringRevision()
+    coordinator.refresh()
   }
 
   func clearRecommendationSort() {
     display = .idle
-    cancelScoring()
+    coordinator.cancel()
   }
 
   func stateDidChange() {
-    guard let host, host.isSortingByRecommendationScore else { return }
-    if lastRecommendationScores?.snapshot != currentScoringSnapshot(host: host) {
-      display = .computing
-    }
-    recompute()
+    coordinator.refresh()
   }
 
   func disappear() {
-    cancelScoring()
-  }
-
-  // MARK: - Scoring Lifecycle
-
-  private func startScoringRevisionObservation() {
-    if let scoringRevisionTask, !scoringRevisionTask.isCancelled { return }
-    // Drop the first emission — $scoringRevision replays its current value on
-    // subscribe, and applyRecommendationSort() already kicks the initial pass.
-    let scoringRevisions = recommendationEngine.$scoringRevision.stream().dropFirst()
-    scoringRevisionTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      guard let self else { return }
-      for await _ in scoringRevisions {
-        guard !Task.isCancelled else { return }
-        recompute()
-      }
-    }
-  }
-
-  private func cancelScoring() {
-    scoringRevisionTask?.cancel()
-    scoringRevisionTask = nil
-    recommendationScoreTask?.cancel()
-    recommendationScoreTask = nil
-  }
-
-  // Cancel-and-restart: a new request cancels any in-flight pass, so the
-  // latest inputs win and a superseded pass never publishes.
-  private func recompute() {
-    guard let host, host.isSortingByRecommendationScore else { return }
-    if case .initial = host.state { return }
-    recommendationScoreTask?.cancel()
-    recommendationScoreTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      guard let self else { return }
-      await computeAndPublishRecommendationScores()
-    }
+    coordinator.cancel()
   }
 
   // MARK: - Snapshot
 
-  private struct RecommendationScoreCache {
-    let snapshot: RecommendationScoringSnapshot
-    let scores: [MediaGUID: Float]
-  }
-
-  private struct RecommendationScoringSnapshot: Equatable {
+  private struct RecommendationScoringSnapshot: Equatable, Sendable {
     let scoringRevision: Int
     let state: State
     let entries: Set<Entry>
 
-    enum State: Hashable {
+    enum State: Hashable, Sendable {
       case initial
       case unsaved(embeddingRevision: Int)
       case saved(Podcast.ID)
     }
 
-    enum Entry: Hashable {
+    enum Entry: Hashable, Sendable {
       case saved(mediaGUID: MediaGUID, episodeID: Episode.ID, pubDate: Date)
       case unsaved(mediaGUID: MediaGUID, embeddingSource: String)
       case unscored(mediaGUID: MediaGUID)
@@ -168,44 +137,19 @@ final class PodcastRecommendationScorer {
 
   // MARK: - Scoring
 
-  private func computeAndPublishRecommendationScores() async {
-    guard let host else { return }
-    let snapshot = currentScoringSnapshot(host: host)
+  private func computeRecommendationScores() async -> [MediaGUID: Float] {
+    guard let host else { return [:] }
     let entries = host.episodeList.allEntries
-    guard !entries.isEmpty else {
-      display = .idle
-      return
-    }
+    guard !entries.isEmpty else { return [:] }
 
-    if let cached = lastRecommendationScores, cached.snapshot == snapshot {
-      guard host.isSortingByRecommendationScore else { return }
-      applyRecommendationDisplay(cached.scores, host: host)
-      display = .idle
-      return
-    }
-
-    let valuesByMediaGUID: [MediaGUID: Float]
     switch host.state {
     case .initial:
-      display = .idle
-      return
+      return [:]
     case .saved(let series):
-      valuesByMediaGUID = await savedRecommendationScores(
-        podcastID: series.id,
-        entries: entries
-      )
+      return await savedRecommendationScores(podcastID: series.id, entries: entries)
     case .unsaved:
-      valuesByMediaGUID = await unsavedSimilarityScores(entries: entries)
+      return await unsavedSimilarityScores(entries: entries)
     }
-
-    guard !Task.isCancelled else { return }
-    lastRecommendationScores = RecommendationScoreCache(
-      snapshot: snapshot,
-      scores: valuesByMediaGUID
-    )
-    guard host.isSortingByRecommendationScore else { return }
-    applyRecommendationDisplay(valuesByMediaGUID, host: host)
-    display = .idle
   }
 
   private func savedRecommendationScores(
@@ -289,6 +233,12 @@ final class PodcastRecommendationScorer {
 
     unsavedEmbeddingCache = (revision: revision, vectors: cachedVectors)
     return result
+  }
+
+  private func applyComputedScores(_ valuesByMediaGUID: [MediaGUID: Float]) {
+    guard let host else { return }
+    applyRecommendationDisplay(valuesByMediaGUID, host: host)
+    display = .idle
   }
 
   private func applyRecommendationDisplay(
