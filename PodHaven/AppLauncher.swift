@@ -114,7 +114,7 @@ struct AppLauncher: Sendable {
       Self.log.info("Preparing for foreground")
 
       await AppInfo.finalizeEnvironment()
-      Self.applySentryEnvironment()
+      await Self.applySentryEnvironment()
       guard AppInfo.environment != .testing else { return }
       guard !Task.isCancelled else { return }
 
@@ -202,7 +202,9 @@ struct AppLauncher: Sendable {
 
   // MARK: - Sentry
 
-  private static func applySentryEnvironment() {
+  // Sentry's configureScope reads UIApplication.applicationState, which is
+  // main-thread only; prepareForForeground runs off the main actor.
+  @MainActor private static func applySentryEnvironment() {
     SentrySDK.configureScope { scope in
       scope.setEnvironment(AppInfo.environment.rawValue)
     }

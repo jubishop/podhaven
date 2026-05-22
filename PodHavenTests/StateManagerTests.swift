@@ -122,6 +122,46 @@ actor StateManagerTests {
     #expect(sharedState.onDeck == nil)
   }
 
+  @Test("onDeck observation does not resurrect onDeck after the slot is cleared")
+  func onDeckObservationDoesNotResurrectClearedOnDeck() async throws {
+    let podcastEpisode = try await fetchPodcastEpisode("episode1")
+    stateManager.setOnDeck(podcastEpisode)
+
+    // Warm up: let setOnDeck's observation task process the episode's current
+    // row so it sits idle with no pending emissions before the scenario.
+    _ = try await repo.markFinished(podcastEpisode.id)
+    try await Wait.until(
+      { Container.shared.sharedState().onDeck?.finishDate != nil },
+      { "Expected onDeck to reflect markFinished before the scenario" }
+    )
+
+    // Count every onDeck broadcast so we can wait for the observation task to
+    // process the emission triggered below. Broadcast.update yields on every
+    // call, so the count advances even when the fix's guard skips the write.
+    let yieldCount = Counter()
+    let streamTask = Task {
+      for await _ in sharedState.$onDeck.stream() {
+        await yieldCount.increment()
+      }
+    }
+    try await yieldCount.wait(for: 1)  // stream bootstrap emit
+
+    // Clear the slot out from under the still-alive observation task. This is
+    // the state finishEpisode's clearOnDeck reaches while a markFinished
+    // observatory emission for the same episode is still in flight.
+    sharedState.$onDeck.new(nil)
+    try await yieldCount.wait(for: 2)
+
+    // A DB change to the no-longer-on-deck episode makes the observation task
+    // emit. It must not write the finished episode back into the cleared slot.
+    _ = try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
+    try await yieldCount.wait(for: 3)
+
+    #expect(sharedState.onDeck == nil)
+
+    streamTask.cancel()
+  }
+
   // MARK: - setCurrentTime Tests
 
   @Test("setCurrentTime updates onDeck currentTime")
