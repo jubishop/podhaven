@@ -65,14 +65,20 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 
   // `isDuplicate` is checked inside the state lock so the compare and the
   // mutation+yield are atomic — an outside check would race a concurrent writer.
+  // `previous` is snapshotted only when there's a comparator to feed it, so the
+  // non-deduplicating path keeps mutating in place without an extra copy.
   private func write(
     _ transform: (inout T) -> Void,
     isDuplicate: ((T, T) -> Bool)?
   ) {
     let broadcastValue: T? = state { state in
-      let previous = state.current
-      transform(&state.current)
-      if let isDuplicate, isDuplicate(previous, state.current) { return nil }
+      if let isDuplicate {
+        let previous = state.current
+        transform(&state.current)
+        guard !isDuplicate(previous, state.current) else { return nil }
+      } else {
+        transform(&state.current)
+      }
       for continuation in state.continuations.values {
         continuation.yield(state.current)
       }
@@ -116,7 +122,7 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 
 // Equatable values are deduplicated: a write that doesn't change the value
 // wakes no stream or SwiftUI observer. Overload resolution prefers these over
-// the unconstrained `new`/`update` whenever `T: Equatable`.
+// the unconstrained `new`/`update`/`binding` whenever `T: Equatable`.
 extension Broadcast where T: Equatable {
   func new(_ value: T) {
     write({ $0 = value }, isDuplicate: ==)
@@ -124,6 +130,12 @@ extension Broadcast where T: Equatable {
 
   func update(_ transform: (inout T) -> Void) {
     write(transform, isDuplicate: ==)
+  }
+
+  // Routes the setter through the deduplicating `new`, so a binding write that
+  // doesn't change the value wakes no observer.
+  var binding: Binding<T> {
+    Binding(get: { self.current }, set: { self.new($0) })
   }
 }
 
@@ -150,7 +162,7 @@ struct Broadcasted<T: Sendable>: Sendable {
 // MARK: - Binding Support
 
 extension Broadcast {
-  @MainActor var binding: Binding<T> {
+  var binding: Binding<T> {
     Binding(get: { self.current }, set: { self.new($0) })
   }
 }

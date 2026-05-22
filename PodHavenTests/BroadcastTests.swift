@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
+import SwiftUI
 import Testing
 
 @testable import PodHaven
@@ -42,4 +43,46 @@ struct BroadcastTests {
     }
     #expect(received == [0, 5, 6])
   }
+
+  @Test("PersistedBroadcast's wrappedValue setter suppresses same-value writes")
+  func persistedBroadcastSetterSuppressesIdenticalWrites() async throws {
+    let fixture = PersistedBroadcastFixture()
+    let stream = fixture.$value.stream()
+
+    fixture.value = 0  // identical to current — must not broadcast
+    fixture.value = 1  // changed — broadcasts
+    fixture.value = 1  // identical — must not broadcast
+    fixture.value = 2  // changed — broadcasts
+
+    var received: [Int] = []
+    for await value in stream.prefix(3) {
+      received.append(value)
+    }
+    #expect(received == [0, 1, 2])
+  }
+
+  @Test("binding's setter suppresses same-value writes")
+  func bindingSetterSuppressesIdenticalWrites() async throws {
+    let broadcast = Broadcast<Int>(0)
+    let stream = broadcast.stream()
+    let binding = broadcast.binding
+
+    binding.wrappedValue = 0  // identical to current — must not broadcast
+    binding.wrappedValue = 1  // changed — broadcasts
+    binding.wrappedValue = 1  // identical — must not broadcast
+    binding.wrappedValue = 2  // changed — broadcasts
+
+    var received: [Int] = []
+    for await value in stream.prefix(3) {
+      received.append(value)
+    }
+    #expect(received == [0, 1, 2])
+  }
+}
+
+// Exercises `PersistedBroadcast`'s `wrappedValue` setter, which routes through
+// `Broadcast.new` from inside a `<T: DefaultsStorable>` generic context.
+private struct PersistedBroadcastFixture {
+  @PersistedBroadcast("broadcast-tests-dedupe", store: FakeKeyValueStore())
+  var value: Int = 0
 }
