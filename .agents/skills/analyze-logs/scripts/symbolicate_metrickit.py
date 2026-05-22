@@ -27,6 +27,7 @@ import configparser
 import json
 import os
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -48,6 +49,19 @@ DEFAULT_CACHE_DIR = Path("~/Library/Caches/podhaven-symbolicate").expanduser()
 DEFAULT_SENTRY_ORG = "artisanal-software"
 DEFAULT_SENTRY_PROJECT = "podhaven"
 SENTRY_API_BASE = "https://sentry.io/api/0"
+
+
+def build_ssl_context() -> ssl.SSLContext:
+    # python.org Python on macOS ships without a system trust store; certifi's
+    # CA bundle is the standard fix and is usually already installed alongside
+    # the interpreter. Fall back to the default context (which works under
+    # /usr/bin/python3 and on Linux distros that wire the system store) when
+    # certifi is missing.
+    try:
+        import certifi
+    except ImportError:
+        return ssl.create_default_context()
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 @dataclass
@@ -219,9 +233,13 @@ class DSYMResolver:
         self.sentry_project = sentry_project
         self.offline = offline
         self.verbose = verbose
-        self._opener = opener or urllib.request.urlopen
+        self._ssl_context = build_ssl_context()
+        self._opener = opener or self._default_opener
         self._misses: set[str] = set()
         cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def _default_opener(self, request: urllib.request.Request) -> Any:
+        return urllib.request.urlopen(request, context=self._ssl_context)
 
     def resolve(self, uuid: str) -> Path | None:
         key = normalize_uuid(uuid)
@@ -261,7 +279,24 @@ class DSYMResolver:
         return dwarf
 
     @staticmethod
-    def _find_dwarf(root: Path) -> Path | None:
+    def _is_macho(path: Path) -> bool:
+        # Mach-O magic numbers (32/64-bit, both endianness, plus fat archive).
+        magics = {
+            b"\xca\xfe\xba\xbe",  # fat
+            b"\xfe\xed\xfa\xce",  # MH_MAGIC
+            b"\xfe\xed\xfa\xcf",  # MH_MAGIC_64
+            b"\xce\xfa\xed\xfe",  # MH_CIGAM
+            b"\xcf\xfa\xed\xfe",  # MH_CIGAM_64
+        }
+        try:
+            with path.open("rb") as f:
+                return f.read(4) in magics
+        except OSError:
+            return False
+
+    @classmethod
+    def _find_dwarf(cls, root: Path) -> Path | None:
+        # Standard dSYM bundle layout (zipped responses).
         for candidate in root.rglob("Contents/Resources/DWARF/*"):
             if candidate.is_file():
                 return candidate
@@ -273,6 +308,12 @@ class DSYMResolver:
                     return children[0]
         for candidate in root.rglob("*"):
             if candidate.is_file() and candidate.parent.name == "DWARF":
+                return candidate
+        # Sentry's debug-files download endpoint returns the raw Mach-O with
+        # debug info directly (Content-Type: application/x-mach-binary), not a
+        # zipped dSYM bundle. Accept any Mach-O file at the cache root.
+        for candidate in sorted(root.iterdir()) if root.is_dir() else []:
+            if candidate.is_file() and cls._is_macho(candidate):
                 return candidate
         return None
 
@@ -324,8 +365,10 @@ class DSYMResolver:
                 with zipfile.ZipFile(tmp_path) as archive:
                     archive.extractall(target_dir)
             else:
-                shutil.move(tmp_path, target_dir / file_id)
-                return
+                # Sentry's debug-files endpoint returns the raw Mach-O with
+                # debug info. Save it under a stable filename so atos can
+                # locate it by walking the cache dir.
+                shutil.move(tmp_path, target_dir / f"{file_id}.macho")
         finally:
             if tmp_path.exists():
                 tmp_path.unlink()
@@ -335,10 +378,17 @@ class DSYMResolver:
 
 
 def run_atos(binary_path: Path, arch: str | None, offsets: list[int]) -> list[str | None]:
-    """Resolve a batch of text-segment offsets to symbols via atos."""
+    """Resolve a batch of text-segment offsets to symbols via atos.
+
+    MetricKit's `offsetIntoBinaryTextSegment` is the offset from the start of
+    the binary image, not a virtual memory address. The `-offset` flag tells
+    atos to interpret each input the same way, which is the standard recipe
+    for symbolicating MetricKit and crash-report frames against a dSYM or
+    debug-info Mach-O.
+    """
     if not offsets:
         return []
-    args = ["atos", "-o", str(binary_path), "-l", "0"]
+    args = ["atos", "-o", str(binary_path), "-offset"]
     if arch:
         args += ["-arch", arch]
     args += [str(int(o)) for o in offsets]
