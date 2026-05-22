@@ -133,6 +133,26 @@ class TestFlattening(unittest.TestCase):
         self.assertEqual(len(grouped["abcdef12-3456-7890-abcd-ef1234567890"]), 2)
 
 
+class TestAtosInvocation(unittest.TestCase):
+    def test_offsets_are_passed_as_hex_with_prefix(self) -> None:
+        # atos interprets bare numeric inputs as hex, so passing a decimal
+        # `1689452` would silently look up `0x1689452` (the wrong address).
+        # The script must hex-format offsets with an explicit `0x` prefix.
+        from unittest.mock import MagicMock, patch
+
+        result = MagicMock(returncode=0, stdout="sym1\nsym2\n")
+        run_mock = MagicMock(return_value=result)
+        with patch.object(sm.subprocess, "run", run_mock):
+            sm.run_atos(Path("/tmp/fake"), "arm64", [56456, 1689452])
+
+        cmd = list(run_mock.call_args.args[0])
+        self.assertIn("-offset", cmd)
+        self.assertIn("0xdc88", cmd)
+        self.assertIn("0x19c76c", cmd)
+        self.assertNotIn("56456", cmd)
+        self.assertNotIn("1689452", cmd)
+
+
 class TestAtosParsing(unittest.TestCase):
     def test_parses_one_line_per_frame(self) -> None:
         stdout = (

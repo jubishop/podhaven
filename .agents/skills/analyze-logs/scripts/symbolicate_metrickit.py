@@ -391,7 +391,10 @@ def run_atos(binary_path: Path, arch: str | None, offsets: list[int]) -> list[st
     args = ["atos", "-o", str(binary_path), "-offset"]
     if arch:
         args += ["-arch", arch]
-    args += [str(int(o)) for o in offsets]
+    # Bare numeric inputs to atos are interpreted as hex; we always pass
+    # the offset with a `0x` prefix so an unprefixed decimal `1689452`
+    # isn't silently mis-read as `0x1689452`.
+    args += [f"0x{int(o):x}" for o in offsets]
     proc = subprocess.run(args, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         return [None] * len(offsets)
