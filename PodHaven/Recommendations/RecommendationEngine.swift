@@ -6,6 +6,7 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
+import SwiftUI
 
 // MARK: - Types
 
@@ -74,16 +75,19 @@ struct RecommendationEngine: Sendable {
   )
   private let startOnce = Once()
 
-  // A rescan trigger that fired while the app was backgrounded. A backgrounded
-  // audio session has a tight CPU/memory budget and is the OS's first eviction
-  // target, so full-library scans are deferred and coalesced into a single
-  // rescan on the next foreground. `.cache` supersedes `.recommendations`
-  // because a context rebuild already re-runs the recommendations pass.
+  // A backgrounded audio session has a tight CPU/memory budget and is the OS's
+  // first eviction target, so full-library scans triggered while backgrounded
+  // are deferred and coalesced into a single rescan on the next foreground.
+  // `isActive` is driven by `handleScenePhaseChange`; defaults to `true`
+  // because `start()` only runs after `prepareForForeground`. `.cache`
+  // supersedes `.recommendations` because a context rebuild already re-runs
+  // the recommendations pass.
   private enum DeferredRescan {
     case none
     case recommendations
     case cache
   }
+  private let isActive = ThreadSafe<Bool>(true)
   private let deferredRescan = ThreadSafe<DeferredRescan>(.none)
 
   // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
@@ -119,6 +123,36 @@ struct RecommendationEngine: Sendable {
   func start() {
     startOnce.run {
       startObservations()
+    }
+  }
+
+  // `.inactive` is treated as a no-op so transient system events (Control
+  // Center, banners) don't defer rescans; only true `.background` does.
+  func handleScenePhaseChange(to scenePhase: ScenePhase) {
+    switch scenePhase {
+    case .active:
+      Self.log.debug("activated")
+      isActive(true)
+      let pending = deferredRescan { deferred -> DeferredRescan in
+        let snapshot = deferred
+        deferred = .none
+        return snapshot
+      }
+      switch pending {
+      case .none:
+        break
+      case .recommendations:
+        Self.log.debug("Running deferred recommendations rebuild on foreground")
+        scheduleRecommendationsRebuild()
+      case .cache:
+        Self.log.debug("Running deferred cache rebuild on foreground")
+        scheduleCacheRebuild()
+      }
+    case .background:
+      Self.log.debug("backgrounded")
+      isActive(false)
+    default:
+      break
     }
   }
 
@@ -407,35 +441,10 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // A rescan trigger that fires while backgrounded is deferred rather than
-    // run (see `scheduleCacheRebuild` / `scheduleRecommendationsRebuild`).
-    // Coalesced deferrals run as a single rescan on the next foreground.
-    Task(priority: taskPriority(.utility)) {
-      let sharedState = Container.shared.sharedState()
-      for await isActive in sharedState.$isActive.stream().dropFirst() {
-        guard !Task.isCancelled else { return }
-        guard isActive else { continue }
-        let pending = deferredRescan { deferred -> DeferredRescan in
-          let snapshot = deferred
-          deferred = .none
-          return snapshot
-        }
-        switch pending {
-        case .none:
-          break
-        case .recommendations:
-          Self.log.debug("Running deferred recommendations rebuild on foreground")
-          scheduleRecommendationsRebuild()
-        case .cache:
-          Self.log.debug("Running deferred cache rebuild on foreground")
-          scheduleCacheRebuild()
-        }
-      }
-    }
   }
 
   private func scheduleCacheRebuild() {
-    guard Container.shared.sharedState().isActive else {
+    guard isActive() else {
       deferredRescan { $0 = .cache }
       Self.log.debug("Cache rebuild deferred — app backgrounded")
       return
@@ -482,7 +491,7 @@ struct RecommendationEngine: Sendable {
   }
 
   private func scheduleRecommendationsRebuild() {
-    guard Container.shared.sharedState().isActive else {
+    guard isActive() else {
       deferredRescan { if case .none = $0 { $0 = .recommendations } }
       Self.log.debug("Recommendations rebuild deferred — app backgrounded")
       return

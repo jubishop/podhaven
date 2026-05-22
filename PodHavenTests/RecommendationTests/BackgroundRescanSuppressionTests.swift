@@ -3,6 +3,7 @@
 import FactoryKit
 import FactoryTesting
 import Foundation
+import SwiftUI
 import Testing
 
 @testable import PodHaven
@@ -10,7 +11,6 @@ import Testing
 @Suite("RecommendationEngine background rescan suppression tests", .container)
 class BackgroundRescanSuppressionTests {
   @DynamicInjected(\.recommendationEngine) private var engine
-  @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.sleeper) private var sleeper
 
   private var fakeSleeper: FakeSleeper {
@@ -44,7 +44,7 @@ class BackgroundRescanSuppressionTests {
     let revAfterStart = engine.scoringRevision
 
     // Background, then fire a rescan trigger via fresh rating signals.
-    sharedState.$isActive.new(false)
+    engine.handleScenePhaseChange(to: .background)
     let (_, moreSignals) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 3,
       podcastTitle: "More Signal",
@@ -78,7 +78,7 @@ class BackgroundRescanSuppressionTests {
     }
 
     // Foreground: the deferred trigger runs as exactly one coalesced rescan.
-    sharedState.$isActive.new(true)
+    engine.handleScenePhaseChange(to: .active)
     do {
       try await Wait.until(
         maxAttempts: 100,
