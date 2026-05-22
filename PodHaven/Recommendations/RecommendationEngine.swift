@@ -76,9 +76,11 @@ struct RecommendationEngine: Sendable {
   private let startOnce = Once()
 
   // Rescans triggered while backgrounded are deferred to the next foreground.
-  // `DeferredRescanState` merges upward only, so a queued cache rebuild
-  // absorbs incoming recommendations triggers — the cache rebuild already
-  // re-runs the recommendations pass. `isActive` starts `true` because
+  // `RescanGate` packs `isActive` and `pending` into one critical section so
+  // `deferOrProceed` (check + maybe-defer) and `setActive` (flip + maybe-drain)
+  // cannot interleave. Pending merges upward only — a queued cache rebuild
+  // absorbs incoming recommendations triggers, since the cache rebuild already
+  // re-runs the recommendations pass. `isActive` defaults to `true` because
   // `start()` only runs after `prepareForForeground`.
   private enum DeferredRescan: Int, Comparable {
     case none = 0
@@ -89,27 +91,39 @@ struct RecommendationEngine: Sendable {
       lhs.rawValue < rhs.rawValue
     }
   }
-  private final class DeferredRescanState: Sendable {
-    private let storage = ThreadSafe<DeferredRescan>(.none)
+  private final class RescanGate: Sendable {
+    private struct State {
+      var isActive: Bool = true
+      var pending: DeferredRescan = .none
+    }
+    enum Decision { case proceed, deferred }
 
-    private func merge(_ kind: DeferredRescan) {
-      storage { $0 = max($0, kind) }
+    private let storage = ThreadSafe<State>(State())
+
+    // Atomic check-and-defer: if active, returns `.proceed` without touching
+    // state; otherwise merges `kind` upward into `pending` and returns
+    // `.deferred`.
+    func deferOrProceed(_ kind: DeferredRescan) -> Decision {
+      storage { state in
+        guard !state.isActive else { return .proceed }
+        state.pending = max(state.pending, kind)
+        return .deferred
+      }
     }
 
-    func deferCacheRebuild() { merge(.cache) }
-    func deferRecommendationsRebuild() { merge(.recommendations) }
-
-    // Returns the pending kind and resets to `.none`, atomically.
-    func drain() -> DeferredRescan {
-      storage { kind in
-        let snapshot = kind
-        kind = .none
+    // Atomic set-active-and-drain: on `true`, snapshots `pending` and resets
+    // to `.none`. On `false`, only flips the flag (returns `.none`).
+    func setActive(_ active: Bool) -> DeferredRescan {
+      storage { state in
+        state.isActive = active
+        guard active else { return .none }
+        let snapshot = state.pending
+        state.pending = .none
         return snapshot
       }
     }
   }
-  private let isActive = ThreadSafe<Bool>(true)
-  private let deferredRescan = DeferredRescanState()
+  private let rescanGate = RescanGate()
 
   // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
   // so per-call surfaces share the same denominator. 1.0 until first rebuild.
@@ -149,12 +163,13 @@ struct RecommendationEngine: Sendable {
 
   // `.inactive` is treated as a no-op so transient system events (Control
   // Center, banners) don't defer rescans; only true `.background` does.
+  // `sharedState.isActive` flips on every phase including `.inactive`, so
+  // it's not a substitute for this gate.
   func handleScenePhaseChange(to scenePhase: ScenePhase) {
     switch scenePhase {
     case .active:
       Self.log.debug("activated")
-      isActive(true)
-      switch deferredRescan.drain() {
+      switch rescanGate.setActive(true) {
       case .none:
         break
       case .recommendations:
@@ -166,7 +181,7 @@ struct RecommendationEngine: Sendable {
       }
     case .background:
       Self.log.debug("backgrounded")
-      isActive(false)
+      _ = rescanGate.setActive(false)
     default:
       break
     }
@@ -456,16 +471,20 @@ struct RecommendationEngine: Sendable {
         }
       }
     }
-
   }
 
   private func scheduleCacheRebuild() {
-    guard isActive() else {
-      deferredRescan.deferCacheRebuild()
+    guard rescanGate.deferOrProceed(.cache) == .proceed else {
       Self.log.debug("Cache rebuild deferred — app backgrounded")
       return
     }
     cacheDebounce {
+      // Re-check at fire time: a debounce armed while active can still wake
+      // after the app backgrounded mid-window.
+      guard rescanGate.deferOrProceed(.cache) == .proceed else {
+        Self.log.debug("Cache rebuild deferred at fire — app backgrounded mid-debounce")
+        return
+      }
       do {
         let inputsStart = ContinuousClock.now
         let inputs = try await recommendationRepo.allScoringContextInputs()
@@ -507,12 +526,19 @@ struct RecommendationEngine: Sendable {
   }
 
   private func scheduleRecommendationsRebuild() {
-    guard isActive() else {
-      deferredRescan.deferRecommendationsRebuild()
+    guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
       Self.log.debug("Recommendations rebuild deferred — app backgrounded")
       return
     }
     recommendationsDebounce {
+      // Re-check at fire time: a debounce armed while active can still wake
+      // after the app backgrounded mid-window.
+      guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
+        Self.log.debug(
+          "Recommendations rebuild deferred at fire — app backgrounded mid-debounce"
+        )
+        return
+      }
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
       do {

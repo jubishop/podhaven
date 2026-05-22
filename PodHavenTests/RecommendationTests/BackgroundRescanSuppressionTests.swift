@@ -106,4 +106,95 @@ class BackgroundRescanSuppressionTests {
     }
     #expect(engine.scoringRevision == revAfterStart + 1)
   }
+
+  // A debounce armed while active can still wake after the app backgrounded
+  // during the 400ms debounce window. The debounced closure must re-check the
+  // gate; otherwise it runs the full rebuild while backgrounded.
+  @Test("a rebuild armed before background and firing mid-debounce is short-circuited")
+  func midDebounceBackgroundDefersUntilForeground() async throws {
+    let engine = self.engine
+    let fakeSleeper = self.fakeSleeper
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals)
+    let (_, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Candidate"
+    )
+    try await RecommendationHelpers.embedEpisodes(candidates)
+
+    _ = try await RecommendationHelpers.startAndWaitForRecs()
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+    let revAfterStart = engine.scoringRevision
+
+    // Trigger a rebuild while active and wait for its debounce sleep to be
+    // parked on FakeSleeper. This proves the trigger reached the engine and
+    // the debounce window is open, without firing the action.
+    let (_, moreSignals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "More Signal",
+      ratings: [.loved, .loved, .loved]
+    )
+    try await RecommendationHelpers.embedEpisodes(moreSignals)
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+
+    // Background while the debounce is still sleeping.
+    engine.handleScenePhaseChange(to: .background)
+
+    // Regression sentinel: advance the debounce. Under the bug the closure
+    // wakes and runs the full rebuild without re-checking the gate.
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        delay: .milliseconds(20),
+        {
+          await fakeSleeper.advanceTime(by: .milliseconds(400))
+          return engine.scoringRevision != revAfterStart
+        },
+        { "regression sentinel — see Issue.record below" }
+      )
+      Issue.record(
+        """
+        regression: a rebuild armed while active still ran after the app \
+        backgrounded mid-debounce ($scoringRevision \(revAfterStart) -> \
+        \(engine.scoringRevision)). The debounce closure must re-check the \
+        gate before running expensive work.
+        """
+      )
+    } catch {
+      // Expected timeout under the fix: the closure re-checked and returned.
+    }
+
+    // Foreground: the deferred rebuild runs as exactly one coalesced rescan.
+    engine.handleScenePhaseChange(to: .active)
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        delay: .milliseconds(20),
+        {
+          await fakeSleeper.advanceTime(by: .milliseconds(400))
+          return engine.scoringRevision == revAfterStart + 1
+        },
+        { "" }
+      )
+    } catch {
+      Issue.record(
+        """
+        Expected the deferred rebuild to run as one coalesced rescan on the \
+        next foreground ($scoringRevision \(revAfterStart) -> \
+        \(revAfterStart + 1)), but it is \(engine.scoringRevision).
+        """
+      )
+    }
+
+    for _ in 0..<20 {
+      await fakeSleeper.advanceTime(by: .milliseconds(400))
+      await Task.yield()
+    }
+    #expect(engine.scoringRevision == revAfterStart + 1)
+  }
 }
