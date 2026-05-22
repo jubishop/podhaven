@@ -77,11 +77,11 @@ struct RecommendationEngine: Sendable {
 
   // Rescans triggered while backgrounded are deferred to the next foreground.
   // `RescanGate` packs `isActive` and `pending` into one critical section so
-  // `deferOrProceed` (check + maybe-defer) and `setActive` (flip + maybe-drain)
-  // cannot interleave. Pending merges upward only — a queued cache rebuild
-  // absorbs incoming recommendations triggers, since the cache rebuild already
-  // re-runs the recommendations pass. `isActive` defaults to `true` because
-  // `start()` only runs after `prepareForForeground`.
+  // `deferOrProceed`, `enterBackground`, and `enterForeground` cannot
+  // interleave. Pending merges upward only — a queued cache rebuild absorbs
+  // incoming recommendations triggers, since the cache rebuild already re-runs
+  // the recommendations pass. `isActive` defaults to `true` because `start()`
+  // only runs after `prepareForForeground`.
   private enum DeferredRescan: Int, Comparable {
     case none = 0
     case recommendations = 1
@@ -111,12 +111,15 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // Atomic set-active-and-drain: on `true`, snapshots `pending` and resets
-    // to `.none`. On `false`, only flips the flag (returns `.none`).
-    func setActive(_ active: Bool) -> DeferredRescan {
+    func enterBackground() {
+      storage { $0.isActive = false }
+    }
+
+    // Atomic activate-and-drain: flips the flag, snapshots `pending`, and
+    // resets it to `.none` so the caller can run exactly one coalesced rescan.
+    func enterForeground() -> DeferredRescan {
       storage { state in
-        state.isActive = active
-        guard active else { return .none }
+        state.isActive = true
         let snapshot = state.pending
         state.pending = .none
         return snapshot
@@ -169,7 +172,7 @@ struct RecommendationEngine: Sendable {
     switch scenePhase {
     case .active:
       Self.log.debug("activated")
-      switch rescanGate.setActive(true) {
+      switch rescanGate.enterForeground() {
       case .none:
         break
       case .recommendations:
@@ -181,7 +184,7 @@ struct RecommendationEngine: Sendable {
       }
     case .background:
       Self.log.debug("backgrounded")
-      _ = rescanGate.setActive(false)
+      rescanGate.enterBackground()
     default:
       break
     }
