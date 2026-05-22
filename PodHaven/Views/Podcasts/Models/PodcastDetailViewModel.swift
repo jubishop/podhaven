@@ -191,7 +191,7 @@ class PodcastDetailViewModel:
       } else {
         episodeList.filterMethod = currentSortMethod.filterMethod
         episodeList.sortMethod = currentSortMethod.sortMethod
-        recommendationScorer.clearDisplay()
+        recommendationScorer.clearRecommendationSort()
       }
     }
   }
@@ -361,6 +361,10 @@ class PodcastDetailViewModel:
   }
 
   func performAppear() async throws {
+    if isSortingByRecommendationScore {
+      recommendationScorer.applyRecommendationSort()
+    }
+
     if try await attemptObservation() { return }
 
     Self.log.debug("\(state.toString) does not exist in db")
@@ -511,7 +515,6 @@ class PodcastDetailViewModel:
   }
 
   private func startObservation(_ podcastID: Podcast.ID? = nil) {
-    recommendationScorer.startObservation()
     guard let podcastID else { return }
 
     if let observationTask, !observationTask.isCancelled {
