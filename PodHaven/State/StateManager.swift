@@ -61,14 +61,23 @@ struct StateManager: Sendable {
                 // Observatory emits OnDeck with artwork = nil,
                 // currentTime = .zero, and maxPlaybackTime = .zero;
                 // restore them from current state.
+                //
+                // The id guard keeps an in-flight emission from resurrecting a
+                // slot that clearOnDeck (or a switch to another episode)
+                // already changed: cancellation races the emission, so this
+                // task can still run after the slot moved on.
                 sharedState.$onDeck.update { onDeck in
+                  guard onDeck?.id == podcastEpisode.id else { return }
                   observed.artwork = onDeck?.artwork
                   observed.currentTime = onDeck?.currentTime ?? .zero
                   observed.maxPlaybackTime = onDeck?.maxPlaybackTime ?? .zero
                   onDeck = observed
                 }
               } else {
-                sharedState.$onDeck.new(nil)
+                sharedState.$onDeck.update { onDeck in
+                  guard onDeck?.id == podcastEpisode.id else { return }
+                  onDeck = nil
+                }
               }
             }
           } catch {
