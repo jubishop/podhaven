@@ -41,18 +41,18 @@ struct PodHavenApp: App {
       }
       .preferredColorScheme(userSettings.appearanceMode.colorScheme)
       .onChange(of: scenePhase, initial: true) { _, newPhase in
-        sharedState.$isActive.new(newPhase == .active)
+        sharedState.$scenePhase.new(newPhase)
 
         switch newPhase {
         case .active:
           Task {
             await appLauncher.prepareForForeground()
             initialized = true
-            // Re-check sharedState.isActive: if we backgrounded during the
+            // Re-read sharedState.scenePhase: if the phase changed during the
             // await, the captured `.active` is stale and sending it would
             // leave the rescan gate (and other recipients) thinking the app
             // is foregrounded when it isn't.
-            notifyScenePhaseChange(sharedState.isActive ? .active : .background)
+            notifyScenePhaseChange(sharedState.scenePhase)
           }
         case .background:
           notifyScenePhaseChange(newPhase)

@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import Logging
 import Sentry
+import SwiftUI
 import UIKit
 
 extension Container {
@@ -184,7 +185,7 @@ struct AppLauncher: Sendable {
             fileURL: AppInfo.logFileURL,
             maxFileSizeBytes: 4_000_000,
             targetFileSizeBytes: 3_000_000,
-            writeSynchronously: { $0 >= .critical || !sharedState.isActive }
+            writeSynchronously: { $0 >= .critical || sharedState.scenePhase == .background }
           ),
           SentryLogHandler(label: label),
           CrashReportHandler(label: label),

@@ -166,8 +166,6 @@ struct RecommendationEngine: Sendable {
 
   // `.inactive` is treated as a no-op so transient system events (Control
   // Center, banners) don't defer rescans; only true `.background` does.
-  // `sharedState.isActive` flips on every phase including `.inactive`, so
-  // it's not a substitute for this gate.
   func handleScenePhaseChange(to scenePhase: ScenePhase) {
     switch scenePhase {
     case .active:
