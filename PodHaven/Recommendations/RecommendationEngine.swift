@@ -80,14 +80,19 @@ struct RecommendationEngine: Sendable {
   // are deferred and coalesced into a single rescan on the next foreground.
   // `isActive` is driven by `handleScenePhaseChange`; defaults to `true`
   // because `start()` only runs after `prepareForForeground`. The deferred
-  // kind is a lattice — case order encodes `none < recommendations < cache`
-  // — and writers only merge upward via `DeferredRescanState`, so a pending
-  // cache rebuild can't be silently downgraded by an incoming recommendations
-  // rebuild (a cache rebuild already re-runs the recommendations pass).
-  private enum DeferredRescan: Comparable {
-    case none
-    case recommendations
-    case cache
+  // kind is a lattice — raw values encode `none(0) < recommendations(1) <
+  // cache(2)` — and writers only merge upward via `DeferredRescanState`, so a
+  // pending cache rebuild can't be silently downgraded by an incoming
+  // recommendations rebuild (a cache rebuild already re-runs the
+  // recommendations pass).
+  private enum DeferredRescan: Int, Comparable {
+    case none = 0
+    case recommendations = 1
+    case cache = 2
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+      lhs.rawValue < rhs.rawValue
+    }
   }
   private final class DeferredRescanState: Sendable {
     private let storage = ThreadSafe<DeferredRescan>(.none)
