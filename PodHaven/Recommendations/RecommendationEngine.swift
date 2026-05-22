@@ -526,8 +526,6 @@ struct RecommendationEngine: Sendable {
     )
 
     let mathStart = ContinuousClock.now
-    // A superseded pass bails at the fetch/math boundary rather than burning
-    // the scoring loop only to have its result discarded.
     try Task.checkCancellation()
     let now = Date()
     let affinityWeight = Float(Container.shared.userSettings().podcastAffinityWeight)
