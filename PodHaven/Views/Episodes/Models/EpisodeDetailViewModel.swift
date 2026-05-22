@@ -452,21 +452,18 @@ enum EpisodeDetailDisplayedScore: Sendable {
       guard let self else { return }
       if score == nil { score = .computing }
     },
-    score: { [weak self] in
-      guard let self else { return nil }
-      return await computeRecommendation()
-    },
     // An unsaved pass that ran before embedding assets finished downloading
-    // produced a provisional nil; caching it would re-apply that nil on the
+    // produces a provisional nil; caching it would re-apply that nil on the
     // next refresh even after the assets land. Recovery relies on a later
     // state or `$scoringRevision` change to retrigger — `assetsLoaded` has
     // no dedicated observer wired here.
-    shouldCache: { [weak self] in
-      guard let self else { return false }
-      if case .unsaved = state {
-        return contextualEmbedding.assetsLoaded.isFinished
+    score: { [weak self] in
+      guard let self else { return .final(nil) }
+      let result = await computeRecommendation()
+      if case .unsaved = state, !contextualEmbedding.assetsLoaded.isFinished {
+        return .provisional(result)
       }
-      return true
+      return .final(result)
     },
     apply: { [weak self] in
       guard let self else { return }
@@ -498,13 +495,12 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   // Start the revision observation before the bootstrap refresh so a revision
-  // emitted during the initial fetch is queued, not dropped. The refresh is
-  // gated: a kind-changing `transition()` already kicks one, so we skip when
-  // that pass is in flight (or its result is cached) instead of cancel-and-
-  // restarting an identical-input pass.
+  // emitted during the initial fetch is queued, not dropped. `refresh()` is
+  // snapshot-gated, so the call is a no-op when a kind-changing `transition()`
+  // already kicked an identical-snapshot pass.
   private func startRecommendationObservation() {
     recommendationCoordinator.startObservingScoringRevision()
-    recommendationCoordinator.refreshIfNeeded()
+    recommendationCoordinator.refresh()
   }
 
   private func computeRecommendation() async -> EpisodeDetailDisplayedScore? {

@@ -52,14 +52,14 @@ import Testing
       return Snapshot(input: input, revision: recommendationEngine.scoringRevision)
     }
 
-    func score() async throws -> Int {
+    func score() async throws -> RecommendationScoringCoordinator<Snapshot, Int>.ScoreResult {
       let captured = input
       scoreStarts += 1
       if !gateOpen {
         await withCheckedContinuation { waiters.append($0) }
       }
       if let scoreError { throw scoreError }
-      return captured
+      return cacheable ? .final(captured) : .provisional(captured)
     }
 
     func willScore() { willScoreCount += 1 }
@@ -74,7 +74,6 @@ import Testing
       makeSnapshot: { probe.snapshot() },
       willScore: { probe.willScore() },
       score: { try await probe.score() },
-      shouldCache: { probe.cacheable },
       apply: { probe.apply($0) },
       onFailure: { probe.onFailure($0) }
     )
@@ -273,9 +272,9 @@ import Testing
   }
 
   @Test(
-    "shouldCache=false applies the result but skips caching so the next same-snapshot refresh re-scores"
+    "a .provisional result applies but skips caching so the next same-snapshot refresh re-scores"
   )
-  func shouldCacheFalseSkipsCacheSoFutureRefreshRecomputes() async throws {
+  func provisionalResultSkipsCacheSoFutureRefreshRecomputes() async throws {
     let probe = Probe()
     let coordinator = makeCoordinator(probe)
 
@@ -302,8 +301,8 @@ import Testing
     )
     #expect(probe.scoreStarts == 2)
 
-    // Flipping shouldCache to true lets the next pass settle into the cache;
-    // a subsequent same-snapshot refresh then hits without recomputing.
+    // Returning .final lets the next pass settle into the cache; a subsequent
+    // same-snapshot refresh then hits without recomputing.
     probe.cacheable = true
     probe.input = 5
     coordinator.refresh()
@@ -336,47 +335,8 @@ import Testing
     #expect(probe.applied.isEmpty)
   }
 
-  @Test("refreshIfNeeded with neither cache nor in-flight pass kicks a fresh pass")
-  func refreshIfNeededKicksFreshPassWhenNothingPending() async throws {
-    let probe = Probe()
-    let coordinator = makeCoordinator(probe)
-
-    probe.input = 11
-    coordinator.refreshIfNeeded()
-
-    try await Wait.until(
-      priority: .userInitiated,
-      { @MainActor in probe.applied == [11] },
-      { @MainActor in "Expected the gated refresh to apply [11], got \(probe.applied)." }
-    )
-    #expect(probe.scoreStarts == 1)
-  }
-
-  @Test("refreshIfNeeded applies the cached result without re-scoring")
-  func refreshIfNeededHitsCacheWithoutRescoring() async throws {
-    let probe = Probe()
-    let coordinator = makeCoordinator(probe)
-
-    probe.input = 13
-    coordinator.refresh()
-    try await Wait.until(
-      priority: .userInitiated,
-      { @MainActor in probe.applied == [13] },
-      { @MainActor in "Expected the initial pass to apply [13], got \(probe.applied)." }
-    )
-
-    coordinator.refreshIfNeeded()
-
-    #expect(probe.applied == [13, 13])
-    #expect(probe.scoreStarts == 1)
-    // Cache hit must not flash the "computing" indicator.
-    #expect(probe.willScoreCount == 1)
-  }
-
-  @Test(
-    "refreshIfNeeded is a no-op while an in-flight pass already covers the current snapshot"
-  )
-  func refreshIfNeededSkipsWhileInFlightMatches() async throws {
+  @Test("refresh is a no-op while an in-flight pass already covers the current snapshot")
+  func refreshSkipsWhileInFlightMatches() async throws {
     let probe = Probe()
     let coordinator = makeCoordinator(probe)
     probe.closeGate()
@@ -389,9 +349,9 @@ import Testing
       { @MainActor in "Expected the in-flight pass to start." }
     )
 
-    coordinator.refreshIfNeeded()
+    coordinator.refresh()
 
-    // The in-flight pass matches the current snapshot, so the gated call
+    // The in-flight pass matches the current snapshot, so the second call
     // must not cancel-and-restart it.
     #expect(probe.scoreStarts == 1)
     #expect(probe.willScoreCount == 1)

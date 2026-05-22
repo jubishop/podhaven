@@ -43,21 +43,18 @@ final class PodcastRecommendationScorer {
       guard let self else { return }
       display = .computing
     },
-    score: { [weak self] in
-      guard let self else { return [:] }
-      return await computeRecommendationScores()
-    },
     // An unsaved pass that ran before embedding assets finished downloading
-    // produced a provisional empty map; caching it would re-apply that map
+    // produces a provisional empty map; caching it would re-apply that map
     // on the next refresh even after the assets land. Recovery relies on a
     // later state or `$scoringRevision` change to retrigger — `assetsLoaded`
     // has no dedicated observer wired here.
-    shouldCache: { [weak self] in
-      guard let self, let host else { return false }
-      if case .unsaved = host.state {
-        return contextualEmbedding.assetsLoaded.isFinished
+    score: { [weak self] in
+      guard let self else { return .final([:]) }
+      let result = await computeRecommendationScores()
+      if let host, case .unsaved = host.state, !contextualEmbedding.assetsLoaded.isFinished {
+        return .provisional(result)
       }
-      return true
+      return .final(result)
     },
     apply: { [weak self] in
       guard let self else { return }

@@ -7,7 +7,11 @@ import Logging
 // Shared scoring orchestration: revision observation, snapshot-keyed cache,
 // and cancel-and-restart tasks. `Snapshot` is the change-detection key (must
 // embed `scoringRevision` and every input read by `score`, or a cache hit
-// will replay a stale result); `nil` no-ops the refresh.
+// will replay a stale result); `nil` no-ops the refresh. `score` returns
+// `.final` to cache the result or `.provisional` to apply it without caching
+// (e.g. embedding assets not yet downloaded — caching would re-apply the
+// provisional value on the next refresh even after the inputs that made it
+// provisional resolved).
 @MainActor
 final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Score: Sendable> {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -15,35 +19,33 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
 
   private static var log: Logger { Log.as(LogSubsystem.Recommendations.coordinator) }
 
+  enum ScoreResult: Sendable {
+    case final(Score)
+    case provisional(Score)
+  }
+
   private let makeSnapshot: @MainActor () -> Snapshot?
   private let willScore: @MainActor () -> Void
-  private let score: @MainActor () async throws -> Score
-  private let shouldCache: @MainActor () -> Bool
+  private let score: @MainActor () async throws -> ScoreResult
   private let apply: @MainActor (Score) -> Void
   private let onFailure: @MainActor (any Error) -> Void
 
   private var revisionTask: Task<Void, Never>?
-  private var scoringTask: Task<Void, Never>?
-  private var pendingSnapshot: Snapshot?
+  private var inFlight: (task: Task<Void, Never>, snapshot: Snapshot)?
   private var cached: (snapshot: Snapshot, score: Score)?
 
   // - `willScore`: fires on a cache miss, before the pass spawns.
-  // - `shouldCache`: gates caching after the pass returns. Return `false` for
-  //   provisional results (e.g. embedding assets not yet downloaded) so they
-  //   apply but don't stick after their inputs resolve.
   // - `onFailure`: fires only on a non-cancellation `score` error.
   init(
     makeSnapshot: @escaping @MainActor () -> Snapshot?,
     willScore: @escaping @MainActor () -> Void = {},
-    score: @escaping @MainActor () async throws -> Score,
-    shouldCache: @escaping @MainActor () -> Bool = { true },
+    score: @escaping @MainActor () async throws -> ScoreResult,
     apply: @escaping @MainActor (Score) -> Void,
     onFailure: @escaping @MainActor (any Error) -> Void = { _ in }
   ) {
     self.makeSnapshot = makeSnapshot
     self.willScore = willScore
     self.score = score
-    self.shouldCache = shouldCache
     self.apply = apply
     self.onFailure = onFailure
   }
@@ -61,48 +63,43 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
     }
   }
 
+  // Gated on snapshot: skips when the snapshot is already cached or covered
+  // by an in-flight pass. Since `Snapshot` must embed every input read by
+  // `score`, an identical-snapshot restart is always wasted work.
   func refresh() {
     guard let snapshot = makeSnapshot() else { return }
     if let cached, cached.snapshot == snapshot {
       apply(cached.score)
       return
     }
+    guard inFlight?.snapshot != snapshot else { return }
     willScore()
-    scoringTask?.cancel()
-    pendingSnapshot = snapshot
-    scoringTask = Task(priority: taskPriority(.utility)) { [weak self] in
+    inFlight?.task.cancel()
+    let task = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
       await runPass(for: snapshot)
     }
-  }
-
-  // Gated entry point: skip when the current snapshot is already either cached
-  // or being processed by an in-flight pass. Use this from a caller that may
-  // run alongside another path that already kicked the refresh, to avoid
-  // redundantly cancel-and-restarting an identical-input pass.
-  func refreshIfNeeded() {
-    guard let snapshot = makeSnapshot() else { return }
-    if let cached, cached.snapshot == snapshot {
-      apply(cached.score)
-      return
-    }
-    guard pendingSnapshot != snapshot else { return }
-    refresh()
+    inFlight = (task, snapshot)
   }
 
   private func runPass(for snapshot: Snapshot) async {
-    // Only clear when no newer pass has taken over `pendingSnapshot`; a later
+    // Only clear when no newer pass has taken over `inFlight`; a later
     // refresh() may have replaced it with a different snapshot.
     defer {
-      if pendingSnapshot == snapshot { pendingSnapshot = nil }
+      if inFlight?.snapshot == snapshot { inFlight = nil }
     }
     do {
       let result = try await score()
       guard !Task.isCancelled else { return }
       // Stale-drop: inputs moved on while the pass was in flight.
       guard makeSnapshot() == snapshot else { return }
-      if shouldCache() { cached = (snapshot, result) }
-      apply(result)
+      switch result {
+      case .final(let score):
+        cached = (snapshot, score)
+        apply(score)
+      case .provisional(let score):
+        apply(score)
+      }
     } catch is CancellationError {
     } catch {
       guard !Task.isCancelled else { return }
@@ -116,8 +113,7 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   func cancel() {
     revisionTask?.cancel()
     revisionTask = nil
-    scoringTask?.cancel()
-    scoringTask = nil
-    pendingSnapshot = nil
+    inFlight?.task.cancel()
+    inFlight = nil
   }
 }

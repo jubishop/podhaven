@@ -333,9 +333,9 @@ class EpisodesListViewModel:
     },
     score: { [weak self] in
       guard let self, let candidates = lastObservedCandidates, !candidates.isEmpty else {
-        return [:]
+        return .final([:])
       }
-      return try await recommendationEngine.recommendationScores(for: candidates)
+      return .final(try await recommendationEngine.recommendationScores(for: candidates))
     },
     apply: { [weak self] in
       guard let self else { return }
