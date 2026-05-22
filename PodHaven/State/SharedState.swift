@@ -23,7 +23,10 @@ struct SharedState: Sendable {
 
   @Broadcasted var downloadProgress: [Episode.ID: Double] = [:]
   @Broadcasted var isActive: Bool = true
-  @Broadcasted var onDeck: OnDeck? = nil
+  // OnDeck.== ignores the in-memory playback fields (currentTime,
+  // maxPlaybackTime, artwork) that StateManager mutates, so default Equatable
+  // dedup would swallow those updates — notify on every write instead.
+  @Broadcasted(duplicates: .notifyAlways) var onDeck: OnDeck? = nil
   @Broadcasted var playbackStatus: PlaybackStatus = .stopped
   @Broadcasted var playRate: Float = 1.0
   @Broadcasted var tags: IdentifiedArrayOf<Tag> = []

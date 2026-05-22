@@ -5,12 +5,37 @@ import Foundation
 import Observation
 import SwiftUI
 
+// MARK: - BroadcastDuplicatePolicy
+
+// Decides whether a write that produces an equal value still wakes observers.
+// `.equatable` (the default for Equatable values) suppresses no-op writes;
+// `.notifyAlways` is required for values whose `==` is not full observable
+// equality — e.g. `OnDeck`, whose `==` deliberately ignores the in-memory
+// playback fields that `StateManager` mutates.
+enum BroadcastDuplicatePolicy<T: Sendable>: Sendable {
+  case notifyAlways
+  case suppressDuplicates(@Sendable (T, T) -> Bool)
+
+  fileprivate var isDuplicate: (@Sendable (T, T) -> Bool)? {
+    switch self {
+    case .notifyAlways: nil
+    case .suppressDuplicates(let isDuplicate): isDuplicate
+    }
+  }
+}
+
+extension BroadcastDuplicatePolicy where T: Equatable {
+  static var equatable: Self { .suppressDuplicates(==) }
+}
+
+// MARK: - Broadcast
+
 // A thread-safe, observable value holder that broadcasts changes to multiple
 // async stream consumers and SwiftUI views.
 //
 // Usage:
 // ```swift
-// let broadcast = Broadcast<Int>(0)
+// let broadcast = Broadcast<Int>(0, policy: .equatable)
 //
 // // Read current value (also registers SwiftUI observation)
 // print(broadcast.current) // 0
@@ -32,6 +57,7 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
   private let registrar = ObservationRegistrar()
   private let state: ThreadSafe<State>
   private let onChange: (@Sendable (T) -> Void)?
+  private let duplicatePolicy: BroadcastDuplicatePolicy<T>
 
   private struct State: Sendable {
     var current: T
@@ -40,8 +66,13 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 
   // MARK: - Initialization
 
-  init(_ initialValue: T, onChange: (@Sendable (T) -> Void)? = nil) {
+  init(
+    _ initialValue: T,
+    policy: BroadcastDuplicatePolicy<T>,
+    onChange: (@Sendable (T) -> Void)? = nil
+  ) {
     state = ThreadSafe(State(current: initialValue))
+    duplicatePolicy = policy
     self.onChange = onChange
   }
 
@@ -56,21 +87,19 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
   // MARK: - Broadcasting
 
   func new(_ value: T) {
-    write({ $0 = value }, isDuplicate: nil)
+    write { $0 = value }
   }
 
   func update(_ transform: (inout T) -> Void) {
-    write(transform, isDuplicate: nil)
+    write(transform)
   }
 
-  // `isDuplicate` is checked inside the state lock so the compare and the
-  // mutation+yield are atomic — an outside check would race a concurrent writer.
-  // `previous` is snapshotted only when there's a comparator to feed it, so the
-  // non-deduplicating path keeps mutating in place without an extra copy.
-  private func write(
-    _ transform: (inout T) -> Void,
-    isDuplicate: ((T, T) -> Bool)?
-  ) {
+  // The duplicate check runs inside the state lock so the compare and the
+  // mutation+yield stay atomic — an outside check would race a concurrent
+  // writer. `previous` is snapshotted only when the policy needs it, so a
+  // `.notifyAlways` broadcast keeps mutating in place without an extra copy.
+  private func write(_ transform: (inout T) -> Void) {
+    let isDuplicate = duplicatePolicy.isDuplicate
     let broadcastValue: T? = state { state in
       if let isDuplicate {
         let previous = state.current
@@ -116,28 +145,17 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
       }
     }
   }
-}
 
-// MARK: - Equatable Deduplication
+  // MARK: - Binding
 
-// Equatable values are deduplicated: a write that doesn't change the value
-// wakes no stream or SwiftUI observer. Overload resolution prefers these over
-// the unconstrained `new`/`update`/`binding` whenever `T: Equatable`.
-extension Broadcast where T: Equatable {
-  func new(_ value: T) {
-    write({ $0 = value }, isDuplicate: ==)
-  }
-
-  func update(_ transform: (inout T) -> Void) {
-    write(transform, isDuplicate: ==)
-  }
-
-  // Routes the setter through the deduplicating `new`, so a binding write that
-  // doesn't change the value wakes no observer.
+  // A SwiftUI two-way binding. The setter routes through `new`, so it honors
+  // the broadcast's duplicate policy.
   var binding: Binding<T> {
     Binding(get: { self.current }, set: { self.new($0) })
   }
 }
+
+// MARK: - Broadcasted
 
 // Property wrapper that pairs a Broadcast with a clean read API.
 // `wrappedValue` returns the current value (with SwiftUI observation),
@@ -146,8 +164,9 @@ extension Broadcast where T: Equatable {
 struct Broadcasted<T: Sendable>: Sendable {
   private let broadcast: Broadcast<T>
 
+  // Non-Equatable values can't be compared, so they always notify.
   init(wrappedValue: T) {
-    broadcast = Broadcast(wrappedValue)
+    broadcast = Broadcast(wrappedValue, policy: .notifyAlways)
   }
 
   var wrappedValue: T {
@@ -159,11 +178,16 @@ struct Broadcasted<T: Sendable>: Sendable {
   }
 }
 
-// MARK: - Binding Support
+extension Broadcasted where T: Equatable {
+  // Equatable values deduplicate no-op writes by default.
+  init(wrappedValue: T) {
+    broadcast = Broadcast(wrappedValue, policy: .equatable)
+  }
 
-extension Broadcast {
-  var binding: Binding<T> {
-    Binding(get: { self.current }, set: { self.new($0) })
+  // Opt out (or supply a custom policy) for Equatable values whose `==` is not
+  // full observable equality.
+  init(wrappedValue: T, duplicates policy: BroadcastDuplicatePolicy<T>) {
+    broadcast = Broadcast(wrappedValue, policy: policy)
   }
 }
 
@@ -182,7 +206,10 @@ struct PersistedBroadcast<T: DefaultsStorable>: Sendable {
     store: any KeyValueStore = Container.shared.standardDefaults(),
     onChange: (@Sendable (T) -> Void)? = nil
   ) {
-    broadcast = Broadcast(T.load(from: store, forKey: key) ?? wrappedValue) {
+    broadcast = Broadcast(
+      T.load(from: store, forKey: key) ?? wrappedValue,
+      policy: .equatable
+    ) {
       $0.store(to: store, forKey: key)
       onChange?($0)
     }

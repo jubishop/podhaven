@@ -25,7 +25,7 @@ extension Container {
   var message = ""
   var name = ""
   var email = ""
-  let screenshotData = Broadcast<Data?>(nil)
+  let screenshotData = Broadcast<Data?>(nil, policy: .equatable)
 
   nonisolated private static let log = Log.as(LogSubsystem.SettingsView.feedback)
 

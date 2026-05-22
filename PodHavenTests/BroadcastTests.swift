@@ -10,7 +10,7 @@ import Testing
 struct BroadcastTests {
   @Test("new(_:) suppresses re-publishes of an unchanged Equatable value")
   func newSuppressesIdenticalRepublishes() async throws {
-    let broadcast = Broadcast<Int>(0)
+    let broadcast = Broadcast<Int>(0, policy: .equatable)
     // stream() buffers the bootstrap value (0) before any new() call lands.
     let stream = broadcast.stream()
 
@@ -29,7 +29,7 @@ struct BroadcastTests {
 
   @Test("update(_:) suppresses transforms that leave an Equatable value unchanged")
   func updateSuppressesNoOpTransforms() async throws {
-    let broadcast = Broadcast<Int>(0)
+    let broadcast = Broadcast<Int>(0, policy: .equatable)
     let stream = broadcast.stream()
 
     broadcast.update { _ in }  // value unchanged — must not broadcast
@@ -42,6 +42,55 @@ struct BroadcastTests {
       received.append(value)
     }
     #expect(received == [0, 5, 6])
+  }
+
+  @Test("notifyAlways policy delivers writes that leave the value unchanged")
+  func notifyAlwaysDeliversNoOpWrites() async throws {
+    let broadcast = Broadcast<Int>(0, policy: .notifyAlways)
+    let stream = broadcast.stream()
+
+    broadcast.new(0)  // identical to current — still broadcasts
+    broadcast.new(0)  // identical — still broadcasts
+    broadcast.update { _ in }  // unchanged — still broadcasts
+
+    var received: [Int] = []
+    for await value in stream.prefix(4) {
+      received.append(value)
+    }
+    #expect(received == [0, 0, 0, 0])
+  }
+
+  @Test("@Broadcasted deduplicates no-op writes for an Equatable value")
+  func broadcastedDeduplicatesEquatableWrites() async throws {
+    let fixture = BroadcastedFixture()
+    let stream = fixture.$value.stream()
+
+    fixture.$value.new(0)  // identical to current — must not broadcast
+    fixture.$value.new(1)  // changed — broadcasts
+    fixture.$value.new(1)  // identical — must not broadcast
+    fixture.$value.new(2)  // changed — broadcasts
+
+    var received: [Int] = []
+    for await value in stream.prefix(3) {
+      received.append(value)
+    }
+    #expect(received == [0, 1, 2])
+  }
+
+  @Test("@Broadcasted(duplicates: .notifyAlways) delivers every write")
+  func broadcastedNotifyAlwaysDeliversEveryWrite() async throws {
+    let fixture = NotifyAlwaysFixture()
+    let stream = fixture.$value.stream()
+
+    fixture.$value.new(0)  // identical to current — still broadcasts
+    fixture.$value.new(0)  // identical — still broadcasts
+    fixture.$value.new(1)  // changed — broadcasts
+
+    var received: [Int] = []
+    for await value in stream.prefix(4) {
+      received.append(value)
+    }
+    #expect(received == [0, 0, 0, 1])
   }
 
   @Test("PersistedBroadcast's wrappedValue setter suppresses same-value writes")
@@ -63,7 +112,7 @@ struct BroadcastTests {
 
   @Test("binding's setter suppresses same-value writes")
   func bindingSetterSuppressesIdenticalWrites() async throws {
-    let broadcast = Broadcast<Int>(0)
+    let broadcast = Broadcast<Int>(0, policy: .equatable)
     let stream = broadcast.stream()
     let binding = broadcast.binding
 
@@ -78,6 +127,17 @@ struct BroadcastTests {
     }
     #expect(received == [0, 1, 2])
   }
+}
+
+// Verifies the @Broadcasted property wrapper resolves to the
+// Equatable-deduplicating init for Equatable values.
+private struct BroadcastedFixture {
+  @Broadcasted var value: Int = 0
+}
+
+// Opts out of dedup via the explicit policy — the path SharedState.onDeck uses.
+private struct NotifyAlwaysFixture {
+  @Broadcasted(duplicates: .notifyAlways) var value: Int = 0
 }
 
 // Exercises `PersistedBroadcast`'s `wrappedValue` setter, which routes through
