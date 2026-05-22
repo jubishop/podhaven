@@ -456,6 +456,16 @@ enum EpisodeDetailDisplayedScore: Sendable {
       guard let self else { return nil }
       return await computeRecommendation()
     },
+    // An unsaved pass that ran before embedding assets finished downloading
+    // produced a provisional nil; caching it would re-apply that nil on the
+    // next refresh even after the assets land.
+    shouldCache: { [weak self] in
+      guard let self else { return false }
+      if case .unsaved = state {
+        return contextualEmbedding.assetsLoaded.isFinished
+      }
+      return true
+    },
     apply: { [weak self] in
       guard let self else { return }
       score = $0
@@ -515,7 +525,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return .recommendation(score)
     } catch {
       Self.log.caughtError(
-        "fetchRecommendation: saved scorer failed for \(podcastEpisode.toString)",
+        "computeRecommendation: saved scorer failed for \(podcastEpisode.toString)",
         error
       )
       return nil
@@ -541,7 +551,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
       } catch {
         Self.log.caughtError(
           """
-          fetchRecommendation: unsaved embedding failed for \
+          computeRecommendation: unsaved embedding failed for \
           \(unsavedPodcastEpisode.toString)
           """,
           error

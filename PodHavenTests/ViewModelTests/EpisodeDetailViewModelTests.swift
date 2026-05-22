@@ -475,6 +475,65 @@ import Testing
     #expect(viewModel.displayedScore == nil)
   }
 
+  @Test(
+    "unsaved episode rescores once embedding assets become available on a later appear"
+  )
+  func unsavedEpisodeRescoresAfterAssetsBecomeAvailable() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Late Assets Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    // Embedding model starts mid-download: assets are not on disk, so the
+    // unsaved scorer can only produce nil.
+    let embeddable = MutableEmbeddable(assetsAvailable: false)
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: embeddable) }
+      .scope(.cached)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Late Assets Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "late-assets",
+        title: "Late Assets Episode"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    // Precondition: the bootstrap pass ran but couldn't produce a score
+    // with assets unavailable.
+    #expect(viewModel.displayedScore == nil)
+
+    // Embedding model finishes downloading on disk.
+    embeddable.makeAssetsAvailable()
+
+    // A later appear must re-score rather than re-applying the cached
+    // no-score result — the prior nil was provisional, not the real score.
+    viewModel.disappear()
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        if case .similarity = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Re-appearing after embedding assets became available left the unsaved \
+        episode stuck on the cached no-score result instead of re-scoring.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+  }
+
   @Test("unsaved episode hides the similarity score once the episode is rated")
   func unsavedEpisodeHidesScoreWhenRated() async throws {
     let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(

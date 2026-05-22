@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Logging
 
 // Shared recommendation-score orchestration for EpisodesListViewModel,
 // EpisodeDetailViewModel, and PodcastRecommendationScorer. It owns the engine's
@@ -10,35 +11,44 @@ import Foundation
 // drift per surface.
 //
 // `Snapshot` is an `Equatable` change-detection key embedding `scoringRevision`;
-// a `nil` snapshot no-ops the refresh. `Result` is the per-surface score
+// a `nil` snapshot no-ops the refresh. `Score` is the per-surface score
 // payload, retained across `cancel()`.
 @MainActor
-final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Result: Sendable> {
+final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Score: Sendable> {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.taskPriority) private var taskPriority
 
+  private static var log: Logger { Log.as(LogSubsystem.Recommendations.coordinator) }
+
   private let makeSnapshot: @MainActor () -> Snapshot?
   private let willScore: @MainActor () -> Void
-  private let score: @MainActor () async throws -> Result
-  private let apply: @MainActor (Result) -> Void
+  private let score: @MainActor () async throws -> Score
+  private let shouldCache: @MainActor () -> Bool
+  private let apply: @MainActor (Score) -> Void
   private let onFailure: @MainActor (any Error) -> Void
 
   private var revisionTask: Task<Void, Never>?
   private var scoringTask: Task<Void, Never>?
-  private var cached: (snapshot: Snapshot, result: Result)?
+  private var cached: (snapshot: Snapshot, score: Score)?
 
-  // `willScore` fires on a cache miss before the pass spawns; `onFailure` only
-  // on a non-cancellation `score` error.
+  // `willScore` fires on a cache miss before the pass spawns; `shouldCache`
+  // is checked after the pass returns to gate whether the result enters the
+  // cache (a provisional result — e.g. embedding assets not yet downloaded —
+  // applies but must not be cached or it would re-apply on the next refresh
+  // even after the inputs that made it provisional resolved); `onFailure`
+  // only on a non-cancellation `score` error.
   init(
     makeSnapshot: @escaping @MainActor () -> Snapshot?,
     willScore: @escaping @MainActor () -> Void = {},
-    score: @escaping @MainActor () async throws -> Result,
-    apply: @escaping @MainActor (Result) -> Void,
+    score: @escaping @MainActor () async throws -> Score,
+    shouldCache: @escaping @MainActor () -> Bool = { true },
+    apply: @escaping @MainActor (Score) -> Void,
     onFailure: @escaping @MainActor (any Error) -> Void = { _ in }
   ) {
     self.makeSnapshot = makeSnapshot
     self.willScore = willScore
     self.score = score
+    self.shouldCache = shouldCache
     self.apply = apply
     self.onFailure = onFailure
   }
@@ -59,7 +69,7 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Res
   func refresh() {
     guard let snapshot = makeSnapshot() else { return }
     if let cached, cached.snapshot == snapshot {
-      apply(cached.result)
+      apply(cached.score)
       return
     }
     willScore()
@@ -76,11 +86,14 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Res
       guard !Task.isCancelled else { return }
       // Stale-drop: inputs moved on while the pass was in flight.
       guard makeSnapshot() == snapshot else { return }
-      cached = (snapshot, result)
+      if shouldCache() { cached = (snapshot, result) }
       apply(result)
     } catch is CancellationError {
     } catch {
       guard !Task.isCancelled else { return }
+      // Log at the top of the stack so a surface that omits `onFailure`
+      // never silently drops the error.
+      Self.log.caughtError("scoring pass failed", error)
       onFailure(error)
     }
   }

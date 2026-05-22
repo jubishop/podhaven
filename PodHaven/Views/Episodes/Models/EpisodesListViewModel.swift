@@ -341,9 +341,8 @@ class EpisodesListViewModel:
       guard let self else { return }
       applyRecommendationScores($0)
     },
-    onFailure: { [weak self] error in
+    onFailure: { [weak self] _ in
       guard let self else { return }
-      Self.log.caughtError("recomputeRecommendations: scoring failed", error)
       handleRecommendationFailure()
     }
   )

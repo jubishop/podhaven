@@ -508,6 +508,135 @@ import Testing
   }
 
   @Test(
+    "unsaved series rescores by similarity once embedding assets become available on a later appear"
+  )
+  func unsavedSeriesRescoresAfterAssetsBecomeAvailable() async throws {
+    let scripted = discoveryScriptedEmbeddable()
+    try await primeEngine(with: scripted)
+
+    // Embedding model starts mid-download: the unsaved scorer can only
+    // produce an empty score map.
+    let embeddable = MutableEmbeddable(
+      assetsAvailable: false,
+      vectorFor: scripted.vectorFor
+    )
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: embeddable) }
+      .scope(.cached)
+
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(
+        title: "Discovery",
+        description: "Discovery"
+      ),
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(
+          guid: "discovery-0",
+          title: "Episode A",
+          pubDate: Date(timeIntervalSince1970: 400),
+          description: "Discovery 0"
+        ),
+        try Create.unsavedEpisode(
+          guid: "discovery-1",
+          title: "Episode B",
+          pubDate: Date(timeIntervalSince1970: 300),
+          description: "Discovery 1"
+        ),
+        try Create.unsavedEpisode(
+          guid: "discovery-2",
+          title: "Episode C",
+          pubDate: Date(timeIntervalSince1970: 200),
+          description: "Discovery 2"
+        ),
+        try Create.unsavedEpisode(
+          guid: "discovery-3",
+          title: "Episode D",
+          pubDate: Date(timeIntervalSince1970: 100),
+          description: "Discovery 3"
+        ),
+      ]
+    )
+    let unsavedPodcastEpisodes = unsavedSeries.unsavedEpisodes.map { unsavedEpisode in
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedSeries.unsavedPodcast,
+        unsavedEpisode: unsavedEpisode
+      )
+    }
+
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in viewModel.episodeList.allEntries.count == unsavedPodcastEpisodes.count },
+      { @MainActor in
+        """
+        Expected all unsaved episodes to surface before sorting.
+        count: \(viewModel.episodeList.allEntries.count)
+        """
+      }
+    )
+
+    viewModel.currentSortMethod = .recommendationScore
+
+    // Precondition: the assets-unavailable scoring pass settled. With an
+    // empty score map the comparator collapses to pubDate order, which on
+    // these fixtures matches the newest-first default — distinguishability
+    // comes from the recovery assertion's similarity order instead.
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        if case .idle = viewModel.recommendationDisplay { return true }
+        return false
+      },
+      { @MainActor in "Expected the assets-unavailable scoring pass to settle." }
+    )
+
+    // Embedding model finishes downloading on disk.
+    embeddable.makeAssetsAvailable()
+
+    // Expected similarity order, computed via the same APIs the VM uses,
+    // now that assets are loadable.
+    let scoresByMediaGUID = try await unsavedSimilarityScores(unsavedPodcastEpisodes)
+    let expectedOrder =
+      unsavedPodcastEpisodes
+      .sorted { lhs, rhs in
+        let lhsScore = scoresByMediaGUID[lhs.mediaGUID] ?? 0
+        let rhsScore = scoresByMediaGUID[rhs.mediaGUID] ?? 0
+        if lhsScore != rhsScore { return lhsScore > rhsScore }
+        return lhs.unsavedEpisode.pubDate > rhs.unsavedEpisode.pubDate
+      }
+      .map(\.mediaGUID)
+    let newestFirstOrder =
+      unsavedPodcastEpisodes
+      .sorted { $0.unsavedEpisode.pubDate > $1.unsavedEpisode.pubDate }
+      .map(\.mediaGUID)
+    try #require(
+      expectedOrder != newestFirstOrder,
+      "Similarity order matched pubDate order; the test wouldn't prove a re-score ran."
+    )
+
+    // A later appear must re-score rather than re-applying the cached
+    // empty score map — the prior empty map was provisional.
+    viewModel.disappear()
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        viewModel.episodeList.filteredEntries.map(\.mediaGUID) == expectedOrder
+      },
+      { @MainActor in
+        """
+        Re-appearing after embedding assets became available left the unsaved \
+        series stuck on the cached empty score map instead of re-scoring.
+        Expected: \(expectedOrder)
+        Actual: \(viewModel.episodeList.filteredEntries.map(\.mediaGUID))
+        """
+      }
+    )
+  }
+
+  @Test(
     "unsaved series: switching sorts replaces the recommendationScore comparator each direction"
   )
   func unsavedSeriesSortRoundTripsThroughRecommendationScore() async throws {
