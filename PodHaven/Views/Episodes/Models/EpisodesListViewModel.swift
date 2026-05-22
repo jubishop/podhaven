@@ -178,6 +178,8 @@ class EpisodesListViewModel:
   // sort is the selected one. Two producers feed the scoring pass: the
   // candidate set and the engine's scoring revision.
   private func runRecommendationObservation() async {
+    cancelRecommendationWork()
+
     await withTaskGroup(of: Void.self) { group in
       group.addTask { [weak self] in
         guard let self else { return }

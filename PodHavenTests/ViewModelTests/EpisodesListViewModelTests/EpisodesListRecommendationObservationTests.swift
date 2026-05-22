@@ -1101,4 +1101,160 @@ import Testing
       )
     }
   }
+
+  @Test("changing the search on rec sort tears down the old search's hydration")
+  func searchChangeOnRecSortTearsDownStaleHydration() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let (_, alphas) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target Alphacand",
+      podcastDescription: "Target Alphacand",
+      episodeDescriptions: ["Target Alphacand 0", "Target Alphacand 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(alphas, embeddable: embeddable)
+
+    let (_, betas) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target Betacand",
+      podcastDescription: "Target Betacand",
+      episodeDescriptions: ["Target Betacand 0", "Target Betacand 1"]
+    )
+    try await RecommendationHelpers.embedEpisodes(betas, embeddable: embeddable)
+
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: alphas + betas)
+    // Quiesce setup-driven rebuilds so the gate below catches the search
+    // change's own scoring pass, not a stray Up Next rebuild.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    let fakeRecommendationRepo = try #require(
+      Container.shared.recommendationRepo() as? FakeRecommendationRepo
+    )
+    let alphaIDs = Set(alphas.map(\.id))
+    let betaIDs = Set(betas.map(\.id))
+
+    let viewModel = EpisodesListViewModel(
+      title: "RecSearchChangeStaleHydration",
+      filter: Episode.candidate
+    )
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await withRunningObservationLoop(viewModel) {
+      // Score the rec sort under the empty search: all four targets land and
+      // the hydration observation tracks the Alphacand + Betacand rows.
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .loaded
+            && Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
+              == alphaIDs.union(betaIDs)
+        },
+        { @MainActor in
+          """
+          Expected all four targets scored under the empty search first.
+          Actual: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
+
+      // Strand the search change's scoring pass so the hydration race has a
+      // stable window: while it is gated, the only task that can publish a
+      // loaded list is the empty-search hydration — if it is still alive.
+      fakeRecommendationRepo.armEmbeddingsGate(matching: betaIDs)
+
+      // Narrow the search to "Betacand" while staying on rec sort. This
+      // restarts the recommendation observation; the Alphacand-tracking
+      // hydration from the empty search must be torn down, not left running.
+      let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
+      let pendingBeforeSearch = fakeSleeper.pendingCount()
+      viewModel.filterDebouncer.currentValue = "Betacand"
+      try await fakeSleeper.waitForSleepRequests(count: pendingBeforeSearch + 1)
+      await fakeSleeper.advanceTime(by: .milliseconds(500))
+
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.loadingState == .computingRecommendations },
+        { @MainActor in
+          """
+          Expected .computingRecommendations while the search change's scoring \
+          pass is stranded; got \(viewModel.loadingState).
+          """
+        }
+      )
+
+      // A background write touches an Alphacand row — exactly the rows the
+      // empty-search hydration observation tracked (it filters by score-map ID
+      // alone, no text search). A surviving observation re-emits and publishes
+      // a loaded list of stale Alphacand rows under the new "Betacand" search.
+      let staleID = try #require(alphas.first?.id)
+      _ = try await appDB.db.write { db in
+        try Episode.withID(staleID)
+          .updateAll(db, Episode.Columns.title.set(to: "Mutated Alphacand"))
+      }
+
+      do {
+        try await Wait.until(
+          maxAttempts: 50,
+          delay: .milliseconds(20),
+          priority: .userInitiated,
+          { @MainActor in viewModel.loadingState == .loaded },
+          { "regression sentinel — see Issue.record below" }
+        )
+        Issue.record(
+          """
+          regression: changing the search on rec sort left the old search's \
+          hydration observation running. A background write to an Alphacand \
+          row drove it to publish a loaded list while the new search's scoring \
+          pass was still computing.
+          State: \(viewModel.loadingState)
+          Entries: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        )
+      } catch {
+        // Expected timeout under the fixed implementation.
+      }
+
+      // Releasing the pass lets the correct, search-scoped list load.
+      fakeRecommendationRepo.releaseEmbeddingsGate()
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          guard case .loaded = viewModel.loadingState else { return false }
+          return Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == betaIDs
+        },
+        { @MainActor in
+          """
+          Expected the rec-sorted list to settle to the Betacand candidates.
+          Expected: \(betaIDs)
+          Actual: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+          """
+        }
+      )
+    }
+  }
 }
