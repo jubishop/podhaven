@@ -75,16 +75,11 @@ struct RecommendationEngine: Sendable {
   )
   private let startOnce = Once()
 
-  // A backgrounded audio session has a tight CPU/memory budget and is the OS's
-  // first eviction target, so full-library scans triggered while backgrounded
-  // are deferred and coalesced into a single rescan on the next foreground.
-  // `isActive` is driven by `handleScenePhaseChange`; defaults to `true`
-  // because `start()` only runs after `prepareForForeground`. The deferred
-  // kind is a lattice — raw values encode `none(0) < recommendations(1) <
-  // cache(2)` — and writers only merge upward via `DeferredRescanState`, so a
-  // pending cache rebuild can't be silently downgraded by an incoming
-  // recommendations rebuild (a cache rebuild already re-runs the
-  // recommendations pass).
+  // Rescans triggered while backgrounded are deferred to the next foreground.
+  // `DeferredRescanState` merges upward only, so a queued cache rebuild
+  // absorbs incoming recommendations triggers — the cache rebuild already
+  // re-runs the recommendations pass. `isActive` starts `true` because
+  // `start()` only runs after `prepareForForeground`.
   private enum DeferredRescan: Int, Comparable {
     case none = 0
     case recommendations = 1
