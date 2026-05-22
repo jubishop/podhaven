@@ -271,7 +271,8 @@ import Testing
     viewModel.currentSortMethod = .recommendationScore
 
     // First appear: the candidate observation succeeds and the scoring pass
-    // lands, so the view model records a completed `lastScoredKey`.
+    // lands, so recommendationScoresState becomes .loaded with a completed
+    // ScoredInputsKey.
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
@@ -316,9 +317,10 @@ import Testing
 
     // Third appear: the candidate observation recovers and emits the same
     // candidate set at the same scoringRevision as the first appear. The
-    // failure above clobbered recommendationScoresState to .failed, so the
-    // retained completed-pass key must not suppress the rescore — skipping it
-    // leaves rec sort stuck on the failure state forever. A scoped
+    // failure above clobbered recommendationScoresState to .failed, so
+    // observeCandidateSet's key-match check finds no .loaded state and must
+    // fall through to a rescore — skipping it leaves rec sort stuck on the
+    // failure state forever. A scoped
     // embeddings(for:) call is the unambiguous signal that the kick ran;
     // loadingState alone is racy because episodeList still holds the stale
     // rows the first appear surfaced.
@@ -339,9 +341,8 @@ import Testing
         { @MainActor in
           """
           Re-appearing after a transient candidate-observation failure left rec \
-          sort stuck: the retained completed-pass key suppressed the kick, so \
-          the candidate set was never rescored and recommendationScoresState \
-          stayed .failed.
+          sort stuck: observeCandidateSet skipped the rescore, so the candidate \
+          set was never rescored and recommendationScoresState stayed .failed.
           embeddings(for:) calls for the candidate set: \
           \(RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs))
           """
