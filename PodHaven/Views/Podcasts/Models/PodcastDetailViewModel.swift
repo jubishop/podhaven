@@ -361,8 +361,6 @@ class PodcastDetailViewModel:
   }
 
   func performAppear() async throws {
-    // The view reappeared (e.g. popped back from a pushed view) with the rec
-    // sort still selected — resume scoring, which `disappear()` tore down.
     if isSortingByRecommendationScore {
       recommendationScorer.applyRecommendationSort()
     }

@@ -8,14 +8,8 @@ import Observation
 import Tagged
 
 // Owns recommendation-score sorting for `PodcastDetailViewModel`. Scoring runs
-// purely on demand: `applyRecommendationSort()` is the sole entry point, fired
-// when the host selects the `.recommendationScore` sort. While that sort is
-// selected the scorer observes the engine's scoring revisions and the host's
-// state changes and rescores; outside it, nothing runs. Scoring computes
-// per-episode scores (saved podcasts via the recommendation engine, unsaved
-// ones via on-device similarity) and installs the resulting sort/filter onto
-// the host's episode list. The last computed score is retained so re-selecting
-// the sort with an unchanged candidate set applies instantly.
+// purely on demand while the `.recommendationScore` sort is selected; the last
+// computed score is retained so an unchanged re-selection applies instantly.
 @Observable @MainActor
 final class PodcastRecommendationScorer {
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
@@ -42,10 +36,6 @@ final class PodcastRecommendationScorer {
 
   // MARK: - Host Events
 
-  // The host switched its sort method to `.recommendationScore`, or the view
-  // reappeared with that sort still selected. Reuses the retained score when
-  // the snapshot still matches; otherwise kicks an immediate pass behind a
-  // "Computing recommendations…" banner.
   func applyRecommendationSort() {
     guard let host else { return }
     startScoringRevisionObservation()
@@ -61,15 +51,11 @@ final class PodcastRecommendationScorer {
     }
   }
 
-  // The host switched its sort method away from `.recommendationScore`. The
-  // retained score survives so a later re-selection can skip recomputing.
   func clearDisplay() {
     display = .idle
     cancelScoring()
   }
 
-  // The host transitioned to a new state. A rescore is only relevant while the
-  // rec sort is the selected one.
   func stateDidChange() {
     guard let host, host.isSortingByRecommendationScore else { return }
     if lastRecommendationScores?.snapshot != currentScoringSnapshot(host: host) {
@@ -78,7 +64,6 @@ final class PodcastRecommendationScorer {
     recompute()
   }
 
-  // The view disappeared. The retained score survives teardown.
   func disappear() {
     cancelScoring()
   }
