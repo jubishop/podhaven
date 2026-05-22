@@ -585,11 +585,13 @@ enum EpisodeDetailDisplayedScore: Sendable {
     case .initial, .kindChanged:
       recommendationFetchTask?.cancel()
       recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
-        await self?.fetchRecommendation()
+        guard let self else { return }
+        await self.fetchRecommendation()
       }
     case .scoringRevision:
       recommendationDebounce { [weak self] in
-        await self?.fetchRecommendation()
+        guard let self else { return }
+        await self.fetchRecommendation()
       }
     }
   }

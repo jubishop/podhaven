@@ -526,6 +526,7 @@ struct RecommendationEngine: Sendable {
     )
 
     let mathStart = ContinuousClock.now
+    try Task.checkCancellation()
     let now = Date()
     let affinityWeight = Float(Container.shared.userSettings().podcastAffinityWeight)
     let similarityWeight = max(0, 1.0 - affinityWeight)
@@ -533,8 +534,9 @@ struct RecommendationEngine: Sendable {
     let dim = context.positiveCentroid.count
     var scratch = [Float](repeating: 0, count: dim)
     var scores = [Episode.ID: RecommendationScore](capacity: candidates.count)
-    unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
-      for candidate in candidates {
+    try unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+      for (index, candidate) in candidates.enumerated() {
+        if index % 256 == 0 { try Task.checkCancellation() }
         guard let embedding = embeddings[id: candidate.id] else { continue }
         scores[candidate.id] = unsafe scoreCandidate(
           embedding: embedding,

@@ -53,10 +53,8 @@ import Testing
     }
   }
 
-  @Test(
-    "non-rec sort stays alert-free when the background candidate observation fails"
-  )
-  func nonRecSortSuppressesRecommendationFailureAlert() async throws {
+  @Test("non-rec sort never reaches the candidate observation, even one scripted to fail")
+  func nonRecSortNeverStartsFailingCandidateObservation() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
     fakeObservatory.embeddedCandidateEpisodesScript([
@@ -73,42 +71,41 @@ import Testing
     viewModel.currentSortMethod = .newestFirst
 
     try await withRunningObservationLoop(viewModel) {
-      // Wait for the failing candidate observation to be exercised so we
-      // know handleRecommendationFailure ran. expectCalls polls until the
-      // call lands.
-      _ = try await Wait.until(
+      // The standard sort still settles on its own observation.
+      try await Wait.until(
         priority: .userInitiated,
-        {
-          (try? fakeObservatory.expectCalls(
-            methodName: "embeddedCandidateEpisodes",
-            count: 1
-          )) != nil
-        },
-        { "Expected candidate observation to be invoked once for non-rec sort." }
+        { @MainActor in viewModel.loadingState == .loaded },
+        { @MainActor in "Expected non-rec sort to settle, got \(viewModel.loadingState)." }
       )
 
-      // Now poll for a short window that no alert ever shows up. A failing
-      // background scoring path that pops a modal for users who aren't on
-      // rec sort is the regression this test pins down.
+      // Poll a window: a non-rec sort must never reach the candidate
+      // observation (so the scripted failure never runs) and must never raise
+      // a recommendation alert.
       do {
         try await Wait.until(
           maxAttempts: 50,
           delay: .milliseconds(20),
           priority: .userInitiated,
-          { @MainActor [self] in alert.config != nil },
+          { @MainActor [self] in
+            fakeObservatory.allCallsInOrder.contains {
+              $0.methodName == "embeddedCandidateEpisodes"
+            } || alert.config != nil
+          },
           { "regression sentinel — see Issue.record below" }
         )
         Issue.record(
           """
-          regression: candidate observation failure on a non-rec sort surfaced \
-          a 'Couldn't compute recommendations' alert. Background scoring \
-          failures must not interrupt users who aren't viewing the rec sort.
+          regression: a non-rec sort started the candidate observation or \
+          surfaced a 'Couldn't compute recommendations' alert. Recommendation \
+          scoring must not run — let alone interrupt — users who aren't viewing \
+          the rec sort.
           """
         )
       } catch {
         // Expected timeout under the fixed implementation.
       }
 
+      try fakeObservatory.expectNoCall(methodName: "embeddedCandidateEpisodes")
       #expect(alert.config == nil)
     }
   }
@@ -159,9 +156,9 @@ import Testing
           Issue.record(
             """
             scoringRevision ticked during a no-retry-loop test that assumes \
-            engine.start() was not called. A tick would kick a second \
-            embeddedCandidateEpisodes fetch from recommendationContextObservationTask and \
-            mask the view-model diff logic this test is meant to pin down.
+            engine.start() was not called. A tick would kick a second scoring \
+            pass from observeScoringRevision and mask the view-model diff \
+            logic this test is meant to pin down.
             """
           )
         }
@@ -274,7 +271,8 @@ import Testing
     viewModel.currentSortMethod = .recommendationScore
 
     // First appear: the candidate observation succeeds and the scoring pass
-    // lands, so the view model records a completed `lastScoredKey`.
+    // lands, so recommendationScoresState becomes .loaded with a completed
+    // ScoredInputsKey.
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
@@ -319,9 +317,10 @@ import Testing
 
     // Third appear: the candidate observation recovers and emits the same
     // candidate set at the same scoringRevision as the first appear. The
-    // failure above clobbered recommendationScoresState to .failed, so the
-    // retained completed-pass key must not suppress the rescore — skipping it
-    // leaves rec sort stuck on the failure state forever. A scoped
+    // failure above clobbered recommendationScoresState to .failed, so
+    // observeCandidateSet's key-match check finds no .loaded state and must
+    // fall through to a rescore — skipping it leaves rec sort stuck on the
+    // failure state forever. A scoped
     // embeddings(for:) call is the unambiguous signal that the kick ran;
     // loadingState alone is racy because episodeList still holds the stale
     // rows the first appear surfaced.
@@ -342,9 +341,8 @@ import Testing
         { @MainActor in
           """
           Re-appearing after a transient candidate-observation failure left rec \
-          sort stuck: the retained completed-pass key suppressed the kick, so \
-          the candidate set was never rescored and recommendationScoresState \
-          stayed .failed.
+          sort stuck: observeCandidateSet skipped the rescore, so the candidate \
+          set was never rescored and recommendationScoresState stayed .failed.
           embeddings(for:) calls for the candidate set: \
           \(RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs))
           """
