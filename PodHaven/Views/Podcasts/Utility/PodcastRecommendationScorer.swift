@@ -51,7 +51,7 @@ final class PodcastRecommendationScorer {
     }
   }
 
-  func clearDisplay() {
+  func clearRecommendationSort() {
     display = .idle
     cancelScoring()
   }

@@ -191,7 +191,7 @@ class PodcastDetailViewModel:
       } else {
         episodeList.filterMethod = currentSortMethod.filterMethod
         episodeList.sortMethod = currentSortMethod.sortMethod
-        recommendationScorer.clearDisplay()
+        recommendationScorer.clearRecommendationSort()
       }
     }
   }
