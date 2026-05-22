@@ -33,10 +33,12 @@ struct AppLauncher: Sendable {
   }
 
   private static let log = Log.as("AppLauncher")
-  private static let metricKitMonitor = MetricKitMonitor()
   private let prepareForPlaybackOnce = AsyncOnce()
   private let prepareForForegroundOnce = AsyncOnce()
   private let startSystemMonitoringOnce = Once()
+
+  // MXMetricManager holds subscribers weakly, so this must outlive registration.
+  private let metricKitMonitor = MetricKitMonitor()
 
   fileprivate init() {}
 
@@ -144,7 +146,7 @@ struct AppLauncher: Sendable {
 
   private func startSystemMonitoring() {
     startSystemMonitoringOnce.run {
-      MXMetricManager.shared.add(Self.metricKitMonitor)
+      MXMetricManager.shared.add(metricKitMonitor)
       Self.log.debug("Registered MetricKit subscriber")
 
       Task(priority: taskPriority(.utility)) {
