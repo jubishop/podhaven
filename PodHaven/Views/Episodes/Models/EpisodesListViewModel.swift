@@ -360,9 +360,6 @@ class EpisodesListViewModel:
   private func handleRecommendationFailure() {
     guard !Task.isCancelled else { return }
     recommendationScoresState = .failed
-    // A failed pass must not be papered over by a stale cache hit: force the
-    // next candidate emission to re-score even if its inputs are unchanged.
-    recommendationCoordinator.invalidateCache()
     guard currentSortMethod == .recommendationScore else { return }
     alert("Couldn't compute recommendations.")
     loadingState = .failed

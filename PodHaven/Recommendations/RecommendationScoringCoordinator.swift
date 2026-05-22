@@ -107,11 +107,4 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Res
     scoringTask?.cancel()
     scoringTask = nil
   }
-
-  // Discard the retained score so the next `refresh()` re-scores even when its
-  // snapshot is unchanged. Call after a failure a stale cache hit would
-  // otherwise paper over.
-  func invalidateCache() {
-    cached = nil
-  }
 }

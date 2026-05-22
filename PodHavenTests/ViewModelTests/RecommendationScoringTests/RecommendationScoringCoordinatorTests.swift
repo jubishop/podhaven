@@ -270,30 +270,6 @@ import Testing
     #expect(probe.scoreStarts == 1)
   }
 
-  @Test("invalidateCache forces the next refresh to re-score even with an unchanged snapshot")
-  func invalidateCacheForcesRescore() async throws {
-    let probe = Probe()
-    let coordinator = makeCoordinator(probe)
-
-    probe.input = 4
-    coordinator.refresh()
-    try await Wait.until(
-      priority: .userInitiated,
-      { @MainActor in probe.applied == [4] },
-      { @MainActor in "Expected the first pass to apply [4], got \(probe.applied)." }
-    )
-
-    coordinator.invalidateCache()
-    coordinator.refresh()
-
-    try await Wait.until(
-      priority: .userInitiated,
-      { @MainActor in probe.scoreStarts == 2 },
-      { @MainActor in "Expected invalidateCache to force a re-score on the next refresh." }
-    )
-    #expect(probe.applied == [4, 4])
-  }
-
   @Test("a thrown scoring error routes to onFailure without applying")
   func scoringErrorRoutesToFailure() async throws {
     let probe = Probe()

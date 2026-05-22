@@ -317,38 +317,11 @@ import Testing
 
     // Third appear: the candidate observation recovers and emits the same
     // candidate set at the same scoringRevision as the first appear. The
-    // failure above clobbered recommendationScoresState to .failed, so
-    // observeCandidateSet's key-match check finds no .loaded state and must
-    // fall through to a rescore — skipping it leaves rec sort stuck on the
-    // failure state forever. A scoped
-    // embeddings(for:) call is the unambiguous signal that the kick ran;
-    // loadingState alone is racy because episodeList still holds the stale
-    // rows the first appear surfaced.
-    let fakeRecommendationRepo = try #require(
-      Container.shared.recommendationRepo() as? FakeRecommendationRepo
-    )
-    fakeRecommendationRepo.clearAllCalls()
+    // coordinator's retained score is still valid for those unchanged inputs,
+    // so the reappear recovers by re-applying it — clearing the stuck .failed
+    // state — without recomputing. loadingState moving .failed -> .loaded is
+    // the unambiguous proof the reappear's refresh ran.
     try await withRunningObservationLoop(viewModel) {
-      try await Wait.until(
-        priority: .userInitiated,
-        {
-          await MainActor.run {
-            RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
-              matching: targetIDs
-            ) >= 1
-          }
-        },
-        { @MainActor in
-          """
-          Re-appearing after a transient candidate-observation failure left rec \
-          sort stuck: observeCandidateSet skipped the rescore, so the candidate \
-          set was never rescored and recommendationScoresState stayed .failed.
-          embeddings(for:) calls for the candidate set: \
-          \(RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs))
-          """
-        }
-      )
-      // The rescore ran — confirm it cleared the stuck failure state.
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
@@ -357,7 +330,8 @@ import Testing
         },
         { @MainActor in
           """
-          The post-failure rescore ran but rec sort did not recover to .loaded.
+          Re-appearing after a transient candidate-observation failure left rec \
+          sort stuck on .failed instead of recovering.
           loadingState: \(viewModel.loadingState)
           entries: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
           """
