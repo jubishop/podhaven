@@ -1,15 +1,8 @@
 // Copyright Justin Bishop, 2026
 
-import FactoryKit
 import Foundation
 import Logging
 import MetricKit
-
-extension Container {
-  var metricKitMonitor: Factory<MetricKitMonitor> {
-    Factory(self) { MetricKitMonitor() }.scope(.cached)
-  }
-}
 
 // Counts lifted out of MXBackgroundExitData so the forwarding decision can be
 // exercised in tests — MXMetricPayload and friends have no public initializer.
@@ -88,10 +81,6 @@ struct MetricKitLogDirective {
 final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
   private static let log = Log.as("MetricKit")
 
-  fileprivate override init() {
-    super.init()
-  }
-
   // MARK: - MXMetricManagerSubscriber
 
   // MetricKit invokes both callbacks on a background queue: metrics roughly
@@ -134,7 +123,7 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
   // MARK: - Decision
 
   // Any non-graceful background exit escalates to .critical so CrashReportHandler
-  // files a Sentry issue; an all-normal payload stays a quiet .notice.
+  // files a Sentry issue; an all-normal payload is routine, so it stays .info.
   static func exitMetricDirective(for counts: BackgroundExitCounts) -> MetricKitLogDirective {
     let message = """
       MetricKit background-exit metrics — \
@@ -150,7 +139,7 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
       suspendedWithLockedFile: \(counts.suspendedWithLockedFile)
       """
     return MetricKitLogDirective(
-      level: counts.abnormalExitTotal > 0 ? .critical : .notice,
+      level: counts.abnormalExitTotal > 0 ? .critical : .info,
       message: message,
       metadata: [:]
     )

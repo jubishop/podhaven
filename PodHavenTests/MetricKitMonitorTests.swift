@@ -8,12 +8,12 @@ import Testing
 
 @Suite("of MetricKitMonitor tests")
 struct MetricKitMonitorTests {
-  @Test("an all-normal background-exit payload logs at .notice")
-  func normalExitsLogAtNotice() {
+  @Test("an all-normal background-exit payload logs at .info")
+  func normalExitsLogAtInfo() {
     let directive = MetricKitMonitor.exitMetricDirective(
       for: BackgroundExitCounts(normalAppExit: 7)
     )
-    #expect(directive.level == .notice)
+    #expect(directive.level == .info)
   }
 
   @Test("a background CPU resource-limit kill escalates to .critical")
