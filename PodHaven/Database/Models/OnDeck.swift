@@ -178,6 +178,8 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
 
   // MARK: - Hashable
 
+  // Mirrors `==`: the in-memory playback fields (currentTime, maxPlaybackTime,
+  // artwork) are excluded so equal rows still hash equally.
   func hash(into hasher: inout Hasher) {
     hasher.combine(id)
     hasher.combine(guid)
@@ -202,6 +204,11 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
 
   // MARK: - Equatable
 
+  // Deliberately omits the in-memory playback fields (currentTime,
+  // maxPlaybackTime, artwork): equality is DB-row identity only. Any dedup
+  // over OnDeck — a Broadcast duplicate policy, a removeDuplicates() — must
+  // opt out, or it will swallow live playback updates.
+  //
   // Split into two short-circuited guards — a single 19-clause `&&` chain
   // tripped the Swift type-checker's complexity budget on CI cold builds.
   static func == (lhs: OnDeck, rhs: OnDeck) -> Bool {

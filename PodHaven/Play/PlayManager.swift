@@ -394,12 +394,12 @@ final class PlayManager {
   // via the candidate gate, so no extra filtering is needed here.
   private func nextAutoplayRecommendation() async throws -> PodcastEpisode? {
     guard userSettings.autoPlayTopRecommendationWhenQueueEmpty else { return nil }
-    for ranked in sharedState.topRecommendations {
-      if let podcastEpisode = try await repo.podcastEpisode(ranked.id) {
+    for episodeID in sharedState.topRecommendations {
+      if let podcastEpisode = try await repo.podcastEpisode(episodeID) {
         return podcastEpisode
       }
       Self.log.warning(
-        "nextAutoplayRecommendation: ranked episode \(ranked.id) not found in database, skipping"
+        "nextAutoplayRecommendation: ranked episode \(episodeID) not found in database, skipping"
       )
     }
     return nil

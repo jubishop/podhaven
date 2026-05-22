@@ -29,6 +29,8 @@ struct UserSettings: Sendable {
   @PersistedBroadcast("autoPlayTopRecommendationWhenQueueEmpty")
   var autoPlayTopRecommendationWhenQueueEmpty: Bool = true
 
+  @PersistedBroadcast("enableWriteProbe") var enableWriteProbe: Bool = false
+
   enum AppearanceMode: String, Codable, DefaultsStorable, CaseIterable, Identifiable {
     case system = "System"
     case light = "Light"

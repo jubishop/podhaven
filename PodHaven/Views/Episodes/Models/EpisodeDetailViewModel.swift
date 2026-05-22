@@ -429,7 +429,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
 
   private struct RecommendationScoringSnapshot: Equatable {
-    let contextRevision: Int
+    let scoringRevision: Int
     let state: State
 
     enum State: Equatable {
@@ -461,13 +461,13 @@ enum EpisodeDetailDisplayedScore: Sendable {
       )
     }
     return RecommendationScoringSnapshot(
-      contextRevision: recommendationEngine.contextRevision,
+      scoringRevision: recommendationEngine.scoringRevision,
       state: snapshotState
     )
   }
 
   // Re-fetches this episode's score whenever the engine bumps
-  // `contextRevision`, i.e. every time its scoring cache rebuilds. Create the
+  // `scoringRevision`, i.e. whenever scoring output can change. Create the
   // stream before the bootstrap kick so a revision emitted during the initial
   // fetch is queued instead of becoming a dropped replay value.
   private func startRecommendationObservation() {
@@ -476,14 +476,14 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return
     }
 
-    let contextRevisions = recommendationEngine.$contextRevision.stream().dropFirst()
+    let scoringRevisions = recommendationEngine.$scoringRevision.stream().dropFirst()
     scheduleRecommendationRefresh(reason: .initial)
     recommendationTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
 
-      for await _ in contextRevisions {
+      for await _ in scoringRevisions {
         guard !Task.isCancelled else { return }
-        scheduleRecommendationRefresh(reason: .contextRevision)
+        scheduleRecommendationRefresh(reason: .scoringRevision)
       }
     }
   }
@@ -572,7 +572,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   private enum EpisodeRecommendationRefreshReason {
     case initial
-    case contextRevision
+    case scoringRevision
     case kindChanged
   }
 
@@ -585,11 +585,13 @@ enum EpisodeDetailDisplayedScore: Sendable {
     case .initial, .kindChanged:
       recommendationFetchTask?.cancel()
       recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
-        await self?.fetchRecommendation()
+        guard let self else { return }
+        await self.fetchRecommendation()
       }
-    case .contextRevision:
+    case .scoringRevision:
       recommendationDebounce { [weak self] in
-        await self?.fetchRecommendation()
+        guard let self else { return }
+        await self.fetchRecommendation()
       }
     }
   }

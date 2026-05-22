@@ -1,130 +1,136 @@
 ---
-name: PodcastDetail recommendation-score fan-out OOM
-description: PodcastDetail observation storm. #274 shipped only the scoring-fan-out fix; the observation storm itself (plan item #4) was never shipped and recurred on build 498 — now tracked in #293. Includes the verification procedure for the #4 PR.
+name: podcast-detail-observation-storm
+description: Investigation (#293) of the PodcastDetail observation storm. Root cause RESOLVED 2026-05-20 — real writes in the wide podcastSeriesDetail region. Fix = debounce the observation (column-drop disproven). WriteProbe is a permanent enableWriteProbe debug toggle; the emission-diff probe stays until #293 is confirmed, with targeted removal tracked by #298.
 type: project
 ---
 
-# PodcastDetail Recommendation-Score Fan-Out — Verification
+# PodcastDetail observation storm — investigation (#293)
 
-## Status (2026-05-19)
+Root cause resolved; fix not yet shipped. Read this first when resuming.
 
-#274 shipped only plan items `#1`–`#3` (the scoring coalescer — commit `0cc82c8c` / PR #275) and was closed; plan item `#4`, the observation storm itself, was deferred and **never shipped**.
+## The bug
 
-The storm then **recurred on build 498** (TestFlight, commit `967ddf79`), which already contains the #274 fix. Two user feedbacks 35 s apart — Sentry `podhaven:7493496709` and `podhaven:7493497368` — carry the same log signature this page describes (~2,200 / ~2,200 / 3). That is the Decision Rule's "log counts still high → `#4` required" branch.
+`Observatory.podcastSeriesDetail` (a GRDB `ValueObservation`) drives
+`PodcastDetailViewModel.observePodcastSeries`, which calls `transition` on
+every emission — a same-state `saved → saved` transition. When the observation
+re-fires fast enough the main actor is pegged and the whole app is unusable
+(lists won't load, queueing dead) across all tabs. No crash, no error-level
+event — every storm line is `.debug`, so nothing alerts. Severity scales with
+the writer's rate (see Root cause): ~178/s in the original incident, ~0.3/s in
+the build-499 capture.
 
-`#4` is now tracked in **#293**, diagnose-first: the root cause still has a genuine open question (6,833 `ValueObservation` emissions vs only 2 logged DB writes in the same 12.8 s window), so `currentTime`-decoupling is a hypothesis, not a confirmed fix. The verification procedure below still applies to the eventual `#4` PR.
+Storm log signature — three `.debug` lines per cycle:
+- `startObservation` — "Observation already active; not starting observation"
+- `observePodcastSeries` — "Updating observed series: …"
+- `logStateTransition` — "transitioning state saved(…) → saved(…)" (same → same)
 
-Verification procedure for issue #274. Diagnosis, fix plan, reproducer, and source-feedback metadata all live on the issue; this page is the operational checklist for confirming the fix worked after the PR lands.
+## History
 
-The bug is **not deterministically reproducible**, so verification leans on the regression test suite as the load-bearing signal and treats device/simulator captures as supplemental rather than definitive.
+- #274: original report. Fix shipped only plan items #1–#3 (the recommendation
+  *scoring* coalescer — commit `0cc82c8c`, PR #275). Plan item #4, the
+  observation storm itself, was deferred and never shipped.
+- Recurred on **TestFlight build 498** (commit `967ddf79`, tag `v1.0b498`) at
+  ~178 emissions/s. Sentry feedbacks `podhaven:7493496709` +
+  `podhaven:7493497368` (2026-05-19).
+- Tracked as **#293**. FileLogHandler perf tech-debt spun off as **#294**.
+- **Build 499 diagnostic run (2026-05-20)** — TestFlight build from commit
+  `8a4aa613` (carries the `c45e2908` probes):
+  - Feedbacks `podhaven:7495117741` + `podhaven:7495118557` — did NOT open a
+    detail view; surfaced a separate bug, #296 /
+    [[recommendation_engine_full_library_rescan]].
+  - Feedback `podhaven:7495203521` — a deliberate PodcastDetailView capture.
+    The emission-diff probe fired and **resolved the root cause** (below).
 
-## Validation gates
+## Root cause — RESOLVED (Case 1: real writes)
 
-The PR for #274 should not merge without:
+The build-499 emission-diff probe (`podcastSeriesDetail emission diff:`) names
+the exact `PodcastSeriesDetail` field that differs between consecutive
+emissions. Every emission was a *genuine* change — e.g. `episode 131531
+content changed`, `podcast row changed`, `episode count 1 → 509`. So:
 
-1. **Regression-test suite passing** (load-bearing — see #274 for the five-test spec). Each test asserts a piece of the behaviour contract: bounded compute, latest-state-only publish, hot-cache bootstrap preserved, prewarming preserved on non-rec sorts, active rec sort live-updates. Each test must be proven failing on `9e5299de4` before the fix.
-2. **Simulator `xctrace` Allocations comparison** before/after the fix (Half 1 below). Done by the implementing agent.
-3. **On-device spot-check** during normal usage (Half 2 below). Done by @jubishop.
+- `removeDuplicates()` works correctly — values genuinely differ (Case 2 out).
+- `PodcastSeriesDetail` `Equatable` is sound (Case 3 out).
+- It is **Case 1 — real writes**.
 
-## Half 1 — Simulator xctrace, scripted (implementing agent)
+`Observatory.podcastSeriesDetail` tracks a very wide region: the `podcast` row
+**plus every episode row plus every episode's `episodeEmbedding`**
+(`ListableEpisode.databaseSelection` pulls `episodeEmbedding` in via
+`EpisodeEmbedding.existsSelectable`). *Any* write touching *any* episode of the
+open podcast re-fires the whole-detail observation → `observePodcastSeries` →
+`transition`.
 
-CLI-only, no Instruments GUI. Captures an allocations comparison on the iOS Simulator.
+Build-499 capture: user opened Crime Junkie (podcast 244) while downloading ~5
+of its episodes (each download = 4 row writes), subscribing, and a feed refresh
+added 508 episodes → 24 re-emissions in ~105 s (mild). The original ~178/s
+storm is the same path with a far denser writer on the open podcast — prime
+suspect `EmbeddingProcessor` churning `episodeEmbedding` rows (batches of 64
+`upsertEmbeddings` seen in the same log).
 
-1. Build commit `9e5299de4` (the broken baseline) into an iOS Simulator (any modern target; iPhone 17 Pro or similar).
-2. Launch and record:
+## Fix — debounce the observation (issue #293 body has the full spec)
 
-   ```
-   xcrun xctrace record \
-     --template Allocations \
-     --device booted \
-     --launch com.artisanalsoftware.PodHaven \
-     --output /tmp/podhaven-prefix.trace
-   ```
+The "narrow the tracked region" direction is **disproven**: `hasEmbedding` and
+`currentTime` are both rendered by the detail screen (`EpisodeListView.swift:87`
+shows `.embeddingPending`; `durationText` shows live `currentTime`), so the
+observation legitimately reads those columns — there is no dead column to drop.
 
-3. Drive the reproducer in the simulator UI (or via XCUITest harness if one is added): search → open a ≥200-episode unsubscribed podcast (use The AI Signal & The AI Noise feed URL if convenient, otherwise any large feed) → tap play on an episode → wait ~30 s.
-4. Stop xctrace (Ctrl-C).
-5. Repeat against the fix branch into `/tmp/podhaven-postfix.trace`.
-6. Extract comparable metrics from both:
+The fix is a **trailing-edge debounce** on the `podcastSeriesDetail` observation
+(route `updatedSeries` in `observePodcastSeries`'s loop through the existing
+`Debounce` utility; keep the `nil`/deletion path immediate). A time debounce
+caps the emission→`transition` rate regardless of writer; `.removeDuplicates`
+cannot help because the data genuinely changes. Do NOT debounce the shared
+`Observatory.observe`. The full single-source spec — root cause, why the column
+drop fails, regression test, verification — is the regenerated **#293 issue
+body** (stream-of-thought comments were deleted 2026-05-21).
 
-   ```
-   xcrun xctrace export --input /tmp/podhaven-prefix.trace  --xpath '/trace-toc/run/data/table[@schema="allocations-summary"]' > /tmp/prefix-allocs.xml
-   xcrun xctrace export --input /tmp/podhaven-postfix.trace --xpath '/trace-toc/run/data/table[@schema="allocations-summary"]' > /tmp/postfix-allocs.xml
-   ```
+Note: #303 extracted recommendation scoring into `PodcastRecommendationScorer`
+(own debounce); that cut per-emission cost but did NOT touch the storm — #293
+is still open and unfixed.
 
-   (Adjust the schema name to match the exact xctrace version's allocation-summary table; alternatives include `time-sample` and `allocation-events`.)
-7. Post the diff in the PR description. Expected drops:
-   - **Total allocations during the 0-10 s window after "tap play":** large drop.
-   - **`PodcastSeriesDetail` / `ListableEpisode` / `IdentifiedArray*` allocation counts in the same window:** large drop if `#4`'s observation-storm work is also in this PR; modest-to-no drop if only `#1`-`#3` landed.
-   - **`recommendations(for:)` invocation count** (instrumented via a `Self.log.info("recommendations: \(candidates.count) ids")` line, then `rg` over the trace's exported logs): should drop from many to ≤ 2 in the same window.
+## In-flight instrumentation — KEEP emission-diff until #293 fixed and confirmed
 
-What this validates: the fix reduces allocation volume during the simulated reproducer scenario, not just satisfies the unit-test contract.
+Commit **`c45e2908`** (`🔬 chore(diagnostics)…`) added diagnostics present in
+build 499. #296 is shipped, so **#293 is now the only remaining blocker** for
+cleaning up the temporary piece. Their fate has since diverged:
 
-What it does **not** validate: whether the reduction clears iOS jetsam on a physical device — the simulator doesn't enforce jetsam the same way.
+- `WriteProbe.swift` + its registration in `AppDB._onDisk` — **now
+  permanent.** Promoted to a debug facility gated by the `enableWriteProbe`
+  user setting (off by default, toggled live in the Settings Debug section).
+  `WriteProbe` is registered on the DB once (`AppDB` passes it the setting's
+  `Broadcast` via `init`); its `observes(eventsOfKind:)` returns the setting,
+  which GRDB re-checks before every statement — so the toggle is live with no
+  relaunch and the probe sees no per-row events while off. Do NOT revert.
+- `observePodcastSeries` emission-diff probe in `PodcastDetailViewModel` —
+  **still temporary.** It is the verification tool for the #293 fix (confirms
+  the re-emissions stop). Keep until #293 is shipped and confirmed on a
+  TestFlight build; removal tracked by **#298** — a targeted removal of the
+  `emissionDiff` helper + its `.notice` call, NOT `git revert c45e2908` (that
+  would tear out `WriteProbe` too).
 
-## Half 2 — On-device spot-check (@jubishop)
+Keepers (NOT part of `c45e2908`, do NOT revert): `FileLogHandler` per-call-site
+rate-limit dedup (`b7be5ebd`); `PodcastSeriesDetailTests` (`c94edefd`).
 
-Because the bug isn't deterministically reproducible, Half 2 drops the "force a repro" framing and becomes "spot-check that post-fix behaviour is well-bounded under normal heavy usage." The regression test suite is the correctness signal; this is the real-device sanity check that the bound is observably respected in practice.
+## Next step
 
-### Setup
+1. Implement the debounce fix per the #293 issue body, with the regression test.
+2. Ship a TestFlight build carrying the emission-diff probe; confirm that the
+   emission→`transition` rate is capped.
+3. Then remove the emission-diff probe per #298.
 
-1. In Xcode, select your physical iPhone as the run destination.
-2. Set the scheme's Build Configuration to **Release** (`Edit Scheme → Run → Build Configuration → Release`) — Debug builds have allocation-tracking overhead and inflated retained-set sizes that distort the picture.
-3. **Product → Profile** (Cmd+I). When Instruments opens, choose the **Allocations** template. (Optionally do a second pass with **Time Profiler**.)
+Analyse logs with the `analyze-logs` `log_summary.py` script: `--sessions` →
+`--session N` → `--call-sites`.
 
-### Recording flow (best-effort repro)
+## Key references
 
-4. In Instruments, press the red Record button. Wait for "Capturing data."
-5. On the phone, exercise the flow that most-closely matches the reporter's, ideally cold-launched:
-   - Force-quit PodHaven, then foreground it.
-   - Go to Search.
-   - Search for The AI Signal & The AI Noise (or any ≥200-episode podcast not currently in your library — the bug shape needs an *unsaved* detail page; if AI Signal is already subscribed, pick a different large feed).
-   - **From the detail page, tap play on any episode.** If this triggers the storm, you'll see allocations climb visibly.
-   - Stay on the detail page for ~30-60 seconds. Don't navigate away.
-6. Stop the recording after ~60 s whether or not the storm fires.
-
-If the storm doesn't fire on first try, that's expected. Don't burn cycles chasing it — the goal is to capture whatever the device actually does and confirm it's bounded.
-
-### What to look at, in this order
-
-7. **Allocations summary during 0-30 s after "tap play":**
-   - **All Heap & Anonymous VM** — does the bar climb steeply, plateau, or stay flat? On `9e5299de4` it climbs. After the fix it should plateau within a few seconds.
-   - **Persistent bytes** — peak value? Reference: iPhone18 family has 12 GB RAM, but iOS jetsam for a *foreground* app typically kicks in around 1.5-2 GB depending on system pressure. Anything north of ~800 MB during a quiet detail-page open is bad.
-   - **Persistent objects of class `PodcastSeriesDetail`** (filter box) — should be a small handful, not hundreds. Same for `ListableEpisode`.
-8. **Call Tree, "All Allocations", grouped by Library → grouped by Call Tree:**
-   - Heaviest allocator on `9e5299de4` is something like `PodcastDetailViewModel.transition(to:)` → `refreshEpisodeList` → `IdentifiedArray.init` / `ListedEpisode.init`, called thousands of times.
-   - Post-fix, that path should drop off the top of the call tree.
-9. **Memory warnings during the recording.** Check `Console.app` (connect phone, filter for `Memory warning`) or `Settings → Privacy & Security → Analytics & Improvements → Analytics Data` for new `JetsamEvent` files dated to the recording. Post-fix there should be none.
-10. **Time Profiler pass (separate recording).** Same flow. Look at the Main Thread track during 0-10 s after "tap play." **Hangs** (red bars at the top of the Main Thread row): pre-fix shows sustained hangs during the storm; post-fix should be clean or short hiccups.
-
-### Cheaper alternative: log grep
-
-After running the fix through normal heavy usage (open detail pages for several large podcasts, switch sort modes, browse), pull `log.ndjson` and grep:
-
-```
-rg -c "Updating observed series" log.ndjson
-rg -c "transitioning state saved" log.ndjson
-rg -c "Log truncated from" log.ndjson
-```
-
-Pre-fix the reporter's log had ~2,200 / ~2,200 / 3 in a 3-second window. Post-fix in normal use these should all be tame and there should be no truncations.
-
-This is lower-friction than Instruments and works whether or not the storm fires on a given session.
-
-### What to report back in the PR thread
-
-- Peak All Heap & Anonymous VM (MB) during 0-30 s after tap-play, pre vs post (if storm fired).
-- Peak persistent-object count for `PodcastSeriesDetail` and `ListableEpisode`, pre vs post.
-- Presence/absence of memory warning or JetsamEvent during the recording.
-- Whether Main Thread had a sustained hang (Time Profiler pass).
-- The three `rg -c` counts from a normal-usage session.
-
-## Decision rule
-
-- **Log counts tame AND Instruments either didn't fire the storm OR fired bounded:** `#1`-`#3` were sufficient. Open `#4` as a follow-up PR.
-- **Log counts still high** (observation storm itself still fires in normal use, even if scoring fan-out is bounded): `#4` needs to be in the same PR as `#1`-`#3`. Continue investigating `ListableEpisode.databaseSelection` and the per-row-change-causes-full-rebuild question.
-- **Memory warnings still occur in real use:** neither `#1`-`#3` nor `#4` are enough on their own — escalate.
+- `Observatory.observe` / `Observatory.podcastSeriesDetail` — `PodHaven/Database/Observatory.swift` (`observe` = `ValueObservation.tracking(block).removeDuplicates().values(in:)`).
+- `observePodcastSeries`, `transition` — `PodHaven/Views/Podcasts/Models/PodcastDetailViewModel.swift`.
+- `PodcastSeriesDetail` = `podcast` + `episodes: IdentifiedArrayOf<ListableEpisode>` + `tags`, synthesized `Equatable`.
 
 ## Related
 
-- [[recommendation_sort_prewarming]] — intentional prewarming behaviour the fix must preserve.
-- [[device_debug_builds_break_background_scheduling]] — why this page's verification splits "Simulator, scripted" from "on-device": there are no debug builds on the physical device.
+- [[recommendation_engine_full_library_rescan]] — #296, the sibling bug: same
+  architectural weakness (a SwiftUI observation triggering uncoalesced heavy
+  work), different loop. Either alone pegs the app.
+- #297 — `EmbeddingProcessor` FK-on-delete race, found in the same build-499 log.
+- [[recommendation_sort_prewarming]] — prewarming behaviour any fix must preserve.
+- [[device_debug_builds_break_background_scheduling]] — no on-device debugging; TestFlight only.
+- [[build_variants_dev_debug_release]] — why `log.ndjson` exists only on device Release builds.

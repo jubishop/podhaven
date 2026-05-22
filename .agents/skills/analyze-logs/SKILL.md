@@ -16,11 +16,12 @@ Inspect PodHaven NDJSON logs without reading the entire file into context. Use t
 2. Run the script with no filters for the initial overview.
 3. Add structural filters (`--subsystem`, `--category`, `--source`, `--file`, `--function`) before falling back to broad `--match`.
 4. Use `--last-hours`, `--tail`, `--after`/`--before` to narrow time ranges.
-5. Use `--sessions` to find app launch boundaries and problem counts.
-6. Use `--json` when the next step needs machine-readable output.
-7. Use `--compare-other` when the user gives both app and widget logs or asks for a before/after comparison.
-8. Use `rg` on the raw file to zoom in on specific timestamps, levels, subsystems, or messages.
-9. Read `references/podhaven-log-format.md` only if you need field or truncation details.
+5. Use `--sessions` to find app launch boundaries, then `--session N` to scope every later command to one launch — essential for rolling-buffer logs that span many sessions.
+6. Use `--call-sites` to see which `file:line` is chattiest, and `--oneline` for a dense one-entry-per-line timeline.
+7. Use `--json` when the next step needs machine-readable output.
+8. Use `--compare-other` when the user gives both app and widget logs or asks for a before/after comparison.
+9. Use `rg` on the raw file to zoom in on specific timestamps, levels, subsystems, or messages.
+10. Read `references/podhaven-log-format.md` only if you need field or truncation details.
 
 ## Commands
 
@@ -32,6 +33,17 @@ python3 scripts/log_summary.py "$LOG_PATH"
 # Session detection: find app launches with per-session problem counts
 python3 scripts/log_summary.py --sessions
 python3 scripts/log_summary.py --sessions --json
+
+# Scope every analysis to one detected session (number comes from --sessions)
+python3 scripts/log_summary.py --session 12
+python3 scripts/log_summary.py --session 12 --call-sites
+
+# Call-site histogram: which file:line + function is chattiest in the selection
+python3 scripts/log_summary.py --call-sites
+python3 scripts/log_summary.py --session 12 --call-sites --limit 30
+
+# Compact one-line-per-entry timeline (good for dense storms)
+python3 scripts/log_summary.py --around 1768679500000 --oneline --coalesce-window-ms 0
 
 # Filter by level
 python3 scripts/log_summary.py --min-level error
@@ -74,6 +86,7 @@ rg -n '"subsystem":"Play"|"category":"refreshScheduler"' "$LOG_PATH"
 | `--before TIME` | Only entries before this time |
 | `--last-hours N` | Restrict to entries within N hours of the latest entry |
 | `--tail N` | Keep only the last N entries after other scope filters |
+| `--session N` | Restrict to a single detected session by number (see `--sessions`) |
 
 Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, `MM/DD HH:MM`, or raw epoch milliseconds.
 
@@ -98,6 +111,8 @@ Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, 
 | `--coalesce-window-ms N` | Collapse consecutive duplicate entries into bursts (default: 1000, 0=disable) |
 | `--json` | Emit machine-readable JSON instead of text |
 | `--sessions` | Detect and list app sessions (launch boundaries) with problem counts |
+| `--call-sites` | Print a histogram of the selection grouped by `file:line` + function |
+| `--oneline` | Print each selected entry as one dense line instead of the multi-line block |
 | `--compare-other PATH` | Compare the primary log to another log using the same filters |
 
 ## Workflow
@@ -105,7 +120,8 @@ Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, 
 ### 1. Orient
 
 - Run the script with no filters to get the parsed entry count, time range, level distribution, top sources/subsystems, and recurring warning/error families.
-- Use `--sessions` to identify app launch boundaries and which sessions have problems.
+- Use `--sessions` to identify app launch boundaries and which sessions have problems. The log is a rolling buffer that usually spans many launches — once you know which session matters, pass `--session N` so every later command is scoped to that one launch instead of the whole file.
+- Use `--call-sites` to find a runaway log site fast: it surfaces the chattiest `file:line` even when no line crosses the `warning` threshold (storms and loops are usually all `debug`/`notice`).
 - The recurring issue section groups by logger location, message, and metadata, and includes cadence (avg/min/max gap between occurrences) plus NSURLErrorDomain decoding.
 - Present all user-facing timestamps in Pacific Time.
 

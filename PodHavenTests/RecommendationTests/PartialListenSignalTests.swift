@@ -69,9 +69,9 @@ class PartialListenSignalTests {
     let candidates = try await RecommendationHelpers.addEpisodes(to: playedPodcast, count: 1)
     try await RecommendationHelpers.embedEpisodes(candidates)
 
-    let recs = try await RecommendationHelpers.startAndWaitForRecs()
-    let candidateRec = try #require(recs.first { $0.id == candidates[0].id })
-    #expect(candidateRec.score.reasons.contains(.podcastAffinity))
+    let scores = try await RecommendationHelpers.startAndWaitForScores(for: candidates)
+    let candidateScore = try #require(scores[candidates[0].id])
+    #expect(candidateScore.reasons.contains(.podcastAffinity))
   }
 
   @Test("onDeck transition rebuilds the cache against fresh partial signals")
@@ -114,7 +114,7 @@ class PartialListenSignalTests {
 
     let engine = self.engine
     let recs = try await RecommendationHelpers.waitAdvancing {
-      let recs = try await engine.topRecommendations()
+      let recs = try await engine.topRecommendations(limit: 10)
       return recs.isEmpty ? nil : recs
     }
     #expect(!recs.isEmpty)

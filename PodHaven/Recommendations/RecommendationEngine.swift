@@ -29,8 +29,6 @@ struct RecommendationScore: Sendable {
   }
 }
 
-typealias RankedRecommendation = (id: Episode.ID, score: RecommendationScore)
-
 enum RecommendationReason: Hashable, Sendable {
   case similarToLiked
   case podcastAffinity
@@ -69,8 +67,11 @@ struct RecommendationEngine: Sendable {
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
-  private let cacheDebounce = Debounce(duration: .milliseconds(400))
-  private let recommendationsDebounce = Debounce(duration: .milliseconds(400))
+  private let cacheDebounce = Debounce(duration: .milliseconds(400), priority: .utility)
+  private let recommendationsDebounce = Debounce(
+    duration: .milliseconds(400),
+    priority: .utility
+  )
   private let startOnce = Once()
 
   // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
@@ -92,10 +93,10 @@ struct RecommendationEngine: Sendable {
     )?
   >(nil)
 
-  // Bumps once per cache rebuild. Subscribers watch
-  // `$contextRevision.stream()` to know when to re-query; the value itself
-  // is uninteresting.
-  @Broadcasted var contextRevision: Int = 0
+  // Bumps whenever scoring output can change — a context-cache rebuild or a
+  // `podcastAffinityWeight` change. Subscribers watch `$scoringRevision.stream()`
+  // to know when to re-score; the value itself is uninteresting.
+  @Broadcasted var scoringRevision: Int = 0
 
   fileprivate init() {}
 
@@ -126,14 +127,31 @@ struct RecommendationEngine: Sendable {
     )
   }
 
+  // Scores `candidates` against the current cache, paired with the display
+  // anchor. Returns nil when there's nothing to score or the cache is cold.
+  private func scoredCandidates(
+    _ candidates: [CandidateEpisode]
+  ) async throws -> (scores: [Episode.ID: RecommendationScore], displayMax: Float)? {
+    guard !candidates.isEmpty else { return nil }
+    guard let context = cache() else { return nil }
+    let scores = try await scoreEpisodes(candidates, context: context)
+    return (scores, observedMaxScore())
+  }
+
   func recommendations(
     for candidates: [CandidateEpisode]
   ) async throws -> [Episode.ID: RecommendationScore] {
-    guard !candidates.isEmpty else { return [:] }
-    guard let context = cache() else { return [:] }
-    let scores = try await scoreEpisodes(candidates, context: context)
-    let displayMax = observedMaxScore()
+    guard let (scores, displayMax) = try await scoredCandidates(candidates) else { return [:] }
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
+  }
+
+  func recommendationScores(
+    for candidates: [CandidateEpisode]
+  ) async throws -> [Episode.ID: Float] {
+    guard let (scores, displayMax) = try await scoredCandidates(candidates) else { return [:] }
+    return scores.mapValues {
+      RecommendationScore.rescaledForDisplay(value: $0.value, max: displayMax)
+    }
   }
 
   // Returns nil if the episode doesn't exist, has no embedding, or the
@@ -179,7 +197,7 @@ struct RecommendationEngine: Sendable {
     )
   }
 
-  func topRecommendations(limit: Int = 10) async throws -> [RankedRecommendation] {
+  func topRecommendations(limit: Int) async throws -> [Episode.ID] {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
     let totalStart = ContinuousClock.now
 
@@ -226,6 +244,8 @@ struct RecommendationEngine: Sendable {
     let batchMax = scores.values.map(\.value).max() ?? 1.0
     observedMaxScore(batchMax)
 
+    guard limit > 0 else { return [] }
+
     struct ScoredCandidate {
       let id: Episode.ID
       let pubDate: Date
@@ -254,11 +274,7 @@ struct RecommendationEngine: Sendable {
       """
     )
 
-    let topRanked = ranked.prefix(limit)
-    var top = [RankedRecommendation](capacity: topRanked.count)
-    for entry in topRanked {
-      top.append((id: entry.id, score: entry.score.rescaledForDisplay(max: batchMax)))
-    }
+    let top = ranked.prefix(limit).map(\.id)
 
     let totalDuration = ContinuousClock.now - totalStart
     Self.log.debug(
@@ -348,11 +364,15 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // Weight only affects per-candidate scoring; `scoreEpisodes` reads it live.
+    // Weight is applied live in `scoreEpisodes`, not baked into the cached
+    // context, so it needs no rebuild — but every scoring surface still has to
+    // re-score: bump `scoringRevision` for the per-list scorers and rebuild the
+    // Up Next set.
     Task(priority: taskPriority(.utility)) {
       let userSettings = Container.shared.userSettings()
       for await _ in userSettings.$podcastAffinityWeight.stream().dropFirst() {
         guard !Task.isCancelled else { return }
+        $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
       }
     }
@@ -412,7 +432,7 @@ struct RecommendationEngine: Sendable {
         )
 
         cache(context)
-        $contextRevision.update { $0 += 1 }
+        $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)
@@ -424,10 +444,6 @@ struct RecommendationEngine: Sendable {
     recommendationsDebounce {
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
-      guard limit > 0 else {
-        sharedState.setTopRecommendations([])
-        return
-      }
       do {
         let top = try await topRecommendations(limit: limit)
         sharedState.setTopRecommendations(top)
@@ -504,6 +520,7 @@ struct RecommendationEngine: Sendable {
     )
 
     let mathStart = ContinuousClock.now
+    try Task.checkCancellation()
     let now = Date()
     let affinityWeight = Float(Container.shared.userSettings().podcastAffinityWeight)
     let similarityWeight = max(0, 1.0 - affinityWeight)
@@ -511,8 +528,9 @@ struct RecommendationEngine: Sendable {
     let dim = context.positiveCentroid.count
     var scratch = [Float](repeating: 0, count: dim)
     var scores = [Episode.ID: RecommendationScore](capacity: candidates.count)
-    unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
-      for candidate in candidates {
+    try unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+      for (index, candidate) in candidates.enumerated() {
+        if index % 256 == 0 { try Task.checkCancellation() }
         guard let embedding = embeddings[id: candidate.id] else { continue }
         scores[candidate.id] = unsafe scoreCandidate(
           embedding: embedding,

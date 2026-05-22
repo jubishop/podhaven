@@ -122,6 +122,46 @@ actor StateManagerTests {
     #expect(sharedState.onDeck == nil)
   }
 
+  @Test("onDeck observation does not resurrect onDeck after the slot is cleared")
+  func onDeckObservationDoesNotResurrectClearedOnDeck() async throws {
+    let podcastEpisode = try await fetchPodcastEpisode("episode1")
+    stateManager.setOnDeck(podcastEpisode)
+
+    // Warm up: let setOnDeck's observation task process the episode's current
+    // row so it sits idle with no pending emissions before the scenario.
+    _ = try await repo.markFinished(podcastEpisode.id)
+    try await Wait.until(
+      { Container.shared.sharedState().onDeck?.finishDate != nil },
+      { "Expected onDeck to reflect markFinished before the scenario" }
+    )
+
+    // Count every onDeck broadcast so we can wait for the observation task to
+    // process the emission triggered below. Broadcast.update yields on every
+    // call, so the count advances even when the fix's guard skips the write.
+    let yieldCount = Counter()
+    let streamTask = Task {
+      for await _ in sharedState.$onDeck.stream() {
+        await yieldCount.increment()
+      }
+    }
+    try await yieldCount.wait(for: 1)  // stream bootstrap emit
+
+    // Clear the slot out from under the still-alive observation task. This is
+    // the state finishEpisode's clearOnDeck reaches while a markFinished
+    // observatory emission for the same episode is still in flight.
+    sharedState.$onDeck.new(nil)
+    try await yieldCount.wait(for: 2)
+
+    // A DB change to the no-longer-on-deck episode makes the observation task
+    // emit. It must not write the finished episode back into the cleared slot.
+    _ = try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
+    try await yieldCount.wait(for: 3)
+
+    #expect(sharedState.onDeck == nil)
+
+    streamTask.cancel()
+  }
+
   // MARK: - setCurrentTime Tests
 
   @Test("setCurrentTime updates onDeck currentTime")
@@ -201,6 +241,37 @@ actor StateManagerTests {
     // Setting a smaller currentTime here would reset the in-memory peak if
     // the observer update didn't carry maxPlaybackTime forward.
     #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(75))
+  }
+
+  // OnDeck.== deliberately ignores the in-memory fields (currentTime,
+  // maxPlaybackTime, artwork), so a setCurrentTime write produces a value that
+  // is `==` the previous one. The onDeck broadcast must still notify observers,
+  // or the play bar's live clock freezes during playback.
+  @Test("setCurrentTime notifies onDeck stream observers")
+  func setCurrentTimeNotifiesOnDeckObservers() async throws {
+    let podcastEpisode = try await fetchPodcastEpisode("episode1")
+    sharedState.$onDeck.new(OnDeck(from: podcastEpisode))
+
+    // Subscribe before mutating: stream() synchronously buffers the current
+    // (pre-change) value. A deduplicated setCurrentTime then leaves the stream
+    // with only that bootstrap and never delivers the 42-second update.
+    let stream = sharedState.$onDeck.stream()
+    stateManager.setCurrentTime(CMTime.seconds(42))
+
+    let observedTime = ActorContainer<CMTime>()
+    let task = Task {
+      for await onDeck in stream {
+        if let currentTime = onDeck?.currentTime {
+          await observedTime.set(currentTime)
+        }
+      }
+    }
+    defer { task.cancel() }
+
+    try await Wait.until(
+      { await observedTime.get() == CMTime.seconds(42) },
+      { "onDeck stream never emitted the setCurrentTime change" }
+    )
   }
 
   // MARK: - Queue Count Observation Tests

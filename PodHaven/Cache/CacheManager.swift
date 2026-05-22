@@ -43,7 +43,7 @@ struct CacheManager {
 
   private var alert: Alert { get async { await Container.shared.alert() } }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
-  private var taskPriority: @Sendable (TaskPriority) -> TaskPriority? {
+  private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
     Container.shared.taskPriority()
   }
 

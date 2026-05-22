@@ -24,7 +24,7 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
 
   private var alert: Alert { get async { await Container.shared.alert() } }
-  private var taskPriority: @Sendable (TaskPriority) -> TaskPriority? {
+  private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
     Container.shared.taskPriority()
   }
   private var userNotificationManager: UserNotificationManager {
@@ -45,6 +45,7 @@ struct AppLauncher: Sendable {
     guard AppInfo.environment != .preview else { return }
 
     configureLogging()
+    guard AppInfo.environment != .testing else { return }
 
     // Force DB initialization so schema migrations run immediately.
     _ = Container.shared.appDB()
@@ -113,7 +114,8 @@ struct AppLauncher: Sendable {
       Self.log.info("Preparing for foreground")
 
       await AppInfo.finalizeEnvironment()
-      Self.applySentryEnvironment()
+      await Self.applySentryEnvironment()
+      guard AppInfo.environment != .testing else { return }
       guard !Task.isCancelled else { return }
 
       await self.userNotificationManager.initialize()
@@ -127,7 +129,6 @@ struct AppLauncher: Sendable {
 
       // No-op if an intent already triggered prepareForPlayback during the cold launch.
       await self.prepareForPlayback()
-      guard AppInfo.environment != .testing else { return }
       guard !Task.isCancelled else { return }
 
       self.cacheManager.start()
@@ -181,8 +182,8 @@ struct AppLauncher: Sendable {
           FileLogHandler(
             label: label,
             fileURL: AppInfo.logFileURL,
-            maxFileSizeBytes: 3_000_000,
-            targetFileSizeBytes: 2_000_000,
+            maxFileSizeBytes: 4_000_000,
+            targetFileSizeBytes: 3_000_000,
             writeSynchronously: { $0 >= .critical || !sharedState.isActive }
           ),
           SentryLogHandler(label: label),
@@ -201,7 +202,9 @@ struct AppLauncher: Sendable {
 
   // MARK: - Sentry
 
-  private static func applySentryEnvironment() {
+  // Sentry's configureScope reads UIApplication.applicationState, which is
+  // main-thread only; prepareForForeground runs off the main actor.
+  @MainActor private static func applySentryEnvironment() {
     SentrySDK.configureScope { scope in
       scope.setEnvironment(AppInfo.environment.rawValue)
     }

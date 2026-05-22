@@ -80,9 +80,9 @@ import Testing
   }
 
   @Test(
-    "EpisodeDetailViewModel observes the first contextRevision emitted immediately after recommendation observation starts"
+    "EpisodeDetailViewModel observes the first scoringRevision emitted immediately after recommendation observation starts"
   )
-  func episodeDetailDoesNotDropFirstContextRevisionAfterObservationStarts() async throws {
+  func episodeDetailDoesNotDropFirstScoringRevisionAfterObservationStarts() async throws {
     let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
     try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
 
@@ -105,7 +105,7 @@ import Testing
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
     try await viewModel.performAppear()
 
-    recommendationEngine.$contextRevision.update { $0 += 1 }
+    recommendationEngine.$scoringRevision.update { $0 += 1 }
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
@@ -126,7 +126,7 @@ import Testing
       {
         await MainActor.run {
           """
-          Expected the first post-start contextRevision to schedule a trailing \
+          Expected the first post-start scoringRevision to schedule a trailing \
           refresh after the gated bootstrap pass completed.
           calls: \(RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs))
           displayedScore: \(String(describing: viewModel.displayedScore))

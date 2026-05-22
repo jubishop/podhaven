@@ -28,13 +28,18 @@ class ScoringOrderTests {
     )
     try await RecommendationHelpers.embedEpisodes(candidateEpisodes)
 
-    let recommendations = try await RecommendationHelpers.startAndWaitForRecs()
-    #expect(!recommendations.isEmpty)
-    #expect(recommendations.count <= 10)
+    let ranked = try await RecommendationHelpers.startAndWaitForRecs()
+    #expect(!ranked.isEmpty)
+    #expect(ranked.count <= 10)
 
-    // Verify deterministic ordering (scores should be descending)
-    for i in 0..<(recommendations.count - 1) {
-      #expect(recommendations[i].score.value >= recommendations[i + 1].score.value)
+    // Scores should descend. The ranking carries IDs only, so read scores
+    // back through the per-candidate API — `rescaledForDisplay` is monotonic,
+    // so its order matches how `topRecommendations` ranked.
+    let scores = try await engine.recommendations(for: candidateEpisodes)
+    for i in 0..<(ranked.count - 1) {
+      let current = try #require(scores[ranked[i]]?.value)
+      let next = try #require(scores[ranked[i + 1]]?.value)
+      #expect(current >= next)
     }
   }
 
@@ -64,16 +69,19 @@ class ScoringOrderTests {
 
     let recs = try await RecommendationHelpers.startAndWaitForRecs()
     let candidateIDs = Set(candidates.map(\.id))
-    let candidateRecs = recs.filter { candidateIDs.contains($0.id) }
+    let candidateRecs = recs.filter { candidateIDs.contains($0) }
     #expect(candidateRecs.count == 2)
     let first = try #require(candidateRecs.first)
     let second = try #require(candidateRecs.last)
-    #expect(first.score.value == second.score.value)
 
-    // Look up pubDates from the source candidates since the engine no longer
-    // echoes hydrated episodes back; ranking publishes IDs + scores only.
-    let firstEpisode = try #require(candidates.first { $0.id == first.id })
-    let secondEpisode = try #require(candidates.first { $0.id == second.id })
+    // The ranking carries IDs only; read the scores back to confirm the tie.
+    let scores = try await engine.recommendations(for: candidates)
+    let firstScore = try #require(scores[first]?.value)
+    let secondScore = try #require(scores[second]?.value)
+    #expect(firstScore == secondScore)
+
+    let firstEpisode = try #require(candidates.first { $0.id == first })
+    let secondEpisode = try #require(candidates.first { $0.id == second })
     #expect(firstEpisode.pubDate > secondEpisode.pubDate)
   }
 

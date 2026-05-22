@@ -29,7 +29,7 @@ class CandidateFilteringTests {
     try await RecommendationHelpers.embedEpisodes(candidates)
 
     let recommendations = try await RecommendationHelpers.startAndWaitForRecs()
-    let recommendedIDs = Set(recommendations.map(\.id))
+    let recommendedIDs = Set(recommendations)
 
     #expect(!recommendedIDs.contains(candidates[0].id))
   }
@@ -53,8 +53,8 @@ class CandidateFilteringTests {
     // Only candidate is rated, so the candidate pool is empty and recs
     // come back empty either way — no point waiting on the cache.
     engine.start()
-    let recommendations = try await engine.topRecommendations()
-    let recommendedIDs = Set(recommendations.map(\.id))
+    let recommendations = try await engine.topRecommendations(limit: 10)
+    let recommendedIDs = Set(recommendations)
     #expect(!recommendedIDs.contains(rated[0].id))
   }
 
@@ -76,7 +76,7 @@ class CandidateFilteringTests {
     try await RecommendationHelpers.embedEpisodes([embeddedCandidate])
 
     let recs = try await RecommendationHelpers.startAndWaitForRecs()
-    let recommendedIDs = Set(recs.map(\.id))
+    let recommendedIDs = Set(recs)
     #expect(recommendedIDs.contains(embeddedCandidate.id))
     #expect(!recommendedIDs.contains(unembeddedCandidate.id))
   }
@@ -102,7 +102,7 @@ class CandidateFilteringTests {
     )
 
     let recs = try await RecommendationHelpers.startAndWaitForRecs()
-    let recommendedIDs = Set(recs.map(\.id))
+    let recommendedIDs = Set(recs)
     #expect(!recommendedIDs.contains(onDeckEpisode.id))
   }
 }

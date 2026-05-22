@@ -127,11 +127,11 @@ enum RecommendationHelpers {
   // non-empty" results poll until the cache lands; tests for "expected
   // empty" results don't need to wait since both cold and hot states yield
   // empty.
-  static func startAndWaitForRecs() async throws -> [RankedRecommendation] {
+  static func startAndWaitForRecs() async throws -> [Episode.ID] {
     let engine = self.engine
     engine.start()
     return try await waitAdvancing {
-      let recs = try await engine.topRecommendations()
+      let recs = try await engine.topRecommendations(limit: 10)
       return recs.isEmpty ? nil : recs
     }
   }
@@ -165,7 +165,7 @@ enum RecommendationHelpers {
 
   // Same per-iteration FakeSleeper advance as `waitAdvancing`, but for the
   // boolean-condition + error-message shape of `Wait.until`. Use whenever a
-  // VM-level effect is gated on the engine's debounced contextRevision tick.
+  // VM-level effect is gated on the engine's debounced scoringRevision tick.
   static func untilAdvancing(
     priority: TaskPriority = .background,
     _ block: @Sendable @escaping () async throws -> Bool,

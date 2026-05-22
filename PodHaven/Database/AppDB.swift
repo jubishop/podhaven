@@ -38,7 +38,12 @@ struct AppDB {
         "Creating onDisk AppDB in preview is not supported"
       )
       let dbPool = try DatabasePool(path: sqlitePath, configuration: makeConfiguration())
-      return AppDB(dbPool)
+      let appDB = AppDB(dbPool)
+      dbPool.add(
+        transactionObserver: WriteProbe(enabled: Container.shared.userSettings().$enableWriteProbe),
+        extent: .databaseLifetime
+      )
+      return appDB
     } catch {
       Assert.fatal("Failed to initialize onDisk AppDB pool: \(ErrorKit.message(for: error))")
     }
@@ -69,6 +74,8 @@ struct AppDB {
   private static func makeConfiguration(qos: DispatchQoS? = nil) -> Configuration {
     var config = Configuration()
     if let qos = qos { config.qos = qos }
+
+    config.maximumReaderCount = 10
 
     #if DEBUG
     config.publicStatementArguments = true

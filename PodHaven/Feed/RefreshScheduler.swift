@@ -18,7 +18,7 @@ struct RefreshScheduler: Sendable {
   private var connectionState: ConnectionState { Container.shared.connectionState() }
   private var refreshManager: RefreshManager { Container.shared.refreshManager() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
-  private var taskPriority: @Sendable (TaskPriority) -> TaskPriority? {
+  private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
     Container.shared.taskPriority()
   }
 

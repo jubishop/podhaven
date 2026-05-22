@@ -41,12 +41,14 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - Catch only to add local-only context; otherwise propagate. The top of the stack must log every error.
 - Keep `do`/`catch` around `try` calls only.
 - Caught object: `log.caughtError()`; no object: `log.error()`.
+- `caughtError()`/`error()` auto-downgrade unremarkable errors (`CancellationError`, cancelled/timed-out `URLError`) to `.debug` via `ErrorKit.isRemarkable`.
 - Avoid `try?`; use `do`/`catch`. Exceptions: `Task.checkCancellation()` and `sleeper.sleep()` when silent failure is intentional.
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
 - Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `.context(.test)`, `PodHavenTests/Fakes`). Do not use `.serialized`.
 - Bugfixes require a regression test proven failing before the fix; if it passes before and after, it is not a regression test and the bug may not be real.
+- Default local test runs to My Mac (Designed for iPhone): `-destination 'platform=macOS,name=My Mac'`.
 - Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
 - Async tests use `Wait.until`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
 - All test files belong to `PodHavenTests`.
@@ -65,8 +67,9 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 ## Coding Standards
 - Use `[weak self]` in closures/Tasks that capture `self` unless a strong reference is required. Unwrap with `guard let self else { return }`; use `self.x`, not `self?.x`.
 - No force unwraps (`!`) in production; use `Assert` or guarded error handling.
+- Never use `map`/`flatMap` to unwrap optionals; use `if let`/`guard let`. Reserve `map`/`flatMap` for collections.
 - Run `swift-format` on every Swift file you touch.
-- Comments use `//`, not `///`; no doc comments. Default to no comment except non-obvious why.
+- Comments use `//`, not `///`; no doc comments. Default to no comment whenever possible, or very succinct comment if absolutely necessary.
 - No external refs in production code comments — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`), etc. They move or disappear; context belongs in the commit/PR. Tests are exempt.
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
 - No non-specializing extension splits. Put conformances on the main declaration and requirements in the body. Use extensions only for constrained methods, retroactive external conformance, or `where Self == X`.

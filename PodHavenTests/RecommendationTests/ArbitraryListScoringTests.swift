@@ -80,8 +80,8 @@ class ArbitraryListScoringTests {
     }
 
     // Sanity-check: the same episodes are absent from the top API.
-    let top = try await engine.topRecommendations()
-    let topIDs = Set(top.map(\.id))
+    let top = try await engine.topRecommendations(limit: 10)
+    let topIDs = Set(top)
     for episode in filtered {
       #expect(!topIDs.contains(episode.id))
     }

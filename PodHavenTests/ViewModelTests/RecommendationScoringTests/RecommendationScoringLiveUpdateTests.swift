@@ -7,94 +7,14 @@ import Testing
 @testable import PodHaven
 
 // Regression tests for the recommendation-score fan-out OOM (issue #274).
-@Suite("of recommendation scoring coalescing tests", .container)
-@MainActor final class RecommendationScoringCoalescingTests {
+@Suite("of recommendation scoring live-update tests", .container)
+@MainActor final class RecommendationScoringLiveUpdateTests {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
-  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
-  @DynamicInjected(\.sleeper) private var sleeperFactory
-
-  private var fakeRecommendationRepo: FakeRecommendationRepo {
-    recommendationRepo as! FakeRecommendationRepo
-  }
-
-  private var fakeSleeper: FakeSleeper { sleeperFactory as! FakeSleeper }
 
   @Test(
-    "a burst of $contextRevision bumps must coalesce into 1...2 scoring passes"
+    "while .recommendationScore is active, a $scoringRevision bump triggers a refresh that updates the visible order"
   )
-  func burstContextRevisionBumpsCoalesce() async throws {
-    let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
-    try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
-
-    let (targetPodcast, candidateEpisodes) =
-      try await RecommendationHelpers
-      .createPodcastWithEpisodes(
-        count: 6,
-        podcastTitle: "Target",
-        podcastDescription: "Target",
-        episodeDescriptions: (0..<6).map { "Target \($0)" }
-      )
-    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
-    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
-
-    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
-
-    let targetIDs = Set(candidateEpisodes.map(\.id))
-    try await Wait.until(
-      priority: .userInitiated,
-      { @MainActor in
-        viewModel.saved && viewModel.episodeList.allEntries.count == candidateEpisodes.count
-      },
-      { @MainActor in
-        "Expected target podcast loaded with \(candidateEpisodes.count) episodes."
-      }
-    )
-
-    // Drain the bootstrap pass so we only measure the burst's fan-out.
-    try await RecommendationHelpers.untilAdvancing(
-      priority: .userInitiated,
-      {
-        await MainActor.run {
-          RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs) >= 1
-        }
-      },
-      { @MainActor in
-        "Expected at least one initial scoring pass before the burst."
-      }
-    )
-    await RecommendationScoringTestHelpers.drainRecommendationSleeper()
-    fakeRecommendationRepo.clearAllCalls()
-
-    let pendingSleepRequests = fakeSleeper.pendingCount()
-    for _ in 0..<50 {
-      recommendationEngine.$contextRevision.update { $0 += 1 }
-    }
-    try await fakeSleeper.waitForSleepRequests(count: pendingSleepRequests + 1)
-
-    try await RecommendationScoringTestHelpers.waitForScopedEmbeddingsCalls(
-      matching: targetIDs,
-      atLeast: 1,
-      reason: "Expected the debounced burst refresh to perform one scoring pass."
-    )
-    await RecommendationScoringTestHelpers.drainRecommendationSleeper(by: .milliseconds(400))
-
-    let count = RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs)
-    #expect(
-      (1...2).contains(count),
-      """
-      Expected per-VM coalescing to bound the scoring fan-out, but \(count) \
-      scoring passes fired for the same candidate set during a burst of 50 \
-      $contextRevision bumps. The contract is exactly one trailing pass per \
-      debounce window, plus at most one runningDirty rerun.
-      """
-    )
-  }
-
-  @Test(
-    "while .recommendationScore is active, a $contextRevision bump triggers a coalesced refresh that updates the visible order"
-  )
-  func activeRecSortLiveUpdatesAfterCoalescedRefresh() async throws {
+  func activeRecSortLiveUpdatesAfterRevisionBump() async throws {
     let embeddable = ScriptedEmbeddable { text in
       if text.contains("Fresh Signal") { return [0, 1, 0] }
       if text.contains("Filler") { return [0, 0, 1] }
@@ -159,16 +79,16 @@ import Testing
     try await RecommendationHelpers.embedEpisodes(freshSignals, embeddable: embeddable)
 
     let engine = recommendationEngine
-    let revisionBeforeRefresh = engine.contextRevision
+    let revisionBeforeRefresh = engine.scoringRevision
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
-      { engine.contextRevision > revisionBeforeRefresh },
+      { engine.scoringRevision > revisionBeforeRefresh },
       {
         """
         Expected embedding the fresh signal episodes to rebuild the scoring \
-        context and bump $contextRevision.
+        context and bump $scoringRevision.
         before: \(revisionBeforeRefresh)
-        current: \(engine.contextRevision)
+        current: \(engine.scoringRevision)
         """
       }
     )
@@ -194,7 +114,7 @@ import Testing
       },
       { @MainActor in
         """
-        Expected coalesced refresh to publish an updated rec-score order.
+        Expected the revision bump to publish an updated rec-score order.
         Initial: \(initialOrder)
         Expected: \(expectedOrder)
         Actual: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))

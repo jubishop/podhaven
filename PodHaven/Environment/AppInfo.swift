@@ -5,8 +5,11 @@ import Foundation
 import Logging
 
 #if !WIDGET_EXTENSION
-import MarketplaceKit
 import UIKit
+#endif
+
+#if !WIDGET_EXTENSION && !DEBUG
+import MarketplaceKit
 
 extension Container {
   var appDistributor: Factory<@concurrent () async throws -> AppDistributor> {
@@ -68,6 +71,7 @@ enum AppInfo {
   static func finalizeEnvironment() async {
     await finalizeEnvironmentOnce.run {
       guard environment == .deployed else { return }
+      #if !DEBUG
       do {
         let refined: EnvironmentType
         switch try await Container.shared.appDistributor()() {
@@ -99,6 +103,7 @@ enum AppInfo {
         )
         environment = .appStore
       }
+      #endif
     }
   }
   #endif

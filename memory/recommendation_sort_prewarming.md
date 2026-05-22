@@ -1,11 +1,15 @@
 ---
 name: recommendation-sort-prewarming
-description: Preserve intentional recommendation-score prewarming for snappy sort toggles.
+description: Recommendation-score sorting is computed on demand everywhere; background prewarming was removed and must not return.
 type: feedback
 ---
 
-Pre-warming recommendation-score sorting on PodcastDetailView and EpisodesListView is intentional.
+Recommendation-score sorting runs **on demand** in both `EpisodesListViewModel`
+and `PodcastDetailViewModel`/`PodcastRecommendationScorer` — only while the
+`recommendationScore` sort is selected. Nothing is prewarmed in the background.
 
-**Why:** The user wants recommendation scores computed before the recommendation-score sort is selected so switching to that sort feels snappy.
-
-**How to apply:** When fixing performance or fan-out issues in `PodcastDetailViewModel`, `EpisodesListViewModel`, or `RecommendationEngine.contextRevision` handling, keep bounded/coalesced prewarming. Do not simply gate all recommendation-score computation behind `currentSortMethod == .recommendationScore`; apply UI sorting/filtering only when selected, but allow background score computation/cache refresh ahead of selection.
+**Why:** Issues #310 and #311 — constant background scoring on every list
+display / tab switch was too costly and complex. Background prewarming was
+removed from both surfaces; do not reintroduce it. Snappiness on re-selection
+comes from retaining the last computed score across sort toggles, not from
+prewarming.

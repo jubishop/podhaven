@@ -5,7 +5,7 @@ import Logging
 
 private let defaultsStorableLog = Log.as("DefaultsStorable")
 
-protocol DefaultsStorable: Sendable {
+protocol DefaultsStorable: Sendable, Equatable {
   func store(to store: any KeyValueStore, forKey key: String)
   static func load(from store: any KeyValueStore, forKey key: String) -> Self?
 }

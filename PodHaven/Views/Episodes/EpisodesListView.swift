@@ -33,7 +33,6 @@ struct EpisodesListView: View {
         selectableEpisodesToolbarItems(viewModel: viewModel)
       }
       .toolbarRole(.editor)
-      .task(id: viewModel.candidateObservationKey, viewModel.startCandidateObservation)
       .task(id: viewModel.displayObservationKey, viewModel.startDisplayObservation)
       .onDisappear { viewModel.disappear() }
   }

@@ -29,6 +29,12 @@ copies.
 The goal is one focused report: what the user complained about, what the logs
 around that time show, the most likely root cause, and how to fix it.
 
+> **Log analysis (Step 6) runs through the `analyze-logs` skill's
+> `log_summary.py` script — never ad-hoc `python`/`jq` parsing.** Sessionize
+> first (`--sessions`), scope to the launch that contains the feedback
+> timestamp (`--session N`), then drill in. Reaching Step 5 with downloaded
+> `.ndjson` files is the cue to use that script.
+
 ## When to use
 
 - The user pastes a URL that contains `issues/feedback/` and/or `feedbackSlug=`.
@@ -224,18 +230,31 @@ Fallbacks, in order, if the attachment route fails:
   - `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`
   - `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/widget-log.ndjson`
 
-## Step 6: Analyze logs around the feedback time
+## Step 6: Analyze the logs with the `analyze-logs` script
 
-Invoke the `analyze-logs` skill against the **downloaded** log paths from
-Step 5, scoped to the feedback's timestamp. Convert the Sentry timestamp to
-epoch milliseconds and use `--around` with a window wide enough to catch
-lead-up *and* aftermath:
+**Do not hand-roll log parsing.** Analyze the **downloaded** NDJSON from Step 5
+with the `analyze-logs` skill's bundled script — `scripts/log_summary.py` in
+that skill's directory. Invoke the `analyze-logs` skill to load its full
+reference (every flag, the format spec). Ad-hoc `python`/`jq` only earns its
+place for a custom aggregation the script genuinely cannot express, and only
+*after* the script's orient pass — never as the first move.
 
-- Start at `--window-ms 60000` (one minute on either side).
-- If that window is empty or has no errors/warnings, widen to `--window-ms 300000`
-  (five minutes), then `--window-ms 1800000` (thirty minutes).
-- Always run with `--min-level warning` first, then re-run without the level
-  filter if nothing surfaces.
+The reporter's `log.ndjson` is a rolling buffer that usually spans many app
+launches; the feedback is almost always about the *last* one. Work it in this
+order:
+
+1. **Sessionize.** `log_summary.py <log> --sessions` lists the app launches.
+   Pick the session whose time range contains the feedback timestamp.
+2. **Scope to that session.** Pass `--session N` on every later command so the
+   analysis covers the incident launch, not hours of unrelated history.
+3. **Find storms/loops.** `--session N --call-sites` surfaces the chattiest
+   `file:line` even when every line is `debug`/`notice` and nothing crosses
+   `warning` — runaway loops never alert, so the level filters won't catch them.
+4. **Timeline.** Convert the Sentry timestamp to epoch milliseconds and use
+   `--around` with a window wide enough for lead-up *and* aftermath: start
+   `--window-ms 60000`, widen to `300000` then `1800000` if empty. Add
+   `--oneline` for a dense one-entry-per-line timeline. Run `--min-level
+   warning` first, then without the level filter if nothing surfaces.
 
 Run the same scoped analysis on `widget-log.ndjson` whenever the feedback
 plausibly involves widget behavior — i.e. the user mentions home/lock screen,
@@ -244,8 +263,8 @@ subsystems firing near the feedback time. When in doubt, check it; pulling an
 empty widget window is cheap.
 
 If the feedback comment names a specific feature (search, downloads, playback,
-sync, etc.), also re-run `analyze-logs` filtered by the corresponding
-subsystem/category/source-file once you've eyeballed the time-window output.
+sync, etc.), also re-run filtered by the corresponding
+`--subsystem`/`--category`/`--file` once you've eyeballed the time-window output.
 
 ## Step 7: Synthesize
 
