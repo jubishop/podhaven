@@ -74,6 +74,18 @@ struct RecommendationEngine: Sendable {
   )
   private let startOnce = Once()
 
+  // A rescan trigger that fired while the app was backgrounded. A backgrounded
+  // audio session has a tight CPU/memory budget and is the OS's first eviction
+  // target, so full-library scans are deferred and coalesced into a single
+  // rescan on the next foreground. `.cache` supersedes `.recommendations`
+  // because a context rebuild already re-runs the recommendations pass.
+  private enum DeferredRescan {
+    case none
+    case recommendations
+    case cache
+  }
+  private let deferredRescan = ThreadSafe<DeferredRescan>(.none)
+
   // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
   // so per-call surfaces share the same denominator. 1.0 until first rebuild.
   private let observedMaxScore = ThreadSafe<Float>(1.0)
@@ -394,9 +406,40 @@ struct RecommendationEngine: Sendable {
         }
       }
     }
+
+    // A rescan trigger that fires while backgrounded is deferred rather than
+    // run (see `scheduleCacheRebuild` / `scheduleRecommendationsRebuild`).
+    // Coalesced deferrals run as a single rescan on the next foreground.
+    Task(priority: taskPriority(.utility)) {
+      let sharedState = Container.shared.sharedState()
+      for await isActive in sharedState.$isActive.stream().dropFirst() {
+        guard !Task.isCancelled else { return }
+        guard isActive else { continue }
+        let pending = deferredRescan { deferred -> DeferredRescan in
+          let snapshot = deferred
+          deferred = .none
+          return snapshot
+        }
+        switch pending {
+        case .none:
+          break
+        case .recommendations:
+          Self.log.debug("Running deferred recommendations rebuild on foreground")
+          scheduleRecommendationsRebuild()
+        case .cache:
+          Self.log.debug("Running deferred cache rebuild on foreground")
+          scheduleCacheRebuild()
+        }
+      }
+    }
   }
 
   private func scheduleCacheRebuild() {
+    guard Container.shared.sharedState().isActive else {
+      deferredRescan { $0 = .cache }
+      Self.log.debug("Cache rebuild deferred — app backgrounded")
+      return
+    }
     cacheDebounce {
       do {
         let inputsStart = ContinuousClock.now
@@ -439,6 +482,11 @@ struct RecommendationEngine: Sendable {
   }
 
   private func scheduleRecommendationsRebuild() {
+    guard Container.shared.sharedState().isActive else {
+      deferredRescan { if case .none = $0 { $0 = .recommendations } }
+      Self.log.debug("Recommendations rebuild deferred — app backgrounded")
+      return
+    }
     recommendationsDebounce {
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
