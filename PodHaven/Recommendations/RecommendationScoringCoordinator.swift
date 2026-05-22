@@ -3,22 +3,15 @@
 import FactoryKit
 import Foundation
 
-// Shared recommendation-score orchestration for the view-model surfaces that
-// sort or display engine scores: EpisodesListViewModel, EpisodeDetailViewModel,
-// and PodcastRecommendationScorer.
+// Shared recommendation-score orchestration for EpisodesListViewModel,
+// EpisodeDetailViewModel, and PodcastRecommendationScorer. It owns the engine's
+// `$scoringRevision` observation, the snapshot-keyed skip, and the
+// cancel-and-restart task machinery, so the set of re-score triggers cannot
+// drift per surface.
 //
-// It single-sources the "what triggers a re-score" contract. Every surface
-// re-scores on the engine's `$scoringRevision` stream through this one type,
-// so a new scoring input wired into the engine cannot silently miss a surface.
-// Beyond the revision observation it owns the snapshot-keyed skip and the
-// cancel-and-restart task machinery; a surface supplies only its snapshot
-// shape, a score closure, and an apply closure.
-//
-// `Snapshot` is an `Equatable` change-detection key — it embeds the engine's
-// `scoringRevision` plus whatever per-surface inputs scoring reads. A `nil`
-// snapshot means "nothing to score right now"; such a refresh no-ops without
-// touching the cache. `Result` is the per-surface score payload, retained
-// across `cancel()` so a re-selection with unchanged inputs applies instantly.
+// `Snapshot` is an `Equatable` change-detection key embedding `scoringRevision`;
+// a `nil` snapshot no-ops the refresh. `Result` is the per-surface score
+// payload, retained across `cancel()`.
 @MainActor
 final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Result: Sendable> {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -34,10 +27,8 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Res
   private var scoringTask: Task<Void, Never>?
   private var cached: (snapshot: Snapshot, result: Result)?
 
-  // `willScore` runs synchronously on a cache-missing `refresh()`, before the
-  // pass is spawned, so a surface can flip its "computing" indicator without
-  // it flickering on a cache hit. `onFailure` runs only when `score` throws a
-  // non-cancellation error.
+  // `willScore` fires on a cache miss before the pass spawns; `onFailure` only
+  // on a non-cancellation `score` error.
   init(
     makeSnapshot: @escaping @MainActor () -> Snapshot?,
     willScore: @escaping @MainActor () -> Void = {},
@@ -52,10 +43,8 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Res
     self.onFailure = onFailure
   }
 
-  // Begin observing `$scoringRevision`; each emission triggers a `refresh()`.
-  // Idempotent — a live observation is left in place. The stream is built
-  // synchronously so a revision emitted before the consuming task is scheduled
-  // is queued, not dropped.
+  // Idempotent. Builds the stream synchronously so a revision emitted before
+  // the consuming task is scheduled is queued, not dropped.
   func startObservingScoringRevision() {
     if let revisionTask, !revisionTask.isCancelled { return }
     let scoringRevisions = recommendationEngine.$scoringRevision.stream().dropFirst()
@@ -67,9 +56,6 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Res
     }
   }
 
-  // Re-score if the current snapshot differs from the last completed pass;
-  // re-apply the cached result if it does not. A cache-missing refresh cancels
-  // any in-flight pass and restarts, so the latest inputs always win.
   func refresh() {
     guard let snapshot = makeSnapshot() else { return }
     if let cached, cached.snapshot == snapshot {
@@ -99,8 +85,6 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Res
     }
   }
 
-  // Cancel in-flight observation and scoring. The score cache is retained, so
-  // a later `refresh()` with unchanged inputs applies without recomputing.
   func cancel() {
     revisionTask?.cancel()
     revisionTask = nil

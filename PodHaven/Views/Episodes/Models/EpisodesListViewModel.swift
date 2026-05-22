@@ -174,11 +174,9 @@ class EpisodesListViewModel:
     }
   }
 
-  // Recommendation scoring runs only on demand — while the recommendationScore
-  // sort is the selected one. The candidate observation kicks a scoring pass on
-  // every candidate-set change; `RecommendationScoringCoordinator` owns the
-  // engine's `$scoringRevision` trigger plus the snapshot-keyed skip and the
-  // cancel-and-restart machinery.
+  // Runs only while the recommendationScore sort is selected. The candidate
+  // observation kicks a pass per candidate-set change; the coordinator owns the
+  // `$scoringRevision` trigger.
   private func runRecommendationObservation() async {
     cancelRecommendationWork()
     recommendationCoordinator.startObservingScoringRevision()
@@ -383,8 +381,7 @@ class EpisodesListViewModel:
     cancelRecommendationWork()
   }
 
-  // The coordinator's score cache deliberately survives teardown so
-  // re-selecting the rec sort can hydrate without recomputing.
+  // The coordinator's score cache deliberately survives teardown.
   private func cancelRecommendationWork() {
     recommendationCoordinator.cancel()
     lastObservedCandidates = nil

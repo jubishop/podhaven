@@ -10,8 +10,6 @@ import Tagged
 // Owns recommendation-score sorting for `PodcastDetailViewModel`. Scoring runs
 // purely on demand while the `.recommendationScore` sort is selected; the last
 // computed score is retained so an unchanged re-selection applies instantly.
-// `RecommendationScoringCoordinator` owns the `$scoringRevision` observation,
-// the snapshot-keyed skip, and the cancel-and-restart task machinery.
 @Observable @MainActor
 final class PodcastRecommendationScorer {
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding

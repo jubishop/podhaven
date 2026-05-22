@@ -485,10 +485,8 @@ enum EpisodeDetailDisplayedScore: Sendable {
     )
   }
 
-  // Re-scores this episode whenever the engine bumps `scoringRevision` or the
-  // detail view's subject changes. Starting the coordinator's revision
-  // observation before the bootstrap `refresh()` keeps a revision emitted
-  // during the initial fetch queued instead of dropped as a replay value.
+  // Start the revision observation before the bootstrap refresh so a revision
+  // emitted during the initial fetch is queued, not dropped.
   private func startRecommendationObservation() {
     recommendationCoordinator.startObservingScoringRevision()
     recommendationCoordinator.refresh()
