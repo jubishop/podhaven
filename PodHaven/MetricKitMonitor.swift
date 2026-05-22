@@ -57,13 +57,23 @@ struct BackgroundExitCounts {
     )
   }
 
-  // Sum of the background-exit reasons that signal an app defect. A graceful
-  // exit and an iOS memory-pressure jettison of a suspended app are both
-  // routine reclaim, so neither counts.
-  var abnormalExitTotal: Int {
-    memoryResourceLimit + cpuResourceLimit + badAccess + abnormal
-      + illegalInstruction + appWatchdog + suspendedWithLockedFile
-      + backgroundTaskAssertionTimeout
+  // Names of the background-exit reasons that signal an app defect and have a
+  // nonzero count in this payload, in a stable order. A graceful exit and an
+  // iOS memory-pressure jettison of a suspended app are both routine reclaim,
+  // so neither contributes. Drives the .critical escalation and feeds the
+  // Sentry-grouping message — keeping the names off counts means recurrences
+  // of the same failure mode collapse into one Sentry issue.
+  var nonzeroAbnormalReasons: [String] {
+    var reasons: [String] = []
+    if memoryResourceLimit > 0 { reasons.append("memoryResourceLimit") }
+    if cpuResourceLimit > 0 { reasons.append("cpuResourceLimit") }
+    if badAccess > 0 { reasons.append("badAccess") }
+    if abnormal > 0 { reasons.append("abnormal") }
+    if illegalInstruction > 0 { reasons.append("illegalInstruction") }
+    if appWatchdog > 0 { reasons.append("appWatchdog") }
+    if suspendedWithLockedFile > 0 { reasons.append("suspendedWithLockedFile") }
+    if backgroundTaskAssertionTimeout > 0 { reasons.append("backgroundTaskAssertionTimeout") }
+    return reasons
   }
 }
 
@@ -72,6 +82,7 @@ enum MetricKitDiagnosticCategory: String {
   case hang
   case cpuException
   case diskWriteException
+  case appLaunch
 }
 
 struct MetricKitLogDirective {
@@ -103,6 +114,7 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
       forward(payload.hangDiagnostics, as: .hang)
       forward(payload.cpuExceptionDiagnostics, as: .cpuException)
       forward(payload.diskWriteExceptionDiagnostics, as: .diskWriteException)
+      forward(payload.appLaunchDiagnostics, as: .appLaunch)
     }
   }
 
@@ -126,25 +138,35 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
 
   // A background exit that signals an app defect escalates to .critical so
   // CrashReportHandler files a Sentry issue; a routine payload — graceful exits
-  // and iOS memory-pressure jettisons — stays .info.
+  // and iOS memory-pressure jettisons — stays .info. Per-reason counts ride in
+  // metadata so the .critical message stays identical across recurrences and
+  // Sentry's message-based grouping collapses repeats of the same failure mode.
   static func exitMetricDirective(for counts: BackgroundExitCounts) -> MetricKitLogDirective {
-    let message = """
-      MetricKit background-exit metrics — \
-      normalAppExit: \(counts.normalAppExit), \
-      cpuResourceLimit: \(counts.cpuResourceLimit), \
-      memoryPressure: \(counts.memoryPressure), \
-      memoryResourceLimit: \(counts.memoryResourceLimit), \
-      appWatchdog: \(counts.appWatchdog), \
-      backgroundTaskAssertionTimeout: \(counts.backgroundTaskAssertionTimeout), \
-      badAccess: \(counts.badAccess), \
-      abnormal: \(counts.abnormal), \
-      illegalInstruction: \(counts.illegalInstruction), \
-      suspendedWithLockedFile: \(counts.suspendedWithLockedFile)
-      """
+    let metadata: Logging.Logger.Metadata = [
+      "normalAppExit": .string("\(counts.normalAppExit)"),
+      "memoryResourceLimit": .string("\(counts.memoryResourceLimit)"),
+      "cpuResourceLimit": .string("\(counts.cpuResourceLimit)"),
+      "memoryPressure": .string("\(counts.memoryPressure)"),
+      "badAccess": .string("\(counts.badAccess)"),
+      "abnormal": .string("\(counts.abnormal)"),
+      "illegalInstruction": .string("\(counts.illegalInstruction)"),
+      "appWatchdog": .string("\(counts.appWatchdog)"),
+      "suspendedWithLockedFile": .string("\(counts.suspendedWithLockedFile)"),
+      "backgroundTaskAssertionTimeout": .string("\(counts.backgroundTaskAssertionTimeout)"),
+    ]
+    let abnormalReasons = counts.nonzeroAbnormalReasons
+    if abnormalReasons.isEmpty {
+      return MetricKitLogDirective(
+        level: .info,
+        message: "MetricKit background-exit metrics — routine",
+        metadata: metadata
+      )
+    }
     return MetricKitLogDirective(
-      level: counts.abnormalExitTotal > 0 ? .critical : .info,
-      message: message,
-      metadata: [:]
+      level: .critical,
+      message:
+        "MetricKit background-exit metrics — abnormal: \(abnormalReasons.joined(separator: ", "))",
+      metadata: metadata
     )
   }
 
