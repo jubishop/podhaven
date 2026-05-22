@@ -48,20 +48,26 @@ struct PodHavenApp: App {
           Task {
             await appLauncher.prepareForForeground()
             initialized = true
-            notifyScenePhaseChange(newPhase)
+            // Re-check sharedState.isActive: if we backgrounded during the
+            // await, the captured `.active` is stale and sending it would
+            // leave the rescan gate (and other recipients) thinking the app
+            // is foregrounded when it isn't.
+            notifyScenePhaseChange(sharedState.isActive ? .active : .background)
           }
-        case .background where initialized:
+        case .background:
           notifyScenePhaseChange(newPhase)
-          bgTaskScheduler.getPendingTaskRequests { requests in
-            if requests.isEmpty {
-              Self.log.error("No pending background tasks after entering background")
-            } else {
-              Self.log.debug(
-                """
-                Pending background tasks:
-                \(BackgroundTaskScheduler.formatPendingTasks(requests))
-                """
-              )
+          if initialized {
+            bgTaskScheduler.getPendingTaskRequests { requests in
+              if requests.isEmpty {
+                Self.log.error("No pending background tasks after entering background")
+              } else {
+                Self.log.debug(
+                  """
+                  Pending background tasks:
+                  \(BackgroundTaskScheduler.formatPendingTasks(requests))
+                  """
+                )
+              }
             }
           }
         default:
