@@ -4,17 +4,10 @@ import FactoryKit
 import Foundation
 import Logging
 
-// Shared recommendation-score orchestration for EpisodesListViewModel,
-// EpisodeDetailViewModel, and PodcastRecommendationScorer. It owns the engine's
-// `$scoringRevision` observation, the snapshot-keyed skip, and the
-// cancel-and-restart task machinery, so the set of re-score triggers cannot
-// drift per surface.
-//
-// `Snapshot` is an `Equatable` change-detection key embedding `scoringRevision`;
-// a `nil` snapshot no-ops the refresh. `Score` is the per-surface score
-// payload, retained across `cancel()`. Every input read by `score` must be
-// reflected in `Snapshot` — a cache hit replays the prior result on an
-// unchanged snapshot, so any unobserved input would let a stale result stick.
+// Shared scoring orchestration: revision observation, snapshot-keyed cache,
+// and cancel-and-restart tasks. `Snapshot` is the change-detection key (must
+// embed `scoringRevision` and every input read by `score`, or a cache hit
+// will replay a stale result); `nil` no-ops the refresh.
 @MainActor
 final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Score: Sendable> {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -34,12 +27,11 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   private var pendingSnapshot: Snapshot?
   private var cached: (snapshot: Snapshot, score: Score)?
 
-  // `willScore` fires on a cache miss before the pass spawns; `shouldCache`
-  // is checked after the pass returns to gate whether the result enters the
-  // cache (a provisional result — e.g. embedding assets not yet downloaded —
-  // applies but must not be cached or it would re-apply on the next refresh
-  // even after the inputs that made it provisional resolved); `onFailure`
-  // only on a non-cancellation `score` error.
+  // - `willScore`: fires on a cache miss, before the pass spawns.
+  // - `shouldCache`: gates caching after the pass returns. Return `false` for
+  //   provisional results (e.g. embedding assets not yet downloaded) so they
+  //   apply but don't stick after their inputs resolve.
+  // - `onFailure`: fires only on a non-cancellation `score` error.
   init(
     makeSnapshot: @escaping @MainActor () -> Snapshot?,
     willScore: @escaping @MainActor () -> Void = {},
