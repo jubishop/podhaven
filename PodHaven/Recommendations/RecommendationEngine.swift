@@ -12,7 +12,7 @@ import SwiftUI
 
 struct RecommendationScore: Sendable {
   let value: Float
-  let reasons: [RecommendationReason]
+  let reasons: RecommendationReason
 
   // Stretches the [0.5, max] segment onto [0.5, 1.0] so the top observed
   // candidate displays as 100%, leaving sub-baseline scores untouched.
@@ -30,10 +30,22 @@ struct RecommendationScore: Sendable {
   }
 }
 
-enum RecommendationReason: Hashable, Sendable {
-  case similarToLiked
-  case podcastAffinity
-  case recentlyPublished
+struct RecommendationReason: OptionSet, Hashable, Sendable {
+  let rawValue: UInt8
+
+  static let similarToLiked = Self(rawValue: 1 << 0)
+  static let podcastAffinity = Self(rawValue: 1 << 1)
+  static let recentlyPublished = Self(rawValue: 1 << 2)
+
+  var orderedMembers: [Self] {
+    Self.displayOrder.filter { contains($0) }
+  }
+
+  private static let displayOrder: [Self] = [
+    .similarToLiked,
+    .podcastAffinity,
+    .recentlyPublished,
+  ]
 }
 
 // MARK: - Container
@@ -834,9 +846,12 @@ struct RecommendationEngine: Sendable {
     )
     let score = baseScore * freshness.multiplier
 
-    var reasons = features.filter { $0.value > 0.5 }.map(\.reason)
+    var reasons = RecommendationReason()
+    for feature in features where feature.value > 0.5 {
+      reasons.insert(feature.reason)
+    }
     if freshness.inPlateau {
-      reasons.append(.recentlyPublished)
+      reasons.insert(.recentlyPublished)
     }
 
     return RecommendationScore(value: score, reasons: reasons)

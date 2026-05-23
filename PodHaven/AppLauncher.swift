@@ -3,6 +3,7 @@
 import AVFoundation
 import FactoryKit
 import Logging
+import MetricKit
 import Sentry
 import SwiftUI
 import UIKit
@@ -37,6 +38,9 @@ struct AppLauncher: Sendable {
   private let prepareForForegroundOnce = AsyncOnce()
   private let startSystemMonitoringOnce = Once()
 
+  // MXMetricManager holds subscribers weakly, so this must outlive registration.
+  private let metricKitMonitor = MetricKitMonitor()
+
   fileprivate init() {}
 
   // MARK: - Bootstrap
@@ -47,6 +51,11 @@ struct AppLauncher: Sendable {
 
     configureLogging()
     guard AppInfo.environment != .testing else { return }
+
+    // Registered here rather than in the foreground-gated startSystemMonitoring
+    // so background-only launches still capture exit metrics.
+    MXMetricManager.shared.add(metricKitMonitor)
+    Self.log.debug("Registered MetricKit subscriber")
 
     // Force DB initialization so schema migrations run immediately.
     _ = Container.shared.appDB()
@@ -183,8 +192,8 @@ struct AppLauncher: Sendable {
           FileLogHandler(
             label: label,
             fileURL: AppInfo.logFileURL,
-            maxFileSizeBytes: 4_000_000,
-            targetFileSizeBytes: 3_000_000,
+            maxFileSizeBytes: 8_000_000,
+            targetFileSizeBytes: 6_000_000,
             // `.inactive` writes stay async; the `.background` transition
             // flushes the queue via AppDelegate.handleScenePhaseChange.
             writeSynchronously: { $0 >= .critical || sharedState.scenePhase == .background }
@@ -221,6 +230,8 @@ struct AppLauncher: Sendable {
       options.sendDefaultPii = true
       options.enableAppHangTracking = true
       options.enableLogs = true
+      options.enableMetricKit = true
+      options.enableMetricKitRawPayload = true
       options.initialScope = { scope in
         scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
         scope.setUser(User(userId: AppInfo.deviceIdentifier))

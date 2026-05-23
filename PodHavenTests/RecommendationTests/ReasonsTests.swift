@@ -9,6 +9,19 @@ import Testing
 
 @Suite("RecommendationEngine reasons tests", .container)
 class ReasonsTests {
+  @Test("recommendation reasons behave like option-set flags")
+  func recommendationReasonsBehaveLikeOptionSetFlags() {
+    var reasons: RecommendationReason = [.similarToLiked, .podcastAffinity]
+
+    #expect(reasons.contains(.similarToLiked))
+    #expect(reasons.contains(.podcastAffinity))
+    #expect(!reasons.contains(.recentlyPublished))
+
+    reasons.insert(.recentlyPublished)
+    #expect(reasons == [.similarToLiked, .podcastAffinity, .recentlyPublished])
+    #expect(reasons.orderedMembers == [.similarToLiked, .podcastAffinity, .recentlyPublished])
+  }
+
   @Test("recommendations include reasons")
   func recommendationsHaveReasons() async throws {
     let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(

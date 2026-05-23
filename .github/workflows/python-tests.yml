@@ -1,0 +1,39 @@
+name: Python Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: python-tests-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run Python Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run unittest test files
+        # The scripts under .agents/skills aren't packages (no __init__.py),
+        # so `unittest discover` won't recurse. Run each test_*.py directly
+        # — every file in the tree manages its own sys.path setup.
+        run: |
+          set -euo pipefail
+          test_files=$(find .agents/skills -name 'test_*.py' -type f | sort)
+          if [ -z "$test_files" ]; then
+            echo "::warning::No Python test files found under .agents/skills"
+            exit 0
+          fi
+          for f in $test_files; do
+            echo "::group::$f"
+            python3 "$f" --verbose
+            echo "::endgroup::"
+          done
