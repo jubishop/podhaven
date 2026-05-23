@@ -169,8 +169,9 @@ import SwiftUI
       hydrationTask = Task(priority: taskPriority(.utility)) { @MainActor [weak self] in
         guard let self else { return }
         do {
-          let observation = self.observatory.listablePodcastEpisodes(
-            filter: idSet.contains(Episode.Columns.id)
+          let observation = self.observatory.recommendationHydrationEpisodes(
+            ids: idSet,
+            limit: Int.max
           )
           for try await listables in observation {
             guard !Task.isCancelled else { return }

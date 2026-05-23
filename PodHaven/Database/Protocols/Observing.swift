@@ -49,6 +49,10 @@ protocol Observing: Sendable {
     order: SQLOrdering?,
     limit: Int
   ) -> AsyncValueObservation<[ListablePodcastEpisode]>
+  func recommendationHydrationEpisodes(
+    ids: Set<Episode.ID>,
+    limit: Int
+  ) -> AsyncValueObservation<[ListablePodcastEpisode]>
 
   // MARK: - Queue
 

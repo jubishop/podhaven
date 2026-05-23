@@ -125,6 +125,17 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.listablePodcastEpisodes(filter: filter, order: order, limit: limit)
   }
 
+  func recommendationHydrationEpisodes(
+    ids: Set<Episode.ID>,
+    limit: Int
+  ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
+    recordCall(
+      methodName: "recommendationHydrationEpisodes(ids:limit:)",
+      parameters: limit
+    )
+    return observatory.recommendationHydrationEpisodes(ids: ids, limit: limit)
+  }
+
   // MARK: - Queue
 
   func queuedPodcastEpisodes(limit: Int) -> AsyncValueObservation<[ListablePodcastEpisode]> {

@@ -373,7 +373,7 @@ import Testing
       let listableLimits =
         fakeObservatory
         .calls(of: MethodCall<Int>.self)
-        .filter { $0.methodName == "listablePodcastEpisodes(filter:order:limit:)" }
+        .filter { $0.methodName == "recommendationHydrationEpisodes(ids:limit:)" }
         .map(\.parameters)
       #expect(listableLimits.contains(100))
       #expect(!listableLimits.contains(Int.max))

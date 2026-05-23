@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
@@ -82,6 +83,53 @@ actor ObservatoryListableTests {
           byEventsOfKind: .update(tableName: "podcast", columnNames: [column])
         ),
         "Region should track podcast column: \(column)"
+      )
+    }
+  }
+
+  @Test("recommendationHydrationEpisodes does not track playback progress columns")
+  func recommendationHydrationEpisodeTrackedRegion() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(currentTime: CMTime.seconds(42))]
+      )
+    )
+    let episodeID = series.episodes[0].id
+    let db = repo.db
+
+    let rows =
+      try await observatory.recommendationHydrationEpisodes(
+        ids: [episodeID],
+        limit: 10
+      )
+      .get()
+    #expect(rows.first?.id == episodeID)
+    #expect(rows.first?.currentTime == CMTime.seconds(42))
+
+    let region = try await db.read { db in
+      var region = DatabaseRegion()
+      for trackedRegion in Observatory.recommendationHydrationTrackedRegions(ids: [episodeID]) {
+        try region.formUnion(trackedRegion.databaseRegion(db))
+      }
+      return region
+    }
+
+    for column in ["currentTime", "maxPlaybackTime", "lastPlayedDate", "playbackCoverage"] {
+      #expect(
+        !region.isModified(
+          byEventsOfKind: .update(tableName: "episode", columnNames: [column])
+        ),
+        "Region should not track playback column: \(column)"
+      )
+    }
+
+    for column in ["title", "finishDate", "queueOrder", "cachedFilename"] {
+      #expect(
+        region.isModified(
+          byEventsOfKind: .update(tableName: "episode", columnNames: [column])
+        ),
+        "Region should track display column: \(column)"
       )
     }
   }

@@ -19,6 +19,7 @@ class EpisodesListViewModel:
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.EpisodesView.list)
@@ -175,10 +176,13 @@ class EpisodesListViewModel:
   }
 
   // Recommendation scoring runs only on demand — while the recommendationScore
-  // sort is the selected one. Two producers feed the scoring pass: the
-  // candidate set and the engine's scoring revision.
+  // sort is the selected one. The scoring pass reacts to candidate-set,
+  // scoring-revision, and onDeck-ID changes.
   private func runRecommendationObservation() async {
     cancelRecommendationWork()
+    if let onDeckID = sharedState.onDeck?.id {
+      playbackExcludedCandidateIDs = [onDeckID]
+    }
 
     await withTaskGroup(of: Void.self) { group in
       group.addTask { [weak self] in
@@ -188,6 +192,10 @@ class EpisodesListViewModel:
       group.addTask { [weak self] in
         guard let self else { return }
         await self.observeScoringRevision()
+      }
+      group.addTask { [weak self] in
+        guard let self else { return }
+        await self.observeOnDeckCandidateExclusions()
       }
     }
   }
@@ -200,14 +208,15 @@ class EpisodesListViewModel:
         try Task.checkCancellation()
 
         lastObservedCandidates = candidates
+        let visibleCandidates = visibleRecommendationCandidates(candidates)
         let key = ScoredInputsKey(
-          candidates: candidates,
+          candidates: visibleCandidates,
           scoringRevision: recommendationEngine.scoringRevision
         )
         if case .loaded(let scoredKey, _) = recommendationScoresState, scoredKey == key {
           kickRecommendationHydration()
         } else {
-          recomputeRecommendations(for: candidates)
+          recomputeRecommendations(for: visibleCandidates)
         }
       }
     } catch is CancellationError {
@@ -225,7 +234,21 @@ class EpisodesListViewModel:
     // subscribe, and the candidate observation already kicks the initial pass.
     for await _ in recommendationEngine.$scoringRevision.stream().dropFirst() {
       guard !Task.isCancelled else { return }
-      recomputeRecommendations(for: lastObservedCandidates)
+      recomputeRecommendations(for: visibleRecommendationCandidates(from: lastObservedCandidates))
+    }
+  }
+
+  private func observeOnDeckCandidateExclusions() async {
+    var lastID = sharedState.onDeck?.id
+    for await onDeck in sharedState.$onDeck.stream().dropFirst() {
+      guard !Task.isCancelled else { return }
+      let currentID = onDeck?.id
+      guard currentID != lastID else { continue }
+      lastID = currentID
+      guard let currentID, playbackExcludedCandidateIDs.insert(currentID).inserted else {
+        continue
+      }
+      recomputeRecommendations(for: visibleRecommendationCandidates(from: lastObservedCandidates))
     }
   }
 
@@ -277,6 +300,7 @@ class EpisodesListViewModel:
   // MARK: - Recommendation Hydration
 
   @ObservationIgnored private var lastObservedCandidates: [CandidateEpisode]?
+  @ObservationIgnored private var playbackExcludedCandidateIDs: Set<Episode.ID> = []
   @ObservationIgnored private var recommendationHydrationTask: Task<Void, Never>?
   @ObservationIgnored private var hydratedScoreIDs: [Episode.ID] = []
 
@@ -313,8 +337,8 @@ class EpisodesListViewModel:
       guard let self else { return }
       do {
         let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
-          self.observatory.listablePodcastEpisodes(
-            filter: topIDs.contains(Episode.Columns.id),
+          self.observatory.recommendationHydrationEpisodes(
+            ids: Set(topIDs),
             limit: Self.displayLimit
           )
         for try await listables in observation {
@@ -353,6 +377,20 @@ class EpisodesListViewModel:
 
   @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
   @ObservationIgnored private var recommendationScoringTask: Task<Void, Never>?
+
+  private func visibleRecommendationCandidates(_ candidates: [CandidateEpisode])
+    -> [CandidateEpisode]
+  {
+    guard !playbackExcludedCandidateIDs.isEmpty else { return candidates }
+    return candidates.filter { !playbackExcludedCandidateIDs.contains($0.id) }
+  }
+
+  private func visibleRecommendationCandidates(from candidates: [CandidateEpisode]?)
+    -> [CandidateEpisode]?
+  {
+    guard let candidates else { return nil }
+    return visibleRecommendationCandidates(candidates)
+  }
 
   private func recomputeRecommendations(for observedCandidates: [CandidateEpisode]?) {
     guard let candidates = observedCandidates else { return }
@@ -435,6 +473,7 @@ class EpisodesListViewModel:
     recommendationScoringTask?.cancel()
     recommendationScoringTask = nil
     lastObservedCandidates = nil
+    playbackExcludedCandidateIDs = []
   }
 
   private func cancelRecommendationHydration() {

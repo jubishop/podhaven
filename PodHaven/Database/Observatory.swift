@@ -136,6 +136,20 @@ struct Observatory: Observing {
     }
   }
 
+  func recommendationHydrationEpisodes(
+    ids: Set<Episode.ID>,
+    limit: Int
+  ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
+    ValueObservation
+      .tracking(regions: Self.recommendationHydrationTrackedRegions(ids: ids)) { db in
+        try ListablePodcastEpisode
+          .request(filter: ids.contains(Episode.Columns.id), limit: limit)
+          .fetchAll(db)
+      }
+      .removeDuplicates()
+      .values(in: repo.db)
+  }
+
   // MARK: - Queue
 
   func queuedPodcastEpisodes(limit: Int = Int.max) -> AsyncValueObservation<
@@ -292,6 +306,41 @@ struct Observatory: Observing {
   // MARK: - Private Helpers
 
   private static let countKey = "count"
+
+  static func recommendationHydrationTrackedRegions(
+    ids: Set<Episode.ID>
+  ) -> [any DatabaseRegionConvertible] {
+    [
+      ListablePodcastEpisode
+        .filter(ids.contains(Episode.Columns.id))
+        .select(recommendationHydrationEpisodeSelection)
+        .including(
+          required: ListablePodcastEpisode.podcast.select(ListablePodcastEpisode.podcastColumns)
+        )
+    ]
+  }
+
+  private static var recommendationHydrationEpisodeSelection: [any SQLSelectable] {
+    [
+      Episode.Columns.id,
+      Episode.Columns.guid,
+      Episode.Columns.mediaURL,
+      Episode.Columns.title,
+      Episode.Columns.pubDate,
+      Episode.Columns.duration,
+      Episode.Columns.image,
+      Episode.Columns.finishDate,
+      Episode.Columns.queueOrder,
+      Episode.Columns.saveInCache,
+      Episode.Columns.cachedFilename,
+      Episode.Columns.downloading,
+      Episode.Columns.creationDate,
+      Episode.Columns.queueDate,
+      Episode.Columns.rating,
+      EpisodeTag.tagIDsSelectable,
+      EpisodeEmbedding.existsSelectable,
+    ]
+  }
 
   private func tagCounts<T: TableRecord>(
     _ type: T.Type,
