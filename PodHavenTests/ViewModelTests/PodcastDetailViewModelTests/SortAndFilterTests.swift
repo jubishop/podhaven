@@ -616,7 +616,7 @@ import Testing
     )
 
     // A later appear must re-score rather than re-applying the cached
-    // empty score map — the prior empty map was provisional.
+    // empty score map — the prior empty map was uncacheable.
     viewModel.disappear()
     try await viewModel.performAppear()
 

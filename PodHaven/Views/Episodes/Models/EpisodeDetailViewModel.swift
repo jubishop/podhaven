@@ -453,22 +453,22 @@ enum EpisodeDetailDisplayedScore: Sendable {
       if score == nil { score = .computing }
     },
     // An unsaved pass that ran before embedding assets finished downloading
-    // produces a provisional nil; caching it would re-apply that nil on the
-    // next refresh even after the assets land. Recovery relies on a later
-    // state or `$scoringRevision` change to retrigger — `assetsLoaded` has
-    // no dedicated observer wired here.
+    // returns the nil as uncacheable; caching it would re-apply that nil on
+    // the next refresh even after the assets land. The coordinator's
+    // `refreshOnAssetsLoaded` observer recovers once the latch finishes.
     score: { [weak self] in
-      guard let self else { return .final(nil) }
+      guard let self else { return .cacheable(nil) }
       let result = await computeRecommendation()
       if case .unsaved = state, !contextualEmbedding.assetsLoaded.isFinished {
-        return .provisional(result)
+        return .uncacheable(result)
       }
-      return .final(result)
+      return .cacheable(result)
     },
     apply: { [weak self] in
       guard let self else { return }
       score = $0
-    }
+    },
+    refreshOnAssetsLoaded: true
   )
 
   private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot {

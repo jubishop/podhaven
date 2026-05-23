@@ -59,7 +59,7 @@ import Testing
         await withCheckedContinuation { waiters.append($0) }
       }
       if let scoreError { throw scoreError }
-      return cacheable ? .final(captured) : .provisional(captured)
+      return cacheable ? .cacheable(captured) : .uncacheable(captured)
     }
 
     func willScore() { willScoreCount += 1 }
@@ -272,9 +272,9 @@ import Testing
   }
 
   @Test(
-    "a .provisional result applies but skips caching so the next same-snapshot refresh re-scores"
+    "an .uncacheable result applies but skips caching so the next same-snapshot refresh re-scores"
   )
-  func provisionalResultSkipsCacheSoFutureRefreshRecomputes() async throws {
+  func uncacheableResultSkipsCacheSoFutureRefreshRecomputes() async throws {
     let probe = Probe()
     let coordinator = makeCoordinator(probe)
 
@@ -285,11 +285,11 @@ import Testing
       priority: .userInitiated,
       { @MainActor in probe.applied == [4] },
       { @MainActor in
-        "Expected the provisional pass to apply [4], got \(probe.applied)."
+        "Expected the uncacheable pass to apply [4], got \(probe.applied)."
       }
     )
 
-    // Same snapshot, but the prior pass was provisional — refresh must re-run
+    // Same snapshot, but the prior pass was uncacheable — refresh must re-run
     // score() instead of replaying a cached result.
     coordinator.refresh()
     try await Wait.until(
@@ -301,8 +301,8 @@ import Testing
     )
     #expect(probe.scoreStarts == 2)
 
-    // Returning .final lets the next pass settle into the cache; a subsequent
-    // same-snapshot refresh then hits without recomputing.
+    // Returning .cacheable lets the next pass settle into the cache; a
+    // subsequent same-snapshot refresh then hits without recomputing.
     probe.cacheable = true
     probe.input = 5
     coordinator.refresh()
