@@ -980,11 +980,11 @@ extension AppIcon {
   }
 
   static func recommendationReason(for reason: RecommendationReason) -> AppIcon {
-    switch reason {
-    case .similarToLiked: .recommendationSimilar
-    case .podcastAffinity: .recommendationFromPodcast
-    case .recentlyPublished: .recommendationRecent
-    }
+    if reason == .similarToLiked { return .recommendationSimilar }
+    if reason == .podcastAffinity { return .recommendationFromPodcast }
+    if reason == .recentlyPublished { return .recommendationRecent }
+
+    Assert.fatal("Unknown recommendation reason: \(reason.rawValue)")
   }
 }
 #endif
