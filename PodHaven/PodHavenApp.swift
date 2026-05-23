@@ -48,11 +48,12 @@ struct PodHavenApp: App {
           Task {
             await appLauncher.prepareForForeground()
             initialized = true
-            // Re-read sharedState.scenePhase: if the phase changed during the
-            // await, the captured `.active` is stale and sending it would
-            // leave the rescan gate (and other recipients) thinking the app
-            // is foregrounded when it isn't.
-            notifyScenePhaseChange(sharedState.scenePhase)
+            // Skip the notify if the phase changed during the await: the
+            // captured `.active` would be stale (the gate would re-enter
+            // foreground while backgrounded), and the `.background` arm
+            // already sync-notified when the transition happened.
+            guard sharedState.scenePhase == .active else { return }
+            notifyScenePhaseChange(.active)
           }
         case .background:
           notifyScenePhaseChange(newPhase)
