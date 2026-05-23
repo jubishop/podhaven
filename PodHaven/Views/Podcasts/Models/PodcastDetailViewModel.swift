@@ -68,7 +68,6 @@ enum PodcastDetailState: Equatable, Sendable, Stringable {
 class PodcastDetailViewModel:
   DetailViewModel,
   ManagingEpisodes,
-  RecommendationScoringHost,
   SelectableEpisodeList,
   SortableEpisodeList
 {
@@ -186,10 +185,10 @@ class PodcastDetailViewModel:
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
       guard oldValue != currentSortMethod else { return }
+      episodeList.filterMethod = currentSortMethod.filterMethod
       if currentSortMethod == .recommendationScore {
         recommendationScorer.applyRecommendationSort()
       } else {
-        episodeList.filterMethod = currentSortMethod.filterMethod
         episodeList.sortMethod = currentSortMethod.sortMethod
         recommendationScorer.clearRecommendationSort()
       }
@@ -202,16 +201,6 @@ class PodcastDetailViewModel:
 
   var recommendationDisplay: PodcastRecommendationScorer.Display {
     recommendationScorer.display
-  }
-
-  // MARK: RecommendationScoringHost
-
-  var isSortingByRecommendationScore: Bool {
-    currentSortMethod == .recommendationScore
-  }
-
-  var recommendationFallbackFilter: (@Sendable (ListedEpisode) -> Bool)? {
-    currentSortMethod.filterMethod
   }
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
@@ -361,7 +350,7 @@ class PodcastDetailViewModel:
   }
 
   func performAppear() async throws {
-    if isSortingByRecommendationScore {
+    if currentSortMethod == .recommendationScore {
       recommendationScorer.applyRecommendationSort()
     }
 
