@@ -68,7 +68,6 @@ enum PodcastDetailState: Equatable, Sendable, Stringable {
 class PodcastDetailViewModel:
   DetailViewModel,
   ManagingEpisodes,
-  RecommendationScoringHost,
   SelectableEpisodeList,
   SortableEpisodeList
 {

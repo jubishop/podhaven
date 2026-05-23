@@ -18,7 +18,7 @@ final class PodcastRecommendationScorer {
 
   private static let log = Log.as(LogSubsystem.PodcastsView.detail)
 
-  @ObservationIgnored weak var host: (any RecommendationScoringHost)?
+  @ObservationIgnored weak var host: PodcastDetailViewModel?
 
   enum Display: Sendable {
     case idle
@@ -128,7 +128,7 @@ final class PodcastRecommendationScorer {
   }
 
   private func currentScoringSnapshot(
-    host: any RecommendationScoringHost
+    host: PodcastDetailViewModel
   ) -> RecommendationScoringSnapshot {
     let snapshotState: RecommendationScoringSnapshot.State
     switch host.state {
@@ -292,7 +292,7 @@ final class PodcastRecommendationScorer {
 
   private func applyRecommendationDisplay(
     _ valuesByMediaGUID: [MediaGUID: Float],
-    host: any RecommendationScoringHost
+    host: PodcastDetailViewModel
   ) {
     switch host.state {
     case .saved:
