@@ -42,8 +42,9 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
 
   private var revisionTask: Task<Void, Never>?
   private var assetsLoadedTask: Task<Void, Never>?
-  private var inFlight: (task: Task<Void, Never>, snapshot: Snapshot)?
+  private var inFlight: (task: Task<Void, Never>, snapshot: Snapshot, generation: Int)?
   private var cached: (snapshot: Snapshot, score: Score)?
+  private var nextGeneration = 0
 
   // - `makeSnapshot`: builds the change-detection key for the current inputs.
   //   Returning `nil` makes `refresh()` a no-op (use when the surface has no
@@ -124,18 +125,22 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
     }
     guard inFlight?.snapshot != snapshot else { return }
     inFlight?.task.cancel()
+    nextGeneration += 1
+    let generation = nextGeneration
     let task = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      await runPass(for: snapshot)
+      await runPass(for: snapshot, generation: generation)
     }
-    inFlight = (task, snapshot)
+    inFlight = (task, snapshot, generation)
   }
 
-  private func runPass(for snapshot: Snapshot) async {
-    // Only clear when no newer pass has taken over `inFlight`; a later
-    // refresh() may have replaced it with a different snapshot.
+  private func runPass(for snapshot: Snapshot, generation: Int) async {
+    // Only clear when the generation still matches. A cancel→same-snapshot
+    // refresh→cancel race can install a new task at the same snapshot before
+    // this continuation resumes; a snapshot-only check would clobber the new
+    // task's handle, leaving it unreachable from a subsequent cancel().
     defer {
-      if inFlight?.snapshot == snapshot { inFlight = nil }
+      if inFlight?.generation == generation { inFlight = nil }
     }
     let result = await score()
     guard !Task.isCancelled else { return }

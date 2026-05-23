@@ -29,10 +29,18 @@ import Testing
     var returnsCancelled = false
 
     private(set) var scoreStarts = 0
+    private(set) var scoreEnds = 0
     private(set) var applied: [Int] = []
 
     private var gateOpen = true
     private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    // Per-pass gates keyed by 1-based pass index (the value of `scoreStarts`
+    // after the pass enters `score()`). Lets tests release passes in a chosen
+    // order — required for the cancel→same-snapshot refresh→cancel regression,
+    // where pass A must finish its runPass defer before pass B is released.
+    private var passGateClosed: Set<Int> = []
+    private var passWaiters: [Int: CheckedContinuation<Void, Never>] = [:]
 
     func closeGate() { gateOpen = false }
 
@@ -43,6 +51,15 @@ import Testing
       for waiter in pending { waiter.resume() }
     }
 
+    func closeGate(pass index: Int) { passGateClosed.insert(index) }
+
+    func openGate(pass index: Int) {
+      passGateClosed.remove(index)
+      if let continuation = passWaiters.removeValue(forKey: index) {
+        continuation.resume()
+      }
+    }
+
     func snapshot() -> Snapshot? {
       guard !returnsNilSnapshot else { return nil }
       return Snapshot(input: input, revision: recommendationEngine.scoringRevision)
@@ -51,9 +68,16 @@ import Testing
     func score() async -> RecommendationScoringCoordinator<Snapshot, Int>.ScoreResult {
       let captured = input
       scoreStarts += 1
+      let myPass = scoreStarts
       if !gateOpen {
         await withCheckedContinuation { waiters.append($0) }
       }
+      if passGateClosed.contains(myPass) {
+        await withCheckedContinuation { continuation in
+          passWaiters[myPass] = continuation
+        }
+      }
+      scoreEnds += 1
       if returnsCancelled { return .cancelled }
       return cacheable ? .cacheable(captured) : .uncacheable(captured)
     }
@@ -337,6 +361,67 @@ import Testing
       }
     )
     #expect(probe.scoreStarts == 2)
+  }
+
+  @Test(
+    "a same-snapshot cancel→refresh→cancel cycle cancels the second pass instead of orphaning it"
+  )
+  func sameSnapshotCancelRefreshCancelCancelsSecondPass() async throws {
+    let probe = Probe()
+    let coordinator = makeCoordinator(probe)
+
+    probe.input = 1
+    probe.closeGate(pass: 1)
+    probe.closeGate(pass: 2)
+
+    coordinator.refresh()
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.scoreStarts == 1 },
+      { @MainActor in "Expected pass A to suspend at its gate." }
+    )
+
+    coordinator.cancel()
+
+    coordinator.refresh()
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.scoreStarts == 2 },
+      { @MainActor in "Expected pass B to start and suspend at its gate." }
+    )
+
+    // Release pass A so its runPass continuation resumes. If the defer clears
+    // inFlight by snapshot alone, it will clobber pass B's handle here.
+    probe.openGate(pass: 1)
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.scoreEnds == 1 },
+      { @MainActor in "Expected pass A's score to return after its gate opened." }
+    )
+    // Drain the MainActor so pass A's runPass defer + cancellation guard run
+    // before the second cancel.
+    for _ in 0..<5 { await Task.yield() }
+
+    // Second cancel. Must reach pass B; if the prior defer orphaned it, this
+    // is a no-op and pass B will still apply.
+    coordinator.cancel()
+
+    probe.openGate(pass: 2)
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.scoreEnds == 2 },
+      { @MainActor in "Expected pass B's score to return after its gate opened." }
+    )
+    for _ in 0..<5 { await Task.yield() }
+
+    #expect(
+      probe.applied.isEmpty,
+      """
+      Pass B applied after the second cancel — the prior pass's defer cleared \
+      inFlight without checking task identity, orphaning pass B.
+      applied: \(probe.applied)
+      """
+    )
   }
 
   @Test("refresh is a no-op while an in-flight pass already covers the current snapshot")
