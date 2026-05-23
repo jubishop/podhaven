@@ -26,7 +26,6 @@ import Foundation
 // between two snapshots re-scores each visit.
 @MainActor
 final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Score: Sendable> {
-  @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.taskPriority) private var taskPriority
 
@@ -104,10 +103,9 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   private func startAssetsLoadedTaskIfNeeded() {
     guard refreshOnAssetsLoaded else { return }
     if let assetsLoadedTask, !assetsLoadedTask.isCancelled { return }
-    let assetsLoaded = contextualEmbedding.assetsLoaded
     assetsLoadedTask = Task(priority: taskPriority(.utility)) { [weak self] in
       do {
-        try await assetsLoaded.wait()
+        try await Container.shared.contextualEmbedding().assetsLoaded.wait()
       } catch {
         // Cancellation path. `cancel()` already nilled the property; the
         // natural-completion clear below would otherwise clobber a task
