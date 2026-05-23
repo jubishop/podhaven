@@ -45,7 +45,6 @@ final class PodcastRecommendationScorer {
       applyRecommendationDisplay(cached.scores, host: host)
       display = .idle
     } else {
-      host.episodeList.filterMethod = host.recommendationFallbackFilter
       display = .computing
       recompute()
     }
@@ -57,7 +56,7 @@ final class PodcastRecommendationScorer {
   }
 
   func stateDidChange() {
-    guard let host, host.isSortingByRecommendationScore else { return }
+    guard let host, host.currentSortMethod == .recommendationScore else { return }
     if lastRecommendationScores?.snapshot != currentScoringSnapshot(host: host) {
       display = .computing
     }
@@ -94,7 +93,7 @@ final class PodcastRecommendationScorer {
   // Cancel-and-restart: a new request cancels any in-flight pass, so the
   // latest inputs win and a superseded pass never publishes.
   private func recompute() {
-    guard let host, host.isSortingByRecommendationScore else { return }
+    guard let host, host.currentSortMethod == .recommendationScore else { return }
     if case .initial = host.state { return }
     recommendationScoreTask?.cancel()
     recommendationScoreTask = Task(priority: taskPriority(.utility)) { [weak self] in
@@ -178,7 +177,7 @@ final class PodcastRecommendationScorer {
     }
 
     if let cached = lastRecommendationScores, cached.snapshot == snapshot {
-      guard host.isSortingByRecommendationScore else { return }
+      guard host.currentSortMethod == .recommendationScore else { return }
       applyRecommendationDisplay(cached.scores, host: host)
       display = .idle
       return
@@ -203,7 +202,7 @@ final class PodcastRecommendationScorer {
       snapshot: snapshot,
       scores: valuesByMediaGUID
     )
-    guard host.isSortingByRecommendationScore else { return }
+    guard host.currentSortMethod == .recommendationScore else { return }
     applyRecommendationDisplay(valuesByMediaGUID, host: host)
     display = .idle
   }
@@ -299,7 +298,7 @@ final class PodcastRecommendationScorer {
     case .saved:
       host.episodeList.filterMethod = { valuesByMediaGUID[$0.mediaGUID] != nil }
     case .unsaved, .initial:
-      host.episodeList.filterMethod = host.recommendationFallbackFilter
+      host.episodeList.filterMethod = host.currentSortMethod.filterMethod
     }
     host.episodeList.sortMethod = makeRecommendationComparator(valuesByMediaGUID)
   }
