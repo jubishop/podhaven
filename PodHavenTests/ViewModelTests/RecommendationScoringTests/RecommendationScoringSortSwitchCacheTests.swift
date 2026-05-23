@@ -63,16 +63,14 @@ import Testing
 
     // Select the rec sort once to populate the retained score, then settle.
     viewModel.currentSortMethod = .recommendationScore
-    try await RecommendationHelpers.untilAdvancing(
+    try await Wait.until(
       priority: .userInitiated,
       { @MainActor in
-        viewModel.recommendationDisplay == .idle
-          && Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
+        Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
       },
       { @MainActor in
         """
-        Expected the first on-demand scoring pass to settle.
-        display: \(viewModel.recommendationDisplay)
+        Expected the first on-demand scoring pass to land all target entries.
         filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
         """
       }
@@ -104,18 +102,11 @@ import Testing
     )
 
     // Re-selecting the rec sort: the retained score's snapshot no longer
-    // matches (the pubDate changed), so it must recompute behind the banner.
+    // matches (the pubDate changed), so it must recompute. The armed gate
+    // suspends that pass — proving the recompute ran, not the retained score.
     let fakeRepo = fakeRecommendationRepo
     fakeRepo.armEmbeddingsGate(matching: targetIDs)
     viewModel.currentSortMethod = .recommendationScore
-    #expect(
-      viewModel.recommendationDisplay == .computing,
-      """
-      Expected a pubDate change to invalidate the retained recommendation \
-      score, forcing a visible recompute on re-selection.
-      actual: \(viewModel.recommendationDisplay)
-      """
-    )
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
@@ -123,13 +114,6 @@ import Testing
       { "Expected the re-selection recompute to fetch embeddings for the candidate set." }
     )
     fakeRepo.releaseEmbeddingsGate()
-
-    try await RecommendationHelpers.untilAdvancing(
-      priority: .userInitiated,
-      { @MainActor in viewModel.recommendationDisplay == .idle },
-      { @MainActor in
-        "Expected the recompute to settle back to .idle, got \(viewModel.recommendationDisplay)."
-      }
-    )
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
   }
 }

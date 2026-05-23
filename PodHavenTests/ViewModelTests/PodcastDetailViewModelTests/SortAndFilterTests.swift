@@ -582,14 +582,7 @@ import Testing
     // empty score map the comparator collapses to pubDate order, which on
     // these fixtures matches the newest-first default — distinguishability
     // comes from the recovery assertion's similarity order instead.
-    try await Wait.until(
-      priority: .userInitiated,
-      { @MainActor in
-        if case .idle = viewModel.recommendationDisplay { return true }
-        return false
-      },
-      { @MainActor in "Expected the assets-unavailable scoring pass to settle." }
-    )
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
 
     // Embedding model finishes downloading on disk.
     embeddable.makeAssetsAvailable()

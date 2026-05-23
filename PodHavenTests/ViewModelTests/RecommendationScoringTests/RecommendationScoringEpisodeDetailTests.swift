@@ -18,68 +18,6 @@ import Testing
   }
 
   @Test(
-    "EpisodeDetailViewModel surfaces .computing on displayedScore while a fetch is in flight and replaces it on completion"
-  )
-  func episodeDetailScoringIndicatorToggles() async throws {
-    let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
-    try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
-
-    let (_, candidateEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 1,
-      podcastTitle: "Target",
-      podcastDescription: "Target",
-      episodeDescriptions: ["Target 0"]
-    )
-    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
-    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
-
-    let targetEpisodeID = try #require(candidateEpisodes.first?.id)
-    let podcastEpisode = try #require(try await repo.podcastEpisode(targetEpisodeID))
-
-    let fakeRepo = fakeRecommendationRepo
-    fakeRepo.armEmbeddingsGate(matching: Set([targetEpisodeID]))
-
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
-    try await viewModel.performAppear()
-
-    try await RecommendationHelpers.untilAdvancing(
-      priority: .userInitiated,
-      { @MainActor in
-        if case .computing = viewModel.displayedScore { return true }
-        return false
-      },
-      { @MainActor in
-        """
-        Expected displayedScore to be .computing while the fetch is in flight.
-        actual: \(String(describing: viewModel.displayedScore))
-        """
-      }
-    )
-
-    try await RecommendationHelpers.untilAdvancing(
-      priority: .userInitiated,
-      { fakeRepo.isEmbeddingsGateSuspended },
-      { "Expected scoring fetch to suspend on the gated embeddings call." }
-    )
-
-    fakeRepo.releaseEmbeddingsGate()
-
-    try await RecommendationHelpers.untilAdvancing(
-      priority: .userInitiated,
-      { @MainActor in
-        if case .recommendation = viewModel.displayedScore { return true }
-        return false
-      },
-      { @MainActor in
-        """
-        Expected displayedScore to settle on .recommendation once the fetch completes.
-        actual: \(String(describing: viewModel.displayedScore))
-        """
-      }
-    )
-  }
-
-  @Test(
     "EpisodeDetailViewModel observes the first scoringRevision emitted immediately after recommendation observation starts"
   )
   func episodeDetailDoesNotDropFirstScoringRevisionAfterObservationStarts() async throws {

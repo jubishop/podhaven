@@ -29,7 +29,6 @@ import Testing
     var returnsCancelled = false
 
     private(set) var scoreStarts = 0
-    private(set) var willScoreCount = 0
     private(set) var applied: [Int] = []
 
     private var gateOpen = true
@@ -59,7 +58,6 @@ import Testing
       return cacheable ? .cacheable(captured) : .uncacheable(captured)
     }
 
-    func willScore() { willScoreCount += 1 }
     func apply(_ result: Int) { applied.append(result) }
   }
 
@@ -68,7 +66,6 @@ import Testing
   ) -> RecommendationScoringCoordinator<Snapshot, Int> {
     RecommendationScoringCoordinator<Snapshot, Int>(
       makeSnapshot: { probe.snapshot() },
-      willScore: { probe.willScore() },
       score: { await probe.score() },
       apply: { probe.apply($0) }
     )
@@ -88,7 +85,6 @@ import Testing
       { @MainActor in "Expected the pass to apply [7], got \(probe.applied)." }
     )
     #expect(probe.scoreStarts == 1)
-    #expect(probe.willScoreCount == 1)
   }
 
   @Test("an unchanged snapshot skips re-scoring and re-applies the cached result")
@@ -108,8 +104,6 @@ import Testing
 
     #expect(probe.applied == [3, 3])
     #expect(probe.scoreStarts == 1)
-    // A cache hit must not flash the surface's "computing" indicator.
-    #expect(probe.willScoreCount == 1)
   }
 
   @Test("a changed snapshot re-scores")
@@ -234,7 +228,6 @@ import Testing
     // Give any erroneously-spawned pass room to run before asserting.
     for _ in 0..<5 { await Task.yield() }
     #expect(probe.scoreStarts == 0)
-    #expect(probe.willScoreCount == 0)
     #expect(probe.applied.isEmpty)
 
     probe.returnsNilSnapshot = false
@@ -365,7 +358,6 @@ import Testing
     // The in-flight pass matches the current snapshot, so the second call
     // must not cancel-and-restart it.
     #expect(probe.scoreStarts == 1)
-    #expect(probe.willScoreCount == 1)
 
     probe.openGate()
     try await Wait.until(

@@ -40,9 +40,7 @@ struct EpisodesListView: View {
   @ViewBuilder
   private var episodesView: some View {
     switch viewModel.loadingState {
-    case .computingRecommendations:
-      loadingView(message: "Computing recommendations…")
-    case .loadingEpisodes:
+    case .loading:
       loadingView(message: "Loading episodes…")
     case .loaded:
       if viewModel.episodeList.filteredEntries.isEmpty {

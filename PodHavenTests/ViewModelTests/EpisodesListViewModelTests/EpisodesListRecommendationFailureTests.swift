@@ -8,11 +8,10 @@ import Testing
 
 @Suite("of EpisodesListViewModel recommendation failure tests", .container)
 @MainActor final class EpisodesListRecommendationFailureTests {
-  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.observatory) private var observatory
 
-  @Test("rec-sort surfaces .failed and an alert when candidate observation throws")
+  @Test("rec-sort surfaces .failed when candidate observation throws")
   func candidateObservationFailureSurfacesFailedState() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
@@ -41,13 +40,6 @@ import Testing
           Expected .failed after candidate observation threw; got \
           \(viewModel.loadingState).
           """
-        }
-      )
-      try await Wait.until(
-        priority: .userInitiated,
-        { @MainActor [self] in alert.config != nil },
-        { @MainActor [self] in
-          "Expected failure alert to be presented; alert.config = \(String(describing: alert.config))"
         }
       )
     }
@@ -79,25 +71,23 @@ import Testing
       )
 
       // Poll a window: a non-rec sort must never reach the candidate
-      // observation (so the scripted failure never runs) and must never raise
-      // a recommendation alert.
+      // observation, so the scripted failure never runs.
       do {
         try await Wait.until(
           maxAttempts: 50,
           delay: .milliseconds(20),
           priority: .userInitiated,
-          { @MainActor [self] in
+          { @MainActor in
             fakeObservatory.allCallsInOrder.contains {
               $0.methodName == "embeddedCandidateEpisodes"
-            } || alert.config != nil
+            }
           },
           { "regression sentinel — see Issue.record below" }
         )
         Issue.record(
           """
-          regression: a non-rec sort started the candidate observation or \
-          surfaced a 'Couldn't compute recommendations' alert. Recommendation \
-          scoring must not run — let alone interrupt — users who aren't viewing \
+          regression: a non-rec sort started the candidate observation. \
+          Recommendation scoring must not run for users who aren't viewing \
           the rec sort.
           """
         )
@@ -106,7 +96,6 @@ import Testing
       }
 
       try fakeObservatory.expectNoCall(methodName: "embeddedCandidateEpisodes")
-      #expect(alert.config == nil)
     }
   }
 
@@ -289,8 +278,8 @@ import Testing
     }
 
     // Second appear: the candidate observation throws. handleRecommendationFailure
-    // forces recommendationScoresState to .failed; the failure alert it raises
-    // proves it ran past the cancellation guard.
+    // forces recommendationScoresState to .failed and surfaces the .failed UI;
+    // the loadingState transition proves it ran past the cancellation guard.
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
     fakeObservatory.embeddedCandidateEpisodesScript([
@@ -305,11 +294,11 @@ import Testing
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor [self] in alert.config != nil },
-        { @MainActor [self] in
+        { @MainActor in viewModel.loadingState == .failed },
+        { @MainActor in
           """
-          Expected the candidate-observation failure to surface a failure alert.
-          alert.config = \(String(describing: alert.config))
+          Expected the candidate-observation failure to surface .failed; got \
+          \(viewModel.loadingState).
           """
         }
       )

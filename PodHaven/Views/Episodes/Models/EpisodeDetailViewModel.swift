@@ -73,7 +73,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
   case recommendation(RecommendationScore)
   case similarity(Float)
   case embeddingPending
-  case computing
 }
 
 @Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
@@ -447,11 +446,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     makeSnapshot: { [weak self] in
       guard let self else { return nil }
       return currentRecommendationScoringSnapshot()
-    },
-    willScore: { [weak self] in
-      guard let self else { return }
-      // Show "computing" only when no prior score is visible.
-      if score == nil { score = .computing }
     },
     // Assets-not-yet-loaded and caught errors both return `.uncacheable(nil)`
     // so the next refresh re-attempts instead of replaying a cached nil.

@@ -200,10 +200,6 @@ class PodcastDetailViewModel:
 
   private let recommendationScorer = PodcastRecommendationScorer()
 
-  var recommendationDisplay: PodcastRecommendationScorer.Display {
-    recommendationScorer.display
-  }
-
   // MARK: RecommendationScoringHost
 
   var isSortingByRecommendationScore: Bool {

@@ -31,8 +31,6 @@ struct EpisodeDetailView: View {
             similaritySection(value: value)
           case .embeddingPending:
             embeddingPendingSection
-          case .computing:
-            computingScoreSection
           }
 
           Divider()
@@ -244,19 +242,6 @@ struct EpisodeDetailView: View {
       AppIcon.recommendation.label
       Spacer()
       Text("Pending")
-        .foregroundStyle(.secondary)
-    }
-    .font(.headline)
-    .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  private var computingScoreSection: some View {
-    HStack(spacing: 8) {
-      AppIcon.recommendation.label
-      Spacer()
-      ProgressView()
-        .controlSize(.small)
-      Text("Computing…")
         .foregroundStyle(.secondary)
     }
     .font(.headline)

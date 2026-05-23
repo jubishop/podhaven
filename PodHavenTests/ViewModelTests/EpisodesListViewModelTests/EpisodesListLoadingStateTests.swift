@@ -6,21 +6,20 @@ import Testing
 
 @Suite("of EpisodesListViewModel loading state tests", .container)
 @MainActor final class EpisodesListLoadingStateTests {
-  @Test("loadingState is .computingRecommendations during rec-sort cold start")
-  func loadingStateIsComputingRecommendationsOnRecSortColdStart() async throws {
+  @Test("loadingState is .loading during rec-sort cold start until scoring lands")
+  func loadingStateIsLoadingOnRecSortColdStart() async throws {
     let viewModel = EpisodesListViewModel(title: "RecLoadingState")
     viewModel.currentSortMethod = .recommendationScore
 
     let recorder = LoadingStateRecorder(viewModel: viewModel)
 
     try await withRunningObservationLoop(viewModel) {
-      // The cold-start path is: startDisplayObservation runs sync and sets
-      // `.computingRecommendations` (rec sort + .pending scores) before the
-      // candidate observation has emitted. Once the candidate observation
-      // emits its empty list and scoring lands, state moves to `.loaded`.
-      // The recorder catches the intermediate state because the production
-      // gap between those two transitions spans at least one GRDB
-      // observation hop.
+      // The cold-start path: startDisplayObservation runs sync and sets
+      // `.loading` before the candidate observation has emitted. Once the
+      // candidate observation emits its empty list and scoring lands, state
+      // moves to `.loaded`. The recorder catches the intermediate `.loading`
+      // because the production gap between those two transitions spans at
+      // least one GRDB observation hop.
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in
@@ -36,10 +35,10 @@ import Testing
       )
 
       #expect(
-        recorder.values.contains(.computingRecommendations),
+        recorder.values.contains(.loading),
         """
-        Expected rec-sort cold start to pass through .computingRecommendations \
-        before reaching .loaded. Recorded loadingState transitions: \(recorder.values)
+        Expected rec-sort cold start to pass through .loading before reaching .loaded. \
+        Recorded loadingState transitions: \(recorder.values)
         """
       )
     }
@@ -67,14 +66,14 @@ import Testing
     }
   }
 
-  @Test("loadingState defaults to .loadingEpisodes and reaches .loaded for non-rec sort")
+  @Test("loadingState defaults to .loading and reaches .loaded for non-rec sort")
   func loadingStateForNonRecSort() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
 
     let viewModel = EpisodesListViewModel(title: "NonRecLoadingState")
-    if case .loadingEpisodes = viewModel.loadingState {
+    if case .loading = viewModel.loadingState {
     } else {
-      Issue.record("Expected initial state .loadingEpisodes, got \(viewModel.loadingState)")
+      Issue.record("Expected initial state .loading, got \(viewModel.loadingState)")
     }
 
     try await withRunningObservationLoop(viewModel) {

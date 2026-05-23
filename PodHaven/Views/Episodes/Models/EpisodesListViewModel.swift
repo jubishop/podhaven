@@ -13,7 +13,6 @@ class EpisodesListViewModel:
   SelectableEpisodeList,
   SortableEpisodeList
 {
-  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
@@ -118,8 +117,7 @@ class EpisodesListViewModel:
   // MARK: - State Management
 
   enum LoadingState: Equatable {
-    case loadingEpisodes
-    case computingRecommendations
+    case loading
     case loaded
     case failed
   }
@@ -127,7 +125,7 @@ class EpisodesListViewModel:
   private static let displayLimit = 100
   let title: String
   let filter: SQLExpression
-  private(set) var loadingState: LoadingState = .loadingEpisodes
+  private(set) var loadingState: LoadingState = .loading
 
   // Keys the single `.task(id:)` block in the view. A sort or filterText
   // change restarts the observation; recommendation scoring runs only while
@@ -165,7 +163,7 @@ class EpisodesListViewModel:
       """
     )
 
-    if keyChanged || episodeList.allEntries.isEmpty { loadingState = pendingLoadingState() }
+    if keyChanged || episodeList.allEntries.isEmpty { loadingState = .loading }
 
     if currentSortMethod == .recommendationScore {
       await runRecommendationObservation()
@@ -228,15 +226,6 @@ class EpisodesListViewModel:
     }
   }
 
-  private func pendingLoadingState() -> LoadingState {
-    guard currentSortMethod == .recommendationScore else { return .loadingEpisodes }
-    switch recommendationScoresState {
-    case .pending: return .computingRecommendations
-    case .failed: return .failed
-    case .loaded: return .loadingEpisodes
-    }
-  }
-
   private func transitionToLoaded(_ episodes: [ListablePodcastEpisode]) {
     episodeList.allEntries = IdentifiedArray(uniqueElements: episodes)
     loadingState = .loaded
@@ -244,7 +233,6 @@ class EpisodesListViewModel:
 
   private func handleLoadingFailure() {
     guard !Task.isCancelled else { return }
-    alert("Couldn't load episodes.")
     loadingState = .failed
   }
 
@@ -326,13 +314,8 @@ class EpisodesListViewModel:
         scoringRevision: recommendationEngine.scoringRevision
       )
     },
-    willScore: { [weak self] in
-      guard let self else { return }
-      // Keep loaded rows visible during a mid-view rescore.
-      if loadingState != .loaded { loadingState = .computingRecommendations }
-    },
-    // Errors route to `handleRecommendationFailure` (alert + .failed state)
-    // and return `.cancelled` so no fabricated score is applied.
+    // Errors route to `handleRecommendationFailure` (.failed UI) and return
+    // `.cancelled` so no fabricated score is applied.
     score: { [weak self] in
       guard let self, let candidates = lastObservedCandidates, !candidates.isEmpty else {
         return .cacheable([:])
@@ -362,13 +345,12 @@ class EpisodesListViewModel:
 
   private func handleRecommendationFailure() {
     guard !Task.isCancelled else { return }
-    // Idempotent. The candidate-observation catch and the coordinator's
-    // onFailure can both land in a tight window; without this guard the
-    // alert and loadingState write would fire twice.
+    // Idempotent. The candidate-observation catch and the score closure's
+    // own catch can both land in a tight window; without this guard the
+    // loadingState write would fire twice.
     guard recommendationScoresState != .failed else { return }
     recommendationScoresState = .failed
     guard currentSortMethod == .recommendationScore else { return }
-    alert("Couldn't compute recommendations.")
     loadingState = .failed
   }
 

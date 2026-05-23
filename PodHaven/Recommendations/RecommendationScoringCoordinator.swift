@@ -36,7 +36,6 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   }
 
   private let makeSnapshot: @MainActor () -> Snapshot?
-  private let willScore: @MainActor () -> Void
   private let score: @MainActor () async -> ScoreResult
   private let apply: @MainActor (Score) -> Void
   private let refreshOnAssetsLoaded: Bool
@@ -49,8 +48,6 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   // - `makeSnapshot`: builds the change-detection key for the current inputs.
   //   Returning `nil` makes `refresh()` a no-op (use when the surface has no
   //   inputs to key on yet, e.g. an unset selection).
-  // - `willScore`: fires on a cache miss, before the pass spawns. Skipped on
-  //   cache hits so the surface's "computing" indicator doesn't flash.
   // - `score`: computes the result. Return `.cacheable` to memoize for future
   //   identical-snapshot hits, `.uncacheable` to apply once without caching,
   //   or `.cancelled` to drop the pass silently. The closure owns its full
@@ -66,13 +63,11 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   //   incur zero observation overhead.
   init(
     makeSnapshot: @escaping @MainActor () -> Snapshot?,
-    willScore: @escaping @MainActor () -> Void = {},
     score: @escaping @MainActor () async -> ScoreResult,
     apply: @escaping @MainActor (Score) -> Void,
     refreshOnAssetsLoaded: Bool = false
   ) {
     self.makeSnapshot = makeSnapshot
-    self.willScore = willScore
     self.score = score
     self.apply = apply
     self.refreshOnAssetsLoaded = refreshOnAssetsLoaded
@@ -128,7 +123,6 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
       return
     }
     guard inFlight?.snapshot != snapshot else { return }
-    willScore()
     inFlight?.task.cancel()
     let task = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }

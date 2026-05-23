@@ -4,33 +4,25 @@ import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
-import Observation
 import Tagged
 
 // Owns recommendation-score sorting for `PodcastDetailViewModel`. Scoring runs
 // purely on demand while the `.recommendationScore` sort is selected; the last
 // computed score is retained so an unchanged re-selection applies instantly.
-@Observable @MainActor
+@MainActor
 final class PodcastRecommendationScorer {
-  @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
-  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
+  @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
+  @DynamicInjected(\.recommendationEngine) private var recommendationEngine
 
   private static let log = Log.as(LogSubsystem.PodcastsView.detail)
 
-  @ObservationIgnored weak var host: (any RecommendationScoringHost)?
-
-  enum Display: Sendable {
-    case idle
-    case computing
-  }
-  private(set) var display: Display = .idle
+  weak var host: (any RecommendationScoringHost)?
 
   // MARK: - State
 
-  @ObservationIgnored private var unsavedEmbeddingCache:
+  private var unsavedEmbeddingCache:
     (revision: Int, vectors: [MediaGUID: (source: String, vector: [Float])])?
 
-  @ObservationIgnored
   private lazy var coordinator = RecommendationScoringCoordinator<
     RecommendationScoringSnapshot, [MediaGUID: Float]
   >(
@@ -38,10 +30,6 @@ final class PodcastRecommendationScorer {
       guard let self, let host, host.isSortingByRecommendationScore else { return nil }
       if case .initial = host.state { return nil }
       return currentScoringSnapshot(host: host)
-    },
-    willScore: { [weak self] in
-      guard let self else { return }
-      display = .computing
     },
     // An unsaved pass that ran before embedding assets finished downloading
     // returns the empty map as uncacheable; caching it would re-apply that
@@ -85,7 +73,6 @@ final class PodcastRecommendationScorer {
   }
 
   func clearRecommendationSort() {
-    display = .idle
     coordinator.cancel()
   }
 
@@ -238,7 +225,6 @@ final class PodcastRecommendationScorer {
   private func applyComputedScores(_ valuesByMediaGUID: [MediaGUID: Float]) {
     guard let host else { return }
     applyRecommendationDisplay(valuesByMediaGUID, host: host)
-    display = .idle
   }
 
   private func applyRecommendationDisplay(
