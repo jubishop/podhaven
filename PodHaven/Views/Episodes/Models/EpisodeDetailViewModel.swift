@@ -474,8 +474,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
       guard let self else { return }
       score = $0
     },
-    // No `onFailure`: the `score` closure catches and converts errors to
-    // `.uncacheable(nil)`, so the coordinator never sees a thrown error.
     refreshOnAssetsLoaded: true
   )
 

@@ -331,19 +331,25 @@ class EpisodesListViewModel:
       // Keep loaded rows visible during a mid-view rescore.
       if loadingState != .loaded { loadingState = .computingRecommendations }
     },
+    // Errors route to `handleRecommendationFailure` (alert + .failed state)
+    // and return `.cancelled` so no fabricated score is applied.
     score: { [weak self] in
       guard let self, let candidates = lastObservedCandidates, !candidates.isEmpty else {
         return .cacheable([:])
       }
-      return .cacheable(try await recommendationEngine.recommendationScores(for: candidates))
+      do {
+        return .cacheable(try await recommendationEngine.recommendationScores(for: candidates))
+      } catch is CancellationError {
+        return .cancelled
+      } catch {
+        Self.log.caughtError("recommendation scoring failed", error)
+        handleRecommendationFailure()
+        return .cancelled
+      }
     },
     apply: { [weak self] in
       guard let self else { return }
       applyRecommendationScores($0)
-    },
-    onFailure: { [weak self] _ in
-      guard let self else { return }
-      handleRecommendationFailure()
     }
   )
 

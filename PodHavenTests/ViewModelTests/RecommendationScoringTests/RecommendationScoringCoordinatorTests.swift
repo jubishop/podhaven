@@ -18,10 +18,8 @@ import Testing
     var revision: Int
   }
 
-  private struct ScoreFailure: Error {}
-
   // Controllable score backend: captures `input` at pass start, optionally
-  // suspends on a gate, then returns that captured value (or throws).
+  // suspends on a gate, then returns that captured value.
   @MainActor private final class Probe {
     @DynamicInjected(\.recommendationEngine) private var recommendationEngine
 
@@ -29,12 +27,10 @@ import Testing
     var returnsNilSnapshot = false
     var cacheable = true
     var returnsCancelled = false
-    var scoreError: (any Error)?
 
     private(set) var scoreStarts = 0
     private(set) var willScoreCount = 0
     private(set) var applied: [Int] = []
-    private(set) var failureCount = 0
 
     private var gateOpen = true
     private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -53,20 +49,18 @@ import Testing
       return Snapshot(input: input, revision: recommendationEngine.scoringRevision)
     }
 
-    func score() async throws -> RecommendationScoringCoordinator<Snapshot, Int>.ScoreResult {
+    func score() async -> RecommendationScoringCoordinator<Snapshot, Int>.ScoreResult {
       let captured = input
       scoreStarts += 1
       if !gateOpen {
         await withCheckedContinuation { waiters.append($0) }
       }
-      if let scoreError { throw scoreError }
       if returnsCancelled { return .cancelled }
       return cacheable ? .cacheable(captured) : .uncacheable(captured)
     }
 
     func willScore() { willScoreCount += 1 }
     func apply(_ result: Int) { applied.append(result) }
-    func onFailure(_ error: any Error) { failureCount += 1 }
   }
 
   private func makeCoordinator(
@@ -75,9 +69,8 @@ import Testing
     RecommendationScoringCoordinator<Snapshot, Int>(
       makeSnapshot: { probe.snapshot() },
       willScore: { probe.willScore() },
-      score: { try await probe.score() },
-      apply: { probe.apply($0) },
-      onFailure: { probe.onFailure($0) }
+      score: { await probe.score() },
+      apply: { probe.apply($0) }
     )
   }
 
@@ -321,9 +314,7 @@ import Testing
     #expect(probe.scoreStarts == 3)
   }
 
-  @Test(
-    "a .cancelled result is dropped without applying, caching, or routing to onFailure"
-  )
+  @Test("a .cancelled result is dropped without applying or caching")
   func cancelledResultIsDroppedWithoutSideEffects() async throws {
     let probe = Probe()
     let coordinator = makeCoordinator(probe)
@@ -340,7 +331,6 @@ import Testing
     for _ in 0..<5 { await Task.yield() }
 
     #expect(probe.applied.isEmpty)
-    #expect(probe.failureCount == 0)
 
     // Same snapshot, but the prior pass was .cancelled — refresh must re-run
     // score() instead of replaying a cached result.
@@ -354,22 +344,6 @@ import Testing
       }
     )
     #expect(probe.scoreStarts == 2)
-  }
-
-  @Test("a thrown scoring error routes to onFailure without applying")
-  func scoringErrorRoutesToFailure() async throws {
-    let probe = Probe()
-    let coordinator = makeCoordinator(probe)
-
-    probe.scoreError = ScoreFailure()
-    coordinator.refresh()
-
-    try await Wait.until(
-      priority: .userInitiated,
-      { @MainActor in probe.failureCount == 1 },
-      { @MainActor in "Expected the thrown error to route to onFailure." }
-    )
-    #expect(probe.applied.isEmpty)
   }
 
   @Test("refresh is a no-op while an in-flight pass already covers the current snapshot")

@@ -2,7 +2,6 @@
 
 import FactoryKit
 import Foundation
-import Logging
 
 // Shared scoring orchestration: revision observation, snapshot-keyed cache,
 // and cancel-and-restart tasks.
@@ -14,18 +13,14 @@ import Logging
 // A `nil` snapshot makes `refresh()` a no-op (use when the surface has no
 // scoring inputs to key on, e.g. an unset selection).
 //
-// `ScoreResult` chooses the caching policy per pass: `.cacheable` stores the
-// result for future identical-snapshot hits; `.uncacheable` applies the
-// result once without caching (use when the pass ran against inputs the
-// `Snapshot` doesn't fully capture, e.g. embedding assets that hadn't
-// finished downloading — caching would replay the empty result on the next
-// refresh even after the assets land); `.cancelled` is the non-throwing
-// cancellation signal for closures that do their own `catch` — returning it
-// drops the pass without applying, caching, or routing to `onFailure`. A
-// closure may instead let `CancellationError` propagate; the coordinator
-// catches it. The trip-wire to avoid is catching `CancellationError`
-// internally and then returning `.cacheable`/`.uncacheable`, which would
-// apply a fabricated result after cancellation.
+// `score` is non-throwing: each closure owns its full error policy and maps
+// outcomes to `ScoreResult`. `.cacheable` memoizes for future
+// identical-snapshot hits; `.uncacheable` applies once without caching (use
+// when the pass ran against inputs the `Snapshot` doesn't fully capture, e.g.
+// embedding assets that hadn't finished downloading — caching would replay
+// the empty result on the next refresh even after the assets land);
+// `.cancelled` drops the pass without applying or caching (use when the
+// closure catches `CancellationError` or otherwise needs to abort silently).
 //
 // Cache holds only the most-recently-cached snapshot's result; oscillating
 // between two snapshots re-scores each visit.
@@ -35,8 +30,6 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.taskPriority) private var taskPriority
 
-  private static var log: Logger { Log.as(LogSubsystem.Recommendations.coordinator) }
-
   enum ScoreResult: Sendable {
     case cacheable(Score)
     case uncacheable(Score)
@@ -45,9 +38,8 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
 
   private let makeSnapshot: @MainActor () -> Snapshot?
   private let willScore: @MainActor () -> Void
-  private let score: @MainActor () async throws -> ScoreResult
+  private let score: @MainActor () async -> ScoreResult
   private let apply: @MainActor (Score) -> Void
-  private let onFailure: @MainActor (any Error) -> Void
   private let refreshOnAssetsLoaded: Bool
 
   private var revisionTask: Task<Void, Never>?
@@ -62,14 +54,12 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   //   cache hits so the surface's "computing" indicator doesn't flash.
   // - `score`: computes the result. Return `.cacheable` to memoize for future
   //   identical-snapshot hits, `.uncacheable` to apply once without caching,
-  //   or `.cancelled` to drop the pass silently (closures with their own
-  //   `catch` should map `CancellationError` to `.cancelled`).
+  //   or `.cancelled` to drop the pass silently. The closure owns its full
+  //   error policy: catch internally and either route failures to surface
+  //   state before returning `.cancelled`/`.uncacheable`, or convert errors
+  //   into a sentinel result (e.g. `.uncacheable(nil)`).
   // - `apply`: writes the score onto the surface. Called both on a cache hit
   //   and after a successful `.cacheable`/`.uncacheable` pass.
-  // - `onFailure`: fires only on a non-cancellation `score` error. Default
-  //   no-op suits surfaces whose `score` closure already converts errors
-  //   internally (e.g. to `.uncacheable(nil)`); pass a closure to route
-  //   failures into surface state otherwise.
   // - `refreshOnAssetsLoaded`: opt in when `score` reads
   //   `contextualEmbedding.assetsLoaded` and would return `.uncacheable` while
   //   the model is still downloading. The coordinator awaits the one-shot
@@ -78,16 +68,14 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   init(
     makeSnapshot: @escaping @MainActor () -> Snapshot?,
     willScore: @escaping @MainActor () -> Void = {},
-    score: @escaping @MainActor () async throws -> ScoreResult,
+    score: @escaping @MainActor () async -> ScoreResult,
     apply: @escaping @MainActor (Score) -> Void,
-    onFailure: @escaping @MainActor (any Error) -> Void = { _ in },
     refreshOnAssetsLoaded: Bool = false
   ) {
     self.makeSnapshot = makeSnapshot
     self.willScore = willScore
     self.score = score
     self.apply = apply
-    self.onFailure = onFailure
     self.refreshOnAssetsLoaded = refreshOnAssetsLoaded
   }
 
@@ -157,27 +145,18 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
     defer {
       if inFlight?.snapshot == snapshot { inFlight = nil }
     }
-    do {
-      let result = try await score()
-      guard !Task.isCancelled else { return }
-      // Stale-drop: inputs moved on while the pass was in flight.
-      guard makeSnapshot() == snapshot else { return }
-      switch result {
-      case .cacheable(let score):
-        cached = (snapshot, score)
-        apply(score)
-      case .uncacheable(let score):
-        apply(score)
-      case .cancelled:
-        return
-      }
-    } catch is CancellationError {
-    } catch {
-      guard !Task.isCancelled else { return }
-      // Log at the top of the stack so a surface that omits `onFailure`
-      // never silently drops the error.
-      Self.log.caughtError("scoring pass failed", error)
-      onFailure(error)
+    let result = await score()
+    guard !Task.isCancelled else { return }
+    // Stale-drop: inputs moved on while the pass was in flight.
+    guard makeSnapshot() == snapshot else { return }
+    switch result {
+    case .cacheable(let score):
+      cached = (snapshot, score)
+      apply(score)
+    case .uncacheable(let score):
+      apply(score)
+    case .cancelled:
+      return
     }
   }
 
