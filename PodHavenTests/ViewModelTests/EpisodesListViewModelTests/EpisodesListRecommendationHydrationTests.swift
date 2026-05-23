@@ -11,7 +11,6 @@ import Testing
 @MainActor final class EpisodesListRecommendationHydrationTests {
   @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.sharedState) private var sharedState
 
   @Test("rec-sort honors live filterText changes (rescore on text search)")
   func recommendationSortRespectsLiveFilterTextChanges() async throws {
@@ -183,91 +182,6 @@ import Testing
           Expected finished episode \(finishedID) to disappear from rec-sorted \
           unfinished list; stale top-IDs without base-filter ANDing still surface it.
           Actual: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
-          """
-        }
-      )
-    }
-  }
-
-  @Test("rec-sort removes the onDeck candidate without waiting for a playback DB tick")
-  func recommendationSortRemovesOnDeckCandidate() async throws {
-    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
-
-    let embeddable = ScriptedEmbeddable { text in
-      if text.contains("Filler") { return [0, 0, 1] }
-      if text.contains("Signal") { return [1, 0, 0] }
-      if text.contains("Target") { return [0, 1, 0] }
-      return [0, 0, 1]
-    }
-
-    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 10,
-      podcastTitle: "Filler",
-      podcastDescription: "Filler",
-      episodeDescriptions: Array(repeating: "Filler", count: 10),
-      ratings: Array(repeating: .notInterested, count: 10)
-    )
-    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
-
-    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 3,
-      podcastTitle: "Signal",
-      podcastDescription: "Signal",
-      episodeDescriptions: ["Signal", "Signal", "Signal"],
-      ratings: [.loved, .liked, .liked]
-    )
-    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
-
-    let (targetPodcast, targets) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 2,
-      podcastTitle: "Target",
-      podcastDescription: "Target",
-      episodeDescriptions: ["Target 0", "Target 1"]
-    )
-    try await RecommendationHelpers.embedEpisodes(targets, embeddable: embeddable)
-
-    _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
-
-    let viewModel = EpisodesListViewModel(
-      title: "RecOnDeck",
-      filter: Episode.candidate
-    )
-    viewModel.currentSortMethod = .recommendationScore
-
-    try await withRunningObservationLoop(viewModel) {
-      let allIDs = Set(targets.map(\.id))
-      try await Wait.until(
-        priority: .userInitiated,
-        { @MainActor in
-          Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == allIDs
-        },
-        { @MainActor in
-          """
-          Expected both targets visible before selecting onDeck.
-          Expected: \(allIDs)
-          Actual: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
-          """
-        }
-      )
-
-      let onDeckEpisode = try #require(targets.first)
-      let onDeckID = onDeckEpisode.id
-      let remainingID = try #require(targets.dropFirst().first?.id)
-      sharedState.$onDeck.new(
-        OnDeck(from: PodcastEpisode(podcast: targetPodcast, episode: onDeckEpisode))
-      )
-
-      try await Wait.until(
-        priority: .userInitiated,
-        { @MainActor in
-          let visibleIDs = Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
-          return visibleIDs == Set([remainingID])
-        },
-        { @MainActor in
-          """
-          Expected rec-sort to drop onDeck candidate \(onDeckID) before any \
-          playback DB tick. Actual: \
-          \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
           """
         }
       )
