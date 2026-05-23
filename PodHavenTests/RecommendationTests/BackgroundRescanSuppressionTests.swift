@@ -73,7 +73,7 @@ class BackgroundRescanSuppressionTests {
         backgrounded audio session must defer rescans to the next foreground.
         """
       )
-    } catch {
+    } catch TestError.waitUntilFailure {
       // Expected timeout under the fix: the trigger was deferred.
     }
 
@@ -89,7 +89,7 @@ class BackgroundRescanSuppressionTests {
         },
         { "" }
       )
-    } catch {
+    } catch TestError.waitUntilFailure {
       Issue.record(
         """
         Expected the deferred trigger to run as one coalesced rescan on the \
@@ -165,7 +165,7 @@ class BackgroundRescanSuppressionTests {
         gate before running expensive work.
         """
       )
-    } catch {
+    } catch TestError.waitUntilFailure {
       // Expected timeout under the fix: the closure re-checked and returned.
     }
 
@@ -181,7 +181,7 @@ class BackgroundRescanSuppressionTests {
         },
         { "" }
       )
-    } catch {
+    } catch TestError.waitUntilFailure {
       Issue.record(
         """
         Expected the deferred rebuild to run as one coalesced rescan on the \
@@ -196,5 +196,63 @@ class BackgroundRescanSuppressionTests {
       await Task.yield()
     }
     #expect(engine.scoringRevision == revAfterStart + 1)
+  }
+
+  // Transient `.inactive` (Control Center pull-down, banner, app switcher
+  // peek) must not defer rescans — only true `.background` does.
+  @Test("a rescan trigger fired while .inactive runs normally without deferral")
+  func inactiveTriggerRunsNormally() async throws {
+    let engine = self.engine
+    let fakeSleeper = self.fakeSleeper
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals)
+    let (_, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Candidate"
+    )
+    try await RecommendationHelpers.embedEpisodes(candidates)
+
+    _ = try await RecommendationHelpers.startAndWaitForRecs()
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+    let revAfterStart = engine.scoringRevision
+
+    // Transition to .inactive (transient system event). Must not flip the
+    // rescan gate to deferred.
+    engine.handleScenePhaseChange(to: .inactive)
+
+    // Fire a rescan trigger via a fresh rating signal while .inactive.
+    let (_, moreSignals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "More Signal",
+      ratings: [.loved, .loved, .loved]
+    )
+    try await RecommendationHelpers.embedEpisodes(moreSignals)
+
+    // The rescan should run normally without needing a foreground transition.
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        delay: .milliseconds(20),
+        {
+          await fakeSleeper.advanceTime(by: .milliseconds(400))
+          return engine.scoringRevision == revAfterStart + 1
+        },
+        { "" }
+      )
+    } catch TestError.waitUntilFailure {
+      Issue.record(
+        """
+        Expected a rescan trigger fired during .inactive to run normally \
+        ($scoringRevision \(revAfterStart) -> \(revAfterStart + 1)), but it \
+        is \(engine.scoringRevision). Transient .inactive transitions must \
+        not defer rescans — only .background.
+        """
+      )
+    }
   }
 }

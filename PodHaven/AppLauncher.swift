@@ -185,6 +185,8 @@ struct AppLauncher: Sendable {
             fileURL: AppInfo.logFileURL,
             maxFileSizeBytes: 4_000_000,
             targetFileSizeBytes: 3_000_000,
+            // `.inactive` writes stay async; the `.background` transition
+            // flushes the queue via AppDelegate.handleScenePhaseChange.
             writeSynchronously: { $0 >= .critical || sharedState.scenePhase == .background }
           ),
           SentryLogHandler(label: label),
