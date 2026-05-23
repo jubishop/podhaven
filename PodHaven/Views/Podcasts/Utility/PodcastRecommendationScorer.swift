@@ -47,13 +47,25 @@ final class PodcastRecommendationScorer {
     // returns the empty map as uncacheable; caching it would re-apply that
     // map on the next refresh even after the assets land. The coordinator's
     // `refreshOnAssetsLoaded` observer recovers once the latch finishes.
+    //
+    // Errors map to .uncacheable([:]): the comparator falls back to tiebreaker
+    // order for this pass, and the next refresh re-attempts instead of
+    // replaying a cached transient failure.
     score: { [weak self] in
       guard let self else { return .cacheable([:]) }
-      let result = await computeRecommendationScores()
-      if let host, case .unsaved = host.state, !contextualEmbedding.assetsLoaded.isFinished {
-        return .uncacheable(result)
+      do {
+        let result = try await computeRecommendationScores()
+        if let host, case .unsaved = host.state,
+          !contextualEmbedding.assetsLoaded.isFinished
+        {
+          return .uncacheable(result)
+        }
+        return .cacheable(result)
+      } catch {
+        guard !(error is CancellationError) else { throw error }
+        Self.log.caughtError("recommendation scoring failed", error)
+        return .uncacheable([:])
       }
-      return .cacheable(result)
     },
     apply: { [weak self] in
       guard let self else { return }
@@ -144,7 +156,7 @@ final class PodcastRecommendationScorer {
 
   // MARK: - Scoring
 
-  private func computeRecommendationScores() async -> [MediaGUID: Float] {
+  private func computeRecommendationScores() async throws -> [MediaGUID: Float] {
     guard let host else { return [:] }
     let entries = host.episodeList.allEntries
     guard !entries.isEmpty else { return [:] }
@@ -153,16 +165,16 @@ final class PodcastRecommendationScorer {
     case .initial:
       return [:]
     case .saved(let series):
-      return await savedRecommendationScores(podcastID: series.id, entries: entries)
+      return try await savedRecommendationScores(podcastID: series.id, entries: entries)
     case .unsaved:
-      return await unsavedSimilarityScores(entries: entries)
+      return try await unsavedSimilarityScores(entries: entries)
     }
   }
 
   private func savedRecommendationScores(
     podcastID: Podcast.ID,
     entries: IdentifiedArrayOf<ListedEpisode>
-  ) async -> [MediaGUID: Float] {
+  ) async throws -> [MediaGUID: Float] {
     var candidates = [CandidateEpisode](capacity: entries.count)
     var mediaGUIDByEpisodeID = [Episode.ID: MediaGUID](capacity: entries.count)
     for episode in entries {
@@ -174,16 +186,7 @@ final class PodcastRecommendationScorer {
     }
     guard !candidates.isEmpty else { return [:] }
 
-    let scoreMap: [Episode.ID: RecommendationScore]
-    do {
-      scoreMap = try await recommendationEngine.recommendations(for: candidates)
-    } catch {
-      Self.log.caughtError(
-        "savedRecommendationScores failed for \(candidates.count) ids",
-        error
-      )
-      return [:]
-    }
+    let scoreMap = try await recommendationEngine.recommendations(for: candidates)
 
     var result = [MediaGUID: Float](capacity: scoreMap.count)
     for (episodeID, score) in scoreMap {
@@ -195,7 +198,7 @@ final class PodcastRecommendationScorer {
 
   private func unsavedSimilarityScores(
     entries: IdentifiedArrayOf<ListedEpisode>
-  ) async -> [MediaGUID: Float] {
+  ) async throws -> [MediaGUID: Float] {
     await contextualEmbedding.loadAssetsIfAvailable()
     guard contextualEmbedding.assetsLoaded.isFinished else { return [:] }
 
@@ -209,28 +212,17 @@ final class PodcastRecommendationScorer {
 
     var result = [MediaGUID: Float](capacity: entries.count)
     for episode in entries {
-      if Task.isCancelled { break }
+      try Task.checkCancellation()
       guard let unsavedPodcastEpisode = episode.unsaved else { continue }
       let source = unsavedPodcastEpisode.searchableString
       let vector: [Float]
       if let cached = cachedVectors[episode.mediaGUID], cached.source == source {
         vector = cached.vector
       } else {
-        do {
-          vector = try await EmbeddingService.embeddingVector(
-            for: unsavedPodcastEpisode,
-            embedding: contextualEmbedding
-          )
-        } catch {
-          Self.log.caughtError(
-            """
-            unsavedSimilarityScores: embedding failed for \
-            \(unsavedPodcastEpisode.toString)
-            """,
-            error
-          )
-          continue
-        }
+        vector = try await EmbeddingService.embeddingVector(
+          for: unsavedPodcastEpisode,
+          embedding: contextualEmbedding
+        )
         cachedVectors[episode.mediaGUID] = (source: source, vector: vector)
       }
       if let similarity = recommendationEngine.similarityScore(forEmbedding: vector) {

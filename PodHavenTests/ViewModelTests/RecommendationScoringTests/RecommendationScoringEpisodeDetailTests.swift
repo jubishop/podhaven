@@ -235,4 +235,67 @@ import Testing
       """
     )
   }
+
+  @Test(
+    "EpisodeDetailViewModel re-attempts a saved-side score on the next appear after a transient embedding-fetch error"
+  )
+  func episodeDetailReattemptsAfterTransientEmbeddingFetchError() async throws {
+    let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
+    try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
+
+    let (_, candidateEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Recovery",
+      podcastDescription: "Recovery",
+      episodeDescriptions: ["Recovery 0"]
+    )
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+    // Pin scoringRevision before the first appear so the second appear's
+    // snapshot is identical to the first — the only path that exercises the
+    // cache. A late engine rebuild would invalidate the cache for the wrong
+    // reason and pass the test by accident.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    let targetEpisodeID = try #require(candidateEpisodes.first?.id)
+    let podcastEpisode = try #require(try await repo.podcastEpisode(targetEpisodeID))
+
+    let fakeRepo = fakeRecommendationRepo
+    fakeRepo.embeddingFetchError { $0 = TestError.simulatedFailure }
+
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    try await viewModel.performAppear()
+
+    // First appear: the saved-side pass hits the armed error. Wait until the
+    // one-shot has been consumed so we know the pass actually ran (rather than
+    // racing past the assertion before the error reached scoreSavedEpisode).
+    try await Wait.until(
+      priority: .userInitiated,
+      { fakeRepo.embeddingFetchError() == nil },
+      { "Expected the armed embedding-fetch error to be consumed by the first pass." }
+    )
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+    #expect(viewModel.displayedScore == nil)
+
+    // Disappear + reappear with no error armed and the same scoringRevision.
+    // A coordinator that cached the error-produced nil will replay it; a
+    // coordinator that didn't cache will re-attempt and land .recommendation.
+    viewModel.disappear()
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        if case .recommendation = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Reappearing after a transient embedding-fetch error left the detail \
+        view stuck on the cached error-produced nil instead of re-attempting.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+  }
 }

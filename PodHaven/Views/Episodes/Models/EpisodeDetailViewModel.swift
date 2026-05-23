@@ -456,13 +456,23 @@ enum EpisodeDetailDisplayedScore: Sendable {
     // returns the nil as uncacheable; caching it would re-apply that nil on
     // the next refresh even after the assets land. The coordinator's
     // `refreshOnAssetsLoaded` observer recovers once the latch finishes.
+    //
+    // Errors map to .uncacheable(nil): the user still sees "no score" instead
+    // of a perpetual .computing spinner, and the next refresh re-attempts
+    // instead of replaying a cached transient failure.
     score: { [weak self] in
       guard let self else { return .cacheable(nil) }
-      let result = await computeRecommendation()
-      if case .unsaved = state, !contextualEmbedding.assetsLoaded.isFinished {
-        return .uncacheable(result)
+      do {
+        let result = try await computeRecommendation()
+        if case .unsaved = state, !contextualEmbedding.assetsLoaded.isFinished {
+          return .uncacheable(result)
+        }
+        return .cacheable(result)
+      } catch {
+        guard !(error is CancellationError) else { throw error }
+        Self.log.caughtError("recommendation scoring failed", error)
+        return .uncacheable(nil)
       }
-      return .cacheable(result)
     },
     apply: { [weak self] in
       guard let self else { return }
@@ -503,39 +513,31 @@ enum EpisodeDetailDisplayedScore: Sendable {
     recommendationCoordinator.refresh()
   }
 
-  private func computeRecommendation() async -> EpisodeDetailDisplayedScore? {
+  private func computeRecommendation() async throws -> EpisodeDetailDisplayedScore? {
     switch state {
     case .initial:
       return nil
     case .saved(let podcastEpisode):
-      return await scoreSavedEpisode(podcastEpisode)
+      return try await scoreSavedEpisode(podcastEpisode)
     case .unsaved(let unsavedPodcastEpisode):
-      return await scoreUnsavedEpisode(unsavedPodcastEpisode)
+      return try await scoreUnsavedEpisode(unsavedPodcastEpisode)
     }
   }
 
   private func scoreSavedEpisode(
     _ podcastEpisode: PodcastEpisode
-  ) async -> EpisodeDetailDisplayedScore? {
-    do {
-      guard try await recommendationRepo.embedding(for: podcastEpisode.id) != nil else {
-        return .embeddingPending
-      }
-      guard let score = try await recommendationEngine.recommendation(for: podcastEpisode.id)
-      else { return nil }
-      return .recommendation(score)
-    } catch {
-      Self.log.caughtError(
-        "computeRecommendation: saved scorer failed for \(podcastEpisode.toString)",
-        error
-      )
-      return nil
+  ) async throws -> EpisodeDetailDisplayedScore? {
+    guard try await recommendationRepo.embedding(for: podcastEpisode.id) != nil else {
+      return .embeddingPending
     }
+    guard let score = try await recommendationEngine.recommendation(for: podcastEpisode.id)
+    else { return nil }
+    return .recommendation(score)
   }
 
   private func scoreUnsavedEpisode(
     _ unsavedPodcastEpisode: UnsavedPodcastEpisode
-  ) async -> EpisodeDetailDisplayedScore? {
+  ) async throws -> EpisodeDetailDisplayedScore? {
     await contextualEmbedding.loadAssetsIfAvailable()
     guard contextualEmbedding.assetsLoaded.isFinished else { return nil }
 
@@ -544,21 +546,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
     if let cached = unsavedEmbeddingCache, cached.revision == revision {
       vector = cached.vector
     } else {
-      do {
-        vector = try await EmbeddingService.embeddingVector(
-          for: unsavedPodcastEpisode,
-          embedding: contextualEmbedding
-        )
-      } catch {
-        Self.log.caughtError(
-          """
-          computeRecommendation: unsaved embedding failed for \
-          \(unsavedPodcastEpisode.toString)
-          """,
-          error
-        )
-        return nil
-      }
+      vector = try await EmbeddingService.embeddingVector(
+        for: unsavedPodcastEpisode,
+        embedding: contextualEmbedding
+      )
       unsavedEmbeddingCache = (revision: revision, vector: vector)
     }
     guard let value = recommendationEngine.similarityScore(forEmbedding: vector) else {

@@ -571,8 +571,10 @@ import Testing
     #expect(viewModel.displayedScore == nil)
 
     // Assets land on disk and the embedding actor finishes its latch. The
-    // engine must pick that up and bump $scoringRevision so the still-mounted
-    // detail view rescores without the user navigating away and back.
+    // coordinator's refreshOnAssetsLoaded observer awaits that latch and kicks
+    // a fresh pass; the engine's $scoringRevision bump on the same latch is a
+    // backstop. Either way the still-mounted detail view must rescore without
+    // the user navigating away and back.
     embeddable.makeAssetsAvailable()
     await Container.shared.contextualEmbedding().loadAssetsIfAvailable()
 

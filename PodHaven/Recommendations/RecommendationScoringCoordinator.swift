@@ -20,6 +20,9 @@ import Logging
 // `Snapshot` doesn't fully capture, e.g. embedding assets that hadn't
 // finished downloading — caching would replay the empty result on the next
 // refresh even after the assets land).
+//
+// Cache holds only the most-recently-cached snapshot's result; oscillating
+// between two snapshots re-scores each visit.
 @MainActor
 final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Score: Sendable> {
   @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
