@@ -450,16 +450,11 @@ enum EpisodeDetailDisplayedScore: Sendable {
     },
     willScore: { [weak self] in
       guard let self else { return }
+      // Show "computing" only when no prior score is visible.
       if score == nil { score = .computing }
     },
-    // An unsaved pass that ran before embedding assets finished downloading
-    // returns the nil as uncacheable; caching it would re-apply that nil on
-    // the next refresh even after the assets land. The coordinator's
-    // `refreshOnAssetsLoaded` observer recovers once the latch finishes.
-    //
-    // Errors map to .uncacheable(nil): the user still sees "no score" instead
-    // of a perpetual .computing spinner, and the next refresh re-attempts
-    // instead of replaying a cached transient failure.
+    // Assets-not-yet-loaded and caught errors both return `.uncacheable(nil)`
+    // so the next refresh re-attempts instead of replaying a cached nil.
     score: { [weak self] in
       guard let self else { return .cacheable(nil) }
       do {
@@ -468,8 +463,9 @@ enum EpisodeDetailDisplayedScore: Sendable {
           return .uncacheable(result)
         }
         return .cacheable(result)
+      } catch is CancellationError {
+        return .cancelled
       } catch {
-        guard !(error is CancellationError) else { throw error }
         Self.log.caughtError("recommendation scoring failed", error)
         return .uncacheable(nil)
       }
@@ -478,6 +474,8 @@ enum EpisodeDetailDisplayedScore: Sendable {
       guard let self else { return }
       score = $0
     },
+    // No `onFailure`: the `score` closure catches and converts errors to
+    // `.uncacheable(nil)`, so the coordinator never sees a thrown error.
     refreshOnAssetsLoaded: true
   )
 

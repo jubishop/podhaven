@@ -61,8 +61,9 @@ final class PodcastRecommendationScorer {
           return .uncacheable(result)
         }
         return .cacheable(result)
+      } catch is CancellationError {
+        return .cancelled
       } catch {
-        guard !(error is CancellationError) else { throw error }
         Self.log.caughtError("recommendation scoring failed", error)
         return .uncacheable([:])
       }

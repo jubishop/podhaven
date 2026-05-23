@@ -28,6 +28,7 @@ import Testing
     var input = 1
     var returnsNilSnapshot = false
     var cacheable = true
+    var returnsCancelled = false
     var scoreError: (any Error)?
 
     private(set) var scoreStarts = 0
@@ -59,6 +60,7 @@ import Testing
         await withCheckedContinuation { waiters.append($0) }
       }
       if let scoreError { throw scoreError }
+      if returnsCancelled { return .cancelled }
       return cacheable ? .cacheable(captured) : .uncacheable(captured)
     }
 
@@ -317,6 +319,41 @@ import Testing
     coordinator.refresh()
     #expect(probe.applied == [4, 4, 5, 5])
     #expect(probe.scoreStarts == 3)
+  }
+
+  @Test(
+    "a .cancelled result is dropped without applying, caching, or routing to onFailure"
+  )
+  func cancelledResultIsDroppedWithoutSideEffects() async throws {
+    let probe = Probe()
+    let coordinator = makeCoordinator(probe)
+
+    probe.input = 8
+    probe.returnsCancelled = true
+    coordinator.refresh()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.scoreStarts == 1 },
+      { @MainActor in "Expected the cancelled pass to run before checking side effects." }
+    )
+    for _ in 0..<5 { await Task.yield() }
+
+    #expect(probe.applied.isEmpty)
+    #expect(probe.failureCount == 0)
+
+    // Same snapshot, but the prior pass was .cancelled — refresh must re-run
+    // score() instead of replaying a cached result.
+    probe.returnsCancelled = false
+    coordinator.refresh()
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in probe.applied == [8] },
+      { @MainActor in
+        "Expected the same-snapshot refresh to recompute after .cancelled, got \(probe.applied)."
+      }
+    )
+    #expect(probe.scoreStarts == 2)
   }
 
   @Test("a thrown scoring error routes to onFailure without applying")

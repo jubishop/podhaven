@@ -19,7 +19,13 @@ import Logging
 // result once without caching (use when the pass ran against inputs the
 // `Snapshot` doesn't fully capture, e.g. embedding assets that hadn't
 // finished downloading — caching would replay the empty result on the next
-// refresh even after the assets land).
+// refresh even after the assets land); `.cancelled` is the non-throwing
+// cancellation signal for closures that do their own `catch` — returning it
+// drops the pass without applying, caching, or routing to `onFailure`. A
+// closure may instead let `CancellationError` propagate; the coordinator
+// catches it. The trip-wire to avoid is catching `CancellationError`
+// internally and then returning `.cacheable`/`.uncacheable`, which would
+// apply a fabricated result after cancellation.
 //
 // Cache holds only the most-recently-cached snapshot's result; oscillating
 // between two snapshots re-scores each visit.
@@ -34,6 +40,7 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   enum ScoreResult: Sendable {
     case cacheable(Score)
     case uncacheable(Score)
+    case cancelled
   }
 
   private let makeSnapshot: @MainActor () -> Snapshot?
@@ -48,8 +55,21 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   private var inFlight: (task: Task<Void, Never>, snapshot: Snapshot)?
   private var cached: (snapshot: Snapshot, score: Score)?
 
-  // - `willScore`: fires on a cache miss, before the pass spawns.
-  // - `onFailure`: fires only on a non-cancellation `score` error.
+  // - `makeSnapshot`: builds the change-detection key for the current inputs.
+  //   Returning `nil` makes `refresh()` a no-op (use when the surface has no
+  //   inputs to key on yet, e.g. an unset selection).
+  // - `willScore`: fires on a cache miss, before the pass spawns. Skipped on
+  //   cache hits so the surface's "computing" indicator doesn't flash.
+  // - `score`: computes the result. Return `.cacheable` to memoize for future
+  //   identical-snapshot hits, `.uncacheable` to apply once without caching,
+  //   or `.cancelled` to drop the pass silently (closures with their own
+  //   `catch` should map `CancellationError` to `.cancelled`).
+  // - `apply`: writes the score onto the surface. Called both on a cache hit
+  //   and after a successful `.cacheable`/`.uncacheable` pass.
+  // - `onFailure`: fires only on a non-cancellation `score` error. Default
+  //   no-op suits surfaces whose `score` closure already converts errors
+  //   internally (e.g. to `.uncacheable(nil)`); pass a closure to route
+  //   failures into surface state otherwise.
   // - `refreshOnAssetsLoaded`: opt in when `score` reads
   //   `contextualEmbedding.assetsLoaded` and would return `.uncacheable` while
   //   the model is still downloading. The coordinator awaits the one-shot
@@ -101,10 +121,14 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
       do {
         try await assetsLoaded.wait()
       } catch {
+        // Cancellation path. `cancel()` already nilled the property; the
+        // natural-completion clear below would otherwise clobber a task
+        // installed by an intervening re-bind.
         return
       }
       guard let self, !Task.isCancelled else { return }
       refresh()
+      assetsLoadedTask = nil
     }
   }
 
@@ -144,6 +168,8 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
         apply(score)
       case .uncacheable(let score):
         apply(score)
+      case .cancelled:
+        return
       }
     } catch is CancellationError {
     } catch {

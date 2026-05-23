@@ -356,6 +356,10 @@ class EpisodesListViewModel:
 
   private func handleRecommendationFailure() {
     guard !Task.isCancelled else { return }
+    // Idempotent. The candidate-observation catch and the coordinator's
+    // onFailure can both land in a tight window; without this guard the
+    // alert and loadingState write would fire twice.
+    guard recommendationScoresState != .failed else { return }
     recommendationScoresState = .failed
     guard currentSortMethod == .recommendationScore else { return }
     alert("Couldn't compute recommendations.")
