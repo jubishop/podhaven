@@ -109,7 +109,9 @@ actor ObservatoryListableTests {
 
     let region = try await db.read { db in
       var region = DatabaseRegion()
-      for trackedRegion in Observatory.recommendationHydrationTrackedRegions(ids: [episodeID]) {
+      for trackedRegion in ListablePodcastEpisode.recommendationHydrationTrackedRegions(
+        ids: [episodeID]
+      ) {
         try region.formUnion(trackedRegion.databaseRegion(db))
       }
       return region

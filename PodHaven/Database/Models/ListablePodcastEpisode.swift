@@ -111,6 +111,39 @@ struct ListablePodcastEpisode:
     return request.limit(limit)
   }
 
+  static func recommendationHydrationTrackedRegions(
+    ids: Set<Episode.ID>
+  ) -> [any DatabaseRegionConvertible] {
+    [
+      // Invalidation-only projection: full rows are still fetched, but playback
+      // columns are omitted here so ticks do not rehydrate recommended rows.
+      ListablePodcastEpisode
+        .filter(ids.contains(Episode.Columns.id))
+        .select([
+          Episode.Columns.id,
+          Episode.Columns.guid,
+          Episode.Columns.mediaURL,
+          Episode.Columns.title,
+          Episode.Columns.pubDate,
+          Episode.Columns.duration,
+          Episode.Columns.image,
+          Episode.Columns.finishDate,
+          Episode.Columns.queueOrder,
+          Episode.Columns.saveInCache,
+          Episode.Columns.cachedFilename,
+          Episode.Columns.downloading,
+          Episode.Columns.creationDate,
+          Episode.Columns.queueDate,
+          Episode.Columns.rating,
+          EpisodeTag.tagIDsSelectable,
+          EpisodeEmbedding.existsSelectable,
+        ])
+        .including(
+          required: ListablePodcastEpisode.podcast.select(ListablePodcastEpisode.podcastColumns)
+        )
+    ]
+  }
+
   func getPodcastEpisode() async throws -> PodcastEpisode {
     guard let podcastEpisode = try await repo.podcastEpisode(id) else {
       Assert.fatal("PodcastEpisode not found for ID \(id)")
