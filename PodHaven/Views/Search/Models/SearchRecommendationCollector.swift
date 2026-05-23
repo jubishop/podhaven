@@ -78,6 +78,11 @@ final class SearchRecommendationCollector {
     var id: MediaGUID { episode.mediaGUID }
     let episode: UnsavedPodcastEpisode
     let score: Float
+    // The cache key of the entry this pick came from. UnsavedPodcastEpisode's
+    // feedURL is parsed from the RSS (atom:link self / itunes:new-feed-url)
+    // and can differ from the URL we downloaded, so removePick can't use
+    // `episode.feedURL` to find the owning entry.
+    let entryFeedURL: FeedURL
   }
 
   // MARK: - Dependencies
@@ -131,6 +136,15 @@ final class SearchRecommendationCollector {
   // Feed URLs whose pipeline is mid-flight.
   private var inFlight: Set<FeedURL> = []
 
+  // Set once the engine has emitted a scoringRevision tick after start without
+  // producing a context (e.g., user has too few signals). Surfaces .hidden on
+  // the banner and lets the drain proceed instead of blocking forever.
+  private var scoringUnavailable = false
+
+  // Watches the engine after we surface unavailable, so we can re-queue
+  // already-finished entries when scoring later warms.
+  private var scoringContextWatcherTask: Task<Void, Never>?
+
   // MARK: - Lifecycle
 
   init() {
@@ -182,12 +196,20 @@ final class SearchRecommendationCollector {
       continuation.resume()
     }
     drainTask = nil
+    scoringContextWatcherTask?.cancel()
+    scoringContextWatcherTask = nil
+    scoringUnavailable = false
 
     let toCancel = Array(permanent.values) + Array(temporary.values)
     permanent.removeAll()
     temporary.removeAll()
     trendingSourceIndex.removeAll()
     typedSearchOverlay = nil
+    // Dropping the Debounce references doesn't cancel their pending sleep
+    // tasks — those keep running until the sleep deadline passes and then
+    // re-enter the (now stale) action. Cancel each task explicitly so any
+    // post-teardown wake-up bails before repopulating caches.
+    for debouncer in debouncers.values { debouncer.cancel() }
     debouncers.removeAll()
     pendingDrainQueue.removeAll()
     inFlight.removeAll()
@@ -208,10 +230,29 @@ final class SearchRecommendationCollector {
   // materialized or mutated the episode. We drop the pick from its
   // owning entry's scored episodes; the row's episode detail handles
   // the unsaved→saved transition on its own.
+  //
+  // `feedURL` is the caller's view of the feed (from `ListedEpisode.feedURL`),
+  // which mirrors the RSS-parsed `atom:link self` / `itunes:new-feed-url` and
+  // can differ from the cache key. Try the direct lookup first; if it misses,
+  // scan by mediaGUID and use the pick's recorded `entryFeedURL`.
   func removePick(feedURL: FeedURL, mediaGUID: MediaGUID) {
     Self.log.debug("Removing pick \(mediaGUID)")
-    let entry = permanent[feedURL] ?? temporary[feedURL]
-    entry?.scoredEpisodes.removeAll { $0.id == mediaGUID }
+    if let entry = permanent[feedURL] ?? temporary[feedURL],
+      entry.scoredEpisodes.contains(where: { $0.id == mediaGUID })
+    {
+      entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
+      return
+    }
+    for entry in permanent.values
+    where entry.scoredEpisodes.contains(where: { $0.id == mediaGUID }) {
+      entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
+      return
+    }
+    for entry in temporary.values
+    where entry.scoredEpisodes.contains(where: { $0.id == mediaGUID }) {
+      entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
+      return
+    }
   }
 
   // MARK: - Reconcile & Ingest
@@ -360,12 +401,55 @@ final class SearchRecommendationCollector {
   }
 
   private func awaitScoringContext() async {
-    if recommendationEngine.hasScoringContext { return }
-    recommendationEngine.start()
-    for await _ in recommendationEngine.$scoringRevision.stream() {
-      if Task.isCancelled { return }
-      if recommendationEngine.hasScoringContext { return }
+    if recommendationEngine.hasScoringContext {
+      scoringUnavailable = false
+      return
     }
+    recommendationEngine.start()
+    // Drop the bootstrap emit; any later tick means buildContext has run at
+    // least once. If the cache is still cold after that, the user has too
+    // little signal data — surface .unavailable and unblock the drain instead
+    // of looping until tearDown. A later warming tick re-queues pending entries
+    // via the watcher.
+    for await _ in recommendationEngine.$scoringRevision.stream().dropFirst() {
+      if Task.isCancelled { return }
+      if recommendationEngine.hasScoringContext {
+        scoringUnavailable = false
+        return
+      }
+      scoringUnavailable = true
+      startScoringContextWatcherIfNeeded()
+      return
+    }
+  }
+
+  private func startScoringContextWatcherIfNeeded() {
+    if let task = scoringContextWatcherTask, !task.isCancelled { return }
+    scoringContextWatcherTask = Task(priority: taskPriority(.utility)) { [weak self] in
+      guard let self else { return }
+      await self.observeScoringContextWarmth()
+    }
+  }
+
+  private func observeScoringContextWarmth() async {
+    for await _ in recommendationEngine.$scoringRevision.stream().dropFirst() {
+      if Task.isCancelled { return }
+      if recommendationEngine.hasScoringContext {
+        handleScoringContextBecameAvailable()
+        return
+      }
+    }
+  }
+
+  private func handleScoringContextBecameAvailable() {
+    scoringUnavailable = false
+    scoringContextWatcherTask = nil
+    let allEntries = Array(permanent.values) + Array(temporary.values)
+    for entry in allEntries where entry.status == .scored && entry.scoredEpisodes.isEmpty {
+      entry.status = .pending
+      scheduleDrain(for: entry.feedURL)
+    }
+    ensureDrainTaskRunning()
   }
 
   // MARK: - Drain Task
@@ -452,6 +536,7 @@ final class SearchRecommendationCollector {
 
     let result = await Self.runPipeline(
       downloadTask: downloadTask,
+      entryFeedURL: feedURL,
       podcastID: podcastID,
       onDeckID: onDeckID,
       embedding: contextualEmbedding,
@@ -493,6 +578,7 @@ final class SearchRecommendationCollector {
 
   private nonisolated static func runPipeline(
     downloadTask: DownloadTask,
+    entryFeedURL: FeedURL,
     podcastID: Podcast.ID?,
     onDeckID: Episode.ID?,
     embedding: ContextualEmbedding,
@@ -560,7 +646,7 @@ final class SearchRecommendationCollector {
       }
       guard let score = engine.similarityScore(forEmbedding: vector) else { continue }
       guard score > scoreFloor else { continue }
-      scored.append(ScoredEpisode(episode: payload, score: score))
+      scored.append(ScoredEpisode(episode: payload, score: score, entryFeedURL: entryFeedURL))
     }
 
     return .success(scored)
@@ -657,6 +743,7 @@ final class SearchRecommendationCollector {
     guard !feedURLs.isEmpty else { return .hidden }
     let sourcePicks = picks(for: source)
     if !sourcePicks.isEmpty { return .loaded(count: sourcePicks.count) }
+    if scoringUnavailable { return .hidden }
     let anyInFlight = feedURLs.contains { url in
       guard let entry = entry(for: url) else { return true }
       switch entry.status {

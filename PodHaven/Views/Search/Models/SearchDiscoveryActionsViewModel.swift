@@ -29,8 +29,9 @@ final class SearchDiscoveryActionsViewModel: ManagingEpisodes {
   // MARK: - Actions With Post-Removal
 
   func playEpisode(_ episode: ListedEpisode) {
-    performAfterMaterialize(episode, context: "playEpisode") { [playManager] episodeID in
-      let podcastEpisode = try await Container.shared.repo().podcastEpisode(episodeID)
+    performAfterMaterialize(episode, context: "playEpisode") {
+      [playManager, repo] episodeID in
+      let podcastEpisode = try await repo.podcastEpisode(episodeID)
       guard let podcastEpisode else { return }
       try await playManager.load(podcastEpisode)
       await playManager.play()

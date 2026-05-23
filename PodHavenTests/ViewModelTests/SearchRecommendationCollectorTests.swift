@@ -287,6 +287,104 @@ import Testing
     #expect(!collector.visiblePicks.contains { $0.episode.mediaGUID == removed })
   }
 
+  // MARK: - Test: removePick Works When Parsed Feed URL Differs From Entry Key
+
+  @Test("removePick removes a pick whose parsed feed URL differs from the entry key")
+  func removePickHandlesAlternateFeedURL() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+    try await primeEngine(embeddable: scripted)
+
+    let requestedURL = FeedURL(URL(string: "https://example.com/iTunes-source.rss")!)
+    let parsedSelfURL = FeedURL(URL(string: "https://example.com/canonical-self.rss")!)
+
+    // Custom RSS where atom:link rel="self" points at a *different* URL than
+    // the one we downloaded. PodcastFeed will set the unsavedPodcast's feedURL
+    // from atom:link, so the rendered ListedEpisode.feedURL is the canonical
+    // URL — but the collector's cache key is still the requested URL.
+    let xml = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" \
+      xmlns:atom="http://www.w3.org/2005/Atom">
+        <channel>
+          <title>Canonical Differs</title>
+          <link>\(requestedURL.absoluteString)</link>
+          <description>Canonical Differs description</description>
+          <itunes:image href="https://example.com/image.png" />
+          <atom:link rel="self" href="\(parsedSelfURL.absoluteString)" />
+          <item>
+            <guid isPermaLink="false">canon-pick-1</guid>
+            <title>Canonical Pick</title>
+            <pubDate>Mon, 14 Nov 2023 22:13:20 +0000</pubDate>
+            <enclosure url="https://example.com/audio/canon-pick-1.mp3" type="audio/mpeg" length="0" />
+            <description>Canonical Pick description</description>
+          </item>
+        </channel>
+      </rss>
+      """
+    await session.respond(to: requestedURL.rawValue, data: Data(xml.utf8))
+
+    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [makeUnsavedRow(feedURL: requestedURL, iTunesID: ITunesPodcastID(1901))]
+    )
+    try await advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in collector.visiblePicks.count >= 1 },
+      { @MainActor in "Expected pick to land, got \(collector.visiblePicks.count)" }
+    )
+
+    let pick = collector.visiblePicks[0]
+    // Sanity: the parsed feedURL must not equal the requested URL, otherwise
+    // this test doesn't exercise the mismatch we care about.
+    #expect(
+      pick.episode.feedURL == parsedSelfURL,
+      "Test setup invariant: parsed feed URL must differ from requested URL"
+    )
+
+    let listed = ListedEpisode(pick.episode)
+    collector.removePick(feedURL: listed.feedURL, mediaGUID: listed.mediaGUID)
+
+    #expect(
+      collector.visiblePicks.isEmpty,
+      "Expected pick to be removed even when its feedURL differs from the cache key"
+    )
+  }
+
+  // MARK: - Test: saveEpisodeInCache Through ManagingEpisodes Dispatch
+
+  // EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes> calls
+  // `viewModel.saveEpisodeInCache(...)`. If the method lives only in the
+  // ManagingEpisodes extension (not in the protocol itself), static dispatch
+  // through the generic constraint picks the extension default and any
+  // conforming-type override is bypassed. Hoisting saveEpisodeInCache into the
+  // protocol makes dispatch dynamic so per-type overrides actually run.
+  @Test("saveEpisodeInCache dispatched via ManagingEpisodes constraint calls the override")
+  func saveEpisodeInCacheThroughProtocolDispatchCallsOverride() throws {
+    let unsaved = try Create.unsavedPodcast(title: "Dispatch Source")
+    let episode = try Create.unsavedEpisode(title: "Dispatch Pick")
+    let payload = UnsavedPodcastEpisode(unsavedPodcast: unsaved, unsavedEpisode: episode)
+    let listed = ListedEpisode(payload)
+
+    let tracker = TrackingManagingEpisodes()
+    Self.dispatchSaveEpisodeInCacheViaProtocol(viewModel: tracker, episode: listed)
+
+    #expect(
+      tracker.saveCalledOnSelf,
+      "Expected the ManagingEpisodes-override to be reached via dynamic dispatch"
+    )
+  }
+
+  private static func dispatchSaveEpisodeInCacheViaProtocol<V: ManagingEpisodes>(
+    viewModel: V,
+    episode: V.EpisodeType
+  ) {
+    viewModel.saveEpisodeInCache(episode)
+  }
+
   // MARK: - Test: Typed-Search Overlay Replacement
 
   @Test("a new query replaces the typed-search overlay and cancels its work")
@@ -483,6 +581,55 @@ import Testing
     #expect(collector.picks(for: source).isEmpty)
   }
 
+  // MARK: - Test: Teardown Cancels Pending Debouncer Action
+
+  @Test("tearDown cancels a pending stable-source debouncer action")
+  func tearDownCancelsPendingDebouncerAction() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+    try await primeEngine(embeddable: scripted)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/teardown-debouncer.rss")!)
+    await respondWithFeed(at: feedURL, title: "Teardown Debouncer", episodes: 1)
+
+    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1701))]
+    )
+
+    // Wait for the debouncer's 1 s sleep to be registered, but DO NOT advance
+    // time yet — the reconcile / RSS work is gated behind that sleep.
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+
+    collector.tearDown()
+
+    // Past tearDown, advancing time must NOT cause the debouncer action to
+    // fire. Without cancelling the debouncer's underlying Task, advanceTime
+    // resumes it and reconcileAndIngest runs after teardown.
+    await fakeSleeper.advanceTime(by: .seconds(2))
+
+    // Give a generous settle window. If the stale debouncer were still alive,
+    // reconcileAndIngest would repopulate caches and the drain task would
+    // download the RSS — which we'd observe in session.requests.
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        { @MainActor in await self.session.requests.contains(feedURL.rawValue) },
+        { @MainActor in "settle" }
+      )
+      Issue.record(
+        "Stale debouncer fired after tearDown — \(feedURL.rawValue) was requested"
+      )
+    } catch {
+      // Wait.until timed out without ever seeing the request — fix is working.
+    }
+
+    #expect(collector.bannerState == .hidden)
+    #expect(collector.picks(for: source).isEmpty)
+  }
+
   // MARK: - Test: picks(for:) Is Independent Of activeSource
 
   @Test("picks(for:) returns picks for the requested source regardless of activeSource")
@@ -570,6 +717,57 @@ import Testing
       { @MainActor in "Expected picks once engine warmed; got \(collector.bannerState)" }
     )
     #expect(!collector.visiblePicks.isEmpty)
+  }
+
+  // MARK: - Test: Banner Hides When Engine Cannot Build A Scoring Context
+
+  @Test("banner hides when the engine cannot build a scoring context")
+  func bannerHidesWhenScoringUnavailable() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+
+    // Set up the embedding factory but DO NOT seed any signal episodes — the
+    // engine's buildContext consistently returns nil because there's no rated
+    // / partial signal data. Without the fix, awaitScoringContext blocks
+    // forever waiting for hasScoringContext, entries stay .pending, and the
+    // banner is permanently .loading.
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: scripted) }
+      .scope(.cached)
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/no-scoring.rss")!)
+    await respondWithFeed(at: feedURL, title: "No Scoring", episodes: 1)
+
+    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1601))]
+    )
+    try await advanceStableSourceDebounce()
+
+    // Wait for the reconcile to apply: feedURL lands in the source index with
+    // a pending entry, banner enters .loading. Past this point the drain task
+    // is blocked inside awaitScoringContext.
+    try await Wait.until(
+      { @MainActor in collector.bannerState == .loading },
+      { @MainActor in
+        "Expected banner to enter .loading after reconcile; got \(collector.bannerState)"
+      }
+    )
+
+    // Advance time once, well beyond the engine's 400 ms cacheRebuild debounce.
+    // That fires buildContext (returns nil) and bumps scoringRevision. With
+    // the fix, awaitScoringContext returns and the banner transitions to
+    // .hidden; without it, the banner stays .loading forever.
+    await fakeSleeper.advanceTime(by: .seconds(5))
+    try await Wait.until(
+      { @MainActor in collector.bannerState == .hidden },
+      { @MainActor in
+        "Expected banner to hide once scoring is determined unavailable, got \(collector.bannerState)"
+      }
+    )
   }
 
   // MARK: - Test: Typed-Search Query Change Does Not Cancel Trending Work
@@ -819,4 +1017,32 @@ import Testing
       """
     return Data(xml.utf8)
   }
+}
+
+// Minimal ManagingEpisodes conformer used by the dispatch test. The body of
+// saveEpisodeInCache flips a flag so the test can detect whether dynamic
+// dispatch reached the override or fell through to the protocol-extension
+// default (which would never touch this flag).
+@MainActor
+private final class TrackingManagingEpisodes: ManagingEpisodes {
+  typealias EpisodeType = ListedEpisode
+
+  var saveCalledOnSelf = false
+
+  func saveEpisodeInCache(_ episode: ListedEpisode) { saveCalledOnSelf = true }
+
+  func isEpisodePlaying(_ episode: ListedEpisode) -> Bool { false }
+  func isEpisodeAtBottomOfQueue(_ episode: ListedEpisode) -> Bool { false }
+  func canClearCache(_ episode: ListedEpisode) -> Bool { false }
+  func playEpisode(_ episode: ListedEpisode) {}
+  func pauseEpisode(_ episode: ListedEpisode) {}
+  func queueEpisodeOnTop(_ episode: ListedEpisode, swipeAction: Bool) {}
+  func queueEpisodeAtBottom(_ episode: ListedEpisode, swipeAction: Bool) {}
+  func removeEpisodeFromQueue(_ episode: ListedEpisode) {}
+  func cacheEpisode(_ episode: ListedEpisode) {}
+  func uncacheEpisode(_ episode: ListedEpisode) {}
+  func rateEpisode(_ episode: ListedEpisode, rating: EpisodeRating?) {}
+  func markEpisodeFinished(_ episode: ListedEpisode) {}
+  func addTag(_ tagID: PodHaven.Tag.ID, to episode: ListedEpisode) {}
+  func removeTag(_ tagID: PodHaven.Tag.ID, from episode: ListedEpisode) {}
 }

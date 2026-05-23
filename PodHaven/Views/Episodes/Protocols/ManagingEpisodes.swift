@@ -18,6 +18,8 @@ import Logging
   func removeEpisodeFromQueue(_ episode: EpisodeType)
   func cacheEpisode(_ episode: EpisodeType)
   func uncacheEpisode(_ episode: EpisodeType)
+  func saveEpisodeInCache(_ episode: EpisodeType)
+  func unsaveEpisodeFromCache(_ episode: EpisodeType)
   func rateEpisode(_ episode: EpisodeType, rating: EpisodeRating?)
   func markEpisodeFinished(_ episode: EpisodeType)
   func addTag(_ tagID: Tag.ID, to episode: EpisodeType)
