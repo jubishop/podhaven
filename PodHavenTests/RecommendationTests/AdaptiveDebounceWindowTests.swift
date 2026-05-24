@@ -9,8 +9,7 @@ import Testing
 struct AdaptiveDebounceWindowTests {
   @Test("an empty window produces the minimum debounce floor")
   func emptyWindowReturnsMinimumDebounce() {
-    let window = AdaptiveDebounceWindow()
-    let (duration, cappedFrom) = window.currentDebounce()
+    let (duration, cappedFrom) = AdaptiveDebounceWindow.currentDebounce(for: [])
 
     #expect(duration == AdaptiveDebounceWindow.minimumDebounce)
     #expect(cappedFrom == nil)
@@ -18,8 +17,8 @@ struct AdaptiveDebounceWindowTests {
 
   @Test("a window with one slow entry produces max × safety multiplier")
   func slowEntryProducesSafetyMultipliedWindow() {
-    let window = AdaptiveDebounceWindow().recording(.seconds(4))
-    let (duration, cappedFrom) = window.currentDebounce()
+    let window = AdaptiveDebounceWindow.recording(.seconds(4), into: [])
+    let (duration, cappedFrom) = AdaptiveDebounceWindow.currentDebounce(for: window)
 
     #expect(duration == .seconds(8))
     #expect(cappedFrom == nil)
@@ -27,8 +26,8 @@ struct AdaptiveDebounceWindowTests {
 
   @Test("a window with only sub-floor entries still floors at the minimum")
   func subFloorEntriesClampUpToFloor() {
-    let window = AdaptiveDebounceWindow().recording(.milliseconds(100))
-    let (duration, cappedFrom) = window.currentDebounce()
+    let window = AdaptiveDebounceWindow.recording(.milliseconds(100), into: [])
+    let (duration, cappedFrom) = AdaptiveDebounceWindow.currentDebounce(for: window)
 
     #expect(duration == AdaptiveDebounceWindow.minimumDebounce)
     #expect(cappedFrom == nil)
@@ -37,55 +36,62 @@ struct AdaptiveDebounceWindowTests {
   @Test("a window whose max would exceed the cap clamps and reports the uncapped value")
   func aboveCapClampsAndSurfacesUncappedDuration() {
     // 70s * 2 = 140s, above the 120s cap.
-    let window = AdaptiveDebounceWindow().recording(.seconds(70))
-    let (duration, cappedFrom) = window.currentDebounce()
+    let window = AdaptiveDebounceWindow.recording(.seconds(70), into: [])
+    let (duration, cappedFrom) = AdaptiveDebounceWindow.currentDebounce(for: window)
 
     #expect(duration == AdaptiveDebounceWindow.maximumDebounce)
     #expect(cappedFrom == .seconds(140))
   }
 
-  @Test("five fast entries after a single slow entry age the slow entry out")
+  @Test("capacity fast entries after a single slow entry age the slow entry out")
   func slowOutlierAgesOutAfterCapacityFastEntries() {
-    var window = AdaptiveDebounceWindow().recording(.seconds(4))
-    // After the slow entry, debounce should reflect it.
-    #expect(window.currentDebounce().duration == .seconds(8))
+    var window = AdaptiveDebounceWindow.recording(.seconds(4), into: [])
+    #expect(AdaptiveDebounceWindow.currentDebounce(for: window).duration == .seconds(8))
 
-    // Record `capacity` sub-floor entries. After the last one, the slow
-    // outlier should have been trimmed out and the debounce should be back
-    // at the floor.
     for _ in 0..<AdaptiveDebounceWindow.capacity {
-      window = window.recording(.milliseconds(50))
+      window = AdaptiveDebounceWindow.recording(.milliseconds(50), into: window)
     }
 
-    #expect(window.currentDebounce().duration == AdaptiveDebounceWindow.minimumDebounce)
+    #expect(
+      AdaptiveDebounceWindow.currentDebounce(for: window).duration
+        == AdaptiveDebounceWindow.minimumDebounce
+    )
   }
 
   @Test("the window holds at most capacity entries")
   func windowRespectsCapacity() {
-    var window = AdaptiveDebounceWindow()
+    var window: [Duration] = []
     for _ in 0..<(AdaptiveDebounceWindow.capacity + 10) {
-      window = window.recording(.milliseconds(100))
+      window = AdaptiveDebounceWindow.recording(.milliseconds(100), into: window)
     }
-    // No direct observable for count, but the rolling-max behavior is the
-    // contract: a recently-recorded slow entry should not stay forever.
-    window = window.recording(.seconds(4))
+    #expect(window.count == AdaptiveDebounceWindow.capacity)
+
+    // A slow entry then `capacity` fast entries should drop the slow entry
+    // out, returning the window to the floor.
+    window = AdaptiveDebounceWindow.recording(.seconds(4), into: window)
     for _ in 0..<AdaptiveDebounceWindow.capacity {
-      window = window.recording(.milliseconds(100))
+      window = AdaptiveDebounceWindow.recording(.milliseconds(100), into: window)
     }
-    #expect(window.currentDebounce().duration == AdaptiveDebounceWindow.minimumDebounce)
+    #expect(
+      AdaptiveDebounceWindow.currentDebounce(for: window).duration
+        == AdaptiveDebounceWindow.minimumDebounce
+    )
   }
 
-  @Test("the window round-trips through Codable")
+  @Test("a [Duration] window round-trips through Codable")
   func windowRoundTripsThroughCodable() throws {
-    var window = AdaptiveDebounceWindow()
-    window = window.recording(.seconds(2))
-    window = window.recording(.seconds(3))
-    window = window.recording(.milliseconds(500))
+    var window: [Duration] = []
+    window = AdaptiveDebounceWindow.recording(.seconds(2), into: window)
+    window = AdaptiveDebounceWindow.recording(.seconds(3), into: window)
+    window = AdaptiveDebounceWindow.recording(.milliseconds(500), into: window)
 
     let encoded = try JSONEncoder().encode(window)
-    let decoded = try JSONDecoder().decode(AdaptiveDebounceWindow.self, from: encoded)
+    let decoded = try JSONDecoder().decode([Duration].self, from: encoded)
 
     #expect(decoded == window)
-    #expect(decoded.currentDebounce().duration == window.currentDebounce().duration)
+    #expect(
+      AdaptiveDebounceWindow.currentDebounce(for: decoded).duration
+        == AdaptiveDebounceWindow.currentDebounce(for: window).duration
+    )
   }
 }

@@ -19,6 +19,16 @@ extension Float: DefaultsStorable {}
 extension String: DefaultsStorable {}
 extension Date: DefaultsStorable {}
 
+// MARK: - Array Conformance
+
+// Defers to the Codable extension below for actual JSON storage. Lets
+// `[Duration]`, `[Int]`, etc. land directly in `@PersistedThreadSafe`
+// without a wrapper struct. `Sendable` is intentionally omitted from the
+// where-clause — Swift forbids conditional conformance gated on a marker
+// protocol — and is satisfied at the use site by `Array`'s own conditional
+// `Sendable` conformance.
+extension Array: DefaultsStorable where Element: Codable & Equatable {}
+
 // MARK: - Optional Conformance
 
 extension Optional: DefaultsStorable where Wrapped: DefaultsStorable {
