@@ -73,7 +73,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
   case recommendation(RecommendationScore)
   case similarity(Float)
   case embeddingPending
-  case computing
 }
 
 @Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
@@ -88,7 +87,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
-  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
@@ -424,15 +422,13 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   // MARK: - Recommendation Observation
 
-  @ObservationIgnored private var recommendationTask: Task<Void, Never>?
-
   @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
 
-  private struct RecommendationScoringSnapshot: Equatable {
+  private struct RecommendationScoringSnapshot: Equatable, Sendable {
     let scoringRevision: Int
     let state: State
 
-    enum State: Equatable {
+    enum State: Equatable, Sendable {
       case initial(mediaGUID: MediaGUID)
       case unsaved(
         mediaGUID: MediaGUID,
@@ -442,6 +438,37 @@ enum EpisodeDetailDisplayedScore: Sendable {
       case saved(mediaGUID: MediaGUID, episodeID: Episode.ID)
     }
   }
+
+  @ObservationIgnored
+  private lazy var recommendationCoordinator = RecommendationScoringCoordinator<
+    RecommendationScoringSnapshot, EpisodeDetailDisplayedScore?
+  >(
+    makeSnapshot: { [weak self] in
+      guard let self else { return nil }
+      return currentRecommendationScoringSnapshot()
+    },
+    // Assets-not-yet-loaded and caught errors both return `.uncacheable(nil)`
+    // so the next refresh re-attempts instead of replaying a cached nil. The
+    // helper classifies cacheability at its observation point so a latch that
+    // finishes between helper return and the closure can't flip the policy.
+    score: { [weak self] in
+      guard let self else { return .cacheable(nil) }
+      do {
+        let (result, cacheable) = try await computeRecommendation()
+        return cacheable ? .cacheable(result) : .uncacheable(result)
+      } catch is CancellationError {
+        return .cancelled
+      } catch {
+        Self.log.caughtError("recommendation scoring failed", error)
+        return .uncacheable(nil)
+      }
+    },
+    apply: { [weak self] in
+      guard let self else { return }
+      score = $0
+    },
+    refreshOnAssetsLoaded: true
+  )
 
   private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot {
     let snapshotState: RecommendationScoringSnapshot.State
@@ -466,142 +493,62 @@ enum EpisodeDetailDisplayedScore: Sendable {
     )
   }
 
-  // Re-fetches this episode's score whenever the engine bumps
-  // `scoringRevision`, i.e. whenever scoring output can change. Create the
-  // stream before the bootstrap kick so a revision emitted during the initial
-  // fetch is queued instead of becoming a dropped replay value.
+  // Start the revision observation before the bootstrap refresh so a revision
+  // emitted during the initial fetch is queued, not dropped. `refresh()` is
+  // snapshot-gated, so the call is a no-op when a kind-changing `transition()`
+  // already kicked an identical-snapshot pass.
   private func startRecommendationObservation() {
-    if let recommendationTask, !recommendationTask.isCancelled {
-      Self.log.debug("Recommendation observation already active; not starting again")
-      return
-    }
-
-    let scoringRevisions = recommendationEngine.$scoringRevision.stream().dropFirst()
-    scheduleRecommendationRefresh(reason: .initial)
-    recommendationTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      guard let self else { return }
-
-      for await _ in scoringRevisions {
-        guard !Task.isCancelled else { return }
-        scheduleRecommendationRefresh(reason: .scoringRevision)
-      }
-    }
+    recommendationCoordinator.startObservations()
+    recommendationCoordinator.refresh()
   }
 
-  private func fetchRecommendation() async {
-    let snapshot = currentRecommendationScoringSnapshot()
-    let newScore: EpisodeDetailDisplayedScore?
+  private func computeRecommendation() async throws -> (
+    EpisodeDetailDisplayedScore?, cacheable: Bool
+  ) {
     switch state {
     case .initial:
-      newScore = nil
+      return (nil, true)
     case .saved(let podcastEpisode):
-      newScore = await scoreSavedEpisode(podcastEpisode)
+      return (try await scoreSavedEpisode(podcastEpisode), true)
     case .unsaved(let unsavedPodcastEpisode):
-      newScore = await scoreUnsavedEpisode(unsavedPodcastEpisode)
+      return try await scoreUnsavedEpisode(unsavedPodcastEpisode)
     }
-    guard snapshot == currentRecommendationScoringSnapshot() else {
-      Self.log.debug(
-        """
-        fetchRecommendation: scoring snapshot changed during scoring; \
-        dropping stale write
-        """
-      )
-      return
-    }
-    score = newScore
   }
 
   private func scoreSavedEpisode(
     _ podcastEpisode: PodcastEpisode
-  ) async -> EpisodeDetailDisplayedScore? {
-    do {
-      guard try await recommendationRepo.embedding(for: podcastEpisode.id) != nil else {
-        return .embeddingPending
-      }
-      guard let score = try await recommendationEngine.recommendation(for: podcastEpisode.id)
-      else { return nil }
-      return .recommendation(score)
-    } catch {
-      Self.log.caughtError(
-        "fetchRecommendation: saved scorer failed for \(podcastEpisode.toString)",
-        error
-      )
-      return nil
+  ) async throws -> EpisodeDetailDisplayedScore? {
+    guard try await recommendationRepo.embedding(for: podcastEpisode.id) != nil else {
+      return .embeddingPending
     }
+    guard let score = try await recommendationEngine.recommendation(for: podcastEpisode.id)
+    else { return nil }
+    return .recommendation(score)
   }
 
   private func scoreUnsavedEpisode(
     _ unsavedPodcastEpisode: UnsavedPodcastEpisode
-  ) async -> EpisodeDetailDisplayedScore? {
+  ) async throws -> (EpisodeDetailDisplayedScore?, cacheable: Bool) {
     await contextualEmbedding.loadAssetsIfAvailable()
-    guard contextualEmbedding.assetsLoaded.isFinished else { return nil }
+    // Classify cacheability at the same point we observe asset state so a
+    // latch that finishes after this guard can't flip the closure's decision.
+    guard contextualEmbedding.assetsLoaded.isFinished else { return (nil, false) }
 
     let revision = contextualEmbedding.revision
     let vector: [Float]
     if let cached = unsavedEmbeddingCache, cached.revision == revision {
       vector = cached.vector
     } else {
-      do {
-        vector = try await EmbeddingService.embeddingVector(
-          for: unsavedPodcastEpisode,
-          embedding: contextualEmbedding
-        )
-      } catch {
-        Self.log.caughtError(
-          """
-          fetchRecommendation: unsaved embedding failed for \
-          \(unsavedPodcastEpisode.toString)
-          """,
-          error
-        )
-        return nil
-      }
+      vector = try await EmbeddingService.embeddingVector(
+        for: unsavedPodcastEpisode,
+        embedding: contextualEmbedding
+      )
       unsavedEmbeddingCache = (revision: revision, vector: vector)
     }
     guard let value = recommendationEngine.similarityScore(forEmbedding: vector) else {
-      return nil
+      return (nil, true)
     }
-    return .similarity(value)
-  }
-
-  @ObservationIgnored private var recommendationFetchTask: Task<Void, Never>?
-  @ObservationIgnored private let recommendationDebounce = Debounce(
-    duration: .milliseconds(400),
-    priority: .utility
-  )
-
-  private enum EpisodeRecommendationRefreshReason {
-    case initial
-    case scoringRevision
-    case kindChanged
-  }
-
-  private func scheduleRecommendationRefresh(
-    reason: EpisodeRecommendationRefreshReason
-  ) {
-    if case .kindChanged = reason { unsavedEmbeddingCache = nil }
-    if score == nil { score = .computing }
-    switch reason {
-    case .initial, .kindChanged:
-      recommendationFetchTask?.cancel()
-      recommendationFetchTask = Task(priority: taskPriority(.utility)) { [weak self] in
-        guard let self else { return }
-        await self.fetchRecommendation()
-      }
-    case .scoringRevision:
-      recommendationDebounce { [weak self] in
-        guard let self else { return }
-        await self.fetchRecommendation()
-      }
-    }
-  }
-
-  private func clearRecommendationTasks() {
-    recommendationTask?.cancel()
-    recommendationTask = nil
-    recommendationFetchTask?.cancel()
-    recommendationFetchTask = nil
-    recommendationDebounce.cancel()
+    return (.similarity(value), true)
   }
 
   // MARK: - Disappear
@@ -609,7 +556,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
-    clearRecommendationTasks()
+    recommendationCoordinator.cancel()
   }
 
   // MARK: - Private Helpers
@@ -620,7 +567,8 @@ enum EpisodeDetailDisplayedScore: Sendable {
     logStateTransition(to: newState)
     state = newState
     if recommendationKindChanged {
-      scheduleRecommendationRefresh(reason: .kindChanged)
+      unsavedEmbeddingCache = nil
+      recommendationCoordinator.refresh()
     }
   }
 

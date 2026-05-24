@@ -11,6 +11,11 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
+  // One-shot error to throw from the next `embedding(for:)` call so tests can
+  // pin down how scoring surfaces handle transient embedding-fetch failures.
+  // Cleared on use so the next call reaches the real repo.
+  let embeddingFetchError = ThreadSafe<(any Error)?>(nil)
+
   // One-shot suspend for the next matching `embeddings(for:)` call so tests
   // can interleave state changes with an in-flight scoring pass.
   //
@@ -148,6 +153,13 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
     recordCall(methodName: "embedding", parameters: episodeID)
+    if let error = embeddingFetchError({ pending in
+      let captured = pending
+      pending = nil
+      return captured
+    }) {
+      throw error
+    }
     return try await recommendationRepo.embedding(for: episodeID)
   }
 

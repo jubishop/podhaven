@@ -192,8 +192,8 @@ import Testing
     }
   }
 
-  @Test("toggling to rec sort shows .computingRecommendations until scoring lands")
-  func togglingToRecSortShowsComputingRecommendations() async throws {
+  @Test("toggling to rec sort shows .loading until scoring lands")
+  func togglingToRecSortShowsLoading() async throws {
     Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
 
     let embeddable = ScriptedEmbeddable { text in
@@ -261,14 +261,14 @@ import Testing
       viewModel.currentSortMethod = .recommendationScore
 
       // On-demand scoring runs no background pass, so toggling to rec sort
-      // shows "Computing recommendations…" while the pass is in flight.
+      // shows "Loading…" while the pass is in flight.
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .computingRecommendations },
+        { @MainActor in viewModel.loadingState == .loading },
         { @MainActor in
           """
-          Expected .computingRecommendations while the on-demand scoring pass \
-          is stranded; got \(viewModel.loadingState).
+          Expected .loading while the on-demand scoring pass is stranded; \
+          got \(viewModel.loadingState).
           """
         }
       )

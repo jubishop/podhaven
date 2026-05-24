@@ -199,10 +199,6 @@ class PodcastDetailViewModel:
 
   private let recommendationScorer = PodcastRecommendationScorer()
 
-  var recommendationDisplay: PodcastRecommendationScorer.Display {
-    recommendationScorer.display
-  }
-
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
       let selectedEpisodes = self.selectedEpisodes
