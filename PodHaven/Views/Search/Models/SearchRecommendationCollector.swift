@@ -406,17 +406,19 @@ final class SearchRecommendationCollector {
       return
     }
     recommendationEngine.start()
-    // Drop the bootstrap emit; any later tick means buildContext has run at
-    // least once. If the cache is still cold after that, the user has too
-    // little signal data — surface .unavailable and unblock the drain instead
-    // of looping until tearDown. A later warming tick re-queues pending entries
-    // via the watcher.
-    for await _ in recommendationEngine.$scoringRevision.stream().dropFirst() {
+    // AppLauncher pre-starts the engine, so a no-context revision can already be in the past; don't subscribe to a stream whose only emit would be the bootstrap replay.
+    if recommendationEngine.scoringRevision > 0 {
+      scoringUnavailable = true
+      startScoringContextWatcherIfNeeded()
+      return
+    }
+    for await revision in recommendationEngine.$scoringRevision.stream() {
       if Task.isCancelled { return }
       if recommendationEngine.hasScoringContext {
         scoringUnavailable = false
         return
       }
+      if revision == 0 { continue }
       scoringUnavailable = true
       startScoringContextWatcherIfNeeded()
       return
@@ -432,7 +434,10 @@ final class SearchRecommendationCollector {
   }
 
   private func observeScoringContextWarmth() async {
-    for await _ in recommendationEngine.$scoringRevision.stream().dropFirst() {
+    // Engine state can change between the caller setting scoringUnavailable
+    // and this watcher subscribing. Check on every emit including bootstrap
+    // (don't dropFirst) so a fast-warming engine doesn't slip past us.
+    for await _ in recommendationEngine.$scoringRevision.stream() {
       if Task.isCancelled { return }
       if recommendationEngine.hasScoringContext {
         handleScoringContextBecameAvailable()

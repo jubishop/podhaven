@@ -630,6 +630,54 @@ import Testing
     #expect(collector.picks(for: source).isEmpty)
   }
 
+  // MARK: - Test: Banner Hides When Engine Pre-Rebuilt To Nil
+
+  @Test("banner hides when engine rebuilt to no context before collector subscribed")
+  func bannerHidesWhenEnginePreRebuiltToNil() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: scripted) }
+      .scope(.cached)
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    // Mirror AppLauncher: start the engine and let it rebuild with no signal
+    // data. scoringRevision goes to >0 with hasScoringContext still false.
+    engine.start()
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in Container.shared.recommendationEngine().scoringRevision > 0 },
+      { @Sendable in "Expected engine to publish a rebuild tick" }
+    )
+    #expect(!engine.hasScoringContext)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/pre-rebuilt-nil.rss")!)
+    await respondWithFeed(at: feedURL, title: "Pre Rebuilt Nil", episodes: 1)
+
+    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1602))]
+    )
+
+    // With the fix, awaitScoringContext sees scoringRevision > 0 + cache nil
+    // and unblocks the drain immediately; processFeedURL fires the RSS
+    // download. Without the fix, dropFirst() skips the bootstrap replay and
+    // the drain stays blocked, so the RSS download never happens.
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in
+        await Container.shared.podcastFeedSession() is FakeDataFetchable
+          ? (Container.shared.podcastFeedSession() as! FakeDataFetchable).requests.contains(
+            feedURL.rawValue
+          ) : false
+      },
+      { @Sendable in "Expected RSS request after drain unblocked" }
+    )
+
+    #expect(collector.bannerState == .hidden)
+  }
+
   // MARK: - Test: picks(for:) Is Independent Of activeSource
 
   @Test("picks(for:) returns picks for the requested source regardless of activeSource")
