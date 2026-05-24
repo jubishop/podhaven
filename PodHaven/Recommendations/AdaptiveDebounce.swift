@@ -35,7 +35,6 @@ struct AdaptiveDebounce: Sendable {
   }
 
   var passDurations: [Duration] { persistedWindow.wrappedValue }
-  var nextDebounceDuration: Duration { computeDebounce().duration }
   var hasInFlightTask: Bool { debounce.hasInFlightTask }
 
   // Only success-path calls — cancelled/failed passes would falsely shrink
