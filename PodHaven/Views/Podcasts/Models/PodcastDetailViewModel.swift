@@ -262,11 +262,6 @@ class PodcastDetailViewModel:
     }
   }
 
-  // Result of one scoring pass, paired with the snapshot variant it came from
-  // so `applyRecommendationScores` can route filter strategy without re-reading
-  // `state`. Mirrors `RecommendationScoringSnapshot.State`'s non-`.initial`
-  // cases — the helpers downstream of `currentRecommendationScoringSnapshot`
-  // can never see `.initial`.
   private enum RecommendationPass: Sendable {
     case saved([MediaGUID: Float])
     case unsaved([MediaGUID: Float])
@@ -293,17 +288,6 @@ class PodcastDetailViewModel:
       guard let self, currentSortMethod == .recommendationScore else { return nil }
       return currentRecommendationScoringSnapshot()
     },
-    // An unsaved pass that ran before embedding assets finished downloading
-    // returns the empty map as uncacheable; caching it would re-apply that
-    // map on the next refresh even after the assets land.
-    // `unsavedSimilarityScores` classifies cacheability at its observation
-    // point so a latch that finishes between its return and the closure
-    // can't flip the policy. The coordinator's `refreshOnAssetsLoaded`
-    // observer recovers once the latch finishes.
-    //
-    // Errors map to .uncacheable(.empty(for:)): the comparator falls back to
-    // tiebreaker order for this pass, and the next refresh re-attempts
-    // instead of replaying a cached transient failure.
     score: { [weak self] in
       guard let self, let snapshot = currentRecommendationScoringSnapshot()
       else { return .cancelled }
@@ -337,8 +321,6 @@ class PodcastDetailViewModel:
     let snapshotState: RecommendationScoringSnapshot.State
     switch state {
     case .initial:
-      // Pre-hydration: no episodes to score yet. Returning nil makes refresh()
-      // a no-op until observation transitions us out of .initial.
       return nil
     case .unsaved:
       snapshotState = .unsaved(embeddingRevision: contextualEmbedding.revision)
@@ -416,8 +398,6 @@ class PodcastDetailViewModel:
     entries: IdentifiedArrayOf<ListedEpisode>
   ) async throws -> ([MediaGUID: Float], cacheable: Bool) {
     await contextualEmbedding.loadAssetsIfAvailable()
-    // Classify cacheability at the same point we observe asset state so a
-    // latch that finishes after this guard can't flip the closure's decision.
     guard contextualEmbedding.assetsLoaded.isFinished else { return ([:], false) }
 
     let revision = contextualEmbedding.revision
