@@ -262,18 +262,8 @@ class BackgroundRescanSuppressionTests {
     }
   }
 
-  // The reporter's log (feedback `podhaven:7500094756`) shows two
-  // `scheduleCacheRebuild()` calls 0.9 s apart producing two full
-  // `topRecommendations` passes back-to-back — the static 400 ms debounce was
-  // too short to coalesce triggers spaced just outside its window. Under the
-  // adaptive debounce's 1 s floor (#324), two triggers spaced ~800 ms apart
-  // must collapse to a single completed cache rebuild.
-  //
-  // Uses two `recommendationDeconeMode` flips as the rebuild trigger because
-  // the user-settings observation is synchronous-ish (Broadcast yields
-  // directly to the engine's `for await`) and fires deterministically per
-  // flip, whereas GRDB `ValueObservation` can coalesce two near-simultaneous
-  // DB writes into a single emission under load.
+  // Setting flips are used as the trigger because GRDB ValueObservation can
+  // coalesce two near-simultaneous DB writes into a single emission.
   @Test(
     "two cache-rebuild triggers spaced 800ms apart coalesce to a single rebuild"
   )
@@ -328,24 +318,10 @@ class BackgroundRescanSuppressionTests {
 
     #expect(
       cacheRebuildCount == 1,
-      """
-      Expected the two cache-rebuild triggers spaced 800 ms apart to coalesce \
-      into a single `allScoringContextInputs` pass under the adaptive 1 s \
-      debounce floor, but saw \(cacheRebuildCount) passes. The legacy 400 ms \
-      debounce produces two passes because trigger 2 arrives after the first \
-      pass has already started — exactly the overlap pattern that produced \
-      the reporter's two `topRecommendations` passes within ~1 s.
-      """
+      "Expected two triggers 800ms apart to coalesce to one rebuild, got \(cacheRebuildCount)."
     )
   }
 
-  // `cpu_resource_fatal-2026-05-22-084220.ips` shows the reporter's app killed
-  // after a rebuild burned 48 s of background CPU at 99 %. The rebuild had
-  // started ~80 ms before background and ran flat-out for 48 s until the kill.
-  // `RescanGate` (#329) only defers *new* triggers; an already-running rebuild
-  // must also be cancelled on background so it can't write its result after
-  // the system has suspended the app. Under the fix, the cancelled pass must
-  // not update `sharedState.topRecommendations` when the gated read releases.
   @Test(
     "backgrounding while a recommendations rebuild is in flight cancels it so it does not write its result"
   )
@@ -356,8 +332,6 @@ class BackgroundRescanSuppressionTests {
 
     let embeddable = ScriptedEmbeddable { text in
       if text.contains("Signal") { return [1, 0, 0] }
-      // Strong similarity to the signal centroid so every candidate scores
-      // above the 0.1 minimum threshold and lands in the baseline top-recs.
       if text.contains("Candidate") { return [0.95, 0.05, 0] }
       return [0, 0, 1]
     }
@@ -384,44 +358,24 @@ class BackgroundRescanSuppressionTests {
     fakeRepo.clearAllCalls()
     fakeRepo.armEmbeddingsGate(matching: candidateIDs)
 
-    // Trigger a recs-only rebuild by shrinking the limit. The maxRec
-    // observation fires `scheduleRecommendationsRebuild` directly without
-    // touching cache.
     Container.shared.userSettings().$maxRecommendedEpisodesInUpNext.new(1)
 
-    // Drain the debounce so the action fires and suspends on the gate.
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
       { fakeRepo.isEmbeddingsGateSuspended },
       { "Expected the recommendations rebuild to suspend on the gated embeddings read." }
     )
 
-    // Background while the pass is mid-flight on the gated embeddings call.
     engine.handleScenePhaseChange(to: .background)
-
-    // Release the gate so the suspended task can resume. Under the fix the
-    // task is cancelled at background, so the post-gate `try await
-    // recommendationRepo.embeddings(...)` throws `CancellationError` before
-    // `setTopRecommendations` runs. Under the bug the task is uncancelled,
-    // embeddings returns, scoring runs to completion, and top recs get
-    // overwritten while backgrounded.
     fakeRepo.releaseEmbeddingsGate()
 
-    // Real-time wait at `.background` priority so the `.utility` rebuild task
-    // is never starved. 500 ms is far more than the scoring math + apply path
-    // needs on the cooperative pool.
+    // Real-time at `.background` priority so the `.utility` rebuild task
+    // isn't starved by the test.
     try await Task.sleep(for: .milliseconds(500))
 
     #expect(
       sharedState.topRecommendations == baselineTopRecs,
-      """
-      Expected the in-flight recommendations rebuild to be cancelled on \
-      background and NOT to overwrite `topRecommendations`, but it changed: \
-      baseline \(baselineTopRecs) -> \(sharedState.topRecommendations). \
-      A rebuild that the system has already backgrounded must not finish \
-      writing its result — that is the burn pattern from \
-      `cpu_resource_fatal-2026-05-22-084220.ips`.
-      """
+      "Expected in-flight rebuild to be cancelled; baseline \(baselineTopRecs) -> \(sharedState.topRecommendations)"
     )
   }
 }

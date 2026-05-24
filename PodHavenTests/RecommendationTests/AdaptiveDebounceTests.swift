@@ -13,8 +13,6 @@ struct AdaptiveDebounceTests {
 
   private var fakeSleeper: FakeSleeper { sleeper as! FakeSleeper }
 
-  // Helper: runs the debounce with a flag-setting action, returns the
-  // ThreadSafe<Bool> the action sets to `true` on fire.
   private func arm(_ debounce: AdaptiveDebounce) async throws -> ThreadSafe<Bool> {
     let fired = ThreadSafe<Bool>(false)
     debounce { fired(true) }
@@ -22,8 +20,6 @@ struct AdaptiveDebounceTests {
     return fired
   }
 
-  // Advances `by` virtual time, yields a few times to give the action's
-  // .utility task room to run, and returns whether the flag flipped.
   private func didFireAfter(_ duration: Duration, fired: ThreadSafe<Bool>) async -> Bool {
     await fakeSleeper.advanceTime(by: duration)
     for _ in 0..<10 { await Task.yield() }
@@ -52,7 +48,6 @@ struct AdaptiveDebounceTests {
       safetyMultiplier: 3.0
     )
     debounce.recordCompletedPass(.milliseconds(500))
-    // Expect the next debounce to sleep for 500 ms × 3 = 1500 ms.
     let fired = try await arm(debounce)
 
     #expect(await didFireAfter(.milliseconds(1499), fired: fired) == false)
@@ -75,7 +70,6 @@ struct AdaptiveDebounceTests {
 
   @Test("a recorded pass that would exceed the cap clamps to the cap")
   func aboveCapEntriesClampDownToCap() async throws {
-    // 4s × 2.0 = 8s, well above the 2s cap.
     let debounce = AdaptiveDebounce(
       name: "above-cap",
       minimumDuration: .milliseconds(100),
@@ -98,8 +92,6 @@ struct AdaptiveDebounceTests {
       maximumDuration: .seconds(60)
     )
     debounce.recordCompletedPass(.seconds(2))
-    // The slow entry sets debounce to 4s. Record `capacity` fast passes to
-    // age it out; the rolling-max window should fall back to the floor.
     for _ in 0..<debounce.capacity {
       debounce.recordCompletedPass(.milliseconds(50))
     }
@@ -125,8 +117,6 @@ struct AdaptiveDebounceTests {
       maximumDuration: .seconds(60),
       safetyMultiplier: 2.0
     )
-    // The second instance should see the 750ms pass in its persisted window
-    // and debounce at 1500ms.
     let fired = try await arm(second)
 
     #expect(await didFireAfter(.milliseconds(1499), fired: fired) == false)
@@ -149,8 +139,6 @@ struct AdaptiveDebounceTests {
       maximumDuration: .seconds(60),
       safetyMultiplier: 2.0
     )
-    // `b` was just created with an empty window; it should debounce at its
-    // floor, not at `a`'s 2s.
     let fired = try await arm(b)
 
     #expect(await didFireAfter(.milliseconds(99), fired: fired) == false)
@@ -168,8 +156,6 @@ struct AdaptiveDebounceTests {
     #expect(debounce.hasInFlightTask == true)
 
     debounce.cancel()
-    // Advance past the would-be fire time so the cancelled task body bails
-    // at its `guard !Task.isCancelled` and the defer clears state.task.
     _ = await didFireAfter(.seconds(2), fired: fired)
 
     #expect(fired() == false)

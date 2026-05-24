@@ -12,19 +12,14 @@ struct Debounce: Sendable {
   private let durationStorage: ThreadSafe<Duration>
   private let priority: TaskPriority?
 
-  // Settable so adaptive callers can keep the debounce's internal value in
-  // sync with the duration they want sleeps to use. Reads are taken at the
-  // top of `callAsFunction` so the value seen by a given call is the one
-  // the caller just set.
   var duration: Duration {
     get { durationStorage() }
     nonmutating set { durationStorage(newValue) }
   }
 
-  // Generation increments on every `callAsFunction` so the task body can
-  // detect whether the stored entry still represents it before clearing.
-  // Otherwise a racing call that replaces the stored task before the old
-  // task's defer fires would have its replacement clobbered to nil.
+  // `generation` lets a task's defer detect whether it's still the stored
+  // entry before clearing — without it, a racing call that replaces the
+  // task before the prior defer fires would have its replacement clobbered.
   private struct State: Sendable {
     var task: Task<Void, Never>?
     var generation: Int = 0
@@ -64,8 +59,6 @@ struct Debounce: Sendable {
       if state.generation == myGeneration {
         state.task = newTask
       } else {
-        // A newer call landed between the cancel-and-bump above and this
-        // install. Cancel the task we just created so it never runs `action`.
         newTask.cancel()
       }
     }
@@ -75,10 +68,6 @@ struct Debounce: Sendable {
     state { $0.task?.cancel() }
   }
 
-  // True when a debounced action is armed (sleeping) or in-flight (running),
-  // false once the most recent action's body has run to completion or bailed.
-  // Use to detect whether work needs to be re-armed on a foreground transition
-  // after `cancel()` killed an in-flight rebuild.
   var hasInFlightTask: Bool {
     state { $0.task != nil }
   }

@@ -80,9 +80,6 @@ struct RecommendationEngine: Sendable {
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
-  // Adaptive debounces self-tune their sleep duration against the rolling
-  // max of recent successful pass durations, persisted under name-derived
-  // UserDefaults keys.
   private let cacheDebounce = AdaptiveDebounce(
     name: "recommendationEngineCacheRebuild",
     priority: .utility
@@ -92,6 +89,9 @@ struct RecommendationEngine: Sendable {
     priority: .utility
   )
   private let startOnce = Once()
+
+  var cacheRebuildDebounce: AdaptiveDebounce { cacheDebounce }
+  var recommendationsRebuildDebounce: AdaptiveDebounce { recommendationsDebounce }
 
   // Rescans triggered while backgrounded are deferred to the next foreground.
   // `RescanGate` packs `isActive` and `pending` into one critical section so
@@ -203,17 +203,12 @@ struct RecommendationEngine: Sendable {
     case .background:
       Self.log.debug("backgrounded")
       rescanGate.enterBackground()
-      // Snapshot pending/in-flight state BEFORE cancelling so we know whether
-      // to seed the gate for the next foreground. Reading `hasInFlightTask`
-      // after `enterBackground` is safe: new triggers can no longer arm
-      // debounces, so the value reflects only pre-background work.
       let cacheHadWork = cacheDebounce.hasInFlightTask
       let recsHadWork = recommendationsDebounce.hasInFlightTask
       cacheDebounce.cancel()
       recommendationsDebounce.cancel()
-      // Seed the gate so the next foreground re-arms one coalesced rescan
-      // via the existing `enterForeground()` drain. `.cache` supersedes
-      // `.recommendations` because a cache rebuild also runs the recs pass.
+      // `.cache` supersedes `.recommendations` because a cache rebuild also
+      // runs the recs pass.
       if cacheHadWork {
         rescanGate.deferOrProceed(.cache)
       } else if recsHadWork {
@@ -557,8 +552,6 @@ struct RecommendationEngine: Sendable {
         cache(context)
         $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
-        // Record only on success — a pass cancelled by `.background` would
-        // otherwise lie about its work cost and falsely shrink the window.
         cacheDebounce.recordCompletedPass(ContinuousClock.now - actionStart)
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)

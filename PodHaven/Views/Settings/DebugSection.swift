@@ -8,6 +8,7 @@ import SwiftUI
 struct DebugSection: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
+  @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @DynamicInjected(\.userSettings) private var userSettings
@@ -21,6 +22,15 @@ struct DebugSection: View {
       return "Embeddings remaining: \(pendingEmbeddings.formatted())"
     }
     return "Embeddings remaining: …"
+  }
+
+  private func debounceLabel(_ label: String, _ debounce: AdaptiveDebounce) -> String {
+    func seconds(_ d: Duration) -> String {
+      let value = Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
+      return "\(value.formatted(decimalPlaces: 2))s"
+    }
+    let window = debounce.passDurations.map(seconds).joined(separator: ", ")
+    return "\(label): next \(seconds(debounce.nextDebounceDuration)) (window [\(window)])"
   }
 
   var body: some View {
@@ -42,6 +52,11 @@ struct DebugSection: View {
       Button("Copy Device ID") {
         UIPasteboard.general.string = AppInfo.deviceIdentifier
       }
+
+      Text(debounceLabel("Cache rebuild", recommendationEngine.cacheRebuildDebounce))
+      Text(
+        debounceLabel("Recs rebuild", recommendationEngine.recommendationsRebuildDebounce)
+      )
 
       SettingsRow(
         infoText: """
