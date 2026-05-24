@@ -3,14 +3,23 @@
 import FactoryKit
 import Foundation
 
-final class Debounce: Sendable {
+struct Debounce: Sendable {
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
     Container.shared.taskPriority()
   }
 
-  private let duration: Duration
+  private let durationStorage: ThreadSafe<Duration>
   private let priority: TaskPriority?
+
+  // Settable so adaptive callers can keep the debounce's internal value in
+  // sync with the duration they want sleeps to use. Reads are taken at the
+  // top of `callAsFunction` so the value seen by a given call is the one
+  // the caller just set.
+  var duration: Duration {
+    get { durationStorage() }
+    nonmutating set { durationStorage(newValue) }
+  }
 
   // Generation increments on every `callAsFunction` so the task body can
   // detect whether the stored entry still represents it before clearing.
@@ -23,31 +32,30 @@ final class Debounce: Sendable {
   private let state = ThreadSafe<State>(State())
 
   init(duration: Duration, priority: TaskPriority? = nil) {
-    self.duration = duration
+    self.durationStorage = ThreadSafe(duration)
     self.priority = priority
   }
 
-  // Convenience: uses the constructor-time `duration`.
   func callAsFunction(_ action: @escaping @Sendable () async -> Void) {
-    callAsFunction(duration: duration, action)
-  }
+    let duration = self.duration
+    let state = self.state
+    let sleeper = self.sleeper
+    let taskPriority = self.taskPriority
+    let priority = self.priority
 
-  // Per-call duration override. Use when the debounce window is computed
-  // dynamically (e.g. `RecommendationEngine`'s adaptive window) so each call
-  // can size its sleep against the latest observed work cost.
-  func callAsFunction(duration: Duration, _ action: @escaping @Sendable () async -> Void) {
     let myGeneration: Int = state { state in
       state.task?.cancel()
       state.generation += 1
       return state.generation
     }
-    let capturedPriority = priority
-    let capturedSleeper = sleeper
-    let capturedTaskPriority = taskPriority
-    let newTask = Task(priority: capturedTaskPriority(capturedPriority)) { [weak self] in
-      defer { self?.clearIfMatches(generation: myGeneration) }
+    let newTask = Task(priority: taskPriority(priority)) {
+      defer {
+        state { state in
+          if state.generation == myGeneration { state.task = nil }
+        }
+      }
       if duration > .zero {
-        try? await capturedSleeper.sleep(for: duration)
+        try? await sleeper.sleep(for: duration)
       }
       guard !Task.isCancelled else { return }
       await action()
@@ -73,11 +81,5 @@ final class Debounce: Sendable {
   // after `cancel()` killed an in-flight rebuild.
   var hasInFlightTask: Bool {
     state { $0.task != nil }
-  }
-
-  private func clearIfMatches(generation: Int) {
-    state { state in
-      if state.generation == generation { state.task = nil }
-    }
   }
 }
