@@ -24,6 +24,10 @@ import Foundation
 //
 // Cache holds only the most-recently-cached snapshot's result; oscillating
 // between two snapshots re-scores each visit.
+//
+// `apply` may fire synchronously inside `refresh()` on a cache hit, or
+// asynchronously from the in-flight task on a fresh pass; callers must be
+// safe in both contexts.
 @MainActor
 final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Score: Sendable> {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -74,9 +78,11 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
     self.refreshOnAssetsLoaded = refreshOnAssetsLoaded
   }
 
-  // Idempotent. Builds the stream synchronously so a revision emitted before
+  // Idempotent. Starts the `$scoringRevision` observation and, when
+  // `refreshOnAssetsLoaded` is true, the one-shot assets-loaded observation.
+  // Builds the revision stream synchronously so a revision emitted before
   // the consuming task is scheduled is queued, not dropped.
-  func startObservingScoringRevision() {
+  func startObservations() {
     startRevisionTaskIfNeeded()
     startAssetsLoadedTaskIfNeeded()
   }

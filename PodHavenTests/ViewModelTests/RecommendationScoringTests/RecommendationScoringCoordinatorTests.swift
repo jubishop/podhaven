@@ -217,7 +217,7 @@ import Testing
   func scoringRevisionBumpTriggersRescore() async throws {
     let probe = Probe()
     let coordinator = makeCoordinator(probe)
-    coordinator.startObservingScoringRevision()
+    coordinator.startObservations()
 
     probe.input = 5
     coordinator.refresh()

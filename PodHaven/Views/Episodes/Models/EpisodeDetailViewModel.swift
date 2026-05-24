@@ -499,7 +499,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // snapshot-gated, so the call is a no-op when a kind-changing `transition()`
   // already kicked an identical-snapshot pass.
   private func startRecommendationObservation() {
-    recommendationCoordinator.startObservingScoringRevision()
+    recommendationCoordinator.startObservations()
     recommendationCoordinator.refresh()
   }
 

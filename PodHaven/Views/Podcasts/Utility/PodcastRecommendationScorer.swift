@@ -68,7 +68,7 @@ final class PodcastRecommendationScorer {
   func applyRecommendationSort() {
     guard let host else { return }
     host.episodeList.filterMethod = host.recommendationFallbackFilter
-    coordinator.startObservingScoringRevision()
+    coordinator.startObservations()
     coordinator.refresh()
   }
 

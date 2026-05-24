@@ -177,7 +177,7 @@ class EpisodesListViewModel:
   // `$scoringRevision` trigger.
   private func runRecommendationObservation() async {
     cancelRecommendationWork()
-    recommendationCoordinator.startObservingScoringRevision()
+    recommendationCoordinator.startObservations()
     await observeCandidateSet()
   }
 
