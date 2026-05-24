@@ -80,12 +80,20 @@ struct RecommendationEngine: Sendable {
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
-  private let cacheDebounce = Debounce(duration: .milliseconds(400), priority: .utility)
-  private let recommendationsDebounce = Debounce(
-    duration: .milliseconds(400),
-    priority: .utility
-  )
+  // Constructor duration is a placeholder — every call uses the
+  // `duration:` overload with the current `AdaptiveDebounceWindow` value.
+  private let cacheDebounce = Debounce(duration: .zero, priority: .utility)
+  private let recommendationsDebounce = Debounce(duration: .zero, priority: .utility)
   private let startOnce = Once()
+
+  // Per-kind rolling FIFO of recent successful pass durations. Persisted so
+  // a slow outlier from one session survives across launches until later
+  // sessions push it out. Drives the debounce sizing on each call.
+  @PersistedThreadSafe("recommendationEngineCacheRebuildPassDurations")
+  private var cacheRebuildWindow = AdaptiveDebounceWindow()
+
+  @PersistedThreadSafe("recommendationEngineRecommendationsRebuildPassDurations")
+  private var recommendationsRebuildWindow = AdaptiveDebounceWindow()
 
   // Rescans triggered while backgrounded are deferred to the next foreground.
   // `RescanGate` packs `isActive` and `pending` into one critical section so
@@ -195,6 +203,22 @@ struct RecommendationEngine: Sendable {
     case .background:
       Self.log.debug("backgrounded")
       rescanGate.enterBackground()
+      // Snapshot pending/in-flight state BEFORE cancelling so we know whether
+      // to seed the gate for the next foreground. Reading `hasInFlightTask`
+      // after `enterBackground` is safe: new triggers can no longer arm
+      // debounces, so the value reflects only pre-background work.
+      let cacheHadWork = cacheDebounce.hasInFlightTask
+      let recsHadWork = recommendationsDebounce.hasInFlightTask
+      cacheDebounce.cancel()
+      recommendationsDebounce.cancel()
+      // Seed the gate so the next foreground re-arms one coalesced rescan
+      // via the existing `enterForeground()` drain. `.cache` supersedes
+      // `.recommendations` because a cache rebuild also runs the recs pass.
+      if cacheHadWork {
+        _ = rescanGate.deferOrProceed(.cache)
+      } else if recsHadWork {
+        _ = rescanGate.deferOrProceed(.recommendations)
+      }
     default:
       break
     }
@@ -491,13 +515,23 @@ struct RecommendationEngine: Sendable {
       Self.log.debug("Cache rebuild deferred — app backgrounded")
       return
     }
-    cacheDebounce {
+    let (debounceDuration, cappedFrom) = cacheRebuildWindow.currentDebounce()
+    if let cappedFrom {
+      Self.log.warning(
+        """
+        Cache rebuild debounce hit \(AdaptiveDebounceWindow.maximumDebounce) cap; \
+        adaptive window would have produced \(cappedFrom)
+        """
+      )
+    }
+    cacheDebounce(duration: debounceDuration) {
       // Re-check at fire time: a debounce armed while active can still wake
       // after the app backgrounded mid-window.
       guard rescanGate.deferOrProceed(.cache) == .proceed else {
         Self.log.debug("Cache rebuild deferred at fire — app backgrounded mid-debounce")
         return
       }
+      let actionStart = ContinuousClock.now
       do {
         let inputsStart = ContinuousClock.now
         let inputs = try await recommendationRepo.allScoringContextInputs()
@@ -532,6 +566,9 @@ struct RecommendationEngine: Sendable {
         cache(context)
         $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
+        // Record only on success — a pass cancelled by `.background` would
+        // otherwise lie about its work cost and falsely shrink the window.
+        cacheRebuildWindow = cacheRebuildWindow.recording(ContinuousClock.now - actionStart)
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)
       }
@@ -543,7 +580,16 @@ struct RecommendationEngine: Sendable {
       Self.log.debug("Recommendations rebuild deferred — app backgrounded")
       return
     }
-    recommendationsDebounce {
+    let (debounceDuration, cappedFrom) = recommendationsRebuildWindow.currentDebounce()
+    if let cappedFrom {
+      Self.log.warning(
+        """
+        Recommendations rebuild debounce hit \(AdaptiveDebounceWindow.maximumDebounce) \
+        cap; adaptive window would have produced \(cappedFrom)
+        """
+      )
+    }
+    recommendationsDebounce(duration: debounceDuration) {
       // Re-check at fire time: a debounce armed while active can still wake
       // after the app backgrounded mid-window.
       guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
@@ -552,11 +598,15 @@ struct RecommendationEngine: Sendable {
         )
         return
       }
+      let actionStart = ContinuousClock.now
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
       do {
         let top = try await topRecommendations(limit: limit)
         sharedState.setTopRecommendations(top)
+        recommendationsRebuildWindow = recommendationsRebuildWindow.recording(
+          ContinuousClock.now - actionStart
+        )
       } catch {
         Self.log.caughtError("top recommendations rebuild failed", error)
       }
