@@ -109,7 +109,7 @@ import Testing
   }
 
   static func drainRecommendationSleeper(
-    by duration: Duration = .milliseconds(400),
+    by duration: Duration = .seconds(6),
     maxRounds: Int = 20
   ) async {
     var idleRounds = 0

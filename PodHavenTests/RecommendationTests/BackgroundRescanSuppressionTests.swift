@@ -12,7 +12,6 @@ import Testing
 class BackgroundRescanSuppressionTests {
   @DynamicInjected(\.recommendationEngine) private var engine
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
-  @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.sleeper) private var sleeper
 
   private var fakeSleeper: FakeSleeper {
@@ -265,9 +264,9 @@ class BackgroundRescanSuppressionTests {
   // Setting flips are used as the trigger because GRDB ValueObservation can
   // coalesce two near-simultaneous DB writes into a single emission.
   @Test(
-    "two cache-rebuild triggers spaced 800ms apart coalesce to a single rebuild"
+    "two cache-rebuild triggers within the debounce window coalesce to a single rebuild"
   )
-  func twoTriggersStraddlingCurrentDebounceCollapseUnderAdaptiveFloor() async throws {
+  func twoCacheRebuildTriggersWithinDebounceCoalesce() async throws {
     let fakeSleeper = self.fakeSleeper
     let fakeRepo = self.fakeRecommendationRepo
 
@@ -297,13 +296,13 @@ class BackgroundRescanSuppressionTests {
     userSettings.$recommendationDeconeMode.new(.exploratory)
     try await fakeSleeper.waitForSleepRequests(count: pendingAtStart + 1)
 
-    // Advance 800 ms — well past the legacy 400 ms debounce (which would have
-    // fired and started a full pass) and well below the adaptive 1 s floor
+    // Advance 2 s — well past the legacy 400 ms debounce (which would have
+    // fired and started a full pass) and well below the current 5 s debounce
     // (which must still be sleeping).
-    await fakeSleeper.advanceTime(by: .milliseconds(800))
+    await fakeSleeper.advanceTime(by: .seconds(2))
     for _ in 0..<5 { await Task.yield() }
 
-    // Trigger 2: flip decone mode again, within the 1 s adaptive window.
+    // Trigger 2: flip decone mode again, within the debounce window.
     let pendingBeforeTrigger2 = fakeSleeper.pendingCount()
     userSettings.$recommendationDeconeMode.new(.focused)
     try await fakeSleeper.waitForSleepRequests(count: pendingBeforeTrigger2 + 1)
@@ -318,74 +317,7 @@ class BackgroundRescanSuppressionTests {
 
     #expect(
       cacheRebuildCount == 1,
-      "Expected two triggers 800ms apart to coalesce to one rebuild, got \(cacheRebuildCount)."
-    )
-  }
-
-  @Test(
-    "backgrounding while a recommendations rebuild is in flight cancels it so it does not write its result"
-  )
-  func backgroundCancelsInFlightRecommendationsRebuild() async throws {
-    let engine = self.engine
-    let fakeRepo = self.fakeRecommendationRepo
-    let sharedState = self.sharedState
-
-    let embeddable = ScriptedEmbeddable { text in
-      if text.contains("Signal") { return [1, 0, 0] }
-      if text.contains("Candidate") { return [0.95, 0.05, 0] }
-      return [0, 0, 1]
-    }
-
-    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 3,
-      podcastTitle: "Signal",
-      ratings: [.loved, .liked, .liked]
-    )
-    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
-    let (_, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 5,
-      podcastTitle: "Candidate"
-    )
-    try await RecommendationHelpers.embedEpisodes(candidates, embeddable: embeddable)
-
-    _ = try await RecommendationHelpers.startAndWaitForRecs()
-    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
-
-    let baselineTopRecs = sharedState.topRecommendations
-    let baselinePassDurations = engine.recommendationsRebuildPassDurations
-    try #require(baselineTopRecs.count == 5)
-
-    let candidateIDs = Set(candidates.map(\.id))
-    fakeRepo.clearAllCalls()
-    fakeRepo.armEmbeddingsGate(matching: candidateIDs)
-
-    Container.shared.userSettings().$maxRecommendedEpisodesInUpNext.new(1)
-
-    try await RecommendationHelpers.untilAdvancing(
-      priority: .userInitiated,
-      { fakeRepo.isEmbeddingsGateSuspended },
-      { "Expected the recommendations rebuild to suspend on the gated embeddings read." }
-    )
-
-    engine.handleScenePhaseChange(to: .background)
-    fakeRepo.releaseEmbeddingsGate()
-
-    try await Wait.until(
-      priority: .userInitiated,
-      { engine.recommendationsRebuildHasInFlightTask == false },
-      { "Expected the cancelled rebuild task to clear after gate release." }
-    )
-
-    #expect(
-      sharedState.topRecommendations == baselineTopRecs,
-      "Expected in-flight rebuild to be cancelled; baseline \(baselineTopRecs) -> \(sharedState.topRecommendations)"
-    )
-    #expect(
-      engine.recommendationsRebuildPassDurations == baselinePassDurations,
-      """
-      Expected cancelled rebuild to leave the adaptive window unchanged; \
-      baseline \(baselinePassDurations) -> \(engine.recommendationsRebuildPassDurations)
-      """
+      "Expected two triggers 2s apart to coalesce to one rebuild, got \(cacheRebuildCount)."
     )
   }
 }

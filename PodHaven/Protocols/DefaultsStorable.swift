@@ -19,10 +19,6 @@ extension Float: DefaultsStorable {}
 extension String: DefaultsStorable {}
 extension Date: DefaultsStorable {}
 
-// MARK: - Collections Conformance
-
-extension Array: DefaultsStorable where Element: Codable & Equatable {}
-
 // MARK: - Optional Conformance
 
 extension Optional: DefaultsStorable where Wrapped: DefaultsStorable {
