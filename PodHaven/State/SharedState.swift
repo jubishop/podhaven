@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
+import SwiftUI
 import Tagged
 
 extension Container {
@@ -22,7 +23,7 @@ struct SharedState: Sendable {
   // MARK: - In-Memory State (Observable Broadcasts)
 
   @Broadcasted var downloadProgress: [Episode.ID: Double] = [:]
-  @Broadcasted var isActive: Bool = true
+  @Broadcasted var scenePhase: ScenePhase = .active
   // OnDeck.== ignores the in-memory playback fields (currentTime,
   // maxPlaybackTime, artwork) that StateManager mutates, so default Equatable
   // dedup would swallow those updates — notify on every write instead.

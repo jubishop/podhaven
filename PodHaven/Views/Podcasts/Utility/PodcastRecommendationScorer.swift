@@ -16,7 +16,7 @@ final class PodcastRecommendationScorer {
 
   private static let log = Log.as(LogSubsystem.PodcastsView.detail)
 
-  weak var host: (any RecommendationScoringHost)?
+  weak var host: PodcastDetailViewModel?
 
   // MARK: - State
 
@@ -27,7 +27,9 @@ final class PodcastRecommendationScorer {
     RecommendationScoringSnapshot, [MediaGUID: Float]
   >(
     makeSnapshot: { [weak self] in
-      guard let self, let host, host.isSortingByRecommendationScore else { return nil }
+      guard let self, let host, host.currentSortMethod == .recommendationScore else {
+        return nil
+      }
       if case .initial = host.state { return nil }
       return currentScoringSnapshot(host: host)
     },
@@ -66,8 +68,7 @@ final class PodcastRecommendationScorer {
   // MARK: - Host Events
 
   func applyRecommendationSort() {
-    guard let host else { return }
-    host.episodeList.filterMethod = host.recommendationFallbackFilter
+    guard host != nil else { return }
     coordinator.startObservations()
     coordinator.refresh()
   }
@@ -105,7 +106,7 @@ final class PodcastRecommendationScorer {
   }
 
   private func currentScoringSnapshot(
-    host: any RecommendationScoringHost
+    host: PodcastDetailViewModel
   ) -> RecommendationScoringSnapshot {
     let snapshotState: RecommendationScoringSnapshot.State
     switch host.state {
@@ -229,13 +230,13 @@ final class PodcastRecommendationScorer {
 
   private func applyRecommendationDisplay(
     _ valuesByMediaGUID: [MediaGUID: Float],
-    host: any RecommendationScoringHost
+    host: PodcastDetailViewModel
   ) {
     switch host.state {
     case .saved:
       host.episodeList.filterMethod = { valuesByMediaGUID[$0.mediaGUID] != nil }
     case .unsaved, .initial:
-      host.episodeList.filterMethod = host.recommendationFallbackFilter
+      host.episodeList.filterMethod = host.currentSortMethod.filterMethod
     }
     host.episodeList.sortMethod = makeRecommendationComparator(valuesByMediaGUID)
   }

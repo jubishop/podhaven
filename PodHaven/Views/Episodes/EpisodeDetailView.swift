@@ -218,7 +218,7 @@ struct EpisodeDetailView: View {
 
       if !score.reasons.isEmpty {
         FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
-          ForEach(score.reasons, id: \.self) { reason in
+          ForEach(score.reasons.orderedMembers, id: \.self) { reason in
             AppIcon.recommendationReason(for: reason).label
               .font(.subheadline)
               .padding(.horizontal, 10)

@@ -6,12 +6,13 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
+import SwiftUI
 
 // MARK: - Types
 
 struct RecommendationScore: Sendable {
   let value: Float
-  let reasons: [RecommendationReason]
+  let reasons: RecommendationReason
 
   // Stretches the [0.5, max] segment onto [0.5, 1.0] so the top observed
   // candidate displays as 100%, leaving sub-baseline scores untouched.
@@ -29,10 +30,22 @@ struct RecommendationScore: Sendable {
   }
 }
 
-enum RecommendationReason: Hashable, Sendable {
-  case similarToLiked
-  case podcastAffinity
-  case recentlyPublished
+struct RecommendationReason: OptionSet, Hashable, Sendable {
+  let rawValue: UInt8
+
+  static let similarToLiked = Self(rawValue: 1 << 0)
+  static let podcastAffinity = Self(rawValue: 1 << 1)
+  static let recentlyPublished = Self(rawValue: 1 << 2)
+
+  var orderedMembers: [Self] {
+    Self.displayOrder.filter { contains($0) }
+  }
+
+  private static let displayOrder: [Self] = [
+    .similarToLiked,
+    .podcastAffinity,
+    .recentlyPublished,
+  ]
 }
 
 // MARK: - Container
@@ -74,6 +87,59 @@ struct RecommendationEngine: Sendable {
   )
   private let startOnce = Once()
 
+  // Rescans triggered while backgrounded are deferred to the next foreground.
+  // `RescanGate` packs `isActive` and `pending` into one critical section so
+  // `deferOrProceed`, `enterBackground`, and `enterForeground` cannot
+  // interleave. Pending merges upward only — a queued cache rebuild absorbs
+  // incoming recommendations triggers, since the cache rebuild already re-runs
+  // the recommendations pass. `isActive` defaults to `true` because `start()`
+  // only runs after `prepareForForeground`.
+  private enum DeferredRescan: Int, Comparable {
+    case none = 0
+    case recommendations = 1
+    case cache = 2
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+      lhs.rawValue < rhs.rawValue
+    }
+  }
+  private final class RescanGate: Sendable {
+    private struct State {
+      var isActive: Bool = true
+      var pending: DeferredRescan = .none
+    }
+    enum Decision { case proceed, deferred }
+
+    private let storage = ThreadSafe<State>(State())
+
+    // Atomic check-and-defer: if active, returns `.proceed` without touching
+    // state; otherwise merges `kind` upward into `pending` and returns
+    // `.deferred`.
+    func deferOrProceed(_ kind: DeferredRescan) -> Decision {
+      storage { state in
+        guard !state.isActive else { return .proceed }
+        state.pending = max(state.pending, kind)
+        return .deferred
+      }
+    }
+
+    func enterBackground() {
+      storage { $0.isActive = false }
+    }
+
+    // Atomic activate-and-drain: flips the flag, snapshots `pending`, and
+    // resets it to `.none` so the caller can run exactly one coalesced rescan.
+    func enterForeground() -> DeferredRescan {
+      storage { state in
+        state.isActive = true
+        let snapshot = state.pending
+        state.pending = .none
+        return snapshot
+      }
+    }
+  }
+  private let rescanGate = RescanGate()
+
   // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
   // so per-call surfaces share the same denominator. 1.0 until first rebuild.
   private let observedMaxScore = ThreadSafe<Float>(1.0)
@@ -107,6 +173,30 @@ struct RecommendationEngine: Sendable {
   func start() {
     startOnce.run {
       startObservations()
+    }
+  }
+
+  // `.inactive` is treated as a no-op so transient system events (Control
+  // Center, banners) don't defer rescans; only true `.background` does.
+  func handleScenePhaseChange(to scenePhase: ScenePhase) {
+    switch scenePhase {
+    case .active:
+      Self.log.debug("activated")
+      switch rescanGate.enterForeground() {
+      case .none:
+        break
+      case .recommendations:
+        Self.log.debug("Running deferred recommendations rebuild on foreground")
+        scheduleRecommendationsRebuild()
+      case .cache:
+        Self.log.debug("Running deferred cache rebuild on foreground")
+        scheduleCacheRebuild()
+      }
+    case .background:
+      Self.log.debug("backgrounded")
+      rescanGate.enterBackground()
+    default:
+      break
     }
   }
 
@@ -397,7 +487,17 @@ struct RecommendationEngine: Sendable {
   }
 
   private func scheduleCacheRebuild() {
+    guard rescanGate.deferOrProceed(.cache) == .proceed else {
+      Self.log.debug("Cache rebuild deferred — app backgrounded")
+      return
+    }
     cacheDebounce {
+      // Re-check at fire time: a debounce armed while active can still wake
+      // after the app backgrounded mid-window.
+      guard rescanGate.deferOrProceed(.cache) == .proceed else {
+        Self.log.debug("Cache rebuild deferred at fire — app backgrounded mid-debounce")
+        return
+      }
       do {
         let inputsStart = ContinuousClock.now
         let inputs = try await recommendationRepo.allScoringContextInputs()
@@ -439,7 +539,19 @@ struct RecommendationEngine: Sendable {
   }
 
   private func scheduleRecommendationsRebuild() {
+    guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
+      Self.log.debug("Recommendations rebuild deferred — app backgrounded")
+      return
+    }
     recommendationsDebounce {
+      // Re-check at fire time: a debounce armed while active can still wake
+      // after the app backgrounded mid-window.
+      guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
+        Self.log.debug(
+          "Recommendations rebuild deferred at fire — app backgrounded mid-debounce"
+        )
+        return
+      }
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
       do {
@@ -734,9 +846,12 @@ struct RecommendationEngine: Sendable {
     )
     let score = baseScore * freshness.multiplier
 
-    var reasons = features.filter { $0.value > 0.5 }.map(\.reason)
+    var reasons = RecommendationReason()
+    for feature in features where feature.value > 0.5 {
+      reasons.insert(feature.reason)
+    }
     if freshness.inPlateau {
-      reasons.append(.recentlyPublished)
+      reasons.insert(.recentlyPublished)
     }
 
     return RecommendationScore(value: score, reasons: reasons)

@@ -266,6 +266,26 @@ If the feedback comment names a specific feature (search, downloads, playback,
 sync, etc.), also re-run filtered by the corresponding
 `--subsystem`/`--category`/`--file` once you've eyeballed the time-window output.
 
+### Symbolicate MetricKit diagnostics if present
+
+If the scoped timeline includes a `MetricKit <category> diagnostic received`
+entry (subsystem `PodHaven`, category `MetricKit`, with a
+`metricKitDiagnostic` metadata blob), the raw frames are useless as-is —
+each carries only `binaryUUID + offsetIntoBinaryTextSegment`. Run
+`analyze-logs/scripts/symbolicate_metrickit.py` against the same downloaded
+NDJSON file to resolve them:
+
+```bash
+python3 ~/.claude/skills/analyze-logs/scripts/symbolicate_metrickit.py \
+  "$LOG_PATH" --around <feedback_ms> --window-ms 300000
+```
+
+The script fetches the matching dSYM from Sentry's Debug Files API (Sentry
+keys them by debug-id == binary UUID), caches it under
+`~/Library/Caches/podhaven-symbolicate`, and runs `atos`. Quote the resolved
+top frames in the Timeline section instead of the raw `Binary+offset` line —
+they are usually the most important evidence in the report.
+
 ## Step 7: Synthesize
 
 Build one report. Lead with the user's words, then the evidence, then the

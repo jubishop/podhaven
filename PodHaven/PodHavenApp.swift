@@ -15,6 +15,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
+  @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.notificationService) private var notificationService
@@ -40,27 +41,34 @@ struct PodHavenApp: App {
       }
       .preferredColorScheme(userSettings.appearanceMode.colorScheme)
       .onChange(of: scenePhase, initial: true) { _, newPhase in
-        sharedState.$isActive.new(newPhase == .active)
+        sharedState.$scenePhase.new(newPhase)
 
         switch newPhase {
         case .active:
           Task {
             await appLauncher.prepareForForeground()
             initialized = true
-            notifyScenePhaseChange(newPhase)
+            // Skip the notify if the phase changed during the await: the
+            // captured `.active` would be stale (the gate would re-enter
+            // foreground while backgrounded), and the `.background` arm
+            // already sync-notified when the transition happened.
+            guard sharedState.scenePhase == .active else { return }
+            notifyScenePhaseChange(.active)
           }
-        case .background where initialized:
+        case .background:
           notifyScenePhaseChange(newPhase)
-          bgTaskScheduler.getPendingTaskRequests { requests in
-            if requests.isEmpty {
-              Self.log.error("No pending background tasks after entering background")
-            } else {
-              Self.log.debug(
-                """
-                Pending background tasks:
-                \(BackgroundTaskScheduler.formatPendingTasks(requests))
-                """
-              )
+          if initialized {
+            bgTaskScheduler.getPendingTaskRequests { requests in
+              if requests.isEmpty {
+                Self.log.error("No pending background tasks after entering background")
+              } else {
+                Self.log.debug(
+                  """
+                  Pending background tasks:
+                  \(BackgroundTaskScheduler.formatPendingTasks(requests))
+                  """
+                )
+              }
             }
           }
         default:
@@ -83,6 +91,7 @@ struct PodHavenApp: App {
     refreshScheduler.handleScenePhaseChange(to: phase)
     cachePurger.handleScenePhaseChange(to: phase)
     embeddingProcessor.handleScenePhaseChange(to: phase)
+    recommendationEngine.handleScenePhaseChange(to: phase)
     Task { await userNotificationManager.handleScenePhaseChange(to: phase) }
   }
 
