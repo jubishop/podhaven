@@ -290,18 +290,10 @@ class EpisodesListViewModel:
 
   // MARK: - Recommendations
 
-  private enum RecommendationScoresState {
-    case pending
-    case failed
-    case loaded
-  }
-
   private struct ScoredInputsKey: Equatable, Sendable {
     let candidates: [CandidateEpisode]
     let scoringRevision: Int
   }
-
-  @ObservationIgnored private var recommendationScoresState: RecommendationScoresState = .pending
 
   @ObservationIgnored
   private lazy var recommendationCoordinator = RecommendationScoringCoordinator<
@@ -337,7 +329,6 @@ class EpisodesListViewModel:
   )
 
   private func applyRecommendationScores(_ scores: [Episode.ID: Float]) {
-    recommendationScoresState = .loaded
     Self.log.debug("Recommendation scoring landed \(scores.count) scores")
     guard currentSortMethod == .recommendationScore else { return }
     startRecommendationHydration(for: topEpisodeIDsByScore(from: scores))
@@ -345,11 +336,6 @@ class EpisodesListViewModel:
 
   private func handleRecommendationFailure() {
     guard !Task.isCancelled else { return }
-    // Idempotent. The candidate-observation catch and the score closure's
-    // own catch can both land in a tight window; without this guard the
-    // loadingState write would fire twice.
-    guard recommendationScoresState != .failed else { return }
-    recommendationScoresState = .failed
     guard currentSortMethod == .recommendationScore else { return }
     loadingState = .failed
   }

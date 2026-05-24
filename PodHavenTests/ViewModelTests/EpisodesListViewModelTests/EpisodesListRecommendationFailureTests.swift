@@ -8,10 +8,11 @@ import Testing
 
 @Suite("of EpisodesListViewModel recommendation failure tests", .container)
 @MainActor final class EpisodesListRecommendationFailureTests {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.observatory) private var observatory
 
-  @Test("rec-sort surfaces .failed when candidate observation throws")
+  @Test("rec-sort surfaces .failed (without an alert) when candidate observation throws")
   func candidateObservationFailureSurfacesFailedState() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
@@ -39,6 +40,74 @@ import Testing
           """
           Expected .failed after candidate observation threw; got \
           \(viewModel.loadingState).
+          """
+        }
+      )
+      // The .failed UI alone conveys the failure — a modal alert on top of an
+      // already-failed list is redundant. Pin that down so a future regression
+      // re-adding alert(...) on the candidate-observation catch fails here.
+      #expect(alert.config == nil)
+    }
+  }
+
+  @Test(
+    "rec-sort re-surfaces .failed on reappear when the candidate observation throws again"
+  )
+  func persistentCandidateObservationFailureSurfacesFailedAcrossReappear() async throws {
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let dbReader = appDB.db
+    let scriptedFailure: @Sendable () -> AsyncValueObservation<[CandidateEpisode]> = {
+      ValueObservation
+        .tracking { _ -> [CandidateEpisode] in
+          throw TestError.simulatedFailure
+        }
+        .values(in: dbReader)
+    }
+    fakeObservatory.embeddedCandidateEpisodesScript([scriptedFailure, scriptedFailure])
+
+    let viewModel = EpisodesListViewModel(title: "RecPersistentFailureReappear")
+    viewModel.currentSortMethod = .recommendationScore
+
+    // First appear: the candidate observation throws and the failure UI surfaces.
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.loadingState == .failed },
+        { @MainActor in
+          "Expected .failed after first failure; got \(viewModel.loadingState)."
+        }
+      )
+    }
+
+    // Reappear: the candidate observation throws again. startDisplayObservation
+    // resets loadingState to .loading on the way in; the second failure must
+    // re-assert .failed so the UI doesn't strand on "Loading episodes…".
+    //
+    // The single-shot `Wait.until(loadingState == .failed)` would race-pass
+    // against the prior block's leftover .failed before the second observation
+    // even started, so first wait for the second `embeddedCandidateEpisodes`
+    // call to confirm the new pass ran end-to-end, then assert .failed.
+    @Sendable func embeddedCandidateCallCount() -> Int {
+      fakeObservatory.callsByType()
+        .values
+        .flatMap { $0 }
+        .filter { $0.methodName == "embeddedCandidateEpisodes" }
+        .count
+    }
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { embeddedCandidateCallCount() >= 2 },
+        { "Expected the reappear to re-enter the candidate observation." }
+      )
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.loadingState == .failed },
+        { @MainActor in
+          """
+          Expected .failed after a second consecutive candidate-observation \
+          failure on reappear; got \(viewModel.loadingState). A stale failure \
+          marker is suppressing the loadingState write.
           """
         }
       )
