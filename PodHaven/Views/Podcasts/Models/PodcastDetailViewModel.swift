@@ -197,6 +197,48 @@ class PodcastDetailViewModel:
     }
   }
 
+  var selectedPodcastEpisodes: [PodcastEpisode] {
+    get async throws {
+      let selectedEpisodes = self.selectedEpisodes
+      guard !selectedEpisodes.isEmpty else { return [] }
+
+      Self.log.debug("selectedPodcastEpisodes: \(selectedEpisodes.count) episodes selected")
+
+      let savedEpisodeIDs = selectedEpisodes.compactMap(\.episodeID)
+      let unsavedPodcastEpisodes = selectedEpisodes.compactMap(\.unsaved)
+      let savedByID = Dictionary(
+        uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs).map { ($0.id, $0) }
+      )
+      let upsertedByMediaGUID = Dictionary(
+        uniqueKeysWithValues: try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
+          .map { ($0.mediaGUID, $0) }
+      )
+      // Walk `selectedEpisodes` (PowerList visible order) to interleave
+      // saved + just-upserted rows in user-visible order.
+      let podcastEpisodes: [PodcastEpisode] = selectedEpisodes.compactMap { episode in
+        if let episodeID = episode.episodeID { return savedByID[episodeID] }
+        return upsertedByMediaGUID[episode.mediaGUID]
+      }
+
+      // No matches with non-empty selection means rows vanished under the user
+      // (e.g. cascade delete) — surface a no-op instead of crashing.
+      guard let firstEpisode = podcastEpisodes.first else {
+        Self.log.error(
+          """
+          selectedPodcastEpisodes: \(selectedEpisodes.count) selected but no \
+          matching rows (saved hits: \(savedByID.count), upsert hits: \
+          \(upsertedByMediaGUID.count))
+          """
+        )
+        alert("These episodes are no longer available.")
+        return []
+      }
+      startObservation(firstEpisode.podcast.id)
+
+      return podcastEpisodes
+    }
+  }
+
   // MARK: - Recommendations
 
   @ObservationIgnored
@@ -230,11 +272,11 @@ class PodcastDetailViewModel:
     },
     // An unsaved pass that ran before embedding assets finished downloading
     // returns the empty map as uncacheable; caching it would re-apply that
-    // map on the next refresh even after the assets land. The helper
-    // classifies cacheability at its observation point so a latch that
-    // finishes between helper return and the closure can't flip the policy.
-    // The coordinator's `refreshOnAssetsLoaded` observer recovers once the
-    // latch finishes.
+    // map on the next refresh even after the assets land.
+    // `unsavedSimilarityScores` classifies cacheability at its observation
+    // point so a latch that finishes between its return and the closure
+    // can't flip the policy. The coordinator's `refreshOnAssetsLoaded`
+    // observer recovers once the latch finishes.
     //
     // Errors map to .uncacheable([:]): the comparator falls back to tiebreaker
     // order for this pass, and the next refresh re-attempts instead of
@@ -309,7 +351,7 @@ class PodcastDetailViewModel:
 
     switch state {
     case .initial:
-      return ([:], true)
+      Assert.fatal("computeRecommendationScores invoked while state == .initial")
     case .saved(let series):
       return (try await savedRecommendationScores(podcastID: series.id, entries: entries), true)
     case .unsaved:
@@ -386,8 +428,10 @@ class PodcastDetailViewModel:
     switch state {
     case .saved:
       episodeList.filterMethod = { valuesByMediaGUID[$0.mediaGUID] != nil }
-    case .unsaved, .initial:
+    case .unsaved:
       episodeList.filterMethod = currentSortMethod.filterMethod
+    case .initial:
+      Assert.fatal("applyRecommendationScores invoked while state == .initial")
     }
     episodeList.sortMethod = { lhs, rhs in
       let lhsScore = valuesByMediaGUID[lhs.mediaGUID] ?? 0
@@ -399,48 +443,6 @@ class PodcastDetailViewModel:
       }
       return lhs.mediaGUID.mediaURL.rawValue.absoluteString
         > rhs.mediaGUID.mediaURL.rawValue.absoluteString
-    }
-  }
-
-  var selectedPodcastEpisodes: [PodcastEpisode] {
-    get async throws {
-      let selectedEpisodes = self.selectedEpisodes
-      guard !selectedEpisodes.isEmpty else { return [] }
-
-      Self.log.debug("selectedPodcastEpisodes: \(selectedEpisodes.count) episodes selected")
-
-      let savedEpisodeIDs = selectedEpisodes.compactMap(\.episodeID)
-      let unsavedPodcastEpisodes = selectedEpisodes.compactMap(\.unsaved)
-      let savedByID = Dictionary(
-        uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs).map { ($0.id, $0) }
-      )
-      let upsertedByMediaGUID = Dictionary(
-        uniqueKeysWithValues: try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
-          .map { ($0.mediaGUID, $0) }
-      )
-      // Walk `selectedEpisodes` (PowerList visible order) to interleave
-      // saved + just-upserted rows in user-visible order.
-      let podcastEpisodes: [PodcastEpisode] = selectedEpisodes.compactMap { episode in
-        if let episodeID = episode.episodeID { return savedByID[episodeID] }
-        return upsertedByMediaGUID[episode.mediaGUID]
-      }
-
-      // No matches with non-empty selection means rows vanished under the user
-      // (e.g. cascade delete) — surface a no-op instead of crashing.
-      guard let firstEpisode = podcastEpisodes.first else {
-        Self.log.error(
-          """
-          selectedPodcastEpisodes: \(selectedEpisodes.count) selected but no \
-          matching rows (saved hits: \(savedByID.count), upsert hits: \
-          \(upsertedByMediaGUID.count))
-          """
-        )
-        alert("These episodes are no longer available.")
-        return []
-      }
-      startObservation(firstEpisode.podcast.id)
-
-      return podcastEpisodes
     }
   }
 
