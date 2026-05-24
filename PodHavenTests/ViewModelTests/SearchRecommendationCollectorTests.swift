@@ -438,6 +438,168 @@ import Testing
     #expect(pickTitles.contains(where: { $0.starts(with: "Second") }))
   }
 
+  // MARK: - Test: Leaving Typed Search Releases Overlay-Owned Cache
+
+  // SearchView leaves typed search via `setActiveSource(.trending)` whenever
+  // the user clears the search bar. Without overlay cleanup on that
+  // transition, the typed-search overlay (and every `temporary` entry it
+  // created) would linger until tearDown, growing the per-tab-visit memory
+  // footprint by one slot per typed query.
+  @Test("setActiveSource(.trending) after a typed search drops the overlay")
+  func leavingTypedSearchReleasesOverlayAndTemporaryCache() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+    try await primeEngine(embeddable: scripted)
+
+    let queryFeed = FeedURL(URL(string: "https://example.com/typed-overlay.rss")!)
+    await respondWithFeed(at: queryFeed, title: "Typed", episodes: 1)
+
+    let typedSource = SearchRecommendationCollector.Source.search(query: "typed")
+    collector.setActiveSource(typedSource)
+    collector.recordSourcePodcasts(
+      source: typedSource,
+      podcasts: [makeUnsavedRow(feedURL: queryFeed, iTunesID: ITunesPodcastID(1901))]
+    )
+    try await advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .loaded(let count) = collector.bannerState(for: typedSource), count > 0 {
+          return true
+        }
+        return false
+      },
+      { @MainActor in
+        "Expected typed picks to land; got \(collector.bannerState(for: typedSource))"
+      }
+    )
+
+    let trendingSource = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(trendingSource)
+
+    #expect(collector.picks(for: typedSource).isEmpty)
+    #expect(collector.bannerState(for: typedSource) == .hidden)
+  }
+
+  // MARK: - Test: Leaving Typed Search Cancels Pending Stable-Source Debouncer
+
+  // When the user clears search before the 1 s stable-source debounce fires,
+  // overlay and temporary are still empty — the pending typedSearchDebouncer
+  // is the only typed-search state alive. Cleanup must cancel it anyway, or
+  // the debounce fires after the user has left typed search and reconcile
+  // resurrects the overlay + kicks an RSS request for the abandoned query.
+  @Test("leaving typed search before the stable-source debounce fires cancels the pipeline")
+  func leavingTypedSearchCancelsPendingStableSourceDebouncer() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+    try await primeEngine(embeddable: scripted)
+
+    let queryFeed = FeedURL(URL(string: "https://example.com/clear-before-debounce.rss")!)
+    await respondWithFeed(at: queryFeed, title: "Cleared", episodes: 1)
+
+    let typedSource = SearchRecommendationCollector.Source.search(query: "cleared")
+    collector.setActiveSource(typedSource)
+    collector.recordSourcePodcasts(
+      source: typedSource,
+      podcasts: [makeUnsavedRow(feedURL: queryFeed, iTunesID: ITunesPodcastID(2001))]
+    )
+
+    // The 1 s stable-source debouncer is now pending. Overlay and temporary
+    // are still empty — the debouncer hasn't fired its reconcile yet.
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+
+    // User clears the search bar; SearchView's empty branch flips activeSource
+    // back to .trending and the collector's setActiveSource hook must cancel
+    // the pending typed-search work.
+    let trendingSource = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(trendingSource)
+
+    // Advance past the debounce. With the fix, the cancelled task body bails
+    // before calling reconcileAndIngest; without it, the action fires and
+    // queryFeed reaches RSS fan-out.
+    await fakeSleeper.advanceTime(by: .seconds(1))
+
+    // Give the (would-be) drain a generous window to surface the request.
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        { @MainActor in await self.session.requests.contains(queryFeed.rawValue) },
+        { @MainActor in "settle" }
+      )
+      Issue.record(
+        "Stale typed-search debouncer fired after user left search — \(queryFeed.rawValue) was requested"
+      )
+    } catch {
+      // Wait.until timed out without ever seeing the request — fix is working.
+    }
+
+    #expect(collector.picks(for: typedSource).isEmpty)
+    #expect(collector.bannerState(for: typedSource) == .hidden)
+  }
+
+  // MARK: - Test: Typed-Search Debouncer Replacement Cancels Stale Query Pipeline
+
+  // Per-query debouncers let a stale typed-search query (`foo`) fire its
+  // stable-source action after a newer query (`bar`) has already taken over.
+  // With a single shared typed-search debouncer, recording `bar` cancels the
+  // pending `foo` action, so `foo`'s feed never reaches RSS fan-out.
+  @Test("a new typed-search query cancels the prior query's pending pipeline")
+  func typedSearchDebouncerReplacementCancelsStaleQueryPipeline() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = makeScriptedEmbeddable()
+    try await primeEngine(embeddable: scripted)
+
+    let fooFeed = FeedURL(URL(string: "https://example.com/foo-stale.rss")!)
+    let barFeed = FeedURL(URL(string: "https://example.com/bar-current.rss")!)
+    await respondWithFeed(at: fooFeed, title: "Foo", episodes: 1)
+    await respondWithFeed(at: barFeed, title: "Bar", episodes: 1)
+
+    let fooSource = SearchRecommendationCollector.Source.search(query: "foo")
+    collector.setActiveSource(fooSource)
+    collector.recordSourcePodcasts(
+      source: fooSource,
+      podcasts: [makeUnsavedRow(feedURL: fooFeed, iTunesID: ITunesPodcastID(1801))]
+    )
+
+    // foo's stable-source debouncer is pending. Do NOT advance time yet.
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+
+    let barSource = SearchRecommendationCollector.Source.search(query: "bar")
+    collector.setActiveSource(barSource)
+    collector.recordSourcePodcasts(
+      source: barSource,
+      podcasts: [makeUnsavedRow(feedURL: barFeed, iTunesID: ITunesPodcastID(1802))]
+    )
+
+    // Cancelling foo's task doesn't unblock its FakeSleeper continuation —
+    // it stays parked in sleepRequests until time advances past its wakeTime.
+    // Wait for bar's sleep to also register so a single advanceTime call wakes
+    // both. With the fix, foo's task body then sees `Task.isCancelled` after
+    // the sleep returns and bails before calling its action; with the bug,
+    // foo's reconcile fires and fooFeed reaches the RSS fan-out.
+    try await fakeSleeper.waitForSleepRequests(count: 2)
+    await fakeSleeper.advanceTime(by: .seconds(1))
+
+    try await Wait.until(
+      { @MainActor in
+        if case .loaded(let count) = collector.bannerState(for: barSource), count > 0 {
+          return true
+        }
+        return false
+      },
+      { @MainActor in
+        "Expected bar query to load picks; got \(collector.bannerState(for: barSource))"
+      }
+    )
+
+    let requests = await session.requests
+    #expect(
+      !requests.contains(fooFeed.rawValue),
+      "Stale foo query should not have reached RSS fan-out; got requests \(requests)"
+    )
+    #expect(requests.contains(barFeed.rawValue))
+  }
+
   // MARK: - Test: Typed-Search Shared FeedURL Across Queries (Regression)
 
   @Test("typed-search query change keeps in-flight entry when feedURL re-appears")
@@ -668,9 +830,10 @@ import Testing
     try await RecommendationHelpers.untilAdvancing(
       { @Sendable in
         await Container.shared.podcastFeedSession() is FakeDataFetchable
-          ? (Container.shared.podcastFeedSession() as! FakeDataFetchable).requests.contains(
-            feedURL.rawValue
-          ) : false
+          ? (Container.shared.podcastFeedSession() as! FakeDataFetchable).requests
+            .contains(
+              feedURL.rawValue
+            ) : false
       },
       { @Sendable in "Expected RSS request after drain unblocked" }
     )

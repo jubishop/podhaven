@@ -84,11 +84,12 @@ final class SearchDiscoveryActionsViewModel: ManagingEpisodes {
     context: String,
     perform: @escaping @Sendable (Episode.ID) async throws -> Void
   ) {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       do {
         let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
         try await perform(podcastEpisode.id)
-        collector?.removePick(feedURL: episode.feedURL, mediaGUID: episode.mediaGUID)
+        self.collector?.removePick(feedURL: episode.feedURL, mediaGUID: episode.mediaGUID)
       } catch {
         Self.log.caughtError("\(context): failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }

@@ -122,9 +122,17 @@ final class SearchRecommendationCollector {
   // call. Purging `temporary` is gated on the embedded `query` changing.
   private var typedSearchOverlay: TypedSearchOverlay? = nil
 
-  // Per-source stable-source debouncer. Restarted whenever a new ranking
-  // lands for that source.
-  private var debouncers: [Source: Debounce] = [:]
+  // Per-trending-source stable-source debouncer. Each trending chip has its
+  // own debouncer because chip results land at independent times and don't
+  // race each other. Typed search is intentionally NOT in this map — see
+  // `typedSearchDebouncer`.
+  private var trendingDebouncers: [Source: Debounce] = [:]
+
+  // Single shared debouncer for typed search. A new query cancels the prior
+  // query's pending action via `Debounce`'s internal task replacement, so a
+  // rapid `foo → bar` sequence can't let `foo`'s reconcile fire after `bar`
+  // has already taken over the overlay.
+  private var typedSearchDebouncer: Debounce?
 
   // One stored task drains pending feed URLs.
   private var drainTask: Task<Void, Never>?
@@ -136,10 +144,16 @@ final class SearchRecommendationCollector {
   // Feed URLs whose pipeline is mid-flight.
   private var inFlight: Set<FeedURL> = []
 
-  // Set once the engine has emitted a scoringRevision tick after start without
-  // producing a context (e.g., user has too few signals). Surfaces .hidden on
-  // the banner and lets the drain proceed instead of blocking forever.
-  private var scoringUnavailable = false
+  // Three real states: we haven't determined yet, scoring is ready, or the
+  // engine emitted a scoringRevision tick after start without a context.
+  // `.unavailable` surfaces .hidden on the banner and lets the drain proceed
+  // instead of blocking forever.
+  private enum ScoringAvailability: Equatable {
+    case unknown
+    case ready
+    case unavailable
+  }
+  private var scoringAvailability: ScoringAvailability = .unknown
 
   // Watches the engine after we surface unavailable, so we can re-queue
   // already-finished entries when scoring later warms.
@@ -155,10 +169,20 @@ final class SearchRecommendationCollector {
 
   // Update which source the banner / discovery list reads from. Does not
   // trigger pipeline work; pair with `recordSourcePodcasts` for that.
+  // Leaving typed search (search → trending, or search → nil) releases the
+  // overlay and overlay-only RSS work so a stale typed query can't keep
+  // firing after the user has moved on.
   func setActiveSource(_ source: Source?) {
     Self.log.debug("Active source -> \(String(describing: source))")
     guard source != activeSource else { return }
+    let previous = activeSource
     activeSource = source
+    if case .search = previous {
+      switch source {
+      case .search: break
+      case .trending, .none: clearTypedSearchOverlay()
+      }
+    }
   }
 
   // Called by SearchViewModel after iTunes search / trending returns. The
@@ -175,8 +199,16 @@ final class SearchRecommendationCollector {
       "Recording source \(String(describing: source)) with \(podcasts.count) podcasts"
     )
 
-    let debouncer = debouncers[source] ?? Debounce(duration: Self.stableSourceDebounce)
-    debouncers[source] = debouncer
+    let debouncer: Debounce
+    switch source {
+    case .trending:
+      debouncer = trendingDebouncers[source] ?? Debounce(duration: Self.stableSourceDebounce)
+      trendingDebouncers[source] = debouncer
+    case .search:
+      let shared = typedSearchDebouncer ?? Debounce(duration: Self.stableSourceDebounce)
+      typedSearchDebouncer = shared
+      debouncer = shared
+    }
 
     let capped = Array(podcasts.prefix(Self.podcastCap))
     debouncer { [weak self] in
@@ -198,7 +230,7 @@ final class SearchRecommendationCollector {
     drainTask = nil
     scoringContextWatcherTask?.cancel()
     scoringContextWatcherTask = nil
-    scoringUnavailable = false
+    scoringAvailability = .unknown
 
     let toCancel = Array(permanent.values) + Array(temporary.values)
     permanent.removeAll()
@@ -209,8 +241,10 @@ final class SearchRecommendationCollector {
     // tasks — those keep running until the sleep deadline passes and then
     // re-enter the (now stale) action. Cancel each task explicitly so any
     // post-teardown wake-up bails before repopulating caches.
-    for debouncer in debouncers.values { debouncer.cancel() }
-    debouncers.removeAll()
+    for debouncer in trendingDebouncers.values { debouncer.cancel() }
+    trendingDebouncers.removeAll()
+    typedSearchDebouncer?.cancel()
+    typedSearchDebouncer = nil
     pendingDrainQueue.removeAll()
     inFlight.removeAll()
     activeSource = nil
@@ -222,6 +256,30 @@ final class SearchRecommendationCollector {
     // cancelled even after the entries have lost their fetch tokens.
     Task { [downloadManager] in
       await downloadManager.cancelAllDownloads()
+      for entry in toCancel { await entry.cancel() }
+    }
+  }
+
+  // Drops the typed-search overlay and cancels every `temporary` entry —
+  // trending sources never put entries in `temporary`, so this releases only
+  // the overlay-owned cache without disturbing chip results. Called by
+  // `setActiveSource` whenever the active source leaves typed search.
+  private func clearTypedSearchOverlay() {
+    // Include the debouncer in the guard: a pending stable-source debounce
+    // is the only typed-search state alive between recordSourcePodcasts and
+    // its reconcile firing, and leaving search during that 1 s window must
+    // still cancel it.
+    guard typedSearchDebouncer != nil || typedSearchOverlay != nil || !temporary.isEmpty
+    else { return }
+    Self.log.debug("Clearing typed-search overlay")
+    typedSearchDebouncer?.cancel()
+    typedSearchDebouncer = nil
+    typedSearchOverlay = nil
+    let toCancel = Array(temporary.values)
+    let purgedURLs = Set(temporary.keys)
+    temporary.removeAll()
+    pendingDrainQueue.removeAll { purgedURLs.contains($0) }
+    Task {
       for entry in toCancel { await entry.cancel() }
     }
   }
@@ -348,9 +406,6 @@ final class SearchRecommendationCollector {
         // query: their in-flight RSS / embed work carries forward instead
         // of being orphaned by the inFlight guard in `scheduleDrain`.
         pruneTemporary(keeping: Set(feedURLs))
-        if let previousQuery {
-          debouncers.removeValue(forKey: .search(query: previousQuery))
-        }
       }
       for feedURL in feedURLs {
         if permanent[feedURL] == nil, temporary[feedURL] == nil {
@@ -402,24 +457,24 @@ final class SearchRecommendationCollector {
 
   private func awaitScoringContext() async {
     if recommendationEngine.hasScoringContext {
-      scoringUnavailable = false
+      scoringAvailability = .ready
       return
     }
     recommendationEngine.start()
     // AppLauncher pre-starts the engine, so a no-context revision can already be in the past; don't subscribe to a stream whose only emit would be the bootstrap replay.
     if recommendationEngine.scoringRevision > 0 {
-      scoringUnavailable = true
+      scoringAvailability = .unavailable
       startScoringContextWatcherIfNeeded()
       return
     }
     for await revision in recommendationEngine.$scoringRevision.stream() {
       if Task.isCancelled { return }
       if recommendationEngine.hasScoringContext {
-        scoringUnavailable = false
+        scoringAvailability = .ready
         return
       }
       if revision == 0 { continue }
-      scoringUnavailable = true
+      scoringAvailability = .unavailable
       startScoringContextWatcherIfNeeded()
       return
     }
@@ -447,7 +502,7 @@ final class SearchRecommendationCollector {
   }
 
   private func handleScoringContextBecameAvailable() {
-    scoringUnavailable = false
+    scoringAvailability = .ready
     scoringContextWatcherTask = nil
     let allEntries = Array(permanent.values) + Array(temporary.values)
     for entry in allEntries where entry.status == .scored && entry.scoredEpisodes.isEmpty {
@@ -748,11 +803,11 @@ final class SearchRecommendationCollector {
     guard !feedURLs.isEmpty else { return .hidden }
     let sourcePicks = picks(for: source)
     if !sourcePicks.isEmpty { return .loaded(count: sourcePicks.count) }
-    if scoringUnavailable { return .hidden }
+    if scoringAvailability == .unavailable { return .hidden }
     let anyInFlight = feedURLs.contains { url in
       guard let entry = entry(for: url) else { return true }
       switch entry.status {
-      case .pending, .fetching, .embedding: return true
+      case .pending, .fetching: return true
       case .scored, .failed, .cancelled: return false
       }
     }
@@ -816,7 +871,6 @@ private final class CachedPodcastEntry {
   enum Status: Equatable {
     case pending
     case fetching
-    case embedding
     case scored
     case failed
     case cancelled
