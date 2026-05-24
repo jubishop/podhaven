@@ -84,7 +84,9 @@ body** (stream-of-thought comments were deleted 2026-05-21).
 
 Note: #303 extracted recommendation scoring into `PodcastRecommendationScorer`
 (own debounce); that cut per-emission cost but did NOT touch the storm — #293
-is still open and unfixed.
+is still open and unfixed. #337 later absorbed the scorer back into
+`PodcastDetailViewModel` once the shared `RecommendationScoringCoordinator`
+made the wrapper redundant.
 
 ## In-flight instrumentation — KEEP emission-diff until #293 fixed and confirmed
 
