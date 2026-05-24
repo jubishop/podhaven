@@ -352,6 +352,7 @@ class BackgroundRescanSuppressionTests {
     try await RecommendationScoringTestHelpers.settleRecommendationEngine()
 
     let baselineTopRecs = sharedState.topRecommendations
+    let baselinePassDurations = engine.recommendationsRebuildPassDurations
     try #require(baselineTopRecs.count == 5)
 
     let candidateIDs = Set(candidates.map(\.id))
@@ -369,13 +370,22 @@ class BackgroundRescanSuppressionTests {
     engine.handleScenePhaseChange(to: .background)
     fakeRepo.releaseEmbeddingsGate()
 
-    // Real-time at `.background` priority so the `.utility` rebuild task
-    // isn't starved by the test.
-    try await Task.sleep(for: .milliseconds(500))
+    try await Wait.until(
+      priority: .userInitiated,
+      { engine.recommendationsRebuildHasInFlightTask == false },
+      { "Expected the cancelled rebuild task to clear after gate release." }
+    )
 
     #expect(
       sharedState.topRecommendations == baselineTopRecs,
       "Expected in-flight rebuild to be cancelled; baseline \(baselineTopRecs) -> \(sharedState.topRecommendations)"
+    )
+    #expect(
+      engine.recommendationsRebuildPassDurations == baselinePassDurations,
+      """
+      Expected cancelled rebuild to leave the adaptive window unchanged; \
+      baseline \(baselinePassDurations) -> \(engine.recommendationsRebuildPassDurations)
+      """
     )
   }
 }

@@ -38,8 +38,16 @@ struct AdaptiveDebounce: Sendable {
   var hasInFlightTask: Bool { debounce.hasInFlightTask }
 
   // Only success-path calls — cancelled/failed passes would falsely shrink
-  // the window.
+  // the window. Assumes single-flight callers (the underlying Debounce's
+  // generation tracking guarantees this for every current caller); the
+  // read-modify-write below is not atomic across concurrent invocations.
   func recordCompletedPass(_ duration: Duration) {
+    let scaled = duration * safetyMultiplier
+    if scaled > maximumDuration {
+      log.warning(
+        "Hit \(maximumDuration) cap; pass × \(safetyMultiplier) was \(scaled)."
+      )
+    }
     var updated = [duration] + persistedWindow.wrappedValue
     if updated.count > capacity {
       updated.removeLast(updated.count - capacity)
@@ -50,23 +58,17 @@ struct AdaptiveDebounce: Sendable {
   func cancel() { debounce.cancel() }
 
   func callAsFunction(_ action: @escaping @Sendable () async -> Void) {
-    let (duration, cappedFrom) = computeDebounce()
-    if let cappedFrom {
-      log.warning(
-        "Hit \(maximumDuration) cap; window max × \(safetyMultiplier) was \(cappedFrom)."
-      )
-    }
-    debounce.duration = duration
+    debounce.duration = computeDebounce()
     debounce(action)
   }
 
-  private func computeDebounce() -> (duration: Duration, cappedFrom: Duration?) {
+  private func computeDebounce() -> Duration {
     guard let worst = persistedWindow.wrappedValue.max() else {
-      return (minimumDuration, nil)
+      return minimumDuration
     }
     let scaled = worst * safetyMultiplier
-    if scaled > maximumDuration { return (maximumDuration, scaled) }
-    if scaled < minimumDuration { return (minimumDuration, nil) }
-    return (scaled, nil)
+    if scaled > maximumDuration { return maximumDuration }
+    if scaled < minimumDuration { return minimumDuration }
+    return scaled
   }
 }

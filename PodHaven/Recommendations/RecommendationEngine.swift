@@ -90,8 +90,13 @@ struct RecommendationEngine: Sendable {
   )
   private let startOnce = Once()
 
-  var cacheRebuildDebounce: AdaptiveDebounce { cacheDebounce }
-  var recommendationsRebuildDebounce: AdaptiveDebounce { recommendationsDebounce }
+  var cacheRebuildPassDurations: [Duration] { cacheDebounce.passDurations }
+  var recommendationsRebuildPassDurations: [Duration] {
+    recommendationsDebounce.passDurations
+  }
+  var recommendationsRebuildHasInFlightTask: Bool {
+    recommendationsDebounce.hasInFlightTask
+  }
 
   // Rescans triggered while backgrounded are deferred to the next foreground.
   // `RescanGate` packs `isActive` and `pending` into one critical section so
@@ -549,6 +554,7 @@ struct RecommendationEngine: Sendable {
           "perf: buildContext took \(buildDuration) — context=\(context == nil ? "nil" : "ready")"
         )
 
+        try Task.checkCancellation()
         cache(context)
         $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
@@ -578,6 +584,7 @@ struct RecommendationEngine: Sendable {
       let sharedState = Container.shared.sharedState()
       do {
         let top = try await topRecommendations(limit: limit)
+        try Task.checkCancellation()
         sharedState.setTopRecommendations(top)
         recommendationsDebounce.recordCompletedPass(ContinuousClock.now - actionStart)
       } catch {

@@ -24,8 +24,9 @@ struct DebugSection: View {
     return "Embeddings remaining: …"
   }
 
-  private func debounceLabel(_ label: String, _ debounce: AdaptiveDebounce) -> String {
-    let window = debounce.passDurations
+  private func debounceLabel(_ label: String, _ passDurations: [Duration]) -> String {
+    let window =
+      passDurations
       .map {
         let value = Double($0.components.seconds) + Double($0.components.attoseconds) / 1e18
         return "\(value.formatted(decimalPlaces: 2))s"
@@ -54,9 +55,12 @@ struct DebugSection: View {
         UIPasteboard.general.string = AppInfo.deviceIdentifier
       }
 
-      Text(debounceLabel("Cache rebuild", recommendationEngine.cacheRebuildDebounce))
+      Text(debounceLabel("Cache rebuild", recommendationEngine.cacheRebuildPassDurations))
       Text(
-        debounceLabel("Recs rebuild", recommendationEngine.recommendationsRebuildDebounce)
+        debounceLabel(
+          "Recs rebuild",
+          recommendationEngine.recommendationsRebuildPassDurations
+        )
       )
 
       SettingsRow(
