@@ -209,7 +209,6 @@ class PodcastDetailViewModel:
     let entries: Set<Entry>
 
     enum State: Hashable, Sendable {
-      case initial
       case unsaved(embeddingRevision: Int)
       case saved(Podcast.ID)
     }
@@ -227,7 +226,6 @@ class PodcastDetailViewModel:
   >(
     makeSnapshot: { [weak self] in
       guard let self, currentSortMethod == .recommendationScore else { return nil }
-      if case .initial = state { return nil }
       return currentRecommendationScoringSnapshot()
     },
     // An unsaved pass that ran before embedding assets finished downloading
@@ -265,11 +263,13 @@ class PodcastDetailViewModel:
     recommendationCoordinator.refresh()
   }
 
-  private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot {
+  private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot? {
     let snapshotState: RecommendationScoringSnapshot.State
     switch state {
     case .initial:
-      snapshotState = .initial
+      // Pre-hydration: no episodes to score yet. Returning nil makes refresh()
+      // a no-op until observation transitions us out of .initial.
+      return nil
     case .unsaved:
       snapshotState = .unsaved(embeddingRevision: contextualEmbedding.revision)
     case .saved(let series):
@@ -389,13 +389,7 @@ class PodcastDetailViewModel:
     case .unsaved, .initial:
       episodeList.filterMethod = currentSortMethod.filterMethod
     }
-    episodeList.sortMethod = makeRecommendationComparator(valuesByMediaGUID)
-  }
-
-  private func makeRecommendationComparator(
-    _ valuesByMediaGUID: [MediaGUID: Float]
-  ) -> @Sendable (ListedEpisode, ListedEpisode) -> Bool {
-    { lhs, rhs in
+    episodeList.sortMethod = { lhs, rhs in
       let lhsScore = valuesByMediaGUID[lhs.mediaGUID] ?? 0
       let rhsScore = valuesByMediaGUID[rhs.mediaGUID] ?? 0
       if lhsScore != rhsScore { return lhsScore > rhsScore }
