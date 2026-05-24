@@ -448,15 +448,14 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return currentRecommendationScoringSnapshot()
     },
     // Assets-not-yet-loaded and caught errors both return `.uncacheable(nil)`
-    // so the next refresh re-attempts instead of replaying a cached nil.
+    // so the next refresh re-attempts instead of replaying a cached nil. The
+    // helper classifies cacheability at its observation point so a latch that
+    // finishes between helper return and the closure can't flip the policy.
     score: { [weak self] in
       guard let self else { return .cacheable(nil) }
       do {
-        let result = try await computeRecommendation()
-        if case .unsaved = state, !contextualEmbedding.assetsLoaded.isFinished {
-          return .uncacheable(result)
-        }
-        return .cacheable(result)
+        let (result, cacheable) = try await computeRecommendation()
+        return cacheable ? .cacheable(result) : .uncacheable(result)
       } catch is CancellationError {
         return .cancelled
       } catch {
@@ -503,12 +502,14 @@ enum EpisodeDetailDisplayedScore: Sendable {
     recommendationCoordinator.refresh()
   }
 
-  private func computeRecommendation() async throws -> EpisodeDetailDisplayedScore? {
+  private func computeRecommendation() async throws -> (
+    EpisodeDetailDisplayedScore?, cacheable: Bool
+  ) {
     switch state {
     case .initial:
-      return nil
+      return (nil, true)
     case .saved(let podcastEpisode):
-      return try await scoreSavedEpisode(podcastEpisode)
+      return (try await scoreSavedEpisode(podcastEpisode), true)
     case .unsaved(let unsavedPodcastEpisode):
       return try await scoreUnsavedEpisode(unsavedPodcastEpisode)
     }
@@ -527,9 +528,11 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   private func scoreUnsavedEpisode(
     _ unsavedPodcastEpisode: UnsavedPodcastEpisode
-  ) async throws -> EpisodeDetailDisplayedScore? {
+  ) async throws -> (EpisodeDetailDisplayedScore?, cacheable: Bool) {
     await contextualEmbedding.loadAssetsIfAvailable()
-    guard contextualEmbedding.assetsLoaded.isFinished else { return nil }
+    // Classify cacheability at the same point we observe asset state so a
+    // latch that finishes after this guard can't flip the closure's decision.
+    guard contextualEmbedding.assetsLoaded.isFinished else { return (nil, false) }
 
     let revision = contextualEmbedding.revision
     let vector: [Float]
@@ -543,9 +546,9 @@ enum EpisodeDetailDisplayedScore: Sendable {
       unsavedEmbeddingCache = (revision: revision, vector: vector)
     }
     guard let value = recommendationEngine.similarityScore(forEmbedding: vector) else {
-      return nil
+      return (nil, true)
     }
-    return .similarity(value)
+    return (.similarity(value), true)
   }
 
   // MARK: - Disappear

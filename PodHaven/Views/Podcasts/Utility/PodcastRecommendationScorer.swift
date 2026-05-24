@@ -35,8 +35,11 @@ final class PodcastRecommendationScorer {
     },
     // An unsaved pass that ran before embedding assets finished downloading
     // returns the empty map as uncacheable; caching it would re-apply that
-    // map on the next refresh even after the assets land. The coordinator's
-    // `refreshOnAssetsLoaded` observer recovers once the latch finishes.
+    // map on the next refresh even after the assets land. The helper
+    // classifies cacheability at its observation point so a latch that
+    // finishes between helper return and the closure can't flip the policy.
+    // The coordinator's `refreshOnAssetsLoaded` observer recovers once the
+    // latch finishes.
     //
     // Errors map to .uncacheable([:]): the comparator falls back to tiebreaker
     // order for this pass, and the next refresh re-attempts instead of
@@ -44,13 +47,8 @@ final class PodcastRecommendationScorer {
     score: { [weak self] in
       guard let self else { return .cacheable([:]) }
       do {
-        let result = try await computeRecommendationScores()
-        if let host, case .unsaved = host.state,
-          !contextualEmbedding.assetsLoaded.isFinished
-        {
-          return .uncacheable(result)
-        }
-        return .cacheable(result)
+        let (result, cacheable) = try await computeRecommendationScores()
+        return cacheable ? .cacheable(result) : .uncacheable(result)
       } catch is CancellationError {
         return .cancelled
       } catch {
@@ -145,16 +143,18 @@ final class PodcastRecommendationScorer {
 
   // MARK: - Scoring
 
-  private func computeRecommendationScores() async throws -> [MediaGUID: Float] {
-    guard let host else { return [:] }
+  private func computeRecommendationScores() async throws -> (
+    [MediaGUID: Float], cacheable: Bool
+  ) {
+    guard let host else { return ([:], true) }
     let entries = host.episodeList.allEntries
-    guard !entries.isEmpty else { return [:] }
+    guard !entries.isEmpty else { return ([:], true) }
 
     switch host.state {
     case .initial:
-      return [:]
+      return ([:], true)
     case .saved(let series):
-      return try await savedRecommendationScores(podcastID: series.id, entries: entries)
+      return (try await savedRecommendationScores(podcastID: series.id, entries: entries), true)
     case .unsaved:
       return try await unsavedSimilarityScores(entries: entries)
     }
@@ -187,9 +187,11 @@ final class PodcastRecommendationScorer {
 
   private func unsavedSimilarityScores(
     entries: IdentifiedArrayOf<ListedEpisode>
-  ) async throws -> [MediaGUID: Float] {
+  ) async throws -> ([MediaGUID: Float], cacheable: Bool) {
     await contextualEmbedding.loadAssetsIfAvailable()
-    guard contextualEmbedding.assetsLoaded.isFinished else { return [:] }
+    // Classify cacheability at the same point we observe asset state so a
+    // latch that finishes after this guard can't flip the closure's decision.
+    guard contextualEmbedding.assetsLoaded.isFinished else { return ([:], false) }
 
     let revision = contextualEmbedding.revision
     var cachedVectors: [MediaGUID: (source: String, vector: [Float])]
@@ -220,7 +222,7 @@ final class PodcastRecommendationScorer {
     }
 
     unsavedEmbeddingCache = (revision: revision, vectors: cachedVectors)
-    return result
+    return (result, true)
   }
 
   private func applyComputedScores(_ valuesByMediaGUID: [MediaGUID: Float]) {

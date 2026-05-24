@@ -215,8 +215,8 @@ import Testing
             """
             scoringRevision ticked during a no-retry-loop test that assumes \
             engine.start() was not called. A tick would kick a second scoring \
-            pass from observeScoringRevision and mask the view-model diff \
-            logic this test is meant to pin down.
+            pass from the coordinator's revision observer and mask the view-model \
+            diff logic this test is meant to pin down.
             """
           )
         }
@@ -329,7 +329,7 @@ import Testing
     viewModel.currentSortMethod = .recommendationScore
 
     // First appear: the candidate observation succeeds and the scoring pass
-    // lands, so recommendationScoresState becomes .loaded with a completed
+    // lands, so the coordinator caches the score map against the current
     // ScoredInputsKey.
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
@@ -347,8 +347,8 @@ import Testing
     }
 
     // Second appear: the candidate observation throws. handleRecommendationFailure
-    // forces recommendationScoresState to .failed and surfaces the .failed UI;
-    // the loadingState transition proves it ran past the cancellation guard.
+    // surfaces the .failed UI; the loadingState transition proves it ran past
+    // the cancellation guard.
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
     fakeObservatory.embeddedCandidateEpisodesScript([
