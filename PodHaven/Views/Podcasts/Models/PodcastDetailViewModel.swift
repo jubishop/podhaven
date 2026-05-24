@@ -262,9 +262,32 @@ class PodcastDetailViewModel:
     }
   }
 
+  // Result of one scoring pass, paired with the snapshot variant it came from
+  // so `applyRecommendationScores` can route filter strategy without re-reading
+  // `state`. Mirrors `RecommendationScoringSnapshot.State`'s non-`.initial`
+  // cases — the helpers downstream of `currentRecommendationScoringSnapshot`
+  // can never see `.initial`.
+  private enum RecommendationPass: Sendable {
+    case saved([MediaGUID: Float])
+    case unsaved([MediaGUID: Float])
+
+    var values: [MediaGUID: Float] {
+      switch self {
+      case .saved(let v), .unsaved(let v): return v
+      }
+    }
+
+    static func empty(for state: RecommendationScoringSnapshot.State) -> RecommendationPass {
+      switch state {
+      case .saved: return .saved([:])
+      case .unsaved: return .unsaved([:])
+      }
+    }
+  }
+
   @ObservationIgnored
   private lazy var recommendationCoordinator = RecommendationScoringCoordinator<
-    RecommendationScoringSnapshot, [MediaGUID: Float]
+    RecommendationScoringSnapshot, RecommendationPass
   >(
     makeSnapshot: { [weak self] in
       guard let self, currentSortMethod == .recommendationScore else { return nil }
@@ -278,19 +301,24 @@ class PodcastDetailViewModel:
     // can't flip the policy. The coordinator's `refreshOnAssetsLoaded`
     // observer recovers once the latch finishes.
     //
-    // Errors map to .uncacheable([:]): the comparator falls back to tiebreaker
-    // order for this pass, and the next refresh re-attempts instead of
-    // replaying a cached transient failure.
+    // Errors map to .uncacheable(.empty(for:)): the comparator falls back to
+    // tiebreaker order for this pass, and the next refresh re-attempts
+    // instead of replaying a cached transient failure.
     score: { [weak self] in
-      guard let self else { return .cacheable([:]) }
+      guard let self, let snapshot = currentRecommendationScoringSnapshot()
+      else { return .cancelled }
+      let entries = episodeList.allEntries
       do {
-        let (result, cacheable) = try await computeRecommendationScores()
-        return cacheable ? .cacheable(result) : .uncacheable(result)
+        let (pass, cacheable) = try await computeRecommendationScores(
+          for: snapshot.state,
+          entries: entries
+        )
+        return cacheable ? .cacheable(pass) : .uncacheable(pass)
       } catch is CancellationError {
         return .cancelled
       } catch {
         Self.log.caughtError("recommendation scoring failed", error)
-        return .uncacheable([:])
+        return .uncacheable(.empty(for: snapshot.state))
       }
     },
     apply: { [weak self] in
@@ -343,19 +371,19 @@ class PodcastDetailViewModel:
     return .unscored(mediaGUID: episode.mediaGUID)
   }
 
-  private func computeRecommendationScores() async throws -> (
-    [MediaGUID: Float], cacheable: Bool
-  ) {
-    let entries = episodeList.allEntries
-    guard !entries.isEmpty else { return ([:], true) }
+  private func computeRecommendationScores(
+    for snapshotState: RecommendationScoringSnapshot.State,
+    entries: IdentifiedArrayOf<ListedEpisode>
+  ) async throws -> (RecommendationPass, cacheable: Bool) {
+    guard !entries.isEmpty else { return (.empty(for: snapshotState), true) }
 
-    switch state {
-    case .initial:
-      Assert.fatal("computeRecommendationScores invoked while state == .initial")
-    case .saved(let series):
-      return (try await savedRecommendationScores(podcastID: series.id, entries: entries), true)
+    switch snapshotState {
+    case .saved(let podcastID):
+      let values = try await savedRecommendationScores(podcastID: podcastID, entries: entries)
+      return (.saved(values), true)
     case .unsaved:
-      return try await unsavedSimilarityScores(entries: entries)
+      let (values, cacheable) = try await unsavedSimilarityScores(entries: entries)
+      return (.unsaved(values), cacheable)
     }
   }
 
@@ -424,18 +452,17 @@ class PodcastDetailViewModel:
     return (result, true)
   }
 
-  private func applyRecommendationScores(_ valuesByMediaGUID: [MediaGUID: Float]) {
-    switch state {
+  private func applyRecommendationScores(_ pass: RecommendationPass) {
+    let values = pass.values
+    switch pass {
     case .saved:
-      episodeList.filterMethod = { valuesByMediaGUID[$0.mediaGUID] != nil }
+      episodeList.filterMethod = { values[$0.mediaGUID] != nil }
     case .unsaved:
       episodeList.filterMethod = currentSortMethod.filterMethod
-    case .initial:
-      Assert.fatal("applyRecommendationScores invoked while state == .initial")
     }
     episodeList.sortMethod = { lhs, rhs in
-      let lhsScore = valuesByMediaGUID[lhs.mediaGUID] ?? 0
-      let rhsScore = valuesByMediaGUID[rhs.mediaGUID] ?? 0
+      let lhsScore = values[lhs.mediaGUID] ?? 0
+      let rhsScore = values[rhs.mediaGUID] ?? 0
       if lhsScore != rhsScore { return lhsScore > rhsScore }
       if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
       if lhs.mediaGUID.guid != rhs.mediaGUID.guid {
