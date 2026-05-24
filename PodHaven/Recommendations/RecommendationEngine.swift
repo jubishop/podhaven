@@ -126,8 +126,7 @@ struct RecommendationEngine: Sendable {
 
     // Atomic check-and-defer: if active, returns `.proceed` without touching
     // state; otherwise merges `kind` upward into `pending` and returns
-    // `.deferred`. The result is discardable so background-time seed calls
-    // (which intentionally rely on the deferred side effect) can drop it.
+    // `.deferred`.
     @discardableResult
     func deferOrProceed(_ kind: DeferredRescan) -> Decision {
       storage { state in
@@ -213,11 +212,10 @@ struct RecommendationEngine: Sendable {
       let recsHadWork = recommendationsDebounce.hasInFlightTask
       cacheDebounce.cancel()
       recommendationsDebounce.cancel()
-      // `.cache` supersedes `.recommendations` because a cache rebuild also
-      // runs the recs pass.
       if cacheHadWork {
         rescanGate.deferOrProceed(.cache)
-      } else if recsHadWork {
+      }
+      if recsHadWork {
         rescanGate.deferOrProceed(.recommendations)
       }
     default:

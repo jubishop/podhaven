@@ -109,9 +109,6 @@ struct AdaptiveDebounce: Sendable {
     }
   }
 
-  // Single-flight by construction: the schedule() task lifecycle cancels any
-  // prior in-flight pass before arming the next, so there is never more than
-  // one writer at a time. The read-modify-write below is therefore safe.
   private func recordCompletedPass(_ duration: Duration) {
     let scaled = duration * safetyMultiplier
     if scaled > maximumDuration {
