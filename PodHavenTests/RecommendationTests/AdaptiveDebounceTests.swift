@@ -10,20 +10,52 @@ import Testing
 @Suite("of AdaptiveDebounce tests", .container)
 struct AdaptiveDebounceTests {
   @DynamicInjected(\.sleeper) private var sleeper
+  @DynamicInjected(\.fakeContinuousClockNow) private var fakeClock
 
   private var fakeSleeper: FakeSleeper { sleeper as! FakeSleeper }
 
   private func arm(_ debounce: AdaptiveDebounce) async throws -> ThreadSafe<Bool> {
+    let pendingAtStart = fakeSleeper.pendingCount()
     let fired = ThreadSafe<Bool>(false)
-    debounce { fired(true) }
-    try await fakeSleeper.waitForSleepRequests(count: 1)
+    debounce { () async -> Void in
+      fired(true)
+    }
+    try await fakeSleeper.waitForSleepRequests(count: pendingAtStart + 1)
     return fired
   }
 
   private func didFireAfter(_ duration: Duration, fired: ThreadSafe<Bool>) async -> Bool {
     await fakeSleeper.advanceTime(by: duration)
-    for _ in 0..<10 { await Task.yield() }
+    // Poll for fire with a short wall-clock budget; the new schedule chain
+    // has an extra await layer so a fixed yield count flakes under load.
+    for _ in 0..<100 {
+      if fired() { return true }
+      await Task.yield()
+    }
     return fired()
+  }
+
+  // Drives one full schedule → fire → record cycle so the window picks up a
+  // pass of the given wall-clock duration (simulated via the fake clock).
+  // Uses a local fired flag because passDurations.count stops growing once
+  // the window is at capacity.
+  private func seedPass(
+    _ debounce: AdaptiveDebounce,
+    duration: Duration
+  ) async throws {
+    let fakeClock = self.fakeClock
+    let pendingAtStart = fakeSleeper.pendingCount()
+    let actionFired = ThreadSafe<Bool>(false)
+    debounce { () async -> Void in
+      fakeClock.advance(by: duration)
+      actionFired(true)
+    }
+    try await fakeSleeper.waitForSleepRequests(count: pendingAtStart + 1)
+    await fakeSleeper.advanceTime(by: debounce.maximumDuration)
+    try await Wait.until(
+      { actionFired() },
+      { "Seed pass action did not run" }
+    )
   }
 
   @Test("an empty window debounces at the minimum floor")
@@ -47,7 +79,7 @@ struct AdaptiveDebounceTests {
       maximumDuration: .seconds(60),
       safetyMultiplier: 3.0
     )
-    debounce.recordCompletedPass(.milliseconds(500))
+    try await seedPass(debounce, duration: .milliseconds(500))
     let fired = try await arm(debounce)
 
     #expect(await didFireAfter(.milliseconds(1499), fired: fired) == false)
@@ -61,7 +93,7 @@ struct AdaptiveDebounceTests {
       minimumDuration: .milliseconds(500),
       maximumDuration: .seconds(60)
     )
-    debounce.recordCompletedPass(.milliseconds(50))
+    try await seedPass(debounce, duration: .milliseconds(50))
     let fired = try await arm(debounce)
 
     #expect(await didFireAfter(.milliseconds(499), fired: fired) == false)
@@ -76,7 +108,7 @@ struct AdaptiveDebounceTests {
       maximumDuration: .seconds(2),
       safetyMultiplier: 2.0
     )
-    debounce.recordCompletedPass(.seconds(4))
+    try await seedPass(debounce, duration: .seconds(4))
     let fired = try await arm(debounce)
 
     #expect(await didFireAfter(.milliseconds(1999), fired: fired) == false)
@@ -91,9 +123,9 @@ struct AdaptiveDebounceTests {
       minimumDuration: .milliseconds(200),
       maximumDuration: .seconds(60)
     )
-    debounce.recordCompletedPass(.seconds(2))
+    try await seedPass(debounce, duration: .seconds(2))
     for _ in 0..<debounce.capacity {
-      debounce.recordCompletedPass(.milliseconds(50))
+      try await seedPass(debounce, duration: .milliseconds(50))
     }
     let fired = try await arm(debounce)
 
@@ -109,7 +141,7 @@ struct AdaptiveDebounceTests {
       maximumDuration: .seconds(60),
       safetyMultiplier: 2.0
     )
-    first.recordCompletedPass(.milliseconds(750))
+    try await seedPass(first, duration: .milliseconds(750))
 
     let second = AdaptiveDebounce(
       name: "persisted",
@@ -131,7 +163,7 @@ struct AdaptiveDebounceTests {
       maximumDuration: .seconds(60),
       safetyMultiplier: 2.0
     )
-    a.recordCompletedPass(.seconds(1))
+    try await seedPass(a, duration: .seconds(1))
 
     let b = AdaptiveDebounce(
       name: "isolated-b",
@@ -160,5 +192,68 @@ struct AdaptiveDebounceTests {
 
     #expect(fired() == false)
     #expect(debounce.hasInFlightTask == false)
+  }
+
+  @Test("a Bool action returning true records its elapsed duration")
+  func boolActionReturningTrueRecordsDuration() async throws {
+    let fakeClock = self.fakeClock
+    let debounce = AdaptiveDebounce(
+      name: "bool-true",
+      minimumDuration: .milliseconds(100),
+      maximumDuration: .seconds(60)
+    )
+    debounce { () async -> Bool in
+      fakeClock.advance(by: .milliseconds(750))
+      return true
+    }
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: .milliseconds(100))
+
+    try await Wait.until(
+      { debounce.passDurations == [.milliseconds(750)] },
+      { "Expected Bool true action to record 750ms; got \(debounce.passDurations)" }
+    )
+  }
+
+  @Test("a Bool action returning false does not record")
+  func boolActionReturningFalseDoesNotRecord() async throws {
+    let fakeClock = self.fakeClock
+    let debounce = AdaptiveDebounce(
+      name: "bool-false",
+      minimumDuration: .milliseconds(100),
+      maximumDuration: .seconds(60)
+    )
+    debounce { () async -> Bool in
+      fakeClock.advance(by: .milliseconds(750))
+      return false
+    }
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: .milliseconds(100))
+
+    try await Wait.until(
+      { debounce.hasInFlightTask == false },
+      { "Expected debounce task to clear after Bool false action" }
+    )
+    #expect(debounce.passDurations.isEmpty)
+  }
+
+  @Test("a Void action always records its elapsed duration")
+  func voidActionAlwaysRecords() async throws {
+    let fakeClock = self.fakeClock
+    let debounce = AdaptiveDebounce(
+      name: "void-records",
+      minimumDuration: .milliseconds(100),
+      maximumDuration: .seconds(60)
+    )
+    debounce { () async -> Void in
+      fakeClock.advance(by: .milliseconds(400))
+    }
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: .milliseconds(100))
+
+    try await Wait.until(
+      { debounce.passDurations == [.milliseconds(400)] },
+      { "Expected Void action to record 400ms; got \(debounce.passDurations)" }
+    )
   }
 }

@@ -59,6 +59,7 @@ extension Container {
 // MARK: - RecommendationEngine
 
 struct RecommendationEngine: Sendable {
+  @DynamicInjected(\.continuousClockNow) private var continuousClockNow
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
@@ -311,15 +312,15 @@ struct RecommendationEngine: Sendable {
 
   func topRecommendations(limit: Int) async throws -> [Episode.ID] {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
-    let totalStart = ContinuousClock.now
+    let totalStart = continuousClockNow()
 
     // SharedState isn't Sendable, so it can't go through @DynamicInjected;
     // the actual read is @MainActor-isolated and onDeck is a value type.
     let onDeckID = Container.shared.sharedState().onDeck?.id
 
-    let candidatesStart = ContinuousClock.now
+    let candidatesStart = continuousClockNow()
     let candidates = try await recommendationRepo.allCandidateEpisodes(excluding: onDeckID)
-    let candidatesDuration = ContinuousClock.now - candidatesStart
+    let candidatesDuration = continuousClockNow() - candidatesStart
     Self.log.debug(
       "perf: allCandidateEpisodes took \(candidatesDuration) for \(candidates.count) candidates"
     )
@@ -329,15 +330,15 @@ struct RecommendationEngine: Sendable {
         """
         perf: topRecommendations returned 0 \
         (\(candidates.isEmpty ? "no candidates" : "cache cold")) \
-        in \(ContinuousClock.now - totalStart)
+        in \(continuousClockNow() - totalStart)
         """
       )
       return []
     }
 
-    let scoresStart = ContinuousClock.now
+    let scoresStart = continuousClockNow()
     let scores = try await scoreEpisodes(candidates, context: context)
-    let scoresDuration = ContinuousClock.now - scoresStart
+    let scoresDuration = continuousClockNow() - scoresStart
     Self.log.debug(
       """
       perf: scoreEpisodes took \(scoresDuration) \
@@ -346,7 +347,7 @@ struct RecommendationEngine: Sendable {
     )
     guard !scores.isEmpty else {
       Self.log.debug(
-        "perf: topRecommendations returned 0 (no scores) in \(ContinuousClock.now - totalStart)"
+        "perf: topRecommendations returned 0 (no scores) in \(continuousClockNow() - totalStart)"
       )
       return []
     }
@@ -363,7 +364,7 @@ struct RecommendationEngine: Sendable {
       let pubDate: Date
       let score: RecommendationScore
     }
-    let rankStart = ContinuousClock.now
+    let rankStart = continuousClockNow()
     var ranked = [ScoredCandidate](capacity: candidates.count)
     for candidate in candidates {
       guard let score = scores[candidate.id],
@@ -378,7 +379,7 @@ struct RecommendationEngine: Sendable {
       if a.pubDate != b.pubDate { return a.pubDate > b.pubDate }
       return a.id > b.id
     }
-    let rankDuration = ContinuousClock.now - rankStart
+    let rankDuration = continuousClockNow() - rankStart
     Self.log.debug(
       """
       perf: rank+sort took \(rankDuration) \
@@ -388,7 +389,7 @@ struct RecommendationEngine: Sendable {
 
     let top = ranked.prefix(limit).map(\.id)
 
-    let totalDuration = ContinuousClock.now - totalStart
+    let totalDuration = continuousClockNow() - totalStart
     Self.log.debug(
       """
       perf: topRecommendations(limit: \(limit)) total \(totalDuration) — \
@@ -515,16 +516,15 @@ struct RecommendationEngine: Sendable {
       Self.log.debug("Cache rebuild deferred — app backgrounded")
       return
     }
-    cacheDebounce {
+    cacheDebounce { () async -> Bool in
       // Re-check at fire time: a debounce armed while active can still wake
       // after the app backgrounded mid-window.
       guard rescanGate.deferOrProceed(.cache) == .proceed else {
         Self.log.debug("Cache rebuild deferred at fire — app backgrounded mid-debounce")
-        return
+        return false
       }
-      let actionStart = ContinuousClock.now
       do {
-        let inputsStart = ContinuousClock.now
+        let inputsStart = continuousClockNow()
         let inputs = try await recommendationRepo.allScoringContextInputs()
         let deconeMode = Container.shared.userSettings().recommendationDeconeMode
         let whiteningTransform = try await currentWhiteningTransform(
@@ -532,7 +532,7 @@ struct RecommendationEngine: Sendable {
           currentRevision: Container.shared.contextualEmbedding().revision,
           principalComponentCount: Self.principalComponentStripCount(for: deconeMode)
         )
-        let inputsDuration = ContinuousClock.now - inputsStart
+        let inputsDuration = continuousClockNow() - inputsStart
         Self.log.debug(
           """
           perf: allScoringContextInputs took \(inputsDuration) — \
@@ -543,13 +543,13 @@ struct RecommendationEngine: Sendable {
           """
         )
 
-        let buildStart = ContinuousClock.now
+        let buildStart = continuousClockNow()
         let context = Self.buildContext(
           from: inputs,
           whiteningTransform: whiteningTransform,
           deconeMode: deconeMode
         )
-        let buildDuration = ContinuousClock.now - buildStart
+        let buildDuration = continuousClockNow() - buildStart
         Self.log.debug(
           "perf: buildContext took \(buildDuration) — context=\(context == nil ? "nil" : "ready")"
         )
@@ -558,9 +558,10 @@ struct RecommendationEngine: Sendable {
         cache(context)
         $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
-        cacheDebounce.recordCompletedPass(ContinuousClock.now - actionStart)
+        return true
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)
+        return false
       }
     }
   }
@@ -570,25 +571,25 @@ struct RecommendationEngine: Sendable {
       Self.log.debug("Recommendations rebuild deferred — app backgrounded")
       return
     }
-    recommendationsDebounce {
+    recommendationsDebounce { () async -> Bool in
       // Re-check at fire time: a debounce armed while active can still wake
       // after the app backgrounded mid-window.
       guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
         Self.log.debug(
           "Recommendations rebuild deferred at fire — app backgrounded mid-debounce"
         )
-        return
+        return false
       }
-      let actionStart = ContinuousClock.now
       let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
       do {
         let top = try await topRecommendations(limit: limit)
         try Task.checkCancellation()
         sharedState.setTopRecommendations(top)
-        recommendationsDebounce.recordCompletedPass(ContinuousClock.now - actionStart)
+        return true
       } catch {
         Self.log.caughtError("top recommendations rebuild failed", error)
+        return false
       }
     }
   }
@@ -649,9 +650,9 @@ struct RecommendationEngine: Sendable {
   ) async throws -> [Episode.ID: RecommendationScore] {
     let episodeIDs = candidates.map(\.id)
 
-    let embeddingsStart = ContinuousClock.now
+    let embeddingsStart = continuousClockNow()
     let embeddings = try await recommendationRepo.embeddings(for: episodeIDs)
-    let embeddingsDuration = ContinuousClock.now - embeddingsStart
+    let embeddingsDuration = continuousClockNow() - embeddingsStart
     Self.log.debug(
       """
       perf: embeddings(for:) took \(embeddingsDuration) \
@@ -659,7 +660,7 @@ struct RecommendationEngine: Sendable {
       """
     )
 
-    let mathStart = ContinuousClock.now
+    let mathStart = continuousClockNow()
     try Task.checkCancellation()
     let now = Date()
     let affinityWeight = Float(Container.shared.userSettings().podcastAffinityWeight)
@@ -690,7 +691,7 @@ struct RecommendationEngine: Sendable {
         )
       }
     }
-    let mathDuration = ContinuousClock.now - mathStart
+    let mathDuration = continuousClockNow() - mathStart
     Self.log.debug(
       "perf: scoring math took \(mathDuration) for \(candidates.count) candidates"
     )
@@ -963,7 +964,7 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    let computeStart = ContinuousClock.now
+    let computeStart = continuousClockNow()
     guard
       let fresh = try await recommendationRepo.whiteningTransform(
         principalComponentCount: principalComponentCount
@@ -971,7 +972,7 @@ struct RecommendationEngine: Sendable {
     else { return nil }
     Self.log.debug(
       """
-      perf: whiteningTransform recomputed in \(ContinuousClock.now - computeStart) \
+      perf: whiteningTransform recomputed in \(continuousClockNow() - computeStart) \
       (count=\(embeddingCount), revision=\(currentRevision), \
       recipeVersion=\(currentRecipeVersion), pcs=\(fresh.principalComponents.count))
       """

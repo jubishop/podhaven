@@ -9,13 +9,8 @@ struct Debounce: Sendable {
     Container.shared.taskPriority()
   }
 
-  private let durationStorage: ThreadSafe<Duration>
+  private let duration: Duration
   private let priority: TaskPriority?
-
-  var duration: Duration {
-    get { durationStorage() }
-    nonmutating set { durationStorage(newValue) }
-  }
 
   // `generation` lets a task's defer detect whether it's still the stored
   // entry before clearing — without it, a racing call that replaces the
@@ -27,7 +22,7 @@ struct Debounce: Sendable {
   private let state = ThreadSafe<State>(State())
 
   init(duration: Duration, priority: TaskPriority? = nil) {
-    self.durationStorage = ThreadSafe(duration)
+    self.duration = duration
     self.priority = priority
   }
 

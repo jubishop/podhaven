@@ -18,6 +18,7 @@ extension Container {
 // MARK: - EmbeddingProcessor
 
 struct EmbeddingProcessor: Sendable {
+  @DynamicInjected(\.continuousClockNow) private var continuousClockNow
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.sleeper) private var sleeper
@@ -59,11 +60,11 @@ struct EmbeddingProcessor: Sendable {
         // IDs only — full Episode rows are hydrated in chunks during
         // processing so a BG-expiry doesn't waste a multi-second hydration
         // pass. Newest episodes (by pubDate) are ordered first.
-        let queryStart = ContinuousClock.now
+        let queryStart = continuousClockNow()
         let idsToProcess = try await recommendationRepo.episodesNeedingEmbeddings(
           revision: contextualEmbedding.revision
         )
-        let queryDuration = ContinuousClock.now - queryStart
+        let queryDuration = continuousClockNow() - queryStart
         Self.log.debug("episodesNeedingEmbeddings query took \(queryDuration)")
 
         if idsToProcess.isEmpty {
