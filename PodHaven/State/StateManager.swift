@@ -95,6 +95,7 @@ struct StateManager: Sendable {
 
   func clearOnDeck() {
     onDeckObservationTask()?.cancel()
+    sharedState.currentEpisodeID = nil
     sharedState.$onDeck.new(nil)
   }
 

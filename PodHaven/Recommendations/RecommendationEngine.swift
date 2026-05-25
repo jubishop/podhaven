@@ -70,6 +70,8 @@ struct RecommendationEngine: Sendable {
   private static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
+  private static let recommendationPoolSize = 100
+
   private static let lovedWeight: Float = 1.0
   private static let likedWeight: Float = 0.6
   private static let partialWeight: Float = 0.5
@@ -293,12 +295,8 @@ struct RecommendationEngine: Sendable {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
     let totalStart = ContinuousClock.now
 
-    // SharedState isn't Sendable, so it can't go through @DynamicInjected;
-    // the actual read is @MainActor-isolated and onDeck is a value type.
-    let onDeckID = Container.shared.sharedState().onDeck?.id
-
     let candidatesStart = ContinuousClock.now
-    let candidates = try await recommendationRepo.allCandidateEpisodes(excluding: onDeckID)
+    let candidates = try await recommendationRepo.allCandidateEpisodes()
     let candidatesDuration = ContinuousClock.now - candidatesStart
     Self.log.debug(
       "perf: allCandidateEpisodes took \(candidatesDuration) for \(candidates.count) candidates"
@@ -428,29 +426,14 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // partial-listen bitmaps and lastPlayedDate are excluded from the GRDB
-    // observation's tracked region, so onDeck transitions are how the engine
-    // learns about completed listens. `dropFirst()` skips the bootstrap emit;
-    // the observation above already covered the initial DB state.
+    // Partial-listen bitmaps and lastPlayedDate are excluded from the GRDB
+    // observation's tracked region, so switching episode is how the engine
+    // learns about completed listens.
     Task(priority: taskPriority(.utility)) {
       let sharedState = Container.shared.sharedState()
-      var lastID: Episode.ID? = sharedState.onDeck?.id
-      for await onDeck in sharedState.$onDeck.stream().dropFirst() {
+      for await _ in sharedState.$currentEpisodeID.stream().dropFirst() {
         guard !Task.isCancelled else { return }
-        let currentID = onDeck?.id
-        guard currentID != lastID else { continue }
-        lastID = currentID
         scheduleCacheRebuild()
-      }
-    }
-
-    // Limit changes don't invalidate the cache, only how many entries get
-    // published.
-    Task(priority: taskPriority(.utility)) {
-      let userSettings = Container.shared.userSettings()
-      for await _ in userSettings.$maxRecommendedEpisodesInUpNext.stream().dropFirst() {
-        guard !Task.isCancelled else { return }
-        scheduleRecommendationsRebuild()
       }
     }
 
@@ -473,26 +456,6 @@ struct RecommendationEngine: Sendable {
         guard !Task.isCancelled else { return }
         $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
-      }
-    }
-
-    // Candidate-pool transitions (queue / finish / rate) need a re-rank but
-    // not a context rebuild — the underlying signal observation already
-    // covers the scoring inputs.
-    Task(priority: taskPriority(.utility)) {
-      var retryDelay: Duration = .seconds(1)
-      while !Task.isCancelled {
-        do {
-          for try await _ in observatory.candidateGateExclusions().dropFirst() {
-            guard !Task.isCancelled else { return }
-            retryDelay = .seconds(1)
-            scheduleRecommendationsRebuild()
-          }
-        } catch {
-          Self.log.caughtError("candidateGateExclusions observation failed", error)
-          try? await sleeper.sleep(for: retryDelay)
-          retryDelay = min(retryDelay * 2, .seconds(60))
-        }
       }
     }
   }
@@ -564,14 +527,13 @@ struct RecommendationEngine: Sendable {
         )
         return
       }
-      let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
       do {
-        let top = try await topRecommendations(limit: limit)
+        let pool = try await topRecommendations(limit: Self.recommendationPoolSize)
         try Task.checkCancellation()
-        sharedState.setTopRecommendations(top)
+        sharedState.setRecommendedEpisodePool(pool)
       } catch {
-        Self.log.caughtError("top recommendations rebuild failed", error)
+        Self.log.caughtError("recommendation pool rebuild failed", error)
       }
     }
   }

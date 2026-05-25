@@ -14,6 +14,7 @@ import Testing
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.stateManager) private var stateManager
 
   @Test("recommended row hydration refreshes when cachedFilename updates")
   func recommendedHydrationRefreshesOnCacheChange() async throws {
@@ -30,7 +31,7 @@ import Testing
     let second = series.episodes[1]
 
     // Publish a ranking so the view model has something to hydrate.
-    sharedState.setTopRecommendations([first.id, second.id])
+    sharedState.setRecommendedEpisodePool([first.id, second.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -103,7 +104,7 @@ import Testing
     // Older first, newer second — the engine's tiebreaker would normally
     // put newer first, but here we deliberately invert it to prove
     // hydration respects whatever order the engine published.
-    sharedState.setTopRecommendations([older.id, newer.id])
+    sharedState.setRecommendedEpisodePool([older.id, newer.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -158,9 +159,9 @@ import Testing
     try await queue.append([queued.id])
     let queuedListable = try await fetchListable(queued.id)
     // StateManager isn't running in tests, so feed the queue broadcast
-    // directly — same pattern as setTopRecommendations below.
+    // directly — same pattern as setRecommendedEpisodePool below.
     sharedState.setQueuedPodcastEpisodes([queuedListable])
-    sharedState.setTopRecommendations([rec.id])
+    sharedState.setRecommendedEpisodePool([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -199,7 +200,7 @@ import Testing
     )
     let rec = series.episodes[0]
 
-    sharedState.setTopRecommendations([rec.id])
+    sharedState.setRecommendedEpisodePool([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -227,7 +228,7 @@ import Testing
     )
     let rec = series.episodes[0]
 
-    sharedState.setTopRecommendations([rec.id])
+    sharedState.setRecommendedEpisodePool([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -272,7 +273,7 @@ import Testing
     try await queue.append([queued.id])
     let queuedListable = try await fetchListable(queued.id)
     sharedState.setQueuedPodcastEpisodes([queuedListable])
-    sharedState.setTopRecommendations([rec.id])
+    sharedState.setRecommendedEpisodePool([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -319,7 +320,7 @@ import Testing
     )
     let rec = series.episodes[0]
 
-    sharedState.setTopRecommendations([rec.id])
+    sharedState.setRecommendedEpisodePool([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -369,7 +370,7 @@ import Testing
     try await queue.append([queued.id])
     let queuedListable = try await fetchListable(queued.id)
     sharedState.setQueuedPodcastEpisodes([queuedListable])
-    sharedState.setTopRecommendations([rec.id])
+    sharedState.setRecommendedEpisodePool([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -425,7 +426,7 @@ import Testing
     try await queue.append([queued.id])
     let queuedListable = try await fetchListable(queued.id)
     sharedState.setQueuedPodcastEpisodes([queuedListable])
-    sharedState.setTopRecommendations([rec.id])
+    sharedState.setRecommendedEpisodePool([rec.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
@@ -468,58 +469,276 @@ import Testing
     #expect(dequeueCall.parameters == [queued.id])
   }
 
-  // Race window: an episode is queued (so it shows up in episodeList) but the
-  // recommendation engine hasn't re-ranked yet, so the same id is still in
-  // topRecommendations. Selecting the id and replacing the queue must not
-  // double-process — otherwise queue.replace sets queueOrder=1 and leaves
-  // position 0 empty, breaking auto-advance (Queue.nextEpisode returns nil).
-  @Test("selectedEpisodes dedupes when an id appears in both queue and recommendations")
-  func selectedEpisodesDedupesQueueAndRecommendationOverlap() async throws {
+  // Regression for #338: queueing one of the published recommended episodes
+  // must drop it from `recommendedEpisodes` immediately, without waiting for
+  // the engine's debounced rebuild. The pool publishes IDs; the view model is
+  // responsible for filtering candidate-ineligible rows locally.
+  @Test("recommended row drops a queued episode instantly")
+  func recommendedDropsQueuedEpisodeInstantly() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [try Create.unsavedEpisode(guid: "shared", title: "Shared")]
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "a", title: "A"),
+          try Create.unsavedEpisode(guid: "b", title: "B"),
+        ]
       )
     )
-    let shared = series.episodes[0]
+    let a = series.episodes[0]
+    let b = series.episodes[1]
 
-    try await queue.append([shared.id])
-    let sharedListable = try await fetchListable(shared.id)
-    sharedState.setQueuedPodcastEpisodes([sharedListable])
-    sharedState.setTopRecommendations([shared.id])
+    sharedState.setRecommendedEpisodePool([a.id, b.id])
 
     let viewModel = UpNextViewModel()
     let executeTask = Task { await viewModel.execute() }
     defer { executeTask.cancel() }
 
     try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.count == 2 },
+      { @MainActor in "Hydration didn't populate; got \(viewModel.recommendedEpisodes.count)" }
+    )
+
+    try await queue.append([a.id])
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.map(\.id) == [b.id] },
       { @MainActor in
-        viewModel.episodeList.allEntries.count == 1
-          && viewModel.recommendedEpisodes.count == 1
-      },
+        "Expected only [b] after queueing a, got \(viewModel.recommendedEpisodes.map(\.id))"
+      }
+    )
+  }
+
+  // Regression for #338: rating a recommended episode must drop it instantly.
+  // The candidate gate excludes rated episodes; the view model's filter must
+  // honor that without waiting for a recommendation-pool rebuild.
+  @Test("recommended row drops a rated episode instantly")
+  func recommendedDropsRatedEpisodeInstantly() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "a", title: "A"),
+          try Create.unsavedEpisode(guid: "b", title: "B"),
+        ]
+      )
+    )
+    let a = series.episodes[0]
+    let b = series.episodes[1]
+
+    sharedState.setRecommendedEpisodePool([a.id, b.id])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.count == 2 },
+      { @MainActor in "Hydration didn't populate; got \(viewModel.recommendedEpisodes.count)" }
+    )
+
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET rating = ?, ratingDate = ? WHERE id = ?",
+        arguments: [EpisodeRating.liked.rawValue, Date(), a.id.rawValue]
+      )
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.map(\.id) == [b.id] },
       { @MainActor in
-        "Expected id in both lists, got queue=\(viewModel.episodeList.allEntries.count) "
-          + "recs=\(viewModel.recommendedEpisodes.count)"
+        "Expected only [b] after rating a, got \(viewModel.recommendedEpisodes.map(\.id))"
+      }
+    )
+  }
+
+  // Regression for #338: finishing a recommended episode must drop it
+  // instantly. Same shape as rating — different gate column.
+  @Test("recommended row drops a finished episode instantly")
+  func recommendedDropsFinishedEpisodeInstantly() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "a", title: "A"),
+          try Create.unsavedEpisode(guid: "b", title: "B"),
+        ]
+      )
+    )
+    let a = series.episodes[0]
+    let b = series.episodes[1]
+
+    sharedState.setRecommendedEpisodePool([a.id, b.id])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.count == 2 },
+      { @MainActor in "Hydration didn't populate; got \(viewModel.recommendedEpisodes.count)" }
+    )
+
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET finishDate = ? WHERE id = ?",
+        arguments: [Date(), a.id.rawValue]
+      )
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.map(\.id) == [b.id] },
+      { @MainActor in
+        "Expected only [b] after finishing a, got \(viewModel.recommendedEpisodes.map(\.id))"
+      }
+    )
+  }
+
+  // Regression for #338: the currently-playing episode must not appear
+  // in the recommended row, even if it's still in the published pool.
+  @Test("recommended row drops the current episode instantly")
+  func recommendedDropsCurrentEpisodeInstantly() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "a", title: "A"),
+          try Create.unsavedEpisode(guid: "b", title: "B"),
+        ]
+      )
+    )
+    let a = series.episodes[0]
+    let b = series.episodes[1]
+
+    sharedState.setRecommendedEpisodePool([a.id, b.id])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.count == 2 },
+      { @MainActor in "Hydration didn't populate; got \(viewModel.recommendedEpisodes.count)" }
+    )
+
+    let aPodcastEpisode = try #require(try await repo.podcastEpisode(a.id))
+    stateManager.setOnDeck(aPodcastEpisode)
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.map(\.id) == [b.id] },
+      { @MainActor in
+        "Expected only [b] after current episode = a, got \(viewModel.recommendedEpisodes.map(\.id))"
+      }
+    )
+  }
+
+  // Regression for #338: changing the user's "Recommended Episodes" slider
+  // must re-slice the visible row instantly — no engine rebuild required.
+  @Test("recommended row reslices when maxRecommendedEpisodesInUpNext changes")
+  func recommendedReslicesOnSettingChange() async throws {
+    let userSettings = Container.shared.userSettings()
+    userSettings.$maxRecommendedEpisodesInUpNext.new(6)
+    defer { userSettings.$maxRecommendedEpisodesInUpNext.new(5) }
+
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: (0..<6)
+          .map { idx in
+            try Create.unsavedEpisode(guid: "e\(idx)", title: "E\(idx)")
+          }
+      )
+    )
+    let ids = series.episodes.map(\.id)
+
+    sharedState.setRecommendedEpisodePool(ids)
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.count == 6 },
+      { @MainActor in
+        "Expected 6 visible at N=6, got \(viewModel.recommendedEpisodes.count)"
       }
     )
 
-    viewModel.episodeList.isSelected[shared.id] = true
-
-    #expect(viewModel.selectedEpisodes.count == 1)
-    #expect(viewModel.selectedEpisodes.first?.id == shared.id)
-
-    viewModel.replaceQueueWithSelected()
+    userSettings.$maxRecommendedEpisodesInUpNext.new(2)
 
     try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.map(\.id) == Array(ids.prefix(2)) },
       { @MainActor in
-        let listable = try await self.fetchListable(shared.id)
-        return listable.queueOrder == 0
-      },
-      { @MainActor in
-        let listable = try await self.fetchListable(shared.id)
-        return
-          "Expected queueOrder=0 after replace, got \(String(describing: listable.queueOrder))"
+        "Expected first 2 visible at N=2, got \(viewModel.recommendedEpisodes.map(\.id))"
       }
+    )
+  }
+
+  // Regression: if the pool transitions to an overlapping ranking
+  // ([A, B] -> [B, C]) while a concurrent observer (currentEpisodeID) forces
+  // a local rebuild during the hydration gap, the recommended row must not
+  // flash to empty. Overlap on B has to survive the pool swap.
+  @Test("recommended row keeps overlap during pool transition with concurrent rebuild")
+  func recommendedKeepsOverlapDuringConcurrentRebuild() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "a", title: "A"),
+          try Create.unsavedEpisode(guid: "b", title: "B"),
+          try Create.unsavedEpisode(guid: "c", title: "C"),
+          try Create.unsavedEpisode(guid: "d", title: "D"),
+        ]
+      )
+    )
+    let a = series.episodes[0]
+    let b = series.episodes[1]
+    let c = series.episodes[2]
+    let d = series.episodes[3]
+
+    sharedState.setRecommendedEpisodePool([a.id, b.id])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.map(\.id) == [a.id, b.id] },
+      { @MainActor in
+        "Initial pool [A, B] didn't hydrate, got \(viewModel.recommendedEpisodes.map(\.id))"
+      }
+    )
+
+    let snapshots = ThreadSafe<[[Episode.ID]]>([])
+    let tracker = Task { @MainActor in
+      while !Task.isCancelled {
+        let snapshot = viewModel.recommendedEpisodes.map(\.id)
+        snapshots { $0.append(snapshot) }
+        await Task.yield()
+      }
+    }
+    defer { tracker.cancel() }
+
+    sharedState.setRecommendedEpisodePool([b.id, c.id])
+    let dPodcastEpisode = try #require(try await repo.podcastEpisode(d.id))
+    stateManager.setOnDeck(dPodcastEpisode)
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.map(\.id) == [b.id, c.id] },
+      { @MainActor in
+        "Final pool [B, C] didn't settle, got \(viewModel.recommendedEpisodes.map(\.id))"
+      }
+    )
+
+    tracker.cancel()
+
+    let recorded = snapshots()
+    let flashedEmpty = recorded.contains { $0.isEmpty }
+    #expect(
+      !flashedEmpty,
+      """
+      Recommended row flashed empty during overlapping pool transition; B should \
+      have stayed visible. Recorded sequence: \(recorded)
+      """
     )
   }
 

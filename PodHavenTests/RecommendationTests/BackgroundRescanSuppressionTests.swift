@@ -352,9 +352,9 @@ class BackgroundRescanSuppressionTests {
     let candidateIDs = Set(candidates.map(\.id))
 
     // Arm before start() so the engine's first recommendations rebuild — the
-    // one that would otherwise publish the initial non-empty topRecommendations
+    // one that would otherwise publish the initial non-empty recommendedEpisodePool
     // — is the one we intercept. That keeps the publish-or-not assertion
-    // observable: `sharedState.topRecommendations` stays `[]` iff the cancel
+    // observable: `sharedState.recommendedEpisodePool` stays `[]` iff the cancel
     // suppressed the publish.
     fakeRepo.armEmbeddingsGate(matching: candidateIDs)
     engine.start()
@@ -369,7 +369,7 @@ class BackgroundRescanSuppressionTests {
     )
 
     #expect(
-      sharedState.topRecommendations.isEmpty,
+      sharedState.recommendedEpisodePool.isEmpty,
       "Test premise: nothing should have been published yet (body is suspended)."
     )
 
@@ -380,14 +380,14 @@ class BackgroundRescanSuppressionTests {
 
     // Release the gate. Under the fix, the resumed body hits
     // `try Task.checkCancellation()` (in `scoreEpisodes` and again before
-    // `sharedState.setTopRecommendations`) and exits through its catch.
+    // `sharedState.setRecommendedEpisodePool`) and exits through its catch.
     // Without the fix, the body publishes the stale top set.
     fakeRepo.releaseEmbeddingsGate()
 
     // Wait up to ~2s of real time for a publish to land. Under the bug the
     // resumed body completes its scoring math and publishes within a few ms;
     // under the fix the cancelled body returns through its catch and never
-    // touches `setTopRecommendations`, so this wait times out. Sleeping on a
+    // touches `setRecommendedEpisodePool`, so this wait times out. Sleeping on a
     // fixed delay would race the .utility body against the test's polling
     // priority — Wait.until polls at .background, ceding execution to the
     // body whenever it has work to do.
@@ -396,7 +396,7 @@ class BackgroundRescanSuppressionTests {
       try await Wait.until(
         maxAttempts: 100,
         delay: .milliseconds(20),
-        { !sharedState.topRecommendations.isEmpty },
+        { !sharedState.recommendedEpisodePool.isEmpty },
         { "" }
       )
       observedPublishWhileBackgrounded = true
@@ -408,7 +408,7 @@ class BackgroundRescanSuppressionTests {
       !observedPublishWhileBackgrounded,
       """
       regression: an in-flight recommendations rebuild published after the \
-      app backgrounded (\(sharedState.topRecommendations)). The background \
+      app backgrounded (\(sharedState.recommendedEpisodePool)). The background \
       handler must cancel the in-flight debounce task so the publish never \
       lands.
       """
@@ -417,9 +417,9 @@ class BackgroundRescanSuppressionTests {
     // Foreground re-arms exactly one coalesced rescan via RescanGate.
     engine.handleScenePhaseChange(to: .active)
     try await RecommendationHelpers.untilAdvancing(
-      { !sharedState.topRecommendations.isEmpty },
+      { !sharedState.recommendedEpisodePool.isEmpty },
       {
-        "Expected the deferred rebuild to publish topRecommendations on foreground."
+        "Expected the deferred rebuild to publish recommendedEpisodePool on foreground."
       }
     )
   }

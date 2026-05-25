@@ -193,7 +193,7 @@ import Testing
     userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(true)
     let (currentEpisode, recommendedEpisode) = try await Create.twoPodcastEpisodes()
 
-    sharedState.setTopRecommendations([recommendedEpisode.id])
+    sharedState.setRecommendedEpisodePool([recommendedEpisode.id])
 
     try await playManager.load(currentEpisode)
     try await PlayHelpers.play()
@@ -217,7 +217,7 @@ import Testing
     userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(false)
     let (currentEpisode, recommendedEpisode) = try await Create.twoPodcastEpisodes()
 
-    sharedState.setTopRecommendations([recommendedEpisode.id])
+    sharedState.setRecommendedEpisodePool([recommendedEpisode.id])
 
     try await playManager.load(currentEpisode)
     try await PlayHelpers.play()
@@ -235,7 +235,7 @@ import Testing
     userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(true)
     let podcastEpisode = try await Create.podcastEpisode()
 
-    sharedState.setTopRecommendations([])
+    sharedState.setRecommendedEpisodePool([])
 
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
@@ -255,7 +255,7 @@ import Testing
       try await Create.threePodcastEpisodes()
 
     try await queue.unshift(queuedEpisode.id)
-    sharedState.setTopRecommendations([recommendedEpisode.id])
+    sharedState.setRecommendedEpisodePool([recommendedEpisode.id])
 
     try await playManager.load(currentEpisode)
     try await PlayHelpers.play()
@@ -265,6 +265,26 @@ import Testing
     try await PlayHelpers.waitForOnDeck(queuedEpisode)
     try await PlayHelpers.waitFor(.playing)
     try await PlayHelpers.waitForCurrentItem(queuedEpisode.episode.mediaURL)
+  }
+
+  // Pins the cold-launch behavior: finishing the last episode with empty
+  // queue and autoplay disabled clears `currentEpisodeID`, so a later cold
+  // launch won't try to resume the finished episode.
+  @Test("finishEpisode with no replacement nils currentEpisodeID")
+  func finishEpisodeNoReplacementNilsCurrentEpisodeID() async throws {
+    await playManager.start()
+    userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(false)
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+
+    await playManager.finishEpisode(podcastEpisode.id)
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForOnDeck(nil)
+    #expect(sharedState.currentEpisodeID == nil)
   }
 
 }

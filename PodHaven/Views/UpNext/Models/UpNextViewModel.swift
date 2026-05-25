@@ -32,16 +32,16 @@ import SwiftUI
   var episodeList = PowerList<ListablePodcastEpisode>()
   private(set) var recommendedEpisodes: IdentifiedArrayOf<ListablePodcastEpisode> = []
 
+  private var recommendedPoolOrder: [Episode.ID] = []
+  private var hydratedRecommendedListables: [Episode.ID: ListablePodcastEpisode] = [:]
+
   // MARK: - SelectableList
 
-  // Recommendation candidates exclude queued episodes, but there's a brief
-  // window after queueing where the engine hasn't re-ranked, so the same id
-  // can appear in both lists. Dedupe so callers like replaceQueueWithSelected
-  // don't double-process the same id (which would leave queueOrder=0 empty).
+  // Recommendations live outside the PowerList, so the default
+  // `episodeList.selectedEntries` misses them. Union them in here.
   var selectedEntries: IdentifiedArrayOf<ListablePodcastEpisode> {
     var result = episodeList.selectedEntries
-    for rec in recommendedEpisodes
-    where episodeList.isSelected[rec.id] && !result.ids.contains(rec.id) {
+    for rec in recommendedEpisodes where episodeList.isSelected[rec.id] {
       result.append(rec)
     }
     return result
@@ -132,6 +132,14 @@ import SwiftUI
         guard let self else { return }
         await self.observeRecommendations()
       }
+      group.addTask { [weak self] in
+        guard let self else { return }
+        await self.observeOnDeckForRecommendations()
+      }
+      group.addTask { [weak self] in
+        guard let self else { return }
+        await self.observeRecommendationLimit()
+      }
     }
   }
 
@@ -144,37 +152,45 @@ import SwiftUI
     }
   }
 
-  // The engine publishes ranked IDs only; we hydrate display rows here so
-  // cache/save column changes on a recommended episode refresh the UI
-  // without re-running the scoring pipeline. Each ranking change cancels
-  // the prior hydration task and starts a fresh one keyed to the new IDs.
+  // The engine publishes a ranked pool keyed to the current scoring context.
+  // We hydrate display rows here, intersected with the candidate gate so an
+  // episode that's been queued/rated/finished drops out the moment its row
+  // changes — no engine rebuild required. The hydrated rows feed
+  // `rebuildRecommendedEpisodes`, which also excludes the onDeck episode and
+  // slices to the user's N setting.
   private func observeRecommendations() async {
     var hydrationTask: Task<Void, Never>?
     defer { hydrationTask?.cancel() }
 
-    for await ranking in sharedState.$topRecommendations.stream() {
+    for await ranking in sharedState.$recommendedEpisodePool.stream() {
       guard !Task.isCancelled else { return }
-      Self.log.debug("Updating \(ranking.count) observed recommendations")
+      Self.log.debug("Updating \(ranking.count) pool entries")
 
       hydrationTask?.cancel()
+      recommendedPoolOrder = ranking
+      let idSet = Set(ranking)
+      hydratedRecommendedListables = hydratedRecommendedListables.filter {
+        idSet.contains($0.key)
+      }
 
       guard !ranking.isEmpty else {
         hydrationTask = nil
-        recommendedEpisodes = []
+        rebuildRecommendedEpisodes()
         continue
       }
 
-      let rankOrder = ranking
-      let idSet = Set(rankOrder)
       hydrationTask = Task(priority: taskPriority(.utility)) { @MainActor [weak self] in
         guard let self else { return }
         do {
           let observation = self.observatory.listablePodcastEpisodes(
-            filter: idSet.contains(Episode.Columns.id)
+            filter: idSet.contains(Episode.Columns.id) && Episode.candidate
           )
           for try await listables in observation {
             guard !Task.isCancelled else { return }
-            self.applyRecommendedHydration(listables, rankOrder: rankOrder)
+            self.hydratedRecommendedListables = Dictionary(
+              uniqueKeysWithValues: listables.map { ($0.id, $0) }
+            )
+            self.rebuildRecommendedEpisodes()
           }
         } catch {
           Self.log.caughtError(
@@ -186,14 +202,29 @@ import SwiftUI
     }
   }
 
-  private func applyRecommendedHydration(
-    _ listables: [ListablePodcastEpisode],
-    rankOrder: [Episode.ID]
-  ) {
-    let byID = Dictionary(uniqueKeysWithValues: listables.map { ($0.id, $0) })
-    var ordered = [ListablePodcastEpisode](capacity: rankOrder.count)
-    for id in rankOrder {
-      guard let listable = byID[id] else { continue }
+  private func observeOnDeckForRecommendations() async {
+    for await _ in sharedState.$currentEpisodeID.stream() {
+      guard !Task.isCancelled else { return }
+      rebuildRecommendedEpisodes()
+    }
+  }
+
+  private func observeRecommendationLimit() async {
+    for await _ in userSettings.$maxRecommendedEpisodesInUpNext.stream() {
+      guard !Task.isCancelled else { return }
+      rebuildRecommendedEpisodes()
+    }
+  }
+
+  private func rebuildRecommendedEpisodes() {
+    let limit = userSettings.maxRecommendedEpisodesInUpNext
+    let currentEpisodeID = sharedState.currentEpisodeID
+    var ordered: [ListablePodcastEpisode] = []
+    ordered.reserveCapacity(min(limit, recommendedPoolOrder.count))
+    for id in recommendedPoolOrder {
+      if ordered.count >= limit { break }
+      if id == currentEpisodeID { continue }
+      guard let listable = hydratedRecommendedListables[id] else { continue }
       ordered.append(listable)
     }
     recommendedEpisodes = IdentifiedArray(uniqueElements: ordered)

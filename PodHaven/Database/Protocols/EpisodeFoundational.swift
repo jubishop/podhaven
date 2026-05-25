@@ -36,6 +36,7 @@ extension EpisodeFoundational {
   var queued: Bool { queueOrder != nil }
   var started: Bool { currentTime.seconds > 0 }
   var finished: Bool { finishDate != nil }
+  var isCandidate: Bool { rating == nil && !queued && !started && !finished }
 
   // MARK: - Stringable
 
