@@ -12,10 +12,6 @@ import Foundation
 // loading. Callers route that through `RecommendationScoringCoordinator`'s
 // `.uncacheable` arm so the empty result isn't memoized and the next refresh
 // retries once the assets-loaded latch fires.
-//
-// `reset()` drops the cache after a state change the cache key doesn't see
-// (e.g. the host transitions between unsaved variants for the same
-// `MediaGUID`).
 @MainActor
 final class UnsavedEpisodeEmbeddingScorer {
   @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
@@ -28,7 +24,12 @@ final class UnsavedEpisodeEmbeddingScorer {
 
   private var cache: Cache?
 
-  func reset() { cache = nil }
+  func similarityScore(
+    for unsavedEpisode: UnsavedPodcastEpisode
+  ) async throws -> (score: Float?, cacheable: Bool) {
+    let (scores, cacheable) = try await similarityScores(for: CollectionOfOne(unsavedEpisode))
+    return (scores[unsavedEpisode.mediaGUID], cacheable)
+  }
 
   func similarityScores(
     for unsavedEpisodes: some Sequence<UnsavedPodcastEpisode>

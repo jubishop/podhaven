@@ -526,12 +526,12 @@ enum EpisodeDetailDisplayedScore: Sendable {
   private func scoreUnsavedEpisode(
     _ unsavedPodcastEpisode: UnsavedPodcastEpisode
   ) async throws -> (EpisodeDetailDisplayedScore?, cacheable: Bool) {
-    let (scores, cacheable) = try await unsavedEpisodeEmbeddingScorer.similarityScores(
-      for: CollectionOfOne(unsavedPodcastEpisode)
+    let (score, cacheable) = try await unsavedEpisodeEmbeddingScorer.similarityScore(
+      for: unsavedPodcastEpisode
     )
     guard cacheable else { return (nil, false) }
-    guard let value = scores[unsavedPodcastEpisode.mediaGUID] else { return (nil, true) }
-    return (.similarity(value), true)
+    guard let score else { return (nil, true) }
+    return (.similarity(score), true)
   }
 
   // MARK: - Disappear
@@ -550,7 +550,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     logStateTransition(to: newState)
     state = newState
     if recommendationKindChanged {
-      unsavedEpisodeEmbeddingScorer.reset()
       recommendationCoordinator.refresh()
     }
   }
