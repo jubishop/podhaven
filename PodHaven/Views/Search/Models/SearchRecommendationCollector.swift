@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import Algorithms
 import CoreMedia
 import FactoryKit
 import Foundation
@@ -182,11 +183,11 @@ final class SearchRecommendationCollector {
   }
 
   // Called by SearchViewModel after iTunes search / trending returns. The
-  // collector reconciles `podcasts` against the DB, drops subscribed ones,
-  // takes the first `podcastCap` survivors as the source's ranking, and
-  // queues the missing podcasts for RSS+embed+score work after the
-  // `stableSourceDebounce`. Typed-search recordings replace the prior
-  // overlay if `source.query` differs.
+  // collector caps `podcasts` to the first `podcastCap`, reconciles that
+  // batch against the DB, drops subscribed ones (no backfill into the deeper
+  // ranking), stores the survivors as the source's ranking, and queues the
+  // missing podcasts for RSS+embed+score work after the `stableSourceDebounce`.
+  // Typed-search recordings replace the prior overlay if `source.query` differs.
   func recordSourcePodcasts(
     source: Source,
     podcasts: [PodcastWithEpisodeMetadata<ListedPodcast>]
@@ -297,12 +298,7 @@ final class SearchRecommendationCollector {
       entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
       return
     }
-    for entry in permanent.values
-    where entry.scoredEpisodes.contains(where: { $0.id == mediaGUID }) {
-      entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
-      return
-    }
-    for entry in temporary.values
+    for entry in chain(permanent.values, temporary.values)
     where entry.scoredEpisodes.contains(where: { $0.id == mediaGUID }) {
       entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
       return

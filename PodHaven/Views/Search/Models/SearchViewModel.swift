@@ -371,8 +371,8 @@ class SearchViewModel:
     let task = Task<Bool, Never> { [weak self] in
       guard let self else { return false }
 
+      let term = searchedText
       do {
-        let term = searchedText
         let results = try await self.iTunesService.searchedPodcasts(matching: term, limit: 48)
         try Task.checkCancellation()
         guard term == searchedText else { return false }
@@ -398,11 +398,13 @@ class SearchViewModel:
           """
         )
       } catch {
-        Self.log.caughtError("executeSearch: failed for term '\(searchedText)'", error)
+        Self.log.caughtError("executeSearch: failed for term '\(term)'", error)
         guard !Task.isCancelled else { return false }
 
         searchResults.removeAll()
         searchState = .error(ErrorKit.message(for: error))
+        pushSearchResultsToCollector(query: term)
+        syncCollectorActiveSource()
       }
       return true
     }
@@ -693,7 +695,7 @@ class SearchViewModel:
   }
 
   fileprivate func pushSearchResultsToCollector(query: String) {
-    guard !query.isEmpty, !searchResults.isEmpty else { return }
+    guard !query.isEmpty else { return }
     recommendationCollector.recordSourcePodcasts(
       source: .search(query: query),
       podcasts: Array(searchResults)

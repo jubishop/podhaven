@@ -210,9 +210,9 @@ struct SearchView: View {
 
   @ViewBuilder
   private func bannerStrip(text: String, tappable: Bool) -> some View {
-    if tappable, let source = recommendationBannerSource {
+    if tappable {
       Button {
-        navigation.search.path.append(.searchDiscovery(source))
+        navigation.search.path.append(.searchDiscovery(recommendationBannerSource))
       } label: {
         bannerLabel(text: text, showsChevron: true)
       }
@@ -240,11 +240,9 @@ struct SearchView: View {
     .background(Color.secondary.opacity(0.08))
   }
 
-  private var recommendationBannerSource: SearchRecommendationCollector.Source? {
+  private var recommendationBannerSource: SearchRecommendationCollector.Source {
     if viewModel.isShowingSearchResults {
-      let query = viewModel.searchedText
-      guard !query.isEmpty else { return nil }
-      return .search(query: query)
+      return .search(query: viewModel.searchedText)
     }
     let section = viewModel.currentTrendingSection
     return .trending(genreID: section.genreID, title: section.title)
@@ -264,7 +262,9 @@ struct SearchView: View {
       return "Top \(count) from \"\(viewModel.searchedText)\""
     }
     let section = viewModel.currentTrendingSection
-    if section.genreID == nil { return "Top \(count) picks" }
+    if section.genreID == nil {
+      return count == 1 ? "Top pick" : "Top \(count) picks"
+    }
     return "Top \(count) from \(section.title)"
   }
 

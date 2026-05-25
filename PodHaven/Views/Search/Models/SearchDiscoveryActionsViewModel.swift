@@ -29,10 +29,7 @@ final class SearchDiscoveryActionsViewModel: ManagingEpisodes {
   // MARK: - Actions With Post-Removal
 
   func playEpisode(_ episode: ListedEpisode) {
-    performAfterMaterialize(episode, context: "playEpisode") {
-      [playManager, repo] episodeID in
-      let podcastEpisode = try await repo.podcastEpisode(episodeID)
-      guard let podcastEpisode else { return }
+    performAfterMaterialize(episode, context: "playEpisode") { [playManager] podcastEpisode in
       try await playManager.load(podcastEpisode)
       await playManager.play()
     }
@@ -40,55 +37,55 @@ final class SearchDiscoveryActionsViewModel: ManagingEpisodes {
 
   func queueEpisodeOnTop(_ episode: ListedEpisode, swipeAction: Bool = false) {
     guard episode.queueOrder != 0 else { return }
-    performAfterMaterialize(episode, context: "queueEpisodeOnTop") { [queue] episodeID in
-      try await queue.unshift(episodeID)
+    performAfterMaterialize(episode, context: "queueEpisodeOnTop") { [queue] podcastEpisode in
+      try await queue.unshift(podcastEpisode.id)
     }
   }
 
   func queueEpisodeAtBottom(_ episode: ListedEpisode, swipeAction: Bool = false) {
-    performAfterMaterialize(episode, context: "queueEpisodeAtBottom") { [queue] episodeID in
-      try await queue.append(episodeID)
+    performAfterMaterialize(episode, context: "queueEpisodeAtBottom") { [queue] podcastEpisode in
+      try await queue.append(podcastEpisode.id)
     }
   }
 
   func cacheEpisode(_ episode: ListedEpisode) {
-    performAfterMaterialize(episode, context: "cacheEpisode") { [cacheManager] episodeID in
-      try await cacheManager.downloadToCache(for: episodeID)
+    performAfterMaterialize(episode, context: "cacheEpisode") { [cacheManager] podcastEpisode in
+      try await cacheManager.downloadToCache(for: podcastEpisode.id)
     }
   }
 
   func saveEpisodeInCache(_ episode: ListedEpisode) {
     performAfterMaterialize(episode, context: "saveEpisodeInCache") {
-      [cacheManager, repo] episodeID in
-      _ = try await repo.updateSaveInCache(episodeID, saveInCache: true)
-      try await cacheManager.downloadToCache(for: episodeID)
+      [cacheManager, repo] podcastEpisode in
+      _ = try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
+      try await cacheManager.downloadToCache(for: podcastEpisode.id)
     }
   }
 
   func rateEpisode(_ episode: ListedEpisode, rating: EpisodeRating?) {
     guard episode.rating != rating else { return }
-    performAfterMaterialize(episode, context: "rateEpisode") { [repo] episodeID in
-      _ = try await repo.updateRating(episodeID, rating: rating)
+    performAfterMaterialize(episode, context: "rateEpisode") { [repo] podcastEpisode in
+      _ = try await repo.updateRating(podcastEpisode.id, rating: rating)
     }
   }
 
   func markEpisodeFinished(_ episode: ListedEpisode) {
     guard !episode.finished else { return }
-    performAfterMaterialize(episode, context: "markEpisodeFinished") { [repo] episodeID in
-      _ = try await repo.markFinished(episodeID)
+    performAfterMaterialize(episode, context: "markEpisodeFinished") { [repo] podcastEpisode in
+      _ = try await repo.markFinished(podcastEpisode.id)
     }
   }
 
   private func performAfterMaterialize(
     _ episode: ListedEpisode,
     context: String,
-    perform: @escaping @Sendable (Episode.ID) async throws -> Void
+    perform: @escaping @Sendable (PodcastEpisode) async throws -> Void
   ) {
     Task { [weak self] in
       guard let self else { return }
       do {
         let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
-        try await perform(podcastEpisode.id)
+        try await perform(podcastEpisode)
         self.collector?.removePick(feedURL: episode.feedURL, mediaGUID: episode.mediaGUID)
       } catch {
         Self.log.caughtError("\(context): failed for \(episode.title)", error)
