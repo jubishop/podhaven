@@ -70,6 +70,65 @@ import Testing
     )
   }
 
+  @Test("returns (nil, false) and (empty, false) when embedding assets aren't loaded")
+  func cacheableFalseWhenAssetsNotLoaded() async throws {
+    let counter = ThreadSafe(0)
+    registerEmbeddable(assetsAvailable: false, revision: 1, counter: counter)
+
+    let episode = try unsavedPodcastEpisode()
+    let scorer = UnsavedEpisodeEmbeddingScorer()
+
+    let single = try await scorer.similarityScore(for: episode)
+    #expect(single.score == nil)
+    #expect(single.cacheable == false)
+
+    let batch = try await scorer.similarityScores(for: [episode])
+    #expect(batch.scores.isEmpty)
+    #expect(batch.cacheable == false)
+
+    #expect(
+      counter() == 0,
+      "Embeddable must not be invoked while assets are unloaded — the scorer short-circuits before vector compute"
+    )
+  }
+
+  @Test("similarityScores embeds each unique episode in a batch and caches the whole batch")
+  func batchScoresEmbedsEachEpisodeAndCaches() async throws {
+    let counter = ThreadSafe(0)
+    registerEmbeddable(revision: 1, counter: counter)
+
+    let podcast = try Create.unsavedPodcast()
+    let first = UnsavedPodcastEpisode(
+      unsavedPodcast: podcast,
+      unsavedEpisode: try Create.unsavedEpisode(title: "First Episode")
+    )
+    let second = UnsavedPodcastEpisode(
+      unsavedPodcast: podcast,
+      unsavedEpisode: try Create.unsavedEpisode(title: "Second Episode")
+    )
+    #expect(first.mediaGUID != second.mediaGUID)
+
+    let scorer = UnsavedEpisodeEmbeddingScorer()
+
+    _ = try await scorer.similarityScores(for: [first])
+    let singleCount = counter()
+    #expect(singleCount > 0, "Scoring one episode must hit the embeddable")
+
+    let batch = try await scorer.similarityScores(for: [first, second])
+    let batchCount = counter()
+    #expect(batch.cacheable)
+    #expect(
+      batchCount > singleCount,
+      "Batch must embed the new (second) episode while reusing the cached first"
+    )
+
+    _ = try await scorer.similarityScores(for: [first, second])
+    #expect(
+      counter() == batchCount,
+      "Re-scoring the same (mediaGUID, source) batch must reuse cached vectors for both episodes"
+    )
+  }
+
   @Test("drops cached vectors when the embedding revision changes")
   func dropsCacheOnRevisionChange() async throws {
     let counter1 = ThreadSafe(0)
@@ -97,9 +156,13 @@ import Testing
 
   // MARK: - Helpers
 
-  private func registerEmbeddable(revision: Int, counter: ThreadSafe<Int>) {
+  private func registerEmbeddable(
+    assetsAvailable: Bool = true,
+    revision: Int,
+    counter: ThreadSafe<Int>
+  ) {
     let embeddable = MutableEmbeddable(
-      assetsAvailable: true,
+      assetsAvailable: assetsAvailable,
       revision: revision,
       vectorFor: { _ in
         counter { $0 += 1 }

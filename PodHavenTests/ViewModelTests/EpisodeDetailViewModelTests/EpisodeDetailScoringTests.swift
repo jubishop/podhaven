@@ -504,7 +504,11 @@ import Testing
     try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
 
     // Saved-side scoring is parked. Delete the podcast — observation flips
-    // state to `.unsaved` and the kind-change refresh runs a fresh fetch.
+    // state to `.unsaved`; `transition(to:)` calls
+    // `recommendationCoordinator.refresh()`, whose new snapshot
+    // (`.unsaved`) differs from the parked task's (`.saved`), so the
+    // coordinator cancels the parked task and kicks off a fresh
+    // unsaved-side fetch.
     _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
 
     // Wait for `.similarity` on the new `.unsaved` state — the correct
@@ -525,16 +529,18 @@ import Testing
       }
     )
 
-    // Release the parked saved-side fetch. Without the kind guard, its tail
-    // overwrites `.similarity` with a stale `.recommendation`.
+    // Release the parked saved-side fetch. Without the coordinator's
+    // `Task.isCancelled` check and snapshot stale-drop in `runPass`, its
+    // tail would overwrite `.similarity` with a stale `.recommendation`.
     await fakeRepo.resumeAllEpisodeFetchSuspensions()
 
     // Deterministic barrier — fires the instant the parked continuation
-    // returns; the saved-side tail (score compute + MainActor hop into the
-    // kind guard) is then the only outstanding work.
+    // returns; the saved-side tail (score compute + MainActor hop into
+    // `runPass`'s cancellation / snapshot gates) is then the only
+    // outstanding work.
     try await fakeRepo.waitForEpisodeFetchCompleted(count: 1)
-    // Drain the MainActor queue so the saved-side tail's guard/write runs
-    // before we assert.
+    // Drain the MainActor queue so the saved-side tail's gates run before
+    // we assert.
     for _ in 0..<30 { await Task.yield() }
 
     #expect(viewModel.episode.isSaved == false)
@@ -542,7 +548,7 @@ import Testing
       Issue.record(
         """
         Stale .recommendation write landed after saved → unsaved transition; \
-        the state-kind guard in fetchRecommendation regressed.
+        the coordinator's cancellation / snapshot stale-drop in runPass regressed.
         """
       )
     }
