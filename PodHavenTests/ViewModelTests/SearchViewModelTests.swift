@@ -10,10 +10,12 @@ import Testing
 @Suite("of SearchViewModel tests", .container)
 @MainActor final class SearchViewModelTests {
   @DynamicInjected(\.iTunesServiceSession) private var iTunesServiceSession
+  @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sleeper) private var sleeper
 
   private var session: FakeDataFetchable { iTunesServiceSession as! FakeDataFetchable }
+  private var feedSession: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
   private var fakeSleeper: FakeSleeper { sleeper as! FakeSleeper }
 
   @Test("appear loads the top trending podcasts")
@@ -261,6 +263,163 @@ import Testing
     viewModel.disappear()
 
     #expect(viewModel.searchState != .loading)
+  }
+
+  // Subscribing to a trending row in SearchView must remove that podcast's
+  // picks from the discovery list. The collector's reconciliation drops
+  // subscribed podcasts at ingest time, so SearchViewModel has to re-push
+  // when the observation reports a row has transitioned to subscribed.
+  @Test("subscribing to a trending row removes its picks from the collector")
+  func subscribingTrendingRowRemovesPicksFromCollector() async throws {
+    // Engine prime: 3 rated signal episodes give the centroid a stable
+    // direction; the discovery candidate's default vector lands above the
+    // 0.5 similarity floor.
+    let scripted = ScriptedEmbeddable { text in
+      if text.contains("of Signal") {
+        if text.contains("Episode 0") { return [1, 0, 0] }
+        if text.contains("Episode 1") { return [0, 1, 0] }
+        return [0, 0, 1]
+      }
+      return [1, 0, 0]
+    }
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: scripted) }
+      .scope(.cached)
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: scripted)
+    let engine = Container.shared.recommendationEngine()
+    engine.start()
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in engine.hasScoringContext },
+      { @Sendable in "Expected scoring context to land" }
+    )
+
+    // Lenny's is one of the rows in `top_lookup.json`. Pre-insert it as
+    // unsubscribed-but-saved so the trending observation watches a real row.
+    let lennysFeed = FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!)
+    let lennysSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: lennysFeed,
+          iTunesID: ITunesPodcastID(1627920305),
+          title: "Lenny's Stub",
+          subscriptionDate: nil
+        ),
+        unsavedEpisodes: []
+      )
+    )
+
+    await configureITunesResponses()
+    await feedSession.respond(
+      to: lennysFeed.rawValue,
+      data: rssXML(
+        title: "Lenny's",
+        feedURL: lennysFeed,
+        episodes: [
+          ("lennys-pick", "Lenny Pick", Date(timeIntervalSince1970: 1_900_000_000))
+        ]
+      )
+    )
+
+    let viewModel = SearchViewModel()
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in viewModel.currentTrendingSection.state == .loaded },
+      { @MainActor in "Expected trending to load" }
+    )
+
+    // Source title is `currentTrendingSection.title`; derive instead of hardcode
+    // so renames in `AppIcon.trendingTop.text` don't silently make the assertion
+    // read a never-populated source.
+    let trendingSource = SearchRecommendationCollector.Source.trending(
+      genreID: viewModel.currentTrendingSection.genreID,
+      title: viewModel.currentTrendingSection.title
+    )
+
+    // Advance fake time in 100 ms slices, polling for the pick to land. The
+    // collector's 1 s stable-source debounce + observation initial-snapshot
+    // re-push can race; pick converges within ~1.2 s of fake time.
+    try await Wait.until(
+      maxAttempts: 200,
+      { @MainActor in
+        await self.fakeSleeper.advanceTime(by: .milliseconds(100))
+        return viewModel.recommendationCollector
+          .picks(for: trendingSource)
+          .contains { $0.episode.feedURL == lennysFeed }
+      },
+      { @MainActor in
+        let pickURLs = viewModel.recommendationCollector
+          .picks(for: trendingSource)
+          .map(\.episode.feedURL.absoluteString)
+        return "Expected lennys feedURL in picks before subscription; got \(pickURLs)"
+      }
+    )
+
+    _ = try await repo.markSubscribed(lennysSeries.podcast.id)
+
+    // With the fix, the observation callback re-pushes the refreshed source
+    // list; collector re-reconciles and drops the now-subscribed feedURL.
+    // Without the fix, the pick persists indefinitely.
+    try await Wait.until(
+      maxAttempts: 200,
+      { @MainActor in
+        await self.fakeSleeper.advanceTime(by: .milliseconds(100))
+        return !viewModel.recommendationCollector
+          .picks(for: trendingSource)
+          .contains { $0.episode.feedURL == lennysFeed }
+      },
+      { @MainActor in
+        let pickURLs = viewModel.recommendationCollector
+          .picks(for: trendingSource)
+          .map(\.episode.feedURL.absoluteString)
+        return "Expected lennys pick to be removed after subscription; got \(pickURLs)"
+      }
+    )
+  }
+
+  private func rssXML(
+    title: String,
+    feedURL: FeedURL,
+    episodes: [(guid: String, title: String, pubDate: Date)]
+  ) -> Data {
+    let pubDateFormatter = DateFormatter()
+    pubDateFormatter.locale = Locale(identifier: "en_US_POSIX")
+    pubDateFormatter.timeZone = TimeZone(identifier: "GMT")
+    pubDateFormatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
+
+    let items =
+      episodes.map { entry -> String in
+        """
+        <item>
+          <guid isPermaLink="false">\(entry.guid)</guid>
+          <title>\(entry.title)</title>
+          <pubDate>\(pubDateFormatter.string(from: entry.pubDate))</pubDate>
+          <enclosure url="https://example.com/audio/\(entry.guid).mp3" type="audio/mpeg" length="0" />
+          <description>\(entry.title) description</description>
+        </item>
+        """
+      }
+      .joined(separator: "\n")
+
+    let xml = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+        <channel>
+          <title>\(title)</title>
+          <link>\(feedURL.absoluteString)</link>
+          <description>\(title) description</description>
+          <itunes:image href="https://example.com/image.png" />
+          \(items)
+        </channel>
+      </rss>
+      """
+    return Data(xml.utf8)
   }
 
   private func configureITunesResponses() async {

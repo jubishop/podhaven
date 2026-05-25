@@ -446,6 +446,9 @@ class SearchViewModel:
 
       searchResults = revertDeletedPodcasts(in: searchResults, updatedIDs: updatedIDs)
       syncPodcastListToSearchResults()
+      // Re-push so the collector re-reconciles against the DB and drops any
+      // rows that just transitioned to subscribed.
+      pushSearchResultsToCollector(query: searchedText)
     }
   }
 
@@ -486,6 +489,9 @@ class SearchViewModel:
         updatedIDs: updatedIDs
       )
       syncPodcastListToTrendingResults(trendingSection)
+      // Re-push so the collector re-reconciles against the DB and drops any
+      // rows that just transitioned to subscribed.
+      pushTrendingResultsToCollector(trendingSection)
     }
   }
 

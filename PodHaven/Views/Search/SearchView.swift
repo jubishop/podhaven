@@ -242,9 +242,9 @@ struct SearchView: View {
 
   private var recommendationBannerSource: SearchRecommendationCollector.Source? {
     if viewModel.isShowingSearchResults {
-      let trimmed = viewModel.searchedText.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !trimmed.isEmpty else { return nil }
-      return .search(query: trimmed)
+      let query = viewModel.searchedText
+      guard !query.isEmpty else { return nil }
+      return .search(query: query)
     }
     let section = viewModel.currentTrendingSection
     return .trending(genreID: section.genreID, title: section.title)
@@ -252,8 +252,7 @@ struct SearchView: View {
 
   private var loadingBannerCopy: String {
     if viewModel.isShowingSearchResults {
-      let trimmed = viewModel.searchedText.trimmingCharacters(in: .whitespacesAndNewlines)
-      return "Finding top picks from \"\(trimmed)\"..."
+      return "Finding top picks from \"\(viewModel.searchedText)\"..."
     }
     let section = viewModel.currentTrendingSection
     if section.genreID == nil { return "Finding top picks..." }
@@ -262,8 +261,7 @@ struct SearchView: View {
 
   private func loadedBannerCopy(count: Int) -> String {
     if viewModel.isShowingSearchResults {
-      let trimmed = viewModel.searchedText.trimmingCharacters(in: .whitespacesAndNewlines)
-      return "Top \(count) from \"\(trimmed)\""
+      return "Top \(count) from \"\(viewModel.searchedText)\""
     }
     let section = viewModel.currentTrendingSection
     if section.genreID == nil { return "Top \(count) picks" }

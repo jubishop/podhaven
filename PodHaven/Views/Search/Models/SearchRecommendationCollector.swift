@@ -6,6 +6,7 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
+import OrderedCollections
 import Tagged
 
 // MARK: - SearchRecommendationCollector
@@ -78,11 +79,6 @@ final class SearchRecommendationCollector {
     var id: MediaGUID { episode.mediaGUID }
     let episode: UnsavedPodcastEpisode
     let score: Float
-    // The cache key of the entry this pick came from. UnsavedPodcastEpisode's
-    // feedURL is parsed from the RSS (atom:link self / itunes:new-feed-url)
-    // and can differ from the URL we downloaded, so removePick can't use
-    // `episode.feedURL` to find the owning entry.
-    let entryFeedURL: FeedURL
   }
 
   // MARK: - Dependencies
@@ -138,7 +134,7 @@ final class SearchRecommendationCollector {
   private var drainTask: Task<Void, Never>?
 
   // FIFO of feed URLs ready to be picked up by the drain task.
-  private var pendingDrainQueue: [FeedURL] = []
+  private var pendingDrainQueue: OrderedSet<FeedURL> = []
   private var drainContinuation: CheckedContinuation<Void, Never>?
 
   // Feed URLs whose pipeline is mid-flight.
@@ -292,7 +288,7 @@ final class SearchRecommendationCollector {
   // `feedURL` is the caller's view of the feed (from `ListedEpisode.feedURL`),
   // which mirrors the RSS-parsed `atom:link self` / `itunes:new-feed-url` and
   // can differ from the cache key. Try the direct lookup first; if it misses,
-  // scan by mediaGUID and use the pick's recorded `entryFeedURL`.
+  // scan by mediaGUID across both caches.
   func removePick(feedURL: FeedURL, mediaGUID: MediaGUID) {
     Self.log.debug("Removing pick \(mediaGUID)")
     if let entry = permanent[feedURL] ?? temporary[feedURL],
@@ -444,8 +440,7 @@ final class SearchRecommendationCollector {
     guard !inFlight.contains(feedURL) else { return }
     let status = entry(for: feedURL)?.status
     guard status != .scored else { return }
-    if pendingDrainQueue.contains(feedURL) { return }
-    pendingDrainQueue.append(feedURL)
+    guard pendingDrainQueue.append(feedURL).inserted else { return }
     drainContinuation?.resume()
     drainContinuation = nil
   }
@@ -596,7 +591,6 @@ final class SearchRecommendationCollector {
 
     let result = await Self.runPipeline(
       downloadTask: downloadTask,
-      entryFeedURL: feedURL,
       podcastID: podcastID,
       onDeckID: onDeckID,
       embedding: contextualEmbedding,
@@ -622,6 +616,13 @@ final class SearchRecommendationCollector {
 
     inFlight.remove(feedURL)
 
+    // Defensive: a concurrent overlay purge could have swapped a new entry
+    // under us. scheduleDrain bails while inFlight holds feedURL, so the new
+    // entry would stay .pending until something else triggers a re-schedule.
+    if let current = self.entry(for: feedURL), current !== entry, current.status != .scored {
+      scheduleDrain(for: feedURL)
+    }
+
     if !pendingDrainQueue.isEmpty {
       drainContinuation?.resume()
       drainContinuation = nil
@@ -638,7 +639,6 @@ final class SearchRecommendationCollector {
 
   private nonisolated static func runPipeline(
     downloadTask: DownloadTask,
-    entryFeedURL: FeedURL,
     podcastID: Podcast.ID?,
     onDeckID: Episode.ID?,
     embedding: ContextualEmbedding,
@@ -706,7 +706,7 @@ final class SearchRecommendationCollector {
       }
       guard let score = engine.similarityScore(forEmbedding: vector) else { continue }
       guard score > scoreFloor else { continue }
-      scored.append(ScoredEpisode(episode: payload, score: score, entryFeedURL: entryFeedURL))
+      scored.append(ScoredEpisode(episode: payload, score: score))
     }
 
     return .success(scored)
