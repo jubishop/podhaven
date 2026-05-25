@@ -70,6 +70,12 @@ struct RecommendationEngine: Sendable {
   private static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
+  // Pool published on every rebuild. Consumers apply the candidate filter and
+  // user-N slice locally. Slider for `maxRecommendedEpisodesInUpNext` is
+  // currently capped at 20; raise this constant (or re-introduce a dynamic
+  // pool-size observer) if that cap moves.
+  private static let recommendationPoolSize = 100
+
   private static let lovedWeight: Float = 1.0
   private static let likedWeight: Float = 0.6
   private static let partialWeight: Float = 0.5
@@ -293,12 +299,8 @@ struct RecommendationEngine: Sendable {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
     let totalStart = ContinuousClock.now
 
-    // SharedState isn't Sendable, so it can't go through @DynamicInjected;
-    // the actual read is @MainActor-isolated and onDeck is a value type.
-    let onDeckID = Container.shared.sharedState().onDeck?.id
-
     let candidatesStart = ContinuousClock.now
-    let candidates = try await recommendationRepo.allCandidateEpisodes(excluding: onDeckID)
+    let candidates = try await recommendationRepo.allCandidateEpisodes()
     let candidatesDuration = ContinuousClock.now - candidatesStart
     Self.log.debug(
       "perf: allCandidateEpisodes took \(candidatesDuration) for \(candidates.count) candidates"
@@ -444,16 +446,6 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // Limit changes don't invalidate the cache, only how many entries get
-    // published.
-    Task(priority: taskPriority(.utility)) {
-      let userSettings = Container.shared.userSettings()
-      for await _ in userSettings.$maxRecommendedEpisodesInUpNext.stream().dropFirst() {
-        guard !Task.isCancelled else { return }
-        scheduleRecommendationsRebuild()
-      }
-    }
-
     // Mode reshapes the centroids, so we need a full cache rebuild.
     Task(priority: taskPriority(.utility)) {
       let userSettings = Container.shared.userSettings()
@@ -476,25 +468,6 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // Candidate-pool transitions (queue / finish / rate) need a re-rank but
-    // not a context rebuild — the underlying signal observation already
-    // covers the scoring inputs.
-    Task(priority: taskPriority(.utility)) {
-      var retryDelay: Duration = .seconds(1)
-      while !Task.isCancelled {
-        do {
-          for try await _ in observatory.candidateGateExclusions().dropFirst() {
-            guard !Task.isCancelled else { return }
-            retryDelay = .seconds(1)
-            scheduleRecommendationsRebuild()
-          }
-        } catch {
-          Self.log.caughtError("candidateGateExclusions observation failed", error)
-          try? await sleeper.sleep(for: retryDelay)
-          retryDelay = min(retryDelay * 2, .seconds(60))
-        }
-      }
-    }
   }
 
   private func scheduleCacheRebuild() {
@@ -564,14 +537,13 @@ struct RecommendationEngine: Sendable {
         )
         return
       }
-      let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
       let sharedState = Container.shared.sharedState()
       do {
-        let top = try await topRecommendations(limit: limit)
+        let pool = try await topRecommendations(limit: Self.recommendationPoolSize)
         try Task.checkCancellation()
-        sharedState.setTopRecommendations(top)
+        sharedState.setRecommendedEpisodePool(pool)
       } catch {
-        Self.log.caughtError("top recommendations rebuild failed", error)
+        Self.log.caughtError("recommendation pool rebuild failed", error)
       }
     }
   }

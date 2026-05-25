@@ -216,11 +216,6 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.scoringContextInputsWithoutPartialSignals()
   }
 
-  func candidateGateExclusions() -> AsyncValueObservation<Set<Episode.ID>> {
-    recordCall(methodName: "candidateGateExclusions", parameters: ())
-    return observatory.candidateGateExclusions()
-  }
-
   func episodesNeedingEmbeddings(revision: Int) -> AsyncValueObservation<[Episode.ID]> {
     recordCall(methodName: "episodesNeedingEmbeddings", parameters: revision)
     var script = episodesNeedingEmbeddingsScript()

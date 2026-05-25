@@ -10,7 +10,6 @@ import Testing
 @Suite("RecommendationEngine candidate filtering tests", .container)
 class CandidateFilteringTests {
   @DynamicInjected(\.recommendationEngine) private var engine
-  @DynamicInjected(\.sharedState) private var sharedState
 
   @Test("excludes finished episodes from candidates")
   func excludesFinished() async throws {
@@ -81,28 +80,4 @@ class CandidateFilteringTests {
     #expect(!recommendedIDs.contains(unembeddedCandidate.id))
   }
 
-  @Test("excludes onDeck episode from candidates")
-  func excludesOnDeck() async throws {
-    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 3,
-      podcastTitle: "Signal",
-      ratings: [.loved, .liked, .liked]
-    )
-    try await RecommendationHelpers.embedEpisodes(signals)
-
-    let (candidatePodcast, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 3,
-      podcastTitle: "Candidates"
-    )
-    try await RecommendationHelpers.embedEpisodes(candidates)
-
-    let onDeckEpisode = try #require(candidates.first)
-    sharedState.$onDeck.new(
-      OnDeck(from: PodcastEpisode(podcast: candidatePodcast, episode: onDeckEpisode))
-    )
-
-    let recs = try await RecommendationHelpers.startAndWaitForRecs()
-    let recommendedIDs = Set(recs)
-    #expect(!recommendedIDs.contains(onDeckEpisode.id))
-  }
 }

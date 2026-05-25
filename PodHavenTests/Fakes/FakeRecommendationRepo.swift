@@ -149,11 +149,9 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     return try await recommendationRepo.allUnratedListenedEpisodes()
   }
 
-  func allCandidateEpisodes(
-    excluding excludedID: Episode.ID?
-  ) async throws -> [CandidateEpisode] {
-    recordCall(methodName: "allCandidateEpisodes", parameters: excludedID)
-    return try await recommendationRepo.allCandidateEpisodes(excluding: excludedID)
+  func allCandidateEpisodes() async throws -> [CandidateEpisode] {
+    recordCall(methodName: "allCandidateEpisodes", parameters: ())
+    return try await recommendationRepo.allCandidateEpisodes()
   }
 
   func allScoringContextInputs() async throws -> ScoringContextInputs {

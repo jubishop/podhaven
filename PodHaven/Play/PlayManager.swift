@@ -378,7 +378,7 @@ final class PlayManager {
           no next episode, stopping \
           (autoPlayTopRecommendationWhenQueueEmpty: \
           \(userSettings.autoPlayTopRecommendationWhenQueueEmpty), \
-          topRecommendationsCount: \(sharedState.topRecommendations.count))
+          recommendedPoolCount: \(sharedState.recommendedEpisodePool.count))
           """
         )
         setStatus(.stopped)
@@ -389,18 +389,26 @@ final class PlayManager {
     }
   }
 
-  // Returns the first published top recommendation we can hydrate. The engine
-  // already excludes the on-deck episode at scoring time and finished episodes
-  // via the candidate gate, so no extra filtering is needed here.
+  // Returns the first pool entry that's still candidate-eligible. The pool
+  // is published as IDs only, so anything that's been queued / rated /
+  // finished / started since the last engine rebuild has to be filtered out
+  // here. OnDeck is excluded too — autoplay must pick the *next* episode.
   private func nextAutoplayRecommendation() async throws -> PodcastEpisode? {
     guard userSettings.autoPlayTopRecommendationWhenQueueEmpty else { return nil }
-    for episodeID in sharedState.topRecommendations {
-      if let podcastEpisode = try await repo.podcastEpisode(episodeID) {
-        return podcastEpisode
+    let onDeckID = sharedState.onDeck?.id
+    for episodeID in sharedState.recommendedEpisodePool where episodeID != onDeckID {
+      guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
+        Self.log.warning(
+          "nextAutoplayRecommendation: ranked episode \(episodeID) not found in database, skipping"
+        )
+        continue
       }
-      Self.log.warning(
-        "nextAutoplayRecommendation: ranked episode \(episodeID) not found in database, skipping"
-      )
+      guard podcastEpisode.rating == nil,
+        podcastEpisode.queueOrder == nil,
+        podcastEpisode.finishDate == nil,
+        podcastEpisode.currentTime == .zero
+      else { continue }
+      return podcastEpisode
     }
     return nil
   }

@@ -193,7 +193,7 @@ import Testing
     userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(true)
     let (currentEpisode, recommendedEpisode) = try await Create.twoPodcastEpisodes()
 
-    sharedState.setTopRecommendations([recommendedEpisode.id])
+    sharedState.setRecommendedEpisodePool([recommendedEpisode.id])
 
     try await playManager.load(currentEpisode)
     try await PlayHelpers.play()
@@ -217,7 +217,7 @@ import Testing
     userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(false)
     let (currentEpisode, recommendedEpisode) = try await Create.twoPodcastEpisodes()
 
-    sharedState.setTopRecommendations([recommendedEpisode.id])
+    sharedState.setRecommendedEpisodePool([recommendedEpisode.id])
 
     try await playManager.load(currentEpisode)
     try await PlayHelpers.play()
@@ -235,7 +235,7 @@ import Testing
     userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(true)
     let podcastEpisode = try await Create.podcastEpisode()
 
-    sharedState.setTopRecommendations([])
+    sharedState.setRecommendedEpisodePool([])
 
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
@@ -255,7 +255,7 @@ import Testing
       try await Create.threePodcastEpisodes()
 
     try await queue.unshift(queuedEpisode.id)
-    sharedState.setTopRecommendations([recommendedEpisode.id])
+    sharedState.setRecommendedEpisodePool([recommendedEpisode.id])
 
     try await playManager.load(currentEpisode)
     try await PlayHelpers.play()
