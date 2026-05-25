@@ -29,6 +29,11 @@ import Logging
   // no tag UI for it (e.g. unsaved/preview episodes).
   func tagIDs(for episode: EpisodeType) -> Set<Tag.ID>?
 
+  // Hook fired after a row-action mutation lands successfully. Default no-op;
+  // conformers override when they need post-action bookkeeping (e.g. the
+  // search-discovery list drops the row from its picks after success).
+  func didPerformAction(_ episode: EpisodeType)
+
   func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
 }
 
@@ -70,6 +75,7 @@ extension ManagingEpisodes {
         let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
         try await playManager.load(podcastEpisode)
         await playManager.play()
+        didPerformAction(episode)
       } catch {
         Self.log.caughtError("playEpisode: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -97,6 +103,7 @@ extension ManagingEpisodes {
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await queue.unshift(episodeID)
+        didPerformAction(episode)
       } catch {
         Self.log.caughtError("queueEpisodeOnTop: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -114,6 +121,7 @@ extension ManagingEpisodes {
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await queue.append(episodeID)
+        didPerformAction(episode)
       } catch {
         Self.log.caughtError("queueEpisodeAtBottom: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -146,6 +154,7 @@ extension ManagingEpisodes {
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await cacheManager.downloadToCache(for: episodeID)
+        didPerformAction(episode)
       } catch {
         Self.log.caughtError("cacheEpisode: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -216,6 +225,7 @@ extension ManagingEpisodes {
 
       do {
         try await cacheManager.downloadToCache(for: episodeID)
+        didPerformAction(episode)
       } catch {
         Self.log.caughtError("saveEpisodeInCache: failed to cache episode \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -250,6 +260,7 @@ extension ManagingEpisodes {
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await repo.markFinished(episodeID)
+        didPerformAction(episode)
       } catch {
         Self.log.caughtError("markEpisodeFinished: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -267,6 +278,7 @@ extension ManagingEpisodes {
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await repo.updateRating(episodeID, rating: rating)
+        didPerformAction(episode)
       } catch {
         Self.log.caughtError("rateEpisode: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -312,6 +324,8 @@ extension ManagingEpisodes {
   }
 
   func tagIDs(for episode: EpisodeType) -> Set<Tag.ID>? { nil }
+
+  func didPerformAction(_ episode: EpisodeType) {}
 
   // MARK: - Helpers
 

@@ -107,6 +107,46 @@ import Testing
     )
   }
 
+  // MARK: - Test: actionsViewModel Drives removePick End-To-End
+
+  // SearchViewModel owns one SearchDiscoveryActionsViewModel that's threaded
+  // through the discovery list's init, so it survives every body re-render.
+  // This exercises the happy path: a row action through that view-model
+  // materializes the episode and removes the pick from the collector.
+  @Test("actionsViewModel.queueEpisodeOnTop removes the pick after success")
+  func actionsViewModelRemovesPickAfterQueueAction() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/actions-vm.rss")!)
+    await H.respondWithFeed(at: feedURL, title: "Actions VM", episodes: 1)
+
+    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(2200))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in collector.visiblePicks.count == 1 },
+      { @MainActor in "Expected one pick to land, got \(collector.visiblePicks.count)" }
+    )
+
+    let actionsViewModel = SearchDiscoveryActionsViewModel(collector: collector)
+    let pick = collector.visiblePicks[0]
+    actionsViewModel.queueEpisodeOnTop(ListedEpisode(pick.episode))
+
+    try await Wait.until(
+      { @MainActor in collector.visiblePicks.isEmpty },
+      { @MainActor in
+        "Expected pick to be removed after queue action; \(collector.visiblePicks.count) remain"
+      }
+    )
+  }
+
   // MARK: - Test: saveEpisodeInCache Through ManagingEpisodes Dispatch
 
   // EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes> dispatches

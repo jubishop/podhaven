@@ -5,21 +5,25 @@ import SwiftUI
 
 struct SearchDiscoveryListView: View {
   @DynamicInjected(\.navigation) private var navigation
-  @Environment(SearchRecommendationCollector.self) private var collector
 
   private let source: SearchRecommendationCollector.Source
+  private let actionsViewModel: SearchDiscoveryActionsViewModel
 
-  init(source: SearchRecommendationCollector.Source) {
+  init(
+    source: SearchRecommendationCollector.Source,
+    actionsViewModel: SearchDiscoveryActionsViewModel
+  ) {
     self.source = source
+    self.actionsViewModel = actionsViewModel
   }
 
   var body: some View {
-    let picks = collector.picks(for: source)
+    let picks = actionsViewModel.collector.picks(for: source)
     Group {
       if picks.isEmpty {
         emptyPlaceholder
       } else {
-        listView(picks: picks, collector: collector)
+        listView(picks: picks)
       }
     }
     .navigationTitle(source.discoveryListTitle)
@@ -29,11 +33,9 @@ struct SearchDiscoveryListView: View {
   // MARK: - List
 
   private func listView(
-    picks: [SearchRecommendationCollector.ScoredEpisode],
-    collector: SearchRecommendationCollector
+    picks: [SearchRecommendationCollector.ScoredEpisode]
   ) -> some View {
-    let viewModel = SearchDiscoveryActionsViewModel(collector: collector)
-    return List(picks) { pick in
+    List(picks) { pick in
       let listed = ListedEpisode(pick.episode)
       NavigationLink(
         value: Navigation.Destination.listedEpisode(listed),
@@ -43,8 +45,8 @@ struct SearchDiscoveryListView: View {
         }
       )
       .listRow()
-      .episodeSwipeActions(viewModel: viewModel, episode: listed)
-      .episodeContextMenu(viewModel: viewModel, episode: listed)
+      .episodeSwipeActions(viewModel: actionsViewModel, episode: listed)
+      .episodeContextMenu(viewModel: actionsViewModel, episode: listed)
     }
     .animation(.default, value: picks)
   }

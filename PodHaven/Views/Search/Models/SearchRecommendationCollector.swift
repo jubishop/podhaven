@@ -386,6 +386,13 @@ final class SearchRecommendationCollector {
     // already be in the past — don't subscribe to a stream whose only emit
     // would be the bootstrap replay.
     if recommendationEngine.scoringRevision > 0 {
+      // Re-check: the engine could have warmed between the first read and
+      // now; setting .unavailable here would briefly hide the banner before
+      // the watcher's first emit flips us back to .ready.
+      if recommendationEngine.hasScoringContext {
+        scoringAvailability = .ready
+        return
+      }
       scoringAvailability = .unavailable
       startScoringContextWatcherIfNeeded()
       return

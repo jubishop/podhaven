@@ -48,7 +48,6 @@ struct SearchView: View {
       prompt: Text("Search podcasts")
     )
     .searchPresentationToolbarBehavior(.avoidHidingContent)
-    .environment(viewModel.recommendationCollector)
     .onChange(of: isShowingManualFeedEntry) { _, showing in
       if showing {
         Self.log.debug("ManualFeedEntry sheet presented")
@@ -212,7 +211,10 @@ struct SearchView: View {
   private func bannerStrip(text: String, tappable: Bool) -> some View {
     if tappable {
       Button {
-        navigation.search.path.append(.searchDiscovery(recommendationBannerSource))
+        navigation.showSearchDiscovery(
+          source: recommendationBannerSource,
+          actionsViewModel: viewModel.searchDiscoveryActionsViewModel
+        )
       } label: {
         bannerLabel(text: text, showsChevron: true)
       }
