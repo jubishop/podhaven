@@ -1,245 +1,14 @@
 // Copyright Justin Bishop, 2026
 
-import AVFoundation
 import FactoryKit
 import Foundation
-import GRDB
 import Testing
 
 @testable import PodHaven
 
-@Suite("of EpisodeDetailViewModel tests", .container)
-@MainActor final class EpisodeDetailViewModelTests {
-  @DynamicInjected(\.alert) private var alert
-  @DynamicInjected(\.appDB) private var appDB
-  @DynamicInjected(\.navigation) private var navigation
-  @DynamicInjected(\.observatory) private var observatory
-  @DynamicInjected(\.queue) private var queue
+@Suite("of EpisodeDetailViewModel scoring tests", .container)
+@MainActor final class EpisodeDetailScoringTests {
   @DynamicInjected(\.repo) private var repo
-
-  private var fakeQueue: FakeQueue { queue as! FakeQueue }
-
-  @Test("performAppear loads a saved episode and observes finish updates")
-  func performAppearLoadsSavedEpisodeAndObservesFinishUpdates() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(title: "Episode Detail"),
-        unsavedEpisode: try Create.unsavedEpisode(
-          guid: "episode-detail",
-          title: "Episode Detail",
-          currentTime: CMTime.seconds(123)
-        )
-      )
-    )
-    let viewModel = EpisodeDetailViewModel(
-      episode: DisplayedEpisode(try podcastEpisode.toOriginalUnsavedPodcastEpisode())
-    )
-
-    try await viewModel.performAppear()
-
-    #expect(viewModel.episode.isSaved)
-    #expect(viewModel.episode.episodeID == podcastEpisode.id)
-
-    _ = try await repo.markFinished(podcastEpisode.id)
-
-    try await Wait.until(
-      { @MainActor in
-        viewModel.episode.finished && viewModel.episode.currentTime == .zero
-      },
-      { @MainActor in
-        """
-        Expected performAppear observation to pick up finish changes.
-        finished: \(viewModel.episode.finished)
-        currentTime: \(viewModel.episode.currentTime)
-        """
-      }
-    )
-  }
-
-  @Test("listed episodes expose a share URL before detail hydration")
-  func listedEpisodesExposeShareURLBeforeDetailHydration() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(title: "List Episode Detail"),
-        unsavedEpisode: try Create.unsavedEpisode(
-          guid: "list-episode-detail",
-          title: "List Episode Detail"
-        )
-      )
-    )
-    let listableEpisodes =
-      try await observatory.listablePodcastEpisodes(
-        filter: Episode.Columns.id == podcastEpisode.id
-      )
-      .get()
-    let listedEpisode = try #require(listableEpisodes.first)
-
-    let viewModel = EpisodeDetailViewModel(listedEpisode: ListedEpisode(listedEpisode))
-
-    #expect(
-      ShareURL.episode(feedURL: viewModel.episode.feedURL, guid: viewModel.episode.mediaGUID.guid)
-        == ShareURL.episode(feedURL: podcastEpisode.feedURL, guid: podcastEpisode.mediaGUID.guid)
-    )
-
-    try await viewModel.performAppear()
-
-    #expect(viewModel.episode.episodeID == podcastEpisode.id)
-  }
-
-  @Test("missing saved listed episodes alert and dismiss instead of fabricating unsaved detail")
-  func missingSavedListedEpisodesAlertAndDismiss() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(title: "Deleted Episode"),
-        unsavedEpisode: try Create.unsavedEpisode(
-          guid: "deleted-episode-detail",
-          title: "Deleted Episode"
-        )
-      )
-    )
-    let listableEpisodes =
-      try await observatory.listablePodcastEpisodes(
-        filter: Episode.Columns.id == podcastEpisode.id
-      )
-      .get()
-    let listedEpisode = try #require(listableEpisodes.first)
-    let listed = ListedEpisode(listedEpisode)
-
-    navigation.currentTab = .episodes
-    navigation.episodes.path = [.episodesViewType(.recentEpisodes), .listedEpisode(listed)]
-
-    _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
-
-    let viewModel = EpisodeDetailViewModel(listedEpisode: listed)
-
-    try await viewModel.performAppear()
-
-    #expect(alert.config != nil)
-    #expect(navigation.episodes.path == [.episodesViewType(.recentEpisodes)])
-  }
-
-  @Test("missing listed unsaved episodes revert to unsaved detail without dismissing")
-  func missingListedUnsavedEpisodesRevertToUnsavedDetail() async throws {
-    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
-      unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved Podcast"),
-      unsavedEpisode: try Create.unsavedEpisode(
-        guid: "listed-unsaved",
-        title: "Unsaved Detail",
-        description: "Unsaved Description"
-      )
-    )
-    let listed = ListedEpisode(unsavedPodcastEpisode)
-    let viewModel = EpisodeDetailViewModel(listedEpisode: listed)
-
-    try await viewModel.performAppear()
-
-    #expect(viewModel.episode.isSaved == false)
-    #expect(viewModel.episode.title == unsavedPodcastEpisode.title)
-    #expect(viewModel.episode.description == unsavedPodcastEpisode.description)
-    #expect(alert.config == nil)
-  }
-
-  @Test("missing unsaved displayed episodes stay on their unsaved detail")
-  func missingUnsavedDisplayedEpisodesStayUnsaved() async throws {
-    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
-      unsavedPodcast: try Create.unsavedPodcast(title: "Displayed Unsaved Podcast"),
-      unsavedEpisode: try Create.unsavedEpisode(
-        guid: "displayed-unsaved",
-        title: "Displayed Unsaved Detail",
-        description: "Displayed Unsaved Description"
-      )
-    )
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
-
-    try await viewModel.performAppear()
-
-    #expect(viewModel.episode.isSaved == false)
-    #expect(viewModel.episode.title == unsavedPodcastEpisode.title)
-    #expect(viewModel.episode.description == unsavedPodcastEpisode.description)
-    #expect(alert.config == nil)
-  }
-
-  @Test("observed deleted saved episodes revert to unsaved detail")
-  func observedDeletedSavedEpisodesRevertToUnsavedDetail() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(title: "Observed Delete"),
-        unsavedEpisode: try Create.unsavedEpisode(
-          guid: "observed-delete",
-          title: "Observed Delete"
-        )
-      )
-    )
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
-
-    try await viewModel.performAppear()
-    _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
-
-    try await Wait.until(
-      { @MainActor in
-        viewModel.episode.isSaved == false
-          && viewModel.episode.mediaGUID == podcastEpisode.mediaGUID
-      },
-      { @MainActor in
-        """
-        Expected deleted saved episode to revert to unsaved detail.
-        saved: \(viewModel.episode.isSaved)
-        episode: \(viewModel.episode.toString)
-        """
-      }
-    )
-  }
-
-  @Test("tag observation rebinds after saved episode is deleted and re-saved")
-  func tagObservationRebindsAfterDeleteAndResave() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(title: "Tag Delete Resave"),
-        unsavedEpisode: try Create.unsavedEpisode(
-          guid: "tag-delete-resave",
-          title: "Tag Delete Resave"
-        )
-      )
-    )
-    let tag = try await repo.insertTag(UnsavedTag(name: "Recovered"))
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
-
-    try await viewModel.performAppear()
-    _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
-
-    try await Wait.until(
-      { @MainActor in !viewModel.episode.isSaved },
-      { @MainActor in
-        "Expected deleted saved episode to revert before re-saving. episode: \(viewModel.episode.toString)"
-      }
-    )
-
-    viewModel.markFinished()
-
-    try await Wait.until(
-      { @MainActor in viewModel.episode.isSaved && viewModel.episode.finished },
-      { @MainActor in
-        """
-        Expected markFinished to re-save the episode.
-        saved: \(viewModel.episode.isSaved)
-        finished: \(viewModel.episode.finished)
-        """
-      }
-    )
-
-    let resaved = try #require(try await repo.podcastEpisode(podcastEpisode.episode.mediaGUID))
-    try await repo.addTag(tag.id, to: resaved.id)
-
-    try await Wait.until(
-      { @MainActor in viewModel.tags.map(\.id) == [tag.id] },
-      { @MainActor in
-        """
-        Expected tag observation to rebind to the re-saved episode and surface the added tag.
-        tags: \(viewModel.tags.map(\.name))
-        """
-      }
-    )
-  }
 
   @Test("saved episode bootstraps a recommendation score and re-bootstraps after delete + re-save")
   func savedEpisodeBootstrapsRecommendationScoreAfterDeleteAndResave() async throws {
@@ -475,6 +244,126 @@ import Testing
     #expect(viewModel.displayedScore == nil)
   }
 
+  @Test(
+    "unsaved episode rescores once embedding assets become available on a later appear"
+  )
+  func unsavedEpisodeRescoresAfterAssetsBecomeAvailable() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Late Assets Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    // Embedding model starts mid-download: assets are not on disk, so the
+    // unsaved scorer can only produce nil.
+    let embeddable = MutableEmbeddable(assetsAvailable: false)
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: embeddable) }
+      .scope(.cached)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Late Assets Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "late-assets",
+        title: "Late Assets Episode"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    // Precondition: the bootstrap pass ran but couldn't produce a score
+    // with assets unavailable.
+    #expect(viewModel.displayedScore == nil)
+
+    // Embedding model finishes downloading on disk.
+    embeddable.makeAssetsAvailable()
+
+    // A later appear must re-score rather than re-applying the cached
+    // no-score result — the prior nil was uncacheable, not the real score.
+    viewModel.disappear()
+    try await viewModel.performAppear()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        if case .similarity = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Re-appearing after embedding assets became available left the unsaved \
+        episode stuck on the cached no-score result instead of re-scoring.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+  }
+
+  @Test(
+    "unsaved episode rescores in place once embedding assets become available without re-appearing"
+  )
+  func unsavedEpisodeRescoresInPlaceWhenAssetsBecomeAvailable() async throws {
+    // Bind the mutable embeddable to the container before the engine starts so
+    // its post-finish $scoringRevision observation captures this instance's
+    // latch, not the test harness's default.
+    let embeddable = MutableEmbeddable(assetsAvailable: false)
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: embeddable) }
+      .scope(.cached)
+
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "In-Place Late Assets Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "In-Place Late Assets Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "in-place-late-assets",
+        title: "In-Place Late Assets Episode"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    // Precondition: the bootstrap pass ran but couldn't produce a score
+    // with assets unavailable.
+    #expect(viewModel.displayedScore == nil)
+
+    // Assets land on disk and the embedding actor finishes its latch. The
+    // coordinator's refreshOnAssetsLoaded observer awaits that latch and kicks
+    // a fresh pass; the engine's $scoringRevision bump on the same latch is a
+    // backstop. Either way the still-mounted detail view must rescore without
+    // the user navigating away and back.
+    embeddable.makeAssetsAvailable()
+    await Container.shared.contextualEmbedding().loadAssetsIfAvailable()
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        if case .similarity = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Embedding assets became available while the unsaved detail view was \
+        still mounted but the score never recovered — the engine never bumped \
+        $scoringRevision when the latch finished.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+  }
+
   @Test("unsaved episode hides the similarity score once the episode is rated")
   func unsavedEpisodeHidesScoreWhenRated() async throws {
     let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
@@ -615,7 +504,11 @@ import Testing
     try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
 
     // Saved-side scoring is parked. Delete the podcast — observation flips
-    // state to `.unsaved` and the kind-change refresh runs a fresh fetch.
+    // state to `.unsaved`; `transition(to:)` calls
+    // `recommendationCoordinator.refresh()`, whose new snapshot
+    // (`.unsaved`) differs from the parked task's (`.saved`), so the
+    // coordinator cancels the parked task and kicks off a fresh
+    // unsaved-side fetch.
     _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
 
     // Wait for `.similarity` on the new `.unsaved` state — the correct
@@ -636,16 +529,18 @@ import Testing
       }
     )
 
-    // Release the parked saved-side fetch. Without the kind guard, its tail
-    // overwrites `.similarity` with a stale `.recommendation`.
+    // Release the parked saved-side fetch. Without the coordinator's
+    // `Task.isCancelled` check and snapshot stale-drop in `runPass`, its
+    // tail would overwrite `.similarity` with a stale `.recommendation`.
     await fakeRepo.resumeAllEpisodeFetchSuspensions()
 
     // Deterministic barrier — fires the instant the parked continuation
-    // returns; the saved-side tail (score compute + MainActor hop into the
-    // kind guard) is then the only outstanding work.
+    // returns; the saved-side tail (score compute + MainActor hop into
+    // `runPass`'s cancellation / snapshot gates) is then the only
+    // outstanding work.
     try await fakeRepo.waitForEpisodeFetchCompleted(count: 1)
-    // Drain the MainActor queue so the saved-side tail's guard/write runs
-    // before we assert.
+    // Drain the MainActor queue so the saved-side tail's gates run before
+    // we assert.
     for _ in 0..<30 { await Task.yield() }
 
     #expect(viewModel.episode.isSaved == false)
@@ -653,7 +548,7 @@ import Testing
       Issue.record(
         """
         Stale .recommendation write landed after saved → unsaved transition; \
-        the state-kind guard in fetchRecommendation regressed.
+        the coordinator's cancellation / snapshot stale-drop in runPass regressed.
         """
       )
     }
@@ -667,206 +562,6 @@ import Testing
         """
       )
     }
-  }
-
-  @Test("observation restarts after a podcastEpisodeWithTags failure")
-  func observationRestartsAfterPodcastEpisodeWithTagsFailure() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(title: "Recovery"),
-        unsavedEpisode: try Create.unsavedEpisode(guid: "recovery", title: "Recovery")
-      )
-    )
-    let tag = try await repo.insertTag(UnsavedTag(name: "Recovered"))
-    try await repo.addTag(tag.id, to: podcastEpisode.id)
-
-    let fakeObservatory = try #require(observatory as? FakeObservatory)
-    let dbReader = appDB.db
-    fakeObservatory.podcastEpisodeWithTagsScript([
-      { _ in
-        ValueObservation
-          .tracking { _ -> PodcastEpisodeWithTags? in
-            throw TestError.simulatedFailure
-          }
-          .values(in: dbReader)
-      }
-    ])
-
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
-
-    // First performAppear subscribes to the scripted (failing) observation.
-    // SwiftUI can deliver multiple .onAppear without an intervening
-    // .onDisappear, so simulate that by re-entering performAppear from the
-    // poll loop. With the fix, the failed task self-clears and the next
-    // restart subscribes to the real observatory and surfaces the tag.
-    // Without the fix, observationTask permanently retains the dead task
-    // and every subsequent startObservation() returns early.
-    try await viewModel.performAppear()
-
-    // Raise priority above the default `.background` so the unstructured
-    // `Task {}` that `startObservation()` spawns from inside this poll
-    // block doesn't inherit `.background` and get starved long enough
-    // that every subsequent rebind short-circuits on the still-running
-    // failed task.
-    try await Wait.until(
-      maxAttempts: 200,
-      delay: .milliseconds(50),
-      priority: .userInitiated,
-      { @MainActor in
-        try await viewModel.performAppear()
-        return viewModel.tags.map(\.id) == [tag.id]
-      },
-      { @MainActor in
-        """
-        Expected observation to restart after failure and surface the tag.
-        tags: \(viewModel.tags.map(\.name))
-        """
-      }
-    )
-  }
-
-  @Test("addToTopOfQueue is a no-op for the first queued episode")
-  func addToTopOfQueueIsNoOpForFirstQueuedEpisode() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(title: "Queue Guard"),
-        unsavedEpisode: try Create.unsavedEpisode(
-          guid: "queue-guard",
-          title: "Queue Guard",
-          queueOrder: 0,
-          queueDate: Date()
-        )
-      )
-    )
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
-
-    viewModel.addToTopOfQueue()
-
-    try fakeQueue.expectNoCall(methodName: "unshift")
-    #expect(viewModel.atTopOfQueue == true)
-  }
-
-  @Test("addTag observes saved episode tags and removeTag clears them")
-  func addAndRemoveTagOnSavedEpisode() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(title: "Tagged"),
-        unsavedEpisode: try Create.unsavedEpisode(guid: "tagged-ep", title: "Tagged")
-      )
-    )
-    let tag = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
-
-    try await viewModel.performAppear()
-
-    viewModel.addTag(tag.id)
-
-    try await Wait.until(
-      { @MainActor in viewModel.tags.map(\.id) == [tag.id] },
-      { @MainActor in
-        "Expected episode tag observation to surface added tag. tags: \(viewModel.tags.map(\.name))"
-      }
-    )
-
-    viewModel.removeTag(tag.id)
-
-    try await Wait.until(
-      { @MainActor in viewModel.tags.isEmpty },
-      { @MainActor in
-        "Expected episode tag observation to clear after removeTag. tags: \(viewModel.tags.map(\.name))"
-      }
-    )
-  }
-
-  @Test("addTag writes tag mapping for a saved listed episode before performAppear hydrates")
-  func addTagWritesMappingForSavedListedEpisodeBeforePerformAppear() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(title: "Pre-Hydration Tag"),
-        unsavedEpisode: try Create.unsavedEpisode(
-          guid: "pre-hydration-tag",
-          title: "Pre-Hydration Tag"
-        )
-      )
-    )
-    let listableEpisodes =
-      try await observatory.listablePodcastEpisodes(
-        filter: Episode.Columns.id == podcastEpisode.id
-      )
-      .get()
-    let listedEpisode = try #require(listableEpisodes.first)
-    let tag = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
-    let viewModel = EpisodeDetailViewModel(listedEpisode: ListedEpisode(listedEpisode))
-
-    // The view shows TagsView based on viewModel.episode.isSaved, which is
-    // already true from the listed snapshot — before performAppear() finishes
-    // hydrating podcastEpisode. A tap landing in that window must still write
-    // the tag mapping; otherwise it is silently dropped.
-    #expect(viewModel.episode.isSaved)
-
-    viewModel.addTag(tag.id)
-
-    try await Wait.until(
-      { @MainActor in
-        let observed = try await self.observatory.podcastEpisodeWithTags(podcastEpisode.id).get()
-        return observed?.tags.map(\.id) == [tag.id]
-      },
-      { @MainActor in
-        "Expected addTag to write the tag mapping before performAppear hydration."
-      }
-    )
-  }
-
-  @Test("addTag is a no-op for unsaved episodes")
-  func addTagIsNoOpForUnsavedEpisode() async throws {
-    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
-      unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved For Tagging"),
-      unsavedEpisode: try Create.unsavedEpisode(
-        guid: "unsaved-tagging",
-        title: "Unsaved For Tagging"
-      )
-    )
-    let tag = try await repo.insertTag(UnsavedTag(name: "Listen Later"))
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
-
-    viewModel.addTag(tag.id)
-
-    #expect(viewModel.episode.isSaved == false)
-    #expect(viewModel.tags.isEmpty)
-    #expect(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID) == nil)
-  }
-
-  @Test("markFinished saves an unsaved episode before finishing it")
-  func markFinishedSavesUnsavedEpisodeBeforeFinishingIt() async throws {
-    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
-      unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved Podcast"),
-      unsavedEpisode: try Create.unsavedEpisode(
-        guid: "unsaved-finish",
-        title: "Unsaved Episode",
-        currentTime: CMTime.seconds(42)
-      )
-    )
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
-
-    viewModel.markFinished()
-
-    try await Wait.until(
-      { @MainActor in
-        viewModel.episode.isSaved && viewModel.episode.finished
-      },
-      { @MainActor in
-        """
-        Expected markFinished to save and finish the unsaved episode.
-        saved: \(viewModel.episode.isSaved)
-        finished: \(viewModel.episode.finished)
-        """
-      }
-    )
-
-    let savedEpisode = try await repo.podcastEpisode(unsavedPodcastEpisode.unsavedEpisode.id)
-    #expect(savedEpisode != nil)
-    #expect(savedEpisode?.episode.finishDate != nil)
-    #expect(savedEpisode?.episode.currentTime == .zero)
   }
 }
 

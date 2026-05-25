@@ -407,7 +407,7 @@ class EmbeddingRepoTests {
   func candidatesIncluded() async throws {
     let pe = try await createPodcastEpisode()
     try await insertEmbedding(for: pe.episode.id)
-    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes()
     #expect(result.map(\.id).contains(pe.episode.id))
   }
 
@@ -415,7 +415,7 @@ class EmbeddingRepoTests {
   func candidatesExcludeRated() async throws {
     let pe = try await createPodcastEpisode(rating: .loved)
     try await insertEmbedding(for: pe.episode.id)
-    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes()
     #expect(!result.map(\.id).contains(pe.episode.id))
   }
 
@@ -423,7 +423,7 @@ class EmbeddingRepoTests {
   func candidatesExcludeFinished() async throws {
     let pe = try await createPodcastEpisode(finishDate: Date())
     try await insertEmbedding(for: pe.episode.id)
-    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes()
     #expect(!result.map(\.id).contains(pe.episode.id))
   }
 
@@ -431,7 +431,7 @@ class EmbeddingRepoTests {
   func candidatesExcludeQueued() async throws {
     let pe = try await createPodcastEpisode(queueOrder: 1)
     try await insertEmbedding(for: pe.episode.id)
-    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes()
     #expect(!result.map(\.id).contains(pe.episode.id))
   }
 
@@ -441,26 +441,14 @@ class EmbeddingRepoTests {
       currentTime: CMTime(seconds: 60, preferredTimescale: 1)
     )
     try await insertEmbedding(for: pe.episode.id)
-    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes()
     #expect(!result.map(\.id).contains(pe.episode.id))
-  }
-
-  @Test("allCandidateEpisodes respects excluding parameter")
-  func candidatesRespectExclusion() async throws {
-    let excluded = try await createPodcastEpisode()
-    try await insertEmbedding(for: excluded.episode.id)
-    let kept = try await createPodcastEpisode()
-    try await insertEmbedding(for: kept.episode.id)
-    let result = try await recommendationRepo.allCandidateEpisodes(excluding: excluded.episode.id)
-    let ids = result.map(\.id)
-    #expect(!ids.contains(excluded.episode.id))
-    #expect(ids.contains(kept.episode.id))
   }
 
   @Test("allCandidateEpisodes omits episodes without an embedding row")
   func candidatesExcludeUnembedded() async throws {
     let pe = try await createPodcastEpisode()
-    let result = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
+    let result = try await recommendationRepo.allCandidateEpisodes()
     #expect(!result.map(\.id).contains(pe.episode.id))
   }
 

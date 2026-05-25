@@ -52,7 +52,6 @@ struct CacheManager {
   // MARK: - State Management
 
   private let startOnce = Once()
-  private let currentOnDeckEpisodeID = ThreadSafe<Episode.ID?>(nil)
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
 
   // MARK: - Initialization
@@ -72,7 +71,7 @@ struct CacheManager {
         Assert.fatal("Couldn't create cache directory?")
       }
 
-      startOnDeckObservation()
+      startCurrentEpisodeIDObservation()
       startQueueObservation()
     }
   }
@@ -169,34 +168,21 @@ struct CacheManager {
 
   // MARK: - Private Helpers
 
-  private func startOnDeckObservation() {
-    Self.log.debug("startOnDeckObservation: starting")
+  private func startCurrentEpisodeIDObservation() {
+    Self.log.debug("startCurrentEpisodeIDObservation: starting")
 
     Task(priority: taskPriority(.utility)) {
-      for await onDeck in sharedState.$onDeck.stream() {
-        await handleOnDeckChange(onDeck)
-      }
-    }
-  }
-
-  private func handleOnDeckChange(_ onDeck: OnDeck?) async {
-    guard let onDeck else {
-      currentOnDeckEpisodeID(nil)
-      return
-    }
-
-    let episodeID = onDeck.id
-
-    guard currentOnDeckEpisodeID() != episodeID else { return }
-    currentOnDeckEpisodeID(episodeID)
-
-    Self.log.debug("handleOnDeckChange: new on deck episode: \(episodeID)")
-
-    Task {
-      do {
-        try await downloadToCache(for: episodeID)
-      } catch {
-        Self.log.caughtError("handleOnDeckChange: failed to cache episode \(episodeID)", error)
+      for await episodeID in sharedState.$currentEpisodeID.stream() {
+        guard let episodeID else { continue }
+        Self.log.debug("handleCurrentEpisodeIDChange: new episode: \(episodeID)")
+        do {
+          try await downloadToCache(for: episodeID)
+        } catch {
+          Self.log.caughtError(
+            "handleCurrentEpisodeIDChange: failed to cache episode \(episodeID)",
+            error
+          )
+        }
       }
     }
   }

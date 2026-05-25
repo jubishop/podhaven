@@ -6,12 +6,13 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
+import SwiftUI
 
 // MARK: - Types
 
 struct RecommendationScore: Sendable {
   let value: Float
-  let reasons: [RecommendationReason]
+  let reasons: RecommendationReason
 
   // Stretches the [0.5, max] segment onto [0.5, 1.0] so the top observed
   // candidate displays as 100%, leaving sub-baseline scores untouched.
@@ -29,10 +30,22 @@ struct RecommendationScore: Sendable {
   }
 }
 
-enum RecommendationReason: Hashable, Sendable {
-  case similarToLiked
-  case podcastAffinity
-  case recentlyPublished
+struct RecommendationReason: OptionSet, Hashable, Sendable {
+  let rawValue: UInt8
+
+  static let similarToLiked = Self(rawValue: 1 << 0)
+  static let podcastAffinity = Self(rawValue: 1 << 1)
+  static let recentlyPublished = Self(rawValue: 1 << 2)
+
+  var orderedMembers: [Self] {
+    Self.displayOrder.filter { contains($0) }
+  }
+
+  private static let displayOrder: [Self] = [
+    .similarToLiked,
+    .podcastAffinity,
+    .recentlyPublished,
+  ]
 }
 
 // MARK: - Container
@@ -57,6 +70,8 @@ struct RecommendationEngine: Sendable {
   private static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
+  private static let recommendationPoolSize = 100
+
   private static let lovedWeight: Float = 1.0
   private static let likedWeight: Float = 0.6
   private static let partialWeight: Float = 0.5
@@ -67,12 +82,63 @@ struct RecommendationEngine: Sendable {
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
-  private let cacheDebounce = Debounce(duration: .milliseconds(400), priority: .utility)
-  private let recommendationsDebounce = Debounce(
-    duration: .milliseconds(400),
-    priority: .utility
-  )
+  private let cacheDebounce = Debounce(duration: .seconds(5), priority: .utility)
+  private let recommendationsDebounce = Debounce(duration: .seconds(5), priority: .utility)
   private let startOnce = Once()
+
+  // Rescans triggered while backgrounded are deferred to the next foreground.
+  // `RescanGate` packs `isActive` and `pending` into one critical section so
+  // `deferOrProceed`, `enterBackground`, and `enterForeground` cannot
+  // interleave. Pending merges upward only — a queued cache rebuild absorbs
+  // incoming recommendations triggers, since the cache rebuild already re-runs
+  // the recommendations pass. `isActive` defaults to `true` because `start()`
+  // only runs after `prepareForForeground`.
+  private enum DeferredRescan: Int, Comparable {
+    case none = 0
+    case recommendations = 1
+    case cache = 2
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+      lhs.rawValue < rhs.rawValue
+    }
+  }
+  private final class RescanGate: Sendable {
+    private struct State {
+      var isActive: Bool = true
+      var pending: DeferredRescan = .none
+    }
+    enum Decision { case proceed, deferred }
+
+    private let storage = ThreadSafe<State>(State())
+
+    // Atomic check-and-defer: if active, returns `.proceed` without touching
+    // state; otherwise merges `kind` upward into `pending` and returns
+    // `.deferred`.
+    @discardableResult
+    func deferOrProceed(_ kind: DeferredRescan) -> Decision {
+      storage { state in
+        guard !state.isActive else { return .proceed }
+        state.pending = max(state.pending, kind)
+        return .deferred
+      }
+    }
+
+    func enterBackground() {
+      storage { $0.isActive = false }
+    }
+
+    // Atomic activate-and-drain: flips the flag, snapshots `pending`, and
+    // resets it to `.none` so the caller can run exactly one coalesced rescan.
+    func enterForeground() -> DeferredRescan {
+      storage { state in
+        state.isActive = true
+        let snapshot = state.pending
+        state.pending = .none
+        return snapshot
+      }
+    }
+  }
+  private let rescanGate = RescanGate()
 
   // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
   // so per-call surfaces share the same denominator. 1.0 until first rebuild.
@@ -109,6 +175,36 @@ struct RecommendationEngine: Sendable {
   func start() {
     startOnce.run {
       startObservations()
+    }
+  }
+
+  // `.inactive` is treated as a no-op so transient system events (Control
+  // Center, banners) don't defer rescans; only true `.background` does.
+  func handleScenePhaseChange(to scenePhase: ScenePhase) {
+    switch scenePhase {
+    case .active:
+      Self.log.debug("activated")
+      switch rescanGate.enterForeground() {
+      case .none:
+        break
+      case .recommendations:
+        Self.log.debug("Running deferred recommendations rebuild on foreground")
+        scheduleRecommendationsRebuild()
+      case .cache:
+        Self.log.debug("Running deferred cache rebuild on foreground")
+        scheduleCacheRebuild()
+      }
+    case .background:
+      Self.log.debug("backgrounded")
+      rescanGate.enterBackground()
+      if cacheDebounce.cancel() {
+        rescanGate.deferOrProceed(.cache)
+      }
+      if recommendationsDebounce.cancel() {
+        rescanGate.deferOrProceed(.recommendations)
+      }
+    default:
+      break
     }
   }
 
@@ -201,12 +297,8 @@ struct RecommendationEngine: Sendable {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
     let totalStart = ContinuousClock.now
 
-    // SharedState isn't Sendable, so it can't go through @DynamicInjected;
-    // the actual read is @MainActor-isolated and onDeck is a value type.
-    let onDeckID = Container.shared.sharedState().onDeck?.id
-
     let candidatesStart = ContinuousClock.now
-    let candidates = try await recommendationRepo.allCandidateEpisodes(excluding: onDeckID)
+    let candidates = try await recommendationRepo.allCandidateEpisodes()
     let candidatesDuration = ContinuousClock.now - candidatesStart
     Self.log.debug(
       "perf: allCandidateEpisodes took \(candidatesDuration) for \(candidates.count) candidates"
@@ -242,39 +334,46 @@ struct RecommendationEngine: Sendable {
     // Anchor display rescaling to the full-pool max (before threshold filter)
     // so the same episode reads consistently across upNext and detail views.
     let batchMax = scores.values.map(\.value).max() ?? 1.0
-    observedMaxScore(batchMax)
 
-    guard limit > 0 else { return [] }
+    var top: [Episode.ID] = []
+    if limit > 0 {
+      try Task.checkCancellation()
 
-    struct ScoredCandidate {
-      let id: Episode.ID
-      let pubDate: Date
-      let score: RecommendationScore
-    }
-    let rankStart = ContinuousClock.now
-    var ranked = [ScoredCandidate](capacity: candidates.count)
-    for candidate in candidates {
-      guard let score = scores[candidate.id],
-        score.value >= Self.minimumScoreThreshold
-      else { continue }
-      ranked.append(
-        ScoredCandidate(id: candidate.id, pubDate: candidate.pubDate, score: score)
+      struct ScoredCandidate {
+        let id: Episode.ID
+        let pubDate: Date
+        let score: RecommendationScore
+      }
+      let rankStart = ContinuousClock.now
+      var ranked = [ScoredCandidate](capacity: candidates.count)
+      for candidate in candidates {
+        guard let score = scores[candidate.id],
+          score.value >= Self.minimumScoreThreshold
+        else { continue }
+        ranked.append(
+          ScoredCandidate(id: candidate.id, pubDate: candidate.pubDate, score: score)
+        )
+      }
+      ranked.sort { a, b in
+        if a.score.value != b.score.value { return a.score.value > b.score.value }
+        if a.pubDate != b.pubDate { return a.pubDate > b.pubDate }
+        return a.id > b.id
+      }
+      let rankDuration = ContinuousClock.now - rankStart
+      Self.log.debug(
+        """
+        perf: rank+sort took \(rankDuration) \
+        (\(ranked.count) above threshold of \(scores.count) scored)
+        """
       )
-    }
-    ranked.sort { a, b in
-      if a.score.value != b.score.value { return a.score.value > b.score.value }
-      if a.pubDate != b.pubDate { return a.pubDate > b.pubDate }
-      return a.id > b.id
-    }
-    let rankDuration = ContinuousClock.now - rankStart
-    Self.log.debug(
-      """
-      perf: rank+sort took \(rankDuration) \
-      (\(ranked.count) above threshold of \(scores.count) scored)
-      """
-    )
 
-    let top = ranked.prefix(limit).map(\.id)
+      top = ranked.prefix(limit).map(\.id)
+    }
+
+    // Defer the display-anchor write until past the final cancellation point
+    // so a cancelled pass cannot publish a stale anchor.
+    try Task.checkCancellation()
+    observedMaxScore(batchMax)
 
     let totalDuration = ContinuousClock.now - totalStart
     Self.log.debug(
@@ -329,29 +428,14 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // partial-listen bitmaps and lastPlayedDate are excluded from the GRDB
-    // observation's tracked region, so onDeck transitions are how the engine
-    // learns about completed listens. `dropFirst()` skips the bootstrap emit;
-    // the observation above already covered the initial DB state.
+    // Partial-listen bitmaps and lastPlayedDate are excluded from the GRDB
+    // observation's tracked region, so switching episode is how the engine
+    // learns about completed listens.
     Task(priority: taskPriority(.utility)) {
       let sharedState = Container.shared.sharedState()
-      var lastID: Episode.ID? = sharedState.onDeck?.id
-      for await onDeck in sharedState.$onDeck.stream().dropFirst() {
+      for await _ in sharedState.$currentEpisodeID.stream().dropFirst() {
         guard !Task.isCancelled else { return }
-        let currentID = onDeck?.id
-        guard currentID != lastID else { continue }
-        lastID = currentID
         scheduleCacheRebuild()
-      }
-    }
-
-    // Limit changes don't invalidate the cache, only how many entries get
-    // published.
-    Task(priority: taskPriority(.utility)) {
-      let userSettings = Container.shared.userSettings()
-      for await _ in userSettings.$maxRecommendedEpisodesInUpNext.stream().dropFirst() {
-        guard !Task.isCancelled else { return }
-        scheduleRecommendationsRebuild()
       }
     }
 
@@ -376,30 +460,20 @@ struct RecommendationEngine: Sendable {
         scheduleRecommendationsRebuild()
       }
     }
-
-    // Candidate-pool transitions (queue / finish / rate) need a re-rank but
-    // not a context rebuild — the underlying signal observation already
-    // covers the scoring inputs.
-    Task(priority: taskPriority(.utility)) {
-      var retryDelay: Duration = .seconds(1)
-      while !Task.isCancelled {
-        do {
-          for try await _ in observatory.candidateGateExclusions().dropFirst() {
-            guard !Task.isCancelled else { return }
-            retryDelay = .seconds(1)
-            scheduleRecommendationsRebuild()
-          }
-        } catch {
-          Self.log.caughtError("candidateGateExclusions observation failed", error)
-          try? await sleeper.sleep(for: retryDelay)
-          retryDelay = min(retryDelay * 2, .seconds(60))
-        }
-      }
-    }
   }
 
   private func scheduleCacheRebuild() {
+    guard rescanGate.deferOrProceed(.cache) == .proceed else {
+      Self.log.debug("Cache rebuild deferred — app backgrounded")
+      return
+    }
     cacheDebounce {
+      // Re-check at fire time: a debounce armed while active can still wake
+      // after the app backgrounded mid-window.
+      guard rescanGate.deferOrProceed(.cache) == .proceed else {
+        Self.log.debug("Cache rebuild deferred at fire — app backgrounded mid-debounce")
+        return
+      }
       do {
         let inputsStart = ContinuousClock.now
         let inputs = try await recommendationRepo.allScoringContextInputs()
@@ -431,6 +505,7 @@ struct RecommendationEngine: Sendable {
           "perf: buildContext took \(buildDuration) — context=\(context == nil ? "nil" : "ready")"
         )
 
+        try Task.checkCancellation()
         cache(context)
         $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
@@ -441,14 +516,26 @@ struct RecommendationEngine: Sendable {
   }
 
   private func scheduleRecommendationsRebuild() {
+    guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
+      Self.log.debug("Recommendations rebuild deferred — app backgrounded")
+      return
+    }
     recommendationsDebounce {
-      let limit = Container.shared.userSettings().maxRecommendedEpisodesInUpNext
+      // Re-check at fire time: a debounce armed while active can still wake
+      // after the app backgrounded mid-window.
+      guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
+        Self.log.debug(
+          "Recommendations rebuild deferred at fire — app backgrounded mid-debounce"
+        )
+        return
+      }
       let sharedState = Container.shared.sharedState()
       do {
-        let top = try await topRecommendations(limit: limit)
-        sharedState.setTopRecommendations(top)
+        let pool = try await topRecommendations(limit: Self.recommendationPoolSize)
+        try Task.checkCancellation()
+        sharedState.setRecommendedEpisodePool(pool)
       } catch {
-        Self.log.caughtError("top recommendations rebuild failed", error)
+        Self.log.caughtError("recommendation pool rebuild failed", error)
       }
     }
   }
@@ -530,7 +617,7 @@ struct RecommendationEngine: Sendable {
     var scores = [Episode.ID: RecommendationScore](capacity: candidates.count)
     try unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
       for (index, candidate) in candidates.enumerated() {
-        if index % 256 == 0 { try Task.checkCancellation() }
+        if index % 64 == 0 { try Task.checkCancellation() }
         guard let embedding = embeddings[id: candidate.id] else { continue }
         scores[candidate.id] = unsafe scoreCandidate(
           embedding: embedding,
@@ -736,9 +823,12 @@ struct RecommendationEngine: Sendable {
     )
     let score = baseScore * freshness.multiplier
 
-    var reasons = features.filter { $0.value > 0.5 }.map(\.reason)
+    var reasons = RecommendationReason()
+    for feature in features where feature.value > 0.5 {
+      reasons.insert(feature.reason)
+    }
     if freshness.inPlateau {
-      reasons.append(.recentlyPublished)
+      reasons.insert(.recentlyPublished)
     }
 
     return RecommendationScore(value: score, reasons: reasons)

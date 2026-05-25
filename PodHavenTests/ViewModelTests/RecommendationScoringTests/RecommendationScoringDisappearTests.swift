@@ -141,17 +141,19 @@ import Testing
     )
 
     viewModel.currentSortMethod = .recommendationScore
-    try await RecommendationHelpers.untilAdvancing(
+    try await Wait.until(
       priority: .userInitiated,
-      { @MainActor in viewModel.recommendationDisplay == .idle },
-      { @MainActor in "Expected the first on-demand scoring pass to settle." }
+      { @MainActor in
+        Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)) == targetIDs
+      },
+      { @MainActor in
+        """
+        Expected the first on-demand scoring pass to land all target entries.
+        Got: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
+        """
+      }
     )
     try await RecommendationScoringTestHelpers.settleRecommendationEngine()
-    try await RecommendationHelpers.untilAdvancing(
-      priority: .userInitiated,
-      { @MainActor in viewModel.recommendationDisplay == .idle },
-      { @MainActor in "Expected the rec sort to be idle once the engine settled." }
-    )
 
     // Disappear tears the scoring-revision observation down; re-appearing with
     // the rec sort still selected must resume it.

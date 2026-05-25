@@ -75,6 +75,12 @@ python3 scripts/log_summary.py "$LOG_PATH" --compare-other "$OTHER_LOG_PATH"
 rg -n '"level":(4|5|6)' "$LOG_PATH"
 rg -n '"timestamp":17686795' "$LOG_PATH"
 rg -n '"subsystem":"Play"|"category":"refreshScheduler"' "$LOG_PATH"
+
+# Symbolicate MetricKit call stacks (crash/hang/cpuException/diskWriteException/appLaunch)
+python3 scripts/symbolicate_metrickit.py "$LOG_PATH"
+python3 scripts/symbolicate_metrickit.py "$LOG_PATH" --around 1768679500000 --window-ms 60000
+python3 scripts/symbolicate_metrickit.py "$LOG_PATH" --category crash --json
+python3 scripts/symbolicate_metrickit.py "$LOG_PATH" --offline   # cache-only, no Sentry fetch
 ```
 
 ## Flags Reference
@@ -144,6 +150,14 @@ Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, 
 - If the user gives a subsystem, category, source file, or function name, prefer the dedicated flags before using `rg`.
 - If the user gives multiple log files, analyze them separately first, then use `--compare-other` for a side-by-side diff.
 
+### 5. Symbolicate MetricKit call stacks
+
+- MetricKit diagnostics show up as `notice`-level entries with `subsystem=PodHaven`, `category=MetricKit`, and a `metadata.metricKitDiagnostic` JSON blob (raw `MXDiagnosticPayload.jsonRepresentation()`). The frames are unsymbolicated — each carries `binaryUUID` + `offsetIntoBinaryTextSegment` only.
+- When such an entry lands in the window you care about, run `scripts/symbolicate_metrickit.py "$LOG_PATH"`. It resolves dSYMs from Sentry's Debug Files API (cached under `~/Library/Caches/podhaven-symbolicate`) and runs `atos`, producing function/file/line frames.
+- Use `--around <ms> --window-ms <ms>` and/or `--category crash` to scope when many MetricKit entries are present.
+- Pass `--offline` when there's no network or you only want to consult the local cache.
+- See `references/podhaven-log-format.md` for the exact NDJSON shape of MetricKit entries.
+
 ## Reporting
 
 - State the time range and timezone explicitly.
@@ -154,4 +168,5 @@ Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, 
 ## Resources
 
 - `scripts/log_summary.py` — primary analysis tool
-- `references/podhaven-log-format.md` — entry schema, log file names, and truncation behavior
+- `scripts/symbolicate_metrickit.py` — resolve MetricKit call-stack `binaryUUID+offset` frames to function/file/line via Sentry dSYMs + `atos`
+- `references/podhaven-log-format.md` — entry schema (including the MetricKit metadata shape), log file names, and truncation behavior

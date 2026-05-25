@@ -5,8 +5,8 @@ type: feedback
 ---
 
 Recommendation-score sorting runs **on demand** in both `EpisodesListViewModel`
-and `PodcastDetailViewModel`/`PodcastRecommendationScorer` — only while the
-`recommendationScore` sort is selected. Nothing is prewarmed in the background.
+and `PodcastDetailViewModel` — only while the `recommendationScore` sort is
+selected. Nothing is prewarmed in the background.
 
 **Why:** Issues #310 and #311 — constant background scoring on every list
 display / tab switch was too costly and complex. Background prewarming was

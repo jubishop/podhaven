@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
+import SwiftUI
 import Tagged
 
 extension Container {
@@ -17,21 +18,20 @@ struct SharedState: Sendable {
 
   // MARK: - Persisted State
 
-  @PersistedThreadSafe("currentEpisodeID") var currentEpisodeID: Episode.ID? = nil
+  // Only StateManager should write this.
+  @PersistedBroadcast("currentEpisodeID") var currentEpisodeID: Episode.ID? = nil
 
   // MARK: - In-Memory State (Observable Broadcasts)
 
   @Broadcasted var downloadProgress: [Episode.ID: Double] = [:]
-  @Broadcasted var isActive: Bool = true
-  // OnDeck.== ignores the in-memory playback fields (currentTime,
-  // maxPlaybackTime, artwork) that StateManager mutates, so default Equatable
-  // dedup would swallow those updates — notify on every write instead.
+  @Broadcasted var scenePhase: ScenePhase = .active
+  // Only StateManager should write this.
   @Broadcasted(duplicates: .notifyAlways) var onDeck: OnDeck? = nil
   @Broadcasted var playbackStatus: PlaybackStatus = .stopped
   @Broadcasted var playRate: Float = 1.0
   @Broadcasted var tags: IdentifiedArrayOf<Tag> = []
   @Broadcasted var queuedPodcastEpisodes: [ListablePodcastEpisode] = []
-  @Broadcasted var topRecommendations: [Episode.ID] = []
+  @Broadcasted var recommendedEpisodePool: [Episode.ID] = []
 
   // MARK: - Download Progress
 
@@ -70,8 +70,8 @@ struct SharedState: Sendable {
 
   // MARK: - Recommendations
 
-  func setTopRecommendations(_ episodeIDs: [Episode.ID]) {
-    $topRecommendations.new(episodeIDs)
+  func setRecommendedEpisodePool(_ episodeIDs: [Episode.ID]) {
+    $recommendedEpisodePool.new(episodeIDs)
   }
 
   // MARK: - Episode Playing Checks

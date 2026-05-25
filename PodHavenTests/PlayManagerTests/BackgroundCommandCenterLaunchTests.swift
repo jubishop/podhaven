@@ -10,8 +10,6 @@ import Testing
 
 @Suite("of Background command center launch tests", .container)
 @MainActor struct BackgroundCommandCenterLaunchTests {
-  @DynamicInjected(\.sharedState) private var sharedState
-
   private var mpRemoteCommandCenter: FakeMPRemoteCommandCenter {
     Container.shared.mpRemoteCommandCenter() as! FakeMPRemoteCommandCenter
   }
@@ -22,12 +20,18 @@ import Testing
     CommandCenter.registerRemoteCommandHandlers()
   }
 
+  // Simulate the cold-launch state where `currentEpisodeID` was persisted on a
+  // prior run. Must be called before anything resolves `sharedState`.
+  private func seedPersistedCurrentEpisodeID(_ id: Episode.ID) {
+    id.store(to: Container.shared.standardDefaults(), forKey: "currentEpisodeID")
+  }
+
   @Test("first toggle command prepares playback before toggling")
   func firstToggleCommandPreparesPlaybackBeforeToggling() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
       try Create.unsavedEpisode(currentTime: .seconds(10))
     )
-    sharedState.currentEpisodeID = podcastEpisode.id
+    seedPersistedCurrentEpisodeID(podcastEpisode.id)
 
     registerRemoteCommandHandlers()
 
@@ -43,7 +47,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode(
       try Create.unsavedEpisode(currentTime: .seconds(10))
     )
-    sharedState.currentEpisodeID = podcastEpisode.id
+    seedPersistedCurrentEpisodeID(podcastEpisode.id)
 
     registerRemoteCommandHandlers()
 

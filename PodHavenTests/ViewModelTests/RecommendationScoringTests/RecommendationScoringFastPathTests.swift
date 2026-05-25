@@ -62,16 +62,14 @@ import Testing
 
     // First selection scores the candidates and applies the rec-score order.
     viewModel.currentSortMethod = .recommendationScore
-    try await RecommendationHelpers.untilAdvancing(
+    try await Wait.until(
       priority: .userInitiated,
       { @MainActor in
-        viewModel.recommendationDisplay == .idle
-          && viewModel.episodeList.filteredEntries.count == candidateEpisodes.count
+        viewModel.episodeList.filteredEntries.count == candidateEpisodes.count
       },
       { @MainActor in
         """
-        Expected the first on-demand scoring pass to settle.
-        display: \(viewModel.recommendationDisplay)
+        Expected the first on-demand scoring pass to land all target entries.
         filteredEntries: \(viewModel.episodeList.filteredEntries.compactMap(\.episodeID))
         """
       }
@@ -79,27 +77,14 @@ import Testing
     // Quiesce the engine so the retained snapshot's revision stays put across
     // the sort round-trip below.
     try await RecommendationScoringTestHelpers.settleRecommendationEngine()
-    try await RecommendationHelpers.untilAdvancing(
-      priority: .userInitiated,
-      { @MainActor in viewModel.recommendationDisplay == .idle },
-      { @MainActor in "Expected the rec sort to be idle once the engine settled." }
-    )
     let recOrder = viewModel.episodeList.filteredEntries.compactMap(\.episodeID)
 
     viewModel.currentSortMethod = .newestFirst
     fakeRecommendationRepo.clearAllCalls()
 
     // Nothing in the scoring snapshot changed. Re-selecting must reuse the
-    // retained score — no "Computing recommendations…" banner.
+    // retained score — no re-scoring embeddings call.
     viewModel.currentSortMethod = .recommendationScore
-    #expect(
-      viewModel.recommendationDisplay == .idle,
-      """
-      Expected re-selecting the rec sort with an unchanged candidate set to \
-      apply the retained score immediately, but the scorer fell back to a \
-      visible recompute (display: \(viewModel.recommendationDisplay)).
-      """
-    )
 
     await RecommendationScoringTestHelpers.drainRecommendationSleeper(by: .seconds(2))
 

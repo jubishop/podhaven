@@ -103,7 +103,7 @@ actor CandidateEpisodeTests {
       }
     )
 
-    let candidates = try await recommendationRepo.allCandidateEpisodes(excluding: nil)
+    let candidates = try await recommendationRepo.allCandidateEpisodes()
     #expect(candidates.count == 1)
     let only = try #require(candidates.first)
     #expect(only.id == candidate.id)

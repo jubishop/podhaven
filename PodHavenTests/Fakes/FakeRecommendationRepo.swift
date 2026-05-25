@@ -11,6 +11,11 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
+  // One-shot error to throw from the next `embedding(for:)` call so tests can
+  // pin down how scoring surfaces handle transient embedding-fetch failures.
+  // Cleared on use so the next call reaches the real repo.
+  let embeddingFetchError = ThreadSafe<(any Error)?>(nil)
+
   // One-shot suspend for the next matching `embeddings(for:)` call so tests
   // can interleave state changes with an in-flight scoring pass.
   //
@@ -28,6 +33,19 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     var didComplete: Bool = false
   }
   let embeddingsGateState = ThreadSafe<EmbeddingsGateState>(EmbeddingsGateState())
+
+  // Sibling gate for `allScoringContextInputs` so tests can suspend an
+  // in-flight cache rebuild the same way the embeddings gate suspends an
+  // in-flight scoring pass. The same `pendingRelease` TOCTOU guard applies.
+  struct ScoringContextInputsGateState: Sendable {
+    var armed: Bool = false
+    var pendingContinuation: CheckedContinuation<Void, Never>?
+    var pendingRelease: Bool = false
+    var didSuspend: Bool = false
+  }
+  let scoringContextInputsGateState = ThreadSafe<ScoringContextInputsGateState>(
+    ScoringContextInputsGateState()
+  )
 
   private let recommendationRepo: RecommendationRepo
 
@@ -81,6 +99,40 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     }
   }
 
+  // MARK: - Scoring Context Inputs Gate (test-facing)
+
+  func armScoringContextInputsGate() {
+    let stale = scoringContextInputsGateState {
+      state -> CheckedContinuation<Void, Never>? in
+      let pending = state.pendingContinuation
+      state.pendingContinuation = nil
+      state.pendingRelease = false
+      state.armed = true
+      state.didSuspend = false
+      return pending
+    }
+    stale?.resume()
+  }
+
+  func releaseScoringContextInputsGate() {
+    let continuation = scoringContextInputsGateState {
+      state -> CheckedContinuation<Void, Never>? in
+      if let pending = state.pendingContinuation {
+        state.pendingContinuation = nil
+        return pending
+      }
+      state.pendingRelease = true
+      return nil
+    }
+    continuation?.resume()
+  }
+
+  var isScoringContextInputsGateSuspended: Bool {
+    scoringContextInputsGateState { state in
+      state.didSuspend && state.pendingContinuation != nil
+    }
+  }
+
   // MARK: - Recommending
 
   var db: any DatabaseReader { recommendationRepo.db }
@@ -97,15 +149,35 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     return try await recommendationRepo.allUnratedListenedEpisodes()
   }
 
-  func allCandidateEpisodes(
-    excluding excludedID: Episode.ID?
-  ) async throws -> [CandidateEpisode] {
-    recordCall(methodName: "allCandidateEpisodes", parameters: excludedID)
-    return try await recommendationRepo.allCandidateEpisodes(excluding: excludedID)
+  func allCandidateEpisodes() async throws -> [CandidateEpisode] {
+    recordCall(methodName: "allCandidateEpisodes", parameters: ())
+    return try await recommendationRepo.allCandidateEpisodes()
   }
 
   func allScoringContextInputs() async throws -> ScoringContextInputs {
     recordCall(methodName: "allScoringContextInputs", parameters: ())
+    let shouldGate: Bool = scoringContextInputsGateState { state -> Bool in
+      guard state.armed else { return false }
+      state.armed = false
+      return true
+    }
+    if shouldGate {
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        let resumeImmediately = scoringContextInputsGateState { state -> Bool in
+          if state.pendingRelease {
+            state.pendingRelease = false
+            state.didSuspend = true
+            return true
+          }
+          state.pendingContinuation = continuation
+          state.didSuspend = true
+          return false
+        }
+        if resumeImmediately {
+          continuation.resume()
+        }
+      }
+    }
     return try await recommendationRepo.allScoringContextInputs()
   }
 
@@ -148,6 +220,13 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
     recordCall(methodName: "embedding", parameters: episodeID)
+    if let error = embeddingFetchError({ pending in
+      let captured = pending
+      pending = nil
+      return captured
+    }) {
+      throw error
+    }
     return try await recommendationRepo.embedding(for: episodeID)
   }
 

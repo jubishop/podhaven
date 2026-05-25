@@ -34,6 +34,52 @@ Each line is a standalone JSON object with these fields:
 - Truncation means the remaining file is still valid NDJSON, but older context may be missing.
 - The file writer appends a newline after every encoded entry.
 
+## MetricKit Diagnostic Entries
+
+`MetricKitMonitor.diagnosticDirective` writes one log entry per `MXDiagnostic` payload (crash, hang, cpuException, diskWriteException, appLaunch). They show up with:
+
+- `subsystem`: `PodHaven`
+- `category`: `MetricKit`
+- `levelName`: `notice`
+- `message`: `MetricKit <category> diagnostic received` — e.g. `MetricKit crash diagnostic received`. The token after `MetricKit ` is the category (one of `crash`, `hang`, `cpuException`, `diskWriteException`, `appLaunch`).
+- `metadata.metricKitDiagnostic`: the **raw** `MXDiagnosticPayload.jsonRepresentation()` JSON, encoded as a string. It is **not** parsed into structured metadata — it is kept verbatim so the call-stack tree stays machine-parseable for offline symbolication.
+
+The embedded JSON is shaped like:
+
+```json
+{
+  "callStackTree": {
+    "callStackPerThread": false,
+    "callStacks": [
+      {
+        "threadAttributed": true,
+        "callStackPerThread": false,
+        "callStackRootFrames": [
+          {
+            "binaryUUID": "ABCDEF12-3456-7890-ABCD-EF1234567890",
+            "offsetIntoBinaryTextSegment": 12345,
+            "binaryName": "PodHaven",
+            "sampleCount": 1,
+            "subFrames": [ /* same frame shape, recursive */ ]
+          }
+        ]
+      }
+    ]
+  },
+  "diagnosticMetaData": {
+    "platformArchitecture": "arm64e",
+    "appVersion": "1.0",
+    "appBuildVersion": "498",
+    "osVersion": "iPhone OS 18.0 (22A123)",
+    /* category-specific fields: terminationReason, signal, hangDuration, etc. */
+  }
+}
+```
+
+Release-build binaries are stripped and the dSYM never ships to device, so the frames are **unsymbolicated**: each carries `binaryUUID` + `offsetIntoBinaryTextSegment` but no function/file/line. Use `scripts/symbolicate_metrickit.py` to resolve them against dSYMs from Sentry's Debug Files API.
+
+The `MetricKit` background-exit metrics directive (separate, `.info` or `.critical`) uses a different shape: per-reason exit counts live as flat string keys in metadata (`normalAppExit`, `memoryResourceLimit`, …) and there is no `metricKitDiagnostic` field. The symbolication script ignores those.
+
 ## Analysis Notes
 
 - Start with counts and repeated warnings or errors before reading individual entries.
@@ -42,3 +88,4 @@ Each line is a standalone JSON object with these fields:
 - Compare logs side-by-side when the user provides both app and widget files.
 - Use timestamps, `subsystem`, `category`, `source`, and `metadata` together to reconstruct the event chain.
 - Present user-facing timestamps in Pacific Time unless the user explicitly asks for another timezone.
+- When a MetricKit entry surfaces in the timeline, run `scripts/symbolicate_metrickit.py` against the same NDJSON to resolve the call stack instead of staring at raw `binaryUUID+offset` frames.

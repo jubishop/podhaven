@@ -77,3 +77,4 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - Avoid `inout`; return values instead.
 - Prefer `@MainActor` on declarations over `MainActor.run`.
 - Model state transitions as enums, not `Bool` flags.
+- Prefer `struct` over `class`; reach for `class` only when reference identity or shared mutable state genuinely require it.

@@ -239,14 +239,14 @@ import Testing
       // Re-enter rec sort. The retained score map was computed for the empty
       // search; it must NOT hydrate as loaded under the new search — that
       // would surface Alphacand rows that don't match "Betacand". The honest
-      // state is .computingRecommendations until the fresh pass lands.
+      // state is .loading until the fresh pass lands.
       viewModel.currentSortMethod = .recommendationScore
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .computingRecommendations },
+        { @MainActor in viewModel.loadingState == .loading },
         { @MainActor in
           """
-          Expected .computingRecommendations on rec-sort re-entry under the new \
+          Expected .loading on rec-sort re-entry under the new \
           search; a stale retained score map hydrated as loaded instead.
           State: \(viewModel.loadingState)
           Entries: \(Set(viewModel.episodeList.filteredEntries.compactMap(\.episodeID)))
@@ -378,10 +378,10 @@ import Testing
 
       try await Wait.until(
         priority: .userInitiated,
-        { @MainActor in viewModel.loadingState == .computingRecommendations },
+        { @MainActor in viewModel.loadingState == .loading },
         { @MainActor in
           """
-          Expected .computingRecommendations while the search change's scoring \
+          Expected .loading while the search change's scoring \
           pass is stranded; got \(viewModel.loadingState).
           """
         }
