@@ -38,14 +38,15 @@ final class UnsavedEpisodeEmbeddingScorer {
     guard contextualEmbedding.assetsLoaded.isFinished else { return ([:], false) }
 
     let revision = contextualEmbedding.revision
+    let capacity = unsavedEpisodes.underestimatedCount
     var cachedVectors: [MediaGUID: (source: String, vector: [Float])]
     if let cache, cache.revision == revision {
       cachedVectors = cache.vectors
     } else {
-      cachedVectors = [:]
+      cachedVectors = [MediaGUID: (source: String, vector: [Float])](capacity: capacity)
     }
 
-    var scores: [MediaGUID: Float] = [:]
+    var scores = [MediaGUID: Float](capacity: capacity)
     for episode in unsavedEpisodes {
       try Task.checkCancellation()
       let mediaGUID = episode.mediaGUID
