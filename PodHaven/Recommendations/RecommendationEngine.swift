@@ -640,7 +640,7 @@ struct RecommendationEngine: Sendable {
     var scores = [Episode.ID: RecommendationScore](capacity: candidates.count)
     try unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
       for (index, candidate) in candidates.enumerated() {
-        if index % 256 == 0 { try Task.checkCancellation() }
+        if index % 64 == 0 { try Task.checkCancellation() }
         guard let embedding = embeddings[id: candidate.id] else { continue }
         scores[candidate.id] = unsafe scoreCandidate(
           embedding: embedding,
