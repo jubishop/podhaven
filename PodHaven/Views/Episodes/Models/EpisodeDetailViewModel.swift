@@ -447,10 +447,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return currentRecommendationScoringSnapshot()
     },
     score: { [weak self] in
-      guard let self, currentSnapshotState() != nil
+      guard let self, let source = currentRecommendationSource()
       else { return .cancelled }
       do {
-        let (result, cacheable) = try await computeRecommendation()
+        let (result, cacheable) = try await computeRecommendation(source: source)
         return cacheable ? .cacheable(result) : .uncacheable(result)
       } catch is CancellationError {
         return .cancelled
@@ -492,19 +492,28 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
   }
 
+  private enum RecommendationSource {
+    case unsaved(UnsavedPodcastEpisode)
+    case saved(PodcastEpisode)
+  }
+
+  private func currentRecommendationSource() -> RecommendationSource? {
+    switch state {
+    case .initial: return nil
+    case .unsaved(let unsavedPodcastEpisode): return .unsaved(unsavedPodcastEpisode)
+    case .saved(let podcastEpisode): return .saved(podcastEpisode)
+    }
+  }
+
   private func startRecommendationObservation() {
     recommendationCoordinator.startObservations()
     recommendationCoordinator.refresh()
   }
 
-  private func computeRecommendation() async throws -> (
-    EpisodeDetailDisplayedScore?, cacheable: Bool
-  ) {
-    switch state {
-    case .initial:
-      // State drifted to `.initial` after the snapshot was captured; the
-      // coordinator's stale-drop guard rejects the result regardless.
-      return (nil, false)
+  private func computeRecommendation(
+    source: RecommendationSource
+  ) async throws -> (EpisodeDetailDisplayedScore?, cacheable: Bool) {
+    switch source {
     case .saved(let podcastEpisode):
       return (try await scoreSavedEpisode(podcastEpisode), true)
     case .unsaved(let unsavedPodcastEpisode):
