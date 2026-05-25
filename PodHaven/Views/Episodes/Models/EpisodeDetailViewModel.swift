@@ -53,20 +53,6 @@ enum EpisodeDetailState: Equatable, Sendable, Stringable {
     case .saved(let podcastEpisode): return "saved(\(podcastEpisode.toString))"
     }
   }
-
-  enum Kind: Sendable {
-    case initial
-    case unsaved
-    case saved
-  }
-
-  var kind: Kind {
-    switch self {
-    case .initial: .initial
-    case .unsaved: .unsaved
-    case .saved: .saved
-    }
-  }
 }
 
 enum EpisodeDetailDisplayedScore: Sendable {
@@ -422,7 +408,8 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   // MARK: - Recommendation Observation
 
-  @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
+  @ObservationIgnored
+  private let unsavedEpisodeEmbeddingScorer = UnsavedEpisodeEmbeddingScorer()
 
   private struct RecommendationScoringSnapshot: Equatable, Sendable {
     let scoringRevision: Int
@@ -535,24 +522,12 @@ enum EpisodeDetailDisplayedScore: Sendable {
   private func scoreUnsavedEpisode(
     _ unsavedPodcastEpisode: UnsavedPodcastEpisode
   ) async throws -> (EpisodeDetailDisplayedScore?, cacheable: Bool) {
-    await contextualEmbedding.loadAssetsIfAvailable()
-    guard contextualEmbedding.assetsLoaded.isFinished else { return (nil, false) }
-
-    let revision = contextualEmbedding.revision
-    let vector: [Float]
-    if let cached = unsavedEmbeddingCache, cached.revision == revision {
-      vector = cached.vector
-    } else {
-      vector = try await EmbeddingService.embeddingVector(
-        for: unsavedPodcastEpisode,
-        embedding: contextualEmbedding
-      )
-      unsavedEmbeddingCache = (revision: revision, vector: vector)
-    }
-    guard let value = recommendationEngine.similarityScore(forEmbedding: vector) else {
-      return (nil, true)
-    }
-    return (.similarity(value), true)
+    let (score, cacheable) = try await unsavedEpisodeEmbeddingScorer.similarityScore(
+      for: unsavedPodcastEpisode
+    )
+    guard cacheable else { return (nil, false) }
+    guard let score else { return (nil, true) }
+    return (.similarity(score), true)
   }
 
   // MARK: - Disappear
@@ -567,13 +542,9 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   private func transition(to newState: EpisodeDetailState) {
     guard newState != state else { return }
-    let recommendationKindChanged = state.kind != newState.kind
     logStateTransition(to: newState)
     state = newState
-    if recommendationKindChanged {
-      unsavedEmbeddingCache = nil
-      recommendationCoordinator.refresh()
-    }
+    recommendationCoordinator.refresh()
   }
 
   private func loadAndPlay(_ podcastEpisode: PodcastEpisode, seekTo seconds: Int) async throws {
