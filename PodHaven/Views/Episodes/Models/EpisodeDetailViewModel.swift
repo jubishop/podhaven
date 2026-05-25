@@ -429,7 +429,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     let state: State
 
     enum State: Equatable, Sendable {
-      case initial(mediaGUID: MediaGUID)
       case unsaved(
         mediaGUID: MediaGUID,
         embeddingRevision: Int,
@@ -448,9 +447,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return currentRecommendationScoringSnapshot()
     },
     score: { [weak self] in
-      guard let self else { return .cacheable(nil) }
+      guard let self, let snapshotState = currentSnapshotState()
+      else { return .cancelled }
       do {
-        let (result, cacheable) = try await computeRecommendation()
+        let (result, cacheable) = try await computeRecommendation(for: snapshotState)
         return cacheable ? .cacheable(result) : .uncacheable(result)
       } catch is CancellationError {
         return .cancelled
@@ -466,27 +466,30 @@ enum EpisodeDetailDisplayedScore: Sendable {
     refreshOnAssetsLoaded: true
   )
 
-  private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot {
-    let snapshotState: RecommendationScoringSnapshot.State
+  private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot? {
+    guard let snapshotState = currentSnapshotState() else { return nil }
+    return RecommendationScoringSnapshot(
+      scoringRevision: recommendationEngine.scoringRevision,
+      state: snapshotState
+    )
+  }
+
+  private func currentSnapshotState() -> RecommendationScoringSnapshot.State? {
     switch state {
-    case .initial(let listed):
-      snapshotState = .initial(mediaGUID: listed.mediaGUID)
+    case .initial:
+      return nil
     case .unsaved(let unsaved):
-      snapshotState = .unsaved(
+      return .unsaved(
         mediaGUID: unsaved.mediaGUID,
         embeddingRevision: contextualEmbedding.revision,
         embeddingSource: unsaved.searchableString
       )
     case .saved(let podcastEpisode):
-      snapshotState = .saved(
+      return .saved(
         mediaGUID: podcastEpisode.mediaGUID,
         episodeID: podcastEpisode.id
       )
     }
-    return RecommendationScoringSnapshot(
-      scoringRevision: recommendationEngine.scoringRevision,
-      state: snapshotState
-    )
   }
 
   // Start the revision observation before the bootstrap refresh so a revision
@@ -498,15 +501,18 @@ enum EpisodeDetailDisplayedScore: Sendable {
     recommendationCoordinator.refresh()
   }
 
-  private func computeRecommendation() async throws -> (
-    EpisodeDetailDisplayedScore?, cacheable: Bool
-  ) {
-    switch state {
-    case .initial:
-      return (nil, true)
-    case .saved(let podcastEpisode):
+  // `snapshotState` is the coordinator-captured kind; `state` is re-read for
+  // the live source object. A kind drift between the two is dropped here and
+  // re-checked by the coordinator's stale-drop guard after scoring.
+  private func computeRecommendation(
+    for snapshotState: RecommendationScoringSnapshot.State
+  ) async throws -> (EpisodeDetailDisplayedScore?, cacheable: Bool) {
+    switch snapshotState {
+    case .saved:
+      guard case .saved(let podcastEpisode) = state else { return (nil, false) }
       return (try await scoreSavedEpisode(podcastEpisode), true)
-    case .unsaved(let unsavedPodcastEpisode):
+    case .unsaved:
+      guard case .unsaved(let unsavedPodcastEpisode) = state else { return (nil, false) }
       return try await scoreUnsavedEpisode(unsavedPodcastEpisode)
     }
   }
