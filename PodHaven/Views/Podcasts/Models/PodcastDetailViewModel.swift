@@ -262,20 +262,16 @@ class PodcastDetailViewModel:
     }
   }
 
-  private enum RecommendationPass: Sendable {
-    case saved([MediaGUID: Float])
-    case unsaved([MediaGUID: Float])
+  private struct RecommendationPass: Sendable {
+    enum Kind: Sendable { case saved, unsaved }
 
-    var values: [MediaGUID: Float] {
-      switch self {
-      case .saved(let v), .unsaved(let v): return v
-      }
-    }
+    let kind: Kind
+    let values: [MediaGUID: Float]
 
     static func empty(for state: RecommendationScoringSnapshot.State) -> RecommendationPass {
       switch state {
-      case .saved: return .saved([:])
-      case .unsaved: return .unsaved([:])
+      case .saved: return RecommendationPass(kind: .saved, values: [:])
+      case .unsaved: return RecommendationPass(kind: .unsaved, values: [:])
       }
     }
   }
@@ -365,10 +361,10 @@ class PodcastDetailViewModel:
     switch snapshotState {
     case .saved(let podcastID):
       let values = try await savedRecommendationScores(podcastID: podcastID, entries: entries)
-      return (.saved(values), true)
+      return (RecommendationPass(kind: .saved, values: values), true)
     case .unsaved:
       let (values, cacheable) = try await unsavedSimilarityScores(entries: entries)
-      return (.unsaved(values), cacheable)
+      return (RecommendationPass(kind: .unsaved, values: values), cacheable)
     }
   }
 
@@ -437,7 +433,7 @@ class PodcastDetailViewModel:
 
   private func applyRecommendationScores(_ pass: RecommendationPass) {
     let values = pass.values
-    switch pass {
+    switch pass.kind {
     case .saved:
       episodeList.filterMethod = { values[$0.mediaGUID] != nil }
     case .unsaved:
