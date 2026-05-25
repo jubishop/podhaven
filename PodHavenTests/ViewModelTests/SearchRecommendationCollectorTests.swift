@@ -968,11 +968,18 @@ import Testing
       }
     )
 
-    // Advance time once, well beyond the engine's 400 ms cacheRebuild debounce.
-    // That fires buildContext (returns nil) and bumps scoringRevision. With
-    // the fix, awaitScoringContext returns and the banner transitions to
-    // .hidden; without it, the banner stays .loading forever.
-    await fakeSleeper.advanceTime(by: .seconds(5))
+    // The drain task may not yet have reached engine.start() → observation →
+    // scheduleCacheRebuild by the time the banner shows .loading. Wait for
+    // the engine's cacheRebuild debounce to register its sleep before
+    // advancing time, otherwise advanceTime jumps the clock past a not-yet-
+    // scheduled wakeTime and the rebuild never fires.
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+
+    // Advance well beyond the cacheRebuild debounce. That fires buildContext
+    // (returns nil) and bumps scoringRevision. With the fix, awaitScoringContext
+    // returns and the banner transitions to .hidden; without it, the banner
+    // stays .loading forever.
+    await fakeSleeper.advanceTime(by: .seconds(10))
     try await Wait.until(
       { @MainActor in collector.bannerState == .hidden },
       { @MainActor in
