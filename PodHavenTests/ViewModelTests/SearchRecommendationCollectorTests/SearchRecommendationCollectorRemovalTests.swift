@@ -11,6 +11,8 @@ import Testing
 @MainActor final class SearchRecommendationCollectorRemovalTests {
   private typealias H = SearchRecommendationCollectorTestHelpers
 
+  @DynamicInjected(\.repo) private var repo
+
   // MARK: - Test: Post-Action Removal
 
   @Test("removePick drops the entry from visible picks")
@@ -144,6 +146,111 @@ import Testing
       { @MainActor in
         "Expected pick to be removed after queue action; \(collector.visiblePicks.count) remain"
       }
+    )
+  }
+
+  // MARK: - Test: Pick Action Reuses Existing Podcast Row Across atom:self Shift
+
+  // Regression for the iTunesID-identity bug: the iTunes row brings (A, I),
+  // RSS publishes atom:self=B. Without threading iTunesID into the pick's
+  // UnsavedPodcast, the queue action's upsert misses the existing row by
+  // feedURL (B ≠ A) AND by iTunesID (because iTunesID is nil on the pick),
+  // and inserts a duplicate podcast row.
+  @Test(
+    "queueEpisodeOnTop reuses the existing podcast row when RSS atom:self differs from iTunes feedURL"
+  )
+  func actionsViewModelReusesExistingPodcastWhenAtomSelfDiffers() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+
+    let requestedURL = FeedURL(URL(string: "https://example.com/itunes-source-23.rss")!)
+    let parsedSelfURL = FeedURL(URL(string: "https://example.com/canonical-self-23.rss")!)
+    let iTunesID = ITunesPodcastID(2300)
+
+    // Pre-insert a saved-but-unsubscribed podcast at the iTunes (slot) URL.
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: requestedURL,
+          iTunesID: iTunesID,
+          title: "Existing Saved",
+          subscriptionDate: nil
+        ),
+        unsavedEpisodes: []
+      )
+    )
+
+    // RSS publishes atom:link rel="self" pointing at a different URL.
+    let xml = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" \
+      xmlns:atom="http://www.w3.org/2005/Atom">
+        <channel>
+          <title>Canonical Differs 23</title>
+          <link>\(requestedURL.absoluteString)</link>
+          <description>Canonical Differs 23 description</description>
+          <itunes:image href="https://example.com/image.png" />
+          <atom:link rel="self" href="\(parsedSelfURL.absoluteString)" />
+          <item>
+            <guid isPermaLink="false">canon-pick-23</guid>
+            <title>Canonical Pick 23</title>
+            <pubDate>Mon, 14 Nov 2023 22:13:20 +0000</pubDate>
+            <enclosure url="https://example.com/audio/canon-pick-23.mp3" type="audio/mpeg" length="0" />
+            <description>Canonical Pick 23 description</description>
+          </item>
+        </channel>
+      </rss>
+      """
+    await H.session.respond(to: requestedURL.rawValue, data: Data(xml.utf8))
+
+    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: requestedURL, iTunesID: iTunesID)]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in collector.visiblePicks.count == 1 },
+      { @MainActor in "Expected one pick to land, got \(collector.visiblePicks.count)" }
+    )
+
+    let pick = collector.visiblePicks[0]
+    #expect(
+      pick.episode.feedURL == parsedSelfURL,
+      "Test setup invariant: pick's feedURL must reflect the parsed atom:self URL"
+    )
+
+    let actionsViewModel = SearchDiscoveryActionsViewModel(collector: collector)
+    actionsViewModel.queueEpisodeOnTop(ListedEpisode(pick.episode))
+
+    try await Wait.until(
+      { @MainActor in collector.visiblePicks.isEmpty },
+      { @MainActor in
+        "Expected pick to be removed after queue action; \(collector.visiblePicks.count) remain"
+      }
+    )
+
+    let allRows = try await repo.allPodcasts(AppDB.NoOp)
+    let matchingITunes = allRows.filter { $0.iTunesID == iTunesID }
+    #expect(
+      matchingITunes.count == 1,
+      """
+      Expected exactly one podcast row with iTunesID; \
+      got \(matchingITunes.map(\.feedURL.absoluteString))
+      """
+    )
+    #expect(
+      matchingITunes.first?.id == savedSeries.podcast.id,
+      "Expected the existing podcast row to be reused"
+    )
+
+    let orphans = allRows.filter { $0.feedURL == parsedSelfURL }
+    #expect(
+      orphans.isEmpty,
+      "Expected no duplicate podcast at the atom:self URL; got \(orphans.map(\.toString))"
     )
   }
 

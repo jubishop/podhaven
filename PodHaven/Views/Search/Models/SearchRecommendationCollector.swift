@@ -42,7 +42,7 @@ final class SearchRecommendationCollector {
 
     var discoveryListTitle: String {
       switch self {
-      case .search(let query): return query
+      case .search(let query): return "\"\(query)\""
       case .trending(let genreID, let title): return genreID == nil ? "Top picks" : title
       }
     }
@@ -264,6 +264,7 @@ final class SearchRecommendationCollector {
 
     var reconciledFeedURLs = [FeedURL](capacity: podcasts.count)
     var reconciledPodcastIDs: [FeedURL: Podcast.ID] = [:]
+    var reconciledITunesIDs: [FeedURL: ITunesPodcastID] = [:]
     var droppedSubscribed = 0
     for entry in podcasts {
       let slotURL = entry.podcast.slotID
@@ -288,6 +289,12 @@ final class SearchRecommendationCollector {
       let canonicalFeedURL = bridged?.podcast.feedURL ?? slotURL
       reconciledFeedURLs.append(canonicalFeedURL)
       if let bridged { reconciledPodcastIDs[canonicalFeedURL] = bridged.podcast.id }
+      // Threaded into the pick's UnsavedPodcast so the downstream upsert can
+      // hit the by-iTunesID branch even when RSS publishes a different
+      // atom:self / itunes:new-feed-url.
+      if let iTunesID = bridged?.podcast.iTunesID ?? entry.podcast.iTunesID {
+        reconciledITunesIDs[canonicalFeedURL] = iTunesID
+      }
     }
 
     Self.log.debug(
@@ -300,14 +307,16 @@ final class SearchRecommendationCollector {
     applyReconciledRanking(
       source: source,
       feedURLs: reconciledFeedURLs,
-      podcastIDs: reconciledPodcastIDs
+      podcastIDs: reconciledPodcastIDs,
+      iTunesIDs: reconciledITunesIDs
     )
   }
 
   private func applyReconciledRanking(
     source: Source,
     feedURLs: [FeedURL],
-    podcastIDs: [FeedURL: Podcast.ID]
+    podcastIDs: [FeedURL: Podcast.ID],
+    iTunesIDs: [FeedURL: ITunesPodcastID]
   ) {
     switch source {
     case .trending:
@@ -318,7 +327,8 @@ final class SearchRecommendationCollector {
         } else if permanent[feedURL] == nil {
           permanent[feedURL] = CachedPodcastEntry(
             feedURL: feedURL,
-            podcastID: podcastIDs[feedURL]
+            podcastID: podcastIDs[feedURL],
+            iTunesID: iTunesIDs[feedURL]
           )
         }
         scheduleDrain(for: feedURL)
@@ -336,7 +346,8 @@ final class SearchRecommendationCollector {
         if permanent[feedURL] == nil, temporary[feedURL] == nil {
           temporary[feedURL] = CachedPodcastEntry(
             feedURL: feedURL,
-            podcastID: podcastIDs[feedURL]
+            podcastID: podcastIDs[feedURL],
+            iTunesID: iTunesIDs[feedURL]
           )
         }
         scheduleDrain(for: feedURL)
@@ -519,11 +530,13 @@ final class SearchRecommendationCollector {
     entry.fetchToken = downloadTask
 
     let podcastID = entry.podcastID
+    let iTunesID = entry.iTunesID
     let onDeckID = sharedState.onDeck?.id
 
     let result = await Self.runPipeline(
       downloadTask: downloadTask,
       podcastID: podcastID,
+      iTunesID: iTunesID,
       onDeckID: onDeckID,
       embedding: contextualEmbedding,
       engine: recommendationEngine,
@@ -571,6 +584,7 @@ final class SearchRecommendationCollector {
   private nonisolated static func runPipeline(
     downloadTask: DownloadTask,
     podcastID: Podcast.ID?,
+    iTunesID: ITunesPodcastID?,
     onDeckID: Episode.ID?,
     embedding: ContextualEmbedding,
     engine: RecommendationEngine,
@@ -596,7 +610,7 @@ final class SearchRecommendationCollector {
 
     let unsavedPodcast: UnsavedPodcast
     do {
-      unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+      unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: iTunesID)
     } catch {
       return .failed(error)
     }
@@ -606,12 +620,17 @@ final class SearchRecommendationCollector {
         .sorted { $0.pubDate > $1.pubDate }
         .prefix(episodesPerPodcast)
     )
-    let candidates = await filteredCandidates(
-      newest: newest,
-      podcastID: podcastID,
-      onDeckID: onDeckID,
-      repo: repo
-    )
+    let candidates: [UnsavedEpisode]
+    do {
+      candidates = try await filteredCandidates(
+        newest: newest,
+        podcastID: podcastID,
+        onDeckID: onDeckID,
+        repo: repo
+      )
+    } catch {
+      return .failed(error)
+    }
 
     if Task.isCancelled { return .cancelled }
 
@@ -650,23 +669,13 @@ final class SearchRecommendationCollector {
     podcastID: Podcast.ID?,
     onDeckID: Episode.ID?,
     repo: any Databasing
-  ) async -> [UnsavedEpisode] {
+  ) async throws -> [UnsavedEpisode] {
     guard let podcastID, !newest.isEmpty else { return newest }
-    let existing: [Episode]
-    do {
-      existing = try await repo.episodesMatching(
-        podcastID: podcastID,
-        guids: newest.map(\.guid),
-        mediaURLs: newest.map(\.mediaURL)
-      )
-    } catch {
-      log.caughtError(
-        "Candidate-gate lookup failed for podcast \(podcastID)",
-        error,
-        level: { _ in .info }
-      )
-      return []
-    }
+    let existing = try await repo.episodesMatching(
+      podcastID: podcastID,
+      guids: newest.map(\.guid),
+      mediaURLs: newest.map(\.mediaURL)
+    )
 
     let existingByGUID = Dictionary(uniqueKeysWithValues: existing.map { ($0.guid, $0) })
     let existingByMediaURL = Dictionary(uniqueKeysWithValues: existing.map { ($0.mediaURL, $0) })
@@ -798,13 +807,15 @@ private final class CachedPodcastEntry {
 
   let feedURL: FeedURL
   let podcastID: Podcast.ID?
+  let iTunesID: ITunesPodcastID?
   var status: Status = .pending
   var scoredEpisodes: [SearchRecommendationCollector.ScoredEpisode] = []
   @ObservationIgnored var fetchToken: DownloadTask?
 
-  init(feedURL: FeedURL, podcastID: Podcast.ID?) {
+  init(feedURL: FeedURL, podcastID: Podcast.ID?, iTunesID: ITunesPodcastID?) {
     self.feedURL = feedURL
     self.podcastID = podcastID
+    self.iTunesID = iTunesID
   }
 
   func cancel() async {

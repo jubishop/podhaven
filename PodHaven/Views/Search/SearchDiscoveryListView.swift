@@ -57,9 +57,9 @@ struct SearchDiscoveryListView: View {
     VStack(spacing: 16) {
       AppIcon.search.image
         .font(.system(size: 48))
-      Text("No top picks yet")
+      Text("No top picks left")
         .font(.headline)
-      Text("Tap a result to dive deeper, then check back here.")
+      Text("You've worked through all the picks here.")
         .font(.subheadline)
         .foregroundColor(.secondary)
         .multilineTextAlignment(.center)
