@@ -242,8 +242,7 @@ class PodcastDetailViewModel:
   // MARK: - Recommendations
 
   @ObservationIgnored
-  private var unsavedEmbeddingCache:
-    (revision: Int, vectors: [MediaGUID: (source: String, vector: [Float])])?
+  private let unsavedEpisodeEmbeddingScorer = UnsavedEpisodeEmbeddingScorer()
 
   private struct RecommendationScoringSnapshot: Equatable, Sendable {
     let scoringRevision: Int
@@ -363,7 +362,9 @@ class PodcastDetailViewModel:
       let values = try await savedRecommendationScores(podcastID: podcastID, entries: entries)
       return (RecommendationPass(kind: .saved, values: values), true)
     case .unsaved:
-      let (values, cacheable) = try await unsavedSimilarityScores(entries: entries)
+      let (values, cacheable) = try await unsavedEpisodeEmbeddingScorer.similarityScores(
+        for: entries.compactMap(\.unsaved)
+      )
       return (RecommendationPass(kind: .unsaved, values: values), cacheable)
     }
   }
@@ -391,44 +392,6 @@ class PodcastDetailViewModel:
       result[mediaGUID] = score.value
     }
     return result
-  }
-
-  private func unsavedSimilarityScores(
-    entries: IdentifiedArrayOf<ListedEpisode>
-  ) async throws -> ([MediaGUID: Float], cacheable: Bool) {
-    await contextualEmbedding.loadAssetsIfAvailable()
-    guard contextualEmbedding.assetsLoaded.isFinished else { return ([:], false) }
-
-    let revision = contextualEmbedding.revision
-    var cachedVectors: [MediaGUID: (source: String, vector: [Float])]
-    if let cache = unsavedEmbeddingCache, cache.revision == revision {
-      cachedVectors = cache.vectors
-    } else {
-      cachedVectors = [MediaGUID: (source: String, vector: [Float])](capacity: entries.count)
-    }
-
-    var result = [MediaGUID: Float](capacity: entries.count)
-    for episode in entries {
-      try Task.checkCancellation()
-      guard let unsavedPodcastEpisode = episode.unsaved else { continue }
-      let source = unsavedPodcastEpisode.searchableString
-      let vector: [Float]
-      if let cached = cachedVectors[episode.mediaGUID], cached.source == source {
-        vector = cached.vector
-      } else {
-        vector = try await EmbeddingService.embeddingVector(
-          for: unsavedPodcastEpisode,
-          embedding: contextualEmbedding
-        )
-        cachedVectors[episode.mediaGUID] = (source: source, vector: vector)
-      }
-      if let similarity = recommendationEngine.similarityScore(forEmbedding: vector) {
-        result[episode.mediaGUID] = similarity
-      }
-    }
-
-    unsavedEmbeddingCache = (revision: revision, vectors: cachedVectors)
-    return (result, true)
   }
 
   private func applyRecommendationScores(_ pass: RecommendationPass) {

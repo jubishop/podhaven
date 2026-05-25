@@ -422,7 +422,8 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   // MARK: - Recommendation Observation
 
-  @ObservationIgnored private var unsavedEmbeddingCache: (revision: Int, vector: [Float])?
+  @ObservationIgnored
+  private let unsavedEpisodeEmbeddingScorer = UnsavedEpisodeEmbeddingScorer()
 
   private struct RecommendationScoringSnapshot: Equatable, Sendable {
     let scoringRevision: Int
@@ -525,23 +526,11 @@ enum EpisodeDetailDisplayedScore: Sendable {
   private func scoreUnsavedEpisode(
     _ unsavedPodcastEpisode: UnsavedPodcastEpisode
   ) async throws -> (EpisodeDetailDisplayedScore?, cacheable: Bool) {
-    await contextualEmbedding.loadAssetsIfAvailable()
-    guard contextualEmbedding.assetsLoaded.isFinished else { return (nil, false) }
-
-    let revision = contextualEmbedding.revision
-    let vector: [Float]
-    if let cached = unsavedEmbeddingCache, cached.revision == revision {
-      vector = cached.vector
-    } else {
-      vector = try await EmbeddingService.embeddingVector(
-        for: unsavedPodcastEpisode,
-        embedding: contextualEmbedding
-      )
-      unsavedEmbeddingCache = (revision: revision, vector: vector)
-    }
-    guard let value = recommendationEngine.similarityScore(forEmbedding: vector) else {
-      return (nil, true)
-    }
+    let (scores, cacheable) = try await unsavedEpisodeEmbeddingScorer.similarityScores(
+      for: CollectionOfOne(unsavedPodcastEpisode)
+    )
+    guard cacheable else { return (nil, false) }
+    guard let value = scores[unsavedPodcastEpisode.mediaGUID] else { return (nil, true) }
     return (.similarity(value), true)
   }
 
@@ -561,7 +550,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     logStateTransition(to: newState)
     state = newState
     if recommendationKindChanged {
-      unsavedEmbeddingCache = nil
+      unsavedEpisodeEmbeddingScorer.reset()
       recommendationCoordinator.refresh()
     }
   }
