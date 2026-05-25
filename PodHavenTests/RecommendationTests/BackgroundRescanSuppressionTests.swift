@@ -384,10 +384,28 @@ class BackgroundRescanSuppressionTests {
     // Without the fix, the body publishes the stale top set.
     fakeRepo.releaseEmbeddingsGate()
 
-    await RecommendationScoringTestHelpers.drainRecommendationSleeper(by: .seconds(2))
+    // Wait up to ~2s of real time for a publish to land. Under the bug the
+    // resumed body completes its scoring math and publishes within a few ms;
+    // under the fix the cancelled body returns through its catch and never
+    // touches `setTopRecommendations`, so this wait times out. Sleeping on a
+    // fixed delay would race the .utility body against the test's polling
+    // priority — Wait.until polls at .background, ceding execution to the
+    // body whenever it has work to do.
+    let observedPublishWhileBackgrounded: Bool
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        delay: .milliseconds(20),
+        { !sharedState.topRecommendations.isEmpty },
+        { "" }
+      )
+      observedPublishWhileBackgrounded = true
+    } catch TestError.waitUntilFailure {
+      observedPublishWhileBackgrounded = false
+    }
 
     #expect(
-      sharedState.topRecommendations.isEmpty,
+      !observedPublishWhileBackgrounded,
       """
       regression: an in-flight recommendations rebuild published after the \
       app backgrounded (\(sharedState.topRecommendations)). The background \
@@ -403,6 +421,84 @@ class BackgroundRescanSuppressionTests {
       {
         "Expected the deferred rebuild to publish topRecommendations on foreground."
       }
+    )
+  }
+
+  // Sibling of the recommendations cancel test, pinning the second
+  // load-bearing line in `handleScenePhaseChange(.background)`:
+  // `cacheDebounce.cancel()`. The cache rebuild body, once past the debounce
+  // sleep, computes a fresh ScoringContext and then writes `cache(context)` +
+  // bumps `scoringRevision`. We suspend the body inside `allScoringContextInputs`
+  // via the FakeRecommendationRepo gate, background, then release and confirm
+  // `scoringRevision` does not bump — i.e., the cancelled body exited through
+  // its catch before the cache write.
+  @Test(
+    "an in-flight cache rebuild cancelled at .background does not bump scoringRevision"
+  )
+  func inFlightCacheRebuildCancelledAtBackgroundDoesNotBumpRevision() async throws {
+    let engine = self.engine
+    let fakeRepo = self.fakeRecommendationRepo
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals)
+    let (_, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Candidate"
+    )
+    try await RecommendationHelpers.embedEpisodes(candidates)
+
+    // Arm before start() so the engine's initial cache rebuild — kicked off
+    // by the `scoringContextInputs` observation's bootstrap emission — is
+    // the one we intercept.
+    fakeRepo.armScoringContextInputsGate()
+    engine.start()
+
+    try await RecommendationHelpers.untilAdvancing(
+      { fakeRepo.isScoringContextInputsGateSuspended },
+      {
+        """
+        Expected the cache rebuild to suspend on the gated \
+        allScoringContextInputs read.
+        """
+      }
+    )
+
+    let revBeforeBackground = engine.scoringRevision
+
+    // Background while the body is parked inside allScoringContextInputs.
+    // The fix's `cacheDebounce.cancel()` flips the suspended task's flag.
+    engine.handleScenePhaseChange(to: .background)
+
+    // Release. Under the fix the resumed body hits `try Task.checkCancellation()`
+    // before `cache(context)` and exits through its catch — no cache write,
+    // no `$scoringRevision.update`. Without the fix the body publishes both.
+    fakeRepo.releaseScoringContextInputsGate()
+
+    let observedRevisionBump: Bool
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        delay: .milliseconds(20),
+        { engine.scoringRevision != revBeforeBackground },
+        { "" }
+      )
+      observedRevisionBump = true
+    } catch TestError.waitUntilFailure {
+      observedRevisionBump = false
+    }
+
+    #expect(
+      !observedRevisionBump,
+      """
+      regression: an in-flight cache rebuild bumped scoringRevision after the \
+      app backgrounded (\(revBeforeBackground) -> \(engine.scoringRevision)). \
+      The background handler must cancel the in-flight cache debounce task so \
+      the cache write and revision bump never land.
+      """
     )
   }
 }
