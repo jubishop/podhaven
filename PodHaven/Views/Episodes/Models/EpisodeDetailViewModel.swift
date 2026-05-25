@@ -492,10 +492,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
   }
 
-  // Start the revision observation before the bootstrap refresh so a revision
-  // emitted during the initial fetch is queued, not dropped. `refresh()` is
-  // snapshot-gated, so the call is a no-op when a kind-changing `transition()`
-  // already kicked an identical-snapshot pass.
   private func startRecommendationObservation() {
     recommendationCoordinator.startObservations()
     recommendationCoordinator.refresh()
