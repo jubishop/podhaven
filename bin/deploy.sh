@@ -4,10 +4,11 @@ set -euo pipefail
 # deploy.sh — Archive and upload PodHaven to TestFlight.
 #
 # Usage:
-#   ./Tools/deploy.sh                       # Uses Xcode-session Apple ID
-#   ./Tools/deploy.sh --api-key <path> \    # Uses App Store Connect API key
+#   ./bin/deploy.sh                         # Uses Xcode-session Apple ID
+#   ./bin/deploy.sh --api-key <path> \      # Uses App Store Connect API key
 #     --api-key-id <id> \
 #     --api-issuer-id <issuer>
+#   ASC_KEY_PATH=<path> ASC_KEY_ID=<id> ASC_ISSUER_ID=<issuer> ./bin/deploy.sh
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -27,7 +28,9 @@ if [[ -z "$SIM_DESTINATION" ]]; then
 fi
 
 # Parse arguments
-AUTH_FLAGS=()
+API_KEY_PATH="${ASC_KEY_PATH:-}"
+API_KEY_ID="${ASC_KEY_ID:-}"
+API_ISSUER_ID="${ASC_ISSUER_ID:-}"
 FORCE=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -36,15 +39,15 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --api-key)
-      AUTH_FLAGS+=(-authenticationKeyPath "$2")
+      API_KEY_PATH="$2"
       shift 2
       ;;
     --api-key-id)
-      AUTH_FLAGS+=(-authenticationKeyID "$2")
+      API_KEY_ID="$2"
       shift 2
       ;;
     --api-issuer-id)
-      AUTH_FLAGS+=(-authenticationKeyIssuerID "$2")
+      API_ISSUER_ID="$2"
       shift 2
       ;;
     *)
@@ -53,6 +56,31 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+AUTH_FLAGS=()
+auth_value_count=0
+[[ -n "$API_KEY_PATH" ]] && ((auth_value_count += 1))
+[[ -n "$API_KEY_ID" ]] && ((auth_value_count += 1))
+[[ -n "$API_ISSUER_ID" ]] && ((auth_value_count += 1))
+
+if (( auth_value_count > 0 && auth_value_count < 3 )); then
+  echo "error: App Store Connect API auth requires ASC_KEY_PATH, ASC_KEY_ID, and ASC_ISSUER_ID." >&2
+  echo "error: Or pass --api-key, --api-key-id, and --api-issuer-id." >&2
+  exit 1
+fi
+
+if (( auth_value_count == 3 )); then
+  if [[ ! -f "$API_KEY_PATH" ]]; then
+    echo "error: App Store Connect API key not found: $API_KEY_PATH" >&2
+    exit 1
+  fi
+
+  AUTH_FLAGS=(
+    -authenticationKeyPath "$API_KEY_PATH"
+    -authenticationKeyID "$API_KEY_ID"
+    -authenticationKeyIssuerID "$API_ISSUER_ID"
+  )
+fi
 
 # Require xcbeautify for formatted build output
 if ! command -v xcbeautify &>/dev/null; then
