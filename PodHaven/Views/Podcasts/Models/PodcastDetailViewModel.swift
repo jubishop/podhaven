@@ -72,10 +72,12 @@ class PodcastDetailViewModel:
   SortableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
@@ -165,7 +167,7 @@ class PodcastDetailViewModel:
           return lhsDate > rhsDate
         }
       case .recommendationScore:
-        // Scoring is async; `PodcastRecommendationScorer` installs the real
+        // Scoring is async; the recommendation coordinator installs the real
         // comparator once the recommendation scores land.
         return nil
       }
@@ -187,17 +189,13 @@ class PodcastDetailViewModel:
       guard oldValue != currentSortMethod else { return }
       episodeList.filterMethod = currentSortMethod.filterMethod
       if currentSortMethod == .recommendationScore {
-        recommendationScorer.applyRecommendationSort()
+        startRecommendationObservation()
       } else {
         episodeList.sortMethod = currentSortMethod.sortMethod
-        recommendationScorer.clearRecommendationSort()
+        recommendationCoordinator.cancel()
       }
     }
   }
-
-  // MARK: - Recommendations
-
-  private let recommendationScorer = PodcastRecommendationScorer()
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
@@ -238,6 +236,219 @@ class PodcastDetailViewModel:
       startObservation(firstEpisode.podcast.id)
 
       return podcastEpisodes
+    }
+  }
+
+  // MARK: - Recommendations
+
+  @ObservationIgnored
+  private var unsavedEmbeddingCache:
+    (revision: Int, vectors: [MediaGUID: (source: String, vector: [Float])])?
+
+  private struct RecommendationScoringSnapshot: Equatable, Sendable {
+    let scoringRevision: Int
+    let state: State
+    let entries: Set<Entry>
+
+    enum State: Hashable, Sendable {
+      case unsaved(embeddingRevision: Int)
+      case saved(Podcast.ID)
+    }
+
+    enum Entry: Hashable, Sendable {
+      case saved(mediaGUID: MediaGUID, episodeID: Episode.ID, pubDate: Date)
+      case unsaved(mediaGUID: MediaGUID, embeddingSource: String)
+      case unscored(mediaGUID: MediaGUID)
+    }
+  }
+
+  private struct RecommendationPass: Sendable {
+    enum Kind: Sendable { case saved, unsaved }
+
+    let kind: Kind
+    let values: [MediaGUID: Float]
+
+    static func empty(for state: RecommendationScoringSnapshot.State) -> RecommendationPass {
+      switch state {
+      case .saved: return RecommendationPass(kind: .saved, values: [:])
+      case .unsaved: return RecommendationPass(kind: .unsaved, values: [:])
+      }
+    }
+  }
+
+  @ObservationIgnored
+  private lazy var recommendationCoordinator = RecommendationScoringCoordinator<
+    RecommendationScoringSnapshot, RecommendationPass
+  >(
+    makeSnapshot: { [weak self] in
+      guard let self, currentSortMethod == .recommendationScore else { return nil }
+      return currentRecommendationScoringSnapshot()
+    },
+    score: { [weak self] in
+      guard let self, let snapshotState = currentSnapshotState()
+      else { return .cancelled }
+      let entries = episodeList.allEntries
+      do {
+        let (pass, cacheable) = try await computeRecommendationScores(
+          for: snapshotState,
+          entries: entries
+        )
+        return cacheable ? .cacheable(pass) : .uncacheable(pass)
+      } catch is CancellationError {
+        return .cancelled
+      } catch {
+        Self.log.caughtError("recommendation scoring failed", error)
+        return .uncacheable(.empty(for: snapshotState))
+      }
+    },
+    apply: { [weak self] in
+      guard let self else { return }
+      applyRecommendationScores($0)
+    },
+    refreshOnAssetsLoaded: true
+  )
+
+  private func startRecommendationObservation() {
+    recommendationCoordinator.startObservations()
+    recommendationCoordinator.refresh()
+  }
+
+  private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot? {
+    guard let snapshotState = currentSnapshotState() else { return nil }
+    return RecommendationScoringSnapshot(
+      scoringRevision: recommendationEngine.scoringRevision,
+      state: snapshotState,
+      entries: Set(episodeList.allEntries.map(scoringSnapshotEntry))
+    )
+  }
+
+  private func currentSnapshotState() -> RecommendationScoringSnapshot.State? {
+    switch state {
+    case .initial:
+      return nil
+    case .unsaved:
+      return .unsaved(embeddingRevision: contextualEmbedding.revision)
+    case .saved(let series):
+      return .saved(series.id)
+    }
+  }
+
+  private func scoringSnapshotEntry(
+    _ episode: ListedEpisode
+  ) -> RecommendationScoringSnapshot.Entry {
+    if let episodeID = episode.episodeID {
+      return .saved(
+        mediaGUID: episode.mediaGUID,
+        episodeID: episodeID,
+        pubDate: episode.pubDate
+      )
+    }
+    if let unsaved = episode.unsaved {
+      return .unsaved(
+        mediaGUID: episode.mediaGUID,
+        embeddingSource: unsaved.searchableString
+      )
+    }
+    return .unscored(mediaGUID: episode.mediaGUID)
+  }
+
+  private func computeRecommendationScores(
+    for snapshotState: RecommendationScoringSnapshot.State,
+    entries: IdentifiedArrayOf<ListedEpisode>
+  ) async throws -> (RecommendationPass, cacheable: Bool) {
+    guard !entries.isEmpty else { return (.empty(for: snapshotState), true) }
+
+    switch snapshotState {
+    case .saved(let podcastID):
+      let values = try await savedRecommendationScores(podcastID: podcastID, entries: entries)
+      return (RecommendationPass(kind: .saved, values: values), true)
+    case .unsaved:
+      let (values, cacheable) = try await unsavedSimilarityScores(entries: entries)
+      return (RecommendationPass(kind: .unsaved, values: values), cacheable)
+    }
+  }
+
+  private func savedRecommendationScores(
+    podcastID: Podcast.ID,
+    entries: IdentifiedArrayOf<ListedEpisode>
+  ) async throws -> [MediaGUID: Float] {
+    var candidates = [CandidateEpisode](capacity: entries.count)
+    var mediaGUIDByEpisodeID = [Episode.ID: MediaGUID](capacity: entries.count)
+    for episode in entries {
+      guard let episodeID = episode.episodeID else { continue }
+      candidates.append(
+        CandidateEpisode(id: episodeID, podcastID: podcastID, pubDate: episode.pubDate)
+      )
+      mediaGUIDByEpisodeID[episodeID] = episode.mediaGUID
+    }
+    guard !candidates.isEmpty else { return [:] }
+
+    let scoreMap = try await recommendationEngine.recommendations(for: candidates)
+
+    var result = [MediaGUID: Float](capacity: scoreMap.count)
+    for (episodeID, score) in scoreMap {
+      guard let mediaGUID = mediaGUIDByEpisodeID[episodeID] else { continue }
+      result[mediaGUID] = score.value
+    }
+    return result
+  }
+
+  private func unsavedSimilarityScores(
+    entries: IdentifiedArrayOf<ListedEpisode>
+  ) async throws -> ([MediaGUID: Float], cacheable: Bool) {
+    await contextualEmbedding.loadAssetsIfAvailable()
+    guard contextualEmbedding.assetsLoaded.isFinished else { return ([:], false) }
+
+    let revision = contextualEmbedding.revision
+    var cachedVectors: [MediaGUID: (source: String, vector: [Float])]
+    if let cache = unsavedEmbeddingCache, cache.revision == revision {
+      cachedVectors = cache.vectors
+    } else {
+      cachedVectors = [MediaGUID: (source: String, vector: [Float])](capacity: entries.count)
+    }
+
+    var result = [MediaGUID: Float](capacity: entries.count)
+    for episode in entries {
+      try Task.checkCancellation()
+      guard let unsavedPodcastEpisode = episode.unsaved else { continue }
+      let source = unsavedPodcastEpisode.searchableString
+      let vector: [Float]
+      if let cached = cachedVectors[episode.mediaGUID], cached.source == source {
+        vector = cached.vector
+      } else {
+        vector = try await EmbeddingService.embeddingVector(
+          for: unsavedPodcastEpisode,
+          embedding: contextualEmbedding
+        )
+        cachedVectors[episode.mediaGUID] = (source: source, vector: vector)
+      }
+      if let similarity = recommendationEngine.similarityScore(forEmbedding: vector) {
+        result[episode.mediaGUID] = similarity
+      }
+    }
+
+    unsavedEmbeddingCache = (revision: revision, vectors: cachedVectors)
+    return (result, true)
+  }
+
+  private func applyRecommendationScores(_ pass: RecommendationPass) {
+    let values = pass.values
+    switch pass.kind {
+    case .saved:
+      episodeList.filterMethod = { values[$0.mediaGUID] != nil }
+    case .unsaved:
+      episodeList.filterMethod = currentSortMethod.filterMethod
+    }
+    episodeList.sortMethod = { lhs, rhs in
+      let lhsScore = values[lhs.mediaGUID] ?? 0
+      let rhsScore = values[rhs.mediaGUID] ?? 0
+      if lhsScore != rhsScore { return lhsScore > rhsScore }
+      if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
+      if lhs.mediaGUID.guid != rhs.mediaGUID.guid {
+        return lhs.mediaGUID.guid > rhs.mediaGUID.guid
+      }
+      return lhs.mediaGUID.mediaURL.rawValue.absoluteString
+        > rhs.mediaGUID.mediaURL.rawValue.absoluteString
     }
   }
 
@@ -299,7 +510,6 @@ class PodcastDetailViewModel:
 
   private init(state: PodcastDetailState) {
     self.state = state
-    recommendationScorer.host = self
     episodeList.sortMethod = currentSortMethod.sortMethod
     refreshEpisodeList(from: state)
     startObservation(state.savedSeries?.id)
@@ -347,7 +557,7 @@ class PodcastDetailViewModel:
 
   func performAppear() async throws {
     if currentSortMethod == .recommendationScore {
-      recommendationScorer.applyRecommendationSort()
+      startRecommendationObservation()
     }
 
     if try await attemptObservation() { return }
@@ -572,7 +782,7 @@ class PodcastDetailViewModel:
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()
-    recommendationScorer.disappear()
+    recommendationCoordinator.cancel()
   }
 
   // MARK: - Private Helpers
@@ -583,7 +793,7 @@ class PodcastDetailViewModel:
     state = newState
     refreshEpisodeList(from: newState)
     startObservation(newState.savedSeries?.id)
-    recommendationScorer.stateDidChange()
+    recommendationCoordinator.refresh()
   }
 
   private func refreshEpisodeList(from state: PodcastDetailState) {
