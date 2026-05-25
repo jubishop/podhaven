@@ -16,9 +16,7 @@ struct DebounceTests {
   // Without generation tracking on `state.task`, the outer task's defer
   // clears the storage and clobbers the inner schedule's entry — the inner
   // task's Task reference still fires, but cancel() can no longer reach it.
-  @Test(
-    "a recursive callAsFunction from within the action body survives the outer task's completion defer"
-  )
+  @Test("a recursive schedule survives the outer task's defer")
   func recursiveScheduleSurvivesOuterTaskCompletionDefer() async throws {
     let debounce = Debounce(duration: .milliseconds(500))
     let aFired = ThreadSafe<Bool>(false)

@@ -108,6 +108,8 @@ import Testing
     )
   }
 
+  // `duration` must exceed RecommendationEngine's debounce window so each round
+  // fires whatever rebuild is currently armed.
   static func drainRecommendationSleeper(
     by duration: Duration = .seconds(6),
     maxRounds: Int = 20

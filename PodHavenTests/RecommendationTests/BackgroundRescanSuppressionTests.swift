@@ -12,6 +12,7 @@ import Testing
 class BackgroundRescanSuppressionTests {
   @DynamicInjected(\.recommendationEngine) private var engine
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
+  @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.sleeper) private var sleeper
 
   private var fakeSleeper: FakeSleeper {
@@ -319,6 +320,89 @@ class BackgroundRescanSuppressionTests {
     #expect(
       cacheRebuildCount == 1,
       "Expected two triggers 2s apart to coalesce to one rebuild, got \(cacheRebuildCount)."
+    )
+  }
+
+  // Pins the load-bearing half of the cpu_resource_fatal fix: a rebuild that
+  // is already executing past the debounce sleep — i.e., burning CPU in
+  // `scoreEpisodes` / fetching embeddings — must be cancelled when the app
+  // backgrounds, and its publish must be skipped. The earlier mid-debounce
+  // test only cancels work that is still sleeping; this one suspends the body
+  // mid-`embeddings(for:)` via the FakeRecommendationRepo gate so the cancel
+  // path is exercised on a task that has actually started running.
+  @Test(
+    "an in-flight recommendations rebuild cancelled at .background does not publish"
+  )
+  func inFlightRecommendationsRebuildCancelledAtBackgroundDoesNotPublish() async throws {
+    let engine = self.engine
+    let fakeRepo = self.fakeRecommendationRepo
+    let sharedState = self.sharedState
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals)
+    let (_, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Candidate"
+    )
+    try await RecommendationHelpers.embedEpisodes(candidates)
+    let candidateIDs = Set(candidates.map(\.id))
+
+    // Arm before start() so the engine's first recommendations rebuild — the
+    // one that would otherwise publish the initial non-empty topRecommendations
+    // — is the one we intercept. That keeps the publish-or-not assertion
+    // observable: `sharedState.topRecommendations` stays `[]` iff the cancel
+    // suppressed the publish.
+    fakeRepo.armEmbeddingsGate(matching: candidateIDs)
+    engine.start()
+
+    // Drive the cache + recommendations debounces until the body suspends on
+    // the gated embeddings(for:) call.
+    try await RecommendationHelpers.untilAdvancing(
+      { fakeRepo.isEmbeddingsGateSuspended },
+      {
+        "Expected the recommendations rebuild to suspend on the gated embeddings read."
+      }
+    )
+
+    #expect(
+      sharedState.topRecommendations.isEmpty,
+      "Test premise: nothing should have been published yet (body is suspended)."
+    )
+
+    // Background while the body is parked inside embeddings(for:). The fix's
+    // `recommendationsDebounce.cancel()` flips the suspended task's
+    // cancellation flag.
+    engine.handleScenePhaseChange(to: .background)
+
+    // Release the gate. Under the fix, the resumed body hits
+    // `try Task.checkCancellation()` (in `scoreEpisodes` and again before
+    // `sharedState.setTopRecommendations`) and exits through its catch.
+    // Without the fix, the body publishes the stale top set.
+    fakeRepo.releaseEmbeddingsGate()
+
+    await RecommendationScoringTestHelpers.drainRecommendationSleeper(by: .seconds(2))
+
+    #expect(
+      sharedState.topRecommendations.isEmpty,
+      """
+      regression: an in-flight recommendations rebuild published after the \
+      app backgrounded (\(sharedState.topRecommendations)). The background \
+      handler must cancel the in-flight debounce task so the publish never \
+      lands.
+      """
+    )
+
+    // Foreground re-arms exactly one coalesced rescan via RescanGate.
+    engine.handleScenePhaseChange(to: .active)
+    try await RecommendationHelpers.untilAdvancing(
+      { !sharedState.topRecommendations.isEmpty },
+      {
+        "Expected the deferred rebuild to publish topRecommendations on foreground."
+      }
     )
   }
 }
