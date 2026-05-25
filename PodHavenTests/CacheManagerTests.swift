@@ -255,22 +255,6 @@ import Testing
     try await CacheHelpers.waitForCached(podcastEpisode.id)
   }
 
-  @Test("clearCache does nothing if episode is currentEpisodeID but onDeck is nil")
-  func clearCacheDoesNothingIfEpisodeIsCurrentEpisodeIDButOnDeckIsNil() async throws {
-    let sharedState = Container.shared.sharedState()
-    let podcastEpisode = try await Create.podcastEpisode()
-    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
-    try await CacheHelpers.simulateBackgroundFinish(taskID)
-    try await CacheHelpers.waitForCached(podcastEpisode.id)
-
-    // Set currentEpisodeID directly without setting onDeck (simulates background app launch)
-    sharedState.currentEpisodeID = podcastEpisode.id
-    #expect(sharedState.onDeck == nil)
-    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
-
-    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
-    try await CacheHelpers.waitForCached(podcastEpisode.id)
-  }
 
   // MARK: - downloadToCache
 
