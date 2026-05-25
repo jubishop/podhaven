@@ -53,20 +53,6 @@ enum EpisodeDetailState: Equatable, Sendable, Stringable {
     case .saved(let podcastEpisode): return "saved(\(podcastEpisode.toString))"
     }
   }
-
-  enum Kind: Sendable {
-    case initial
-    case unsaved
-    case saved
-  }
-
-  var kind: Kind {
-    switch self {
-    case .initial: .initial
-    case .unsaved: .unsaved
-    case .saved: .saved
-    }
-  }
 }
 
 enum EpisodeDetailDisplayedScore: Sendable {
@@ -556,12 +542,9 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   private func transition(to newState: EpisodeDetailState) {
     guard newState != state else { return }
-    let recommendationKindChanged = state.kind != newState.kind
     logStateTransition(to: newState)
     state = newState
-    if recommendationKindChanged {
-      recommendationCoordinator.refresh()
-    }
+    recommendationCoordinator.refresh()
   }
 
   private func loadAndPlay(_ podcastEpisode: PodcastEpisode, seekTo seconds: Int) async throws {
