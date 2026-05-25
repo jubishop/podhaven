@@ -27,25 +27,52 @@ struct DebounceTests {
       debounce { bFired(true) }
     }
 
+    // Outer task parks on its 500ms sleep.
     try await fakeSleeper.waitForSleepRequests(count: 1)
+
+    // Fire the outer's sleep. The continuation resumes asynchronously, so the
+    // outer body may not have run yet when this returns.
     await fakeSleeper.advanceTime(by: .milliseconds(500))
-    let pendingAfterOuterFires = fakeSleeper.pendingCount()
-    for _ in 0..<10 { await Task.yield() }
 
-    #expect(aFired() == true)
+    // Synchronize on aFired before probing further state — guarantees the
+    // outer body finished `aFired(true)` and ran `debounce { bFired(true) }`
+    // without depending on a fixed yield budget (which can starve under
+    // parallel-suite load).
+    try await Wait.until(
+      { aFired() == true },
+      { "Expected the outer action to set aFired." }
+    )
 
-    // Wait for the inner's sleep to register before probing state; otherwise
-    // the next advance fires before the inner task parks on the sleeper.
-    try await fakeSleeper.waitForSleepRequests(count: pendingAfterOuterFires + 1)
+    // The outer body's recursive schedule queued an inner task; wait for it
+    // to register its 500ms sleep before cancelling.
+    try await fakeSleeper.waitForSleepRequests(count: 1)
 
     // cancel() must reach the inner task. Under the bug, state.task was
     // cleared by outer's defer and cancel() would return false.
     #expect(debounce.cancel() == true)
 
+    // Fire the (now-cancelled) inner sleep so the inner task gets to evaluate
+    // its `guard !Task.isCancelled` early-out.
     await fakeSleeper.advanceTime(by: .milliseconds(500))
-    for _ in 0..<10 { await Task.yield() }
 
-    #expect(bFired() == false)
+    // Under the fix the cancelled inner task returns through its guard
+    // without running action(); bFired stays false. Under the bug the inner
+    // task is unreachable from cancel() and its action fires, flipping
+    // bFired. Bound the wait so the bug has a chance to manifest before we
+    // declare the test green.
+    let bRan: Bool
+    do {
+      try await Wait.until(
+        maxAttempts: 50,
+        delay: .milliseconds(20),
+        { bFired() == true },
+        { "" }
+      )
+      bRan = true
+    } catch TestError.waitUntilFailure {
+      bRan = false
+    }
+    #expect(bRan == false, "Inner action should not have run after cancel().")
   }
 
   // Without storing the task in the same critical section as the gen bump, a
