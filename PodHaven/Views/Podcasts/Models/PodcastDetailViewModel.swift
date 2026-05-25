@@ -262,9 +262,18 @@ class PodcastDetailViewModel:
     }
   }
 
-  private enum RecommendationPass: Sendable {
-    case saved([MediaGUID: Float])
-    case unsaved([MediaGUID: Float])
+  private struct RecommendationPass: Sendable {
+    enum Kind: Sendable { case saved, unsaved }
+
+    let kind: Kind
+    let values: [MediaGUID: Float]
+
+    static func empty(for state: RecommendationScoringSnapshot.State) -> RecommendationPass {
+      switch state {
+      case .saved: return RecommendationPass(kind: .saved, values: [:])
+      case .unsaved: return RecommendationPass(kind: .unsaved, values: [:])
+      }
+    }
   }
 
   @ObservationIgnored
@@ -289,10 +298,7 @@ class PodcastDetailViewModel:
         return .cancelled
       } catch {
         Self.log.caughtError("recommendation scoring failed", error)
-        switch snapshotState {
-        case .saved: return .uncacheable(.saved([:]))
-        case .unsaved: return .uncacheable(.unsaved([:]))
-        }
+        return .uncacheable(.empty(for: snapshotState))
       }
     },
     apply: { [weak self] in
@@ -350,15 +356,15 @@ class PodcastDetailViewModel:
     for snapshotState: RecommendationScoringSnapshot.State,
     entries: IdentifiedArrayOf<ListedEpisode>
   ) async throws -> (RecommendationPass, cacheable: Bool) {
+    guard !entries.isEmpty else { return (.empty(for: snapshotState), true) }
+
     switch snapshotState {
     case .saved(let podcastID):
-      guard !entries.isEmpty else { return (.saved([:]), true) }
       let values = try await savedRecommendationScores(podcastID: podcastID, entries: entries)
-      return (.saved(values), true)
+      return (RecommendationPass(kind: .saved, values: values), true)
     case .unsaved:
-      guard !entries.isEmpty else { return (.unsaved([:]), true) }
       let (values, cacheable) = try await unsavedSimilarityScores(entries: entries)
-      return (.unsaved(values), cacheable)
+      return (RecommendationPass(kind: .unsaved, values: values), cacheable)
     }
   }
 
@@ -426,13 +432,11 @@ class PodcastDetailViewModel:
   }
 
   private func applyRecommendationScores(_ pass: RecommendationPass) {
-    let values: [MediaGUID: Float]
-    switch pass {
-    case .saved(let scoreMap):
-      values = scoreMap
-      episodeList.filterMethod = { scoreMap[$0.mediaGUID] != nil }
-    case .unsaved(let scoreMap):
-      values = scoreMap
+    let values = pass.values
+    switch pass.kind {
+    case .saved:
+      episodeList.filterMethod = { values[$0.mediaGUID] != nil }
+    case .unsaved:
       episodeList.filterMethod = currentSortMethod.filterMethod
     }
     episodeList.sortMethod = { lhs, rhs in
