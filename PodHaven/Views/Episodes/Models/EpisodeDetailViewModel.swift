@@ -447,10 +447,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
       guard let self else { return nil }
       return currentRecommendationScoringSnapshot()
     },
-    // Assets-not-yet-loaded and caught errors both return `.uncacheable(nil)`
-    // so the next refresh re-attempts instead of replaying a cached nil. The
-    // helper classifies cacheability at its observation point so a latch that
-    // finishes between helper return and the closure can't flip the policy.
     score: { [weak self] in
       guard let self else { return .cacheable(nil) }
       do {
@@ -530,8 +526,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     _ unsavedPodcastEpisode: UnsavedPodcastEpisode
   ) async throws -> (EpisodeDetailDisplayedScore?, cacheable: Bool) {
     await contextualEmbedding.loadAssetsIfAvailable()
-    // Classify cacheability at the same point we observe asset state so a
-    // latch that finishes after this guard can't flip the closure's decision.
     guard contextualEmbedding.assetsLoaded.isFinished else { return (nil, false) }
 
     let revision = contextualEmbedding.revision
