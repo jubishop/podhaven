@@ -337,4 +337,18 @@ import Testing
     savedEpisode = try await Container.shared.repo().episode(podcastEpisode.id)
     #expect(savedEpisode?.currentTime == .seconds(1))
   }
+
+  @Test("stop nils currentEpisodeID alongside onDeck")
+  func stopNilsCurrentEpisodeIDAlongsideOnDeck() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+
+    await playManager.stop()
+    try await PlayHelpers.waitForOnDeck(nil)
+
+    #expect(sharedState.currentEpisodeID == nil)
+  }
 }

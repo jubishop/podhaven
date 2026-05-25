@@ -18,15 +18,14 @@ struct SharedState: Sendable {
 
   // MARK: - Persisted State
 
-  @PersistedThreadSafe("currentEpisodeID") var currentEpisodeID: Episode.ID? = nil
+  // Only StateManager should write this.
+  @PersistedBroadcast("currentEpisodeID") var currentEpisodeID: Episode.ID? = nil
 
   // MARK: - In-Memory State (Observable Broadcasts)
 
   @Broadcasted var downloadProgress: [Episode.ID: Double] = [:]
   @Broadcasted var scenePhase: ScenePhase = .active
-  // OnDeck.== ignores the in-memory playback fields (currentTime,
-  // maxPlaybackTime, artwork) that StateManager mutates, so default Equatable
-  // dedup would swallow those updates — notify on every write instead.
+  // Only StateManager should write this.
   @Broadcasted(duplicates: .notifyAlways) var onDeck: OnDeck? = nil
   @Broadcasted var playbackStatus: PlaybackStatus = .stopped
   @Broadcasted var playRate: Float = 1.0

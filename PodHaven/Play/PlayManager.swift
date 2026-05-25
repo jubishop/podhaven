@@ -392,11 +392,11 @@ final class PlayManager {
   // Returns the first pool entry that's still candidate-eligible. The pool
   // is published as IDs only, so anything that's been queued / rated /
   // finished / started since the last engine rebuild has to be filtered out
-  // here. OnDeck is excluded too — autoplay must pick the *next* episode.
+  // here. The current episode is excluded too — autoplay must pick the *next*.
   private func nextAutoplayRecommendation() async throws -> PodcastEpisode? {
     guard userSettings.autoPlayTopRecommendationWhenQueueEmpty else { return nil }
-    let onDeckID = sharedState.onDeck?.id
-    for episodeID in sharedState.recommendedEpisodePool where episodeID != onDeckID {
+    let currentEpisodeID = sharedState.currentEpisodeID
+    for episodeID in sharedState.recommendedEpisodePool where episodeID != currentEpisodeID {
       guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
         Self.log.warning(
           "nextAutoplayRecommendation: ranked episode \(episodeID) not found in database, skipping"

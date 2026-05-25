@@ -426,18 +426,13 @@ struct RecommendationEngine: Sendable {
       }
     }
 
-    // partial-listen bitmaps and lastPlayedDate are excluded from the GRDB
-    // observation's tracked region, so onDeck transitions are how the engine
-    // learns about completed listens. `dropFirst()` skips the bootstrap emit;
-    // the observation above already covered the initial DB state.
+    // Partial-listen bitmaps and lastPlayedDate are excluded from the GRDB
+    // observation's tracked region, so switching episode is how the engine
+    // learns about completed listens.
     Task(priority: taskPriority(.utility)) {
       let sharedState = Container.shared.sharedState()
-      var lastID: Episode.ID? = sharedState.onDeck?.id
-      for await onDeck in sharedState.$onDeck.stream().dropFirst() {
+      for await _ in sharedState.$currentEpisodeID.stream().dropFirst() {
         guard !Task.isCancelled else { return }
-        let currentID = onDeck?.id
-        guard currentID != lastID else { continue }
-        lastID = currentID
         scheduleCacheRebuild()
       }
     }

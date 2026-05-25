@@ -14,6 +14,7 @@ import Testing
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.stateManager) private var stateManager
 
   @Test("recommended row hydration refreshes when cachedFilename updates")
   func recommendedHydrationRefreshesOnCacheChange() async throws {
@@ -592,10 +593,10 @@ import Testing
     )
   }
 
-  // Regression for #338: the currently-playing onDeck episode must not appear
+  // Regression for #338: the currently-playing episode must not appear
   // in the recommended row, even if it's still in the published pool.
-  @Test("recommended row drops the onDeck episode instantly")
-  func recommendedDropsOnDeckEpisodeInstantly() async throws {
+  @Test("recommended row drops the current episode instantly")
+  func recommendedDropsCurrentEpisodeInstantly() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
@@ -620,12 +621,12 @@ import Testing
     )
 
     let aPodcastEpisode = try #require(try await repo.podcastEpisode(a.id))
-    sharedState.$onDeck.new(OnDeck(from: aPodcastEpisode))
+    stateManager.setOnDeck(aPodcastEpisode)
 
     try await Wait.until(
       { @MainActor in viewModel.recommendedEpisodes.map(\.id) == [b.id] },
       { @MainActor in
-        "Expected only [b] after onDeck = a, got \(viewModel.recommendedEpisodes.map(\.id))"
+        "Expected only [b] after current episode = a, got \(viewModel.recommendedEpisodes.map(\.id))"
       }
     )
   }

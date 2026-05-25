@@ -201,12 +201,8 @@ import SwiftUI
   }
 
   private func observeOnDeckForRecommendations() async {
-    var lastID: Episode.ID? = sharedState.onDeck?.id
-    for await onDeck in sharedState.$onDeck.stream() {
+    for await _ in sharedState.$currentEpisodeID.stream() {
       guard !Task.isCancelled else { return }
-      let currentID = onDeck?.id
-      guard currentID != lastID else { continue }
-      lastID = currentID
       rebuildRecommendedEpisodes()
     }
   }
@@ -220,12 +216,12 @@ import SwiftUI
 
   private func rebuildRecommendedEpisodes() {
     let limit = userSettings.maxRecommendedEpisodesInUpNext
-    let onDeckID = sharedState.onDeck?.id
+    let currentEpisodeID = sharedState.currentEpisodeID
     var ordered: [ListablePodcastEpisode] = []
     ordered.reserveCapacity(min(limit, recommendedPoolOrder.count))
     for id in recommendedPoolOrder {
       if ordered.count >= limit { break }
-      if id == onDeckID { continue }
+      if id == currentEpisodeID { continue }
       guard let listable = hydratedRecommendedListables[id] else { continue }
       ordered.append(listable)
     }
