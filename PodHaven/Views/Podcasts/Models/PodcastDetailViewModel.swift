@@ -289,12 +289,12 @@ class PodcastDetailViewModel:
       return currentRecommendationScoringSnapshot()
     },
     score: { [weak self] in
-      guard let self, let snapshot = currentRecommendationScoringSnapshot()
+      guard let self, let snapshotState = currentSnapshotState()
       else { return .cancelled }
       let entries = episodeList.allEntries
       do {
         let (pass, cacheable) = try await computeRecommendationScores(
-          for: snapshot.state,
+          for: snapshotState,
           entries: entries
         )
         return cacheable ? .cacheable(pass) : .uncacheable(pass)
@@ -302,7 +302,7 @@ class PodcastDetailViewModel:
         return .cancelled
       } catch {
         Self.log.caughtError("recommendation scoring failed", error)
-        return .uncacheable(.empty(for: snapshot.state))
+        return .uncacheable(.empty(for: snapshotState))
       }
     },
     apply: { [weak self] in
@@ -318,20 +318,23 @@ class PodcastDetailViewModel:
   }
 
   private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot? {
-    let snapshotState: RecommendationScoringSnapshot.State
-    switch state {
-    case .initial:
-      return nil
-    case .unsaved:
-      snapshotState = .unsaved(embeddingRevision: contextualEmbedding.revision)
-    case .saved(let series):
-      snapshotState = .saved(series.id)
-    }
+    guard let snapshotState = currentSnapshotState() else { return nil }
     return RecommendationScoringSnapshot(
       scoringRevision: recommendationEngine.scoringRevision,
       state: snapshotState,
       entries: Set(episodeList.allEntries.map(scoringSnapshotEntry))
     )
+  }
+
+  private func currentSnapshotState() -> RecommendationScoringSnapshot.State? {
+    switch state {
+    case .initial:
+      return nil
+    case .unsaved:
+      return .unsaved(embeddingRevision: contextualEmbedding.revision)
+    case .saved(let series):
+      return .saved(series.id)
+    }
   }
 
   private func scoringSnapshotEntry(
