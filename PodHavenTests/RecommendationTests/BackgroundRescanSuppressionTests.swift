@@ -11,10 +11,16 @@ import Testing
 @Suite("RecommendationEngine background rescan suppression tests", .container)
 class BackgroundRescanSuppressionTests {
   @DynamicInjected(\.recommendationEngine) private var engine
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
+  @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.sleeper) private var sleeper
 
   private var fakeSleeper: FakeSleeper {
     sleeper as! FakeSleeper
+  }
+
+  private var fakeRecommendationRepo: FakeRecommendationRepo {
+    recommendationRepo as! FakeRecommendationRepo
   }
 
   // A backgrounded audio session has a tight CPU/memory budget, so a rescan
@@ -108,8 +114,9 @@ class BackgroundRescanSuppressionTests {
   }
 
   // A debounce armed while active can still wake after the app backgrounded
-  // during the 400ms debounce window. The debounced closure must re-check the
-  // gate; otherwise it runs the full rebuild while backgrounded.
+  // during the debounce window. The background handler cancels the in-flight
+  // debounce and re-queues the rescan via RescanGate; the debounced closure's
+  // own gate re-check is the fallback for tasks that race past the cancel.
   @Test("a rebuild armed before background and firing mid-debounce is short-circuited")
   func midDebounceBackgroundDefersUntilForeground() async throws {
     let engine = self.engine
@@ -254,5 +261,244 @@ class BackgroundRescanSuppressionTests {
         """
       )
     }
+  }
+
+  // Setting flips are used as the trigger because GRDB ValueObservation can
+  // coalesce two near-simultaneous DB writes into a single emission.
+  @Test(
+    "two cache-rebuild triggers within the debounce window coalesce to a single rebuild"
+  )
+  func twoCacheRebuildTriggersWithinDebounceCoalesce() async throws {
+    let fakeSleeper = self.fakeSleeper
+    let fakeRepo = self.fakeRecommendationRepo
+
+    let userSettings = Container.shared.userSettings()
+    userSettings.$recommendationDeconeMode.new(.focused)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals)
+    let (_, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Candidate"
+    )
+    try await RecommendationHelpers.embedEpisodes(candidates)
+
+    _ = try await RecommendationHelpers.startAndWaitForRecs()
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    fakeRepo.clearAllCalls()
+    let pendingAtStart = fakeSleeper.pendingCount()
+
+    // Trigger 1: flip decone mode. The `$recommendationDeconeMode` observation
+    // fires `scheduleCacheRebuild`, which arms `cacheDebounce`.
+    userSettings.$recommendationDeconeMode.new(.exploratory)
+    try await fakeSleeper.waitForSleepRequests(count: pendingAtStart + 1)
+
+    // Advance 2 s — well past the legacy 400 ms debounce (which would have
+    // fired and started a full pass) and well below the current 5 s debounce
+    // (which must still be sleeping).
+    await fakeSleeper.advanceTime(by: .seconds(2))
+    for _ in 0..<5 { await Task.yield() }
+
+    // Trigger 2: flip decone mode again, within the debounce window.
+    let pendingBeforeTrigger2 = fakeSleeper.pendingCount()
+    userSettings.$recommendationDeconeMode.new(.focused)
+    try await fakeSleeper.waitForSleepRequests(count: pendingBeforeTrigger2 + 1)
+
+    // Drain everything so any debounce that was going to fire has fired and
+    // any work it kicked off has completed.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+
+    let cacheRebuildCount = fakeRepo.allCallsInOrder
+      .filter { $0.methodName == "allScoringContextInputs" }
+      .count
+
+    #expect(
+      cacheRebuildCount == 1,
+      "Expected two triggers 2s apart to coalesce to one rebuild, got \(cacheRebuildCount)."
+    )
+  }
+
+  // Pins the load-bearing half of the cpu_resource_fatal fix: a rebuild that
+  // is already executing past the debounce sleep — i.e., burning CPU in
+  // `scoreEpisodes` / fetching embeddings — must be cancelled when the app
+  // backgrounds, and its publish must be skipped. The earlier mid-debounce
+  // test only cancels work that is still sleeping; this one suspends the body
+  // mid-`embeddings(for:)` via the FakeRecommendationRepo gate so the cancel
+  // path is exercised on a task that has actually started running.
+  @Test(
+    "an in-flight recommendations rebuild cancelled at .background does not publish"
+  )
+  func inFlightRecommendationsRebuildCancelledAtBackgroundDoesNotPublish() async throws {
+    let engine = self.engine
+    let fakeRepo = self.fakeRecommendationRepo
+    let sharedState = self.sharedState
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals)
+    let (_, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Candidate"
+    )
+    try await RecommendationHelpers.embedEpisodes(candidates)
+    let candidateIDs = Set(candidates.map(\.id))
+
+    // Arm before start() so the engine's first recommendations rebuild — the
+    // one that would otherwise publish the initial non-empty topRecommendations
+    // — is the one we intercept. That keeps the publish-or-not assertion
+    // observable: `sharedState.topRecommendations` stays `[]` iff the cancel
+    // suppressed the publish.
+    fakeRepo.armEmbeddingsGate(matching: candidateIDs)
+    engine.start()
+
+    // Drive the cache + recommendations debounces until the body suspends on
+    // the gated embeddings(for:) call.
+    try await RecommendationHelpers.untilAdvancing(
+      { fakeRepo.isEmbeddingsGateSuspended },
+      {
+        "Expected the recommendations rebuild to suspend on the gated embeddings read."
+      }
+    )
+
+    #expect(
+      sharedState.topRecommendations.isEmpty,
+      "Test premise: nothing should have been published yet (body is suspended)."
+    )
+
+    // Background while the body is parked inside embeddings(for:). The fix's
+    // `recommendationsDebounce.cancel()` flips the suspended task's
+    // cancellation flag.
+    engine.handleScenePhaseChange(to: .background)
+
+    // Release the gate. Under the fix, the resumed body hits
+    // `try Task.checkCancellation()` (in `scoreEpisodes` and again before
+    // `sharedState.setTopRecommendations`) and exits through its catch.
+    // Without the fix, the body publishes the stale top set.
+    fakeRepo.releaseEmbeddingsGate()
+
+    // Wait up to ~2s of real time for a publish to land. Under the bug the
+    // resumed body completes its scoring math and publishes within a few ms;
+    // under the fix the cancelled body returns through its catch and never
+    // touches `setTopRecommendations`, so this wait times out. Sleeping on a
+    // fixed delay would race the .utility body against the test's polling
+    // priority — Wait.until polls at .background, ceding execution to the
+    // body whenever it has work to do.
+    let observedPublishWhileBackgrounded: Bool
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        delay: .milliseconds(20),
+        { !sharedState.topRecommendations.isEmpty },
+        { "" }
+      )
+      observedPublishWhileBackgrounded = true
+    } catch TestError.waitUntilFailure {
+      observedPublishWhileBackgrounded = false
+    }
+
+    #expect(
+      !observedPublishWhileBackgrounded,
+      """
+      regression: an in-flight recommendations rebuild published after the \
+      app backgrounded (\(sharedState.topRecommendations)). The background \
+      handler must cancel the in-flight debounce task so the publish never \
+      lands.
+      """
+    )
+
+    // Foreground re-arms exactly one coalesced rescan via RescanGate.
+    engine.handleScenePhaseChange(to: .active)
+    try await RecommendationHelpers.untilAdvancing(
+      { !sharedState.topRecommendations.isEmpty },
+      {
+        "Expected the deferred rebuild to publish topRecommendations on foreground."
+      }
+    )
+  }
+
+  // Sibling of the recommendations cancel test, pinning the second
+  // load-bearing line in `handleScenePhaseChange(.background)`:
+  // `cacheDebounce.cancel()`. The cache rebuild body, once past the debounce
+  // sleep, computes a fresh ScoringContext and then writes `cache(context)` +
+  // bumps `scoringRevision`. We suspend the body inside `allScoringContextInputs`
+  // via the FakeRecommendationRepo gate, background, then release and confirm
+  // `scoringRevision` does not bump — i.e., the cancelled body exited through
+  // its catch before the cache write.
+  @Test(
+    "an in-flight cache rebuild cancelled at .background does not bump scoringRevision"
+  )
+  func inFlightCacheRebuildCancelledAtBackgroundDoesNotBumpRevision() async throws {
+    let engine = self.engine
+    let fakeRepo = self.fakeRecommendationRepo
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals)
+    let (_, candidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Candidate"
+    )
+    try await RecommendationHelpers.embedEpisodes(candidates)
+
+    // Arm before start() so the engine's initial cache rebuild — kicked off
+    // by the `scoringContextInputs` observation's bootstrap emission — is
+    // the one we intercept.
+    fakeRepo.armScoringContextInputsGate()
+    engine.start()
+
+    try await RecommendationHelpers.untilAdvancing(
+      { fakeRepo.isScoringContextInputsGateSuspended },
+      {
+        """
+        Expected the cache rebuild to suspend on the gated \
+        allScoringContextInputs read.
+        """
+      }
+    )
+
+    let revBeforeBackground = engine.scoringRevision
+
+    // Background while the body is parked inside allScoringContextInputs.
+    // The fix's `cacheDebounce.cancel()` flips the suspended task's flag.
+    engine.handleScenePhaseChange(to: .background)
+
+    // Release. Under the fix the resumed body hits `try Task.checkCancellation()`
+    // before `cache(context)` and exits through its catch — no cache write,
+    // no `$scoringRevision.update`. Without the fix the body publishes both.
+    fakeRepo.releaseScoringContextInputsGate()
+
+    let observedRevisionBump: Bool
+    do {
+      try await Wait.until(
+        maxAttempts: 100,
+        delay: .milliseconds(20),
+        { engine.scoringRevision != revBeforeBackground },
+        { "" }
+      )
+      observedRevisionBump = true
+    } catch TestError.waitUntilFailure {
+      observedRevisionBump = false
+    }
+
+    #expect(
+      !observedRevisionBump,
+      """
+      regression: an in-flight cache rebuild bumped scoringRevision after the \
+      app backgrounded (\(revBeforeBackground) -> \(engine.scoringRevision)). \
+      The background handler must cancel the in-flight cache debounce task so \
+      the cache write and revision bump never land.
+      """
+    )
   }
 }

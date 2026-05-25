@@ -80,11 +80,8 @@ struct RecommendationEngine: Sendable {
   // MARK: - Cached Scoring Context
 
   private let cache = ThreadSafe<ScoringContext?>(nil)
-  private let cacheDebounce = Debounce(duration: .milliseconds(400), priority: .utility)
-  private let recommendationsDebounce = Debounce(
-    duration: .milliseconds(400),
-    priority: .utility
-  )
+  private let cacheDebounce = Debounce(duration: .seconds(5), priority: .utility)
+  private let recommendationsDebounce = Debounce(duration: .seconds(5), priority: .utility)
   private let startOnce = Once()
 
   // Rescans triggered while backgrounded are deferred to the next foreground.
@@ -115,6 +112,7 @@ struct RecommendationEngine: Sendable {
     // Atomic check-and-defer: if active, returns `.proceed` without touching
     // state; otherwise merges `kind` upward into `pending` and returns
     // `.deferred`.
+    @discardableResult
     func deferOrProceed(_ kind: DeferredRescan) -> Decision {
       storage { state in
         guard !state.isActive else { return .proceed }
@@ -195,6 +193,12 @@ struct RecommendationEngine: Sendable {
     case .background:
       Self.log.debug("backgrounded")
       rescanGate.enterBackground()
+      if cacheDebounce.cancel() {
+        rescanGate.deferOrProceed(.cache)
+      }
+      if recommendationsDebounce.cancel() {
+        rescanGate.deferOrProceed(.recommendations)
+      }
     default:
       break
     }
@@ -330,39 +334,46 @@ struct RecommendationEngine: Sendable {
     // Anchor display rescaling to the full-pool max (before threshold filter)
     // so the same episode reads consistently across upNext and detail views.
     let batchMax = scores.values.map(\.value).max() ?? 1.0
-    observedMaxScore(batchMax)
 
-    guard limit > 0 else { return [] }
+    var top: [Episode.ID] = []
+    if limit > 0 {
+      try Task.checkCancellation()
 
-    struct ScoredCandidate {
-      let id: Episode.ID
-      let pubDate: Date
-      let score: RecommendationScore
-    }
-    let rankStart = ContinuousClock.now
-    var ranked = [ScoredCandidate](capacity: candidates.count)
-    for candidate in candidates {
-      guard let score = scores[candidate.id],
-        score.value >= Self.minimumScoreThreshold
-      else { continue }
-      ranked.append(
-        ScoredCandidate(id: candidate.id, pubDate: candidate.pubDate, score: score)
+      struct ScoredCandidate {
+        let id: Episode.ID
+        let pubDate: Date
+        let score: RecommendationScore
+      }
+      let rankStart = ContinuousClock.now
+      var ranked = [ScoredCandidate](capacity: candidates.count)
+      for candidate in candidates {
+        guard let score = scores[candidate.id],
+          score.value >= Self.minimumScoreThreshold
+        else { continue }
+        ranked.append(
+          ScoredCandidate(id: candidate.id, pubDate: candidate.pubDate, score: score)
+        )
+      }
+      ranked.sort { a, b in
+        if a.score.value != b.score.value { return a.score.value > b.score.value }
+        if a.pubDate != b.pubDate { return a.pubDate > b.pubDate }
+        return a.id > b.id
+      }
+      let rankDuration = ContinuousClock.now - rankStart
+      Self.log.debug(
+        """
+        perf: rank+sort took \(rankDuration) \
+        (\(ranked.count) above threshold of \(scores.count) scored)
+        """
       )
-    }
-    ranked.sort { a, b in
-      if a.score.value != b.score.value { return a.score.value > b.score.value }
-      if a.pubDate != b.pubDate { return a.pubDate > b.pubDate }
-      return a.id > b.id
-    }
-    let rankDuration = ContinuousClock.now - rankStart
-    Self.log.debug(
-      """
-      perf: rank+sort took \(rankDuration) \
-      (\(ranked.count) above threshold of \(scores.count) scored)
-      """
-    )
 
-    let top = ranked.prefix(limit).map(\.id)
+      top = ranked.prefix(limit).map(\.id)
+    }
+
+    // Defer the display-anchor write until past the final cancellation point
+    // so a cancelled pass cannot publish a stale anchor.
+    try Task.checkCancellation()
+    observedMaxScore(batchMax)
 
     let totalDuration = ContinuousClock.now - totalStart
     Self.log.debug(
@@ -529,6 +540,7 @@ struct RecommendationEngine: Sendable {
           "perf: buildContext took \(buildDuration) — context=\(context == nil ? "nil" : "ready")"
         )
 
+        try Task.checkCancellation()
         cache(context)
         $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
@@ -556,6 +568,7 @@ struct RecommendationEngine: Sendable {
       let sharedState = Container.shared.sharedState()
       do {
         let top = try await topRecommendations(limit: limit)
+        try Task.checkCancellation()
         sharedState.setTopRecommendations(top)
       } catch {
         Self.log.caughtError("top recommendations rebuild failed", error)
