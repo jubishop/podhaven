@@ -193,14 +193,10 @@ struct RecommendationEngine: Sendable {
     case .background:
       Self.log.debug("backgrounded")
       rescanGate.enterBackground()
-      let cacheHadWork = cacheDebounce.hasInFlightTask
-      let recsHadWork = recommendationsDebounce.hasInFlightTask
-      cacheDebounce.cancel()
-      recommendationsDebounce.cancel()
-      if cacheHadWork {
+      if cacheDebounce.cancel() {
         rescanGate.deferOrProceed(.cache)
       }
-      if recsHadWork {
+      if recommendationsDebounce.cancel() {
         rescanGate.deferOrProceed(.recommendations)
       }
     default:
@@ -338,39 +334,46 @@ struct RecommendationEngine: Sendable {
     // Anchor display rescaling to the full-pool max (before threshold filter)
     // so the same episode reads consistently across upNext and detail views.
     let batchMax = scores.values.map(\.value).max() ?? 1.0
-    observedMaxScore(batchMax)
 
-    guard limit > 0 else { return [] }
+    var top: [Episode.ID] = []
+    if limit > 0 {
+      try Task.checkCancellation()
 
-    struct ScoredCandidate {
-      let id: Episode.ID
-      let pubDate: Date
-      let score: RecommendationScore
-    }
-    let rankStart = ContinuousClock.now
-    var ranked = [ScoredCandidate](capacity: candidates.count)
-    for candidate in candidates {
-      guard let score = scores[candidate.id],
-        score.value >= Self.minimumScoreThreshold
-      else { continue }
-      ranked.append(
-        ScoredCandidate(id: candidate.id, pubDate: candidate.pubDate, score: score)
+      struct ScoredCandidate {
+        let id: Episode.ID
+        let pubDate: Date
+        let score: RecommendationScore
+      }
+      let rankStart = ContinuousClock.now
+      var ranked = [ScoredCandidate](capacity: candidates.count)
+      for candidate in candidates {
+        guard let score = scores[candidate.id],
+          score.value >= Self.minimumScoreThreshold
+        else { continue }
+        ranked.append(
+          ScoredCandidate(id: candidate.id, pubDate: candidate.pubDate, score: score)
+        )
+      }
+      ranked.sort { a, b in
+        if a.score.value != b.score.value { return a.score.value > b.score.value }
+        if a.pubDate != b.pubDate { return a.pubDate > b.pubDate }
+        return a.id > b.id
+      }
+      let rankDuration = ContinuousClock.now - rankStart
+      Self.log.debug(
+        """
+        perf: rank+sort took \(rankDuration) \
+        (\(ranked.count) above threshold of \(scores.count) scored)
+        """
       )
-    }
-    ranked.sort { a, b in
-      if a.score.value != b.score.value { return a.score.value > b.score.value }
-      if a.pubDate != b.pubDate { return a.pubDate > b.pubDate }
-      return a.id > b.id
-    }
-    let rankDuration = ContinuousClock.now - rankStart
-    Self.log.debug(
-      """
-      perf: rank+sort took \(rankDuration) \
-      (\(ranked.count) above threshold of \(scores.count) scored)
-      """
-    )
 
-    let top = ranked.prefix(limit).map(\.id)
+      top = ranked.prefix(limit).map(\.id)
+    }
+
+    // Defer the display-anchor write until past the final cancellation point
+    // so a cancelled pass cannot publish a stale anchor.
+    try Task.checkCancellation()
+    observedMaxScore(batchMax)
 
     let totalDuration = ContinuousClock.now - totalStart
     Self.log.debug(

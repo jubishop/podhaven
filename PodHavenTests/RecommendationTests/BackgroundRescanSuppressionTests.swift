@@ -113,8 +113,9 @@ class BackgroundRescanSuppressionTests {
   }
 
   // A debounce armed while active can still wake after the app backgrounded
-  // during the 400ms debounce window. The debounced closure must re-check the
-  // gate; otherwise it runs the full rebuild while backgrounded.
+  // during the debounce window. The background handler cancels the in-flight
+  // debounce and re-queues the rescan via RescanGate; the debounced closure's
+  // own gate re-check is the fallback for tasks that race past the cancel.
   @Test("a rebuild armed before background and firing mid-debounce is short-circuited")
   func midDebounceBackgroundDefersUntilForeground() async throws {
     let engine = self.engine

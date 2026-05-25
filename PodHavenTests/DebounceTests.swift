@@ -14,7 +14,8 @@ struct DebounceTests {
   private var fakeSleeper: FakeSleeper { sleeper as! FakeSleeper }
 
   // Without generation tracking on `state.task`, the outer task's defer
-  // unconditionally nils the storage, clobbering the inner schedule's task.
+  // clears the storage and clobbers the inner schedule's entry — the inner
+  // task's Task reference still fires, but cancel() can no longer reach it.
   @Test(
     "a recursive callAsFunction from within the action body survives the outer task's completion defer"
   )
@@ -30,16 +31,41 @@ struct DebounceTests {
 
     try await fakeSleeper.waitForSleepRequests(count: 1)
     await fakeSleeper.advanceTime(by: .milliseconds(500))
+    let pendingAfterOuterFires = fakeSleeper.pendingCount()
     for _ in 0..<10 { await Task.yield() }
 
     #expect(aFired() == true)
-    #expect(debounce.hasInFlightTask == true)
-    #expect(bFired() == false)
+
+    // Wait for the inner's sleep to register before probing state; otherwise
+    // the next advance fires before the inner task parks on the sleeper.
+    try await fakeSleeper.waitForSleepRequests(count: pendingAfterOuterFires + 1)
+
+    // cancel() must reach the inner task. Under the bug, state.task was
+    // cleared by outer's defer and cancel() would return false.
+    #expect(debounce.cancel() == true)
 
     await fakeSleeper.advanceTime(by: .milliseconds(500))
     for _ in 0..<10 { await Task.yield() }
 
-    #expect(bFired() == true)
-    #expect(debounce.hasInFlightTask == false)
+    #expect(bFired() == false)
+  }
+
+  // Without storing the task in the same critical section as the gen bump, a
+  // zero-duration body can complete and run its defer before the handle is
+  // published — leaving a completed task lodged in `state.task`.
+  @Test("a zero-duration debounce reports no in-flight work after the action completes")
+  func zeroDurationClearsInFlightAfterAction() async throws {
+    let debounce = Debounce(duration: .zero)
+    let fired = ThreadSafe<Bool>(false)
+
+    debounce { fired(true) }
+
+    try await Wait.until(
+      { fired() == true },
+      { "Expected the zero-duration action to fire." }
+    )
+    for _ in 0..<10 { await Task.yield() }
+
+    #expect(debounce.cancel() == false)
   }
 }

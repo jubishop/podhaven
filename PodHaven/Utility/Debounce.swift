@@ -28,42 +28,37 @@ struct Debounce: Sendable {
 
   func callAsFunction(_ action: @escaping @Sendable () async -> Void) {
     let duration = self.duration
-    let state = self.state
+    let stateBox = self.state
     let sleeper = self.sleeper
-    let taskPriority = self.taskPriority
-    let priority = self.priority
+    let priority = self.taskPriority(self.priority)
 
-    let myGeneration: Int = state { state in
+    // Store under the same critical section as the generation bump so a
+    // zero-duration task can't run its defer before the handle is published.
+    stateBox { state in
       state.task?.cancel()
       state.generation += 1
-      return state.generation
-    }
-    let newTask = Task(priority: taskPriority(priority)) {
-      defer {
-        state { state in
-          if state.generation == myGeneration { state.task = nil }
+      let myGeneration = state.generation
+      state.task = Task(priority: priority) {
+        defer {
+          stateBox { state in
+            if state.generation == myGeneration { state.task = nil }
+          }
         }
+        if duration > .zero {
+          try? await sleeper.sleep(for: duration)
+        }
+        guard !Task.isCancelled else { return }
+        await action()
       }
-      if duration > .zero {
-        try? await sleeper.sleep(for: duration)
-      }
-      guard !Task.isCancelled else { return }
-      await action()
     }
+  }
+
+  @discardableResult
+  func cancel() -> Bool {
     state { state in
-      if state.generation == myGeneration {
-        state.task = newTask
-      } else {
-        newTask.cancel()
-      }
+      guard let task = state.task else { return false }
+      task.cancel()
+      return true
     }
-  }
-
-  func cancel() {
-    state { $0.task?.cancel() }
-  }
-
-  var hasInFlightTask: Bool {
-    state { $0.task != nil }
   }
 }
