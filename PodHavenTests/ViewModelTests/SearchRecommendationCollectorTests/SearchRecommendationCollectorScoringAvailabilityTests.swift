@@ -25,8 +25,8 @@ import Testing
       .scope(.cached)
     Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
 
-    // Mirror AppLauncher: start the engine and let it rebuild with no signal
-    // data. scoringRevision goes to >0 with hasScoringContext still false.
+    // Mirror AppLauncher: start with no signal data so scoringRevision goes
+    // to >0 with hasScoringContext still false.
     engine.start()
     try await RecommendationHelpers.untilAdvancing(
       { @Sendable in Container.shared.recommendationEngine().scoringRevision > 0 },
@@ -44,10 +44,8 @@ import Testing
       podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1602))]
     )
 
-    // With the fix, awaitScoringContext sees scoringRevision > 0 + cache nil
-    // and unblocks the drain immediately; processFeedURL fires the RSS
-    // download. Without the fix, dropFirst() skips the bootstrap replay and
-    // the drain stays blocked, so the RSS download never happens.
+    // awaitScoringContext must see the bootstrap replay (no dropFirst) so
+    // the drain unblocks and processFeedURL fires the RSS download.
     try await RecommendationHelpers.untilAdvancing(
       { @Sendable in
         await Container.shared.podcastFeedSession() is FakeDataFetchable
@@ -69,9 +67,8 @@ import Testing
     let collector = SearchRecommendationCollector()
     let scripted = H.makeScriptedEmbeddable()
 
-    // Set up only the embedding factory. Do NOT seed signal episodes or
-    // start the engine yet, so `hasScoringContext` stays false until we
-    // explicitly prime it partway through the test.
+    // Embedding factory only — no signal episodes / no engine start, so
+    // `hasScoringContext` stays false until we prime it midway.
     Container.shared.contextualEmbedding.reset()
       .register { ContextualEmbedding(embedding: scripted) }
       .scope(.cached)
@@ -88,9 +85,9 @@ import Testing
     )
     try await H.advanceStableSourceDebounce()
 
-    // Now hydrate the engine. Without the cold-engine gate, the pipeline
-    // has already raced through scoring with a nil cache and marked the
-    // entry `.scored` with no picks — and nothing retries it.
+    // Hydrate after the reconcile — without the cold-engine gate the
+    // pipeline would have raced through with a nil cache and marked the
+    // entry `.scored` with no picks.
     let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 3,
       podcastTitle: "Signal",
@@ -121,11 +118,7 @@ import Testing
     let collector = SearchRecommendationCollector()
     let scripted = H.makeScriptedEmbeddable()
 
-    // Set up the embedding factory but DO NOT seed any signal episodes — the
-    // engine's buildContext consistently returns nil because there's no rated
-    // / partial signal data. Without the fix, awaitScoringContext blocks
-    // forever waiting for hasScoringContext, entries stay .pending, and the
-    // banner is permanently .loading.
+    // No signal episodes — engine.buildContext returns nil indefinitely.
     Container.shared.contextualEmbedding.reset()
       .register { ContextualEmbedding(embedding: scripted) }
       .scope(.cached)
@@ -142,9 +135,6 @@ import Testing
     )
     try await H.advanceStableSourceDebounce()
 
-    // Wait for the reconcile to apply: feedURL lands in the source index with
-    // a pending entry, banner enters .loading. Past this point the drain task
-    // is blocked inside awaitScoringContext.
     try await Wait.until(
       { @MainActor in collector.bannerState == .loading },
       { @MainActor in
@@ -152,17 +142,12 @@ import Testing
       }
     )
 
-    // The drain task may not yet have reached engine.start() → observation →
-    // scheduleCacheRebuild by the time the banner shows .loading. Wait for
-    // the engine's cacheRebuild debounce to register its sleep before
-    // advancing time, otherwise advanceTime jumps the clock past a not-yet-
-    // scheduled wakeTime and the rebuild never fires.
+    // Wait for the cacheRebuild sleep to register before advancing — otherwise
+    // advanceTime jumps past a not-yet-scheduled wakeTime and rebuild never fires.
     try await H.fakeSleeper.waitForSleepRequests(count: 1)
 
-    // Advance well beyond the cacheRebuild debounce. That fires buildContext
-    // (returns nil) and bumps scoringRevision. With the fix, awaitScoringContext
-    // returns and the banner transitions to .hidden; without it, the banner
-    // stays .loading forever.
+    // Advance past the cacheRebuild debounce so scoringRevision ticks; banner
+    // transitions to .hidden.
     await H.fakeSleeper.advanceTime(by: .seconds(10))
     try await Wait.until(
       { @MainActor in collector.bannerState == .hidden },

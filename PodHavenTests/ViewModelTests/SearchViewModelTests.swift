@@ -265,15 +265,8 @@ import Testing
     #expect(viewModel.searchState != .loading)
   }
 
-  // Subscribing to a trending row in SearchView must remove that podcast's
-  // picks from the discovery list. The collector's reconciliation drops
-  // subscribed podcasts at ingest time, so SearchViewModel has to re-push
-  // when the observation reports a row has transitioned to subscribed.
   @Test("subscribing to a trending row removes its picks from the collector")
   func subscribingTrendingRowRemovesPicksFromCollector() async throws {
-    // Engine prime: 3 rated signal episodes give the centroid a stable
-    // direction; the discovery candidate's default vector lands above the
-    // 0.5 similarity floor.
     let scripted = ScriptedEmbeddable { text in
       if text.contains("of Signal") {
         if text.contains("Episode 0") { return [1, 0, 0] }
@@ -299,8 +292,8 @@ import Testing
       { @Sendable in "Expected scoring context to land" }
     )
 
-    // Lenny's is one of the rows in `top_lookup.json`. Pre-insert it as
-    // unsubscribed-but-saved so the trending observation watches a real row.
+    // Lenny's is one of the rows in `top_lookup.json`; pre-insert as
+    // unsubscribed-but-saved so the observation watches a real row.
     let lennysFeed = FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!)
     let lennysSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
@@ -334,17 +327,14 @@ import Testing
       { @MainActor in "Expected trending to load" }
     )
 
-    // Source title is `currentTrendingSection.title`; derive instead of hardcode
-    // so renames in `AppIcon.trendingTop.text` don't silently make the assertion
-    // read a never-populated source.
+    // Derive from `currentTrendingSection.title` so renames in
+    // `AppIcon.trendingTop.text` don't silently make this assertion read
+    // a never-populated source.
     let trendingSource = SearchRecommendationCollector.Source.trending(
       genreID: viewModel.currentTrendingSection.genreID,
       title: viewModel.currentTrendingSection.title
     )
 
-    // Advance fake time in 100 ms slices, polling for the pick to land. The
-    // collector's 1 s stable-source debounce + observation initial-snapshot
-    // re-push can race; pick converges within ~1.2 s of fake time.
     try await Wait.until(
       maxAttempts: 200,
       { @MainActor in
@@ -363,9 +353,6 @@ import Testing
 
     _ = try await repo.markSubscribed(lennysSeries.podcast.id)
 
-    // With the fix, the observation callback re-pushes the refreshed source
-    // list; collector re-reconciles and drops the now-subscribed feedURL.
-    // Without the fix, the pick persists indefinitely.
     try await Wait.until(
       maxAttempts: 200,
       { @MainActor in
@@ -383,10 +370,6 @@ import Testing
     )
   }
 
-  // Per docs/initiatives/search-recommendations.md, typed-search overlay
-  // storage is "discarded on the next query". An empty / errored next query
-  // must therefore drop the prior overlay so its in-flight RSS/embedding work
-  // doesn't linger and picks for the abandoned query stop being addressable.
   @Test("typed-search overlay is dropped when the next query returns empty results")
   func emptyResultsNextQueryDropsPriorTypedSearchOverlay() async throws {
     let scripted = ScriptedEmbeddable { text in
@@ -474,8 +457,6 @@ import Testing
       }
     )
 
-    // Positive sync: empty-results push must have drained through the collector
-    // and dropped the prior overlay before this Wait.until times out.
     try await Wait.until(
       maxAttempts: 200,
       { @MainActor in
@@ -491,9 +472,6 @@ import Testing
     )
   }
 
-  // Catch-path counterpart of `emptyResultsNextQueryDropsPriorTypedSearchOverlay`:
-  // when the next query throws (e.g. network failure), the catch branch must
-  // still push to the collector so the prior typed-search overlay is discarded.
   @Test("typed-search overlay is dropped when the next query errors")
   func erroringNextQueryDropsPriorTypedSearchOverlay() async throws {
     let scripted = ScriptedEmbeddable { text in

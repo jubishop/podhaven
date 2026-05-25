@@ -4,10 +4,7 @@ import FactoryKit
 import Logging
 import SwiftUI
 
-// Thin wrapper around the collector that adapts ManagingEpisodes to remove
-// each pick after the underlying action succeeds. The protocol's default
-// implementations are fire-and-forget Tasks, so each overridden method
-// reruns the materialize → action → removePick sequence here.
+// Removes each pick after the underlying ManagingEpisodes action succeeds.
 @Observable @MainActor
 final class SearchDiscoveryActionsViewModel: ManagingEpisodes {
   typealias EpisodeType = ListedEpisode
@@ -25,8 +22,6 @@ final class SearchDiscoveryActionsViewModel: ManagingEpisodes {
   init(collector: SearchRecommendationCollector) {
     self.collector = collector
   }
-
-  // MARK: - Actions With Post-Removal
 
   func playEpisode(_ episode: ListedEpisode) {
     performAfterMaterialize(episode, context: "playEpisode") { [playManager] podcastEpisode in

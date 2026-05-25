@@ -54,10 +54,9 @@ import Testing
     let requestedURL = FeedURL(URL(string: "https://example.com/iTunes-source.rss")!)
     let parsedSelfURL = FeedURL(URL(string: "https://example.com/canonical-self.rss")!)
 
-    // Custom RSS where atom:link rel="self" points at a *different* URL than
-    // the one we downloaded. PodcastFeed will set the unsavedPodcast's feedURL
-    // from atom:link, so the rendered ListedEpisode.feedURL is the canonical
-    // URL — but the collector's cache key is still the requested URL.
+    // atom:link rel="self" points at a different URL than the one downloaded.
+    // PodcastFeed sets unsavedPodcast.feedURL from atom:link, so the rendered
+    // ListedEpisode.feedURL is canonical but the cache key is the requested URL.
     let xml = """
       <?xml version="1.0" encoding="UTF-8"?>
       <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" \
@@ -94,8 +93,6 @@ import Testing
     )
 
     let pick = collector.visiblePicks[0]
-    // Sanity: the parsed feedURL must not equal the requested URL, otherwise
-    // this test doesn't exercise the mismatch we care about.
     #expect(
       pick.episode.feedURL == parsedSelfURL,
       "Test setup invariant: parsed feed URL must differ from requested URL"
@@ -112,12 +109,9 @@ import Testing
 
   // MARK: - Test: saveEpisodeInCache Through ManagingEpisodes Dispatch
 
-  // EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes> calls
-  // `viewModel.saveEpisodeInCache(...)`. If the method lives only in the
-  // ManagingEpisodes extension (not in the protocol itself), static dispatch
-  // through the generic constraint picks the extension default and any
-  // conforming-type override is bypassed. Hoisting saveEpisodeInCache into the
-  // protocol makes dispatch dynamic so per-type overrides actually run.
+  // EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes> dispatches
+  // statically through the constraint. If saveEpisodeInCache only lives in
+  // an extension, the override is bypassed — must be in the protocol itself.
   @Test("saveEpisodeInCache dispatched via ManagingEpisodes constraint calls the override")
   func saveEpisodeInCacheThroughProtocolDispatchCallsOverride() throws {
     let unsaved = try Create.unsavedPodcast(title: "Dispatch Source")
@@ -142,10 +136,6 @@ import Testing
   }
 }
 
-// Minimal ManagingEpisodes conformer used by the dispatch test. The body of
-// saveEpisodeInCache flips a flag so the test can detect whether dynamic
-// dispatch reached the override or fell through to the protocol-extension
-// default (which would never touch this flag).
 @MainActor
 private final class TrackingManagingEpisodes: ManagingEpisodes {
   typealias EpisodeType = ListedEpisode

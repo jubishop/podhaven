@@ -55,9 +55,8 @@ import Testing
     try await H.primeEngine(embeddable: scripted)
 
     let feedURL = FeedURL(URL(string: "https://example.com/teardown-inflight.rss")!)
-    // Hold the RSS response so processFeedURL stays suspended on
-    // downloadFinished. tearDown must cancel the underlying DownloadTask,
-    // which in turn cancels this handler's wait.
+    // Hold the response so processFeedURL stays suspended on downloadFinished;
+    // tearDown must cancel the DownloadTask, which cancels this handler.
     let semaphore = await H.session.waitRespond(
       to: feedURL.rawValue,
       data: H.rssXML(
@@ -92,8 +91,6 @@ import Testing
       }
     )
 
-    // Releasing the held response is a no-op now — cancellation took hold
-    // before the response could deliver.
     semaphore.signal()
 
     #expect(collector.visiblePicks.isEmpty)
@@ -123,16 +120,14 @@ import Testing
       podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1701))]
     )
 
-    // Wait for the debouncer's 1 s sleep to be registered, but DO NOT advance
-    // time yet — the reconcile / RSS work is gated behind that sleep.
+    // Debouncer's 1 s sleep is registered but not yet advanced.
     try await H.fakeSleeper.waitForSleepRequests(count: 1)
 
     collector.tearDown()
 
-    // Drive a brand-new pipeline after tearDown for a different feed. With the
-    // fix, the pre-tearDown debouncer is cancelled and only this fresh
-    // debouncer fires; without it, advancing past the prior wakeTime would
-    // also resume the stale reconcile and trigger an RSS request for feedURL.
+    // Fresh pipeline for a different feed. If tearDown didn't cancel the
+    // pre-tearDown debouncer, advancing past its wakeTime would also trigger
+    // an RSS request for the original feedURL.
     let postTeardownSource = SearchRecommendationCollector.Source.trending(
       genreID: 1303,
       title: "Comedy"
@@ -145,9 +140,8 @@ import Testing
 
     try await H.advanceStableSourceDebounce()
 
-    // Positive sync: the post-tearDown pipeline reaches RSS fan-out. Fake time
-    // is now past the pre-tearDown wakeTime, so a still-armed stale debouncer
-    // would already have fired its reconcile and pushed feedURL into requests.
+    // Past the pre-tearDown wakeTime — a still-armed stale debouncer would
+    // already have pushed feedURL into requests.
     try await Wait.until(
       { @MainActor in await H.session.requests.contains(postTeardownFeed.rawValue) },
       { @MainActor in

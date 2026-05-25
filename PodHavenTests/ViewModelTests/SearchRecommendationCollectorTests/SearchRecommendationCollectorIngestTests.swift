@@ -63,7 +63,6 @@ import Testing
       podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(202))]
     )
 
-    // Before advancing the debouncer, no RSS request should have happened.
     try await H.fakeSleeper.waitForSleepRequests(count: 1)
     let earlyRequests = await H.session.requests
     #expect(!earlyRequests.contains(feedURL.rawValue))
@@ -91,8 +90,7 @@ import Testing
     let searchFeedURL = FeedURL(URL(string: "https://example.com/search-row.rss")!)
     let iTunesID = ITunesPodcastID(909)
 
-    // Pre-insert a subscribed podcast with a DIFFERENT feedURL but matching
-    // iTunesID — collector must reconcile by iTunes ID and drop it.
+    // Different feedURL but matching iTunesID — must reconcile by iTunes ID.
     _ = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(
@@ -120,7 +118,6 @@ import Testing
 
     try await H.advanceStableSourceDebounce()
 
-    // Wait for the only un-subscribed entry to land.
     try await Wait.until(
       { @MainActor in
         if case .loaded = collector.bannerState { return true }
@@ -129,7 +126,6 @@ import Testing
       { @MainActor in "Expected at least one pick, got \(collector.bannerState)" }
     )
 
-    // The subscribed canonical feed must never have been requested.
     let requests = await H.session.requests
     #expect(!requests.contains(canonicalFeedURL.rawValue))
     #expect(!requests.contains(searchFeedURL.rawValue))
@@ -146,8 +142,7 @@ import Testing
 
     let feedURL = FeedURL(URL(string: "https://example.com/gated.rss")!)
 
-    // Pre-insert an unsubscribed-but-saved podcast whose existing episode row
-    // matches one of the RSS GUIDs and is RATED → must be dropped by the gate.
+    // Existing rated row matching one RSS GUID — must be dropped by the gate.
     let ratedGUID = GUID("gated-ep-rated")
     let unsavedSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
@@ -163,10 +158,8 @@ import Testing
       )
     )
 
-    // Sanity: not subscribed.
     #expect(unsavedSeries.podcast.subscriptionDate == nil)
 
-    // RSS provides two episodes — one with matching guid (rated), one new.
     await H.session.respond(
       to: feedURL.rawValue,
       data: H.rssXML(
@@ -196,7 +189,6 @@ import Testing
       { @MainActor in "Expected at least one pick, got \(collector.bannerState)" }
     )
 
-    // The rated episode's GUID must not appear in the visible picks.
     let guids = collector.visiblePicks.map(\.episode.mediaGUID.guid.rawValue)
     #expect(!guids.contains("gated-ep-rated"))
     #expect(guids.contains("gated-ep-new"))
@@ -206,9 +198,6 @@ import Testing
 
   @Test("score floor filters episodes whose similarity is too low")
   func scoreOrdering() async throws {
-    // The signal centroid is built from three orthogonal signals, so the
-    // discovery candidates' default direction lands above the 0.5 floor and
-    // anything anti-aligned ("Below Floor") gets filtered out.
     let collector = SearchRecommendationCollector()
     let scripted = H.makeScriptedEmbeddable()
     try await H.primeEngine(embeddable: scripted)
@@ -310,8 +299,6 @@ import Testing
       { @MainActor in "Expected comedy picks" }
     )
 
-    // Switching to a different trending source that includes the same feed
-    // URL should not trigger a second RSS request — the shared cache is hot.
     collector.setActiveSource(tech)
     collector.recordSourcePodcasts(source: tech, podcasts: [row])
     try await H.advanceStableSourceDebounce()

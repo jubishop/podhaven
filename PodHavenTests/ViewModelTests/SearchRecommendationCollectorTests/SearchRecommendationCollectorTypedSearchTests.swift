@@ -34,13 +34,11 @@ import Testing
     )
     try await H.advanceStableSourceDebounce()
 
-    // Wait for the in-flight RSS request to land at the session.
     try await Wait.until(
       { @MainActor in await H.session.requests.contains(firstQueryFeed.rawValue) },
       { @MainActor in "Expected first-query RSS request to be in flight" }
     )
 
-    // Now replace the overlay with a new query.
     let secondSource = SearchRecommendationCollector.Source.search(query: "second")
     collector.setActiveSource(secondSource)
     collector.recordSourcePodcasts(
@@ -49,7 +47,6 @@ import Testing
     )
     try await H.advanceStableSourceDebounce()
 
-    // Release the first request so its task can finish (cancelled).
     firstSemaphore.signal()
 
     try await Wait.until(
@@ -66,11 +63,6 @@ import Testing
 
   // MARK: - Test: Leaving Typed Search Releases Overlay-Owned Cache
 
-  // SearchView leaves typed search via `setActiveSource(.trending)` whenever
-  // the user clears the search bar. Without overlay cleanup on that
-  // transition, the typed-search overlay (and every `temporary` entry it
-  // created) would linger until tearDown, growing the per-tab-visit memory
-  // footprint by one slot per typed query.
   @Test("setActiveSource(.trending) after a typed search drops the overlay")
   func leavingTypedSearchReleasesOverlayAndTemporaryCache() async throws {
     let collector = SearchRecommendationCollector()
@@ -109,11 +101,9 @@ import Testing
 
   // MARK: - Test: Leaving Typed Search Cancels Pending Stable-Source Debouncer
 
-  // When the user clears search before the 1 s stable-source debounce fires,
-  // overlay and temporary are still empty — the pending typedSearchDebouncer
-  // is the only typed-search state alive. Cleanup must cancel it anyway, or
-  // the debounce fires after the user has left typed search and reconcile
-  // resurrects the overlay + kicks an RSS request for the abandoned query.
+  // If the user clears search before the 1 s debounce fires, overlay and
+  // temporary are still empty — the pending debouncer is the only state
+  // alive, and cleanup must cancel it or it'll resurrect the overlay.
   @Test("leaving typed search before the stable-source debounce fires cancels the pipeline")
   func leavingTypedSearchCancelsPendingStableSourceDebouncer() async throws {
     let collector = SearchRecommendationCollector()
@@ -132,11 +122,9 @@ import Testing
       podcasts: [H.makeUnsavedRow(feedURL: queryFeed, iTunesID: ITunesPodcastID(2001))]
     )
 
-    // Typed-search debouncer registered its 1 s sleep but hasn't fired yet.
     try await H.fakeSleeper.waitForSleepRequests(count: 1)
 
-    // User leaves typed search. With the fix, the typed-search debouncer is
-    // cancelled. Without it, the debouncer's underlying task is still armed.
+    // User leaves typed search — debouncer must be cancelled.
     let trendingSource = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
     collector.setActiveSource(trendingSource)
     collector.recordSourcePodcasts(
@@ -144,10 +132,8 @@ import Testing
       podcasts: [H.makeUnsavedRow(feedURL: trendingFeed, iTunesID: ITunesPodcastID(2002))]
     )
 
-    // Positive sync: the trending debouncer fires at +1 s. Once trending RSS
-    // lands, fake time is unambiguously past the typed-search wakeTime, so a
-    // not-yet-cancelled typed-search debouncer would already have fired its
-    // reconcile by now and queryFeed would be in `requests`.
+    // Trending debouncer fires at +1 s — past the typed-search wakeTime,
+    // so a not-yet-cancelled typed debouncer would already have reconciled.
     try await H.advanceStableSourceDebounce()
 
     try await Wait.until(
@@ -169,10 +155,6 @@ import Testing
 
   // MARK: - Test: Typed-Search Debouncer Replacement Cancels Stale Query Pipeline
 
-  // Per-query debouncers let a stale typed-search query (`foo`) fire its
-  // stable-source action after a newer query (`bar`) has already taken over.
-  // With a single shared typed-search debouncer, recording `bar` cancels the
-  // pending `foo` action, so `foo`'s feed never reaches RSS fan-out.
   @Test("a new typed-search query cancels the prior query's pending pipeline")
   func typedSearchDebouncerReplacementCancelsStaleQueryPipeline() async throws {
     let collector = SearchRecommendationCollector()
@@ -191,7 +173,6 @@ import Testing
       podcasts: [H.makeUnsavedRow(feedURL: fooFeed, iTunesID: ITunesPodcastID(1801))]
     )
 
-    // foo's stable-source debouncer is pending. Do NOT advance time yet.
     try await H.fakeSleeper.waitForSleepRequests(count: 1)
 
     let barSource = SearchRecommendationCollector.Source.search(query: "bar")
@@ -202,11 +183,8 @@ import Testing
     )
 
     // Cancelling foo's task doesn't unblock its FakeSleeper continuation —
-    // it stays parked in sleepRequests until time advances past its wakeTime.
-    // Wait for bar's sleep to also register so a single advanceTime call wakes
-    // both. With the fix, foo's task body then sees `Task.isCancelled` after
-    // the sleep returns and bails before calling its action; with the bug,
-    // foo's reconcile fires and fooFeed reaches the RSS fan-out.
+    // wait for bar's sleep to also register so one advanceTime wakes both.
+    // foo's body should then see Task.isCancelled and bail before its action.
     try await H.fakeSleeper.waitForSleepRequests(count: 2)
     await H.fakeSleeper.advanceTime(by: .seconds(1))
 
@@ -291,8 +269,7 @@ import Testing
     let scripted = H.makeScriptedEmbeddable()
     try await H.primeEngine(embeddable: scripted)
 
-    // Shared feed: lands in `permanent` via the trending source, then is
-    // re-referenced (but not owned) by typed-search "f".
+    // Lands in `permanent` via trending, re-referenced (not owned) by "f".
     let sharedFeed = FeedURL(URL(string: "https://example.com/cross-cache.rss")!)
     let sharedSemaphore = await H.session.waitRespond(
       to: sharedFeed.rawValue,
@@ -305,7 +282,6 @@ import Testing
       )
     )
 
-    // Distinct feed so the "g" ranking is non-empty.
     let gOnlyFeed = FeedURL(URL(string: "https://example.com/g-only.rss")!)
     await H.respondWithFeed(at: gOnlyFeed, title: "G Only", episodes: 1)
 
@@ -322,8 +298,7 @@ import Testing
       { @MainActor in "Expected trending RSS request to be in flight" }
     )
 
-    // Typed-search "f" references the same feed — reuses the trending entry
-    // without taking ownership.
+    // "f" reuses the trending entry without taking ownership.
     let fSource = SearchRecommendationCollector.Source.search(query: "f")
     collector.setActiveSource(fSource)
     collector.recordSourcePodcasts(
@@ -332,8 +307,7 @@ import Testing
     )
     try await H.advanceStableSourceDebounce()
 
-    // Typed-search "g" replaces the overlay with a different feed. Must NOT
-    // cancel the trending-owned in-flight work for sharedFeed.
+    // "g" replaces the overlay; must not cancel trending-owned work.
     let gSource = SearchRecommendationCollector.Source.search(query: "g")
     collector.setActiveSource(gSource)
     collector.recordSourcePodcasts(

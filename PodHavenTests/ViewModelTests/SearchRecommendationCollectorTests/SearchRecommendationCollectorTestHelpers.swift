@@ -32,11 +32,9 @@ enum SearchRecommendationCollectorTestHelpers {
     )
   }
 
-  // Signal episodes get three orthogonal vectors so the whitening transform
-  // produces a non-degenerate centroid pointing in a measurable direction.
-  // Discovery / candidate text defaults to the Signal-0 direction so its
-  // similarity lands comfortably above the 0.5 floor; "Below Floor" text is
-  // explicitly anti-aligned.
+  // Three orthogonal signal vectors give the centroid a measurable
+  // direction. Candidate text defaults to Signal-0 (above the 0.5 floor);
+  // "Below Floor" text is explicitly anti-aligned.
   static func makeScriptedEmbeddable() -> ScriptedEmbeddable {
     ScriptedEmbeddable { text in
       if text.contains("Below Floor") { return [-1, 0, 0] }
@@ -50,16 +48,15 @@ enum SearchRecommendationCollectorTestHelpers {
   }
 
   static func primeEngine(embeddable: ScriptedEmbeddable) async throws {
-    // Reset + register: the default test container already cached a
-    // ContextualEmbedding around FakeEmbeddable, so we have to replace the
-    // resolved instance, not just the underlying nlContextualEmbedding.
+    // Default test container already cached a ContextualEmbedding around
+    // FakeEmbeddable, so replace the resolved instance not just the
+    // underlying nlContextualEmbedding.
     Container.shared.contextualEmbedding.reset()
       .register { ContextualEmbedding(embedding: embeddable) }
       .scope(.cached)
 
-    // Whitening on tiny corpora (3 signal episodes, dim-3 vectors) produces
-    // nan principal components and breaks similarity scoring. The Focused
-    // mode skips the PCA strip entirely.
+    // Whitening on 3 signal episodes / dim-3 vectors produces NaN principal
+    // components; Focused mode skips PCA entirely.
     Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
 
     let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
@@ -78,12 +75,12 @@ enum SearchRecommendationCollectorTestHelpers {
   }
 
   static func respondWithFeed(at feedURL: FeedURL, title: String, episodes: Int) async {
+    // "Pick" so candidate titles don't collide with the scripted
+    // embeddable's per-signal-episode rules.
     let eps = (0..<episodes)
       .map { i in
         (
           "ep-\(i)-\(feedURL.absoluteString.hashValue)",
-          // Use "Pick" so candidate titles don't collide with the scripted
-          // embeddable's per-signal-episode rules.
           "\(title) Pick \(i)",
           Date(timeIntervalSince1970: 1_700_000_000 + TimeInterval(i * 86_400))
         )

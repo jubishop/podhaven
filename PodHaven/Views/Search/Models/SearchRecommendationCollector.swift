@@ -12,44 +12,26 @@ import Tagged
 
 // MARK: - SearchRecommendationCollector
 
-// Owned by SearchViewModel for the lifetime of the Search tab. Owns RSS
-// fetch + embed + score work for two surfaces:
-//
-//   - Top-category trending: chip switches reuse a long-lived shared podcast
-//     cache so a podcast that appears in multiple chips is downloaded and
-//     scored once.
-//   - Typed search: each debounced query builds a per-query overlay that
-//     reuses already-scored shared podcasts and discards query-only misses
-//     when the query changes.
-//
-// Trending work isn't cancelled when the active chip switches. Typed-search
-// overlay work is cancelled when the query changes.
+// Trending podcasts live in a shared cache across chip switches; typed-search
+// adds a per-query overlay that's discarded when the query changes.
 @Observable @MainActor
 final class SearchRecommendationCollector {
   nonisolated private static let log = Log.as(LogSubsystem.SearchView.recommendations)
 
   // MARK: - Tunable Caps
 
-  // First P podcasts from each source ranking are eligible.
   nonisolated static let podcastCap = 25
-
-  // Newest E episodes per podcast feed enter the candidate gate / embedding
-  // pipeline.
   nonisolated static let episodesPerPodcast = 10
 
-  // Discovery removes freshness, so neutral content clusters around the
-  // remapped 0.5 baseline.
+  // Discovery removes freshness, so neutral content clusters around 0.5.
   nonisolated static let scoreFloor: Float = 0.5
 
-  // RSS fan-out concurrency. Embedding still serializes through the
-  // ContextualEmbedding actor; wider RSS concurrency only buys faster
-  // first-paint.
+  // Embedding serializes through ContextualEmbedding; wider RSS concurrency
+  // only buys faster first-paint.
   nonisolated static let rssConcurrency = 8
 
-  // Wait for the active source's ranking to remain stable for this long
-  // before kicking the per-podcast pipeline. Sits between the iTunes
-  // result emit and RSS fan-out; independent of the existing 400 ms
-  // search-query debounce.
+  // Held between iTunes result emit and RSS fan-out; independent of the
+  // 400 ms search-query debounce.
   nonisolated static let stableSourceDebounce: Duration = .seconds(1)
 
   // MARK: - Source
@@ -95,54 +77,32 @@ final class SearchRecommendationCollector {
 
   // MARK: - Observed Outputs
 
-  // Whichever surface SearchView is currently rendering. Set by
-  // SearchViewModel; changes the banner / discovery list reads only.
   var activeSource: Source? = nil
 
   // MARK: - Internal State
 
-  // Entries referenced by any loaded trending chip's ranking. An entry
-  // here survives chip switches and search-query changes for the
-  // SearchViewModel's lifetime.
+  // Survives chip switches and query changes for the collector's lifetime.
   private var permanent: [FeedURL: CachedPodcastEntry] = [:]
 
-  // Entries referenced only by the current typed-search ranking. Purged
-  // (with their in-flight `DownloadTask`s cancelled) whenever the active
-  // query changes.
+  // Owned by the current typed-search query. Purged with in-flight downloads
+  // cancelled when the query changes.
   private var temporary: [FeedURL: CachedPodcastEntry] = [:]
 
-  // Per top-category source: the ordered feed URLs selected from that
-  // category's current iTunes result snapshot.
   private var trendingSourceIndex: [Source: [FeedURL]] = [:]
-
-  // Current typed-search ranking; replaced on every recordSourcePodcasts
-  // call. Purging `temporary` is gated on the embedded `query` changing.
   private var typedSearchOverlay: TypedSearchOverlay? = nil
 
-  // Per-trending-source stable-source debouncer. Each trending chip has its
-  // own debouncer because chip results land at independent times and don't
-  // race each other. Typed search is intentionally NOT in this map — see
-  // `typedSearchDebouncer`.
+  // Per-chip — results land at independent times and don't race each other.
   private var trendingDebouncers: [Source: Debounce] = [:]
 
-  // Single shared debouncer for typed search. A new query cancels the prior
-  // query's pending action via `Debounce`'s internal task replacement, so a
-  // rapid `foo → bar` sequence can't let `foo`'s reconcile fire after `bar`
-  // has already taken over the overlay.
+  // Shared across queries so `foo → bar` cancels foo's pending action before
+  // it can fire after bar has taken over the overlay.
   private var typedSearchDebouncer: Debounce?
 
-  // One stored task drains pending feed URLs.
   private var drainTask: Task<Void, Never>?
-
-  // FIFO of feed URLs ready to be picked up by the drain task.
   private var pendingDrainQueue: OrderedSet<FeedURL> = []
   private var drainContinuation: CheckedContinuation<Void, Never>?
-
-  // Feed URLs whose pipeline is mid-flight.
   private var inFlight: Set<FeedURL> = []
 
-  // Three real states: we haven't determined yet, scoring is ready, or the
-  // engine emitted a scoringRevision tick after start without a context.
   // `.unavailable` surfaces .hidden on the banner and lets the drain proceed
   // instead of blocking forever.
   private enum ScoringAvailability: Equatable {
@@ -152,8 +112,8 @@ final class SearchRecommendationCollector {
   }
   private var scoringAvailability: ScoringAvailability = .unknown
 
-  // Watches the engine after we surface unavailable, so we can re-queue
-  // already-finished entries when scoring later warms.
+  // Watches for engine warm-up after surfacing .unavailable so we can re-queue
+  // finished entries.
   private var scoringContextWatcherTask: Task<Void, Never>?
 
   // MARK: - Lifecycle
@@ -164,11 +124,8 @@ final class SearchRecommendationCollector {
 
   // MARK: - Public API
 
-  // Update which source the banner / discovery list reads from. Does not
-  // trigger pipeline work; pair with `recordSourcePodcasts` for that.
-  // Leaving typed search (search → trending, or search → nil) releases the
-  // overlay and overlay-only RSS work so a stale typed query can't keep
-  // firing after the user has moved on.
+  // Leaving typed search releases the overlay so a stale query can't keep
+  // firing after the user has moved on. Pair with `recordSourcePodcasts`.
   func setActiveSource(_ source: Source?) {
     Self.log.debug("Active source -> \(String(describing: source))")
     guard source != activeSource else { return }
@@ -182,12 +139,9 @@ final class SearchRecommendationCollector {
     }
   }
 
-  // Called by SearchViewModel after iTunes search / trending returns. The
-  // collector caps `podcasts` to the first `podcastCap`, reconciles that
-  // batch against the DB, drops subscribed ones (no backfill into the deeper
-  // ranking), stores the survivors as the source's ranking, and queues the
-  // missing podcasts for RSS+embed+score work after the `stableSourceDebounce`.
-  // Typed-search recordings replace the prior overlay if `source.query` differs.
+  // Caps to `podcastCap`, drops subscribed rows after DB reconciliation (no
+  // backfill into the deeper ranking), and queues survivors for RSS+embed
+  // +score after `stableSourceDebounce`.
   func recordSourcePodcasts(
     source: Source,
     podcasts: [PodcastWithEpisodeMetadata<ListedPodcast>]
@@ -214,9 +168,6 @@ final class SearchRecommendationCollector {
     }
   }
 
-  // Cancel the drain task, cancel every entry's in-flight download, and
-  // empty all in-memory caches. Called when the Search tab is left so
-  // arbitrary discovery candidates don't live in memory forever.
   func tearDown() {
     Self.log.debug("Tearing down collector")
     drainTask?.cancel()
@@ -234,10 +185,8 @@ final class SearchRecommendationCollector {
     temporary.removeAll()
     trendingSourceIndex.removeAll()
     typedSearchOverlay = nil
-    // Dropping the Debounce references doesn't cancel their pending sleep
-    // tasks — those keep running until the sleep deadline passes and then
-    // re-enter the (now stale) action. Cancel each task explicitly so any
-    // post-teardown wake-up bails before repopulating caches.
+    // Dropping Debounce references doesn't cancel their pending sleeps —
+    // those run to the deadline and re-enter the stale action.
     for debouncer in trendingDebouncers.values { debouncer.cancel() }
     trendingDebouncers.removeAll()
     typedSearchDebouncer?.cancel()
@@ -246,26 +195,18 @@ final class SearchRecommendationCollector {
     inFlight.removeAll()
     activeSource = nil
 
-    // `drainTask?.cancel()` above propagates through structured concurrency,
-    // which causes each `processFeedURL` child to resume via `AsyncLatch`'s
-    // onCancel and clear `entry.fetchToken` before this Task body could run
-    // `entry.cancel()`. Go through the manager so the active downloads are
-    // cancelled even after the entries have lost their fetch tokens.
+    // drainTask cancellation propagates to processFeedURL children which
+    // clear their fetchTokens before this Task body runs. Go through the
+    // manager so active downloads get cancelled regardless.
     Task { [downloadManager] in
       await downloadManager.cancelAllDownloads()
       for entry in toCancel { await entry.cancel() }
     }
   }
 
-  // Drops the typed-search overlay and cancels every `temporary` entry —
-  // trending sources never put entries in `temporary`, so this releases only
-  // the overlay-owned cache without disturbing chip results. Called by
-  // `setActiveSource` whenever the active source leaves typed search.
   private func clearTypedSearchOverlay() {
-    // Include the debouncer in the guard: a pending stable-source debounce
-    // is the only typed-search state alive between recordSourcePodcasts and
-    // its reconcile firing, and leaving search during that 1 s window must
-    // still cancel it.
+    // Debouncer is included: between recordSourcePodcasts and its reconcile
+    // firing, the pending debounce is the only typed-search state alive.
     guard typedSearchDebouncer != nil || typedSearchOverlay != nil || !temporary.isEmpty
     else { return }
     Self.log.debug("Clearing typed-search overlay")
@@ -281,15 +222,9 @@ final class SearchRecommendationCollector {
     }
   }
 
-  // The discovery list calls this after a successful row action that
-  // materialized or mutated the episode. We drop the pick from its
-  // owning entry's scored episodes; the row's episode detail handles
-  // the unsaved→saved transition on its own.
-  //
-  // `feedURL` is the caller's view of the feed (from `ListedEpisode.feedURL`),
-  // which mirrors the RSS-parsed `atom:link self` / `itunes:new-feed-url` and
-  // can differ from the cache key. Try the direct lookup first; if it misses,
-  // scan by mediaGUID across both caches.
+  // Caller's `feedURL` comes from `ListedEpisode.feedURL` (parsed
+  // atom:link self / itunes:new-feed-url) and can differ from the cache key,
+  // so fall back to a mediaGUID scan if the direct lookup misses.
   func removePick(feedURL: FeedURL, mediaGUID: MediaGUID) {
     Self.log.debug("Removing pick \(mediaGUID)")
     if let entry = permanent[feedURL] ?? temporary[feedURL],
@@ -348,9 +283,8 @@ final class SearchRecommendationCollector {
         continue
       }
 
-      // Prefer the canonical feed URL from the DB row when the iTunes
-      // search result bridges to a saved-but-unsubscribed podcast — that's
-      // the key the shared cache uses to dedup across categories.
+      // Canonical DB feedURL is the dedup key the shared cache uses across
+      // categories.
       let canonicalFeedURL = bridged?.podcast.feedURL ?? slotURL
       reconciledFeedURLs.append(canonicalFeedURL)
       if let bridged { reconciledPodcastIDs[canonicalFeedURL] = bridged.podcast.id }
@@ -394,9 +328,8 @@ final class SearchRecommendationCollector {
       let previousQuery = typedSearchOverlay?.query
       typedSearchOverlay = TypedSearchOverlay(query: query, feedURLs: feedURLs)
       if previousQuery != query {
-        // Keep temporary entries whose feedURL re-appears under the new
-        // query: their in-flight RSS / embed work carries forward instead
-        // of being orphaned by the inFlight guard in `scheduleDrain`.
+        // Survivors keep their in-flight work instead of being orphaned by
+        // the inFlight guard in `scheduleDrain`.
         pruneTemporary(keeping: Set(feedURLs))
       }
       for feedURL in feedURLs {
@@ -413,9 +346,6 @@ final class SearchRecommendationCollector {
     ensureDrainTaskRunning()
   }
 
-  // Cancel and drop temporary entries whose feedURL is NOT in `survivors`,
-  // and strip their feed URLs from the pending drain queue. Survivors stay
-  // so already-in-flight work carries across a typed-search query change.
   private func pruneTemporary(keeping survivors: Set<FeedURL>) {
     guard !temporary.isEmpty else { return }
     var toCancel: [CachedPodcastEntry] = []
@@ -452,7 +382,9 @@ final class SearchRecommendationCollector {
       return
     }
     recommendationEngine.start()
-    // AppLauncher pre-starts the engine, so a no-context revision can already be in the past; don't subscribe to a stream whose only emit would be the bootstrap replay.
+    // AppLauncher pre-starts the engine, so the no-context revision can
+    // already be in the past — don't subscribe to a stream whose only emit
+    // would be the bootstrap replay.
     if recommendationEngine.scoringRevision > 0 {
       scoringAvailability = .unavailable
       startScoringContextWatcherIfNeeded()
@@ -480,9 +412,8 @@ final class SearchRecommendationCollector {
   }
 
   private func observeScoringContextWarmth() async {
-    // Engine state can change between the caller setting scoringUnavailable
-    // and this watcher subscribing. Check on every emit including bootstrap
-    // (don't dropFirst) so a fast-warming engine doesn't slip past us.
+    // Don't dropFirst: engine state can change between the caller flipping
+    // to .unavailable and this watcher subscribing.
     for await _ in recommendationEngine.$scoringRevision.stream() {
       if Task.isCancelled { return }
       if recommendationEngine.hasScoringContext {
@@ -514,10 +445,8 @@ final class SearchRecommendationCollector {
   }
 
   private func runDrainLoop() async {
-    // Without a hydrated scoring cache, `similarityScore(forEmbedding:)`
-    // returns nil for every candidate, all picks silently filter out, and
-    // each entry would be marked `.scored` with no episodes — permanent
-    // until the collector is torn down. Block until the engine is ready.
+    // Without a hydrated cache, every candidate scores nil, entries finish
+    // empty-and-.scored, and nothing retries them.
     await awaitScoringContext()
     if Task.isCancelled { return }
 
@@ -612,9 +541,8 @@ final class SearchRecommendationCollector {
 
     inFlight.remove(feedURL)
 
-    // Defensive: a concurrent overlay purge could have swapped a new entry
-    // under us. scheduleDrain bails while inFlight holds feedURL, so the new
-    // entry would stay .pending until something else triggers a re-schedule.
+    // If a concurrent overlay purge swapped in a new entry, scheduleDrain
+    // would have bailed on the inFlight guard, leaving it stuck .pending.
     if let current = self.entry(for: feedURL), current !== entry, current.status != .scored {
       scheduleDrain(for: feedURL)
     }
@@ -708,10 +636,8 @@ final class SearchRecommendationCollector {
     return .success(scored)
   }
 
-  // For unreconciled podcasts (no DB row), every newest-E unsaved episode
-  // passes through unchanged. For reconciled-unsubscribed podcasts, we
-  // resolve existing rows under that podcast ID with exact (guid, mediaURL)
-  // matching and drop any that fail the candidate gate.
+  // Drops episodes whose existing DB row fails the candidate gate. Unreconciled
+  // podcasts (no DB row) pass through unchanged.
   private nonisolated static func filteredCandidates(
     newest: [UnsavedEpisode],
     podcastID: Podcast.ID?,
@@ -763,26 +689,18 @@ final class SearchRecommendationCollector {
 
   // MARK: - Computed Outputs
 
-  // Ordered scored picks for the active source. Reads `permanent` /
-  // `temporary` / `trendingSourceIndex` / `typedSearchOverlay` and each
-  // entry's `status` / `scoredEpisodes`; SwiftUI observation invalidates
-  // on any of those mutations.
   var visiblePicks: [ScoredEpisode] {
     guard let activeSource else { return [] }
     return picks(for: activeSource)
   }
 
-  // `.loaded(count)` once any scored picks exist; `.loading` while the
-  // pipeline is still warming; `.hidden` when there's nothing to show and
-  // nothing in flight.
   var bannerState: BannerState {
     guard let activeSource else { return .hidden }
     return bannerState(for: activeSource)
   }
 
-  // Scored picks for a specific source. Decoupled from `activeSource` so
-  // a pushed discovery list keeps rendering its own source even if
-  // SearchView later swaps `activeSource` underneath it.
+  // Decoupled from `activeSource` so a pushed discovery list keeps rendering
+  // its own source even if SearchView later swaps `activeSource`.
   func picks(for source: Source) -> [ScoredEpisode] {
     let feedURLs = activeFeedURLs(for: source)
     var collected: [ScoredEpisode] = []
@@ -820,8 +738,7 @@ final class SearchRecommendationCollector {
     }
   }
 
-  // Sort by score desc, then pubDate desc, then GUID, then mediaURL as
-  // the final tie-breaker so the order is fully deterministic.
+  // mediaURL is the final tie-breaker so ordering is deterministic.
   fileprivate static func rankComparator(_ lhs: ScoredEpisode, _ rhs: ScoredEpisode) -> Bool {
     if lhs.score != rhs.score { return lhs.score > rhs.score }
     if lhs.episode.pubDate != rhs.episode.pubDate {
