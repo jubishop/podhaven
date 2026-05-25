@@ -147,12 +147,12 @@ enum RecommendationHelpers {
     }
   }
 
-  // The engine batches cache rebuilds through a 400ms Debounce. New triggers
-  // can land at any time during the test, each cancelling the prior sleep
-  // and arming a fresh one (FakeSleeper requires manual advance). Polling
-  // with a per-iteration advance fires whatever sleep is currently armed
-  // and cleanly handles the case where another rebuild gets scheduled
-  // after a previous one already fired.
+  // The engine batches cache rebuilds through a Debounce. New triggers can
+  // land at any time during the test, each cancelling the prior sleep and
+  // arming a fresh one (FakeSleeper requires manual advance). Polling with a
+  // per-iteration advance fires whatever sleep is currently armed and cleanly
+  // handles the case where another rebuild gets scheduled after a previous
+  // one already fired.
   static func waitAdvancing<T: Sendable>(
     _ block: @Sendable @escaping () async throws -> T?
   ) async throws -> T {

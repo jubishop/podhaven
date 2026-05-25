@@ -430,7 +430,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     let state: State
 
     enum State: Equatable, Sendable {
-      case initial(mediaGUID: MediaGUID)
       case unsaved(
         mediaGUID: MediaGUID,
         embeddingRevision: Int,
@@ -449,9 +448,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return currentRecommendationScoringSnapshot()
     },
     score: { [weak self] in
-      guard let self else { return .cacheable(nil) }
+      guard let self, let source = currentRecommendationSource()
+      else { return .cancelled }
       do {
-        let (result, cacheable) = try await computeRecommendation()
+        let (result, cacheable) = try await computeRecommendation(source: source)
         return cacheable ? .cacheable(result) : .uncacheable(result)
       } catch is CancellationError {
         return .cancelled
@@ -467,44 +467,54 @@ enum EpisodeDetailDisplayedScore: Sendable {
     refreshOnAssetsLoaded: true
   )
 
-  private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot {
-    let snapshotState: RecommendationScoringSnapshot.State
-    switch state {
-    case .initial(let listed):
-      snapshotState = .initial(mediaGUID: listed.mediaGUID)
-    case .unsaved(let unsaved):
-      snapshotState = .unsaved(
-        mediaGUID: unsaved.mediaGUID,
-        embeddingRevision: contextualEmbedding.revision,
-        embeddingSource: unsaved.searchableString
-      )
-    case .saved(let podcastEpisode):
-      snapshotState = .saved(
-        mediaGUID: podcastEpisode.mediaGUID,
-        episodeID: podcastEpisode.id
-      )
-    }
+  private func currentRecommendationScoringSnapshot() -> RecommendationScoringSnapshot? {
+    guard let snapshotState = currentSnapshotState() else { return nil }
     return RecommendationScoringSnapshot(
       scoringRevision: recommendationEngine.scoringRevision,
       state: snapshotState
     )
   }
 
-  // Start the revision observation before the bootstrap refresh so a revision
-  // emitted during the initial fetch is queued, not dropped. `refresh()` is
-  // snapshot-gated, so the call is a no-op when a kind-changing `transition()`
-  // already kicked an identical-snapshot pass.
+  private func currentSnapshotState() -> RecommendationScoringSnapshot.State? {
+    switch state {
+    case .initial:
+      return nil
+    case .unsaved(let unsaved):
+      return .unsaved(
+        mediaGUID: unsaved.mediaGUID,
+        embeddingRevision: contextualEmbedding.revision,
+        embeddingSource: unsaved.searchableString
+      )
+    case .saved(let podcastEpisode):
+      return .saved(
+        mediaGUID: podcastEpisode.mediaGUID,
+        episodeID: podcastEpisode.id
+      )
+    }
+  }
+
+  private enum RecommendationSource {
+    case unsaved(UnsavedPodcastEpisode)
+    case saved(PodcastEpisode)
+  }
+
+  private func currentRecommendationSource() -> RecommendationSource? {
+    switch state {
+    case .initial: return nil
+    case .unsaved(let unsavedPodcastEpisode): return .unsaved(unsavedPodcastEpisode)
+    case .saved(let podcastEpisode): return .saved(podcastEpisode)
+    }
+  }
+
   private func startRecommendationObservation() {
     recommendationCoordinator.startObservations()
     recommendationCoordinator.refresh()
   }
 
-  private func computeRecommendation() async throws -> (
-    EpisodeDetailDisplayedScore?, cacheable: Bool
-  ) {
-    switch state {
-    case .initial:
-      return (nil, true)
+  private func computeRecommendation(
+    source: RecommendationSource
+  ) async throws -> (EpisodeDetailDisplayedScore?, cacheable: Bool) {
+    switch source {
     case .saved(let podcastEpisode):
       return (try await scoreSavedEpisode(podcastEpisode), true)
     case .unsaved(let unsavedPodcastEpisode):
