@@ -392,11 +392,11 @@ final class PlayManager {
   // Returns the first pool entry that's still candidate-eligible. The pool
   // is published as IDs only, so anything that's been queued / rated /
   // finished / started since the last engine rebuild has to be filtered out
-  // here. The current episode is excluded too — autoplay must pick the *next*.
+  // here. The just-finished episode is automatically excluded — `finishDate`
+  // is set before this runs, so `isCandidate` rejects it.
   private func nextAutoplayRecommendation() async throws -> PodcastEpisode? {
     guard userSettings.autoPlayTopRecommendationWhenQueueEmpty else { return nil }
-    let currentEpisodeID = sharedState.currentEpisodeID
-    for episodeID in sharedState.recommendedEpisodePool where episodeID != currentEpisodeID {
+    for episodeID in sharedState.recommendedEpisodePool {
       guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
         Self.log.warning(
           "nextAutoplayRecommendation: ranked episode \(episodeID) not found in database, skipping"

@@ -267,4 +267,24 @@ import Testing
     try await PlayHelpers.waitForCurrentItem(queuedEpisode.episode.mediaURL)
   }
 
+  // Pins the cold-launch behavior: finishing the last episode with empty
+  // queue and autoplay disabled clears `currentEpisodeID`, so a later cold
+  // launch won't try to resume the finished episode.
+  @Test("finishEpisode with no replacement nils currentEpisodeID")
+  func finishEpisodeNoReplacementNilsCurrentEpisodeID() async throws {
+    await playManager.start()
+    userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(false)
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+
+    await playManager.finishEpisode(podcastEpisode.id)
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForOnDeck(nil)
+    #expect(sharedState.currentEpisodeID == nil)
+  }
+
 }

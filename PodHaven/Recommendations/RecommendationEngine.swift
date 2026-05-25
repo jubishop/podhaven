@@ -458,7 +458,6 @@ struct RecommendationEngine: Sendable {
         scheduleRecommendationsRebuild()
       }
     }
-
   }
 
   private func scheduleCacheRebuild() {

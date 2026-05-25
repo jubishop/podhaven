@@ -168,7 +168,13 @@ import SwiftUI
 
       hydrationTask?.cancel()
       recommendedPoolOrder = ranking
-      hydratedRecommendedListables = [:]
+      // Retain rows whose IDs survived the pool change so a concurrent
+      // rebuild (currentEpisodeID / limit) during the hydration gap doesn't
+      // flash the row to empty. New IDs populate when hydration emits.
+      let idSet = Set(ranking)
+      hydratedRecommendedListables = hydratedRecommendedListables.filter {
+        idSet.contains($0.key)
+      }
 
       guard !ranking.isEmpty else {
         hydrationTask = nil
@@ -176,7 +182,6 @@ import SwiftUI
         continue
       }
 
-      let idSet = Set(ranking)
       hydrationTask = Task(priority: taskPriority(.utility)) { @MainActor [weak self] in
         guard let self else { return }
         do {

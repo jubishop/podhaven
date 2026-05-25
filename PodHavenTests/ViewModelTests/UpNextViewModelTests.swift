@@ -673,6 +673,75 @@ import Testing
     )
   }
 
+  // Regression: if the pool transitions to an overlapping ranking
+  // ([A, B] -> [B, C]) while a concurrent observer (currentEpisodeID) forces
+  // a local rebuild during the hydration gap, the recommended row must not
+  // flash to empty. Overlap on B has to survive the pool swap.
+  @Test("recommended row keeps overlap during pool transition with concurrent rebuild")
+  func recommendedKeepsOverlapDuringConcurrentRebuild() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "a", title: "A"),
+          try Create.unsavedEpisode(guid: "b", title: "B"),
+          try Create.unsavedEpisode(guid: "c", title: "C"),
+          try Create.unsavedEpisode(guid: "d", title: "D"),
+        ]
+      )
+    )
+    let a = series.episodes[0]
+    let b = series.episodes[1]
+    let c = series.episodes[2]
+    let d = series.episodes[3]
+
+    sharedState.setRecommendedEpisodePool([a.id, b.id])
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.map(\.id) == [a.id, b.id] },
+      { @MainActor in
+        "Initial pool [A, B] didn't hydrate, got \(viewModel.recommendedEpisodes.map(\.id))"
+      }
+    )
+
+    let snapshots = ThreadSafe<[[Episode.ID]]>([])
+    let tracker = Task { @MainActor in
+      while !Task.isCancelled {
+        let snapshot = viewModel.recommendedEpisodes.map(\.id)
+        snapshots { $0.append(snapshot) }
+        await Task.yield()
+      }
+    }
+    defer { tracker.cancel() }
+
+    sharedState.setRecommendedEpisodePool([b.id, c.id])
+    let dPodcastEpisode = try #require(try await repo.podcastEpisode(d.id))
+    stateManager.setOnDeck(dPodcastEpisode)
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.map(\.id) == [b.id, c.id] },
+      { @MainActor in
+        "Final pool [B, C] didn't settle, got \(viewModel.recommendedEpisodes.map(\.id))"
+      }
+    )
+
+    tracker.cancel()
+
+    let recorded = snapshots()
+    let flashedEmpty = recorded.contains { $0.isEmpty }
+    #expect(
+      !flashedEmpty,
+      """
+      Recommended row flashed empty during overlapping pool transition; B should \
+      have stayed visible. Recorded sequence: \(recorded)
+      """
+    )
+  }
+
   private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
     try await repo.db.read { db in
       let episode =
