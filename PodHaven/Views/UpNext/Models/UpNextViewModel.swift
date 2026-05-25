@@ -32,10 +32,6 @@ import SwiftUI
   var episodeList = PowerList<ListablePodcastEpisode>()
   private(set) var recommendedEpisodes: IdentifiedArrayOf<ListablePodcastEpisode> = []
 
-  // Pool published by the engine and the candidate-filtered hydrated rows are
-  // kept separate so we can re-derive `recommendedEpisodes` whenever any of
-  // pool / hydration / onDeck / user-N changes — without restarting GRDB
-  // observations on every cheap event.
   private var recommendedPoolOrder: [Episode.ID] = []
   private var hydratedRecommendedListables: [Episode.ID: ListablePodcastEpisode] = [:]
 
@@ -43,8 +39,6 @@ import SwiftUI
 
   // Recommendations live outside the PowerList, so the default
   // `episodeList.selectedEntries` misses them. Union them in here.
-  // Pool entries are filtered to candidates (unqueued), so they cannot
-  // overlap with the queue — no dedupe needed.
   var selectedEntries: IdentifiedArrayOf<ListablePodcastEpisode> {
     var result = episodeList.selectedEntries
     for rec in recommendedEpisodes where episodeList.isSelected[rec.id] {
@@ -207,8 +201,12 @@ import SwiftUI
   }
 
   private func observeOnDeckForRecommendations() async {
-    for await _ in sharedState.$onDeck.stream() {
+    var lastID: Episode.ID? = sharedState.onDeck?.id
+    for await onDeck in sharedState.$onDeck.stream() {
       guard !Task.isCancelled else { return }
+      let currentID = onDeck?.id
+      guard currentID != lastID else { continue }
+      lastID = currentID
       rebuildRecommendedEpisodes()
     }
   }

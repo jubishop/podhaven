@@ -70,10 +70,6 @@ struct RecommendationEngine: Sendable {
   private static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
-  // Pool published on every rebuild. Consumers apply the candidate filter and
-  // user-N slice locally. Slider for `maxRecommendedEpisodesInUpNext` is
-  // currently capped at 20; raise this constant (or re-introduce a dynamic
-  // pool-size observer) if that cap moves.
   private static let recommendationPoolSize = 100
 
   private static let lovedWeight: Float = 1.0

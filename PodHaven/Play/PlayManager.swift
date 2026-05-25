@@ -403,11 +403,7 @@ final class PlayManager {
         )
         continue
       }
-      guard podcastEpisode.rating == nil,
-        podcastEpisode.queueOrder == nil,
-        podcastEpisode.finishDate == nil,
-        podcastEpisode.currentTime == .zero
-      else { continue }
+      guard podcastEpisode.isCandidate else { continue }
       return podcastEpisode
     }
     return nil
