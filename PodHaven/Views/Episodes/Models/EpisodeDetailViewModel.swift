@@ -447,10 +447,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return currentRecommendationScoringSnapshot()
     },
     score: { [weak self] in
-      guard let self, let snapshotState = currentSnapshotState()
+      guard let self, currentSnapshotState() != nil
       else { return .cancelled }
       do {
-        let (result, cacheable) = try await computeRecommendation(for: snapshotState)
+        let (result, cacheable) = try await computeRecommendation()
         return cacheable ? .cacheable(result) : .uncacheable(result)
       } catch is CancellationError {
         return .cancelled
@@ -501,18 +501,17 @@ enum EpisodeDetailDisplayedScore: Sendable {
     recommendationCoordinator.refresh()
   }
 
-  // `snapshotState` is the coordinator-captured kind; `state` is re-read for
-  // the live source object. A kind drift between the two is dropped here and
-  // re-checked by the coordinator's stale-drop guard after scoring.
-  private func computeRecommendation(
-    for snapshotState: RecommendationScoringSnapshot.State
-  ) async throws -> (EpisodeDetailDisplayedScore?, cacheable: Bool) {
-    switch snapshotState {
-    case .saved:
-      guard case .saved(let podcastEpisode) = state else { return (nil, false) }
+  private func computeRecommendation() async throws -> (
+    EpisodeDetailDisplayedScore?, cacheable: Bool
+  ) {
+    switch state {
+    case .initial:
+      // State drifted to `.initial` after the snapshot was captured; the
+      // coordinator's stale-drop guard rejects the result regardless.
+      return (nil, false)
+    case .saved(let podcastEpisode):
       return (try await scoreSavedEpisode(podcastEpisode), true)
-    case .unsaved:
-      guard case .unsaved(let unsavedPodcastEpisode) = state else { return (nil, false) }
+    case .unsaved(let unsavedPodcastEpisode):
       return try await scoreUnsavedEpisode(unsavedPodcastEpisode)
     }
   }
