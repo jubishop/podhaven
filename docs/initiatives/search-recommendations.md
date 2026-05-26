@@ -244,10 +244,6 @@ typed queries are not a V1 cache target because they can grow without bound.
   shared scored podcast entries. Typed-search churn should cancel and discard the
   previous query overlay without promoting query-only podcasts into the shared
   category cache.
-- **Budget.** Log RSS count/duration, embedding count/duration, cancellation
-  count, score-floor drops, and final visible count for typed search and
-  trending. Use real-device data before changing P/E caps, concurrency, score
-  floor, TTL, or eviction policy.
 - **Tests.** Cover top-category feed URL index reuse, shared podcast cache reuse
   across categories, typed-search reuse of shared cached podcasts without adding
   query-only misses to the category cache, typed-query overlay replacement,

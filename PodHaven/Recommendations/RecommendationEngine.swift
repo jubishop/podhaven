@@ -168,6 +168,8 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Public API
 
+  var hasScoringContext: Bool { cache() != nil }
+
   // Idempotent. Public scoring methods do NOT auto-call `start()` — they
   // read whatever the cache currently has and return empty when it's nil.
   func start() {
