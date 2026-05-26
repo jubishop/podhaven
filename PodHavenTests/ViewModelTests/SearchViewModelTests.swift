@@ -310,7 +310,7 @@ import Testing
     await configureITunesResponses()
     await feedSession.respond(
       to: lennysFeed.rawValue,
-      data: rssXML(
+      data: SearchRecommendationCollectorTestHelpers.rssXML(
         title: "Lenny's",
         feedURL: lennysFeed,
         episodes: [
@@ -402,7 +402,7 @@ import Testing
     let lennysFeed = FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!)
     await feedSession.respond(
       to: lennysFeed.rawValue,
-      data: rssXML(
+      data: SearchRecommendationCollectorTestHelpers.rssXML(
         title: "Lenny's",
         feedURL: lennysFeed,
         episodes: [
@@ -504,7 +504,7 @@ import Testing
     let lennysFeed = FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!)
     await feedSession.respond(
       to: lennysFeed.rawValue,
-      data: rssXML(
+      data: SearchRecommendationCollectorTestHelpers.rssXML(
         title: "Lenny's",
         feedURL: lennysFeed,
         episodes: [
@@ -591,45 +591,6 @@ import Testing
         return "Expected 'growth' overlay to be dropped after erroring next query; got \(pickURLs)"
       }
     )
-  }
-
-  private func rssXML(
-    title: String,
-    feedURL: FeedURL,
-    episodes: [(guid: String, title: String, pubDate: Date)]
-  ) -> Data {
-    let pubDateFormatter = DateFormatter()
-    pubDateFormatter.locale = Locale(identifier: "en_US_POSIX")
-    pubDateFormatter.timeZone = TimeZone(identifier: "GMT")
-    pubDateFormatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
-
-    let items =
-      episodes.map { entry -> String in
-        """
-        <item>
-          <guid isPermaLink="false">\(entry.guid)</guid>
-          <title>\(entry.title)</title>
-          <pubDate>\(pubDateFormatter.string(from: entry.pubDate))</pubDate>
-          <enclosure url="https://example.com/audio/\(entry.guid).mp3" type="audio/mpeg" length="0" />
-          <description>\(entry.title) description</description>
-        </item>
-        """
-      }
-      .joined(separator: "\n")
-
-    let xml = """
-      <?xml version="1.0" encoding="UTF-8"?>
-      <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
-        <channel>
-          <title>\(title)</title>
-          <link>\(feedURL.absoluteString)</link>
-          <description>\(title) description</description>
-          <itunes:image href="https://example.com/image.png" />
-          \(items)
-        </channel>
-      </rss>
-      """
-    return Data(xml.utf8)
   }
 
   private func configureITunesResponses(emptyForSearchTerm: String? = nil) async {

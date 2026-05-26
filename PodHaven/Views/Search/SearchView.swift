@@ -41,13 +41,17 @@ struct SearchView: View {
       }
       .toolbar { toolbar }
       .toolbarRole(.editor)
+      // Attached to the root content rather than the NavStack so pushed
+      // destinations (e.g. SearchDiscoveryListView) don't inherit the
+      // search field — otherwise editing the query from a pushed view can
+      // invalidate the source the discovery list was instantiated with.
+      .searchable(
+        text: $viewModel.searchText,
+        placement: .automatic,
+        prompt: Text("Search podcasts")
+      )
+      .searchPresentationToolbarBehavior(.avoidHidingContent)
     }
-    .searchable(
-      text: $viewModel.searchText,
-      placement: .automatic,
-      prompt: Text("Search podcasts")
-    )
-    .searchPresentationToolbarBehavior(.avoidHidingContent)
     .onChange(of: isShowingManualFeedEntry) { _, showing in
       if showing {
         Self.log.debug("ManualFeedEntry sheet presented")
@@ -261,13 +265,14 @@ struct SearchView: View {
 
   private func loadedBannerCopy(count: Int) -> String {
     if viewModel.isShowingSearchResults {
-      return "Top \(count) from \"\(viewModel.searchedText)\""
+      let query = viewModel.searchedText
+      return count == 1 ? "Top pick from \"\(query)\"" : "Top \(count) from \"\(query)\""
     }
     let section = viewModel.currentTrendingSection
     if section.genreID == nil {
       return count == 1 ? "Top pick" : "Top \(count) picks"
     }
-    return "Top \(count) from \(section.title)"
+    return count == 1 ? "Top pick from \(section.title)" : "Top \(count) from \(section.title)"
   }
 
   private var resultsGrid: some View {

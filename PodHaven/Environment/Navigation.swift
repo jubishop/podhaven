@@ -328,7 +328,7 @@ extension Container {
       .id(unsavedPodcastSeries.id)
     case .searchDiscovery(let source, let actionsViewModel):
       SearchDiscoveryListView(source: source, actionsViewModel: actionsViewModel)
-        .id("searchDiscovery-\(source)")
+        .id("searchDiscovery-\(source.stableID)")
     }
   }
 

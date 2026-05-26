@@ -58,6 +58,18 @@ final class SearchRecommendationCollector {
       case .trending(let trending): return trending.genreID == nil ? "Top picks" : trending.title
       }
     }
+
+    // Used as a SwiftUI view identity key. Stable across enum / property
+    // renames, so navigation doesn't tear down + recreate destinations when
+    // unrelated source-type internals change.
+    var stableID: String {
+      switch self {
+      case .search(let query): return "search-\(query)"
+      case .trending(let trending):
+        let key = trending.genreID.map(String.init) ?? trending.title
+        return "trending-\(key)"
+      }
+    }
   }
 
   // MARK: - Banner State
@@ -190,8 +202,11 @@ final class SearchRecommendationCollector {
     }
   }
 
-  func tearDown() {
-    Self.log.debug("Tearing down collector")
+  // Cancels every in-flight task and clears all caches. The collector is
+  // re-usable afterwards: the next `recordSourcePodcasts` will respin the
+  // drain task and watcher.
+  func reset() {
+    Self.log.debug("Resetting collector")
     drainTask?.cancel()
     if let continuation = drainContinuation {
       drainContinuation = nil
@@ -246,6 +261,10 @@ final class SearchRecommendationCollector {
     // firing, the pending debounce is the only typed-search state alive.
     guard typedSearchDebouncer != nil || typedSearchOverlay != nil || !temporary.isEmpty
     else { return }
+    // Invalidate any in-flight reconcile whose action body started before
+    // this clear; without the bump it would resume past the generation guard
+    // and re-create the overlay we just dropped.
+    typedSearchGeneration += 1
     Self.log.debug("Clearing typed-search overlay")
     typedSearchDebouncer?.cancel()
     typedSearchDebouncer = nil
@@ -573,11 +592,20 @@ final class SearchRecommendationCollector {
     )
 
     entry.fetchToken = nil
+    let currentEntry = self.entry(for: feedURL)
+    let isAttached = currentEntry === entry
     switch result {
     case .success(let scored):
-      registerPicks(scored, for: entry)
-      entry.scoredEpisodes = scored
-      entry.status = .scored
+      // A purge mid-pipeline (typed-overlay clear or pruneTemporary) detaches
+      // the entry; writing scoredEpisodes / registerPicks here would leave
+      // pickIndex pointing at an instance no one can reach through picks(for:).
+      if isAttached {
+        registerPicks(scored, for: entry)
+        entry.scoredEpisodes = scored
+        entry.status = .scored
+      } else {
+        entry.status = .cancelled
+      }
     case .cancelled:
       entry.status = .cancelled
     case .failed(let error):
@@ -593,7 +621,7 @@ final class SearchRecommendationCollector {
 
     // If a concurrent overlay purge swapped in a new entry, scheduleDrain
     // would have bailed on the inFlight guard, leaving it stuck .pending.
-    if let current = self.entry(for: feedURL), current !== entry, current.status != .scored,
+    if let current = currentEntry, current !== entry, current.status != .scored,
       current.status != .exhausted
     {
       scheduleDrain(for: feedURL)

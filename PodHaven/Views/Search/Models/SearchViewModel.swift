@@ -674,8 +674,8 @@ class SearchViewModel:
     }
     currentResultsObservationTask?.cancel()
     currentResultsObservationTask = nil
-    Self.log.debug("SearchViewModel: tearing down recommendation collector")
-    recommendationCollector.tearDown()
+    Self.log.debug("SearchViewModel: resetting recommendation collector")
+    recommendationCollector.reset()
   }
 
   // MARK: - Recommendation Collector Wiring

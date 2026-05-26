@@ -72,6 +72,70 @@ import Testing
     #expect(!pickTitles.contains(where: { $0.starts(with: "First") }))
   }
 
+  // MARK: - Test: Clearing After Debounce Fires Bails Stale Reconcile
+
+  // The stable-source debounce fires synchronously inside the test's @MainActor
+  // run; `reconcileAndIngest` then suspends on `firstObservationEmission`.
+  // Switching to trending in the next statement runs `clearTypedSearchOverlay`
+  // before the stale reconcile resumes. Without bumping `typedSearchGeneration`
+  // here, the stale reconcile finds its captured generation still current,
+  // re-creates the overlay, and fans out RSS for the old query.
+  @Test("clearing typed search after the debounce fires bails the stale reconcile")
+  func clearingTypedSearchAfterDebounceFiredBailsStaleReconcile() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+
+    let staleFeed = FeedURL(URL(string: "https://example.com/stale-after-clear.rss")!)
+    let trendingFeed = FeedURL(URL(string: "https://example.com/trending-after-clear.rss")!)
+    await H.respondWithFeed(at: staleFeed, title: "Stale", episodes: 1)
+    await H.respondWithFeed(at: trendingFeed, title: "Trending Post Clear", episodes: 1)
+
+    let typedSource = SearchRecommendationCollector.Source.search(query: "stale")
+    collector.setActiveSource(typedSource)
+    collector.recordSourcePodcasts(
+      source: typedSource,
+      podcasts: [H.makeUnsavedRow(feedURL: staleFeed, iTunesID: ITunesPodcastID(3001))]
+    )
+
+    // Fire the typed debounce. The reconcile is now awaiting its observation.
+    try await H.fakeSleeper.waitForSleepRequests(count: 1)
+    await H.fakeSleeper.advanceTime(by: SearchRecommendationCollector.stableSourceDebounce)
+
+    // User leaves typed search before the reconcile resolves.
+    let trendingSource = SearchRecommendationCollector.Source.trending(
+      .init(genreID: nil, title: "Top")
+    )
+    collector.setActiveSource(trendingSource)
+    collector.recordSourcePodcasts(
+      source: trendingSource,
+      podcasts: [H.makeUnsavedRow(feedURL: trendingFeed, iTunesID: ITunesPodcastID(3002))]
+    )
+
+    // Fire the trending debounce. This gives the stale reconcile ample time
+    // to attempt its overlay write under @MainActor too.
+    try await H.fakeSleeper.waitForSleepRequests(count: 2)
+    await H.fakeSleeper.advanceTime(by: SearchRecommendationCollector.stableSourceDebounce)
+
+    try await Wait.until(
+      { @MainActor in await H.session.requests.contains(trendingFeed.rawValue) },
+      { @MainActor in
+        let r = await H.session.requests
+        return "Expected trending RSS request to land; got \(r)"
+      }
+    )
+
+    let requests = await H.session.requests
+    #expect(
+      !requests.contains(staleFeed.rawValue),
+      """
+      Stale typed-search reconcile re-created the overlay after clearTypedSearchOverlay; \
+      got requests \(requests)
+      """
+    )
+    #expect(collector.picks(for: typedSource).isEmpty)
+  }
+
   // MARK: - Test: Leaving Typed Search Releases Overlay-Owned Cache
 
   @Test("setActiveSource(.trending) after a typed search drops the overlay")
