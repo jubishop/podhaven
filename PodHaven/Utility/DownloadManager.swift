@@ -17,7 +17,7 @@ actor DownloadTask: Identifiable {
   nonisolated var id: URL { url }
 
   let url: URL
-  var finished: Bool { finishedLatch.isFinished }
+  var finished: Bool { finishedLatch.isOpen }
 
   private let session: any DataFetchable
   private let beganLatch = AsyncLatch<Void>()
@@ -35,7 +35,7 @@ actor DownloadTask: Identifiable {
   }
 
   func cancel() async {
-    guard !finishedLatch.isFinished else { return }
+    guard !finishedLatch.isOpen else { return }
     // Capture-then-clear so concurrent cancel()s after this point are no-ops
     // and the owner is notified at most once per task.
     let owner = self.owner
@@ -55,15 +55,15 @@ actor DownloadTask: Identifiable {
   // Cancellation initiated by the owning manager. The manager has already
   // removed the task from its state, so we skip the owner callback.
   fileprivate func cancelFromOwner() {
-    guard !finishedLatch.isFinished else { return }
+    guard !finishedLatch.isOpen else { return }
     owner = nil
     finalizeCancelled()
   }
 
   fileprivate func download() async {
-    guard !finishedLatch.isFinished else { return }
+    guard !finishedLatch.isOpen else { return }
 
-    beganLatch.finish()
+    beganLatch.open()
 
     let fetchTask = Task { [session, url] () async throws -> Data in
       try await session.validatedData(from: url)
@@ -73,9 +73,9 @@ actor DownloadTask: Identifiable {
 
     do {
       let data = try await fetchTask.value
-      finishedLatch.finish(.success(DownloadData(url: url, data: data)))
+      finishedLatch.open(.success(DownloadData(url: url, data: data)))
     } catch {
-      finishedLatch.finish(.failure(error))
+      finishedLatch.open(.failure(error))
     }
   }
 
@@ -83,8 +83,8 @@ actor DownloadTask: Identifiable {
 
   private func finalizeCancelled() {
     fetchTask?.cancel()
-    beganLatch.finish()
-    finishedLatch.finish(.failure(CancellationError()))
+    beganLatch.open()
+    finishedLatch.open(.failure(CancellationError()))
   }
 }
 
