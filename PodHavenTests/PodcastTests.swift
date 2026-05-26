@@ -271,17 +271,26 @@ class PodcastTests {
     #expect(fetchedPodcast3.podcast.subscribed == false)
   }
 
-  @Test("updateLastUpdate() successfully updates podcast lastUpdate timestamp")
-  func testUpdateLastUpdate() async throws {
-    let podcastSeries = try await repo.insertSeries(
+  @Test("updateLastUpdates() writes per-row timestamps in a single transaction")
+  func testUpdateLastUpdates() async throws {
+    let podcastSeries1 = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(lastUpdate: 30.minutesAgo))
+    )
+    let podcastSeries2 = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(lastUpdate: 30.minutesAgo))
     )
 
-    let updateTime = Date()
-    try await repo.updateLastUpdate(podcastSeries.podcast.id)
+    let time1 = Date().addingTimeInterval(-10)
+    let time2 = Date()
+    try await repo.updateLastUpdates([
+      (podcastSeries1.podcast.id, time1),
+      (podcastSeries2.podcast.id, time2),
+    ])
 
-    let fetchedPodcast = try await repo.podcastSeries(podcastSeries.podcast.id)!
-    #expect(fetchedPodcast.podcast.lastUpdate.approximatelyEquals(updateTime))
+    let fetched1 = try await repo.podcastSeries(podcastSeries1.podcast.id)!
+    let fetched2 = try await repo.podcastSeries(podcastSeries2.podcast.id)!
+    #expect(fetched1.podcast.lastUpdate.approximatelyEquals(time1))
+    #expect(fetched2.podcast.lastUpdate.approximatelyEquals(time2))
   }
 
   @Test(

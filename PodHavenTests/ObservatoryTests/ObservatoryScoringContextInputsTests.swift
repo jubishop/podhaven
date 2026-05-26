@@ -511,10 +511,13 @@ actor ObservatoryScoringContextInputsTests {
       notifyNewEpisodes: true,
       freshnessCadence: .weekly
     )
+    let now = Date()
     for podcastID in [manualPodcast.id, autoPodcastA.id, autoPodcastB.id] {
       _ = try await repo.updatePodcastSettings(podcastID, noisySettings)
-      _ = try await repo.updateLastUpdate(podcastID)
     }
+    try await repo.updateLastUpdates(
+      [manualPodcast.id, autoPodcastA.id, autoPodcastB.id].map { ($0, now) }
+    )
 
     try await Wait.until(
       maxAttempts: 50,

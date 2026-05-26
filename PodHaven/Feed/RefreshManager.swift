@@ -25,11 +25,15 @@ struct RefreshManager {
   private static let log = Log.as(LogSubsystem.Feed.refreshManager)
 
   private let downloadManager: DownloadManager
+  private let inFlight = ThreadSafe<Set<URL>>([])
 
   // MARK: - Initialization
 
   fileprivate init() {
-    downloadManager = DownloadManager(session: Container.shared.podcastFeedSession())
+    downloadManager = DownloadManager(
+      session: Container.shared.podcastFeedSession(),
+      maxConcurrentDownloads: 8
+    )
   }
 
   // MARK: - Refresh Management
@@ -46,39 +50,64 @@ struct RefreshManager {
       """
     )
 
-    try await withThrowingDiscardingTaskGroup { group in
-      let staleSeries = try await repo.allPodcastSeries(
-        Podcast.Columns.lastUpdate < Date.now.advanced(by: -stalenessThreshold.asTimeInterval)
-          && filter,
-        order: Podcast.Columns.lastUpdate.asc,
-        limit: limit
-      )
-      Self.log.debug(
-        "performRefresh: fetched \(staleSeries.count) stale series (limit: \(limit))"
-      )
+    let staleSeries = try await repo.allPodcastSeries(
+      Podcast.Columns.lastUpdate < Date.now.advanced(by: -stalenessThreshold.asTimeInterval)
+        && filter,
+      order: Podcast.Columns.lastUpdate.asc,
+      limit: limit
+    )
+    Self.log.debug(
+      "performRefresh: fetched \(staleSeries.count) stale series (limit: \(limit))"
+    )
 
+    let collected = await withTaskGroup(
+      of: (Podcast.ID, Date)?.self,
+      returning: [(Podcast.ID, Date)].self
+    ) { group in
       for podcastSeries in staleSeries {
         group.addTask { [podcastSeries] in
           do {
-            try await refreshSeries(podcastSeries: podcastSeries)
+            return try await performRefreshCycle(podcastSeries: podcastSeries)
           } catch {
             Self.log.caughtError(
               "Failed to refresh series: \(podcastSeries.toString)",
               error,
               level: { _ in .info }
             )
+            return nil
           }
         }
       }
+      var results = [(Podcast.ID, Date)](capacity: staleSeries.count)
+      for await result in group {
+        if let result {
+          results.append(result)
+        }
+      }
+      return results
+    }
+
+    if !collected.isEmpty {
+      // Task to execute even inside cancellation: ensures the timestamps
+      // collected for series that already finished refreshing get flushed
+      // before performRefresh returns, so the next cycle sees them as fresh.
+      await Task {
+        do {
+          try await repo.updateLastUpdates(collected)
+        } catch {
+          Self.log.caughtError(
+            "performRefresh: failed to flush \(collected.count) lastUpdate timestamps",
+            error
+          )
+        }
+      }
+      .value
     }
 
     Self.log.debug("performRefresh: completed")
   }
 
-  @discardableResult
-  func refreshSeries(podcastSeries: PodcastSeries)
-    async throws -> Bool
-  {
+  func refreshSeries(podcastSeries: PodcastSeries) async throws {
     Self.log.trace(
       """
       refreshSeries:
@@ -86,12 +115,37 @@ struct RefreshManager {
       """
     )
 
-    if await downloadManager.hasURL(podcastSeries.podcast.feedURL.rawValue) {
-      Self.log.debug("refreshSeries: URL for \(podcastSeries.toString) already being fetched")
+    if let pending = try await performRefreshCycle(podcastSeries: podcastSeries) {
+      try await repo.updateLastUpdates([pending])
+    }
+  }
+
+  // MARK: - Private Helpers
+
+  // Fetches + parses the feed, then either writes everything (including
+  // lastUpdate) inline via repo.updateSeriesFromFeed when the feed had real
+  // changes, or returns the (id, Date) pair the caller should flush via
+  // repo.updateLastUpdates when the feed was unchanged. Returns nil when the
+  // work was deduped via inFlight or failed before any write could happen.
+  private func performRefreshCycle(
+    podcastSeries: PodcastSeries
+  ) async throws -> (Podcast.ID, Date)? {
+    let url = podcastSeries.podcast.feedURL.rawValue
+
+    let alreadyInFlight = inFlight { state -> Bool in
+      if state.contains(url) { return true }
+      state.insert(url)
       return false
     }
+    if alreadyInFlight {
+      Self.log.debug(
+        "performRefreshCycle: \(podcastSeries.toString) already in-flight; skipping"
+      )
+      return nil
+    }
+    defer { inFlight { $0.remove(url) } }
 
-    let downloadTask = await downloadManager.addURL(podcastSeries.podcast.feedURL.rawValue)
+    let downloadTask = await downloadManager.addURL(url)
     let podcastFeed: PodcastFeed
     do {
       podcastFeed = try await PodcastFeed.parse(downloadTask.downloadFinished())
@@ -105,24 +159,22 @@ struct RefreshManager {
         error,
         level: { _ in .notice }
       )
-      return false
+      return nil
     }
 
-    await updateSeriesFromFeed(
+    return await applyParsedFeed(
       podcastSeries: podcastSeries,
       podcastFeed: podcastFeed
     )
-
-    return true
   }
 
-  func updateSeriesFromFeed(
+  private func applyParsedFeed(
     podcastSeries: PodcastSeries,
     podcastFeed: PodcastFeed
-  ) async {
+  ) async -> (Podcast.ID, Date)? {
     Self.log.trace(
       """
-      updateSeriesFromFeed
+      applyParsedFeed
         podcastSeries: \(podcastSeries.toString)
         podcastFeed: \(podcastFeed.toString)
       """
@@ -149,7 +201,7 @@ struct RefreshManager {
         """,
         error
       )
-      return
+      return nil
     }
     let newPodcast = Podcast(
       id: podcastSeries.id,
@@ -180,7 +232,7 @@ struct RefreshManager {
     Self.log.log(
       level: unsavedEpisodes.isEmpty ? .trace : .debug,
       """
-      updateSeriesFromFeed: \(podcastSeries.toString)
+      applyParsedFeed: \(podcastSeries.toString)
         \(unsavedEpisodes.count) new episodes
         \(updatedEpisodes.count) updated episodes
         New Episodes are:
@@ -188,87 +240,86 @@ struct RefreshManager {
       """
     )
 
+    let now = Date()
     let podcastToUpdate = podcastSeries.podcast.rssEquals(newPodcast) ? nil : newPodcast
-    if podcastToUpdate != nil || !unsavedEpisodes.isEmpty || !updatedEpisodes.isEmpty {
-      let newEpisodes: [Episode]
-      do {
-        newEpisodes = try await repo.updateSeriesFromFeed(
-          podcastSeries: podcastSeries,
-          podcast: podcastToUpdate,
-          unsavedEpisodes: unsavedEpisodes,
-          existingEpisodes: updatedEpisodes
-        )
-      } catch {
-        var description = podcastSeries.toString
-        if !updatedEpisodes.isEmpty {
-          description +=
-            "\nEpisodes:\n    \(updatedEpisodes.map(\.toString).joined(separator: "\n    "))"
-        }
-        if !unsavedEpisodes.isEmpty {
-          description +=
-            "\nUnsavedEpisodes:\n    \(unsavedEpisodes.map(\.toString).joined(separator: "\n    "))"
-        }
-        Self.log.caughtError(
-          """
-          Failed to update PodcastSeries ID: \(podcastSeries.id.rawValue)
-            \(description)
-          """,
-          error
-        )
-        return
-      }
+    let hasChanges =
+      podcastToUpdate != nil || !unsavedEpisodes.isEmpty || !updatedEpisodes.isEmpty
 
-      if podcastSeries.podcast.notifyNewEpisodes {
-        await userNotificationManager.scheduleNewEpisodeNotification(
-          podcast: podcastSeries.podcast,
-          episodes: newEpisodes  // Ignored if newEpisodes.isEmpty
-        )
-      }
-
-      switch podcastSeries.podcast.cacheAllEpisodes {
-      case .never:
-        break
-      case .cache:
-        for newEpisode in newEpisodes {
-          do {
-            try await cacheManager.downloadToCache(for: newEpisode.id)
-          } catch {
-            Self.log.caughtError(
-              "updateSeriesFromFeed: failed to cache episode \(newEpisode.id)",
-              error
-            )
-          }
-        }
-      case .save:
-        for newEpisode in newEpisodes {
-          do {
-            try await repo.updateSaveInCache(newEpisode.id, saveInCache: true)
-          } catch {
-            Self.log.caughtError(
-              "updateSeriesFromFeed: failed to set saveInCache for episode \(newEpisode.id)",
-              error
-            )
-            continue
-          }
-          do {
-            try await cacheManager.downloadToCache(for: newEpisode.id)
-          } catch {
-            Self.log.caughtError(
-              "updateSeriesFromFeed: failed to cache episode \(newEpisode.id)",
-              error
-            )
-          }
-        }
-      }
+    if !hasChanges {
+      return (podcastSeries.id, now)
     }
 
+    let newEpisodes: [Episode]
     do {
-      try await repo.updateLastUpdate(podcastSeries.id)
+      newEpisodes = try await repo.updateSeriesFromFeed(
+        podcastSeries: podcastSeries,
+        podcast: podcastToUpdate,
+        unsavedEpisodes: unsavedEpisodes,
+        existingEpisodes: updatedEpisodes
+      )
     } catch {
+      var description = podcastSeries.toString
+      if !updatedEpisodes.isEmpty {
+        description +=
+          "\nEpisodes:\n    \(updatedEpisodes.map(\.toString).joined(separator: "\n    "))"
+      }
+      if !unsavedEpisodes.isEmpty {
+        description +=
+          "\nUnsavedEpisodes:\n    \(unsavedEpisodes.map(\.toString).joined(separator: "\n    "))"
+      }
       Self.log.caughtError(
-        "updateSeriesFromFeed: failed to update lastUpdate for podcast \(podcastSeries.id)",
+        """
+        Failed to update PodcastSeries ID: \(podcastSeries.id.rawValue)
+          \(description)
+        """,
         error
       )
+      return nil
     }
+
+    if podcastSeries.podcast.notifyNewEpisodes {
+      await userNotificationManager.scheduleNewEpisodeNotification(
+        podcast: podcastSeries.podcast,
+        episodes: newEpisodes  // Ignored if newEpisodes.isEmpty
+      )
+    }
+
+    switch podcastSeries.podcast.cacheAllEpisodes {
+    case .never:
+      break
+    case .cache:
+      for newEpisode in newEpisodes {
+        do {
+          try await cacheManager.downloadToCache(for: newEpisode.id)
+        } catch {
+          Self.log.caughtError(
+            "applyParsedFeed: failed to cache episode \(newEpisode.id)",
+            error
+          )
+        }
+      }
+    case .save:
+      for newEpisode in newEpisodes {
+        do {
+          try await repo.updateSaveInCache(newEpisode.id, saveInCache: true)
+        } catch {
+          Self.log.caughtError(
+            "applyParsedFeed: failed to set saveInCache for episode \(newEpisode.id)",
+            error
+          )
+          continue
+        }
+        do {
+          try await cacheManager.downloadToCache(for: newEpisode.id)
+        } catch {
+          Self.log.caughtError(
+            "applyParsedFeed: failed to cache episode \(newEpisode.id)",
+            error
+          )
+        }
+      }
+    }
+
+    return nil
   }
 }
