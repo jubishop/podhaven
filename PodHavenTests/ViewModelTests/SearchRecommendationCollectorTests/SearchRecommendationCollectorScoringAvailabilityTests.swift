@@ -37,7 +37,7 @@ import Testing
     let feedURL = FeedURL(URL(string: "https://example.com/pre-rebuilt-nil.rss")!)
     await H.respondWithFeed(at: feedURL, title: "Pre Rebuilt Nil", episodes: 1)
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -77,7 +77,7 @@ import Testing
     let feedURL = FeedURL(URL(string: "https://example.com/cold-engine.rss")!)
     await H.respondWithFeed(at: feedURL, title: "Cold Engine", episodes: 2)
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -127,7 +127,7 @@ import Testing
     let feedURL = FeedURL(URL(string: "https://example.com/no-scoring.rss")!)
     await H.respondWithFeed(at: feedURL, title: "No Scoring", episodes: 1)
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,

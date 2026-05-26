@@ -92,7 +92,9 @@ import Testing
       }
     )
 
-    let trendingSource = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let trendingSource = SearchRecommendationCollector.Source.trending(
+      .init(genreID: nil, title: "Top")
+    )
     collector.setActiveSource(trendingSource)
 
     #expect(collector.picks(for: typedSource).isEmpty)
@@ -125,7 +127,9 @@ import Testing
     try await H.fakeSleeper.waitForSleepRequests(count: 1)
 
     // User leaves typed search — debouncer must be cancelled.
-    let trendingSource = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let trendingSource = SearchRecommendationCollector.Source.trending(
+      .init(genreID: nil, title: "Top")
+    )
     collector.setActiveSource(trendingSource)
     collector.recordSourcePodcasts(
       source: trendingSource,
@@ -285,7 +289,7 @@ import Testing
     let gOnlyFeed = FeedURL(URL(string: "https://example.com/g-only.rss")!)
     await H.respondWithFeed(at: gOnlyFeed, title: "G Only", episodes: 1)
 
-    let trending = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let trending = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(trending)
     collector.recordSourcePodcasts(
       source: trending,

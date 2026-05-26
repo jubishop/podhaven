@@ -30,8 +30,7 @@ import Logging
   func tagIDs(for episode: EpisodeType) -> Set<Tag.ID>?
 
   // Hook fired after a row-action mutation lands successfully. Default no-op;
-  // conformers override when they need post-action bookkeeping (e.g. the
-  // search-discovery list drops the row from its picks after success).
+  // conformers override when they need post-action bookkeeping.
   func didPerformAction(_ episode: EpisodeType)
 
   func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode

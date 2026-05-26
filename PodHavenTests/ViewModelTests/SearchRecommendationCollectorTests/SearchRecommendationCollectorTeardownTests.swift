@@ -22,7 +22,7 @@ import Testing
     let feedURL = FeedURL(URL(string: "https://example.com/teardown.rss")!)
     await H.respondWithFeed(at: feedURL, title: "Teardown", episodes: 2)
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -68,7 +68,7 @@ import Testing
       )
     )
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -113,7 +113,7 @@ import Testing
     await H.respondWithFeed(at: feedURL, title: "Teardown Debouncer", episodes: 1)
     await H.respondWithFeed(at: postTeardownFeed, title: "Post Teardown", episodes: 1)
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -129,8 +129,7 @@ import Testing
     // pre-tearDown debouncer, advancing past its wakeTime would also trigger
     // an RSS request for the original feedURL.
     let postTeardownSource = SearchRecommendationCollector.Source.trending(
-      genreID: 1303,
-      title: "Comedy"
+      .init(genreID: 1303, title: "Comedy")
     )
     collector.setActiveSource(postTeardownSource)
     collector.recordSourcePodcasts(

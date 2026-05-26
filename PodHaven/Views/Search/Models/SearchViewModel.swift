@@ -683,8 +683,10 @@ class SearchViewModel:
       source = .search(query: searchedText)
     } else {
       source = .trending(
-        genreID: currentTrendingSection.genreID,
-        title: currentTrendingSection.title
+        .init(
+          genreID: currentTrendingSection.genreID,
+          title: currentTrendingSection.title
+        )
       )
     }
     recommendationCollector.setActiveSource(source)
@@ -693,7 +695,7 @@ class SearchViewModel:
   fileprivate func pushTrendingResultsToCollector(_ trendingSection: TrendingSection) {
     guard trendingSection.state == .loaded, !trendingSection.results.isEmpty else { return }
     recommendationCollector.recordSourcePodcasts(
-      source: .trending(genreID: trendingSection.genreID, title: trendingSection.title),
+      source: .trending(.init(genreID: trendingSection.genreID, title: trendingSection.title)),
       podcasts: Array(trendingSection.results)
     )
   }

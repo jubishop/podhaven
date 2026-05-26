@@ -331,8 +331,10 @@ import Testing
     // `AppIcon.trendingTop.text` don't silently make this assertion read
     // a never-populated source.
     let trendingSource = SearchRecommendationCollector.Source.trending(
-      genreID: viewModel.currentTrendingSection.genreID,
-      title: viewModel.currentTrendingSection.title
+      .init(
+        genreID: viewModel.currentTrendingSection.genreID,
+        title: viewModel.currentTrendingSection.title
+      )
     )
 
     try await Wait.until(

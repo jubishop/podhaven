@@ -16,6 +16,15 @@ import Tagged
 // adds a per-query overlay that's discarded when the query changes.
 @Observable @MainActor
 final class SearchRecommendationCollector {
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
+  @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
+  @ObservationIgnored @DynamicInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
+
+  @ObservationIgnored private let downloadManager: DownloadManager
+
   nonisolated private static let log = Log.as(LogSubsystem.SearchView.recommendations)
 
   // MARK: - Tunable Caps
@@ -37,13 +46,18 @@ final class SearchRecommendationCollector {
   // MARK: - Source
 
   enum Source: Sendable, Hashable {
+    struct Trending: Sendable, Hashable {
+      let genreID: Int?
+      let title: String
+    }
+
     case search(query: String)
-    case trending(genreID: Int?, title: String)
+    case trending(Trending)
 
     var discoveryListTitle: String {
       switch self {
       case .search(let query): return "\"\(query)\""
-      case .trending(let genreID, let title): return genreID == nil ? "Top picks" : title
+      case .trending(let trending): return trending.genreID == nil ? "Top picks" : trending.title
       }
     }
   }
@@ -64,17 +78,6 @@ final class SearchRecommendationCollector {
     let score: Float
   }
 
-  // MARK: - Dependencies
-
-  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
-  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
-  @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
-  @ObservationIgnored @DynamicInjected(\.repo) private var repo
-  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
-  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
-
-  @ObservationIgnored private let downloadManager: DownloadManager
-
   // MARK: - Observed Outputs
 
   var activeSource: Source? = nil
@@ -82,17 +85,17 @@ final class SearchRecommendationCollector {
   // MARK: - Internal State
 
   // Survives chip switches and query changes for the collector's lifetime.
-  private var permanent: [FeedURL: CachedPodcastEntry] = [:]
+  private var permanent: IdentifiedArrayOf<CachedPodcastEntry> = []
 
   // Owned by the current typed-search query. Purged with in-flight downloads
   // cancelled when the query changes.
-  private var temporary: [FeedURL: CachedPodcastEntry] = [:]
+  private var temporary: IdentifiedArrayOf<CachedPodcastEntry> = []
 
-  private var trendingSourceIndex: [Source: [FeedURL]] = [:]
+  private var trendingSourceIndex: [Source.Trending: [FeedURL]] = [:]
   private var typedSearchOverlay: TypedSearchOverlay? = nil
 
   // Per-chip — results land at independent times and don't race each other.
-  private var trendingDebouncers: [Source: Debounce] = [:]
+  private var trendingDebouncers: [Source.Trending: Debounce] = [:]
 
   // Shared across queries so `foo → bar` cancels foo's pending action before
   // it can fire after bar has taken over the overlay.
@@ -152,9 +155,9 @@ final class SearchRecommendationCollector {
 
     let debouncer: Debounce
     switch source {
-    case .trending:
-      debouncer = trendingDebouncers[source] ?? Debounce(duration: Self.stableSourceDebounce)
-      trendingDebouncers[source] = debouncer
+    case .trending(let trending):
+      debouncer = trendingDebouncers[trending] ?? Debounce(duration: Self.stableSourceDebounce)
+      trendingDebouncers[trending] = debouncer
     case .search:
       let shared = typedSearchDebouncer ?? Debounce(duration: Self.stableSourceDebounce)
       typedSearchDebouncer = shared
@@ -180,7 +183,7 @@ final class SearchRecommendationCollector {
     scoringContextWatcherTask = nil
     scoringAvailability = .unknown
 
-    let toCancel = Array(permanent.values) + Array(temporary.values)
+    let toCancel = Array(permanent) + Array(temporary)
     permanent.removeAll()
     temporary.removeAll()
     trendingSourceIndex.removeAll()
@@ -213,8 +216,8 @@ final class SearchRecommendationCollector {
     typedSearchDebouncer?.cancel()
     typedSearchDebouncer = nil
     typedSearchOverlay = nil
-    let toCancel = Array(temporary.values)
-    let purgedURLs = Set(temporary.keys)
+    let toCancel = Array(temporary)
+    let purgedURLs = Set(temporary.ids)
     temporary.removeAll()
     pendingDrainQueue.removeAll { purgedURLs.contains($0) }
     Task {
@@ -227,13 +230,13 @@ final class SearchRecommendationCollector {
   // so fall back to a mediaGUID scan if the direct lookup misses.
   func removePick(feedURL: FeedURL, mediaGUID: MediaGUID) {
     Self.log.debug("Removing pick \(mediaGUID)")
-    if let entry = permanent[feedURL] ?? temporary[feedURL],
+    if let entry = permanent[id: feedURL] ?? temporary[id: feedURL],
       entry.scoredEpisodes.contains(where: { $0.id == mediaGUID })
     {
       entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
       return
     }
-    for entry in chain(permanent.values, temporary.values)
+    for entry in chain(permanent, temporary)
     where entry.scoredEpisodes.contains(where: { $0.id == mediaGUID }) {
       entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
       return
@@ -319,13 +322,13 @@ final class SearchRecommendationCollector {
     iTunesIDs: [FeedURL: ITunesPodcastID]
   ) {
     switch source {
-    case .trending:
-      trendingSourceIndex[source] = feedURLs
+    case .trending(let trending):
+      trendingSourceIndex[trending] = feedURLs
       for feedURL in feedURLs {
-        if let promoted = temporary.removeValue(forKey: feedURL) {
-          permanent[feedURL] = promoted
-        } else if permanent[feedURL] == nil {
-          permanent[feedURL] = CachedPodcastEntry(
+        if let promoted = temporary.remove(id: feedURL) {
+          permanent[id: feedURL] = promoted
+        } else if permanent[id: feedURL] == nil {
+          permanent[id: feedURL] = CachedPodcastEntry(
             feedURL: feedURL,
             podcastID: podcastIDs[feedURL],
             iTunesID: iTunesIDs[feedURL]
@@ -343,8 +346,8 @@ final class SearchRecommendationCollector {
         pruneTemporary(keeping: Set(feedURLs))
       }
       for feedURL in feedURLs {
-        if permanent[feedURL] == nil, temporary[feedURL] == nil {
-          temporary[feedURL] = CachedPodcastEntry(
+        if permanent[id: feedURL] == nil, temporary[id: feedURL] == nil {
+          temporary[id: feedURL] = CachedPodcastEntry(
             feedURL: feedURL,
             podcastID: podcastIDs[feedURL],
             iTunesID: iTunesIDs[feedURL]
@@ -361,12 +364,12 @@ final class SearchRecommendationCollector {
     guard !temporary.isEmpty else { return }
     var toCancel: [CachedPodcastEntry] = []
     var purgedURLs: Set<FeedURL> = []
-    for (url, entry) in temporary where !survivors.contains(url) {
+    for entry in temporary where !survivors.contains(entry.feedURL) {
       toCancel.append(entry)
-      purgedURLs.insert(url)
+      purgedURLs.insert(entry.feedURL)
     }
     guard !purgedURLs.isEmpty else { return }
-    for url in purgedURLs { temporary.removeValue(forKey: url) }
+    for url in purgedURLs { temporary.remove(id: url) }
     pendingDrainQueue.removeAll { purgedURLs.contains($0) }
     Task {
       for entry in toCancel { await entry.cancel() }
@@ -383,8 +386,8 @@ final class SearchRecommendationCollector {
   }
 
   private func entry(for feedURL: FeedURL) -> CachedPodcastEntry? {
-    if let entry = permanent[feedURL] { return entry }
-    return temporary[feedURL]
+    if let entry = permanent[id: feedURL] { return entry }
+    return temporary[id: feedURL]
   }
 
   private func awaitScoringContext() async {
@@ -444,7 +447,7 @@ final class SearchRecommendationCollector {
   private func handleScoringContextBecameAvailable() {
     scoringAvailability = .ready
     scoringContextWatcherTask = nil
-    let allEntries = Array(permanent.values) + Array(temporary.values)
+    let allEntries = Array(permanent) + Array(temporary)
     for entry in allEntries where entry.status == .scored && entry.scoredEpisodes.isEmpty {
       entry.status = .pending
       scheduleDrain(for: entry.feedURL)
@@ -746,8 +749,8 @@ final class SearchRecommendationCollector {
 
   private func activeFeedURLs(for source: Source) -> [FeedURL] {
     switch source {
-    case .trending:
-      return trendingSourceIndex[source] ?? []
+    case .trending(let trending):
+      return trendingSourceIndex[trending] ?? []
     case .search(let query):
       guard let overlay = typedSearchOverlay, overlay.query == query else { return [] }
       return overlay.feedURLs
@@ -796,7 +799,7 @@ final class SearchRecommendationCollector {
 // MARK: - CachedPodcastEntry
 
 @Observable @MainActor
-private final class CachedPodcastEntry {
+private final class CachedPodcastEntry: Identifiable {
   enum Status: Equatable {
     case pending
     case fetching
@@ -811,6 +814,8 @@ private final class CachedPodcastEntry {
   var status: Status = .pending
   var scoredEpisodes: [SearchRecommendationCollector.ScoredEpisode] = []
   @ObservationIgnored var fetchToken: DownloadTask?
+
+  var id: FeedURL { feedURL }
 
   init(feedURL: FeedURL, podcastID: Podcast.ID?, iTunesID: ITunesPodcastID?) {
     self.feedURL = feedURL

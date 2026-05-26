@@ -247,7 +247,7 @@ struct SearchView: View {
       return .search(query: viewModel.searchedText)
     }
     let section = viewModel.currentTrendingSection
-    return .trending(genreID: section.genreID, title: section.title)
+    return .trending(.init(genreID: section.genreID, title: section.title))
   }
 
   private var loadingBannerCopy: String {

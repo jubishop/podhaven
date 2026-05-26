@@ -24,7 +24,7 @@ import Testing
     let feedURL = FeedURL(URL(string: "https://example.com/remove.rss")!)
     await H.respondWithFeed(at: feedURL, title: "Remove", episodes: 2)
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -81,7 +81,7 @@ import Testing
       """
     await H.session.respond(to: requestedURL.rawValue, data: Data(xml.utf8))
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -124,7 +124,7 @@ import Testing
     let feedURL = FeedURL(URL(string: "https://example.com/actions-vm.rss")!)
     await H.respondWithFeed(at: feedURL, title: "Actions VM", episodes: 1)
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -204,7 +204,7 @@ import Testing
       """
     await H.session.respond(to: requestedURL.rawValue, data: Data(xml.utf8))
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,

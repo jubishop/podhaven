@@ -24,7 +24,7 @@ import Testing
     let feedURL = FeedURL(URL(string: "https://example.com/discovery.rss")!)
     await H.respondWithFeed(at: feedURL, title: "Discovery", episodes: 3)
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -56,7 +56,7 @@ import Testing
     let feedURL = FeedURL(URL(string: "https://example.com/slow.rss")!)
     await H.respondWithFeed(at: feedURL, title: "Slow", episodes: 2)
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -106,7 +106,9 @@ import Testing
     let alsoUnsubscribedFeedURL = FeedURL(URL(string: "https://example.com/pass.rss")!)
     await H.respondWithFeed(at: alsoUnsubscribedFeedURL, title: "Pass-Through", episodes: 2)
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: 1303, title: "Comedy")
+    let source = SearchRecommendationCollector.Source.trending(
+      .init(genreID: 1303, title: "Comedy")
+    )
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -172,7 +174,9 @@ import Testing
       )
     )
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: 1303, title: "Comedy")
+    let source = SearchRecommendationCollector.Source.trending(
+      .init(genreID: 1303, title: "Comedy")
+    )
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -215,7 +219,7 @@ import Testing
       )
     )
 
-    let source = SearchRecommendationCollector.Source.trending(genreID: nil, title: "Top")
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
     collector.recordSourcePodcasts(
       source: source,
@@ -248,8 +252,12 @@ import Testing
     let comedyFeed = FeedURL(URL(string: "https://example.com/independent-comedy.rss")!)
     await H.respondWithFeed(at: comedyFeed, title: "Comedy", episodes: 2)
 
-    let comedy = SearchRecommendationCollector.Source.trending(genreID: 1303, title: "Comedy")
-    let tech = SearchRecommendationCollector.Source.trending(genreID: 1318, title: "Technology")
+    let comedy = SearchRecommendationCollector.Source.trending(
+      .init(genreID: 1303, title: "Comedy")
+    )
+    let tech = SearchRecommendationCollector.Source.trending(
+      .init(genreID: 1318, title: "Technology")
+    )
 
     collector.setActiveSource(comedy)
     collector.recordSourcePodcasts(
@@ -287,8 +295,12 @@ import Testing
 
     let row = H.makeUnsavedRow(feedURL: sharedFeed, iTunesID: ITunesPodcastID(808))
 
-    let comedy = SearchRecommendationCollector.Source.trending(genreID: 1303, title: "Comedy")
-    let tech = SearchRecommendationCollector.Source.trending(genreID: 1318, title: "Technology")
+    let comedy = SearchRecommendationCollector.Source.trending(
+      .init(genreID: 1303, title: "Comedy")
+    )
+    let tech = SearchRecommendationCollector.Source.trending(
+      .init(genreID: 1318, title: "Technology")
+    )
 
     collector.setActiveSource(comedy)
     collector.recordSourcePodcasts(source: comedy, podcasts: [row])
