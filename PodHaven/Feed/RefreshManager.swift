@@ -61,8 +61,8 @@ struct RefreshManager {
     )
 
     let collected = await withTaskGroup(
-      of: (Podcast.ID, Date)?.self,
-      returning: [(Podcast.ID, Date)].self
+      of: PendingFlush?.self,
+      returning: [PendingFlush].self
     ) { group in
       for podcastSeries in staleSeries {
         group.addTask { [podcastSeries] in
@@ -78,7 +78,7 @@ struct RefreshManager {
           }
         }
       }
-      var results = [(Podcast.ID, Date)](capacity: staleSeries.count)
+      var results = [PendingFlush](capacity: staleSeries.count)
       for await result in group {
         if let result {
           results.append(result)
@@ -88,15 +88,21 @@ struct RefreshManager {
     }
 
     if !collected.isEmpty {
+      let pairs = collected.map { ($0.id, $0.lastUpdate) }
+      let urls = collected.map(\.url)
       // Task to execute even inside cancellation: ensures the timestamps
       // collected for series that already finished refreshing get flushed
       // before performRefresh returns, so the next cycle sees them as fresh.
+      // inFlight URLs stay claimed until the flush commits (or fails) so a
+      // racing refresh cannot re-fetch a series whose lastUpdate hasn't yet
+      // hit the DB.
       await Task {
+        defer { inFlight { state in for url in urls { state.remove(url) } } }
         do {
-          try await repo.updateLastUpdates(collected)
+          try await repo.updateLastUpdates(pairs)
         } catch {
           Self.log.caughtError(
-            "performRefresh: failed to flush \(collected.count) lastUpdate timestamps",
+            "performRefresh: failed to flush \(pairs.count) lastUpdate timestamps",
             error
           )
         }
@@ -115,24 +121,29 @@ struct RefreshManager {
       """
     )
 
-    if let pending = try await performRefreshCycle(podcastSeries: podcastSeries) {
-      try await repo.updateLastUpdates([pending])
-    }
+    guard let pending = try await performRefreshCycle(podcastSeries: podcastSeries)
+    else { return }
+
+    defer { inFlight { $0.remove(pending.url) } }
+    try await repo.updateLastUpdates([(pending.id, pending.lastUpdate)])
   }
 
   // MARK: - Private Helpers
 
+  private typealias PendingFlush = (id: Podcast.ID, lastUpdate: Date, url: URL)
+
   // Fetches + parses the feed, then either writes everything (including
   // lastUpdate) inline via repo.updateSeriesFromFeed when the feed had real
-  // changes, or returns the (id, Date) pair the caller should flush via
+  // changes, or returns a PendingFlush the caller should hand to
   // repo.updateLastUpdates when the feed was unchanged. Returns nil when the
   // work was deduped via inFlight or failed before any write could happen.
-  // inFlight is held for the full cycle (download + parse + write), so a
-  // concurrent caller for the same feed silently no-ops until the in-flight
-  // cycle completes.
+  // inFlight is held for the full cycle (download + parse + write); when a
+  // PendingFlush is returned, the caller is responsible for removing its URL
+  // from inFlight after the batched updateLastUpdates flush commits, so a
+  // racing refresh of the same still-stale row cannot slip through the gap.
   private func performRefreshCycle(
     podcastSeries: PodcastSeries
-  ) async throws -> (Podcast.ID, Date)? {
+  ) async throws -> PendingFlush? {
     let url = podcastSeries.podcast.feedURL.rawValue
 
     let alreadyInFlight = inFlight { !$0.insert(url).inserted }
@@ -142,7 +153,9 @@ struct RefreshManager {
       )
       return nil
     }
-    defer { inFlight { $0.remove(url) } }
+
+    var releaseOnExit = true
+    defer { if releaseOnExit { inFlight { $0.remove(url) } } }
 
     let downloadTask = await downloadManager.addURL(url)
     let podcastFeed: PodcastFeed
@@ -161,16 +174,22 @@ struct RefreshManager {
       return nil
     }
 
-    return await applyParsedFeed(
-      podcastSeries: podcastSeries,
-      podcastFeed: podcastFeed
-    )
+    guard
+      let pending = await applyParsedFeed(
+        podcastSeries: podcastSeries,
+        podcastFeed: podcastFeed
+      )
+    else {
+      return nil
+    }
+    releaseOnExit = false
+    return PendingFlush(id: pending.id, lastUpdate: pending.lastUpdate, url: url)
   }
 
   private func applyParsedFeed(
     podcastSeries: PodcastSeries,
     podcastFeed: PodcastFeed
-  ) async -> (Podcast.ID, Date)? {
+  ) async -> (id: Podcast.ID, lastUpdate: Date)? {
     Self.log.trace(
       """
       applyParsedFeed

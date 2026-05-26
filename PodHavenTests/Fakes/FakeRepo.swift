@@ -26,6 +26,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let completedEpisodeFetchCount = ThreadSafe<Int>(0)
   private var episodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
 
+  // Same shape as pendingEpisodeFetchSuspend, but for updateLastUpdates so
+  // tests can park the batched flush inside RefreshManager.performRefresh.
+  nonisolated let pendingUpdateLastUpdatesSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedUpdateLastUpdatesCount = ThreadSafe<Int>(0)
+  private var updateLastUpdatesSuspensions: [CheckedContinuation<Void, Never>] = []
+
   private let repo: Repo
 
   init(_ repo: Repo) {
@@ -461,7 +467,33 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func updateLastUpdates(_ pairs: [(Podcast.ID, Date)]) async throws {
     recordCall(methodName: "updateLastUpdates", parameters: pairs)
+    if pendingUpdateLastUpdatesSuspend() {
+      pendingUpdateLastUpdatesSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        updateLastUpdatesSuspensions.append(continuation)
+        suspendedUpdateLastUpdatesCount(updateLastUpdatesSuspensions.count)
+      }
+    }
     try await repo.updateLastUpdates(pairs)
+  }
+
+  func resumeAllUpdateLastUpdatesSuspensions() {
+    let toResume = updateLastUpdatesSuspensions
+    updateLastUpdatesSuspensions.removeAll()
+    suspendedUpdateLastUpdatesCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForUpdateLastUpdatesSuspended(count: Int) async throws {
+    try await Wait.until(
+      { self.suspendedUpdateLastUpdatesCount() >= count },
+      {
+        """
+        Expected at least \(count) suspended updateLastUpdates, \
+        got \(self.suspendedUpdateLastUpdatesCount())
+        """
+      }
+    )
   }
 
   @discardableResult

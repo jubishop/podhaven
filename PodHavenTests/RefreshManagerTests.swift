@@ -831,4 +831,41 @@ actor RefreshManagerTests {
 
     try fakeRepo.expectCalls(methodName: "updateSeriesFromFeed", count: 1)
   }
+
+  @Test(
+    "second refresh arriving during the batched flush window is deduped"
+  )
+  func testRefreshDuringBatchFlushWindowIsDeduped() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try podcastFeed.toUnsavedPodcast(),
+        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
+      )
+    )
+    try await repo.updateLastUpdates([(podcastSeries.podcast.id, 2.hoursAgo)])
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: data)
+
+    fakeRepo.clearAllCalls()
+    fakeRepo.pendingUpdateLastUpdatesSuspend(true)
+
+    let refresh = Task {
+      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+    }
+    try await fakeRepo.waitForUpdateLastUpdatesSuspended(count: 1)
+
+    // The first cycle's child task has already returned its (id, now) pending
+    // pair and the unstructured flush Task is parked inside FakeRepo. If
+    // inFlight has been released here, a second refresh of the same still-stale
+    // series will re-fetch — the bug this test pins.
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    await fakeRepo.resumeAllUpdateLastUpdatesSuspensions()
+    try await refresh.value
+
+    #expect(await session.requests.count == 1)
+    try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
+  }
 }
