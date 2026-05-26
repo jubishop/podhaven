@@ -120,7 +120,7 @@ import Testing
       podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1701))]
     )
 
-    // Debouncer's 1 s sleep is registered but not yet advanced.
+    // Debouncer's stable-source sleep is registered but not yet advanced.
     try await H.fakeSleeper.waitForSleepRequests(count: 1)
 
     collector.reset()

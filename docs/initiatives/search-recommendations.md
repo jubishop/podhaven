@@ -126,17 +126,20 @@ shared cache or in-flight set to the utility worker. Do not cancel already-score
 or in-flight category podcast work just because the active category changed.
 Replacement/cancellation should happen for the typed-search overlay when the
 query changes, and for all collector work when Search is torn down. Keep the
-existing 400 ms search debouncer for iTunes search execution; use a separate 1
-second stable-query debounce before starting typed-search RSS fan-out.
+existing search-query debouncer for iTunes search execution; use a separate
+stable-source debounce before starting typed-search RSS fan-out so transient
+iTunes result emits don't kick off RSS work that the next query would just
+replace.
 
 Collector flow:
 
-1. Take the first `P = 25` podcasts from the surface-provided ranking.
+1. Take the first N podcasts from the surface-provided ranking (cap defined
+   near the collector).
 2. Reconcile that batch against the DB by feed URL and iTunes ID, matching the
    current `SearchViewModel` observation behavior. Do not trust only
    `ListedPodcast.subscribed`, because an unsaved iTunes result can bridge to an
    existing saved podcast after observation.
-3. Drop subscribed podcasts. Do not backfill deeper than `P`; lower-ranked
+3. Drop subscribed podcasts. Do not backfill beyond the cap; lower-ranked
    source results should not become "top picks" just because the first page was
    already subscribed.
 4. Store the remaining ordered feed URLs in either the top-category source index
@@ -146,7 +149,8 @@ Collector flow:
 5. For each cache miss, fetch and parse RSS through `DownloadManager`. Store the
    returned `DownloadTask` and call `await downloadTask.cancel()` when the child
    task is cancelled.
-6. Take the newest `E = 10` episodes by `pubDate`.
+6. Take the newest episodes by `pubDate` (per-podcast cap defined near the
+   collector).
 7. Apply the existing candidate gate to materialized matches only. Resolve
    existing rows under the reconciled unsubscribed podcast ID, with exact
    `(guid, mediaURL)` matching as a fallback; avoid a broad unscoped
@@ -163,10 +167,12 @@ Collector flow:
    on insert. Updating one shared podcast cache entry should update every active
    or cached top-category source that references its feed URL.
 
-Initial caps are tunable constants near the collector: `P = 25`, `E = 10`, score
-floor `score > 0.5`. The floor is separate from UpNext's `0.1` threshold because
-discovery removes freshness, so neutral content clusters around the remapped
-`0.5` baseline.
+Caps and thresholds — podcast cap, episodes-per-podcast cap, score floor,
+stable-source debounce, RSS concurrency — live as tunable constants near the
+collector. Treat them as the source of truth; this doc only sketches the
+shape. The discovery score floor is intentionally higher than UpNext's
+threshold because discovery removes freshness, so neutral content clusters
+around the remapped baseline.
 
 Throttle RSS and embedding separately. RSS can run with a small parallel cap;
 embedding should start serialized or under a tiny cap around the shared

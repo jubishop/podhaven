@@ -47,7 +47,7 @@ import Testing
 
   // MARK: - Test: Stable-Source Debounce
 
-  @Test("stable-source debounce holds RSS fan-out for 1 s")
+  @Test("stable-source debounce holds RSS fan-out until the debounce elapses")
   func stableSourceDebounce() async throws {
     let collector = SearchRecommendationCollector()
     let scripted = H.makeScriptedEmbeddable()
@@ -67,7 +67,7 @@ import Testing
     let earlyRequests = await H.session.requests
     #expect(!earlyRequests.contains(feedURL.rawValue))
 
-    await H.fakeSleeper.advanceTime(by: .seconds(1))
+    await H.fakeSleeper.advanceTime(by: SearchRecommendationCollector.stableSourceDebounce)
 
     try await Wait.until(
       { @MainActor in await H.session.requests.contains(feedURL.rawValue) },

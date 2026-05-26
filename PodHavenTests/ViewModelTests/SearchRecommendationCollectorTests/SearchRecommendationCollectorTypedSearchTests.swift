@@ -178,9 +178,10 @@ import Testing
 
   // MARK: - Test: Leaving Typed Search Cancels Pending Stable-Source Debouncer
 
-  // If the user clears search before the 1 s debounce fires, overlay and
-  // temporary are still empty — the pending debouncer is the only state
-  // alive, and cleanup must cancel it or it'll resurrect the overlay.
+  // If the user clears search before the stable-source debounce fires,
+  // overlay and temporary are still empty — the pending debouncer is the
+  // only state alive, and cleanup must cancel it or it'll resurrect the
+  // overlay.
   @Test("leaving typed search before the stable-source debounce fires cancels the pipeline")
   func leavingTypedSearchCancelsPendingStableSourceDebouncer() async throws {
     let collector = SearchRecommendationCollector()
@@ -211,8 +212,9 @@ import Testing
       podcasts: [H.makeUnsavedRow(feedURL: trendingFeed, iTunesID: ITunesPodcastID(2002))]
     )
 
-    // Trending debouncer fires at +1 s — past the typed-search wakeTime,
-    // so a not-yet-cancelled typed debouncer would already have reconciled.
+    // Trending debouncer fires after another stable-source advance — past
+    // the typed-search wakeTime, so a not-yet-cancelled typed debouncer
+    // would already have reconciled.
     try await H.advanceStableSourceDebounce()
 
     try await Wait.until(
@@ -265,7 +267,7 @@ import Testing
     // wait for bar's sleep to also register so one advanceTime wakes both.
     // foo's body should then see Task.isCancelled and bail before its action.
     try await H.fakeSleeper.waitForSleepRequests(count: 2)
-    await H.fakeSleeper.advanceTime(by: .seconds(1))
+    await H.fakeSleeper.advanceTime(by: SearchRecommendationCollector.stableSourceDebounce)
 
     try await Wait.until(
       { @MainActor in
