@@ -299,4 +299,166 @@ class EpisodeQueryTests {
     let titles = Set(results.map(\.podcast.title))
     #expect(titles == Set(["Podcast A", "Podcast B"]))
   }
+
+  // MARK: - episodesMatching
+
+  @Test("episodesMatching returns empty when both guids and mediaURLs are empty")
+  func episodesMatchingEmptyInputs() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+
+    let results = try await repo.episodesMatching(
+      podcastID: series.podcast.id,
+      guids: [],
+      mediaURLs: []
+    )
+    #expect(results.isEmpty)
+  }
+
+  @Test("episodesMatching returns matches by guid only when mediaURLs is empty")
+  func episodesMatchingByGUIDOnly() async throws {
+    let targetA = try Create.unsavedEpisode(guid: "guid-a")
+    let targetB = try Create.unsavedEpisode(guid: "guid-b")
+    let other = try Create.unsavedEpisode(guid: "guid-c")
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [targetA, targetB, other]
+      )
+    )
+
+    let results = try await repo.episodesMatching(
+      podcastID: series.podcast.id,
+      guids: [targetA.guid, targetB.guid, "missing-guid"],
+      mediaURLs: []
+    )
+
+    #expect(Set(results.map(\.guid)) == Set([targetA.guid, targetB.guid]))
+  }
+
+  @Test("episodesMatching returns matches by mediaURL only when guids is empty")
+  func episodesMatchingByMediaURLOnly() async throws {
+    let urlA = MediaURL(URL(string: "https://example.com/a.mp3")!)
+    let urlB = MediaURL(URL(string: "https://example.com/b.mp3")!)
+    let targetA = try Create.unsavedEpisode(mediaURL: urlA)
+    let targetB = try Create.unsavedEpisode(mediaURL: urlB)
+    let other = try Create.unsavedEpisode()
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [targetA, targetB, other]
+      )
+    )
+
+    let results = try await repo.episodesMatching(
+      podcastID: series.podcast.id,
+      guids: [],
+      mediaURLs: [urlA, urlB, MediaURL(URL(string: "https://example.com/missing.mp3")!)]
+    )
+
+    #expect(Set(results.map(\.mediaURL)) == Set([urlA, urlB]))
+  }
+
+  @Test("episodesMatching unions guid and mediaURL matches")
+  func episodesMatchingUnionsBothCriteria() async throws {
+    let guidMatch = try Create.unsavedEpisode(guid: "by-guid")
+    let urlMatchURL = MediaURL(URL(string: "https://example.com/by-url.mp3")!)
+    let urlMatch = try Create.unsavedEpisode(mediaURL: urlMatchURL)
+    let neither = try Create.unsavedEpisode()
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [guidMatch, urlMatch, neither]
+      )
+    )
+
+    let results = try await repo.episodesMatching(
+      podcastID: series.podcast.id,
+      guids: [guidMatch.guid],
+      mediaURLs: [urlMatchURL]
+    )
+
+    #expect(Set(results.map(\.guid)) == Set([guidMatch.guid, urlMatch.guid]))
+  }
+
+  @Test("episodesMatching returns a single row when an episode matches both criteria")
+  func episodesMatchingDeduplicatesDoubleMatch() async throws {
+    let doubleURL = MediaURL(URL(string: "https://example.com/double.mp3")!)
+    let double = try Create.unsavedEpisode(guid: "double", mediaURL: doubleURL)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [double]
+      )
+    )
+
+    let results = try await repo.episodesMatching(
+      podcastID: series.podcast.id,
+      guids: [double.guid],
+      mediaURLs: [doubleURL]
+    )
+
+    #expect(results.count == 1)
+    #expect(results.first?.guid == double.guid)
+  }
+
+  @Test("episodesMatching excludes matches from other podcasts")
+  func episodesMatchingScopesToPodcastID() async throws {
+    // Schema enforces UNIQUE(guid, mediaURL) globally, so cross-podcast
+    // collisions can only reuse one of the two columns. Reuse the guid.
+    let sharedGUID: GUID = "shared-guid"
+    let targetSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Target"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: sharedGUID,
+            mediaURL: MediaURL(URL(string: "https://example.com/target.mp3")!)
+          )
+        ]
+      )
+    )
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Other"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: sharedGUID,
+            mediaURL: MediaURL(URL(string: "https://example.com/other.mp3")!)
+          )
+        ]
+      )
+    )
+
+    let results = try await repo.episodesMatching(
+      podcastID: targetSeries.podcast.id,
+      guids: [sharedGUID],
+      mediaURLs: []
+    )
+
+    #expect(results.count == 1)
+    #expect(results.first?.podcastId == targetSeries.podcast.id)
+  }
+
+  @Test("episodesMatching returns empty when nothing matches in the podcast")
+  func episodesMatchingNoMatches() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "present")]
+      )
+    )
+
+    let results = try await repo.episodesMatching(
+      podcastID: series.podcast.id,
+      guids: ["absent"],
+      mediaURLs: [MediaURL(URL(string: "https://example.com/absent.mp3")!)]
+    )
+
+    #expect(results.isEmpty)
+  }
 }
