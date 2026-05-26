@@ -309,6 +309,7 @@ final class SearchRecommendationCollector {
     }
 
     var reconciledFeedURLs = [FeedURL](capacity: podcasts.count)
+    var seenCanonicalFeedURLs = Set<FeedURL>(minimumCapacity: podcasts.count)
     var reconciledPodcastIDs: [FeedURL: Podcast.ID] = [:]
     var reconciledITunesIDs: [FeedURL: ITunesPodcastID] = [:]
     var droppedSubscribed = 0
@@ -331,8 +332,12 @@ final class SearchRecommendationCollector {
       }
 
       // Canonical DB feedURL is the dedup key the shared cache uses across
-      // categories.
+      // categories. Two iTunes slots can bridge to the same saved row by
+      // iTunes ID, so keep only the first occurrence — `picks(for:)` walks
+      // this array verbatim and would otherwise append `scoredEpisodes` per
+      // duplicate.
       let canonicalFeedURL = bridged?.podcast.feedURL ?? slotURL
+      guard seenCanonicalFeedURLs.insert(canonicalFeedURL).inserted else { continue }
       reconciledFeedURLs.append(canonicalFeedURL)
       if let bridged { reconciledPodcastIDs[canonicalFeedURL] = bridged.podcast.id }
       // Threaded into the pick's UnsavedPodcast so the downstream upsert can

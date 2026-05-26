@@ -78,6 +78,69 @@ import Testing
     )
   }
 
+  // MARK: - Test: iTunes-ID Reconciliation Deduplicates Canonical Feed URL
+
+  // Two iTunes rows with different slot URLs but the same iTunesID both
+  // bridge to the same saved-unsubscribed row, collapsing to one canonical
+  // feed URL. Without dedupe, `reconciledFeedURLs` carries the canonical
+  // URL twice and `picks(for:)` appends `scoredEpisodes` once per copy,
+  // doubling the visible picks and the banner count.
+  @Test("two iTunes rows reconciling to the same saved podcast yield one pick each")
+  func iTunesIDReconciliationDeduplicatesCanonicalFeedURL() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+
+    let canonicalFeedURL = FeedURL(URL(string: "https://example.com/dedupe-canonical.rss")!)
+    let slotA = FeedURL(URL(string: "https://example.com/dedupe-slot-a.rss")!)
+    let slotB = FeedURL(URL(string: "https://example.com/dedupe-slot-b.rss")!)
+    let iTunesID = ITunesPodcastID(4101)
+
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: canonicalFeedURL,
+          iTunesID: iTunesID,
+          title: "Dedupe Canonical",
+          subscriptionDate: nil
+        ),
+        unsavedEpisodes: []
+      )
+    )
+
+    await H.respondWithFeed(at: canonicalFeedURL, title: "Dedupe", episodes: 1)
+
+    let source = SearchRecommendationCollector.Source.trending(
+      .init(genreID: 1303, title: "Comedy")
+    )
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [
+        H.makeUnsavedRow(feedURL: slotA, iTunesID: iTunesID),
+        H.makeUnsavedRow(feedURL: slotB, iTunesID: iTunesID),
+      ]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .loaded(let count) = collector.bannerState, count > 0 { return true }
+        return false
+      },
+      { @MainActor in "Expected loaded picks, got \(collector.bannerState)" }
+    )
+
+    #expect(
+      collector.visiblePicks.count == 1,
+      """
+      Expected one pick from the deduped canonical feed; \
+      got \(collector.visiblePicks.count) picks
+      """
+    )
+    #expect(collector.bannerState == .loaded(count: 1))
+  }
+
   // MARK: - Test: Subscribed Exclusion via iTunesID Reconciliation
 
   @Test("subscribed podcast is excluded after DB reconciliation by iTunes ID")

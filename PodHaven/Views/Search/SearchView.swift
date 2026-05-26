@@ -196,6 +196,58 @@ struct SearchView: View {
     }
   }
 
+  private var resultsGrid: some View {
+    ScrollView {
+      ItemGrid(items: viewModel.podcastList.allEntries, id: \.podcast.slotID) {
+        podcastWithEpisodeMetadata in
+        NavigationLink(
+          value: Navigation.Destination.listedPodcast(podcastWithEpisodeMetadata.podcast),
+          label: {
+            PodcastGridView(
+              podcast: podcastWithEpisodeMetadata.podcast,
+              isSelecting: viewModel.podcastList.isSelecting,
+              isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
+            )
+            .podcastContextMenu(
+              viewModel: viewModel,
+              podcastWithMetadata: podcastWithEpisodeMetadata
+            )
+          }
+        )
+        .buttonStyle(.plain)
+      }
+      .padding(.horizontal)
+    }
+  }
+
+  private var resultsList: some View {
+    List {
+      ForEach(viewModel.podcastList.allEntries, id: \.podcast.slotID) {
+        podcastWithEpisodeMetadata in
+        NavigationLink(
+          value: Navigation.Destination.listedPodcast(podcastWithEpisodeMetadata.podcast),
+          label: {
+            PodcastListView(
+              podcastWithMetadata: podcastWithEpisodeMetadata,
+              isSelecting: viewModel.podcastList.isSelecting,
+              isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
+            )
+            .listRowSeparator()
+            .podcastSwipeActions(
+              viewModel: viewModel,
+              podcast: podcastWithEpisodeMetadata.podcast
+            )
+            .podcastContextMenu(
+              viewModel: viewModel,
+              podcastWithMetadata: podcastWithEpisodeMetadata
+            )
+          }
+        )
+        .listRow()
+      }
+    }
+  }
+
   // MARK: - Recommendation Banner
 
   @ViewBuilder
@@ -273,58 +325,6 @@ struct SearchView: View {
       return count == 1 ? "Top pick" : "Top \(count) picks"
     }
     return count == 1 ? "Top pick from \(section.title)" : "Top \(count) from \(section.title)"
-  }
-
-  private var resultsGrid: some View {
-    ScrollView {
-      ItemGrid(items: viewModel.podcastList.allEntries, id: \.podcast.slotID) {
-        podcastWithEpisodeMetadata in
-        NavigationLink(
-          value: Navigation.Destination.listedPodcast(podcastWithEpisodeMetadata.podcast),
-          label: {
-            PodcastGridView(
-              podcast: podcastWithEpisodeMetadata.podcast,
-              isSelecting: viewModel.podcastList.isSelecting,
-              isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
-            )
-            .podcastContextMenu(
-              viewModel: viewModel,
-              podcastWithMetadata: podcastWithEpisodeMetadata
-            )
-          }
-        )
-        .buttonStyle(.plain)
-      }
-      .padding(.horizontal)
-    }
-  }
-
-  private var resultsList: some View {
-    List {
-      ForEach(viewModel.podcastList.allEntries, id: \.podcast.slotID) {
-        podcastWithEpisodeMetadata in
-        NavigationLink(
-          value: Navigation.Destination.listedPodcast(podcastWithEpisodeMetadata.podcast),
-          label: {
-            PodcastListView(
-              podcastWithMetadata: podcastWithEpisodeMetadata,
-              isSelecting: viewModel.podcastList.isSelecting,
-              isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
-            )
-            .listRowSeparator()
-            .podcastSwipeActions(
-              viewModel: viewModel,
-              podcast: podcastWithEpisodeMetadata.podcast
-            )
-            .podcastContextMenu(
-              viewModel: viewModel,
-              podcastWithMetadata: podcastWithEpisodeMetadata
-            )
-          }
-        )
-        .listRow()
-      }
-    }
   }
 
   // MARK: - Reusable Views
