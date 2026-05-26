@@ -39,9 +39,8 @@ final class SearchRecommendationCollector {
   // only buys faster first-paint.
   nonisolated static let rssConcurrency = 8
 
-  // Held between iTunes result emit and RSS fan-out; independent of the
-  // 400 ms search-query debounce.
-  nonisolated static let stableSourceDebounce: Duration = .seconds(1)
+  // Held between iTunes result emit and RSS fan-out; independent of the search-query debounce.
+  nonisolated static let stableSourceDebounce: Duration = .milliseconds(400)
 
   // MARK: - Source
 
