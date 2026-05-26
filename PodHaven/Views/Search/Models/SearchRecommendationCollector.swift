@@ -424,7 +424,6 @@ final class SearchRecommendationCollector {
       scoringAvailability = .ready
       return
     }
-    recommendationEngine.start()
     // AppLauncher pre-starts the engine, so the no-context revision can
     // already be in the past — don't subscribe to a stream whose only emit
     // would be the bootstrap replay.

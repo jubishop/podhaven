@@ -118,6 +118,10 @@ import Testing
       .scope(.cached)
     Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
 
+    // Mirror AppLauncher: start the engine before the collector subscribes so
+    // the bootstrap cacheRebuild has a sleep request to wait on below.
+    engine.start()
+
     let feedURL = FeedURL(URL(string: "https://example.com/no-scoring.rss")!)
     await H.respondWithFeed(at: feedURL, title: "No Scoring", episodes: 1)
 
