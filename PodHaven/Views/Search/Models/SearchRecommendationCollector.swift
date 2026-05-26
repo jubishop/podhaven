@@ -89,6 +89,12 @@ final class SearchRecommendationCollector {
   // cancelled when the query changes.
   private var temporary: IdentifiedArrayOf<CachedPodcastEntry> = []
 
+  // Bumped on every typed-search `recordSourcePodcasts` call. An in-flight
+  // `reconcileAndIngest` that wakes up after a newer query has already taken
+  // over compares against this counter and bails before its stale overlay
+  // write can clobber the live one.
+  private var typedSearchGeneration: Int = 0
+
   private var trendingSourceIndex: [Source.Trending: [FeedURL]] = [:]
   private var typedSearchOverlay: TypedSearchOverlay? = nil
 
@@ -117,8 +123,8 @@ final class SearchRecommendationCollector {
   }
   private var scoringAvailability: ScoringAvailability = .unknown
 
-  // Watches for engine warm-up after surfacing .unavailable so we can re-queue
-  // finished entries.
+  // Stays armed for the collector's lifetime so any close → open transition
+  // re-queues entries that finished empty-and-.scored during the cold window.
   private var scoringContextWatcherTask: Task<Void, Never>?
 
   // MARK: - Lifecycle
@@ -159,20 +165,28 @@ final class SearchRecommendationCollector {
     )
 
     let debouncer: Debounce
+    let typedGeneration: Int?
     switch source {
     case .trending(let trending):
       debouncer = trendingDebouncers[trending] ?? Debounce(duration: Self.stableSourceDebounce)
       trendingDebouncers[trending] = debouncer
+      typedGeneration = nil
     case .search:
       let shared = typedSearchDebouncer ?? Debounce(duration: Self.stableSourceDebounce)
       typedSearchDebouncer = shared
       debouncer = shared
+      typedSearchGeneration += 1
+      typedGeneration = typedSearchGeneration
     }
 
     let capped = Array(podcasts.prefix(Self.podcastCap))
     debouncer { [weak self] in
       guard let self else { return }
-      await self.reconcileAndIngest(source: source, podcasts: capped)
+      await self.reconcileAndIngest(
+        source: source,
+        podcasts: capped,
+        typedSearchGeneration: typedGeneration
+      )
     }
   }
 
@@ -242,7 +256,8 @@ final class SearchRecommendationCollector {
 
   private func reconcileAndIngest(
     source: Source,
-    podcasts: [PodcastWithEpisodeMetadata<ListedPodcast>]
+    podcasts: [PodcastWithEpisodeMetadata<ListedPodcast>],
+    typedSearchGeneration: Int?
   ) async {
     let feedURLs = podcasts.map(\.podcast.slotID)
     let iTunesIDs = podcasts.compactMap(\.podcast.iTunesID)
@@ -250,6 +265,12 @@ final class SearchRecommendationCollector {
       feedURLs: feedURLs,
       iTunesIDs: iTunesIDs
     )
+
+    // The observation can take long enough that a newer typed-search query
+    // has taken over the overlay; bail before our stale ranking clobbers it.
+    if let typedSearchGeneration, typedSearchGeneration != self.typedSearchGeneration {
+      return
+    }
 
     var savedByFeedURL: [FeedURL: PodcastWithEpisodeMetadata<ListablePodcast>] = [:]
     var savedByITunesID: [ITunesPodcastID: PodcastWithEpisodeMetadata<ListablePodcast>] = [:]
@@ -416,7 +437,6 @@ final class SearchRecommendationCollector {
         return
       }
       scoringAvailability = .unavailable
-      startScoringContextWatcherIfNeeded()
       return
     }
     for await revision in recommendationEngine.$scoringRevision.stream() {
@@ -427,26 +447,34 @@ final class SearchRecommendationCollector {
       }
       if revision == 0 { continue }
       scoringAvailability = .unavailable
-      startScoringContextWatcherIfNeeded()
       return
     }
   }
 
-  private func startScoringContextWatcherIfNeeded() {
+  private func ensureScoringContextWatcherRunning() {
     if let task = scoringContextWatcherTask, !task.isCancelled { return }
-    let latch = recommendationEngine.scoringContextReady
+    let engine = recommendationEngine
     scoringContextWatcherTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      // The latch resolves to a single await: opens when the engine builds a
-      // usable context, throws CancellationError on teardown.
-      do { try await latch.wait() } catch { return }
-      guard let self, !Task.isCancelled else { return }
-      handleScoringContextBecameAvailable()
+      // Track close → open transitions so an engine that cools (cache cleared)
+      // and warms again still re-queues entries that scored empty in between.
+      // `dropFirst()` skips the bootstrap replay so we only react to genuine
+      // rebuild emits.
+      var wasOpen = engine.hasScoringContext
+      for await _ in engine.$scoringRevision.stream().dropFirst() {
+        if Task.isCancelled { return }
+        let isOpen = engine.hasScoringContext
+        let transitionedToOpen = isOpen && !wasOpen
+        wasOpen = isOpen
+        if transitionedToOpen {
+          guard let self else { return }
+          self.handleScoringContextBecameAvailable()
+        }
+      }
     }
   }
 
   private func handleScoringContextBecameAvailable() {
     scoringAvailability = .ready
-    scoringContextWatcherTask = nil
     let allEntries = Array(permanent) + Array(temporary)
     for entry in allEntries where entry.status == .scored && entry.scoredEpisodes.isEmpty {
       entry.status = .pending
@@ -458,6 +486,7 @@ final class SearchRecommendationCollector {
   // MARK: - Drain Task
 
   private func ensureDrainTaskRunning() {
+    ensureScoringContextWatcherRunning()
     if let drainTask, !drainTask.isCancelled { return }
     drainTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }

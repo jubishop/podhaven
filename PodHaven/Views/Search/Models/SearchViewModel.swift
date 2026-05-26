@@ -422,6 +422,9 @@ class SearchViewModel:
 
   private func restartObservationForSearchResults() {
     guard isShowingSearchResults else { return }
+    // Capture the term once so a late emission can't reattribute its picks
+    // to whatever query happens to be live by then.
+    let query = searchedText
 
     restartObservation(
       feedURLs: Array(searchResults.ids),
@@ -432,7 +435,7 @@ class SearchViewModel:
       Self.log.debug(
         """
         Observed:
-          search term: \(searchedText)
+          search term: \(query)
           \(podcasts.count) saved podcasts
         """
       )
@@ -454,7 +457,7 @@ class SearchViewModel:
       searchResults = revertDeletedPodcasts(in: searchResults, updatedIDs: updatedIDs)
       syncPodcastListToSearchResults()
       // Re-push so the collector drops rows that just became subscribed.
-      pushSearchResultsToCollector(query: searchedText)
+      pushSearchResultsToCollector(query: query)
     }
   }
 

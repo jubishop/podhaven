@@ -47,13 +47,7 @@ import Testing
     // awaitScoringContext must see the bootstrap replay (no dropFirst) so
     // the drain unblocks and processFeedURL fires the RSS download.
     try await RecommendationHelpers.untilAdvancing(
-      { @Sendable in
-        await Container.shared.podcastFeedSession() is FakeDataFetchable
-          ? (Container.shared.podcastFeedSession() as! FakeDataFetchable).requests
-            .contains(
-              feedURL.rawValue
-            ) : false
-      },
+      { @Sendable in await H.session.requests.contains(feedURL.rawValue) },
       { @Sendable in "Expected RSS request after drain unblocked" }
     )
 

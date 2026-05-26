@@ -47,6 +47,16 @@ import Testing
     )
     try await H.advanceStableSourceDebounce()
 
+    // The overlay swap must cancel the first query's in-flight RSS request
+    // before its data handler resolves; the semaphore signal then reaches a
+    // cancelled task whose CancellationError is what FakeDataFetchable records.
+    try await Wait.until(
+      { @MainActor in await H.session.cancelledRequests.contains(firstQueryFeed.rawValue) },
+      { @MainActor in
+        let cancelled = await H.session.cancelledRequests
+        return "Expected first-query RSS request to be cancelled; got \(cancelled)"
+      }
+    )
     firstSemaphore.signal()
 
     try await Wait.until(
@@ -59,6 +69,7 @@ import Testing
 
     let pickTitles = collector.visiblePicks.map(\.episode.title)
     #expect(pickTitles.contains(where: { $0.starts(with: "Second") }))
+    #expect(!pickTitles.contains(where: { $0.starts(with: "First") }))
   }
 
   // MARK: - Test: Leaving Typed Search Releases Overlay-Owned Cache

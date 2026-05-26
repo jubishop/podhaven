@@ -374,6 +374,7 @@ extension Container {
   ) {
     Self.log.debug("Showing search discovery list: \(source)")
 
+    sheet.dismiss()
     search.path.append(.searchDiscovery(source, actionsViewModel))
     currentTab = .search
   }

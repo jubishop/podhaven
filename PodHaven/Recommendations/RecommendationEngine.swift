@@ -164,10 +164,11 @@ struct RecommendationEngine: Sendable {
   // to know when to re-score; the value itself is uninteresting.
   @Broadcasted var scoringRevision: Int = 0
 
-  // Open while the cache holds a usable context, closed otherwise. Callers
-  // that only care about "context exists" can read `isOpen`; callers that
-  // want to wait for the next ready transition can `await .wait()`.
-  let scoringContextReady = AsyncLatch<Void>()
+  // Open while the cache holds a usable context, closed otherwise. Kept
+  // private so callers can't mutate readiness behind the engine's back —
+  // observe `hasScoringContext` or subscribe to `$scoringRevision.stream()`
+  // for transitions.
+  private let scoringContextReady = AsyncLatch<Void>()
 
   fileprivate init() {}
 
