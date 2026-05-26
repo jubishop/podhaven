@@ -164,11 +164,16 @@ struct RecommendationEngine: Sendable {
   // to know when to re-score; the value itself is uninteresting.
   @Broadcasted var scoringRevision: Int = 0
 
+  // Open while the cache holds a usable context, closed otherwise. Callers
+  // that only care about "context exists" can read `isOpen`; callers that
+  // want to wait for the next ready transition can `await .wait()`.
+  let scoringContextReady = AsyncLatch<Void>()
+
   fileprivate init() {}
 
   // MARK: - Public API
 
-  var hasScoringContext: Bool { cache() != nil }
+  var hasScoringContext: Bool { scoringContextReady.isOpen }
 
   // Idempotent. Public scoring methods do NOT auto-call `start()` — they
   // read whatever the cache currently has and return empty when it's nil.
@@ -507,6 +512,11 @@ struct RecommendationEngine: Sendable {
 
         try Task.checkCancellation()
         cache(context)
+        if context == nil {
+          scoringContextReady.close()
+        } else {
+          scoringContextReady.open()
+        }
         $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
       } catch {

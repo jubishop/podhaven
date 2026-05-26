@@ -49,7 +49,7 @@ struct EmbeddingProcessor: Sendable {
       Self.log.info("Starting embedding background task")
 
       await contextualEmbedding.loadAssetsIfAvailable()
-      guard contextualEmbedding.assetsLoaded.isFinished else {
+      guard contextualEmbedding.assetsLoaded.isOpen else {
         Self.log.info("Contextual embedding assets not available yet, skipping")
         complete(true)
         return

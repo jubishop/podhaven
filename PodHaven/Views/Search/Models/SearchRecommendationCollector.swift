@@ -434,17 +434,13 @@ final class SearchRecommendationCollector {
 
   private func startScoringContextWatcherIfNeeded() {
     if let task = scoringContextWatcherTask, !task.isCancelled { return }
+    let latch = recommendationEngine.scoringContextReady
     scoringContextWatcherTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      guard let self else { return }
-      // Don't dropFirst: engine state can change between the caller flipping
-      // to .unavailable and this watcher subscribing.
-      for await _ in recommendationEngine.$scoringRevision.stream() {
-        if Task.isCancelled { return }
-        if recommendationEngine.hasScoringContext {
-          handleScoringContextBecameAvailable()
-          return
-        }
-      }
+      // The latch resolves to a single await: opens when the engine builds a
+      // usable context, throws CancellationError on teardown.
+      do { try await latch.wait() } catch { return }
+      guard let self, !Task.isCancelled else { return }
+      handleScoringContextBecameAvailable()
     }
   }
 

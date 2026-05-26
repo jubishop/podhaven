@@ -35,7 +35,7 @@ final class UnsavedEpisodeEmbeddingScorer {
     for unsavedEpisodes: some Sequence<UnsavedPodcastEpisode>
   ) async throws -> (scores: [MediaGUID: Float], cacheable: Bool) {
     await contextualEmbedding.loadAssetsIfAvailable()
-    guard contextualEmbedding.assetsLoaded.isFinished else { return ([:], false) }
+    guard contextualEmbedding.assetsLoaded.isOpen else { return ([:], false) }
 
     let revision = contextualEmbedding.revision
     let capacity = unsavedEpisodes.underestimatedCount
