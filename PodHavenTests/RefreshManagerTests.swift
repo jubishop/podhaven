@@ -145,6 +145,7 @@ actor RefreshManagerTests {
     #expect(call.parameters.podcast != nil)
     #expect(call.parameters.unsavedEpisodes.count == 1)
     #expect(call.parameters.existingEpisodes.count == 2)
+    try fakeRepo.expectNoCall(methodName: "updateLastUpdates")
   }
 
   @Test("that new episodes with duplicate MediaURLs are deduped")

@@ -132,15 +132,9 @@ struct RefreshManager {
 
   private typealias PendingFlush = (id: Podcast.ID, lastUpdate: Date, url: URL)
 
-  // Fetches + parses the feed, then either writes everything (including
-  // lastUpdate) inline via repo.updateSeriesFromFeed when the feed had real
-  // changes, or returns a PendingFlush the caller should hand to
-  // repo.updateLastUpdates when the feed was unchanged. Returns nil when the
-  // work was deduped via inFlight or failed before any write could happen.
-  // inFlight is held for the full cycle (download + parse + write); when a
-  // PendingFlush is returned, the caller is responsible for removing its URL
-  // from inFlight after the batched updateLastUpdates flush commits, so a
-  // racing refresh of the same still-stale row cannot slip through the gap.
+  // When a PendingFlush is returned, the caller owns removing url from
+  // inFlight after the batched updateLastUpdates flush commits — otherwise a
+  // racing refresh of the still-stale row could slip through the gap.
   private func performRefreshCycle(
     podcastSeries: PodcastSeries
   ) async throws -> PendingFlush? {
