@@ -77,20 +77,6 @@ struct AppDB {
 
     config.maximumReaderCount = 10
 
-    #if DEBUG
-    config.publicStatementArguments = true
-    config.prepareDatabase { db in
-      db.trace {
-        log.trace(
-          """
-          SQL:
-            \($0)
-          """
-        )
-      }
-    }
-    #endif
-
     return config
   }
 

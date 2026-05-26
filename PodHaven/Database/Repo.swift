@@ -254,10 +254,15 @@ struct Repo: Databasing {
     try await appDB.db.write { db in
       var newEpisodes = [Episode](capacity: unsavedEpisodes.count)
 
+      let lastUpdateAssignment = Podcast.Columns.lastUpdate.set(to: Date())
       if let podcast = podcast {
         try Podcast
           .withID(podcast.id)
-          .updateAll(db, podcast.rssColumnAssignments)
+          .updateAll(db, podcast.rssColumnAssignments + [lastUpdateAssignment])
+      } else {
+        try Podcast
+          .withID(podcastSeries.id)
+          .updateAll(db, [lastUpdateAssignment])
       }
 
       for existingEpisode in existingEpisodes {
@@ -546,15 +551,17 @@ struct Repo: Databasing {
     } > 0
   }
 
-  @discardableResult
-  func updateLastUpdate(_ podcastID: Podcast.ID) async throws -> Bool {
-    Self.log.trace("updateLastUpdate: \(podcastID)")
+  func updateLastUpdates(_ pairs: [(Podcast.ID, Date)]) async throws {
+    guard !pairs.isEmpty else { return }
+    Self.log.trace("updateLastUpdates: \(pairs.count) podcasts")
 
-    return try await appDB.db.write { db in
-      try Podcast
-        .withID(podcastID)
-        .updateAll(db, Podcast.Columns.lastUpdate.set(to: Date()))
-    } > 0
+    try await appDB.db.write { db in
+      for (podcastID, lastUpdate) in pairs {
+        try Podcast
+          .withID(podcastID)
+          .updateAll(db, Podcast.Columns.lastUpdate.set(to: lastUpdate))
+      }
+    }
   }
 
   @discardableResult
