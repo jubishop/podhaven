@@ -23,7 +23,10 @@ import UniformTypeIdentifiers
   private let downloadManager: DownloadManager
 
   init() {
-    downloadManager = DownloadManager(session: Container.shared.podcastFeedSession())
+    downloadManager = DownloadManager(
+      session: Container.shared.podcastFeedSession(),
+      maxConcurrentDownloads: 16
+    )
   }
 
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {

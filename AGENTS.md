@@ -74,7 +74,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
 - No non-specializing extension splits. Put conformances on the main declaration and requirements in the body. Use extensions only for constrained methods, retroactive external conformance, or `where Self == X`.
 - In production code, avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary. Test code may use them freely.
-- Avoid `inout`; return values instead.
+- Avoid `inout` or passing reference types only to be mutated and read back by the caller; return values instead.
 - Prefer `@MainActor` on declarations over `MainActor.run`.
 - Model state transitions as enums, not `Bool` flags.
 - Prefer `struct` over `class`; reach for `class` only when reference identity or shared mutable state genuinely require it.
