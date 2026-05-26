@@ -227,6 +227,14 @@ final class SearchRecommendationCollector {
     }
   }
 
+  func removePick(mediaGUID: MediaGUID) {
+    Self.log.debug("Removing pick \(mediaGUID)")
+    guard let entry = pickIndex.removeValue(forKey: mediaGUID) else { return }
+    entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
+  }
+
+  // MARK: - Typed-Search Overlay
+
   private func clearTypedSearchOverlay() {
     // Debouncer is included: between recordSourcePodcasts and its reconcile
     // firing, the pending debounce is the only typed-search state alive.
@@ -244,12 +252,6 @@ final class SearchRecommendationCollector {
     Task {
       for entry in toCancel { await entry.cancel() }
     }
-  }
-
-  func removePick(mediaGUID: MediaGUID) {
-    Self.log.debug("Removing pick \(mediaGUID)")
-    guard let entry = pickIndex.removeValue(forKey: mediaGUID) else { return }
-    entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
   }
 
   // MARK: - Reconcile & Ingest
