@@ -27,6 +27,6 @@ final class SearchDiscoveryActionsViewModel: ManagingEpisodes, nonisolated Hasha
   }
 
   func didPerformAction(_ episode: ListedEpisode) {
-    collector.removePick(feedURL: episode.feedURL, mediaGUID: episode.mediaGUID)
+    collector.removePick(mediaGUID: episode.mediaGUID)
   }
 }

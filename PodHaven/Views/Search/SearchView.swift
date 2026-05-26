@@ -369,10 +369,6 @@ struct SearchView: View {
     }
   }
   .task {
-    // Register preview defaults before constructing SearchViewModel so the
-    // collector's DownloadManager captures the fake feed session instead of
-    // the production URLSession. .preview()'s own init runs too late —
-    // SearchView's init args (and thus SearchViewModel()) evaluate first.
     Container.shared.registerPreviewDefaults()
 
     // Load sample data

@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2026
 
-import Algorithms
 import CoreMedia
 import FactoryKit
 import Foundation
@@ -105,6 +104,10 @@ final class SearchRecommendationCollector {
   private var drainContinuation: CheckedContinuation<Void, Never>?
   private var inFlight: Set<FeedURL> = []
 
+  // mediaGUID -> entry that currently holds the pick, so removePick is O(1)
+  // regardless of how the caller's feedURL relates to the cache key.
+  private var pickIndex: [MediaGUID: CachedPodcastEntry] = [:]
+
   // `.unavailable` surfaces .hidden on the banner and lets the drain proceed
   // instead of blocking forever.
   private enum ScoringAvailability: Equatable {
@@ -121,7 +124,10 @@ final class SearchRecommendationCollector {
   // MARK: - Lifecycle
 
   init() {
-    downloadManager = DownloadManager(session: Container.shared.podcastFeedSession())
+    downloadManager = DownloadManager(
+      session: Container.shared.podcastFeedSession(),
+      maxConcurrentDownloads: Self.rssConcurrency
+    )
   }
 
   // MARK: - Public API
@@ -185,6 +191,7 @@ final class SearchRecommendationCollector {
     let toCancel = Array(permanent) + Array(temporary)
     permanent.removeAll()
     temporary.removeAll()
+    pickIndex.removeAll()
     trendingSourceIndex.removeAll()
     typedSearchOverlay = nil
     // Dropping Debounce references doesn't cancel their pending sleeps —
@@ -217,6 +224,7 @@ final class SearchRecommendationCollector {
     typedSearchOverlay = nil
     let toCancel = Array(temporary)
     let purgedURLs = Set(temporary.ids)
+    for entry in toCancel { unregisterPicks(of: entry) }
     temporary.removeAll()
     pendingDrainQueue.removeAll { purgedURLs.contains($0) }
     Task {
@@ -224,22 +232,10 @@ final class SearchRecommendationCollector {
     }
   }
 
-  // Caller's `feedURL` comes from `ListedEpisode.feedURL` (parsed
-  // atom:link self / itunes:new-feed-url) and can differ from the cache key,
-  // so fall back to a mediaGUID scan if the direct lookup misses.
-  func removePick(feedURL: FeedURL, mediaGUID: MediaGUID) {
+  func removePick(mediaGUID: MediaGUID) {
     Self.log.debug("Removing pick \(mediaGUID)")
-    if let entry = permanent[id: feedURL] ?? temporary[id: feedURL],
-      entry.scoredEpisodes.contains(where: { $0.id == mediaGUID })
-    {
-      entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
-      return
-    }
-    for entry in chain(permanent, temporary)
-    where entry.scoredEpisodes.contains(where: { $0.id == mediaGUID }) {
-      entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
-      return
-    }
+    guard let entry = pickIndex.removeValue(forKey: mediaGUID) else { return }
+    entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
   }
 
   // MARK: - Reconcile & Ingest
@@ -368,11 +364,24 @@ final class SearchRecommendationCollector {
       purgedURLs.insert(entry.feedURL)
     }
     guard !purgedURLs.isEmpty else { return }
+    for entry in toCancel { unregisterPicks(of: entry) }
     for url in purgedURLs { temporary.remove(id: url) }
     pendingDrainQueue.removeAll { purgedURLs.contains($0) }
     Task {
       for entry in toCancel { await entry.cancel() }
     }
+  }
+
+  // Each scored episode lives in exactly one entry, so picks added here can
+  // never collide with another entry's index. Re-scoring an already-scored
+  // entry would, so unregister the old picks first.
+  private func registerPicks(_ scored: [ScoredEpisode], for entry: CachedPodcastEntry) {
+    unregisterPicks(of: entry)
+    for pick in scored { pickIndex[pick.id] = entry }
+  }
+
+  private func unregisterPicks(of entry: CachedPodcastEntry) {
+    for pick in entry.scoredEpisodes { pickIndex.removeValue(forKey: pick.id) }
   }
 
   private func scheduleDrain(for feedURL: FeedURL) {
@@ -427,18 +436,14 @@ final class SearchRecommendationCollector {
     if let task = scoringContextWatcherTask, !task.isCancelled { return }
     scoringContextWatcherTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      await self.observeScoringContextWarmth()
-    }
-  }
-
-  private func observeScoringContextWarmth() async {
-    // Don't dropFirst: engine state can change between the caller flipping
-    // to .unavailable and this watcher subscribing.
-    for await _ in recommendationEngine.$scoringRevision.stream() {
-      if Task.isCancelled { return }
-      if recommendationEngine.hasScoringContext {
-        handleScoringContextBecameAvailable()
-        return
+      // Don't dropFirst: engine state can change between the caller flipping
+      // to .unavailable and this watcher subscribing.
+      for await _ in recommendationEngine.$scoringRevision.stream() {
+        if Task.isCancelled { return }
+        if recommendationEngine.hasScoringContext {
+          handleScoringContextBecameAvailable()
+          return
+        }
       }
     }
   }
@@ -470,29 +475,18 @@ final class SearchRecommendationCollector {
     await awaitScoringContext()
     if Task.isCancelled { return }
 
+    // DownloadManager throttles RSS fetches to rssConcurrency, so hand every
+    // queued entry to it and let the manager serialize.
     await withTaskGroup(of: Void.self) { group in
-      var activeChildren = 0
       while !Task.isCancelled {
-        while activeChildren < Self.rssConcurrency,
-          let feedURL = dequeueNext()
-        {
+        while let feedURL = dequeueNext() {
           inFlight.insert(feedURL)
-          activeChildren += 1
           group.addTask { [weak self] in
             await self?.processFeedURL(feedURL)
           }
         }
-
-        if activeChildren == 0 {
-          if pendingDrainQueue.isEmpty {
-            await waitForWork()
-            if Task.isCancelled { break }
-          }
-          continue
-        }
-
-        await group.next()
-        activeChildren -= 1
+        await waitForWork()
+        if Task.isCancelled { break }
       }
       group.cancelAll()
     }
@@ -548,6 +542,7 @@ final class SearchRecommendationCollector {
     entry.fetchToken = nil
     switch result {
     case .success(let scored):
+      registerPicks(scored, for: entry)
       entry.scoredEpisodes = scored
       entry.status = .scored
     case .cancelled:
