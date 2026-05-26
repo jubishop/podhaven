@@ -293,37 +293,6 @@ actor RefreshManagerTests {
     #expect(updatedEpisode.title == "511: Fiasco! (2013)")
   }
 
-  @Test("refreshManager ignores request for already being fetched URL")
-  func refreshManagerIgnoresRequestForAlreadyBeingFetchedURL() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
-    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
-    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
-    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
-      )
-    )
-
-    let updatedData = PreviewBundle.loadAsset(
-      named: "hardfork_short_updated",
-      in: .FeedRSS
-    )
-
-    let (startedSemaphore, finishSemaphore) = await session.releaseWaitRespond(
-      to: podcastSeries.podcast.feedURL.rawValue,
-      data: updatedData
-    )
-
-    Task { try await refreshManager.refreshSeries(podcastSeries: podcastSeries) }
-    try await startedSemaphore.waitUnlessCancelled()
-
-    // The test is that this second call doesn't hang because it early exits.
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
-    finishSemaphore.signal()
-  }
-
   @Test("refreshSeries queues new episodes on top when queueAllEpisodes is .onTop")
   func testRefreshSeriesQueuesNewEpisodesOnTop() async throws {
     let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
@@ -822,6 +791,11 @@ actor RefreshManagerTests {
       parameters: [(Podcast.ID, Date)].self
     )
     #expect(Set(flush.parameters.map(\.0)) == Set(podcastIDs))
+
+    for podcastID in podcastIDs {
+      let refreshed = try await repo.podcastSeries(podcastID)!
+      #expect(refreshed.podcast.lastUpdate > 1.hoursAgo)
+    }
   }
 
   @Test("refreshSeries called concurrently for the same series only fetches once")

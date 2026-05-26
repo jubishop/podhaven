@@ -127,16 +127,15 @@ struct RefreshManager {
   // changes, or returns the (id, Date) pair the caller should flush via
   // repo.updateLastUpdates when the feed was unchanged. Returns nil when the
   // work was deduped via inFlight or failed before any write could happen.
+  // inFlight is held for the full cycle (download + parse + write), so a
+  // concurrent caller for the same feed silently no-ops until the in-flight
+  // cycle completes.
   private func performRefreshCycle(
     podcastSeries: PodcastSeries
   ) async throws -> (Podcast.ID, Date)? {
     let url = podcastSeries.podcast.feedURL.rawValue
 
-    let alreadyInFlight = inFlight { state -> Bool in
-      if state.contains(url) { return true }
-      state.insert(url)
-      return false
-    }
+    let alreadyInFlight = inFlight { !$0.insert(url).inserted }
     if alreadyInFlight {
       Self.log.debug(
         "performRefreshCycle: \(podcastSeries.toString) already in-flight; skipping"
