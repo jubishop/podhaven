@@ -12,12 +12,13 @@ import Logging
 // section); test and preview databases are never observed.
 final class WriteProbe: TransactionObserver, Sendable {
   private static let log = Log.as("WriteProbe")
-  private static let backtraceIntervalMs: Int64 = 2_000
+  private static let backtraceInterval: Duration = .seconds(2)
 
   private struct State {
     var tables: Set<String> = []
     var rowEvents = 0
-    var lastBacktraceMs: Int64 = 0
+    var lastBacktrace: ContinuousClock.Instant?
+    var transactionStart: ContinuousClock.Instant?
   }
   private let accumulator = ThreadSafe<State>(State())
   private let enabled: Broadcast<Bool>
@@ -36,28 +37,36 @@ final class WriteProbe: TransactionObserver, Sendable {
 
   func databaseDidChange(with event: DatabaseEvent) {
     let table = event.tableName
+    let now = ContinuousClock.now
     accumulator { state in
+      if state.rowEvents == 0 { state.transactionStart = now }
       state.tables.insert(table)
       state.rowEvents += 1
     }
   }
 
   func databaseDidCommit(_: Database) {
-    let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
-    let snapshot = accumulator { state -> (tables: [String], rowEvents: Int, backtrace: Bool) in
+    let now = ContinuousClock.now
+    let snapshot = accumulator {
+      state -> (tables: [String], rowEvents: Int, duration: Duration, backtrace: Bool) in
       defer {
         state.tables = []
         state.rowEvents = 0
+        state.transactionStart = nil
       }
-      guard state.rowEvents > 0 else { return ([], 0, false) }
-      let backtrace = nowMs - state.lastBacktraceMs >= Self.backtraceIntervalMs
-      if backtrace { state.lastBacktraceMs = nowMs }
-      return (state.tables.sorted(), state.rowEvents, backtrace)
+      guard state.rowEvents > 0, let start = state.transactionStart else {
+        return ([], 0, .zero, false)
+      }
+      let backtrace = state.lastBacktrace.map { now - $0 >= Self.backtraceInterval } ?? true
+      if backtrace { state.lastBacktrace = now }
+      return (state.tables.sorted(), state.rowEvents, now - start, backtrace)
     }
     guard snapshot.rowEvents > 0 else { return }
 
     let tableList = snapshot.tables.joined(separator: ",")
-    Self.log.debug("DB commit — tables: \(tableList), \(snapshot.rowEvents) row events")
+    Self.log.debug(
+      "DB commit — tables: \(tableList), \(snapshot.rowEvents) row events, \(snapshot.duration)"
+    )
     if snapshot.backtrace {
       let frames = Thread.callStackSymbols.dropFirst(2).prefix(24).joined(separator: "\n")
       Self.log.debug("DB commit backtrace (sampled):\n\(frames)")
@@ -68,6 +77,7 @@ final class WriteProbe: TransactionObserver, Sendable {
     accumulator { state in
       state.tables = []
       state.rowEvents = 0
+      state.transactionStart = nil
     }
   }
 }
