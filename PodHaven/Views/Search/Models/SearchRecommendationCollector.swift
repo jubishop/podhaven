@@ -231,6 +231,12 @@ final class SearchRecommendationCollector {
     Self.log.debug("Removing pick \(mediaGUID)")
     guard let entry = pickIndex.removeValue(forKey: mediaGUID) else { return }
     entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
+    // `.exhausted` distinguishes a user-dismissed-all entry from a
+    // pipeline-finished-empty entry, so the close → open recovery in
+    // `handleScoringContextBecameAvailable` doesn't resurrect dismissed picks.
+    if entry.scoredEpisodes.isEmpty, entry.status == .scored {
+      entry.status = .exhausted
+    }
   }
 
   // MARK: - Typed-Search Overlay
@@ -410,7 +416,7 @@ final class SearchRecommendationCollector {
   private func scheduleDrain(for feedURL: FeedURL) {
     guard !inFlight.contains(feedURL) else { return }
     let status = entry(for: feedURL)?.status
-    guard status != .scored else { return }
+    guard status != .scored, status != .exhausted else { return }
     guard pendingDrainQueue.append(feedURL).inserted else { return }
     drainContinuation?.resume()
     drainContinuation = nil
@@ -522,7 +528,8 @@ final class SearchRecommendationCollector {
     while let next = pendingDrainQueue.first {
       pendingDrainQueue.removeFirst()
       if inFlight.contains(next) { continue }
-      if entry(for: next)?.status == .scored { continue }
+      let status = entry(for: next)?.status
+      if status == .scored || status == .exhausted { continue }
       return next
     }
     return nil
@@ -586,7 +593,9 @@ final class SearchRecommendationCollector {
 
     // If a concurrent overlay purge swapped in a new entry, scheduleDrain
     // would have bailed on the inFlight guard, leaving it stuck .pending.
-    if let current = self.entry(for: feedURL), current !== entry, current.status != .scored {
+    if let current = self.entry(for: feedURL), current !== entry, current.status != .scored,
+      current.status != .exhausted
+    {
       scheduleDrain(for: feedURL)
     }
 
@@ -761,7 +770,7 @@ final class SearchRecommendationCollector {
       guard let entry = entry(for: url) else { return true }
       switch entry.status {
       case .pending, .fetching: return true
-      case .scored, .failed, .cancelled: return false
+      case .scored, .exhausted, .failed, .cancelled: return false
       }
     }
     return anyInFlight ? .loading : .hidden
@@ -824,6 +833,10 @@ private final class CachedPodcastEntry: Identifiable {
     case pending
     case fetching
     case scored
+    // Set only by `removePick` after the last pick is dismissed. Terminal —
+    // skipped by the scoring-context recovery loop so user-dismissed entries
+    // don't resurrect on the next close → open cycle.
+    case exhausted
     case failed
     case cancelled
   }

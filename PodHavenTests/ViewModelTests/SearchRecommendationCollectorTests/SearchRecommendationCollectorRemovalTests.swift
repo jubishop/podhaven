@@ -109,6 +109,113 @@ import Testing
     )
   }
 
+  // MARK: - Test: removePick'd Entry Is Not Re-Queued On Scoring-Context Re-Open
+
+  // After the user clears the last pick, the entry must not come back the
+  // next time the engine cools (cache cleared) and warms again — the watcher
+  // would otherwise treat it as "empty because scoring was unavailable" and
+  // re-fetch RSS for a podcast the user has explicitly dismissed.
+  @Test("removed pick is not re-fetched after a scoring-context close → open cycle")
+  func removedPickSurvivesScoringContextCycle() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: scripted) }
+      .scope(.cached)
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: scripted)
+
+    let engine = Container.shared.recommendationEngine()
+    engine.start()
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in engine.hasScoringContext },
+      { @Sendable in "Expected scoring context to land" }
+    )
+
+    let feedURL = FeedURL(URL(string: "https://example.com/exhausted-survives-cycle.rss")!)
+    await H.respondWithFeed(at: feedURL, title: "Survives Cycle", episodes: 1)
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(2500))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in collector.visiblePicks.count == 1 },
+      { @MainActor in "Expected one pick to land, got \(collector.visiblePicks.count)" }
+    )
+
+    let initialRequests = await H.session.requests.filter { $0 == feedURL.rawValue }.count
+    #expect(initialRequests == 1, "Test premise: pipeline should have made exactly one RSS request")
+
+    let pickGUID = collector.visiblePicks[0].episode.mediaGUID
+    collector.removePick(mediaGUID: pickGUID)
+    #expect(collector.visiblePicks.isEmpty)
+
+    // Drive the engine through close → open by unrating signals (cache=nil)
+    // and then re-rating them (cache=context). The watcher inside the
+    // collector fires `handleScoringContextBecameAvailable` on the open edge.
+    for signal in signals {
+      _ = try await repo.updateRating(signal.id, rating: nil)
+    }
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in !engine.hasScoringContext },
+      { @Sendable in "Expected scoring context to close after unrating signals" }
+    )
+
+    let restoredRatings: [EpisodeRating] = [.loved, .liked, .liked]
+    for (signal, rating) in zip(signals, restoredRatings) {
+      _ = try await repo.updateRating(signal.id, rating: rating)
+    }
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in engine.hasScoringContext },
+      { @Sendable in "Expected scoring context to reopen after re-rating signals" }
+    )
+
+    // Use a positive control to fence the assertion: a new feed kicked off
+    // after the re-open. By the time its pipeline completes the watcher has
+    // had every opportunity to re-queue the dismissed entry, so a stable
+    // request count for `feedURL` proves the dismissed pick stays dismissed.
+    let controlFeedURL = FeedURL(URL(string: "https://example.com/post-cycle-control.rss")!)
+    await H.respondWithFeed(at: controlFeedURL, title: "Post Cycle Control", episodes: 1)
+    let controlSource = SearchRecommendationCollector.Source.trending(
+      .init(genreID: 1303, title: "Comedy")
+    )
+    collector.setActiveSource(controlSource)
+    collector.recordSourcePodcasts(
+      source: controlSource,
+      podcasts: [H.makeUnsavedRow(feedURL: controlFeedURL, iTunesID: ITunesPodcastID(2501))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .loaded = collector.bannerState(for: controlSource) { return true }
+        return false
+      },
+      { @MainActor in
+        "Expected control pick to land after the cycle, got \(collector.bannerState(for: controlSource))"
+      }
+    )
+
+    let finalRequests = await H.session.requests.filter { $0 == feedURL.rawValue }.count
+    #expect(
+      finalRequests == 1,
+      "Expected dismissed feed to NOT be re-fetched after close→open; got \(finalRequests) requests"
+    )
+    #expect(collector.picks(for: source).isEmpty)
+  }
+
   // MARK: - Test: actionsViewModel Drives removePick End-To-End
 
   // SearchViewModel owns one SearchDiscoveryActionsViewModel that's threaded
