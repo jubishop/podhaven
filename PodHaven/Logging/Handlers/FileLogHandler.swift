@@ -85,15 +85,18 @@ struct FileLogHandler: LogHandler {
       let key = RateKey(file: file, line: line)
       return rateLimitBuckets { buckets in
         guard let bucket = buckets[key] else { return false }
-        let elapsedMs = max(0, nowMs - bucket.lastRefillMs)
-        let tokensAfterRefill = min(
-          Self.rateLimitBurst,
-          bucket.tokens + Double(elapsedMs) / 1000 * Self.rateLimitTokensPerSecond
-        )
-        guard tokensAfterRefill >= 1 else { return false }
+        guard Self.previewedTokens(for: bucket, at: nowMs) >= 1 else { return false }
         return bucket.suppressedCount >= Self.rateLimitWarningThreshold
           && nowMs - bucket.lastWarningMs >= Self.rateLimitWarningCooldownMs
       }
+    }
+
+    private static func previewedTokens(for bucket: RateBucket, at nowMs: Int64) -> Double {
+      let elapsedMs = max(0, nowMs - bucket.lastRefillMs)
+      return min(
+        rateLimitBurst,
+        bucket.tokens + Double(elapsedMs) / 1000 * rateLimitTokensPerSecond
+      )
     }
 
     func flush() {
@@ -102,13 +105,7 @@ struct FileLogHandler: LogHandler {
 
     private enum WriteResult {
       case message(String)
-      case stormWarning(
-        file: String,
-        line: UInt,
-        function: String,
-        suppressed: Int,
-        callStack: [String]?
-      )
+      case stormWarning(entry: Entry, suppressed: Int, callStack: [String]?)
       case failed(any Error)
     }
 
@@ -139,15 +136,7 @@ struct FileLogHandler: LogHandler {
           }
         }
         if shouldWarn {
-          results.append(
-            .stormWarning(
-              file: entry.file,
-              line: entry.line,
-              function: entry.function,
-              suppressed: suppressed,
-              callStack: callStack
-            )
-          )
+          results.append(.stormWarning(entry: entry, suppressed: suppressed, callStack: callStack))
         }
         return results
       } catch {
@@ -160,11 +149,11 @@ struct FileLogHandler: LogHandler {
       switch result {
       case .message(let message):
         Self.log.info("\(message)")
-      case .stormWarning(let file, let line, let function, let suppressed, let callStack):
+      case .stormWarning(let entry, let suppressed, let callStack):
         let stackText = callStack?.joined(separator: "\n") ?? "(not captured)"
         Self.log.warning(
           """
-          FileLogHandler storm: \(file):\(line) in \(function) — \
+          FileLogHandler storm: \(entry.file):\(entry.line) in \(entry.function) — \
           suppressed \(suppressed) entries since last emit. Stack:
           \(stackText)
           """
@@ -310,11 +299,7 @@ struct FileLogHandler: LogHandler {
             suppressedCount: 0,
             lastWarningMs: 0
           )
-        let elapsedMs = max(0, now - bucket.lastRefillMs)
-        bucket.tokens = min(
-          Self.rateLimitBurst,
-          bucket.tokens + Double(elapsedMs) / 1000 * Self.rateLimitTokensPerSecond
-        )
+        bucket.tokens = Self.previewedTokens(for: bucket, at: now)
         bucket.lastRefillMs = now
 
         let decision: RateLimitDecision
