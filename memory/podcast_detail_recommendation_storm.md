@@ -1,221 +1,212 @@
 ---
 name: podcast-detail-observation-storm
-description: PodcastDetail observation storm — wide `podcastSeriesDetail` region re-fires on any episode/embedding write, hammering `observePodcastSeries`/`transition` at hundreds per second. Root cause RESOLVED 2026-05-20 (#293). Debounce fix ABANDONED, #293 closed NOT_PLANNED 2026-05-21. RECURRED 2026-05-27 on build 506 and escalated to a fatal watchdog termination (PODHAVEN-3J). Bug is active and now fatal.
+description: PodcastDetail build-506 memory warning/watchdog investigation. The old "DB observation storm" framing is now suspect: repeated `observePodcastSeries` entry logs prove repeated task entry, not necessarily repeated GRDB yields. Reporter was not on recommendation sorting. Logging now distinguishes constructor/lifecycle churn from DB emissions; behavior fixes tracked in #357.
 type: project
 ---
 
-# PodcastDetail observation storm — open investigation
+# PodcastDetail observation storm / lifecycle churn
 
-**Status as of 2026-05-27**: Root cause known and confirmed three times. The
-planned debounce fix was abandoned (#293 closed `NOT_PLANNED` 2026-05-21).
-Recurred today on build 506 / commit `3b037fb1` and **escalated from "app
-pegged" to a fatal `WatchdogTermination` (`PODHAVEN-3J`)** while in the
-foreground. Read this first before doing anything in `PodcastDetailViewModel`
-or `Observatory.podcastSeriesDetail`.
+**Status as of 2026-05-27**: open investigation. The 2026-05-27 build-506
+incident produced a memory warning followed by a foreground watchdog kill, but
+the prior "async DB observation emitted thousands of times" conclusion is no
+longer safe. The hot log line was emitted at the top of
+`PodcastDetailViewModel.observePodcastSeries`, before the `for await` loop, so
+rate-limited repeats prove repeated entry into `observePodcastSeries` / task
+creation or restart. They do **not** by themselves prove that one GRDB
+`ValueObservation` yielded thousands of values.
 
-## The bug
+The user was **not** using recommendation-score sorting during the 2026-05-27
+incident. Do not treat recommendation sorting as the cause unless fresh logs
+show it.
 
-`Observatory.podcastSeriesDetail` is a GRDB `ValueObservation` whose tracked
-region is very wide: the `podcast` row **plus every episode row plus every
-episode's `episodeEmbedding`** (`ListableEpisode.databaseSelection` pulls
-`episodeEmbedding` in via `EpisodeEmbedding.existsSelectable`). Any write to
-any of those rows for the open podcast re-fires the whole-detail observation,
-which drives `PodcastDetailViewModel.observePodcastSeries` → `transition` —
-producing same-shape `saved → saved` transitions where `Equatable` correctly
-sees a real diff in a non-displayed sub-field (commonly `episodeEmbedding`
-flapping or live episode-row churn).
+Behavior follow-up: **#357** tracks the two preferred fixes:
 
-`PodcastSeriesDetail.Equatable` is sound and `removeDuplicates()` on the
-observation is doing its job — when it yields, the value really did change.
-The defect is the **tracked region**, not the equality.
+1. make `PodcastDetailViewModel.init` side-effect-free; and
+2. make PodcastDetail list updates incremental through a first-class
+   `PowerList` API.
 
-Storm signature — `.debug` lines that hammer at the rate of the writer:
+## Incident facts
 
-- `observePodcastSeries` entry — "observePodcastSeries: entering for <id>"
-  (post 2026-05-27 logging; older builds said "Observing podcast series with
-  ID: <id>")
-- inside the for-await — "Updating observed series: …"
-- `transition`'s same-id diff — post 2026-05-27, a `.warning` "transition:
-  same-id non-equal saved → saved, diff=[…]" naming which sub-field differs
-- `startObservation` — "already active" guard fires on each cycle
+- Feedback `podhaven:7509371787`: "Memory warning why??", submitted
+  2026-05-27 08:04:35 PT.
+- Crash `PODHAVEN-3J`: `WatchdogTermination`, foreground, around
+  2026-05-27 08:04:51 PT.
+- Feedback `podhaven:7509373362`: "App just crashed", submitted after relaunch
+  at 2026-05-27 08:05:10 PT.
+- Build: TestFlight 506, commit `3b037fb1`, tag `v1.0b506`.
+- Screen context: PodcastDetail for "Revisionist History" (podcast 21).
+- First feedback context showed app memory around 3.08 GB and device free
+  memory around 62.8 MB.
+- After relaunch, app memory was back near 347 MB and device free memory around
+  5.0 GB.
 
-No error-level entries: every line in the storm proper is `.debug`. Nothing
-alerts. The 2026-05-27 build adds a high-frequency `.warning` (transition
->50/sec) that captures a stack trace once — see "Logging instrumentation"
-below.
+The rolling app log showed intense PodcastDetail logging immediately before the
+kill. The important correction is where those lines were emitted:
 
-## History
+- `observePodcastSeries` entry line: before the `for await` loop.
+- `Updating observed series`: inside the `for await` loop.
+- `transition` / `refreshEpisodeList` / `startObservation` lines: downstream
+  of an observed value or state transition.
 
-- **#274 (original report).** Fix shipped only plan items #1–#3, the
-  recommendation *scoring* coalescer (commit `0cc82c8c`, PR #275). Plan item
-  #4 — the observation storm itself — was deferred and never shipped.
-- **Recurrence on build 498** (commit `967ddf79`, tag `v1.0b498`) at
-  ~178 emissions/s. Sentry feedbacks `podhaven:7493496709`,
-  `podhaven:7493497368` (2026-05-19). Tracked as **#293**. FileLogHandler perf
-  tech-debt spun off as **#294**.
-- **Build 499 diagnostic run (2026-05-20)** — TestFlight build from commit
-  `8a4aa613`, carrying the `c45e2908` probes (`WriteProbe` + emission-diff
-  probe). The emission-diff probe **named the root cause**: every emission was
-  a genuine sub-field change (`episode 131531 content changed`, `podcast row
-  changed`, `episode count 1 → 509`). Capture was mild because the user
-  didn't sit on a single hot podcast for long — 24 re-emissions in ~105 s.
-- **2026-05-21**: **#293 closed `NOT_PLANNED`.** No PR linked to the closure.
-  The emission-diff probe was removed in PR #312 (commit `6e14c8a2`) with the
-  message *"The fix it verified has been abandoned"*. `WriteProbe` was kept
-  as a permanent debug facility. From this point forward there is **no
-  detection mechanism in the binary**.
-- **Recurrence on build 506** (commit `3b037fb1`, 2026-05-27) — Sentry
-  feedbacks `podhaven:7509371787` + `podhaven:7509373362` and crash
-  `PODHAVEN-3J` (`WatchdogTermination`, `mechanism=watchdog_termination`,
-  in_foreground=true) at 08:04:51 PT. Reporter was on "Revisionist History"
-  (podcast 21) — not on recommendation sort, no active downloads visible in
-  the log. Storm sustained ~250 entries/sec at four log sites for at least
-  the 6 minutes covered in the rolling buffer (Sessions 30 + 31). App memory
-  reached **3.08 GB** with free memory at **62.8 MB** before the kill.
-  FileLogHandler rate limiter suppressed ~38,600 entries across the storm
-  window — the only reason the log is analyzable.
+So next analysis must count **both** observation entries and loop yields.
+Repeated entries with low per-task yield counts means lifecycle/task churn.
+One stable VM/task with huge yield counts means actual DB/writer churn.
 
-## Root cause — confirmed (Case 1: real writes through a too-wide tracked region)
+## Historical context
 
-Already proven on build 499: every emission carries a genuine sub-field
-change. The 2026-05-27 incident is the same path, denser writer side. The
-specific writer hasn't been pinned for today's incident (no
-`recommendationScore` sort, so the prime suspect — `EmbeddingProcessor`
-churning `episodeEmbedding` rows for the open podcast — is plausible but
-unconfirmed without a fresh capture from the new logging).
+#293 documented an earlier PodcastDetail observation storm. Build-499
+diagnostics showed genuine value changes in `PodcastSeriesDetail` during that
+capture, often through the wide detail observation region:
 
-What is NOT the cause: `removeDuplicates()` is correct;
-`PodcastSeriesDetail.Equatable` is sound; SwiftUI view re-render is not the
-driver (the recurrence happened with no rec-sort and the per-call-site rate
-matches a DB-write cadence, not a 120 Hz display cadence). The 2026-05-20
-analysis stands.
+- podcast row;
+- every episode row for the open podcast; and
+- each episode's `episodeEmbedding` existence projection.
 
-## Fix — debounce the observation (spec lives in #293)
+That historical evidence is still useful, but it should not be blindly applied
+to the 2026-05-27 incident. The build-506 evidence lacks per-yield counts and
+the reporter was not on recommendation sorting. The embedding cache plan never
+landed; it was abandoned. The old debounce plan was also abandoned and should
+not be revived as the first fix without fresh proof.
 
-Trailing-edge debounce on the emissions from
-`observatory.podcastSeriesDetail` inside
-`PodcastDetailViewModel.observePodcastSeries`'s `for try await` loop. Route
-non-nil yields through the existing `Debounce` utility; **keep the
-`nil`/deletion path immediate**. A time debounce caps the
-emission→`transition` rate regardless of writer.
+## Current diagnostic logging
 
-Disproven alternatives (do not waste another cycle on these):
+The 2026-05-27 logging pass is intended to settle the question next time:
 
-- **Narrowing the tracked region.** `hasEmbedding` and `currentTime` are both
-  rendered by the detail screen (`EpisodeListView.swift:87`
-  `.embeddingPending`; `durationText` shows live `currentTime`). The
-  observation legitimately reads those columns. No dead column to drop.
-- **Tightening `Equatable`.** Synthesized `Equatable` is sound; the diffs are
-  real DB changes.
-- **Debouncing the shared `Observatory.observe`.** Would mute many unrelated
-  observations and risk staleness on cheap ones.
+- `PodcastDetailViewModel` now logs a stable `vm=<id>` diagnostic summary
+  containing state, entry count, sort method, and observation task state.
+- `PodcastDetailView` logs struct init, appear, and disappear with the VM
+  summary, so discarded SwiftUI destination models can be distinguished from
+  appeared models.
+- `startObservation(_:caller:)` logs caller and task state when it skips or
+  creates an observation task.
+- `observePodcastSeries` logs entry and exit duration, yield count, and exit
+  reason (`cancelled` vs `natural`).
+- Per-yield `Updating observed series` logs include yield number and VM
+  summary.
+- same-id `.saved → .saved` transitions log which top-level field changed
+  (`podcast`, `episodes`, or `tags`).
+- transition storms log a one-shot warning with `Thread.callStackSymbols` when
+  a VM crosses 50 transitions/sec.
+- `RecommendationScoringCoordinator.refresh()` logs nil-snapshot, cache-hit,
+  in-flight skip, and new-pass branches; `Recommendations.coordinator` has
+  `.trace` level so those trace messages are actually written.
 
-The full single-source spec — root cause, why the column drop fails, the
-exact debounce placement, the regression test (a fake observatory that emits
-identical-shape-but-different-field values at a configurable rate, asserting
-`transition` is called at most once per debounce window) — is the **#293
-issue body**. The issue is closed; reopen or supersede it before working the
-fix.
+Interpretation guide:
 
-Intermediate refactors landed since the doc was written but **did NOT touch
-the storm**: #303 (extract recommendation scoring), #321 (on-demand sort),
-#326 (shared `RecommendationScoringCoordinator`), #336, #344, #350, #351.
+- Many `init vm=N` lines with few or no matching `appear vm=N`, followed by
+  observation entries for discarded VMs: constructor side effects.
+- One appeared VM with many `observePodcastSeries` entries and `yields=0` or
+  `yields=1` exits: observation task restart churn.
+- One appeared VM with one long-lived `observePodcastSeries` and huge yield
+  count: actual DB/writer churn.
+- Recommendation coordinator trace absent or nil-snapshot only: recommendation
+  sorting is not involved.
 
-## Logging instrumentation as of 2026-05-27
+## Behavior fixes tracked by #357
 
-Added during the 2026-05-27 investigation (no PR yet — uncommitted on `main`):
+### 1. Side-effect-free `PodcastDetailViewModel.init`
 
-- **`PodcastDetailViewModel.startObservation(_:caller:)`** — `#function`
-  caller token + prior task state (`nil` vs `cancelled`) when a fresh task is
-  created. The "already active" line now carries the caller token too. Will
-  pin which call site is hammering startObservation next time.
-- **`PodcastDetailViewModel.observePodcastSeries`** — entry log + `defer`
-  block that reports `duration`, `yields` (for-await iterations), and
-  `reason` (`cancelled` vs `natural`). Confirms whether the for-await is
-  one-shotting (`yields=1, reason=natural`), being externally cancelled
-  (`reason=cancelled`), or running long.
-- **`PodcastDetailViewModel.transition`** — when state and newState are both
-  `.saved` with the same id, logs a `.warning` listing which sub-field
-  (`podcast` / `episodes(N→M)` / `tags(N→M)`) failed equality. Closes the
-  "what's drifting" question without re-shipping the emission-diff probe.
-  Also a one-shot storm guard that fires a single `.warning` with the full
-  `Thread.callStackSymbols` the moment transitions cross 50/sec — gives us
-  the live call stack of whatever is driving the cascade. Per-instance
-  `transitionSamples: [ContinuousClock.Instant]` (sliding 1 s window) backs
-  the guard.
-- **`PodcastDetailViewModel.refreshEpisodeList`** — debug per `.allEntries`
-  assignment with the entry count, surfaces PowerList churn cadence.
-- **`RecommendationScoringCoordinator.refresh()`** — `.trace` at each
-  early-return branch (nil snapshot / cache hit / in-flight match) and
-  `.debug` when a fresh pass kicks. New `LogSubsystem.Recommendations.coordinator`
-  case.
+`PodcastDetailViewModel.init(state:)` should not start async work that can
+outlive a discarded SwiftUI view/model. Current offenders:
 
-Still alive from `c45e2908`: **`WriteProbe`** in `AppDB._onDisk`, gated by
-the `enableWriteProbe` user setting in Settings → Debug. Toggle it on before
-walking into a detail view next time and we'll see per-statement table-write
-events with stack traces. Do NOT revert.
+- `startObservation(state.savedSeries?.id)`;
+- the share-artwork `Task { ... imagePipeline.image(for:) ... }`.
 
-Removed and not coming back unless re-staged: emission-diff probe in
-`observePodcastSeries` (PR #312, commit `6e14c8a2`). The new transition diff
-log above subsumes its function.
+Preferred shape:
 
-## Next step
+- keep `init` limited to synchronous owned-state setup;
+- move observation startup into the kept model's lifecycle, likely
+  `performAppear()`;
+- move share-artwork loading into an idempotent lifecycle helper;
+- keep `startObservation` idempotent and prompt;
+- keep `disappear()` responsible for canceling observation and recommendation
+  scoring.
 
-1. **Reopen #293** (or open a successor issue) — closure as `NOT_PLANNED` was
-   premature; the bug just killed the app.
-2. **Implement the debounce fix** per the #293 spec. Regression test gates
-   it. Reference the 2026-05-27 watchdog incident
-   (`PODHAVEN-3J` / feedbacks 7509371787, 7509373362) in the PR.
-3. **Ship a TestFlight build carrying both the fix and the 2026-05-27
-   logging additions.** Confirm via a fresh capture that:
-   - the `transition` >50/sec warning never fires;
-   - `observePodcastSeries` `yields` and `duration` look sane;
-   - the same-id transition diff warning doesn't fire either.
-4. Once confirmed clean for at least one full TestFlight rev, decide whether
-   to keep the 2026-05-27 logging or trim it. The storm guard + transition
-   diff are cheap; the per-yield duration/yields/reason debug lines are
-   chatty and worth gating behind a setting if we keep them long-term.
-5. Promote `enableWriteProbe` from Settings → Debug into the standard
-   pre-TestFlight checklist — turning it on before opening a hot podcast is
-   the fastest way to find next writer.
+The target behavior is that a VM initialized but never appeared starts no
+observation task and no share-artwork task.
 
-Analyse logs with the `analyze-logs` `log_summary.py` script: `--sessions` →
-`--session N` → `--call-sites`. The 2026-05-27 capture lives at
-`~/Library/Caches/analyze-sentry-feedback/podhaven-7509373362/` and is a
-useful reference shape for next time.
+### 2. Incremental PodcastDetail list updates
 
-## Key references
+`refreshEpisodeList(from:)` currently rebuilds `episodeList.allEntries` on each
+saved-series update. `PowerList.allEntries` always updates `baselineEntries`
+and calls `scheduleEntriesUpdate()`, which cancels/recreates the projection
+task. That is too blunt for observation-driven detail updates.
 
-- `Observatory.observe` / `Observatory.podcastSeriesDetail` —
-  `PodHaven/Database/Observatory.swift` (`observe` =
-  `ValueObservation.tracking(block).removeDuplicates().values(in:)`).
-- `observePodcastSeries`, `transition`, `startObservation`,
-  `refreshEpisodeList` —
-  `PodHaven/Views/Podcasts/Models/PodcastDetailViewModel.swift`.
-- `PodcastSeriesDetail` = `podcast` + `episodes: IdentifiedArrayOf<ListableEpisode>`
-  + `tags`, synthesized `Equatable`.
-- `RecommendationScoringCoordinator.refresh` —
-  `PodHaven/Recommendations/ViewUtility/RecommendationScoringCoordinator.swift`.
-- `WriteProbe` — `PodHaven/WriteProbe.swift` (gated by `enableWriteProbe`
-  user setting).
-- `FileLogHandler` rate limiter — `PodHaven/Logging/Handlers/FileLogHandler.swift`,
-  per-`(file,line)` token bucket. Without it the 2026-05-27 capture would not
-  be analyzable.
+Do **not** skip updating rows. Instead, skip only the expensive projection
+recompute when membership/order/filter/search are unchanged.
+
+Preferred shape:
+
+- add a first-class `PowerList` API such as
+  `updateEntries(_:projectionInvalidated:)`;
+- when projection is not invalidated, update `baselineEntries` and patch
+  `_allEntries` / `filteredEntries` by ID;
+- when projection is invalidated, keep the existing schedule/recompute path.
+
+For PodcastDetail, projection invalidation must include:
+
+- inserts/deletes/identity changes (`ListedEpisode.id` is `MediaGUID`);
+- current sort key changes (`pubDate`, `creationDate`, `duration`,
+  `finishDate`, `queueDate`, or recommendation snapshot behavior);
+- current filter key changes (`finishDate`, `queueDate`);
+- active search key changes (`searchableString`, currently title plus podcast
+  title for saved detail rows).
+
+Visible non-projection fields should still patch immediately without
+resorting/refiltering when they do not affect the current projection:
+
+- `currentTime`;
+- `cacheStatus`;
+- `saveInCache`;
+- `queueOrder` unless it affects the current projection;
+- `rating` unless it affects recommendation behavior;
+- `hasEmbedding` unless it affects recommendation behavior;
+- image/title display fields; title also invalidates active search.
+
+## What not to do
+
+- Do not debounce `observePodcastSeries` as the first behavior fix.
+- Do not assume GRDB emitted thousands of values from one observation until
+  the new yield-count logging proves it.
+- Do not assume recommendation sorting was involved in the 2026-05-27 report.
+- Do not hide user-visible updates; detail updates should stay immediate.
+- Do not mutate `PowerList.allEntries[id:]` from outside as a workaround. The
+  computed setter schedules a full projection update; add an explicit API.
+
+## Analysis workflow
+
+Use the Sentry feedback skill for future feedbacks. For local log inspection,
+use `.agents/skills/analyze-logs/scripts/log_summary.py`:
+
+1. `--sessions`
+2. `--session N`
+3. `--call-sites`
+
+The 2026-05-27 reference captures were downloaded to:
+
+- `~/Library/Caches/analyze-sentry-feedback/podhaven-7509371787/`
+- `~/Library/Caches/analyze-sentry-feedback/podhaven-7509373362/`
+
+## Key files
+
+- `PodHaven/Views/Podcasts/Models/PodcastDetailViewModel.swift`
+- `PodHaven/Views/Podcasts/PodcastDetailView.swift`
+- `PodHaven/Views/Components/PowerList.swift`
+- `PodHaven/Environment/Navigation.swift`
+- `PodHaven/Database/Models/ListableEpisode.swift`
+- `PodHaven/Database/Models/ListablePodcastEpisode.swift`
+- `PodHaven/Database/DisplayModels/ListedEpisode.swift`
+- `PodHaven/Recommendations/ViewUtility/RecommendationScoringCoordinator.swift`
+- `PodHaven/Logging/Handlers/FileLogHandler.swift`
 
 ## Related
 
-- [[recommendation_engine_full_library_rescan]] — #296, sibling bug: same
-  architectural weakness (a SwiftUI observation triggering uncoalesced heavy
-  work), different loop. Either alone pegs the app.
-- [[recommendation_sort_prewarming]] — prewarming behaviour any fix must
-  preserve.
-- [[observation_broadcast_viewmodel]] — Broadcast `access()`/`withMutation()`
-  cycle quirks under `@Observable`; relevant if a future fix touches the
-  observation plumbing.
-- [[device_debug_builds_break_background_scheduling]] — no on-device
-  debugging; TestFlight only.
-- [[build_variants_dev_debug_release]] — why `log.ndjson` exists only on
-  device Release builds.
-- #297 — `EmbeddingProcessor` FK-on-delete race, found in the same build-499
-  log.
-- #294 — FileLogHandler perf tech-debt spinoff (still open).
+- #357 — behavior task for side-effect-free detail init and incremental
+  PowerList updates.
+- #293 — historical DB-observation storm investigation; useful context, but
+  not definitive for build 506.
+- #294 — FileLogHandler perf/rate-limit context.
+- #296 — recommendation-engine full-library rescan sibling issue.
+- #297 — `EmbeddingProcessor` FK-on-delete race found in older diagnostics.
+- `memory/recommendation_sort_prewarming.md` — recommendation sorting runs on
+  demand; do not assume background prewarming.
