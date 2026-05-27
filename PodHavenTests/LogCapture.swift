@@ -9,10 +9,11 @@ import Logging
 // process and the test target runs cases concurrently, so this is the only
 // way to observe `Self.log.warning(...)` output without races.
 //
-// Buffer is append-only during a run; tests filter their own messages by
-// embedding a unique discriminator (e.g. a per-test `line` value) in the
-// log site they're stress-testing. `reset()` exists for sequential local
-// runs but tests must not call it during concurrent execution.
+// Buffer is intentionally append-only for the life of the process: a clear
+// method would race with sibling tests under concurrent execution and has
+// no safe semantics. Tests filter their own messages by embedding a unique
+// discriminator (e.g. a per-test `line` value) in the log site they're
+// stress-testing.
 enum LogCapture {
   struct Captured: Sendable {
     let label: String

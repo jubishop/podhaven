@@ -300,11 +300,16 @@ struct FileLogHandlerTests {
     log(handler, message: "released", line: storming)
 
     let warning = try #require(stormWarnings(forStormingLine: storming).first)
-    #expect(warning.message.contains("Stack:"))
+    // Split off the captured stack section so the prefix's "FileLogHandler
+    // storm:" can't satisfy the production-frame assertion below.
+    let parts = warning.message.components(separatedBy: "Stack:\n")
+    #expect(parts.count == 2)
+    let stack = try #require(parts.last)
+    #expect(!stack.isEmpty)
     // FileLogHandler.log is the dispatch site that captures the stack;
     // pinning a frame from the production code keeps the test stable
     // across runs of the test binary's mangled symbol names.
-    #expect(warning.message.contains("FileLogHandler"))
+    #expect(stack.contains("FileLogHandler"))
   }
 
   @Test("per-bucket cooldown blocks a second warning within 60 seconds at the same site")
@@ -390,5 +395,35 @@ struct FileLogHandlerTests {
 
     let entries = try decodedEntries(at: fileURL)
     #expect(entries.map(\.message) == (0..<20).map { "entry-\($0)" })
+  }
+
+  // Regression: storm warnings must be emitted synchronously on the log call
+  // path, not deferred behind the writer queue's async report Task. Otherwise
+  // a storm detected right before backgrounding can have its file write
+  // drained by FileLogHandler.flush() while the Sentry-visible warning emit
+  // is still a pending Task on the cooperative pool and is lost when iOS
+  // suspends the app.
+  @Test("storm warning is emitted synchronously on the log path with async writes")
+  func stormWarningEmittedSynchronouslyOnLogPathWithAsyncWrites() throws {
+    let fileURL = tempFileURL()
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000,
+      synchronous: false
+    )
+    let storming: UInt = 10_007
+
+    for _ in 0..<300 {
+      log(handler, message: "storm", line: storming)
+    }
+    Container.shared.fakeContinuousClock().advance(by: .seconds(2))
+    log(handler, message: "released", line: storming)
+
+    // No flush() and no polling: by the time the release log call returns,
+    // the storm warning must already be in the capture buffer.
+    #expect(stormWarnings(forStormingLine: storming).count == 1)
   }
 }

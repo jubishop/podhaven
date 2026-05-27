@@ -63,18 +63,19 @@ struct FileLogHandler: LogHandler {
 
     func write(
       _ entry: Entry,
-      decision: RateLimitDecision,
+      suppressed: Int,
       synchronously: Bool
     ) {
       if synchronously {
-        let results = queue.sync { writeEntry(entry, decision: decision) }
-        for result in results { report(result) }
+        let result = queue.sync { writeEntry(entry, suppressed: suppressed) }
+        if let result { report(result) }
       } else {
         queue.async {
-          let results = self.writeEntry(entry, decision: decision)
+          let result = self.writeEntry(entry, suppressed: suppressed)
+          guard let result else { return }
           Task { [weak self] in
             guard let self else { return }
-            for result in results { report(result) }
+            report(result)
           }
         }
       }
@@ -86,19 +87,18 @@ struct FileLogHandler: LogHandler {
 
     private enum WriteResult {
       case message(String)
-      case stormWarning(entry: Entry, suppressed: Int, callStack: [String])
       case failed(any Error)
     }
 
-    // Must be called on `queue`. Returns every result this write produced —
-    // truncation and a storm warning can both fire on the same call, and
-    // collapsing them into a single return would drop one (and silently
-    // burn the storm-warning cooldown for 60s).
-    private func writeEntry(
-      _ entry: Entry,
-      decision: RateLimitDecision
-    ) -> [WriteResult] {
-      guard case .write(let suppressed, let callStack) = decision else { return [] }
+    // Storm warnings are intentionally NOT part of WriteResult: emitting one
+    // on the writer queue requires an async report Task (Self.log.warning
+    // can re-enter the same queue), and that Task can outlive a flush() on
+    // the background-transition path, dropping the warning when iOS suspends
+    // the app. Storm warnings are emitted on the caller path instead — see
+    // FileLogHandler.log(event:) and reportStormWarning(for:suppressed:callStack:).
+    //
+    // Must be called on `queue`.
+    private func writeEntry(_ entry: Entry, suppressed: Int) -> WriteResult? {
       do {
         // The real entry is always appended right after, and appendEntry
         // returns the post-write file size — so the single truncation check
@@ -107,22 +107,13 @@ struct FileLogHandler: LogHandler {
           try appendEntry(suppressionSummary(for: entry, suppressed: suppressed))
         }
         let currentSize = try appendEntry(entry)
-        var results: [WriteResult] = []
-        if currentSize > UInt64(maxFileSizeBytes) {
-          if let truncation = try truncateIfNeeded() {
-            results.append(
-              .message(
-                "Log truncated from \(truncation.originalSize) to \(truncation.newSize) bytes"
-              )
-            )
-          }
-        }
-        if let callStack {
-          results.append(.stormWarning(entry: entry, suppressed: suppressed, callStack: callStack))
-        }
-        return results
+        guard currentSize > UInt64(maxFileSizeBytes) else { return nil }
+        guard let truncation = try truncateIfNeeded() else { return nil }
+        return .message(
+          "Log truncated from \(truncation.originalSize) to \(truncation.newSize) bytes"
+        )
       } catch {
-        return [.failed(error)]
+        return .failed(error)
       }
     }
 
@@ -131,19 +122,26 @@ struct FileLogHandler: LogHandler {
       switch result {
       case .message(let message):
         Self.log.info("\(message)")
-      case .stormWarning(let entry, let suppressed, let callStack):
-        Self.log.warning(
-          """
-          FileLogHandler storm: \(entry.file):\(entry.line) in \(entry.function) — \
-          suppressed \(suppressed) entries since last emit. Stack:
-          \(callStack.joined(separator: "\n"))
-          """
-        )
       case .failed(let error):
         Self.fallbackLog.error(
           "Failed to write log entry: \(error.localizedDescription, privacy: .public)"
         )
       }
+    }
+
+    // Emitted synchronously on the originating log call path so the warning
+    // is observable (and forwarded to Sentry) before flush() returns on a
+    // background transition. Safe to call from any thread — Self.log routes
+    // through swift-log's multiplex, including back into FileLogHandler at
+    // a distinct file:line bucket whose 60s cooldown bounds the re-entry.
+    static func reportStormWarning(for entry: Entry, suppressed: Int, callStack: [String]) {
+      log.warning(
+        """
+        FileLogHandler storm: \(entry.file):\(entry.line) in \(entry.function) — \
+        suppressed \(suppressed) entries since last emit. Stack:
+        \(callStack.joined(separator: "\n"))
+        """
+      )
     }
 
     @discardableResult
@@ -472,12 +470,17 @@ struct FileLogHandler: LogHandler {
       for: entry,
       captureCallStack: Thread.callStackSymbols
     )
-    guard case .write = decision else { return }
+    guard case .write(let suppressed, let callStack) = decision else { return }
     writer.write(
       entry,
-      decision: decision,
+      suppressed: suppressed,
       synchronously: writeSynchronously(event.level)
     )
+    // Emit storm warning on the caller path, not via the writer queue's
+    // async report Task. See `Writer.reportStormWarning` for why.
+    if let callStack {
+      Writer.reportStormWarning(for: entry, suppressed: suppressed, callStack: callStack)
+    }
   }
 
   // MARK: - Flush

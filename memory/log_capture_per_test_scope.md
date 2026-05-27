@@ -79,13 +79,13 @@ A line emitted by another suite's task tree goes into that suite's sink only; th
 - `@TaskLocal`s propagate through `Task { ... }` (structured + unstructured) but **not** through `Task.detached`. Production code using `Task.detached` would emit logs that fall through to a `nil` sink and become invisible to capture. We forbid `Task.detached` in production (see `CLAUDE.md` / `task-detached-migration.md`), so this is a non-issue today; if it ever returns it'll silently break log capture for those code paths.
 - Long-lived helpers (Broadcast consumers, Sleepable continuations, etc.) emit on tasks that descend from whoever started them, which during a test is the test itself — they inherit the sink correctly. Anything that survives past the test (e.g. an actor whose work outlasts `withSink`) would have its later emissions dropped from capture, which is the right behavior.
 - `swift-log` `Logger` instances bind their `LogHandler` at construction time. `installOnce()` must run before any `Self.log` (typically `static let`) in the file under test is first accessed *anywhere in the process*. Today this is handled by every capturing suite calling `LogCapture.installOnce()` from `init()`. With the per-test sink design this stays the same — `installOnce()` still has to win the bootstrap race; `withSink` only routes events that the always-installed `CapturingLogHandler` is already receiving.
-- Don't invoke `LogCapture.reset()` (today's global) under concurrent tests — it races with sibling sinks. The per-test redesign deletes that footgun by construction: each `withSink` gets a fresh `Sink`, no shared mutable buffer.
+- Today's process-wide buffer is intentionally append-only because no safe per-test clear is possible under concurrent execution. The per-test redesign sidesteps this entirely: each `withSink` gets a fresh `Sink`, no shared mutable buffer.
 
 **When to actually do the rewrite:**
 
 Don't preemptively. Today only `FileLogHandlerTests` uses `LogCapture` and it's safe because every match string carries a unique `line` value the test owns. The first time a test wants to assert "*the* production line at `Foo.swift:NNN` fired", do all of:
 
-1. Add `Sink` + `@TaskLocal current` + `withSink` and have `CapturingLogHandler.log(event:)` write to `current` instead of the global buffer. Drop the global `buffer` and `reset()`.
+1. Add `Sink` + `@TaskLocal current` + `withSink` and have `CapturingLogHandler.log(event:)` write to `current` instead of the global buffer. Drop the global `buffer`.
 2. Migrate `FileLogHandlerTests` to `withSink` at the same time so there's only one supported pattern.
 3. Extend `Captured` with `event.source` / `event.file` / `event.function` / `event.line` (swift-log already passes them through `LogHandler.log(event:)`); production-line assertions should pin the call site, not just the message string. This also makes the handler future-proof against rewordings.
 
