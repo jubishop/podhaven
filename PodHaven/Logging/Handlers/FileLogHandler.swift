@@ -27,7 +27,10 @@ struct FileLogHandler: LogHandler {
     // call stack — so storms surface in Sentry within ~1s of starting,
     // without needing a Sentry feedback to triage. Per-bucket cooldown
     // prevents the warning itself from storming during a sustained event.
-    private static let rateLimitWarningThreshold = 200
+    // The threshold sits below the per-cycle drop count of any sustained
+    // storm (with a 1/sec refill, drops/cycle ≈ rate − 1), so a site
+    // exceeding ~26/sec gets flagged on its next successful emit.
+    private static let rateLimitWarningThreshold = 25
     private static let rateLimitWarningCooldownMs: Int64 = 60_000
 
     let fileURL: URL
@@ -58,28 +61,38 @@ struct FileLogHandler: LogHandler {
 
     func write(_ entry: Entry, callStack: [String]?, synchronously: Bool) {
       if synchronously {
-        let result = queue.sync { writeEntry(entry, callStack: callStack) }
-        report(result)
+        let results = queue.sync { writeEntry(entry, callStack: callStack) }
+        for result in results { report(result) }
       } else {
         queue.async {
-          let result = self.writeEntry(entry, callStack: callStack)
+          let results = self.writeEntry(entry, callStack: callStack)
           Task { [weak self] in
             guard let self else { return }
-            report(result)
+            for result in results { report(result) }
           }
         }
       }
     }
 
     // Cheap peek used by the log path to decide whether to pay
-    // `Thread.callStackSymbols` cost on this call. Returns true when the
-    // bucket's suppressedCount already exceeds the warning threshold, so the
-    // next successful emit will promote to `.warning` and consume the stack.
-    func shouldCaptureCallStack(file: String, line: UInt) -> Bool {
+    // `Thread.callStackSymbols` cost on this call. Returns true only when
+    // the next call will actually produce a storm warning: the token bucket
+    // would emit (so the entry isn't suppressed), suppression already meets
+    // the warning threshold, and the per-site cooldown has lapsed. Without
+    // those guards a sustained storm would burn the stack on every dropped
+    // entry too, defeating the warning path's whole point.
+    func shouldCaptureCallStack(file: String, line: UInt, nowMs: Int64) -> Bool {
       let key = RateKey(file: file, line: line)
       return rateLimitBuckets { buckets in
         guard let bucket = buckets[key] else { return false }
+        let elapsedMs = max(0, nowMs - bucket.lastRefillMs)
+        let tokensAfterRefill = min(
+          Self.rateLimitBurst,
+          bucket.tokens + Double(elapsedMs) / 1000 * Self.rateLimitTokensPerSecond
+        )
+        guard tokensAfterRefill >= 1 else { return false }
         return bucket.suppressedCount >= Self.rateLimitWarningThreshold
+          && nowMs - bucket.lastWarningMs >= Self.rateLimitWarningCooldownMs
       }
     }
 
@@ -88,7 +101,6 @@ struct FileLogHandler: LogHandler {
     }
 
     private enum WriteResult {
-      case ok
       case message(String)
       case stormWarning(
         file: String,
@@ -100,10 +112,13 @@ struct FileLogHandler: LogHandler {
       case failed(any Error)
     }
 
-    // Must be called on `queue`.
-    private func writeEntry(_ entry: Entry, callStack: [String]?) -> WriteResult {
+    // Must be called on `queue`. Returns every result this write produced —
+    // truncation and a storm warning can both fire on the same call, and
+    // collapsing them into a single return would drop one (and silently
+    // burn the storm-warning cooldown for 60s).
+    private func writeEntry(_ entry: Entry, callStack: [String]?) -> [WriteResult] {
       guard case .write(let suppressed, let shouldWarn) = rateLimitDecision(for: entry) else {
-        return .ok
+        return []
       }
       do {
         // The real entry is always appended right after, and appendEntry
@@ -113,33 +128,36 @@ struct FileLogHandler: LogHandler {
           try appendEntry(suppressionSummary(for: entry, suppressed: suppressed))
         }
         let currentSize = try appendEntry(entry)
+        var results: [WriteResult] = []
         if currentSize > UInt64(maxFileSizeBytes) {
           if let truncation = try truncateIfNeeded() {
-            return .message(
-              "Log truncated from \(truncation.originalSize) to \(truncation.newSize) bytes"
+            results.append(
+              .message(
+                "Log truncated from \(truncation.originalSize) to \(truncation.newSize) bytes"
+              )
             )
           }
         }
         if shouldWarn {
-          return .stormWarning(
-            file: entry.file,
-            line: entry.line,
-            function: entry.function,
-            suppressed: suppressed,
-            callStack: callStack
+          results.append(
+            .stormWarning(
+              file: entry.file,
+              line: entry.line,
+              function: entry.function,
+              suppressed: suppressed,
+              callStack: callStack
+            )
           )
         }
-        return .ok
+        return results
       } catch {
-        return .failed(error)
+        return [.failed(error)]
       }
     }
 
     // Must be called outside `queue` (or asynchronously) to avoid deadlock.
     private func report(_ result: WriteResult) {
       switch result {
-      case .ok:
-        break
       case .message(let message):
         Self.log.info("\(message)")
       case .stormWarning(let file, let line, let function, let suppressed, let callStack):
@@ -423,7 +441,7 @@ struct FileLogHandler: LogHandler {
     )
 
     let callStack: [String]? =
-      writer.shouldCaptureCallStack(file: event.file, line: event.line)
+      writer.shouldCaptureCallStack(file: event.file, line: event.line, nowMs: entry.timestamp)
       ? Thread.callStackSymbols
       : nil
     writer.write(entry, callStack: callStack, synchronously: writeSynchronously(event.level))
