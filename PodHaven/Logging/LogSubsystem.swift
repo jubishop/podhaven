@@ -66,9 +66,17 @@ enum LogSubsystem {
   }
 
   enum Recommendations: String, LogCategorizable {
+    case coordinator
     case embedding
     case engine
     case processor
+
+    var level: Logger.Level {
+      switch self {
+      case .coordinator: return .trace
+      default: return .debug
+      }
+    }
   }
 
   enum NotificationService: String, LogCategorizable {

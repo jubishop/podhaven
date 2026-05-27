@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Logging
 
 // Shared scoring orchestration: revision observation, snapshot-keyed cache,
 // and cancel-and-restart tasks.
@@ -32,6 +33,8 @@ import Foundation
 final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Score: Sendable> {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.taskPriority) private var taskPriority
+
+  private static var log: Logger { Log.as(LogSubsystem.Recommendations.coordinator) }
 
   enum ScoreResult: Sendable {
     case cacheable(Score)
@@ -124,12 +127,20 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   // by an in-flight pass. Since `Snapshot` must embed every input read by
   // `score`, an identical-snapshot restart is always wasted work.
   func refresh() {
-    guard let snapshot = makeSnapshot() else { return }
+    guard let snapshot = makeSnapshot() else {
+      Self.log.trace("refresh: skipped, nil snapshot")
+      return
+    }
     if let cached, cached.snapshot == snapshot {
+      Self.log.trace("refresh: cache hit, applying")
       apply(cached.score)
       return
     }
-    guard inFlight?.snapshot != snapshot else { return }
+    guard inFlight?.snapshot != snapshot else {
+      Self.log.trace("refresh: snapshot matches in-flight, skipping")
+      return
+    }
+    Self.log.debug("refresh: new pass, generation=\(nextGeneration + 1)")
     inFlight?.task.cancel()
     nextGeneration += 1
     let generation = nextGeneration

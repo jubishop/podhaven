@@ -86,14 +86,27 @@ class PodcastDetailViewModel:
 
   private static let log = Log.as(LogSubsystem.PodcastsView.detail)
   private static let unavailableMessage = "This podcast is no longer available."
+  private static var nextDiagnosticID = 0
 
   // MARK: - State
 
   // `state` is the source of truth; `episodeList` is a one-way projection of it.
   private(set) var state: PodcastDetailState
+  let diagnosticID: Int
 
   var podcast: PodcastDetailContent { state.detailContent }
   var saved: Bool { state.savedSeries != nil }
+  var diagnosticSummary: String {
+    """
+    vm=\(diagnosticID), state=\(state.toString), entries=\(episodeList.allEntries.count), \
+    sort=\(currentSortMethod), observationTask=\(observationTaskState)
+    """
+  }
+
+  private var observationTaskState: String {
+    guard let observationTask else { return "nil" }
+    return observationTask.isCancelled ? "cancelled" : "active"
+  }
 
   // MARK: - ManagingEpisodes
 
@@ -187,6 +200,9 @@ class PodcastDetailViewModel:
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
       guard oldValue != currentSortMethod else { return }
+      Self.log.debug(
+        "currentSortMethod: \(oldValue) → \(currentSortMethod), \(diagnosticSummary)"
+      )
       episodeList.filterMethod = currentSortMethod.filterMethod
       if currentSortMethod == .recommendationScore {
         startRecommendationObservation()
@@ -308,6 +324,7 @@ class PodcastDetailViewModel:
   )
 
   private func startRecommendationObservation() {
+    Self.log.debug("startRecommendationObservation: \(diagnosticSummary)")
     recommendationCoordinator.startObservations()
     recommendationCoordinator.refresh()
   }
@@ -472,9 +489,12 @@ class PodcastDetailViewModel:
   // MARK: - Initialization
 
   private init(state: PodcastDetailState) {
+    Self.nextDiagnosticID += 1
+    diagnosticID = Self.nextDiagnosticID
     self.state = state
     episodeList.sortMethod = currentSortMethod.sortMethod
     refreshEpisodeList(from: state)
+    Self.log.debug("init: \(diagnosticSummary)")
     startObservation(state.savedSeries?.id)
 
     Task { [weak self] in
@@ -519,6 +539,13 @@ class PodcastDetailViewModel:
   }
 
   func performAppear() async throws {
+    let startedAt = ContinuousClock.now
+    Self.log.debug("performAppear: entering, \(diagnosticSummary)")
+    defer {
+      let duration = ContinuousClock.now - startedAt
+      Self.log.debug("performAppear: exiting, duration=\(duration), \(diagnosticSummary)")
+    }
+
     if currentSortMethod == .recommendationScore {
       startRecommendationObservation()
     }
@@ -646,6 +673,8 @@ class PodcastDetailViewModel:
 
   @ObservationIgnored var observationTask: Task<Void, Never>?
 
+  @ObservationIgnored private var transitionSamples: [ContinuousClock.Instant] = []
+
   @discardableResult
   private func attemptObservation() async throws -> Bool {
     if let observationTask, !observationTask.isCancelled {
@@ -672,32 +701,56 @@ class PodcastDetailViewModel:
     return true
   }
 
-  private func startObservation(_ podcastID: Podcast.ID? = nil) {
-    guard let podcastID else { return }
-
-    if let observationTask, !observationTask.isCancelled {
-      Self.log.debug("Observation already active; not starting observation")
+  private func startObservation(
+    _ podcastID: Podcast.ID? = nil,
+    caller: StaticString = #function
+  ) {
+    guard let podcastID else {
+      Self.log.debug(
+        "startObservation: skipped nil podcast, caller=\(caller), \(diagnosticSummary)"
+      )
       return
     }
 
+    if let observationTask, !observationTask.isCancelled {
+      Self.log.debug(
+        "startObservation: already active for \(podcastID), caller=\(caller), \(diagnosticSummary)"
+      )
+      return
+    }
+
+    Self.log.debug(
+      "startObservation: creating task for \(podcastID), caller=\(caller), \(diagnosticSummary)"
+    )
     observationTask = Task { [weak self] in
       guard let self else { return }
+      Self.log.debug("startObservation: task running for \(podcastID), \(diagnosticSummary)")
       do {
         try await observePodcastSeries(podcastID)
       } catch {
-        Self.log.caughtError("startObservation: failed for podcast \(podcastID)", error)
+        Self.log.caughtError(
+          "startObservation: failed for podcast \(podcastID), \(diagnosticSummary)",
+          error
+        )
       }
     }
   }
 
   private func observePodcastSeries(_ podcastID: Podcast.ID) async throws {
-    Self.log.debug("Observing podcast series with ID: \(podcastID)")
+    let startedAt = ContinuousClock.now
+    var yields = 0
+    Self.log.debug("observePodcastSeries: entering for \(podcastID), \(diagnosticSummary)")
 
     // Clear our reference on any natural exit (deletion, error, normal end).
     // Skip when we were cancelled — disappear() or a re-binding
     // startObservation() has already cleared/replaced observationTask, and
     // stomping it would kill a newer task.
     defer {
+      let duration = ContinuousClock.now - startedAt
+      let reason = Task.isCancelled ? "cancelled" : "natural"
+      Self.log.debug(
+        "observePodcastSeries: exiting for \(podcastID), duration=\(duration), yields=\(yields), reason=\(reason), \(diagnosticSummary)"
+      )
       if !Task.isCancelled {
         observationTask = nil
       }
@@ -705,12 +758,15 @@ class PodcastDetailViewModel:
 
     for try await updatedSeries in observatory.podcastSeriesDetail(podcastID) {
       try Task.checkCancellation()
+      yields += 1
 
-      Self.log.debug("Updating observed series: \(String(describing: updatedSeries?.toString))")
+      Self.log.debug(
+        "Updating observed series: yield=\(yields), \(diagnosticSummary), series=\(String(describing: updatedSeries?.toString))"
+      )
 
       guard let updatedSeries
       else {
-        Self.log.debug("Podcast was deleted")
+        Self.log.debug("Podcast was deleted, \(diagnosticSummary)")
         // Post-deletion strategy: re-parse the RSS feed so the UI can
         // recover to an unsaved snapshot. This diverges from
         // `EpisodeDetailViewModel`, which converts the cached
@@ -732,7 +788,9 @@ class PodcastDetailViewModel:
 
       guard updatedSeries != state.savedSeries
       else {
-        Self.log.debug("New podcastSeries is the same as the current one, skipping update")
+        Self.log.debug(
+          "New podcastSeries is the same as the current one, skipping update, yield=\(yields), \(diagnosticSummary)"
+        )
         continue
       }
 
@@ -743,19 +801,45 @@ class PodcastDetailViewModel:
   // MARK: - Disappear
 
   func disappear() {
-    Self.log.debug("disappear: executing")
+    Self.log.debug("disappear: executing, \(diagnosticSummary)")
     clearObservationTask()
     recommendationCoordinator.cancel()
   }
 
   // MARK: - Private Helpers
 
-  private func transition(to newState: PodcastDetailState) {
+  private func transition(
+    to newState: PodcastDetailState,
+    caller: StaticString = #function
+  ) {
     guard newState != state else { return }
+
+    if case .saved(let old) = state, case .saved(let new) = newState, old.id == new.id {
+      let podcastDiff = old.podcast == new.podcast ? "" : "podcast"
+      let episodesDiff =
+        old.episodes == new.episodes
+        ? ""
+        : "episodes(\(old.episodes.count)→\(new.episodes.count))"
+      let tagsDiff =
+        old.tags == new.tags ? "" : "tags(\(old.tags.count)→\(new.tags.count))"
+      Self.log.warning(
+        "transition: same-id non-equal saved → saved, caller=\(caller), \(diagnosticSummary), diff=[\(podcastDiff) \(episodesDiff) \(tagsDiff)]"
+      )
+    }
+
+    let now = ContinuousClock.now
+    transitionSamples.append(now)
+    transitionSamples.removeAll { now - $0 > .seconds(1) }
+    if transitionSamples.count == 50 {
+      Self.log.warning(
+        "transition: high-frequency (\(transitionSamples.count)/sec), caller=\(caller), \(diagnosticSummary), stack:\n\(Thread.callStackSymbols.joined(separator: "\n"))"
+      )
+    }
+
     logStateTransition(to: newState)
     state = newState
     refreshEpisodeList(from: newState)
-    startObservation(newState.savedSeries?.id)
+    startObservation(newState.savedSeries?.id, caller: caller)
     recommendationCoordinator.refresh()
   }
 
@@ -766,6 +850,9 @@ class PodcastDetailViewModel:
       // populates `episodeList` once the saved series hydrates.
       return
     case .unsaved(let unsavedPodcast, let episodes):
+      Self.log.debug(
+        "refreshEpisodeList: setting unsaved entries count=\(episodes.count), vm=\(diagnosticID)"
+      )
       episodeList.allEntries = IdentifiedArray(
         uniqueElements: episodes.map { unsavedEpisode in
           ListedEpisode(
@@ -777,6 +864,9 @@ class PodcastDetailViewModel:
         }
       )
     case .saved(let series):
+      Self.log.debug(
+        "refreshEpisodeList: setting saved entries count=\(series.episodes.count), vm=\(diagnosticID)"
+      )
       episodeList.allEntries = IdentifiedArray(
         uniqueElements: series.episodes.map { listableEpisode in
           ListedEpisode(

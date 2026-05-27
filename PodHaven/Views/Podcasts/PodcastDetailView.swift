@@ -17,6 +17,7 @@ struct PodcastDetailView: View {
 
   init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel
+    Self.log.debug("PodcastDetailView init: \(viewModel.diagnosticSummary)")
   }
 
   var body: some View {
@@ -35,8 +36,14 @@ struct PodcastDetailView: View {
           Self.log.debug("PodcastSettings sheet dismissed (podcast: \(viewModel.podcast.toString))")
         }
       }
-      .onAppear { viewModel.appear() }
-      .onDisappear { viewModel.disappear() }
+      .onAppear {
+        Self.log.debug("PodcastDetailView appear: \(viewModel.diagnosticSummary)")
+        viewModel.appear()
+      }
+      .onDisappear {
+        Self.log.debug("PodcastDetailView disappear: \(viewModel.diagnosticSummary)")
+        viewModel.disappear()
+      }
       .overlay {
         if showingImageOverlay {
           fullScreenImageOverlay
