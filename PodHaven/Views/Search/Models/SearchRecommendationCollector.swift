@@ -295,6 +295,12 @@ final class SearchRecommendationCollector {
       iTunesIDs: iTunesIDs
     )
 
+    // firstObservationEmission swallows CancellationError to return [], so
+    // a reset (or any debouncer cancel that lands during the await) would
+    // otherwise let us continue and recreate the overlay / temporary cache
+    // and queue RSS for entries we just tore down.
+    if Task.isCancelled { return }
+
     // The observation can take long enough that a newer typed-search query
     // has taken over the overlay; bail before our stale ranking clobbers it.
     if let typedSearchGeneration, typedSearchGeneration != self.typedSearchGeneration {
