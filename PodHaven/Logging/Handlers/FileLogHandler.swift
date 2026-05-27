@@ -336,8 +336,12 @@ struct FileLogHandler: LogHandler {
           bucket.tokens -= 1
           let suppressed = bucket.suppressedCount
           bucket.suppressedCount = 0
-          let cooledDown =
-            bucket.lastWarning.map { now - $0 >= Self.rateLimitWarningCooldown } ?? true
+          let cooledDown: Bool
+          if let lastWarning = bucket.lastWarning {
+            cooledDown = now - lastWarning >= Self.rateLimitWarningCooldown
+          } else {
+            cooledDown = true
+          }
           let shouldWarn = suppressed >= Self.rateLimitWarningThreshold && cooledDown
           if shouldWarn { bucket.lastWarning = now }
           pending = .write(suppressed: suppressed, shouldCaptureCallStack: shouldWarn)
