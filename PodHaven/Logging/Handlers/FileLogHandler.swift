@@ -21,6 +21,15 @@ struct FileLogHandler: LogHandler {
     private static let rateLimitBurst = 50.0
     private static let rateLimitTokensPerSecond = 1.0
 
+    // Storm warning. When a single call site has dropped this many entries
+    // between successful emits, we promote the next emit's report to a
+    // `.warning` carrying the site's file/line/function and the originating
+    // call stack — so storms surface in Sentry within ~1s of starting,
+    // without needing a Sentry feedback to triage. Per-bucket cooldown
+    // prevents the warning itself from storming during a sustained event.
+    private static let rateLimitWarningThreshold = 200
+    private static let rateLimitWarningCooldownMs: Int64 = 60_000
+
     let fileURL: URL
     let maxFileSizeBytes: Int
     let targetFileSizeBytes: Int
@@ -47,18 +56,30 @@ struct FileLogHandler: LogHandler {
       closeAppendHandle()
     }
 
-    func write(_ entry: Entry, synchronously: Bool) {
+    func write(_ entry: Entry, callStack: [String]?, synchronously: Bool) {
       if synchronously {
-        let result = queue.sync { writeEntry(entry) }
+        let result = queue.sync { writeEntry(entry, callStack: callStack) }
         report(result)
       } else {
         queue.async {
-          let result = self.writeEntry(entry)
+          let result = self.writeEntry(entry, callStack: callStack)
           Task { [weak self] in
             guard let self else { return }
             report(result)
           }
         }
+      }
+    }
+
+    // Cheap peek used by the log path to decide whether to pay
+    // `Thread.callStackSymbols` cost on this call. Returns true when the
+    // bucket's suppressedCount already exceeds the warning threshold, so the
+    // next successful emit will promote to `.warning` and consume the stack.
+    func shouldCaptureCallStack(file: String, line: UInt) -> Bool {
+      let key = RateKey(file: file, line: line)
+      return rateLimitBuckets { buckets in
+        guard let bucket = buckets[key] else { return false }
+        return bucket.suppressedCount >= Self.rateLimitWarningThreshold
       }
     }
 
@@ -69,12 +90,21 @@ struct FileLogHandler: LogHandler {
     private enum WriteResult {
       case ok
       case message(String)
+      case stormWarning(
+        file: String,
+        line: UInt,
+        function: String,
+        suppressed: Int,
+        callStack: [String]?
+      )
       case failed(any Error)
     }
 
     // Must be called on `queue`.
-    private func writeEntry(_ entry: Entry) -> WriteResult {
-      guard case .write(let suppressed) = rateLimitDecision(for: entry) else { return .ok }
+    private func writeEntry(_ entry: Entry, callStack: [String]?) -> WriteResult {
+      guard case .write(let suppressed, let shouldWarn) = rateLimitDecision(for: entry) else {
+        return .ok
+      }
       do {
         // The real entry is always appended right after, and appendEntry
         // returns the post-write file size — so the single truncation check
@@ -90,6 +120,15 @@ struct FileLogHandler: LogHandler {
             )
           }
         }
+        if shouldWarn {
+          return .stormWarning(
+            file: entry.file,
+            line: entry.line,
+            function: entry.function,
+            suppressed: suppressed,
+            callStack: callStack
+          )
+        }
         return .ok
       } catch {
         return .failed(error)
@@ -103,6 +142,15 @@ struct FileLogHandler: LogHandler {
         break
       case .message(let message):
         Self.log.info("\(message)")
+      case .stormWarning(let file, let line, let function, let suppressed, let callStack):
+        let stackText = callStack?.joined(separator: "\n") ?? "(not captured)"
+        Self.log.warning(
+          """
+          FileLogHandler storm: \(file):\(line) in \(function) — \
+          suppressed \(suppressed) entries since last emit. Stack:
+          \(stackText)
+          """
+        )
       case .failed(let error):
         Self.fallbackLog.error(
           "Failed to write log entry: \(error.localizedDescription, privacy: .public)"
@@ -223,10 +271,11 @@ struct FileLogHandler: LogHandler {
       var tokens: Double
       var lastRefillMs: Int64
       var suppressedCount: Int
+      var lastWarningMs: Int64
     }
 
     private enum RateLimitDecision {
-      case write(suppressed: Int)
+      case write(suppressed: Int, shouldWarn: Bool)
       case drop
     }
 
@@ -237,7 +286,12 @@ struct FileLogHandler: LogHandler {
       return rateLimitBuckets { buckets in
         var bucket =
           buckets[key]
-          ?? RateBucket(tokens: Self.rateLimitBurst, lastRefillMs: now, suppressedCount: 0)
+          ?? RateBucket(
+            tokens: Self.rateLimitBurst,
+            lastRefillMs: now,
+            suppressedCount: 0,
+            lastWarningMs: 0
+          )
         let elapsedMs = max(0, now - bucket.lastRefillMs)
         bucket.tokens = min(
           Self.rateLimitBurst,
@@ -248,8 +302,13 @@ struct FileLogHandler: LogHandler {
         let decision: RateLimitDecision
         if bucket.tokens >= 1 {
           bucket.tokens -= 1
-          decision = .write(suppressed: bucket.suppressedCount)
+          let suppressed = bucket.suppressedCount
           bucket.suppressedCount = 0
+          let shouldWarn =
+            suppressed >= Self.rateLimitWarningThreshold
+            && now - bucket.lastWarningMs >= Self.rateLimitWarningCooldownMs
+          if shouldWarn { bucket.lastWarningMs = now }
+          decision = .write(suppressed: suppressed, shouldWarn: shouldWarn)
         } else {
           bucket.suppressedCount += 1
           decision = .drop
@@ -363,7 +422,11 @@ struct FileLogHandler: LogHandler {
       line: event.line
     )
 
-    writer.write(entry, synchronously: writeSynchronously(event.level))
+    let callStack: [String]? =
+      writer.shouldCaptureCallStack(file: event.file, line: event.line)
+      ? Thread.callStackSymbols
+      : nil
+    writer.write(entry, callStack: callStack, synchronously: writeSynchronously(event.level))
   }
 
   // MARK: - Flush

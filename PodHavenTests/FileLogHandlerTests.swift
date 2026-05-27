@@ -140,6 +140,52 @@ struct FileLogHandlerTests {
     #expect(entries.map(\.message) == (1...40).map { "post-\($0)" })
   }
 
+  @Test("rate limit drops storming entries at one site after the burst is spent")
+  func rateLimitDropsStormingEntries() throws {
+    let fileURL = tempFileURL()
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+
+    // 50 fills the burst at line=1; the remaining 300 all drop because the
+    // token bucket cannot refill within the duration of this tight loop.
+    // Exercises rateLimitDecision's drop path, which now carries the new
+    // shouldWarn flag and the lastWarningMs bucket field.
+    for _ in 0..<350 {
+      log(handler, message: "storm", line: 1)
+    }
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.count == 50)
+    #expect(entries.allSatisfy { $0.message == "storm" })
+    #expect(entries.allSatisfy { $0.line == 1 })
+  }
+
+  @Test("rate limit is keyed per (file, line) — different lines do not interfere")
+  func rateLimitIsKeyedPerSite() throws {
+    let fileURL = tempFileURL()
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+
+    // Burst the bucket at line=1, then storm line=2; line=2's bucket is
+    // independent so its first 50 still write through.
+    for _ in 0..<200 { log(handler, message: "site-1", line: 1) }
+    for _ in 0..<200 { log(handler, message: "site-2", line: 2) }
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.filter { $0.line == 1 }.count == 50)
+    #expect(entries.filter { $0.line == 2 }.count == 50)
+  }
+
   @Test("asynchronous writes reach the file once flushed")
   func asynchronousWritesReachFileOnceFlushed() throws {
     let fileURL = tempFileURL()
