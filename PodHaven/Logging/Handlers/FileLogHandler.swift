@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import Logging
 import os
@@ -32,7 +33,7 @@ struct FileLogHandler: LogHandler {
     // ≥ 26/sec surfaces on its next successful emit; lighter cadences
     // stay quiet.
     private static let rateLimitWarningThreshold = 25
-    private static let rateLimitWarningCooldownMs: Int64 = 60_000
+    private static let rateLimitWarningCooldown: Duration = .seconds(60)
 
     let fileURL: URL
     let maxFileSizeBytes: Int
@@ -256,15 +257,17 @@ struct FileLogHandler: LogHandler {
 
     private struct RateBucket {
       var tokens: Double
-      var lastRefillMs: Int64
+      var lastRefill: ContinuousClock.Instant
       var suppressedCount: Int
-      var lastWarningMs: Int64
+      // nil sentinel = never warned; first threshold crossing always passes
+      // the cooldown gate.
+      var lastWarning: ContinuousClock.Instant?
     }
 
     fileprivate enum RateLimitDecision {
       // `callStack` non-nil iff this emit is promoted to a storm warning;
-      // captured by the log path on the originating thread (see
-      // `commitRateLimitDecision` doc).
+      // captured by the log path on the originating thread *outside* the
+      // bucket mutex (see `commitRateLimitDecision` doc).
       case write(suppressed: Int, callStack: [String]?)
       case drop
     }
@@ -273,58 +276,87 @@ struct FileLogHandler: LogHandler {
     // must honor: drop the entry, or write it (optionally promoted to a storm
     // warning carrying `callStack`). Called from the log path before any
     // queue dispatch so the warning decision and the originating thread's
-    // `Thread.callStackSymbols` are captured in the same synchronous step —
-    // a later peek on the writer queue could otherwise see a stale
-    // `suppressedCount` and miss the stack.
+    // `Thread.callStackSymbols` are observed in the same synchronous step.
+    //
+    // Lock scope: bucket bookkeeping (refill, token spend, suppressed reset,
+    // `lastWarning` advance) commits inside the rate-limit mutex; the
+    // `captureCallStack` autoclosure is invoked *after* the mutex is
+    // released, on the originating thread. Stack symbolication is
+    // multi-millisecond; running it under the mutex would serialize every
+    // log call across the app during a storm — exactly the regression
+    // mode this feature is meant to surface, not introduce. The cooldown
+    // is committed before the autoclosure runs, so a concurrent log call
+    // racing the stack walk sees the cooldown already in effect and
+    // doesn't double-warn.
     //
     // `captureCallStack` is an autoclosure invoked only when the bucket
-    // crosses the warning threshold (cost is a per-second per-site upper
+    // crosses the warning threshold (cost is a per-cooldown per-site upper
     // bound, not a per-log-call cost).
     //
     // Must be called exactly once per `LogEvent`, from the log call path
-    // (not the writer queue). Each call mutates the bucket atomically and
-    // takes / spends a token; calling twice would double-charge. The mutex
-    // is taken on the caller's thread, including the main thread; hold
-    // time is microseconds.
+    // (not the writer queue). Each successful call spends a token; calling
+    // twice would double-charge. The mutex is taken on the caller's thread,
+    // including the main thread; hold time is microseconds.
     func commitRateLimitDecision(
       for entry: Entry,
       captureCallStack: @autoclosure () -> [String]
     ) -> RateLimitDecision {
       let key = RateKey(file: entry.file, line: entry.line)
-      let now = entry.timestamp
-      return rateLimitBuckets { buckets in
+      let now = Container.shared.continuousClockNow()()
+
+      // Phase 1 (under mutex): commit all bucket bookkeeping including the
+      // cooldown advance. Returns the bare facts; no stack capture yet.
+      enum Pending {
+        case write(suppressed: Int, shouldCaptureCallStack: Bool)
+        case drop
+      }
+
+      let pending: Pending = rateLimitBuckets { buckets in
         var bucket =
           buckets[key]
           ?? RateBucket(
             tokens: Self.rateLimitBurst,
-            lastRefillMs: now,
+            lastRefill: now,
             suppressedCount: 0,
-            lastWarningMs: 0
+            lastWarning: nil
           )
-        let elapsedMs = max(0, now - bucket.lastRefillMs)
+        let elapsed = now - bucket.lastRefill
+        let elapsedSeconds = max(
+          0,
+          Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) * 1e-18
+        )
         bucket.tokens = min(
           Self.rateLimitBurst,
-          bucket.tokens + Double(elapsedMs) / 1000 * Self.rateLimitTokensPerSecond
+          bucket.tokens + elapsedSeconds * Self.rateLimitTokensPerSecond
         )
-        bucket.lastRefillMs = now
+        bucket.lastRefill = now
 
-        let decision: RateLimitDecision
+        let pending: Pending
         if bucket.tokens >= 1 {
           bucket.tokens -= 1
           let suppressed = bucket.suppressedCount
           bucket.suppressedCount = 0
-          let shouldWarn =
-            suppressed >= Self.rateLimitWarningThreshold
-            && now - bucket.lastWarningMs >= Self.rateLimitWarningCooldownMs
-          let callStack: [String]? = shouldWarn ? captureCallStack() : nil
-          if shouldWarn { bucket.lastWarningMs = now }
-          decision = .write(suppressed: suppressed, callStack: callStack)
+          let cooledDown =
+            bucket.lastWarning.map { now - $0 >= Self.rateLimitWarningCooldown } ?? true
+          let shouldWarn = suppressed >= Self.rateLimitWarningThreshold && cooledDown
+          if shouldWarn { bucket.lastWarning = now }
+          pending = .write(suppressed: suppressed, shouldCaptureCallStack: shouldWarn)
         } else {
           bucket.suppressedCount += 1
-          decision = .drop
+          pending = .drop
         }
         buckets[key] = bucket
-        return decision
+        return pending
+      }
+
+      // Phase 2 (outside mutex): walk the stack on the originating thread
+      // only when the bucket said so.
+      switch pending {
+      case .drop:
+        return .drop
+      case .write(let suppressed, let shouldCaptureCallStack):
+        let callStack: [String]? = shouldCaptureCallStack ? captureCallStack() : nil
+        return .write(suppressed: suppressed, callStack: callStack)
       }
     }
 

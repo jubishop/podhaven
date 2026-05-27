@@ -69,6 +69,9 @@ extension Container: @retroactive AutoRegistering {
 
     sleeper.context(.test) { FakeSleeper() }.scope(.cached)
 
+    continuousClockNow.context(.test) { { self.fakeContinuousClock().now } }
+      .scope(.cached)
+
     userNotificationCenter.context(.test) { FakeUserNotificationCenter() }.scope(.cached)
 
     fileManager.context(.test) { FakeFileManager() }.scope(.cached)
