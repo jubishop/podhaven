@@ -63,7 +63,7 @@ import Testing
 
     viewModel.searchText = " growth "
     try await fakeSleeper.waitForSleepRequests(count: 1)
-    await fakeSleeper.advanceTime(by: .milliseconds(400))
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
 
     try await Wait.until(
       { @MainActor in
@@ -85,7 +85,7 @@ import Testing
 
     viewModel.searchText = "   "
     try await fakeSleeper.waitForSleepRequests(count: 1)
-    await fakeSleeper.advanceTime(by: .milliseconds(400))
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
 
     try await Wait.until(
       { @MainActor in
@@ -134,7 +134,7 @@ import Testing
     let viewModel = SearchViewModel()
     viewModel.searchText = "growth"
     try await fakeSleeper.waitForSleepRequests(count: 1)
-    await fakeSleeper.advanceTime(by: .milliseconds(400))
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
 
     try await Wait.until(
       { @MainActor in
@@ -196,7 +196,7 @@ import Testing
     let viewModel = SearchViewModel()
     viewModel.searchText = "growth"
     try await fakeSleeper.waitForSleepRequests(count: 1)
-    await fakeSleeper.advanceTime(by: .milliseconds(400))
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
 
     try await Wait.until(
       { @MainActor in
@@ -251,7 +251,7 @@ import Testing
     let viewModel = SearchViewModel()
     viewModel.searchText = "growth"
     try await fakeSleeper.waitForSleepRequests(count: 1)
-    await fakeSleeper.advanceTime(by: .milliseconds(400))
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
 
     try await Wait.until(
       { @MainActor in viewModel.searchState == .loading },
@@ -422,7 +422,7 @@ import Testing
 
     viewModel.searchText = "growth"
     try await fakeSleeper.waitForSleepRequests(count: 1)
-    await fakeSleeper.advanceTime(by: .milliseconds(400))
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
 
     try await Wait.until(
       { @MainActor in viewModel.searchState == .loaded && !viewModel.searchResults.isEmpty },
@@ -448,7 +448,7 @@ import Testing
 
     viewModel.searchText = "emptyterm"
     try await fakeSleeper.waitForSleepRequests(count: 1)
-    await fakeSleeper.advanceTime(by: .milliseconds(400))
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
 
     try await Wait.until(
       { @MainActor in
@@ -540,7 +540,7 @@ import Testing
 
     viewModel.searchText = "growth"
     try await fakeSleeper.waitForSleepRequests(count: 1)
-    await fakeSleeper.advanceTime(by: .milliseconds(400))
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
 
     try await Wait.until(
       { @MainActor in viewModel.searchState == .loaded && !viewModel.searchResults.isEmpty },
@@ -566,7 +566,7 @@ import Testing
 
     viewModel.searchText = "errorterm"
     try await fakeSleeper.waitForSleepRequests(count: 1)
-    await fakeSleeper.advanceTime(by: .milliseconds(400))
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
 
     try await Wait.until(
       { @MainActor in

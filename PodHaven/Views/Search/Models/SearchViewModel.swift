@@ -186,13 +186,18 @@ class SearchViewModel:
 
   // MARK: - Search State
 
+  // Holds keystrokes before kicking the iTunes search. Independent of the
+  // collector's `stableSourceDebounce`, which is a separate hold between an
+  // iTunes result emit and RSS fan-out.
+  nonisolated static let searchQueryDebounce: Duration = .milliseconds(400)
+
   var searchText: String {
     get { searchDebouncer.currentValue }
     set { searchDebouncer.currentValue = newValue }
   }
   @ObservationIgnored private lazy var searchDebouncer = Debouncer(
     initialValue: "",
-    debounceDuration: .milliseconds(400)
+    debounceDuration: Self.searchQueryDebounce
   ) { [weak self] _ in
     guard let self else { return }
 

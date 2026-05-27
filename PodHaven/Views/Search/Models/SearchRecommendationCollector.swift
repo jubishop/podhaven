@@ -55,7 +55,7 @@ final class SearchRecommendationCollector {
     var discoveryListTitle: String {
       switch self {
       case .search(let query): return "\"\(query)\""
-      case .trending(let trending): return trending.genreID == nil ? "Top picks" : trending.title
+      case .trending(let trending): return trending.title
       }
     }
 
@@ -235,12 +235,17 @@ final class SearchRecommendationCollector {
     inFlight.removeAll()
     activeSource = nil
 
-    // drainTask cancellation propagates to processFeedURL children which
-    // clear their fetchTokens before this Task body runs. Go through the
-    // manager so active downloads get cancelled regardless.
-    Task { [downloadManager] in
-      await downloadManager.cancelAllDownloads()
-      for entry in toCancel { await entry.cancel() }
+    // Cancel only the snapshot's URLs. Calling `cancelAllDownloads` would
+    // also tear down any download a fresh `recordSourcePodcasts` registered
+    // before this unstructured Task got to run, since `downloadManager` is
+    // reused across resets. URLs whose entries were mid-`addURL` (fetchToken
+    // not yet assigned) self-cancel through the detach guard in
+    // `processFeedURL`.
+    Task { [downloadManager, toCancel] in
+      for entry in toCancel {
+        await downloadManager.cancelDownload(url: entry.feedURL.rawValue)
+        await entry.cancel()
+      }
     }
   }
 
@@ -587,6 +592,14 @@ final class SearchRecommendationCollector {
     guard self.entry(for: feedURL) === entry else {
       await downloadTask.cancel()
       inFlight.remove(feedURL)
+      // A purge that replaces this feedURL with a fresh entry would have
+      // hit the inFlight guard inside `scheduleDrain` and bailed; mirror
+      // the tail re-schedule logic so the replacement isn't left stranded.
+      if let current = self.entry(for: feedURL),
+        current.status != .scored, current.status != .exhausted
+      {
+        scheduleDrain(for: feedURL)
+      }
       return
     }
     entry.fetchToken = downloadTask
