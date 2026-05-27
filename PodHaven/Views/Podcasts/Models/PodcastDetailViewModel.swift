@@ -72,6 +72,7 @@ class PodcastDetailViewModel:
   SortableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.continuousClockNow) private var continuousClockNow
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -539,10 +540,10 @@ class PodcastDetailViewModel:
   }
 
   func performAppear() async throws {
-    let startedAt = ContinuousClock.now
+    let startedAt = continuousClockNow()
     Self.log.debug("performAppear: entering, \(diagnosticSummary)")
     defer {
-      let duration = ContinuousClock.now - startedAt
+      let duration = continuousClockNow() - startedAt
       Self.log.debug("performAppear: exiting, duration=\(duration), \(diagnosticSummary)")
     }
 
@@ -737,7 +738,7 @@ class PodcastDetailViewModel:
   }
 
   private func observePodcastSeries(_ podcastID: Podcast.ID) async throws {
-    let startedAt = ContinuousClock.now
+    let startedAt = continuousClockNow()
     var yields = 0
     Self.log.debug("observePodcastSeries: entering for \(podcastID), \(diagnosticSummary)")
 
@@ -746,7 +747,7 @@ class PodcastDetailViewModel:
     // startObservation() has already cleared/replaced observationTask, and
     // stomping it would kill a newer task.
     defer {
-      let duration = ContinuousClock.now - startedAt
+      let duration = continuousClockNow() - startedAt
       let reason = Task.isCancelled ? "cancelled" : "natural"
       Self.log.debug(
         "observePodcastSeries: exiting for \(podcastID), duration=\(duration), yields=\(yields), reason=\(reason), \(diagnosticSummary)"
@@ -827,7 +828,7 @@ class PodcastDetailViewModel:
       )
     }
 
-    let now = ContinuousClock.now
+    let now = continuousClockNow()
     transitionSamples.append(now)
     transitionSamples.removeAll { now - $0 > .seconds(1) }
     if transitionSamples.count == 50 {
