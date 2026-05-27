@@ -61,13 +61,15 @@ final class SearchRecommendationCollector {
 
     // Used as a SwiftUI view identity key. Stable across enum / property
     // renames, so navigation doesn't tear down + recreate destinations when
-    // unrelated source-type internals change.
+    // unrelated source-type internals change. Includes both genreID and
+    // title so two semantically-different trending values can't collide on
+    // identity if they happen to share a genreID.
     var stableID: String {
       switch self {
       case .search(let query): return "search-\(query)"
       case .trending(let trending):
-        let key = trending.genreID.map(String.init) ?? trending.title
-        return "trending-\(key)"
+        let genreKey = trending.genreID.map(String.init) ?? "nil"
+        return "trending-\(genreKey)-\(trending.title)"
       }
     }
   }
@@ -456,19 +458,12 @@ final class SearchRecommendationCollector {
       scoringAvailability = .ready
       return
     }
-    // AppLauncher pre-starts the engine, so the no-context revision can
-    // already be in the past — don't subscribe to a stream whose only emit
-    // would be the bootstrap replay.
+    // Surface .unavailable for the banner if the engine has already finished
+    // its bootstrap with no context, but keep waiting: returning here would
+    // let the drain fetch + embed RSS for nothing, and re-do all of it when
+    // the watcher later flips us back to .ready.
     if recommendationEngine.scoringRevision > 0 {
-      // Re-check: the engine could have warmed between the first read and
-      // now; setting .unavailable here would briefly hide the banner before
-      // the watcher's first emit flips us back to .ready.
-      if recommendationEngine.hasScoringContext {
-        scoringAvailability = .ready
-        return
-      }
       scoringAvailability = .unavailable
-      return
     }
     for await revision in recommendationEngine.$scoringRevision.stream() {
       if Task.isCancelled { return }
@@ -478,7 +473,6 @@ final class SearchRecommendationCollector {
       }
       if revision == 0 { continue }
       scoringAvailability = .unavailable
-      return
     }
   }
 
@@ -580,6 +574,15 @@ final class SearchRecommendationCollector {
 
     entry.status = .fetching
     let downloadTask = await downloadManager.addURL(feedURL.rawValue)
+    // A purge between `entry.status = .fetching` and now (e.g. typed-overlay
+    // clear or pruneTemporary) ran `entry.cancel()` on a nil fetchToken and
+    // couldn't reach this just-acquired task; cancel it ourselves so the RSS
+    // fetch doesn't run to completion only to have its result discarded.
+    guard self.entry(for: feedURL) === entry else {
+      await downloadTask.cancel()
+      inFlight.remove(feedURL)
+      return
+    }
     entry.fetchToken = downloadTask
 
     let podcastID = entry.podcastID

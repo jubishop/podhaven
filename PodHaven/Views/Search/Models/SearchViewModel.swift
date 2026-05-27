@@ -261,7 +261,6 @@ class SearchViewModel:
       section.owner = self
     }
     showTrendingSection(currentTrendingSection)
-    syncCollectorActiveSource()
   }
 
   // MARK: - Trending

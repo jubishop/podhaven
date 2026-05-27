@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Semaphore
 import Tagged
 import Testing
 
@@ -414,5 +415,67 @@ import Testing
     let cancelled = await H.session.cancelledRequests
     #expect(!cancelled.contains(sharedFeed.rawValue))
     #expect(!collector.picks(for: trending).isEmpty)
+  }
+
+  // MARK: - Test: addURL-Window Cancellation
+
+  // Stress the brief window in processFeedURL between `entry.status = .fetching`
+  // and `entry.fetchToken = downloadTask`. If clearTypedSearchOverlay's
+  // cancel hops to main during that window, entry.cancel() reads a nil
+  // fetchToken and can't reach the just-acquired DownloadTask. The
+  // post-addURL attach guard cancels it instead so the RSS fetch doesn't
+  // run to completion and discard its result. Multiple feeds and tight
+  // sequencing maximize the chance of catching the race; the assertion is
+  // invariant either way once the fix is in: every URL that started a
+  // request must also appear in cancelledRequests.
+  @Test("clearing typed search during the addURL window leaks no completed downloads")
+  func clearingTypedSearchDuringAddURLWindowLeaksNoCompletions() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+
+    var feedURLs: [FeedURL] = []
+    var semaphores: [AsyncSemaphore] = []
+    for i in 0..<8 {
+      let url = FeedURL(URL(string: "https://example.com/addurl-race-\(i).rss")!)
+      let sem = await H.session.waitRespond(to: url.rawValue, data: nil)
+      feedURLs.append(url)
+      semaphores.append(sem)
+    }
+    let rows = feedURLs.enumerated()
+      .map { (i, url) in
+        H.makeUnsavedRow(feedURL: url, iTunesID: ITunesPodcastID(7000 + i))
+      }
+
+    let typed = SearchRecommendationCollector.Source.search(query: "race")
+    collector.setActiveSource(typed)
+    collector.recordSourcePodcasts(source: typed, podcasts: rows)
+    try await H.advanceStableSourceDebounce()
+
+    let trending = SearchRecommendationCollector.Source.trending(
+      .init(genreID: nil, title: "Top")
+    )
+    collector.setActiveSource(trending)
+
+    for sem in semaphores { sem.signal() }
+
+    try await Wait.until(
+      { @MainActor in
+        let requests = await H.session.requests
+        let cancelled = await H.session.cancelledRequests
+        return feedURLs.allSatisfy { url in
+          !requests.contains(url.rawValue) || cancelled.contains(url.rawValue)
+        }
+      },
+      { @MainActor in
+        let requests = await H.session.requests
+        let cancelled = await H.session.cancelledRequests
+        let leaked = feedURLs.map(\.rawValue)
+          .filter {
+            requests.contains($0) && !cancelled.contains($0)
+          }
+        return "Expected no leaked completions after overlay clear; leaked: \(leaked)"
+      }
+    )
   }
 }

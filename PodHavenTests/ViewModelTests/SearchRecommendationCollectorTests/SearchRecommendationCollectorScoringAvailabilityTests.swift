@@ -13,10 +13,14 @@ import Testing
 
   @DynamicInjected(\.recommendationEngine) private var engine
 
-  // MARK: - Test: Banner Hides When Engine Pre-Rebuilt To Nil
+  // MARK: - Test: Banner Hides And No RSS When Engine Pre-Rebuilt To Nil
 
-  @Test("banner hides when engine rebuilt to no context before collector subscribed")
-  func bannerHidesWhenEnginePreRebuiltToNil() async throws {
+  // The drain must block on awaitScoringContext rather than proceed and
+  // discard every score. Otherwise a new user (no ratings → no context)
+  // browsing trending chips silently fetches RSS for every podcast they
+  // pass over, then re-fetches everything when the engine eventually warms.
+  @Test("banner hides and no RSS fires when engine rebuilt to no context")
+  func bannerHidesAndNoRSSWhenEnginePreRebuiltToNil() async throws {
     let collector = SearchRecommendationCollector()
     let scripted = H.makeScriptedEmbeddable()
 
@@ -25,8 +29,6 @@ import Testing
       .scope(.cached)
     Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
 
-    // Mirror AppLauncher: start with no signal data so scoringRevision goes
-    // to >0 with hasScoringContext still false.
     engine.start()
     try await RecommendationHelpers.untilAdvancing(
       { @Sendable in Container.shared.recommendationEngine().scoringRevision > 0 },
@@ -43,15 +45,18 @@ import Testing
       source: source,
       podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1602))]
     )
+    try await H.advanceStableSourceDebounce()
 
-    // awaitScoringContext must see the bootstrap replay (no dropFirst) so
-    // the drain unblocks and processFeedURL fires the RSS download.
-    try await RecommendationHelpers.untilAdvancing(
-      { @Sendable in await H.session.requests.contains(feedURL.rawValue) },
-      { @Sendable in "Expected RSS request after drain unblocked" }
+    try await Wait.until(
+      { @MainActor in collector.bannerState == .hidden },
+      { @MainActor in "Expected banner to hide; got \(collector.bannerState)" }
     )
 
-    #expect(collector.bannerState == .hidden)
+    let requests = await H.session.requests
+    #expect(
+      !requests.contains(feedURL.rawValue),
+      "Expected no RSS request while scoring is unavailable; got \(requests)"
+    )
   }
 
   // MARK: - Test: Cold Engine Defers Pipeline Until Hot
