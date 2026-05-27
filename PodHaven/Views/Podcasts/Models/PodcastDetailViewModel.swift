@@ -475,6 +475,7 @@ class PodcastDetailViewModel:
 
   var shareURL: URL? { ShareURL.podcast(feedURL: podcast.feedURL) }
   private var shareArtwork: UIImage?
+  @ObservationIgnored private var shareArtworkTask: Task<Void, Never>?
 
   var sharePreview: SharePreview<Image, Image> {
     let image = sharePreviewImage
@@ -486,8 +487,33 @@ class PodcastDetailViewModel:
     return Image(uiImage: shareArtwork)
   }
 
+  private func loadShareArtworkIfNeeded() {
+    guard shareArtwork == nil, shareArtworkTask == nil else { return }
+    let imageURL = podcast.image
+    shareArtworkTask = Task { [weak self] in
+      guard let self else { return }
+      defer { shareArtworkTask = nil }
+      do {
+        let image = try await imagePipeline.image(for: imageURL)
+        try Task.checkCancellation()
+        shareArtwork = image
+      } catch {
+        Self.log.caughtError(
+          "loadShareArtworkIfNeeded: failed to load share artwork for \(imageURL)",
+          error,
+          level: { _ in .info }
+        )
+      }
+    }
+  }
+
   // MARK: - Initialization
 
+  // `init` is intentionally side-effect-free. SwiftUI re-evaluates
+  // PodcastDetail destination builders, so any long-lived task started
+  // here would outlive the discarded model and pile up across instances.
+  // Lifecycle work belongs to `performAppear`, which only the kept
+  // (appeared) model runs.
   private init(state: PodcastDetailState) {
     Self.nextDiagnosticID += 1
     diagnosticID = Self.nextDiagnosticID
@@ -495,21 +521,6 @@ class PodcastDetailViewModel:
     episodeList.sortMethod = currentSortMethod.sortMethod
     refreshEpisodeList(from: state)
     Self.log.debug("init: \(diagnosticSummary)")
-    startObservation(state.savedSeries?.id)
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        shareArtwork = try await imagePipeline.image(for: podcast.image)
-      } catch {
-        Self.log.caughtError(
-          "init: failed to load share artwork for \(podcast.image)",
-          error,
-          level: { _ in .info }
-        )
-      }
-    }
   }
 
   convenience init(podcast: DisplayedPodcast) {
@@ -545,6 +556,8 @@ class PodcastDetailViewModel:
       let duration = ContinuousClock.now - startedAt
       Self.log.debug("performAppear: exiting, duration=\(duration), \(diagnosticSummary)")
     }
+
+    loadShareArtworkIfNeeded()
 
     if currentSortMethod == .recommendationScore {
       startRecommendationObservation()
