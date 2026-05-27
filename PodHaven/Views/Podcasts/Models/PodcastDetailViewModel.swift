@@ -750,7 +750,10 @@ class PodcastDetailViewModel:
       let duration = continuousClockNow() - startedAt
       let reason = Task.isCancelled ? "cancelled" : "natural"
       Self.log.debug(
-        "observePodcastSeries: exiting for \(podcastID), duration=\(duration), yields=\(yields), reason=\(reason), \(diagnosticSummary)"
+        """
+        observePodcastSeries: exiting for \(podcastID), duration=\(duration), \
+        yields=\(yields), reason=\(reason), \(diagnosticSummary)
+        """
       )
       if !Task.isCancelled {
         observationTask = nil
@@ -762,7 +765,10 @@ class PodcastDetailViewModel:
       yields += 1
 
       Self.log.debug(
-        "Updating observed series: yield=\(yields), \(diagnosticSummary), series=\(String(describing: updatedSeries?.toString))"
+        """
+        Updating observed series: yield=\(yields), \(diagnosticSummary), \
+        series=\(String(describing: updatedSeries?.toString))
+        """
       )
 
       guard let updatedSeries
@@ -790,7 +796,10 @@ class PodcastDetailViewModel:
       guard updatedSeries != state.savedSeries
       else {
         Self.log.debug(
-          "New podcastSeries is the same as the current one, skipping update, yield=\(yields), \(diagnosticSummary)"
+          """
+          New podcastSeries is the same as the current one, skipping update, \
+          yield=\(yields), \(diagnosticSummary)
+          """
         )
         continue
       }
@@ -824,7 +833,10 @@ class PodcastDetailViewModel:
       let tagsDiff =
         old.tags == new.tags ? "" : "tags(\(old.tags.count)→\(new.tags.count))"
       Self.log.warning(
-        "transition: same-id non-equal saved → saved, caller=\(caller), \(diagnosticSummary), diff=[\(podcastDiff) \(episodesDiff) \(tagsDiff)]"
+        """
+        transition: same-id non-equal saved → saved, caller=\(caller), \
+        \(diagnosticSummary), diff=[\(podcastDiff) \(episodesDiff) \(tagsDiff)]
+        """
       )
     }
 
@@ -833,7 +845,11 @@ class PodcastDetailViewModel:
     transitionSamples.removeAll { now - $0 > .seconds(1) }
     if transitionSamples.count == 50 {
       Self.log.warning(
-        "transition: high-frequency (\(transitionSamples.count)/sec), caller=\(caller), \(diagnosticSummary), stack:\n\(Thread.callStackSymbols.joined(separator: "\n"))"
+        """
+        transition: high-frequency (\(transitionSamples.count)/sec), caller=\(caller), \
+        \(diagnosticSummary), stack:
+        \(Thread.callStackSymbols.joined(separator: "\n"))
+        """
       )
     }
 
@@ -866,7 +882,10 @@ class PodcastDetailViewModel:
       )
     case .saved(let series):
       Self.log.debug(
-        "refreshEpisodeList: setting saved entries count=\(series.episodes.count), vm=\(diagnosticID)"
+        """
+        refreshEpisodeList: setting saved entries count=\(series.episodes.count), \
+        vm=\(diagnosticID)
+        """
       )
       episodeList.allEntries = IdentifiedArray(
         uniqueElements: series.episodes.map { listableEpisode in

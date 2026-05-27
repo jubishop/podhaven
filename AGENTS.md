@@ -66,16 +66,16 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 ## Migrations
 - Migration code uses only literals: table/column strings and inline allowed values; no model types/enums/drifting refs. Renames must not alter shipped behavior.
 
-## Coding Standards
+## Coding Standards (Production Only)
 - Use `[weak self]` in closures/Tasks that capture `self` unless a strong reference is required. Unwrap with `guard let self else { return }`; use `self.x`, not `self?.x`.
-- No force unwraps (`!`) in production; use `Assert` or guarded error handling.
+- No force unwraps (`!`); use `Assert` or guarded error handling.
 - Never use `map`/`flatMap` to unwrap optionals; use `if let`/`guard let`. Reserve `map`/`flatMap` for collections.
 - Run `swift-format` on every Swift file you touch.
 - Comments use `//`, not `///`; no doc comments. Default to no comment whenever possible, or very succinct comment if absolutely necessary.
-- No external refs in production code comments — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`), etc. They move or disappear; context belongs in the commit/PR. Tests are exempt.
+- No external refs in code comments — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`), etc. They move or disappear; context belongs in the commit/PR.
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
 - No non-specializing extension splits. Put conformances on the main declaration and requirements in the body. Use extensions only for constrained methods, retroactive external conformance, or `where Self == X`.
-- In production code, avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary. Test code may use them freely.
+- Avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary.
 - Avoid `inout` or passing reference types only to be mutated and read back by the caller; return values instead.
 - Prefer `@MainActor` on declarations over `MainActor.run`.
 - Model state transitions as enums, not `Bool` flags.
