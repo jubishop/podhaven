@@ -27,9 +27,10 @@ struct FileLogHandler: LogHandler {
     // call stack — so storms surface in Sentry within ~1s of starting,
     // without needing a Sentry feedback to triage. Per-bucket cooldown
     // prevents the warning itself from storming during a sustained event.
-    // The threshold sits below the per-cycle drop count of any sustained
-    // storm (with a 1/sec refill, drops/cycle ≈ rate − 1), so a site
-    // exceeding ~26/sec gets flagged on its next successful emit.
+    // With 1 token/sec refill, a sustained rate R/sec produces R−1 drops
+    // per successful emit. Threshold 25 means any sustained site at
+    // ≥ 26/sec surfaces on its next successful emit; lighter cadences
+    // stay quiet.
     private static let rateLimitWarningThreshold = 25
     private static let rateLimitWarningCooldownMs: Int64 = 60_000
 
@@ -62,15 +63,14 @@ struct FileLogHandler: LogHandler {
     func write(
       _ entry: Entry,
       decision: RateLimitDecision,
-      callStack: [String]?,
       synchronously: Bool
     ) {
       if synchronously {
-        let results = queue.sync { writeEntry(entry, decision: decision, callStack: callStack) }
+        let results = queue.sync { writeEntry(entry, decision: decision) }
         for result in results { report(result) }
       } else {
         queue.async {
-          let results = self.writeEntry(entry, decision: decision, callStack: callStack)
+          let results = self.writeEntry(entry, decision: decision)
           Task { [weak self] in
             guard let self else { return }
             for result in results { report(result) }
@@ -85,7 +85,7 @@ struct FileLogHandler: LogHandler {
 
     private enum WriteResult {
       case message(String)
-      case stormWarning(entry: Entry, suppressed: Int, callStack: [String]?)
+      case stormWarning(entry: Entry, suppressed: Int, callStack: [String])
       case failed(any Error)
     }
 
@@ -95,10 +95,9 @@ struct FileLogHandler: LogHandler {
     // burn the storm-warning cooldown for 60s).
     private func writeEntry(
       _ entry: Entry,
-      decision: RateLimitDecision,
-      callStack: [String]?
+      decision: RateLimitDecision
     ) -> [WriteResult] {
-      guard case .write(let suppressed, let shouldWarn) = decision else { return [] }
+      guard case .write(let suppressed, let callStack) = decision else { return [] }
       do {
         // The real entry is always appended right after, and appendEntry
         // returns the post-write file size — so the single truncation check
@@ -117,7 +116,7 @@ struct FileLogHandler: LogHandler {
             )
           }
         }
-        if shouldWarn {
+        if let callStack {
           results.append(.stormWarning(entry: entry, suppressed: suppressed, callStack: callStack))
         }
         return results
@@ -132,12 +131,11 @@ struct FileLogHandler: LogHandler {
       case .message(let message):
         Self.log.info("\(message)")
       case .stormWarning(let entry, let suppressed, let callStack):
-        let stackText = callStack?.joined(separator: "\n") ?? "(not captured)"
         Self.log.warning(
           """
           FileLogHandler storm: \(entry.file):\(entry.line) in \(entry.function) — \
           suppressed \(suppressed) entries since last emit. Stack:
-          \(stackText)
+          \(callStack.joined(separator: "\n"))
           """
         )
       case .failed(let error):
@@ -263,18 +261,35 @@ struct FileLogHandler: LogHandler {
       var lastWarningMs: Int64
     }
 
-    enum RateLimitDecision {
-      case write(suppressed: Int, shouldWarn: Bool)
+    fileprivate enum RateLimitDecision {
+      // `callStack` non-nil iff this emit is promoted to a storm warning;
+      // captured by the log path on the originating thread (see
+      // `commitRateLimitDecision` doc).
+      case write(suppressed: Int, callStack: [String]?)
       case drop
     }
 
     // Commits the bucket update atomically and returns the decision the caller
     // must honor: drop the entry, or write it (optionally promoted to a storm
-    // warning). Called from the log path before any queue dispatch so the
-    // storm-warn flag and the originating thread's `Thread.callStackSymbols`
-    // are captured in the same synchronous step — a later peek on the writer
-    // queue could otherwise see a stale `suppressedCount` and miss the stack.
-    func commitRateLimitDecision(for entry: Entry) -> RateLimitDecision {
+    // warning carrying `callStack`). Called from the log path before any
+    // queue dispatch so the warning decision and the originating thread's
+    // `Thread.callStackSymbols` are captured in the same synchronous step —
+    // a later peek on the writer queue could otherwise see a stale
+    // `suppressedCount` and miss the stack.
+    //
+    // `captureCallStack` is an autoclosure invoked only when the bucket
+    // crosses the warning threshold (cost is a per-second per-site upper
+    // bound, not a per-log-call cost).
+    //
+    // Must be called exactly once per `LogEvent`, from the log call path
+    // (not the writer queue). Each call mutates the bucket atomically and
+    // takes / spends a token; calling twice would double-charge. The mutex
+    // is taken on the caller's thread, including the main thread; hold
+    // time is microseconds.
+    func commitRateLimitDecision(
+      for entry: Entry,
+      captureCallStack: @autoclosure () -> [String]
+    ) -> RateLimitDecision {
       let key = RateKey(file: entry.file, line: entry.line)
       let now = entry.timestamp
       return rateLimitBuckets { buckets in
@@ -301,8 +316,9 @@ struct FileLogHandler: LogHandler {
           let shouldWarn =
             suppressed >= Self.rateLimitWarningThreshold
             && now - bucket.lastWarningMs >= Self.rateLimitWarningCooldownMs
+          let callStack: [String]? = shouldWarn ? captureCallStack() : nil
           if shouldWarn { bucket.lastWarningMs = now }
-          decision = .write(suppressed: suppressed, shouldWarn: shouldWarn)
+          decision = .write(suppressed: suppressed, callStack: callStack)
         } else {
           bucket.suppressedCount += 1
           decision = .drop
@@ -416,13 +432,14 @@ struct FileLogHandler: LogHandler {
       line: event.line
     )
 
-    let decision = writer.commitRateLimitDecision(for: entry)
-    guard case .write(_, let shouldWarn) = decision else { return }
-    let callStack: [String]? = shouldWarn ? Thread.callStackSymbols : nil
+    let decision = writer.commitRateLimitDecision(
+      for: entry,
+      captureCallStack: Thread.callStackSymbols
+    )
+    guard case .write = decision else { return }
     writer.write(
       entry,
       decision: decision,
-      callStack: callStack,
       synchronously: writeSynchronously(event.level)
     )
   }

@@ -153,8 +153,9 @@ struct FileLogHandlerTests {
 
     // 50 fills the burst at line=1; the remaining 300 all drop because the
     // token bucket cannot refill within the duration of this tight loop.
-    // Exercises rateLimitDecision's drop path, which now carries the new
-    // shouldWarn flag and the lastWarningMs bucket field.
+    // Covers the drop accounting and per-site bucket creation; the
+    // storm-warning path (cooldown + stack capture) is not exercisable
+    // here without a clock-injection seam — see #358.
     for _ in 0..<350 {
       log(handler, message: "storm", line: 1)
     }
