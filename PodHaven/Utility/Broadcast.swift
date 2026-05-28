@@ -92,6 +92,12 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
     return state().current
   }
 
+  // Current value without Observation tracking — for hot paths that must not
+  // register SwiftUI dependencies (e.g. swift-log sync policy on worker threads).
+  var value: T {
+    state().current
+  }
+
   // MARK: - Broadcasting
 
   func new(_ value: T) {

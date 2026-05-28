@@ -675,6 +675,7 @@ class PodcastDetailViewModel:
   @ObservationIgnored var observationTask: Task<Void, Never>?
 
   @ObservationIgnored private var transitionSamples: [ContinuousClock.Instant] = []
+  @ObservationIgnored private var transitionStormWarningIssued = false
 
   @discardableResult
   private func attemptObservation() async throws -> Bool {
@@ -843,7 +844,11 @@ class PodcastDetailViewModel:
     let now = continuousClockNow()
     transitionSamples.append(now)
     transitionSamples.removeAll { now - $0 > .seconds(1) }
-    if transitionSamples.count == 50 {
+    if transitionSamples.count < 10 {
+      transitionStormWarningIssued = false
+    }
+    if !transitionStormWarningIssued, transitionSamples.count >= 50 {
+      transitionStormWarningIssued = true
       Self.log.warning(
         """
         transition: high-frequency (\(transitionSamples.count)/sec), caller=\(caller), \

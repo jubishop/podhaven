@@ -1,12 +1,14 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
+import FactoryTesting
 import Foundation
 import Logging
 import Testing
 
 @testable import PodHaven
 
-@Suite("of FileLogHandler tests")
+@Suite("of FileLogHandler tests", .container)
 struct FileLogHandlerTests {
   private struct DecodedEntry: Decodable {
     let message: String
@@ -149,14 +151,14 @@ struct FileLogHandlerTests {
     let fileURL = tempFileURL()
     defer { tearDownLogFile(fileURL) }
 
+    Container.shared.fakeContinuousClock().freeze()
+
     let handler = makeHandler(
       fileURL: fileURL,
       maxFileSizeBytes: 10_000_000,
       targetFileSizeBytes: 5_000_000
     )
 
-    // 50 fills the burst at line=1; the rest drop because the tight loop does
-    // not advance wall-clock timestamps enough to refill the bucket.
     for _ in 0..<350 {
       log(handler, message: "storm", line: 1)
     }
@@ -167,10 +169,73 @@ struct FileLogHandlerTests {
     #expect(entries.allSatisfy { $0.line == 1 })
   }
 
+  @Test("rate limit emits a suppression summary when a throttled site resumes")
+  func rateLimitEmitsSuppressionSummaryAfterRefill() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+
+    let fakeClock = Container.shared.fakeContinuousClock()
+    fakeClock.freeze()
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+
+    for _ in 0..<350 {
+      log(handler, message: "storm", line: 1)
+    }
+
+    fakeClock.advance(by: .seconds(1))
+    log(handler, message: "after-refill", line: 1)
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(
+      entries.contains {
+        $0.message
+          == "FileLogHandler rate limit — dropped 300 repeated entries from this log site"
+      }
+    )
+    #expect(entries.last?.message == "after-refill")
+  }
+
+  @Test("flush emits pending suppression summaries for quiet throttled sites")
+  func flushEmitsPendingSuppressionSummary() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+
+    Container.shared.fakeContinuousClock().freeze()
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+
+    for _ in 0..<350 {
+      log(handler, message: "storm", line: 1)
+    }
+
+    FileLogHandler.flush(fileURL: fileURL)
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.count == 51)
+    #expect(entries.filter { $0.message == "storm" }.count == 50)
+    #expect(
+      entries.contains {
+        $0.message
+          == "FileLogHandler rate limit — dropped 300 repeated entries from this log site"
+      }
+    )
+  }
+
   @Test("rate limit is keyed per (file, line) — different lines do not interfere")
   func rateLimitIsKeyedPerSite() throws {
     let fileURL = tempFileURL()
     defer { tearDownLogFile(fileURL) }
+
+    Container.shared.fakeContinuousClock().freeze()
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -201,11 +266,11 @@ struct FileLogHandlerTests {
     for index in 0..<10 {
       log(handler, message: "entry-\(index)", line: UInt(index))
     }
-    handler.flush()
+    FileLogHandler.flush(fileURL: fileURL)
     for index in 10..<20 {
       log(handler, message: "entry-\(index)", line: UInt(index))
     }
-    handler.flush()
+    FileLogHandler.flush(fileURL: fileURL)
 
     let entries = try decodedEntries(at: fileURL)
     #expect(entries.map(\.message) == (0..<20).map { "entry-\($0)" })
@@ -233,7 +298,7 @@ struct FileLogHandlerTests {
         line: UInt(index)
       )
     }
-    handler.flush()
+    FileLogHandler.flush(fileURL: fileURL)
 
     let fileSize = try Data(contentsOf: fileURL).count
     #expect(fileSize <= maxFileSizeBytes)

@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import Logging
 import os
@@ -48,21 +49,59 @@ struct FileLogHandler: LogHandler {
       queue.sync { closeAppendHandle() }
     }
 
-    func write(_ entry: Entry, synchronously: Bool) {
+    func rateLimitDecision(file: String, line: UInt) -> RateLimitDecision {
+      let now = Container.shared.continuousClockNow()()
+      let key = RateKey(file: file, line: line)
+      return rateLimitBuckets { buckets in
+        var bucket =
+          buckets[key]
+          ?? RateBucket(
+            tokens: Self.rateLimitBurst,
+            lastRefill: now,
+            suppressedCount: 0,
+            lastContext: nil
+          )
+        let elapsedSeconds = Self.secondsBetween(bucket.lastRefill, now)
+        bucket.tokens = min(
+          Self.rateLimitBurst,
+          bucket.tokens + elapsedSeconds * Self.rateLimitTokensPerSecond
+        )
+        bucket.lastRefill = now
+
+        let decision: RateLimitDecision
+        if bucket.tokens >= 1 {
+          bucket.tokens -= 1
+          decision = .write(suppressed: bucket.suppressedCount)
+          bucket.suppressedCount = 0
+        } else {
+          bucket.suppressedCount += 1
+          decision = .drop
+        }
+        buckets[key] = bucket
+        return decision
+      }
+    }
+
+    func write(_ entry: Entry, suppressed: Int, synchronously: Bool) {
       if synchronously {
-        let result = queue.sync { writeEntry(entry) }
+        let result = queue.sync { writeEntry(entry, suppressed: suppressed) }
         Self.emitOSLogOnly(result)
       } else {
         queue.async { [weak self] in
           guard let self else { return }
-          let result = self.writeEntry(entry)
+          let result = self.writeEntry(entry, suppressed: suppressed)
           Self.emitOSLogOnly(result)
         }
       }
     }
 
     func flush() {
-      queue.sync { closeAppendHandle() }
+      let result = queue.sync {
+        let pending = flushPendingSuppressions()
+        closeAppendHandle()
+        return pending
+      }
+      Self.emitOSLogOnly(result)
     }
 
     private enum WriteResult {
@@ -72,8 +111,8 @@ struct FileLogHandler: LogHandler {
     }
 
     // Must be called on `queue`.
-    private func writeEntry(_ entry: Entry) -> WriteResult {
-      guard case .write(let suppressed) = rateLimitDecision(for: entry) else { return .ok }
+    private func writeEntry(_ entry: Entry, suppressed: Int) -> WriteResult {
+      recordContext(for: entry)
       do {
         // The real entry is always appended right after, and appendEntry
         // returns the post-write file size — so the single truncation check
@@ -172,9 +211,15 @@ struct FileLogHandler: LogHandler {
       let bytesToRemove = Int(fileSize) - targetFileSizeBytes
       guard bytesToRemove > 0 else { return nil }
 
-      // Cut on a newline boundary; truncating mid-line would corrupt the log.
-      guard let cutOffset = try Self.firstNewlineOffset(in: reader, atOrAfter: bytesToRemove)
-      else { return nil }
+      let cutOffset: UInt64
+      if let newlineOffset = try Self.firstNewlineOffset(in: reader, atOrAfter: bytesToRemove) {
+        cutOffset = newlineOffset
+      } else {
+        Self.writerOSLog.warning(
+          "Log truncation found no newline boundary; forcing cut at byte offset \(bytesToRemove, privacy: .public)"
+        )
+        cutOffset = UInt64(bytesToRemove)
+      }
 
       // Atomic swap so a crash mid-rewrite can't leave a corrupt log.
       let tempURL = fileURL.deletingLastPathComponent()
@@ -209,66 +254,115 @@ struct FileLogHandler: LogHandler {
 
     // MARK: - Rate Limiting
 
+    fileprivate enum RateLimitDecision {
+      case write(suppressed: Int)
+      case drop
+    }
+
     private struct RateKey: Hashable {
       let file: String
       let line: UInt
     }
 
-    private struct RateBucket {
-      var tokens: Double
-      var lastRefillMs: Int64
-      var suppressedCount: Int
-    }
+    private struct SuppressionContext: Sendable {
+      let timestamp: Int64
+      let subsystem: String
+      let category: String
+      let source: String
+      let file: String
+      let function: String
+      let line: UInt
 
-    private enum RateLimitDecision {
-      case write(suppressed: Int)
-      case drop
-    }
-
-    // Must be called on `queue`.
-    private func rateLimitDecision(for entry: Entry) -> RateLimitDecision {
-      let key = RateKey(file: entry.file, line: entry.line)
-      let now = entry.timestamp
-      return rateLimitBuckets { buckets in
-        var bucket =
-          buckets[key]
-          ?? RateBucket(tokens: Self.rateLimitBurst, lastRefillMs: now, suppressedCount: 0)
-        let elapsedMs = max(0, now - bucket.lastRefillMs)
-        bucket.tokens = min(
-          Self.rateLimitBurst,
-          bucket.tokens + Double(elapsedMs) / 1000 * Self.rateLimitTokensPerSecond
+      static func from(entry: Entry) -> SuppressionContext {
+        SuppressionContext(
+          timestamp: entry.timestamp,
+          subsystem: entry.subsystem,
+          category: entry.category,
+          source: entry.source,
+          file: entry.file,
+          function: entry.function,
+          line: entry.line
         )
-        bucket.lastRefillMs = now
+      }
 
-        let decision: RateLimitDecision
-        if bucket.tokens >= 1 {
-          bucket.tokens -= 1
-          decision = .write(suppressed: bucket.suppressedCount)
-          bucket.suppressedCount = 0
-        } else {
-          bucket.suppressedCount += 1
-          decision = .drop
-        }
-        buckets[key] = bucket
-        return decision
+      static func fallback(for key: RateKey) -> SuppressionContext {
+        SuppressionContext(
+          timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+          subsystem: "PodHaven",
+          category: "FileLogWriter",
+          source: "FileLogHandler",
+          file: key.file,
+          function: "",
+          line: key.line
+        )
       }
     }
 
+    private struct RateBucket {
+      var tokens: Double
+      var lastRefill: ContinuousClock.Instant
+      var suppressedCount: Int
+      var lastContext: SuppressionContext?
+    }
+
+    private func recordContext(for entry: Entry) {
+      let key = RateKey(file: entry.file, line: entry.line)
+      let context = SuppressionContext.from(entry: entry)
+      rateLimitBuckets { buckets in
+        guard var bucket = buckets[key] else { return }
+        bucket.lastContext = context
+        buckets[key] = bucket
+      }
+    }
+
+    // Must be called on `queue`.
+    private func flushPendingSuppressions() -> WriteResult {
+      var failure: WriteResult = .ok
+      rateLimitBuckets { buckets in
+        for (key, var bucket) in buckets where bucket.suppressedCount > 0 {
+          let context = bucket.lastContext ?? .fallback(for: key)
+          let summary = suppressionSummary(context: context, suppressed: bucket.suppressedCount)
+          do {
+            try appendEntry(summary)
+            bucket.suppressedCount = 0
+            buckets[key] = bucket
+          } catch {
+            failure = .failed(error)
+          }
+        }
+      }
+      return failure
+    }
+
     private func suppressionSummary(for entry: Entry, suppressed: Int) -> Entry {
+      suppressionSummary(context: SuppressionContext.from(entry: entry), suppressed: suppressed)
+    }
+
+    private func suppressionSummary(context: SuppressionContext, suppressed: Int) -> Entry {
       Entry(
         level: Logging.Logger.Level.info.intValue,
         levelName: Logging.Logger.Level.info.rawValue,
-        timestamp: entry.timestamp,
-        subsystem: entry.subsystem,
-        category: entry.category,
+        timestamp: context.timestamp,
+        subsystem: context.subsystem,
+        category: context.category,
         message:
           "FileLogHandler rate limit — dropped \(suppressed) repeated entries from this log site",
         metadata: nil,
-        source: entry.source,
-        file: entry.file,
-        function: entry.function,
-        line: entry.line
+        source: context.source,
+        file: context.file,
+        function: context.function,
+        line: context.line
       )
+    }
+
+    private static func secondsBetween(
+      _ start: ContinuousClock.Instant,
+      _ end: ContinuousClock.Instant
+    ) -> Double {
+      let duration = end - start
+      let components = duration.components
+      return Double(components.seconds)
+        + Double(components.attoseconds) / 1_000_000_000_000_000_000
     }
   }
 
@@ -338,12 +432,13 @@ struct FileLogHandler: LogHandler {
   // MARK: - Logging
 
   public func log(event: LogEvent) {
-    let entry = makeEntry(from: event)
-    writer.write(entry, synchronously: writeSynchronously(event.level))
-  }
-
-  func flush() {
-    writer.flush()
+    switch writer.rateLimitDecision(file: event.file, line: event.line) {
+    case .drop:
+      return
+    case .write(let suppressed):
+      let entry = makeEntry(from: event)
+      writer.write(entry, suppressed: suppressed, synchronously: writeSynchronously(event.level))
+    }
   }
 
   private func makeEntry(from event: LogEvent) -> Entry {
