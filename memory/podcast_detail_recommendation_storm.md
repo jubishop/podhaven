@@ -121,18 +121,17 @@ Interpretation guide (proven against build-507 logs):
 
 ## Companion log-side instrumentation: PR #359
 
-PR #359 (FileLogHandler storm warnings, open at time of writing) is a
-companion to the diagnostics above. It detects when a single `(file, line)`
-call site is having entries dropped by the rate limiter and emits one
-`.warning` per 60 s cooldown carrying suppressed-count and the originating
-`Thread.callStackSymbols`. For this incident it would have produced one
-`FileLogHandler storm: PodcastDetailViewModel.swift:834 ...` warning visible
-in Sentry directly — no feedback round-trip required to know a storm is
-happening.
+PR #359 hardens `FileLogHandler` rate limiting (per `(file, line)` token
+bucket). When a call site is throttled, dropped entries are counted and the
+next successful write prepends a one-line NDJSON summary:
+`FileLogHandler rate limit — dropped N repeated entries from this log site`.
+Triage uses the attached `log.ndjson` (and Sentry for normal log lines), not
+a separate Sentry-only storm warning.
 
-PR #359 is generically useful (catches any future log-suppression storm in
-any subsystem). It does **not** replace the behavior fix in #357 and there
-is no need to add a third, behavior-specific aggregate counter inside
+PR #359 also adds test infra (`continuousClockNow`, `FakeContinuousClock`,
+`LogCapture`) and routes production monotonic timing through the factory.
+It does **not** replace the behavior fix in #357 and there is no need to
+add a third, behavior-specific aggregate counter inside
 `PodcastDetailViewModel`. The existing per-VM `vm=N` + `caller=...` logging
 is enough to verify a fix and catch regressions.
 
@@ -269,8 +268,9 @@ under `startObservation` proves the constructor side-effect.
 
 - #357 — behavior task for side-effect-free detail init and incremental
   `PowerList` updates. Item 1 is the active fix.
-- #359 — FileLogHandler storm warnings (open PR). Complementary, ships
-  log-side suppression detection.
+- #359 — FileLogHandler rate-limit hardening + test infra (open PR). NDJSON
+  suppression summaries when a log site is throttled; no separate Sentry
+  storm warning.
 - #293 — historical DB-observation storm investigation; useful context, but
   not the cause of the 2026-05-27 incidents.
 - #294 — FileLogHandler perf/rate-limit context.

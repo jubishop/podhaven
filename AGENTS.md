@@ -55,6 +55,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - All test files belong to `PodHavenTests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete test-only surface; improve the API or fixture if needed.
+- To assert on swift-log output, use `LogCapture.withSink` (`PodHavenTests/LogCapture.swift`; `installOnce()` runs from `Container.autoRegister`, per-test isolation via `@TaskLocal`).
 
 ## Previews
 - Previews stub factories for in-memory SwiftUI previews; no network or DB access.

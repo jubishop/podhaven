@@ -30,7 +30,6 @@ final class FakeContinuousClock: Sendable {
     }
   }
 
-  // Holds time still for rate-limiter tests that flood one site without refills.
   func freeze(at instant: ContinuousClock.Instant = .now) {
     mode { current in
       current = .manual(instant)
