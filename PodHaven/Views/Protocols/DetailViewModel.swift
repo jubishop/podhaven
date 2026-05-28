@@ -10,9 +10,21 @@ struct DetailAuxiliaryTask: Sendable {
 }
 
 // Shared lifecycle + error-handling for podcast/episode detail view models.
+//
+// Invariants:
+// - `appear()` only dedupes an overlapping in-flight `appearTask`; after the
+//   first pass completes, a later `onAppear` bumps `appearGeneration` and runs
+//   `performAppear()` again. It does not cancel `observationTask`.
+// - `performAppear()` must gate async steps with `isCurrentAppearPass(_:)`;
+//   idempotency for observation, feed fetch, and list projection is per-step.
+// - `disappear()` sets `isOnScreen = false` and cancels appear-scoped work;
+//   `runTask` children are not cancelled unless the conformer guards them.
+// - `transition(to:)` may update `state` off-screen; projections and long-lived
+//   work require `isOnScreen` in each detail view model.
 @MainActor protocol DetailViewModel: AnyObject {
   associatedtype State: Sendable & Stringable
 
+  var alert: Alert { get }
   var state: State { get }
   var isOnScreen: Bool { get set }
   var appearGeneration: Int { get set }
@@ -25,8 +37,6 @@ struct DetailAuxiliaryTask: Sendable {
 }
 
 extension DetailViewModel {
-  private var alert: Alert { Container.shared.alert() }
-
   nonisolated private static var log: Logger {
     Log.as(LogSubsystem.ViewProtocols.detailViewModel)
   }

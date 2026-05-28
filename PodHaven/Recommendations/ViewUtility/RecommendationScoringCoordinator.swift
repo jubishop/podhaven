@@ -53,22 +53,6 @@ final class RecommendationScoringCoordinator<Snapshot: Equatable & Sendable, Sco
   private var cached: (snapshot: Snapshot, score: Score)?
   private var nextGeneration = 0
 
-  // - `makeSnapshot`: builds the change-detection key for the current inputs.
-  //   Returning `nil` makes `refresh()` a no-op (use when the surface has no
-  //   inputs to key on yet, e.g. an unset selection).
-  // - `score`: computes the result. Return `.cacheable` to memoize for future
-  //   identical-snapshot hits, `.uncacheable` to apply once without caching,
-  //   or `.cancelled` to drop the pass silently. The closure owns its full
-  //   error policy: catch internally and either route failures to surface
-  //   state before returning `.cancelled`/`.uncacheable`, or convert errors
-  //   into a sentinel result (e.g. `.uncacheable(nil)`).
-  // - `apply`: writes the score onto the surface. Called both on a cache hit
-  //   and after a successful `.cacheable`/`.uncacheable` pass.
-  // - `refreshOnAssetsLoaded`: opt in when `score` reads
-  //   `contextualEmbedding.assetsLoaded` and would return `.uncacheable` while
-  //   the model is still downloading. The coordinator awaits the one-shot
-  //   latch and kicks one refresh; saved-only surfaces leave it `false` and
-  //   incur zero observation overhead.
   init(
     makeSnapshot: @escaping @MainActor () -> Snapshot?,
     score: @escaping @MainActor () async -> ScoreResult,

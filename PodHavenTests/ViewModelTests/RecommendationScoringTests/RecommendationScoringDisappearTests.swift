@@ -173,4 +173,45 @@ import Testing
         """
     )
   }
+
+  @Test("disappear clears the recommendation-score list filter while keeping rec sort")
+  func disappearClearsRecommendationScoreFilter() async throws {
+    let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
+    try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
+
+    let (targetPodcast, candidateEpisodes) =
+      try await RecommendationHelpers
+      .createPodcastWithEpisodes(
+        count: 4,
+        podcastTitle: "Filter Reset",
+        podcastDescription: "Filter Reset",
+        episodeDescriptions: ["Episode 0", "Episode 1", "Episode 2", "Episode 3"]
+      )
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
+    try await PodcastDetailTestHelpers.appear(viewModel)
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in viewModel.episodeList.allEntries.count == candidateEpisodes.count },
+      { @MainActor in
+        "Expected target podcast loaded with \(candidateEpisodes.count) episodes."
+      }
+    )
+
+    viewModel.currentSortMethod = .recommendationScore
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in viewModel.episodeList.filterMethod != nil },
+      { @MainActor in
+        "Expected recommendation scoring to install a score filter before disappear."
+      }
+    )
+
+    viewModel.disappear()
+
+    #expect(viewModel.episodeList.filterMethod == nil)
+    #expect(viewModel.currentSortMethod == .recommendationScore)
+  }
 }

@@ -72,6 +72,7 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 @MainActor final class EpisodeDetailLifecycleTests {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.sharedState) private var sharedState
 
   private var fakeObservatory: FakeObservatory {
     observatory as! FakeObservatory
@@ -169,16 +170,14 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
   @Test("playNow without appear does not start observation")
   func playNowWithoutAppearDoesNotStartObservation() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try Create.unsavedPodcast(title: "Offscreen Play"),
-        unsavedEpisode: try Create.unsavedEpisode(
-          guid: "offscreen-play",
-          title: "Offscreen Play"
-        )
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Offscreen Play"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "offscreen-play",
+        title: "Offscreen Play"
       )
     )
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
     fakeObservatory.clearAllCalls()
     #expect(viewModel.isOnScreen == false)
@@ -188,6 +187,38 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     try await yieldForSpuriousAsyncWork()
 
     _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 0)
+    guard case .unsaved = viewModel.state else {
+      Issue.record(
+        "Expected off-screen playNow to leave state unsaved; got \(viewModel.state.toString)"
+      )
+      return
+    }
+    #expect(sharedState.currentEpisodeID == nil)
+  }
+
+  @Test("playNow after disappear does not load playback")
+  func playNowAfterDisappearDoesNotLoadPlayback() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Disappear Playback"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "disappear-playback",
+          title: "Disappear Playback"
+        )
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    try await EpisodeDetailTestHelpers.appear(viewModel)
+
+    viewModel.disappear()
+    #expect(viewModel.isOnScreen == false)
+
+    viewModel.playNow()
+
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(sharedState.currentEpisodeID != podcastEpisode.id)
   }
 
   @Test("disappear cancels observation after appear")

@@ -254,6 +254,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     try await PodcastDetailTestHelpers.appear(viewModel)
 
     let entryCountAfterFirstAppear = viewModel.episodeList.allEntries.count
+    let entryIDsAfterFirstAppear = viewModel.episodeList.allEntries.map(\.id)
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 1)
 
     // A second appear must not start another observatory subscription.
@@ -262,6 +263,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 1)
     #expect(viewModel.episodeList.allEntries.count == entryCountAfterFirstAppear)
+    #expect(viewModel.episodeList.allEntries.map(\.id) == entryIDsAfterFirstAppear)
   }
 
   @Test("subscribe after disappear does not restart observation")

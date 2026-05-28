@@ -10,15 +10,6 @@ import SwiftUI
 import Tagged
 import UIKit
 
-// Live state of `PodcastDetailViewModel`. Transitions flow through
-// `transition(to:)` so view-facing projections stay in sync.
-//
-// - `.initial`: list-row snapshot (saved or savedSearchResult); promoted to
-//   `.saved` once observation hydrates the series.
-// - `.unsaved`: a podcast we know about but haven't persisted — feed-parsed,
-//   shared-from-share-sheet, or an unsaved search result. May carry zero or
-//   more pre-parsed episodes ready to be inserted on `subscribe()`.
-// - `.saved`: a fully-hydrated series under live observation.
 enum PodcastDetailState: Equatable, Sendable, Stringable {
   case initial(ListedPodcast)
   case unsaved(UnsavedPodcast, episodes: IdentifiedArrayOf<UnsavedEpisode>)
@@ -71,7 +62,7 @@ class PodcastDetailViewModel:
   SelectableEpisodeList,
   SortableEpisodeList
 {
-  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.alert) var alert
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -613,7 +604,11 @@ class PodcastDetailViewModel:
     try Task.checkCancellation()
     guard isCurrentAppearPass(generation) else { return }
 
-    refreshEpisodeList(from: state)
+    let observationAlreadyActive =
+      observationTask.map { !$0.isCancelled } ?? false
+    if !observationAlreadyActive {
+      refreshEpisodeList(from: state)
+    }
     loadShareArtworkIfNeeded()
 
     if currentSortMethod == .recommendationScore {
@@ -778,6 +773,10 @@ class PodcastDetailViewModel:
   func cancelDetailPassAuxiliaryWork() {
     cancelShareArtworkLoad()
     recommendationCoordinator.cancel()
+    if currentSortMethod == .recommendationScore {
+      episodeList.filterMethod = currentSortMethod.filterMethod
+      episodeList.sortMethod = currentSortMethod.sortMethod
+    }
   }
 
   @discardableResult
@@ -877,6 +876,7 @@ class PodcastDetailViewModel:
 
     for try await updatedSeries in observatory.podcastSeriesDetail(podcastID) {
       try Task.checkCancellation()
+      guard isOnScreen else { return }
       yields += 1
 
       Self.log.debug(
