@@ -65,7 +65,7 @@ import Testing
     _ = try await RecommendationHelpers.startAndWaitForScores(for: savedEpisodes)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     let initialIDs = Set(savedEpisodes.map(\.id))
     try await Wait.until(

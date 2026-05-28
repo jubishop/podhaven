@@ -1,7 +1,13 @@
 // Copyright Justin Bishop, 2026
 
 import FactoryKit
+import Foundation
 import Logging
+
+struct DetailAuxiliaryTask: Sendable {
+  let id: UUID
+  let task: Task<Void, Never>
+}
 
 // Shared lifecycle + error-handling for podcast/episode detail view models.
 @MainActor protocol DetailViewModel: AnyObject {
@@ -11,7 +17,7 @@ import Logging
   var isOnScreen: Bool { get set }
   var appearTask: Task<Void, Never>? { get set }
   var observationTask: Task<Void, Never>? { get set }
-  var auxiliaryTasks: [Task<Void, Never>] { get set }
+  var auxiliaryTasks: [DetailAuxiliaryTask] { get set }
 
   func performAppear() async throws
   func cancelDetailPassAuxiliaryWork()
@@ -27,7 +33,7 @@ extension DetailViewModel {
   func appear() {
     isOnScreen = true
     appearTask?.cancel()
-    for task in auxiliaryTasks { task.cancel() }
+    for entry in auxiliaryTasks { entry.task.cancel() }
     auxiliaryTasks.removeAll()
     cancelDetailPassAuxiliaryWork()
     appearTask = Task { [weak self] in
@@ -76,12 +82,18 @@ extension DetailViewModel {
     appearTask = nil
     observationTask?.cancel()
     observationTask = nil
-    for task in auxiliaryTasks { task.cancel() }
+    for entry in auxiliaryTasks { entry.task.cancel() }
     auxiliaryTasks.removeAll()
   }
 
   func track(_ task: Task<Void, Never>) {
-    auxiliaryTasks.append(task)
+    let entry = DetailAuxiliaryTask(id: UUID(), task: task)
+    auxiliaryTasks.append(entry)
+    Task { [weak self] in
+      await task.value
+      guard let self else { return }
+      auxiliaryTasks.removeAll { $0.id == entry.id }
+    }
   }
 
   func logStateTransition(to newState: State) {

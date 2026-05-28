@@ -31,7 +31,7 @@ import Testing
       episode: DisplayedEpisode(try podcastEpisode.toOriginalUnsavedPodcastEpisode())
     )
 
-    try await viewModel.performAppear()
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     #expect(viewModel.episode.isSaved)
     #expect(viewModel.episode.episodeID == podcastEpisode.id)
@@ -77,7 +77,7 @@ import Testing
         == ShareURL.episode(feedURL: podcastEpisode.feedURL, guid: podcastEpisode.mediaGUID.guid)
     )
 
-    try await viewModel.performAppear()
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     #expect(viewModel.episode.episodeID == podcastEpisode.id)
   }
@@ -108,7 +108,7 @@ import Testing
 
     let viewModel = EpisodeDetailViewModel(listedEpisode: listed)
 
-    try await viewModel.performAppear()
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     #expect(alert.config != nil)
     #expect(navigation.episodes.path == [.episodesViewType(.recentEpisodes)])
@@ -127,7 +127,7 @@ import Testing
     let listed = ListedEpisode(unsavedPodcastEpisode)
     let viewModel = EpisodeDetailViewModel(listedEpisode: listed)
 
-    try await viewModel.performAppear()
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     #expect(viewModel.episode.isSaved == false)
     #expect(viewModel.episode.title == unsavedPodcastEpisode.title)
@@ -147,7 +147,7 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
-    try await viewModel.performAppear()
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     #expect(viewModel.episode.isSaved == false)
     #expect(viewModel.episode.title == unsavedPodcastEpisode.title)
@@ -168,7 +168,7 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await viewModel.performAppear()
+    try await EpisodeDetailTestHelpers.appear(viewModel)
     _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
 
     try await Wait.until(

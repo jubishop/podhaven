@@ -148,6 +148,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   func performAppear() async throws {
     let podcastEpisode = try await repo.podcastEpisode(state.mediaGUID)
     try Task.checkCancellation()
+    guard isOnScreen else { return }
 
     if let podcastEpisode {
       Self.log.debug("Podcast episode: \(podcastEpisode.toString) exists in db")
@@ -164,6 +165,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
         // Saved-listed seed but the row is gone — only safe move is to
         // dismiss; the bridge can't synthesize an unsaved fallback.
         Self.log.warning("Episode no longer exists for detail hydration: \(state.toString)")
+        guard isOnScreen else { return }
         alert("This episode is no longer available.")
         navigation.dismiss(from: originTab)
         return
@@ -176,6 +178,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
         Self.log.warning(
           "Saved-source seed missing from DB: \(stalePodcastEpisode.toString)"
         )
+        guard isOnScreen else { return }
         alert("This episode is no longer available.")
         navigation.dismiss(from: originTab)
         return
@@ -334,7 +337,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored var isOnScreen = false
   @ObservationIgnored var appearTask: Task<Void, Never>?
   @ObservationIgnored var observationTask: Task<Void, Never>?
-  @ObservationIgnored var auxiliaryTasks: [Task<Void, Never>] = []
+  @ObservationIgnored var auxiliaryTasks: [DetailAuxiliaryTask] = []
 
   func cancelDetailPassAuxiliaryWork() {
     recommendationCoordinator.cancel()

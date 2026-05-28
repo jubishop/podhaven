@@ -14,6 +14,20 @@ enum PodcastDetailTestHelpers {
   private static var observatory: any Observing { Container.shared.observatory() }
   private static var repo: any Databasing { Container.shared.repo() }
 
+  @MainActor
+  static func appear(_ viewModel: PodcastDetailViewModel) async throws {
+    viewModel.appear()
+    try await Wait.until(
+      { @MainActor in viewModel.appearTask == nil },
+      { @MainActor in
+        """
+        Expected appear to finish.
+        appearTask: \(String(describing: viewModel.appearTask))
+        """
+      }
+    )
+  }
+
   static func insertSeriesFromFeed(assetName: String, feedURL: FeedURL) async throws
     -> PodcastSeries
   {

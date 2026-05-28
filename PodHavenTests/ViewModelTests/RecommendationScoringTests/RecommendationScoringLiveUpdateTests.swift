@@ -47,7 +47,7 @@ import Testing
       .map(\.id)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
     try await Wait.until(
       priority: .userInitiated,
       { @MainActor in

@@ -27,7 +27,7 @@ import Testing
     let tag = try await repo.insertTag(UnsavedTag(name: "Recovered"))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await viewModel.performAppear()
+    try await EpisodeDetailTestHelpers.appear(viewModel)
     _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
 
     try await Wait.until(
@@ -89,14 +89,14 @@ import Testing
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    // First performAppear subscribes to the scripted (failing) observation.
+    // First appear subscribes to the scripted (failing) observation.
     // SwiftUI can deliver multiple .onAppear without an intervening
-    // .onDisappear, so simulate that by re-entering performAppear from the
+    // .onDisappear, so simulate that by re-entering appear from the
     // poll loop. With the fix, the failed task self-clears and the next
     // restart subscribes to the real observatory and surfaces the tag.
     // Without the fix, observationTask permanently retains the dead task
     // and every subsequent startObservation() returns early.
-    try await viewModel.performAppear()
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     // Raise priority above the default `.background` so the unstructured
     // `Task {}` that `startObservation()` spawns from inside this poll
@@ -108,7 +108,7 @@ import Testing
       delay: .milliseconds(50),
       priority: .userInitiated,
       { @MainActor in
-        try await viewModel.performAppear()
+        viewModel.appear()
         return viewModel.tags.map(\.id) == [tag.id]
       },
       { @MainActor in
@@ -131,7 +131,7 @@ import Testing
     let tag = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await viewModel.performAppear()
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     viewModel.addTag(tag.id)
 

@@ -590,14 +590,15 @@ class PodcastDetailViewModel:
       Self.log.debug("performAppear: exiting, duration=\(duration), \(diagnosticSummary)")
     }
 
+    try Task.checkCancellation()
+    guard isOnScreen else { return }
+
     loadShareArtworkIfNeeded()
 
     if currentSortMethod == .recommendationScore {
       startRecommendationObservation()
     }
 
-    try Task.checkCancellation()
-    guard isOnScreen else { return }
     if try await attemptObservation() {
       try Task.checkCancellation()
       guard isOnScreen else { return }
@@ -693,15 +694,20 @@ class PodcastDetailViewModel:
   }
 
   func refreshSeries() async {
+    guard isOnScreen else { return }
     do {
       if let series = state.savedSeries,
         let operationalSeries = try await repo.podcastSeries(series.id)
       {
+        try Task.checkCancellation()
+        guard isOnScreen else { return }
         Self.log.debug("refreshing saved podcast series \(operationalSeries.toString)")
         try await refreshManager.refreshSeries(podcastSeries: operationalSeries)
       } else {
         Self.log.debug("refreshing unsaved podcast series \(state.toString)")
         try await loadPresentationFromFeed()
+        try Task.checkCancellation()
+        guard isOnScreen else { return }
       }
     } catch {
       Self.log.caughtError("refreshSeries: failed for \(state.toString)", error)
@@ -739,7 +745,7 @@ class PodcastDetailViewModel:
   @ObservationIgnored var isOnScreen = false
   @ObservationIgnored var appearTask: Task<Void, Never>?
   @ObservationIgnored var observationTask: Task<Void, Never>?
-  @ObservationIgnored var auxiliaryTasks: [Task<Void, Never>] = []
+  @ObservationIgnored var auxiliaryTasks: [DetailAuxiliaryTask] = []
 
   func cancelDetailPassAuxiliaryWork() {
     cancelShareArtworkLoad()
@@ -758,6 +764,8 @@ class PodcastDetailViewModel:
     guard let savedSeries = try await savedSeriesForCurrentState() else { return false }
 
     try Task.checkCancellation()
+
+    guard isOnScreen else { return false }
 
     Self.log.debug("\(savedSeries.toString) exists in db")
 
@@ -933,8 +941,8 @@ class PodcastDetailViewModel:
 
     logStateTransition(to: newState)
     state = newState
-    refreshEpisodeList(from: newState)
     guard isOnScreen else { return }
+    refreshEpisodeList(from: newState)
     invalidateShareArtworkIfImageURLChanged()
     loadShareArtworkIfNeeded()
     startObservation(newState.savedSeries?.id, caller: caller)
@@ -998,6 +1006,7 @@ class PodcastDetailViewModel:
     try Task.checkCancellation()
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: iTunesID)
     try Task.checkCancellation()
+    guard isOnScreen else { return }
     transition(
       to: .unsaved(
         unsavedPodcast,

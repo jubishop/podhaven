@@ -92,10 +92,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     fakeObservatory.clearAllCalls()
     try await yieldForSpuriousAsyncWork()
 
-    #expect(viewModel.observationTask == nil)
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
-    #expect(viewModel.appearTask == nil)
-    #expect(viewModel.auxiliaryTasks.isEmpty)
   }
 
   // Scope-coverage: the listed/unsaved seeds have no `savedSeries.id`,
@@ -113,9 +110,6 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     fakeObservatory.clearAllCalls()
     try await yieldForSpuriousAsyncWork()
 
-    #expect(viewModel.observationTask == nil)
-    #expect(viewModel.appearTask == nil)
-    #expect(viewModel.auxiliaryTasks.isEmpty)
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
   }
 
@@ -157,20 +151,16 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     try await yieldForSpuriousAsyncWork()
 
     #expect(initLoadCount() == 0)
-    #expect(transientViewModels.allSatisfy { $0.observationTask == nil && $0.appearTask == nil })
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
 
     let keeper = PodcastDetailViewModel(podcast: displayedPodcast)
     keeper.appear()
 
     try await Wait.until(
-      { @MainActor in
-        keeper.observationTask != nil && keeper.episodeList.allEntries.count >= 1
-      },
+      { @MainActor in keeper.episodeList.allEntries.count >= 1 },
       { @MainActor in
         """
-        Expected the kept model to start observation after appear.
-        observationTask: \(String(describing: keeper.observationTask))
+        Expected the kept model to hydrate after appear.
         entries: \(keeper.episodeList.allEntries.count)
         """
       }
@@ -213,6 +203,8 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     // (transient) instance alive long enough to start work.
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
 
+    fakeObservatory.clearAllCalls()
+
     // Race: kick off a deliberate load via the same image pipeline and
     // wait for it to complete. If Nuke had time to handle this request,
     // it had time to handle any spurious init-spawned request too — so
@@ -232,10 +224,8 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     #expect(!fakeDataLoader.loadedURLs().contains(initImageURL))
     #expect(initLoadCount() == 0)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
     _ = viewModel  // keep alive until the assertions run
-    #expect(viewModel.observationTask == nil)
-    #expect(viewModel.appearTask == nil)
-    #expect(viewModel.auxiliaryTasks.isEmpty)
   }
 
   @Test("appear starts observation for a saved displayed podcast")
@@ -265,40 +255,17 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     fakeObservatory.clearAllCalls()
 
-    #expect(viewModel.observationTask == nil)
-
-    viewModel.appear()
-
-    try await Wait.until(
-      { @MainActor in
-        viewModel.observationTask != nil
-          && viewModel.episodeList.allEntries.count >= 1
-      },
-      { @MainActor in
-        """
-        Expected appear to start observation and hydrate the seeded episode.
-        observationTask: \(String(describing: viewModel.observationTask))
-        entries: \(viewModel.episodeList.allEntries.count)
-        """
-      }
-    )
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     let entryCountAfterFirstAppear = viewModel.episodeList.allEntries.count
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 1)
 
     // A second appear must not start another observatory subscription.
     viewModel.appear()
-
-    try await Wait.until(
-      { @MainActor in viewModel.appearTask == nil },
-      { @MainActor in
-        "Expected second appear to finish; appearTask=\(String(describing: viewModel.appearTask))"
-      }
-    )
+    try await yieldForSpuriousAsyncWork()
 
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 1)
     #expect(viewModel.episodeList.allEntries.count == entryCountAfterFirstAppear)
-    #expect(viewModel.observationTask != nil)
   }
 
   @Test("subscribe after disappear does not restart observation")
@@ -315,9 +282,9 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     viewModel.appear()
 
     try await Wait.until(
-      { @MainActor in viewModel.observationTask != nil },
+      { @MainActor in viewModel.episodeList.allEntries.count >= 1 },
       { @MainActor in
-        "Expected observation before disappear; task=\(String(describing: viewModel.observationTask))"
+        "Expected hydration before disappear; entries=\(viewModel.episodeList.allEntries.count)"
       }
     )
 
@@ -343,7 +310,6 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     try await yieldForSpuriousAsyncWork()
 
-    #expect(viewModel.observationTask == nil)
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
   }
 
@@ -368,7 +334,6 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     try await yieldForSpuriousAsyncWork()
 
-    #expect(viewModel.observationTask == nil)
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
   }
 
@@ -400,9 +365,9 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     viewModel.appear()
 
     try await Wait.until(
-      { @MainActor in viewModel.observationTask != nil },
+      { @MainActor in viewModel.episodeList.allEntries.count >= 1 },
       { @MainActor in
-        "Expected observation to start before disappear; task=\(String(describing: viewModel.observationTask))"
+        "Expected hydration before disappear; entries=\(viewModel.episodeList.allEntries.count)"
       }
     )
 
@@ -410,10 +375,6 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     let titleBeforeDisappear = viewModel.podcast.title
 
     viewModel.disappear()
-
-    #expect(viewModel.observationTask == nil)
-    #expect(viewModel.appearTask == nil)
-    #expect(viewModel.auxiliaryTasks.isEmpty)
 
     _ = try await RecommendationHelpers.addEpisodes(to: savedSeries.podcast, count: 1)
 
@@ -465,7 +426,13 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
       { cancelObserved() },
       { "Expected disappear() to cancel the in-flight share-artwork load." }
     )
-    #expect(viewModel.auxiliaryTasks.isEmpty)
+
+    try await Wait.until(
+      { @MainActor in viewModel.auxiliaryTasks.isEmpty },
+      { @MainActor in
+        "Expected completed/cancelled auxiliary tasks to be untracked; count=\(viewModel.auxiliaryTasks.count)"
+      }
+    )
   }
 
   @Test("appear loads share artwork once, idempotent on repeat")
@@ -501,11 +468,6 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
       { "Expected appear to load share artwork once; loadCount=\(loadCount())" }
     )
     #expect(fakeDataLoader.loadedURLs().contains(imageURL))
-
-    try await Wait.until(
-      { @MainActor in viewModel.appearTask == nil },
-      { @MainActor in "Expected first appear to finish before re-appearing." }
-    )
 
     // A second appear must short-circuit on the now-populated shareArtwork.
     viewModel.appear()

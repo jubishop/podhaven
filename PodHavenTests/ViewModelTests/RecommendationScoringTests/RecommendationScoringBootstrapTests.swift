@@ -51,7 +51,7 @@ import Testing
     fakeRecommendationRepo.clearAllCalls()
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -113,7 +113,7 @@ import Testing
     _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     let targetIDs = Set(candidateEpisodes.map(\.id))
     try await Wait.until(
@@ -181,7 +181,7 @@ import Testing
       .map(\.id)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -233,7 +233,7 @@ import Testing
     let podcastEpisode = try #require(try await repo.podcastEpisode(targetEpisodeID))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await viewModel.performAppear()
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,

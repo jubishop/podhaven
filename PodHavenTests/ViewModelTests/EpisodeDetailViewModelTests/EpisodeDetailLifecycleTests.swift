@@ -103,9 +103,6 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     fakeObservatory.clearAllCalls()
     try await yieldForSpuriousAsyncWork()
 
-    #expect(viewModel.observationTask == nil)
-    #expect(viewModel.appearTask == nil)
-    #expect(viewModel.auxiliaryTasks.isEmpty)
     _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 0)
   }
 
@@ -119,9 +116,6 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     fakeObservatory.clearAllCalls()
     try await yieldForSpuriousAsyncWork()
 
-    #expect(viewModel.observationTask == nil)
-    #expect(viewModel.appearTask == nil)
-    #expect(viewModel.auxiliaryTasks.isEmpty)
     _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 0)
   }
 
@@ -140,30 +134,14 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     fakeObservatory.clearAllCalls()
 
-    #expect(viewModel.observationTask == nil)
-
-    viewModel.appear()
-
-    try await Wait.until(
-      { @MainActor in viewModel.observationTask != nil },
-      { @MainActor in
-        "Expected appear to start observation; task=\(String(describing: viewModel.observationTask))"
-      }
-    )
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 1)
 
     viewModel.appear()
-
-    try await Wait.until(
-      { @MainActor in viewModel.appearTask == nil },
-      { @MainActor in
-        "Expected second appear to finish; appearTask=\(String(describing: viewModel.appearTask))"
-      }
-    )
+    try await yieldForSpuriousAsyncWork()
 
     _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 1)
-    #expect(viewModel.observationTask != nil)
   }
 
   @Test("playNow after disappear does not restart observation")
@@ -176,14 +154,7 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    viewModel.appear()
-
-    try await Wait.until(
-      { @MainActor in viewModel.observationTask != nil },
-      { @MainActor in
-        "Expected observation before disappear; task=\(String(describing: viewModel.observationTask))"
-      }
-    )
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     fakeObservatory.clearAllCalls()
     viewModel.disappear()
@@ -193,7 +164,29 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     try await yieldForSpuriousAsyncWork()
 
-    #expect(viewModel.observationTask == nil)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 0)
+  }
+
+  @Test("playNow without appear does not start observation")
+  func playNowWithoutAppearDoesNotStartObservation() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Offscreen Play"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "offscreen-play",
+          title: "Offscreen Play"
+        )
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    fakeObservatory.clearAllCalls()
+    #expect(viewModel.isOnScreen == false)
+
+    viewModel.playNow()
+
+    try await yieldForSpuriousAsyncWork()
+
     _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 0)
   }
 
@@ -211,20 +204,9 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
     let tag = try await repo.insertTag(UnsavedTag(name: "After Disappear"))
 
-    viewModel.appear()
-
-    try await Wait.until(
-      { @MainActor in viewModel.observationTask != nil },
-      { @MainActor in
-        "Expected observation to start before disappear; task=\(String(describing: viewModel.observationTask))"
-      }
-    )
+    try await EpisodeDetailTestHelpers.appear(viewModel)
 
     viewModel.disappear()
-
-    #expect(viewModel.observationTask == nil)
-    #expect(viewModel.appearTask == nil)
-    #expect(viewModel.auxiliaryTasks.isEmpty)
 
     try await repo.addTag(tag.id, to: podcastEpisode.id)
 

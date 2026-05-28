@@ -52,7 +52,7 @@ import Testing
     let targetIDs = Set(candidateEpisodes.map(\.id))
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
     try await Wait.until(
       priority: .userInitiated,
       { @MainActor in
@@ -129,7 +129,7 @@ import Testing
     let targetIDs = Set(candidateEpisodes.map(\.id))
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
     try await Wait.until(
       priority: .userInitiated,
       { @MainActor in
@@ -158,7 +158,7 @@ import Testing
     // Disappear tears the scoring-revision observation down; re-appearing with
     // the rec sort still selected must resume it.
     viewModel.disappear()
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     fakeRecommendationRepo.clearAllCalls()
     recommendationEngine.$scoringRevision.update { $0 += 1 }
