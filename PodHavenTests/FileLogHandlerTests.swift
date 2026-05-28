@@ -250,7 +250,40 @@ struct FileLogHandlerTests {
     log(handler, message: "released", line: storming)
 
     let summaries = try suppressionSummaries(at: fileURL)
-    #expect(summaries.contains { 240...260 ~= $0 })
+    #expect(summaries.contains(250))
+  }
+
+  @Test("storm warning is not emitted below rate-limit warning threshold")
+  func stormWarningNotBelowThreshold() throws {
+    let fileURL = tempFileURL()
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+    let storming: UInt = 10_009
+    let clock = Container.shared.fakeContinuousClock()
+
+    // Burn the burst (50) + 24 drops; 24 is below the warning threshold.
+    for _ in 0..<74 {
+      log(handler, message: "storm", line: storming)
+    }
+    clock.advance(by: .seconds(2))
+    log(handler, message: "released-under", line: storming)
+
+    #expect(stormWarnings(forStormingLine: storming).isEmpty)
+
+    // Spend the leftover token, then drop 25 — threshold crossed.
+    log(handler, message: "storm", line: storming)
+    for _ in 0..<25 {
+      log(handler, message: "storm", line: storming)
+    }
+    clock.advance(by: .seconds(2))
+    log(handler, message: "released-over", line: storming)
+
+    #expect(stormWarnings(forStormingLine: storming).count == 1)
   }
 
   @Test("storm warning is emitted via Self.log.warning with the originating site")
@@ -306,10 +339,9 @@ struct FileLogHandlerTests {
     #expect(parts.count == 2)
     let stack = try #require(parts.last)
     #expect(!stack.isEmpty)
-    // FileLogHandler.log is the dispatch site that captures the stack;
-    // pinning a frame from the production code keeps the test stable
-    // across runs of the test binary's mangled symbol names.
-    #expect(stack.contains("FileLogHandler"))
+    // commitRateLimitDecision is the production frame that triggers capture;
+    // pinning it keeps the test stable across test-binary symbol names.
+    #expect(stack.contains("commitRateLimitDecision"))
   }
 
   @Test("per-bucket cooldown blocks a second warning within 60 seconds at the same site")
@@ -395,6 +427,39 @@ struct FileLogHandlerTests {
 
     let entries = try decodedEntries(at: fileURL)
     #expect(entries.map(\.message) == (0..<20).map { "entry-\($0)" })
+  }
+
+  @Test("storm warning is not emitted when synchronous write fails")
+  func stormWarningNotEmittedWhenWriteFails() throws {
+    let fileURL = tempFileURL()
+    defer {
+      try? FileManager.default.setAttributes(
+        [.posixPermissions: 0o644],
+        ofItemAtPath: fileURL.path
+      )
+      try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+    let storming: UInt = 10_008
+
+    log(handler, message: "seed", line: 1)
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o444],
+      ofItemAtPath: fileURL.path
+    )
+
+    for _ in 0..<300 {
+      log(handler, message: "storm", line: storming)
+    }
+    Container.shared.fakeContinuousClock().advance(by: .seconds(2))
+    log(handler, message: "released", line: storming)
+
+    #expect(stormWarnings(forStormingLine: storming).isEmpty)
   }
 
   // Regression: storm warnings must be emitted synchronously on the log call

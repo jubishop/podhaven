@@ -58,27 +58,37 @@ struct FileLogHandler: LogHandler {
     }
 
     deinit {
-      closeAppendHandle()
+      queue.sync { closeAppendHandle() }
     }
 
+    // Returns whether the file write succeeded. Truncation and failure reports
+    // are emitted on the caller path for synchronous writes; for asynchronous
+    // writes they run before the queue work item returns (via a hop off the
+    // writer queue) so flush() does not leave them in a fire-and-forget Task.
+    @discardableResult
     func write(
       _ entry: Entry,
       suppressed: Int,
       synchronously: Bool
-    ) {
-      if synchronously {
-        let result = queue.sync { writeEntry(entry, suppressed: suppressed) }
-        if let result { report(result) }
-      } else {
-        queue.async {
+    ) -> Bool {
+      guard synchronously else {
+        queue.async { [weak self] in
+          guard let self else { return }
           let result = self.writeEntry(entry, suppressed: suppressed)
           guard let result else { return }
-          Task { [weak self] in
-            guard let self else { return }
-            report(result)
-          }
+          DispatchQueue.global(qos: .utility)
+            .sync {
+              Self.emitReport(result)
+            }
         }
+        return true
       }
+      let result = queue.sync { writeEntry(entry, suppressed: suppressed) }
+      if let result {
+        Self.emitReport(result)
+        if case .failed = result { return false }
+      }
+      return true
     }
 
     func flush() {
@@ -95,7 +105,7 @@ struct FileLogHandler: LogHandler {
     // can re-enter the same queue), and that Task can outlive a flush() on
     // the background-transition path, dropping the warning when iOS suspends
     // the app. Storm warnings are emitted on the caller path instead — see
-    // FileLogHandler.log(event:) and reportStormWarning(for:suppressed:callStack:).
+    // `FileLogHandler.processRateLimitedWrite`.
     //
     // Must be called on `queue`.
     private func writeEntry(_ entry: Entry, suppressed: Int) -> WriteResult? {
@@ -117,8 +127,9 @@ struct FileLogHandler: LogHandler {
       }
     }
 
-    // Must be called outside `queue` (or asynchronously) to avoid deadlock.
-    private func report(_ result: WriteResult) {
+    // Must be called outside `queue` to avoid deadlock when Self.log re-enters
+    // the same writer queue.
+    private static func emitReport(_ result: WriteResult) {
       switch result {
       case .message(let message):
         Self.log.info("\(message)")
@@ -274,7 +285,7 @@ struct FileLogHandler: LogHandler {
     // must honor: drop the entry, or write it (optionally promoted to a storm
     // warning carrying `callStack`). Called from the log path before any
     // queue dispatch so the warning decision and the originating thread's
-    // `Thread.callStackSymbols` are observed in the same synchronous step.
+    // stack walk are observed in the same synchronous step.
     //
     // Lock scope: bucket bookkeeping (refill, token spend, suppressed reset,
     // `lastWarning` advance) commits inside the rate-limit mutex; the
@@ -296,10 +307,11 @@ struct FileLogHandler: LogHandler {
     // twice would double-charge. The mutex is taken on the caller's thread,
     // including the main thread; hold time is microseconds.
     func commitRateLimitDecision(
-      for entry: Entry,
+      for file: String,
+      line: UInt,
       captureCallStack: @autoclosure () -> [String]
     ) -> RateLimitDecision {
-      let key = RateKey(file: entry.file, line: entry.line)
+      let key = RateKey(file: file, line: line)
       let now = Container.shared.continuousClockNow()()
 
       // Phase 1 (under mutex): commit all bucket bookkeeping including the
@@ -444,13 +456,54 @@ struct FileLogHandler: LogHandler {
   // MARK: - Logging
 
   public func log(event: LogEvent) {
+    let synchronously = writeSynchronously(event.level)
+    let decision = writer.commitRateLimitDecision(
+      for: event.file,
+      line: event.line,
+      captureCallStack: Self.boundedCallStack()
+    )
+    guard case .write(let suppressed, let callStack) = decision else { return }
+    processRateLimitedWrite(
+      event: event,
+      suppressed: suppressed,
+      callStack: callStack,
+      synchronously: synchronously
+    )
+  }
+
+  // Builds the NDJSON entry, writes it, emits truncation/failure reports, and
+  // optionally promotes a storm warning — the three post-rate-limit steps that
+  // must stay in sync.
+  private func processRateLimitedWrite(
+    event: LogEvent,
+    suppressed: Int,
+    callStack: [String]?,
+    synchronously: Bool
+  ) {
+    let entry = makeEntry(from: event)
+    let writeSucceeded = writer.write(
+      entry,
+      suppressed: suppressed,
+      synchronously: synchronously
+    )
+    // Storm warnings are ordered before Sentry/flush visibility on the caller
+    // path, not before on-disk NDJSON when writes are asynchronous.
+    // Synchronous paths gate the warning on a successful file write so Sentry
+    // matches on-disk evidence; asynchronous paths warn optimistically because
+    // suspend safety takes precedence over file ordering.
+    if let callStack, !synchronously || writeSucceeded {
+      Writer.reportStormWarning(for: entry, suppressed: suppressed, callStack: callStack)
+    }
+  }
+
+  private func makeEntry(from event: LogEvent) -> Entry {
     let mergedMetadata = LogKit.merge(
       handler: self.metadata,
       provider: self.metadataProvider,
       oneOff: event.metadata
     )
 
-    let entry = Entry(
+    return Entry(
       level: event.level.intValue,
       levelName: event.level.rawValue,
       timestamp: Int64(Date().timeIntervalSince1970 * 1000),
@@ -465,22 +518,10 @@ struct FileLogHandler: LogHandler {
       function: event.function,
       line: event.line
     )
+  }
 
-    let decision = writer.commitRateLimitDecision(
-      for: entry,
-      captureCallStack: Thread.callStackSymbols
-    )
-    guard case .write(let suppressed, let callStack) = decision else { return }
-    writer.write(
-      entry,
-      suppressed: suppressed,
-      synchronously: writeSynchronously(event.level)
-    )
-    // Emit storm warning on the caller path, not via the writer queue's
-    // async report Task. See `Writer.reportStormWarning` for why.
-    if let callStack {
-      Writer.reportStormWarning(for: entry, suppressed: suppressed, callStack: callStack)
-    }
+  private static func boundedCallStack() -> [String] {
+    Array(Thread.callStackSymbols.dropFirst(2).prefix(24))
   }
 
   // MARK: - Flush

@@ -14,6 +14,14 @@ import Logging
 // no safe semantics. Tests filter their own messages by embedding a unique
 // discriminator (e.g. a per-test `line` value) in the log site they're
 // stress-testing.
+//
+// Usage constraints for new consumers:
+// - Call `installOnce()` from the suite `init()` before any production
+//   `static let log` lazy-init that the test cares about.
+// - Never assert on `captured()` without a per-test discriminator in the
+//   message or log site; sibling tests can emit the same production line.
+// - Do not add a clear/reset API — use `@TaskLocal` sinks (see memory note)
+//   when production-line assertions without discriminators are needed.
 enum LogCapture {
   struct Captured: Sendable {
     let label: String
