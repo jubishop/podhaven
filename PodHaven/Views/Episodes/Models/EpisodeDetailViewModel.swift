@@ -154,6 +154,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
       transition(to: .saved(podcastEpisode))
       try Task.checkCancellation()
+      guard isOnScreen else { return }
       startObservation(podcastEpisode)
     } else {
       Self.log.debug("Podcast episode: \(state.toString) does not exist in db")
@@ -182,13 +183,16 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
 
     try Task.checkCancellation()
+    guard isOnScreen else { return }
     startRecommendationObservation()
 
     if let startTime {
       try Task.checkCancellation()
+      guard isOnScreen else { return }
       Self.log.debug("Auto-playing from startTime: \(startTime)s")
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try Task.checkCancellation()
+      guard isOnScreen else { return }
       try await loadAndPlay(podcastEpisode, seekTo: startTime)
     }
   }
@@ -327,15 +331,27 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   // MARK: - Observation Management
 
+  @ObservationIgnored var isOnScreen = false
   @ObservationIgnored var appearTask: Task<Void, Never>?
   @ObservationIgnored var observationTask: Task<Void, Never>?
   @ObservationIgnored var auxiliaryTasks: [Task<Void, Never>] = []
 
+  func cancelDetailPassAuxiliaryWork() {
+    recommendationCoordinator.cancel()
+  }
+
   private func startObservation(_ podcastEpisode: PodcastEpisode) {
+    guard isOnScreen else {
+      Self.log.debug("startObservation: skipped off-screen")
+      return
+    }
+
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
       return
     }
+
+    observationTask?.cancel()
 
     observationTask = Task { [weak self] in
       guard let self else { return }
@@ -537,20 +553,13 @@ enum EpisodeDetailDisplayedScore: Sendable {
     return (.similarity(score), true)
   }
 
-  // MARK: - Disappear
-
-  func disappear() {
-    Self.log.debug("disappear: executing")
-    cancelAppearScopedAsyncWork()
-    recommendationCoordinator.cancel()
-  }
-
   // MARK: - Private Helpers
 
   private func transition(to newState: EpisodeDetailState) {
     guard newState != state else { return }
     logStateTransition(to: newState)
     state = newState
+    guard isOnScreen else { return }
     recommendationCoordinator.refresh()
   }
 
@@ -571,6 +580,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
       podcastEpisode = try await listedEpisode.getOrCreatePodcastEpisode()
     }
     transition(to: .saved(podcastEpisode))
+    guard isOnScreen else { return podcastEpisode }
     startObservation(podcastEpisode)
     startRecommendationObservation()
     return podcastEpisode

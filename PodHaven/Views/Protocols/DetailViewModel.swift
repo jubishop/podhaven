@@ -8,11 +8,13 @@ import Logging
   associatedtype State: Sendable & Stringable
 
   var state: State { get }
+  var isOnScreen: Bool { get set }
   var appearTask: Task<Void, Never>? { get set }
   var observationTask: Task<Void, Never>? { get set }
   var auxiliaryTasks: [Task<Void, Never>] { get set }
 
   func performAppear() async throws
+  func cancelDetailPassAuxiliaryWork()
 }
 
 extension DetailViewModel {
@@ -23,7 +25,11 @@ extension DetailViewModel {
   }
 
   func appear() {
+    isOnScreen = true
     appearTask?.cancel()
+    for task in auxiliaryTasks { task.cancel() }
+    auxiliaryTasks.removeAll()
+    cancelDetailPassAuxiliaryWork()
     appearTask = Task { [weak self] in
       guard let self else { return }
       defer {
@@ -40,6 +46,14 @@ extension DetailViewModel {
       }
     }
   }
+
+  func disappear() {
+    isOnScreen = false
+    cancelDetailPassAuxiliaryWork()
+    cancelAppearScopedAsyncWork()
+  }
+
+  func cancelDetailPassAuxiliaryWork() {}
 
   func runTask(
     _ context: String,

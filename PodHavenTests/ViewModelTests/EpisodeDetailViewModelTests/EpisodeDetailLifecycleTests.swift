@@ -100,11 +100,13 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
+    fakeObservatory.clearAllCalls()
     try await yieldForSpuriousAsyncWork()
 
     #expect(viewModel.observationTask == nil)
     #expect(viewModel.appearTask == nil)
     #expect(viewModel.auxiliaryTasks.isEmpty)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 0)
   }
 
   @Test(
@@ -114,11 +116,13 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
   func initForNonSavedSeedDoesNotStartObservation(seed: EpisodeNonSavedSeed) async throws {
     let viewModel = try await seed.makeViewModel(repo: repo, observatory: observatory)
 
+    fakeObservatory.clearAllCalls()
     try await yieldForSpuriousAsyncWork()
 
     #expect(viewModel.observationTask == nil)
     #expect(viewModel.appearTask == nil)
     #expect(viewModel.auxiliaryTasks.isEmpty)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 0)
   }
 
   @Test("appear starts observation for a saved displayed episode")
@@ -160,6 +164,37 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 1)
     #expect(viewModel.observationTask != nil)
+  }
+
+  @Test("playNow after disappear does not restart observation")
+  func playNowAfterDisappearDoesNotRestartObservation() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Disappear Play"),
+        unsavedEpisode: try Create.unsavedEpisode(guid: "disappear-play", title: "Disappear Play")
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in viewModel.observationTask != nil },
+      { @MainActor in
+        "Expected observation before disappear; task=\(String(describing: viewModel.observationTask))"
+      }
+    )
+
+    fakeObservatory.clearAllCalls()
+    viewModel.disappear()
+
+    #expect(viewModel.isOnScreen == false)
+    viewModel.playNow()
+
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(viewModel.observationTask == nil)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 0)
   }
 
   @Test("disappear cancels observation after appear")

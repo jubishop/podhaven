@@ -597,9 +597,18 @@ class PodcastDetailViewModel:
     }
 
     try Task.checkCancellation()
-    if try await attemptObservation() { return }
+    guard isOnScreen else { return }
+    if try await attemptObservation() {
+      try Task.checkCancellation()
+      guard isOnScreen else { return }
+      if observationTask == nil {
+        startObservation(state.savedSeries?.id, caller: "performAppear")
+      }
+      return
+    }
 
     try Task.checkCancellation()
+    guard isOnScreen else { return }
     Self.log.debug("\(state.toString) does not exist in db")
 
     guard episodeList.allEntries.isEmpty else {
@@ -609,9 +618,16 @@ class PodcastDetailViewModel:
 
     try await loadPresentationFromFeed()
     try Task.checkCancellation()
+    guard isOnScreen else { return }
 
     Self.log.debug("Attempting observation again in case FeedURL got updated by parsing the feed")
-    try await attemptObservation()
+    if try await attemptObservation() {
+      try Task.checkCancellation()
+      guard isOnScreen else { return }
+      if observationTask == nil {
+        startObservation(state.savedSeries?.id, caller: "performAppear")
+      }
+    }
   }
 
   // MARK: - Public Methods
@@ -720,9 +736,15 @@ class PodcastDetailViewModel:
 
   // MARK: - Observation Management
 
+  @ObservationIgnored var isOnScreen = false
   @ObservationIgnored var appearTask: Task<Void, Never>?
   @ObservationIgnored var observationTask: Task<Void, Never>?
   @ObservationIgnored var auxiliaryTasks: [Task<Void, Never>] = []
+
+  func cancelDetailPassAuxiliaryWork() {
+    cancelShareArtworkLoad()
+    recommendationCoordinator.cancel()
+  }
 
   @ObservationIgnored private var transitionSamples: [ContinuousClock.Instant] = []
 
@@ -760,6 +782,13 @@ class PodcastDetailViewModel:
     _ podcastID: Podcast.ID? = nil,
     caller: StaticString = #function
   ) {
+    guard isOnScreen else {
+      Self.log.debug(
+        "startObservation: skipped off-screen, caller=\(caller), \(diagnosticSummary)"
+      )
+      return
+    }
+
     guard let podcastID else {
       Self.log.debug(
         "startObservation: skipped nil podcast, caller=\(caller), \(diagnosticSummary)"
@@ -773,6 +802,8 @@ class PodcastDetailViewModel:
       )
       return
     }
+
+    observationTask?.cancel()
 
     Self.log.debug(
       "startObservation: creating task for \(podcastID), caller=\(caller), \(diagnosticSummary)"
@@ -843,6 +874,7 @@ class PodcastDetailViewModel:
             "observePodcastSeries: failed to re-parse feed after podcast \(podcastID) was deleted",
             error
           )
+          guard isOnScreen, ErrorKit.isRemarkable(error) else { return }
           alert(Self.unavailableMessage)
         }
         return
@@ -861,15 +893,6 @@ class PodcastDetailViewModel:
 
       transition(to: .saved(updatedSeries))
     }
-  }
-
-  // MARK: - Disappear
-
-  func disappear() {
-    Self.log.debug("disappear: executing, \(diagnosticSummary)")
-    cancelShareArtworkLoad()
-    cancelAppearScopedAsyncWork()
-    recommendationCoordinator.cancel()
   }
 
   // MARK: - Private Helpers
@@ -903,8 +926,7 @@ class PodcastDetailViewModel:
       Self.log.warning(
         """
         transition: high-frequency (\(transitionSamples.count)/sec), caller=\(caller), \
-        \(diagnosticSummary), stack:
-        \(Thread.callStackSymbols.joined(separator: "\n"))
+        \(diagnosticSummary)
         """
       )
     }
@@ -912,10 +934,13 @@ class PodcastDetailViewModel:
     logStateTransition(to: newState)
     state = newState
     refreshEpisodeList(from: newState)
+    guard isOnScreen else { return }
     invalidateShareArtworkIfImageURLChanged()
     loadShareArtworkIfNeeded()
     startObservation(newState.savedSeries?.id, caller: caller)
-    recommendationCoordinator.refresh()
+    if currentSortMethod == .recommendationScore {
+      recommendationCoordinator.refresh()
+    }
   }
 
   private func refreshEpisodeList(from state: PodcastDetailState) {

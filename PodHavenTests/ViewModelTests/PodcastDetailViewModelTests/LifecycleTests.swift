@@ -8,7 +8,7 @@ import Testing
 @testable import PodHaven
 
 // Regression coverage for the constructor / lifecycle churn that produced
-// the 2026-05-27 build-507 watchdog kill (issue #357 item 1). SwiftUI
+// the 2026-05-27 build-507 watchdog kill. SwiftUI
 // re-evaluates `PodcastDetailView`'s destination, so transient
 // `PodcastDetailViewModel` instances must not start any long-lived async
 // work in `init` — observation and share-artwork loading belong to the
@@ -89,9 +89,11 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedPodcast))
 
+    fakeObservatory.clearAllCalls()
     try await yieldForSpuriousAsyncWork()
 
     #expect(viewModel.observationTask == nil)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
     #expect(viewModel.appearTask == nil)
     #expect(viewModel.auxiliaryTasks.isEmpty)
   }
@@ -108,11 +110,13 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
   func initForNonSavedSeedDoesNotStartObservation(seed: NonSavedSeed) async throws {
     let viewModel = try await seed.makeViewModel(repo: repo)
 
+    fakeObservatory.clearAllCalls()
     try await yieldForSpuriousAsyncWork()
 
     #expect(viewModel.observationTask == nil)
     #expect(viewModel.appearTask == nil)
     #expect(viewModel.auxiliaryTasks.isEmpty)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
   }
 
   @Test("many transient inits do not start observation until a single appear")
@@ -153,6 +157,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     try await yieldForSpuriousAsyncWork()
 
     #expect(initLoadCount() == 0)
+    #expect(transientViewModels.allSatisfy { $0.observationTask == nil && $0.appearTask == nil })
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
 
     let keeper = PodcastDetailViewModel(podcast: displayedPodcast)
@@ -214,7 +219,11 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     // a still-zero `initLoadCount` afterward is a real negative, not a
     // timing artifact.
     Task {
-      _ = try? await Container.shared.imagePipeline().image(for: drainImageURL)
+      do {
+        _ = try await Container.shared.imagePipeline().image(for: drainImageURL)
+      } catch {
+        Issue.record("Drain image load failed: \(error)")
+      }
     }
     try await Wait.until(
       { drainLoadCount() == 1 },
@@ -290,6 +299,77 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 1)
     #expect(viewModel.episodeList.allEntries.count == entryCountAfterFirstAppear)
     #expect(viewModel.observationTask != nil)
+  }
+
+  @Test("subscribe after disappear does not restart observation")
+  func subscribeAfterDisappearDoesNotRestartObservation() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/disappear-subscribe.rss")!)
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Disappear Subscribe"),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+      )
+    )
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in viewModel.observationTask != nil },
+      { @MainActor in
+        "Expected observation before disappear; task=\(String(describing: viewModel.observationTask))"
+      }
+    )
+
+    fakeObservatory.clearAllCalls()
+    viewModel.disappear()
+
+    #expect(viewModel.isOnScreen == false)
+    viewModel.subscribe()
+
+    try await Wait.until(
+      { @MainActor in
+        let series = try await self.repo.podcastSeries(savedSeries.id)
+        return series?.podcast.subscribed == true
+      },
+      { @MainActor in
+        let series = try await self.repo.podcastSeries(savedSeries.id)
+        return """
+          Expected subscribe to finish after disappear.
+          repo subscribed: \(series?.podcast.subscribed ?? false)
+          """
+      }
+    )
+
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(viewModel.observationTask == nil)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
+  }
+
+  @Test("subscribe without appear does not start observation")
+  func subscribeWithoutAppearDoesNotStartObservation() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/offscreen-subscribe.rss")!)
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Offscreen Subscribe"),
+      unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+    )
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+
+    fakeObservatory.clearAllCalls()
+    #expect(viewModel.isOnScreen == false)
+
+    viewModel.subscribe()
+
+    try await Wait.until(
+      { @MainActor in viewModel.saved },
+      { @MainActor in "Expected subscribe to persist series; saved=\(viewModel.saved)" }
+    )
+
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(viewModel.observationTask == nil)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
   }
 
   @Test("disappear cancels observation after appear")
