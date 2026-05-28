@@ -196,7 +196,9 @@ struct AppLauncher: Sendable {
             targetFileSizeBytes: 6_000_000,
             // `.inactive` writes stay async; the `.background` transition
             // flushes the queue via AppDelegate.handleScenePhaseChange.
-            writeSynchronously: { $0 >= .critical || sharedState.scenePhase == .background }
+            writeSynchronously: {
+              $0 >= .critical || sharedState.$scenePhase.value == .background
+            }
           ),
           SentryLogHandler(label: label),
           CrashReportHandler(label: label),
@@ -206,9 +208,15 @@ struct AppLauncher: Sendable {
     case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
       Self.log.debug("configureLogging: PrintLog")
-    case .simulator, .testing:
+    case .simulator:
       LoggingSystem.bootstrap(OSLogHandler.init)
       Self.log.debug("configureLogging: OSLog")
+    case .testing:
+      // Skipped on purpose. Tests that need swift-log capture bootstrap a
+      // capturing handler themselves; tests that don't get the default
+      // stderr handler, which is fine — no test currently relies on log
+      // output going to a specific destination.
+      break
     }
   }
 
