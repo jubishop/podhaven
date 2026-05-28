@@ -448,6 +448,7 @@ struct FileLogHandlerTests {
     let storming: UInt = 10_008
 
     log(handler, message: "seed", line: 1)
+    FileLogHandler.flush()
     try FileManager.default.setAttributes(
       [.posixPermissions: 0o444],
       ofItemAtPath: fileURL.path
