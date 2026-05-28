@@ -42,14 +42,19 @@ struct FileLogHandlerTests {
 
   // A unique `line` per entry gives each its own rate-limit bucket, so the
   // writer drops nothing and the file stays deterministic.
-  private func log(_ handler: FileLogHandler, message: String, line: UInt) {
+  private func log(
+    _ handler: FileLogHandler,
+    message: String,
+    file: String = "FileLogHandlerTests.swift",
+    line: UInt
+  ) {
     handler.log(
       event: LogEvent(
         level: .debug,
         message: "\(message)",
         metadata: nil,
         source: "PodHavenTests",
-        file: "FileLogHandlerTests.swift",
+        file: file,
         function: "test()",
         line: line
       )
@@ -176,7 +181,11 @@ struct FileLogHandlerTests {
     )
 
     let entries = try decodedEntries(at: fileURL)
+    let suppressionMessage =
+      "FileLogHandler rate limit — dropped 300 repeated entries from this log site"
+    #expect(entries.count == 52)
     #expect(entries.filter { $0.message == "storm" }.count == 50)
+    #expect(entries.contains { $0.message == suppressionMessage })
     #expect(entries.contains { $0.message == "critical-after-storm" })
   }
 
@@ -287,9 +296,7 @@ struct FileLogHandlerTests {
     FileLogHandler.flush(fileURL: fileURL)
 
     let entries = try decodedEntries(at: fileURL)
-    let unboundedCount = siteCount * logsPerSite
-    #expect(entries.count < unboundedCount)
-    #expect(entries.count <= siteCount * 51)
+    #expect(entries.count == siteCount * 51)
     for sampleLine in [1, 50, 100, 150, 200] {
       #expect(entries.filter { $0.message == "storm-\(sampleLine)" }.count == 50)
     }
@@ -327,6 +334,27 @@ struct FileLogHandlerTests {
           == "FileLogHandler rate limit — dropped 350 repeated entries from this log site"
       }
     )
+  }
+
+  @Test("rate limit is keyed per (file, line) — different files do not interfere")
+  func rateLimitIsKeyedPerFile() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+
+    Container.shared.fakeContinuousClock().freeze()
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+
+    for _ in 0..<200 { log(handler, message: "site-a", file: "A.swift", line: 1) }
+    for _ in 0..<200 { log(handler, message: "site-b", file: "B.swift", line: 1) }
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.filter { $0.message == "site-a" }.count == 50)
+    #expect(entries.filter { $0.message == "site-b" }.count == 50)
   }
 
   @Test("rate limit is keyed per (file, line) — different lines do not interfere")

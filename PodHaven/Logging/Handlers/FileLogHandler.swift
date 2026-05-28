@@ -75,7 +75,7 @@ struct FileLogHandler: LogHandler {
       let work: @Sendable () -> Void = { [weak self] in
         guard let self else { return }
         if level == .critical {
-          let result = self.writeEntry(makeEntry())
+          let result = self.writeEntry(makeEntry(), chargeRateLimitToken: false)
           Self.emitOSLogOnly(result)
           return
         }
@@ -83,7 +83,7 @@ struct FileLogHandler: LogHandler {
         case .drop:
           return
         case .write:
-          let result = self.writeEntry(makeEntry())
+          let result = self.writeEntry(makeEntry(), chargeRateLimitToken: true)
           Self.emitOSLogOnly(result)
         }
       }
@@ -115,7 +115,6 @@ struct FileLogHandler: LogHandler {
 
       let decision: RateLimitDecision
       if bucket.tokens >= 1 {
-        bucket.tokens -= 1
         decision = .write
       } else {
         bucket.suppressedCount += 1
@@ -123,6 +122,14 @@ struct FileLogHandler: LogHandler {
       }
       rateLimitBuckets[key] = bucket
       return decision
+    }
+
+    private func consumeToken(for key: RateKey) {
+      guard var bucket = rateLimitBuckets[key] else { return }
+      if bucket.tokens >= 1 {
+        bucket.tokens -= 1
+      }
+      rateLimitBuckets[key] = bucket
     }
 
     func flush() {
@@ -141,25 +148,25 @@ struct FileLogHandler: LogHandler {
     }
 
     // Must be called on `queue`.
-    private func writeEntry(_ entry: Entry) -> WriteResult {
-      recordContext(for: entry)
+    private func writeEntry(_ entry: Entry, chargeRateLimitToken: Bool) -> WriteResult {
       let key = RateKey(file: entry.file, line: entry.line)
       let suppressed = pendingSuppressedCount(for: key)
+      let summaryContext =
+        rateLimitBuckets[key]?.lastContext ?? SuppressionContext.from(entry: entry)
       do {
         // The real entry is always appended right after, and appendEntry
         // returns the post-write file size — so the single truncation check
         // below already accounts for this summary line's bytes too.
         if suppressed > 0 {
           try appendEntry(
-            suppressionSummary(
-              context: SuppressionContext.from(entry: entry),
-              suppressed: suppressed
-            )
+            suppressionSummary(context: summaryContext, suppressed: suppressed)
           )
+          clearSuppressedCount(for: key)
         }
         let currentSize = try appendEntry(entry)
-        if suppressed > 0 {
-          clearSuppressedCount(for: key)
+        recordContext(for: entry)
+        if chargeRateLimitToken {
+          consumeToken(for: key)
         }
         guard currentSize > UInt64(maxFileSizeBytes) else { return .ok }
         guard let truncation = try truncateIfNeeded() else { return .ok }
