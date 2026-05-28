@@ -37,7 +37,6 @@ import Testing
       { @MainActor in
         guard let savedSeries = try await self.repo.podcastSeries(feedURL) else { return false }
         return viewModel.saved
-          && viewModel.podcast.subscribed
           && savedSeries.podcast.subscribed
           && savedSeries.episodes.count == unsavedSeries.unsavedEpisodes.count
       },
@@ -49,6 +48,17 @@ import Testing
           subscribed: \(viewModel.podcast.subscribed)
           repo episode count: \(savedSeries?.episodes.count ?? -1)
           """
+      }
+    )
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
+    try await Wait.until(
+      { @MainActor in viewModel.podcast.subscribed },
+      { @MainActor in
+        """
+        Expected observed series to show subscribed after appear.
+        subscribed: \(viewModel.podcast.subscribed)
+        """
       }
     )
 
@@ -78,9 +88,7 @@ import Testing
     try await Wait.until(
       { @MainActor in
         let series = try await self.repo.podcastSeries(savedSeries.id)
-        return viewModel.saved
-          && viewModel.podcast.subscribed
-          && series?.podcast.subscribed == true
+        return viewModel.saved && series?.podcast.subscribed == true
       },
       { @MainActor in
         let series = try await self.repo.podcastSeries(savedSeries.id)
@@ -90,6 +98,17 @@ import Testing
           viewModel.podcast.subscribed: \(viewModel.podcast.subscribed)
           series.podcast.subscribed: \(String(describing: series?.podcast.subscribed))
           """
+      }
+    )
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
+    try await Wait.until(
+      { @MainActor in viewModel.podcast.subscribed },
+      { @MainActor in
+        """
+        Expected observed series to show subscribed after appear.
+        subscribed: \(viewModel.podcast.subscribed)
+        """
       }
     )
   }
@@ -189,6 +208,8 @@ import Testing
       { @MainActor in viewModel.saved },
       { @MainActor in "Expected notify test podcast to be saved before changing settings" }
     )
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     var newSettings = viewModel.settings ?? .defaults
     newSettings.notifyNewEpisodes = true

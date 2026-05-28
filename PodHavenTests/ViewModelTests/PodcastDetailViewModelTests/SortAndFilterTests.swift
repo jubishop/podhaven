@@ -490,6 +490,7 @@ import Testing
       }
     )
 
+    try await PodcastDetailTestHelpers.appear(viewModel)
     viewModel.currentSortMethod = .recommendationScore
 
     try await Wait.until(
@@ -667,6 +668,8 @@ import Testing
       }
     )
 
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
     // No signal corpus means the engine cache stays cold and similarity
     // scoring returns nil for every row; the comparator should still fall
     // back to pubDate-descending so the user sees a stable, non-empty list.
@@ -777,6 +780,7 @@ import Testing
       { @MainActor in "Expected all unsaved episodes to surface before subscribe." }
     )
 
+    try await PodcastDetailTestHelpers.appear(viewModel)
     viewModel.currentSortMethod = .recommendationScore
 
     try await Wait.until(
