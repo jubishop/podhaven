@@ -61,10 +61,15 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 @Suite("of PodcastDetailViewModel lifecycle tests", .container)
 @MainActor final class LifecycleTests {
   @DynamicInjected(\.fakeDataLoader) private var fakeDataLoader
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.repo) private var repo
 
   private var feedSession: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
+
+  private var fakeObservatory: FakeObservatory {
+    observatory as! FakeObservatory
+  }
 
   private func yieldForSpuriousAsyncWork() async throws {
     let yields = ThreadSafe(0)
@@ -108,6 +113,66 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     #expect(viewModel.observationTask == nil)
     #expect(viewModel.appearTask == nil)
     #expect(viewModel.auxiliaryTasks.isEmpty)
+  }
+
+  @Test("many transient inits do not start observation until a single appear")
+  func manyTransientInitsDoNotStartObservationUntilAppear() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/storm-init.rss")!)
+    let imageURL = try #require(URL(string: "https://example.com/storm-artwork.png"))
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    )
+    let imageData = FakeDataLoader.createSolidColor(.purple).pngData()!
+    let initLoadCount = ThreadSafe(0)
+    fakeDataLoader.respond(to: imageURL) { _ in
+      initLoadCount { $0 += 1 }
+      return imageData
+    }
+
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: feedURL,
+          title: "Storm Init",
+          image: imageURL
+        ),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "Storm Episode")]
+      )
+    )
+    let displayedPodcast = DisplayedPodcast(savedSeries.podcast)
+
+    fakeObservatory.clearAllCalls()
+
+    var transientViewModels: [PodcastDetailViewModel] = []
+    transientViewModels.reserveCapacity(8)
+    for _ in 0..<8 {
+      transientViewModels.append(PodcastDetailViewModel(podcast: displayedPodcast))
+    }
+
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(initLoadCount() == 0)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
+
+    let keeper = PodcastDetailViewModel(podcast: displayedPodcast)
+    keeper.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        keeper.observationTask != nil && keeper.episodeList.allEntries.count >= 1
+      },
+      { @MainActor in
+        """
+        Expected the kept model to start observation after appear.
+        observationTask: \(String(describing: keeper.observationTask))
+        entries: \(keeper.episodeList.allEntries.count)
+        """
+      }
+    )
+
+    _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 1)
+    _ = transientViewModels
   }
 
   @Test("init does not request share artwork before performAppear")
@@ -189,6 +254,8 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     )
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
 
+    fakeObservatory.clearAllCalls()
+
     #expect(viewModel.observationTask == nil)
 
     viewModel.appear()
@@ -207,10 +274,10 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
       }
     )
 
-    let firstTask = try #require(viewModel.observationTask)
-    #expect(!firstTask.isCancelled)
+    let entryCountAfterFirstAppear = viewModel.episodeList.allEntries.count
+    _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 1)
 
-    // A second appear must not replace the active observation task.
+    // A second appear must not start another observatory subscription.
     viewModel.appear()
 
     try await Wait.until(
@@ -220,8 +287,9 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
       }
     )
 
-    let secondTask = try #require(viewModel.observationTask)
-    #expect(firstTask == secondTask)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 1)
+    #expect(viewModel.episodeList.allEntries.count == entryCountAfterFirstAppear)
+    #expect(viewModel.observationTask != nil)
   }
 
   @Test("disappear cancels observation after appear")
@@ -258,11 +326,21 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
       }
     )
 
+    let entryCountBeforeDisappear = viewModel.episodeList.allEntries.count
+    let titleBeforeDisappear = viewModel.podcast.title
+
     viewModel.disappear()
 
     #expect(viewModel.observationTask == nil)
     #expect(viewModel.appearTask == nil)
     #expect(viewModel.auxiliaryTasks.isEmpty)
+
+    _ = try await RecommendationHelpers.addEpisodes(to: savedSeries.podcast, count: 1)
+
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(viewModel.episodeList.allEntries.count == entryCountBeforeDisappear)
+    #expect(viewModel.podcast.title == titleBeforeDisappear)
   }
 
   @Test("disappear cancels an in-flight share-artwork load")

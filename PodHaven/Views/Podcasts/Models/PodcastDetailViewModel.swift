@@ -524,6 +524,7 @@ class PodcastDetailViewModel:
       do {
         let image = try await imagePipeline.image(for: imageURL)
         try Task.checkCancellation()
+        guard shareArtworkLoadGeneration == generation else { return }
         guard podcast.image == imageURL else { return }
         shareArtwork = image
         loadedShareArtworkURL = imageURL
@@ -969,7 +970,9 @@ class PodcastDetailViewModel:
     let feedURL = state.feedURL
     let iTunesID = state.iTunesID
     let podcastFeed = try await PodcastFeed.parse(feedURL)
+    try Task.checkCancellation()
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: iTunesID)
+    try Task.checkCancellation()
     transition(
       to: .unsaved(
         unsavedPodcast,

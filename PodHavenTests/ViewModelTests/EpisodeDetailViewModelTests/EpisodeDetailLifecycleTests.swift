@@ -2,13 +2,80 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
 
+enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
+  case listedSaved
+  case unsavedDisplayed
+  case listedUnsaved
+
+  var testDescription: String {
+    switch self {
+    case .listedSaved: return "saved listed episode"
+    case .unsavedDisplayed: return "unsaved displayed episode"
+    case .listedUnsaved: return "unsaved listed episode"
+    }
+  }
+
+  @MainActor
+  func makeViewModel(
+    repo: any Databasing,
+    observatory: any Observing
+  ) async throws -> EpisodeDetailViewModel {
+    switch self {
+    case .listedSaved:
+      let podcastEpisode = try await Create.podcastEpisode(
+        UnsavedPodcastEpisode(
+          unsavedPodcast: try Create.unsavedPodcast(title: "Listed Episode Init"),
+          unsavedEpisode: try Create.unsavedEpisode(
+            guid: "listed-episode-init",
+            title: "Listed Episode Init"
+          )
+        )
+      )
+      let listableEpisodes =
+        try await observatory.listablePodcastEpisodes(
+          filter: Episode.Columns.id == podcastEpisode.id
+        )
+        .get()
+      let listedEpisode = try #require(listableEpisodes.first)
+      return EpisodeDetailViewModel(listedEpisode: ListedEpisode(listedEpisode))
+    case .unsavedDisplayed:
+      return EpisodeDetailViewModel(
+        episode: DisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved Episode Init"),
+            unsavedEpisode: try Create.unsavedEpisode(
+              guid: "unsaved-episode-init",
+              title: "Unsaved Episode Init"
+            )
+          )
+        )
+      )
+    case .listedUnsaved:
+      let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Listed Unsaved Init"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "listed-unsaved-init",
+          title: "Listed Unsaved Init"
+        )
+      )
+      return EpisodeDetailViewModel(listedEpisode: ListedEpisode(unsavedPodcastEpisode))
+    }
+  }
+}
+
 @Suite("of EpisodeDetailViewModel lifecycle tests", .container)
 @MainActor final class EpisodeDetailLifecycleTests {
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
+
+  private var fakeObservatory: FakeObservatory {
+    observatory as! FakeObservatory
+  }
 
   private func yieldForSpuriousAsyncWork() async throws {
     let yields = ThreadSafe(0)
@@ -40,6 +107,20 @@ import Testing
     #expect(viewModel.auxiliaryTasks.isEmpty)
   }
 
+  @Test(
+    "init for a non-saved seed does not start an observation task",
+    arguments: EpisodeNonSavedSeed.allCases
+  )
+  func initForNonSavedSeedDoesNotStartObservation(seed: EpisodeNonSavedSeed) async throws {
+    let viewModel = try await seed.makeViewModel(repo: repo, observatory: observatory)
+
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(viewModel.observationTask == nil)
+    #expect(viewModel.appearTask == nil)
+    #expect(viewModel.auxiliaryTasks.isEmpty)
+  }
+
   @Test("appear starts observation for a saved displayed episode")
   func appearStartsObservationForSavedDisplayedEpisode() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
@@ -53,6 +134,8 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
+    fakeObservatory.clearAllCalls()
+
     #expect(viewModel.observationTask == nil)
 
     viewModel.appear()
@@ -64,8 +147,7 @@ import Testing
       }
     )
 
-    let firstTask = try #require(viewModel.observationTask)
-    #expect(!firstTask.isCancelled)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 1)
 
     viewModel.appear()
 
@@ -76,8 +158,8 @@ import Testing
       }
     )
 
-    let secondTask = try #require(viewModel.observationTask)
-    #expect(firstTask == secondTask)
+    _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 1)
+    #expect(viewModel.observationTask != nil)
   }
 
   @Test("disappear cancels observation after appear")
@@ -92,6 +174,7 @@ import Testing
       )
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    let tag = try await repo.insertTag(UnsavedTag(name: "After Disappear"))
 
     viewModel.appear()
 
@@ -107,5 +190,11 @@ import Testing
     #expect(viewModel.observationTask == nil)
     #expect(viewModel.appearTask == nil)
     #expect(viewModel.auxiliaryTasks.isEmpty)
+
+    try await repo.addTag(tag.id, to: podcastEpisode.id)
+
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(viewModel.tags.isEmpty)
   }
 }
