@@ -322,7 +322,9 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   // MARK: - Observation Management
 
+  @ObservationIgnored var appearTask: Task<Void, Never>?
   @ObservationIgnored var observationTask: Task<Void, Never>?
+  @ObservationIgnored var auxiliaryTasks: [Task<Void, Never>] = []
 
   private func startObservation(_ podcastEpisode: PodcastEpisode) {
     if let observationTask, !observationTask.isCancelled {
@@ -534,7 +536,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   func disappear() {
     Self.log.debug("disappear: executing")
-    clearObservationTask()
+    cancelAppearScopedAsyncWork()
     recommendationCoordinator.cancel()
   }
 

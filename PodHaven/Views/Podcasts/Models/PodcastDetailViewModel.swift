@@ -475,7 +475,8 @@ class PodcastDetailViewModel:
 
   var shareURL: URL? { ShareURL.podcast(feedURL: podcast.feedURL) }
   private var shareArtwork: UIImage?
-  @ObservationIgnored private var shareArtworkTask: Task<Void, Never>?
+  @ObservationIgnored private var loadedShareArtworkURL: URL?
+  @ObservationIgnored private var shareArtworkLoadInFlight = false
 
   var sharePreview: SharePreview<Image, Image> {
     let image = sharePreviewImage
@@ -487,24 +488,37 @@ class PodcastDetailViewModel:
     return Image(uiImage: shareArtwork)
   }
 
-  private func loadShareArtworkIfNeeded() {
-    guard shareArtwork == nil, shareArtworkTask == nil else { return }
+  private func invalidateShareArtworkIfImageURLChanged() {
     let imageURL = podcast.image
-    shareArtworkTask = Task { [weak self] in
-      guard let self else { return }
-      defer { shareArtworkTask = nil }
-      do {
-        let image = try await imagePipeline.image(for: imageURL)
-        try Task.checkCancellation()
-        shareArtwork = image
-      } catch {
-        Self.log.caughtError(
-          "loadShareArtworkIfNeeded: failed to load share artwork for \(imageURL)",
-          error,
-          level: { _ in .info }
-        )
+    guard loadedShareArtworkURL != imageURL else { return }
+    shareArtwork = nil
+    loadedShareArtworkURL = nil
+  }
+
+  private func loadShareArtworkIfNeeded() {
+    let imageURL = podcast.image
+    if shareArtwork != nil, loadedShareArtworkURL == imageURL { return }
+    invalidateShareArtworkIfImageURLChanged()
+    guard !shareArtworkLoadInFlight else { return }
+    shareArtworkLoadInFlight = true
+    track(
+      Task { [weak self] in
+        guard let self else { return }
+        defer { shareArtworkLoadInFlight = false }
+        do {
+          let image = try await imagePipeline.image(for: imageURL)
+          try Task.checkCancellation()
+          shareArtwork = image
+          loadedShareArtworkURL = imageURL
+        } catch {
+          Self.log.caughtError(
+            "loadShareArtworkIfNeeded: failed to load share artwork for \(imageURL)",
+            error,
+            level: { _ in .info }
+          )
+        }
       }
-    }
+    )
   }
 
   // MARK: - Initialization
@@ -563,8 +577,10 @@ class PodcastDetailViewModel:
       startRecommendationObservation()
     }
 
+    try Task.checkCancellation()
     if try await attemptObservation() { return }
 
+    try Task.checkCancellation()
     Self.log.debug("\(state.toString) does not exist in db")
 
     guard episodeList.allEntries.isEmpty else {
@@ -573,6 +589,7 @@ class PodcastDetailViewModel:
     }
 
     try await loadPresentationFromFeed()
+    try Task.checkCancellation()
 
     Self.log.debug("Attempting observation again in case FeedURL got updated by parsing the feed")
     try await attemptObservation()
@@ -684,7 +701,9 @@ class PodcastDetailViewModel:
 
   // MARK: - Observation Management
 
+  @ObservationIgnored var appearTask: Task<Void, Never>?
   @ObservationIgnored var observationTask: Task<Void, Never>?
+  @ObservationIgnored var auxiliaryTasks: [Task<Void, Never>] = []
 
   @ObservationIgnored private var transitionSamples: [ContinuousClock.Instant] = []
 
@@ -706,10 +725,12 @@ class PodcastDetailViewModel:
 
     transition(to: .saved(savedSeries))
 
-    Task { [weak self] in
-      guard let self else { return }
-      await refreshSeries()
-    }
+    track(
+      Task { [weak self] in
+        guard let self else { return }
+        await refreshSeries()
+      }
+    )
 
     return true
   }
@@ -824,7 +845,8 @@ class PodcastDetailViewModel:
 
   func disappear() {
     Self.log.debug("disappear: executing, \(diagnosticSummary)")
-    clearObservationTask()
+    shareArtworkLoadInFlight = false
+    cancelAppearScopedAsyncWork()
     recommendationCoordinator.cancel()
   }
 
@@ -868,6 +890,8 @@ class PodcastDetailViewModel:
     logStateTransition(to: newState)
     state = newState
     refreshEpisodeList(from: newState)
+    invalidateShareArtworkIfImageURLChanged()
+    loadShareArtworkIfNeeded()
     startObservation(newState.savedSeries?.id, caller: caller)
     recommendationCoordinator.refresh()
   }

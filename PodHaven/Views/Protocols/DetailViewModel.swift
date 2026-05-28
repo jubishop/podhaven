@@ -3,20 +3,14 @@
 import FactoryKit
 import Logging
 
-// Shared lifecycle + error-handling surface for podcast/episode detail
-// view models. `runTask` wraps a user-action body in the canonical
-// log-then-alert-when-remarkable shape used at every detail callsite, so
-// conformers only write the work itself. `appear()` is provided as a
-// default that simply funnels `performAppear()` through `runTask`.
-// `clearObservationTask()` and `logStateTransition(to:)` give both VMs a
-// shared observation-task and state-transition surface so each VM only
-// keeps the parts that genuinely differ (e.g. the podcast side's
-// `refreshEpisodeList` hook in its own `transition(to:)`).
+// Shared lifecycle + error-handling for podcast/episode detail view models.
 @MainActor protocol DetailViewModel: AnyObject {
   associatedtype State: Sendable & Stringable
 
   var state: State { get }
+  var appearTask: Task<Void, Never>? { get set }
   var observationTask: Task<Void, Never>? { get set }
+  var auxiliaryTasks: [Task<Void, Never>] { get set }
 
   func performAppear() async throws
 }
@@ -29,8 +23,21 @@ extension DetailViewModel {
   }
 
   func appear() {
-    runTask("appear") {
-      try await self.performAppear()
+    appearTask?.cancel()
+    appearTask = Task { [weak self] in
+      guard let self else { return }
+      defer {
+        if !Task.isCancelled {
+          appearTask = nil
+        }
+      }
+      do {
+        try await performAppear()
+      } catch {
+        Self.log.caughtError("appear: failed", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
     }
   }
 
@@ -50,9 +57,17 @@ extension DetailViewModel {
     }
   }
 
-  func clearObservationTask() {
+  func cancelAppearScopedAsyncWork() {
+    appearTask?.cancel()
+    appearTask = nil
     observationTask?.cancel()
     observationTask = nil
+    for task in auxiliaryTasks { task.cancel() }
+    auxiliaryTasks.removeAll()
+  }
+
+  func track(_ task: Task<Void, Never>) {
+    auxiliaryTasks.append(task)
   }
 
   func logStateTransition(to newState: State) {
