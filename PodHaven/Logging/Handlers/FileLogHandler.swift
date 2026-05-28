@@ -138,17 +138,19 @@ struct FileLogHandler: LogHandler {
 
     // Emitted synchronously on the originating log call path so the warning
     // is observable (and forwarded to Sentry) before flush() returns on a
-    // background transition. Safe to call from any thread — Self.log routes
-    // through swift-log's multiplex, including back into FileLogHandler at
-    // a distinct file:line bucket whose 60s cooldown bounds the re-entry.
+    // background transition. Re-enters FileLogHandler via Self.log; the
+    // task-local bypass skips rate limiting so the warning is never dropped
+    // at a shared emitter bucket.
     static func reportStormWarning(for entry: Entry, suppressed: Int, callStack: [String]) {
-      log.warning(
-        """
-        FileLogHandler storm: \(entry.file):\(entry.line) in \(entry.function) — \
-        suppressed \(suppressed) entries since last emit. Stack:
-        \(callStack.joined(separator: "\n"))
-        """
-      )
+      FileLogHandler.$bypassRateLimitForStormEmit.withValue(true) {
+        log.warning(
+          """
+          FileLogHandler storm: \(entry.file):\(entry.line) in \(entry.function) — \
+          suppressed \(suppressed) entries since last emit. Stack:
+          \(callStack.joined(separator: "\n"))
+          """
+        )
+      }
     }
 
     @discardableResult
@@ -267,6 +269,9 @@ struct FileLogHandler: LogHandler {
       // nil sentinel = never warned; first threshold crossing always passes
       // the cooldown gate.
       var lastWarning: ContinuousClock.Instant?
+      // Set under the mutex when a storm warning is reserved; cleared after
+      // emit succeeds or the releasing file write fails.
+      var warningInFlight: Bool
     }
 
     fileprivate enum RateLimitDecision {
@@ -322,7 +327,8 @@ struct FileLogHandler: LogHandler {
             tokens: Self.rateLimitBurst,
             lastRefill: now,
             suppressedCount: 0,
-            lastWarning: nil
+            lastWarning: nil,
+            warningInFlight: false
           )
         let elapsed = now - bucket.lastRefill
         let elapsedSeconds = max(
@@ -346,7 +352,12 @@ struct FileLogHandler: LogHandler {
           } else {
             cooledDown = true
           }
-          let shouldWarn = suppressed >= Self.rateLimitWarningThreshold && cooledDown
+          let shouldWarn =
+            suppressed >= Self.rateLimitWarningThreshold && cooledDown
+            && !bucket.warningInFlight
+          if shouldWarn {
+            bucket.warningInFlight = true
+          }
           pending = .write(suppressed: suppressed, shouldCaptureCallStack: shouldWarn)
         } else {
           bucket.suppressedCount += 1
@@ -372,6 +383,16 @@ struct FileLogHandler: LogHandler {
       rateLimitBuckets { buckets in
         guard var bucket = buckets[key] else { return }
         bucket.lastWarning = now
+        bucket.warningInFlight = false
+        buckets[key] = bucket
+      }
+    }
+
+    func clearStormWarningInFlight(for file: String, line: UInt) {
+      let key = RateKey(file: file, line: line)
+      rateLimitBuckets { buckets in
+        guard var bucket = buckets[key] else { return }
+        bucket.warningInFlight = false
         buckets[key] = bucket
       }
     }
@@ -424,6 +445,7 @@ struct FileLogHandler: LogHandler {
 
   // One handler is built per logger label; all must share one Writer per file.
   private static let writers = ThreadSafe<[URL: Writer]>([:])
+  @TaskLocal private static var bypassRateLimitForStormEmit = false
   @DynamicInjected(\.continuousClockNow) private var continuousClockNow
 
   private let fileURL: URL
@@ -462,11 +484,20 @@ struct FileLogHandler: LogHandler {
   // MARK: - Logging
 
   public func log(event: LogEvent) {
+    if Self.bypassRateLimitForStormEmit {
+      processRateLimitedWrite(
+        event: event,
+        suppressed: 0,
+        callStack: nil,
+        synchronously: writeSynchronously(event.level)
+      )
+      return
+    }
     let decision = writer.commitRateLimitDecision(
       for: event.file,
       line: event.line,
       now: continuousClockNow(),
-      captureCallStack: Self.boundedCallStack()
+      captureCallStack: Array(Thread.callStackSymbols.dropFirst(2).prefix(24))
     )
     guard case .write(let suppressed, let callStack) = decision else { return }
     let synchronously = writeSynchronously(event.level)
@@ -494,13 +525,17 @@ struct FileLogHandler: LogHandler {
       suppressed: suppressed,
       synchronously: synchronously || stormEligible
     )
-    if let callStack, writeSucceeded {
-      Writer.reportStormWarning(for: entry, suppressed: suppressed, callStack: callStack)
-      writer.noteStormWarningEmitted(
-        for: entry.file,
-        line: entry.line,
-        at: continuousClockNow()
-      )
+    if let callStack {
+      if writeSucceeded {
+        Writer.reportStormWarning(for: entry, suppressed: suppressed, callStack: callStack)
+        writer.noteStormWarningEmitted(
+          for: entry.file,
+          line: entry.line,
+          at: continuousClockNow()
+        )
+      } else {
+        writer.clearStormWarningInFlight(for: entry.file, line: entry.line)
+      }
     }
   }
 
@@ -532,10 +567,6 @@ struct FileLogHandler: LogHandler {
     )
   }
 
-  private static func boundedCallStack() -> [String] {
-    Array(Thread.callStackSymbols.dropFirst(2).prefix(24))
-  }
-
   // MARK: - Flush
 
   static func flush(fileURL: URL) {
@@ -544,12 +575,5 @@ struct FileLogHandler: LogHandler {
 
   static func flush() {
     flush(fileURL: AppInfo.logFileURL)
-  }
-
-  static func removeWriter(for fileURL: URL) {
-    writers { writers in
-      guard let writer = writers.removeValue(forKey: fileURL) else { return }
-      writer.flush()
-    }
   }
 }

@@ -45,7 +45,6 @@ struct FileLogHandlerTests {
   }
 
   private func tearDownLogFile(_ fileURL: URL) {
-    FileLogHandler.removeWriter(for: fileURL)
     try? FileManager.default.removeItem(at: fileURL)
   }
 
@@ -90,12 +89,11 @@ struct FileLogHandlerTests {
       }
   }
 
-  // Filters captured warnings down to ones produced by a specific storming
-  // call site, identified by the unique `line` value the test used. This is
-  // how concurrent tests pick their own warnings out of the process-wide
-  // capture buffer without having to clear it.
-  private func stormWarnings(forStormingLine line: UInt) -> [LogCapture.Captured] {
-    LogCapture.captured()
+  private func stormWarnings(
+    in sink: LogCapture.Sink,
+    forStormingLine line: UInt
+  ) -> [LogCapture.Captured] {
+    sink.captured()
       .filter { captured in
         captured.label == "PodHaven/FileLogWriter"
           && captured.level == .warning
@@ -235,183 +233,185 @@ struct FileLogHandlerTests {
 
   @Test("storm-warning trigger engages after enough drops and a clock advance")
   func stormWarningTriggerEngagesAfterDropsAndClockAdvance() throws {
-    let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
+    try LogCapture.withSink { sink in
+      let fileURL = tempFileURL()
+      defer { tearDownLogFile(fileURL) }
 
-    let handler = makeHandler(
-      fileURL: fileURL,
-      maxFileSizeBytes: 10_000_000,
-      targetFileSizeBytes: 5_000_000
-    )
-    let storming: UInt = 10_001
-    Container.shared.fakeContinuousClock().freeze()
+      let handler = makeHandler(
+        fileURL: fileURL,
+        maxFileSizeBytes: 10_000_000,
+        targetFileSizeBytes: 5_000_000
+      )
+      let storming: UInt = 10_001
+      Container.shared.fakeContinuousClock().freeze()
 
-    // Burn the burst (50) + 250 drops at one site. With the fake clock
-    // frozen, no token refills, so all 250 are suppressed.
-    for _ in 0..<300 {
-      log(handler, message: "storm", line: storming)
+      for _ in 0..<300 {
+        log(handler, message: "storm", line: storming)
+      }
+
+      Container.shared.fakeContinuousClock().advance(by: .seconds(2))
+      log(handler, message: "released", line: storming)
+
+      let summaries = try suppressionSummaries(at: fileURL)
+      #expect(summaries.contains(250))
+      #expect(stormWarnings(in: sink, forStormingLine: storming).count == 1)
     }
-
-    // Advance past one token's worth of refill. The next emit succeeds
-    // and should be preceded by a suppression-summary line in the file.
-    Container.shared.fakeContinuousClock().advance(by: .seconds(2))
-    log(handler, message: "released", line: storming)
-
-    let summaries = try suppressionSummaries(at: fileURL)
-    #expect(summaries.contains(250))
   }
 
   @Test("storm warning is not emitted below rate-limit warning threshold")
   func stormWarningNotBelowThreshold() throws {
-    let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
+    try LogCapture.withSink { sink in
+      let fileURL = tempFileURL()
+      defer { tearDownLogFile(fileURL) }
 
-    let handler = makeHandler(
-      fileURL: fileURL,
-      maxFileSizeBytes: 10_000_000,
-      targetFileSizeBytes: 5_000_000
-    )
-    let storming: UInt = 10_009
-    let clock = Container.shared.fakeContinuousClock()
-    clock.freeze()
+      let handler = makeHandler(
+        fileURL: fileURL,
+        maxFileSizeBytes: 10_000_000,
+        targetFileSizeBytes: 5_000_000
+      )
+      let storming: UInt = 10_009
+      let clock = Container.shared.fakeContinuousClock()
+      clock.freeze()
 
-    // Burn the burst (50) + 24 drops; 24 is below the warning threshold.
-    for _ in 0..<74 {
+      for _ in 0..<74 {
+        log(handler, message: "storm", line: storming)
+      }
+      clock.advance(by: .seconds(2))
+      log(handler, message: "released-under", line: storming)
+
+      #expect(stormWarnings(in: sink, forStormingLine: storming).isEmpty)
+
       log(handler, message: "storm", line: storming)
+      for _ in 0..<25 {
+        log(handler, message: "storm", line: storming)
+      }
+      clock.advance(by: .seconds(2))
+      log(handler, message: "released-over", line: storming)
+
+      #expect(stormWarnings(in: sink, forStormingLine: storming).count == 1)
     }
-    clock.advance(by: .seconds(2))
-    log(handler, message: "released-under", line: storming)
-
-    #expect(stormWarnings(forStormingLine: storming).isEmpty)
-
-    // Spend the leftover token, then drop 25 — threshold crossed.
-    log(handler, message: "storm", line: storming)
-    for _ in 0..<25 {
-      log(handler, message: "storm", line: storming)
-    }
-    clock.advance(by: .seconds(2))
-    log(handler, message: "released-over", line: storming)
-
-    #expect(stormWarnings(forStormingLine: storming).count == 1)
   }
 
   @Test("storm warning is emitted via Self.log.warning with the originating site")
   func stormWarningEmittedWithOriginatingSite() throws {
-    let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
+    try LogCapture.withSink { sink in
+      let fileURL = tempFileURL()
+      defer { tearDownLogFile(fileURL) }
 
-    let handler = makeHandler(
-      fileURL: fileURL,
-      maxFileSizeBytes: 10_000_000,
-      targetFileSizeBytes: 5_000_000
-    )
-    let storming: UInt = 10_002
-    Container.shared.fakeContinuousClock().freeze()
+      let handler = makeHandler(
+        fileURL: fileURL,
+        maxFileSizeBytes: 10_000_000,
+        targetFileSizeBytes: 5_000_000
+      )
+      let storming: UInt = 10_002
+      Container.shared.fakeContinuousClock().freeze()
 
-    for _ in 0..<300 {
-      log(handler, message: "storm", line: storming)
+      for _ in 0..<300 {
+        log(handler, message: "storm", line: storming)
+      }
+      Container.shared.fakeContinuousClock().advance(by: .seconds(2))
+      log(handler, message: "released", line: storming)
+
+      let warnings = stormWarnings(in: sink, forStormingLine: storming)
+      #expect(warnings.count == 1)
+      let warning = try #require(warnings.first)
+      #expect(warning.label == "PodHaven/FileLogWriter")
+      #expect(warning.level == .warning)
+      #expect(warning.message.contains("FileLogHandler storm:"))
+      #expect(warning.message.contains("FileLogHandlerTests.swift:\(storming) in test()"))
+      #expect(warning.message.contains("suppressed 250"))
     }
-    Container.shared.fakeContinuousClock().advance(by: .seconds(2))
-    log(handler, message: "released", line: storming)
-
-    let warnings = stormWarnings(forStormingLine: storming)
-    #expect(warnings.count == 1)
-    let warning = try #require(warnings.first)
-    #expect(warning.label == "PodHaven/FileLogWriter")
-    #expect(warning.level == .warning)
-    #expect(warning.message.contains("FileLogHandler storm:"))
-    #expect(warning.message.contains("FileLogHandlerTests.swift:\(storming) in test()"))
-    #expect(warning.message.contains("suppressed 250"))
   }
 
   @Test("storm warning carries a captured call stack from the originating thread")
   func stormWarningCarriesCallStack() throws {
-    let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
+    try LogCapture.withSink { sink in
+      let fileURL = tempFileURL()
+      defer { tearDownLogFile(fileURL) }
 
-    let handler = makeHandler(
-      fileURL: fileURL,
-      maxFileSizeBytes: 10_000_000,
-      targetFileSizeBytes: 5_000_000
-    )
-    let storming: UInt = 10_003
-    Container.shared.fakeContinuousClock().freeze()
+      let handler = makeHandler(
+        fileURL: fileURL,
+        maxFileSizeBytes: 10_000_000,
+        targetFileSizeBytes: 5_000_000
+      )
+      let storming: UInt = 10_003
+      Container.shared.fakeContinuousClock().freeze()
 
-    for _ in 0..<300 {
-      log(handler, message: "storm", line: storming)
+      for _ in 0..<300 {
+        log(handler, message: "storm", line: storming)
+      }
+      Container.shared.fakeContinuousClock().advance(by: .seconds(2))
+      log(handler, message: "released", line: storming)
+
+      let warning = try #require(stormWarnings(in: sink, forStormingLine: storming).first)
+      let parts = warning.message.components(separatedBy: "Stack:\n")
+      #expect(parts.count == 2)
+      let stack = try #require(parts.last)
+      let stackLines = stack.split(separator: "\n", omittingEmptySubsequences: true)
+      #expect(stackLines.count >= 2)
+      #expect(stack.contains("stormWarningCarriesCallStack"))
     }
-    Container.shared.fakeContinuousClock().advance(by: .seconds(2))
-    log(handler, message: "released", line: storming)
-
-    let warning = try #require(stormWarnings(forStormingLine: storming).first)
-    // Split off the captured stack section so the prefix's "FileLogHandler
-    // storm:" can't satisfy the production-frame assertion below.
-    let parts = warning.message.components(separatedBy: "Stack:\n")
-    #expect(parts.count == 2)
-    let stack = try #require(parts.last)
-    let stackLines = stack.split(separator: "\n", omittingEmptySubsequences: true)
-    #expect(stackLines.count >= 2)
-    #expect(stack.contains("stormWarningCarriesCallStack"))
   }
 
   @Test("per-bucket cooldown blocks a second warning within 60 seconds at the same site")
   func cooldownBlocksSecondWarningAtSameSite() throws {
-    let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
+    try LogCapture.withSink { sink in
+      let fileURL = tempFileURL()
+      defer { tearDownLogFile(fileURL) }
 
-    let handler = makeHandler(
-      fileURL: fileURL,
-      maxFileSizeBytes: 10_000_000,
-      targetFileSizeBytes: 5_000_000
-    )
-    let storming: UInt = 10_004
-    let clock = Container.shared.fakeContinuousClock()
-    clock.freeze()
+      let handler = makeHandler(
+        fileURL: fileURL,
+        maxFileSizeBytes: 10_000_000,
+        targetFileSizeBytes: 5_000_000
+      )
+      let storming: UInt = 10_004
+      let clock = Container.shared.fakeContinuousClock()
+      clock.freeze()
 
-    for _ in 0..<300 { log(handler, message: "storm", line: storming) }
-    clock.advance(by: .seconds(2))
-    log(handler, message: "released-1", line: storming)
+      for _ in 0..<300 { log(handler, message: "storm", line: storming) }
+      clock.advance(by: .seconds(2))
+      log(handler, message: "released-1", line: storming)
 
-    // Storm again 30s later — token refilled, threshold met, but cooldown
-    // (60s) blocks the second warning.
-    for _ in 0..<300 { log(handler, message: "storm", line: storming) }
-    clock.advance(by: .seconds(30))
-    log(handler, message: "released-2", line: storming)
+      for _ in 0..<300 { log(handler, message: "storm", line: storming) }
+      clock.advance(by: .seconds(30))
+      log(handler, message: "released-2", line: storming)
 
-    #expect(stormWarnings(forStormingLine: storming).count == 1)
+      #expect(stormWarnings(in: sink, forStormingLine: storming).count == 1)
 
-    // Past the 60s cooldown the next storm releases another warning.
-    for _ in 0..<300 { log(handler, message: "storm", line: storming) }
-    clock.advance(by: .seconds(60))
-    log(handler, message: "released-3", line: storming)
+      for _ in 0..<300 { log(handler, message: "storm", line: storming) }
+      clock.advance(by: .seconds(60))
+      log(handler, message: "released-3", line: storming)
 
-    #expect(stormWarnings(forStormingLine: storming).count == 2)
+      #expect(stormWarnings(in: sink, forStormingLine: storming).count == 2)
+    }
   }
 
   @Test("cooldown is per-bucket — a second site warns independently")
   func cooldownIsPerBucket() throws {
-    let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
+    try LogCapture.withSink { sink in
+      let fileURL = tempFileURL()
+      defer { tearDownLogFile(fileURL) }
 
-    let handler = makeHandler(
-      fileURL: fileURL,
-      maxFileSizeBytes: 10_000_000,
-      targetFileSizeBytes: 5_000_000
-    )
-    let siteA: UInt = 10_005
-    let siteB: UInt = 10_006
-    let clock = Container.shared.fakeContinuousClock()
-    clock.freeze()
+      let handler = makeHandler(
+        fileURL: fileURL,
+        maxFileSizeBytes: 10_000_000,
+        targetFileSizeBytes: 5_000_000
+      )
+      let siteA: UInt = 10_005
+      let siteB: UInt = 10_006
+      let clock = Container.shared.fakeContinuousClock()
+      clock.freeze()
 
-    for _ in 0..<300 { log(handler, message: "site-a", line: siteA) }
-    for _ in 0..<300 { log(handler, message: "site-b", line: siteB) }
-    clock.advance(by: .seconds(2))
+      for _ in 0..<300 { log(handler, message: "site-a", line: siteA) }
+      for _ in 0..<300 { log(handler, message: "site-b", line: siteB) }
+      clock.advance(by: .seconds(2))
 
-    log(handler, message: "released-a", line: siteA)
-    log(handler, message: "released-b", line: siteB)
+      log(handler, message: "released-a", line: siteA)
+      log(handler, message: "released-b", line: siteB)
 
-    #expect(stormWarnings(forStormingLine: siteA).count == 1)
-    #expect(stormWarnings(forStormingLine: siteB).count == 1)
+      #expect(stormWarnings(in: sink, forStormingLine: siteA).count == 1)
+      #expect(stormWarnings(in: sink, forStormingLine: siteB).count == 1)
+    }
   }
 
   @Test("asynchronous writes reach the file once flushed")
@@ -443,51 +443,103 @@ struct FileLogHandlerTests {
 
   @Test("storm warning is not emitted when synchronous write fails")
   func stormWarningNotEmittedWhenWriteFails() throws {
-    let fileURL = tempFileURL()
-    defer {
-      try? FileManager.default.setAttributes(
+    try LogCapture.withSink { sink in
+      let fileURL = tempFileURL()
+      defer {
+        try? FileManager.default.setAttributes(
+          [.posixPermissions: 0o644],
+          ofItemAtPath: fileURL.path
+        )
+        tearDownLogFile(fileURL)
+      }
+
+      let handler = makeHandler(
+        fileURL: fileURL,
+        maxFileSizeBytes: 10_000_000,
+        targetFileSizeBytes: 5_000_000
+      )
+      let storming: UInt = 10_008
+      let clock = Container.shared.fakeContinuousClock()
+      clock.freeze()
+
+      log(handler, message: "seed", line: 1)
+      handler.flush()
+      try FileManager.default.setAttributes(
+        [.posixPermissions: 0o444],
+        ofItemAtPath: fileURL.path
+      )
+
+      for _ in 0..<300 {
+        log(handler, message: "storm", line: storming)
+      }
+      clock.advance(by: .seconds(2))
+      log(handler, message: "released", line: storming)
+
+      #expect(stormWarnings(in: sink, forStormingLine: storming).isEmpty)
+
+      try FileManager.default.setAttributes(
         [.posixPermissions: 0o644],
         ofItemAtPath: fileURL.path
       )
-      tearDownLogFile(fileURL)
+      for _ in 0..<300 {
+        log(handler, message: "storm", line: storming)
+      }
+      clock.advance(by: .seconds(2))
+      log(handler, message: "released-again", line: storming)
+
+      #expect(stormWarnings(in: sink, forStormingLine: storming).count == 1)
     }
+  }
 
-    let handler = makeHandler(
-      fileURL: fileURL,
-      maxFileSizeBytes: 10_000_000,
-      targetFileSizeBytes: 5_000_000
-    )
-    let storming: UInt = 10_008
-    let clock = Container.shared.fakeContinuousClock()
-    clock.freeze()
+  @Test("storm warning is not emitted when async handler's storm write fails")
+  func stormWarningNotEmittedWhenAsyncStormWriteFails() throws {
+    try LogCapture.withSink { sink in
+      let fileURL = tempFileURL()
+      defer {
+        try? FileManager.default.setAttributes(
+          [.posixPermissions: 0o644],
+          ofItemAtPath: fileURL.path
+        )
+        tearDownLogFile(fileURL)
+      }
 
-    log(handler, message: "seed", line: 1)
-    handler.flush()
-    try FileManager.default.setAttributes(
-      [.posixPermissions: 0o444],
-      ofItemAtPath: fileURL.path
-    )
+      let handler = makeHandler(
+        fileURL: fileURL,
+        maxFileSizeBytes: 10_000_000,
+        targetFileSizeBytes: 5_000_000,
+        synchronous: false
+      )
+      let storming: UInt = 10_010
+      let clock = Container.shared.fakeContinuousClock()
+      clock.freeze()
 
-    for _ in 0..<300 {
-      log(handler, message: "storm", line: storming)
+      log(handler, message: "seed", line: 1)
+      handler.flush()
+      try FileManager.default.setAttributes(
+        [.posixPermissions: 0o444],
+        ofItemAtPath: fileURL.path
+      )
+
+      for _ in 0..<300 {
+        log(handler, message: "storm", line: storming)
+      }
+      clock.advance(by: .seconds(2))
+      log(handler, message: "released", line: storming)
+
+      #expect(stormWarnings(in: sink, forStormingLine: storming).isEmpty)
+
+      try FileManager.default.setAttributes(
+        [.posixPermissions: 0o644],
+        ofItemAtPath: fileURL.path
+      )
+      for _ in 0..<300 {
+        log(handler, message: "storm", line: storming)
+      }
+      clock.advance(by: .seconds(2))
+      log(handler, message: "released-again", line: storming)
+
+      #expect(stormWarnings(in: sink, forStormingLine: storming).count == 1)
     }
-    clock.advance(by: .seconds(2))
-    log(handler, message: "released", line: storming)
-
-    #expect(stormWarnings(forStormingLine: storming).isEmpty)
-
-    // Cooldown was not committed — a second storm cycle can still warn.
-    try FileManager.default.setAttributes(
-      [.posixPermissions: 0o644],
-      ofItemAtPath: fileURL.path
-    )
-    for _ in 0..<300 {
-      log(handler, message: "storm", line: storming)
-    }
-    clock.advance(by: .seconds(2))
-    log(handler, message: "released-again", line: storming)
-
-    #expect(stormWarnings(forStormingLine: storming).count == 1)
   }
 
   // Regression: storm warnings must be emitted synchronously on the log call
@@ -498,32 +550,32 @@ struct FileLogHandlerTests {
   // suspends the app.
   @Test("storm warning is emitted synchronously on the log path with async writes")
   func stormWarningEmittedSynchronouslyOnLogPathWithAsyncWrites() throws {
-    let fileURL = tempFileURL()
-    defer { tearDownLogFile(fileURL) }
+    try LogCapture.withSink { sink in
+      let fileURL = tempFileURL()
+      defer { tearDownLogFile(fileURL) }
 
-    let handler = makeHandler(
-      fileURL: fileURL,
-      maxFileSizeBytes: 10_000_000,
-      targetFileSizeBytes: 5_000_000,
-      synchronous: false
-    )
-    let storming: UInt = 10_007
-    Container.shared.fakeContinuousClock().freeze()
+      let handler = makeHandler(
+        fileURL: fileURL,
+        maxFileSizeBytes: 10_000_000,
+        targetFileSizeBytes: 5_000_000,
+        synchronous: false
+      )
+      let storming: UInt = 10_007
+      Container.shared.fakeContinuousClock().freeze()
 
-    for _ in 0..<300 {
-      log(handler, message: "storm", line: storming)
+      for _ in 0..<300 {
+        log(handler, message: "storm", line: storming)
+      }
+      Container.shared.fakeContinuousClock().advance(by: .seconds(2))
+      log(handler, message: "released", line: storming)
+
+      #expect(stormWarnings(in: sink, forStormingLine: storming).count == 1)
+
+      handler.flush()
+      #expect(stormWarnings(in: sink, forStormingLine: storming).count == 1)
+      let summaries = try suppressionSummaries(at: fileURL)
+      #expect(summaries.contains(250))
     }
-    Container.shared.fakeContinuousClock().advance(by: .seconds(2))
-    log(handler, message: "released", line: storming)
-
-    // By the time the release log call returns, the storm warning must already
-    // be in the capture buffer (not deferred behind the writer queue).
-    #expect(stormWarnings(forStormingLine: storming).count == 1)
-
-    handler.flush()
-    #expect(stormWarnings(forStormingLine: storming).count == 1)
-    let summaries = try suppressionSummaries(at: fileURL)
-    #expect(summaries.contains(250))
   }
 
   @Test("async truncation completes after scoped flush without blocking")
@@ -556,5 +608,9 @@ struct FileLogHandlerTests {
     let entries = try decodedEntries(at: fileURL)
     #expect(!entries.isEmpty)
     #expect(entries.count < written)
+
+    let firstIndex = try #require(entries.first.map { Int($0.line) })
+    #expect(entries.map { Int($0.line) } == Array(firstIndex..<written))
+    #expect(entries.last?.message == "entry-\(String(format: "%04d", written - 1))-\(padding)")
   }
 }

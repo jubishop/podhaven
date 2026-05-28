@@ -5,36 +5,36 @@ import Logging
 
 @testable import PodHaven
 
-// Process-wide swift-log capture. `LoggingSystem.bootstrap` is one-shot per
-// process and the test target runs cases concurrently, so this is the only
-// way to observe `Self.log.warning(...)` output without races.
-//
-// Buffer is intentionally append-only for the life of the process: a clear
-// method would race with sibling tests under concurrent execution and has
-// no safe semantics. Tests filter their own messages by embedding a unique
-// discriminator (e.g. a per-test `line` value) in the log site they're
-// stress-testing.
-//
-// Usage constraints for new consumers:
-// - Call `installOnce()` from the suite `init()` before any production
-//   `static let log` lazy-init that the test cares about.
-// - Never assert on `captured()` without a per-test discriminator in the
-//   message or log site; sibling tests can emit the same production line.
-// - Do not add a clear/reset API — use `@TaskLocal` sinks (see memory note)
-//   when production-line assertions without discriminators are needed.
+// Process-wide swift-log bootstrap with per-test capture sinks. `LoggingSystem.bootstrap`
+// is one-shot per process; Swift Testing runs cases concurrently, so capture installs
+// once and routes events into whichever test's `@TaskLocal` sink is active.
 enum LogCapture {
   struct Captured: Sendable {
     let label: String
     let level: Logging.Logger.Level
     let message: String
+    let source: String
+    let file: String
+    let function: String
+    let line: UInt
   }
 
-  private static let installed = ThreadSafe(false)
-  private static let buffer = ThreadSafe<[Captured]>([])
+  final class Sink: Sendable {
+    private let storage = ThreadSafe<[Captured]>([])
 
-  // Bootstraps a multiplex of (existing default) + a capturing handler.
-  // Idempotent. Must be called from at least one test that wants capture
-  // before any log emission it cares about; subsequent calls are no-ops.
+    func append(_ captured: Captured) {
+      storage { $0.append(captured) }
+    }
+
+    func captured() -> [Captured] {
+      storage()
+    }
+  }
+
+  @TaskLocal fileprivate static var current: Sink?
+
+  private static let installed = ThreadSafe(false)
+
   static func installOnce() {
     let alreadyInstalled = installed { wasInstalled in
       let was = wasInstalled
@@ -50,12 +50,14 @@ enum LogCapture {
     }
   }
 
-  static func captured() -> [Captured] {
-    buffer()
+  static func withSink<T>(_ operation: (Sink) throws -> T) rethrows -> T {
+    let sink = Sink()
+    return try $current.withValue(sink) { try operation(sink) }
   }
 
-  static func append(_ entry: Captured) {
-    buffer { $0.append(entry) }
+  static func withSink<T>(_ operation: (Sink) async throws -> T) async rethrows -> T {
+    let sink = Sink()
+    return try await $current.withValue(sink) { try await operation(sink) }
   }
 }
 
@@ -72,11 +74,16 @@ private struct CapturingLogHandler: LogHandler {
   }
 
   func log(event: LogEvent) {
-    LogCapture.append(
+    guard let sink = LogCapture.current else { return }
+    sink.append(
       LogCapture.Captured(
         label: label,
         level: event.level,
-        message: event.message.description
+        message: event.message.description,
+        source: event.source,
+        file: event.file,
+        function: event.function,
+        line: event.line
       )
     )
   }
