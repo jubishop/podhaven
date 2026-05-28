@@ -5,10 +5,14 @@ import Foundation
 import Logging
 import os
 
+// Rolling NDJSON file sink with per-call-site rate limiting. Throttling applies
+// only to this handler; MultiplexLogHandler siblings (OSLog, Sentry, etc.) are
+// unchanged.
 struct FileLogHandler: LogHandler {
   // MARK: - Writer
 
-  fileprivate final class Writer: Sendable {
+  // Mutation is confined to `queue`; unchecked satisfies Sendable for @Sendable closures.
+  fileprivate final class Writer: @unchecked Sendable {
     // Writer I/O failures and housekeeping (truncation notice, close errors).
     // OSLog only — never NDJSON; swift-log would re-enter this handler's queue.
     private static let writerOSLog = os.Logger(subsystem: "PodHaven", category: "FileLogWriter")
@@ -31,12 +35,13 @@ struct FileLogHandler: LogHandler {
     let maxFileSizeBytes: Int
     let targetFileSizeBytes: Int
     private let queue: DispatchQueue
-    private let rateLimitBuckets = ThreadSafe<[RateKey: RateBucket]>([:])
 
-    private let encoder = ThreadSafe(JSONEncoder())
+    // Queue-confined; access only from `queue` work items.
+    private var rateLimitBuckets: [RateKey: RateBucket] = [:]
+    private var encoder = JSONEncoder()
 
     // Reused across writes; closed and reopened around truncation's inode swap.
-    private let appendHandle = ThreadSafe<FileHandle?>(nil)
+    private var appendHandle: FileHandle?
 
     init(fileURL: URL, maxFileSizeBytes: Int, targetFileSizeBytes: Int) {
       self.fileURL = fileURL
@@ -50,10 +55,18 @@ struct FileLogHandler: LogHandler {
     }
 
     deinit {
-      queue.sync { closeAppendHandle() }
+      let result = queue.sync {
+        let pending = flushPendingSuppressions()
+        closeAppendHandle()
+        return pending
+      }
+      Self.emitOSLogOnly(result)
     }
 
+    // Must run on `queue`. Do not call swift-log (or anything that sync-logs
+    // through FileLogHandler) from this queue — nested queue.sync deadlocks.
     func log(
+      level: Logging.Logger.Level,
       file: String,
       line: UInt,
       synchronously: Bool,
@@ -61,6 +74,11 @@ struct FileLogHandler: LogHandler {
     ) {
       let work: @Sendable () -> Void = { [weak self] in
         guard let self else { return }
+        if level == .critical {
+          let result = self.writeEntry(makeEntry())
+          Self.emitOSLogOnly(result)
+          return
+        }
         switch self.rateLimitDecision(file: file, line: line) {
         case .drop:
           return
@@ -80,33 +98,31 @@ struct FileLogHandler: LogHandler {
     private func rateLimitDecision(file: String, line: UInt) -> RateLimitDecision {
       let now = Container.shared.continuousClockNow()()
       let key = RateKey(file: file, line: line)
-      return rateLimitBuckets { buckets in
-        var bucket =
-          buckets[key]
-          ?? RateBucket(
-            tokens: Self.rateLimitBurst,
-            lastRefill: now,
-            suppressedCount: 0,
-            lastContext: nil
-          )
-        let elapsedSeconds = Self.secondsBetween(bucket.lastRefill, now)
-        bucket.tokens = min(
-          Self.rateLimitBurst,
-          bucket.tokens + elapsedSeconds * Self.rateLimitTokensPerSecond
+      var bucket =
+        rateLimitBuckets[key]
+        ?? RateBucket(
+          tokens: Self.rateLimitBurst,
+          lastRefill: now,
+          suppressedCount: 0,
+          lastContext: nil
         )
-        bucket.lastRefill = now
+      let elapsedSeconds = Self.secondsBetween(bucket.lastRefill, now)
+      bucket.tokens = min(
+        Self.rateLimitBurst,
+        bucket.tokens + elapsedSeconds * Self.rateLimitTokensPerSecond
+      )
+      bucket.lastRefill = now
 
-        let decision: RateLimitDecision
-        if bucket.tokens >= 1 {
-          bucket.tokens -= 1
-          decision = .write
-        } else {
-          bucket.suppressedCount += 1
-          decision = .drop
-        }
-        buckets[key] = bucket
-        return decision
+      let decision: RateLimitDecision
+      if bucket.tokens >= 1 {
+        bucket.tokens -= 1
+        decision = .write
+      } else {
+        bucket.suppressedCount += 1
+        decision = .drop
       }
+      rateLimitBuckets[key] = bucket
+      return decision
     }
 
     func flush() {
@@ -140,9 +156,11 @@ struct FileLogHandler: LogHandler {
               suppressed: suppressed
             )
           )
-          clearSuppressedCount(for: key)
         }
         let currentSize = try appendEntry(entry)
+        if suppressed > 0 {
+          clearSuppressedCount(for: key)
+        }
         guard currentSize > UInt64(maxFileSizeBytes) else { return .ok }
         guard let truncation = try truncateIfNeeded() else { return .ok }
         return .message(
@@ -168,15 +186,13 @@ struct FileLogHandler: LogHandler {
 
     @discardableResult
     private func appendEntry(_ entry: Entry) throws -> UInt64 {
-      var data = try encoder { try $0.encode(entry) }
+      var data = try encoder.encode(entry)
       data.append(0x0A)
 
-      return try appendHandle { handle in
-        let writeHandle = try handle ?? Self.openForAppending(at: fileURL)
-        handle = writeHandle
-        try writeHandle.write(contentsOf: data)
-        return try writeHandle.offset()
-      }
+      let writeHandle = try appendHandle ?? Self.openForAppending(at: fileURL)
+      appendHandle = writeHandle
+      try writeHandle.write(contentsOf: data)
+      return try writeHandle.offset()
     }
 
     private static func openForAppending(at fileURL: URL) throws -> FileHandle {
@@ -189,12 +205,10 @@ struct FileLogHandler: LogHandler {
     }
 
     private func closeAppendHandle() {
-      appendHandle { handle in
-        if let openHandle = handle {
-          Self.close(openHandle)
-        }
-        handle = nil
+      if let openHandle = appendHandle {
+        Self.close(openHandle)
       }
+      appendHandle = nil
     }
 
     private static func close(_ handle: FileHandle) {
@@ -330,35 +344,29 @@ struct FileLogHandler: LogHandler {
     private func recordContext(for entry: Entry) {
       let key = RateKey(file: entry.file, line: entry.line)
       let context = SuppressionContext.from(entry: entry)
-      rateLimitBuckets { buckets in
-        guard var bucket = buckets[key] else { return }
-        bucket.lastContext = context
-        buckets[key] = bucket
-      }
+      guard var bucket = rateLimitBuckets[key] else { return }
+      bucket.lastContext = context
+      rateLimitBuckets[key] = bucket
     }
 
     private func pendingSuppressedCount(for key: RateKey) -> Int {
-      rateLimitBuckets { buckets in
-        buckets[key]?.suppressedCount ?? 0
-      }
+      rateLimitBuckets[key]?.suppressedCount ?? 0
     }
 
     private func clearSuppressedCount(for key: RateKey) {
-      rateLimitBuckets { buckets in
-        guard var bucket = buckets[key] else { return }
-        bucket.suppressedCount = 0
-        buckets[key] = bucket
-      }
+      guard var bucket = rateLimitBuckets[key] else { return }
+      bucket.suppressedCount = 0
+      rateLimitBuckets[key] = bucket
     }
 
     // Must be called on `queue`.
     private func flushPendingSuppressions() -> WriteResult {
-      let pending: [(RateKey, SuppressionContext, Int)] = rateLimitBuckets { buckets in
-        buckets.compactMap { key, bucket in
-          guard bucket.suppressedCount > 0 else { return nil }
-          let context = bucket.lastContext ?? .fallback(for: key)
-          return (key, context, bucket.suppressedCount)
-        }
+      let pending: [(RateKey, SuppressionContext, Int)] = rateLimitBuckets.compactMap {
+        key,
+        bucket in
+        guard bucket.suppressedCount > 0 else { return nil }
+        let context = bucket.lastContext ?? .fallback(for: key)
+        return (key, context, bucket.suppressedCount)
       }
 
       var failure: WriteResult = .ok
@@ -370,6 +378,17 @@ struct FileLogHandler: LogHandler {
         } catch {
           failure = .failed(error)
         }
+      }
+      do {
+        if let truncation = try truncateIfNeeded() {
+          if case .ok = failure {
+            failure = .message(
+              "Log truncated from \(truncation.originalSize) to \(truncation.newSize) bytes"
+            )
+          }
+        }
+      } catch {
+        failure = .failed(error)
       }
       return failure
     }
@@ -469,6 +488,7 @@ struct FileLogHandler: LogHandler {
 
   public func log(event: LogEvent) {
     writer.log(
+      level: event.level,
       file: event.file,
       line: event.line,
       synchronously: writeSynchronously(event.level),

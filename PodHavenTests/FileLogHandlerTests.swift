@@ -146,6 +146,40 @@ struct FileLogHandlerTests {
     #expect(entries.map(\.message) == (1...40).map { "post-\($0)" })
   }
 
+  @Test("critical logs bypass rate limit at a throttled site")
+  func criticalBypassesRateLimitAtThrottledSite() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+
+    Container.shared.fakeContinuousClock().freeze()
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+
+    for _ in 0..<350 {
+      log(handler, message: "storm", line: 1)
+    }
+
+    handler.log(
+      event: LogEvent(
+        level: .critical,
+        message: "critical-after-storm",
+        metadata: nil,
+        source: "PodHavenTests",
+        file: "FileLogHandlerTests.swift",
+        function: "test()",
+        line: 1
+      )
+    )
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.filter { $0.message == "storm" }.count == 50)
+    #expect(entries.contains { $0.message == "critical-after-storm" })
+  }
+
   @Test("rate limit drops repeated entries at one site after the burst is spent")
   func rateLimitDropsRepeatedEntries() throws {
     let fileURL = tempFileURL()
@@ -256,6 +290,43 @@ struct FileLogHandlerTests {
     let unboundedCount = siteCount * logsPerSite
     #expect(entries.count < unboundedCount)
     #expect(entries.count <= siteCount * 51)
+    for sampleLine in [1, 50, 100, 150, 200] {
+      #expect(entries.filter { $0.message == "storm-\(sampleLine)" }.count == 50)
+    }
+  }
+
+  @Test("two handlers for the same file share one writer and rate limit bucket")
+  func twoHandlersShareWriterPerFileURL() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+
+    Container.shared.fakeContinuousClock().freeze()
+
+    let handlerA = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+    let handlerB = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+
+    for _ in 0..<200 {
+      log(handlerA, message: "storm", line: 1)
+      log(handlerB, message: "storm", line: 1)
+    }
+    FileLogHandler.flush(fileURL: fileURL)
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.filter { $0.message == "storm" }.count == 50)
+    #expect(
+      entries.contains {
+        $0.message
+          == "FileLogHandler rate limit — dropped 350 repeated entries from this log site"
+      }
+    )
   }
 
   @Test("rate limit is keyed per (file, line) — different lines do not interfere")
@@ -277,6 +348,41 @@ struct FileLogHandlerTests {
     let entries = try decodedEntries(at: fileURL)
     #expect(entries.filter { $0.line == 1 }.count == 50)
     #expect(entries.filter { $0.line == 2 }.count == 50)
+  }
+
+  @Test("truncation forces cut when no newline exists from cut point to EOF")
+  func truncationForcesCutWithoutNewlineBoundary() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+
+    let maxFileSizeBytes = 50_000
+    let targetFileSizeBytes = 30_000
+
+    var data = Data()
+    let padding = String(repeating: "a", count: 80)
+    for index in 0..<400 {
+      let line = "{\"message\":\"entry-\(index)-\(padding)\",\"line\":\(index)}\n"
+      data.append(Data(line.utf8))
+    }
+    data.append(Data(repeating: 0x78, count: 25_000))
+
+    try data.write(to: fileURL)
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: maxFileSizeBytes,
+      targetFileSizeBytes: targetFileSizeBytes
+    )
+    log(handler, message: "trigger-truncate", line: 999)
+
+    let fileSize = try Data(contentsOf: fileURL).count
+    #expect(fileSize <= maxFileSizeBytes)
+
+    let lines = try String(decoding: try Data(contentsOf: fileURL), as: UTF8.self)
+      .split(separator: "\n", omittingEmptySubsequences: true)
+    let lastLine = try #require(lines.last)
+    let lastEntry = try JSONDecoder().decode(DecodedEntry.self, from: Data(lastLine.utf8))
+    #expect(lastEntry.message == "trigger-truncate")
   }
 
   @Test("asynchronous writes reach the file once flushed")
