@@ -18,11 +18,21 @@ enum PodcastDetailTestHelpers {
   static func appear(_ viewModel: PodcastDetailViewModel) async throws {
     viewModel.appear()
     try await Wait.until(
-      { @MainActor in viewModel.appearTask == nil },
+      { @MainActor in
+        guard viewModel.isOnScreen else { return false }
+        if viewModel.saved {
+          return !viewModel.episodeList.allEntries.isEmpty
+        }
+        if !viewModel.episodeList.allEntries.isEmpty { return true }
+        return viewModel.observationTask != nil
+      },
       { @MainActor in
         """
-        Expected appear to finish.
-        appearTask: \(String(describing: viewModel.appearTask))
+        Expected appear to finish with a hydrated projection.
+        isOnScreen: \(viewModel.isOnScreen)
+        saved: \(viewModel.saved)
+        entries: \(viewModel.episodeList.allEntries.count)
+        observationTask: \(String(describing: viewModel.observationTask))
         """
       }
     )
@@ -48,8 +58,8 @@ enum PodcastDetailTestHelpers {
     return try #require(results.first?.podcast)
   }
 
-  static func searchResultFeedURL() -> FeedURL {
-    FeedURL(URL(string: "https://example.com/search-result.rss")!)
+  static func searchResultFeedURL() throws -> FeedURL {
+    FeedURL(try #require(URL(string: "https://example.com/search-result.rss")))
   }
 
   @MainActor

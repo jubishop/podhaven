@@ -112,6 +112,7 @@ class PodcastDetailViewModel:
 
   func getOrCreatePodcastEpisode(_ episode: ListedEpisode) async throws -> PodcastEpisode {
     let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
+    guard isOnScreen else { return podcastEpisode }
     startObservation(podcastEpisode.podcast.id)
     return podcastEpisode
   }
@@ -204,7 +205,7 @@ class PodcastDetailViewModel:
         "currentSortMethod: \(oldValue) → \(currentSortMethod), \(diagnosticSummary)"
       )
       episodeList.filterMethod = currentSortMethod.filterMethod
-      if currentSortMethod == .recommendationScore {
+      if currentSortMethod == .recommendationScore, isOnScreen {
         startRecommendationObservation()
       } else {
         episodeList.sortMethod = currentSortMethod.sortMethod
@@ -249,7 +250,9 @@ class PodcastDetailViewModel:
         alert("These episodes are no longer available.")
         return []
       }
-      startObservation(firstEpisode.podcast.id)
+      if isOnScreen {
+        startObservation(firstEpisode.podcast.id)
+      }
 
       return podcastEpisodes
     }
@@ -324,6 +327,12 @@ class PodcastDetailViewModel:
   )
 
   private func startRecommendationObservation() {
+    guard isOnScreen else {
+      Self.log.debug(
+        "startRecommendationObservation: skipped off-screen, \(diagnosticSummary)"
+      )
+      return
+    }
     Self.log.debug("startRecommendationObservation: \(diagnosticSummary)")
     recommendationCoordinator.startObservations()
     recommendationCoordinator.refresh()
@@ -450,7 +459,8 @@ class PodcastDetailViewModel:
     }
     let previouslyNotifying = settings?.notifyNewEpisodes ?? false
 
-    runTask("updateSettings: podcast \(podcastID)") { [self] in
+    runTask("updateSettings: podcast \(podcastID)") { [weak self] in
+      guard let self else { return }
       try await repo.updatePodcastSettings(podcastID, newSettings)
       if newSettings.notifyNewEpisodes, !previouslyNotifying {
         await userNotificationManager.requestAuthorizationIfNeeded()
@@ -542,18 +552,27 @@ class PodcastDetailViewModel:
 
   // MARK: - Initialization
 
-  // `init` is intentionally side-effect-free. SwiftUI re-evaluates
-  // PodcastDetail destination builders, so any long-lived task started
-  // here would outlive the discarded model and pile up across instances.
-  // Lifecycle work belongs to `performAppear`, which only the kept
+  // `init` starts no long-lived async work. SwiftUI re-evaluates
+  // PodcastDetail destination builders, so observation, refresh, and
+  // share-artwork loading belong to `performAppear`, which only the kept
   // (appeared) model runs.
   private init(state: PodcastDetailState) {
     Self.nextDiagnosticID += 1
     diagnosticID = Self.nextDiagnosticID
     self.state = state
     episodeList.sortMethod = currentSortMethod.sortMethod
-    refreshEpisodeList(from: state)
+    if Self.shouldPopulateEpisodeListDuringInit(for: state) {
+      refreshEpisodeList(from: state)
+    }
     Self.log.debug("init: \(diagnosticSummary)")
+  }
+
+  private static func shouldPopulateEpisodeListDuringInit(for state: PodcastDetailState) -> Bool {
+    switch state {
+    case .initial: return false
+    case .unsaved(_, let episodes): return !episodes.isEmpty
+    case .saved(let series): return !series.episodes.isEmpty
+    }
   }
 
   convenience init(podcast: DisplayedPodcast) {
@@ -583,6 +602,7 @@ class PodcastDetailViewModel:
   }
 
   func performAppear() async throws {
+    let generation = appearGeneration
     let startedAt = ContinuousClock.now
     Self.log.debug("performAppear: entering, \(diagnosticSummary)")
     defer {
@@ -591,17 +611,18 @@ class PodcastDetailViewModel:
     }
 
     try Task.checkCancellation()
-    guard isOnScreen else { return }
+    guard isCurrentAppearPass(generation) else { return }
 
+    syncEpisodeListProjection(from: state)
     loadShareArtworkIfNeeded()
 
     if currentSortMethod == .recommendationScore {
       startRecommendationObservation()
     }
 
-    if try await attemptObservation() {
+    if try await attemptObservation(appearGeneration: generation) {
       try Task.checkCancellation()
-      guard isOnScreen else { return }
+      guard isCurrentAppearPass(generation) else { return }
       if observationTask == nil {
         startObservation(state.savedSeries?.id, caller: "performAppear")
       }
@@ -609,7 +630,7 @@ class PodcastDetailViewModel:
     }
 
     try Task.checkCancellation()
-    guard isOnScreen else { return }
+    guard isCurrentAppearPass(generation) else { return }
     Self.log.debug("\(state.toString) does not exist in db")
 
     guard episodeList.allEntries.isEmpty else {
@@ -617,14 +638,14 @@ class PodcastDetailViewModel:
       return
     }
 
-    try await loadPresentationFromFeed()
+    try await loadPresentationFromFeed(appearGeneration: generation)
     try Task.checkCancellation()
-    guard isOnScreen else { return }
+    guard isCurrentAppearPass(generation) else { return }
 
     Self.log.debug("Attempting observation again in case FeedURL got updated by parsing the feed")
-    if try await attemptObservation() {
+    if try await attemptObservation(appearGeneration: generation) {
       try Task.checkCancellation()
-      guard isOnScreen else { return }
+      guard isCurrentAppearPass(generation) else { return }
       if observationTask == nil {
         startObservation(state.savedSeries?.id, caller: "performAppear")
       }
@@ -634,7 +655,8 @@ class PodcastDetailViewModel:
   // MARK: - Public Methods
 
   func subscribe() {
-    runTask("subscribe: \(state.toString)") { [self] in
+    runTask("subscribe: \(state.toString)") { [weak self] in
+      guard let self else { return }
       switch state {
       case .saved(let series):
         try await repo.markSubscribed(series.id)
@@ -669,7 +691,8 @@ class PodcastDetailViewModel:
   }
 
   func unsubscribe() {
-    runTask("unsubscribe: \(state.toString)") { [self] in
+    runTask("unsubscribe: \(state.toString)") { [weak self] in
+      guard let self else { return }
       guard let podcastID = try await ensureObservedSeries()
       else {
         Self.log.warning("Trying to unsubscribe from a non-saved podcast")
@@ -681,7 +704,8 @@ class PodcastDetailViewModel:
   }
 
   func delete() {
-    runTask("delete: \(state.toString)") { [self] in
+    runTask("delete: \(state.toString)") { [weak self] in
+      guard let self else { return }
       guard let podcastID = try await ensureObservedSeries()
       else {
         Self.log.warning("Trying to delete a non-saved podcast")
@@ -724,7 +748,8 @@ class PodcastDetailViewModel:
       return
     }
 
-    runTask("addTag: \(tagID) to podcast \(podcastID)") { [self] in
+    runTask("addTag: \(tagID) to podcast \(podcastID)") { [weak self] in
+      guard let self else { return }
       try await repo.addTag(tagID, to: podcastID)
     }
   }
@@ -735,7 +760,8 @@ class PodcastDetailViewModel:
       return
     }
 
-    runTask("removeTag: \(tagID) from podcast \(podcastID)") { [self] in
+    runTask("removeTag: \(tagID) from podcast \(podcastID)") { [weak self] in
+      guard let self else { return }
       try await repo.removeTag(tagID, from: podcastID)
     }
   }
@@ -743,6 +769,7 @@ class PodcastDetailViewModel:
   // MARK: - Observation Management
 
   @ObservationIgnored var isOnScreen = false
+  @ObservationIgnored var appearGeneration = 0
   @ObservationIgnored var appearTask: Task<Void, Never>?
   @ObservationIgnored var observationTask: Task<Void, Never>?
   @ObservationIgnored var auxiliaryTasks: [DetailAuxiliaryTask] = []
@@ -753,7 +780,7 @@ class PodcastDetailViewModel:
   }
 
   @discardableResult
-  private func attemptObservation() async throws -> Bool {
+  private func attemptObservation(appearGeneration generation: Int) async throws -> Bool {
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not attempting observation")
       return true
@@ -763,7 +790,7 @@ class PodcastDetailViewModel:
 
     try Task.checkCancellation()
 
-    guard isOnScreen else { return false }
+    guard isCurrentAppearPass(generation) else { return false }
 
     Self.log.debug("\(savedSeries.toString) exists in db")
 
@@ -772,14 +799,10 @@ class PodcastDetailViewModel:
       try await repo.updateITunesID(savedSeries.podcast.id, iTunesID: iTunesID)
     }
 
-    transition(to: .saved(savedSeries))
+    try Task.checkCancellation()
+    guard isCurrentAppearPass(generation) else { return false }
 
-    track(
-      Task { [weak self] in
-        guard let self else { return }
-        await refreshSeries()
-      }
-    )
+    transition(to: .saved(savedSeries))
 
     return true
   }
@@ -866,6 +889,7 @@ class PodcastDetailViewModel:
       else {
         try Task.checkCancellation()
         Self.log.debug("Podcast was deleted, \(diagnosticSummary)")
+        guard isOnScreen else { return }
         // Post-deletion strategy: re-parse the RSS feed so the UI can
         // recover to an unsaved snapshot. This diverges from
         // `EpisodeDetailViewModel`, which converts the cached
@@ -902,6 +926,10 @@ class PodcastDetailViewModel:
   }
 
   // MARK: - Private Helpers
+
+  private func syncEpisodeListProjection(from state: PodcastDetailState) {
+    refreshEpisodeList(from: state)
+  }
 
   private func transition(
     to newState: PodcastDetailState,
@@ -968,7 +996,8 @@ class PodcastDetailViewModel:
     return savedSeries.id
   }
 
-  private func loadPresentationFromFeed() async throws {
+  private func loadPresentationFromFeed(appearGeneration generation: Int? = nil) async throws {
+    guard isActiveForFeedPresentation(appearGeneration: generation) else { return }
     Self.log.debug("Now fetching and parsing feed for \(state.toString)")
     let feedURL = state.feedURL
     let iTunesID = state.iTunesID
@@ -976,13 +1005,18 @@ class PodcastDetailViewModel:
     try Task.checkCancellation()
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: iTunesID)
     try Task.checkCancellation()
-    guard isOnScreen else { return }
+    guard isActiveForFeedPresentation(appearGeneration: generation) else { return }
     transition(
       to: .unsaved(
         unsavedPodcast,
         episodes: IdentifiedArrayOf(uniqueElements: podcastFeed.toUnsavedEpisodes())
       )
     )
+  }
+
+  private func isActiveForFeedPresentation(appearGeneration generation: Int?) -> Bool {
+    if let generation { return isCurrentAppearPass(generation) }
+    return isOnScreen
   }
 
   private func savedSeriesForCurrentState() async throws -> PodcastSeriesDetail? {

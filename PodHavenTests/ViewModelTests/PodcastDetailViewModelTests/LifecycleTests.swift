@@ -7,19 +7,10 @@ import Testing
 
 @testable import PodHaven
 
-// Regression coverage for the constructor / lifecycle churn that produced
-// the 2026-05-27 build-507 watchdog kill. SwiftUI
-// re-evaluates `PodcastDetailView`'s destination, so transient
-// `PodcastDetailViewModel` instances must not start any long-lived async
+// Regression coverage for SwiftUI destination-builder churn: transient
+// PodcastDetailViewModel instances must not start any long-lived async
 // work in `init` — observation and share-artwork loading belong to the
 // kept (appeared) model only.
-//
-// Regression-proof tests (would fail against pre-fix code): the saved-arm
-// observation test and the share-artwork test. The parameterized
-// `init(_:) does not start observation` test covers the .initial /
-// .unsaved seed shapes — those passed before the fix too (their seed
-// has no `savedSeries.id`, so the pre-fix `startObservation(nil)`
-// no-op'd) but pinning them keeps the contract honest going forward.
 enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
   case listed
   case unsavedDisplayed
@@ -63,12 +54,17 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
   @DynamicInjected(\.fakeDataLoader) private var fakeDataLoader
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
+  @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.repo) private var repo
 
   private var feedSession: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
 
   private var fakeObservatory: FakeObservatory {
     observatory as! FakeObservatory
+  }
+
+  private var fakeRecommendationRepo: FakeRecommendationRepo {
+    recommendationRepo as! FakeRecommendationRepo
   }
 
   private func yieldForSpuriousAsyncWork() async throws {
@@ -474,5 +470,192 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     try await yieldForSpuriousAsyncWork()
 
     #expect(loadCount() == 1)
+  }
+
+  @Test("subscribe off-screen then appear resyncs saved episode rows")
+  func subscribeOffScreenThenAppearResyncsSavedEpisodeRows() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/resync-subscribe.rss")!)
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Resync Subscribe"),
+      unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+    )
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+
+    #expect(viewModel.episodeList.allEntries.allSatisfy { $0.episodeID == nil })
+
+    viewModel.subscribe()
+
+    try await Wait.until(
+      { @MainActor in viewModel.saved },
+      { @MainActor in "Expected subscribe to persist series; saved=\(viewModel.saved)" }
+    )
+
+    #expect(viewModel.episodeList.allEntries.allSatisfy { $0.episodeID == nil })
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    #expect(viewModel.episodeList.allEntries.allSatisfy { $0.episodeID != nil })
+  }
+
+  @Test("appear does not auto-refresh a saved series from RSS")
+  func appearDoesNotAutoRefreshSavedSeries() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/no-auto-refresh.rss")!)
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    )
+
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "No Auto Refresh"),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+      )
+    )
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    let requestsAfterAppear = await feedSession.requests.filter { $0 == feedURL.rawValue }.count
+    #expect(requestsAfterAppear == 0)
+
+    viewModel.disappear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    let requestsAfterReappear = await feedSession.requests.filter { $0 == feedURL.rawValue }.count
+    #expect(requestsAfterReappear == 0)
+  }
+
+  @Test("getOrCreatePodcastEpisode after disappear does not start observation")
+  func getOrCreateAfterDisappearDoesNotStartObservation() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/get-or-create-offscreen.rss")!)
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Get Or Create"),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+      )
+    )
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count >= 1 },
+      { @MainActor in
+        "Expected hydration before disappear; entries=\(viewModel.episodeList.allEntries.count)"
+      }
+    )
+
+    fakeObservatory.clearAllCalls()
+    viewModel.disappear()
+
+    let listedEpisode = try #require(viewModel.episodeList.allEntries.first)
+    _ = try await viewModel.getOrCreatePodcastEpisode(listedEpisode)
+
+    try await yieldForSpuriousAsyncWork()
+
+    _ = try fakeObservatory.expectCalls(methodName: "podcastSeriesDetail", count: 0)
+  }
+
+  @Test("post-deletion feed recovery skips when off-screen")
+  func postDeletionFeedRecoverySkipsWhenOffScreen() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/deletion-offscreen.rss")!)
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    )
+
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Deletion Offscreen"),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+      )
+    )
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    let requestsBeforeDisappear = await feedSession.requests.filter { $0 == feedURL.rawValue }.count
+
+    viewModel.disappear()
+    try await repo.deletePodcast(savedSeries.id)
+
+    try await yieldForSpuriousAsyncWork()
+
+    let requestsAfterDeletion = await feedSession.requests.filter { $0 == feedURL.rawValue }.count
+    #expect(requestsAfterDeletion == requestsBeforeDisappear)
+  }
+
+  @Test("recommendation sort off-screen does not start scoring")
+  func recommendationSortOffScreenDoesNotStartScoring() async throws {
+    let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
+    try await RecommendationScoringTestHelpers.primeEngine(with: embeddable)
+
+    let (targetPodcast, candidateEpisodes) =
+      try await RecommendationHelpers
+      .createPodcastWithEpisodes(
+        count: 4,
+        podcastTitle: "Rec Sort Offscreen",
+        podcastDescription: "Rec Sort Offscreen",
+        episodeDescriptions: ["Episode 0", "Episode 1", "Episode 2", "Episode 3"]
+      )
+    try await RecommendationHelpers.embedEpisodes(candidateEpisodes, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
+
+    let targetIDs = Set(candidateEpisodes.map(\.id))
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
+    fakeRecommendationRepo.clearAllCalls()
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
+    #expect(viewModel.isOnScreen == false)
+
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs) == 0)
+  }
+
+  @Test("overlapping appear does not double feed parse")
+  func overlappingAppearDoesNotDoubleFeedParse() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/overlap-appear.rss")!)
+    let feedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let parseStarted = AsyncSemaphore(value: 0)
+    let parseFinish = AsyncSemaphore(value: 0)
+    await feedSession.respond(to: feedURL.rawValue) { _ in
+      parseStarted.signal()
+      try await parseFinish.waitUnlessCancelled()
+      return (feedData, URL.response(feedURL.rawValue))
+    }
+
+    let viewModel = PodcastDetailViewModel(
+      podcast: DisplayedPodcast(
+        try Create.unsavedPodcast(feedURL: feedURL, title: "Overlap Appear")
+      )
+    )
+
+    viewModel.appear()
+    await parseStarted.wait()
+    viewModel.appear()
+
+    parseFinish.signal()
+
+    try await Wait.until(
+      { @MainActor in !viewModel.episodeList.allEntries.isEmpty },
+      { @MainActor in
+        "Expected overlapping appear passes to finish feed hydration; entries=\(viewModel.episodeList.allEntries.count)"
+      }
+    )
+
+    let parseCount = await feedSession.requests.filter { $0 == feedURL.rawValue }.count
+    #expect(parseCount == 1)
+  }
+
+  @Test("saved displayed init with empty episodes does not populate episodeList")
+  func savedDisplayedInitDoesNotPopulateEmptyEpisodeList() async throws {
+    let savedPodcast = try await Create.podcast(title: "Empty Saved Init")
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedPodcast))
+
+    #expect(viewModel.episodeList.allEntries.isEmpty)
   }
 }

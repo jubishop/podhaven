@@ -7,7 +7,7 @@ import Testing
 
 @testable import PodHaven
 
-// Regression tests for the recommendation-score fan-out OOM (issue #274).
+// Regression tests for the recommendation-score fan-out OOM.
 @Suite("of recommendation scoring sort-switch cache tests", .container)
 @MainActor final class RecommendationScoringSortSwitchCacheTests {
   @DynamicInjected(\.appDB) private var appDB

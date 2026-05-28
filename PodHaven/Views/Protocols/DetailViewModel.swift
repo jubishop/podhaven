@@ -15,6 +15,7 @@ struct DetailAuxiliaryTask: Sendable {
 
   var state: State { get }
   var isOnScreen: Bool { get set }
+  var appearGeneration: Int { get set }
   var appearTask: Task<Void, Never>? { get set }
   var observationTask: Task<Void, Never>? { get set }
   var auxiliaryTasks: [DetailAuxiliaryTask] { get set }
@@ -30,8 +31,16 @@ extension DetailViewModel {
     Log.as(LogSubsystem.ViewProtocols.detailViewModel)
   }
 
+  func isCurrentAppearPass(_ generation: Int) -> Bool {
+    isOnScreen && appearGeneration == generation
+  }
+
   func appear() {
+    if isOnScreen, let appearTask, !appearTask.isCancelled {
+      return
+    }
     isOnScreen = true
+    appearGeneration += 1
     appearTask?.cancel()
     for entry in auxiliaryTasks { entry.task.cancel() }
     auxiliaryTasks.removeAll()

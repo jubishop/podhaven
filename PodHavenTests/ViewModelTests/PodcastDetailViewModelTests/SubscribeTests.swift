@@ -124,8 +124,8 @@ import Testing
     // Stub `podcastSeriesDetail` so the observation the VM starts after
     // insert throws on first iteration. That cuts off the live-hydration
     // path and leaves `.saved(emptyPodcastSeriesDetail)` as the terminal
-    // state, so the only thing that can touch `episodeList` is the
-    // bootstrap-skip in `refreshEpisodeList`.
+    // state, so the only thing that can touch `episodeList` is an off-screen
+    // `transition` that skips `refreshEpisodeList`.
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
     fakeObservatory.podcastSeriesDetailScript([
@@ -157,9 +157,8 @@ import Testing
 
     // Wait for the saved transition. With observation stubbed to throw,
     // no further transitions follow, so the only thing that can change
-    // episodeList from here is `refreshEpisodeList`'s bootstrap-skip
-    // branch. Yield a few times so PowerList's debounced `_allEntries`
-    // task drains before the assertion lands.
+    // episodeList from here is an off-screen `transition` that skips
+    // `refreshEpisodeList`.
     try await Wait.until(
       priority: .userInitiated,
       { @MainActor in viewModel.saved },

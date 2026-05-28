@@ -121,7 +121,7 @@ import Testing
     let searchResult = SavedSearchResultPodcast(
       resultFeedURL: FeedURL(URL(string: "https://example.com/search-result.rss")!),
       originalPodcast: try Create.unsavedPodcast(
-        feedURL: PodcastDetailTestHelpers.searchResultFeedURL(),
+        feedURL: try PodcastDetailTestHelpers.searchResultFeedURL(),
         iTunesID: iTunesID,
         title: "Search Title",
         description: searchDescription,

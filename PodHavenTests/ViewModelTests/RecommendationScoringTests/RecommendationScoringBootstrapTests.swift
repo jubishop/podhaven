@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-// Regression tests for the recommendation-score fan-out OOM (issue #274).
+// Regression tests for the recommendation-score fan-out OOM.
 @Suite("of recommendation scoring bootstrap tests", .container)
 @MainActor final class RecommendationScoringBootstrapTests {
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
