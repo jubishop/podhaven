@@ -8,7 +8,9 @@ struct FileLogHandler: LogHandler {
   // MARK: - Writer
 
   fileprivate final class Writer: Sendable {
-    private static let fallbackLog = os.Logger(subsystem: "PodHaven", category: "FileLogWriter")
+    // Writer I/O failures and housekeeping (truncation notice, close errors).
+    // OSLog only — never NDJSON; swift-log would re-enter this handler's queue.
+    private static let writerOSLog = os.Logger(subsystem: "PodHaven", category: "FileLogWriter")
 
     private static let truncationWindowBytes = 64 * 1024
 
@@ -49,12 +51,12 @@ struct FileLogHandler: LogHandler {
     func write(_ entry: Entry, synchronously: Bool) {
       if synchronously {
         let result = queue.sync { writeEntry(entry) }
-        Self.emitReport(result)
+        Self.emitOSLogOnly(result)
       } else {
         queue.async { [weak self] in
           guard let self else { return }
           let result = self.writeEntry(entry)
-          Self.emitReport(result)
+          Self.emitOSLogOnly(result)
         }
       }
     }
@@ -90,16 +92,14 @@ struct FileLogHandler: LogHandler {
       }
     }
 
-    // Uses `fallbackLog` only — never swift-log's FileLogHandler, which would
-    // re-enter the writer queue under background synchronous writes.
-    private static func emitReport(_ result: WriteResult) {
+    private static func emitOSLogOnly(_ result: WriteResult) {
       switch result {
       case .ok:
         break
       case .message(let message):
-        Self.fallbackLog.info("\(message, privacy: .public)")
+        Self.writerOSLog.info("\(message, privacy: .public)")
       case .failed(let error):
-        Self.fallbackLog.error(
+        Self.writerOSLog.error(
           "Failed to write log entry: \(error.localizedDescription, privacy: .public)"
         )
       }
@@ -140,7 +140,7 @@ struct FileLogHandler: LogHandler {
       do {
         try handle.close()
       } catch {
-        fallbackLog.error(
+        writerOSLog.error(
           "Failed to close log file handle: \(error.localizedDescription, privacy: .public)"
         )
       }
@@ -194,7 +194,7 @@ struct FileLogHandler: LogHandler {
         } catch CocoaError.fileNoSuchFile {
           // Temp file was never created.
         } catch {
-          Self.fallbackLog.error(
+          Self.writerOSLog.error(
             "Failed to remove truncation temp file: \(error.localizedDescription, privacy: .public)"
           )
         }
