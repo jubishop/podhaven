@@ -96,7 +96,4 @@ extension DetailViewModel {
     }
   }
 
-  func logStateTransition(to newState: State) {
-    Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
-  }
 }

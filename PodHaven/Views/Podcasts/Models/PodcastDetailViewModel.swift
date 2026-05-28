@@ -752,8 +752,6 @@ class PodcastDetailViewModel:
     recommendationCoordinator.cancel()
   }
 
-  @ObservationIgnored private var transitionSamples: [ContinuousClock.Instant] = []
-
   @discardableResult
   private func attemptObservation() async throws -> Bool {
     if let observationTask, !observationTask.isCancelled {
@@ -911,35 +909,7 @@ class PodcastDetailViewModel:
   ) {
     guard newState != state else { return }
 
-    if case .saved(let old) = state, case .saved(let new) = newState, old.id == new.id {
-      let podcastDiff = old.podcast == new.podcast ? "" : "podcast"
-      let episodesDiff =
-        old.episodes == new.episodes
-        ? ""
-        : "episodes(\(old.episodes.count)→\(new.episodes.count))"
-      let tagsDiff =
-        old.tags == new.tags ? "" : "tags(\(old.tags.count)→\(new.tags.count))"
-      Self.log.warning(
-        """
-        transition: same-id non-equal saved → saved, caller=\(caller), \
-        \(diagnosticSummary), diff=[\(podcastDiff) \(episodesDiff) \(tagsDiff)]
-        """
-      )
-    }
-
-    let now = ContinuousClock.now
-    transitionSamples.append(now)
-    transitionSamples.removeAll { now - $0 > .seconds(1) }
-    if transitionSamples.count == 50 {
-      Self.log.warning(
-        """
-        transition: high-frequency (\(transitionSamples.count)/sec), caller=\(caller), \
-        \(diagnosticSummary)
-        """
-      )
-    }
-
-    logStateTransition(to: newState)
+    Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
     state = newState
     guard isOnScreen else { return }
     refreshEpisodeList(from: newState)

@@ -560,7 +560,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   private func transition(to newState: EpisodeDetailState) {
     guard newState != state else { return }
-    logStateTransition(to: newState)
+    Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
     state = newState
     guard isOnScreen else { return }
     recommendationCoordinator.refresh()
