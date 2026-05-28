@@ -8,6 +8,8 @@ import Nuke
 
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
+    LogCapture.installOnce()
+
     appDB.context(.test) { AppDB.inMemory() }.scope(.cached)
     repo.context(.test) { FakeRepo(self.makeRepo()) }.scope(.cached)
     recommendationRepo.context(.test) {
@@ -68,6 +70,9 @@ extension Container: @retroactive AutoRegistering {
     nlContextualEmbedding.context(.test) { FakeEmbeddable() }.scope(.cached)
 
     sleeper.context(.test) { FakeSleeper() }.scope(.cached)
+
+    continuousClockNow.context(.test) { { self.fakeContinuousClock().now } }
+      .scope(.cached)
 
     userNotificationCenter.context(.test) { FakeUserNotificationCenter() }.scope(.cached)
 
