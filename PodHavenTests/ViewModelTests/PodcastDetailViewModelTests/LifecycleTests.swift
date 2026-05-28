@@ -87,6 +87,8 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     try await yieldForSpuriousAsyncWork()
 
     #expect(viewModel.observationTask == nil)
+    #expect(viewModel.appearTask == nil)
+    #expect(viewModel.auxiliaryTasks.isEmpty)
   }
 
   // Scope-coverage: the listed/unsaved seeds have no `savedSeries.id`,
@@ -104,6 +106,8 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     try await yieldForSpuriousAsyncWork()
 
     #expect(viewModel.observationTask == nil)
+    #expect(viewModel.appearTask == nil)
+    #expect(viewModel.auxiliaryTasks.isEmpty)
   }
 
   @Test("init does not request share artwork before performAppear")
@@ -156,10 +160,12 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     #expect(initLoadCount() == 0)
     _ = viewModel  // keep alive until the assertions run
     #expect(viewModel.observationTask == nil)
+    #expect(viewModel.appearTask == nil)
+    #expect(viewModel.auxiliaryTasks.isEmpty)
   }
 
-  @Test("performAppear starts observation for a saved displayed podcast")
-  func performAppearStartsObservationForSavedDisplayedPodcast() async throws {
+  @Test("appear starts observation for a saved displayed podcast")
+  func appearStartsObservationForSavedDisplayedPodcast() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/appear-observation.rss")!)
     let imageURL = try #require(URL(string: "https://example.com/appear-observation-image.png"))
     await feedSession.respond(
@@ -185,7 +191,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     #expect(viewModel.observationTask == nil)
 
-    try await viewModel.performAppear()
+    viewModel.appear()
 
     try await Wait.until(
       { @MainActor in
@@ -194,7 +200,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
       },
       { @MainActor in
         """
-        Expected performAppear to start observation and hydrate the seeded episode.
+        Expected appear to start observation and hydrate the seeded episode.
         observationTask: \(String(describing: viewModel.observationTask))
         entries: \(viewModel.episodeList.allEntries.count)
         """
@@ -204,15 +210,22 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     let firstTask = try #require(viewModel.observationTask)
     #expect(!firstTask.isCancelled)
 
-    // A second performAppear must not replace the active observation task.
-    try await viewModel.performAppear()
+    // A second appear must not replace the active observation task.
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in viewModel.appearTask == nil },
+      { @MainActor in
+        "Expected second appear to finish; appearTask=\(String(describing: viewModel.appearTask))"
+      }
+    )
 
     let secondTask = try #require(viewModel.observationTask)
     #expect(firstTask == secondTask)
   }
 
-  @Test("disappear cancels observation after performAppear")
-  func disappearCancelsObservationAfterPerformAppear() async throws {
+  @Test("disappear cancels observation after appear")
+  func disappearCancelsObservationAfterAppear() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/disappear-observation.rss")!)
     let imageURL = try #require(URL(string: "https://example.com/disappear-observation-image.png"))
     await feedSession.respond(
@@ -236,7 +249,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     )
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
 
-    try await viewModel.performAppear()
+    viewModel.appear()
 
     try await Wait.until(
       { @MainActor in viewModel.observationTask != nil },
@@ -250,6 +263,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     #expect(viewModel.observationTask == nil)
     #expect(viewModel.appearTask == nil)
     #expect(viewModel.auxiliaryTasks.isEmpty)
+    #expect(!viewModel.isOnScreen)
   }
 
   @Test("disappear cancels an in-flight share-artwork load")
@@ -285,7 +299,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     )
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
 
-    try await viewModel.performAppear()
+    viewModel.appear()
     await fetchStarted.wait()
 
     viewModel.disappear()
@@ -297,8 +311,31 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     #expect(viewModel.auxiliaryTasks.isEmpty)
   }
 
-  @Test("performAppear loads share artwork once, idempotent on repeat")
-  func performAppearLoadsShareArtworkIdempotently() async throws {
+  @Test("subscribe after disappear does not start observation")
+  func subscribeAfterDisappearDoesNotStartObservation() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast(
+      feedURL: FeedURL(URL(string: "https://example.com/offscreen-subscribe.rss")!),
+      title: "Offscreen Subscribe"
+    )
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(unsavedPodcast))
+
+    viewModel.disappear()
+    #expect(!viewModel.isOnScreen)
+
+    viewModel.subscribe()
+
+    try await Wait.until(
+      { @MainActor in viewModel.saved },
+      { @MainActor in "Expected subscribe to persist the series; saved=\(viewModel.saved)" }
+    )
+
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(viewModel.observationTask == nil)
+  }
+
+  @Test("appear loads share artwork once, idempotent on repeat")
+  func appearLoadsShareArtworkIdempotently() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/appear-artwork.rss")!)
     let imageURL = try #require(URL(string: "https://example.com/appear-artwork-image.png"))
     await feedSession.respond(
@@ -323,17 +360,21 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     )
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
 
-    try await viewModel.performAppear()
+    viewModel.appear()
 
     try await Wait.until(
       { loadCount() == 1 },
-      { "Expected performAppear to load share artwork once; loadCount=\(loadCount())" }
+      { "Expected appear to load share artwork once; loadCount=\(loadCount())" }
     )
     #expect(fakeDataLoader.loadedURLs().contains(imageURL))
 
-    // A second performAppear must short-circuit on the now-populated
-    // shareArtwork rather than re-issuing the load.
-    try await viewModel.performAppear()
+    try await Wait.until(
+      { @MainActor in viewModel.appearTask == nil },
+      { @MainActor in "Expected first appear to finish before re-appearing." }
+    )
+
+    // A second appear must short-circuit on the now-populated shareArtwork.
+    viewModel.appear()
     try await yieldForSpuriousAsyncWork()
 
     #expect(loadCount() == 1)

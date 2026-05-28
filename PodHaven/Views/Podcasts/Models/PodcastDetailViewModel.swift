@@ -90,6 +90,8 @@ class PodcastDetailViewModel:
 
   // MARK: - State
 
+  @ObservationIgnored var isOnScreen = false
+
   // `state` is the source of truth; `episodeList` is a one-way projection of it.
   private(set) var state: PodcastDetailState
   let diagnosticID: Int
@@ -477,6 +479,8 @@ class PodcastDetailViewModel:
   private var shareArtwork: UIImage?
   @ObservationIgnored private var loadedShareArtworkURL: URL?
   @ObservationIgnored private var shareArtworkLoadInFlight = false
+  @ObservationIgnored private var shareArtworkTask: Task<Void, Never>?
+  @ObservationIgnored private var shareArtworkLoadGeneration = 0
 
   var sharePreview: SharePreview<Image, Image> {
     let image = sharePreviewImage
@@ -493,32 +497,49 @@ class PodcastDetailViewModel:
     guard loadedShareArtworkURL != imageURL else { return }
     shareArtwork = nil
     loadedShareArtworkURL = nil
+    cancelShareArtworkLoad()
+  }
+
+  private func cancelShareArtworkLoad() {
+    shareArtworkLoadGeneration += 1
+    shareArtworkTask?.cancel()
+    shareArtworkTask = nil
+    shareArtworkLoadInFlight = false
   }
 
   private func loadShareArtworkIfNeeded() {
+    guard isOnScreen else { return }
     let imageURL = podcast.image
     if shareArtwork != nil, loadedShareArtworkURL == imageURL { return }
     invalidateShareArtworkIfImageURLChanged()
     guard !shareArtworkLoadInFlight else { return }
+    shareArtworkLoadGeneration += 1
+    let generation = shareArtworkLoadGeneration
     shareArtworkLoadInFlight = true
-    track(
-      Task { [weak self] in
-        guard let self else { return }
-        defer { shareArtworkLoadInFlight = false }
-        do {
-          let image = try await imagePipeline.image(for: imageURL)
-          try Task.checkCancellation()
-          shareArtwork = image
-          loadedShareArtworkURL = imageURL
-        } catch {
-          Self.log.caughtError(
-            "loadShareArtworkIfNeeded: failed to load share artwork for \(imageURL)",
-            error,
-            level: { _ in .info }
-          )
+    let task = Task { [weak self] in
+      guard let self else { return }
+      defer {
+        if shareArtworkLoadGeneration == generation {
+          shareArtworkLoadInFlight = false
+          shareArtworkTask = nil
         }
       }
-    )
+      do {
+        let image = try await imagePipeline.image(for: imageURL)
+        try Task.checkCancellation()
+        guard podcast.image == imageURL else { return }
+        shareArtwork = image
+        loadedShareArtworkURL = imageURL
+      } catch {
+        Self.log.caughtError(
+          "loadShareArtworkIfNeeded: failed to load share artwork for \(imageURL)",
+          error,
+          level: { _ in .info }
+        )
+      }
+    }
+    shareArtworkTask = task
+    track(task)
   }
 
   // MARK: - Initialization
@@ -716,6 +737,8 @@ class PodcastDetailViewModel:
 
     guard let savedSeries = try await savedSeriesForCurrentState() else { return false }
 
+    try Task.checkCancellation()
+
     Self.log.debug("\(savedSeries.toString) exists in db")
 
     // Soft migration: backfill iTunesID for pre-existing podcasts
@@ -739,6 +762,13 @@ class PodcastDetailViewModel:
     _ podcastID: Podcast.ID? = nil,
     caller: StaticString = #function
   ) {
+    guard isOnScreen else {
+      Self.log.debug(
+        "startObservation: skipped off-screen, caller=\(caller), \(diagnosticSummary)"
+      )
+      return
+    }
+
     guard let podcastID else {
       Self.log.debug(
         "startObservation: skipped nil podcast, caller=\(caller), \(diagnosticSummary)"
@@ -806,6 +836,7 @@ class PodcastDetailViewModel:
 
       guard let updatedSeries
       else {
+        try Task.checkCancellation()
         Self.log.debug("Podcast was deleted, \(diagnosticSummary)")
         // Post-deletion strategy: re-parse the RSS feed so the UI can
         // recover to an unsaved snapshot. This diverges from
@@ -845,8 +876,8 @@ class PodcastDetailViewModel:
 
   func disappear() {
     Self.log.debug("disappear: executing, \(diagnosticSummary)")
-    shareArtworkLoadInFlight = false
-    cancelAppearScopedAsyncWork()
+    cancelShareArtworkLoad()
+    markDisappeared()
     recommendationCoordinator.cancel()
   }
 
@@ -890,6 +921,7 @@ class PodcastDetailViewModel:
     logStateTransition(to: newState)
     state = newState
     refreshEpisodeList(from: newState)
+    guard isOnScreen else { return }
     invalidateShareArtworkIfImageURLChanged()
     loadShareArtworkIfNeeded()
     startObservation(newState.savedSeries?.id, caller: caller)

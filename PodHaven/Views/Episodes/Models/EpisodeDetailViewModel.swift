@@ -78,6 +78,8 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   // MARK: - State
 
+  @ObservationIgnored var isOnScreen = false
+
   private let originTab: Navigation.Tab
   private(set) var state: EpisodeDetailState
   var tags: IdentifiedArrayOf<Tag> = []
@@ -147,11 +149,13 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   func performAppear() async throws {
     let podcastEpisode = try await repo.podcastEpisode(state.mediaGUID)
+    try Task.checkCancellation()
 
     if let podcastEpisode {
       Self.log.debug("Podcast episode: \(podcastEpisode.toString) exists in db")
 
       transition(to: .saved(podcastEpisode))
+      try Task.checkCancellation()
       startObservation(podcastEpisode)
     } else {
       Self.log.debug("Podcast episode: \(state.toString) does not exist in db")
@@ -179,11 +183,14 @@ enum EpisodeDetailDisplayedScore: Sendable {
       }
     }
 
+    try Task.checkCancellation()
     startRecommendationObservation()
 
     if let startTime {
+      try Task.checkCancellation()
       Self.log.debug("Auto-playing from startTime: \(startTime)s")
       let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try Task.checkCancellation()
       try await loadAndPlay(podcastEpisode, seekTo: startTime)
     }
   }
@@ -327,6 +334,11 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored var auxiliaryTasks: [Task<Void, Never>] = []
 
   private func startObservation(_ podcastEpisode: PodcastEpisode) {
+    guard isOnScreen else {
+      Self.log.debug("startObservation: skipped off-screen for \(podcastEpisode.toString)")
+      return
+    }
+
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
       return
@@ -536,7 +548,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   func disappear() {
     Self.log.debug("disappear: executing")
-    cancelAppearScopedAsyncWork()
+    markDisappeared()
     recommendationCoordinator.cancel()
   }
 
@@ -546,6 +558,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     guard newState != state else { return }
     logStateTransition(to: newState)
     state = newState
+    guard isOnScreen else { return }
     recommendationCoordinator.refresh()
   }
 
