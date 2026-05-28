@@ -633,7 +633,8 @@ class PodcastDetailViewModel:
     guard isCurrentAppearPass(generation) else { return }
     Self.log.debug("\(state.toString) does not exist in db")
 
-    guard episodeList.allEntries.isEmpty else {
+    let seriesMissingFromDB = state.savedSeries != nil
+    guard seriesMissingFromDB || episodeList.allEntries.isEmpty else {
       Self.log.debug("PodcastDetailViewModel already has entries, no need to fetch again.")
       return
     }

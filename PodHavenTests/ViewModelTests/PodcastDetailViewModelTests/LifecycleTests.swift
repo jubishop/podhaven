@@ -586,6 +586,53 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     #expect(requestsAfterDeletion == requestsBeforeDisappear)
   }
 
+  @Test("reappear after off-screen delete reparses feed into unsaved detail")
+  func reappearAfterOffScreenDeleteReparsesFeed() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/reappear-after-delete.rss")!)
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    )
+
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Reappear After Delete"),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+      )
+    )
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    let requestsAfterFirstAppear = await feedSession.requests.filter { $0 == feedURL.rawValue }
+      .count
+
+    viewModel.disappear()
+    try await repo.deletePodcast(savedSeries.id)
+    try await yieldForSpuriousAsyncWork()
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.saved == false
+          && viewModel.podcast.loaded != nil
+          && viewModel.episodeList.allEntries.isEmpty == false
+      },
+      { @MainActor in
+        """
+        Expected reappear after off-screen delete to reparse into unsaved detail.
+        saved: \(viewModel.saved)
+        podcast: \(viewModel.podcast.toString)
+        episode count: \(viewModel.episodeList.allEntries.count)
+        """
+      }
+    )
+
+    let requestsAfterReappear = await feedSession.requests.filter { $0 == feedURL.rawValue }.count
+    #expect(requestsAfterReappear > requestsAfterFirstAppear)
+  }
+
   @Test("recommendation sort off-screen does not start scoring")
   func recommendationSortOffScreenDoesNotStartScoring() async throws {
     let embeddable = RecommendationScoringTestHelpers.scoringEmbeddable()
