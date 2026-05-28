@@ -103,8 +103,13 @@ where Item.ID: Sendable {
   @ObservationIgnored private var entriesTask: Task<Void, Never>?
 
   private func scheduleEntriesUpdate() {
-    guard !baselineEntries.isEmpty || !searchTerms.isEmpty else { return }
     entriesTask?.cancel()
+
+    guard !baselineEntries.isEmpty else {
+      _allEntries = []
+      filteredEntries = []
+      return
+    }
 
     entriesTask = Task { [weak self, baselineEntries, sortMethod, filterMethod, searchTerms] in
       let (allEntries, filteredEntries) = await Self.computeEntries(
