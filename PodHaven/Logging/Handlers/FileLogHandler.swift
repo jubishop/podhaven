@@ -23,6 +23,10 @@ struct FileLogHandler: LogHandler {
     private static let rateLimitBurst = 50.0
     private static let rateLimitTokensPerSecond = 1.0
 
+    // Buckets are never evicted: one entry per distinct (file, line) for the
+    // Writer lifetime. That is acceptable — typical site count stays modest
+    // relative to log volume, and flush only iterates sites with pending drops.
+
     let fileURL: URL
     let maxFileSizeBytes: Int
     let targetFileSizeBytes: Int
@@ -49,7 +53,31 @@ struct FileLogHandler: LogHandler {
       queue.sync { closeAppendHandle() }
     }
 
-    func rateLimitDecision(file: String, line: UInt) -> RateLimitDecision {
+    func log(
+      file: String,
+      line: UInt,
+      synchronously: Bool,
+      makeEntry: @escaping @Sendable () -> Entry
+    ) {
+      let work: @Sendable () -> Void = { [weak self] in
+        guard let self else { return }
+        switch self.rateLimitDecision(file: file, line: line) {
+        case .drop:
+          return
+        case .write:
+          let result = self.writeEntry(makeEntry())
+          Self.emitOSLogOnly(result)
+        }
+      }
+      if synchronously {
+        queue.sync(execute: work)
+      } else {
+        queue.async(execute: work)
+      }
+    }
+
+    // Must be called on `queue`.
+    private func rateLimitDecision(file: String, line: UInt) -> RateLimitDecision {
       let now = Container.shared.continuousClockNow()()
       let key = RateKey(file: file, line: line)
       return rateLimitBuckets { buckets in
@@ -71,27 +99,13 @@ struct FileLogHandler: LogHandler {
         let decision: RateLimitDecision
         if bucket.tokens >= 1 {
           bucket.tokens -= 1
-          decision = .write(suppressed: bucket.suppressedCount)
-          bucket.suppressedCount = 0
+          decision = .write
         } else {
           bucket.suppressedCount += 1
           decision = .drop
         }
         buckets[key] = bucket
         return decision
-      }
-    }
-
-    func write(_ entry: Entry, suppressed: Int, synchronously: Bool) {
-      if synchronously {
-        let result = queue.sync { writeEntry(entry, suppressed: suppressed) }
-        Self.emitOSLogOnly(result)
-      } else {
-        queue.async { [weak self] in
-          guard let self else { return }
-          let result = self.writeEntry(entry, suppressed: suppressed)
-          Self.emitOSLogOnly(result)
-        }
       }
     }
 
@@ -111,14 +125,22 @@ struct FileLogHandler: LogHandler {
     }
 
     // Must be called on `queue`.
-    private func writeEntry(_ entry: Entry, suppressed: Int) -> WriteResult {
+    private func writeEntry(_ entry: Entry) -> WriteResult {
       recordContext(for: entry)
+      let key = RateKey(file: entry.file, line: entry.line)
+      let suppressed = pendingSuppressedCount(for: key)
       do {
         // The real entry is always appended right after, and appendEntry
         // returns the post-write file size — so the single truncation check
         // below already accounts for this summary line's bytes too.
         if suppressed > 0 {
-          try appendEntry(suppressionSummary(for: entry, suppressed: suppressed))
+          try appendEntry(
+            suppressionSummary(
+              context: SuppressionContext.from(entry: entry),
+              suppressed: suppressed
+            )
+          )
+          clearSuppressedCount(for: key)
         }
         let currentSize = try appendEntry(entry)
         guard currentSize > UInt64(maxFileSizeBytes) else { return .ok }
@@ -254,8 +276,8 @@ struct FileLogHandler: LogHandler {
 
     // MARK: - Rate Limiting
 
-    fileprivate enum RateLimitDecision {
-      case write(suppressed: Int)
+    private enum RateLimitDecision {
+      case write
       case drop
     }
 
@@ -315,27 +337,41 @@ struct FileLogHandler: LogHandler {
       }
     }
 
+    private func pendingSuppressedCount(for key: RateKey) -> Int {
+      rateLimitBuckets { buckets in
+        buckets[key]?.suppressedCount ?? 0
+      }
+    }
+
+    private func clearSuppressedCount(for key: RateKey) {
+      rateLimitBuckets { buckets in
+        guard var bucket = buckets[key] else { return }
+        bucket.suppressedCount = 0
+        buckets[key] = bucket
+      }
+    }
+
     // Must be called on `queue`.
     private func flushPendingSuppressions() -> WriteResult {
-      var failure: WriteResult = .ok
-      rateLimitBuckets { buckets in
-        for (key, var bucket) in buckets where bucket.suppressedCount > 0 {
+      let pending: [(RateKey, SuppressionContext, Int)] = rateLimitBuckets { buckets in
+        buckets.compactMap { key, bucket in
+          guard bucket.suppressedCount > 0 else { return nil }
           let context = bucket.lastContext ?? .fallback(for: key)
-          let summary = suppressionSummary(context: context, suppressed: bucket.suppressedCount)
-          do {
-            try appendEntry(summary)
-            bucket.suppressedCount = 0
-            buckets[key] = bucket
-          } catch {
-            failure = .failed(error)
-          }
+          return (key, context, bucket.suppressedCount)
+        }
+      }
+
+      var failure: WriteResult = .ok
+      for (key, context, suppressed) in pending {
+        let summary = suppressionSummary(context: context, suppressed: suppressed)
+        do {
+          try appendEntry(summary)
+          clearSuppressedCount(for: key)
+        } catch {
+          failure = .failed(error)
         }
       }
       return failure
-    }
-
-    private func suppressionSummary(for entry: Entry, suppressed: Int) -> Entry {
-      suppressionSummary(context: SuppressionContext.from(entry: entry), suppressed: suppressed)
     }
 
     private func suppressionSummary(context: SuppressionContext, suppressed: Int) -> Entry {
@@ -432,13 +468,12 @@ struct FileLogHandler: LogHandler {
   // MARK: - Logging
 
   public func log(event: LogEvent) {
-    switch writer.rateLimitDecision(file: event.file, line: event.line) {
-    case .drop:
-      return
-    case .write(let suppressed):
-      let entry = makeEntry(from: event)
-      writer.write(entry, suppressed: suppressed, synchronously: writeSynchronously(event.level))
-    }
+    writer.log(
+      file: event.file,
+      line: event.line,
+      synchronously: writeSynchronously(event.level),
+      makeEntry: { self.makeEntry(from: event) }
+    )
   }
 
   private func makeEntry(from event: LogEvent) -> Entry {

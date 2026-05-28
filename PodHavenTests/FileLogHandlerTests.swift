@@ -230,6 +230,34 @@ struct FileLogHandlerTests {
     )
   }
 
+  @Test("rate limit bounds total volume across many distinct log sites")
+  func rateLimitBoundsManyDistinctSites() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+
+    Container.shared.fakeContinuousClock().freeze()
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000
+    )
+
+    let siteCount = 200
+    let logsPerSite = 100
+    for line in 1...siteCount {
+      for _ in 0..<logsPerSite {
+        log(handler, message: "storm-\(line)", line: UInt(line))
+      }
+    }
+    FileLogHandler.flush(fileURL: fileURL)
+
+    let entries = try decodedEntries(at: fileURL)
+    let unboundedCount = siteCount * logsPerSite
+    #expect(entries.count < unboundedCount)
+    #expect(entries.count <= siteCount * 51)
+  }
+
   @Test("rate limit is keyed per (file, line) — different lines do not interfere")
   func rateLimitIsKeyedPerSite() throws {
     let fileURL = tempFileURL()
