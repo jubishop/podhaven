@@ -62,7 +62,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
 }
 
 @Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
-  @ObservationIgnored @DynamicInjected(\.alert) var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -79,7 +78,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // MARK: - State
 
   private let originTab: Navigation.Tab
-  private(set) var state: EpisodeDetailState
   var tags: IdentifiedArrayOf<Tag> = []
   private var score: EpisodeDetailDisplayedScore?
 
@@ -145,6 +143,17 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
   }
 
+  // MARK: - DetailViewModel
+
+  @ObservationIgnored @DynamicInjected(\.alert) var alert
+  private(set) var state: EpisodeDetailState
+
+  @ObservationIgnored var isOnScreen = false
+  @ObservationIgnored var appearGeneration = 0
+  @ObservationIgnored var appearTask: Task<Void, Never>?
+  @ObservationIgnored var observationTask: Task<Void, Never>?
+  @ObservationIgnored var auxiliaryTasks: [DetailAuxiliaryTask] = []
+
   func performAppear() async throws {
     let generation = appearGeneration
     let podcastEpisode = try await repo.podcastEpisode(state.mediaGUID)
@@ -199,6 +208,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
       guard isCurrentAppearPass(generation) else { return }
       try await loadAndPlay(podcastEpisode, seekTo: startTime)
     }
+  }
+
+  func cancelDetailPassAuxiliaryWork() {
+    recommendationCoordinator.cancel()
   }
 
   // MARK: - Public Methods
@@ -347,16 +360,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   // MARK: - Observation Management
-
-  @ObservationIgnored var isOnScreen = false
-  @ObservationIgnored var appearGeneration = 0
-  @ObservationIgnored var appearTask: Task<Void, Never>?
-  @ObservationIgnored var observationTask: Task<Void, Never>?
-  @ObservationIgnored var auxiliaryTasks: [DetailAuxiliaryTask] = []
-
-  func cancelDetailPassAuxiliaryWork() {
-    recommendationCoordinator.cancel()
-  }
 
   private func startObservation(_ podcastEpisode: PodcastEpisode) {
     guard isOnScreen else {

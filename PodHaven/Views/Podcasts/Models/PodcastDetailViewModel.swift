@@ -62,7 +62,6 @@ class PodcastDetailViewModel:
   SelectableEpisodeList,
   SortableEpisodeList
 {
-  @ObservationIgnored @DynamicInjected(\.alert) var alert
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -81,8 +80,7 @@ class PodcastDetailViewModel:
 
   // MARK: - State
 
-  // `state` is the source of truth; `episodeList` is a one-way projection of it.
-  private(set) var state: PodcastDetailState
+  // `state` is under DetailViewModel; `episodeList` is a one-way projection of it.
   let diagnosticID: Int
 
   var podcast: PodcastDetailContent { state.detailContent }
@@ -592,6 +590,17 @@ class PodcastDetailViewModel:
     )
   }
 
+  // MARK: - DetailViewModel
+
+  @ObservationIgnored @DynamicInjected(\.alert) var alert
+  private(set) var state: PodcastDetailState
+
+  @ObservationIgnored var isOnScreen = false
+  @ObservationIgnored var appearGeneration = 0
+  @ObservationIgnored var appearTask: Task<Void, Never>?
+  @ObservationIgnored var observationTask: Task<Void, Never>?
+  @ObservationIgnored var auxiliaryTasks: [DetailAuxiliaryTask] = []
+
   func performAppear() async throws {
     let generation = appearGeneration
     let startedAt = ContinuousClock.now
@@ -645,6 +654,15 @@ class PodcastDetailViewModel:
       if observationTask == nil {
         startObservation(state.savedSeries?.id, caller: "performAppear")
       }
+    }
+  }
+
+  func cancelDetailPassAuxiliaryWork() {
+    cancelShareArtworkLoad()
+    recommendationCoordinator.cancel()
+    if currentSortMethod == .recommendationScore {
+      episodeList.filterMethod = currentSortMethod.filterMethod
+      episodeList.sortMethod = currentSortMethod.sortMethod
     }
   }
 
@@ -763,21 +781,6 @@ class PodcastDetailViewModel:
   }
 
   // MARK: - Observation Management
-
-  @ObservationIgnored var isOnScreen = false
-  @ObservationIgnored var appearGeneration = 0
-  @ObservationIgnored var appearTask: Task<Void, Never>?
-  @ObservationIgnored var observationTask: Task<Void, Never>?
-  @ObservationIgnored var auxiliaryTasks: [DetailAuxiliaryTask] = []
-
-  func cancelDetailPassAuxiliaryWork() {
-    cancelShareArtworkLoad()
-    recommendationCoordinator.cancel()
-    if currentSortMethod == .recommendationScore {
-      episodeList.filterMethod = currentSortMethod.filterMethod
-      episodeList.sortMethod = currentSortMethod.sortMethod
-    }
-  }
 
   @discardableResult
   private func attemptObservation(appearGeneration generation: Int) async throws -> Bool {
