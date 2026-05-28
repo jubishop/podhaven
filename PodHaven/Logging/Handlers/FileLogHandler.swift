@@ -62,9 +62,8 @@ struct FileLogHandler: LogHandler {
     }
 
     // Returns whether the file write succeeded. Truncation and failure reports
-    // are emitted on the caller path for synchronous writes; for asynchronous
-    // writes they run before the queue work item returns (via a hop off the
-    // writer queue) so flush() does not leave them in a fire-and-forget Task.
+    // use `fallbackLog` only so they never re-enter swift-log's FileLogHandler
+    // (which would deadlock the writer queue under background synchronous writes).
     @discardableResult
     func write(
       _ entry: Entry,
@@ -75,11 +74,9 @@ struct FileLogHandler: LogHandler {
         queue.async { [weak self] in
           guard let self else { return }
           let result = self.writeEntry(entry, suppressed: suppressed)
-          guard let result else { return }
-          DispatchQueue.global(qos: .utility)
-            .sync {
-              Self.emitReport(result)
-            }
+          if let result {
+            Self.emitReport(result)
+          }
         }
         return true
       }
@@ -127,12 +124,11 @@ struct FileLogHandler: LogHandler {
       }
     }
 
-    // Must be called outside `queue` to avoid deadlock when Self.log re-enters
-    // the same writer queue.
+    // Uses `fallbackLog` only — never `Self.log`, which would re-enter FileLogHandler.
     private static func emitReport(_ result: WriteResult) {
       switch result {
       case .message(let message):
-        Self.log.info("\(message)")
+        Self.fallbackLog.info("\(message, privacy: .public)")
       case .failed(let error):
         Self.fallbackLog.error(
           "Failed to write log entry: \(error.localizedDescription, privacy: .public)"
@@ -287,16 +283,14 @@ struct FileLogHandler: LogHandler {
     // queue dispatch so the warning decision and the originating thread's
     // stack walk are observed in the same synchronous step.
     //
-    // Lock scope: bucket bookkeeping (refill, token spend, suppressed reset,
-    // `lastWarning` advance) commits inside the rate-limit mutex; the
-    // `captureCallStack` autoclosure is invoked *after* the mutex is
-    // released, on the originating thread. Stack symbolication is
-    // multi-millisecond; running it under the mutex would serialize every
-    // log call across the app during a storm — exactly the regression
-    // mode this feature is meant to surface, not introduce. The cooldown
-    // is committed before the autoclosure runs, so a concurrent log call
-    // racing the stack walk sees the cooldown already in effect and
-    // doesn't double-warn.
+    // Lock scope: bucket bookkeeping (refill, token spend, suppressed reset)
+    // commits inside the rate-limit mutex; `lastWarning` advances only after
+    // a storm warning is actually emitted (`noteStormWarningEmitted`). The
+    // `captureCallStack` autoclosure is invoked *after* the mutex is released,
+    // on the originating thread. Stack symbolication is multi-millisecond;
+    // running it under the mutex would serialize every log call across the app
+    // during a storm — exactly the regression mode this feature is meant to
+    // surface, not introduce.
     //
     // `captureCallStack` is an autoclosure invoked only when the bucket
     // crosses the warning threshold (cost is a per-cooldown per-site upper
@@ -309,10 +303,10 @@ struct FileLogHandler: LogHandler {
     func commitRateLimitDecision(
       for file: String,
       line: UInt,
+      now: ContinuousClock.Instant,
       captureCallStack: @autoclosure () -> [String]
     ) -> RateLimitDecision {
       let key = RateKey(file: file, line: line)
-      let now = Container.shared.continuousClockNow()()
 
       // Phase 1 (under mutex): commit all bucket bookkeeping including the
       // cooldown advance. Returns the bare facts; no stack capture yet.
@@ -353,7 +347,6 @@ struct FileLogHandler: LogHandler {
             cooledDown = true
           }
           let shouldWarn = suppressed >= Self.rateLimitWarningThreshold && cooledDown
-          if shouldWarn { bucket.lastWarning = now }
           pending = .write(suppressed: suppressed, shouldCaptureCallStack: shouldWarn)
         } else {
           bucket.suppressedCount += 1
@@ -371,6 +364,15 @@ struct FileLogHandler: LogHandler {
       case .write(let suppressed, let shouldCaptureCallStack):
         let callStack: [String]? = shouldCaptureCallStack ? captureCallStack() : nil
         return .write(suppressed: suppressed, callStack: callStack)
+      }
+    }
+
+    func noteStormWarningEmitted(for file: String, line: UInt, at now: ContinuousClock.Instant) {
+      let key = RateKey(file: file, line: line)
+      rateLimitBuckets { buckets in
+        guard var bucket = buckets[key] else { return }
+        bucket.lastWarning = now
+        buckets[key] = bucket
       }
     }
 
@@ -422,6 +424,9 @@ struct FileLogHandler: LogHandler {
 
   // One handler is built per logger label; all must share one Writer per file.
   private static let writers = ThreadSafe<[URL: Writer]>([:])
+  @DynamicInjected(\.continuousClockNow) private var continuousClockNow
+
+  private let fileURL: URL
   private let subsystem: String
   private let category: String
   private let writer: Writer
@@ -437,6 +442,7 @@ struct FileLogHandler: LogHandler {
     writeSynchronously: @escaping @Sendable (Logging.Logger.Level) -> Bool
   ) {
     let (subsystem, category) = LogKit.destructureLabel(from: label)
+    self.fileURL = fileURL
     self.subsystem = subsystem
     self.category = category
     self.writeSynchronously = writeSynchronously
@@ -456,13 +462,14 @@ struct FileLogHandler: LogHandler {
   // MARK: - Logging
 
   public func log(event: LogEvent) {
-    let synchronously = writeSynchronously(event.level)
     let decision = writer.commitRateLimitDecision(
       for: event.file,
       line: event.line,
+      now: continuousClockNow(),
       captureCallStack: Self.boundedCallStack()
     )
     guard case .write(let suppressed, let callStack) = decision else { return }
+    let synchronously = writeSynchronously(event.level)
     processRateLimitedWrite(
       event: event,
       suppressed: suppressed,
@@ -481,19 +488,24 @@ struct FileLogHandler: LogHandler {
     synchronously: Bool
   ) {
     let entry = makeEntry(from: event)
+    let stormEligible = callStack != nil
     let writeSucceeded = writer.write(
       entry,
       suppressed: suppressed,
-      synchronously: synchronously
+      synchronously: synchronously || stormEligible
     )
-    // Storm warnings are ordered before Sentry/flush visibility on the caller
-    // path, not before on-disk NDJSON when writes are asynchronous.
-    // Synchronous paths gate the warning on a successful file write so Sentry
-    // matches on-disk evidence; asynchronous paths warn optimistically because
-    // suspend safety takes precedence over file ordering.
-    if let callStack, !synchronously || writeSucceeded {
+    if let callStack, writeSucceeded {
       Writer.reportStormWarning(for: entry, suppressed: suppressed, callStack: callStack)
+      writer.noteStormWarningEmitted(
+        for: entry.file,
+        line: entry.line,
+        at: continuousClockNow()
+      )
     }
+  }
+
+  func flush() {
+    writer.flush()
   }
 
   private func makeEntry(from event: LogEvent) -> Entry {
@@ -526,8 +538,17 @@ struct FileLogHandler: LogHandler {
 
   // MARK: - Flush
 
+  static func flush(fileURL: URL) {
+    writers()[fileURL]?.flush()
+  }
+
   static func flush() {
-    for writer in writers().values {
+    flush(fileURL: AppInfo.logFileURL)
+  }
+
+  static func removeWriter(for fileURL: URL) {
+    writers { writers in
+      guard let writer = writers.removeValue(forKey: fileURL) else { return }
       writer.flush()
     }
   }

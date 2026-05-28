@@ -44,6 +44,11 @@ struct FileLogHandlerTests {
       .appendingPathExtension("ndjson")
   }
 
+  private func tearDownLogFile(_ fileURL: URL) {
+    FileLogHandler.removeWriter(for: fileURL)
+    try? FileManager.default.removeItem(at: fileURL)
+  }
+
   // A unique `line` per entry gives each its own rate-limit bucket, so the
   // writer drops nothing and the file stays deterministic.
   private func log(_ handler: FileLogHandler, message: String, line: UInt) {
@@ -101,7 +106,7 @@ struct FileLogHandlerTests {
   @Test("writes each entry as its own newline-delimited JSON line")
   func writesEntriesAsNewlineDelimitedJSON() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -121,7 +126,7 @@ struct FileLogHandlerTests {
   @Test("truncation keeps whole JSON lines and keeps appending to the live file")
   func truncationKeepsWholeLinesAndKeepsAppending() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     // targetFileSizeBytes is well above the 64 KB read window, so each
     // truncation streams its surviving tail across several windows.
@@ -159,7 +164,7 @@ struct FileLogHandlerTests {
   @Test("truncation finds the cut boundary when an entry exceeds the read window")
   func truncationFindsBoundaryWhenEntryExceedsReadWindow() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -183,13 +188,14 @@ struct FileLogHandlerTests {
   @Test("rate limit drops storming entries at one site after the burst is spent")
   func rateLimitDropsStormingEntries() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
       maxFileSizeBytes: 10_000_000,
       targetFileSizeBytes: 5_000_000
     )
+    Container.shared.fakeContinuousClock().freeze()
 
     // 50 fills the burst at line=1; the remaining 300 all drop because the
     // fake clock doesn't advance, so the token bucket can't refill. Covers
@@ -208,13 +214,14 @@ struct FileLogHandlerTests {
   @Test("rate limit is keyed per (file, line) — different lines do not interfere")
   func rateLimitIsKeyedPerSite() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
       maxFileSizeBytes: 10_000_000,
       targetFileSizeBytes: 5_000_000
     )
+    Container.shared.fakeContinuousClock().freeze()
 
     // Burst the bucket at line=1, then storm line=2; line=2's bucket is
     // independent so its first 50 still write through.
@@ -229,7 +236,7 @@ struct FileLogHandlerTests {
   @Test("storm-warning trigger engages after enough drops and a clock advance")
   func stormWarningTriggerEngagesAfterDropsAndClockAdvance() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -237,6 +244,7 @@ struct FileLogHandlerTests {
       targetFileSizeBytes: 5_000_000
     )
     let storming: UInt = 10_001
+    Container.shared.fakeContinuousClock().freeze()
 
     // Burn the burst (50) + 250 drops at one site. With the fake clock
     // frozen, no token refills, so all 250 are suppressed.
@@ -256,7 +264,7 @@ struct FileLogHandlerTests {
   @Test("storm warning is not emitted below rate-limit warning threshold")
   func stormWarningNotBelowThreshold() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -265,6 +273,7 @@ struct FileLogHandlerTests {
     )
     let storming: UInt = 10_009
     let clock = Container.shared.fakeContinuousClock()
+    clock.freeze()
 
     // Burn the burst (50) + 24 drops; 24 is below the warning threshold.
     for _ in 0..<74 {
@@ -289,7 +298,7 @@ struct FileLogHandlerTests {
   @Test("storm warning is emitted via Self.log.warning with the originating site")
   func stormWarningEmittedWithOriginatingSite() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -297,6 +306,7 @@ struct FileLogHandlerTests {
       targetFileSizeBytes: 5_000_000
     )
     let storming: UInt = 10_002
+    Container.shared.fakeContinuousClock().freeze()
 
     for _ in 0..<300 {
       log(handler, message: "storm", line: storming)
@@ -317,7 +327,7 @@ struct FileLogHandlerTests {
   @Test("storm warning carries a captured call stack from the originating thread")
   func stormWarningCarriesCallStack() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -325,6 +335,7 @@ struct FileLogHandlerTests {
       targetFileSizeBytes: 5_000_000
     )
     let storming: UInt = 10_003
+    Container.shared.fakeContinuousClock().freeze()
 
     for _ in 0..<300 {
       log(handler, message: "storm", line: storming)
@@ -338,16 +349,15 @@ struct FileLogHandlerTests {
     let parts = warning.message.components(separatedBy: "Stack:\n")
     #expect(parts.count == 2)
     let stack = try #require(parts.last)
-    #expect(!stack.isEmpty)
-    // commitRateLimitDecision is the production frame that triggers capture;
-    // pinning it keeps the test stable across test-binary symbol names.
-    #expect(stack.contains("commitRateLimitDecision"))
+    let stackLines = stack.split(separator: "\n", omittingEmptySubsequences: true)
+    #expect(stackLines.count >= 2)
+    #expect(stack.contains("stormWarningCarriesCallStack"))
   }
 
   @Test("per-bucket cooldown blocks a second warning within 60 seconds at the same site")
   func cooldownBlocksSecondWarningAtSameSite() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -356,6 +366,7 @@ struct FileLogHandlerTests {
     )
     let storming: UInt = 10_004
     let clock = Container.shared.fakeContinuousClock()
+    clock.freeze()
 
     for _ in 0..<300 { log(handler, message: "storm", line: storming) }
     clock.advance(by: .seconds(2))
@@ -380,7 +391,7 @@ struct FileLogHandlerTests {
   @Test("cooldown is per-bucket — a second site warns independently")
   func cooldownIsPerBucket() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -390,6 +401,7 @@ struct FileLogHandlerTests {
     let siteA: UInt = 10_005
     let siteB: UInt = 10_006
     let clock = Container.shared.fakeContinuousClock()
+    clock.freeze()
 
     for _ in 0..<300 { log(handler, message: "site-a", line: siteA) }
     for _ in 0..<300 { log(handler, message: "site-b", line: siteB) }
@@ -405,7 +417,7 @@ struct FileLogHandlerTests {
   @Test("asynchronous writes reach the file once flushed")
   func asynchronousWritesReachFileOnceFlushed() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -419,11 +431,11 @@ struct FileLogHandlerTests {
     for index in 0..<10 {
       log(handler, message: "entry-\(index)", line: UInt(index))
     }
-    FileLogHandler.flush()
+    handler.flush()
     for index in 10..<20 {
       log(handler, message: "entry-\(index)", line: UInt(index))
     }
-    FileLogHandler.flush()
+    handler.flush()
 
     let entries = try decodedEntries(at: fileURL)
     #expect(entries.map(\.message) == (0..<20).map { "entry-\($0)" })
@@ -437,7 +449,7 @@ struct FileLogHandlerTests {
         [.posixPermissions: 0o644],
         ofItemAtPath: fileURL.path
       )
-      try? FileManager.default.removeItem(at: fileURL)
+      tearDownLogFile(fileURL)
     }
 
     let handler = makeHandler(
@@ -446,9 +458,11 @@ struct FileLogHandlerTests {
       targetFileSizeBytes: 5_000_000
     )
     let storming: UInt = 10_008
+    let clock = Container.shared.fakeContinuousClock()
+    clock.freeze()
 
     log(handler, message: "seed", line: 1)
-    FileLogHandler.flush()
+    handler.flush()
     try FileManager.default.setAttributes(
       [.posixPermissions: 0o444],
       ofItemAtPath: fileURL.path
@@ -457,10 +471,23 @@ struct FileLogHandlerTests {
     for _ in 0..<300 {
       log(handler, message: "storm", line: storming)
     }
-    Container.shared.fakeContinuousClock().advance(by: .seconds(2))
+    clock.advance(by: .seconds(2))
     log(handler, message: "released", line: storming)
 
     #expect(stormWarnings(forStormingLine: storming).isEmpty)
+
+    // Cooldown was not committed — a second storm cycle can still warn.
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o644],
+      ofItemAtPath: fileURL.path
+    )
+    for _ in 0..<300 {
+      log(handler, message: "storm", line: storming)
+    }
+    clock.advance(by: .seconds(2))
+    log(handler, message: "released-again", line: storming)
+
+    #expect(stormWarnings(forStormingLine: storming).count == 1)
   }
 
   // Regression: storm warnings must be emitted synchronously on the log call
@@ -472,7 +499,7 @@ struct FileLogHandlerTests {
   @Test("storm warning is emitted synchronously on the log path with async writes")
   func stormWarningEmittedSynchronouslyOnLogPathWithAsyncWrites() throws {
     let fileURL = tempFileURL()
-    defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { tearDownLogFile(fileURL) }
 
     let handler = makeHandler(
       fileURL: fileURL,
@@ -481,6 +508,7 @@ struct FileLogHandlerTests {
       synchronous: false
     )
     let storming: UInt = 10_007
+    Container.shared.fakeContinuousClock().freeze()
 
     for _ in 0..<300 {
       log(handler, message: "storm", line: storming)
@@ -488,8 +516,45 @@ struct FileLogHandlerTests {
     Container.shared.fakeContinuousClock().advance(by: .seconds(2))
     log(handler, message: "released", line: storming)
 
-    // No flush() and no polling: by the time the release log call returns,
-    // the storm warning must already be in the capture buffer.
+    // By the time the release log call returns, the storm warning must already
+    // be in the capture buffer (not deferred behind the writer queue).
     #expect(stormWarnings(forStormingLine: storming).count == 1)
+
+    handler.flush()
+    #expect(stormWarnings(forStormingLine: storming).count == 1)
+    let summaries = try suppressionSummaries(at: fileURL)
+    #expect(summaries.contains(250))
+  }
+
+  @Test("async truncation completes after scoped flush without blocking")
+  func asyncTruncationCompletesAfterScopedFlush() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+
+    let maxFileSizeBytes = 200_000
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: maxFileSizeBytes,
+      targetFileSizeBytes: 130_000,
+      synchronous: false
+    )
+
+    let written = 1_000
+    let padding = String(repeating: "x", count: 120)
+    for index in 0..<written {
+      log(
+        handler,
+        message: "entry-\(String(format: "%04d", index))-\(padding)",
+        line: UInt(index)
+      )
+    }
+    handler.flush()
+
+    let fileSize = try Data(contentsOf: fileURL).count
+    #expect(fileSize <= maxFileSizeBytes)
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(!entries.isEmpty)
+    #expect(entries.count < written)
   }
 }

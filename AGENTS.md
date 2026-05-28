@@ -55,7 +55,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - Async tests use `Wait.until`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
 - All test files belong to `PodHavenTests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
-- Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete test-only surface; improve the API or fixt3ure if needed.
+- Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete test-only surface; improve the API or fixture if needed.
 
 ## Previews
 - Previews stub factories for in-memory SwiftUI previews; no network or DB access.

@@ -12,17 +12,41 @@ extension Container {
 }
 
 final class FakeContinuousClock: Sendable {
-  private let current: ThreadSafe<ContinuousClock.Instant>
-
-  init(start: ContinuousClock.Instant = .now) {
-    self.current = ThreadSafe(start)
+  private enum Mode: Sendable {
+    case passthrough
+    case manual(ContinuousClock.Instant)
   }
 
+  private let mode = ThreadSafe<Mode>(.passthrough)
+
   var now: ContinuousClock.Instant {
-    current()
+    mode { current in
+      switch current {
+      case .passthrough:
+        return ContinuousClock.now
+      case .manual(let instant):
+        return instant
+      }
+    }
+  }
+
+  // Holds time still for rate-limiter tests that flood one site without refills.
+  func freeze(at instant: ContinuousClock.Instant = .now) {
+    mode { current in
+      current = .manual(instant)
+    }
   }
 
   func advance(by duration: Duration) {
-    current { $0 = $0.advanced(by: duration) }
+    mode { current in
+      let base: ContinuousClock.Instant
+      switch current {
+      case .passthrough:
+        base = ContinuousClock.now
+      case .manual(let instant):
+        base = instant
+      }
+      current = .manual(base.advanced(by: duration))
+    }
   }
 }

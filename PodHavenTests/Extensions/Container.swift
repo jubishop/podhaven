@@ -8,6 +8,8 @@ import Nuke
 
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
+    LogCapture.installOnce()
+
     appDB.context(.test) { AppDB.inMemory() }.scope(.cached)
     repo.context(.test) { FakeRepo(self.makeRepo()) }.scope(.cached)
     recommendationRepo.context(.test) {
