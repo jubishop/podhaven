@@ -99,7 +99,7 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
       )
     )
 
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    _ = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
     fakeObservatory.clearAllCalls()
     try await yieldForSpuriousAsyncWork()
@@ -112,7 +112,7 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     arguments: EpisodeNonSavedSeed.allCases
   )
   func initForNonSavedSeedDoesNotStartObservation(seed: EpisodeNonSavedSeed) async throws {
-    let viewModel = try await seed.makeViewModel(repo: repo, observatory: observatory)
+    _ = try await seed.makeViewModel(repo: repo, observatory: observatory)
 
     fakeObservatory.clearAllCalls()
     try await yieldForSpuriousAsyncWork()
