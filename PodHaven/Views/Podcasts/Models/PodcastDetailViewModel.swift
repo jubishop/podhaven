@@ -90,8 +90,6 @@ class PodcastDetailViewModel:
 
   // MARK: - State
 
-  @ObservationIgnored var isOnScreen = false
-
   // `state` is the source of truth; `episodeList` is a one-way projection of it.
   private(set) var state: PodcastDetailState
   let diagnosticID: Int
@@ -508,7 +506,6 @@ class PodcastDetailViewModel:
   }
 
   private func loadShareArtworkIfNeeded() {
-    guard isOnScreen else { return }
     let imageURL = podcast.image
     if shareArtwork != nil, loadedShareArtworkURL == imageURL { return }
     invalidateShareArtworkIfImageURLChanged()
@@ -762,13 +759,6 @@ class PodcastDetailViewModel:
     _ podcastID: Podcast.ID? = nil,
     caller: StaticString = #function
   ) {
-    guard isOnScreen else {
-      Self.log.debug(
-        "startObservation: skipped off-screen, caller=\(caller), \(diagnosticSummary)"
-      )
-      return
-    }
-
     guard let podcastID else {
       Self.log.debug(
         "startObservation: skipped nil podcast, caller=\(caller), \(diagnosticSummary)"
@@ -877,7 +867,7 @@ class PodcastDetailViewModel:
   func disappear() {
     Self.log.debug("disappear: executing, \(diagnosticSummary)")
     cancelShareArtworkLoad()
-    markDisappeared()
+    cancelAppearScopedAsyncWork()
     recommendationCoordinator.cancel()
   }
 
@@ -921,7 +911,6 @@ class PodcastDetailViewModel:
     logStateTransition(to: newState)
     state = newState
     refreshEpisodeList(from: newState)
-    guard isOnScreen else { return }
     invalidateShareArtworkIfImageURLChanged()
     loadShareArtworkIfNeeded()
     startObservation(newState.savedSeries?.id, caller: caller)

@@ -78,8 +78,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   // MARK: - State
 
-  @ObservationIgnored var isOnScreen = false
-
   private let originTab: Navigation.Tab
   private(set) var state: EpisodeDetailState
   var tags: IdentifiedArrayOf<Tag> = []
@@ -334,11 +332,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored var auxiliaryTasks: [Task<Void, Never>] = []
 
   private func startObservation(_ podcastEpisode: PodcastEpisode) {
-    guard isOnScreen else {
-      Self.log.debug("startObservation: skipped off-screen for \(podcastEpisode.toString)")
-      return
-    }
-
     if let observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
       return
@@ -548,7 +541,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   func disappear() {
     Self.log.debug("disappear: executing")
-    markDisappeared()
+    cancelAppearScopedAsyncWork()
     recommendationCoordinator.cancel()
   }
 
@@ -558,7 +551,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
     guard newState != state else { return }
     logStateTransition(to: newState)
     state = newState
-    guard isOnScreen else { return }
     recommendationCoordinator.refresh()
   }
 

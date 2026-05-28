@@ -263,7 +263,6 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     #expect(viewModel.observationTask == nil)
     #expect(viewModel.appearTask == nil)
     #expect(viewModel.auxiliaryTasks.isEmpty)
-    #expect(!viewModel.isOnScreen)
   }
 
   @Test("disappear cancels an in-flight share-artwork load")
@@ -309,29 +308,6 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
       { "Expected disappear() to cancel the in-flight share-artwork load." }
     )
     #expect(viewModel.auxiliaryTasks.isEmpty)
-  }
-
-  @Test("subscribe after disappear does not start observation")
-  func subscribeAfterDisappearDoesNotStartObservation() async throws {
-    let unsavedPodcast = try Create.unsavedPodcast(
-      feedURL: FeedURL(URL(string: "https://example.com/offscreen-subscribe.rss")!),
-      title: "Offscreen Subscribe"
-    )
-    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(unsavedPodcast))
-
-    viewModel.disappear()
-    #expect(!viewModel.isOnScreen)
-
-    viewModel.subscribe()
-
-    try await Wait.until(
-      { @MainActor in viewModel.saved },
-      { @MainActor in "Expected subscribe to persist the series; saved=\(viewModel.saved)" }
-    )
-
-    try await yieldForSpuriousAsyncWork()
-
-    #expect(viewModel.observationTask == nil)
   }
 
   @Test("appear loads share artwork once, idempotent on repeat")

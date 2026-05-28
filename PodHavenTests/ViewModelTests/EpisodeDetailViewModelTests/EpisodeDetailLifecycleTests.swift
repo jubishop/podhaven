@@ -107,6 +107,5 @@ import Testing
     #expect(viewModel.observationTask == nil)
     #expect(viewModel.appearTask == nil)
     #expect(viewModel.auxiliaryTasks.isEmpty)
-    #expect(!viewModel.isOnScreen)
   }
 }

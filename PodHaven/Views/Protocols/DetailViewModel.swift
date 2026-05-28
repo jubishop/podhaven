@@ -8,7 +8,6 @@ import Logging
   associatedtype State: Sendable & Stringable
 
   var state: State { get }
-  var isOnScreen: Bool { get set }
   var appearTask: Task<Void, Never>? { get set }
   var observationTask: Task<Void, Never>? { get set }
   var auxiliaryTasks: [Task<Void, Never>] { get set }
@@ -24,7 +23,6 @@ extension DetailViewModel {
   }
 
   func appear() {
-    isOnScreen = true
     appearTask?.cancel()
     appearTask = Task { [weak self] in
       guard let self else { return }
@@ -57,11 +55,6 @@ extension DetailViewModel {
         alert(ErrorKit.message(for: error))
       }
     }
-  }
-
-  func markDisappeared() {
-    isOnScreen = false
-    cancelAppearScopedAsyncWork()
   }
 
   func cancelAppearScopedAsyncWork() {
