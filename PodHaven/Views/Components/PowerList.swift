@@ -103,7 +103,6 @@ where Item.ID: Sendable {
   @ObservationIgnored private var entriesTask: Task<Void, Never>?
 
   private func scheduleEntriesUpdate() {
-    guard !baselineEntries.isEmpty || !searchTerms.isEmpty else { return }
     entriesTask?.cancel()
 
     entriesTask = Task { [weak self, baselineEntries, sortMethod, filterMethod, searchTerms] in
