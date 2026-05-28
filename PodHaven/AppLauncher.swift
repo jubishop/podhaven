@@ -196,9 +196,7 @@ struct AppLauncher: Sendable {
             targetFileSizeBytes: 6_000_000,
             // `.inactive` writes stay async; the `.background` transition
             // flushes the queue via AppDelegate.handleScenePhaseChange.
-            writeSynchronously: {
-              $0 >= .critical || sharedState.$scenePhase.value == .background
-            }
+            writeSynchronously: { $0 >= .critical || sharedState.scenePhase == .background }
           ),
           SentryLogHandler(label: label),
           CrashReportHandler(label: label),
