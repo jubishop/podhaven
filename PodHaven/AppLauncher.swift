@@ -208,15 +208,9 @@ struct AppLauncher: Sendable {
     case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
       Self.log.debug("configureLogging: PrintLog")
-    case .simulator:
+    case .simulator, .testing:
       LoggingSystem.bootstrap(OSLogHandler.init)
       Self.log.debug("configureLogging: OSLog")
-    case .testing:
-      // Skipped on purpose. Tests that need swift-log capture bootstrap a
-      // capturing handler themselves; tests that don't get the default
-      // stderr handler, which is fine — no test currently relies on log
-      // output going to a specific destination.
-      break
     }
   }
 

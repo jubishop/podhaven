@@ -72,7 +72,6 @@ class PodcastDetailViewModel:
   SortableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
-  @ObservationIgnored @DynamicInjected(\.continuousClockNow) private var continuousClockNow
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -540,10 +539,10 @@ class PodcastDetailViewModel:
   }
 
   func performAppear() async throws {
-    let startedAt = continuousClockNow()
+    let startedAt = ContinuousClock.now
     Self.log.debug("performAppear: entering, \(diagnosticSummary)")
     defer {
-      let duration = continuousClockNow() - startedAt
+      let duration = ContinuousClock.now - startedAt
       Self.log.debug("performAppear: exiting, duration=\(duration), \(diagnosticSummary)")
     }
 
@@ -675,7 +674,6 @@ class PodcastDetailViewModel:
   @ObservationIgnored var observationTask: Task<Void, Never>?
 
   @ObservationIgnored private var transitionSamples: [ContinuousClock.Instant] = []
-  @ObservationIgnored private var transitionStormWarningIssued = false
 
   @discardableResult
   private func attemptObservation() async throws -> Bool {
@@ -739,7 +737,7 @@ class PodcastDetailViewModel:
   }
 
   private func observePodcastSeries(_ podcastID: Podcast.ID) async throws {
-    let startedAt = continuousClockNow()
+    let startedAt = ContinuousClock.now
     var yields = 0
     Self.log.debug("observePodcastSeries: entering for \(podcastID), \(diagnosticSummary)")
 
@@ -748,7 +746,7 @@ class PodcastDetailViewModel:
     // startObservation() has already cleared/replaced observationTask, and
     // stomping it would kill a newer task.
     defer {
-      let duration = continuousClockNow() - startedAt
+      let duration = ContinuousClock.now - startedAt
       let reason = Task.isCancelled ? "cancelled" : "natural"
       Self.log.debug(
         """
@@ -841,14 +839,10 @@ class PodcastDetailViewModel:
       )
     }
 
-    let now = continuousClockNow()
+    let now = ContinuousClock.now
     transitionSamples.append(now)
     transitionSamples.removeAll { now - $0 > .seconds(1) }
-    if transitionSamples.count < 10 {
-      transitionStormWarningIssued = false
-    }
-    if !transitionStormWarningIssued, transitionSamples.count >= 50 {
-      transitionStormWarningIssued = true
+    if transitionSamples.count == 50 {
       Self.log.warning(
         """
         transition: high-frequency (\(transitionSamples.count)/sec), caller=\(caller), \

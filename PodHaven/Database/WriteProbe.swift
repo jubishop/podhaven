@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2026
 
-import FactoryKit
 import Foundation
 import GRDB
 import Logging
@@ -38,16 +37,16 @@ final class WriteProbe: TransactionObserver, Sendable {
 
   func databaseDidChange(with event: DatabaseEvent) {
     let table = event.tableName
-    let instant = Container.shared.continuousClockNow()()
+    let now = ContinuousClock.now
     accumulator { state in
-      if state.rowEvents == 0 { state.transactionStart = instant }
+      if state.rowEvents == 0 { state.transactionStart = now }
       state.tables.insert(table)
       state.rowEvents += 1
     }
   }
 
   func databaseDidCommit(_: Database) {
-    let instant = Container.shared.continuousClockNow()()
+    let now = ContinuousClock.now
     let snapshot = accumulator {
       state -> (tables: [String], rowEvents: Int, duration: Duration, backtrace: Bool) in
       defer {
@@ -58,9 +57,9 @@ final class WriteProbe: TransactionObserver, Sendable {
       guard state.rowEvents > 0, let start = state.transactionStart else {
         return ([], 0, .zero, false)
       }
-      let backtrace = state.lastBacktrace.map { instant - $0 >= Self.backtraceInterval } ?? true
-      if backtrace { state.lastBacktrace = instant }
-      return (state.tables.sorted(), state.rowEvents, instant - start, backtrace)
+      let backtrace = state.lastBacktrace.map { now - $0 >= Self.backtraceInterval } ?? true
+      if backtrace { state.lastBacktrace = now }
+      return (state.tables.sorted(), state.rowEvents, now - start, backtrace)
     }
     guard snapshot.rowEvents > 0 else { return }
 
