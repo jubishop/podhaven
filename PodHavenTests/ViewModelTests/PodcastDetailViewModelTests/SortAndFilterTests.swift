@@ -31,6 +31,7 @@ import Testing
       ]
     )
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     viewModel.currentSortMethod = .recentlyQueued
 
@@ -478,6 +479,7 @@ import Testing
     )
 
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -565,6 +567,7 @@ import Testing
     }
 
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -655,6 +658,7 @@ import Testing
       ]
     )
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in
@@ -773,6 +777,7 @@ import Testing
       .map(\.mediaGUID)
 
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -780,7 +785,6 @@ import Testing
       { @MainActor in "Expected all unsaved episodes to surface before subscribe." }
     )
 
-    try await PodcastDetailTestHelpers.appear(viewModel)
     viewModel.currentSortMethod = .recommendationScore
 
     try await Wait.until(

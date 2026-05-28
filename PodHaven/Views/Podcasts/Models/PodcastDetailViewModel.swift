@@ -449,7 +449,7 @@ class PodcastDetailViewModel:
     let previouslyNotifying = settings?.notifyNewEpisodes ?? false
 
     runTask("updateSettings: podcast \(podcastID)") { [weak self] in
-      guard let self else { return }
+      guard let self, isOnScreen else { return }
       try await repo.updatePodcastSettings(podcastID, newSettings)
       if newSettings.notifyNewEpisodes, !previouslyNotifying {
         await userNotificationManager.requestAuthorizationIfNeeded()
@@ -549,7 +549,6 @@ class PodcastDetailViewModel:
     Self.nextDiagnosticID += 1
     diagnosticID = Self.nextDiagnosticID
     self.state = state
-    episodeList.sortMethod = currentSortMethod.sortMethod
     if Self.shouldPopulateEpisodeListDuringInit(for: state) {
       refreshEpisodeList(from: state)
     }
@@ -558,8 +557,7 @@ class PodcastDetailViewModel:
 
   private static func shouldPopulateEpisodeListDuringInit(for state: PodcastDetailState) -> Bool {
     switch state {
-    case .initial: return false
-    case .unsaved(_, let episodes): return !episodes.isEmpty
+    case .initial, .unsaved: return false
     case .saved(let series): return !series.episodes.isEmpty
     }
   }
@@ -613,9 +611,11 @@ class PodcastDetailViewModel:
     try Task.checkCancellation()
     guard isCurrentAppearPass(generation) else { return }
 
+    applyEpisodeListSortAndFilterDefaults()
+
     let observationAlreadyActive =
       observationTask.map { !$0.isCancelled } ?? false
-    if !observationAlreadyActive {
+    if shouldSeedEpisodeListAtAppearStart(observationAlreadyActive: observationAlreadyActive) {
       refreshEpisodeList(from: state)
     }
     loadShareArtworkIfNeeded()
@@ -719,7 +719,7 @@ class PodcastDetailViewModel:
 
   func delete() {
     runTask("delete: \(state.toString)") { [weak self] in
-      guard let self else { return }
+      guard let self, isOnScreen else { return }
       guard let podcastID = try await ensureObservedSeries()
       else {
         Self.log.warning("Trying to delete a non-saved podcast")
@@ -733,19 +733,22 @@ class PodcastDetailViewModel:
 
   func refreshSeries() async {
     guard isOnScreen else { return }
+    let generation = appearGeneration
     do {
       if let series = state.savedSeries,
         let operationalSeries = try await repo.podcastSeries(series.id)
       {
         try Task.checkCancellation()
-        guard isOnScreen else { return }
+        guard isCurrentAppearPass(generation) else { return }
         Self.log.debug("refreshing saved podcast series \(operationalSeries.toString)")
         try await refreshManager.refreshSeries(podcastSeries: operationalSeries)
+        try Task.checkCancellation()
+        guard isCurrentAppearPass(generation) else { return }
       } else {
         Self.log.debug("refreshing unsaved podcast series \(state.toString)")
-        try await loadPresentationFromFeed()
+        try await loadPresentationFromFeed(appearGeneration: generation)
         try Task.checkCancellation()
-        guard isOnScreen else { return }
+        guard isCurrentAppearPass(generation) else { return }
       }
     } catch {
       Self.log.caughtError("refreshSeries: failed for \(state.toString)", error)
@@ -902,7 +905,8 @@ class PodcastDetailViewModel:
         // episodes don't. The trade-off is a brief loading state while
         // the feed is re-parsed, in exchange for fresh fields.
         do {
-          try await loadPresentationFromFeed()
+          let generation = appearGeneration
+          try await loadPresentationFromFeed(appearGeneration: generation)
         } catch {
           Self.log.caughtError(
             "observePodcastSeries: failed to re-parse feed after podcast \(podcastID) was deleted",
@@ -946,6 +950,23 @@ class PodcastDetailViewModel:
     startObservation(newState.savedSeries?.id, caller: caller)
     if currentSortMethod == .recommendationScore {
       recommendationCoordinator.refresh()
+    }
+  }
+
+  private func applyEpisodeListSortAndFilterDefaults() {
+    episodeList.filterMethod = currentSortMethod.filterMethod
+    episodeList.sortMethod = currentSortMethod.sortMethod
+  }
+
+  private func shouldSeedEpisodeListAtAppearStart(observationAlreadyActive: Bool) -> Bool {
+    guard !observationAlreadyActive else { return false }
+    switch state {
+    case .saved(let series) where series.episodes.isEmpty:
+      return false
+    case .initial:
+      return false
+    default:
+      return true
     }
   }
 

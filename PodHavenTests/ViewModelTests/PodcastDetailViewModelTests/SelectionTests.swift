@@ -60,6 +60,7 @@ import Testing
     )
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
     _ = try await repo.insertTag(UnsavedTag(name: "Alpha"))
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in viewModel.episodeList.filteredEntries.count == 2 },

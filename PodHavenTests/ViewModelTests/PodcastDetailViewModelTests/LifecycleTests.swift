@@ -707,4 +707,99 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     #expect(viewModel.episodeList.allEntries.isEmpty)
   }
+
+  @Test("stale on-screen deletion feed parse does not apply after reappear")
+  func staleDeletionFeedParseDoesNotApplyAfterReappear() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/stale-deletion-parse.rss")!)
+    let feedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let parseStarted = AsyncSemaphore(value: 0)
+    let parseFinish = AsyncSemaphore(value: 0)
+    await feedSession.respond(to: feedURL.rawValue) { _ in
+      parseStarted.signal()
+      try await parseFinish.waitUnlessCancelled()
+      return (feedData, URL.response(feedURL.rawValue))
+    }
+
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Stale Deletion Parse"),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+      )
+    )
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count >= 1 },
+      { @MainActor in "Expected hydration before deletion recovery" }
+    )
+
+    let requestsBeforeDelete = await feedSession.requests.filter { $0 == feedURL.rawValue }.count
+    try await repo.deletePodcast(savedSeries.id)
+    await parseStarted.wait()
+
+    viewModel.disappear()
+    viewModel.appear()
+    parseFinish.signal()
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.saved == false
+          && viewModel.episodeList.allEntries.isEmpty == false
+      },
+      { @MainActor in
+        """
+        Expected reappear to own feed hydration after a stale deletion parse.
+        saved: \(viewModel.saved)
+        entries: \(viewModel.episodeList.allEntries.count)
+        """
+      }
+    )
+
+    let requestsAfterReappear = await feedSession.requests.filter { $0 == feedURL.rawValue }.count
+    // The hung deletion-recovery parse may still hit the network once; reappear may
+    // parse again. The regression guard is the hydrated unsaved detail above, not
+    // request count alone.
+    #expect(requestsAfterReappear >= requestsBeforeDelete + 1)
+  }
+
+  @Test("delete after disappear does not remove the podcast from the repo")
+  func deleteAfterDisappearDoesNotRemovePodcast() async throws {
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Delete Offscreen"),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+      )
+    )
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    viewModel.disappear()
+    viewModel.delete()
+    try await yieldForSpuriousAsyncWork()
+
+    let series = try await repo.podcastSeries(savedSeries.id)
+    #expect(series != nil)
+  }
+
+  @Test("updateSettings after disappear does not persist off-screen")
+  func updateSettingsAfterDisappearDoesNotPersist() async throws {
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Settings Offscreen"),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+      )
+    )
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    viewModel.disappear()
+    var newSettings = viewModel.settings ?? .defaults
+    newSettings.notifyNewEpisodes = true
+    viewModel.updateSettings(newSettings)
+    try await yieldForSpuriousAsyncWork()
+
+    let series = try await repo.podcastSeries(savedSeries.id)
+    #expect(series?.podcast.notifyNewEpisodes == false)
+  }
 }

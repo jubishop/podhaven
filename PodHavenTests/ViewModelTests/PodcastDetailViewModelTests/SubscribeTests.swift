@@ -158,20 +158,14 @@ import Testing
     ])
 
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
-    try await Wait.until(
-      { @MainActor in
-        viewModel.episodeList.allEntries.map(\.title) == [
-          "Episode 1", "Episode 2", "Episode 3",
-        ]
-      },
-      { @MainActor in
-        """
-        Expected unsaved init to populate episodeList before subscribe.
-        titles: \(viewModel.episodeList.allEntries.map(\.title))
-        """
-      }
+    try await PodcastDetailTestHelpers.appear(viewModel)
+    #expect(
+      viewModel.episodeList.allEntries.map(\.title) == [
+        "Episode 1", "Episode 2", "Episode 3",
+      ]
     )
 
+    viewModel.disappear()
     viewModel.subscribe()
 
     // Wait for the saved transition. With observation stubbed to throw,
