@@ -342,7 +342,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
 
     runTask("addTag: \(tagID) to episode \(episodeID)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       try await repo.addTag(tagID, to: episodeID)
     }
   }
@@ -354,7 +354,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
 
     runTask("removeTag: \(tagID) from episode \(episodeID)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       try await repo.removeTag(tagID, from: episodeID)
     }
   }
