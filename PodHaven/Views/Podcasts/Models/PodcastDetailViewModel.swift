@@ -613,7 +613,7 @@ class PodcastDetailViewModel:
     try Task.checkCancellation()
     guard isCurrentAppearPass(generation) else { return }
 
-    syncEpisodeListProjection(from: state)
+    refreshEpisodeList(from: state)
     loadShareArtworkIfNeeded()
 
     if currentSortMethod == .recommendationScore {
@@ -926,10 +926,6 @@ class PodcastDetailViewModel:
   }
 
   // MARK: - Private Helpers
-
-  private func syncEpisodeListProjection(from state: PodcastDetailState) {
-    refreshEpisodeList(from: state)
-  }
 
   private func transition(
     to newState: PodcastDetailState,
