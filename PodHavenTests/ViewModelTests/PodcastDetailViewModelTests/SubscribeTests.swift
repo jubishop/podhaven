@@ -62,7 +62,7 @@ import Testing
       }
     )
 
-    #expect(try await repo.allPodcasts(AppDB.NoOp).count == 1)
+    #expect(try await repo.allPodcasts(AppDB.noOp).count == 1)
   }
 
   @Test("subscribe from a saved-listed initial state marks the existing series subscribed")

@@ -169,7 +169,7 @@ class PodcastTests {
     try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: stalePodcast))
     try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: unsubscribedPodcast))
 
-    let allPodcasts = try await repo.allPodcasts(AppDB.NoOp)
+    let allPodcasts = try await repo.allPodcasts(AppDB.noOp)
     #expect(allPodcasts.count == 3)
   }
 
@@ -195,7 +195,7 @@ class PodcastTests {
     )
 
     let allPodcastSeries = try await repo.allPodcastSeries(
-      AppDB.NoOp,
+      AppDB.noOp,
       order: Podcast.Columns.lastUpdate.asc,
       limit: Int.max
     )
@@ -203,7 +203,7 @@ class PodcastTests {
     #expect(allPodcastSeries == [neverUpdatedSeries, staleSeries, freshSeries])
 
     let limitedPodcastSeries = try await repo.allPodcastSeries(
-      AppDB.NoOp,
+      AppDB.noOp,
       order: Podcast.Columns.id.asc,
       limit: 2
     )

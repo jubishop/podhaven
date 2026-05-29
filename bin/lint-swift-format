@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+# Copyright Justin Bishop, 2026
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+CONFIG = ROOT / ".swift-format"
+LINT_ROOTS = [ROOT / "PodHaven", ROOT / "PodHavenMacros" / "Sources"]
+PREVIEW_MARK_RE = re.compile(r"^// MARK: - Preview")
+DIAG_RE = re.compile(
+    r"^(?P<path>[^:]+):(?P<line>\d+):\d+:\s+(?P<level>warning|error):\s+\[(?P<rule>\w+)\]"
+)
+
+
+def is_excluded(path: Path) -> bool:
+  parts = path.parts
+  if "Previews" in parts or "Preview Content" in parts:
+    return True
+  if path.stem.endswith("Preview"):
+    return True
+  return False
+
+
+def preview_start_line(path: Path) -> int | None:
+  for index, line in enumerate(path.read_text().splitlines(), start=1):
+    if PREVIEW_MARK_RE.match(line) or line.startswith("#Preview"):
+      return index
+  return None
+
+
+def production_swift_files() -> list[Path]:
+  files: list[Path] = []
+  for root in LINT_ROOTS:
+    if not root.exists():
+      continue
+    for path in sorted(root.rglob("*.swift")):
+      if ".build" in path.parts:
+        continue
+      if is_excluded(path):
+        continue
+      files.append(path)
+  return files
+
+
+def main() -> int:
+  if not CONFIG.is_file():
+    print(f"error: missing swift-format config at {CONFIG}", file=sys.stderr)
+    return 1
+
+  files = production_swift_files()
+  if not files:
+    print("error: no production Swift files found to lint", file=sys.stderr)
+    return 1
+
+  preview_starts = {path: preview_start_line(path) for path in files}
+
+  result = subprocess.run(
+    [
+      "swift-format",
+      "lint",
+      "--configuration",
+      str(CONFIG),
+      "--strict",
+      "--parallel",
+      *[str(path) for path in files],
+    ],
+    cwd=ROOT,
+    capture_output=True,
+    text=True,
+  )
+
+  diagnostics: list[str] = []
+  seen: set[tuple[str, int, str]] = set()
+
+  for line in (result.stdout + result.stderr).splitlines():
+    match = DIAG_RE.match(line)
+    if not match:
+      continue
+
+    path = Path(match.group("path"))
+    if not path.is_absolute():
+      path = ROOT / path
+
+    line_number = int(match.group("line"))
+    rule = match.group("rule")
+    preview_line = preview_starts.get(path)
+    if preview_line is not None and line_number >= preview_line:
+      continue
+
+    key = (str(path), line_number, rule)
+    if key in seen:
+      continue
+    seen.add(key)
+    diagnostics.append(line)
+
+  for line in diagnostics:
+    print(line, file=sys.stderr)
+
+  if diagnostics:
+    print(
+      f"swift-format lint failed with {len(diagnostics)} issue(s) in production code",
+      file=sys.stderr,
+    )
+    return 1
+
+  print(f"swift-format lint passed ({len(files)} production files)")
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())

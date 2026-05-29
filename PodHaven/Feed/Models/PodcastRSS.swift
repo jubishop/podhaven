@@ -46,7 +46,7 @@ struct PodcastRSS: Decodable, Sendable {
     }
     private let values: TopLevelValues
 
-    struct iTunesNamespace: Decodable, Sendable {
+    struct ITunesNamespace: Decodable, Sendable {
       struct Image: Decodable, Sendable {
         let href: URL
       }
@@ -60,7 +60,7 @@ struct PodcastRSS: Decodable, Sendable {
         case summary = "itunes:summary"
       }
     }
-    let iTunes: iTunesNamespace
+    let iTunes: ITunesNamespace
 
     // MARK: - Convenience Getters
 
@@ -86,7 +86,7 @@ struct PodcastRSS: Decodable, Sendable {
 
     init(from decoder: any Decoder) throws {
       values = try TopLevelValues(from: decoder)
-      iTunes = try iTunesNamespace(from: decoder)
+      iTunes = try ITunesNamespace(from: decoder)
     }
   }
 
@@ -117,7 +117,7 @@ struct PodcastRSS: Decodable, Sendable {
     }
     private let values: TopLevelValues
 
-    struct iTunesNamespace: Decodable, Sendable {
+    struct ITunesNamespace: Decodable, Sendable {
       struct Image: Decodable, Sendable {
         let href: URL
       }
@@ -131,7 +131,7 @@ struct PodcastRSS: Decodable, Sendable {
         case summary = "itunes:summary"
       }
     }
-    let iTunes: iTunesNamespace
+    let iTunes: ITunesNamespace
 
     // MARK: - Convenience Getters
 
@@ -164,7 +164,7 @@ struct PodcastRSS: Decodable, Sendable {
 
     init(from decoder: any Decoder) throws {
       values = try TopLevelValues(from: decoder)
-      iTunes = try iTunesNamespace(from: decoder)
+      iTunes = try ITunesNamespace(from: decoder)
     }
   }
 

@@ -94,7 +94,7 @@ import UniformTypeIdentifiers
 
     let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
     let allPodcasts = IdentifiedArray(
-      uniqueElements: try await repo.allPodcasts(AppDB.NoOp),
+      uniqueElements: try await repo.allPodcasts(AppDB.noOp),
       id: \.feedURL
     )
 

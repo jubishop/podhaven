@@ -85,7 +85,7 @@ class EpisodesListViewModel:
         return Episode.finished
       case .recentlyQueued:
         return Episode.previouslyQueued
-      default: return AppDB.NoOp
+      default: return AppDB.noOp
       }
     }
   }
@@ -102,7 +102,7 @@ class EpisodesListViewModel:
         let pattern = "%\(word.lowercased())%"
         return Episode.contains(pattern) || Podcast.contains(pattern)
       }
-      .reduce(AppDB.NoOp) { $0 && $1 }
+      .reduce(AppDB.noOp) { $0 && $1 }
   }
 
   private var filterText = ""
@@ -141,7 +141,7 @@ class EpisodesListViewModel:
 
   // MARK: - Initialization
 
-  init(title: String, filter: SQLExpression = AppDB.NoOp) {
+  init(title: String, filter: SQLExpression = AppDB.noOp) {
     self._currentSortMethod = PersistedBroadcast(
       wrappedValue: SortMethod.newestFirst,
       "EpisodesList-sortMethod-\(title)"

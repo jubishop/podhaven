@@ -42,7 +42,7 @@ import Testing
     await setupValidFeedResponse(to: feed3URL, assetName: "marketplace")
 
     // Verify initial state
-    #expect(try await repo.allPodcasts(AppDB.NoOp).isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
     #expect(opmlViewModel.opmlFile == nil)
 
     // Execute and wait for completion
@@ -95,7 +95,7 @@ import Testing
     await setupMalformedFeedResponse(to: malformedFeed2URL)
 
     // Verify initial state
-    #expect(try await repo.allPodcasts(AppDB.NoOp).isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     // Execute and wait for completion
     try await importOPML(from: opmlURL)
@@ -140,7 +140,7 @@ import Testing
     await setupNotFoundFeedResponse(to: notFoundFeed2URL)
 
     // Verify initial state
-    #expect(try await repo.allPodcasts(AppDB.NoOp).isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     // Execute and wait for completion
     try await importOPML(from: opmlURL)
@@ -246,7 +246,7 @@ import Testing
     await setupValidFeedResponse(to: newFeedURL, assetName: "hardfork_short")
 
     // Verify initial state: 1 podcast already exists
-    #expect(try await repo.allPodcasts(AppDB.NoOp).count == 1)
+    #expect(try await repo.allPodcasts(AppDB.noOp).count == 1)
 
     // Execute and wait for completion
     try await importOPML(from: opmlURL)
@@ -470,7 +470,7 @@ import Testing
     allSubscribed: Bool = true,
     feedURLs: Set<String>? = nil
   ) async throws {
-    let savedPodcasts = try await repo.allPodcasts(AppDB.NoOp)
+    let savedPodcasts = try await repo.allPodcasts(AppDB.noOp)
     #expect(savedPodcasts.count == expectedCount)
 
     if allSubscribed {

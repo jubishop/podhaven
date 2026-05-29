@@ -143,7 +143,7 @@ class ITunesIDTests {
     #expect(results[0].podcast.feedURL == dbFeedURL)
 
     // Verify no duplicate podcast was created
-    let allPodcasts = try await repo.allPodcasts(AppDB.NoOp)
+    let allPodcasts = try await repo.allPodcasts(AppDB.noOp)
     #expect(allPodcasts.count == 1)
   }
 
@@ -177,7 +177,7 @@ class ITunesIDTests {
     #expect(results.count == 2)
     #expect(results[0].podcast.id == results[1].podcast.id)
 
-    let allPodcasts = try await repo.allPodcasts(AppDB.NoOp)
+    let allPodcasts = try await repo.allPodcasts(AppDB.noOp)
     #expect(allPodcasts.count == 1)
   }
 
@@ -339,7 +339,7 @@ class ITunesIDTests {
     #expect(resolved.id == series.podcast.id)
     #expect(resolved.feedURL == dbFeedURL)
 
-    let allPodcasts = try await repo.allPodcasts(AppDB.NoOp)
+    let allPodcasts = try await repo.allPodcasts(AppDB.noOp)
     #expect(allPodcasts.count == 1)
   }
 

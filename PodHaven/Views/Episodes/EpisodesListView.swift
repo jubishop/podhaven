@@ -123,7 +123,7 @@ struct EpisodesListView: View {
       EpisodesListView(
         viewModel: EpisodesListViewModel(
           title: "Recent Episodes",
-          filter: AppDB.NoOp
+          filter: AppDB.noOp
         )
       )
     }
@@ -179,7 +179,7 @@ struct EpisodesListView: View {
       EpisodesListView(
         viewModel: EpisodesListViewModel(
           title: "Rating States",
-          filter: AppDB.NoOp
+          filter: AppDB.noOp
         )
       )
     }

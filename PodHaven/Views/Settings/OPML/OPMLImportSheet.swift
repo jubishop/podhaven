@@ -62,10 +62,12 @@ struct OPMLImportSheet: View {
 #if DEBUG
 func importOPMLFile(_ viewModel: OPMLViewModel, _ resource: String) {
   Task { [viewModel, resource] in
-    let url = Bundle.main.url(
-      forResource: resource,
-      withExtension: "opml"
-    )!
+    guard
+      let url = Bundle.main.url(
+        forResource: resource,
+        withExtension: "opml"
+      )
+    else { return }
     await viewModel.importOPMLFromURL(url: url)
   }
 }

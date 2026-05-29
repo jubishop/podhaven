@@ -85,7 +85,7 @@ struct AppDB {
 
   // MARK: - Shorthand Expression Constants
 
-  static let NoOp = true.sqlExpression
+  static let noOp = true.sqlExpression
 
   // MARK: - Private Static Helpers
 
