@@ -113,7 +113,7 @@ import UniformTypeIdentifiers
                 }
               } catch {
                 Self.log.caughtError(
-                  "downloadOPMLFile: failed to subscribe/refresh existing podcast \(podcast.toString)",
+                  "downloadOPML: subscribe/refresh failed \(podcast.toString)",
                   error
                 )
               }

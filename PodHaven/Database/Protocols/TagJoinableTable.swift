@@ -19,7 +19,8 @@ extension TagJoinableTable {
       """
       (SELECT json_group_array("tagId") \
       FROM "\(sql: databaseTableName)" \
-      WHERE "\(sql: databaseTableName)"."\(sql: parentIdColumnName)" = "\(sql: parentTableName)"."id")
+      WHERE "\(sql: databaseTableName)"."\(sql: parentIdColumnName)" \
+        = "\(sql: parentTableName)"."id")
       """
     )
     .sqlExpression.forKey(tagIDsColumnName)
