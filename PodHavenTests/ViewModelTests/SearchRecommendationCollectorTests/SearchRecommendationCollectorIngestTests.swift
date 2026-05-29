@@ -386,4 +386,59 @@ import Testing
     let requests = await H.session.requests.filter { $0 == sharedFeed.rawValue }
     #expect(requests.count == 1)
   }
+
+  // MARK: - Test: Failed Feeds Are Not Re-Fetched On Re-Record
+
+  // A feed whose RSS fetch fails settles as terminal `.failed`. Re-recording
+  // the same source — as observation re-emits routinely do — must not re-queue
+  // it; only genuinely new feeds should fetch. The fence feed fetching proves
+  // the second drain pass ran, so the failed feed's single request count is a
+  // deterministic assertion rather than a timing race.
+  @Test("a failed feed is not re-fetched when the source is re-recorded")
+  func failedFeedNotRefetchedOnReRecord() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+
+    let failingFeed = FeedURL(URL(string: "https://example.com/failing.rss")!)
+    await H.session.respond(to: failingFeed.rawValue, error: URLError(.timedOut))
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    let failingRow = H.makeUnsavedRow(feedURL: failingFeed, iTunesID: ITunesPodcastID(501))
+
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(source: source, podcasts: [failingRow])
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in await H.session.requests.contains(failingFeed.rawValue) },
+      { @MainActor in "Expected the failing feed to be fetched once" }
+    )
+    // The fetch error settles the entry to .failed: feed URLs are present, no
+    // picks landed, and nothing is in flight, so the banner is hidden.
+    try await Wait.until(
+      { @MainActor in collector.bannerState == .hidden },
+      { @MainActor in
+        "Expected the failed feed to settle to a hidden banner, got \(collector.bannerState)"
+      }
+    )
+
+    let fenceFeed = FeedURL(URL(string: "https://example.com/fence.rss")!)
+    await H.respondWithFeed(at: fenceFeed, title: "Fence", episodes: 1)
+    let fenceRow = H.makeUnsavedRow(feedURL: fenceFeed, iTunesID: ITunesPodcastID(502))
+
+    collector.recordSourcePodcasts(source: source, podcasts: [failingRow, fenceRow])
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in await H.session.requests.contains(fenceFeed.rawValue) },
+      { @MainActor in "Expected the fence feed to be fetched on re-record" }
+    )
+
+    let failingRequests = await H.session.requests.filter { $0 == failingFeed.rawValue }
+    #expect(
+      failingRequests.count == 1,
+      "Expected the failed feed to be fetched once; got \(failingRequests.count)"
+    )
+  }
 }

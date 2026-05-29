@@ -120,8 +120,11 @@ final class SearchRecommendationCollector {
   private var typedSearchDebouncer: Debounce?
 
   private var drainTask: Task<Void, Never>?
-  private var pendingDrainQueue: OrderedSet<FeedURL> = []
-  private var drainContinuation: CheckedContinuation<Void, Never>?
+  // A single dispatcher consumes this stream and fans work into a bounded task
+  // group. `queued` de-dups the backlog (and lets a fresh stream replay work
+  // scheduled before it existed); `inFlight` de-dups work a worker has picked up.
+  private var queueContinuation: AsyncStream<FeedURL>.Continuation?
+  private var queued: OrderedSet<FeedURL> = []
   private var inFlight: Set<FeedURL> = []
 
   // mediaGUID -> entry that currently holds the pick, so removePick is O(1)
@@ -210,11 +213,9 @@ final class SearchRecommendationCollector {
   func reset() {
     Self.log.debug("Resetting collector")
     drainTask?.cancel()
-    if let continuation = drainContinuation {
-      drainContinuation = nil
-      continuation.resume()
-    }
     drainTask = nil
+    queueContinuation?.finish()
+    queueContinuation = nil
     scoringContextWatcherTask?.cancel()
     scoringContextWatcherTask = nil
     scoringAvailability = .unknown
@@ -231,7 +232,7 @@ final class SearchRecommendationCollector {
     trendingDebouncers.removeAll()
     typedSearchDebouncer?.cancel()
     typedSearchDebouncer = nil
-    pendingDrainQueue.removeAll()
+    queued.removeAll()
     inFlight.removeAll()
     activeSource = nil
 
@@ -280,7 +281,7 @@ final class SearchRecommendationCollector {
     let purgedURLs = Set(temporary.ids)
     for entry in toCancel { unregisterPicks(of: entry) }
     temporary.removeAll()
-    pendingDrainQueue.removeAll { purgedURLs.contains($0) }
+    queued.removeAll { purgedURLs.contains($0) }
     Task {
       for entry in toCancel { await entry.cancel() }
     }
@@ -432,7 +433,7 @@ final class SearchRecommendationCollector {
     guard !purgedURLs.isEmpty else { return }
     for entry in toCancel { unregisterPicks(of: entry) }
     for url in purgedURLs { temporary.remove(id: url) }
-    pendingDrainQueue.removeAll { purgedURLs.contains($0) }
+    queued.removeAll { purgedURLs.contains($0) }
     Task {
       for entry in toCancel { await entry.cancel() }
     }
@@ -451,17 +452,30 @@ final class SearchRecommendationCollector {
   }
 
   private func scheduleDrain(for feedURL: FeedURL) {
-    guard !inFlight.contains(feedURL) else { return }
-    let status = entry(for: feedURL)?.status
-    guard status != .scored, status != .exhausted else { return }
-    guard pendingDrainQueue.append(feedURL).inserted else { return }
-    drainContinuation?.resume()
-    drainContinuation = nil
+    guard shouldDrain(feedURL) else { return }
+    guard queued.append(feedURL).inserted else { return }
+    queueContinuation?.yield(feedURL)
+  }
+
+  // `.failed` is terminal for the visit: a feed that already failed its fetch
+  // shouldn't be re-fetched every time the source re-records (observation
+  // re-emits do this constantly). Leaving and returning to Search retries it.
+  private func shouldDrain(_ feedURL: FeedURL) -> Bool {
+    guard !inFlight.contains(feedURL), let status = entry(for: feedURL)?.status
+    else { return false }
+    return status != .scored && status != .exhausted && status != .failed
   }
 
   private func entry(for feedURL: FeedURL) -> CachedPodcastEntry? {
     if let entry = permanent[id: feedURL] { return entry }
     return temporary[id: feedURL]
+  }
+
+  // True once a purge has swapped or dropped the entry a pipeline started for,
+  // letting the embed loop abandon work whose result would be discarded anyway.
+  private func isFeedURLDetached(_ feedURL: FeedURL, from entryID: ObjectIdentifier) -> Bool {
+    guard let current = entry(for: feedURL) else { return true }
+    return ObjectIdentifier(current) != entryID
   }
 
   private func awaitScoringContext() async {
@@ -524,54 +538,45 @@ final class SearchRecommendationCollector {
   private func ensureDrainTaskRunning() {
     ensureScoringContextWatcherRunning()
     if let drainTask, !drainTask.isCancelled { return }
+    let (stream, continuation) = AsyncStream<FeedURL>.makeStream(bufferingPolicy: .unbounded)
+    queueContinuation = continuation
+    // A fresh stream (first run or post-reset) replays whatever was scheduled
+    // before it existed — applyReconciledRanking schedules, then calls us.
+    for feedURL in queued { continuation.yield(feedURL) }
     drainTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }
-      await self.runDrainLoop()
+      await self.runDrainLoop(stream: stream)
     }
   }
 
-  private func runDrainLoop() async {
+  private func runDrainLoop(stream: AsyncStream<FeedURL>) async {
     // Without a hydrated cache, every candidate scores nil, entries finish
     // empty-and-.scored, and nothing retries them.
     await awaitScoringContext()
     if Task.isCancelled { return }
 
-    // DownloadManager throttles RSS fetches to rssConcurrency, so hand every
-    // queued entry to it and let the manager serialize.
+    // AsyncStream is single-consumer, so one dispatcher pulls work and fans it
+    // into a task group bounded at rssConcurrency, reaping a child via
+    // `group.next()` before exceeding the cap. Embedding serializes on the
+    // ContextualEmbedding actor downstream, so a wider pool buys no throughput.
     await withTaskGroup(of: Void.self) { group in
-      while !Task.isCancelled {
-        while let feedURL = dequeueNext() {
-          inFlight.insert(feedURL)
-          group.addTask { [weak self] in
-            await self?.processFeedURL(feedURL)
-          }
-        }
-        await waitForWork()
+      var active = 0
+      for await feedURL in stream {
         if Task.isCancelled { break }
+        queued.remove(feedURL)
+        while active >= Self.rssConcurrency {
+          _ = await group.next()
+          active -= 1
+        }
+        guard shouldDrain(feedURL) else { continue }
+        inFlight.insert(feedURL)
+        group.addTask { [weak self] in
+          guard let self else { return }
+          await self.processFeedURL(feedURL)
+        }
+        active += 1
       }
       group.cancelAll()
-    }
-  }
-
-  private func dequeueNext() -> FeedURL? {
-    while let next = pendingDrainQueue.first {
-      pendingDrainQueue.removeFirst()
-      if inFlight.contains(next) { continue }
-      let status = entry(for: next)?.status
-      if status == .scored || status == .exhausted { continue }
-      return next
-    }
-    return nil
-  }
-
-  private func waitForWork() async {
-    if !pendingDrainQueue.isEmpty { return }
-    await withCheckedContinuation { continuation in
-      if !pendingDrainQueue.isEmpty || Task.isCancelled {
-        continuation.resume()
-        return
-      }
-      drainContinuation = continuation
     }
   }
 
@@ -608,11 +613,21 @@ final class SearchRecommendationCollector {
     let iTunesID = entry.iTunesID
     let onDeckID = sharedState.onDeck?.id
 
+    // Lets the embed loop bail the instant a purge swaps or drops this entry,
+    // rather than running every candidate through the serialized embedder only
+    // to discard the result at the post-pipeline attachment check below.
+    let entryID = ObjectIdentifier(entry)
+    let isDetached: @Sendable () async -> Bool = { [weak self] in
+      guard let self else { return true }
+      return await self.isFeedURLDetached(feedURL, from: entryID)
+    }
+
     let result = await Self.runPipeline(
       downloadTask: downloadTask,
       podcastID: podcastID,
       iTunesID: iTunesID,
       onDeckID: onDeckID,
+      isDetached: isDetached,
       embedding: contextualEmbedding,
       engine: recommendationEngine,
       repo: repo
@@ -653,11 +668,6 @@ final class SearchRecommendationCollector {
     {
       scheduleDrain(for: feedURL)
     }
-
-    if !pendingDrainQueue.isEmpty {
-      drainContinuation?.resume()
-      drainContinuation = nil
-    }
   }
 
   // MARK: - Pipeline Static Helper
@@ -673,6 +683,7 @@ final class SearchRecommendationCollector {
     podcastID: Podcast.ID?,
     iTunesID: ITunesPodcastID?,
     onDeckID: Episode.ID?,
+    isDetached: @Sendable () async -> Bool,
     embedding: ContextualEmbedding,
     engine: RecommendationEngine,
     repo: any Databasing
@@ -724,6 +735,7 @@ final class SearchRecommendationCollector {
     var scored = [ScoredEpisode](capacity: candidates.count)
     for unsavedEpisode in candidates {
       if Task.isCancelled { return .cancelled }
+      if await isDetached() { return .cancelled }
       let payload = UnsavedPodcastEpisode(
         unsavedPodcast: unsavedPodcast,
         unsavedEpisode: unsavedEpisode
@@ -815,11 +827,22 @@ final class SearchRecommendationCollector {
     return collected
   }
 
+  // The banner only needs the count and emptiness, so skip picks(for:)'s sort:
+  // the banner re-renders on every observation tick while a source loads.
+  private func pickCount(for source: Source) -> Int {
+    var count = 0
+    for feedURL in activeFeedURLs(for: source) {
+      guard let entry = entry(for: feedURL), entry.status == .scored else { continue }
+      count += entry.scoredEpisodes.count
+    }
+    return count
+  }
+
   func bannerState(for source: Source) -> BannerState {
     let feedURLs = activeFeedURLs(for: source)
     guard !feedURLs.isEmpty else { return .hidden }
-    let sourcePicks = picks(for: source)
-    if !sourcePicks.isEmpty { return .loaded(count: sourcePicks.count) }
+    let count = pickCount(for: source)
+    if count > 0 { return .loaded(count: count) }
     if scoringAvailability == .unavailable { return .hidden }
     let anyInFlight = feedURLs.contains { url in
       guard let entry = entry(for: url) else { return true }
