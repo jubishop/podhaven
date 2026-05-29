@@ -112,26 +112,6 @@ struct AppDB {
   var reader: Reader { Reader(self) }
   fileprivate var writer: Writer { Writer(self) }
 
-  @discardableResult func read<Value: Sendable>(
-    _ value: @Sendable (Database) throws -> Value
-  ) async throws -> Value {
-    try await db.read(value)
-  }
-
-  @discardableResult func read<Value>(
-    _ value: (Database) throws -> Value
-  ) throws -> Value {
-    try db.read(value)
-  }
-
-  func observe<Value: Equatable>(
-    _ block: @escaping @Sendable (Database) throws -> Value
-  ) -> AsyncValueObservation<Value> {
-    ValueObservation.tracking(block)
-      .removeDuplicates()
-      .values(in: db)
-  }
-
   struct Reader: Sendable {
     private let appDB: AppDB
 
@@ -142,19 +122,21 @@ struct AppDB {
     @discardableResult func read<Value: Sendable>(
       _ value: @Sendable (Database) throws -> Value
     ) async throws -> Value {
-      try await appDB.read(value)
+      try await appDB.db.read(value)
     }
 
     @discardableResult func read<Value>(
       _ value: (Database) throws -> Value
     ) throws -> Value {
-      try appDB.read(value)
+      try appDB.db.read(value)
     }
 
     func observe<Value: Equatable>(
       _ block: @escaping @Sendable (Database) throws -> Value
     ) -> AsyncValueObservation<Value> {
-      appDB.observe(block)
+      ValueObservation.tracking(block)
+        .removeDuplicates()
+        .values(in: appDB.db)
     }
   }
 
@@ -166,42 +148,41 @@ struct AppDB {
     }
 
     @discardableResult func write<Value: Sendable>(
-      _ label: String? = nil,
+      level: Logger.Level = .debug,
+      label: String? = nil,
       fileID: String = #fileID,
       function: String = #function,
       _ updates: @Sendable (Database) throws -> Value
     ) async throws -> Value {
       let label = label ?? "\(fileID):\(function)"
-      let requestedAt = Date()
-      AppDB.log.trace("db write requested: \(label)")
+      let now = Container.shared.continuousClockNow()
+      let requestedAt = now()
+      AppDB.log.log(level: level, "db write requested: \(label)")
 
       do {
-        let result: (value: Value, wait: TimeInterval, transaction: TimeInterval) =
+        let result: (value: Value, wait: Duration, transaction: Duration) =
           try await appDB.db.write { db in
-            let acquiredAt = Date()
-            let wait = acquiredAt.timeIntervalSince(requestedAt)
-            AppDB.log.trace("db write acquired: \(label) after \(wait) seconds")
+            let acquiredAt = now()
+            let wait = acquiredAt - requestedAt
+            AppDB.log.log(level: level, "db write acquired: \(label) after \(wait)")
 
             let value = try updates(db)
-            let transaction = Date().timeIntervalSince(acquiredAt)
+            let transaction = now() - acquiredAt
             return (value, wait, transaction)
           }
 
-        let total = Date().timeIntervalSince(requestedAt)
-        AppDB.log.trace(
+        AppDB.log.log(
+          level: level,
           """
           db write completed: \(label) \
-          total=\(total) seconds \
-          wait=\(result.wait) seconds \
-          transaction=\(result.transaction) seconds
+          total=\(now() - requestedAt) \
+          wait=\(result.wait) \
+          transaction=\(result.transaction)
           """
         )
         return result.value
       } catch {
-        AppDB.log.caughtError(
-          "db write failed: \(label) after \(Date().timeIntervalSince(requestedAt)) seconds",
-          error
-        )
+        AppDB.log.log(level: level, "db write failed: \(label) after \(now() - requestedAt)")
         throw error
       }
     }

@@ -602,7 +602,7 @@ struct Repo: Databasing {
   func updateCurrentTime(_ episodeID: Episode.ID, currentTime: CMTime) async throws -> Bool {
     Self.log.trace("updateCurrentTime: \(episodeID) to \(currentTime)")
 
-    return try await writer.write { db in
+    return try await writer.write(level: .trace) { db in
       try Episode
         .withID(episodeID)
         .updateAll(
@@ -629,7 +629,7 @@ struct Repo: Databasing {
       "updatePlayback: \(episodeID) to \(currentTime) (from \(playedFrom))"
     )
 
-    return try await writer.write { db in
+    return try await writer.write(level: .trace) { db in
       let row = try Row.fetchOne(
         db,
         Episode
