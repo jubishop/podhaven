@@ -99,7 +99,10 @@ class PodcastDetailViewModel:
 
   // MARK: - SelectableEpisodeList & SortableEpisodeList
 
-  var episodeList = PowerList<ListedEpisode>(debounceDuration: .milliseconds(250))
+  var episodeList = PowerList<ListedEpisode>(
+    sortMethod: SortMethod.newestFirst.sortMethod,
+    debounceDuration: .milliseconds(250)
+  )
 
   enum SortMethod: SortingMethod {
     case newestFirst
@@ -576,8 +579,6 @@ class PodcastDetailViewModel:
     try Task.checkCancellation()
     guard isCurrentAppearPass(generation) else { return }
 
-    applyEpisodeListSortAndFilterDefaults()
-
     let observationAlreadyActive =
       observationTask.map { !$0.isCancelled } ?? false
     if shouldSeedEpisodeListAtAppearStart(observationAlreadyActive: observationAlreadyActive) {
@@ -625,10 +626,6 @@ class PodcastDetailViewModel:
   func cancelDetailPassAuxiliaryWork() {
     cancelShareArtworkLoad()
     recommendationCoordinator.cancel()
-    if currentSortMethod == .recommendationScore {
-      episodeList.filterMethod = currentSortMethod.filterMethod
-      episodeList.sortMethod = currentSortMethod.sortMethod
-    }
   }
 
   // MARK: - Public Methods
@@ -888,11 +885,6 @@ class PodcastDetailViewModel:
     if currentSortMethod == .recommendationScore {
       recommendationCoordinator.refresh()
     }
-  }
-
-  private func applyEpisodeListSortAndFilterDefaults() {
-    episodeList.filterMethod = currentSortMethod.filterMethod
-    episodeList.sortMethod = currentSortMethod.sortMethod
   }
 
   private func shouldSeedEpisodeListAtAppearStart(observationAlreadyActive: Bool) -> Bool {
