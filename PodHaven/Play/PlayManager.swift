@@ -193,11 +193,31 @@ final class PlayManager {
 
     let task = Task<Bool, any Error> { [weak self] in
       guard let self else { return false }
-      Self.log.info("performLoad: \(incoming.toString)")
+      let loadStart = Date()
+      let outgoingDescription = String(describing: outgoing?.toString)
+      Self.log.info(
+        """
+        performLoad: starting
+          incoming: \(incoming.toString)
+          outgoing: \(outgoingDescription)
+        """
+      )
 
+      var phaseStart = Date()
+      Self.log.debug("performLoad: removing player observers")
       await podAVPlayer.removeObservers()
+      Self.log.debug(
+        "performLoad: removed player observers in \(Date().timeIntervalSince(phaseStart)) seconds"
+      )
+
       setStatus(.loading(incoming.episode.title))
+
+      phaseStart = Date()
+      Self.log.debug("performLoad: clearing onDeck")
       await clearOnDeck()
+      Self.log.debug(
+        "performLoad: cleared onDeck in \(Date().timeIntervalSince(phaseStart)) seconds"
+      )
 
       // Restore the outgoing episode to the top of the queue immediately so
       // it stays visible for the entire load attempt. Without this, a long
@@ -205,29 +225,72 @@ final class PlayManager {
       // previously-OnDeck episode in limbo — neither OnDeck nor in the
       // queue — until cleanUpAfterLoad{Success,Failure} runs at the end.
       if let outgoing {
+        phaseStart = Date()
+        Self.log.debug("performLoad: restoring outgoing episode to queue: \(outgoing.toString)")
         do {
           try await queue.unshift(outgoing.id)
+          Self.log.debug(
+            """
+            performLoad: restored outgoing episode to queue \
+            in \(Date().timeIntervalSince(phaseStart)) seconds
+              outgoing: \(outgoing.toString)
+            """
+          )
         } catch {
           Self.log.caughtError(
             "performLoad: failed to unshift outgoing episode \(outgoing.toString)",
             error
           )
         }
+      } else {
+        Self.log.debug("performLoad: no outgoing episode to restore")
       }
 
-      guard await Container.shared.configureAudioSession()() else {
+      phaseStart = Date()
+      Self.log.debug("performLoad: configuring audio session")
+      let audioSessionConfigured = await Container.shared.configureAudioSession()()
+      Self.log.debug(
+        """
+        performLoad: configured audio session result=\(audioSessionConfigured) \
+        in \(Date().timeIntervalSince(phaseStart)) seconds
+        """
+      )
+      guard audioSessionConfigured else {
         await cleanUpAfterLoadFailure(outgoing, incoming)
         return false
       }
 
       do {
+        phaseStart = Date()
+        Self.log.debug("performLoad: activating audio session")
         try Container.shared.setAudioSessionActive()(true)
-        Self.log.debug("performLoad: audio session activated")
+        Self.log.debug(
+          "performLoad: activated audio session in \(Date().timeIntervalSince(phaseStart)) seconds"
+        )
+
+        phaseStart = Date()
+        Self.log.debug("performLoad: setting playback rate")
         await podAVPlayer.setRate(
           Float(incoming.podcast.defaultPlaybackRate ?? userSettings.defaultPlaybackRate)
         )
+        Self.log.debug(
+          "performLoad: set playback rate in \(Date().timeIntervalSince(phaseStart)) seconds"
+        )
+
+        phaseStart = Date()
+        Self.log.debug("performLoad: loading player item")
         let loaded = try await podAVPlayer.load(incoming)
+        Self.log.debug(
+          """
+          performLoad: loaded player item in \(Date().timeIntervalSince(phaseStart)) seconds
+            loaded: \(loaded.toString)
+          """
+        )
+
+        phaseStart = Date()
+        Self.log.debug("performLoad: setting onDeck")
         try await setOnDeck(loaded)
+        Self.log.debug("performLoad: set onDeck in \(Date().timeIntervalSince(phaseStart)) seconds")
       } catch {
         await Task { [weak self, outgoing, incoming] in  // Task to execute even inside cancellation
           guard let self else { return }
@@ -239,8 +302,22 @@ final class PlayManager {
         throw error
       }
 
+      phaseStart = Date()
+      Self.log.debug("performLoad: cleaning up after load success")
       await cleanUpAfterLoadSuccess(outgoing, incoming)
+      Self.log.debug(
+        "performLoad: cleaned up after load success in \(Date().timeIntervalSince(phaseStart)) seconds"
+      )
+
+      phaseStart = Date()
+      Self.log.debug("performLoad: adding player observers")
       await podAVPlayer.addObservers()
+      Self.log.debug(
+        """
+        performLoad: completed in \(Date().timeIntervalSince(loadStart)) seconds
+          addObservers: \(Date().timeIntervalSince(phaseStart)) seconds
+        """
+      )
       return true
     }
 
