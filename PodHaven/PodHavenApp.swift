@@ -52,7 +52,7 @@ struct PodHavenApp: App {
             // captured `.active` would be stale (the gate would re-enter
             // foreground while backgrounded), and the `.background` arm
             // already sync-notified when the transition happened.
-            guard sharedState.scenePhase == .active else { return }
+            guard sharedState.$scenePhase.value == .active else { return }
             notifyScenePhaseChange(.active)
           }
         case .background:

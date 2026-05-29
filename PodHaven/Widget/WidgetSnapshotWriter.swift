@@ -55,7 +55,7 @@ final class WidgetSnapshotWriter: Sendable {
 
         // PlayManager has already restored onDeck by the time we start.
         // If nothing is playing, clear any stale snapshot from a prior session.
-        if sharedState.onDeck == nil {
+        if sharedState.$onDeck.value == nil {
           do {
             try fileManager.removeItem(at: WidgetInfo.nowPlayingSnapshotURL)
           } catch {

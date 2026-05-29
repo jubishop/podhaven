@@ -224,7 +224,7 @@ struct CachePurger: Sendable {
   // MARK: - Episode Deletion Heuristic
 
   private func getCachedEpisodesInDeletionOrder(cachedEpisodes: [Episode]) -> [Episode] {
-    let currentEpisodeID = Container.shared.sharedState().currentEpisodeID
+    let currentEpisodeID = Container.shared.sharedState().$currentEpisodeID.value
     let unqueuedEpisodes = cachedEpisodes.filter {
       !$0.queued && !$0.saveInCache && $0.id != currentEpisodeID
     }
