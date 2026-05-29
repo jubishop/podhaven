@@ -459,6 +459,7 @@ class PodcastDetailViewModel:
   var shareURL: URL? { ShareURL.podcast(feedURL: podcast.feedURL) }
   private var shareArtwork: UIImage?
   @ObservationIgnored private var loadedShareArtworkURL: URL?
+  @ObservationIgnored private var loadingShareArtworkURL: URL?
   @ObservationIgnored private var shareArtworkTask: Task<Void, Never>?
 
   var sharePreview: SharePreview<Image, Image> {
@@ -474,21 +475,29 @@ class PodcastDetailViewModel:
   private func cancelShareArtworkLoad() {
     shareArtworkTask?.cancel()
     shareArtworkTask = nil
+    loadingShareArtworkURL = nil
   }
 
   private func loadShareArtworkIfNeeded() {
     let imageURL = podcast.image
-    if shareArtwork != nil, loadedShareArtworkURL == imageURL { return }
-    if loadedShareArtworkURL != imageURL {
-      shareArtwork = nil
-      loadedShareArtworkURL = nil
-      cancelShareArtworkLoad()
-    }
-    guard shareArtworkTask == nil else { return }
+    // Already resolved for this URL, or a load for it is already in flight.
+    // Reusing the in-flight load keeps repeated transitions (which re-enter
+    // here) from cancelling and restarting it, which could otherwise leave the
+    // artwork forever unsettled under sustained updates.
+    if loadedShareArtworkURL == imageURL { return }
+    if loadingShareArtworkURL == imageURL { return }
+    // URL is new or changed: drop stale artwork and supersede any prior load.
+    cancelShareArtworkLoad()
+    shareArtwork = nil
+    loadedShareArtworkURL = nil
+    loadingShareArtworkURL = imageURL
     shareArtworkTask = Task { [weak self] in
       guard let self else { return }
       defer {
-        if !Task.isCancelled { shareArtworkTask = nil }
+        if !Task.isCancelled {
+          shareArtworkTask = nil
+          loadingShareArtworkURL = nil
+        }
       }
       do {
         let image = try await imagePipeline.image(for: imageURL)

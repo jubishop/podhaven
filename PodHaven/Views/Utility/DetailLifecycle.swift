@@ -21,7 +21,7 @@ import Logging
 @MainActor final class DetailLifecycle {
   @DynamicInjected(\.alert) private var alert
 
-  var isOnScreen = false
+  private(set) var isOnScreen = false
   var observationTask: Task<Void, Never>?
   private(set) var appearTask: Task<Void, Never>?
 

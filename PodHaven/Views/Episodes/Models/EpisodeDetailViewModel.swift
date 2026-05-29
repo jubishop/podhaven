@@ -533,6 +533,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   private func startRecommendationObservation() {
+    guard lifecycle.isOnScreen else {
+      Self.log.debug("startRecommendationObservation: skipped off-screen")
+      return
+    }
     recommendationCoordinator.startObservations()
     recommendationCoordinator.refresh()
   }

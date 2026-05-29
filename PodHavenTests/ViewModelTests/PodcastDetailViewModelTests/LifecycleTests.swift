@@ -467,6 +467,65 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     #expect(loadCount() == 1)
   }
 
+  @Test("appear-time transition does not cancel the in-flight share-artwork load")
+  func appearTransitionDoesNotCancelShareArtworkLoad() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/appear-episodes-artwork.rss")!)
+    let imageURL = try #require(
+      URL(string: "https://example.com/appear-episodes-artwork-image.png")
+    )
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    )
+    let fetchStarted = AsyncSemaphore(value: 0)
+    let fetchHang = AsyncSemaphore(value: 0)
+    let cancelObserved = ThreadSafe(false)
+    fakeDataLoader.respond(to: imageURL) { _ in
+      fetchStarted.signal()
+      do {
+        try await fetchHang.waitUnlessCancelled()
+      } catch {
+        cancelObserved(true)
+        throw error
+      }
+      return Data()
+    }
+
+    // init seeds `.saved(podcast)` with no episodes; the appear-time observation
+    // transition swaps in the episode-bearing series and re-enters
+    // loadShareArtworkIfNeeded() while the first artwork load is still in flight.
+    // That re-entry must reuse the in-flight load, not cancel and restart it.
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: feedURL,
+          title: "Appear Episodes Artwork",
+          image: imageURL
+        ),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "Episode 1")]
+      )
+    )
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+
+    viewModel.appear()
+    await fetchStarted.wait()
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count >= 1 },
+      { @MainActor in
+        """
+        Expected the appear-time transition to hydrate episodes.
+        entries: \(viewModel.episodeList.allEntries.count)
+        """
+      }
+    )
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(cancelObserved() == false)
+
+    viewModel.disappear()
+  }
+
   @Test("subscribe off-screen then appear resyncs saved episode rows")
   func subscribeOffScreenThenAppearResyncsSavedEpisodeRows() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/resync-subscribe.rss")!)

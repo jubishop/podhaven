@@ -90,19 +90,24 @@ storm" and "lifecycle churn":
 Build 507's logs retroactively explain the 506 reports: same lifecycle pattern,
 different podcast.
 
-## Current diagnostic logging
+## Diagnostic logging (build 507, since removed)
 
-The 2026-05-27 logging pass (`6aa87834`, shipped in build 507) is now proven
-sufficient to characterize this class of incident. Inventory, for reference:
+The 2026-05-27 logging pass (`6aa87834`, shipped in build 507) characterized
+this class of incident. **That verbose per-VM instrumentation was removed when
+the side-effect-free init landed** — the `vm=<id>` summary, the
+`startObservation(caller:)` argument, the `transition diff=[...]` suffix, and
+the per-VM transition-storm detector no longer exist in current builds. The
+inventory below describes the build-507 logs only, for interpreting the
+archived captures referenced under "Incident facts":
 
 - `PodcastDetailViewModel` logs a stable `vm=<id>` summary on every relevant
   call (state, entry count, sort method, observation task state).
 - `PodcastDetailView` logs struct `init`, `appear`, and `disappear` with the
   VM summary — discarded SwiftUI destination models are now distinguishable
   from appeared models.
-- `startObservation(_:caller:)` logs the `caller` and whether it created or
-  found an existing task. Post-#357, `caller=init(state:)` should never
-  appear in production logs; if it does, the fix has regressed.
+- `startObservation(_:caller:)` logged the `caller` and whether it created or
+  found an existing task. (The `caller` argument and this logging were removed
+  alongside the fix.)
 - `observePodcastSeries` logs entry and exit duration, yield count, and exit
   reason (`cancelled` vs `natural`).
 - Per-yield `Updating observed series` logs include yield number and VM
@@ -144,8 +149,9 @@ a storm is happening.
 PR #359 is generically useful (catches any future log-suppression storm in
 any subsystem). It does **not** replace the behavior fix in #357 and there
 is no need to add a behavior-specific aggregate counter inside
-`PodcastDetailViewModel`. The existing per-VM `vm=N` + `caller=...` logging
-is enough to verify the fix and catch regressions.
+`PodcastDetailViewModel`. With the verbose per-VM diagnostics now removed,
+`LifecycleTests` is the primary regression guard and PR #359's generic
+log-suppression warning is the production backstop.
 
 ## Behavior fix shipped: side-effect-free init (#357)
 
@@ -157,9 +163,9 @@ that could outlive a discarded SwiftUI view/model:
 
 Post-fix shape:
 
-- `init` is limited to synchronous owned-state setup (`state`,
-  `episodeList.sortMethod`, `refreshEpisodeList(from:)` seed, diagnostic log).
-  No `Task`, no `startObservation`, no image pipeline call.
+- `init` is limited to synchronous owned-state setup (`state` plus a
+  `refreshEpisodeList(from:)` seed for a non-empty saved series). No `Task`,
+  no `startObservation`, no image pipeline call, no diagnostic logging.
 - Observation startup flows through `performAppear` → `attemptObservation`
   → `transition(...)` → `startObservation(...)`. Only the kept (appeared)
   VM ever owns the observation task.
@@ -176,12 +182,12 @@ Target behavior, verified by `LifecycleTests`:
 - The appeared VM starts observation promptly and loads share artwork
   exactly once across repeated `performAppear` calls.
 
-Production-side regression signal: the build-507 trigger
-(`Navigation.showPodcast([1])` during an Up Next → Podcasts transition) must
-produce `init: vm=N` lines for transient instances **without** any
-`startObservation: ... caller=init(state:)` lines. The first
-`startObservation` for any VM ID must follow that same VM's `appear:` log
-line. Anything else means the constructor regained side effects.
+Regression guard: the side-effect-free init is pinned by `LifecycleTests`
+(transient inits start no observation/share-artwork work; only the appeared
+VM does). The verbose per-VM production logging that originally caught this
+(`vm=N`, `startObservation ... caller=init(state:)`) was removed with the
+fix, so a production recurrence now surfaces via PR #359's generic
+`FileLogHandler` storm warning rather than a bespoke `caller=` signal.
 
 ## Historical context
 
@@ -201,9 +207,8 @@ be revived.
 
 - Do not re-add async work to `PodcastDetailViewModel.init(state:)`. SwiftUI
   destination re-evaluation will resurrect the storm.
-- Do not add another behavioral storm detector inside
-  `PodcastDetailViewModel`. The existing `vm=N`, `caller=...`, and
-  `transition diff=[...]` logging is sufficient and PR #359 covers the
+- Do not add a behavioral storm detector inside `PodcastDetailViewModel`.
+  `LifecycleTests` pins the side-effect-free init and PR #359 covers the
   generic log-suppression signal.
 - Do not debounce `observePodcastSeries`. The fix is not to start the
   observation at all on a VM that never appears.
