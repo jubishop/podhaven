@@ -132,47 +132,6 @@ struct AppDB {
       .values(in: db)
   }
 
-  private func loggedWrite<Value: Sendable>(
-    _ label: String? = nil,
-    fileID: String = #fileID,
-    function: String = #function,
-    _ updates: @Sendable (Database) throws -> Value
-  ) async throws -> Value {
-    let label = label ?? "\(fileID):\(function)"
-    let requestedAt = Date()
-    Self.log.trace("db write requested: \(label)")
-
-    do {
-      let result: (value: Value, wait: TimeInterval, transaction: TimeInterval) =
-        try await db.write { db in
-          let acquiredAt = Date()
-          let wait = acquiredAt.timeIntervalSince(requestedAt)
-          Self.log.trace("db write acquired: \(label) after \(wait) seconds")
-
-          let value = try updates(db)
-          let transaction = Date().timeIntervalSince(acquiredAt)
-          return (value, wait, transaction)
-        }
-
-      let total = Date().timeIntervalSince(requestedAt)
-      Self.log.trace(
-        """
-        db write completed: \(label) \
-        total=\(total) seconds \
-        wait=\(result.wait) seconds \
-        transaction=\(result.transaction) seconds
-        """
-      )
-      return result.value
-    } catch {
-      Self.log.caughtError(
-        "db write failed: \(label) after \(Date().timeIntervalSince(requestedAt)) seconds",
-        error
-      )
-      throw error
-    }
-  }
-
   struct Reader: Sendable {
     private let appDB: AppDB
 
@@ -212,7 +171,39 @@ struct AppDB {
       function: String = #function,
       _ updates: @Sendable (Database) throws -> Value
     ) async throws -> Value {
-      try await appDB.loggedWrite(label, fileID: fileID, function: function, updates)
+      let label = label ?? "\(fileID):\(function)"
+      let requestedAt = Date()
+      AppDB.log.trace("db write requested: \(label)")
+
+      do {
+        let result: (value: Value, wait: TimeInterval, transaction: TimeInterval) =
+          try await appDB.db.write { db in
+            let acquiredAt = Date()
+            let wait = acquiredAt.timeIntervalSince(requestedAt)
+            AppDB.log.trace("db write acquired: \(label) after \(wait) seconds")
+
+            let value = try updates(db)
+            let transaction = Date().timeIntervalSince(acquiredAt)
+            return (value, wait, transaction)
+          }
+
+        let total = Date().timeIntervalSince(requestedAt)
+        AppDB.log.trace(
+          """
+          db write completed: \(label) \
+          total=\(total) seconds \
+          wait=\(result.wait) seconds \
+          transaction=\(result.transaction) seconds
+          """
+        )
+        return result.value
+      } catch {
+        AppDB.log.caughtError(
+          "db write failed: \(label) after \(Date().timeIntervalSince(requestedAt)) seconds",
+          error
+        )
+        throw error
+      }
     }
   }
 
