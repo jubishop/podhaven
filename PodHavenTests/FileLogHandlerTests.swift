@@ -13,6 +13,7 @@ struct FileLogHandlerTests {
   private struct DecodedEntry: Decodable {
     let message: String
     let line: UInt
+    let timestamp: Int64
   }
 
   private func makeHandler(
@@ -406,9 +407,36 @@ struct FileLogHandlerTests {
     let fileSize = try Data(contentsOf: fileURL).count
     #expect(fileSize <= maxFileSizeBytes)
 
-    let lines = try String(decoding: try Data(contentsOf: fileURL), as: UTF8.self)
+    let lines = String(decoding: try Data(contentsOf: fileURL), as: UTF8.self)
       .split(separator: "\n", omittingEmptySubsequences: true)
     #expect(lines.contains { $0.contains("trigger-truncate") })
+  }
+
+  @Test("async writes are timestamped at log-call time, not when the queue drains")
+  func asyncWriteTimestampsAtCallTime() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+
+    let fakeDate = Container.shared.fakeDate()
+    fakeDate.freeze(at: Date(timeIntervalSince1970: 1_000))
+
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000_000,
+      targetFileSizeBytes: 5_000_000,
+      synchronous: false
+    )
+
+    log(handler, message: "deferred", line: 1)
+    // The writer queue drains during flush(); advancing the wall clock first
+    // proves the entry is stamped when log() was called (1_000), not when the
+    // entry is later built on the queue (2_000).
+    fakeDate.freeze(at: Date(timeIntervalSince1970: 2_000))
+    FileLogHandler.flush(fileURL: fileURL)
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.count == 1)
+    #expect(entries.first?.timestamp == 1_000_000)
   }
 
   @Test("asynchronous writes reach the file once flushed")

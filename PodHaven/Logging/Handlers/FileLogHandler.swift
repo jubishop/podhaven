@@ -35,10 +35,11 @@ struct FileLogHandler: LogHandler {
     let maxFileSizeBytes: Int
     let targetFileSizeBytes: Int
     private let queue: DispatchQueue
+    private let clockNow: @Sendable () -> ContinuousClock.Instant
 
     // Queue-confined; access only from `queue` work items.
     private var rateLimitBuckets: [RateKey: RateBucket] = [:]
-    private var encoder = JSONEncoder()
+    private let encoder = JSONEncoder()
 
     // Reused across writes; closed and reopened around truncation's inode swap.
     private var appendHandle: FileHandle?
@@ -47,6 +48,7 @@ struct FileLogHandler: LogHandler {
       self.fileURL = fileURL
       self.maxFileSizeBytes = maxFileSizeBytes
       self.targetFileSizeBytes = targetFileSizeBytes
+      self.clockNow = Container.shared.continuousClockNow()
       let fileName = fileURL.deletingPathExtension().lastPathComponent
       self.queue = DispatchQueue(
         label: "\(AppInfo.bundleIdentifier).FileLogHandler.Writer.\(fileName)",
@@ -94,9 +96,9 @@ struct FileLogHandler: LogHandler {
       }
     }
 
-    // Must be called on `queue`.
     private func rateLimitDecision(file: String, line: UInt) -> RateLimitDecision {
-      let now = Container.shared.continuousClockNow()()
+      dispatchPrecondition(condition: .onQueue(queue))
+      let now = clockNow()
       let key = RateKey(file: file, line: line)
       var bucket =
         rateLimitBuckets[key]
@@ -147,12 +149,13 @@ struct FileLogHandler: LogHandler {
       case failed(any Error)
     }
 
-    // Must be called on `queue`.
     private func writeEntry(_ entry: Entry, chargeRateLimitToken: Bool) -> WriteResult {
+      dispatchPrecondition(condition: .onQueue(queue))
       let key = RateKey(file: entry.file, line: entry.line)
       let suppressed = pendingSuppressedCount(for: key)
-      let summaryContext =
-        rateLimitBuckets[key]?.lastContext ?? SuppressionContext.from(entry: entry)
+      // Same (file, line) as the suppressed entries, so this entry's own context
+      // attributes the summary correctly.
+      let summaryContext = SuppressionContext.from(entry: entry)
       do {
         // The real entry is always appended right after, and appendEntry
         // returns the post-write file size — so the single truncation check
@@ -193,6 +196,7 @@ struct FileLogHandler: LogHandler {
 
     @discardableResult
     private func appendEntry(_ entry: Entry) throws -> UInt64 {
+      dispatchPrecondition(condition: .onQueue(queue))
       var data = try encoder.encode(entry)
       data.append(0x0A)
 
@@ -212,6 +216,7 @@ struct FileLogHandler: LogHandler {
     }
 
     private func closeAppendHandle() {
+      dispatchPrecondition(condition: .onQueue(queue))
       if let openHandle = appendHandle {
         Self.close(openHandle)
       }
@@ -327,18 +332,6 @@ struct FileLogHandler: LogHandler {
           line: entry.line
         )
       }
-
-      static func fallback(for key: RateKey) -> SuppressionContext {
-        SuppressionContext(
-          timestamp: Int64(Date().timeIntervalSince1970 * 1000),
-          subsystem: "PodHaven",
-          category: "FileLogWriter",
-          source: "FileLogHandler",
-          file: key.file,
-          function: "",
-          line: key.line
-        )
-      }
     }
 
     private struct RateBucket {
@@ -366,13 +359,14 @@ struct FileLogHandler: LogHandler {
       rateLimitBuckets[key] = bucket
     }
 
-    // Must be called on `queue`.
     private func flushPendingSuppressions() -> WriteResult {
+      dispatchPrecondition(condition: .onQueue(queue))
+      // A site only accrues drops after spending its burst, and every write
+      // records `lastContext`, so a positive `suppressedCount` always has one.
       let pending: [(RateKey, SuppressionContext, Int)] = rateLimitBuckets.compactMap {
         key,
         bucket in
-        guard bucket.suppressedCount > 0 else { return nil }
-        let context = bucket.lastContext ?? .fallback(for: key)
+        guard bucket.suppressedCount > 0, let context = bucket.lastContext else { return nil }
         return (key, context, bucket.suppressedCount)
       }
 
@@ -463,6 +457,7 @@ struct FileLogHandler: LogHandler {
   private let category: String
   private let writer: Writer
   private let writeSynchronously: @Sendable (Logging.Logger.Level) -> Bool
+  private let dateProvider: any DateProviding
 
   // MARK: - Initialization
 
@@ -478,6 +473,7 @@ struct FileLogHandler: LogHandler {
     self.subsystem = subsystem
     self.category = category
     self.writeSynchronously = writeSynchronously
+    self.dateProvider = Container.shared.dateProvider()
 
     self.writer = Self.writers { writers in
       if let existing = writers[fileURL] { return existing }
@@ -494,16 +490,20 @@ struct FileLogHandler: LogHandler {
   // MARK: - Logging
 
   public func log(event: LogEvent) {
+    // Stamp at call time, on the calling thread. Async writes build the rest of
+    // the entry later on the writer queue; capturing the timestamp here keeps it
+    // aligned with when the event happened, not when the queue drains.
+    let timestamp = Int64(dateProvider.now.timeIntervalSince1970 * 1000)
     writer.log(
       level: event.level,
       file: event.file,
       line: event.line,
       synchronously: writeSynchronously(event.level),
-      makeEntry: { self.makeEntry(from: event) }
+      makeEntry: { self.makeEntry(from: event, timestamp: timestamp) }
     )
   }
 
-  private func makeEntry(from event: LogEvent) -> Entry {
+  private func makeEntry(from event: LogEvent, timestamp: Int64) -> Entry {
     let mergedMetadata = LogKit.merge(
       handler: self.metadata,
       provider: self.metadataProvider,
@@ -513,7 +513,7 @@ struct FileLogHandler: LogHandler {
     return Entry(
       level: event.level.intValue,
       levelName: event.level.rawValue,
-      timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+      timestamp: timestamp,
       subsystem: subsystem,
       category: category,
       message: event.message.description,
