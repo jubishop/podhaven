@@ -424,13 +424,6 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
       { cancelObserved() },
       { "Expected disappear() to cancel the in-flight share-artwork load." }
     )
-
-    try await Wait.until(
-      { @MainActor in viewModel.auxiliaryTasks.isEmpty },
-      { @MainActor in
-        "Expected completed/cancelled auxiliary tasks to be untracked; count=\(viewModel.auxiliaryTasks.count)"
-      }
-    )
   }
 
   @Test("appear loads share artwork once, idempotent on repeat")

@@ -152,7 +152,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored var appearGeneration = 0
   @ObservationIgnored var appearTask: Task<Void, Never>?
   @ObservationIgnored var observationTask: Task<Void, Never>?
-  @ObservationIgnored var auxiliaryTasks: [DetailAuxiliaryTask] = []
 
   func performAppear() async throws {
     let generation = appearGeneration
