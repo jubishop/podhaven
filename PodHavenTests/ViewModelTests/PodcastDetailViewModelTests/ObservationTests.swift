@@ -102,7 +102,7 @@ import Testing
       }
     )
 
-    _ = try await appDB.db.write { db in
+    _ = try await appDB.unsafeTestDB.write { db in
       try Episode.deleteOne(db, key: removedID)
     }
 

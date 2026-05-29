@@ -9,8 +9,7 @@ import Logging
 // is one-shot per process; Swift Testing runs cases concurrently, so capture installs
 // once and routes events into whichever test's `@TaskLocal` sink is active.
 //
-// No tests call `withSink` yet — that is fine for now; install-once is for upcoming
-// swift-log assertions without re-bootstrapping per case.
+// `withSink` supports swift-log assertions without re-bootstrapping per case.
 enum LogCapture {
   struct Captured: Sendable {
     let label: String

@@ -18,10 +18,10 @@ class V1MigrationTests {
   @Test("v1 migration creates schema with all expected tables and constraints")
   func testV1Migration() async throws {
     // Apply v1 migration
-    try migrator.migrate(appDB.db, upTo: "v1")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v1")
 
     // Verify podcast table exists with correct columns
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
 
@@ -38,7 +38,7 @@ class V1MigrationTests {
     }
 
     // Verify episode table exists with correct columns
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
 
@@ -62,7 +62,7 @@ class V1MigrationTests {
     }
 
     // Verify unique constraints are in place
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       // Check podcast unique constraint on feedURL
       let podcastIndexes = try Row.fetchAll(
         db,
@@ -115,7 +115,7 @@ class V1MigrationTests {
     }
 
     // Test data insertion and constraints
-    let testPodcastID = try await appDB.db.write { db in
+    let testPodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -132,7 +132,7 @@ class V1MigrationTests {
     }
 
     // Test episode insertion
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (
@@ -151,7 +151,7 @@ class V1MigrationTests {
 
     // Test unique constraint on podcastId + guid
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO episode (
@@ -171,7 +171,7 @@ class V1MigrationTests {
 
     // Test unique constraint on guid + mediaURL
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO episode (
@@ -191,7 +191,7 @@ class V1MigrationTests {
 
     // Test unique constraint on podcastId + mediaURL
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO episode (
@@ -210,7 +210,7 @@ class V1MigrationTests {
     }
 
     // Test that same mediaURL can exist in different podcasts
-    let secondPodcastID = try await appDB.db.write { db in
+    let secondPodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -227,7 +227,7 @@ class V1MigrationTests {
     }
 
     // This should succeed - same mediaURL but different podcast
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (
@@ -245,7 +245,7 @@ class V1MigrationTests {
     }
 
     // Verify both episodes exist with the same mediaURL in different podcasts
-    let episodeCount = try await appDB.db.read { db in
+    let episodeCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episode WHERE mediaURL = ?",

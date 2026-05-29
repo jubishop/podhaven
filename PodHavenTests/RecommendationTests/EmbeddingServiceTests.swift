@@ -340,7 +340,7 @@ class EmbeddingServiceTests {
       try await recommendationRepo.podcastEmbedding(for: podcastEpisode.podcast.id)
     )
     let episodeRowCount = try #require(
-      try await appDB.db.read { db in
+      try await appDB.unsafeTestDB.read { db in
         try Int.fetchOne(
           db,
           sql: "SELECT COUNT(*) FROM episodeEmbedding WHERE episodeId = ?",
@@ -349,7 +349,7 @@ class EmbeddingServiceTests {
       }
     )
     let podcastRowCount = try #require(
-      try await appDB.db.read { db in
+      try await appDB.unsafeTestDB.read { db in
         try Int.fetchOne(
           db,
           sql: "SELECT COUNT(*) FROM podcastEmbedding WHERE podcastId = ?",
@@ -395,7 +395,7 @@ class EmbeddingServiceTests {
     // and the service's needsRecompute guard skips the vector recompute.
     // Use fixed past dates so the assertion doesn't depend on test-runner
     // clock skew between the initial upsert and the touch.
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           UPDATE episodeEmbedding SET verificationDate = '2020-01-01 00:00:00'

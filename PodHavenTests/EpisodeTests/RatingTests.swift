@@ -194,7 +194,7 @@ class EpisodeRatingTests {
     let episode = try await createPodcastWithEpisode()
 
     await #expect(throws: DatabaseError.self) {
-      _ = try await self.appDB.db.write { db in
+      _ = try await self.appDB.unsafeTestDB.write { db in
         try Episode
           .withID(episode.id)
           .updateAll(db, Episode.Columns.rating.set(to: "invalid"))
@@ -520,7 +520,7 @@ class EpisodeRatingTests {
   func checkConstraintAcceptsNotInterested() async throws {
     let episode = try await createPodcastWithEpisode()
 
-    _ = try await self.appDB.db.write { db in
+    _ = try await self.appDB.unsafeTestDB.write { db in
       try Episode
         .withID(episode.id)
         .updateAll(db, Episode.Columns.rating.set(to: "notInterested"))

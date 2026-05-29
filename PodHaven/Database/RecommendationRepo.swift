@@ -9,9 +9,6 @@ import Logging
 import Tagged
 
 extension Container {
-  internal func makeRecommendationRepo() -> RecommendationRepo {
-    RecommendationRepo(self.appDB())
-  }
   var recommendationRepo: Factory<any Recommending> {
     Factory(self) { self.makeRecommendationRepo() }.scope(.cached)
   }
@@ -22,22 +19,24 @@ struct RecommendationRepo: Recommending {
 
   // MARK: - Initialization
 
-  var db: any DatabaseReader { appDB.db }
-  private let appDB: AppDB
-  fileprivate init(_ appDB: AppDB) {
-    self.appDB = appDB
+  var db: AppDB.Reader { reader }
+  private let reader: AppDB.Reader
+  private let writer: AppDB.Writer
+  init(reader: AppDB.Reader, writer: AppDB.Writer) {
+    self.reader = reader
+    self.writer = writer
   }
 
   // MARK: - Recommendation Readers
 
   func allRatedEpisodes() async throws -> [SignalEpisode] {
-    try await appDB.db.read { db in
+    try await reader.read { db in
       try SignalEpisode.filter(Episode.hasRatingSignal).fetchAll(db)
     }
   }
 
   func allUnratedListenedEpisodes() async throws -> [PartialSignal] {
-    try await appDB.db.read { db in
+    try await reader.read { db in
       try PartialSignal
         .filter(Episode.hasCoverage && !Episode.rated)
         .fetchAll(db)
@@ -46,7 +45,7 @@ struct RecommendationRepo: Recommending {
   }
 
   func allScoringContextInputs() async throws -> ScoringContextInputs {
-    try await appDB.db.read { db in
+    try await reader.read { db in
       try Self.scoringContextInputs(db) { db in
         try PartialSignal
           .filter(Episode.hasCoverage && !Episode.rated)
@@ -143,7 +142,7 @@ struct RecommendationRepo: Recommending {
   }
 
   func allCandidateEpisodes() async throws -> [CandidateEpisode] {
-    try await appDB.db.read { db in
+    try await reader.read { db in
       try CandidateEpisode
         .filter(Episode.candidate && Episode.hasEmbedding)
         .fetchAll(db)
@@ -158,7 +157,7 @@ struct RecommendationRepo: Recommending {
   func whiteningTransform(
     principalComponentCount: Int
   ) async throws -> WhiteningTransform? {
-    try await appDB.db.read { db in
+    try await reader.read { db in
       var sum: [Float] = []
       var outerSum: [Float] = []
       var outerScratch: [Float] = []
@@ -319,7 +318,7 @@ struct RecommendationRepo: Recommending {
   // Batch upsert: one transaction per chunk instead of one per episode.
   func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {
     guard !unsaved.isEmpty else { return }
-    try await appDB.db.write { db in
+    try await writer.write { db in
       var skipped = 0
       for entry in unsaved {
         do {
@@ -336,7 +335,7 @@ struct RecommendationRepo: Recommending {
 
   func upsertPodcastEmbeddings(_ unsaved: [UnsavedPodcastEmbedding]) async throws {
     guard !unsaved.isEmpty else { return }
-    try await appDB.db.write { db in
+    try await writer.write { db in
       var skipped = 0
       for entry in unsaved {
         do {
@@ -354,13 +353,13 @@ struct RecommendationRepo: Recommending {
   // MARK: - Embedding Readers
 
   func hasEmbeddings() async throws -> Bool {
-    try await appDB.db.read { db in
+    try await reader.read { db in
       try EpisodeEmbedding.fetchCount(db) > 0
     }
   }
 
   func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
-    try await appDB.db.read { db in
+    try await reader.read { db in
       try EpisodeEmbedding
         .filter(EpisodeEmbedding.Columns.episodeId == episodeID)
         .fetchOne(db)
@@ -371,7 +370,7 @@ struct RecommendationRepo: Recommending {
     -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
   {
     guard !episodeIDs.isEmpty else { return IdentifiedArray(id: \.episodeId) }
-    return try await appDB.db.read { db in
+    return try await reader.read { db in
       try EpisodeEmbedding
         .filter(episodeIDs.contains(EpisodeEmbedding.Columns.episodeId))
         .fetchIdentifiedArray(db, id: \.episodeId)
@@ -379,7 +378,7 @@ struct RecommendationRepo: Recommending {
   }
 
   func podcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding? {
-    try await appDB.db.read { db in
+    try await reader.read { db in
       try PodcastEmbedding
         .filter(PodcastEmbedding.Columns.podcastId == podcastID)
         .fetchOne(db)
@@ -390,7 +389,7 @@ struct RecommendationRepo: Recommending {
     -> IdentifiedArray<Podcast.ID, PodcastEmbedding>
   {
     guard !podcastIDs.isEmpty else { return IdentifiedArray(id: \.podcastId) }
-    return try await appDB.db.read { db in
+    return try await reader.read { db in
       try PodcastEmbedding
         .filter(podcastIDs.contains(PodcastEmbedding.Columns.podcastId))
         .fetchIdentifiedArray(db, id: \.podcastId)
@@ -399,7 +398,7 @@ struct RecommendationRepo: Recommending {
 
   func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast> {
     guard !podcastIDs.isEmpty else { return [] }
-    return try await appDB.db.read { db in
+    return try await reader.read { db in
       try Podcast
         .filter(podcastIDs.contains(Podcast.Columns.id))
         .fetchIdentifiedArray(db)
@@ -408,7 +407,7 @@ struct RecommendationRepo: Recommending {
 
   func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode] {
     guard !episodeIDs.isEmpty else { return [] }
-    return try await appDB.db.read { db in
+    return try await reader.read { db in
       try Episode
         .filter(episodeIDs.contains(Episode.Columns.id))
         .fetchAll(db)
@@ -416,7 +415,7 @@ struct RecommendationRepo: Recommending {
   }
 
   func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID] {
-    try await appDB.db.read { db in
+    try await reader.read { db in
       try Self.episodesNeedingEmbeddings(db, revision: revision)
     }
   }
@@ -457,7 +456,7 @@ struct RecommendationRepo: Recommending {
     at date: Date
   ) async throws {
     guard !episodeIDs.isEmpty else { return }
-    try await appDB.db.write { db in
+    try await writer.write { db in
       _ =
         try EpisodeEmbedding
         .filter(episodeIDs.contains(EpisodeEmbedding.Columns.episodeId))

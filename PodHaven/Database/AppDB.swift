@@ -10,6 +10,25 @@ extension Container {
     Factory(self) { AppDB._onDisk }.scope(.cached)
   }
 
+  internal func initializeAppDB() {
+    _ = appDB()
+  }
+
+  internal func makeRepo() -> Repo {
+    let appDB = appDB()
+    return Repo(reader: appDB.reader, writer: appDB.writer)
+  }
+
+  internal func makeQueue() -> Queue {
+    let appDB = appDB()
+    return Queue(reader: appDB.reader, writer: appDB.writer)
+  }
+
+  internal func makeRecommendationRepo() -> RecommendationRepo {
+    let appDB = appDB()
+    return RecommendationRepo(reader: appDB.reader, writer: appDB.writer)
+  }
+
 }
 
 struct AppDB {
@@ -82,7 +101,7 @@ struct AppDB {
 
   // MARK: - Initialization
 
-  let db: any DatabaseWriter
+  private let db: any DatabaseWriter
   private init(_ db: some DatabaseWriter, migrate: Bool = true) {
     self.db = db
     if migrate {
@@ -90,7 +109,116 @@ struct AppDB {
     }
   }
 
+  var reader: Reader { Reader(self) }
+  fileprivate var writer: Writer { Writer(self) }
+
+  @discardableResult func read<Value: Sendable>(
+    _ value: @Sendable (Database) throws -> Value
+  ) async throws -> Value {
+    try await db.read(value)
+  }
+
+  @discardableResult func read<Value>(
+    _ value: (Database) throws -> Value
+  ) throws -> Value {
+    try db.read(value)
+  }
+
+  func observe<Value: Equatable>(
+    _ block: @escaping @Sendable (Database) throws -> Value
+  ) -> AsyncValueObservation<Value> {
+    ValueObservation.tracking(block)
+      .removeDuplicates()
+      .values(in: db)
+  }
+
+  private func loggedWrite<Value: Sendable>(
+    _ label: String? = nil,
+    fileID: String = #fileID,
+    function: String = #function,
+    _ updates: @Sendable (Database) throws -> Value
+  ) async throws -> Value {
+    let label = label ?? "\(fileID):\(function)"
+    let requestedAt = Date()
+    Self.log.trace("db write requested: \(label)")
+
+    do {
+      let result: (value: Value, wait: TimeInterval, transaction: TimeInterval) =
+        try await db.write { db in
+          let acquiredAt = Date()
+          let wait = acquiredAt.timeIntervalSince(requestedAt)
+          Self.log.trace("db write acquired: \(label) after \(wait) seconds")
+
+          let value = try updates(db)
+          let transaction = Date().timeIntervalSince(acquiredAt)
+          return (value, wait, transaction)
+        }
+
+      let total = Date().timeIntervalSince(requestedAt)
+      Self.log.trace(
+        """
+        db write completed: \(label) \
+        total=\(total) seconds \
+        wait=\(result.wait) seconds \
+        transaction=\(result.transaction) seconds
+        """
+      )
+      return result.value
+    } catch {
+      Self.log.caughtError(
+        "db write failed: \(label) after \(Date().timeIntervalSince(requestedAt)) seconds",
+        error
+      )
+      throw error
+    }
+  }
+
+  struct Reader: Sendable {
+    private let appDB: AppDB
+
+    fileprivate init(_ appDB: AppDB) {
+      self.appDB = appDB
+    }
+
+    @discardableResult func read<Value: Sendable>(
+      _ value: @Sendable (Database) throws -> Value
+    ) async throws -> Value {
+      try await appDB.read(value)
+    }
+
+    @discardableResult func read<Value>(
+      _ value: (Database) throws -> Value
+    ) throws -> Value {
+      try appDB.read(value)
+    }
+
+    func observe<Value: Equatable>(
+      _ block: @escaping @Sendable (Database) throws -> Value
+    ) -> AsyncValueObservation<Value> {
+      appDB.observe(block)
+    }
+  }
+
+  struct Writer: Sendable {
+    private let appDB: AppDB
+
+    fileprivate init(_ appDB: AppDB) {
+      self.appDB = appDB
+    }
+
+    @discardableResult func write<Value: Sendable>(
+      _ label: String? = nil,
+      fileID: String = #fileID,
+      function: String = #function,
+      _ updates: @Sendable (Database) throws -> Value
+    ) async throws -> Value {
+      try await appDB.loggedWrite(label, fileID: fileID, function: function, updates)
+    }
+  }
+
   #if DEBUG
+  var unsafeTestDB: any DatabaseWriter { db }
+
   func tearDown() {
     do {
       try db.erase()

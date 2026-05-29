@@ -40,7 +40,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   // MARK: - Databasing
 
-  nonisolated var db: any DatabaseReader { repo.db }
+  nonisolated var db: AppDB.Reader { repo.db }
 
   // MARK: - Global Readers
 

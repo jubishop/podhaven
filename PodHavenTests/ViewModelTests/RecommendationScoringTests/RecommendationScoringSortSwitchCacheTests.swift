@@ -82,7 +82,7 @@ import Testing
     // updates while on .newestFirst, but no rescore runs off the rec sort.
     let updatedEpisodeID = try #require(candidateEpisodes.first?.id)
     let updatedPubDate = Date().addingTimeInterval(.days(7))
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       _ =
         try Episode
         .withID(updatedEpisodeID)

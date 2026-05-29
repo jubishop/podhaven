@@ -18,10 +18,10 @@ class V20MigrationTests {
   @Test("v20 migration renames lastQueued to queueDate in episode table")
   func testV20Migration() async throws {
     // Apply migrations up to v19
-    try migrator.migrate(appDB.db, upTo: "v19")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v19")
 
     // Insert test data before migration
-    let testPodcastID = try await appDB.db.write { db in
+    let testPodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -38,7 +38,7 @@ class V20MigrationTests {
     }
 
     let testQueueDate = Date()
-    let testEpisodeID = try await appDB.db.write { db in
+    let testEpisodeID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (
@@ -58,7 +58,7 @@ class V20MigrationTests {
     }
 
     // Verify lastQueued column exists before migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -72,7 +72,7 @@ class V20MigrationTests {
     }
 
     // Verify data is accessible via old column name
-    let preLastQueued = try await appDB.db.read { db in
+    let preLastQueued = try await appDB.unsafeTestDB.read { db in
       try Date.fetchOne(
         db,
         sql: "SELECT lastQueued FROM episode WHERE id = ?",
@@ -85,10 +85,10 @@ class V20MigrationTests {
     )
 
     // Apply v20 migration
-    try migrator.migrate(appDB.db, upTo: "v20")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v20")
 
     // Verify queueDate column exists after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -102,7 +102,7 @@ class V20MigrationTests {
     }
 
     // Verify data was preserved in renamed column
-    let postQueueDate = try await appDB.db.read { db in
+    let postQueueDate = try await appDB.unsafeTestDB.read { db in
       try Date.fetchOne(
         db,
         sql: "SELECT queueDate FROM episode WHERE id = ?",
@@ -116,7 +116,7 @@ class V20MigrationTests {
 
     // Verify we can't access old column name after migration
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.read { db in
+      try await self.appDB.unsafeTestDB.read { db in
         try Date.fetchOne(
           db,
           sql: "SELECT lastQueued FROM episode WHERE id = ?",
@@ -126,7 +126,7 @@ class V20MigrationTests {
     }
 
     // Test inserting new episode with queueDate
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (
@@ -145,7 +145,7 @@ class V20MigrationTests {
     }
 
     // Verify new episode was inserted successfully
-    let episodeCount = try await appDB.db.read { db in
+    let episodeCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode")
     }
     #expect(episodeCount == 2, "Should have 2 episodes after inserting new one")

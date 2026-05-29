@@ -35,7 +35,7 @@ class V33MigrationTests {
 
   @Test("preserves active standard defaults keys")
   func testPreservesActiveStandardKeys() async throws {
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     let activeKeys = [
       "shrinkPlayBarOnScroll",
@@ -58,7 +58,7 @@ class V33MigrationTests {
       try seedKey(key, in: standardDefaults)
     }
 
-    try migrator.migrate(appDB.db, upTo: "v33")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v33")
 
     for key in activeKeys {
       #expect(standardDefaults.data(forKey: key) != nil, "active key '\(key)' should be preserved")
@@ -67,7 +67,7 @@ class V33MigrationTests {
 
   @Test("preserves dynamic prefix keys in standard defaults")
   func testPreservesDynamicPrefixKeys() async throws {
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     let prefixedKeys = [
       "PodcastsList-sortMethod-Subscribed",
@@ -82,7 +82,7 @@ class V33MigrationTests {
       try seedKey(key, in: standardDefaults)
     }
 
-    try migrator.migrate(appDB.db, upTo: "v33")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v33")
 
     for key in prefixedKeys {
       #expect(
@@ -94,7 +94,7 @@ class V33MigrationTests {
 
   @Test("removes stale keys from standard defaults")
   func testRemovesStaleStandardKeys() async throws {
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     // Seed one active key to confirm it survives
     try seedKey("maxQueueLength", in: standardDefaults)
@@ -109,7 +109,7 @@ class V33MigrationTests {
       try seedKey(key, in: standardDefaults)
     }
 
-    try migrator.migrate(appDB.db, upTo: "v33")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v33")
 
     #expect(standardDefaults.data(forKey: "maxQueueLength") != nil)
     for key in staleKeys {
@@ -121,7 +121,7 @@ class V33MigrationTests {
 
   @Test("preserves active shared defaults keys")
   func testPreservesActiveSharedKeys() async throws {
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     let activeKeys = [
       "skipForwardInterval",
@@ -132,7 +132,7 @@ class V33MigrationTests {
       try seedKey(key, in: sharedDefaults)
     }
 
-    try migrator.migrate(appDB.db, upTo: "v33")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v33")
 
     for key in activeKeys {
       #expect(sharedDefaults.data(forKey: key) != nil, "active key '\(key)' should be preserved")
@@ -141,13 +141,13 @@ class V33MigrationTests {
 
   @Test("removes stale keys from shared defaults")
   func testRemovesStaleSharedKeys() async throws {
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     try seedKey("playbackStatus", in: sharedDefaults)
     try seedKey("oldWidgetKey", in: sharedDefaults)
     try seedKey("legacySharedState", in: sharedDefaults)
 
-    try migrator.migrate(appDB.db, upTo: "v33")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v33")
 
     #expect(sharedDefaults.data(forKey: "playbackStatus") != nil)
     #expect(sharedDefaults.data(forKey: "oldWidgetKey") == nil)
@@ -158,12 +158,12 @@ class V33MigrationTests {
 
   @Test("handles empty stores")
   func testEmptyStores() async throws {
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     #expect(standardDefaults.allKeys.isEmpty)
     #expect(sharedDefaults.allKeys.isEmpty)
 
-    try migrator.migrate(appDB.db, upTo: "v33")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v33")
 
     #expect(standardDefaults.allKeys.isEmpty)
     #expect(sharedDefaults.allKeys.isEmpty)
@@ -171,7 +171,7 @@ class V33MigrationTests {
 
   @Test("does not remove keys from one store when cleaning the other")
   func testStoreIsolation() async throws {
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     // "staleKey" exists in both stores
     try seedKey("staleKey", in: standardDefaults)
@@ -180,7 +180,7 @@ class V33MigrationTests {
     // An active standard key should not protect the same name in shared
     try seedKey("appearanceMode", in: sharedDefaults)
 
-    try migrator.migrate(appDB.db, upTo: "v33")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v33")
 
     // Both stale keys removed from their respective stores
     #expect(standardDefaults.data(forKey: "staleKey") == nil)

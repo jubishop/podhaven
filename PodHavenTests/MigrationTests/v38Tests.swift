@@ -17,9 +17,9 @@ class V38MigrationTests {
 
   @Test("v38 adds nullable freshnessHalfLifeDays column to podcast")
   func columnAdded() async throws {
-    try migrator.migrate(appDB.db, upTo: "v37")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v37")
 
-    let existingID = try await appDB.db.write { db in
+    let existingID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -35,15 +35,15 @@ class V38MigrationTests {
       return db.lastInsertedRowID
     }
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(!colNames.contains("freshnessHalfLifeDays"))
     }
 
-    try migrator.migrate(appDB.db, upTo: "v38")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v38")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let col = try #require(cols.first { $0["name"] as? String == "freshnessHalfLifeDays" })
       #expect(col["type"] as? String == "INTEGER")
@@ -51,7 +51,7 @@ class V38MigrationTests {
     }
 
     // Existing rows get NULL (no override).
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let row = try #require(
         try Row.fetchOne(
           db,
@@ -65,9 +65,9 @@ class V38MigrationTests {
 
   @Test("v38 accepts valid values and NULL")
   func acceptsValidValues() async throws {
-    try migrator.migrate(appDB.db, upTo: "v38")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v38")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description, freshnessHalfLifeDays)
@@ -98,7 +98,7 @@ class V38MigrationTests {
     }
 
     // Extract Sendable tuples inside the read closure — Row is not Sendable.
-    let rows: [(feedURL: String, halfLife: Int64?)] = try await appDB.db.read { db in
+    let rows: [(feedURL: String, halfLife: Int64?)] = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(
         db,
         sql: "SELECT feedURL, freshnessHalfLifeDays FROM podcast ORDER BY feedURL"
@@ -121,10 +121,10 @@ class V38MigrationTests {
 
   @Test("v38 rejects values below 1")
   func rejectsBelowMinimum() async throws {
-    try migrator.migrate(appDB.db, upTo: "v38")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v38")
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO podcast (feedURL, title, image, description, freshnessHalfLifeDays)
@@ -138,7 +138,7 @@ class V38MigrationTests {
     }
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO podcast (feedURL, title, image, description, freshnessHalfLifeDays)
@@ -154,9 +154,9 @@ class V38MigrationTests {
 
   @Test("v38 allows UPDATE to a valid value and to NULL (clear)")
   func updateAllowed() async throws {
-    try migrator.migrate(appDB.db, upTo: "v38")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v38")
 
-    let id = try await appDB.db.write { db in
+    let id = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -169,13 +169,13 @@ class V38MigrationTests {
       return db.lastInsertedRowID
     }
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE podcast SET freshnessHalfLifeDays = ? WHERE id = ?",
         arguments: [90, id]
       )
     }
-    let setValue = try await appDB.db.read { db in
+    let setValue = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT freshnessHalfLifeDays FROM podcast WHERE id = ?",
@@ -184,13 +184,13 @@ class V38MigrationTests {
     }
     #expect(setValue == 90)
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE podcast SET freshnessHalfLifeDays = NULL WHERE id = ?",
         arguments: [id]
       )
     }
-    let clearedHalfLife: Int64? = try await appDB.db.read { db in
+    let clearedHalfLife: Int64? = try await appDB.unsafeTestDB.read { db in
       try Int64.fetchOne(
         db,
         sql: "SELECT freshnessHalfLifeDays FROM podcast WHERE id = ?",
@@ -200,7 +200,7 @@ class V38MigrationTests {
     #expect(clearedHalfLife == nil)
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: "UPDATE podcast SET freshnessHalfLifeDays = ? WHERE id = ?",
           arguments: [0, id]

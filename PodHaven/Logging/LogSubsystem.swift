@@ -19,6 +19,13 @@ enum LogSubsystem {
     case repo
     case queue
     case schema
+
+    var level: Logger.Level {
+      switch self {
+      case .appDB: return .trace
+      default: return .debug
+      }
+    }
   }
 
   enum EpisodesView: String, LogCategorizable {

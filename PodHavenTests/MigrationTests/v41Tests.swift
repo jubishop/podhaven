@@ -17,9 +17,9 @@ class V41MigrationTests {
 
   @Test("v41 adds nullable playbackCoverage and lastPlayedDate columns")
   func columnsAdded() async throws {
-    try migrator.migrate(appDB.db, upTo: "v40")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v40")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let names = try Set(
         Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
           .compactMap {
@@ -30,9 +30,9 @@ class V41MigrationTests {
       #expect(!names.contains("lastPlayedDate"))
     }
 
-    try migrator.migrate(appDB.db, upTo: "v41")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v41")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
       let coverage = try #require(cols.first { $0["name"] as? String == "playbackCoverage" })
       #expect(coverage["type"] as? String == "BLOB")
@@ -46,9 +46,9 @@ class V41MigrationTests {
 
   @Test("v41 leaves existing rows with null playbackCoverage and lastPlayedDate")
   func existingRowsAreNull() async throws {
-    try migrator.migrate(appDB.db, upTo: "v40")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v40")
 
-    let podcastID = try await appDB.db.write { db in
+    let podcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -59,7 +59,7 @@ class V41MigrationTests {
       return db.lastInsertedRowID
     }
 
-    let episodeID = try await appDB.db.write { db in
+    let episodeID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate, currentTime)
@@ -70,9 +70,9 @@ class V41MigrationTests {
       return db.lastInsertedRowID
     }
 
-    try migrator.migrate(appDB.db, upTo: "v41")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v41")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let row = try #require(
         try Row.fetchOne(
           db,
@@ -87,9 +87,9 @@ class V41MigrationTests {
 
   @Test("v41 accepts BLOB writes to playbackCoverage and DATETIME writes to lastPlayedDate")
   func acceptsWrites() async throws {
-    try migrator.migrate(appDB.db, upTo: "v41")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v41")
 
-    let podcastID = try await appDB.db.write { db in
+    let podcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -103,7 +103,7 @@ class V41MigrationTests {
     let now = Date()
     let bitmap = Data([0xFF, 0x0F, 0xA5])
 
-    let episodeID = try await appDB.db.write { db in
+    let episodeID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (
@@ -119,7 +119,7 @@ class V41MigrationTests {
       return db.lastInsertedRowID
     }
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let row = try #require(
         try Row.fetchOne(
           db,

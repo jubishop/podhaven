@@ -18,10 +18,10 @@ class V22MigrationTests {
   @Test("v22 migration adds saveInCache column to episode table with default value")
   func testV22Migration() async throws {
     // Apply migrations up to v21
-    try migrator.migrate(appDB.db, upTo: "v21")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v21")
 
     // Insert test data before migration
-    let testPodcastID = try await appDB.db.write { db in
+    let testPodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -37,7 +37,7 @@ class V22MigrationTests {
       return db.lastInsertedRowID
     }
 
-    let testEpisodeID = try await appDB.db.write { db in
+    let testEpisodeID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (
@@ -56,7 +56,7 @@ class V22MigrationTests {
     }
 
     // Verify saveInCache column doesn't exist yet
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -66,10 +66,10 @@ class V22MigrationTests {
     }
 
     // Apply v22 migration
-    try migrator.migrate(appDB.db, upTo: "v22")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v22")
 
     // Verify saveInCache column exists after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -93,7 +93,7 @@ class V22MigrationTests {
     }
 
     // Test that existing episode has false as default value after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       if let saveInCache = try Bool.fetchOne(
         db,
         sql: "SELECT saveInCache FROM episode WHERE id = ?",
@@ -107,7 +107,7 @@ class V22MigrationTests {
     }
 
     // Test inserting episodes with different saveInCache values
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       // Test true value
       try db.execute(
         sql: """
@@ -160,7 +160,7 @@ class V22MigrationTests {
     }
 
     // Verify all values were inserted correctly
-    let trueCount = try await appDB.db.read { db in
+    let trueCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episode WHERE saveInCache = ?",
@@ -169,7 +169,7 @@ class V22MigrationTests {
     }
     #expect(trueCount == 1, "Should have 1 episode with saveInCache = true")
 
-    let falseCount = try await appDB.db.read { db in
+    let falseCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episode WHERE saveInCache = ?",
@@ -180,7 +180,7 @@ class V22MigrationTests {
 
     // Test that NULL value is rejected (NOT NULL constraint)
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO episode (
@@ -200,14 +200,14 @@ class V22MigrationTests {
     }
 
     // Test updating to valid values works
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE episode SET saveInCache = ? WHERE id = ?",
         arguments: [true, testEpisodeID]
       )
     }
 
-    let updatedValue = try await appDB.db.read { db in
+    let updatedValue = try await appDB.unsafeTestDB.read { db in
       try Bool.fetchOne(
         db,
         sql: "SELECT saveInCache FROM episode WHERE id = ?",

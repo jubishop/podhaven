@@ -392,7 +392,7 @@ import Testing
       // alone, no text search). A surviving observation re-emits and publishes
       // a loaded list of stale Alphacand rows under the new "Betacand" search.
       let staleID = try #require(alphas.first?.id)
-      _ = try await appDB.db.write { db in
+      _ = try await appDB.unsafeTestDB.write { db in
         try Episode.withID(staleID)
           .updateAll(db, Episode.Columns.title.set(to: "Mutated Alphacand"))
       }

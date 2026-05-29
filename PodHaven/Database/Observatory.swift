@@ -6,7 +6,7 @@ import GRDB
 import IdentifiedCollections
 
 extension Container {
-  internal func makeObservatory() -> Observatory { Observatory(self.repo()) }
+  internal func makeObservatory() -> Observatory { Observatory(self.appDB().reader) }
 
   var observatory: Factory<any Observing> {
     Factory(self) { self.makeObservatory() }.scope(.cached)
@@ -18,9 +18,9 @@ struct Observatory: Observing {
 
   // MARK: - Initialization
 
-  private let repo: any Databasing
-  fileprivate init(_ repo: any Databasing) {
-    self.repo = repo
+  private let reader: AppDB.Reader
+  fileprivate init(_ reader: AppDB.Reader) {
+    self.reader = reader
   }
 
   // MARK: - Podcasts
@@ -285,8 +285,6 @@ struct Observatory: Observing {
   private func observe<T: Equatable>(_ block: @escaping @Sendable (Database) throws -> T)
     -> AsyncValueObservation<T>
   {
-    ValueObservation.tracking(block)
-      .removeDuplicates()
-      .values(in: repo.db)
+    reader.observe(block)
   }
 }

@@ -6,7 +6,7 @@ import IdentifiedCollections
 import Tagged
 
 protocol Recommending: Sendable {
-  var db: any DatabaseReader { get }
+  var db: AppDB.Reader { get }
 
   // MARK: - Recommendation Readers
 
