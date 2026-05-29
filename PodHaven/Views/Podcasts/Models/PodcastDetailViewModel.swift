@@ -462,9 +462,7 @@ class PodcastDetailViewModel:
   var shareURL: URL? { ShareURL.podcast(feedURL: podcast.feedURL) }
   private var shareArtwork: UIImage?
   @ObservationIgnored private var loadedShareArtworkURL: URL?
-  @ObservationIgnored private var shareArtworkLoadInFlight = false
   @ObservationIgnored private var shareArtworkTask: Task<Void, Never>?
-  @ObservationIgnored private var shareArtworkLoadGeneration = 0
 
   var sharePreview: SharePreview<Image, Image> {
     let image = sharePreviewImage
@@ -476,41 +474,28 @@ class PodcastDetailViewModel:
     return Image(uiImage: shareArtwork)
   }
 
-  private func invalidateShareArtworkIfImageURLChanged() {
-    let imageURL = podcast.image
-    guard loadedShareArtworkURL != imageURL else { return }
-    shareArtwork = nil
-    loadedShareArtworkURL = nil
-    cancelShareArtworkLoad()
-  }
-
   private func cancelShareArtworkLoad() {
-    shareArtworkLoadGeneration += 1
     shareArtworkTask?.cancel()
     shareArtworkTask = nil
-    shareArtworkLoadInFlight = false
   }
 
   private func loadShareArtworkIfNeeded() {
     let imageURL = podcast.image
     if shareArtwork != nil, loadedShareArtworkURL == imageURL { return }
-    invalidateShareArtworkIfImageURLChanged()
-    guard !shareArtworkLoadInFlight else { return }
-    shareArtworkLoadGeneration += 1
-    let generation = shareArtworkLoadGeneration
-    shareArtworkLoadInFlight = true
-    let task = Task { [weak self] in
+    if loadedShareArtworkURL != imageURL {
+      shareArtwork = nil
+      loadedShareArtworkURL = nil
+      cancelShareArtworkLoad()
+    }
+    guard shareArtworkTask == nil else { return }
+    shareArtworkTask = Task { [weak self] in
       guard let self else { return }
       defer {
-        if shareArtworkLoadGeneration == generation {
-          shareArtworkLoadInFlight = false
-          shareArtworkTask = nil
-        }
+        if !Task.isCancelled { shareArtworkTask = nil }
       }
       do {
         let image = try await imagePipeline.image(for: imageURL)
         try Task.checkCancellation()
-        guard shareArtworkLoadGeneration == generation else { return }
         guard podcast.image == imageURL else { return }
         shareArtwork = image
         loadedShareArtworkURL = imageURL
@@ -522,7 +507,6 @@ class PodcastDetailViewModel:
         )
       }
     }
-    shareArtworkTask = task
   }
 
   // MARK: - Initialization
@@ -899,7 +883,6 @@ class PodcastDetailViewModel:
     state = newState
     guard isOnScreen else { return }
     refreshEpisodeList(from: newState)
-    invalidateShareArtworkIfImageURLChanged()
     loadShareArtworkIfNeeded()
     startObservation(newState.savedSeries?.id)
     if currentSortMethod == .recommendationScore {
