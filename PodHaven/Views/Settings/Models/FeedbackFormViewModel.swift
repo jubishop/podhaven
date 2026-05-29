@@ -56,7 +56,7 @@ extension Container {
       Attachment(path: AppInfo.logFileURL.path, filename: "log.ndjson"),
       Attachment(path: WidgetInfo.logFileURL.path, filename: "widget-log.ndjson"),
     ]
-    if let data = screenshotData.current,
+    if let data = screenshotData.value,
       let pngData = UIImage(data: data)?.pngData()
     {
       attachments.append(

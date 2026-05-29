@@ -34,7 +34,7 @@ final class WriteProbe: TransactionObserver, Sendable {
   // `enableWriteProbe` setting takes effect live. While off, the probe is
   // excluded from event tracking — `databaseDidChange` is never called — so
   // the accumulator stays empty and the commit/rollback callbacks no-op.
-  func observes(eventsOfKind _: DatabaseEventKind) -> Bool { enabled.current }
+  func observes(eventsOfKind _: DatabaseEventKind) -> Bool { enabled.value }
 
   func databaseDidChange(with event: DatabaseEvent) {
     let table = event.tableName

@@ -96,7 +96,7 @@ enum CommandCenter: Sendable {
       yield(
         .playbackPosition(
           positionEvent.positionTime,
-          sourceEpisodeID: Container.shared.sharedState().onDeck?.id,
+          sourceEpisodeID: Container.shared.sharedState().$onDeck.value?.id,
           eventTimestamp: positionEvent.timestamp
         )
       )
@@ -153,7 +153,7 @@ enum CommandCenter: Sendable {
   static func updateNextTrack() {
     let commandCenter = Container.shared.mpRemoteCommandCenter()
     let sharedState = Container.shared.sharedState()
-    let onDeckID = sharedState.onDeck?.id
+    let onDeckID = sharedState.$onDeck.value?.id
     let previousTrackEnabled = onDeckID != nil
     commandCenter.previousTrack.isEnabled = previousTrackEnabled
     log.debug(
@@ -165,7 +165,7 @@ enum CommandCenter: Sendable {
 
     switch Container.shared.userSettings().nextTrackBehavior {
     case .nextEpisode:
-      let queueCount = sharedState.queueCount
+      let queueCount = sharedState.$queuedPodcastEpisodes.value.count
       let enabled = queueCount > 0
       log.debug("updateNextTrack: nextEpisode, enabled: \(enabled) (queueCount: \(queueCount))")
       commandCenter.nextTrack.isEnabled = enabled
