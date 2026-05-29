@@ -120,9 +120,9 @@ final class SearchRecommendationCollector {
   private var typedSearchDebouncer: Debounce?
 
   private var drainTask: Task<Void, Never>?
-  // A single dispatcher consumes this stream and fans work into a bounded task
-  // group. `queued` de-dups the backlog (and lets a fresh stream replay work
-  // scheduled before it existed); `inFlight` de-dups work a worker has picked up.
+  // A single dispatcher consumes this stream and fans work into a discarding
+  // task group. `queued` de-dups the backlog (and lets a fresh stream replay
+  // work scheduled before it existed); `inFlight` de-dups work already picked up.
   private var queueContinuation: AsyncStream<FeedURL>.Continuation?
   private var queued: OrderedSet<FeedURL> = []
   private var inFlight: Set<FeedURL> = []
@@ -555,28 +555,21 @@ final class SearchRecommendationCollector {
     await awaitScoringContext()
     if Task.isCancelled { return }
 
-    // AsyncStream is single-consumer, so one dispatcher pulls work and fans it
-    // into a task group bounded at rssConcurrency, reaping a child via
-    // `group.next()` before exceeding the cap. Embedding serializes on the
-    // ContextualEmbedding actor downstream, so a wider pool buys no throughput.
-    await withTaskGroup(of: Void.self) { group in
-      var active = 0
+    // A discarding group reaps each child the instant it finishes, so feeds
+    // fan out as work arrives without accumulating completed task records.
+    // DownloadManager caps concurrent fetches and embedding serializes on the
+    // ContextualEmbedding actor downstream, which bound the real work.
+    await withDiscardingTaskGroup { group in
       for await feedURL in stream {
         if Task.isCancelled { break }
         queued.remove(feedURL)
-        while active >= Self.rssConcurrency {
-          _ = await group.next()
-          active -= 1
-        }
         guard shouldDrain(feedURL) else { continue }
         inFlight.insert(feedURL)
         group.addTask { [weak self] in
           guard let self else { return }
           await self.processFeedURL(feedURL)
         }
-        active += 1
       }
-      group.cancelAll()
     }
   }
 
