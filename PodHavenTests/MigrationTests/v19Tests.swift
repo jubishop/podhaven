@@ -18,10 +18,10 @@ class V19MigrationTests {
   @Test("v19 migration renames completionDate to finishDate in episode table")
   func testV19Migration() async throws {
     // Apply migrations up to v18
-    try migrator.migrate(appDB.db, upTo: "v18")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v18")
 
     // Insert test data before migration
-    let testPodcastID = try await appDB.db.write { db in
+    let testPodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -38,7 +38,7 @@ class V19MigrationTests {
     }
 
     let testFinishDate = Date()
-    let testEpisodeID = try await appDB.db.write { db in
+    let testEpisodeID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (
@@ -58,7 +58,7 @@ class V19MigrationTests {
     }
 
     // Verify completionDate column exists before migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -72,7 +72,7 @@ class V19MigrationTests {
     }
 
     // Verify data is accessible via old column name
-    let preCompletionDate = try await appDB.db.read { db in
+    let preCompletionDate = try await appDB.unsafeTestDB.read { db in
       try Date.fetchOne(
         db,
         sql: "SELECT completionDate FROM episode WHERE id = ?",
@@ -85,10 +85,10 @@ class V19MigrationTests {
     )
 
     // Apply v19 migration
-    try migrator.migrate(appDB.db, upTo: "v19")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v19")
 
     // Verify finishDate column exists after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -102,7 +102,7 @@ class V19MigrationTests {
     }
 
     // Verify data was preserved in renamed column
-    let postFinishDate = try await appDB.db.read { db in
+    let postFinishDate = try await appDB.unsafeTestDB.read { db in
       try Date.fetchOne(
         db,
         sql: "SELECT finishDate FROM episode WHERE id = ?",
@@ -116,7 +116,7 @@ class V19MigrationTests {
 
     // Verify we can't access old column name after migration
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.read { db in
+      try await self.appDB.unsafeTestDB.read { db in
         try Date.fetchOne(
           db,
           sql: "SELECT completionDate FROM episode WHERE id = ?",
@@ -126,7 +126,7 @@ class V19MigrationTests {
     }
 
     // Test inserting new episode with finishDate
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (
@@ -145,7 +145,7 @@ class V19MigrationTests {
     }
 
     // Verify new episode was inserted successfully
-    let episodeCount = try await appDB.db.read { db in
+    let episodeCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode")
     }
     #expect(episodeCount == 2, "Should have 2 episodes after inserting new one")

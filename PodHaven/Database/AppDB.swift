@@ -9,6 +9,25 @@ extension Container {
   internal var appDB: Factory<AppDB> {
     Factory(self) { AppDB._onDisk }.scope(.cached)
   }
+
+  internal func initializeAppDB() {
+    _ = appDB()
+  }
+
+  internal func makeRepo() -> Repo {
+    let appDB = appDB()
+    return Repo(reader: appDB.reader, writer: appDB.writer)
+  }
+
+  internal func makeQueue() -> Queue {
+    let appDB = appDB()
+    return Queue(reader: appDB.reader, writer: appDB.writer)
+  }
+
+  internal func makeRecommendationRepo() -> RecommendationRepo {
+    let appDB = appDB()
+    return RecommendationRepo(reader: appDB.reader, writer: appDB.writer)
+  }
 }
 
 struct AppDB {
@@ -81,7 +100,7 @@ struct AppDB {
 
   // MARK: - Initialization
 
-  let db: any DatabaseWriter
+  private let db: any DatabaseWriter
   private init(_ db: some DatabaseWriter, migrate: Bool = true) {
     self.db = db
     if migrate {
@@ -89,7 +108,88 @@ struct AppDB {
     }
   }
 
+  var reader: Reader { Reader(self) }
+  fileprivate var writer: Writer { Writer(self) }
+
+  struct Reader: Sendable {
+    private let appDB: AppDB
+
+    fileprivate init(_ appDB: AppDB) {
+      self.appDB = appDB
+    }
+
+    @discardableResult func read<Value: Sendable>(
+      _ value: @Sendable (Database) throws -> Value
+    ) async throws -> Value {
+      try await appDB.db.read(value)
+    }
+
+    @discardableResult func read<Value>(
+      _ value: (Database) throws -> Value
+    ) throws -> Value {
+      try appDB.db.read(value)
+    }
+
+    func observe<Value: Equatable>(
+      _ block: @escaping @Sendable (Database) throws -> Value
+    ) -> AsyncValueObservation<Value> {
+      ValueObservation.tracking(block)
+        .removeDuplicates()
+        .values(in: appDB.db)
+    }
+  }
+
+  struct Writer: Sendable {
+    private let appDB: AppDB
+
+    fileprivate init(_ appDB: AppDB) {
+      self.appDB = appDB
+    }
+
+    @discardableResult func write<Value: Sendable>(
+      level: Logger.Level = .debug,
+      label: String? = nil,
+      fileID: String = #fileID,
+      function: String = #function,
+      _ updates: @Sendable (Database) throws -> Value
+    ) async throws -> Value {
+      let label = label ?? "\(fileID):\(function)"
+      let now = Container.shared.continuousClockNow()
+      let requestedAt = now()
+      AppDB.log.log(level: level, "db write requested: \(label)")
+
+      do {
+        let result: (value: Value, wait: Duration, transaction: Duration) =
+          try await appDB.db.write { db in
+            let acquiredAt = now()
+            let wait = acquiredAt - requestedAt
+            AppDB.log.log(level: level, "db write acquired: \(label) after \(wait)")
+
+            let value = try updates(db)
+            let transaction = now() - acquiredAt
+            return (value, wait, transaction)
+          }
+
+        AppDB.log.log(
+          level: level,
+          """
+          db write completed: \(label) \
+          total=\(now() - requestedAt) \
+          wait=\(result.wait) \
+          transaction=\(result.transaction)
+          """
+        )
+        return result.value
+      } catch {
+        AppDB.log.log(level: level, "db write failed: \(label) after \(now() - requestedAt)")
+        throw error
+      }
+    }
+  }
+
   #if DEBUG
+  var unsafeTestDB: any DatabaseWriter { db }
+
   func tearDown() {
     do {
       try db.erase()

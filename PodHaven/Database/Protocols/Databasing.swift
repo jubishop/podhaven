@@ -6,7 +6,7 @@ import GRDB
 import Tagged
 
 protocol Databasing: Sendable {
-  var db: any DatabaseReader { get }
+  var db: AppDB.Reader { get }
 
   // MARK: - Global Readers
 

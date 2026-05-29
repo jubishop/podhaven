@@ -146,7 +146,7 @@ import Testing
     // state, so the only thing that can touch `episodeList` is an off-screen
     // `transition` that skips `refreshEpisodeList`.
     let fakeObservatory = try #require(observatory as? FakeObservatory)
-    let dbReader = appDB.db
+    let dbReader = appDB.unsafeTestDB
     fakeObservatory.podcastSeriesDetailScript([
       { _ in
         ValueObservation

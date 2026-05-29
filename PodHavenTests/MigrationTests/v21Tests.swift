@@ -18,10 +18,10 @@ class V21MigrationTests {
   @Test("v21 migration adds queueAllEpisodes column to podcast table with default value")
   func testV21Migration() async throws {
     // Apply migrations up to v20
-    try migrator.migrate(appDB.db, upTo: "v20")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v20")
 
     // Insert a test podcast before migration
-    let testPodcastID = try await appDB.db.write { db in
+    let testPodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -38,7 +38,7 @@ class V21MigrationTests {
     }
 
     // Verify queueAllEpisodes column doesn't exist yet
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -48,10 +48,10 @@ class V21MigrationTests {
     }
 
     // Apply v21 migration
-    try migrator.migrate(appDB.db, upTo: "v21")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v21")
 
     // Verify queueAllEpisodes column exists after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -75,7 +75,7 @@ class V21MigrationTests {
     }
 
     // Test that existing podcast has 'never' as default value after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       if let queueAllEpisodes = try String.fetchOne(
         db,
         sql: "SELECT queueAllEpisodes FROM podcast WHERE id = ?",
@@ -89,7 +89,7 @@ class V21MigrationTests {
     }
 
     // Test inserting podcasts with different queueAllEpisodes values
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       // Test 'onTop' value
       try db.execute(
         sql: """
@@ -151,7 +151,7 @@ class V21MigrationTests {
     }
 
     // Verify all values were inserted correctly
-    let onTopCount = try await appDB.db.read { db in
+    let onTopCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM podcast WHERE queueAllEpisodes = ?",
@@ -160,7 +160,7 @@ class V21MigrationTests {
     }
     #expect(onTopCount == 1, "Should have 1 podcast with queueAllEpisodes = 'onTop'")
 
-    let onBottomCount = try await appDB.db.read { db in
+    let onBottomCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM podcast WHERE queueAllEpisodes = ?",
@@ -169,7 +169,7 @@ class V21MigrationTests {
     }
     #expect(onBottomCount == 1, "Should have 1 podcast with queueAllEpisodes = 'onBottom'")
 
-    let neverCount = try await appDB.db.read { db in
+    let neverCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM podcast WHERE queueAllEpisodes = ?",
@@ -180,7 +180,7 @@ class V21MigrationTests {
 
     // Test that NULL value is rejected (NOT NULL constraint)
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO podcast (feedURL, title, image, description, queueAllEpisodes)
@@ -198,14 +198,14 @@ class V21MigrationTests {
     }
 
     // Test updating to valid values works
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE podcast SET queueAllEpisodes = ? WHERE id = ?",
         arguments: ["onTop", testPodcastID]
       )
     }
 
-    let updatedValue = try await appDB.db.read { db in
+    let updatedValue = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT queueAllEpisodes FROM podcast WHERE id = ?",

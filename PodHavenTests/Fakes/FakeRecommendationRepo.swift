@@ -135,7 +135,7 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   // MARK: - Recommending
 
-  var db: any DatabaseReader { recommendationRepo.db }
+  var db: AppDB.Reader { recommendationRepo.db }
 
   // MARK: - Recommendation Readers
 

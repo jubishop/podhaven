@@ -18,10 +18,10 @@ class V24MigrationTests {
   @Test("v24 migration adds notifyNewEpisodes column to podcast table with default value")
   func testV24Migration() async throws {
     // Apply migrations up to v23
-    try migrator.migrate(appDB.db, upTo: "v23")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v23")
 
     // Insert test podcast before migration
-    let testPodcastID = try await appDB.db.write { db in
+    let testPodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -38,7 +38,7 @@ class V24MigrationTests {
     }
 
     // Verify notifyNewEpisodes column doesn't exist yet
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -48,10 +48,10 @@ class V24MigrationTests {
     }
 
     // Apply v24 migration
-    try migrator.migrate(appDB.db, upTo: "v24")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v24")
 
     // Verify notifyNewEpisodes column exists after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -75,7 +75,7 @@ class V24MigrationTests {
     }
 
     // Test that existing podcast has false as default value after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       if let notifyNewEpisodes = try Bool.fetchOne(
         db,
         sql: "SELECT notifyNewEpisodes FROM podcast WHERE id = ?",
@@ -89,7 +89,7 @@ class V24MigrationTests {
     }
 
     // Test inserting podcasts with different notifyNewEpisodes values
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       // Test true value
       try db.execute(
         sql: """
@@ -136,7 +136,7 @@ class V24MigrationTests {
     }
 
     // Verify all values were inserted correctly
-    let trueCount = try await appDB.db.read { db in
+    let trueCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM podcast WHERE notifyNewEpisodes = ?",
@@ -145,7 +145,7 @@ class V24MigrationTests {
     }
     #expect(trueCount == 1, "Should have 1 podcast with notifyNewEpisodes = true")
 
-    let falseCount = try await appDB.db.read { db in
+    let falseCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM podcast WHERE notifyNewEpisodes = ?",
@@ -156,7 +156,7 @@ class V24MigrationTests {
 
     // Test that NULL value is rejected (NOT NULL constraint)
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO podcast (feedURL, title, image, description, notifyNewEpisodes)
@@ -174,14 +174,14 @@ class V24MigrationTests {
     }
 
     // Test updating to valid values works
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE podcast SET notifyNewEpisodes = ? WHERE id = ?",
         arguments: [true, testPodcastID]
       )
     }
 
-    let updatedValue = try await appDB.db.read { db in
+    let updatedValue = try await appDB.unsafeTestDB.read { db in
       try Bool.fetchOne(
         db,
         sql: "SELECT notifyNewEpisodes FROM podcast WHERE id = ?",

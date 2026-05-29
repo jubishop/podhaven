@@ -31,9 +31,9 @@ class V42MigrationTests {
   /// columns, so we can verify byte-for-byte preservation across the v42
   /// rebuild.
   private func populateAtV41() async throws -> FixtureIDs {
-    try migrator.migrate(appDB.db, upTo: "v41")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v41")
 
-    return try await appDB.db.write { db in
+    return try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (
@@ -209,13 +209,13 @@ class V42MigrationTests {
     let selectSQL =
       "SELECT \(preservedColumns.joined(separator: ", ")) FROM episode ORDER BY id"
 
-    let before = try await appDB.db.read { db in
+    let before = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(db, sql: selectSQL).map { $0.asDictionary() }
     }
 
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    let after = try await appDB.db.read { db in
+    let after = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(db, sql: selectSQL).map { $0.asDictionary() }
     }
 
@@ -226,14 +226,14 @@ class V42MigrationTests {
   func podcastUnchanged() async throws {
     _ = try await populateAtV41()
 
-    let before = try await appDB.db.read { db in
+    let before = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(db, sql: "SELECT * FROM podcast ORDER BY id")
         .map { $0.asDictionary() }
     }
 
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    let after = try await appDB.db.read { db in
+    let after = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(db, sql: "SELECT * FROM podcast ORDER BY id")
         .map { $0.asDictionary() }
     }
@@ -246,16 +246,16 @@ class V42MigrationTests {
   @Test("v42 widens rating CHECK to accept 'notInterested'")
   func ratingCheckAcceptsNotInterested() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE episode SET rating = 'notInterested' WHERE id = ?",
         arguments: [ids.episodeUnrated]
       )
     }
 
-    let stored = try await appDB.db.read { db in
+    let stored = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT rating FROM episode WHERE id = ?",
@@ -268,9 +268,9 @@ class V42MigrationTests {
   @Test("v42 still accepts the existing rating values")
   func ratingCheckStillAcceptsExistingValues() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    let ratings = try await appDB.db.read { db in
+    let ratings = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(
         db,
         sql: "SELECT id, rating FROM episode ORDER BY id"
@@ -286,10 +286,10 @@ class V42MigrationTests {
   @Test("v42 rating CHECK still rejects unknown values")
   func ratingCheckRejectsInvalid() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: "UPDATE episode SET rating = 'hated' WHERE id = ?",
           arguments: [ids.episodeUnrated]
@@ -305,9 +305,9 @@ class V42MigrationTests {
   @Test("episode_content_updated trigger still fires after v42 rebuild")
   func triggerStillFires() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    let before = try await appDB.db.read { db in
+    let before = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT contentUpdatedAt FROM episode WHERE id = ?",
@@ -315,14 +315,14 @@ class V42MigrationTests {
       )
     }
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE episode SET title = ? WHERE id = ?",
         arguments: ["Retitled after v42", ids.episodeLoved]
       )
     }
 
-    let after = try await appDB.db.read { db in
+    let after = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT contentUpdatedAt FROM episode WHERE id = ?",
@@ -336,9 +336,9 @@ class V42MigrationTests {
   @Test("episode_content_updated does NOT fire on non-content changes after v42")
   func triggerIgnoresNonContent() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    let before = try await appDB.db.read { db in
+    let before = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT contentUpdatedAt FROM episode WHERE id = ?",
@@ -346,14 +346,14 @@ class V42MigrationTests {
       )
     }
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE episode SET currentTime = currentTime + 1 WHERE id = ?",
         arguments: [ids.episodeLoved]
       )
     }
 
-    let after = try await appDB.db.read { db in
+    let after = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT contentUpdatedAt FROM episode WHERE id = ?",
@@ -368,10 +368,10 @@ class V42MigrationTests {
   @Test("episode (podcastId, guid) UNIQUE still enforced after v42 rebuild")
   func compoundUniquePodcastGuid() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
@@ -386,10 +386,10 @@ class V42MigrationTests {
   @Test("episode (podcastId, mediaURL) UNIQUE still enforced after v42 rebuild")
   func compoundUniquePodcastMediaURL() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
@@ -406,7 +406,7 @@ class V42MigrationTests {
     _ = try await populateAtV41()
     // Insert a second podcast at v41 so we can attempt the cross-podcast
     // duplicate that only the (guid, mediaURL) UNIQUE catches.
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (
@@ -418,10 +418,10 @@ class V42MigrationTests {
           """
       )
     }
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
@@ -437,16 +437,16 @@ class V42MigrationTests {
   func downloadTaskIDUnique() async throws {
     let ids = try await populateAtV41()
     // Seed a downloadTaskID at v41 so the post-v42 conflict is on a real row.
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE episode SET downloadTaskID = 4242 WHERE id = ?",
         arguments: [ids.episodeUnrated]
       )
     }
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO episode (
@@ -462,10 +462,10 @@ class V42MigrationTests {
   @Test("episode queueOrder CHECK still rejects negative values after v42 rebuild")
   func queueOrderCheckEnforced() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO episode (
@@ -489,7 +489,7 @@ class V42MigrationTests {
     _ = try await populateAtV41()
 
     let capture = { [appDB] () async throws -> [String: [[String: DatabaseValue]]] in
-      try await appDB.db.read { db in
+      try await appDB.unsafeTestDB.read { db in
         [
           "tag": try Row.fetchAll(db, sql: "SELECT * FROM tag ORDER BY id")
             .map { $0.asDictionary() },
@@ -522,7 +522,7 @@ class V42MigrationTests {
     }
 
     let before = try await capture()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
     let after = try await capture()
 
     #expect(before == after)
@@ -531,16 +531,16 @@ class V42MigrationTests {
   @Test("episode→tag CASCADE still cleans episodeTag rows after v42 rebuild")
   func episodeTagCascadeStillWorks() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "DELETE FROM episode WHERE id = ?",
         arguments: [ids.episodeLoved]
       )
     }
 
-    let remaining = try await appDB.db.read { db in
+    let remaining = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episodeTag WHERE episodeId = ?",
@@ -553,16 +553,16 @@ class V42MigrationTests {
   @Test("episode→embedding CASCADE still cleans episodeEmbedding rows after v42 rebuild")
   func episodeEmbeddingCascadeStillWorks() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "DELETE FROM episode WHERE id = ?",
         arguments: [ids.episodeWithCoverage]
       )
     }
 
-    let remaining = try await appDB.db.read { db in
+    let remaining = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episodeEmbedding WHERE episodeId = ?",
@@ -577,9 +577,9 @@ class V42MigrationTests {
   @Test("PRAGMA foreign_key_check passes after v42 rebuild")
   func foreignKeyIntegrityAfterRebuild() async throws {
     _ = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    let violations = try appDB.db.read { db -> [Row] in
+    let violations = try appDB.unsafeTestDB.read { db -> [Row] in
       try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
     }
     #expect(violations.isEmpty)
@@ -588,16 +588,16 @@ class V42MigrationTests {
   @Test("podcast→episode CASCADE still wired after v42 rebuild")
   func cascadeStillWorks() async throws {
     let ids = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "DELETE FROM podcast WHERE id = ?",
         arguments: [ids.podcast]
       )
     }
 
-    let remaining = try await appDB.db.read { db in
+    let remaining = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episode WHERE podcastId = ?",
@@ -612,9 +612,9 @@ class V42MigrationTests {
   @Test("episode AUTOINCREMENT continues from max id after v42 rebuild")
   func autoincrementContinues() async throws {
     _ = try await populateAtV41()
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    let newID = try await appDB.db.write { db in
+    let newID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)

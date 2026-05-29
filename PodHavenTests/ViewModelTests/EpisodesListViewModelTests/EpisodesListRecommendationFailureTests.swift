@@ -15,7 +15,7 @@ import Testing
   @Test("rec-sort surfaces .failed (without an alert) when candidate observation throws")
   func candidateObservationFailureSurfacesFailedState() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
-    let dbReader = appDB.db
+    let dbReader = appDB.unsafeTestDB
     fakeObservatory.embeddedCandidateEpisodesScript([
       {
         ValueObservation
@@ -55,7 +55,7 @@ import Testing
   )
   func persistentCandidateObservationFailureSurfacesFailedAcrossReappear() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
-    let dbReader = appDB.db
+    let dbReader = appDB.unsafeTestDB
     let scriptedFailure: @Sendable () -> AsyncValueObservation<[CandidateEpisode]> = {
       ValueObservation
         .tracking { _ -> [CandidateEpisode] in
@@ -117,7 +117,7 @@ import Testing
   @Test("non-rec sort never reaches the candidate observation, even one scripted to fail")
   func nonRecSortNeverStartsFailingCandidateObservation() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
-    let dbReader = appDB.db
+    let dbReader = appDB.unsafeTestDB
     fakeObservatory.embeddedCandidateEpisodesScript([
       {
         ValueObservation
@@ -183,7 +183,7 @@ import Testing
     try await RecommendationHelpers.embedEpisodes(episodes, embeddable: embeddable)
 
     let fakeObservatory = try #require(observatory as? FakeObservatory)
-    let dbReader = appDB.db
+    let dbReader = appDB.unsafeTestDB
     fakeObservatory.embeddedCandidateEpisodesScript([
       {
         ValueObservation
@@ -350,7 +350,7 @@ import Testing
     // surfaces the .failed UI; the loadingState transition proves it ran past
     // the cancellation guard.
     let fakeObservatory = try #require(observatory as? FakeObservatory)
-    let dbReader = appDB.db
+    let dbReader = appDB.unsafeTestDB
     fakeObservatory.embeddedCandidateEpisodesScript([
       {
         ValueObservation

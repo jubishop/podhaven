@@ -442,7 +442,7 @@ actor ObservatoryScoringContextInputsTests {
       { "Expected initial emission with one embedding" }
     )
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "DELETE FROM episodeEmbedding WHERE episodeId = ?",
         arguments: [episode.id]

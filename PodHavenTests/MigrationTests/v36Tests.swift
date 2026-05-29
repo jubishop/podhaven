@@ -44,9 +44,9 @@ class V36MigrationTests {
 
   @Test("creates episodeEmbedding table with correct columns")
   func episodeEmbeddingTableExists() async throws {
-    try migrator.migrate(appDB.db, upTo: "v36")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v36")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let columns = try db.columns(in: "episodeEmbedding").map(\.name)
       #expect(columns.contains("episodeId"))
       #expect(columns.contains("vector"))
@@ -59,9 +59,9 @@ class V36MigrationTests {
 
   @Test("creates podcastEmbedding table with correct columns")
   func podcastEmbeddingTableExists() async throws {
-    try migrator.migrate(appDB.db, upTo: "v36")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v36")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let columns = try db.columns(in: "podcastEmbedding").map(\.name)
       #expect(columns.contains("podcastId"))
       #expect(columns.contains("vector"))
@@ -74,9 +74,9 @@ class V36MigrationTests {
 
   @Test("episodeEmbedding cascades on episode delete")
   func episodeEmbeddingCascade() async throws {
-    try migrator.migrate(appDB.db, upTo: "v36")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v36")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       let podcastID = try V36MigrationTests.insertPodcast(db)
       let episodeID = try V36MigrationTests.insertEpisode(db, podcastID: podcastID)
 
@@ -111,9 +111,9 @@ class V36MigrationTests {
 
   @Test("podcastEmbedding cascades on podcast delete")
   func podcastEmbeddingCascade() async throws {
-    try migrator.migrate(appDB.db, upTo: "v36")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v36")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       let podcastID = try V36MigrationTests.insertPodcast(db)
 
       try db.execute(

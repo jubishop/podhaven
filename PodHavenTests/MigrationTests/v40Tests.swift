@@ -39,10 +39,10 @@ class V40MigrationTests {
 
   @Test("seeds new key from old key when old is true")
   func testSeedsTrue() async throws {
-    try migrator.migrate(appDB.db, upTo: "v39")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v39")
     try seedBool(true, forKey: Self.oldKey)
 
-    try migrator.migrate(appDB.db, upTo: "v40")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v40")
 
     #expect(try loadBool(forKey: Self.newKey) == true)
     #expect(try loadBool(forKey: Self.oldKey) == true)
@@ -50,10 +50,10 @@ class V40MigrationTests {
 
   @Test("seeds new key from old key when old is false")
   func testSeedsFalse() async throws {
-    try migrator.migrate(appDB.db, upTo: "v39")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v39")
     try seedBool(false, forKey: Self.oldKey)
 
-    try migrator.migrate(appDB.db, upTo: "v40")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v40")
 
     #expect(try loadBool(forKey: Self.newKey) == false)
     #expect(try loadBool(forKey: Self.oldKey) == false)
@@ -61,30 +61,30 @@ class V40MigrationTests {
 
   @Test("does not seed new key when old key is missing")
   func testNoSeedWhenOldMissing() async throws {
-    try migrator.migrate(appDB.db, upTo: "v39")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v39")
 
-    try migrator.migrate(appDB.db, upTo: "v40")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v40")
 
     #expect(try loadBool(forKey: Self.newKey) == nil)
   }
 
   @Test("does not overwrite new key if it is already set")
   func testDoesNotOverwriteExistingNewKey() async throws {
-    try migrator.migrate(appDB.db, upTo: "v39")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v39")
     try seedBool(true, forKey: Self.oldKey)
     try seedBool(false, forKey: Self.newKey)
 
-    try migrator.migrate(appDB.db, upTo: "v40")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v40")
 
     #expect(try loadBool(forKey: Self.newKey) == false)
   }
 
   @Test("skips when old key is corrupt and leaves new key missing")
   func testCorruptOldKey() async throws {
-    try migrator.migrate(appDB.db, upTo: "v39")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v39")
     defaults.set(Data([0xFF, 0xFE]), forKey: Self.oldKey)
 
-    try migrator.migrate(appDB.db, upTo: "v40")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v40")
 
     #expect(try loadBool(forKey: Self.newKey) == nil)
   }

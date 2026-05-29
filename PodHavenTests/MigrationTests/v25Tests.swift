@@ -18,10 +18,10 @@ class V25MigrationTests {
   @Test("v25 migration adds partial index on queueOrder column")
   func testV25Migration() async throws {
     // Apply migrations up to v24
-    try migrator.migrate(appDB.db, upTo: "v24")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v24")
 
     // Verify index doesn't exist yet
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let indexes = try Row.fetchAll(
         db,
         sql: "SELECT * FROM sqlite_master WHERE type = 'index' AND tbl_name = 'episode'"
@@ -33,10 +33,10 @@ class V25MigrationTests {
     }
 
     // Apply v25 migration
-    try migrator.migrate(appDB.db, upTo: "v25")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v25")
 
     // Verify index exists after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let indexes = try Row.fetchAll(
         db,
         sql: "SELECT * FROM sqlite_master WHERE type = 'index' AND tbl_name = 'episode'"
@@ -56,7 +56,7 @@ class V25MigrationTests {
     }
 
     // Verify index is used for queue queries
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let plan = try Row.fetchAll(
         db,
         sql:

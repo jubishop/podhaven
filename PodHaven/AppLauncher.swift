@@ -58,7 +58,7 @@ struct AppLauncher: Sendable {
     Self.log.debug("Registered MetricKit subscriber")
 
     // Force DB initialization so schema migrations run immediately.
-    _ = Container.shared.appDB()
+    Container.shared.initializeAppDB()
 
     Self.log.debug(
       """
