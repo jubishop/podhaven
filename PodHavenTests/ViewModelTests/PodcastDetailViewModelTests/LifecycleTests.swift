@@ -289,7 +289,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     fakeObservatory.clearAllCalls()
     viewModel.disappear()
 
-    #expect(viewModel.isOnScreen == false)
+    #expect(viewModel.lifecycle.isOnScreen == false)
     viewModel.subscribe()
 
     try await Wait.until(
@@ -321,7 +321,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
 
     fakeObservatory.clearAllCalls()
-    #expect(viewModel.isOnScreen == false)
+    #expect(viewModel.lifecycle.isOnScreen == false)
 
     viewModel.subscribe()
 
@@ -649,7 +649,7 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     fakeRecommendationRepo.clearAllCalls()
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    #expect(viewModel.isOnScreen == false)
+    #expect(viewModel.lifecycle.isOnScreen == false)
 
     viewModel.currentSortMethod = .recommendationScore
 

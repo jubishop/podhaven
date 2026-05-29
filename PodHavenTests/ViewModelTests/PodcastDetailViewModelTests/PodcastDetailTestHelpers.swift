@@ -19,8 +19,8 @@ enum PodcastDetailTestHelpers {
     viewModel.appear()
     try await Wait.until(
       { @MainActor in
-        guard viewModel.isOnScreen else { return false }
-        guard viewModel.appearTask == nil else { return false }
+        guard viewModel.lifecycle.isOnScreen else { return false }
+        guard viewModel.lifecycle.appearTask == nil else { return false }
         if viewModel.saved {
           return true
         }
@@ -29,8 +29,8 @@ enum PodcastDetailTestHelpers {
       { @MainActor in
         """
         Expected appear to finish with a hydrated projection.
-        isOnScreen: \(viewModel.isOnScreen)
-        appearTask: \(String(describing: viewModel.appearTask))
+        isOnScreen: \(viewModel.lifecycle.isOnScreen)
+        appearTask: \(String(describing: viewModel.lifecycle.appearTask))
         saved: \(viewModel.saved)
         entries: \(viewModel.episodeList.allEntries.count)
         podcast: \(viewModel.podcast.toString)

@@ -57,7 +57,6 @@ enum PodcastDetailState: Equatable, Sendable, Stringable {
 
 @Observable @MainActor
 class PodcastDetailViewModel:
-  DetailViewModel,
   ManagingEpisodes,
   SelectableEpisodeList,
   SortableEpisodeList
@@ -79,20 +78,15 @@ class PodcastDetailViewModel:
 
   // MARK: - State
 
-  // `state` is under DetailViewModel; `episodeList` is a one-way projection of it.
+  // `episodeList` is a one-way projection of `state`.
   var podcast: PodcastDetailContent { state.detailContent }
   var saved: Bool { state.savedSeries != nil }
-
-  private var observationTaskState: String {
-    guard let observationTask else { return "nil" }
-    return observationTask.isCancelled ? "cancelled" : "active"
-  }
 
   // MARK: - ManagingEpisodes
 
   func getOrCreatePodcastEpisode(_ episode: ListedEpisode) async throws -> PodcastEpisode {
     let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
-    guard isOnScreen else { return podcastEpisode }
+    guard lifecycle.isOnScreen else { return podcastEpisode }
     startObservation(podcastEpisode.podcast.id)
     return podcastEpisode
   }
@@ -186,7 +180,7 @@ class PodcastDetailViewModel:
       guard oldValue != currentSortMethod else { return }
       Self.log.debug("currentSortMethod: \(oldValue) → \(currentSortMethod)")
       episodeList.filterMethod = currentSortMethod.filterMethod
-      if currentSortMethod == .recommendationScore, isOnScreen {
+      if currentSortMethod == .recommendationScore, lifecycle.isOnScreen {
         startRecommendationObservation()
       } else {
         episodeList.sortMethod = currentSortMethod.sortMethod
@@ -231,7 +225,7 @@ class PodcastDetailViewModel:
         alert("These episodes are no longer available.")
         return []
       }
-      if isOnScreen {
+      if lifecycle.isOnScreen {
         startObservation(firstEpisode.podcast.id)
       }
 
@@ -308,7 +302,7 @@ class PodcastDetailViewModel:
   )
 
   private func startRecommendationObservation() {
-    guard isOnScreen else {
+    guard lifecycle.isOnScreen else {
       Self.log.debug("startRecommendationObservation: skipped off-screen")
       return
     }
@@ -438,7 +432,7 @@ class PodcastDetailViewModel:
     }
     let previouslyNotifying = settings?.notifyNewEpisodes ?? false
 
-    runTask("updateSettings: podcast \(podcastID)") { [weak self] in
+    lifecycle.runTask("updateSettings: podcast \(podcastID)") { [weak self] in
       guard let self else { return }
       try await repo.updatePodcastSettings(podcastID, newSettings)
       if newSettings.notifyNewEpisodes, !previouslyNotifying {
@@ -558,16 +552,27 @@ class PodcastDetailViewModel:
     )
   }
 
-  // MARK: - DetailViewModel
+  // MARK: - Lifecycle
 
-  @ObservationIgnored @DynamicInjected(\.alert) var alert
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   private(set) var state: PodcastDetailState
 
-  @ObservationIgnored var isOnScreen = false
-  @ObservationIgnored var appearTask: Task<Void, Never>?
-  @ObservationIgnored var observationTask: Task<Void, Never>?
+  @ObservationIgnored let lifecycle = DetailLifecycle()
 
-  func performAppear() async throws {
+  func appear() {
+    if lifecycle.appear(performAppear: { [weak self] in try await self?.performAppear() }) {
+      cancelShareArtworkLoad()
+      recommendationCoordinator.cancel()
+    }
+  }
+
+  func disappear() {
+    lifecycle.disappear()
+    cancelShareArtworkLoad()
+    recommendationCoordinator.cancel()
+  }
+
+  private func performAppear() async throws {
     let startedAt = ContinuousClock.now
     defer {
       let duration = ContinuousClock.now - startedAt
@@ -576,8 +581,7 @@ class PodcastDetailViewModel:
 
     try Task.checkCancellation()
 
-    let observationAlreadyActive =
-      observationTask.map { !$0.isCancelled } ?? false
+    let observationAlreadyActive = lifecycle.observationTask?.isCancelled == false
     if shouldSeedEpisodeListAtAppearStart(observationAlreadyActive: observationAlreadyActive) {
       refreshEpisodeList(from: state)
     }
@@ -589,7 +593,7 @@ class PodcastDetailViewModel:
 
     if try await attemptObservation() {
       try Task.checkCancellation()
-      if observationTask == nil {
+      if lifecycle.observationTask == nil {
         startObservation(state.savedSeries?.id)
       }
       return
@@ -610,21 +614,16 @@ class PodcastDetailViewModel:
     Self.log.debug("Attempting observation again in case FeedURL got updated by parsing the feed")
     if try await attemptObservation() {
       try Task.checkCancellation()
-      if observationTask == nil {
+      if lifecycle.observationTask == nil {
         startObservation(state.savedSeries?.id)
       }
     }
   }
 
-  func cancelDetailPassAuxiliaryWork() {
-    cancelShareArtworkLoad()
-    recommendationCoordinator.cancel()
-  }
-
   // MARK: - Public Methods
 
   func subscribe() {
-    runTask("subscribe: \(state.toString)") { [weak self] in
+    lifecycle.runTask("subscribe: \(state.toString)") { [weak self] in
       guard let self else { return }
       switch state {
       case .saved(let series):
@@ -660,7 +659,7 @@ class PodcastDetailViewModel:
   }
 
   func unsubscribe() {
-    runTask("unsubscribe: \(state.toString)") { [weak self] in
+    lifecycle.runTask("unsubscribe: \(state.toString)") { [weak self] in
       guard let self else { return }
       guard let podcastID = try await ensureObservedSeries()
       else {
@@ -673,7 +672,7 @@ class PodcastDetailViewModel:
   }
 
   func delete() {
-    runTask("delete: \(state.toString)") { [weak self] in
+    lifecycle.runTask("delete: \(state.toString)") { [weak self] in
       guard let self else { return }
       guard let podcastID = try await ensureObservedSeries()
       else {
@@ -687,22 +686,22 @@ class PodcastDetailViewModel:
   }
 
   func refreshSeries() async {
-    guard isOnScreen else { return }
+    guard lifecycle.isOnScreen else { return }
     do {
       if let series = state.savedSeries,
         let operationalSeries = try await repo.podcastSeries(series.id)
       {
         try Task.checkCancellation()
-        guard isOnScreen else { return }
+        guard lifecycle.isOnScreen else { return }
         Self.log.debug("refreshing saved podcast series \(operationalSeries.toString)")
         try await refreshManager.refreshSeries(podcastSeries: operationalSeries)
         try Task.checkCancellation()
-        guard isOnScreen else { return }
+        guard lifecycle.isOnScreen else { return }
       } else {
         Self.log.debug("refreshing unsaved podcast series \(state.toString)")
         try await loadPresentationFromFeed()
         try Task.checkCancellation()
-        guard isOnScreen else { return }
+        guard lifecycle.isOnScreen else { return }
       }
     } catch {
       Self.log.caughtError("refreshSeries: failed for \(state.toString)", error)
@@ -719,7 +718,7 @@ class PodcastDetailViewModel:
       return
     }
 
-    runTask("addTag: \(tagID) to podcast \(podcastID)") { [weak self] in
+    lifecycle.runTask("addTag: \(tagID) to podcast \(podcastID)") { [weak self] in
       guard let self else { return }
       try await repo.addTag(tagID, to: podcastID)
     }
@@ -731,7 +730,7 @@ class PodcastDetailViewModel:
       return
     }
 
-    runTask("removeTag: \(tagID) from podcast \(podcastID)") { [weak self] in
+    lifecycle.runTask("removeTag: \(tagID) from podcast \(podcastID)") { [weak self] in
       guard let self else { return }
       try await repo.removeTag(tagID, from: podcastID)
     }
@@ -741,7 +740,7 @@ class PodcastDetailViewModel:
 
   @discardableResult
   private func attemptObservation() async throws -> Bool {
-    if let observationTask, !observationTask.isCancelled {
+    if let observationTask = lifecycle.observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not attempting observation")
       return true
     }
@@ -765,7 +764,7 @@ class PodcastDetailViewModel:
   }
 
   private func startObservation(_ podcastID: Podcast.ID? = nil) {
-    guard isOnScreen else {
+    guard lifecycle.isOnScreen else {
       Self.log.debug("startObservation: skipped off-screen")
       return
     }
@@ -775,15 +774,15 @@ class PodcastDetailViewModel:
       return
     }
 
-    if let observationTask, !observationTask.isCancelled {
+    if let observationTask = lifecycle.observationTask, !observationTask.isCancelled {
       Self.log.debug("startObservation: already active for \(podcastID)")
       return
     }
 
-    observationTask?.cancel()
+    lifecycle.observationTask?.cancel()
 
     Self.log.debug("startObservation: creating task for \(podcastID)")
-    observationTask = Task { [weak self] in
+    lifecycle.observationTask = Task { [weak self] in
       guard let self else { return }
       Self.log.debug("startObservation: task running for \(podcastID)")
       do {
@@ -809,13 +808,13 @@ class PodcastDetailViewModel:
       let duration = ContinuousClock.now - startedAt
       Self.log.debug("observePodcastSeries: exiting for \(podcastID), duration=\(duration)")
       if !Task.isCancelled {
-        observationTask = nil
+        lifecycle.observationTask = nil
       }
     }
 
     for try await updatedSeries in observatory.podcastSeriesDetail(podcastID) {
       try Task.checkCancellation()
-      guard isOnScreen else { return }
+      guard lifecycle.isOnScreen else { return }
 
       Self.log.debug(
         """
@@ -828,7 +827,7 @@ class PodcastDetailViewModel:
       else {
         try Task.checkCancellation()
         Self.log.debug("Podcast was deleted")
-        guard isOnScreen else { return }
+        guard lifecycle.isOnScreen else { return }
         // Post-deletion strategy: re-parse the RSS feed so the UI can
         // recover to an unsaved snapshot. This diverges from
         // `EpisodeDetailViewModel`, which converts the cached
@@ -843,7 +842,7 @@ class PodcastDetailViewModel:
             "observePodcastSeries: failed to re-parse feed after podcast \(podcastID) was deleted",
             error
           )
-          guard isOnScreen, ErrorKit.isRemarkable(error) else { return }
+          guard lifecycle.isOnScreen, ErrorKit.isRemarkable(error) else { return }
           alert(Self.unavailableMessage)
         }
         return
@@ -866,7 +865,7 @@ class PodcastDetailViewModel:
 
     Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
     state = newState
-    guard isOnScreen else { return }
+    guard lifecycle.isOnScreen else { return }
     refreshEpisodeList(from: newState)
     loadShareArtworkIfNeeded()
     startObservation(newState.savedSeries?.id)
@@ -928,7 +927,7 @@ class PodcastDetailViewModel:
   }
 
   private func loadPresentationFromFeed() async throws {
-    guard isOnScreen else { return }
+    guard lifecycle.isOnScreen else { return }
     Self.log.debug("Now fetching and parsing feed for \(state.toString)")
     let feedURL = state.feedURL
     let iTunesID = state.iTunesID
@@ -936,7 +935,7 @@ class PodcastDetailViewModel:
     try Task.checkCancellation()
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: iTunesID)
     try Task.checkCancellation()
-    guard isOnScreen else { return }
+    guard lifecycle.isOnScreen else { return }
     transition(
       to: .unsaved(
         unsavedPodcast,

@@ -160,7 +160,7 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     fakeObservatory.clearAllCalls()
     viewModel.disappear()
 
-    #expect(viewModel.isOnScreen == false)
+    #expect(viewModel.lifecycle.isOnScreen == false)
     viewModel.playNow()
 
     try await yieldForSpuriousAsyncWork()
@@ -180,7 +180,7 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
     fakeObservatory.clearAllCalls()
-    #expect(viewModel.isOnScreen == false)
+    #expect(viewModel.lifecycle.isOnScreen == false)
 
     viewModel.playNow()
 
@@ -220,7 +220,7 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     try await EpisodeDetailTestHelpers.appear(viewModel)
 
     viewModel.disappear()
-    #expect(viewModel.isOnScreen == false)
+    #expect(viewModel.lifecycle.isOnScreen == false)
 
     viewModel.playNow()
 

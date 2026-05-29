@@ -61,7 +61,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   case embeddingPending
 }
 
-@Observable @MainActor class EpisodeDetailViewModel: DetailViewModel {
+@Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -143,16 +143,25 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
   }
 
-  // MARK: - DetailViewModel
+  // MARK: - Lifecycle
 
-  @ObservationIgnored @DynamicInjected(\.alert) var alert
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   private(set) var state: EpisodeDetailState
 
-  @ObservationIgnored var isOnScreen = false
-  @ObservationIgnored var appearTask: Task<Void, Never>?
-  @ObservationIgnored var observationTask: Task<Void, Never>?
+  @ObservationIgnored let lifecycle = DetailLifecycle()
 
-  func performAppear() async throws {
+  func appear() {
+    if lifecycle.appear(performAppear: { [weak self] in try await self?.performAppear() }) {
+      recommendationCoordinator.cancel()
+    }
+  }
+
+  func disappear() {
+    lifecycle.disappear()
+    recommendationCoordinator.cancel()
+  }
+
+  private func performAppear() async throws {
     let podcastEpisode = try await repo.podcastEpisode(state.mediaGUID)
     try Task.checkCancellation()
 
@@ -200,14 +209,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
   }
 
-  func cancelDetailPassAuxiliaryWork() {
-    recommendationCoordinator.cancel()
-  }
-
   // MARK: - Public Methods
 
   func playNow() {
-    runTask("playNow: \(state.toString)") { [weak self] in
+    lifecycle.runTask("playNow: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await playManager.load(podcastEpisode)
@@ -221,7 +226,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return
     }
 
-    runTask("playAt: \(state.toString) at timestamp \(timestamp)") { [weak self] in
+    lifecycle.runTask("playAt: \(state.toString) at timestamp \(timestamp)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await loadAndPlay(podcastEpisode, seekTo: seconds)
@@ -240,7 +245,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   func addToTopOfQueue() {
     guard !atTopOfQueue else { return }
 
-    runTask("addToTopOfQueue: \(state.toString)") { [weak self] in
+    lifecycle.runTask("addToTopOfQueue: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await queue.unshift(podcastEpisode.episode.id)
@@ -250,7 +255,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   func appendToQueue() {
     guard !atBottomOfQueue else { return }
 
-    runTask("appendToQueue: \(state.toString)") { [weak self] in
+    lifecycle.runTask("appendToQueue: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await queue.append(podcastEpisode.episode.id)
@@ -260,7 +265,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   func removeFromQueue() {
     guard episode.queued else { return }
 
-    runTask("removeFromQueue: \(state.toString)") { [weak self] in
+    lifecycle.runTask("removeFromQueue: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await queue.dequeue(podcastEpisode.episode.id)
@@ -268,7 +273,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   func cacheEpisode() {
-    runTask("cacheEpisode: \(state.toString)") { [weak self] in
+    lifecycle.runTask("cacheEpisode: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await cacheManager.downloadToCache(for: podcastEpisode.id)
@@ -278,7 +283,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   func uncacheEpisode() {
     guard canClearCache else { return }
 
-    runTask("uncacheEpisode: \(state.toString)") { [weak self] in
+    lifecycle.runTask("uncacheEpisode: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
@@ -287,7 +292,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   func saveEpisodeInCache() {
-    runTask("saveEpisodeInCache: \(state.toString)") { [weak self] in
+    lifecycle.runTask("saveEpisodeInCache: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
@@ -298,7 +303,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   func markFinished() {
     guard !episode.finished else { return }
 
-    runTask("markFinished: \(state.toString)") { [weak self] in
+    lifecycle.runTask("markFinished: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.markFinished(podcastEpisode.id)
@@ -308,7 +313,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   func rate(_ rating: EpisodeRating?) {
     guard episode.rating != rating else { return }
 
-    runTask("rate: \(state.toString)") { [weak self] in
+    lifecycle.runTask("rate: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.updateRating(podcastEpisode.id, rating: rating)
@@ -316,7 +321,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   func showPodcast() {
-    runTask("showPodcast: \(state.toString)") { [weak self] in
+    lifecycle.runTask("showPodcast: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       navigation.showPodcast(podcastEpisode.podcast)
@@ -331,7 +336,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return
     }
 
-    runTask("addTag: \(tagID) to episode \(episodeID)") { [weak self] in
+    lifecycle.runTask("addTag: \(tagID) to episode \(episodeID)") { [weak self] in
       guard let self else { return }
       try await repo.addTag(tagID, to: episodeID)
     }
@@ -343,7 +348,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return
     }
 
-    runTask("removeTag: \(tagID) from episode \(episodeID)") { [weak self] in
+    lifecycle.runTask("removeTag: \(tagID) from episode \(episodeID)") { [weak self] in
       guard let self else { return }
       try await repo.removeTag(tagID, from: episodeID)
     }
@@ -352,19 +357,19 @@ enum EpisodeDetailDisplayedScore: Sendable {
   // MARK: - Observation Management
 
   private func startObservation(_ podcastEpisode: PodcastEpisode) {
-    guard isOnScreen else {
+    guard lifecycle.isOnScreen else {
       Self.log.debug("startObservation: skipped off-screen")
       return
     }
 
-    if let observationTask, !observationTask.isCancelled {
+    if let observationTask = lifecycle.observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not starting observation")
       return
     }
 
-    observationTask?.cancel()
+    lifecycle.observationTask?.cancel()
 
-    observationTask = Task { [weak self] in
+    lifecycle.observationTask = Task { [weak self] in
       guard let self else { return }
       await observePodcastEpisode(podcastEpisode)
     }
@@ -379,14 +384,14 @@ enum EpisodeDetailDisplayedScore: Sendable {
     // stomping it would kill a newer task.
     defer {
       if !Task.isCancelled {
-        observationTask = nil
+        lifecycle.observationTask = nil
       }
     }
 
     do {
       for try await updated in observatory.podcastEpisodeWithTags(podcastEpisode.id) {
         try Task.checkCancellation()
-        guard isOnScreen else { return }
+        guard lifecycle.isOnScreen else { return }
 
         Self.log.debug(
           "Updating observed episode: \(String(describing: updated?.podcastEpisode.toString))"
@@ -571,7 +576,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     guard newState != state else { return }
     Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
     state = newState
-    guard isOnScreen else { return }
+    guard lifecycle.isOnScreen else { return }
     recommendationCoordinator.refresh()
   }
 
@@ -592,7 +597,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
       podcastEpisode = try await listedEpisode.getOrCreatePodcastEpisode()
     }
     transition(to: .saved(podcastEpisode))
-    guard isOnScreen else { return podcastEpisode }
+    guard lifecycle.isOnScreen else { return podcastEpisode }
     startObservation(podcastEpisode)
     startRecommendationObservation()
     return podcastEpisode

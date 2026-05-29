@@ -9,11 +9,11 @@ enum EpisodeDetailTestHelpers {
   static func appear(_ viewModel: EpisodeDetailViewModel) async throws {
     viewModel.appear()
     try await Wait.until(
-      { @MainActor in viewModel.appearTask == nil },
+      { @MainActor in viewModel.lifecycle.appearTask == nil },
       { @MainActor in
         """
         Expected appear to finish.
-        appearTask: \(String(describing: viewModel.appearTask))
+        appearTask: \(String(describing: viewModel.lifecycle.appearTask))
         """
       }
     )
