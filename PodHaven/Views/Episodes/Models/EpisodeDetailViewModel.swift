@@ -148,7 +148,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   private(set) var state: EpisodeDetailState
 
-  @ObservationIgnored let lifecycle = DetailLifecycle()
+  @ObservationIgnored private let lifecycle = DetailLifecycle()
 
   func appear() {
     if lifecycle.appear(performAppear: { [weak self] in try await self?.performAppear() }) {

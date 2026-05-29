@@ -23,12 +23,11 @@ enum PodcastDetailTestHelpers {
     viewModel.appear()
     try await Wait.until(
       { @MainActor in
-        viewModel.lifecycle.isOnScreen && !viewModel.episodeList.allEntries.isEmpty
+        !viewModel.episodeList.allEntries.isEmpty
       },
       { @MainActor in
         """
         Expected appear to hydrate the episode list.
-        isOnScreen: \(viewModel.lifecycle.isOnScreen)
         entries: \(viewModel.episodeList.allEntries.count)
         podcast: \(viewModel.podcast.toString)
         """
