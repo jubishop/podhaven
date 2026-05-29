@@ -55,8 +55,9 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
           .opacity(episode.cacheStatus == .cached ? 1 : 0)
       }
 
-      if episode.currentTime.safe.seconds > 0, episode.duration.safe.seconds > 0 {
-        let progress = episode.currentTime.safe.seconds / episode.duration.safe.seconds
+      let currentTime = sharedState.currentTime(for: episode)
+      if currentTime.safe.seconds > 0, episode.duration.safe.seconds > 0 {
+        let progress = currentTime.safe.seconds / episode.duration.safe.seconds
         CircularProgressView(
           colorAmounts: [AppIcon.episodeFinished.color(for: colorScheme): progress],
           innerRadius: .ratio(0.4)

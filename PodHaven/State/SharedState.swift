@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import CoreMedia
 import FactoryKit
 import Foundation
 import IdentifiedCollections
@@ -84,6 +85,16 @@ struct SharedState: Sendable {
   func isEpisodePlaying(_ episodeID: Episode.ID) -> Bool {
     guard playbackStatus.playing else { return false }
     return onDeck?.id == episodeID
+  }
+
+  // The on-deck episode's currentTime advances in memory every ~250ms during
+  // playback, but OnDeck.== ignores it (DB-identity equality), so SwiftUI's
+  // view-diff treats a row rebuilt from a fresh snapshot as unchanged and the
+  // now-playing progress freezes. Hand back the live position for the on-deck
+  // episode; every other row keeps its own snapshot.
+  func currentTime(for episode: some EpisodeFoundational) -> CMTime {
+    guard let onDeck, onDeck.id == episode.episodeID else { return episode.currentTime }
+    return onDeck.currentTime
   }
 
   // MARK: - State Setters
