@@ -28,7 +28,6 @@ extension Container {
     let appDB = appDB()
     return RecommendationRepo(reader: appDB.reader, writer: appDB.writer)
   }
-
 }
 
 struct AppDB {

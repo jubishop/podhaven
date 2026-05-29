@@ -164,8 +164,10 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
     }
     return MetricKitLogDirective(
       level: .critical,
-      message:
-        "MetricKit background-exit metrics — abnormal: \(abnormalReasons.joined(separator: ", "))",
+      message: """
+        MetricKit background-exit metrics — abnormal: \
+        \(abnormalReasons.joined(separator: ", "))
+        """,
       metadata: metadata
     )
   }

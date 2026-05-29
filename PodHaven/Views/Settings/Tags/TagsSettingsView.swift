@@ -25,7 +25,10 @@ struct TagsSettingsView: View {
             VStack(alignment: .leading) {
               Text(tag.name)
               Text(
-                "Podcasts: \(viewModel.podcastCounts[tag.id] ?? 0) · Episodes: \(viewModel.episodeCounts[tag.id] ?? 0)"
+                """
+                Podcasts: \(viewModel.podcastCounts[tag.id] ?? 0) · Episodes: \
+                \(viewModel.episodeCounts[tag.id] ?? 0)
+                """
               )
               .font(.subheadline)
               .foregroundStyle(.secondary)
