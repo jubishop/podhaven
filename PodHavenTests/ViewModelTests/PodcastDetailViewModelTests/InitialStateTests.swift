@@ -10,8 +10,8 @@ import Testing
 @MainActor final class InitialStateTests {
   @DynamicInjected(\.repo) private var repo
 
-  @Test("shared unsaved podcast series is presented before appear")
-  func unsavedPodcastSeriesIsPresentedBeforeAppear() async throws {
+  @Test("shared unsaved podcast series episodes load on performAppear, not in init")
+  func unsavedPodcastSeriesEpisodesLoadOnPerformAppear() async throws {
     let unsavedSeries = UnsavedPodcastSeries(
       unsavedPodcast: try Create.unsavedPodcast(
         feedURL: FeedURL(URL(string: "https://example.com/immediate-series.rss")!),
@@ -35,19 +35,15 @@ import Testing
 
     #expect(viewModel.saved == false)
     #expect(viewModel.podcast.title == unsavedSeries.unsavedPodcast.title)
-    try await Wait.until(
-      { @MainActor in
-        viewModel.episodeList.allEntries.map(\.title) == [
-          "Immediate Episode 1",
-          "Immediate Episode 2",
-        ]
-      },
-      { @MainActor in
-        """
-        Expected shared unsaved podcast series episodes to be presented before appear.
-        Actual titles: \(viewModel.episodeList.allEntries.map(\.title))
-        """
-      }
+    #expect(viewModel.episodeList.allEntries.isEmpty)
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    #expect(
+      viewModel.episodeList.allEntries.map(\.title) == [
+        "Immediate Episode 1",
+        "Immediate Episode 2",
+      ]
     )
   }
 

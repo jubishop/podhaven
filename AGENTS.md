@@ -2,6 +2,7 @@
 Repo context lives in `memory/`, `docs/`, and GitHub issues:
 
 - `memory/`: long-lived notes; search before writing and update existing notes when possible.
+  - Move notes that are no longer relevant to active work into `memory/archive/` (excluded from `qmd` search).
 - `docs/`: PR-reviewed design docs; update `docs/README.md` when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
@@ -35,6 +36,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 
 ## Factories
 - New container-built types follow the existing factory + `fileprivate init` pattern.
+- Prefer `@DynamicInjected` where possible, otherwise just use `Container.shared`, but never pass a Factory around as a parameter.
 
 ## Errors and Logging
 - Log with `ErrorKit` formatting at the appropriate level; use static `Logger`s from `Log.as`.
@@ -42,18 +44,19 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - Keep `do`/`catch` around `try` calls only.
 - Caught object: `log.caughtError()`; no object: `log.error()`.
 - `caughtError()`/`error()` auto-downgrade unremarkable errors (`CancellationError`, cancelled/timed-out `URLError`) to `.debug` via `ErrorKit.isRemarkable`.
-- Avoid `try?`; use `do`/`catch`. Exceptions: `Task.checkCancellation()` and `sleeper.sleep()` when silent failure is intentional.
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
-- Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `.context(.test)`, `PodHavenTests/Fakes`). Do not use `.serialized`.
+- Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`). Do not use `.serialized`.
+- Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.
 - Bugfixes require a regression test proven failing before the fix; if it passes before and after, it is not a regression test and the bug may not be real.
 - Default local test runs to My Mac (Designed for iPhone): `-destination 'platform=macOS,name=My Mac'`.
 - Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
-- Async tests use `Wait.until`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
+- Async tests use `Wait.until`, `Wait.forValue`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
 - All test files belong to `PodHavenTests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
-- Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete test-only surface; improve the API or fixture if needed.
+- Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete all test-only surfaces.
+- To assert on swift-log output, use `LogCapture.withSink` (per-test isolation via `@TaskLocal`).
 
 ## Previews
 - Previews stub factories for in-memory SwiftUI previews; no network or DB access.
@@ -64,16 +67,17 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 ## Migrations
 - Migration code uses only literals: table/column strings and inline allowed values; no model types/enums/drifting refs. Renames must not alter shipped behavior.
 
-## Coding Standards
+## Coding Standards (Production Only)
 - Use `[weak self]` in closures/Tasks that capture `self` unless a strong reference is required. Unwrap with `guard let self else { return }`; use `self.x`, not `self?.x`.
-- No force unwraps (`!`) in production; use `Assert` or guarded error handling.
+- Avoid `try?`; use `do`/`catch`. Exceptions: `Task.checkCancellation()` and `sleeper.sleep()` when silent failure is intentional.
+- No force unwraps (`!`); use `Assert` or guarded error handling.
 - Never use `map`/`flatMap` to unwrap optionals; use `if let`/`guard let`. Reserve `map`/`flatMap` for collections.
 - Run `swift-format` on every Swift file you touch.
 - Comments use `//`, not `///`; no doc comments. Default to no comment whenever possible, or very succinct comment if absolutely necessary.
-- No external refs in production code comments — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`), etc. They move or disappear; context belongs in the commit/PR. Tests are exempt.
+- No external refs in code comments — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`), etc. They move or disappear; context belongs in the commit/PR.
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
 - No non-specializing extension splits. Put conformances on the main declaration and requirements in the body. Use extensions only for constrained methods, retroactive external conformance, or `where Self == X`.
-- In production code, avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary. Test code may use them freely.
+- Avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary.
 - Avoid `inout` or passing reference types only to be mutated and read back by the caller; return values instead.
 - Prefer `@MainActor` on declarations over `MainActor.run`.
 - Model state transitions as enums, not `Bool` flags.

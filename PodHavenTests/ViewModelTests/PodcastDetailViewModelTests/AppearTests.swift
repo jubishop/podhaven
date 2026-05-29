@@ -32,7 +32,7 @@ import Testing
       )
     )
 
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in
@@ -77,7 +77,7 @@ import Testing
 
     #expect(viewModel.shareURL == ShareURL.podcast(feedURL: savedSeries.podcast.feedURL))
 
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in
@@ -121,7 +121,7 @@ import Testing
     let searchResult = SavedSearchResultPodcast(
       resultFeedURL: FeedURL(URL(string: "https://example.com/search-result.rss")!),
       originalPodcast: try Create.unsavedPodcast(
-        feedURL: PodcastDetailTestHelpers.searchResultFeedURL(),
+        feedURL: try PodcastDetailTestHelpers.searchResultFeedURL(),
         iTunesID: iTunesID,
         title: "Search Title",
         description: searchDescription,
@@ -139,7 +139,7 @@ import Testing
     #expect(viewModel.podcast.description == searchDescription)
     #expect(viewModel.podcast.link == searchLink)
 
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     #expect(viewModel.saved)
     #expect(viewModel.podcast.description == savedSeries.podcast.description)
@@ -160,7 +160,7 @@ import Testing
       )
     )
 
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     #expect(viewModel.saved == false)
     #expect(viewModel.podcast.loaded != nil)
@@ -189,7 +189,7 @@ import Testing
     )
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
 
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     #expect(viewModel.saved == false)
     #expect(viewModel.podcast.title == unsavedSeries.unsavedPodcast.title)

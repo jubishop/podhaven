@@ -16,6 +16,8 @@ extension Container {
 struct PodcastOPML: Codable, Sendable {
   private static let log = Log.as(LogSubsystem.Feed.opml)
 
+  static let contentType = UTType(importedAs: "public.opml", conformingTo: .xml)
+
   // MARK: - Import Methods
 
   static func parse(_ url: URL) async throws -> PodcastOPML {
@@ -43,7 +45,7 @@ struct PodcastOPML: Codable, Sendable {
   struct ExportItem: Transferable {
     static var transferRepresentation: some TransferRepresentation {
       DataRepresentation(
-        exportedContentType: UTType(filenameExtension: "opml", conformingTo: .xml) ?? .xml
+        exportedContentType: PodcastOPML.contentType
       ) { item in
         try await exportSubscribedPodcasts()
       }

@@ -192,18 +192,26 @@ actor ObservatoryOnDeckTests {
     #expect(onDeck.artwork == nil)
   }
 
-  @Test("equality and hash ignore artwork and currentTime")
-  func testEqualityAndHashIgnoreInMemoryFields() async throws {
+  @Test("equality and hash track currentTime but ignore artwork and maxPlaybackTime")
+  func testEqualityTracksCurrentTime() async throws {
     let (episode, _, _) = try await Create.threePodcastEpisodes()
     let podcastEpisode = try #require(try await repo.podcastEpisode(episode.id))
 
-    let a = OnDeck(from: podcastEpisode)
-    var b = OnDeck(from: podcastEpisode)
-    b.artwork = UIImage()
-    b.currentTime = CMTime.seconds(99)
+    let base = OnDeck(from: podcastEpisode)
 
-    #expect(a == b)
-    #expect(a.hashValue == b.hashValue)
+    // artwork and maxPlaybackTime stay out of equality: loading artwork or
+    // advancing the in-memory peak doesn't change the rendered list row.
+    var sameRow = base
+    sameRow.artwork = UIImage()
+    sameRow.maxPlaybackTime = CMTime.seconds(99)
+    #expect(base == sameRow)
+    #expect(base.hashValue == sameRow.hashValue)
+
+    // currentTime is part of equality so SwiftUI re-renders the now-playing
+    // row (progress + time-remaining) as playback advances.
+    var advanced = base
+    advanced.currentTime = CMTime.seconds(99)
+    #expect(base != advanced)
   }
 
   @Test("OnDeck.request tracks only the columns OnDeck reads from each table")

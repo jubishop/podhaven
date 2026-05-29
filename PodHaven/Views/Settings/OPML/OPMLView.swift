@@ -34,7 +34,7 @@ struct OPMLView: View {
     .navigationTitle("OPML")
     .fileImporter(
       isPresented: $viewModel.opmlImporting,
-      allowedContentTypes: [UTType(filenameExtension: "opml", conformingTo: .xml) ?? .xml],
+      allowedContentTypes: [PodcastOPML.contentType, .xml],
       onCompletion: { result in
         viewModel.opmlFileImporterCompletion(result)
       }

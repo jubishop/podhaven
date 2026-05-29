@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-// Regression tests for the recommendation-score fan-out OOM (issue #274).
+// Regression tests for the recommendation-score fan-out OOM.
 @Suite("of recommendation scoring retained-score fast-path tests", .container)
 @MainActor final class RecommendationScoringFastPathTests {
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
@@ -49,7 +49,7 @@ import Testing
     let targetIDs = Set(candidateEpisodes.map(\.id))
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
     try await Wait.until(
       priority: .userInitiated,
       { @MainActor in

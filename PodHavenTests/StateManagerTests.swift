@@ -243,10 +243,9 @@ actor StateManagerTests {
     #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(75))
   }
 
-  // OnDeck.== deliberately ignores the in-memory fields (currentTime,
-  // maxPlaybackTime, artwork), so a setCurrentTime write produces a value that
-  // is `==` the previous one. The onDeck broadcast must still notify observers,
-  // or the play bar's live clock freezes during playback.
+  // The onDeck broadcast is `.notifyAlways`, so every setCurrentTime write
+  // reaches stream observers and the play bar's live clock keeps advancing.
+  // (artwork/maxPlaybackTime, which OnDeck.== ignores, ride the same guarantee.)
   @Test("setCurrentTime notifies onDeck stream observers")
   func setCurrentTimeNotifiesOnDeckObservers() async throws {
     let podcastEpisode = try await fetchPodcastEpisode("episode1")

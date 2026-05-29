@@ -89,9 +89,14 @@ struct Queue: Queueing {
   }
 
   func unshift(_ episodeIDs: [Episode.ID]) async throws {
+    let writeStart = Date()
+    Self.log.debug("queue: unshift write requested \(episodeIDs)")
     try await appDB.db.write { db in
       try unshift(db, episodeIDs)
     }
+    Self.log.debug(
+      "queue: unshift write completed in \(Date().timeIntervalSince(writeStart)) seconds"
+    )
   }
 
   func unshift(_ episodeID: Episode.ID) async throws {

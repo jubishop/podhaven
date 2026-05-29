@@ -74,7 +74,7 @@ enum NowPlayingInfo {
   }
 
   static func setCurrentTime(_ currentTime: CMTime) {
-    guard let duration = Container.shared.sharedState().onDeck?.duration else { return }
+    guard let duration = Container.shared.sharedState().$onDeck.value?.duration else { return }
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
@@ -110,7 +110,7 @@ enum NowPlayingInfo {
   }
 
   static func setPlaybackRate(_ rate: Float) {
-    let currentTime = Container.shared.sharedState().onDeck?.currentTime ?? .zero
+    let currentTime = Container.shared.sharedState().$onDeck.value?.currentTime ?? .zero
 
     // Log what iOS has before we overwrite — if a future stale-scrub recurs,
     // comparing previousElapsed to currentTime shows whether the dict was already stale.
@@ -169,7 +169,7 @@ enum NowPlayingInfo {
 
     switch Container.shared.userSettings().nextTrackBehavior {
     case .nextEpisode:
-      let queueCount = Container.shared.sharedState().queueCount
+      let queueCount = Container.shared.sharedState().$queuedPodcastEpisodes.value.count
       Self.log.debug("updateQueueCount: nextEpisode, queueCount: \(queueCount)")
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueIndex] = 0
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueCount] = queueCount + 1
@@ -183,7 +183,7 @@ enum NowPlayingInfo {
   static func updateDefaultPlaybackRate(for podcastEpisode: PodcastEpisode? = nil) {
     let defaultPlaybackRate =
       podcastEpisode?.podcast.defaultPlaybackRate
-      ?? Container.shared.sharedState().onDeck?.defaultPlaybackRate
+      ?? Container.shared.sharedState().$onDeck.value?.defaultPlaybackRate
       ?? Container.shared.userSettings().defaultPlaybackRate
     Self.log.debug("updateDefaultPlaybackRate: \(defaultPlaybackRate)")
 

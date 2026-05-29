@@ -10,15 +10,6 @@ import SwiftUI
 import Tagged
 import UIKit
 
-// Live state of `PodcastDetailViewModel`. Transitions flow through
-// `transition(to:)` so view-facing projections stay in sync.
-//
-// - `.initial`: list-row snapshot (saved or savedSearchResult); promoted to
-//   `.saved` once observation hydrates the series.
-// - `.unsaved`: a podcast we know about but haven't persisted — feed-parsed,
-//   shared-from-share-sheet, or an unsaved search result. May carry zero or
-//   more pre-parsed episodes ready to be inserted on `subscribe()`.
-// - `.saved`: a fully-hydrated series under live observation.
 enum PodcastDetailState: Equatable, Sendable, Stringable {
   case initial(ListedPodcast)
   case unsaved(UnsavedPodcast, episodes: IdentifiedArrayOf<UnsavedEpisode>)
@@ -66,12 +57,10 @@ enum PodcastDetailState: Equatable, Sendable, Stringable {
 
 @Observable @MainActor
 class PodcastDetailViewModel:
-  DetailViewModel,
   ManagingEpisodes,
   SelectableEpisodeList,
   SortableEpisodeList
 {
-  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -89,9 +78,7 @@ class PodcastDetailViewModel:
 
   // MARK: - State
 
-  // `state` is the source of truth; `episodeList` is a one-way projection of it.
-  private(set) var state: PodcastDetailState
-
+  // `episodeList` is a one-way projection of `state`.
   var podcast: PodcastDetailContent { state.detailContent }
   var saved: Bool { state.savedSeries != nil }
 
@@ -99,13 +86,17 @@ class PodcastDetailViewModel:
 
   func getOrCreatePodcastEpisode(_ episode: ListedEpisode) async throws -> PodcastEpisode {
     let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
+    guard lifecycle.isOnScreen else { return podcastEpisode }
     startObservation(podcastEpisode.podcast.id)
     return podcastEpisode
   }
 
   // MARK: - SelectableEpisodeList & SortableEpisodeList
 
-  var episodeList = PowerList<ListedEpisode>(debounceDuration: .milliseconds(250))
+  var episodeList = PowerList<ListedEpisode>(
+    sortMethod: SortMethod.newestFirst.sortMethod,
+    debounceDuration: .milliseconds(250)
+  )
 
   enum SortMethod: SortingMethod {
     case newestFirst
@@ -187,8 +178,9 @@ class PodcastDetailViewModel:
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
       guard oldValue != currentSortMethod else { return }
+      Self.log.debug("currentSortMethod: \(oldValue) → \(currentSortMethod)")
       episodeList.filterMethod = currentSortMethod.filterMethod
-      if currentSortMethod == .recommendationScore {
+      if currentSortMethod == .recommendationScore, lifecycle.isOnScreen {
         startRecommendationObservation()
       } else {
         episodeList.sortMethod = currentSortMethod.sortMethod
@@ -233,7 +225,9 @@ class PodcastDetailViewModel:
         alert("These episodes are no longer available.")
         return []
       }
-      startObservation(firstEpisode.podcast.id)
+      if lifecycle.isOnScreen {
+        startObservation(firstEpisode.podcast.id)
+      }
 
       return podcastEpisodes
     }
@@ -308,6 +302,11 @@ class PodcastDetailViewModel:
   )
 
   private func startRecommendationObservation() {
+    guard lifecycle.isOnScreen else {
+      Self.log.debug("startRecommendationObservation: skipped off-screen")
+      return
+    }
+    Self.log.debug("startRecommendationObservation")
     recommendationCoordinator.startObservations()
     recommendationCoordinator.refresh()
   }
@@ -433,7 +432,8 @@ class PodcastDetailViewModel:
     }
     let previouslyNotifying = settings?.notifyNewEpisodes ?? false
 
-    runTask("updateSettings: podcast \(podcastID)") { [self] in
+    lifecycle.runTask("updateSettings: podcast \(podcastID)") { [weak self] in
+      guard let self else { return }
       try await repo.updatePodcastSettings(podcastID, newSettings)
       if newSettings.notifyNewEpisodes, !previouslyNotifying {
         await userNotificationManager.requestAuthorizationIfNeeded()
@@ -458,6 +458,9 @@ class PodcastDetailViewModel:
 
   var shareURL: URL? { ShareURL.podcast(feedURL: podcast.feedURL) }
   private var shareArtwork: UIImage?
+  @ObservationIgnored private var loadedShareArtworkURL: URL?
+  @ObservationIgnored private var loadingShareArtworkURL: URL?
+  @ObservationIgnored private var shareArtworkTask: Task<Void, Never>?
 
   var sharePreview: SharePreview<Image, Image> {
     let image = sharePreviewImage
@@ -469,26 +472,59 @@ class PodcastDetailViewModel:
     return Image(uiImage: shareArtwork)
   }
 
-  // MARK: - Initialization
+  private func cancelShareArtworkLoad() {
+    shareArtworkTask?.cancel()
+    shareArtworkTask = nil
+    loadingShareArtworkURL = nil
+  }
 
-  private init(state: PodcastDetailState) {
-    self.state = state
-    episodeList.sortMethod = currentSortMethod.sortMethod
-    refreshEpisodeList(from: state)
-    startObservation(state.savedSeries?.id)
-
-    Task { [weak self] in
+  private func loadShareArtworkIfNeeded() {
+    let imageURL = podcast.image
+    // Already resolved for this URL, or a load for it is already in flight.
+    // Reusing the in-flight load keeps repeated transitions (which re-enter
+    // here) from cancelling and restarting it, which could otherwise leave the
+    // artwork forever unsettled under sustained updates.
+    if loadedShareArtworkURL == imageURL { return }
+    if loadingShareArtworkURL == imageURL { return }
+    // URL is new or changed: drop stale artwork and supersede any prior load.
+    cancelShareArtworkLoad()
+    shareArtwork = nil
+    loadedShareArtworkURL = nil
+    loadingShareArtworkURL = imageURL
+    shareArtworkTask = Task { [weak self] in
       guard let self else { return }
-
+      defer {
+        if !Task.isCancelled {
+          shareArtworkTask = nil
+          loadingShareArtworkURL = nil
+        }
+      }
       do {
-        shareArtwork = try await imagePipeline.image(for: podcast.image)
+        let image = try await imagePipeline.image(for: imageURL)
+        try Task.checkCancellation()
+        guard podcast.image == imageURL else { return }
+        shareArtwork = image
+        loadedShareArtworkURL = imageURL
       } catch {
         Self.log.caughtError(
-          "init: failed to load share artwork for \(podcast.image)",
+          "loadShareArtworkIfNeeded: failed to load share artwork for \(imageURL)",
           error,
           level: { _ in .info }
         )
       }
+    }
+  }
+
+  // MARK: - Initialization
+
+  // `init` starts no long-lived async work. SwiftUI re-evaluates
+  // PodcastDetail destination builders, so observation, refresh, and
+  // share-artwork loading belong to `performAppear`, which only the kept
+  // (appeared) model runs.
+  private init(state: PodcastDetailState) {
+    self.state = state
+    if case .saved(let series) = state, !series.episodes.isEmpty {
+      refreshEpisodeList(from: state)
     }
   }
 
@@ -518,30 +554,85 @@ class PodcastDetailViewModel:
     )
   }
 
-  func performAppear() async throws {
+  // MARK: - Lifecycle
+
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  private(set) var state: PodcastDetailState
+
+  @ObservationIgnored private let lifecycle = DetailLifecycle()
+
+  func appear() {
+    if lifecycle.appear(performAppear: { [weak self] in try await self?.performAppear() }) {
+      cancelShareArtworkLoad()
+      recommendationCoordinator.cancel()
+    }
+  }
+
+  func disappear() {
+    lifecycle.disappear()
+    cancelShareArtworkLoad()
+    recommendationCoordinator.cancel()
+  }
+
+  private func performAppear() async throws {
+    let startedAt = ContinuousClock.now
+    defer {
+      let duration = ContinuousClock.now - startedAt
+      Self.log.debug("performAppear: exiting, duration=\(duration)")
+    }
+
+    try Task.checkCancellation()
+
+    let observationAlreadyActive = lifecycle.observationTask?.isCancelled == false
+    let stateHasSeedableEpisodes: Bool
+    switch state {
+    case .saved(let series): stateHasSeedableEpisodes = !series.episodes.isEmpty
+    case .unsaved: stateHasSeedableEpisodes = true
+    case .initial: stateHasSeedableEpisodes = false
+    }
+    if !observationAlreadyActive && stateHasSeedableEpisodes {
+      refreshEpisodeList(from: state)
+    }
+    loadShareArtworkIfNeeded()
+
     if currentSortMethod == .recommendationScore {
       startRecommendationObservation()
     }
 
-    if try await attemptObservation() { return }
+    if try await attemptObservation() {
+      try Task.checkCancellation()
+      if lifecycle.observationTask == nil {
+        startObservation(state.savedSeries?.id)
+      }
+      return
+    }
 
+    try Task.checkCancellation()
     Self.log.debug("\(state.toString) does not exist in db")
 
-    guard episodeList.allEntries.isEmpty else {
+    let seriesMissingFromDB = state.savedSeries != nil
+    guard seriesMissingFromDB || episodeList.allEntries.isEmpty else {
       Self.log.debug("PodcastDetailViewModel already has entries, no need to fetch again.")
       return
     }
 
     try await loadPresentationFromFeed()
+    try Task.checkCancellation()
 
     Self.log.debug("Attempting observation again in case FeedURL got updated by parsing the feed")
-    try await attemptObservation()
+    if try await attemptObservation() {
+      try Task.checkCancellation()
+      if lifecycle.observationTask == nil {
+        startObservation(state.savedSeries?.id)
+      }
+    }
   }
 
   // MARK: - Public Methods
 
   func subscribe() {
-    runTask("subscribe: \(state.toString)") { [self] in
+    lifecycle.runTask("subscribe: \(state.toString)") { [weak self] in
+      guard let self else { return }
       switch state {
       case .saved(let series):
         try await repo.markSubscribed(series.id)
@@ -576,7 +667,8 @@ class PodcastDetailViewModel:
   }
 
   func unsubscribe() {
-    runTask("unsubscribe: \(state.toString)") { [self] in
+    lifecycle.runTask("unsubscribe: \(state.toString)") { [weak self] in
+      guard let self else { return }
       guard let podcastID = try await ensureObservedSeries()
       else {
         Self.log.warning("Trying to unsubscribe from a non-saved podcast")
@@ -588,7 +680,8 @@ class PodcastDetailViewModel:
   }
 
   func delete() {
-    runTask("delete: \(state.toString)") { [self] in
+    lifecycle.runTask("delete: \(state.toString)") { [weak self] in
+      guard let self else { return }
       guard let podcastID = try await ensureObservedSeries()
       else {
         Self.log.warning("Trying to delete a non-saved podcast")
@@ -601,15 +694,22 @@ class PodcastDetailViewModel:
   }
 
   func refreshSeries() async {
+    guard lifecycle.isOnScreen else { return }
     do {
       if let series = state.savedSeries,
         let operationalSeries = try await repo.podcastSeries(series.id)
       {
+        try Task.checkCancellation()
+        guard lifecycle.isOnScreen else { return }
         Self.log.debug("refreshing saved podcast series \(operationalSeries.toString)")
         try await refreshManager.refreshSeries(podcastSeries: operationalSeries)
+        try Task.checkCancellation()
+        guard lifecycle.isOnScreen else { return }
       } else {
         Self.log.debug("refreshing unsaved podcast series \(state.toString)")
         try await loadPresentationFromFeed()
+        try Task.checkCancellation()
+        guard lifecycle.isOnScreen else { return }
       }
     } catch {
       Self.log.caughtError("refreshSeries: failed for \(state.toString)", error)
@@ -626,7 +726,8 @@ class PodcastDetailViewModel:
       return
     }
 
-    runTask("addTag: \(tagID) to podcast \(podcastID)") { [self] in
+    lifecycle.runTask("addTag: \(tagID) to podcast \(podcastID)") { [weak self] in
+      guard let self else { return }
       try await repo.addTag(tagID, to: podcastID)
     }
   }
@@ -637,23 +738,24 @@ class PodcastDetailViewModel:
       return
     }
 
-    runTask("removeTag: \(tagID) from podcast \(podcastID)") { [self] in
+    lifecycle.runTask("removeTag: \(tagID) from podcast \(podcastID)") { [weak self] in
+      guard let self else { return }
       try await repo.removeTag(tagID, from: podcastID)
     }
   }
 
   // MARK: - Observation Management
 
-  @ObservationIgnored var observationTask: Task<Void, Never>?
-
   @discardableResult
   private func attemptObservation() async throws -> Bool {
-    if let observationTask, !observationTask.isCancelled {
+    if let observationTask = lifecycle.observationTask, !observationTask.isCancelled {
       Self.log.debug("Observation already active; not attempting observation")
       return true
     }
 
     guard let savedSeries = try await savedSeriesForCurrentState() else { return false }
+
+    try Task.checkCancellation()
 
     Self.log.debug("\(savedSeries.toString) exists in db")
 
@@ -662,55 +764,69 @@ class PodcastDetailViewModel:
       try await repo.updateITunesID(savedSeries.podcast.id, iTunesID: iTunesID)
     }
 
-    transition(to: .saved(savedSeries))
+    try Task.checkCancellation()
 
-    Task { [weak self] in
-      guard let self else { return }
-      await refreshSeries()
-    }
+    transition(to: .saved(savedSeries))
 
     return true
   }
 
   private func startObservation(_ podcastID: Podcast.ID? = nil) {
-    guard let podcastID else { return }
-
-    if let observationTask, !observationTask.isCancelled {
-      Self.log.debug("Observation already active; not starting observation")
+    guard lifecycle.isOnScreen else {
+      Self.log.debug("startObservation: skipped off-screen")
       return
     }
 
-    observationTask = Task { [weak self] in
+    guard let podcastID else {
+      Self.log.debug("startObservation: skipped nil podcast")
+      return
+    }
+
+    let started = lifecycle.startObservation { [weak self] in
       guard let self else { return }
+      Self.log.debug("startObservation: task running for \(podcastID)")
       do {
         try await observePodcastSeries(podcastID)
       } catch {
-        Self.log.caughtError("startObservation: failed for podcast \(podcastID)", error)
+        Self.log.caughtError(
+          "startObservation: failed for podcast \(podcastID)",
+          error
+        )
       }
+    }
+
+    if started {
+      Self.log.debug("startObservation: creating task for \(podcastID)")
+    } else {
+      Self.log.debug("startObservation: already active for \(podcastID)")
     }
   }
 
   private func observePodcastSeries(_ podcastID: Podcast.ID) async throws {
-    Self.log.debug("Observing podcast series with ID: \(podcastID)")
+    let startedAt = ContinuousClock.now
+    Self.log.debug("observePodcastSeries: entering for \(podcastID)")
 
-    // Clear our reference on any natural exit (deletion, error, normal end).
-    // Skip when we were cancelled — disappear() or a re-binding
-    // startObservation() has already cleared/replaced observationTask, and
-    // stomping it would kill a newer task.
     defer {
-      if !Task.isCancelled {
-        observationTask = nil
-      }
+      let duration = ContinuousClock.now - startedAt
+      Self.log.debug("observePodcastSeries: exiting for \(podcastID), duration=\(duration)")
     }
 
     for try await updatedSeries in observatory.podcastSeriesDetail(podcastID) {
       try Task.checkCancellation()
+      guard lifecycle.isOnScreen else { return }
 
-      Self.log.debug("Updating observed series: \(String(describing: updatedSeries?.toString))")
+      Self.log.debug(
+        """
+        Updating observed series: \
+        series=\(String(describing: updatedSeries?.toString))
+        """
+      )
 
       guard let updatedSeries
       else {
+        try Task.checkCancellation()
         Self.log.debug("Podcast was deleted")
+        guard lifecycle.isOnScreen else { return }
         // Post-deletion strategy: re-parse the RSS feed so the UI can
         // recover to an unsaved snapshot. This diverges from
         // `EpisodeDetailViewModel`, which converts the cached
@@ -725,6 +841,7 @@ class PodcastDetailViewModel:
             "observePodcastSeries: failed to re-parse feed after podcast \(podcastID) was deleted",
             error
           )
+          guard lifecycle.isOnScreen, ErrorKit.isRemarkable(error) else { return }
           alert(Self.unavailableMessage)
         }
         return
@@ -740,23 +857,20 @@ class PodcastDetailViewModel:
     }
   }
 
-  // MARK: - Disappear
-
-  func disappear() {
-    Self.log.debug("disappear: executing")
-    clearObservationTask()
-    recommendationCoordinator.cancel()
-  }
-
   // MARK: - Private Helpers
 
   private func transition(to newState: PodcastDetailState) {
     guard newState != state else { return }
-    logStateTransition(to: newState)
+
+    Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
     state = newState
+    guard lifecycle.isOnScreen else { return }
     refreshEpisodeList(from: newState)
+    loadShareArtworkIfNeeded()
     startObservation(newState.savedSeries?.id)
-    recommendationCoordinator.refresh()
+    if currentSortMethod == .recommendationScore {
+      recommendationCoordinator.refresh()
+    }
   }
 
   private func refreshEpisodeList(from state: PodcastDetailState) {
@@ -766,6 +880,7 @@ class PodcastDetailViewModel:
       // populates `episodeList` once the saved series hydrates.
       return
     case .unsaved(let unsavedPodcast, let episodes):
+      Self.log.debug("refreshEpisodeList: setting unsaved entries count=\(episodes.count)")
       episodeList.allEntries = IdentifiedArray(
         uniqueElements: episodes.map { unsavedEpisode in
           ListedEpisode(
@@ -777,6 +892,7 @@ class PodcastDetailViewModel:
         }
       )
     case .saved(let series):
+      Self.log.debug("refreshEpisodeList: setting saved entries count=\(series.episodes.count)")
       episodeList.allEntries = IdentifiedArray(
         uniqueElements: series.episodes.map { listableEpisode in
           ListedEpisode(
@@ -798,11 +914,15 @@ class PodcastDetailViewModel:
   }
 
   private func loadPresentationFromFeed() async throws {
+    guard lifecycle.isOnScreen else { return }
     Self.log.debug("Now fetching and parsing feed for \(state.toString)")
     let feedURL = state.feedURL
     let iTunesID = state.iTunesID
     let podcastFeed = try await PodcastFeed.parse(feedURL)
+    try Task.checkCancellation()
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: iTunesID)
+    try Task.checkCancellation()
+    guard lifecycle.isOnScreen else { return }
     transition(
       to: .unsaved(
         unsavedPodcast,

@@ -25,7 +25,9 @@ struct SharedState: Sendable {
 
   @Broadcasted var downloadProgress: [Episode.ID: Double] = [:]
   @Broadcasted var scenePhase: ScenePhase = .active
-  // Only StateManager should write this.
+  // Only StateManager should write this. Use `.notifyAlways`, not `.equatable`:
+  // artwork loads as an artwork-only write that `==` can't detect, and the
+  // observation task's guarded no-op writes must still wake observers.
   @Broadcasted(duplicates: .notifyAlways) var onDeck: OnDeck? = nil
   @Broadcasted var playbackStatus: PlaybackStatus = .stopped
   @Broadcasted var playRate: Float = 1.0

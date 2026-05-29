@@ -105,6 +105,12 @@ where Item.ID: Sendable {
   private func scheduleEntriesUpdate() {
     entriesTask?.cancel()
 
+    guard !baselineEntries.isEmpty else {
+      _allEntries = []
+      filteredEntries = []
+      return
+    }
+
     entriesTask = Task { [weak self, baselineEntries, sortMethod, filterMethod, searchTerms] in
       let (allEntries, filteredEntries) = await Self.computeEntries(
         baselineEntries: baselineEntries,

@@ -113,6 +113,8 @@
 			membershipExceptions = (
 				Environment/AppIcon.swift,
 				Environment/AppInfo.swift,
+				Environment/ContinuousClockNow.swift,
+				Environment/DateProvider.swift,
 				Environment/UserDefaults.swift,
 				Errors/ErrorKit.swift,
 				Extensions/Array.swift,
@@ -130,6 +132,7 @@
 				Logging/LogKit.swift,
 				Logging/LogSubsystem.swift,
 				Play/Models/PlaybackStatus.swift,
+				Protocols/DateProviding.swift,
 				Protocols/DefaultsStorable.swift,
 				Protocols/FileManaging.swift,
 				Protocols/KeyValueStore.swift,

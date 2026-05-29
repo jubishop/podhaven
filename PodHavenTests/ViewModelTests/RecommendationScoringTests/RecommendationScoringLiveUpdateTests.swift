@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-// Regression tests for the recommendation-score fan-out OOM (issue #274).
+// Regression tests for the recommendation-score fan-out OOM.
 @Suite("of recommendation scoring live-update tests", .container)
 @MainActor final class RecommendationScoringLiveUpdateTests {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -47,7 +47,7 @@ import Testing
       .map(\.id)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
     try await Wait.until(
       priority: .userInitiated,
       { @MainActor in

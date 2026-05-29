@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import GRDB
 import Logging
@@ -33,20 +34,20 @@ final class WriteProbe: TransactionObserver, Sendable {
   // `enableWriteProbe` setting takes effect live. While off, the probe is
   // excluded from event tracking — `databaseDidChange` is never called — so
   // the accumulator stays empty and the commit/rollback callbacks no-op.
-  func observes(eventsOfKind _: DatabaseEventKind) -> Bool { enabled.current }
+  func observes(eventsOfKind _: DatabaseEventKind) -> Bool { enabled.value }
 
   func databaseDidChange(with event: DatabaseEvent) {
     let table = event.tableName
-    let now = ContinuousClock.now
+    let instant = Container.shared.continuousClockNow()()
     accumulator { state in
-      if state.rowEvents == 0 { state.transactionStart = now }
+      if state.rowEvents == 0 { state.transactionStart = instant }
       state.tables.insert(table)
       state.rowEvents += 1
     }
   }
 
   func databaseDidCommit(_: Database) {
-    let now = ContinuousClock.now
+    let instant = Container.shared.continuousClockNow()()
     let snapshot = accumulator {
       state -> (tables: [String], rowEvents: Int, duration: Duration, backtrace: Bool) in
       defer {
@@ -57,9 +58,9 @@ final class WriteProbe: TransactionObserver, Sendable {
       guard state.rowEvents > 0, let start = state.transactionStart else {
         return ([], 0, .zero, false)
       }
-      let backtrace = state.lastBacktrace.map { now - $0 >= Self.backtraceInterval } ?? true
-      if backtrace { state.lastBacktrace = now }
-      return (state.tables.sorted(), state.rowEvents, now - start, backtrace)
+      let backtrace = state.lastBacktrace.map { instant - $0 >= Self.backtraceInterval } ?? true
+      if backtrace { state.lastBacktrace = instant }
+      return (state.tables.sorted(), state.rowEvents, instant - start, backtrace)
     }
     guard snapshot.rowEvents > 0 else { return }
 

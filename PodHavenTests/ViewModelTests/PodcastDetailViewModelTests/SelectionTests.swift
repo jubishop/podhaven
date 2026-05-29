@@ -34,7 +34,7 @@ import Testing
     try await repo.addTag(cherry.id, to: secondEpisode.id)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in viewModel.episodeList.allEntries.count == 2 },
@@ -60,6 +60,7 @@ import Testing
     )
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
     _ = try await repo.insertTag(UnsavedTag(name: "Alpha"))
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in viewModel.episodeList.filteredEntries.count == 2 },
@@ -112,7 +113,7 @@ import Testing
     let oldest = savedSeries.episodes[2]
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
     viewModel.currentSortMethod = .oldestFirst
 
     try await Wait.until(
@@ -149,7 +150,7 @@ import Testing
     )
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in

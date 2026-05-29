@@ -9,7 +9,6 @@ extension Container {
   internal var appDB: Factory<AppDB> {
     Factory(self) { AppDB._onDisk }.scope(.cached)
   }
-
 }
 
 struct AppDB {

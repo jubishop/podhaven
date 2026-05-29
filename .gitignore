@@ -33,6 +33,9 @@ worktrees
 # BearClaude
 .specstory/
 
+# Antigravity CLI
+.antigravitycli/
+
 # Conductor
 .conductor/
 .todos/

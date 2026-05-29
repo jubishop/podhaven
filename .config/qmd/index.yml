@@ -2,6 +2,8 @@ collections:
   memory:
     path: ./memory
     pattern: '**/*.md'
+    ignore:
+      - 'archive/**'
   docs:
     path: ./docs
     pattern: '**/*.md'

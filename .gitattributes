@@ -1,0 +1,4 @@
+# Xcode owns this file and indents with tabs by design; exempt it from
+# core.whitespace=tab-in-indent so `git diff --check` doesn't flag every
+# project edit.
+*.pbxproj -whitespace

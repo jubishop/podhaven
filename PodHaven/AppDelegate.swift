@@ -25,6 +25,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     return true
   }
 
+  func applicationWillTerminate(_ application: UIApplication) {
+    FileLogHandler.flush()
+  }
+
   func application(
     _ application: UIApplication,
     handleEventsForBackgroundURLSession identifier: String,

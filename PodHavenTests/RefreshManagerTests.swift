@@ -830,7 +830,7 @@ actor RefreshManagerTests {
     finishSemaphore.signal()
     try await first.value
 
-    try fakeRepo.expectCalls(methodName: "updateSeriesFromFeed", count: 1)
+    _ = try fakeRepo.expectCalls(methodName: "updateSeriesFromFeed", count: 1)
   }
 
   @Test(
