@@ -514,15 +514,8 @@ class PodcastDetailViewModel:
   // (appeared) model runs.
   private init(state: PodcastDetailState) {
     self.state = state
-    if Self.shouldPopulateEpisodeListDuringInit(for: state) {
+    if case .saved(let series) = state, !series.episodes.isEmpty {
       refreshEpisodeList(from: state)
-    }
-  }
-
-  private static func shouldPopulateEpisodeListDuringInit(for state: PodcastDetailState) -> Bool {
-    switch state {
-    case .initial, .unsaved: return false
-    case .saved(let series): return !series.episodes.isEmpty
     }
   }
 
@@ -582,7 +575,13 @@ class PodcastDetailViewModel:
     try Task.checkCancellation()
 
     let observationAlreadyActive = lifecycle.observationTask?.isCancelled == false
-    if shouldSeedEpisodeListAtAppearStart(observationAlreadyActive: observationAlreadyActive) {
+    let stateHasSeedableEpisodes: Bool
+    switch state {
+    case .saved(let series): stateHasSeedableEpisodes = !series.episodes.isEmpty
+    case .unsaved: stateHasSeedableEpisodes = true
+    case .initial: stateHasSeedableEpisodes = false
+    }
+    if !observationAlreadyActive && stateHasSeedableEpisodes {
       refreshEpisodeList(from: state)
     }
     loadShareArtworkIfNeeded()
@@ -871,18 +870,6 @@ class PodcastDetailViewModel:
     startObservation(newState.savedSeries?.id)
     if currentSortMethod == .recommendationScore {
       recommendationCoordinator.refresh()
-    }
-  }
-
-  private func shouldSeedEpisodeListAtAppearStart(observationAlreadyActive: Bool) -> Bool {
-    guard !observationAlreadyActive else { return false }
-    switch state {
-    case .saved(let series) where series.episodes.isEmpty:
-      return false
-    case .initial:
-      return false
-    default:
-      return true
     }
   }
 
