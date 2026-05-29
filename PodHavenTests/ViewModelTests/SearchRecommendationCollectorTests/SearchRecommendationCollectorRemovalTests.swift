@@ -340,7 +340,7 @@ import Testing
       }
     )
 
-    let allRows = try await repo.allPodcasts(AppDB.NoOp)
+    let allRows = try await repo.allPodcasts(AppDB.noOp)
     let matchingITunes = allRows.filter { $0.iTunesID == iTunesID }
     #expect(
       matchingITunes.count == 1,
