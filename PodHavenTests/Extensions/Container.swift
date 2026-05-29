@@ -74,6 +74,8 @@ extension Container: @retroactive AutoRegistering {
     continuousClockNow.context(.test) { { self.fakeContinuousClock().now } }
       .scope(.cached)
 
+    dateProvider.context(.test) { self.fakeDate() }.scope(.cached)
+
     userNotificationCenter.context(.test) { FakeUserNotificationCenter() }.scope(.cached)
 
     fileManager.context(.test) { FakeFileManager() }.scope(.cached)
