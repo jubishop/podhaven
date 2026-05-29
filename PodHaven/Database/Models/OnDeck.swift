@@ -178,9 +178,10 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
 
   // MARK: - Hashable
 
-  // Mirrors `==`: the in-memory playback fields (currentTime, maxPlaybackTime,
-  // artwork) are excluded so equal rows still hash equally.
+  // Mirrors `==`: `currentTime` is folded in so an advancing now-playing row
+  // hashes differently, while `maxPlaybackTime` and `artwork` stay out.
   func hash(into hasher: inout Hasher) {
+    hasher.combine(currentTime)
     hasher.combine(id)
     hasher.combine(guid)
     hasher.combine(mediaURL)
@@ -204,15 +205,20 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
 
   // MARK: - Equatable
 
-  // Deliberately omits the in-memory playback fields (currentTime,
-  // maxPlaybackTime, artwork): equality is DB-row identity only. Any dedup
-  // over OnDeck — a Broadcast duplicate policy, a removeDuplicates() — must
-  // opt out, or it will swallow live playback updates.
+  // `currentTime` is part of equality so SwiftUI re-renders the now-playing
+  // row (progress + time-remaining) as playback advances. `maxPlaybackTime`
+  // and `artwork` stay out — no list row diffs on them, and the `onDeck`
+  // broadcast is `.notifyAlways` so those in-memory writes still reach the
+  // play bar. The on-deck observation drops `currentTime` from its tracked
+  // region (see `request(for:)`), so including it here can't wake that
+  // observation on per-checkpoint writes.
   //
-  // Split into two short-circuited guards — a single 19-clause `&&` chain
-  // tripped the Swift type-checker's complexity budget on CI cold builds.
+  // Split into two short-circuited guards — a single long `&&` chain tripped
+  // the Swift type-checker's complexity budget on CI cold builds. currentTime
+  // leads so the common "same row, time advanced" compare fails fast.
   static func == (lhs: OnDeck, rhs: OnDeck) -> Bool {
-    guard lhs.id == rhs.id,
+    guard lhs.currentTime == rhs.currentTime,
+      lhs.id == rhs.id,
       lhs.guid == rhs.guid,
       lhs.mediaURL == rhs.mediaURL,
       lhs.title == rhs.title,

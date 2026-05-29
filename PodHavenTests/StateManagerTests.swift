@@ -221,37 +221,6 @@ actor StateManagerTests {
     #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(120))
   }
 
-  // OnDeck's currentTime advances in memory every ~250ms during playback, but
-  // OnDeck.== ignores it (DB-identity equality), so SwiftUI's view-diff treats
-  // a row rebuilt from a fresh snapshot as unchanged and freezes the now-playing
-  // progress circle. currentTime(for:) hands the live position back for the
-  // on-deck episode so the row keeps advancing.
-  @Test("currentTime(for:) returns the live position for the on-deck episode")
-  func currentTimeForOnDeckReturnsLivePosition() async throws {
-    let podcastEpisode = try await fetchPodcastEpisode("episode1")
-    let snapshot = OnDeck(from: podcastEpisode)
-    sharedState.$onDeck.new(snapshot)
-
-    stateManager.setCurrentTime(CMTime.seconds(42))
-
-    // The snapshot a view captured still reads zero; the live position advanced.
-    #expect(snapshot.currentTime == .zero)
-    #expect(sharedState.currentTime(for: snapshot) == CMTime.seconds(42))
-  }
-
-  @Test("currentTime(for:) returns the row's own time for a non-on-deck episode")
-  func currentTimeForOtherEpisodeReturnsOwnTime() async throws {
-    let onDeckEpisode = try await fetchPodcastEpisode("episode1")
-    sharedState.$onDeck.new(OnDeck(from: onDeckEpisode))
-    stateManager.setCurrentTime(CMTime.seconds(42))
-
-    let otherEpisode = try await fetchPodcastEpisode("episode2")
-    var other = OnDeck(from: otherEpisode)
-    other.currentTime = CMTime.seconds(7)
-
-    #expect(sharedState.currentTime(for: other) == CMTime.seconds(7))
-  }
-
   @Test("setOnDeck preserves in-memory maxPlaybackTime across DB observation updates")
   func setOnDeckPreservesMaxPlaybackTime() async throws {
     let podcastEpisode = try await fetchPodcastEpisode("episode1")
@@ -274,10 +243,9 @@ actor StateManagerTests {
     #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(75))
   }
 
-  // OnDeck.== deliberately ignores the in-memory fields (currentTime,
-  // maxPlaybackTime, artwork), so a setCurrentTime write produces a value that
-  // is `==` the previous one. The onDeck broadcast must still notify observers,
-  // or the play bar's live clock freezes during playback.
+  // The onDeck broadcast is `.notifyAlways`, so every setCurrentTime write
+  // reaches stream observers and the play bar's live clock keeps advancing.
+  // (artwork/maxPlaybackTime, which OnDeck.== ignores, ride the same guarantee.)
   @Test("setCurrentTime notifies onDeck stream observers")
   func setCurrentTimeNotifiesOnDeckObservers() async throws {
     let podcastEpisode = try await fetchPodcastEpisode("episode1")
