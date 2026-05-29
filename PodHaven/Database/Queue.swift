@@ -234,12 +234,13 @@ struct Queue: Queueing {
     try _updateQueueDate(db, episodeIDs)
     try _dequeue(db, episodeIDs)
 
-    var queueOrderBump = Episode.Columns.queueOrder
-    queueOrderBump += episodeIDs.count
     try Episode
       .all()
       .queued()
-      .updateAll(db, queueOrderBump)
+      .updateAll(
+        db,
+        Episode.Columns.queueOrder.set(to: Episode.Columns.queueOrder + episodeIDs.count)
+      )
 
     for (index, id) in episodeIDs.enumerated() {
       try Episode
@@ -320,19 +321,15 @@ struct Queue: Queueing {
     )
 
     if newPosition > oldPosition {
-      var queueOrderShift = Episode.Columns.queueOrder
-      queueOrderShift -= 1
       try Episode.filter {
         $0.queueOrder > oldPosition && $0.queueOrder <= newPosition
       }
-      .updateAll(db, queueOrderShift)
+      .updateAll(db, Episode.Columns.queueOrder.set(to: Episode.Columns.queueOrder - 1))
     } else {
-      var queueOrderShift = Episode.Columns.queueOrder
-      queueOrderShift += 1
       try Episode.filter {
         $0.queueOrder >= newPosition && $0.queueOrder < oldPosition
       }
-      .updateAll(db, queueOrderShift)
+      .updateAll(db, Episode.Columns.queueOrder.set(to: Episode.Columns.queueOrder + 1))
     }
   }
 
