@@ -14,24 +14,21 @@ enum PodcastDetailTestHelpers {
   private static var observatory: any Observing { Container.shared.observatory() }
   private static var repo: any Databasing { Container.shared.repo() }
 
+  // Drives appear() and waits on the view-facing episode list: every caller
+  // seeds at least one episode, and `performAppear` is the only path that
+  // hydrates `episodeList`, so a non-empty list is the observable proof the
+  // pass ran.
   @MainActor
   static func appear(_ viewModel: PodcastDetailViewModel) async throws {
     viewModel.appear()
     try await Wait.until(
       { @MainActor in
-        guard viewModel.lifecycle.isOnScreen else { return false }
-        guard viewModel.lifecycle.appearTask == nil else { return false }
-        if viewModel.saved {
-          return true
-        }
-        return !viewModel.episodeList.allEntries.isEmpty || viewModel.podcast.loaded != nil
+        viewModel.lifecycle.isOnScreen && !viewModel.episodeList.allEntries.isEmpty
       },
       { @MainActor in
         """
-        Expected appear to finish with a hydrated projection.
+        Expected appear to hydrate the episode list.
         isOnScreen: \(viewModel.lifecycle.isOnScreen)
-        appearTask: \(String(describing: viewModel.lifecycle.appearTask))
-        saved: \(viewModel.saved)
         entries: \(viewModel.episodeList.allEntries.count)
         podcast: \(viewModel.podcast.toString)
         """

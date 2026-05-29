@@ -15,6 +15,25 @@ import Testing
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
+  private var fakeObservatory: FakeObservatory {
+    observatory as! FakeObservatory
+  }
+
+  // For appear branches whose only correct outcome is "nothing changed"
+  // (an unsaved seed staying unsaved), drive performAppear to completion so
+  // a regression that dismissed or fabricated state would surface.
+  private func yieldForSpuriousAsyncWork() async throws {
+    let yields = ThreadSafe(0)
+    try await Wait.until(
+      { @MainActor in
+        await Task.yield()
+        yields { $0 += 1 }
+        return yields() >= 20
+      },
+      { "Expected performAppear to run before asserting it left state intact." }
+    )
+  }
+
   @Test("performAppear loads a saved episode and observes finish updates")
   func performAppearLoadsSavedEpisodeAndObservesFinishUpdates() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
@@ -31,10 +50,19 @@ import Testing
       episode: DisplayedEpisode(try podcastEpisode.toOriginalUnsavedPodcastEpisode())
     )
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
+    try await Wait.until(
+      { @MainActor in viewModel.episode.episodeID == podcastEpisode.id },
+      { @MainActor in
+        """
+        Expected performAppear to hydrate the saved episode.
+        episodeID: \(String(describing: viewModel.episode.episodeID))
+        episode: \(viewModel.episode.toString)
+        """
+      }
+    )
     #expect(viewModel.episode.isSaved)
-    #expect(viewModel.episode.episodeID == podcastEpisode.id)
 
     _ = try await repo.markFinished(podcastEpisode.id)
 
@@ -77,9 +105,18 @@ import Testing
         == ShareURL.episode(feedURL: podcastEpisode.feedURL, guid: podcastEpisode.mediaGUID.guid)
     )
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
-    #expect(viewModel.episode.episodeID == podcastEpisode.id)
+    try await Wait.until(
+      { @MainActor in viewModel.episode.episodeID == podcastEpisode.id },
+      { @MainActor in
+        """
+        Expected performAppear to hydrate the listed episode.
+        episodeID: \(String(describing: viewModel.episode.episodeID))
+        episode: \(viewModel.episode.toString)
+        """
+      }
+    )
   }
 
   @Test("missing saved listed episodes alert and dismiss instead of fabricating unsaved detail")
@@ -108,9 +145,18 @@ import Testing
 
     let viewModel = EpisodeDetailViewModel(listedEpisode: listed)
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
-    #expect(alert.config != nil)
+    try await Wait.until(
+      { @MainActor in self.alert.config != nil },
+      { @MainActor in
+        """
+        Expected a missing saved listed episode to alert and dismiss.
+        alert: \(String(describing: self.alert.config))
+        path: \(self.navigation.episodes.path)
+        """
+      }
+    )
     #expect(navigation.episodes.path == [.episodesViewType(.recentEpisodes)])
   }
 
@@ -127,7 +173,8 @@ import Testing
     let listed = ListedEpisode(unsavedPodcastEpisode)
     let viewModel = EpisodeDetailViewModel(listedEpisode: listed)
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
+    try await yieldForSpuriousAsyncWork()
 
     #expect(viewModel.episode.isSaved == false)
     #expect(viewModel.episode.title == unsavedPodcastEpisode.title)
@@ -147,7 +194,8 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
+    try await yieldForSpuriousAsyncWork()
 
     #expect(viewModel.episode.isSaved == false)
     #expect(viewModel.episode.title == unsavedPodcastEpisode.title)
@@ -168,7 +216,22 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
+
+    // Observation must be live before the delete, or performAppear's own
+    // lookup races the deletion and dismisses instead of reverting.
+    try await Wait.until(
+      { @MainActor in
+        self.fakeObservatory.allCallsInOrder.contains { $0.methodName == "podcastEpisodeWithTags" }
+      },
+      { @MainActor in
+        """
+        Expected appear to start observing the saved episode before deletion.
+        calls: \(self.fakeObservatory.allCallsInOrder.map(\.toString))
+        """
+      }
+    )
+
     _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
 
     try await Wait.until(

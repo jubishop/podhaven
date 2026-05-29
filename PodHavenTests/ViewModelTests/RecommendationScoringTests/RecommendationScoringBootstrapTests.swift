@@ -233,7 +233,7 @@ import Testing
     let podcastEpisode = try #require(try await repo.podcastEpisode(targetEpisodeID))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,

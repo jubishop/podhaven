@@ -1,10 +1,16 @@
 ---
 name: podcast-detail-observation-storm
-description: PodcastDetail memory warning / foreground watchdog kill. The build-507 incident (podhaven:7509841267) and its build-506 predecessors were conclusively constructor / lifecycle churn — SwiftUI re-evaluated the PodcastDetail destination thousands of times during a single Up Next → Podcasts navigation, and `PodcastDetailViewModel.init(state:)` started an observation task and an artwork Task for every transient instance. Behavior fix shipped in #357 by moving observation startup and share-artwork loading to `performAppear`. Existing diagnostics plus PR #359 remain in place.
+description: PodcastDetail memory warning / foreground watchdog kill. The build-507 incident (podhaven:7509841267) and its build-506 predecessors were conclusively constructor / lifecycle churn — SwiftUI re-evaluated the PodcastDetail destination thousands of times during a single Up Next → Podcasts navigation, and `PodcastDetailViewModel.init(state:)` started an observation task and an artwork Task for every transient instance. Behavior fix shipped (issue #357) by moving observation startup and share-artwork loading to `performAppear`. The verbose per-VM diagnostics were removed when the fix landed; PR #359's generic FileLogHandler storm warning is the complementary log-side backstop.
 type: project
 ---
 
 # PodcastDetail observation storm / lifecycle churn
+
+**Archived 2026-05-29**: resolved and closed out. The behavior fix (#357)
+shipped and the follow-up that extracted the shared appear/observation
+lifecycle into `DetailLifecycle` (and made the detail view models'
+`init`/`appear`/`disappear` uniformly side-effect-free) landed on top of it.
+Kept for historical reference; no active workstream remains.
 
 **Status as of 2026-05-27**: cause established and fix shipped. The
 2026-05-27 build-507 feedback `podhaven:7509841267` ("App just crashed after

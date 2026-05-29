@@ -13,6 +13,10 @@ import Testing
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
+  private var fakeObservatory: FakeObservatory {
+    observatory as! FakeObservatory
+  }
+
   @Test("tag observation rebinds after saved episode is deleted and re-saved")
   func tagObservationRebindsAfterDeleteAndResave() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
@@ -27,7 +31,22 @@ import Testing
     let tag = try await repo.insertTag(UnsavedTag(name: "Recovered"))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
+
+    // Observation must be live before the delete, or performAppear's own
+    // lookup races the deletion and dismisses instead of reverting.
+    try await Wait.until(
+      { @MainActor in
+        self.fakeObservatory.allCallsInOrder.contains { $0.methodName == "podcastEpisodeWithTags" }
+      },
+      { @MainActor in
+        """
+        Expected appear to start observing the saved episode before deletion.
+        calls: \(self.fakeObservatory.allCallsInOrder.map(\.toString))
+        """
+      }
+    )
+
     _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
 
     try await Wait.until(
@@ -75,7 +94,6 @@ import Testing
     let tag = try await repo.insertTag(UnsavedTag(name: "Recovered"))
     try await repo.addTag(tag.id, to: podcastEpisode.id)
 
-    let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.db
     fakeObservatory.podcastEpisodeWithTagsScript([
       { _ in
@@ -96,7 +114,7 @@ import Testing
     // restart subscribes to the real observatory and surfaces the tag.
     // Without the fix, observationTask permanently retains the dead task
     // and every subsequent startObservation() returns early.
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     // Raise priority above the default `.background` so the unstructured
     // `Task {}` that `startObservation()` spawns from inside this poll
@@ -131,7 +149,7 @@ import Testing
     let tag = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     viewModel.addTag(tag.id)
 

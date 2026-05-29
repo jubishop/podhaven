@@ -135,9 +135,21 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     fakeObservatory.clearAllCalls()
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
-    _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 1)
+    try await Wait.until(
+      { @MainActor in
+        self.fakeObservatory.allCallsInOrder
+          .filter { $0.methodName == "podcastEpisodeWithTags" }
+          .count == 1
+      },
+      { @MainActor in
+        """
+        Expected appear to start observation exactly once.
+        calls: \(self.fakeObservatory.allCallsInOrder.map(\.toString))
+        """
+      }
+    )
 
     viewModel.appear()
     try await yieldForSpuriousAsyncWork()
@@ -155,7 +167,19 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        self.fakeObservatory.allCallsInOrder.contains { $0.methodName == "podcastEpisodeWithTags" }
+      },
+      { @MainActor in
+        """
+        Expected appear to start observation before disappearing.
+        calls: \(self.fakeObservatory.allCallsInOrder.map(\.toString))
+        """
+      }
+    )
 
     fakeObservatory.clearAllCalls()
     viewModel.disappear()
@@ -217,7 +241,7 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     viewModel.disappear()
     #expect(viewModel.lifecycle.isOnScreen == false)
@@ -249,7 +273,19 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
     let tag = try await repo.insertTag(UnsavedTag(name: "After Disappear"))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        self.fakeObservatory.allCallsInOrder.contains { $0.methodName == "podcastEpisodeWithTags" }
+      },
+      { @MainActor in
+        """
+        Expected appear to start observation before disappearing.
+        calls: \(self.fakeObservatory.allCallsInOrder.map(\.toString))
+        """
+      }
+    )
 
     viewModel.disappear()
 

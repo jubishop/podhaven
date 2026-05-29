@@ -47,7 +47,7 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
     viewModel.markFinished()
 
     try await Wait.until(

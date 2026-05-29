@@ -33,7 +33,7 @@ import Testing
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await Wait.until(
       { @MainActor in
@@ -95,7 +95,7 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await Wait.until(
       { @MainActor in
@@ -134,7 +134,7 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await Wait.until(
       { @MainActor in
@@ -177,7 +177,7 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await Wait.until(
       { probe.vectorRequestCount() > 0 },
@@ -213,7 +213,7 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await Wait.until(
       { probe.loadAssetsIfAvailableCount() > 0 },
@@ -272,7 +272,7 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
     try await RecommendationScoringTestHelpers.settleRecommendationEngine()
 
     // Precondition: the bootstrap pass ran but couldn't produce a score
@@ -285,7 +285,7 @@ import Testing
     // A later appear must re-score rather than re-applying the cached
     // no-score result — the prior nil was uncacheable, not the real score.
     viewModel.disappear()
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await Wait.until(
       priority: .userInitiated,
@@ -332,7 +332,7 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
     try await RecommendationScoringTestHelpers.settleRecommendationEngine()
 
     // Precondition: the bootstrap pass ran but couldn't produce a score
@@ -385,7 +385,8 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(ratedUnsaved))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
 
     #expect(viewModel.displayedScore == nil)
   }
@@ -410,7 +411,8 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(finishedUnsaved))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
 
     #expect(viewModel.displayedScore == nil)
   }
@@ -434,7 +436,7 @@ import Testing
     )
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
 
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await Wait.until(
       { @MainActor in
@@ -499,7 +501,7 @@ import Testing
     fakeRepo.pendingEpisodeFetchSuspend(true)
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
 

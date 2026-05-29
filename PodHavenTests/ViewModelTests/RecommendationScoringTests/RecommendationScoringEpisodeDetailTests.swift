@@ -41,7 +41,7 @@ import Testing
     fakeRepo.armEmbeddingsGate(matching: targetIDs)
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     // The bootstrap scoring pass suspends on the gated embeddings call.
     try await RecommendationHelpers.untilAdvancing(
@@ -110,7 +110,7 @@ import Testing
     fakeRepo.armEmbeddingsGate(matching: Set([targetID]))
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,
@@ -202,7 +202,7 @@ import Testing
     fakeRepo.embeddingFetchError { $0 = TestError.simulatedFailure }
 
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     // First appear: the saved-side pass hits the armed error. Wait until the
     // one-shot has been consumed so we know the pass actually ran (rather than
@@ -219,7 +219,7 @@ import Testing
     // A coordinator that cached the error-produced nil will replay it; a
     // coordinator that didn't cache will re-attempt and land .recommendation.
     viewModel.disappear()
-    try await EpisodeDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
 
     try await Wait.until(
       priority: .userInitiated,

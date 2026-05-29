@@ -362,31 +362,18 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return
     }
 
-    if let observationTask = lifecycle.observationTask, !observationTask.isCancelled {
-      Self.log.debug("Observation already active; not starting observation")
-      return
-    }
-
-    lifecycle.observationTask?.cancel()
-
-    lifecycle.observationTask = Task { [weak self] in
+    let started = lifecycle.startObservation { [weak self] in
       guard let self else { return }
       await observePodcastEpisode(podcastEpisode)
+    }
+
+    if !started {
+      Self.log.debug("Observation already active; not starting observation")
     }
   }
 
   private func observePodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
     Self.log.debug("Starting observation for episode: \(podcastEpisode.toString)")
-
-    // Clear our reference on any natural exit (deletion, error, normal end).
-    // Skip when we were cancelled — disappear() or a re-binding
-    // startObservation() has already cleared/replaced observationTask, and
-    // stomping it would kill a newer task.
-    defer {
-      if !Task.isCancelled {
-        lifecycle.observationTask = nil
-      }
-    }
 
     do {
       for try await updated in observatory.podcastEpisodeWithTags(podcastEpisode.id) {

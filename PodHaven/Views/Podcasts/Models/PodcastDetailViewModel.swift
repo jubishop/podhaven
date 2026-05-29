@@ -782,15 +782,7 @@ class PodcastDetailViewModel:
       return
     }
 
-    if let observationTask = lifecycle.observationTask, !observationTask.isCancelled {
-      Self.log.debug("startObservation: already active for \(podcastID)")
-      return
-    }
-
-    lifecycle.observationTask?.cancel()
-
-    Self.log.debug("startObservation: creating task for \(podcastID)")
-    lifecycle.observationTask = Task { [weak self] in
+    let started = lifecycle.startObservation { [weak self] in
       guard let self else { return }
       Self.log.debug("startObservation: task running for \(podcastID)")
       do {
@@ -802,22 +794,21 @@ class PodcastDetailViewModel:
         )
       }
     }
+
+    if started {
+      Self.log.debug("startObservation: creating task for \(podcastID)")
+    } else {
+      Self.log.debug("startObservation: already active for \(podcastID)")
+    }
   }
 
   private func observePodcastSeries(_ podcastID: Podcast.ID) async throws {
     let startedAt = ContinuousClock.now
     Self.log.debug("observePodcastSeries: entering for \(podcastID)")
 
-    // Clear our reference on any natural exit (deletion, error, normal end).
-    // Skip when we were cancelled — disappear() or a re-binding
-    // startObservation() has already cleared/replaced observationTask, and
-    // stomping it would kill a newer task.
     defer {
       let duration = ContinuousClock.now - startedAt
       Self.log.debug("observePodcastSeries: exiting for \(podcastID), duration=\(duration)")
-      if !Task.isCancelled {
-        lifecycle.observationTask = nil
-      }
     }
 
     for try await updatedSeries in observatory.podcastSeriesDetail(podcastID) {
