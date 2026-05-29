@@ -46,3 +46,7 @@ For `feedback` and `project`, lead with the rule/fact, then:
 ```
 
 Use `[[page-name]]` to cross-link pages.
+
+## Archive
+
+When a note is no longer relevant for day-to-day lookup — resolved incidents, superseded guidance, outdated context — move it to `memory/archive/`. Archived notes stay in git for history but are excluded from `qmd` indexing so stale pages do not compete with live notes in search.

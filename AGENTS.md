@@ -2,6 +2,7 @@
 Repo context lives in `memory/`, `docs/`, and GitHub issues:
 
 - `memory/`: long-lived notes; search before writing and update existing notes when possible.
+  - Move notes that are no longer relevant to active work into `memory/archive/` (excluded from `qmd` search).
 - `docs/`: PR-reviewed design docs; update `docs/README.md` when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
