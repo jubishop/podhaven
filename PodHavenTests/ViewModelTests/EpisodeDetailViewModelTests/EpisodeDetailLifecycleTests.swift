@@ -168,8 +168,8 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 0)
   }
 
-  @Test("playNow without appear does not start observation")
-  func playNowWithoutAppearDoesNotStartObservation() async throws {
+  @Test("playNow without appear completes the action without starting observation")
+  func playNowWithoutAppearCompletesWithoutStartingObservation() async throws {
     let unsavedPodcastEpisode = UnsavedPodcastEpisode(
       unsavedPodcast: try Create.unsavedPodcast(title: "Offscreen Play"),
       unsavedEpisode: try Create.unsavedEpisode(
@@ -184,20 +184,28 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     viewModel.playNow()
 
-    try await yieldForSpuriousAsyncWork()
+    try await Wait.until(
+      { @MainActor in
+        guard viewModel.episode.isSaved, let episodeID = viewModel.episode.episodeID else {
+          return false
+        }
+        return self.sharedState.currentEpisodeID == episodeID
+      },
+      { @MainActor in
+        """
+        Expected off-screen playNow to save and load the episode.
+        saved: \(viewModel.episode.isSaved)
+        episodeID: \(String(describing: viewModel.episode.episodeID))
+        currentEpisodeID: \(String(describing: self.sharedState.currentEpisodeID))
+        """
+      }
+    )
 
     _ = try fakeObservatory.expectCalls(methodName: "podcastEpisodeWithTags", count: 0)
-    guard case .unsaved = viewModel.state else {
-      Issue.record(
-        "Expected off-screen playNow to leave state unsaved; got \(viewModel.state.toString)"
-      )
-      return
-    }
-    #expect(sharedState.currentEpisodeID == nil)
   }
 
-  @Test("playNow after disappear does not load playback")
-  func playNowAfterDisappearDoesNotLoadPlayback() async throws {
+  @Test("playNow after disappear loads playback")
+  func playNowAfterDisappearLoadsPlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: try Create.unsavedPodcast(title: "Disappear Playback"),
@@ -216,9 +224,15 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     viewModel.playNow()
 
-    try await yieldForSpuriousAsyncWork()
-
-    #expect(sharedState.currentEpisodeID != podcastEpisode.id)
+    try await Wait.until(
+      { @MainActor in self.sharedState.currentEpisodeID == podcastEpisode.id },
+      { @MainActor in
+        """
+        Expected off-screen playNow to load playback.
+        currentEpisodeID: \(String(describing: self.sharedState.currentEpisodeID))
+        """
+      }
+    )
   }
 
   @Test("disappear cancels observation after appear")

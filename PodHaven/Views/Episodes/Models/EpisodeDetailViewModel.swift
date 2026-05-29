@@ -218,7 +218,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   func playNow() {
     runTask("playNow: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await playManager.load(podcastEpisode)
       await playManager.play()
@@ -232,7 +232,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
 
     runTask("playAt: \(state.toString) at timestamp \(timestamp)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await loadAndPlay(podcastEpisode, seekTo: seconds)
     }
@@ -251,7 +251,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     guard !atTopOfQueue else { return }
 
     runTask("addToTopOfQueue: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await queue.unshift(podcastEpisode.episode.id)
     }
@@ -261,7 +261,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     guard !atBottomOfQueue else { return }
 
     runTask("appendToQueue: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await queue.append(podcastEpisode.episode.id)
     }
@@ -271,7 +271,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     guard episode.queued else { return }
 
     runTask("removeFromQueue: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await queue.dequeue(podcastEpisode.episode.id)
     }
@@ -279,7 +279,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   func cacheEpisode() {
     runTask("cacheEpisode: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await cacheManager.downloadToCache(for: podcastEpisode.id)
     }
@@ -289,7 +289,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     guard canClearCache else { return }
 
     runTask("uncacheEpisode: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
       try await cacheManager.clearCache(for: podcastEpisode.id)
@@ -298,7 +298,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   func saveEpisodeInCache() {
     runTask("saveEpisodeInCache: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
       try await cacheManager.downloadToCache(for: podcastEpisode.id)
@@ -309,7 +309,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     guard !episode.finished else { return }
 
     runTask("markFinished: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.markFinished(podcastEpisode.id)
     }
@@ -319,7 +319,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     guard episode.rating != rating else { return }
 
     runTask("rate: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.updateRating(podcastEpisode.id, rating: rating)
     }
@@ -327,7 +327,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   func showPodcast() {
     runTask("showPodcast: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       navigation.showPodcast(podcastEpisode.podcast)
     }
@@ -586,7 +586,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   private func loadAndPlay(_ podcastEpisode: PodcastEpisode, seekTo seconds: Int) async throws {
-    guard isOnScreen else { return }
     try await playManager.load(podcastEpisode)
     await playManager.seek(to: CMTime.seconds(Double(seconds)))
     await playManager.play()

@@ -763,8 +763,8 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     #expect(requestsAfterReappear >= requestsBeforeDelete + 1)
   }
 
-  @Test("delete after disappear does not remove the podcast from the repo")
-  func deleteAfterDisappearDoesNotRemovePodcast() async throws {
+  @Test("delete after disappear removes the podcast from the repo")
+  func deleteAfterDisappearRemovesPodcast() async throws {
     let savedSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(title: "Delete Offscreen"),
@@ -776,14 +776,18 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     viewModel.disappear()
     viewModel.delete()
-    try await yieldForSpuriousAsyncWork()
 
-    let series = try await repo.podcastSeries(savedSeries.id)
-    #expect(series != nil)
+    try await Wait.until(
+      { @MainActor in
+        let series = try await self.repo.podcastSeries(savedSeries.id)
+        return series == nil
+      },
+      { @MainActor in "Expected off-screen delete to remove the podcast." }
+    )
   }
 
-  @Test("updateSettings after disappear does not persist off-screen")
-  func updateSettingsAfterDisappearDoesNotPersist() async throws {
+  @Test("updateSettings after disappear persists off-screen")
+  func updateSettingsAfterDisappearPersists() async throws {
     let savedSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(title: "Settings Offscreen"),
@@ -797,9 +801,19 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     var newSettings = viewModel.settings ?? .defaults
     newSettings.notifyNewEpisodes = true
     viewModel.updateSettings(newSettings)
-    try await yieldForSpuriousAsyncWork()
 
-    let series = try await repo.podcastSeries(savedSeries.id)
-    #expect(series?.podcast.notifyNewEpisodes == false)
+    try await Wait.until(
+      { @MainActor in
+        let series = try await self.repo.podcastSeries(savedSeries.id)
+        return series?.podcast.notifyNewEpisodes == true
+      },
+      { @MainActor in
+        let series = try await self.repo.podcastSeries(savedSeries.id)
+        return """
+          Expected off-screen updateSettings to persist.
+          notifyNewEpisodes: \(series?.podcast.notifyNewEpisodes ?? false)
+          """
+      }
+    )
   }
 }

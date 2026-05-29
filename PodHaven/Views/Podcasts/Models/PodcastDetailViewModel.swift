@@ -436,7 +436,7 @@ class PodcastDetailViewModel:
     let previouslyNotifying = settings?.notifyNewEpisodes ?? false
 
     runTask("updateSettings: podcast \(podcastID)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       try await repo.updatePodcastSettings(podcastID, newSettings)
       if newSettings.notifyNewEpisodes, !previouslyNotifying {
         await userNotificationManager.requestAuthorizationIfNeeded()
@@ -702,7 +702,7 @@ class PodcastDetailViewModel:
 
   func delete() {
     runTask("delete: \(state.toString)") { [weak self] in
-      guard let self, isOnScreen else { return }
+      guard let self else { return }
       guard let podcastID = try await ensureObservedSeries()
       else {
         Self.log.warning("Trying to delete a non-saved podcast")
