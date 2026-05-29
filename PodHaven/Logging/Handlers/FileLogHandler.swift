@@ -264,7 +264,10 @@ struct FileLogHandler: LogHandler {
         cutOffset = newlineOffset
       } else {
         Self.writerOSLog.warning(
-          "Log truncation found no newline boundary; forcing cut at byte offset \(bytesToRemove, privacy: .public)"
+          """
+          Log truncation: no newline boundary; forcing cut at byte \
+          offset \(bytesToRemove, privacy: .public)
+          """
         )
         cutOffset = UInt64(bytesToRemove)
       }

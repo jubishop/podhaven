@@ -47,7 +47,10 @@ class SearchViewModel:
           } catch {
             Self.log
               .caughtError(
-                "forEachSelectedPodcast: failed to get/create podcast \(selectedPodcastWithMetadata.podcast.title)",
+                """
+                forEachSelectedPodcast: get/create failed \
+                \(selectedPodcastWithMetadata.podcast.title)
+                """,
                 error
               )
             return nil

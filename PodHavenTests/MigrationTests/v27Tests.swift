@@ -17,9 +17,9 @@ class V27MigrationTests {
 
   @Test("v27 migration adds tag and podcastTag tables with indexes and constraints")
   func testV27Migration() async throws {
-    try migrator.migrate(appDB.db, upTo: "v26")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v26")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let tableNames = Set(
         try String.fetchAll(
           db,
@@ -30,9 +30,9 @@ class V27MigrationTests {
       #expect(!tableNames.contains("podcastTag"))
     }
 
-    try migrator.migrate(appDB.db, upTo: "v27")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v27")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let tableNames = Set(
         try String.fetchAll(
           db,
@@ -59,7 +59,7 @@ class V27MigrationTests {
       #expect(indexNames.contains("podcastTag_on_tagId"))
     }
 
-    let (podcastID, tagID) = try await appDB.db.write { db in
+    let (podcastID, tagID) = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -87,7 +87,7 @@ class V27MigrationTests {
     }
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO tag (name)
@@ -98,12 +98,12 @@ class V27MigrationTests {
       }
     }
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let tagCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM tag")
       #expect(tagCount == 1)
     }
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcastTag (podcastId, tagId)
@@ -114,7 +114,7 @@ class V27MigrationTests {
     }
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO podcastTag (podcastId, tagId)
@@ -125,7 +125,7 @@ class V27MigrationTests {
       }
     }
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let mappingCount = try Int.fetchOne(
         db,
         sql: """
@@ -138,14 +138,14 @@ class V27MigrationTests {
       #expect(mappingCount == 1)
     }
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "DELETE FROM tag WHERE id = ?",
         arguments: [tagID]
       )
     }
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let remainingMappings = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM podcastTag")
       #expect(remainingMappings == 0)
     }

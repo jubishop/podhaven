@@ -9,8 +9,6 @@ import Logging
 import Tagged
 
 extension Container {
-  internal func makeQueue() -> Queue { Queue(self.appDB()) }
-
   var queue: Factory<any Queueing> {
     Factory(self) { self.makeQueue() }.scope(.cached)
   }
@@ -21,16 +19,18 @@ struct Queue: Queueing {
 
   // MARK: - Initialization
 
-  private let appDB: AppDB
-  fileprivate init(_ appDB: AppDB) {
-    self.appDB = appDB
+  private let reader: AppDB.Reader
+  private let writer: AppDB.Writer
+  init(reader: AppDB.Reader, writer: AppDB.Writer) {
+    self.reader = reader
+    self.writer = writer
   }
 
   // MARK: - Public Functions / Getters
 
   var nextEpisode: PodcastEpisode? {
     get async throws {
-      try await appDB.db.read { db in
+      try await reader.read { db in
         try Episode
           .filter { $0.queueOrder == 0 }
           .including(required: Episode.podcast)
@@ -41,13 +41,13 @@ struct Queue: Queueing {
   }
 
   func clear() async throws {
-    try await appDB.db.write { db in
+    try await writer.write { db in
       try _clear(db)
     }
   }
 
   func replace(_ episodeIDs: [Episode.ID]) async throws {
-    try await appDB.db.write { db in
+    try await writer.write { db in
       try _clear(db)
 
       // _clear nulled queueOrder for every row, so every id here looks newly queued.
@@ -64,7 +64,7 @@ struct Queue: Queueing {
   }
 
   func dequeue(_ episodeIDs: [Episode.ID]) async throws {
-    try await appDB.db.write { db in
+    try await writer.write { db in
       try dequeue(db, episodeIDs)
     }
   }
@@ -76,7 +76,7 @@ struct Queue: Queueing {
   func insert(_ episodeID: Episode.ID, at newPosition: Int) async throws {
     Self.log.debug("queue: inserting \(episodeID) at position \(newPosition)")
 
-    try await appDB.db.write { db in
+    try await writer.write { db in
       // IMPORTANT: Update queueDate BEFORE inserting.
       try _updateQueueDate(db, [episodeID])
 
@@ -89,14 +89,9 @@ struct Queue: Queueing {
   }
 
   func unshift(_ episodeIDs: [Episode.ID]) async throws {
-    let writeStart = Date()
-    Self.log.debug("queue: unshift write requested \(episodeIDs)")
-    try await appDB.db.write { db in
+    try await writer.write { db in
       try unshift(db, episodeIDs)
     }
-    Self.log.debug(
-      "queue: unshift write completed in \(Date().timeIntervalSince(writeStart)) seconds"
-    )
   }
 
   func unshift(_ episodeID: Episode.ID) async throws {
@@ -108,7 +103,7 @@ struct Queue: Queueing {
   }
 
   func append(_ episodeIDs: [Episode.ID]) async throws {
-    try await appDB.db.write { db in
+    try await writer.write { db in
       try append(db, episodeIDs)
     }
   }
@@ -122,7 +117,7 @@ struct Queue: Queueing {
 
     guard episodeIDs.count > 1 else { return }
 
-    try await appDB.db.write { db in
+    try await writer.write { db in
       let maxQueueOrder =
         try Episode
         .select(max(Episode.Columns.queueOrder), as: Int.self)
@@ -147,7 +142,7 @@ struct Queue: Queueing {
   }
 
   func enforceMaxQueueLength() async throws {
-    try await appDB.db.write { db in
+    try await writer.write { db in
       try _enforceMaxQueueLength(db)
     }
   }
@@ -239,10 +234,12 @@ struct Queue: Queueing {
     try _updateQueueDate(db, episodeIDs)
     try _dequeue(db, episodeIDs)
 
+    var queueOrderBump = Episode.Columns.queueOrder
+    queueOrderBump += episodeIDs.count
     try Episode
       .all()
       .queued()
-      .updateAll(db, Episode.Columns.queueOrder += episodeIDs.count)
+      .updateAll(db, queueOrderBump)
 
     for (index, id) in episodeIDs.enumerated() {
       try Episode
@@ -323,15 +320,19 @@ struct Queue: Queueing {
     )
 
     if newPosition > oldPosition {
+      var queueOrderShift = Episode.Columns.queueOrder
+      queueOrderShift -= 1
       try Episode.filter {
         $0.queueOrder > oldPosition && $0.queueOrder <= newPosition
       }
-      .updateAll(db, Episode.Columns.queueOrder -= 1)
+      .updateAll(db, queueOrderShift)
     } else {
+      var queueOrderShift = Episode.Columns.queueOrder
+      queueOrderShift += 1
       try Episode.filter {
         $0.queueOrder >= newPosition && $0.queueOrder < oldPosition
       }
-      .updateAll(db, Episode.Columns.queueOrder += 1)
+      .updateAll(db, queueOrderShift)
     }
   }
 

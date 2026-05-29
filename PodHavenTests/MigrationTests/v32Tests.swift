@@ -74,16 +74,16 @@ class V32MigrationTests {
 
   @Test("trims episodes beyond position 100")
   func testTrimsBeyond100() async throws {
-    try migrator.migrate(appDB.db, upTo: "v31")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v31")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       let podcastID = try V32MigrationTests.insertPodcast(db)
       try V32MigrationTests.insertEpisodes(db, podcastID: podcastID, queuedCount: 120)
     }
 
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let queuedCount = try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episode WHERE queueOrder IS NOT NULL"
@@ -106,16 +106,16 @@ class V32MigrationTests {
 
   @Test("does not trim when queue has exactly 100 episodes")
   func testExactly100() async throws {
-    try migrator.migrate(appDB.db, upTo: "v31")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v31")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       let podcastID = try V32MigrationTests.insertPodcast(db)
       try V32MigrationTests.insertEpisodes(db, podcastID: podcastID, queuedCount: 100)
     }
 
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let queuedCount = try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episode WHERE queueOrder IS NOT NULL"
@@ -132,16 +132,16 @@ class V32MigrationTests {
 
   @Test("does not trim when queue is under 100 episodes")
   func testUnder100() async throws {
-    try migrator.migrate(appDB.db, upTo: "v31")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v31")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       let podcastID = try V32MigrationTests.insertPodcast(db)
       try V32MigrationTests.insertEpisodes(db, podcastID: podcastID, queuedCount: 50)
     }
 
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let queuedCount = try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episode WHERE queueOrder IS NOT NULL"
@@ -152,9 +152,9 @@ class V32MigrationTests {
 
   @Test("does not affect unqueued episodes")
   func testUnqueuedUntouched() async throws {
-    try migrator.migrate(appDB.db, upTo: "v31")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v31")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       let podcastID = try V32MigrationTests.insertPodcast(db)
       try V32MigrationTests.insertEpisodes(
         db,
@@ -164,9 +164,9 @@ class V32MigrationTests {
       )
     }
 
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let queuedCount = try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episode WHERE queueOrder IS NOT NULL"
@@ -184,9 +184,9 @@ class V32MigrationTests {
 
   @Test("handles empty queue")
   func testEmptyQueue() async throws {
-    try migrator.migrate(appDB.db, upTo: "v31")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v31")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       let podcastID = try V32MigrationTests.insertPodcast(db)
       try V32MigrationTests.insertEpisodes(
         db,
@@ -196,9 +196,9 @@ class V32MigrationTests {
       )
     }
 
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let queuedCount = try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episode WHERE queueOrder IS NOT NULL"
@@ -217,39 +217,39 @@ class V32MigrationTests {
 
   @Test("clamps maxQueueLength from above 100 to 100")
   func testClampsAbove100() async throws {
-    try migrator.migrate(appDB.db, upTo: "v31")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v31")
     try seedMaxQueueLength(500)
 
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     #expect(try loadMaxQueueLength() == 100)
   }
 
   @Test("does not clamp maxQueueLength at exactly 100")
   func testDoesNotClampAt100() async throws {
-    try migrator.migrate(appDB.db, upTo: "v31")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v31")
     try seedMaxQueueLength(100)
 
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     #expect(try loadMaxQueueLength() == 100)
   }
 
   @Test("does not clamp maxQueueLength below 100")
   func testDoesNotClampBelow100() async throws {
-    try migrator.migrate(appDB.db, upTo: "v31")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v31")
     try seedMaxQueueLength(50)
 
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     #expect(try loadMaxQueueLength() == 50)
   }
 
   @Test("handles missing maxQueueLength in defaults")
   func testMissingMaxQueueLength() async throws {
-    try migrator.migrate(appDB.db, upTo: "v31")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v31")
 
-    try migrator.migrate(appDB.db, upTo: "v32")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v32")
 
     #expect(try loadMaxQueueLength() == nil)
   }

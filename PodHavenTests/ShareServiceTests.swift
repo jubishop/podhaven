@@ -22,7 +22,7 @@ import Testing
 
   @Test("that a new apple podcast URL is correctly imported")
   func newApplePodcastURLImportsSuccessfully() async throws {
-    #expect(try await repo.allPodcasts(AppDB.NoOp).isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     let itunesData = PreviewBundle.loadAsset(named: "lenny", in: .iTunesResults)
     let itunesID: String = "1627920305"
@@ -45,7 +45,7 @@ import Testing
     )
 
     // Podcast should NOT be saved to repo
-    #expect(try await repo.allPodcasts(AppDB.NoOp).isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     // Parse feed to get expected unsaved podcast
     let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
@@ -75,7 +75,7 @@ import Testing
     if subscribed {
       try await repo.markSubscribed(insertedSeries.id)
     }
-    #expect(try await repo.allPodcasts(AppDB.NoOp).count == 1)
+    #expect(try await repo.allPodcasts(AppDB.noOp).count == 1)
 
     let itunesData = PreviewBundle.loadAsset(named: "lenny", in: .iTunesResults)
     let itunesID: String = "1627920305"
@@ -95,7 +95,7 @@ import Testing
       )
     )
 
-    #expect(try await repo.allPodcasts(AppDB.NoOp).count == 1)
+    #expect(try await repo.allPodcasts(AppDB.noOp).count == 1)
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
     #expect(podcastSeries.podcast.subscribed == subscribed)
     #expect(podcastSeries.podcast.title == "Lenny's Podcast: Product | Growth | Career")
@@ -282,7 +282,7 @@ import Testing
     try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: feedURL))
 
     // Podcast should NOT be saved to repo
-    #expect(try await repo.allPodcasts(AppDB.NoOp).isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     // Parse feed to get expected unsaved podcast
     let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
@@ -294,7 +294,7 @@ import Testing
 
   @Test("that a new episode URL with feedURL and guid navigates to specific episode")
   func newEpisodeURLWithGUIDNavigatesToEpisode() async throws {
-    #expect(try await repo.allPodcasts(AppDB.NoOp).isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
     let feedData = PreviewBundle.loadAsset(named: "lenny", in: .FeedRSS)
@@ -309,7 +309,7 @@ import Testing
     try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: episodeURL))
 
     // Podcast should NOT be saved to repo
-    #expect(try await repo.allPodcasts(AppDB.NoOp).isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     // Parse feed to get expected unsaved podcast and episode
     let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
@@ -341,7 +341,7 @@ import Testing
     // Pre-populate the database with the podcast
     let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
     try await repo.insertSeries(podcastFeed.toUnsavedSeries())
-    #expect(try await repo.allPodcasts(AppDB.NoOp).count == 1)
+    #expect(try await repo.allPodcasts(AppDB.noOp).count == 1)
 
     await feedSession.respond(to: feedURL, data: feedData)
 
@@ -354,7 +354,7 @@ import Testing
     try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: episodeURL))
 
     // Should still have only one podcast
-    #expect(try await repo.allPodcasts(AppDB.NoOp).count == 1)
+    #expect(try await repo.allPodcasts(AppDB.noOp).count == 1)
 
     // Verify navigation goes to the specific episode
     #expect(navigation.currentTab == .podcasts)
@@ -383,7 +383,7 @@ import Testing
     try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: episodeURL))
 
     // Podcast should NOT be saved to repo
-    #expect(try await repo.allPodcasts(AppDB.NoOp).isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     // Parse feed to get expected unsaved podcast
     let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
@@ -460,7 +460,7 @@ import Testing
     try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: podcastURL))
 
     // Podcast should NOT be saved to repo
-    #expect(try await repo.allPodcasts(AppDB.NoOp).isEmpty)
+    #expect(try await repo.allPodcasts(AppDB.noOp).isEmpty)
 
     // Parse feed to get expected unsaved podcast
     let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))

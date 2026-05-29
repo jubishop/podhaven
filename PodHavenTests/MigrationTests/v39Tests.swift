@@ -17,9 +17,9 @@ class V39MigrationTests {
 
   @Test("v39 swaps freshnessHalfLifeDays for nullable freshnessCadence and leaves rows nil")
   func columnsSwapped() async throws {
-    try migrator.migrate(appDB.db, upTo: "v38")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v38")
 
-    let existingID = try await appDB.db.write { db in
+    let existingID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description, freshnessHalfLifeDays)
@@ -36,16 +36,16 @@ class V39MigrationTests {
       return db.lastInsertedRowID
     }
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let names = Set(cols.compactMap { $0["name"] as? String })
       #expect(names.contains("freshnessHalfLifeDays"))
       #expect(!names.contains("freshnessCadence"))
     }
 
-    try migrator.migrate(appDB.db, upTo: "v39")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v39")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let names = Set(cols.compactMap { $0["name"] as? String })
       #expect(!names.contains("freshnessHalfLifeDays"))
@@ -56,7 +56,7 @@ class V39MigrationTests {
       #expect((cadenceCol["notnull"] as? Int64 ?? 0) == 0)
     }
 
-    let existingCadence = try await appDB.db.read { db in
+    let existingCadence = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT freshnessCadence FROM podcast WHERE id = ?",
@@ -68,10 +68,10 @@ class V39MigrationTests {
 
   @Test("v39 accepts every cadence value plus NULL")
   func acceptsValidValues() async throws {
-    try migrator.migrate(appDB.db, upTo: "v39")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v39")
 
     let cadences: [String?] = ["daily", "weekly", "monthly", "evergreen", nil]
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       for (index, cadence) in cadences.enumerated() {
         try db.execute(
           sql: """
@@ -89,7 +89,7 @@ class V39MigrationTests {
       }
     }
 
-    let storedCadences: [String?] = try await appDB.db.read { db in
+    let storedCadences: [String?] = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(db, sql: "SELECT freshnessCadence FROM podcast ORDER BY id")
         .map { $0["freshnessCadence"] as String? }
     }
@@ -98,10 +98,10 @@ class V39MigrationTests {
 
   @Test("v39 rejects unknown cadence values")
   func rejectsUnknownCadence() async throws {
-    try migrator.migrate(appDB.db, upTo: "v39")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v39")
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO podcast (feedURL, title, image, description, freshnessCadence)
@@ -117,9 +117,9 @@ class V39MigrationTests {
 
   @Test("v39 leaves cadence NULL when column is omitted from INSERT")
   func defaultsToNullOnInsert() async throws {
-    try migrator.migrate(appDB.db, upTo: "v39")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v39")
 
-    let id = try await appDB.db.write { db in
+    let id = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -132,7 +132,7 @@ class V39MigrationTests {
       return db.lastInsertedRowID
     }
 
-    let cadence = try await appDB.db.read { db in
+    let cadence = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT freshnessCadence FROM podcast WHERE id = ?",

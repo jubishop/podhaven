@@ -18,10 +18,10 @@ class V18MigrationTests {
   @Test("v18 migration adds defaultPlaybackRate column to podcast table with check constraint")
   func testV18Migration() async throws {
     // Apply migrations up to v1
-    try migrator.migrate(appDB.db, upTo: "v1")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v1")
 
     // Insert a test podcast before migration
-    let testPodcastID = try await appDB.db.write { db in
+    let testPodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -38,7 +38,7 @@ class V18MigrationTests {
     }
 
     // Verify defaultPlaybackRate column doesn't exist yet
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -48,10 +48,10 @@ class V18MigrationTests {
     }
 
     // Apply v18 migration
-    try migrator.migrate(appDB.db, upTo: "v18")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v18")
 
     // Verify defaultPlaybackRate column exists after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -67,7 +67,7 @@ class V18MigrationTests {
     }
 
     // Test that existing podcast has NULL defaultPlaybackRate after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       if let row = try Row.fetchOne(
         db,
         sql: "SELECT defaultPlaybackRate FROM podcast WHERE id = ?",
@@ -79,7 +79,7 @@ class V18MigrationTests {
     }
 
     // Test valid values within range (0.8 to 2.0)
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       // Test minimum valid value
       try db.execute(
         sql: """
@@ -142,7 +142,7 @@ class V18MigrationTests {
     }
 
     // Verify valid values were inserted
-    let validCount = try await appDB.db.read { db in
+    let validCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql:
@@ -153,7 +153,7 @@ class V18MigrationTests {
 
     // Test that value below minimum (0.8) is rejected
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO podcast (feedURL, title, image, description, defaultPlaybackRate)
@@ -172,7 +172,7 @@ class V18MigrationTests {
 
     // Test that value above maximum (2.0) is rejected
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO podcast (feedURL, title, image, description, defaultPlaybackRate)
@@ -191,7 +191,7 @@ class V18MigrationTests {
 
     // Test that updating to invalid values is also rejected
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: "UPDATE podcast SET defaultPlaybackRate = ? WHERE id = ?",
           arguments: [0.5, testPodcastID]
@@ -200,7 +200,7 @@ class V18MigrationTests {
     }
 
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: "UPDATE podcast SET defaultPlaybackRate = ? WHERE id = ?",
           arguments: [3.0, testPodcastID]
@@ -209,14 +209,14 @@ class V18MigrationTests {
     }
 
     // Test that updating to valid values works
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE podcast SET defaultPlaybackRate = ? WHERE id = ?",
         arguments: [1.25, testPodcastID]
       )
     }
 
-    let updatedRate = try await appDB.db.read { db in
+    let updatedRate = try await appDB.unsafeTestDB.read { db in
       try Double.fetchOne(
         db,
         sql: "SELECT defaultPlaybackRate FROM podcast WHERE id = ?",

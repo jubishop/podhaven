@@ -18,10 +18,10 @@ class V23MigrationTests {
   @Test("v23 migration converts cacheAllEpisodes from BOOLEAN to TEXT enum")
   func testV23Migration() async throws {
     // Apply migrations up to v22
-    try migrator.migrate(appDB.db, upTo: "v22")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v22")
 
     // Insert test podcasts before migration with different boolean values
-    let truePodcastID = try await appDB.db.write { db in
+    let truePodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description, cacheAllEpisodes)
@@ -38,7 +38,7 @@ class V23MigrationTests {
       return db.lastInsertedRowID
     }
 
-    let falsePodcastID = try await appDB.db.write { db in
+    let falsePodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description, cacheAllEpisodes)
@@ -56,7 +56,7 @@ class V23MigrationTests {
     }
 
     // Verify cacheAllEpisodes column is BOOLEAN before migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let cacheAllEpisodesCol = cols.first { $0["name"] as? String == "cacheAllEpisodes" }
       #expect(cacheAllEpisodesCol != nil)
@@ -65,7 +65,7 @@ class V23MigrationTests {
     }
 
     // Verify data before migration
-    let trueBoolValue = try await appDB.db.read { db in
+    let trueBoolValue = try await appDB.unsafeTestDB.read { db in
       try Bool.fetchOne(
         db,
         sql: "SELECT cacheAllEpisodes FROM podcast WHERE id = ?",
@@ -74,7 +74,7 @@ class V23MigrationTests {
     }
     #expect(trueBoolValue == true, "Podcast should have true cacheAllEpisodes before migration")
 
-    let falseBoolValue = try await appDB.db.read { db in
+    let falseBoolValue = try await appDB.unsafeTestDB.read { db in
       try Bool.fetchOne(
         db,
         sql: "SELECT cacheAllEpisodes FROM podcast WHERE id = ?",
@@ -84,10 +84,10 @@ class V23MigrationTests {
     #expect(falseBoolValue == false, "Podcast should have false cacheAllEpisodes before migration")
 
     // Apply v23 migration
-    try migrator.migrate(appDB.db, upTo: "v23")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v23")
 
     // Verify cacheAllEpisodes column is now TEXT after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let cacheAllEpisodesCol = cols.first { $0["name"] as? String == "cacheAllEpisodes" }
       #expect(cacheAllEpisodesCol != nil)
@@ -104,7 +104,7 @@ class V23MigrationTests {
     }
 
     // Verify data was converted correctly: true -> 'cache'
-    let trueTextValue = try await appDB.db.read { db in
+    let trueTextValue = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT cacheAllEpisodes FROM podcast WHERE id = ?",
@@ -117,7 +117,7 @@ class V23MigrationTests {
     )
 
     // Verify data was converted correctly: false -> 'never'
-    let falseTextValue = try await appDB.db.read { db in
+    let falseTextValue = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT cacheAllEpisodes FROM podcast WHERE id = ?",
@@ -130,7 +130,7 @@ class V23MigrationTests {
     )
 
     // Test inserting new podcasts with different enum values
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       // Test 'cache' value
       try db.execute(
         sql: """
@@ -192,7 +192,7 @@ class V23MigrationTests {
     }
 
     // Verify all values were inserted correctly
-    let cacheCount = try await appDB.db.read { db in
+    let cacheCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM podcast WHERE cacheAllEpisodes = ?",
@@ -201,7 +201,7 @@ class V23MigrationTests {
     }
     #expect(cacheCount == 2, "Should have 2 podcasts with cacheAllEpisodes = 'cache'")
 
-    let saveCount = try await appDB.db.read { db in
+    let saveCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM podcast WHERE cacheAllEpisodes = ?",
@@ -210,7 +210,7 @@ class V23MigrationTests {
     }
     #expect(saveCount == 1, "Should have 1 podcast with cacheAllEpisodes = 'save'")
 
-    let neverCount = try await appDB.db.read { db in
+    let neverCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM podcast WHERE cacheAllEpisodes = ?",
@@ -221,7 +221,7 @@ class V23MigrationTests {
 
     // Test that NULL value is rejected (NOT NULL constraint)
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO podcast (feedURL, title, image, description, cacheAllEpisodes)
@@ -239,14 +239,14 @@ class V23MigrationTests {
     }
 
     // Test updating to valid values works
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE podcast SET cacheAllEpisodes = ? WHERE id = ?",
         arguments: ["save", truePodcastID]
       )
     }
 
-    let updatedValue = try await appDB.db.read { db in
+    let updatedValue = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT cacheAllEpisodes FROM podcast WHERE id = ?",

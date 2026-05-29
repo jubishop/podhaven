@@ -61,7 +61,7 @@ class EmbeddingRepoTests {
 
     if backdated {
       // Push verificationDate into the past so trigger-updated contentUpdatedAt is clearly newer
-      try await appDB.db.write { db in
+      try await appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             UPDATE episodeEmbedding SET verificationDate = datetime('now', '-1 hour')
@@ -74,7 +74,7 @@ class EmbeddingRepoTests {
   }
 
   private func contentUpdatedAt(forEpisode episodeID: Episode.ID) async throws -> String? {
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT contentUpdatedAt FROM episode WHERE id = ?",
@@ -84,7 +84,7 @@ class EmbeddingRepoTests {
   }
 
   private func contentUpdatedAt(forPodcast podcastID: Podcast.ID) async throws -> String? {
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: "SELECT contentUpdatedAt FROM podcast WHERE id = ?",

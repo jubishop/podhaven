@@ -25,7 +25,10 @@ class EmbeddingProcessorTests {
     let processor = EmbeddingProcessor()
     processor.handleScenePhaseChange(to: .active)
 
-    try await waitForEmbeddings(of: episodes, reason: "Foreground observation did not embed all episodes")
+    try await waitForEmbeddings(
+      of: episodes,
+      reason: "Foreground observation did not embed all episodes"
+    )
 
     processor.handleScenePhaseChange(to: .background)
   }
@@ -90,7 +93,10 @@ class EmbeddingProcessorTests {
     processor.handleScenePhaseChange(to: .active)
     processor.handleScenePhaseChange(to: .active)
 
-    try await waitForEmbeddings(of: episodes, reason: "Episodes not embedded after repeated .active")
+    try await waitForEmbeddings(
+      of: episodes,
+      reason: "Episodes not embedded after repeated .active"
+    )
 
     // Verify the single-task guard: three .active calls but only one
     // observatory subscription. Without the `guard task == nil` in
@@ -103,7 +109,7 @@ class EmbeddingProcessorTests {
   @Test("foreground observation retries after a transient failure")
   func observationRetriesAfterFailure() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
-    let dbReader = Container.shared.appDB().db
+    let dbReader = Container.shared.appDB().unsafeTestDB
     fakeObservatory.episodesNeedingEmbeddingsScript([
       { _ in
         ValueObservation

@@ -337,7 +337,7 @@ import Testing
       )
 
       let updatedTitle = "Retitled Target Episode"
-      _ = try await appDB.db.write { db in
+      _ = try await appDB.unsafeTestDB.write { db in
         try Episode.withID(targetID).updateAll(db, Episode.Columns.title.set(to: updatedTitle))
       }
 

@@ -15,6 +15,35 @@ class EpisodePersistenceTests {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
+  @Test("that AppDB writer logs the transaction lifecycle")
+  func appDBWriteLogsLifecycle() async throws {
+    try await LogCapture.withSink { sink in
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(),
+          unsavedEpisodes: [try Create.unsavedEpisode()]
+        )
+      )
+
+      let messages = sink.captured().map(\.message)
+      #expect(
+        messages.contains {
+          $0.contains("db write requested:") && $0.contains("insertSeries")
+        }
+      )
+      #expect(
+        messages.contains {
+          $0.contains("db write acquired:") && $0.contains("insertSeries")
+        }
+      )
+      #expect(
+        messages.contains {
+          $0.contains("db write completed:") && $0.contains("insertSeries")
+        }
+      )
+    }
+  }
+
   @Test("that episodes are created and fetched in the right order")
   func createSeveralEpisodes() async throws {
     let url = URL.valid()
@@ -64,7 +93,7 @@ class EpisodePersistenceTests {
     let episode = podcastSeries.episodes.first!
 
     let updatedGUID: GUID = GUID(String.random())
-    _ = try await self.appDB.db.write { db in
+    _ = try await self.appDB.unsafeTestDB.write { db in
       try Episode
         .withID(episode.id)
         .updateAll(db, Episode.Columns.guid.set(to: updatedGUID))

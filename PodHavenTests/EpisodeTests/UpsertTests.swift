@@ -135,7 +135,7 @@ class EpisodeUpsertTests {
 
     // Pin creation dates to a deterministic value so any regression is immediately visible.
     let creationDate = Date(timeIntervalSince1970: 1_234_567)
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try Podcast
         .withID(insertedPodcastEpisode.podcast.id)
         .updateAll(db, Podcast.Columns.creationDate.set(to: creationDate))
@@ -256,7 +256,7 @@ class EpisodeUpsertTests {
 
     // Pin creation dates to a known value
     let originalCreationDate = Date(timeIntervalSince1970: 1_000_000)
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try Podcast
         .withID(insertedPodcastEpisode.podcast.id)
         .updateAll(db, Podcast.Columns.creationDate.set(to: originalCreationDate))

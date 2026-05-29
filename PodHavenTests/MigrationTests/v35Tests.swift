@@ -50,9 +50,9 @@ class V35MigrationTests {
 
   @Test("adds rating and ratingDate columns to episode table")
   func ratingColumnsExist() async throws {
-    try migrator.migrate(appDB.db, upTo: "v35")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v35")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let columns = try db.columns(in: "episode").map(\.name)
       #expect(columns.contains("rating"))
       #expect(columns.contains("ratingDate"))
@@ -61,9 +61,9 @@ class V35MigrationTests {
 
   @Test("rating column accepts valid values")
   func ratingColumnAcceptsValidValues() async throws {
-    try migrator.migrate(appDB.db, upTo: "v35")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v35")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       let podcastID = try V35MigrationTests.insertPodcast(db)
       _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "loved")
       _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "liked")
@@ -71,7 +71,7 @@ class V35MigrationTests {
       _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: nil)
     }
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode")
       #expect(count == 4)
     }
@@ -79,10 +79,10 @@ class V35MigrationTests {
 
   @Test("rating column rejects invalid values")
   func ratingColumnRejectsInvalid() async throws {
-    try migrator.migrate(appDB.db, upTo: "v35")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v35")
 
     do {
-      try await appDB.db.write { db in
+      try await appDB.unsafeTestDB.write { db in
         let podcastID = try V35MigrationTests.insertPodcast(db)
         _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "invalid")
       }

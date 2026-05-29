@@ -49,7 +49,7 @@ import Testing
     // Mutating the cache column on a recommended episode must refresh the
     // hydrated row — without the two-stage observation the view model would
     // freeze on the snapshot taken at publish time.
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE episode SET cachedFilename = ? WHERE id = ?",
         arguments: ["cached_first.mp3", first.id.rawValue]
@@ -67,7 +67,7 @@ import Testing
     )
 
     // saveInCache changes too — same hydration path.
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE episode SET saveInCache = ? WHERE id = ?",
         arguments: [true, second.id.rawValue]
@@ -536,7 +536,7 @@ import Testing
       { @MainActor in "Hydration didn't populate; got \(viewModel.recommendedEpisodes.count)" }
     )
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE episode SET rating = ?, ratingDate = ? WHERE id = ?",
         arguments: [EpisodeRating.liked.rawValue, Date(), a.id.rawValue]
@@ -578,7 +578,7 @@ import Testing
       { @MainActor in "Hydration didn't populate; got \(viewModel.recommendedEpisodes.count)" }
     )
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: "UPDATE episode SET finishDate = ? WHERE id = ?",
         arguments: [Date(), a.id.rawValue]

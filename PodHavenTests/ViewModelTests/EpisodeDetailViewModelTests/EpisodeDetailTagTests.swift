@@ -94,7 +94,7 @@ import Testing
     let tag = try await repo.insertTag(UnsavedTag(name: "Recovered"))
     try await repo.addTag(tag.id, to: podcastEpisode.id)
 
-    let dbReader = appDB.db
+    let dbReader = appDB.unsafeTestDB
     fakeObservatory.podcastEpisodeWithTagsScript([
       { _ in
         ValueObservation

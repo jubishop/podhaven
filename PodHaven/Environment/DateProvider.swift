@@ -9,6 +9,6 @@ extension Container {
   }
 }
 
-fileprivate struct DateProvider: DateProviding {
+private struct DateProvider: DateProviding {
   var now: Date { Date() }
 }

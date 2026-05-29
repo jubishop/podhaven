@@ -23,7 +23,7 @@ class ObservationRetryTests {
     // recommendations stay empty even though the DB has a complete signal
     // set.
     let fakeObservatory = try #require(observatory as? FakeObservatory)
-    let dbReader = self.appDB.db
+    let dbReader = self.appDB.unsafeTestDB
     fakeObservatory.scoringContextInputsScript([
       {
         ValueObservation

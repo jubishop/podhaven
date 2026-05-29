@@ -21,6 +21,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Lint Swift
+        run: bin/lint-swift-format
+
       - name: Run tests
         run: |
           set -o pipefail

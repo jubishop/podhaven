@@ -25,7 +25,7 @@ import Testing
 
     let listables = try await repo.db.read { db in
       try ListablePodcastEpisode
-        .request(filter: AppDB.NoOp, order: Episode.Columns.id.asc)
+        .request(filter: AppDB.noOp, order: Episode.Columns.id.asc)
         .fetchAll(db)
     }
     let viewModel = EpisodesListViewModel(title: "Test")

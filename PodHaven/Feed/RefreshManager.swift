@@ -40,7 +40,7 @@ struct RefreshManager {
 
   func performRefresh(
     stalenessThreshold: Duration,
-    filter: SQLExpression = AppDB.NoOp,
+    filter: SQLExpression = AppDB.noOp,
     limit: Int = Int.max
   ) async throws {
     Self.log.debug(

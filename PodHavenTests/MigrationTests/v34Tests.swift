@@ -17,9 +17,9 @@ class V34MigrationTests {
 
   @Test("v34 adds maxPlaybackTime column seeded from currentTime")
   func testV34Migration() async throws {
-    try migrator.migrate(appDB.db, upTo: "v33")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v33")
 
-    let podcastID = try await appDB.db.write { db in
+    let podcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -36,7 +36,7 @@ class V34MigrationTests {
     }
 
     // Seed three episodes: in-progress, untouched, and finished (currentTime 0).
-    let inProgressID = try await appDB.db.write { db in
+    let inProgressID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate, currentTime)
@@ -49,7 +49,7 @@ class V34MigrationTests {
       )
       return db.lastInsertedRowID
     }
-    let untouchedID = try await appDB.db.write { db in
+    let untouchedID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
@@ -62,7 +62,7 @@ class V34MigrationTests {
       )
       return db.lastInsertedRowID
     }
-    let finishedID = try await appDB.db.write { db in
+    let finishedID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (
@@ -77,15 +77,15 @@ class V34MigrationTests {
       return db.lastInsertedRowID
     }
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(!colNames.contains("maxPlaybackTime"), "maxPlaybackTime should not exist before v34")
     }
 
-    try migrator.migrate(appDB.db, upTo: "v34")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v34")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
       let col = cols.first { $0["name"] as? String == "maxPlaybackTime" }
       #expect(col != nil, "maxPlaybackTime column should exist after v34")
@@ -95,7 +95,7 @@ class V34MigrationTests {
     }
 
     // Backfill sets maxPlaybackTime to the episode's existing currentTime.
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let inProgress = try Double.fetchOne(
         db,
         sql: "SELECT maxPlaybackTime FROM episode WHERE id = ?",
@@ -119,7 +119,7 @@ class V34MigrationTests {
     }
 
     // New inserts without the column default to 0.
-    let freshID = try await appDB.db.write { db in
+    let freshID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
@@ -132,7 +132,7 @@ class V34MigrationTests {
       )
       return db.lastInsertedRowID
     }
-    let fresh = try await appDB.db.read { db in
+    let fresh = try await appDB.unsafeTestDB.read { db in
       try Double.fetchOne(
         db,
         sql: "SELECT maxPlaybackTime FROM episode WHERE id = ?",

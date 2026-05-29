@@ -306,7 +306,10 @@ final class PlayManager {
       Self.log.debug("performLoad: cleaning up after load success")
       await cleanUpAfterLoadSuccess(outgoing, incoming)
       Self.log.debug(
-        "performLoad: cleaned up after load success in \(Date().timeIntervalSince(phaseStart)) seconds"
+        """
+        performLoad: cleaned up after load success in \
+        \(Date().timeIntervalSince(phaseStart)) seconds
+        """
       )
 
       phaseStart = Date()

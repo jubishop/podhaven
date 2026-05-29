@@ -18,9 +18,9 @@ class V43MigrationTests {
   // MARK: - Fixture
 
   private func populateAtV42() async throws {
-    try migrator.migrate(appDB.db, upTo: "v42")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (
@@ -58,7 +58,7 @@ class V43MigrationTests {
   func indexExists() async throws {
     try await populateAtV42()
 
-    let indexBeforeV43 = try await appDB.db.read { db in
+    let indexBeforeV43 = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: """
@@ -69,9 +69,9 @@ class V43MigrationTests {
     }
     #expect(indexBeforeV43 == nil)
 
-    try migrator.migrate(appDB.db, upTo: "v43")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v43")
 
-    let indexAfterV43 = try await appDB.db.read { db in
+    let indexAfterV43 = try await appDB.unsafeTestDB.read { db in
       try String.fetchOne(
         db,
         sql: """
@@ -93,7 +93,7 @@ class V43MigrationTests {
   func orderByPubDateUsesIndex() async throws {
     try await populateAtV42()
 
-    let planBefore = try await appDB.db.read { db in
+    let planBefore = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(
         db,
         sql: """
@@ -106,9 +106,9 @@ class V43MigrationTests {
     }
     #expect(planBefore.contains("USE TEMP B-TREE FOR ORDER BY"))
 
-    try migrator.migrate(appDB.db, upTo: "v43")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v43")
 
-    let planAfter = try await appDB.db.read { db in
+    let planAfter = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(
         db,
         sql: """
@@ -131,14 +131,14 @@ class V43MigrationTests {
   func episodeRowsPreserved() async throws {
     try await populateAtV42()
 
-    let before = try await appDB.db.read { db in
+    let before = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(db, sql: "SELECT * FROM episode ORDER BY id")
         .map { $0.asDictionary() }
     }
 
-    try migrator.migrate(appDB.db, upTo: "v43")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v43")
 
-    let after = try await appDB.db.read { db in
+    let after = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(db, sql: "SELECT * FROM episode ORDER BY id")
         .map { $0.asDictionary() }
     }

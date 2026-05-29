@@ -21,9 +21,9 @@ class V45MigrationTests {
   // The embedding's creationDate is set to a fixed past instant so the v45
   // backfill (verificationDate := creationDate) can be asserted exactly.
   private func populateAtV44() async throws {
-    try migrator.migrate(appDB.db, upTo: "v44")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v44")
 
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (
@@ -72,15 +72,15 @@ class V45MigrationTests {
   func columnAddedToEpisodeEmbedding() async throws {
     try await populateAtV44()
 
-    let columnsBefore = try await appDB.db.read { db in
+    let columnsBefore = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(db, sql: "PRAGMA table_info(episodeEmbedding)")
         .map { $0["name"] as String }
     }
     #expect(!columnsBefore.contains("verificationDate"))
 
-    try migrator.migrate(appDB.db, upTo: "v45")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v45")
 
-    let columnsAfter = try await appDB.db.read { db in
+    let columnsAfter = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(db, sql: "PRAGMA table_info(episodeEmbedding)")
         .map { ($0["name"] as String, $0["notnull"] as Int) }
     }
@@ -98,9 +98,9 @@ class V45MigrationTests {
   @Test("v45 backfills verificationDate from creationDate on existing rows")
   func backfillFromCreationDate() async throws {
     try await populateAtV44()
-    try migrator.migrate(appDB.db, upTo: "v45")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v45")
 
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let row = try #require(
         try Row.fetchOne(
           db,

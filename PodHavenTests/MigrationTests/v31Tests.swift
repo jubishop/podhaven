@@ -18,10 +18,10 @@ class V31MigrationTests {
   @Test("v31 migration adds iTunesID column to podcast table with unique constraint")
   func testV31Migration() async throws {
     // Apply migrations up to v30
-    try migrator.migrate(appDB.db, upTo: "v30")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v30")
 
     // Insert test podcast before migration
-    let testPodcastID = try await appDB.db.write { db in
+    let testPodcastID = try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -38,7 +38,7 @@ class V31MigrationTests {
     }
 
     // Verify iTunesID column doesn't exist yet
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -48,10 +48,10 @@ class V31MigrationTests {
     }
 
     // Apply v31 migration
-    try migrator.migrate(appDB.db, upTo: "v31")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v31")
 
     // Verify iTunesID column exists after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
       #expect(
@@ -66,7 +66,7 @@ class V31MigrationTests {
     }
 
     // Verify existing podcast has NULL iTunesID after migration
-    try await appDB.db.read { db in
+    try await appDB.unsafeTestDB.read { db in
       let row = try Row.fetchOne(
         db,
         sql: "SELECT iTunesID FROM podcast WHERE id = ?",
@@ -77,7 +77,7 @@ class V31MigrationTests {
     }
 
     // Insert podcasts with iTunesID values
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description, iTunesID)
@@ -95,7 +95,7 @@ class V31MigrationTests {
 
     // Verify uniqueness constraint — inserting duplicate iTunesID should fail
     await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
+      try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
           sql: """
             INSERT INTO podcast (feedURL, title, image, description, iTunesID)
@@ -113,7 +113,7 @@ class V31MigrationTests {
     }
 
     // Verify multiple NULL iTunesIDs are allowed (NULL != NULL in SQL)
-    try await appDB.db.write { db in
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (feedURL, title, image, description)
@@ -128,7 +128,7 @@ class V31MigrationTests {
       )
     }
 
-    let nullCount = try await appDB.db.read { db in
+    let nullCount = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM podcast WHERE iTunesID IS NULL"
