@@ -10,8 +10,8 @@ import SwiftUI
 // Decides whether a write that produces an equal value still wakes observers.
 // `.equatable` (the default for Equatable values) suppresses no-op writes;
 // `.notifyAlways` is required for values whose `==` is not full observable
-// equality — e.g. `OnDeck`, whose `==` deliberately ignores the in-memory
-// playback fields that `StateManager` mutates.
+// equality — e.g. `OnDeck`, whose `==` ignores the `artwork`/`maxPlaybackTime`
+// that `StateManager` mutates in place.
 enum BroadcastDuplicatePolicy<T: Sendable>: Sendable {
   case notifyAlways
   case suppressDuplicates(@Sendable (T, T) -> Bool)
@@ -209,7 +209,8 @@ extension Broadcasted where T: Equatable {
   }
 
   // Opt out (or supply a custom policy) for Equatable values whose `==` is not
-  // full observable equality.
+  // full observable equality. Retained as a general capability even though
+  // `onDeck` is currently its only caller.
   init(wrappedValue: T, duplicates policy: BroadcastDuplicatePolicy<T>) {
     broadcast = Broadcast(wrappedValue, policy: policy)
   }
