@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # Copyright Justin Bishop, 2026
 
+from __future__ import annotations
+
 import os
 import re
 import shutil
