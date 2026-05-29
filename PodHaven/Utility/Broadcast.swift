@@ -209,7 +209,8 @@ extension Broadcasted where T: Equatable {
   }
 
   // Opt out (or supply a custom policy) for Equatable values whose `==` is not
-  // full observable equality.
+  // full observable equality. Retained as a general capability even though
+  // `onDeck` is currently its only caller.
   init(wrappedValue: T, duplicates policy: BroadcastDuplicatePolicy<T>) {
     broadcast = Broadcast(wrappedValue, policy: policy)
   }
