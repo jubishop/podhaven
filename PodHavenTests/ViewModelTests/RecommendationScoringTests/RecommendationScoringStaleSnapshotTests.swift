@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-// Regression tests for the recommendation-score fan-out OOM (issue #274).
+// Regression tests for the recommendation-score fan-out OOM.
 @Suite("of recommendation scoring stale-snapshot publish tests", .container)
 @MainActor final class RecommendationScoringStaleSnapshotTests {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -65,7 +65,7 @@ import Testing
     _ = try await RecommendationHelpers.startAndWaitForScores(for: savedEpisodes)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     let initialIDs = Set(savedEpisodes.map(\.id))
     try await Wait.until(

@@ -31,6 +31,7 @@ import Testing
       ]
     )
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     viewModel.currentSortMethod = .recentlyQueued
 
@@ -64,7 +65,7 @@ import Testing
     )
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
 
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in
@@ -119,7 +120,7 @@ import Testing
     )
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
 
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in viewModel.saved && viewModel.episodeList.allEntries.count == 2 },
@@ -285,7 +286,7 @@ import Testing
     let viewModel = PodcastDetailViewModel(
       podcast: DisplayedPodcast(targetPodcast)
     )
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     // The recommendation observation work can inherit the poller's priority;
     // keep this above `.background` so CI load does not starve the sort update.
@@ -352,7 +353,7 @@ import Testing
     _ = try await RecommendationHelpers.startAndWaitForScores(for: embeddedEpisodes)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -478,6 +479,7 @@ import Testing
     )
 
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -490,6 +492,7 @@ import Testing
       }
     )
 
+    try await PodcastDetailTestHelpers.appear(viewModel)
     viewModel.currentSortMethod = .recommendationScore
 
     try await Wait.until(
@@ -564,6 +567,7 @@ import Testing
     }
 
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -611,7 +615,7 @@ import Testing
     // A later appear must re-score rather than re-applying the cached
     // empty score map — the prior empty map was uncacheable.
     viewModel.disappear()
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -654,6 +658,7 @@ import Testing
       ]
     )
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in
@@ -666,6 +671,8 @@ import Testing
         """
       }
     )
+
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     // No signal corpus means the engine cache stays cold and similarity
     // scoring returns nil for every row; the comparator should still fall
@@ -770,6 +777,7 @@ import Testing
       .map(\.mediaGUID)
 
     let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -857,7 +865,7 @@ import Testing
     let viewModel = PodcastDetailViewModel(
       podcast: DisplayedPodcast(savedSeries.podcast)
     )
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       { @MainActor in viewModel.episodeList.allEntries.count == 2 },

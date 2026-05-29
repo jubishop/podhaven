@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-// Regression tests for the recommendation-score fan-out OOM (issue #274).
+// Regression tests for the recommendation-score fan-out OOM.
 @Suite("of recommendation scoring bootstrap tests", .container)
 @MainActor final class RecommendationScoringBootstrapTests {
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
@@ -51,7 +51,7 @@ import Testing
     fakeRecommendationRepo.clearAllCalls()
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -113,7 +113,7 @@ import Testing
     _ = try await RecommendationHelpers.startAndWaitForScores(for: candidateEpisodes)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     let targetIDs = Set(candidateEpisodes.map(\.id))
     try await Wait.until(
@@ -181,7 +181,7 @@ import Testing
       .map(\.id)
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(targetPodcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     try await Wait.until(
       priority: .userInitiated,
@@ -233,7 +233,7 @@ import Testing
     let podcastEpisode = try #require(try await repo.podcastEpisode(targetEpisodeID))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    try await viewModel.performAppear()
+    viewModel.appear()
 
     try await RecommendationHelpers.untilAdvancing(
       priority: .userInitiated,

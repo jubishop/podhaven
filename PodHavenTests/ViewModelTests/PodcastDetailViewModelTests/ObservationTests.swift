@@ -27,7 +27,7 @@ import Testing
       podcast: DisplayedPodcast(savedSeries.podcast)
     )
 
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
     await feedSession.respond(
       to: feedURL.rawValue,
       data: PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
@@ -63,7 +63,7 @@ import Testing
 
     let viewModel = PodcastDetailViewModel(podcast: displayedPodcast)
 
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
 
     await feedSession.respond(to: feedURL.rawValue, error: URLError(.cannotLoadFromNetwork))
     _ = try await repo.deletePodcast(savedSeries.id)
@@ -94,7 +94,7 @@ import Testing
     let removedID = savedSeries.episodes[1].id
 
     let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
-    try await viewModel.performAppear()
+    try await PodcastDetailTestHelpers.appear(viewModel)
     try await Wait.until(
       { @MainActor in viewModel.episodeList.allEntries.count == 3 },
       { @MainActor in

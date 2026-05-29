@@ -1,26 +1,44 @@
 ---
 name: podcast-detail-observation-storm
-description: PodcastDetail memory warning / foreground watchdog kill. The build-507 incident (podhaven:7509841267) and its build-506 predecessors are conclusively constructor / lifecycle churn — SwiftUI re-evaluates the PodcastDetail destination thousands of times during a single Up Next → Podcasts navigation, and `PodcastDetailViewModel.init(state:)` starts an observation task and an artwork Task for every transient instance. Behavior fix tracked in #357 item 1. Existing diagnostics plus PR #359 are sufficient; no further detector work needed.
+description: PodcastDetail memory warning / foreground watchdog kill. The build-507 incident (podhaven:7509841267) and its build-506 predecessors were conclusively constructor / lifecycle churn — SwiftUI re-evaluated the PodcastDetail destination thousands of times during a single Up Next → Podcasts navigation, and `PodcastDetailViewModel.init(state:)` started an observation task and an artwork Task for every transient instance. Behavior fix shipped (issue #357) by moving observation startup and share-artwork loading to `performAppear`. The verbose per-VM diagnostics were removed when the fix landed; PR #359's generic FileLogHandler storm warning is the complementary log-side backstop.
 type: project
 ---
 
 # PodcastDetail observation storm / lifecycle churn
 
-**Status as of 2026-05-27**: cause established, behavior fix pending. The
+**Archived 2026-05-29**: resolved and closed out. The behavior fix (#357)
+shipped and the follow-up that extracted the shared appear/observation
+lifecycle into `DetailLifecycle` (and made the detail view models'
+`init`/`appear`/`disappear` uniformly side-effect-free) landed on top of it.
+Kept for historical reference; no active workstream remains.
+
+**Status as of 2026-05-27**: cause established and fix shipped. The
 2026-05-27 build-507 feedback `podhaven:7509841267` ("App just crashed after
-memory warning") reproduced the build-506 incident with the new diagnostic
-logging in place, and the logs unambiguously show **constructor / lifecycle
+memory warning") reproduced the build-506 incident with diagnostic logging
+in place, and the logs unambiguously showed **constructor / lifecycle
 churn**: a single user navigation produced **~7,200 `PodcastDetailViewModel`
 instances for the same podcast in 46 seconds**, of which only ~20 ever
-appeared. Each transient VM runs the full constructor side-effect chain
+appeared. Each transient VM ran the full constructor side-effect chain
 (`startObservation(caller: init(state:))` → seed yield → `transition: saved →
 saved, diff=[ episodes(0→184) tags(0→1) ]` → `refreshEpisodeList`) before
-being garbage-collected, leaking allocations until iOS issues a memory
-warning and then watchdog-terminates the foreground app.
+being garbage-collected, leaking allocations until iOS issued a memory
+warning and watchdog-terminated the foreground app.
 
-The fix is **#357 item 1** — make `PodcastDetailViewModel.init(state:)`
-side-effect-free. Item 2 (incremental `PowerList` updates) remains useful
-follow-up work but is not what kills the app today.
+The fix shipped in #357: `PodcastDetailViewModel.init(state:)` is now
+side-effect-free. Observation startup flows through `performAppear` →
+`attemptObservation` → `transition(...)` → `startObservation(...)`, and
+share-artwork loading is an idempotent `loadShareArtworkIfNeeded()` helper
+called from `performAppear`. After the fix, only the appeared VM owns
+long-lived async work; transient SwiftUI-reevaluation instances do nothing
+beyond synchronous owned-state setup.
+
+The originally-proposed companion workstream (incremental `PowerList`
+updates) was retired without being implemented: with `init` no longer
+firing observation, `refreshEpisodeList` runs once per appear instead of
+thousands of times per navigation, so the per-update rebuild cost is no
+longer a problem in evidence. If production logs or profiles later show a
+real per-update cost on a single appeared VM, file a fresh issue at that
+point — do not revive item 2 speculatively.
 
 ## Incident facts
 
@@ -30,7 +48,7 @@ follow-up work but is not what kills the app today.
   submitted 2026-05-27 11:46:13 PT.
 - Crash `PODHAVEN-3J`: `WatchdogTermination`, foreground, 11:45:54 PT — 19 s
   before the feedback, 5 s after the last log line.
-- Build: TestFlight 507, commit `e6a396c5`. Contains the new diagnostic
+- Build: TestFlight 507, commit `e6a396c5`. Contains the diagnostic
   logging from `6aa87834` but no #357 behavior fix.
 - Screen context: PodcastDetail for "Taylor Lorenz's Power User" (podcast 1),
   184 episodes.
@@ -38,15 +56,15 @@ follow-up work but is not what kills the app today.
   during an `upNext → podcasts` tab transition while a sheet is being
   dismissed. The storm starts in the same millisecond.
 
-What the new diagnostics proved:
+What the diagnostics proved:
 
 - VM IDs 1 → 7,210 created in 46 s (~156/s on average). Of those, ~7,180
   never had `performAppear()` called.
 - 399 `startObservation` log lines, all with `caller=init(state:)` — direct
   proof of the constructor side-effect.
-- 278 `observePodcastSeries` entries; each yields exactly once with `entries=0
-  → 184` and exits. There is no single long-lived task with thousands of
-  yields, so this is not GRDB writer churn.
+- 278 `observePodcastSeries` entries; each yielded exactly once with
+  `entries=0 → 184` and exited. There is no single long-lived task with
+  thousands of yields, so this is not GRDB writer churn.
 - 91 `transition: saved → saved` warnings visible (rate-limiter dropped the
   rest); `caller=observePodcastSeries(_:)`, `entries=0`, `sort=newestFirst`,
   `diff=[ episodes(0→184) tags(0→1) ]` for all of them.
@@ -78,20 +96,24 @@ storm" and "lifecycle churn":
 Build 507's logs retroactively explain the 506 reports: same lifecycle pattern,
 different podcast.
 
-## Current diagnostic logging
+## Diagnostic logging (build 507, since removed)
 
-The 2026-05-27 logging pass (`6aa87834`, shipped in build 507) is now proven
-sufficient to characterize this class of incident. Nothing further is needed
-to ship #357. Inventory, for reference:
+The 2026-05-27 logging pass (`6aa87834`, shipped in build 507) characterized
+this class of incident. **That verbose per-VM instrumentation was removed when
+the side-effect-free init landed** — the `vm=<id>` summary, the
+`startObservation(caller:)` argument, the `transition diff=[...]` suffix, and
+the per-VM transition-storm detector no longer exist in current builds. The
+inventory below describes the build-507 logs only, for interpreting the
+archived captures referenced under "Incident facts":
 
 - `PodcastDetailViewModel` logs a stable `vm=<id>` summary on every relevant
   call (state, entry count, sort method, observation task state).
 - `PodcastDetailView` logs struct `init`, `appear`, and `disappear` with the
   VM summary — discarded SwiftUI destination models are now distinguishable
   from appeared models.
-- `startObservation(_:caller:)` logs the `caller` and whether it created or
-  found an existing task. `caller=init(state:)` is the constructor side-effect
-  signature.
+- `startObservation(_:caller:)` logged the `caller` and whether it created or
+  found an existing task. (The `caller` argument and this logging were removed
+  alongside the fix.)
 - `observePodcastSeries` logs entry and exit duration, yield count, and exit
   reason (`cancelled` vs `natural`).
 - Per-yield `Updating observed series` logs include yield number and VM
@@ -102,7 +124,7 @@ to ship #357. Inventory, for reference:
   when a single VM crosses 50 transitions/sec. By design, this catches
   yield-per-VM storms (one task emitting many values), not cross-VM
   lifecycle storms (many VMs each emitting once) — the build-507 incident
-  is the latter, so this detector correctly stays silent.
+  was the latter, so this detector correctly stayed silent.
 - `RecommendationScoringCoordinator.refresh()` logs nil-snapshot, cache-hit,
   in-flight skip, and new-pass branches; `Recommendations.coordinator` has
   `.trace` level so those trace messages are actually written.
@@ -110,8 +132,8 @@ to ship #357. Inventory, for reference:
 Interpretation guide (proven against build-507 logs):
 
 - Many `init vm=N` lines with few or no matching `appear vm=N`, **and**
-  `startObservation: ... caller=init(state:)` for every one of them:
-  **constructor side effects** (this incident).
+  `startObservation: ... caller=init(state:)` for any of them:
+  **constructor side effects** (the regression signature for #357).
 - One appeared VM with many `observePodcastSeries` entries and `yields=0` or
   `yields=1` exits: observation task restart churn.
 - One appeared VM with one long-lived `observePodcastSeries` and huge yield
@@ -125,83 +147,53 @@ PR #359 (FileLogHandler storm warnings, open at time of writing) is a
 companion to the diagnostics above. It detects when a single `(file, line)`
 call site is having entries dropped by the rate limiter and emits one
 `.warning` per 60 s cooldown carrying suppressed-count and the originating
-`Thread.callStackSymbols`. For this incident it would have produced one
-`FileLogHandler storm: PodcastDetailViewModel.swift:834 ...` warning visible
-in Sentry directly — no feedback round-trip required to know a storm is
-happening.
+`Thread.callStackSymbols`. For the original 2026-05-27 incident it would have
+produced one `FileLogHandler storm: PodcastDetailViewModel.swift:NNN ...`
+warning visible in Sentry directly — no feedback round-trip required to know
+a storm is happening.
 
 PR #359 is generically useful (catches any future log-suppression storm in
 any subsystem). It does **not** replace the behavior fix in #357 and there
-is no need to add a third, behavior-specific aggregate counter inside
-`PodcastDetailViewModel`. The existing per-VM `vm=N` + `caller=...` logging
-is enough to verify a fix and catch regressions.
+is no need to add a behavior-specific aggregate counter inside
+`PodcastDetailViewModel`. With the verbose per-VM diagnostics now removed,
+`LifecycleTests` is the primary regression guard and PR #359's generic
+log-suppression warning is the production backstop.
 
-## Behavior fixes tracked by #357
+## Behavior fix shipped: side-effect-free init (#357)
 
-### 1. Side-effect-free `PodcastDetailViewModel.init` (ship this first)
+`PodcastDetailViewModel.init(state:)` was previously starting async work
+that could outlive a discarded SwiftUI view/model:
 
-`PodcastDetailViewModel.init(state:)` must not start async work that can
-outlive a discarded SwiftUI view/model. Current offenders (build 507):
+- `startObservation(state.savedSeries?.id)`;
+- a `Task { ... imagePipeline.image(for:) ... }` for share artwork.
 
-- `startObservation(state.savedSeries?.id)` at line ~497;
-- the share-artwork `Task { ... imagePipeline.image(for:) ... }`.
+Post-fix shape:
 
-Preferred shape:
+- `init` is limited to synchronous owned-state setup (`state` plus a
+  `refreshEpisodeList(from:)` seed for a non-empty saved series). No `Task`,
+  no `startObservation`, no image pipeline call, no diagnostic logging.
+- Observation startup flows through `performAppear` → `attemptObservation`
+  → `transition(...)` → `startObservation(...)`. Only the kept (appeared)
+  VM ever owns the observation task.
+- Share-artwork loading lives in `loadShareArtworkIfNeeded()` — idempotent
+  (no-ops once `shareArtwork` is populated or a load is in flight), called
+  from `performAppear`, cancellation-aware via a stored task handle.
+- `disappear()` continues to cancel observation and recommendation scoring.
 
-- keep `init` limited to synchronous owned-state setup;
-- move observation startup into the kept model's lifecycle, likely
-  `performAppear()`;
-- move share-artwork loading into an idempotent lifecycle helper;
-- keep `startObservation` idempotent and prompt;
-- keep `disappear()` responsible for canceling observation and recommendation
-  scoring.
+Target behavior, verified by `LifecycleTests`:
 
-The target behavior is that a VM initialized but never appeared starts no
-observation task and no share-artwork task. Concretely: after the fix, the
-build-507 trigger (`Navigation.showPodcast([1])` during an Up Next →
-Podcasts transition) must produce at most one `init: vm=N` whose VM ID is
-followed by `appear: vm=N` and exactly one
-`observePodcastSeries: entering` / `yield=1` / `transition: saved → saved`
-chain. Anything more means the constructor still has side effects.
+- A VM initialized but never appeared starts no observation task and no
+  share-artwork task, for any seed shape (saved displayed, listed bridge,
+  unsaved displayed, unsaved series).
+- The appeared VM starts observation promptly and loads share artwork
+  exactly once across repeated `performAppear` calls.
 
-### 2. Incremental PodcastDetail list updates
-
-`refreshEpisodeList(from:)` currently rebuilds `episodeList.allEntries` on each
-saved-series update. `PowerList.allEntries` always updates `baselineEntries`
-and calls `scheduleEntriesUpdate()`, which cancels/recreates the projection
-task. That is too blunt for observation-driven detail updates, even after
-item 1 removes the volume.
-
-Do **not** skip updating rows. Instead, skip only the expensive projection
-recompute when membership/order/filter/search are unchanged.
-
-Preferred shape:
-
-- add a first-class `PowerList` API such as
-  `updateEntries(_:projectionInvalidated:)`;
-- when projection is not invalidated, update `baselineEntries` and patch
-  `_allEntries` / `filteredEntries` by ID;
-- when projection is invalidated, keep the existing schedule/recompute path.
-
-For PodcastDetail, projection invalidation must include:
-
-- inserts/deletes/identity changes (`ListedEpisode.id` is `MediaGUID`);
-- current sort key changes (`pubDate`, `creationDate`, `duration`,
-  `finishDate`, `queueDate`, or recommendation snapshot behavior);
-- current filter key changes (`finishDate`, `queueDate`);
-- active search key changes (`searchableString`, currently title plus podcast
-  title for saved detail rows).
-
-Visible non-projection fields should still patch immediately without
-resorting/refiltering when they do not affect the current projection:
-
-- `currentTime`;
-- `cacheStatus`;
-- `saveInCache`;
-- `queueOrder` unless it affects the current projection;
-- `rating` unless it affects recommendation behavior;
-- `hasEmbedding` unless it affects recommendation behavior;
-- image/title display fields; title also invalidates active search.
+Regression guard: the side-effect-free init is pinned by `LifecycleTests`
+(transient inits start no observation/share-artwork work; only the appeared
+VM does). The verbose per-VM production logging that originally caught this
+(`vm=N`, `startObservation ... caller=init(state:)`) was removed with the
+fix, so a production recurrence now surfaces via PR #359's generic
+`FileLogHandler` storm warning rather than a bespoke `caller=` signal.
 
 ## Historical context
 
@@ -219,20 +211,23 @@ be revived.
 
 ## What not to do
 
-- Do not add another behavioral storm detector inside
-  `PodcastDetailViewModel`. The existing `vm=N`, `caller=...`, and
-  `transition diff=[...]` logging is sufficient and PR #359 covers the
+- Do not re-add async work to `PodcastDetailViewModel.init(state:)`. SwiftUI
+  destination re-evaluation will resurrect the storm.
+- Do not add a behavioral storm detector inside `PodcastDetailViewModel`.
+  `LifecycleTests` pins the side-effect-free init and PR #359 covers the
   generic log-suppression signal.
-- Do not debounce `observePodcastSeries`. The fix is to not start the
+- Do not debounce `observePodcastSeries`. The fix is not to start the
   observation at all on a VM that never appears.
 - Do not assume GRDB emitted thousands of values from one observation —
   build-507 diagnostics conclusively show one yield per VM.
 - Do not assume recommendation sorting was involved — it wasn't, in any
   2026-05-27 incident on this user.
 - Do not hide user-visible updates; detail updates must stay immediate.
-- Do not mutate `PowerList.allEntries[id:]` from outside as a workaround.
-  The computed setter schedules a full projection update; add an explicit
-  API per #357 item 2.
+- Do not preemptively rewrite `PowerList` to be incremental. The original
+  proposal (per-id patching with a `projectionInvalidated` flag) was
+  retired; it was solving a problem that depended on observation churn that
+  no longer exists. Revisit only with new evidence from a single appeared
+  VM.
 
 ## Analysis workflow
 
@@ -251,24 +246,20 @@ For storm characterization specifically, the cross-VM signal lives in the
 `vm=N` field of `init:` / `appear:` / `transition:` / `observePodcastSeries:`
 messages. Counting distinct `vm=N` values seen in a 60-second window is the
 fastest way to size a storm; counting `caller=init(state:)` occurrences
-under `startObservation` proves the constructor side-effect.
+under `startObservation` proves a constructor-side-effect regression.
 
 ## Key files
 
 - `PodHaven/Views/Podcasts/Models/PodcastDetailViewModel.swift`
 - `PodHaven/Views/Podcasts/PodcastDetailView.swift`
-- `PodHaven/Views/Components/PowerList.swift`
 - `PodHaven/Environment/Navigation.swift`
-- `PodHaven/Database/Models/ListableEpisode.swift`
-- `PodHaven/Database/Models/ListablePodcastEpisode.swift`
-- `PodHaven/Database/DisplayModels/ListedEpisode.swift`
 - `PodHaven/Recommendations/ViewUtility/RecommendationScoringCoordinator.swift`
 - `PodHaven/Logging/Handlers/FileLogHandler.swift`
+- `PodHavenTests/ViewModelTests/PodcastDetailViewModelTests/LifecycleTests.swift`
 
 ## Related
 
-- #357 — behavior task for side-effect-free detail init and incremental
-  `PowerList` updates. Item 1 is the active fix.
+- #357 — behavior task for side-effect-free detail init. **Fixed**.
 - #359 — FileLogHandler storm warnings (open PR). Complementary, ships
   log-side suppression detection.
 - #293 — historical DB-observation storm investigation; useful context, but

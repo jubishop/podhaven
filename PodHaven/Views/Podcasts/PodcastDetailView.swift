@@ -17,7 +17,7 @@ struct PodcastDetailView: View {
 
   init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel
-    Self.log.debug("PodcastDetailView init: \(viewModel.diagnosticSummary)")
+    Self.log.debug("PodcastDetailView init")
   }
 
   var body: some View {
@@ -37,11 +37,11 @@ struct PodcastDetailView: View {
         }
       }
       .onAppear {
-        Self.log.debug("PodcastDetailView appear: \(viewModel.diagnosticSummary)")
+        Self.log.debug("PodcastDetailView appear")
         viewModel.appear()
       }
       .onDisappear {
-        Self.log.debug("PodcastDetailView disappear: \(viewModel.diagnosticSummary)")
+        Self.log.debug("PodcastDetailView disappear")
         viewModel.disappear()
       }
       .overlay {
