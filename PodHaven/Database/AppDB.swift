@@ -4,6 +4,8 @@ import FactoryKit
 import Foundation
 import GRDB
 import Logging
+import SwiftUI
+import UniformTypeIdentifiers
 
 extension Container {
   internal var appDB: Factory<AppDB> {
@@ -183,6 +185,32 @@ struct AppDB {
       } catch {
         AppDB.log.log(level: level, "db write failed: \(label) after \(now() - requestedAt)")
         throw error
+      }
+    }
+  }
+
+  // Writes a self-contained SQLite file (WAL merged via GRDB backup) for sharing or copying.
+  func exportSnapshot(to destinationURL: URL) throws {
+    if FileManager.default.fileExists(atPath: destinationURL.path) {
+      try FileManager.default.removeItem(at: destinationURL)
+    }
+    let destination = try DatabaseQueue(
+      path: destinationURL.path,
+      configuration: Self.makeConfiguration()
+    )
+    try db.backup(to: destination)
+  }
+
+  struct DatabaseExportItem: Transferable {
+    private static let sqliteExportContentType =
+      UTType(filenameExtension: "sqlite") ?? .data
+
+    static var transferRepresentation: some TransferRepresentation {
+      FileRepresentation(exportedContentType: sqliteExportContentType) { _ in
+        let exportURL = FileManager.default.temporaryDirectory
+          .appendingPathComponent("PodHaven-\(UUID().uuidString).sqlite")
+        try Container.shared.appDB().exportSnapshot(to: exportURL)
+        return SentTransferredFile(exportURL, allowAccessingOriginalFile: true)
       }
     }
   }

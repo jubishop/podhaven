@@ -96,7 +96,7 @@ struct DebugSection: View {
       )
 
       ShareLink(
-        item: AppInfo.documentsDirectory.appendingPathComponent("db.sqlite"),
+        item: AppDB.DatabaseExportItem(),
         preview: SharePreview(
           "PodHaven Database",
           image: AppIcon.shareDatabase.rawImage
