@@ -174,6 +174,19 @@ struct SettingsView: View {
           ) {
             Toggle("Enable Undo Seek", isOn: userSettings.$enableUndoSeek.binding)
           }
+
+          SettingsRow(
+            infoText: """
+              When enabled, you can drag the progress bar to seek from the lock screen, \
+              Control Center, and CarPlay. Disable to keep from accidentally moving your \
+              position; the skip buttons and the progress display stay available.
+              """
+          ) {
+            Toggle(
+              "Command Center Scrubbing",
+              isOn: userSettings.$commandCenterScrubbingEnabled.binding
+            )
+          }
         }
 
         Section("Appearance") {

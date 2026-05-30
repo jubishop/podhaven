@@ -152,6 +152,14 @@ extension PlayManager {
     CommandCenter.updateSkipIntervals()
   }
 
+  private func handleScrubbingChange() {
+    Self.log.debug(
+      "handleScrubbingChange: commandCenterScrubbingEnabled: \(userSettings.commandCenterScrubbingEnabled)"
+    )
+
+    CommandCenter.updateScrubbing()
+  }
+
   private func handleMediaServicesReset() async {
     Self.log.info("handleMediaServicesReset: beginning recovery process")
 
@@ -520,6 +528,16 @@ extension PlayManager {
       for await _ in userSettings.$skipBackwardInterval.stream() {
         Self.log.debug("skipBackwardInterval changed to: \(userSettings.skipBackwardInterval)s")
         handleSkipIntervalsChange()
+      }
+    }
+
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await _ in userSettings.$commandCenterScrubbingEnabled.stream() {
+        Self.log.debug(
+          "commandCenterScrubbingEnabled changed to: \(userSettings.commandCenterScrubbingEnabled)"
+        )
+        handleScrubbingChange()
       }
     }
 
