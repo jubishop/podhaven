@@ -34,7 +34,7 @@ struct ITunesService {
 
   // MARK: - Public API
 
-  func searchedPodcasts(matching term: String, limit: Int) async throws
+  @concurrent func searchedPodcasts(matching term: String, limit: Int) async throws
     -> [PodcastWithEpisodeMetadata<UnsavedPodcast>]
   {
     let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -47,7 +47,7 @@ struct ITunesService {
     return searchResult.podcastsWithMetadata
   }
 
-  func topPodcasts(genreID: Int? = nil, limit: Int) async throws
+  @concurrent func topPodcasts(genreID: Int? = nil, limit: Int) async throws
     -> [PodcastWithEpisodeMetadata<UnsavedPodcast>]
   {
     let topPodcastResult: ITunesTopPodcastsFeed =
@@ -58,7 +58,7 @@ struct ITunesService {
     return try await lookupPodcasts(podcastIDs: topPodcastResult.podcastIDs)
   }
 
-  func lookupPodcasts(podcastIDs: [ITunesPodcastID]) async throws
+  @concurrent func lookupPodcasts(podcastIDs: [ITunesPodcastID]) async throws
     -> [PodcastWithEpisodeMetadata<UnsavedPodcast>]
   {
     let lookupResult: ITunesEntityResults = try decode(

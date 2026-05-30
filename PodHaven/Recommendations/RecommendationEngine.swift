@@ -294,7 +294,7 @@ struct RecommendationEngine: Sendable {
     )
   }
 
-  func topRecommendations(limit: Int) async throws -> [Episode.ID] {
+  @concurrent func topRecommendations(limit: Int) async throws -> [Episode.ID] {
     Self.log.debug("Generating top recommendations (limit: \(limit))")
     let totalStart = continuousClockNow()
 
@@ -591,7 +591,7 @@ struct RecommendationEngine: Sendable {
 
   // MARK: - Score Episodes
 
-  private func scoreEpisodes(
+  @concurrent private func scoreEpisodes(
     _ candidates: [CandidateEpisode],
     context: ScoringContext
   ) async throws -> [Episode.ID: RecommendationScore] {

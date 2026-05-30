@@ -125,7 +125,7 @@ struct PodcastFeed: Sendable, Stringable {
     try await parse(downloadData.data, from: FeedURL(downloadData.url))
   }
 
-  static func parse(_ data: Data, from: FeedURL) async throws -> PodcastFeed {
+  @concurrent static func parse(_ data: Data, from: FeedURL) async throws -> PodcastFeed {
     log.trace("Parsing data of size \(data.count) from \(from)")
     guard XMLParser(data: data).parse() else {
       throw FeedParseError.notXML

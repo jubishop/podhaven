@@ -1,47 +1,44 @@
 // Copyright Justin Bishop, 2025
 
 import SwiftSyntaxMacrosTestSupport
-import Testing
+import XCTest
 
-@testable import SavedMacro
 @testable import SavedMacroPlugin
 
-struct SavedMacroTests {
-  @Test("Saved macro expansion for struct with unsaved type")
-  func testSavedMacroExpansion() throws {
-    // Test input code
-    let inputSource = """
+final class SavedMacroTests: XCTestCase {
+  func testSavedMacroExpansion() {
+    assertMacroExpansion(
+      """
       import Tagged
 
       @Saved<UnsavedTest>
       struct Test {}
 
       struct UnsavedTest {}
-      """
+      """,
+      expandedSource: """
+        import Tagged
+        struct Test {
 
-    // Expected expanded code
-    let expected = """
-      import Tagged
-      struct Test {
+          typealias ID = Tagged<Self, Int64>
 
-        typealias ID = Tagged<Self, Int64>
+          let id: ID
 
-        var id: ID
+          let creationDate: Date
 
-        var unsaved: UnsavedTest
+          var unsaved: UnsavedTest
 
-        init(id: ID, from unsaved: UnsavedTest) {
-          self.id = id
-          self.unsaved = unsaved
+
+
+          init(id: ID, creationDate: Date, from unsaved: UnsavedTest) {
+            self.id = id
+            self.creationDate = creationDate
+            self.unsaved = unsaved
+          }
         }
-      }
 
-      struct UnsavedTest {}
-      """
-
-    assertMacroExpansion(
-      inputSource,
-      expandedSource: expected,
+        struct UnsavedTest {}
+        """,
       macros: ["Saved": SavedMacro.self],
       indentationWidth: .spaces(2)
     )
