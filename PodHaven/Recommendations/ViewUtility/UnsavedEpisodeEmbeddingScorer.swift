@@ -46,7 +46,8 @@ final class UnsavedEpisodeEmbeddingScorer {
       cachedVectors = [MediaGUID: (source: String, vector: [Float])](capacity: capacity)
     }
 
-    var scores = [MediaGUID: Float](capacity: capacity)
+    var orderedGUIDs = [MediaGUID](capacity: capacity)
+    var vectors = [[Float]](capacity: capacity)
     for episode in unsavedEpisodes {
       try Task.checkCancellation()
       let mediaGUID = episode.mediaGUID
@@ -61,12 +62,20 @@ final class UnsavedEpisodeEmbeddingScorer {
         )
         cachedVectors[mediaGUID] = (source: source, vector: vector)
       }
-      if let similarity = recommendationEngine.similarityScore(forEmbedding: vector) {
-        scores[mediaGUID] = similarity
-      }
+      orderedGUIDs.append(mediaGUID)
+      vectors.append(vector)
     }
 
     cache = Cache(revision: revision, vectors: cachedVectors)
+
+    // One hop off the main actor: the vDSP scoring loop runs on the cooperative
+    // pool instead of a synchronous per-vector call per episode here.
+    let similarities = try await recommendationEngine.similarityScores(forEmbeddings: vectors)
+    var scores = [MediaGUID: Float](capacity: capacity)
+    for (mediaGUID, similarity) in zip(orderedGUIDs, similarities) {
+      guard let similarity else { continue }
+      scores[mediaGUID] = similarity
+    }
     return (scores, true)
   }
 }
