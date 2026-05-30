@@ -4,6 +4,7 @@ collections:
     pattern: '**/*.md'
     ignore:
       - 'archive/**'
+      - 'pr_reviews/**'
   docs:
     path: ./docs
     pattern: '**/*.md'
