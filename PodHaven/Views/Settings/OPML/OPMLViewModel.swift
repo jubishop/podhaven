@@ -9,6 +9,12 @@ import SwiftUI
 import Tagged
 import UniformTypeIdentifiers
 
+extension Container {
+  @MainActor var opmlViewModel: Factory<OPMLViewModel> {
+    Factory(self) { OPMLViewModel() }.scope(.cached)
+  }
+}
+
 @Observable @MainActor class OPMLViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -22,7 +28,7 @@ import UniformTypeIdentifiers
 
   private let downloadManager: DownloadManager
 
-  init() {
+  fileprivate init() {
     downloadManager = DownloadManager(
       session: Container.shared.podcastFeedSession(),
       maxConcurrentDownloads: 16

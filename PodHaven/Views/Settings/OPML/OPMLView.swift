@@ -9,10 +9,10 @@ struct OPMLView: View {
   nonisolated private static let log = Log.as(LogSubsystem.SettingsView.opml)
 
   @DynamicInjected(\.alert) private var alert
-
-  @State private var viewModel = OPMLViewModel()
+  @DynamicInjected(\.opmlViewModel) private var viewModel
 
   var body: some View {
+    @Bindable var viewModel = viewModel
     Form {
       Section("Import") {
         Button("Import OPML") {
