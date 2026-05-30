@@ -8,7 +8,6 @@ import UniformTypeIdentifiers
 struct OPMLView: View {
   nonisolated private static let log = Log.as(LogSubsystem.SettingsView.opml)
 
-  @DynamicInjected(\.alert) private var alert
   @InjectedObservable(\.opmlViewModel) private var viewModel
 
   var body: some View {
