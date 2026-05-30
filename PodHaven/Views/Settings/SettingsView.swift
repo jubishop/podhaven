@@ -186,6 +186,7 @@ struct SettingsView: View {
                 """
             ) {
               Text("Appearance Mode")
+              Spacer()
             }
 
             Picker("", selection: userSettings.$appearanceMode.binding) {
@@ -236,6 +237,7 @@ struct SettingsView: View {
                 """
             ) {
               Text("Recommendation Diversity")
+              Spacer()
             }
 
             Picker("", selection: userSettings.$recommendationDeconeMode.binding) {
