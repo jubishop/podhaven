@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import IdentifiedCollections
 import Semaphore
 import Testing
 
@@ -261,6 +262,44 @@ import Testing
     viewModel.disappear()
 
     #expect(viewModel.searchState != .loading)
+  }
+
+  // MARK: - Sort modes keep nil-metadata podcasts visible
+
+  @Test("byMostRecentEpisode keeps a result with no episode date visible, sorted last")
+  func byMostRecentEpisodeKeepsNilEpisodeDateVisible() async throws {
+    let withEpisodes = PodcastWithEpisodeMetadata(
+      podcast: ListedPodcast(
+        unsavedSearchResult: try Create.unsavedPodcast(
+          feedURL: FeedURL(URL(string: "https://example.com/has-episodes.rss")!),
+          title: "Has Episodes"
+        )
+      ),
+      episodeCount: 3,
+      mostRecentEpisodeDate: 5.minutesAgo
+    )
+    let noEpisodeDate = PodcastWithEpisodeMetadata(
+      podcast: ListedPodcast(
+        unsavedSearchResult: try Create.unsavedPodcast(
+          feedURL: FeedURL(URL(string: "https://example.com/no-episode-date.rss")!),
+          title: "No Episode Date"
+        )
+      ),
+      episodeCount: 0,
+      mostRecentEpisodeDate: nil
+    )
+
+    let viewModel = SearchViewModel()
+    viewModel.currentSortMethod = .byMostRecentEpisode
+    viewModel.podcastList.allEntries = IdentifiedArray(
+      uniqueElements: [withEpisodes, noEpisodeDate]
+    )
+    try await Wait.until(
+      { @MainActor in viewModel.podcastList.filteredEntryIDs.contains(withEpisodes.id) },
+      { @MainActor in "list never settled; got \(viewModel.podcastList.filteredEntryIDs)" }
+    )
+
+    #expect(viewModel.podcastList.filteredEntryIDs == [withEpisodes.id, noEpisodeDate.id])
   }
 
   private func configureITunesResponses() async {
