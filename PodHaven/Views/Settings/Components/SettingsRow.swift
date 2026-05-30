@@ -7,6 +7,7 @@ struct SettingsRow<Content: View>: View {
   @ViewBuilder let content: () -> Content
 
   @State private var showPopover = false
+  @State private var measuredHeight: CGFloat = 0
 
   var body: some View {
     GeometryReader { geometry in
@@ -26,7 +27,16 @@ struct SettingsRow<Content: View>: View {
           }
       }
       .frame(width: geometry.size.width, alignment: .leading)
+      .background {
+        GeometryReader { heightGeometry in
+          Color.clear
+            .onChange(of: heightGeometry.size.height, initial: true) { _, newHeight in
+              measuredHeight = newHeight
+            }
+        }
+      }
     }
-    .fixedSize(horizontal: false, vertical: true)
+    .frame(height: measuredHeight > 0 ? measuredHeight : nil)
+    .fixedSize(horizontal: false, vertical: measuredHeight == 0)
   }
 }

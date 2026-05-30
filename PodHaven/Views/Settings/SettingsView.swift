@@ -281,49 +281,49 @@ struct SettingsView: View {
             Toggle("Show Now Playing", isOn: userSettings.$showNowPlayingInUpNext.binding)
           }
 
-          VStack(alignment: .leading, spacing: 24) {
-            SettingsRow(
-              infoText: """
-                When enabled, \
-                episodes in the Up Next queue will always display the podcast artwork \
-                instead of the episode-specific artwork.
-                """
-            ) {
+          SettingsRow(
+            infoText: """
+              When enabled, \
+              episodes in the Up Next queue will always display the podcast artwork \
+              instead of the episode-specific artwork.
+              """
+          ) {
+            VStack(alignment: .leading, spacing: 24) {
               VStack(alignment: .leading, spacing: 2) {
                 Text("Always Show Podcast Art")
                 Text("in Queue")
                   .foregroundStyle(.secondary)
               }
-              Spacer()
+              Toggle(
+                "Always Show Podcast Art in Queue",
+                isOn: userSettings.$alwaysShowPodcastImageInUpNext.binding
+              )
+              .labelsHidden()
             }
-            Toggle(
-              "Always Show Podcast Art in Queue",
-              isOn: userSettings.$alwaysShowPodcastImageInUpNext.binding
-            )
-            .labelsHidden()
+            Spacer(minLength: 0)
           }
 
-          VStack(alignment: .leading, spacing: 24) {
-            SettingsRow(
-              infoText: """
-                When enabled, the currently playing episode will always display \
-                the podcast artwork instead of the episode-specific artwork — \
-                in the Playbar, the lock screen, the Now Playing widget, \
-                and at the top of the Up Next queue.
-                """
-            ) {
+          SettingsRow(
+            infoText: """
+              When enabled, the currently playing episode will always display \
+              the podcast artwork instead of the episode-specific artwork — \
+              in the Playbar, the lock screen, the Now Playing widget, \
+              and at the top of the Up Next queue.
+              """
+          ) {
+            VStack(alignment: .leading, spacing: 24) {
               VStack(alignment: .leading, spacing: 2) {
                 Text("Always Show Podcast Art")
                 Text("for Now Playing")
                   .foregroundStyle(.secondary)
               }
-              Spacer()
+              Toggle(
+                "Always Show Podcast Art for Now Playing",
+                isOn: userSettings.$alwaysShowPodcastImageForOnDeck.binding
+              )
+              .labelsHidden()
             }
-            Toggle(
-              "Always Show Podcast Art for Now Playing",
-              isOn: userSettings.$alwaysShowPodcastImageForOnDeck.binding
-            )
-            .labelsHidden()
+            Spacer(minLength: 0)
           }
 
           VStack(alignment: .leading, spacing: 24) {
@@ -395,22 +395,22 @@ struct SettingsView: View {
             )
           }
 
-          VStack(alignment: .leading, spacing: 24) {
-            SettingsRow(
-              infoText: """
-                When enabled, finishing an episode with an empty queue will automatically \
-                play your top recommended episode. Turn off to stop playback at the end of \
-                an episode when nothing else is queued.
-                """
-            ) {
+          SettingsRow(
+            infoText: """
+              When enabled, finishing an episode with an empty queue will automatically \
+              play your top recommended episode. Turn off to stop playback at the end of \
+              an episode when nothing else is queued.
+              """
+          ) {
+            VStack(alignment: .leading, spacing: 24) {
               Text("Auto-play Top Recommendation")
-              Spacer()
+              Toggle(
+                "Auto-play Top Recommendation",
+                isOn: userSettings.$autoPlayTopRecommendationWhenQueueEmpty.binding
+              )
+              .labelsHidden()
             }
-            Toggle(
-              "Auto-play Top Recommendation",
-              isOn: userSettings.$autoPlayTopRecommendationWhenQueueEmpty.binding
-            )
-            .labelsHidden()
+            Spacer(minLength: 0)
           }
         }
 
