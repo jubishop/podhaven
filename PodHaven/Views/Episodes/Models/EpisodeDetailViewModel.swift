@@ -162,7 +162,25 @@ enum EpisodeDetailDisplayedScore: Sendable {
   }
 
   private func performAppear() async throws {
-    let podcastEpisode = try await repo.podcastEpisode(state.mediaGUID)
+    let podcastEpisode: PodcastEpisode?
+    switch state {
+    case .saved(let saved):
+      podcastEpisode = try await repo.podcastEpisode(saved.id)
+    case .initial(let listed):
+      // `.initial` only holds saved list rows — unsaved rows route to
+      // `.unsaved` at init — so its Episode.ID is always present. Resolve by it
+      // so a (guid, mediaURL) shared across podcasts can't bind to another's row.
+      guard let episodeID = listed.episodeID else {
+        Assert.fatal("`.initial` detail seed missing Episode.ID: \(listed.toString)")
+      }
+      podcastEpisode = try await repo.podcastEpisode(episodeID)
+    case .unsaved(let unsaved):
+      // Only treat as saved if this episode already exists under its own feed.
+      podcastEpisode = try await repo.podcastEpisode(
+        unsaved.mediaGUID,
+        feedURL: unsaved.feedURL
+      )
+    }
     try Task.checkCancellation()
 
     if let podcastEpisode {

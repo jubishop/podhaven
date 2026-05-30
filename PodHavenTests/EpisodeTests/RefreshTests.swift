@@ -154,4 +154,59 @@ class EpisodeRefreshTests {
     #expect(updatedExistingEpisode.queueOrder == 0)
     #expect(updatedExistingEpisode.duration == actualDuration)
   }
+
+  @Test("that two podcasts can persist the same guid and mediaURL")
+  func crossPodcastDuplicateMediaGUID() async throws {
+    let sharedGUID: GUID = GUID(String.random())
+    let sharedMediaURL = MediaURL(URL.valid())
+
+    let seriesA = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Podcast A"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: sharedGUID,
+            mediaURL: sharedMediaURL,
+            title: "Shared episode in A"
+          )
+        ]
+      )
+    )
+
+    let seriesB = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Podcast B"),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "B's own episode")]
+      )
+    )
+
+    // Podcast B republishes an episode that already exists under Podcast A
+    // with an identical guid and mediaURL, as overlapping Substack aggregate
+    // and section feeds do. The per-podcast keys never collide here; only a
+    // global (guid, mediaURL) key would, and it must not wipe B's whole feed.
+    let duplicate = try Create.unsavedEpisode(
+      guid: sharedGUID,
+      mediaURL: sharedMediaURL,
+      title: "Shared episode in B"
+    )
+
+    let inserted = try await repo.updateSeriesFromFeed(
+      podcastSeries: PodcastSeries(podcast: seriesB.podcast),
+      podcast: nil,
+      unsavedEpisodes: [duplicate],
+      existingEpisodes: []
+    )
+    #expect(inserted.map(\.mediaGUID) == [duplicate.mediaGUID])
+
+    let refreshedB = try await repo.podcastSeries(seriesB.podcast.id)
+    #expect(refreshedB?.episodes.contains { $0.mediaGUID == duplicate.mediaGUID } == true)
+
+    let refreshedA = try await repo.podcastSeries(seriesA.podcast.id)
+    #expect(
+      refreshedA?.episodes
+        .contains {
+          $0.mediaGUID == MediaGUID(guid: sharedGUID, mediaURL: sharedMediaURL)
+        } == true
+    )
+  }
 }

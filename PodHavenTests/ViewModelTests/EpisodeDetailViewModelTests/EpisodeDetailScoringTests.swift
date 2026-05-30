@@ -67,7 +67,12 @@ import Testing
         "Expected re-save to land before embedding the re-created episode. saved: \(viewModel.episode.isSaved)"
       }
     )
-    let resaved = try #require(try await repo.podcastEpisode(podcastEpisode.episode.mediaGUID))
+    let resaved = try #require(
+      try await repo.podcastEpisode(
+        podcastEpisode.episode.mediaGUID,
+        feedURL: podcastEpisode.feedURL
+      )
+    )
     try await RecommendationHelpers.embedEpisodes([resaved.episode])
 
     // Drive the engine's embedding-table observation through its 400ms
@@ -150,7 +155,12 @@ import Testing
     )
 
     #expect(viewModel.episode.isSaved == false)
-    #expect(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID) == nil)
+    #expect(
+      try await repo.podcastEpisode(
+        unsavedPodcastEpisode.mediaGUID,
+        feedURL: unsavedPodcastEpisode.feedURL
+      ) == nil
+    )
   }
 
   @Test("unsaved episode hides the score when the engine cache is cold")
@@ -459,7 +469,12 @@ import Testing
         "Expected save to land before embedding the newly-saved episode. saved: \(viewModel.episode.isSaved)"
       }
     )
-    let saved = try #require(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID))
+    let saved = try #require(
+      try await repo.podcastEpisode(
+        unsavedPodcastEpisode.mediaGUID,
+        feedURL: unsavedPodcastEpisode.feedURL
+      )
+    )
     try await RecommendationHelpers.embedEpisodes([saved.episode])
 
     // Drive the engine's embedding-table observation through its 400ms
