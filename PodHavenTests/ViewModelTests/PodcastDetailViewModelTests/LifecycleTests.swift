@@ -453,9 +453,13 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     viewModel.appear()
 
     try await Wait.until(
-      { loadCount() == 1 },
-      { "Expected appear to load share artwork once; loadCount=\(loadCount())" }
+      { loadCount() >= 1 },
+      { "Expected appear to load share artwork; loadCount=\(loadCount())" }
     )
+    // loadCount increments when the fetch completes; yield so the appear task
+    // can set loadedShareArtworkURL before a repeat appear is allowed to run.
+    try await yieldForSpuriousAsyncWork()
+    #expect(loadCount() == 1)
     #expect(fakeDataLoader.loadedURLs().contains(imageURL))
 
     // A second appear must short-circuit on the now-populated shareArtwork.
