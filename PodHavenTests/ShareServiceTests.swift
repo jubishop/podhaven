@@ -13,6 +13,7 @@ import Testing
   @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.podcastOPMLSession) private var podcastOPMLSession
+  @DynamicInjected(\.opmlViewModel) private var opmlViewModel
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.shareService) private var shareService
 
@@ -261,10 +262,16 @@ import Testing
     try await fakeFileManager.writeData(opmlData, to: opmlURL)
 
     let shareURL = ShareHelpers.shareURL(with: opmlURL)
+    #expect(opmlViewModel.opmlFile == nil)
+
     try await shareService.handleIncomingURL(shareURL)
 
     #expect(navigation.currentTab == .settings)
     #expect(navigation.settings.path == [.settingsSection(.opml)])
+
+    // The import must run on the injected view model OPMLView renders, so its
+    // progress sheet presents rather than nothing.
+    #expect(opmlViewModel.opmlFile != nil)
 
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))
     #expect(podcastSeries?.podcast.title == "Techdirt")

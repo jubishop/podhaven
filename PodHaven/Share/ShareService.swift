@@ -114,7 +114,7 @@ struct ShareService {
     let navigation = await self.navigation
     await navigation.showOPMLImport()
 
-    let opmlViewModel = await OPMLViewModel()
+    let opmlViewModel = await Container.shared.opmlViewModel()
     await opmlViewModel.importOPMLFromURL(url: url)
 
     do {
