@@ -248,4 +248,76 @@ import Testing
       }
     )
   }
+
+  @Test("opening a shared (guid, mediaURL) binds each podcast's list row to its own episode")
+  func sharedMediaGUIDBindsToOriginatingPodcast() async throws {
+    let sharedGUID = GUID("shared-cross-podcast-guid")
+    let sharedMediaURL = MediaURL(URL.valid())
+
+    // Two podcasts carry the same (guid, mediaURL). A global lookup collapses
+    // both onto a single row; binding must follow each list row's own
+    // Episode.ID so opening from A lands on A and from B lands on B.
+    let aEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Podcast A"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: sharedGUID,
+          mediaURL: sharedMediaURL,
+          title: "Shared Episode (A)",
+          description: "Description A"
+        )
+      )
+    )
+    let bEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Podcast B"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: sharedGUID,
+          mediaURL: sharedMediaURL,
+          title: "Shared Episode (B)",
+          description: "Description B"
+        )
+      )
+    )
+    #expect(aEpisode.id != bEpisode.id)
+
+    let aListable = try #require(
+      try await observatory.listablePodcastEpisodes(
+        filter: Episode.Columns.id == aEpisode.id
+      )
+      .get().first
+    )
+    let bListable = try #require(
+      try await observatory.listablePodcastEpisodes(
+        filter: Episode.Columns.id == bEpisode.id
+      )
+      .get().first
+    )
+
+    let aViewModel = EpisodeDetailViewModel(listedEpisode: ListedEpisode(aListable))
+    let bViewModel = EpisodeDetailViewModel(listedEpisode: ListedEpisode(bListable))
+    aViewModel.appear()
+    bViewModel.appear()
+
+    // `description` is nil on a saved list row and only fills in once
+    // performAppear hydrates the detail, so it gates completion and reveals
+    // which podcast's row each view model actually bound to.
+    try await Wait.until(
+      { @MainActor in
+        aViewModel.episode.description != nil && bViewModel.episode.description != nil
+      },
+      { @MainActor in
+        """
+        Expected both detail view models to finish hydration.
+        a.description: \(String(describing: aViewModel.episode.description))
+        b.description: \(String(describing: bViewModel.episode.description))
+        """
+      }
+    )
+
+    #expect(aViewModel.episode.episodeID == aEpisode.id)
+    #expect(aViewModel.episode.description == "Description A")
+    #expect(bViewModel.episode.episodeID == bEpisode.id)
+    #expect(bViewModel.episode.description == "Description B")
+  }
 }

@@ -141,11 +141,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     )
   }
 
-  func episode(_ mediaGUID: MediaGUID) async throws -> Episode? {
-    recordCall(methodName: "episode", parameters: mediaGUID)
-    return try await repo.episode(mediaGUID)
-  }
-
   func episodesMatching(
     podcastID: Podcast.ID,
     guids: [GUID],
@@ -168,9 +163,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.podcastEpisodes(episodeIDs)
   }
 
-  func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode? {
+  func podcastEpisode(
+    _ mediaGUID: MediaGUID,
+    feedURL: FeedURL
+  ) async throws -> PodcastEpisode? {
     recordCall(methodName: "podcastEpisode", parameters: mediaGUID)
-    return try await repo.podcastEpisode(mediaGUID)
+    return try await repo.podcastEpisode(mediaGUID, feedURL: feedURL)
   }
 
   func latestEpisode(for podcastID: Podcast.ID) async throws -> Episode? {

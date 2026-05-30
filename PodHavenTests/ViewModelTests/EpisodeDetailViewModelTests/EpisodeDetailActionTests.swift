@@ -63,7 +63,10 @@ import Testing
       }
     )
 
-    let savedEpisode = try await repo.podcastEpisode(unsavedPodcastEpisode.unsavedEpisode.id)
+    let savedEpisode = try await repo.podcastEpisode(
+      unsavedPodcastEpisode.mediaGUID,
+      feedURL: unsavedPodcastEpisode.feedURL
+    )
     #expect(savedEpisode != nil)
     #expect(savedEpisode?.episode.finishDate != nil)
     #expect(savedEpisode?.episode.currentTime == .zero)

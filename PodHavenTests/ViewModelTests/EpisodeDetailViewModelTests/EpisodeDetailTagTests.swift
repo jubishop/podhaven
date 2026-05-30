@@ -69,7 +69,12 @@ import Testing
       }
     )
 
-    let resaved = try #require(try await repo.podcastEpisode(podcastEpisode.episode.mediaGUID))
+    let resaved = try #require(
+      try await repo.podcastEpisode(
+        podcastEpisode.episode.mediaGUID,
+        feedURL: podcastEpisode.feedURL
+      )
+    )
     try await repo.addTag(tag.id, to: resaved.id)
 
     try await Wait.until(
@@ -225,6 +230,11 @@ import Testing
 
     #expect(viewModel.episode.isSaved == false)
     #expect(viewModel.tags.isEmpty)
-    #expect(try await repo.podcastEpisode(unsavedPodcastEpisode.mediaGUID) == nil)
+    #expect(
+      try await repo.podcastEpisode(
+        unsavedPodcastEpisode.mediaGUID,
+        feedURL: unsavedPodcastEpisode.feedURL
+      ) == nil
+    )
   }
 }
