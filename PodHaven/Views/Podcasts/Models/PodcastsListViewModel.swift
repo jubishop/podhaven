@@ -72,16 +72,6 @@ class PodcastsListViewModel:
         }
       }
     }
-
-    var filterMethod: (@Sendable (PodcastWithEpisodeMetadata<ListablePodcast>) -> Bool)? {
-      switch self {
-      case .byMostRecentEpisode:
-        return { $0.mostRecentEpisodeDate != nil }
-      case .byMostRecentlySubscribed:
-        return { $0.subscriptionDate != nil }
-      default: return nil
-      }
-    }
   }
   let allSortMethods = SortMethod.allCases
 
@@ -90,7 +80,6 @@ class PodcastsListViewModel:
     get { persistedSortMethod }
     set {
       $persistedSortMethod.new(newValue)
-      podcastList.filterMethod = newValue.filterMethod
       podcastList.sortMethod = newValue.sortMethod
     }
   }
@@ -116,7 +105,6 @@ class PodcastsListViewModel:
     self.title = title
     self.filter = filter
     self.podcastList = PowerList(
-      filterMethod: persistedSortMethod.wrappedValue.filterMethod,
       sortMethod: persistedSortMethod.wrappedValue.sortMethod
     )
   }

@@ -84,6 +84,81 @@ import Testing
     #expect(viewModel.selectedPodcastsTagUnion == [setup.tagB.id, setup.tagC.id])
   }
 
+  // MARK: - Sort modes keep nil-metadata podcasts visible
+
+  @Test("byMostRecentEpisode keeps a zero-episode podcast visible, sorted last")
+  func byMostRecentEpisodeKeepsNilEpisodeDateVisible() async throws {
+    let withEpisodes =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://example.com/has-episodes.rss")!),
+            title: "Has Episodes"
+          ),
+          unsavedEpisodes: [try Create.unsavedEpisode(pubDate: 5.minutesAgo)]
+        )
+      )
+      .id
+    let zeroEpisodes =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://example.com/zero-episodes.rss")!),
+            title: "Zero Episodes"
+          )
+        )
+      )
+      .id
+    let entries = try await observatory.listablePodcastsWithEpisodeMetadata().get()
+
+    let viewModel = PodcastsListViewModel(title: "SortNilEpisode")
+    viewModel.currentSortMethod = .byMostRecentEpisode
+    viewModel.podcastList.allEntries = IdentifiedArray(uniqueElements: entries)
+    try await Wait.until(
+      { @MainActor in viewModel.podcastList.filteredEntryIDs.contains(withEpisodes) },
+      { @MainActor in "list never settled; got \(viewModel.podcastList.filteredEntryIDs)" }
+    )
+
+    #expect(viewModel.podcastList.filteredEntryIDs == [withEpisodes, zeroEpisodes])
+  }
+
+  @Test("byMostRecentlySubscribed keeps an unsubscribed podcast visible, sorted last")
+  func byMostRecentlySubscribedKeepsNilSubscriptionDateVisible() async throws {
+    let subscribed =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://example.com/subscribed.rss")!),
+            title: "Subscribed",
+            subscriptionDate: 5.minutesAgo
+          )
+        )
+      )
+      .id
+    let unsubscribed =
+      try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://example.com/unsubscribed.rss")!),
+            title: "Unsubscribed",
+            subscriptionDate: nil
+          )
+        )
+      )
+      .id
+    let entries = try await observatory.listablePodcastsWithEpisodeMetadata().get()
+
+    let viewModel = PodcastsListViewModel(title: "SortNilSubscribed")
+    viewModel.currentSortMethod = .byMostRecentlySubscribed
+    viewModel.podcastList.allEntries = IdentifiedArray(uniqueElements: entries)
+    try await Wait.until(
+      { @MainActor in viewModel.podcastList.filteredEntryIDs.contains(subscribed) },
+      { @MainActor in "list never settled; got \(viewModel.podcastList.filteredEntryIDs)" }
+    )
+
+    #expect(viewModel.podcastList.filteredEntryIDs == [subscribed, unsubscribed])
+  }
+
   // MARK: - Helpers
 
   private struct Setup {
