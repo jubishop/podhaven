@@ -25,7 +25,7 @@ struct PodcastSettingsView: View {
 
       Form {
         Section("Playback") {
-          VStack(alignment: .trailing, spacing: 24) {
+          VStack(alignment: .leading, spacing: 24) {
             SettingsRow(
               infoText: """
                 Set a custom default playback speed for this podcast.  \
@@ -82,6 +82,7 @@ struct PodcastSettingsView: View {
                 """
             ) {
               Text("Queue All Episodes")
+              Spacer()
             }
 
             Picker("", selection: $temp.queueAllEpisodes) {
@@ -107,6 +108,7 @@ struct PodcastSettingsView: View {
                 """
             ) {
               Text("Cache All Episodes")
+              Spacer()
             }
 
             Picker("", selection: $temp.cacheAllEpisodes) {
@@ -169,6 +171,7 @@ struct PodcastSettingsView: View {
               .onChange(of: temp.notifyNewEpisodes) {
                 viewModel.updateSettings(temp)
               }
+            Spacer(minLength: 0)
           }
 
           if temp.notifyNewEpisodes && !notificationManager.isAuthorized {
