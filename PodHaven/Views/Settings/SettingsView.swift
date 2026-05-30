@@ -289,11 +289,15 @@ struct SettingsView: View {
                 instead of the episode-specific artwork.
                 """
             ) {
-              Text("Always Show Podcast Art")
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Always Show Podcast Art")
+                Text("in Queue")
+                  .foregroundStyle(.secondary)
+              }
               Spacer()
             }
             Toggle(
-              "Always Show Podcast Art",
+              "Always Show Podcast Art in Queue",
               isOn: userSettings.$alwaysShowPodcastImageInUpNext.binding
             )
             .labelsHidden()
@@ -308,7 +312,11 @@ struct SettingsView: View {
                 and at the top of the Up Next queue.
                 """
             ) {
-              Text("Always Show Podcast Art for Now Playing")
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Always Show Podcast Art")
+                Text("for Now Playing")
+                  .foregroundStyle(.secondary)
+              }
               Spacer()
             }
             Toggle(
@@ -387,17 +395,22 @@ struct SettingsView: View {
             )
           }
 
-          SettingsRow(
-            infoText: """
-              When enabled, finishing an episode with an empty queue will automatically \
-              play your top recommended episode. Turn off to stop playback at the end of \
-              an episode when nothing else is queued.
-              """
-          ) {
+          VStack(alignment: .leading, spacing: 24) {
+            SettingsRow(
+              infoText: """
+                When enabled, finishing an episode with an empty queue will automatically \
+                play your top recommended episode. Turn off to stop playback at the end of \
+                an episode when nothing else is queued.
+                """
+            ) {
+              Text("Auto-play Top Recommendation")
+              Spacer()
+            }
             Toggle(
               "Auto-play Top Recommendation",
               isOn: userSettings.$autoPlayTopRecommendationWhenQueueEmpty.binding
             )
+            .labelsHidden()
           }
         }
 
