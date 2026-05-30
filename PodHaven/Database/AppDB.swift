@@ -187,6 +187,15 @@ struct AppDB {
     }
   }
 
+  // Writes a self-contained SQLite file (WAL merged via GRDB backup) for sharing or copying.
+  func exportSnapshot(to destinationURL: URL) throws {
+    let destination = try DatabaseQueue(
+      path: destinationURL.path,
+      configuration: Self.makeConfiguration()
+    )
+    try db.backup(to: destination)
+  }
+
   #if DEBUG
   var unsafeTestDB: any DatabaseWriter { db }
 

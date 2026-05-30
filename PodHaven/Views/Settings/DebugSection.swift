@@ -4,6 +4,7 @@ import FactoryKit
 import GRDB
 import Logging
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct DebugSection: View {
   @DynamicInjected(\.alert) private var alert
@@ -96,13 +97,38 @@ struct DebugSection: View {
       )
 
       ShareLink(
-        item: AppInfo.documentsDirectory.appendingPathComponent("db.sqlite"),
+        item: DatabaseExportItem(),
         preview: SharePreview(
           "PodHaven Database",
           image: AppIcon.shareDatabase.rawImage
         ),
         label: { AppIcon.shareDatabase.label }
       )
+    }
+  }
+}
+
+private struct DatabaseExportItem: Transferable {
+  private static let log = Log.as(LogSubsystem.Database.appDB)
+  private static let sqliteExportContentType =
+    UTType(filenameExtension: "sqlite") ?? .data
+
+  static var transferRepresentation: some TransferRepresentation {
+    FileRepresentation(exportedContentType: sqliteExportContentType) { _ in
+      do {
+        let exportDirectory = FileManager.default.temporaryDirectory
+          .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+          at: exportDirectory,
+          withIntermediateDirectories: true
+        )
+        let exportURL = exportDirectory.appendingPathComponent("db.sqlite")
+        try Container.shared.appDB().exportSnapshot(to: exportURL)
+        return SentTransferredFile(exportURL, allowAccessingOriginalFile: true)
+      } catch {
+        Self.log.caughtError("Failed to export database snapshot", error)
+        throw error
+      }
     }
   }
 }
