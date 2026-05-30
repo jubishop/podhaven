@@ -253,22 +253,32 @@ struct SearchView: View {
   @ViewBuilder
   private var recommendationBanner: some View {
     let collector = viewModel.recommendationCollector
-    switch collector.bannerState {
-    case .hidden:
-      EmptyView()
-    case .loading:
-      bannerStrip(text: loadingBannerCopy, tappable: false)
-    case .loaded(let count):
-      bannerStrip(text: loadedBannerCopy(count: count), tappable: true)
+    if let source = collector.activeSource {
+      switch collector.bannerState {
+      case .hidden:
+        EmptyView()
+      case .loading:
+        bannerStrip(source: source, text: loadingBannerCopy(for: source), tappable: false)
+      case .loaded(let count):
+        bannerStrip(
+          source: source,
+          text: loadedBannerCopy(for: source, count: count),
+          tappable: true
+        )
+      }
     }
   }
 
   @ViewBuilder
-  private func bannerStrip(text: String, tappable: Bool) -> some View {
+  private func bannerStrip(
+    source: SearchRecommendationCollector.Source,
+    text: String,
+    tappable: Bool
+  ) -> some View {
     if tappable {
       Button {
         navigation.showSearchDiscovery(
-          source: recommendationBannerSource,
+          source: source,
           actionsViewModel: viewModel.searchDiscoveryActionsViewModel
         )
       } label: {
@@ -298,33 +308,30 @@ struct SearchView: View {
     .background(Color.secondary.opacity(0.08))
   }
 
-  private var recommendationBannerSource: SearchRecommendationCollector.Source {
-    if viewModel.isShowingSearchResults {
-      return .search(query: viewModel.searchedText)
+  private func loadingBannerCopy(for source: SearchRecommendationCollector.Source) -> String {
+    switch source {
+    case .search(let query):
+      return "Finding top picks from \"\(query)\"..."
+    case .trending(let trending):
+      if trending.genreID == nil { return "Finding top picks..." }
+      return "Finding top picks from \(trending.title)..."
     }
-    let section = viewModel.currentTrendingSection
-    return .trending(.init(genreID: section.genreID, title: section.title))
   }
 
-  private var loadingBannerCopy: String {
-    if viewModel.isShowingSearchResults {
-      return "Finding top picks from \"\(viewModel.searchedText)\"..."
-    }
-    let section = viewModel.currentTrendingSection
-    if section.genreID == nil { return "Finding top picks..." }
-    return "Finding top picks from \(section.title)..."
-  }
-
-  private func loadedBannerCopy(count: Int) -> String {
-    if viewModel.isShowingSearchResults {
-      let query = viewModel.searchedText
+  private func loadedBannerCopy(
+    for source: SearchRecommendationCollector.Source,
+    count: Int
+  ) -> String {
+    switch source {
+    case .search(let query):
       return count == 1 ? "Top pick from \"\(query)\"" : "Top \(count) from \"\(query)\""
+    case .trending(let trending):
+      if trending.genreID == nil {
+        return count == 1 ? "Top pick" : "Top \(count) picks"
+      }
+      return count == 1
+        ? "Top pick from \(trending.title)" : "Top \(count) from \(trending.title)"
     }
-    let section = viewModel.currentTrendingSection
-    if section.genreID == nil {
-      return count == 1 ? "Top pick" : "Top \(count) picks"
-    }
-    return count == 1 ? "Top pick from \(section.title)" : "Top \(count) from \(section.title)"
   }
 
   // MARK: - Reusable Views
