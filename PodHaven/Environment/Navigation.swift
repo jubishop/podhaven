@@ -342,7 +342,7 @@ extension Container {
     Self.log.debug("Showing OPML import")
 
     sheet.dismiss()
-    settings.path.append(.settingsSection(.opml))
+    settings.path = [.settingsSection(.opml)]
     currentTab = .settings
   }
 
