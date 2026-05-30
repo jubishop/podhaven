@@ -5,8 +5,8 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-public struct SavedMacro: MemberMacro {
-  public static func expansion(
+struct SavedMacro: MemberMacro {
+  static func expansion(
     of node: AttributeSyntax,
     providingMembersOf declaration: some DeclGroupSyntax,
     conformingTo protocols: [TypeSyntax] = [],

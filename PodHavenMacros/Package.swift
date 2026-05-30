@@ -1,8 +1,17 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import CompilerPluginSupport
 import PackageDescription
+
+let swiftSettings: [SwiftSetting] = [
+  .swiftLanguageMode(.v6),
+  .enableUpcomingFeature("ExistentialAny"),
+  .enableUpcomingFeature("InternalImportsByDefault"),
+  .enableUpcomingFeature("MemberImportVisibility"),
+  .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+  .enableUpcomingFeature("InferIsolatedConformances"),
+]
 
 let package = Package(
   name: "PodHavenMacros",
@@ -27,14 +36,16 @@ let package = Package(
       dependencies: [
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
         .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
-      ]
+      ],
+      swiftSettings: swiftSettings
     ),
     .target(
       name: "SavedMacro",
       dependencies: [
         "SavedMacroPlugin",
         .product(name: "Tagged", package: "swift-tagged"),
-      ]
+      ],
+      swiftSettings: swiftSettings
     ),
     .testTarget(
       name: "SavedMacroPluginTests",
@@ -43,7 +54,8 @@ let package = Package(
         "SavedMacroPlugin",
         .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
         .product(name: "Testing", package: "swift-testing"),
-      ]
+      ],
+      swiftSettings: swiftSettings
     ),
   ]
 )

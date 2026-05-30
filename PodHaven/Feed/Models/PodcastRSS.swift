@@ -9,17 +9,10 @@ struct PodcastRSS: Decodable, Sendable {
 
   // MARK: - Static Parsing Methods
 
-  static func parse(_ data: Data) async throws -> Podcast {
-    try await withCheckedThrowingContinuation { continuation in
-      do {
-        let decoder = XMLDecoder()
-        decoder.dateDecodingStrategy = .formatted(Date.rfc2822)
-        let rssPodcast = try decoder.decode(PodcastRSS.self, from: data)
-        continuation.resume(returning: rssPodcast.channel)
-      } catch let error {
-        continuation.resume(throwing: error)
-      }
-    }
+  @concurrent static func parse(_ data: Data) async throws -> Podcast {
+    let decoder = XMLDecoder()
+    decoder.dateDecodingStrategy = .formatted(Date.rfc2822)
+    return try decoder.decode(PodcastRSS.self, from: data).channel
   }
 
   // MARK: - Episode
