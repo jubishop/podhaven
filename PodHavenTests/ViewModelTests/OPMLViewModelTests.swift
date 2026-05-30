@@ -9,14 +9,13 @@ import Testing
 
 @Suite("of OPMLViewModel tests", .container)
 @MainActor class OPMLViewModelTests {
+  @DynamicInjected(\.opmlViewModel) private var opmlViewModel
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.podcastOPMLSession) private var podcastOPMLSession
   @DynamicInjected(\.repo) private var repo
 
   var feedSession: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
   var opmlSession: FakeDataFetchable { podcastOPMLSession as! FakeDataFetchable }
-
-  let opmlViewModel = OPMLViewModel()
 
   // MARK: - Tests
 

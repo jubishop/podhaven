@@ -19,7 +19,7 @@ import Testing
 
   // MARK: - Settings Navigation
 
-  @Test("showOPMLImport dismisses sheet, sets tab, and appends to settings path")
+  @Test("showOPMLImport dismisses sheet, sets tab, and sets settings path")
   func showOPMLImport() {
     presentSheet()
     #expect(sheet.config != nil)
@@ -28,6 +28,15 @@ import Testing
 
     #expect(sheet.config == nil)
     #expect(navigation.currentTab == .settings)
+    #expect(navigation.settings.path == [.settingsSection(.opml)])
+  }
+
+  @Test("showOPMLImport keeps a single OPML entry when invoked repeatedly")
+  func showOPMLImportIsIdempotent() {
+    navigation.showOPMLImport()
+    navigation.showOPMLImport()
+    navigation.showOPMLImport()
+
     #expect(navigation.settings.path == [.settingsSection(.opml)])
   }
 
