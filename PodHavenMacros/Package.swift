@@ -13,6 +13,13 @@ let swiftSettings: [SwiftSetting] = [
   .enableUpcomingFeature("InferIsolatedConformances"),
 ]
 
+// Tests opt out of the stylistic upcoming flags, matching the app target.
+let testSwiftSettings: [SwiftSetting] = [
+  .swiftLanguageMode(.v6),
+  .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+  .enableUpcomingFeature("InferIsolatedConformances"),
+]
+
 let package = Package(
   name: "PodHavenMacros",
   platforms: [
@@ -50,12 +57,11 @@ let package = Package(
     .testTarget(
       name: "SavedMacroPluginTests",
       dependencies: [
-        "SavedMacro",
         "SavedMacroPlugin",
         .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
         .product(name: "Testing", package: "swift-testing"),
       ],
-      swiftSettings: swiftSettings
+      swiftSettings: testSwiftSettings
     ),
   ]
 )
