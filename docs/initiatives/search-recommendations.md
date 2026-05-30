@@ -13,10 +13,11 @@ pieces are already shipped.
 
 - `RecommendationEngine` has two scoring paths. `recommendations(for:)` scores
   DB-backed `Episode` / `CandidateEpisode` values with similarity, podcast
-  affinity, and freshness. `similarityScore(forEmbedding:)` scores a caller
-  supplied vector by content similarity only, using the cached positive and
-  negative centroids plus the same whitening/decone transform. It returns `nil`
-  while the cache is cold or the vector dimension is wrong.
+  affinity, and freshness. `similarityScores(forEmbeddings:)` scores caller
+  supplied vectors by content similarity only, using the cached positive and
+  negative centroids plus the same whitening/decone transform. It runs the loop
+  off the caller's actor (`@concurrent`) and returns `nil` at each index while
+  the cache is cold or that vector's dimension is wrong.
 - `EmbeddingService.embeddingVector(for:embedding:)` builds an unsaved episode
   vector with the same title/description, podcast-context, normalization, and
   recipe-version semantics as saved episode embeddings. `EpisodeDetailViewModel`
@@ -155,9 +156,8 @@ Collector flow:
 8. Embed each surviving `UnsavedPodcastEpisode` through
    `EmbeddingService.embeddingVector(for:embedding:)`. Skip and log individual
    embedding failures instead of failing the whole source.
-9. Score with `RecommendationEngine.similarityScore(forEmbedding:)`, or a batch
-   wrapper with the exact same semantics if profiling shows per-vector calls are
-   too awkward.
+9. Score with `RecommendationEngine.similarityScores(forEmbeddings:)`, the batch
+   `@concurrent` entry point that scores every vector in a single off-actor hop.
 10. Publish scored episodes keyed by `(feedURL, guid)` or the existing
    `MediaGUID` shape plus feed provenance, keep a `Float` score map, and re-sort
    on insert. Updating one shared podcast cache entry should update every active

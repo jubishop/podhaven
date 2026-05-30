@@ -258,40 +258,52 @@ struct RecommendationEngine: Sendable {
     return try await recommendations(for: [episode])[episodeID]
   }
 
-  // Returns nil while the cache is cold so callers can hide the section
-  // instead of rendering a meaningless score.
-  func similarityScore(forEmbedding embedding: [Float]) -> Float? {
-    guard let context = cache() else { return nil }
-    guard embedding.count == context.positiveCentroid.count else { return nil }
+  // Scores each embedding against the cached centroid, positionally aligned
+  // with the input. An element is nil while the cache is cold (callers hide
+  // the section) or when its dimension doesn't match the centroid. `@concurrent`
+  // so the vDSP whitening + dot-product loop runs on the cooperative pool off
+  // the caller's actor; reads `cache()` / `observedMaxScore()` once.
+  @concurrent func similarityScores(forEmbeddings embeddings: [[Float]]) async throws -> [Float?] {
+    guard let context = cache() else {
+      return [Float?](repeating: nil, count: embeddings.count)
+    }
 
+    let displayMax = observedMaxScore()
     let stripCount = Self.principalComponentStripCount(for: context.deconeMode)
-    var scratch = [Float](repeating: 0, count: embedding.count)
-    let raw = unsafe embedding.withUnsafeBufferPointer { vec -> Float in
-      unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
-        if let whiteningTransform = context.whiteningTransform {
-          unsafe whiteningTransform.apply(vec, strippingTopK: stripCount, into: scratchPtr)
-          let projected = UnsafeBufferPointer(scratchPtr)
+    let dim = context.positiveCentroid.count
+    var scratch = [Float](repeating: 0, count: dim)
+    var results = [Float?](repeating: nil, count: embeddings.count)
+    try unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+      for (index, embedding) in embeddings.enumerated() {
+        if index % 64 == 0 { try Task.checkCancellation() }
+        guard embedding.count == dim else { continue }
+        let raw = unsafe embedding.withUnsafeBufferPointer { vec -> Float in
+          if let whiteningTransform = context.whiteningTransform {
+            unsafe whiteningTransform.apply(vec, strippingTopK: stripCount, into: scratchPtr)
+            let projected = UnsafeBufferPointer(scratchPtr)
+            return unsafe Self.similarity(
+              of: projected,
+              positive: context.positiveCentroid,
+              negative: context.negativeCentroid
+            )
+          }
           return unsafe Self.similarity(
-            of: projected,
+            of: vec,
             positive: context.positiveCentroid,
             negative: context.negativeCentroid
           )
         }
-        return unsafe Self.similarity(
-          of: vec,
-          positive: context.positiveCentroid,
-          negative: context.negativeCentroid
+        // Same [-2, 2] → [0, 1] remap + display rescale the per-candidate
+        // scorer uses, so this surface and recommendation(for:) read on the
+        // same scale.
+        let similarityValue = (raw + 2.0) / 4.0
+        results[index] = RecommendationScore.rescaledForDisplay(
+          value: similarityValue,
+          max: displayMax
         )
       }
     }
-
-    // Same [-2, 2] → [0, 1] remap + display rescale the per-candidate scorer
-    // uses, so this surface and recommendation(for:) read on the same scale.
-    let similarityValue = (raw + 2.0) / 4.0
-    return RecommendationScore.rescaledForDisplay(
-      value: similarityValue,
-      max: observedMaxScore()
-    )
+    return results
   }
 
   @concurrent func topRecommendations(limit: Int) async throws -> [Episode.ID] {
