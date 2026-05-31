@@ -979,15 +979,21 @@ import Testing
     let contextualEmbedding = Container.shared.contextualEmbedding()
     await contextualEmbedding.loadAssetsIfAvailable()
     let engine = Container.shared.recommendationEngine()
-    var scores = [MediaGUID: Float](capacity: unsavedPodcastEpisodes.count)
+    var orderedGUIDs = [MediaGUID](capacity: unsavedPodcastEpisodes.count)
+    var vectors = [[Float]](capacity: unsavedPodcastEpisodes.count)
     for unsavedPodcastEpisode in unsavedPodcastEpisodes {
       let vector = try await EmbeddingService.embeddingVector(
         for: unsavedPodcastEpisode,
         embedding: contextualEmbedding
       )
-      if let score = engine.similarityScore(forEmbedding: vector) {
-        scores[unsavedPodcastEpisode.mediaGUID] = score
-      }
+      orderedGUIDs.append(unsavedPodcastEpisode.mediaGUID)
+      vectors.append(vector)
+    }
+    let similarities = try await engine.similarityScores(forEmbeddings: vectors)
+    var scores = [MediaGUID: Float](capacity: unsavedPodcastEpisodes.count)
+    for (mediaGUID, similarity) in zip(orderedGUIDs, similarities) {
+      guard let similarity else { continue }
+      scores[mediaGUID] = similarity
     }
     return scores
   }

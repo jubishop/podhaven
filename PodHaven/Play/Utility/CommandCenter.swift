@@ -125,7 +125,6 @@ enum CommandCenter: Sendable {
     commandCenter.togglePlayPause.isEnabled = true
     commandCenter.skipForward.isEnabled = true
     commandCenter.skipBackward.isEnabled = true
-    commandCenter.changePlaybackPosition.isEnabled = true
     commandCenter.changePlaybackRate.isEnabled = true
     commandCenter.like.isEnabled = false
     commandCenter.dislike.isEnabled = false
@@ -134,6 +133,14 @@ enum CommandCenter: Sendable {
 
     updateSkipIntervals()
     updateNextTrack()
+    updateScrubbing()
+  }
+
+  static func updateScrubbing() {
+    let enabled = Container.shared.userSettings().commandCenterScrubbingEnabled
+    log.debug("updateScrubbing: changePlaybackPosition enabled: \(enabled)")
+
+    Container.shared.mpRemoteCommandCenter().changePlaybackPosition.isEnabled = enabled
   }
 
   static func updateSkipIntervals() {

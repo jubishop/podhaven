@@ -73,51 +73,6 @@ class EpisodeQueryTests {
     #expect(scrambledFetch.map(\.id) == scrambled)
   }
 
-  @Test("that episode can be queried by MediaGUID")
-  func testEpisodeQueryByMediaGUID() async throws {
-    let guid = GUID("test-guid")
-    let mediaURL = MediaURL(URL.valid())
-    let mediaGUID = MediaGUID(guid: guid, mediaURL: mediaURL)
-
-    let unsavedPodcast = try Create.unsavedPodcast()
-    let unsavedEpisode = try Create.unsavedEpisode(
-      guid: guid,
-      mediaURL: mediaURL,
-      title: "Episode with MediaGUID"
-    )
-
-    let podcastSeries = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: [unsavedEpisode]
-      )
-    )
-
-    let insertedEpisode = podcastSeries.episodes.first!
-
-    // Query by MediaGUID should return the same episode as query by ID
-    let episodeByGUID = try await repo.episode(mediaGUID)
-    let episodeByID = try await repo.episode(insertedEpisode.id)
-
-    #expect(episodeByGUID != nil)
-    #expect(episodeByID != nil)
-    #expect(episodeByGUID?.id == episodeByID?.id)
-    #expect(episodeByGUID?.guid == guid)
-    #expect(episodeByGUID?.mediaURL == mediaURL)
-    #expect(episodeByGUID?.title == "Episode with MediaGUID")
-  }
-
-  @Test("that episode query by MediaGUID returns nil for non-existent episode")
-  func testEpisodeQueryByMediaGUIDNonExistent() async throws {
-    let nonExistentMediaGUID = MediaGUID(
-      guid: GUID("non-existent-guid"),
-      mediaURL: MediaURL(URL.valid())
-    )
-
-    let episode = try await repo.episode(nonExistentMediaGUID)
-    #expect(episode == nil)
-  }
-
   @Test("that podcastEpisode can be queried by MediaGUID")
   func testPodcastEpisodeQueryByMediaGUID() async throws {
     let guid = GUID("test-podcast-episode-guid")
@@ -140,8 +95,11 @@ class EpisodeQueryTests {
 
     let insertedEpisode = podcastSeries.episodes.first!
 
-    // Query by MediaGUID should return the same podcastEpisode as query by ID
-    let podcastEpisodeByGUID = try await repo.podcastEpisode(mediaGUID)
+    // Query by (MediaGUID, feedURL) should match query by ID
+    let podcastEpisodeByGUID = try await repo.podcastEpisode(
+      mediaGUID,
+      feedURL: podcastSeries.podcast.feedURL
+    )
     let podcastEpisodeByID = try await repo.podcastEpisode(insertedEpisode.id)
 
     #expect(podcastEpisodeByGUID != nil)
@@ -160,7 +118,10 @@ class EpisodeQueryTests {
       mediaURL: MediaURL(URL.valid())
     )
 
-    let podcastEpisode = try await repo.podcastEpisode(nonExistentMediaGUID)
+    let podcastEpisode = try await repo.podcastEpisode(
+      nonExistentMediaGUID,
+      feedURL: FeedURL(URL.valid())
+    )
     #expect(podcastEpisode == nil)
   }
 
@@ -187,34 +148,26 @@ class EpisodeQueryTests {
       title: "Episode 2"
     )
 
-    try await repo.insertSeries(
+    let podcastSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: unsavedPodcast,
         unsavedEpisodes: [unsavedEpisode1, unsavedEpisode2]
       )
     )
+    let feedURL = podcastSeries.podcast.feedURL
 
-    // Test that each MediaGUID returns the correct episode
-    let foundEpisode1 = try await repo.episode(episode1MediaGUID)
-    let foundEpisode2 = try await repo.episode(episode2MediaGUID)
+    // Each MediaGUID resolves to the correct episode within its podcast
+    let found1 = try await repo.podcastEpisode(episode1MediaGUID, feedURL: feedURL)
+    let found2 = try await repo.podcastEpisode(episode2MediaGUID, feedURL: feedURL)
 
-    #expect(foundEpisode1 != nil)
-    #expect(foundEpisode2 != nil)
-    #expect(foundEpisode1?.title == "Episode 1")
-    #expect(foundEpisode2?.title == "Episode 2")
-    #expect(foundEpisode1?.guid == episode1GUID)
-    #expect(foundEpisode2?.guid == episode2GUID)
-    #expect(foundEpisode1?.mediaURL == episode1Media)
-    #expect(foundEpisode2?.mediaURL == episode2Media)
-
-    // Test with podcastEpisode queries as well
-    let foundPodcastEpisode1 = try await repo.podcastEpisode(episode1MediaGUID)
-    let foundPodcastEpisode2 = try await repo.podcastEpisode(episode2MediaGUID)
-
-    #expect(foundPodcastEpisode1 != nil)
-    #expect(foundPodcastEpisode2 != nil)
-    #expect(foundPodcastEpisode1?.episode.title == "Episode 1")
-    #expect(foundPodcastEpisode2?.episode.title == "Episode 2")
+    #expect(found1 != nil)
+    #expect(found2 != nil)
+    #expect(found1?.episode.title == "Episode 1")
+    #expect(found2?.episode.title == "Episode 2")
+    #expect(found1?.episode.guid == episode1GUID)
+    #expect(found2?.episode.guid == episode2GUID)
+    #expect(found1?.episode.mediaURL == episode1Media)
+    #expect(found2?.episode.mediaURL == episode2Media)
   }
 
   @Test("update and fetch episode downloading flag")

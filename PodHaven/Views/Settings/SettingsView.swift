@@ -174,6 +174,19 @@ struct SettingsView: View {
           ) {
             Toggle("Enable Undo Seek", isOn: userSettings.$enableUndoSeek.binding)
           }
+
+          SettingsRow(
+            infoText: """
+              When enabled, you can drag the progress bar to seek from the lock screen, \
+              Control Center, and CarPlay. Disable to keep from accidentally moving your \
+              position; the skip buttons and the progress display stay available.
+              """
+          ) {
+            Toggle(
+              "Command Center Scrubbing",
+              isOn: userSettings.$commandCenterScrubbingEnabled.binding
+            )
+          }
         }
 
         Section("Appearance") {
@@ -186,6 +199,7 @@ struct SettingsView: View {
                 """
             ) {
               Text("Appearance Mode")
+              Spacer()
             }
 
             Picker("", selection: userSettings.$appearanceMode.binding) {
@@ -236,6 +250,7 @@ struct SettingsView: View {
                 """
             ) {
               Text("Recommendation Diversity")
+              Spacer()
             }
 
             Picker("", selection: userSettings.$recommendationDeconeMode.binding) {
@@ -281,41 +296,49 @@ struct SettingsView: View {
             Toggle("Show Now Playing", isOn: userSettings.$showNowPlayingInUpNext.binding)
           }
 
-          VStack(alignment: .leading, spacing: 24) {
-            SettingsRow(
-              infoText: """
-                When enabled, \
-                episodes in the Up Next queue will always display the podcast artwork \
-                instead of the episode-specific artwork.
-                """
-            ) {
-              Text("Always Show Podcast Art")
-              Spacer()
+          SettingsRow(
+            infoText: """
+              When enabled, \
+              episodes in the Up Next queue will always display the podcast artwork \
+              instead of the episode-specific artwork.
+              """
+          ) {
+            VStack(alignment: .leading, spacing: 24) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Always Show Podcast Art")
+                Text("in Queue")
+                  .foregroundStyle(.secondary)
+              }
+              Toggle(
+                "Always Show Podcast Art in Queue",
+                isOn: userSettings.$alwaysShowPodcastImageInUpNext.binding
+              )
+              .labelsHidden()
             }
-            Toggle(
-              "Always Show Podcast Art",
-              isOn: userSettings.$alwaysShowPodcastImageInUpNext.binding
-            )
-            .labelsHidden()
+            Spacer(minLength: 0)
           }
 
-          VStack(alignment: .leading, spacing: 24) {
-            SettingsRow(
-              infoText: """
-                When enabled, the currently playing episode will always display \
-                the podcast artwork instead of the episode-specific artwork — \
-                in the Playbar, the lock screen, the Now Playing widget, \
-                and at the top of the Up Next queue.
-                """
-            ) {
-              Text("Always Show Podcast Art for Now Playing")
-              Spacer()
+          SettingsRow(
+            infoText: """
+              When enabled, the currently playing episode will always display \
+              the podcast artwork instead of the episode-specific artwork — \
+              in the Playbar, the lock screen, the Now Playing widget, \
+              and at the top of the Up Next queue.
+              """
+          ) {
+            VStack(alignment: .leading, spacing: 24) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Always Show Podcast Art")
+                Text("for Now Playing")
+                  .foregroundStyle(.secondary)
+              }
+              Toggle(
+                "Always Show Podcast Art for Now Playing",
+                isOn: userSettings.$alwaysShowPodcastImageForOnDeck.binding
+              )
+              .labelsHidden()
             }
-            Toggle(
-              "Always Show Podcast Art for Now Playing",
-              isOn: userSettings.$alwaysShowPodcastImageForOnDeck.binding
-            )
-            .labelsHidden()
+            Spacer(minLength: 0)
           }
 
           VStack(alignment: .leading, spacing: 24) {
@@ -394,10 +417,15 @@ struct SettingsView: View {
               an episode when nothing else is queued.
               """
           ) {
-            Toggle(
-              "Auto-play Top Recommendation",
-              isOn: userSettings.$autoPlayTopRecommendationWhenQueueEmpty.binding
-            )
+            VStack(alignment: .leading, spacing: 24) {
+              Text("Auto-play Top Recommendation")
+              Toggle(
+                "Auto-play Top Recommendation",
+                isOn: userSettings.$autoPlayTopRecommendationWhenQueueEmpty.binding
+              )
+              .labelsHidden()
+            }
+            Spacer(minLength: 0)
           }
         }
 

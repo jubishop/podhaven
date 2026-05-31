@@ -115,20 +115,11 @@ class SearchViewModel:
         return { lhs, rhs in lhs.episodeCount > rhs.episodeCount }
       }
     }
-
-    var filterMethod: (@Sendable (PodcastWithEpisodeMetadata<ListedPodcast>) -> Bool)? {
-      switch self {
-      case .byMostRecentEpisode:
-        return { $0.mostRecentEpisodeDate != nil }
-      default: return nil
-      }
-    }
   }
 
   let allSortMethods = SortMethod.allCases
   var currentSortMethod: SortMethod = .byServerOrder {
     didSet {
-      podcastList.filterMethod = currentSortMethod.filterMethod
       podcastList.sortMethod = currentSortMethod.sortMethod
     }
   }

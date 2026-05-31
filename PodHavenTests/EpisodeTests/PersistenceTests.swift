@@ -433,28 +433,37 @@ class EpisodePersistenceTests {
     #expect(original.image == unsavedEpisode.image)
   }
 
-  @Test("that inserting duplicate episodes across feeds throws SQLITE_CONSTRAINT_UNIQUE")
-  func insertDuplicateEpisodesThrowsDuplicateConflict() async throws {
+  @Test("that insertSeries allows the same guid and mediaURL across podcasts")
+  func insertDuplicateEpisodesAcrossFeedsAllowed() async throws {
     let sharedGUID = GUID("shared-guid")
     let sharedMediaURL = MediaURL(URL.valid())
+    let sharedEpisode = try Create.unsavedEpisode(guid: sharedGUID, mediaURL: sharedMediaURL)
 
-    // Insert first podcast with an episode
-    let firstPodcast = try Create.unsavedPodcast()
-    let firstEpisode = try Create.unsavedEpisode(guid: sharedGUID, mediaURL: sharedMediaURL)
-    try await repo.insertSeries(
-      UnsavedPodcastSeries(unsavedPodcast: firstPodcast, unsavedEpisodes: [firstEpisode])
+    let firstSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [sharedEpisode]
+      )
     )
 
-    // Try to insert second podcast with an episode that has the same guid+mediaURL
-    let secondPodcast = try Create.unsavedPodcast()
-    let duplicateEpisode = try Create.unsavedEpisode(guid: sharedGUID, mediaURL: sharedMediaURL)
-    let secondSeries = UnsavedPodcastSeries(
-      unsavedPodcast: secondPodcast,
-      unsavedEpisodes: [duplicateEpisode]
+    let secondSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: sharedGUID, mediaURL: sharedMediaURL)]
+      )
     )
 
-    await #expect(throws: DatabaseError.self) {
-      try await repo.insertSeries(secondSeries)
+    #expect(secondSeries.episodes.count == 1)
+    #expect(secondSeries.episodes[0].guid == sharedGUID)
+    #expect(secondSeries.episodes[0].mediaURL == sharedMediaURL)
+    #expect(secondSeries.podcast.id != firstSeries.podcast.id)
+
+    try await repo.db.read { db in
+      let count =
+        try Episode
+        .filter(Episode.Columns.guid == sharedGUID && Episode.Columns.mediaURL == sharedMediaURL)
+        .fetchCount(db)
+      #expect(count == 2)
     }
   }
 }

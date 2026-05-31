@@ -27,17 +27,10 @@ struct PodcastOPML: Codable, Sendable {
     )
   }
 
-  static func parse(_ data: Data) async throws -> PodcastOPML {
+  @concurrent static func parse(_ data: Data) async throws -> PodcastOPML {
     log.debug("Parsing data of size: \(data.count)")
-    return try await withCheckedThrowingContinuation { continuation in
-      do {
-        let decoder = XMLDecoder()
-        let podcastOPML = try decoder.decode(PodcastOPML.self, from: data)
-        continuation.resume(returning: podcastOPML)
-      } catch let error {
-        continuation.resume(throwing: error)
-      }
-    }
+    let decoder = XMLDecoder()
+    return try decoder.decode(PodcastOPML.self, from: data)
   }
 
   // MARK: - Export Methods
@@ -57,7 +50,7 @@ struct PodcastOPML: Codable, Sendable {
     return try await generateOPML(from: subscribedPodcasts)
   }
 
-  private static func generateOPML(from podcasts: [Podcast]) async throws -> Data {
+  @concurrent private static func generateOPML(from podcasts: [Podcast]) async throws -> Data {
     let opml = PodcastOPML(
       head: Head(title: "PodHaven Subscriptions"),
       body: Body(
@@ -67,21 +60,14 @@ struct PodcastOPML: Codable, Sendable {
       )
     )
 
-    return try await withCheckedThrowingContinuation { continuation in
-      do {
-        let encoder = XMLEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        let data = try encoder.encode(
-          opml,
-          withRootKey: "opml",
-          rootAttributes: ["version": "2.0"],
-          header: XMLHeader(version: 1.0, encoding: "UTF-8")
-        )
-        continuation.resume(returning: data)
-      } catch {
-        continuation.resume(throwing: error)
-      }
-    }
+    let encoder = XMLEncoder()
+    encoder.outputFormatting = .prettyPrinted
+    return try encoder.encode(
+      opml,
+      withRootKey: "opml",
+      rootAttributes: ["version": "2.0"],
+      header: XMLHeader(version: 1.0, encoding: "UTF-8")
+    )
   }
 
   // MARK: - Models

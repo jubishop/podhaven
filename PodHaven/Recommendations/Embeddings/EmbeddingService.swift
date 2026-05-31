@@ -162,7 +162,7 @@ enum EmbeddingService {
 
   // Mirrors the saved-side recipe so an unsaved row scores against the same
   // vector space.
-  static func embeddingVector(
+  @concurrent static func embeddingVector(
     for unsavedPodcastEpisode: UnsavedPodcastEpisode,
     embedding: ContextualEmbedding
   ) async throws -> [Float] {

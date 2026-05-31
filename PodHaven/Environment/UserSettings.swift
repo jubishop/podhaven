@@ -17,6 +17,8 @@ struct UserSettings: Sendable {
   @PersistedBroadcast("skipForwardInterval") var skipForwardInterval: TimeInterval = 30
   @PersistedBroadcast("skipBackwardInterval") var skipBackwardInterval: TimeInterval = 15
   @PersistedBroadcast("enableUndoSeek") var enableUndoSeek: Bool = true
+  @PersistedBroadcast("commandCenterScrubbingEnabled") var commandCenterScrubbingEnabled: Bool =
+    true
   @PersistedBroadcast("maxQueueLength") var maxQueueLength: Int = 50
   @PersistedBroadcast("maxRecommendedEpisodesInUpNext") var maxRecommendedEpisodesInUpNext: Int = 5
   @PersistedBroadcast("showNowPlayingInUpNext") var showNowPlayingInUpNext: Bool = false

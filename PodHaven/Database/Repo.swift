@@ -137,14 +137,6 @@ struct Repo: Databasing {
     }
   }
 
-  func episode(_ mediaGUID: MediaGUID) async throws -> Episode? {
-    try await reader.read { db in
-      try Episode
-        .filter { $0.guid == mediaGUID.guid && $0.mediaURL == mediaGUID.mediaURL }
-        .fetchOne(db)
-    }
-  }
-
   func episodesMatching(
     podcastID: Podcast.ID,
     guids: [GUID],
@@ -191,11 +183,14 @@ struct Repo: Databasing {
     return episodeIDs.compactMap { byID[$0] }
   }
 
-  func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode? {
+  func podcastEpisode(
+    _ mediaGUID: MediaGUID,
+    feedURL: FeedURL
+  ) async throws -> PodcastEpisode? {
     try await reader.read { db in
       try Episode
         .filter { $0.guid == mediaGUID.guid && $0.mediaURL == mediaGUID.mediaURL }
-        .including(required: Episode.podcast)
+        .including(required: Episode.podcast.filter(Podcast.Columns.feedURL == feedURL))
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)
     }
