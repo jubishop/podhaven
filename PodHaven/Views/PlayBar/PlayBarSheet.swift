@@ -129,44 +129,56 @@ struct PlayBarSheet: View {
 
   @ViewBuilder
   private var playbackMetaControls: some View {
-    ZStack {
-      HStack {
-        metaButtonStyle(
-          PlaybackSpeedButton(
-            rate: viewModel.playbackRate,
-            isShowingPopover: $isShowingSpeedPopover,
-            containerWidth: containerWidth
-          )
+    // With chapters present, give speed/finish/sleep their own row above the
+    // centered chapter controls so the row doesn't crowd. Without chapters,
+    // the single row is all there is.
+    if viewModel.hasChapters {
+      VStack(spacing: spacing) {
+        metaControlsRow
+        chapterControls
+      }
+    } else {
+      metaControlsRow
+    }
+  }
+
+  private var metaControlsRow: some View {
+    HStack {
+      metaButtonStyle(
+        PlaybackSpeedButton(
+          rate: viewModel.playbackRate,
+          isShowingPopover: $isShowingSpeedPopover,
+          containerWidth: containerWidth
         )
+      )
 
-        Spacer()
+      Spacer()
 
-        HStack(spacing: spacing) {
-          metaButtonStyle(finishOrJumpButton)
-          metaButtonStyle(stopAfterEpisodeButton)
-        }
-        .disabled(isShowingSpeedPopover)
+      HStack(spacing: spacing) {
+        metaButtonStyle(finishOrJumpButton)
+        metaButtonStyle(stopAfterEpisodeButton)
       }
+      .disabled(isShowingSpeedPopover)
+    }
+  }
 
-      if viewModel.hasChapters {
-        HStack(spacing: spacing * 3) {
-          metaButtonStyle(
-            AppIcon.previousChapter
-              .imageButton {
-                viewModel.goToPreviousChapter()
-              }
-          )
-          .disabled(isShowingSpeedPopover)
+  private var chapterControls: some View {
+    HStack(spacing: spacing * 3) {
+      metaButtonStyle(
+        AppIcon.previousChapter
+          .imageButton {
+            viewModel.goToPreviousChapter()
+          }
+      )
+      .disabled(isShowingSpeedPopover)
 
-          metaButtonStyle(
-            AppIcon.nextChapter
-              .imageButton {
-                viewModel.goToNextChapter()
-              }
-          )
-          .disabled(isShowingSpeedPopover || !viewModel.canGoToNextChapter)
-        }
-      }
+      metaButtonStyle(
+        AppIcon.nextChapter
+          .imageButton {
+            viewModel.goToNextChapter()
+          }
+      )
+      .disabled(isShowingSpeedPopover || !viewModel.canGoToNextChapter)
     }
   }
 
