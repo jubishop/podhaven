@@ -632,6 +632,71 @@ import Testing
     #expect(viewModel.podcastList.filteredEntryIDs == [withEpisodes.id, noEpisodeDate.id])
   }
 
+  // MARK: - Test: Disappear Resets Search Nav Stack To Root
+
+  // Search always reopens at its top level, so leaving the tab clears any pushed
+  // destinations (e.g. a discovery list that would otherwise be restored against
+  // the just-reset collector cache).
+  @Test("disappear resets the search navigation stack to its root")
+  func disappearResetsSearchPathToRoot() throws {
+    let viewModel = SearchViewModel()
+    let navigation = Container.shared.navigation()
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    navigation.search.path = [
+      Navigation.Destination.searchDiscovery(source, viewModel.searchDiscoveryActionsViewModel)
+    ]
+
+    viewModel.disappear()
+
+    #expect(
+      navigation.search.path.isEmpty,
+      "Expected leaving Search to reset the nav stack to its root"
+    )
+  }
+
+  // MARK: - Test: Typed Search Survives A Tab Switch
+
+  @Test("a typed search survives leaving and returning to the Search tab")
+  func typedSearchSurvivesTabSwitch() async throws {
+    await configureITunesResponses()
+
+    let viewModel = SearchViewModel()
+    viewModel.appear()
+
+    viewModel.searchText = "growth"
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.searchState == .loaded
+          && viewModel.isShowingSearchResults
+          && viewModel.searchResults.count == 2
+      },
+      { @MainActor in "Expected the search to populate before leaving; got \(viewModel.searchState)"
+      }
+    )
+
+    // Leaving Search must preserve the typed query (it used to reset it).
+    viewModel.disappear()
+    #expect(viewModel.searchText == "growth", "Expected the typed query to survive leaving Search")
+    #expect(viewModel.isShowingSearchResults, "Expected to stay in search mode after leaving")
+
+    // Returning restores the search results rather than dropping to trending.
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.searchState == .loaded
+          && viewModel.isShowingSearchResults
+          && viewModel.searchResults.count == 2
+      },
+      { @MainActor in
+        "Expected search results to be restored on return; got \(viewModel.searchState)"
+      }
+    )
+  }
+
   private func configureITunesResponses(emptyForSearchTerm: String? = nil) async {
     let topFeed = PreviewBundle.loadAsset(named: "top_feed", in: .iTunesResults)
     let topLookup = PreviewBundle.loadAsset(named: "top_lookup", in: .iTunesResults)

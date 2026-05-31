@@ -18,6 +18,7 @@ class SearchViewModel:
 {
   @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
 
   nonisolated private static let log = Log.as(LogSubsystem.SearchView.main)
 
@@ -259,7 +260,21 @@ class SearchViewModel:
     for section in trendingSections {
       section.owner = self
     }
-    showTrendingSection(currentTrendingSection)
+
+    guard isShowingSearchResults else {
+      showTrendingSection(currentTrendingSection)
+      return
+    }
+
+    // A typed search survived the tab switch; re-run it so the results, the DB
+    // observation, and the recommendation collector (all torn down on leave)
+    // come back instead of dropping to trending. Show .loading now so we don't
+    // flash the empty placeholder before the re-run starts.
+    searchState = .loading
+    Task { [weak self] in
+      guard let self else { return }
+      await refreshSearch()
+    }
   }
 
   // MARK: - Trending
@@ -662,7 +677,10 @@ class SearchViewModel:
   func disappear() {
     Self.log.debug("SearchViewModel: disappearing")
 
-    searchDebouncer.reset()
+    // Keep the typed query so the search survives a tab switch (appear() re-runs
+    // it); stop in-flight work and clear the transient .loading so we don't
+    // return to a stuck "Searching…".
+    searchDebouncer.cancelPending()
     searchTask?.cancel()
     searchTask = nil
     searchState = .idle
@@ -674,6 +692,10 @@ class SearchViewModel:
     currentResultsObservationTask = nil
     Self.log.debug("SearchViewModel: resetting recommendation collector")
     recommendationCollector.reset()
+
+    // Search always reopens at its top level; don't restore a deep stack (a
+    // pushed discovery list would also be backed by the just-reset collector).
+    navigation.search.path = []
   }
 
   // MARK: - Recommendation Collector Wiring

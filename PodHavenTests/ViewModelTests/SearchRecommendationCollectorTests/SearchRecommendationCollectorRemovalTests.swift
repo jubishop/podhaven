@@ -256,6 +256,53 @@ import Testing
     )
   }
 
+  // MARK: - Test: Caching A Pick Is Non-Consuming
+
+  // Caching / save-in-cache don't change candidacy, so — like tagging — they
+  // leave the pick in the discovery list. Only candidate-breaking actions
+  // (play / queue / rate / finish) remove it.
+  @Test("caching a discovery pick leaves it in the list")
+  func cachingDiscoveryPickIsNonConsuming() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+    Container.shared.cacheManager().start()
+
+    let feedURL = FeedURL(URL(string: "https://example.com/cache-noremove.rss")!)
+    await H.respondWithFeed(at: feedURL, title: "Cache NoRemove", episodes: 1)
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(606))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in collector.visiblePicks.count == 1 },
+      { @MainActor in "Expected one pick to land, got \(collector.visiblePicks.count)" }
+    )
+
+    let pick = collector.visiblePicks[0]
+    let listed = ListedEpisode(pick.episode)
+    let episodeID = try await listed.getOrCreatePodcastEpisode().id
+
+    let actionsViewModel = SearchDiscoveryActionsViewModel(collector: collector)
+    actionsViewModel.cacheEpisode(listed)
+
+    // Drive the cache to completion — well past the point where a consuming
+    // action would have removed the pick via didPerformAction.
+    let taskID = try await CacheHelpers.waitForDownloadTask(episodeID)
+    _ = try await CacheHelpers.simulateBackgroundFinish(taskID)
+    _ = try await CacheHelpers.waitForCached(episodeID)
+
+    #expect(
+      collector.visiblePicks.contains { $0.episode.mediaGUID == pick.episode.mediaGUID },
+      "Caching is non-consuming; the pick must remain in the list"
+    )
+  }
+
   // MARK: - Test: Pick Action Reuses Existing Podcast Row Across atom:self Shift
 
   // Regression for the iTunesID-identity bug: the iTunes row brings (A, I),

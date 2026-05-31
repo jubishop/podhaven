@@ -135,3 +135,12 @@ enum SearchRecommendationCollectorTestHelpers {
     return Data(xml.utf8)
   }
 }
+
+// Test convenience mirroring the active-source picks. Production reads
+// `picks(for:)` and `bannerState` directly, so this lives in the test target.
+extension SearchRecommendationCollector {
+  var visiblePicks: [ScoredEpisode] {
+    guard let activeSource else { return [] }
+    return picks(for: activeSource)
+  }
+}

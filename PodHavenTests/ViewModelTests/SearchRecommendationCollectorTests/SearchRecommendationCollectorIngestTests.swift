@@ -261,6 +261,77 @@ import Testing
     #expect(guids.contains("gated-ep-new"))
   }
 
+  // MARK: - Test: Candidate Gate Keeps Cached Episodes
+
+  // Caching doesn't change candidacy — an episode the user cached still shows in
+  // topRecommendations / UpNext — so the discovery gate must NOT drop it. The
+  // gate mirrors `Episode.candidate`, which ignores cache state.
+  @Test("candidate gate keeps episodes matching a cached DB row")
+  func candidateGateKeepsCachedEpisodes() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/gated-cache.rss")!)
+
+    // Existing cached row matching one RSS GUID — must be dropped by the gate.
+    let cachedGUID = GUID("gated-ep-cached")
+    let unsavedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: feedURL,
+          iTunesID: ITunesPodcastID(404),
+          title: "Gated Cache",
+          subscriptionDate: nil
+        ),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: cachedGUID,
+            title: "Already Cached",
+            cachedFilename: "cached.mp3"
+          )
+        ]
+      )
+    )
+
+    #expect(unsavedSeries.podcast.subscriptionDate == nil)
+
+    await H.session.respond(
+      to: feedURL.rawValue,
+      data: H.rssXML(
+        title: "Gated Cache",
+        feedURL: feedURL,
+        episodes: [
+          ("gated-ep-cached", "Already Cached", Date(timeIntervalSince1970: 1_700_000_000)),
+          ("gated-ep-new", "Fresh Episode", Date(timeIntervalSince1970: 1_800_000_000)),
+        ]
+      )
+    )
+
+    let source = SearchRecommendationCollector.Source.trending(
+      .init(genreID: 1303, title: "Comedy")
+    )
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(404))]
+    )
+
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .loaded(let count) = collector.bannerState, count > 0 { return true }
+        return false
+      },
+      { @MainActor in "Expected at least one pick, got \(collector.bannerState)" }
+    )
+
+    let guids = collector.picks(for: source).map(\.episode.mediaGUID.guid.rawValue)
+    #expect(guids.contains("gated-ep-cached"))
+    #expect(guids.contains("gated-ep-new"))
+  }
+
   // MARK: - Test: Score Ordering
 
   @Test("score floor filters episodes whose similarity is too low")

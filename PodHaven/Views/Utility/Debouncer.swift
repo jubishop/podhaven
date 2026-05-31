@@ -50,6 +50,12 @@ class Debouncer<Value: Equatable & Sendable> {
     debounceAction.cancel()
   }
 
+  // Cancels an in-flight debounce without discarding the current value, so a
+  // pending fire can't land after the owner tears down.
+  func cancelPending() {
+    debounceAction.cancel()
+  }
+
   // MARK: - Private Helpers
 
   private func debounce() {

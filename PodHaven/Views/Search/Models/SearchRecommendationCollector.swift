@@ -813,11 +813,6 @@ final class SearchRecommendationCollector {
 
   // MARK: - Computed Outputs
 
-  var visiblePicks: [ScoredEpisode] {
-    guard let activeSource else { return [] }
-    return picks(for: activeSource)
-  }
-
   var bannerState: BannerState {
     guard let activeSource else { return .hidden }
     return bannerState(for: activeSource)
