@@ -24,10 +24,6 @@ struct PlayBarSheet: View {
 
       VStack(spacing: spacing) {
         HStack(spacing: spacing) {
-          if sharedState.onDeck != nil {
-            topBarButtonStyle(stopAfterEpisodeButton)
-          }
-
           Spacer()
 
           if let onDeck = sharedState.onDeck {
@@ -145,8 +141,11 @@ struct PlayBarSheet: View {
 
         Spacer()
 
-        metaButtonStyle(finishOrJumpButton)
-          .disabled(isShowingSpeedPopover)
+        HStack(spacing: spacing) {
+          metaButtonStyle(finishOrJumpButton)
+          metaButtonStyle(stopAfterEpisodeButton)
+        }
+        .disabled(isShowingSpeedPopover)
       }
 
       if viewModel.hasChapters {
