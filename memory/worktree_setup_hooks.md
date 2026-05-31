@@ -1,7 +1,8 @@
 ---
-name: Worktree Setup Hooks
+name: worktree-setup-hooks
 description: How worktree build prep is triggered — git post-checkout hook (preferred) vs Claude SessionStart hook, plus failed approaches and key technical details
 type: project
+status: active
 ---
 
 ## Preferred Approach: git post-checkout hook

@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# Launch a Cursor cloud agent to audit memory/ and poll until completion.
+# Requires: curl, jq, CURSOR_API_KEY
+set -euo pipefail
+
+REPO_URL="${REPO_URL:-https://github.com/jubishop/podhaven}"
+STARTING_REF="${STARTING_REF:-main}"
+MODEL_ID="${MODEL_ID:-composer-2.5}"
+POLL_SECONDS="${POLL_SECONDS:-30}"
+MAX_WAIT_SECONDS="${MAX_WAIT_SECONDS:-3600}"
+API_BASE="${API_BASE:-https://api.cursor.com/v1}"
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PROMPT_FILE="$ROOT/bin/memory-audit-prompt.md"
+ARTIFACT_DIR="${RUNNER_TEMP:-/tmp}/memory-audit"
+REPORT_PATH="$ARTIFACT_DIR/memory-audit-report.md"
+META_PATH="$ARTIFACT_DIR/run-meta.json"
+
+if [[ -z "${CURSOR_API_KEY:-}" ]]; then
+  echo "CURSOR_API_KEY is required" >&2
+  exit 1
+fi
+
+if [[ ! -f "$PROMPT_FILE" ]]; then
+  echo "Missing prompt file: $PROMPT_FILE" >&2
+  exit 1
+fi
+
+mkdir -p "$ARTIFACT_DIR"
+
+PROMPT_TEXT="$(cat "$PROMPT_FILE")"
+
+REQUEST_BODY="$(jq -n \
+  --argjson prompt "$(jq -n --arg text "$PROMPT_TEXT" '{text: $text}')" \
+  --arg url "$REPO_URL" \
+  --arg ref "$STARTING_REF" \
+  --arg model "$MODEL_ID" \
+  '{
+    prompt: $prompt,
+    name: "Memory audit",
+    model: { id: $model },
+    repos: [{ url: $url, startingRef: $ref }],
+    autoCreatePR: true,
+    skipReviewerRequest: true
+  }')"
+
+echo "Creating cloud agent (model=$MODEL_ID, ref=$STARTING_REF)..."
+
+CREATE_RESPONSE="$(curl -sfS \
+  -u "$CURSOR_API_KEY:" \
+  -H "Content-Type: application/json" \
+  -X POST "$API_BASE/agents" \
+  -d "$REQUEST_BODY")"
+
+AGENT_ID="$(echo "$CREATE_RESPONSE" | jq -r '.agent.id')"
+RUN_ID="$(echo "$CREATE_RESPONSE" | jq -r '.run.id')"
+AGENT_URL="$(echo "$CREATE_RESPONSE" | jq -r '.agent.url')"
+
+echo "Agent: $AGENT_ID"
+echo "Run:   $RUN_ID"
+echo "URL:   $AGENT_URL"
+
+START_EPOCH="$(date +%s)"
+STATUS="CREATING"
+FINAL_RESPONSE=""
+
+while true; do
+  ELAPSED=$(( $(date +%s) - START_EPOCH ))
+  if (( ELAPSED > MAX_WAIT_SECONDS )); then
+    echo "Timed out after ${MAX_WAIT_SECONDS}s (agent may still be running)" >&2
+    STATUS="TIMEOUT"
+    break
+  fi
+
+  RUN_RESPONSE="$(curl -sfS \
+    -u "$CURSOR_API_KEY:" \
+    "$API_BASE/agents/$AGENT_ID/runs/$RUN_ID")"
+
+  STATUS="$(echo "$RUN_RESPONSE" | jq -r '.status')"
+  echo "Status: $STATUS (${ELAPSED}s elapsed)"
+
+  case "$STATUS" in
+    FINISHED|ERROR|CANCELLED|EXPIRED)
+      FINAL_RESPONSE="$RUN_RESPONSE"
+      break
+      ;;
+  esac
+
+  sleep "$POLL_SECONDS"
+done
+
+RESULT_TEXT="$(echo "$FINAL_RESPONSE" | jq -r '.result // empty')"
+DURATION_MS="$(echo "$FINAL_RESPONSE" | jq -r '.durationMs // empty')"
+PR_URL="$(echo "$FINAL_RESPONSE" | jq -r '.git.branches[0].prUrl // empty')"
+BRANCH="$(echo "$FINAL_RESPONSE" | jq -r '.git.branches[0].branch // empty')"
+
+# Try to download agent-written artifact report.
+ARTIFACT_LIST="$(curl -sfS \
+  -u "$CURSOR_API_KEY:" \
+  "$API_BASE/agents/$AGENT_ID/artifacts" || echo '{"items":[]}')"
+
+ARTIFACT_PATH="$(echo "$ARTIFACT_LIST" | jq -r '.items[] | select(.path | test("memory-audit-report")) | .path' | head -1)"
+
+if [[ -n "$ARTIFACT_PATH" ]]; then
+  DOWNLOAD_JSON="$(curl -sfS \
+    -u "$CURSOR_API_KEY:" \
+    "$API_BASE/agents/$AGENT_ID/artifacts/download?path=$(jq -rn --arg p "$ARTIFACT_PATH" '$p|@uri')")"
+  PRESIGNED_URL="$(echo "$DOWNLOAD_JSON" | jq -r '.url')"
+  curl -sfS "$PRESIGNED_URL" -o "$REPORT_PATH"
+  echo "Downloaded agent report to $REPORT_PATH"
+else
+  cat > "$REPORT_PATH" <<EOF
+# Memory audit report (CI fallback)
+
+The cloud agent did not produce \`artifacts/memory-audit-report.md\`. See run result below.
+
+- Agent: [$AGENT_ID]($AGENT_URL)
+- Run: \`$RUN_ID\`
+- Status: \`$STATUS\`
+- Duration ms: ${DURATION_MS:-unknown}
+- Branch: ${BRANCH:-none}
+- PR: ${PR_URL:-none}
+
+## Agent result
+
+${RESULT_TEXT:-_No result text._}
+EOF
+  echo "Wrote fallback report to $REPORT_PATH"
+fi
+
+jq -n \
+  --arg agentId "$AGENT_ID" \
+  --arg runId "$RUN_ID" \
+  --arg agentUrl "$AGENT_URL" \
+  --arg status "$STATUS" \
+  --arg prUrl "$PR_URL" \
+  --arg branch "$BRANCH" \
+  --arg durationMs "${DURATION_MS:-}" \
+  --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  '{
+    agentId: $agentId,
+    runId: $runId,
+    agentUrl: $agentUrl,
+    status: $status,
+    prUrl: (if $prUrl == "" then null else $prUrl end),
+    branch: (if $branch == "" then null else $branch end),
+    durationMs: (if $durationMs == "" then null else ($durationMs | tonumber) end),
+    completedAt: $completedAt
+  }' > "$META_PATH"
+
+echo ""
+echo "=== Memory audit complete ==="
+echo "Status:  $STATUS"
+echo "Agent:   $AGENT_URL"
+if [[ -n "$PR_URL" ]]; then
+  echo "PR:      $PR_URL"
+else
+  echo "PR:      (none — no changes or agent did not open one)"
+fi
+echo "Report:  $REPORT_PATH"
+echo "Meta:    $META_PATH"
+
+case "$STATUS" in
+  FINISHED) exit 0 ;;
+  TIMEOUT) exit 3 ;;
+  *) exit 2 ;;
+esac

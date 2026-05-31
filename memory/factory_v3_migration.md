@@ -1,5 +1,5 @@
 ---
-name: Factory v3 actor-isolation pattern
+name: factory-v3-migration
 description: How to define and migrate Factory closures for @MainActor / global-actor types after Factory v3.0
 type: reference
 ---
@@ -32,5 +32,5 @@ The `@MainActor` on the var (not on the closure body) inherits into the closure 
 
 ## Related
 
-- [[flaky_test_observation_restarts]] — same family of Task/priority inheritance gotchas in the test target, surfaced by `Wait.until`'s `.background` default starving a spawned observation task.
-- [[observation_broadcast_viewmodel]] — when `@DynamicInjected` resolves a `@Broadcasted` value through an `@Observable` computed property, observation can silently miss conditional views.
+- [[flaky-test-observation-restarts]] — same family of Task/priority inheritance gotchas in the test target, surfaced by `Wait.until`'s `.background` default starving a spawned observation task.
+- [[observation-broadcast-viewmodel]] — when `@DynamicInjected` resolves a `@Broadcasted` value through an `@Observable` computed property, observation can silently miss conditional views.

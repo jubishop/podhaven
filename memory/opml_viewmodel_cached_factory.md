@@ -1,7 +1,7 @@
 ---
 name: opml-viewmodel-cached-factory
 description: OPMLViewModel must be a .cached Container factory so ShareService and OPMLView share one instance, or the OPML import-progress sheet never appears.
-type: project
+type: feedback
 ---
 
 # `OPMLViewModel` must be a `.cached` Container factory

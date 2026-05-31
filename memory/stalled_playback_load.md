@@ -2,6 +2,7 @@
 name: stalled-playback-load
 description: Investigation notes for feedback podhaven:7514288031, where playback stayed in loading after selecting an episode. Use when a future report says an episode load sat on the loading indicator, especially around PlayManager.performLoad, Queue.unshift, or DB writer access.
 type: project
+status: active
 ---
 
 # Stalled playback load
@@ -45,3 +46,7 @@ the outgoing queue restore.
   is inside `_unshift` or a nested call.
 - `performLoad: loading player item` means the stall reached cache/network
   asset loading.
+
+**Why:** The original log showed `performLoad` and `setStatus(.loading)` but never reached player-item loading or `Queue._unshift`, so the stall is likely before asset fetch — probably waiting on a GRDB writer, not network/cache.
+
+**How to apply:** On the next stalled-load report, use the new phase timing logs in `PlayManager.performLoad` and `Queue.unshift` to see whether the stall is before Queue, waiting on `appDB.db.write`, inside `_unshift`, or at player-item load.

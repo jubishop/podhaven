@@ -1,7 +1,8 @@
 ---
-name: observationRestartsAfterPodcastEpisodeWithTagsFailure CI flake (resolved)
+name: flaky-test-observation-restarts
 description: Three CI timeouts of EpisodeDetailViewModelTests/observationRestartsAfterPodcastEpisodeWithTagsFailure resolved by raising Wait.until's priority for that test — root cause was the polled performAppear() spawning a Task that inherited .background and got starved
 type: project
+status: resolved
 ---
 `PodHavenTests/EpisodeDetailViewModelTests/observationRestartsAfterPodcastEpisodeWithTagsFailure` flaked on CI three times — bumping `maxAttempts` 200 → 400 (10s → 20s ceiling) did NOT help, so the original "slow runner" theory was wrong.
 
@@ -19,4 +20,4 @@ type: project
 
 ## Related
 
-- [[factory_v3_migration]] — Factory v3 actor-isolation rules; the test target's `autoRegister` running on the cooperative pool is the same class of "spawned task inherits an unexpected execution context" issue.
+- [[factory-v3-migration]] — Factory v3 actor-isolation rules; the test target's `autoRegister` running on the cooperative pool is the same class of "spawned task inherits an unexpected execution context" issue.
