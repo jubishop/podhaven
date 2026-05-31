@@ -294,6 +294,7 @@ import Testing
     // Drive the cache to completion — well past the point where a consuming
     // action would have removed the pick via didPerformAction.
     let taskID = try await CacheHelpers.waitForDownloadTask(episodeID)
+    try await CacheHelpers.waitForResumed(taskID)
     _ = try await CacheHelpers.simulateBackgroundFinish(taskID)
     _ = try await CacheHelpers.waitForCached(episodeID)
 
