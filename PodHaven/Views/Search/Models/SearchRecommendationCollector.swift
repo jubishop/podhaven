@@ -725,7 +725,8 @@ final class SearchRecommendationCollector {
 
     if Task.isCancelled { return .cancelled }
 
-    var scored = [ScoredEpisode](capacity: candidates.count)
+    var payloads = [UnsavedPodcastEpisode](capacity: candidates.count)
+    var vectors = [[Float]](capacity: candidates.count)
     for unsavedEpisode in candidates {
       if Task.isCancelled { return .cancelled }
       if await isDetached() { return .cancelled }
@@ -733,9 +734,10 @@ final class SearchRecommendationCollector {
         unsavedPodcast: unsavedPodcast,
         unsavedEpisode: unsavedEpisode
       )
-      let vector: [Float]
       do {
-        vector = try await EmbeddingService.embeddingVector(for: payload, embedding: embedding)
+        let vector = try await EmbeddingService.embeddingVector(for: payload, embedding: embedding)
+        payloads.append(payload)
+        vectors.append(vector)
       } catch is CancellationError {
         return .cancelled
       } catch {
@@ -744,10 +746,24 @@ final class SearchRecommendationCollector {
           error,
           level: { _ in .info }
         )
-        continue
       }
-      guard let score = engine.similarityScore(forEmbedding: vector) else { continue }
-      guard score > scoreFloor else { continue }
+    }
+
+    if Task.isCancelled { return .cancelled }
+    if await isDetached() { return .cancelled }
+
+    let similarities: [Float?]
+    do {
+      similarities = try await engine.similarityScores(forEmbeddings: vectors)
+    } catch is CancellationError {
+      return .cancelled
+    } catch {
+      return .failed(error)
+    }
+
+    var scored = [ScoredEpisode](capacity: payloads.count)
+    for (payload, score) in zip(payloads, similarities) {
+      guard let score, score > scoreFloor else { continue }
       scored.append(ScoredEpisode(episode: payload, score: score))
     }
 
