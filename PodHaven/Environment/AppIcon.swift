@@ -128,6 +128,8 @@ private struct SystemImageName:
   static let playButton = SystemImageName("play.circle.fill")
   static let previousChapter = SystemImageName("backward.frame.fill")
   static let finishEpisode = SystemImageName("forward.end.fill")
+  static let stopAfterEpisode = SystemImageName("moon.zzz")
+  static let stopAfterEpisodeOn = SystemImageName("moon.zzz.fill")
   static let jumpToMaxPosition = SystemImageName("arrow.forward.to.line")
   static let undoSeekBackward = SystemImageName("arrow.uturn.backward")
   static let undoSeekForward = SystemImageName("arrow.uturn.forward")
@@ -319,6 +321,8 @@ private struct SystemImageName:
   case seekBackward(Int)
   case seekForward(Int)
   case finishEpisode
+  case stopAfterEpisode
+  case stopAfterEpisodeOn
   case jumpToMaxPosition
   case undoSeekBackward
   case undoSeekForward
@@ -769,6 +773,18 @@ private struct SystemImageName:
       )
     case .finishEpisode:
       return Data(text: "Finish Episode", systemImageName: .finishEpisode, color: .blue)
+    case .stopAfterEpisode:
+      return Data(
+        text: "Stop After This Episode",
+        systemImageName: .stopAfterEpisode,
+        color: .secondary
+      )
+    case .stopAfterEpisodeOn:
+      return Data(
+        text: "Stop After This Episode",
+        systemImageName: .stopAfterEpisodeOn,
+        color: .indigo
+      )
     case .jumpToMaxPosition:
       return Data(
         text: "Resume Furthest Position",

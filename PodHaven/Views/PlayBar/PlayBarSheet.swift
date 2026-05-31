@@ -24,6 +24,10 @@ struct PlayBarSheet: View {
 
       VStack(spacing: spacing) {
         HStack(spacing: spacing) {
+          if sharedState.onDeck != nil {
+            topBarButtonStyle(stopAfterEpisodeButton)
+          }
+
           Spacer()
 
           if let onDeck = sharedState.onDeck {
@@ -83,6 +87,12 @@ struct PlayBarSheet: View {
       }
     }
     .ignoresSafeArea()
+  }
+
+  private var stopAfterEpisodeButton: some View {
+    let icon: AppIcon =
+      sharedState.stopAfterCurrentEpisode ? .stopAfterEpisodeOn : .stopAfterEpisode
+    return icon.imageButton { viewModel.toggleStopAfterCurrentEpisode() }
   }
 
   @ViewBuilder

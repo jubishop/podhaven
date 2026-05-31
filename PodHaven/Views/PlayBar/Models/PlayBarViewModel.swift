@@ -183,6 +183,14 @@ enum UndoSeekDirection {
     }
   }
 
+  // MARK: - Stop After Episode
+
+  func toggleStopAfterCurrentEpisode() {
+    let enabled = !sharedState.stopAfterCurrentEpisode
+    Self.log.debug("Toggling stopAfterCurrentEpisode to \(enabled)")
+    sharedState.setStopAfterCurrentEpisode(enabled)
+  }
+
   // MARK: - Rating
 
   func rate(_ rating: EpisodeRating?) {
