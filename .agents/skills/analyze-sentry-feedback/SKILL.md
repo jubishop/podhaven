@@ -9,6 +9,7 @@ description: >-
   feedback by slug or ID, or asks to investigate a piece of user feedback
   from Sentry.
 user_invocable: true
+disable-model-invocation: true
 argument: >-
   A Sentry feedback URL, a feedbackSlug like `podhaven:7485822944`, or a bare
   numeric feedback ID. Any additional free-text the user types alongside that

@@ -3,6 +3,7 @@ name: analyze-sentry-logs
 description: >
   Analyze Sentry logs to find real issues, severity mismatches, and missing observability.
   Only runs when explicitly invoked via /analyze-sentry-logs.
+user_invocable: true
 allowed-tools: Bash, Read, Grep, Glob, Agent
 disable-model-invocation: true
 ---
