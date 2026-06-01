@@ -4,17 +4,121 @@
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/jubishop/podhaven}"
+GITHUB_REPO="${GITHUB_REPOSITORY:-${REPO_URL#https://github.com/}}"
 STARTING_REF="${STARTING_REF:-main}"
 MODEL_ID="${MODEL_ID:-composer-2.5}"
 POLL_SECONDS="${POLL_SECONDS:-30}"
 MAX_WAIT_SECONDS="${MAX_WAIT_SECONDS:-3600}"
+ARTIFACT_RETRIES="${ARTIFACT_RETRIES:-6}"
+ARTIFACT_RETRY_SECONDS="${ARTIFACT_RETRY_SECONDS:-10}"
 API_BASE="${API_BASE:-https://api.cursor.com/v1}"
+REPORT_REL_PATH="artifacts/memory-audit-report.md"
+REPORT_START_MARKER='<!-- MEMORY_AUDIT_REPORT_START -->'
+REPORT_END_MARKER='<!-- MEMORY_AUDIT_REPORT_END -->'
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROMPT_FILE="$ROOT/bin/memory-audit-prompt.md"
 ARTIFACT_DIR="${RUNNER_TEMP:-/tmp}/memory-audit"
 REPORT_PATH="$ARTIFACT_DIR/memory-audit-report.md"
 META_PATH="$ARTIFACT_DIR/run-meta.json"
+
+extract_report_from_result() {
+  local text="$1"
+  local extracted=""
+
+  if [[ "$text" == *"$REPORT_START_MARKER"* ]]; then
+    extracted="$(awk -v start="$REPORT_START_MARKER" -v end="$REPORT_END_MARKER" '
+      $0 == start { capture=1; next }
+      $0 == end { capture=0 }
+      capture { print }
+    ' <<<"$text")"
+  elif [[ "$text" == *"# Memory audit report"* ]]; then
+    extracted="$(awk '/^# Memory audit report/ { capture=1 } capture { print }' <<<"$text")"
+  fi
+
+  if [[ -n "$extracted" ]]; then
+    printf '%s\n' "$extracted"
+  fi
+}
+
+download_report_via_api() {
+  local agent_id="$1"
+  local dest="$2"
+  local attempt list_response path download_json url
+
+  for (( attempt=1; attempt<=ARTIFACT_RETRIES; attempt++ )); do
+    list_response="$(curl -sfS \
+      -u "$CURSOR_API_KEY:" \
+      "$API_BASE/agents/$agent_id/artifacts" 2>/dev/null || echo '{"items":[]}')"
+
+    path="$(echo "$list_response" | jq -r '.items[]? | select(.path | test("memory-audit-report")) | .path' | head -1)"
+    if [[ -z "$path" ]]; then
+      path="$REPORT_REL_PATH"
+    fi
+
+    download_json="$(curl -sfS \
+      -u "$CURSOR_API_KEY:" \
+      "$API_BASE/agents/$agent_id/artifacts/download?path=$(jq -rn --arg p "$path" '$p|@uri')" 2>/dev/null || true)"
+    url="$(echo "$download_json" | jq -r '.url // empty')"
+    if [[ -n "$url" && "$url" != "null" ]]; then
+      if curl -sfS "$url" -o "$dest"; then
+        echo "$path"
+        return 0
+      fi
+    fi
+
+    if (( attempt < ARTIFACT_RETRIES )); then
+      echo "Artifact not ready (attempt $attempt/$ARTIFACT_RETRIES), retrying in ${ARTIFACT_RETRY_SECONDS}s..."
+      sleep "$ARTIFACT_RETRY_SECONDS"
+    fi
+  done
+
+  return 1
+}
+
+download_report_from_branch() {
+  local branch="$1"
+  local dest="$2"
+
+  if [[ -z "$branch" ]] || ! command -v gh >/dev/null 2>&1; then
+    return 1
+  fi
+
+  if gh api "repos/${GITHUB_REPO}/contents/${REPORT_REL_PATH}?ref=${branch}" --jq '.content' 2>/dev/null \
+    | base64 --decode > "$dest"; then
+    return 0
+  fi
+
+  return 1
+}
+
+write_fallback_report() {
+  local agent_id="$1"
+  local run_id="$2"
+  local agent_url="$3"
+  local status="$4"
+  local duration_ms="$5"
+  local branch="$6"
+  local pr_url="$7"
+  local result_text="$8"
+
+  cat > "$REPORT_PATH" <<EOF
+# Memory audit report (CI fallback)
+
+CI could not download \`${REPORT_REL_PATH}\` from the artifacts API, run result, or agent branch.
+
+- Agent: [$agent_id]($agent_url)
+- Run: \`$run_id\`
+- Status: \`$status\`
+- Duration ms: ${duration_ms:-unknown}
+- Branch: ${branch:-none}
+- PR: ${pr_url:-none}
+
+## Agent result
+
+${result_text:-_No result text._}
+EOF
+}
 
 if [[ -z "${CURSOR_API_KEY:-}" ]]; then
   echo "CURSOR_API_KEY is required" >&2
@@ -105,37 +209,18 @@ ACTIVE_NOTE_COUNT="$(find "$ROOT/memory" -maxdepth 1 -name '*.md' ! -name 'READM
 REPORT_SOURCE="fallback"
 ARTIFACT_PATH=""
 
-ARTIFACT_LIST="$(curl -sfS \
-  -u "$CURSOR_API_KEY:" \
-  "$API_BASE/agents/$AGENT_ID/artifacts" || echo '{"items":[]}')"
-
-ARTIFACT_PATH="$(echo "$ARTIFACT_LIST" | jq -r '.items[] | select(.path | test("memory-audit-report")) | .path' | head -1)"
-
-if [[ -n "$ARTIFACT_PATH" ]]; then
-  DOWNLOAD_JSON="$(curl -sfS \
-    -u "$CURSOR_API_KEY:" \
-    "$API_BASE/agents/$AGENT_ID/artifacts/download?path=$(jq -rn --arg p "$ARTIFACT_PATH" '$p|@uri')")"
-  PRESIGNED_URL="$(echo "$DOWNLOAD_JSON" | jq -r '.url')"
-  curl -sfS "$PRESIGNED_URL" -o "$REPORT_PATH"
+if ARTIFACT_PATH="$(download_report_via_api "$AGENT_ID" "$REPORT_PATH")"; then
   REPORT_SOURCE="agent"
-  echo "Downloaded agent report to $REPORT_PATH"
+  echo "Downloaded agent report to $REPORT_PATH ($ARTIFACT_PATH)"
+elif EXTRACTED_REPORT="$(extract_report_from_result "$RESULT_TEXT")"; then
+  printf '%s\n' "$EXTRACTED_REPORT" > "$REPORT_PATH"
+  REPORT_SOURCE="result"
+  echo "Extracted report from agent result text"
+elif download_report_from_branch "$BRANCH" "$REPORT_PATH"; then
+  REPORT_SOURCE="git"
+  echo "Downloaded report from branch $BRANCH"
 else
-  cat > "$REPORT_PATH" <<EOF
-# Memory audit report (CI fallback)
-
-The cloud agent did not produce \`artifacts/memory-audit-report.md\`. See run result below.
-
-- Agent: [$AGENT_ID]($AGENT_URL)
-- Run: \`$RUN_ID\`
-- Status: \`$STATUS\`
-- Duration ms: ${DURATION_MS:-unknown}
-- Branch: ${BRANCH:-none}
-- PR: ${PR_URL:-none}
-
-## Agent result
-
-${RESULT_TEXT:-_No result text._}
-EOF
+  write_fallback_report "$AGENT_ID" "$RUN_ID" "$AGENT_URL" "$STATUS" "$DURATION_MS" "$BRANCH" "$PR_URL" "$RESULT_TEXT"
   echo "Wrote fallback report to $REPORT_PATH"
 fi
 
@@ -144,10 +229,10 @@ WARNINGS=()
 
 if [[ "$REPORT_SOURCE" == "fallback" ]]; then
   REPORT_VALID=false
-  WARNINGS+=("report is CI fallback, not agent artifact")
+  WARNINGS+=("could not recover report from artifacts API, run result, or agent branch")
 fi
 
-if ! grep -q '^# Memory audit report$' "$REPORT_PATH"; then
+if ! grep -qE '^# Memory audit report' "$REPORT_PATH"; then
   REPORT_VALID=false
   WARNINGS+=("missing '# Memory audit report' header")
 fi

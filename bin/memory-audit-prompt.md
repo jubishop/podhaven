@@ -142,11 +142,31 @@ Do not create a third note when two already cover the same topic.
 
 ## Run artifact (always)
 
-Write to `artifacts/memory-audit-report.md`:
+Deliver the full report two ways so CI can recover it:
 
-- This is a **cloud agent artifact** path, not a git commit.
-- Do **not** commit the report when there are no memory changes.
-- CI downloads it after the run completes via the Cursor artifacts API.
+### 1. Write the file (required)
+
+Use the **Write** tool to save the complete report to exactly:
+
+`artifacts/memory-audit-report.md`
+
+Create the `artifacts/` directory if needed. Do not only mention this path in chat — the file must exist on disk.
+
+### 2. Repeat the full report in your final message (required)
+
+Your last assistant message must include the **entire** report verbatim, wrapped in these markers on their own lines:
+
+```markdown
+<!-- MEMORY_AUDIT_REPORT_START -->
+# Memory audit report
+...
+<!-- MEMORY_AUDIT_REPORT_END -->
+```
+
+CI uses the file first, then extracts from these markers if the artifacts API is empty.
+
+- This is **not** a git commit — do not commit the report when there are no memory changes.
+- Use the exact template below (counts, tables, and section headers must match).
 
 ```markdown
 # Memory audit report
@@ -198,5 +218,6 @@ If nothing archived, Archived section: `_None._`
 5. Write the full per-note findings table before changing anything.
 6. Consolidate overlapping notes (merge survivor, archive superseded).
 7. Move every **archive** verdict to `memory/archive/`.
-8. Write `artifacts/memory-audit-report.md`.
-9. Commit and push only if you changed memory files.
+8. Write `artifacts/memory-audit-report.md` with the Write tool.
+9. Send your final message with the same full report between `<!-- MEMORY_AUDIT_REPORT_START -->` / `<!-- MEMORY_AUDIT_REPORT_END -->`.
+10. Commit and push only if you changed memory files.
