@@ -89,12 +89,22 @@ while true; do
   sleep "$POLL_SECONDS"
 done
 
-RESULT_TEXT="$(echo "$FINAL_RESPONSE" | jq -r '.result // empty')"
-DURATION_MS="$(echo "$FINAL_RESPONSE" | jq -r '.durationMs // empty')"
-PR_URL="$(echo "$FINAL_RESPONSE" | jq -r '.git.branches[0].prUrl // empty')"
-BRANCH="$(echo "$FINAL_RESPONSE" | jq -r '.git.branches[0].branch // empty')"
+RESULT_TEXT=""
+DURATION_MS=""
+PR_URL=""
+BRANCH=""
+if [[ -n "$FINAL_RESPONSE" ]]; then
+  RESULT_TEXT="$(echo "$FINAL_RESPONSE" | jq -r '.result // empty')"
+  DURATION_MS="$(echo "$FINAL_RESPONSE" | jq -r '.durationMs // empty')"
+  PR_URL="$(echo "$FINAL_RESPONSE" | jq -r '.git.branches[0].prUrl // empty')"
+  BRANCH="$(echo "$FINAL_RESPONSE" | jq -r '.git.branches[0].branch // empty')"
+fi
 
-# Try to download agent-written artifact report.
+ACTIVE_NOTE_COUNT="$(find "$ROOT/memory" -maxdepth 1 -name '*.md' ! -name 'README.md' | wc -l | tr -d ' ')"
+
+REPORT_SOURCE="fallback"
+ARTIFACT_PATH=""
+
 ARTIFACT_LIST="$(curl -sfS \
   -u "$CURSOR_API_KEY:" \
   "$API_BASE/agents/$AGENT_ID/artifacts" || echo '{"items":[]}')"
@@ -107,6 +117,7 @@ if [[ -n "$ARTIFACT_PATH" ]]; then
     "$API_BASE/agents/$AGENT_ID/artifacts/download?path=$(jq -rn --arg p "$ARTIFACT_PATH" '$p|@uri')")"
   PRESIGNED_URL="$(echo "$DOWNLOAD_JSON" | jq -r '.url')"
   curl -sfS "$PRESIGNED_URL" -o "$REPORT_PATH"
+  REPORT_SOURCE="agent"
   echo "Downloaded agent report to $REPORT_PATH"
 else
   cat > "$REPORT_PATH" <<EOF
@@ -128,40 +139,112 @@ EOF
   echo "Wrote fallback report to $REPORT_PATH"
 fi
 
+REPORT_VALID=true
+WARNINGS=()
+
+if [[ "$REPORT_SOURCE" == "fallback" ]]; then
+  REPORT_VALID=false
+  WARNINGS+=("report is CI fallback, not agent artifact")
+fi
+
+if ! grep -q '^# Memory audit report$' "$REPORT_PATH"; then
+  REPORT_VALID=false
+  WARNINGS+=("missing '# Memory audit report' header")
+fi
+
+if ! grep -q '^## Per-note findings' "$REPORT_PATH"; then
+  REPORT_VALID=false
+  WARNINGS+=("missing '## Per-note findings' section")
+fi
+
+REVIEWED_COUNT=""
+if REVIEWED_LINE="$(grep -E '^- Active notes reviewed:' "$REPORT_PATH" | head -1)"; then
+  REVIEWED_COUNT="$(sed -E 's/^- Active notes reviewed: *([0-9]+).*/\1/' <<<"$REVIEWED_LINE")"
+elif REVIEWED_LINE="$(grep -E '^\| Reviewed \|' "$REPORT_PATH" | head -1)"; then
+  REVIEWED_COUNT="$(sed -E 's/^\| Reviewed \| *([0-9]+) *\|.*/\1/' <<<"$REVIEWED_LINE")"
+fi
+
+if [[ -z "$REVIEWED_COUNT" ]]; then
+  REPORT_VALID=false
+  WARNINGS+=("could not parse active notes reviewed count")
+elif [[ "$REVIEWED_COUNT" != "$ACTIVE_NOTE_COUNT" ]]; then
+  REPORT_VALID=false
+  WARNINGS+=("reviewed count ($REVIEWED_COUNT) != active note count ($ACTIVE_NOTE_COUNT)")
+fi
+
+HEALTH="ok"
+EXIT_CODE=0
+case "$STATUS" in
+  FINISHED)
+    if [[ "$REPORT_VALID" != true ]]; then
+      HEALTH="degraded"
+      EXIT_CODE=4
+    fi
+    ;;
+  TIMEOUT)
+    HEALTH="failed"
+    EXIT_CODE=3
+    WARNINGS+=("agent run timed out after ${MAX_WAIT_SECONDS}s")
+    ;;
+  *)
+    HEALTH="failed"
+    EXIT_CODE=2
+    WARNINGS+=("agent run ended with status $STATUS")
+    ;;
+esac
+
+WARNINGS_JSON="$(printf '%s\n' "${WARNINGS[@]:-}" | jq -R -s 'split("\n") | map(select(length > 0))')"
+
 jq -n \
   --arg agentId "$AGENT_ID" \
   --arg runId "$RUN_ID" \
   --arg agentUrl "$AGENT_URL" \
   --arg status "$STATUS" \
+  --arg health "$HEALTH" \
   --arg prUrl "$PR_URL" \
   --arg branch "$BRANCH" \
   --arg durationMs "${DURATION_MS:-}" \
   --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg reportSource "$REPORT_SOURCE" \
+  --argjson reportValid "$REPORT_VALID" \
+  --argjson activeNoteCount "$ACTIVE_NOTE_COUNT" \
+  --arg reviewedCount "${REVIEWED_COUNT:-}" \
+  --argjson warnings "$WARNINGS_JSON" \
+  --argjson exitCode "$EXIT_CODE" \
   '{
     agentId: $agentId,
     runId: $runId,
     agentUrl: $agentUrl,
     status: $status,
+    health: $health,
     prUrl: (if $prUrl == "" then null else $prUrl end),
     branch: (if $branch == "" then null else $branch end),
     durationMs: (if $durationMs == "" then null else ($durationMs | tonumber) end),
-    completedAt: $completedAt
+    completedAt: $completedAt,
+    reportSource: $reportSource,
+    reportValid: $reportValid,
+    activeNoteCount: $activeNoteCount,
+    reviewedCount: (if $reviewedCount == "" then null else ($reviewedCount | tonumber) end),
+    warnings: $warnings,
+    exitCode: $exitCode
   }' > "$META_PATH"
 
 echo ""
 echo "=== Memory audit complete ==="
 echo "Status:  $STATUS"
+echo "Health:  $HEALTH"
 echo "Agent:   $AGENT_URL"
 if [[ -n "$PR_URL" ]]; then
   echo "PR:      $PR_URL"
 else
   echo "PR:      (none — no changes or agent did not open one)"
 fi
-echo "Report:  $REPORT_PATH"
+echo "Report:  $REPORT_PATH ($REPORT_SOURCE, valid=$REPORT_VALID)"
+echo "Notes:   active=$ACTIVE_NOTE_COUNT reviewed=${REVIEWED_COUNT:-unknown}"
+if ((${#WARNINGS[@]} > 0)); then
+  echo "Warnings:"
+  printf '  - %s\n' "${WARNINGS[@]}"
+fi
 echo "Meta:    $META_PATH"
 
-case "$STATUS" in
-  FINISHED) exit 0 ;;
-  TIMEOUT) exit 3 ;;
-  *) exit 2 ;;
-esac
+exit "$EXIT_CODE"

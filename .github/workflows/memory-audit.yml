@@ -23,12 +23,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Run memory audit cloud agent
+        id: audit
+        continue-on-error: true
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           MAX_WAIT_SECONDS: "5400"
         run: bin/run-memory-audit
 
       - name: Upload audit artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: memory-audit-${{ github.run_id }}
@@ -39,23 +42,64 @@ jobs:
           if-no-files-found: error
 
       - name: Summary
+        if: always()
         run: |
           META="${{ runner.temp }}/memory-audit/run-meta.json"
           REPORT="${{ runner.temp }}/memory-audit/memory-audit-report.md"
+          AUDIT_OUTCOME="${{ steps.audit.outcome }}"
+
           {
-            echo "## Memory audit"
+            if [[ "$AUDIT_OUTCOME" == "success" ]]; then
+              echo "## Memory audit succeeded"
+            else
+              echo "## Memory audit failed"
+            fi
             echo ""
+
             if [[ -f "$META" ]]; then
+              HEALTH="$(jq -r '.health' "$META")"
+              case "$HEALTH" in
+                ok) echo "> **Health:** ok" ;;
+                degraded) echo "> **Health:** degraded — agent finished but report failed validation" ;;
+                failed) echo "> **Health:** failed — agent error, timeout, or cancellation" ;;
+                *) echo "> **Health:** $HEALTH" ;;
+              esac
+              echo ""
               jq -r '
-                "- **Status:** \(.status)",
+                "- **Agent status:** \(.status)",
+                "- **Report:** \(.reportSource) (valid: \(.reportValid))",
+                "- **Notes:** active \(.activeNoteCount), reviewed \(.reviewedCount // "unknown")",
                 "- **Agent:** [\(.agentId)](\(.agentUrl))",
                 "- **Completed:** \(.completedAt)",
-                (if .prUrl then "- **PR:** \(.prUrl)" else "- **PR:** none (no archival changes)" end)
+                (if .prUrl then "- **PR:** \(.prUrl)" else "- **PR:** none (no memory changes)" end)
               ' "$META"
+
+              WARNINGS="$(jq -r '.warnings[]?' "$META")"
+              if [[ -n "$WARNINGS" ]]; then
+                echo ""
+                echo "### Warnings"
+                while IFS= read -r warning; do
+                  echo "- $warning"
+                done <<< "$WARNINGS"
+              fi
+            else
+              echo "No run metadata found — the audit script likely failed before writing artifacts."
             fi
+
             echo ""
             echo "### Report preview"
             echo "\`\`\`"
-            head -40 "$REPORT" || true
+            head -40 "$REPORT" 2>/dev/null || echo "(no report file)"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail job on audit error
+        if: always() && steps.audit.outcome != 'success'
+        run: |
+          META="${{ runner.temp }}/memory-audit/run-meta.json"
+          if [[ -f "$META" ]]; then
+            jq -r '"Memory audit failed (exit \(.exitCode), health \(.health))"' "$META" >&2
+          else
+            echo "Memory audit failed before writing run metadata" >&2
+          fi
+          exit 1
