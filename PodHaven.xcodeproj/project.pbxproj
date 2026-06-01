@@ -99,9 +99,11 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Environment/AppIcon.swift,
+				Environment/AppIconViews.swift,
 				Environment/AppInfo.swift,
 				Environment/ContinuousClockNow.swift,
 				Environment/DateProvider.swift,
+				Environment/SystemImageName.swift,
 				Environment/UserDefaults.swift,
 				Errors/ErrorKit.swift,
 				Extensions/Array.swift,
