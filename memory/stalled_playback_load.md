@@ -31,22 +31,27 @@ disprove writer contention: `Repo.updateDuration` logs before its own
 
 ## Instrumentation added
 
-`PodHaven/Play/PlayManager.swift` now logs incoming/outgoing episode details
-and before/after timing for each awaited phase in `performLoad(_:)`, including
-the outgoing queue restore.
+`PodHaven/Play/PlayManager.swift` logs incoming/outgoing episode details and
+before/after timing for each awaited phase in `performLoad(_:)`, including the
+outgoing queue restore.
 
-`PodHaven/Database/Queue.swift` now logs before and after the async
-`appDB.db.write` wrapper in `unshift(_:)`. On the next recurrence:
+GRDB writer contention on `Queue.unshift(_:)` is visible through the generic
+write lifecycle logs in `AppDB.Writer.write` (#371): `db write requested`,
+`db write acquired` (includes `wait=` duration), and `db write completed`.
+Inside the transaction, `Queue._unshift` still logs `queue: unshifting`.
 
-- `performLoad: restoring outgoing episode to queue` without
-  `queue: unshift write requested` means the stall is before calling Queue.
-- `queue: unshift write requested` without `queue: unshifting` means it is
-  waiting for GRDB writer access.
-- `queue: unshifting` without `queue: unshift write completed` means the work
-  is inside `_unshift` or a nested call.
-- `performLoad: loading player item` means the stall reached cache/network
-  asset loading.
+On the next recurrence:
+
+- `performLoad: restoring outgoing episode to queue` without a nearby
+  `db write requested: …Queue.swift:unshift` means the stall is before calling
+  Queue.
+- `db write requested: …unshift` with a large `wait=` on `db write acquired`
+  means waiting for GRDB writer access.
+- `db write acquired` without `db write completed` means the work is inside the
+  transaction (including `_unshift`).
+- `performLoad: loading player item` means the stall reached cache/network asset
+  loading.
 
 **Why:** The original log showed `performLoad` and `setStatus(.loading)` but never reached player-item loading or `Queue._unshift`, so the stall is likely before asset fetch — probably waiting on a GRDB writer, not network/cache.
 
-**How to apply:** On the next stalled-load report, use the new phase timing logs in `PlayManager.performLoad` and `Queue.unshift` to see whether the stall is before Queue, waiting on `appDB.db.write`, inside `_unshift`, or at player-item load.
+**How to apply:** On the next stalled-load report, use the phase timing logs in `PlayManager.performLoad` plus the `AppDB.Writer.write` lifecycle lines for `Queue.unshift` to see whether the stall is before Queue, waiting on the writer, inside `_unshift`, or at player-item load.
