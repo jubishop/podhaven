@@ -26,12 +26,7 @@ struct NowPlayingProvider: TimelineProvider {
     // if the app is killed. During playback the app reloads the timeline
     // every 4 minutes via a heartbeat (free during an active audio
     // session), pushing this fallback forward indefinitely.
-    let fallbackStatus: PlaybackStatus? =
-      switch entry.playbackStatus {
-      case .playing, .waiting: .paused
-      case .loading: .stopped
-      case .paused, .stopped: nil
-      }
+    let fallbackStatus = entry.playbackStatus.widgetFallback
 
     if let fallbackStatus {
       entries.append(

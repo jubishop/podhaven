@@ -3,8 +3,8 @@
 import WidgetKit
 
 protocol WidgetReloading: Sendable {
-  func getCurrentConfigurations(
-    _ completion: @escaping @Sendable (Result<[WidgetKit.WidgetInfo], any Error>) -> Void
+  func placedWidgetKinds(
+    _ completion: @escaping @Sendable (Result<Set<String>, any Error>) -> Void
   )
   func reloadTimelines(ofKind kind: String)
 }
@@ -13,10 +13,12 @@ protocol WidgetReloading: Sendable {
 // but WidgetCenter doesn't declare Sendable conformance. This wrapper provides
 // the Sendable conformance the protocol requires.
 struct SystemWidgetCenter: WidgetReloading {
-  func getCurrentConfigurations(
-    _ completion: @escaping @Sendable (Result<[WidgetKit.WidgetInfo], any Error>) -> Void
+  func placedWidgetKinds(
+    _ completion: @escaping @Sendable (Result<Set<String>, any Error>) -> Void
   ) {
-    WidgetCenter.shared.getCurrentConfigurations(completion)
+    WidgetCenter.shared.getCurrentConfigurations { result in
+      completion(result.map { configurations in Set(configurations.map(\.kind)) })
+    }
   }
 
   func reloadTimelines(ofKind kind: String) {

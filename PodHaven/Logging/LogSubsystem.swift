@@ -101,6 +101,7 @@ enum LogSubsystem {
     case controlCenter
     case lockScreenNowPlaying
     case nowPlaying
+    case nowPlayingQueue
     case queue
     case service
     case snapshotReader
