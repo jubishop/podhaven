@@ -333,9 +333,18 @@ private struct SystemImageName:
   case waiting
   case website
 
+  // Brand Links
+  case discord
+  case github
+
+  private enum IconSource {
+    case system(SystemImageName)
+    case asset(String)
+  }
+
   private struct Data {
     let text: String
-    let systemImageName: SystemImageName
+    let source: IconSource
     let darkColor: Color
     let lightColor: Color
 
@@ -346,7 +355,7 @@ private struct SystemImageName:
       lightColor: Color
     ) {
       self.text = text
-      self.systemImageName = systemImageName
+      self.source = .system(systemImageName)
       self.darkColor = darkColor
       self.lightColor = lightColor
     }
@@ -357,7 +366,18 @@ private struct SystemImageName:
       color: Color = .accentColor
     ) {
       self.text = text
-      self.systemImageName = systemImageName
+      self.source = .system(systemImageName)
+      self.darkColor = color
+      self.lightColor = color
+    }
+
+    init(
+      text: String,
+      asset: String,
+      color: Color = .accentColor
+    ) {
+      self.text = text
+      self.source = .asset(asset)
       self.darkColor = color
       self.lightColor = color
     }
@@ -818,6 +838,12 @@ private struct SystemImageName:
     case .website:
       return Data(text: "Visit Website", systemImageName: .website)
 
+    // Brand Links
+    case .discord:
+      return Data(text: "Discord", asset: "discord-mark", color: .primary)
+    case .github:
+      return Data(text: "GitHub", asset: "github-mark", color: .primary)
+
     // Manual Entry
     case .manualEntry:
       return Data(text: "Add Feed URL", systemImageName: .manualEntry, color: .purple)
@@ -825,11 +851,18 @@ private struct SystemImageName:
   }
 
   var rawLabel: Label<Text, Image> {
-    Label(LocalizedStringKey(data.text), systemImage: data.systemImageName.rawValue)
+    Label {
+      Text(textKey)
+    } icon: {
+      rawImage
+    }
   }
 
   var rawImage: Image {
-    Image(systemName: data.systemImageName.rawValue)
+    switch data.source {
+    case .system(let name): Image(systemName: name.rawValue)
+    case .asset(let name): Image(name)
+    }
   }
 
   var image: some View {
@@ -844,7 +877,10 @@ private struct SystemImageName:
   var text: String { data.text }
 
   var systemImageName: String {
-    data.systemImageName.rawValue
+    switch data.source {
+    case .system(let name): name.rawValue
+    case .asset: Assert.fatal("systemImageName is unavailable for asset-backed icon \(self)")
+    }
   }
 
   func color(for colorScheme: ColorScheme) -> Color {
@@ -860,11 +896,19 @@ private struct SystemImageName:
   }
 
   func rawLabel(_ text: String) -> Label<Text, Image> {
-    Label(LocalizedStringKey(text), systemImage: data.systemImageName.rawValue)
+    Label {
+      Text(LocalizedStringKey(text))
+    } icon: {
+      rawImage
+    }
   }
 
   func rawLabel(_ text: LocalizedStringKey) -> Label<Text, Image> {
-    Label(text, systemImage: data.systemImageName.rawValue)
+    Label {
+      Text(text)
+    } icon: {
+      rawImage
+    }
   }
 
   func labelButton(action: @MainActor @escaping () -> Void) -> some View {

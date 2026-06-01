@@ -474,20 +474,12 @@ struct SettingsView: View {
           Menu {
             if let url = Self.githubURL {
               Link(destination: url) {
-                Label {
-                  Text("GitHub")
-                } icon: {
-                  Image("github-mark")
-                }
+                AppIcon.github.rawLabel
               }
             }
             if let url = Self.discordURL {
               Link(destination: url) {
-                Label {
-                  Text("Discord")
-                } icon: {
-                  Image("discord-mark")
-                }
+                AppIcon.discord.rawLabel
               }
             }
             if let url = Self.websiteURL {
