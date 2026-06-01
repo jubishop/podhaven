@@ -119,6 +119,7 @@ struct NowPlayingQueueWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: NowPlayingQueueProvider()) { entry in
       NowPlayingQueueWidgetView(entry: entry)
+        .widgetURL(URL(string: "podhaven://widget/queue"))
         .containerBackground(.fill.tertiary, for: .widget)
     }
     .configurationDisplayName("Now Playing & Up Next")
