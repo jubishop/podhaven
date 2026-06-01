@@ -2,8 +2,8 @@ name: Memory Audit
 
 on:
   schedule:
-    # Daily at 13:00 UTC (~5am PST / ~4am PDT). Job skips unless epoch-day % 3 == 0.
-    - cron: "0 13 * * *"
+    # Saturdays 13:00 UTC (~5am PST / ~4am PDT). GitHub cron is UTC-only.
+    - cron: "0 13 * * 6"
   workflow_dispatch:
 
 concurrency:
@@ -17,39 +17,18 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - name: Every-three-days gate
-        id: gate
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            echo "Manual dispatch — running audit."
-            exit 0
-          fi
-          epoch_day=$(( $(date -u +%s) / 86400 ))
-          if (( epoch_day % 3 == 0 )); then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            echo "Epoch day $epoch_day — running scheduled audit."
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "Epoch day $epoch_day — skipping (runs every 3 days)."
-          fi
-
       - uses: actions/checkout@v4
-        if: steps.gate.outputs.run == 'true'
 
       - name: Install jq
-        if: steps.gate.outputs.run == 'true'
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Run memory audit cloud agent
-        if: steps.gate.outputs.run == 'true'
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           MAX_WAIT_SECONDS: "5400"
         run: bin/run-memory-audit
 
       - name: Upload audit artifacts
-        if: steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: memory-audit-${{ github.run_id }}
@@ -60,7 +39,6 @@ jobs:
           if-no-files-found: error
 
       - name: Summary
-        if: steps.gate.outputs.run == 'true'
         run: |
           META="${{ runner.temp }}/memory-audit/run-meta.json"
           REPORT="${{ runner.temp }}/memory-audit/memory-audit-report.md"
