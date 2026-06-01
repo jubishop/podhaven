@@ -11,6 +11,8 @@ struct SettingsView: View {
 
   private static let log = Log.as(LogSubsystem.SettingsView.main)
   private static let githubURL = URL(string: "https://github.com/jubishop/podhaven")
+  private static let discordURL = URL(string: "https://discord.gg/cMCJeuVY2f")
+  private static let websiteURL = URL(string: "https://artisanalsoftware.com/podhaven")
 
   @State private var tempMaxQueueLength: Double
   @State private var tempMaxRecommendedEpisodes: Double
@@ -472,11 +474,17 @@ struct SettingsView: View {
           Menu {
             if let url = Self.githubURL {
               Link(destination: url) {
-                Label {
-                  Text("GitHub")
-                } icon: {
-                  Image("github-mark")
-                }
+                AppIcon.github.rawLabel
+              }
+            }
+            if let url = Self.discordURL {
+              Link(destination: url) {
+                AppIcon.discord.rawLabel
+              }
+            }
+            if let url = Self.websiteURL {
+              Link(destination: url) {
+                AppIcon.website.rawLabel("PodHaven Website")
               }
             }
           } label: {
