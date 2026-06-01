@@ -28,6 +28,21 @@ struct QueueEntry: TimelineEntry {
     }
   }
 
+  static func items(from snapshot: QueueSnapshot) -> [QueueEntryItem] {
+    snapshot.queue.map { queueItem in
+      QueueEntryItem(
+        id: queueItem.episodeID,
+        episodeTitle: queueItem.episodeTitle,
+        pubDateFormatted: Date(timeIntervalSince1970: queueItem.pubDateTimestamp).usShort,
+        durationFormatted: queueItem.durationSeconds.compactReadableFormat,
+        artwork: WidgetSnapshotReader.decodeArtwork(
+          forKey: queueItem.artworkURL,
+          from: snapshot.artwork
+        )
+      )
+    }
+  }
+
   static let empty = QueueEntry(date: Date(), items: [])
 
   static let preview = QueueEntry(

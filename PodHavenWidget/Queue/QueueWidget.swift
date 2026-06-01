@@ -31,20 +31,7 @@ struct QueueProvider: TimelineProvider {
 
     Self.log.debug("Queue makeEntry: \(snapshot.queue.count) items")
 
-    let items = snapshot.queue.map { queueItem in
-      QueueEntry.QueueEntryItem(
-        id: queueItem.episodeID,
-        episodeTitle: queueItem.episodeTitle,
-        pubDateFormatted: Date(timeIntervalSince1970: queueItem.pubDateTimestamp).usShort,
-        durationFormatted: queueItem.durationSeconds.compactReadableFormat,
-        artwork: WidgetSnapshotReader.decodeArtwork(
-          forKey: queueItem.artworkURL,
-          from: snapshot.artwork
-        )
-      )
-    }
-
-    return QueueEntry(date: Date(), items: items)
+    return QueueEntry(date: Date(), items: QueueEntry.items(from: snapshot))
   }
 }
 

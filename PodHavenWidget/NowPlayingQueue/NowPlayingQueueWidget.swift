@@ -109,19 +109,7 @@ struct NowPlayingQueueProvider: TimelineProvider {
       return []
     }
 
-    let items = snapshot.queue.map { queueItem in
-      QueueEntry.QueueEntryItem(
-        id: queueItem.episodeID,
-        episodeTitle: queueItem.episodeTitle,
-        pubDateFormatted: Date(timeIntervalSince1970: queueItem.pubDateTimestamp).usShort,
-        durationFormatted: queueItem.durationSeconds.compactReadableFormat,
-        artwork: WidgetSnapshotReader.decodeArtwork(
-          forKey: queueItem.artworkURL,
-          from: snapshot.artwork
-        )
-      )
-    }
-    return items
+    return QueueEntry.items(from: snapshot)
   }
 }
 
