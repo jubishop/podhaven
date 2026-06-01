@@ -43,6 +43,31 @@ enum ErrorKit {
     return true
   }
 
+  static func isMissingFile(_ error: any Error) -> Bool {
+    if let cocoaError = error as? CocoaError,
+      cocoaError.code == .fileNoSuchFile || cocoaError.code == .fileReadNoSuchFile
+    {
+      return true
+    }
+
+    let nsError = error as NSError
+    if nsError.domain == NSCocoaErrorDomain,
+      nsError.code == NSFileNoSuchFileError || nsError.code == NSFileReadNoSuchFileError
+    {
+      return true
+    }
+
+    if nsError.domain == NSPOSIXErrorDomain, nsError.code == ENOENT {
+      return true
+    }
+
+    if let underlying = underlyingError(for: error) {
+      return isMissingFile(underlying)
+    }
+
+    return false
+  }
+
   // MARK: - Private Formatting Helpers
 
   private static func underlyingError(for error: any Error) -> (any Error)? {

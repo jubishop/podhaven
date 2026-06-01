@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import Logging
 import SwiftUI
 import Testing
 
@@ -306,6 +307,74 @@ import Testing
     // Don't create any episodes
     // Just run purge to ensure it doesn't crash
     try await cachePurger.executePurge()
+  }
+
+  @Test("executePurge logs missing cached file at debug during size-based purge")
+  func executePurgeLogsMissingCachedFileAtDebugDuringSizeBasedPurge() async throws {
+    try await LogCapture.withSink { sink in
+      let fiveDaysAgo = Date.now.addingTimeInterval(-5 * 24 * 60 * 60)
+      let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
+
+      let missingFileEpisode = try await CacheHelpers.createCachedEpisode(
+        title: "Episode With Missing File",
+        cachedFilename: "missing-during-purge.mp3",
+        dataSize: Int(Double(cachePurger.cacheSizeLimit) * 1.2),
+        finishDate: fiveDaysAgo
+      )
+
+      let _ = try await CacheHelpers.createCachedEpisode(
+        title: "Episode To Purge",
+        cachedFilename: "purge-target.mp3",
+        dataSize: Int(Double(cachePurger.cacheSizeLimit) * 1.2),
+        finishDate: fourDaysAgo
+      )
+
+      if let cachedURL = missingFileEpisode.cachedURL {
+        try fileManager.removeItem(at: cachedURL.rawValue)
+      }
+
+      try await cachePurger.executePurge()
+
+      let missingFileLogs = sink.captured()
+        .filter {
+          $0.label == "Cache/purger"
+            && $0.message.contains("cached file already missing for")
+        }
+      #expect(!missingFileLogs.isEmpty)
+      #expect(missingFileLogs.allSatisfy { $0.level == .debug })
+    }
+  }
+
+  @Test("executePurge logs unexpected fileSize failures at error")
+  func executePurgeLogsUnexpectedFileSizeFailuresAtError() async throws {
+    try await LogCapture.withSink { sink in
+      let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
+
+      let episode = try await CacheHelpers.createCachedEpisode(
+        title: "Episode With File Size Failure",
+        cachedFilename: "file-size-failure.mp3",
+        dataSize: Int(Double(cachePurger.cacheSizeLimit) * 1.2),
+        finishDate: fourDaysAgo
+      )
+
+      if let cachedURL = episode.cachedURL {
+        fileManager.setFileSizeError(
+          TestError.simulatedFailure,
+          for: cachedURL.rawValue,
+          afterSuccessfulCalls: 1
+        )
+      }
+
+      try await cachePurger.executePurge()
+
+      let fileSizeErrorLogs = sink.captured()
+        .filter {
+          $0.label == "Cache/purger"
+            && $0.message.contains("failed to get file size for")
+            && $0.level == .error
+        }
+      #expect(fileSizeErrorLogs.count == 1)
+    }
   }
 
   @Test("executePurge handles file deletion errors gracefully")

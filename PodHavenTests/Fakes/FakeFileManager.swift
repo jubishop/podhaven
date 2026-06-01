@@ -8,6 +8,11 @@ final class FakeFileManager: FileManaging, Sendable {
   // MARK: - State
 
   private let inMemoryFiles = ThreadSafe<[URL: Data]>([:])
+  private struct FileSizeErrorRule: Sendable {
+    var successfulCallsRemaining: Int
+    let error: any Error & Sendable
+  }
+  private let fileSizeErrorRules = ThreadSafe<[URL: FileSizeErrorRule]>([:])
 
   // MARK: - Initialization
 
@@ -92,9 +97,44 @@ final class FakeFileManager: FileManaging, Sendable {
     URL(fileURLWithPath: "/tmp/fake/\(groupIdentifier)")
   }
 
+  func setFileSizeError(
+    _ error: any Error & Sendable,
+    for url: URL,
+    afterSuccessfulCalls: Int = 0
+  ) {
+    fileSizeErrorRules {
+      $0[url] = FileSizeErrorRule(successfulCallsRemaining: afterSuccessfulCalls, error: error)
+    }
+  }
+
   func fileSize(for url: URL) throws -> Int64 {
+    if let rule = fileSizeErrorRules()[url] {
+      guard rule.successfulCallsRemaining > 0 else {
+        fileSizeErrorRules { $0.removeValue(forKey: url) }
+        throw rule.error
+      }
+      fileSizeErrorRules {
+        $0[url] = FileSizeErrorRule(
+          successfulCallsRemaining: rule.successfulCallsRemaining - 1,
+          error: rule.error
+        )
+      }
+    }
+
     guard let data = inMemoryFiles[url]
-    else { throw TestError.fileNotFound(url) }
+    else {
+      throw NSError(
+        domain: NSCocoaErrorDomain,
+        code: CocoaError.fileReadNoSuchFile.rawValue,
+        userInfo: [
+          NSUnderlyingErrorKey: NSError(
+            domain: NSPOSIXErrorDomain,
+            code: Int(ENOENT),
+            userInfo: [NSFilePathErrorKey: url.path]
+          )
+        ]
+      )
+    }
 
     return Int64(data.count)
   }

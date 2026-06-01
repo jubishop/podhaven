@@ -110,6 +110,23 @@ struct CachePurger: Sendable {
         do {
           fileSize = try fileManager.fileSize(for: cachedURL.rawValue)
         } catch {
+          if ErrorKit.isMissingFile(error) {
+            Self.log.caughtError(
+              "executePurge: cached file already missing for \(cachedURL) (\(episode.toString))",
+              error,
+              level: { _ in .debug }
+            )
+            do {
+              try await repo.updateCachedFilename(episode.id, cachedFilename: nil)
+            } catch {
+              Self.log.caughtError(
+                "executePurge: failed to clear cached filename for \(episode.toString)",
+                error
+              )
+            }
+            continue
+          }
+
           Self.log.caughtError(
             "executePurge: failed to get file size for \(cachedURL) (\(episode.toString))",
             error
