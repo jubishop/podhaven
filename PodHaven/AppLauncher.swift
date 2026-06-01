@@ -230,7 +230,7 @@ struct AppLauncher: Sendable {
     }
   }
 
-  static func sentryLogApplyingCurrentEnvironment(_ log: SentryLog) -> SentryLog {
+  private static func sentryLogApplyingCurrentEnvironment(_ log: SentryLog) -> SentryLog {
     log.setAttribute(
       SentryLog.Attribute(string: AppInfo.environment.rawValue),
       forKey: "sentry.environment"
