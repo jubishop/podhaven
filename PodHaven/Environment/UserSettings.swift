@@ -59,6 +59,23 @@ struct UserSettings: Sendable {
   }
   @PersistedBroadcast("nextTrackBehavior") var nextTrackBehavior: NextTrackBehavior = .skipInterval
 
+  // The trailing (swipe-left) row actions on episode lists, in display order.
+  // The leading (swipe-right) queue actions are fixed and not configurable.
+  enum EpisodeSwipeAction:
+    String, Codable, DefaultsStorable, CaseIterable, Identifiable, Sendable
+  {
+    case playPause = "Play/Pause"
+    case rate = "Rate"
+    case markFinished = "Mark Finished"
+    case cache = "Cache"
+    case addTag = "Add Tag"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+  }
+  @PersistedBroadcast("episodeSwipeActions")
+  var episodeSwipeActions: [EpisodeSwipeAction] = [.playPause, .rate]
+
   // "Focused" keeps just the corpus-mean centering — recommendations stay
   // close to the podcasts you've already rated. "Exploratory" additionally
   // strips the next three principal components, which empirically encode
