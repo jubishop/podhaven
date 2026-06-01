@@ -82,6 +82,14 @@ final class SearchRecommendationCollector {
     case loaded(count: Int)
   }
 
+  // MARK: - Discovery List State
+
+  enum DiscoveryListState: Equatable, Sendable {
+    case loading
+    case picks([ScoredEpisode])
+    case empty
+  }
+
   // MARK: - Scored Episode
 
   struct ScoredEpisode: Identifiable, Sendable, Hashable {
@@ -840,6 +848,16 @@ final class SearchRecommendationCollector {
       count += entry.scoredEpisodes.count
     }
     return count
+  }
+
+  // Empty picks during an active drain read as `.loading`, not `.empty`, so the
+  // discovery list shows progress instead of its worked-through-all placeholder
+  // while more picks are still being fetched and scored.
+  func discoveryListState(for source: Source) -> DiscoveryListState {
+    let picks = picks(for: source)
+    if !picks.isEmpty { return .picks(picks) }
+    if bannerState(for: source) == .loading { return .loading }
+    return .empty
   }
 
   func bannerState(for source: Source) -> BannerState {

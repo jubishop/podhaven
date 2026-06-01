@@ -18,12 +18,14 @@ struct SearchDiscoveryListView: View {
   }
 
   var body: some View {
-    let picks = actionsViewModel.collector.picks(for: source)
     Group {
-      if picks.isEmpty {
-        emptyPlaceholder
-      } else {
+      switch actionsViewModel.collector.discoveryListState(for: source) {
+      case .loading:
+        loadingPlaceholder
+      case .picks(let picks):
         listView(picks: picks)
+      case .empty:
+        emptyPlaceholder
       }
     }
     .navigationTitle(source.discoveryListTitle)
@@ -52,6 +54,18 @@ struct SearchDiscoveryListView: View {
   }
 
   // MARK: - Placeholder
+
+  private var loadingPlaceholder: some View {
+    VStack(spacing: 16) {
+      ProgressView()
+      Text("Finding more top picks…")
+        .font(.subheadline)
+        .foregroundColor(.secondary)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
 
   private var emptyPlaceholder: some View {
     VStack(spacing: 16) {

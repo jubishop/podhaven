@@ -110,6 +110,47 @@ import Testing
     #expect(!collector.visiblePicks.isEmpty)
   }
 
+  // MARK: - Test: Discovery List Reads Loading While Picks Still Drain
+
+  // An empty pick set during an active drain must surface `.loading`, not
+  // `.empty` — otherwise the discovery list shows its worked-through-all
+  // placeholder while more picks are still being fetched and scored.
+  @Test("discovery list state is loading while picks are still draining")
+  func discoveryListStateLoadingWhileDraining() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+
+    // Embedding factory only — no signal episodes and no sleeper advance past
+    // the cacheRebuild debounce, so the drain blocks on awaitScoringContext
+    // with the entry `.pending`: picks stay empty while the banner is loading.
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: scripted) }
+      .scope(.cached)
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+    engine.start()
+
+    let feedURL = FeedURL(URL(string: "https://example.com/draining.rss")!)
+    await H.respondWithFeed(at: feedURL, title: "Draining", episodes: 1)
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1701))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in collector.bannerState == .loading },
+      { @MainActor in
+        "Expected banner to enter .loading after reconcile; got \(collector.bannerState)"
+      }
+    )
+
+    #expect(collector.picks(for: source).isEmpty)
+    #expect(collector.discoveryListState(for: source) == .loading)
+  }
+
   // MARK: - Test: Banner Hides When Engine Cannot Build A Scoring Context
 
   @Test("banner hides when the engine cannot build a scoring context")
