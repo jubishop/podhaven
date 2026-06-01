@@ -279,9 +279,9 @@ struct Repo: Databasing {
       }
 
       if podcastSeries.podcast.queueAllEpisodes != .never,
-        let queueLimit = podcastSeries.podcast.queueLimit
+        let autoQueueLimit = podcastSeries.podcast.autoQueueLimit
       {
-        try queue.limitPodcast(db, podcastID: podcastSeries.id, to: queueLimit)
+        try queue.limitPodcast(db, podcastID: podcastSeries.id, to: autoQueueLimit)
       }
       return newEpisodes
     }
@@ -579,7 +579,7 @@ struct Repo: Databasing {
           db,
           Podcast.Columns.defaultPlaybackRate.set(to: settings.defaultPlaybackRate),
           Podcast.Columns.queueAllEpisodes.set(to: settings.queueAllEpisodes),
-          Podcast.Columns.queueLimit.set(to: settings.queueLimit),
+          Podcast.Columns.autoQueueLimit.set(to: settings.autoQueueLimit),
           Podcast.Columns.cacheAllEpisodes.set(to: settings.cacheAllEpisodes),
           Podcast.Columns.notifyNewEpisodes.set(to: settings.notifyNewEpisodes),
           Podcast.Columns.freshnessCadence.set(to: settings.freshnessCadence)

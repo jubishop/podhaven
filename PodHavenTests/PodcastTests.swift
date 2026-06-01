@@ -305,7 +305,7 @@ class PodcastTests {
     let everythingSet = PodcastSettings(
       defaultPlaybackRate: 1.5,
       queueAllEpisodes: .onTop,
-      queueLimit: 4,
+      autoQueueLimit: 4,
       cacheAllEpisodes: .save,
       notifyNewEpisodes: true,
       freshnessCadence: .evergreen
@@ -333,7 +333,7 @@ class PodcastTests {
       subscriptionDate: Date(),
       defaultPlaybackRate: 1.5,
       queueAllEpisodes: .onTop,
-      queueLimit: 3,
+      autoQueueLimit: 3,
       cacheAllEpisodes: .save,
       freshnessCadence: .evergreen
     )
@@ -345,7 +345,7 @@ class PodcastTests {
     #expect(original.cacheAllEpisodes == .never)
     #expect(original.defaultPlaybackRate == nil)
     #expect(original.queueAllEpisodes == .never)
-    #expect(original.queueLimit == nil)
+    #expect(original.autoQueueLimit == nil)
     #expect(original.freshnessCadence == nil)
 
     // Feed fields should be preserved
@@ -394,23 +394,23 @@ class PodcastTests {
     }
   }
 
-  @Test("queueLimit defaults to nil and round-trips every allowed value through insert + fetch")
-  func queueLimitPersistence() async throws {
+  @Test("autoQueueLimit defaults to nil and round-trips every allowed value through insert + fetch")
+  func autoQueueLimitPersistence() async throws {
     let defaultPodcast = try Create.unsavedPodcast()
-    #expect(defaultPodcast.queueLimit == nil)
+    #expect(defaultPodcast.autoQueueLimit == nil)
     let defaultSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: defaultPodcast)
     )
-    #expect(defaultSeries.podcast.queueLimit == nil)
+    #expect(defaultSeries.podcast.autoQueueLimit == nil)
     let fetchedDefault = try await repo.podcastSeries(defaultSeries.id)
-    #expect(fetchedDefault?.podcast.queueLimit == nil)
+    #expect(fetchedDefault?.podcast.autoQueueLimit == nil)
 
-    for limit in PodcastSettings.queueLimitRange {
-      let custom = try Create.unsavedPodcast(queueLimit: limit)
+    for limit in PodcastSettings.autoQueueLimitRange {
+      let custom = try Create.unsavedPodcast(autoQueueLimit: limit)
       let series = try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: custom))
-      #expect(series.podcast.queueLimit == limit)
+      #expect(series.podcast.autoQueueLimit == limit)
       let fetched = try await repo.podcastSeries(series.id)
-      #expect(fetched?.podcast.queueLimit == limit)
+      #expect(fetched?.podcast.autoQueueLimit == limit)
     }
   }
 

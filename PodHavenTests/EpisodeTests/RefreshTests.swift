@@ -213,7 +213,7 @@ class EpisodeRefreshTests {
   @Test("auto-queue limit trims the queue to a podcast's N newest episodes by pubDate")
   func autoQueueLimitKeepsNewestByPubDate() async throws {
     // Auto-queue on bottom, but keep only the two newest episodes queued.
-    let podcast = try await Create.podcast(queueAllEpisodes: .onBottom, queueLimit: 2)
+    let podcast = try await Create.podcast(queueAllEpisodes: .onBottom, autoQueueLimit: 2)
 
     // Three episodes arrive in one refresh. Their feed order deliberately differs
     // from pubDate order so the test proves the OLDEST by pubDate is dropped, not
@@ -236,9 +236,9 @@ class EpisodeRefreshTests {
     #expect(queuedTitles == ["newest", "middle"])
   }
 
-  @Test("auto-queue limit is ignored when queueLimit is unset")
+  @Test("auto-queue limit is ignored when autoQueueLimit is unset")
   func autoQueueLimitUnsetKeepsEverything() async throws {
-    let podcast = try await Create.podcast(queueAllEpisodes: .onBottom, queueLimit: nil)
+    let podcast = try await Create.podcast(queueAllEpisodes: .onBottom, autoQueueLimit: nil)
 
     let newEpisodes = try await repo.updateSeriesFromFeed(
       podcastSeries: PodcastSeries(podcast: podcast),

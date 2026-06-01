@@ -103,17 +103,17 @@ struct PodcastSettingsView: View {
                   limit are removed so only the latest ones remain.
                   """
               ) {
-                Toggle("Limit Episodes", isOn: queueLimitEnabled)
+                Toggle("Limit Episodes", isOn: autoQueueLimitEnabled)
                 Spacer(minLength: 0)
               }
 
-              if let limit = temp.queueLimit {
+              if let limit = temp.autoQueueLimit {
                 HStack {
                   Text(limit == 1 ? "Keep latest episode" : "Keep latest \(limit) episodes")
                   Spacer()
                   Slider(
-                    value: queueLimitValue,
-                    in: queueLimitBounds,
+                    value: autoQueueLimitValue,
+                    in: autoQueueLimitBounds,
                     step: 1,
                     onEditingChanged: { editing in
                       if !editing {
@@ -235,25 +235,25 @@ struct PodcastSettingsView: View {
     return "\(rate.formatted(decimalPlaces: 1))×"
   }
 
-  private var queueLimitEnabled: Binding<Bool> {
+  private var autoQueueLimitEnabled: Binding<Bool> {
     Binding(
-      get: { temp.queueLimit != nil },
+      get: { temp.autoQueueLimit != nil },
       set: { isOn in
-        temp.queueLimit = isOn ? PodcastSettings.defaultQueueLimit : nil
+        temp.autoQueueLimit = isOn ? PodcastSettings.defaultAutoQueueLimit : nil
         viewModel.updateSettings(temp)
       }
     )
   }
 
-  private var queueLimitValue: Binding<Double> {
+  private var autoQueueLimitValue: Binding<Double> {
     Binding(
-      get: { Double(temp.queueLimit ?? PodcastSettings.defaultQueueLimit) },
-      set: { temp.queueLimit = Int($0) }
+      get: { Double(temp.autoQueueLimit ?? PodcastSettings.defaultAutoQueueLimit) },
+      set: { temp.autoQueueLimit = Int($0) }
     )
   }
 
-  private var queueLimitBounds: ClosedRange<Double> {
-    let range = PodcastSettings.queueLimitRange
+  private var autoQueueLimitBounds: ClosedRange<Double> {
+    let range = PodcastSettings.autoQueueLimitRange
     return Double(range.lowerBound)...Double(range.upperBound)
   }
 }

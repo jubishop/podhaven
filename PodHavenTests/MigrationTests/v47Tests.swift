@@ -15,7 +15,7 @@ class V47MigrationTests {
     self.migrator = Schema.makeMigrator()
   }
 
-  @Test("v47 adds nullable queueLimit column to podcast")
+  @Test("v47 adds nullable autoQueueLimit column to podcast")
   func columnAdded() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v46")
 
@@ -38,14 +38,14 @@ class V47MigrationTests {
     try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
       let colNames = Set(cols.compactMap { $0["name"] as? String })
-      #expect(!colNames.contains("queueLimit"))
+      #expect(!colNames.contains("autoQueueLimit"))
     }
 
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v47")
 
     try await appDB.unsafeTestDB.read { db in
       let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('podcast')")
-      let col = try #require(cols.first { $0["name"] as? String == "queueLimit" })
+      let col = try #require(cols.first { $0["name"] as? String == "autoQueueLimit" })
       #expect(col["type"] as? String == "INTEGER")
       #expect((col["notnull"] as? Int64 ?? 0) == 0)
     }
@@ -55,7 +55,7 @@ class V47MigrationTests {
       let row = try #require(
         try Row.fetchOne(
           db,
-          sql: "SELECT queueLimit FROM podcast WHERE id = ?",
+          sql: "SELECT autoQueueLimit FROM podcast WHERE id = ?",
           arguments: [existingID]
         )
       )
@@ -70,21 +70,21 @@ class V47MigrationTests {
     try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
-          INSERT INTO podcast (feedURL, title, image, description, queueLimit)
+          INSERT INTO podcast (feedURL, title, image, description, autoQueueLimit)
           VALUES (?, ?, ?, ?, ?)
           """,
         arguments: ["https://example.com/min.xml", "Min", "img", "desc", 1]
       )
       try db.execute(
         sql: """
-          INSERT INTO podcast (feedURL, title, image, description, queueLimit)
+          INSERT INTO podcast (feedURL, title, image, description, autoQueueLimit)
           VALUES (?, ?, ?, ?, ?)
           """,
         arguments: ["https://example.com/max.xml", "Max", "img", "desc", 5]
       )
       try db.execute(
         sql: """
-          INSERT INTO podcast (feedURL, title, image, description, queueLimit)
+          INSERT INTO podcast (feedURL, title, image, description, autoQueueLimit)
           VALUES (?, ?, ?, ?, ?)
           """,
         arguments: ["https://example.com/null.xml", "Null", "img", "desc", nil]
@@ -95,10 +95,10 @@ class V47MigrationTests {
     let rows: [(feedURL: String, limit: Int64?)] = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(
         db,
-        sql: "SELECT feedURL, queueLimit FROM podcast ORDER BY feedURL"
+        sql: "SELECT feedURL, autoQueueLimit FROM podcast ORDER BY feedURL"
       )
       .map { row in
-        (feedURL: row["feedURL"] as String, limit: row["queueLimit"] as Int64?)
+        (feedURL: row["feedURL"] as String, limit: row["autoQueueLimit"] as Int64?)
       }
     }
     #expect(rows.count == 3)
@@ -116,7 +116,7 @@ class V47MigrationTests {
         try await self.appDB.unsafeTestDB.write { db in
           try db.execute(
             sql: """
-              INSERT INTO podcast (feedURL, title, image, description, queueLimit)
+              INSERT INTO podcast (feedURL, title, image, description, autoQueueLimit)
               VALUES (?, ?, ?, ?, ?)
               """,
             arguments: ["https://example.com/\(invalid).xml", "Bad", "img", "desc", invalid]
@@ -143,14 +143,14 @@ class V47MigrationTests {
 
     try await appDB.unsafeTestDB.write { db in
       try db.execute(
-        sql: "UPDATE podcast SET queueLimit = ? WHERE id = ?",
+        sql: "UPDATE podcast SET autoQueueLimit = ? WHERE id = ?",
         arguments: [3, id]
       )
     }
     let setValue = try await appDB.unsafeTestDB.read { db in
       try Int.fetchOne(
         db,
-        sql: "SELECT queueLimit FROM podcast WHERE id = ?",
+        sql: "SELECT autoQueueLimit FROM podcast WHERE id = ?",
         arguments: [id]
       )
     }
@@ -158,14 +158,14 @@ class V47MigrationTests {
 
     try await appDB.unsafeTestDB.write { db in
       try db.execute(
-        sql: "UPDATE podcast SET queueLimit = NULL WHERE id = ?",
+        sql: "UPDATE podcast SET autoQueueLimit = NULL WHERE id = ?",
         arguments: [id]
       )
     }
     let cleared: Int64? = try await appDB.unsafeTestDB.read { db in
       try Int64.fetchOne(
         db,
-        sql: "SELECT queueLimit FROM podcast WHERE id = ?",
+        sql: "SELECT autoQueueLimit FROM podcast WHERE id = ?",
         arguments: [id]
       )
     }
@@ -174,7 +174,7 @@ class V47MigrationTests {
     await #expect(throws: DatabaseError.self) {
       try await self.appDB.unsafeTestDB.write { db in
         try db.execute(
-          sql: "UPDATE podcast SET queueLimit = ? WHERE id = ?",
+          sql: "UPDATE podcast SET autoQueueLimit = ? WHERE id = ?",
           arguments: [6, id]
         )
       }
