@@ -112,6 +112,9 @@ For each inspected event, capture:
 - Breadcrumbs in the minute before the error
 - Tags: release, environment, device, OS, `git-commit-hash` (if present),
   locale, network
+- **User identity for log correlation:** `user.id`, `user.email`, and/or
+  `user.username` from the event payload (PodHaven sets `user.id` to the
+  device IDFV)
 - Linked trace ID, replay ID, transaction name (if any)
 - Request/context fields relevant to the failure
 
@@ -195,6 +198,80 @@ matches the developer's device.
 For non-PodHaven projects, download and summarize any log attachments present;
 adapt the analysis approach to the log format.
 
+### PodHaven Sentry structured logs by user (via `analyze-sentry-logs`)
+
+When the project is PodHaven and the event exposes a correlatable identifier,
+pull **Sentry structured logs** (`ourlogs`) scoped to that user or trace. This
+uses the fetch script documented in the `analyze-sentry-logs` skill — follow
+that script's query syntax and output files. Do **not** run the full
+`analyze-sentry-logs` pattern-triage workflow (Steps 2–3 of that skill) unless
+the user separately invoked `/analyze-sentry-logs`; here you only need a
+**targeted timeline** around the failure.
+
+**When to run:**
+
+- `user.id` is present on the event (PodHaven: device IDFV), **or** a linked
+  `trace_id` exists.
+- NDJSON attachments are missing, truncated, stale, or don't cover the failure
+  window — **or** user-scoped Sentry logs would add subsystem coverage the
+  attachments lack.
+- Skip when attachments already provide a rich scoped timeline and user-scoped
+  logs add nothing new.
+
+**How to fetch:**
+
+1. Locate `fetch_sentry_logs.sh` in the repo's `analyze-sentry-logs` skill
+   (`.agents/skills/` or `.claude/skills/`).
+2. Build a Sentry logs query. Prefer user scope first:
+
+```bash
+bash analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
+  'user.id:<uuid> (severity:warn OR severity:error)'
+```
+
+Narrow with release when useful — **not** event `environment` alone:
+
+```bash
+bash analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
+  'user.id:<uuid> release:<release> (severity:warn OR severity:error)'
+```
+
+**Environment mismatch:** PodHaven error events often tag `environment:testFlight`
+while structured logs (`ourlogs`) usually tag `environment:deployed`. Filtering
+logs by `environment:testFlight` commonly returns **zero rows** even for the
+same device. Prefer `user.id` (+ optional `release`); only add `environment:`
+if you first confirm that value appears in the fetched log rows.
+
+3. If user-scoped fetch returns nothing but the event has a trace ID, retry:
+
+```bash
+bash analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
+  'trace:<trace_id> (severity:warn OR severity:error)'
+```
+
+4. Pick `<statsPeriod>` to cover the event time (`1h`, `6h`, `12h`, `1d`, …).
+5. Narrow to the incident window with the bundled filter helper (start ±10
+   minutes, widen to ±30 if sparse):
+
+```bash
+python3 analyze-sentry-logs/filter_sentry_logs.py \
+  --around-ms <event_epoch_ms> --window-ms 600000 --oneline
+```
+
+Use `--window-ms 1800000` if the 10-minute window is empty. The helper prints
+environment/release breakdowns for the filtered slice — use those to spot
+`deployed` vs `testFlight` mismatches.
+6. Focus on lines related to the failure: subsystems/categories/files from the
+   stack trace, breadcrumb categories, or error keywords. Prefer warn/error;
+   include debug/info only for burst/loop patterns.
+7. Sanity-check: latest entries should be near the event time. An empty or
+   wildly mismatched window means correlation failed — say so plainly.
+
+**Report** under `## Sentry logs (user-scoped)` with the correlation key used
+(`user.id` or `trace`), fetch window, entry count, and 5–15 timeline lines in
+PT. If neither `user.id` nor `trace_id` correlates, write "Not correlatable —
+no user.id or trace on event" and rely on attachments/breadcrumbs.
+
 ## Step 8: Investigate the codebase
 
 Cross-reference the stack trace against the repo:
@@ -221,9 +298,11 @@ Weight signals roughly in this order:
 2. **Stack trace and exception message** on representative events
 3. **Breadcrumbs and trace spans** immediately before the failure
 4. **Tag distribution** — is this one release, one device class, one code path?
-5. **Attached logs** (PodHaven NDJSON when present)
-6. **Seer / AI analysis** — supporting hypothesis only
-7. **Known fixes in git/memory/issues** — recurrence vs stale build
+5. **Attached NDJSON logs** (PodHaven when present)
+6. **User-scoped Sentry structured logs** (PodHaven `ourlogs` correlated by
+   `user.id` or trace — complements attachments when those are missing or thin)
+7. **Seer / AI analysis** — supporting hypothesis only
+8. **Known fixes in git/memory/issues** — recurrence vs stale build
 
 If sources disagree, name the disagreement in *Alternatives considered*.
 
@@ -259,6 +338,12 @@ Report format:
 - ...
 
 (Five to fifteen lines leading up to the error. Omit if none useful.)
+
+## Sentry logs (user-scoped)
+(Correlated via `user.id` or trace using `analyze-sentry-logs` fetch script.
+Include correlation key, window, entry count, and 5–15 PT timeline lines.
+Omit if not correlatable or nothing useful. Say plainly when fetch returned
+empty.)
 
 ## Impact
 (What tag distribution shows — who is hit, whether it is regressing, whether
@@ -299,3 +384,6 @@ Anything that would sharpen the diagnosis. Omit if none.
 - When the issue resembles a known or already-"fixed" bug, run git ancestry
   checks before blaming a stale build.
 - Prefer the event's attached logs over the developer's local log files.
+- When PodHaven events expose `user.id` or a trace, attempt user-scoped Sentry
+  structured log correlation via `analyze-sentry-logs` before concluding logs
+  are unavailable.
