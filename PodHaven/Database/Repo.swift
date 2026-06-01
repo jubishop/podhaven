@@ -279,6 +279,7 @@ struct Repo: Databasing {
       }
 
       if podcastSeries.podcast.queueAllEpisodes != .never,
+        !newEpisodes.isEmpty,
         let autoQueueLimit = podcastSeries.podcast.autoQueueLimit
       {
         try queue.limitPodcast(db, podcastID: podcastSeries.id, to: autoQueueLimit)

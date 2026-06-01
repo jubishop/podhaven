@@ -257,4 +257,36 @@ class EpisodeRefreshTests {
     }
     #expect(queuedCount == 3)
   }
+
+  @Test("auto-queue limit is not enforced on a refresh that queues no new episodes")
+  func autoQueueLimitSkippedWhenNoNewEpisodes() async throws {
+    // Auto-queue on bottom with a limit of 1, but the user has manually queued
+    // two of the podcast's episodes — already above the limit.
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(queueAllEpisodes: .onBottom, autoQueueLimit: 1),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(title: "older", pubDate: 200.minutesAgo),
+          try Create.unsavedEpisode(title: "newer", pubDate: 100.minutesAgo),
+        ]
+      )
+    )
+    try await queue.append(podcastSeries.episodes.map(\.id))
+
+    // A refresh arrives that queues nothing (e.g. only a metadata change).
+    let newEpisodes = try await repo.updateSeriesFromFeed(
+      podcastSeries: podcastSeries,
+      podcast: nil,
+      unsavedEpisodes: [],
+      existingEpisodes: []
+    )
+    #expect(newEpisodes.isEmpty)
+
+    // Both manually-queued episodes survive: the limit only trims when an
+    // episode is actually auto-queued, not on every feed change.
+    let queuedTitles = try await repo.db.read { db in
+      Set(try Episode.all().queued().fetchAll(db).map(\.title))
+    }
+    #expect(queuedTitles == ["older", "newer"])
+  }
 }

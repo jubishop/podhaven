@@ -160,6 +160,7 @@ struct Queue: Queueing {
       .fetchAll(db)
       .dropFirst(limit)
 
+    guard !excessIDs.isEmpty else { return }
     try _dequeue(db, Array(excessIDs))
   }
 
