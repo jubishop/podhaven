@@ -11,7 +11,7 @@ struct QueueListView: View {
   var body: some View {
     if items.isEmpty {
       VStack(spacing: 8) {
-        Image(systemName: AppIcon.upNext.systemImageName)
+        AppIcon.upNext.rawImage
           .font(.largeTitle)
           .foregroundStyle(.quaternary)
         Text("Add episodes to your queue")

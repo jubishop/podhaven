@@ -7,7 +7,6 @@ import WidgetKit
 struct QueueEntry: TimelineEntry {
   let date: Date
   let items: [QueueEntryItem]
-  let totalCount: Int
 
   private static let queueBaseURL: URL = {
     guard let url = URL(string: "podhaven://widget/queue/") else {
@@ -29,7 +28,7 @@ struct QueueEntry: TimelineEntry {
     }
   }
 
-  static let empty = QueueEntry(date: Date(), items: [], totalCount: 0)
+  static let empty = QueueEntry(date: Date(), items: [])
 
   static let preview = QueueEntry(
     date: Date(),
@@ -69,7 +68,6 @@ struct QueueEntry: TimelineEntry {
         durationFormatted: "47:20",
         artwork: nil
       ),
-    ],
-    totalCount: 12
+    ]
   )
 }

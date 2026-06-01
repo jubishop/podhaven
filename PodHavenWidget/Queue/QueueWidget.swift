@@ -44,7 +44,7 @@ struct QueueProvider: TimelineProvider {
       )
     }
 
-    return QueueEntry(date: Date(), items: items, totalCount: snapshot.queueTotalCount)
+    return QueueEntry(date: Date(), items: items)
   }
 }
 

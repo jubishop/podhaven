@@ -11,7 +11,6 @@ struct NowPlayingQueueEntry: TimelineEntry {
   let skipForwardInterval: Int
   let skipBackwardInterval: Int
   let queueItems: [QueueEntry.QueueEntryItem]
-  let queueTotalCount: Int
 
   static let empty = NowPlayingQueueEntry(
     date: Date(),
@@ -20,8 +19,7 @@ struct NowPlayingQueueEntry: TimelineEntry {
     artwork: nil,
     skipForwardInterval: 30,
     skipBackwardInterval: 15,
-    queueItems: [],
-    queueTotalCount: 0
+    queueItems: []
   )
 
   static let preview = NowPlayingQueueEntry(
@@ -31,7 +29,6 @@ struct NowPlayingQueueEntry: TimelineEntry {
     artwork: nil,
     skipForwardInterval: 30,
     skipBackwardInterval: 15,
-    queueItems: QueueEntry.preview.items,
-    queueTotalCount: QueueEntry.preview.totalCount
+    queueItems: QueueEntry.preview.items
   )
 }

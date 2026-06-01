@@ -128,8 +128,7 @@ struct NowPlayingQueueWidgetView: View {
     artwork: nil,
     skipForwardInterval: 30,
     skipBackwardInterval: 15,
-    queueItems: QueueEntry.preview.items,
-    queueTotalCount: QueueEntry.preview.totalCount
+    queueItems: QueueEntry.preview.items
   )
   NowPlayingQueueEntry.empty
 }

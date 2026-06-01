@@ -47,8 +47,7 @@ struct NowPlayingQueueProvider: TimelineProvider {
           artwork: entry.artwork,
           skipForwardInterval: entry.skipForwardInterval,
           skipBackwardInterval: entry.skipBackwardInterval,
-          queueItems: entry.queueItems,
-          queueTotalCount: entry.queueTotalCount
+          queueItems: entry.queueItems
         )
       )
     }
@@ -63,7 +62,7 @@ struct NowPlayingQueueProvider: TimelineProvider {
     state.$skipForwardInterval.refresh()
     state.$skipBackwardInterval.refresh()
     let playbackStatus = state.playbackStatus
-    let (queueItems, queueTotalCount) = readQueue()
+    let queueItems = readQueue()
 
     if let loadingTitle = playbackStatus.loadingTitle {
       Self.log.debug("makeEntry: loading \(loadingTitle)")
@@ -74,8 +73,7 @@ struct NowPlayingQueueProvider: TimelineProvider {
         artwork: nil,
         skipForwardInterval: 0,
         skipBackwardInterval: 0,
-        queueItems: queueItems,
-        queueTotalCount: queueTotalCount
+        queueItems: queueItems
       )
     }
 
@@ -91,8 +89,7 @@ struct NowPlayingQueueProvider: TimelineProvider {
         artwork: nil,
         skipForwardInterval: state.skipForwardInterval,
         skipBackwardInterval: state.skipBackwardInterval,
-        queueItems: queueItems,
-        queueTotalCount: queueTotalCount
+        queueItems: queueItems
       )
     }
 
@@ -107,15 +104,14 @@ struct NowPlayingQueueProvider: TimelineProvider {
       artwork: WidgetSnapshotReader.decodeArtwork(from: nowPlaying.artworkBase64),
       skipForwardInterval: state.skipForwardInterval,
       skipBackwardInterval: state.skipBackwardInterval,
-      queueItems: queueItems,
-      queueTotalCount: queueTotalCount
+      queueItems: queueItems
     )
   }
 
-  private func readQueue() -> (items: [QueueEntry.QueueEntryItem], totalCount: Int) {
+  private func readQueue() -> [QueueEntry.QueueEntryItem] {
     guard let snapshot = WidgetSnapshotReader.readQueue() else {
       Self.log.debug("readQueue: no snapshot available, returning empty")
-      return ([], 0)
+      return []
     }
 
     let items = snapshot.queue.map { queueItem in
@@ -130,7 +126,7 @@ struct NowPlayingQueueProvider: TimelineProvider {
         )
       )
     }
-    return (items, snapshot.queueTotalCount)
+    return items
   }
 }
 

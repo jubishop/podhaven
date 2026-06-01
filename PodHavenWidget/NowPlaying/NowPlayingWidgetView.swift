@@ -194,7 +194,7 @@ struct NowPlayingWidgetView: View {
 
   private var emptyState: some View {
     VStack(spacing: isMedium ? 10 : 8) {
-      Image(systemName: AppIcon.noEpisodeSelected.systemImageName)
+      AppIcon.noEpisodeSelected.rawImage
         .font(isMedium ? .title : .title2)
         .foregroundStyle(.secondary)
       Text("Stopped")
