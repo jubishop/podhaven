@@ -32,7 +32,6 @@ struct SentryLogHandler: LogHandler {
         "severity": event.level,
         "subsystem": subsystem,
         "category": category,
-        "environment": AppInfo.environment,
         "version": AppInfo.version,
         "buildNumber": AppInfo.buildNumber,
         "buildDate": AppInfo.buildDate,
