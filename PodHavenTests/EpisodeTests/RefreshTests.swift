@@ -209,4 +209,52 @@ class EpisodeRefreshTests {
         } == true
     )
   }
+
+  @Test("auto-queue limit trims the queue to a podcast's N newest episodes by pubDate")
+  func autoQueueLimitKeepsNewestByPubDate() async throws {
+    // Auto-queue on bottom, but keep only the two newest episodes queued.
+    let podcast = try await Create.podcast(queueAllEpisodes: .onBottom, queueLimit: 2)
+
+    // Three episodes arrive in one refresh. Their feed order deliberately differs
+    // from pubDate order so the test proves the OLDEST by pubDate is dropped, not
+    // merely whichever landed last in the queue.
+    let oldest = try Create.unsavedEpisode(title: "oldest", pubDate: 300.minutesAgo)
+    let newest = try Create.unsavedEpisode(title: "newest", pubDate: 100.minutesAgo)
+    let middle = try Create.unsavedEpisode(title: "middle", pubDate: 200.minutesAgo)
+
+    let newEpisodes = try await repo.updateSeriesFromFeed(
+      podcastSeries: PodcastSeries(podcast: podcast),
+      podcast: nil,
+      unsavedEpisodes: [oldest, newest, middle],
+      existingEpisodes: []
+    )
+    #expect(newEpisodes.count == 3)
+
+    let queuedTitles = try await repo.db.read { db in
+      Set(try Episode.all().queued().fetchAll(db).map(\.title))
+    }
+    #expect(queuedTitles == ["newest", "middle"])
+  }
+
+  @Test("auto-queue limit is ignored when queueLimit is unset")
+  func autoQueueLimitUnsetKeepsEverything() async throws {
+    let podcast = try await Create.podcast(queueAllEpisodes: .onBottom, queueLimit: nil)
+
+    let newEpisodes = try await repo.updateSeriesFromFeed(
+      podcastSeries: PodcastSeries(podcast: podcast),
+      podcast: nil,
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(title: "a", pubDate: 300.minutesAgo),
+        try Create.unsavedEpisode(title: "b", pubDate: 200.minutesAgo),
+        try Create.unsavedEpisode(title: "c", pubDate: 100.minutesAgo),
+      ],
+      existingEpisodes: []
+    )
+    #expect(newEpisodes.count == 3)
+
+    let queuedCount = try await repo.db.read { db in
+      try Episode.all().queued().fetchCount(db)
+    }
+    #expect(queuedCount == 3)
+  }
 }

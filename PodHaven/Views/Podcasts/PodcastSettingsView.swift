@@ -94,6 +94,37 @@ struct PodcastSettingsView: View {
             .onChange(of: temp.queueAllEpisodes) {
               viewModel.updateSettings(temp)
             }
+
+            if temp.queueAllEpisodes != .never {
+              SettingsRow(
+                infoText: """
+                  Limit how many of this podcast's episodes stay in your queue.  \
+                  When a new episode is auto-queued, the oldest episodes beyond this \
+                  limit are removed so only the latest ones remain.
+                  """
+              ) {
+                Toggle("Limit Episodes", isOn: queueLimitEnabled)
+                Spacer(minLength: 0)
+              }
+
+              if let limit = temp.queueLimit {
+                HStack {
+                  Text(limit == 1 ? "Keep latest episode" : "Keep latest \(limit) episodes")
+                  Spacer()
+                  Slider(
+                    value: queueLimitValue,
+                    in: queueLimitBounds,
+                    step: 1,
+                    onEditingChanged: { editing in
+                      if !editing {
+                        viewModel.updateSettings(temp)
+                      }
+                    }
+                  )
+                  .frame(maxWidth: 160)
+                }
+              }
+            }
           }
         }
 
@@ -202,6 +233,28 @@ struct PodcastSettingsView: View {
   private var formattedPlaybackRate: String {
     let rate = temp.defaultPlaybackRate ?? userSettings.defaultPlaybackRate
     return "\(rate.formatted(decimalPlaces: 1))×"
+  }
+
+  private var queueLimitEnabled: Binding<Bool> {
+    Binding(
+      get: { temp.queueLimit != nil },
+      set: { isOn in
+        temp.queueLimit = isOn ? PodcastSettings.defaultQueueLimit : nil
+        viewModel.updateSettings(temp)
+      }
+    )
+  }
+
+  private var queueLimitValue: Binding<Double> {
+    Binding(
+      get: { Double(temp.queueLimit ?? PodcastSettings.defaultQueueLimit) },
+      set: { temp.queueLimit = Int($0) }
+    )
+  }
+
+  private var queueLimitBounds: ClosedRange<Double> {
+    let range = PodcastSettings.queueLimitRange
+    return Double(range.lowerBound)...Double(range.upperBound)
   }
 }
 

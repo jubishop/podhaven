@@ -888,6 +888,12 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v47") { db in
+      try db.alter(table: "podcast") { t in
+        t.add(column: "queueLimit", .integer).check { $0 == nil || ($0 >= 1 && $0 <= 5) }
+      }
+    }
+
     return migrator
   }
 

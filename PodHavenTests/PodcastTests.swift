@@ -305,6 +305,7 @@ class PodcastTests {
     let everythingSet = PodcastSettings(
       defaultPlaybackRate: 1.5,
       queueAllEpisodes: .onTop,
+      queueLimit: 4,
       cacheAllEpisodes: .save,
       notifyNewEpisodes: true,
       freshnessCadence: .evergreen
@@ -332,6 +333,7 @@ class PodcastTests {
       subscriptionDate: Date(),
       defaultPlaybackRate: 1.5,
       queueAllEpisodes: .onTop,
+      queueLimit: 3,
       cacheAllEpisodes: .save,
       freshnessCadence: .evergreen
     )
@@ -343,6 +345,7 @@ class PodcastTests {
     #expect(original.cacheAllEpisodes == .never)
     #expect(original.defaultPlaybackRate == nil)
     #expect(original.queueAllEpisodes == .never)
+    #expect(original.queueLimit == nil)
     #expect(original.freshnessCadence == nil)
 
     // Feed fields should be preserved
@@ -388,6 +391,26 @@ class PodcastTests {
       #expect(updated == true)
       let fetched = try await repo.podcastSeries(podcastSeries.id)!
       #expect(fetched.podcast.freshnessCadence == cadence)
+    }
+  }
+
+  @Test("queueLimit defaults to nil and round-trips every allowed value through insert + fetch")
+  func queueLimitPersistence() async throws {
+    let defaultPodcast = try Create.unsavedPodcast()
+    #expect(defaultPodcast.queueLimit == nil)
+    let defaultSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: defaultPodcast)
+    )
+    #expect(defaultSeries.podcast.queueLimit == nil)
+    let fetchedDefault = try await repo.podcastSeries(defaultSeries.id)
+    #expect(fetchedDefault?.podcast.queueLimit == nil)
+
+    for limit in PodcastSettings.queueLimitRange {
+      let custom = try Create.unsavedPodcast(queueLimit: limit)
+      let series = try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: custom))
+      #expect(series.podcast.queueLimit == limit)
+      let fetched = try await repo.podcastSeries(series.id)
+      #expect(fetched?.podcast.queueLimit == limit)
     }
   }
 

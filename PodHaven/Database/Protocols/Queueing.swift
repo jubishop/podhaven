@@ -21,4 +21,5 @@ protocol Queueing: Sendable {
   func append(_ episodeID: Episode.ID) async throws
   func updateQueueOrders(_ episodeIDs: [Episode.ID]) async throws
   func enforceMaxQueueLength() async throws
+  func limitPodcast(_ db: Database, podcastID: Podcast.ID, to limit: Int) throws
 }

@@ -147,6 +147,22 @@ struct Queue: Queueing {
     }
   }
 
+  func limitPodcast(_ db: Database, podcastID: Podcast.ID, to limit: Int) throws {
+    Assert.precondition(db.isInsideTransaction, "limitPodcast method requires a transaction")
+
+    let excessIDs =
+      try Episode
+      .all()
+      .queued()
+      .filter(Episode.Columns.podcastId == podcastID)
+      .order(\.pubDate.desc)
+      .selectID()
+      .fetchAll(db)
+      .dropFirst(limit)
+
+    try _dequeue(db, Array(excessIDs))
+  }
+
   // MARK: - Private Helpers
 
   private func _updateQueueDate(_ db: Database, _ episodeIDs: [Episode.ID]) throws {

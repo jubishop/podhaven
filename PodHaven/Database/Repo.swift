@@ -277,6 +277,12 @@ struct Repo: Databasing {
       } else if podcastSeries.podcast.queueAllEpisodes == .onBottom {
         try queue.append(db, newEpisodes.map(\.id))
       }
+
+      if podcastSeries.podcast.queueAllEpisodes != .never,
+        let queueLimit = podcastSeries.podcast.queueLimit
+      {
+        try queue.limitPodcast(db, podcastID: podcastSeries.id, to: queueLimit)
+      }
       return newEpisodes
     }
   }
@@ -573,6 +579,7 @@ struct Repo: Databasing {
           db,
           Podcast.Columns.defaultPlaybackRate.set(to: settings.defaultPlaybackRate),
           Podcast.Columns.queueAllEpisodes.set(to: settings.queueAllEpisodes),
+          Podcast.Columns.queueLimit.set(to: settings.queueLimit),
           Podcast.Columns.cacheAllEpisodes.set(to: settings.cacheAllEpisodes),
           Podcast.Columns.notifyNewEpisodes.set(to: settings.notifyNewEpisodes),
           Podcast.Columns.freshnessCadence.set(to: settings.freshnessCadence)

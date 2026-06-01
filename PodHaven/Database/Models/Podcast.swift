@@ -37,6 +37,7 @@ struct UnsavedPodcast:
   let subscriptionDate: Date?
   let defaultPlaybackRate: Double?
   let queueAllEpisodes: QueueAllEpisodes
+  let queueLimit: Int?
   let cacheAllEpisodes: CacheAllEpisodes
   let notifyNewEpisodes: Bool
   let freshnessCadence: FreshnessCadence?
@@ -54,6 +55,7 @@ struct UnsavedPodcast:
     subscriptionDate: Date? = nil,
     defaultPlaybackRate: Double? = nil,
     queueAllEpisodes: QueueAllEpisodes = .never,
+    queueLimit: Int? = nil,
     cacheAllEpisodes: CacheAllEpisodes = .never,
     notifyNewEpisodes: Bool = false,
     freshnessCadence: FreshnessCadence? = nil
@@ -81,6 +83,7 @@ struct UnsavedPodcast:
     self.subscriptionDate = subscriptionDate
     self.defaultPlaybackRate = defaultPlaybackRate
     self.queueAllEpisodes = queueAllEpisodes
+    self.queueLimit = queueLimit
     self.cacheAllEpisodes = cacheAllEpisodes
     self.notifyNewEpisodes = notifyNewEpisodes
     self.freshnessCadence = freshnessCadence
@@ -97,6 +100,7 @@ struct UnsavedPodcast:
     PodcastSettings(
       defaultPlaybackRate: defaultPlaybackRate,
       queueAllEpisodes: queueAllEpisodes,
+      queueLimit: queueLimit,
       cacheAllEpisodes: cacheAllEpisodes,
       notifyNewEpisodes: notifyNewEpisodes,
       freshnessCadence: freshnessCadence
@@ -209,6 +213,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let subscriptionDate = Column("subscriptionDate")
     static let defaultPlaybackRate = Column("defaultPlaybackRate")
     static let queueAllEpisodes = Column("queueAllEpisodes")
+    static let queueLimit = Column("queueLimit")
     static let cacheAllEpisodes = Column("cacheAllEpisodes")
     static let notifyNewEpisodes = Column("notifyNewEpisodes")
     static let freshnessCadence = Column("freshnessCadence")
