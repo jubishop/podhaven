@@ -22,6 +22,32 @@ status: active | resolved      # project only
 - Cross-links: `[[kebab-case-name]]` (frontmatter `name`, not filename).
 - Do not use memory for code conventions derivable from source, git history, `docs/` planning, or open TODOs (GitHub issues).
 
+## Repo context (before per-note analysis)
+
+Establish what changed since the last audit and what's still in flight:
+
+### Since last run
+
+1. Find the previous successful audit:
+   `gh run list --workflow=memory-audit.yml --status success --limit 1 --json completedAt`
+2. Use that `completedAt` as `--since`. If none exists (first run), use **7 days ago** (weekly schedule).
+3. Review commits since then:
+   `git log --since="<date>" --oneline --no-merges`
+4. For commits touching areas a memory note covers, read the diff (`git show <sha> --stat` / read changed files). Recent merges fixing a noted bug or removing noted instrumentation are strong archive signals.
+
+Record the since-date and a short summary of relevant commits in the report.
+
+### Outstanding GitHub issues and PRs
+
+For every active memory note — not only ones that cite an issue number:
+
+1. List open work: `gh issue list --state open --limit 100` and `gh pr list --state open --limit 100`.
+2. For any `#NNN` or PR URL in the note: `gh issue view NNN` / `gh pr view NNN` (state, title, linked PRs, closing commits).
+3. Search open issues/PRs by keywords from the note's topic (file names, subsystem, error strings, test names). An open issue or in-flight PR on the same topic → **keep** unless the note is clearly superseded by that work.
+4. A **closed** issue/merged PR that fully addresses the note's incident → strong **archive** signal when code matches.
+
+Record which open/closed issues and PRs you checked per note in the report.
+
 ## Per-note analysis (required for every active file)
 
 Do not archive from frontmatter or title alone. For each note, work through these phases and record evidence in the report.
@@ -44,8 +70,10 @@ For each claim, gather current evidence:
 | ----- | --- |
 | Code still matches | `rg` + read the cited files/symbols; confirm APIs, patterns, and guards described in the note still exist as stated |
 | Fix landed | If the note describes a bug + fix, find the fix in current code (not just that an old SHA existed); confirm the described failure mode is addressed |
+| Recent commits | Cross-check `git log --since=<last-run>` for changes to cited paths; did a merge this week close out the investigation? |
 | Regression test | If the note cites a test, confirm the test file/method exists and still encodes the invariant |
-| Issue state | `gh issue view` / `gh pr view` for any `#NNN` or PR references |
+| Cited issue/PR | `gh issue view` / `gh pr view` for any `#NNN` or PR URL in the note |
+| Related open work | Search open issues/PRs for the note's topic — still in flight? |
 | Superseded | Search for newer code/docs that replace what the note teaches; check `docs/` and sibling memory notes |
 | Derivable? | If the note only restates what a reader would learn from reading the code + `AGENTS.md`, it may not belong in active memory |
 | Still actionable? | For `feedback`/`reference`: would a competent agent still need this note to avoid a mistake, or is it historical color? |
@@ -106,6 +134,8 @@ Write to `artifacts/memory-audit-report.md`:
 # Memory audit report
 
 - Run date (UTC): <ISO-8601>
+- Since last audit: <date>
+- Relevant commits since then: <brief summary or "none">
 - Active notes reviewed: <count>
 - Archived: <count>
 - Kept: <count>
@@ -115,8 +145,8 @@ Write to `artifacts/memory-audit-report.md`:
 
 | File | Type | Verdict | Key evidence |
 | ---- | ---- | ------- | ------------ |
-| ... | project | keep | Issue open; diagnostic logging still in PlayManager.swift |
-| ... | project | archive | #357 closed; fix at …; test … passes invariant |
+| ... | project | keep | #412 open; PR #420 in flight; PlayManager.swift touched this week |
+| ... | project | archive | #357 closed+merged; fix at …; no open related issues |
 
 ## Archived
 
@@ -141,9 +171,11 @@ If nothing archived, Archived section: `_None._`
 
 ## Process
 
-1. List all active memory files.
-2. For each file: extract claims → verify in repo → assign verdict (use `qmd search` only to find related notes for overlap detection).
-3. Write the full per-note findings table before moving anything.
-4. Move every **archive** verdict to `memory/archive/`.
-5. Write `artifacts/memory-audit-report.md`.
-6. Commit and push only if you archived files.
+1. Establish since-date (last successful audit run, or 7 days).
+2. Review `git log --since=…` and open issues/PRs (`gh issue list`, `gh pr list`).
+3. List all active memory files.
+4. For each file: extract claims → verify in repo, commits, and GitHub → assign verdict (use `qmd search` only to find related notes for overlap detection).
+5. Write the full per-note findings table before moving anything.
+6. Move every **archive** verdict to `memory/archive/`.
+7. Write `artifacts/memory-audit-report.md`.
+8. Commit and push only if you archived files.
