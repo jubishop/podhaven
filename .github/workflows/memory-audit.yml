@@ -15,6 +15,9 @@ jobs:
     name: Audit memory notes
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: read
+      issues: write
 
     steps:
       - uses: actions/checkout@v4
@@ -103,3 +106,62 @@ jobs:
             echo "Memory audit failed before writing run metadata" >&2
           fi
           exit 1
+
+      - name: Open issue on scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_REPO: ${{ github.repository }}
+        run: |
+          META="${{ runner.temp }}/memory-audit/run-meta.json"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          LABEL="memory-audit-failure"
+          TITLE="Memory audit failed (scheduled run)"
+
+          gh label create "$LABEL" \
+            --description "Scheduled memory audit workflow failure" \
+            --color d73a4a \
+            2>/dev/null || true
+
+          {
+            echo "The scheduled **Memory Audit** workflow failed."
+            echo ""
+            echo "- **Run:** $RUN_URL"
+            echo "- **Completed (UTC):** $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            if [[ -f "$META" ]]; then
+              echo "## Run metadata"
+              echo '```json'
+              cat "$META"
+              echo '```'
+              echo ""
+              WARNINGS="$(jq -r '.warnings[]?' "$META")"
+              if [[ -n "$WARNINGS" ]]; then
+                echo "## Warnings"
+                while IFS= read -r warning; do
+                  echo "- $warning"
+                done <<< "$WARNINGS"
+                echo ""
+              fi
+            else
+              echo "_No run metadata was written — the audit script likely failed before the agent finished._"
+              echo ""
+            fi
+            echo "Download the \`memory-audit-${{ github.run_id }}\` artifact from the run for the full report."
+          } > /tmp/memory-audit-issue-body.md
+
+          EXISTING_ISSUE="$(gh issue list \
+            --label "$LABEL" \
+            --state open \
+            --limit 1 \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [[ -n "$EXISTING_ISSUE" ]]; then
+            gh issue comment "$EXISTING_ISSUE" --body-file /tmp/memory-audit-issue-body.md
+            echo "Commented on existing issue #$EXISTING_ISSUE"
+          else
+            gh issue create \
+              --title "$TITLE" \
+              --label "$LABEL" \
+              --body-file /tmp/memory-audit-issue-body.md
+          fi
