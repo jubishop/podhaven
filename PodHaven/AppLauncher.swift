@@ -230,6 +230,14 @@ struct AppLauncher: Sendable {
     }
   }
 
+  static func sentryLogApplyingCurrentEnvironment(_ log: SentryLog) -> SentryLog {
+    log.setAttribute(
+      SentryLog.Attribute(string: AppInfo.environment.rawValue),
+      forKey: "sentry.environment"
+    )
+    return log
+  }
+
   private static func configureSentry() {
     SentrySDK.start { options in
       options.dsn =
@@ -240,6 +248,7 @@ struct AppLauncher: Sendable {
       options.enableLogs = true
       options.enableMetricKit = true
       options.enableMetricKitRawPayload = true
+      options.beforeSendLog = sentryLogApplyingCurrentEnvironment
       options.initialScope = { scope in
         scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
         scope.setUser(User(userId: AppInfo.deviceIdentifier))
