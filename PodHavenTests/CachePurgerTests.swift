@@ -377,6 +377,41 @@ import Testing
     }
   }
 
+  @Test("executePurge tolerates a missing file during cache size calculation")
+  func executePurgeToleratesMissingFileDuringCacheSizeCalculation() async throws {
+    try await LogCapture.withSink { sink in
+      let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
+
+      let episode = try await CacheHelpers.createCachedEpisode(
+        title: "Episode Vanishing During Size Calculation",
+        cachedFilename: "vanishing-during-size-calc.mp3",
+        dataSize: Int(Double(cachePurger.cacheSizeLimit) * 1.2),
+        finishDate: fourDaysAgo
+      )
+
+      if let cachedURL = episode.cachedURL {
+        let missingFileError = NSError(
+          domain: NSCocoaErrorDomain,
+          code: CocoaError.fileReadNoSuchFile.rawValue,
+          userInfo: [
+            NSUnderlyingErrorKey: NSError(
+              domain: NSPOSIXErrorDomain,
+              code: Int(ENOENT),
+              userInfo: [NSFilePathErrorKey: cachedURL.rawValue.path]
+            )
+          ]
+        )
+        fileManager.setFileSizeError(missingFileError, for: cachedURL.rawValue)
+      }
+
+      try await cachePurger.executePurge()
+
+      let errorLogs = sink.captured()
+        .filter { $0.label == "Cache/purger" && $0.level == .error }
+      #expect(errorLogs.isEmpty)
+    }
+  }
+
   @Test("executePurge handles file deletion errors gracefully")
   func executePurgeHandlesFileDeletionErrorsGracefully() async throws {
     let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)

@@ -51,12 +51,6 @@ enum ErrorKit {
     }
 
     let nsError = error as NSError
-    if nsError.domain == NSCocoaErrorDomain,
-      nsError.code == NSFileNoSuchFileError || nsError.code == NSFileReadNoSuchFileError
-    {
-      return true
-    }
-
     if nsError.domain == NSPOSIXErrorDomain, nsError.code == ENOENT {
       return true
     }
