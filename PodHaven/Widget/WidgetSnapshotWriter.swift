@@ -71,7 +71,11 @@ final class WidgetSnapshotWriter: Sendable {
               }
             )
           }
-          reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
+          reloadWidgets(kinds: [
+            WidgetInfo.nowPlayingKind,
+            WidgetInfo.lockScreenNowPlayingKind,
+            WidgetInfo.nowPlayingQueueKind,
+          ])
         }
 
         for await onDeck in sharedState.$onDeck.stream() {
@@ -85,7 +89,11 @@ final class WidgetSnapshotWriter: Sendable {
             nowPlayingDebounce { [weak self] in
               guard let self else { return }
               await writeNowPlayingSnapshot()
-              reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
+              reloadWidgets(kinds: [
+                WidgetInfo.nowPlayingKind,
+                WidgetInfo.lockScreenNowPlayingKind,
+                WidgetInfo.nowPlayingQueueKind,
+              ])
             }
           }
         }
@@ -102,7 +110,11 @@ final class WidgetSnapshotWriter: Sendable {
           guard changed else { continue }
           widgetState.playbackStatus = status
           Self.log.debug("Playback status changed to \(status), reloading play/pause control")
-          reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
+          reloadWidgets(kinds: [
+            WidgetInfo.nowPlayingKind,
+            WidgetInfo.lockScreenNowPlayingKind,
+            WidgetInfo.nowPlayingQueueKind,
+          ])
           controlCenter.reloadControls(ofKind: WidgetInfo.playPauseControlKind)
 
           if status.playing {
@@ -126,7 +138,7 @@ final class WidgetSnapshotWriter: Sendable {
           queueDebounce { [weak self] in
             guard let self else { return }
             await writeQueueSnapshot()
-            reloadWidgets(kinds: [WidgetInfo.queueKind])
+            reloadWidgets(kinds: [WidgetInfo.queueKind, WidgetInfo.nowPlayingQueueKind])
           }
         }
       }
@@ -138,7 +150,7 @@ final class WidgetSnapshotWriter: Sendable {
           queueDebounce { [weak self] in
             guard let self else { return }
             await writeQueueSnapshot()
-            reloadWidgets(kinds: [WidgetInfo.queueKind])
+            reloadWidgets(kinds: [WidgetInfo.queueKind, WidgetInfo.nowPlayingQueueKind])
           }
         }
       }
@@ -150,7 +162,7 @@ final class WidgetSnapshotWriter: Sendable {
           let intInterval = Int(interval)
           Self.log.debug("Skip forward interval changed to \(intInterval), reloading control")
           widgetState.skipForwardInterval = intInterval
-          reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
+          reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.nowPlayingQueueKind])
           controlCenter.reloadControls(ofKind: WidgetInfo.skipForwardControlKind)
         }
       }
@@ -162,7 +174,7 @@ final class WidgetSnapshotWriter: Sendable {
           let intInterval = Int(interval)
           Self.log.debug("Skip backward interval changed to \(intInterval), reloading control")
           widgetState.skipBackwardInterval = intInterval
-          reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
+          reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.nowPlayingQueueKind])
           controlCenter.reloadControls(ofKind: WidgetInfo.skipBackwardControlKind)
         }
       }
@@ -309,7 +321,7 @@ final class WidgetSnapshotWriter: Sendable {
 
   // MARK: - Heartbeat
 
-  // Reload the now-playing timeline periodically while playing so the
+  // Reload the now-playing timelines periodically while playing so each
   // widget's fallback "paused" entry keeps getting pushed forward. These
   // reloads are free while the app holds an active audio session.
   private func startHeartbeat() {
@@ -319,7 +331,7 @@ final class WidgetSnapshotWriter: Sendable {
         guard let self else { return }
         try? await sleeper.sleep(for: .seconds(240))
         guard !Task.isCancelled else { return }
-        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
+        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.nowPlayingQueueKind])
       }
     }
     heartbeatTask(task)
@@ -336,17 +348,15 @@ final class WidgetSnapshotWriter: Sendable {
 
   private func reloadWidgets(kinds: Set<String>) {
     let widgetCenter = widgetCenter
-    widgetCenter.getCurrentConfigurations { result in
-      let configurations: [WidgetKit.WidgetInfo]
+    widgetCenter.placedWidgetKinds { result in
+      let placedKinds: Set<String>
       switch result {
       case .success(let value):
-        configurations = value
+        placedKinds = value
       case .failure(let error):
         Self.log.caughtError("reloadWidgets: failed to get current widget configurations", error)
         return
       }
-
-      let placedKinds = Set(configurations.map(\.kind))
 
       for kind in kinds where placedKinds.contains(kind) {
         Self.log.debug("Reloading timeline for \(kind)")

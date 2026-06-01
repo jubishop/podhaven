@@ -255,6 +255,58 @@ import Testing
     try await sleeper.waitForSleepRequests(count: 1)
   }
 
+  // MARK: - Widget Timeline Reloads
+
+  nonisolated private var fakeWidgetCenter: FakeWidgetCenter {
+    Container.shared.widgetCenter() as! FakeWidgetCenter
+  }
+
+  @Test(
+    "reloads the now-playing & up-next widget on now-playing, playback, queue, and skip changes"
+  )
+  func reloadsNowPlayingQueueWidget() async throws {
+    let kind = WidgetInfo.nowPlayingQueueKind
+
+    // Episode change reloads the combined widget (now-playing header data).
+    let episode = try await Create.podcastEpisode()
+    sharedState.$onDeck.new(OnDeck(from: episode))
+    writer.start()
+    try await WidgetHelpers.waitForNowPlayingSnapshot { $0.nowPlaying != nil }
+    try await Wait.until(
+      { self.fakeWidgetCenter.reloadCount(ofKind: kind) >= 1 },
+      { "combined widget was not reloaded on now-playing change" }
+    )
+
+    // Playback status (play/pause) reloads the combined widget.
+    fakeWidgetCenter.reset()
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { self.fakeWidgetCenter.reloadCount(ofKind: kind) >= 1 },
+      { "combined widget was not reloaded on playback-status change" }
+    )
+
+    // Queue change reloads the combined widget (up-next data).
+    fakeWidgetCenter.reset()
+    let queued = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Queued Ep")
+    )
+    let listable = try await fetchListable(queued.id)
+    sharedState.$queuedPodcastEpisodes.new([listable])
+    try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 1 }
+    try await Wait.until(
+      { self.fakeWidgetCenter.reloadCount(ofKind: kind) >= 1 },
+      { "combined widget was not reloaded on queue change" }
+    )
+
+    // Skip-interval change reloads the combined widget (header transport controls).
+    fakeWidgetCenter.reset()
+    userSettings.$skipForwardInterval.new(45)
+    try await Wait.until(
+      { self.fakeWidgetCenter.reloadCount(ofKind: kind) >= 1 },
+      { "combined widget was not reloaded on skip-interval change" }
+    )
+  }
+
   // MARK: - Control Center Reloads
 
   nonisolated private var fakeControlCenter: FakeControlCenter {
