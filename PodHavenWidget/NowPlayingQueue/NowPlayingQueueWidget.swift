@@ -31,12 +31,7 @@ struct NowPlayingQueueProvider: TimelineProvider {
     // Schedule a fallback entry for active states so the header recovers if
     // the app is killed. During playback the app reloads every 4 minutes via
     // a heartbeat (free during an active audio session), pushing this forward.
-    let fallbackStatus: PlaybackStatus? =
-      switch entry.playbackStatus {
-      case .playing, .waiting: .paused
-      case .loading: .stopped
-      case .paused, .stopped: nil
-      }
+    let fallbackStatus = entry.playbackStatus.widgetFallback
 
     if let fallbackStatus {
       entries.append(

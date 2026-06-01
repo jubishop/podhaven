@@ -34,6 +34,17 @@ enum PlaybackStatus: Codable, DefaultsStorable, Equatable, CustomStringConvertib
     return false
   }
 
+  // The status a scheduled widget-timeline fallback entry should show if the app
+  // is killed before pushing a fresh reload: active states decay to a safe
+  // resting state, settled states need no fallback.
+  var widgetFallback: PlaybackStatus? {
+    switch self {
+    case .playing, .waiting: .paused
+    case .loading: .stopped
+    case .paused, .stopped: nil
+    }
+  }
+
   var description: String {
     switch self {
     case .loading(let title):
