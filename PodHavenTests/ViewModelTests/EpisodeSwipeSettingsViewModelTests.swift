@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Observation
 import Testing
 
 @testable import PodHaven
@@ -95,6 +96,26 @@ import Testing
     viewModel.move(from: IndexSet(integer: 0), to: 2)
 
     #expect(viewModel.actions == [.rate, .playPause])
+  }
+
+  // SwiftUI's List reorder/delete edits require the bound collection to update
+  // within the gesture transaction. A computed pass-through to userSettings
+  // notified observers a turn late and scrambled in-flight edits; mutations
+  // must wake observers synchronously.
+  @Test("mutations notify observers synchronously")
+  func mutationsNotifySynchronously() {
+    let viewModel = EpisodeSwipeSettingsViewModel()
+
+    let notified = ThreadSafe(false)
+    withObservationTracking {
+      _ = viewModel.actions
+    } onChange: {
+      notified(true)
+    }
+
+    viewModel.move(from: IndexSet(integer: 0), to: 2)
+
+    #expect(notified())
   }
 
   @Test("addableActions excludes already-selected actions")

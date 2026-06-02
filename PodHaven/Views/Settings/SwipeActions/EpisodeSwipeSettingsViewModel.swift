@@ -10,8 +10,18 @@ import SwiftUI
 
   static let maxActions = 3
 
-  var actions: [UserSettings.EpisodeSwipeAction] {
-    userSettings.episodeSwipeActions
+  // The List edits this array directly. It is held here and mutated
+  // synchronously so SwiftUI's reorder/delete edits land in the same
+  // transaction as the gesture. A computed pass-through to userSettings
+  // notifies observers a turn late (Broadcast hops to the main actor),
+  // which scrambles in-flight List edits. didSet persists every mutation;
+  // it does not fire for the init seed below.
+  private(set) var actions: [UserSettings.EpisodeSwipeAction] {
+    didSet { userSettings.$episodeSwipeActions.new(actions) }
+  }
+
+  init() {
+    actions = Container.shared.userSettings().episodeSwipeActions
   }
 
   // Actions not yet selected, gating "Tag" on at least one tag existing.
@@ -30,13 +40,11 @@ import SwiftUI
   func add(_ action: UserSettings.EpisodeSwipeAction) {
     guard actions.count < Self.maxActions, !actions.contains(action) else { return }
     if action == .tag, sharedState.tags.isEmpty { return }
-    userSettings.$episodeSwipeActions.new(actions + [action])
+    actions.append(action)
   }
 
   func move(from source: IndexSet, to destination: Int) {
-    var updated = actions
-    updated.move(fromOffsets: source, toOffset: destination)
-    userSettings.$episodeSwipeActions.new(updated)
+    actions.move(fromOffsets: source, toOffset: destination)
   }
 
   // Keeps at least one action; an empty delete request is ignored.
@@ -44,6 +52,6 @@ import SwiftUI
     var updated = actions
     updated.remove(atOffsets: offsets)
     guard !updated.isEmpty else { return }
-    userSettings.$episodeSwipeActions.new(updated)
+    actions = updated
   }
 }
