@@ -130,8 +130,9 @@ struct PodcastSettingsView: View {
                 How quickly older episodes from this podcast lose their freshness boost in \
                 recommendations, expressed as the show's natural publish cadence.  Auto \
                 detects the cadence from the feed's publish dates and tracks it as new \
-                episodes arrive.  Daily for news-style shows, Weekly for most podcasts, \
-                Monthly for less time-sensitive shows, and Evergreen for back-catalog or \
+                episodes arrive.  Pick a faster cadence (Hourly, Twice Daily, Daily) for \
+                news-style shows, Twice Weekly or Weekly for most podcasts, Monthly for \
+                less time-sensitive shows, and Evergreen for back-catalog or \
                 narrative-archive content where episode age is immaterial.
                 """
             ) {
@@ -140,10 +141,9 @@ struct PodcastSettingsView: View {
                 Spacer()
                 Picker("", selection: $temp.freshnessCadence) {
                   Text("Auto").tag(FreshnessCadence?.none)
-                  Text("Daily").tag(FreshnessCadence?.some(.daily))
-                  Text("Weekly").tag(FreshnessCadence?.some(.weekly))
-                  Text("Monthly").tag(FreshnessCadence?.some(.monthly))
-                  Text("Evergreen").tag(FreshnessCadence?.some(.evergreen))
+                  ForEach(FreshnessCadence.allCases, id: \.self) { cadence in
+                    Text(cadence.displayName).tag(FreshnessCadence?.some(cadence))
+                  }
                 }
                 .pickerStyle(.menu)
                 .onChange(of: temp.freshnessCadence) {

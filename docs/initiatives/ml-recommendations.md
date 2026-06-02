@@ -115,7 +115,7 @@ Accepted tradeoff: in a single playback session, the engine cache reflects cover
 
 ### Additional freshness tuning
 
-Per-podcast freshness is now modeled as `FreshnessCadence`: `nil` means auto-infer from recent pubDates, and manual choices are daily, weekly, monthly, and evergreen. Future work, if needed, is to tune inference thresholds or expose more cadence choices; do not resurrect the removed `freshnessHalfLifeDays` column.
+Per-podcast freshness is now modeled as `FreshnessCadence`: `nil` means auto-infer from recent pubDates, and manual choices are hourly, twiceDaily, daily, twiceWeekly, weekly, monthly, and evergreen. Inference thresholds (`MaxMedianHours`) and the decay half-life (`halfLifeHours`) are expressed in hours so the sub-daily cadences resolve and decay on their own timescale; the half-life is roughly twice the cadence's natural publish period. Do not resurrect the removed `freshnessHalfLifeDays` column.
 
 ### Per-podcast diversity / same-show cap
 

@@ -19,6 +19,18 @@ struct FreshnessCadenceInferenceTests {
     #expect(FreshnessCadence.infer(from: dates(daysAgo: [0, 7]), now: now) == .weekly)
   }
 
+  @Test("infers .hourly for shows publishing roughly every hour")
+  func detectsHourlyCadence() {
+    let hourly = stride(from: 0.0, to: 2.0, by: 1.0 / 24.0).map { $0 }
+    #expect(FreshnessCadence.infer(from: dates(daysAgo: hourly), now: now) == .hourly)
+  }
+
+  @Test("infers .twiceDaily for shows publishing every ~12 hours")
+  func detectsTwiceDailyCadence() {
+    let twiceDaily = stride(from: 0.0, to: 7.0, by: 0.5).map { $0 }
+    #expect(FreshnessCadence.infer(from: dates(daysAgo: twiceDaily), now: now) == .twiceDaily)
+  }
+
   @Test("infers .daily for shows publishing every 1-3 days")
   func detectsDailyCadence() {
     let weekdayNews = dates(daysAgo: [0, 1, 2, 3, 6, 7, 8, 9, 10])
@@ -35,6 +47,14 @@ struct FreshnessCadenceInferenceTests {
 
     let biweeklyish = dates(daysAgo: stride(from: 0.0, to: 90, by: 11).map { $0 })
     #expect(FreshnessCadence.infer(from: biweeklyish, now: now) == .weekly)
+  }
+
+  @Test("infers .twiceWeekly for shows publishing a couple times a week")
+  func detectsTwiceWeeklyCadence() {
+    // Monday/Thursday pattern: gaps alternate 3 and 4 days → median 3.5 days,
+    // between daily's 2-day ceiling and weekly's 5-day ceiling.
+    let mondayThursday = dates(daysAgo: [0, 3, 7, 10, 14, 17, 21])
+    #expect(FreshnessCadence.infer(from: mondayThursday, now: now) == .twiceWeekly)
   }
 
   @Test("infers .monthly for shows publishing every 13-60 days")
