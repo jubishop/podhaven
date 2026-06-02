@@ -16,8 +16,8 @@ class FreshnessCadenceTests {
     // Same embedding + same podcast title across candidates so similarity and
     // affinity are identical; the only thing varying between the two
     // candidates is the freshness cadence on their podcast row. Evergreen
-    // multiplier is always 1.0; weekly at 365d ≈ 0.019 (after the 7d
-    // plateau + 7d half-life). Use the unfiltered scoring API since the
+    // multiplier is always 1.0; weekly at 365d ≈ 0.029 (after the 10.5d
+    // plateau + 10.5d half-life). Use the unfiltered scoring API since the
     // weekly candidate's gated score falls below the top API's confidence
     // floor.
     let embeddable = ScriptedEmbeddable { _ in [1, 0, 0] }
@@ -57,7 +57,7 @@ class FreshnessCadenceTests {
     let weeklyScore = try #require(scores[weeklyEpisode.id])
     let evergreenScore = try #require(scores[evergreenEpisode.id])
 
-    // Evergreen × 1.0 dominates weekly × ~0.019 by orders of magnitude.
+    // Evergreen × 1.0 dominates weekly × ~0.029 by orders of magnitude.
     #expect(evergreenScore.value > weeklyScore.value * 10)
     // Evergreen never surfaces .recentlyPublished — the user has opted out
     // of freshness signal — and weekly at this age is below the threshold.
@@ -76,8 +76,9 @@ class FreshnessCadenceTests {
     )
     try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
 
-    // 60 days old: weekly gives multiplier = 1/(1 + 53/7) ≈ 0.117; monthly's
-    // plateau (30d) + 30d half-life gives 1/(1 + 30/30) = 0.5.
+    // 60 days old: weekly (10.5d plateau + 10.5d half-life) gives
+    // 1/(1 + 49.5/10.5) ≈ 0.175; monthly (45d plateau + 45d half-life) gives
+    // 1/(1 + 15/45) ≈ 0.75.
     let oldOffset: (Int) -> TimeInterval = { _ in TimeInterval(-60 * 86400) }
 
     let (_, weeklyCandidates) = try await RecommendationHelpers.createPodcastWithEpisodes(
@@ -165,7 +166,7 @@ class FreshnessCadenceTests {
     )
     try await RecommendationHelpers.embedEpisodes(signals)
 
-    // 1 day old on a weekly cadence → inside the 7d plateau, so
+    // 1 day old on a weekly cadence → inside the 10.5d plateau, so
     // `freshness.inPlateau` is true and `.recentlyPublished` fires.
     let (_, fresh) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 1,

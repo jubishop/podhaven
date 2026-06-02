@@ -24,11 +24,22 @@ import SwiftUI
     actions = Container.shared.userSettings().episodeSwipeActions
   }
 
-  // Actions not yet selected, gating "Tag" on at least one tag existing.
-  // Empty once the maximum is reached.
-  var addableActions: [UserSettings.EpisodeSwipeAction] {
-    guard actions.count < Self.maxActions else { return [] }
+  // The configured actions laid out left-to-right as a swipe reveals them.
+  // SwiftUI fills trailing-edge swipe actions from the trailing edge inward,
+  // so the first configured action is rightmost (and the full-swipe action);
+  // reverse to read the row left-to-right for the preview.
+  var previewActions: [UserSettings.EpisodeSwipeAction] {
+    actions.reversed()
+  }
 
+  var canAddMore: Bool {
+    actions.count < Self.maxActions
+  }
+
+  // Actions not yet selected, gating "Tag" on at least one tag existing. These
+  // stay listed even at the maximum so the section doesn't appear and disappear;
+  // canAddMore drives whether they are enabled.
+  var addableActions: [UserSettings.EpisodeSwipeAction] {
     let selected = Set(actions)
     return UserSettings.EpisodeSwipeAction.allCases.filter { action in
       guard !selected.contains(action) else { return false }
