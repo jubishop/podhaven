@@ -2,168 +2,6 @@
 
 import SwiftUI
 
-// MARK: - SystemImageName
-
-@MainActor
-private struct SystemImageName:
-  Equatable,
-  Hashable,
-  @MainActor RawRepresentable,
-  Sendable
-{
-  let rawValue: String
-
-  fileprivate init(rawValue: String) {
-    self.rawValue = rawValue
-  }
-
-  private init(_ rawValue: String) {
-    self.rawValue = rawValue
-  }
-
-  // App Navigation
-  static let episodesList = SystemImageName("list.bullet")
-  static let expandUp = SystemImageName("chevron.up")
-  static let grid = SystemImageName("square.grid.2x2")
-  static let list = SystemImageName("list.bullet")
-  static let moreActions = SystemImageName("ellipsis.circle")
-  static let navigateInto = SystemImageName("chevron.right")
-  static let podcastsList = SystemImageName("dot.radiowaves.left.and.right")
-  static let search = SystemImageName("magnifyingglass")
-  static let settings = SystemImageName("gear")
-  static let showEpisode = SystemImageName("waveform")
-  static let showPodcast = SystemImageName("antenna.radiowaves.left.and.right")
-
-  // Actions
-  static let addTag = SystemImageName("plus.circle.fill")
-  static let removeTag = SystemImageName("xmark.circle.fill")
-  static let clear = SystemImageName("xmark.circle")
-  static let clearSearch = SystemImageName("xmark")
-  static let delete = SystemImageName("trash")
-  static let failed = SystemImageName("x.circle")
-  static let removeFromQueue = SystemImageName("minus.circle.fill")
-  static let subscribe = SystemImageName("plus.circle")
-  static let unsubscribe = SystemImageName("minus.circle")
-  static let replaceQueue = SystemImageName("arrow.triangle.2.circlepath")
-
-  // Documents & Data
-  static let document = SystemImageName("doc.text")
-  static let edit = SystemImageName("pencil.circle")
-  static let selectAll = SystemImageName("checklist")
-
-  // Episode Rating
-  static let loveEpisode = SystemImageName("heart.fill")
-  static let likeEpisode = SystemImageName("hand.thumbsup.fill")
-  static let dislikeEpisode = SystemImageName("hand.thumbsdown.fill")
-  static let notInterestedEpisode = SystemImageName("hand.raised.fill")
-  static let rateEpisode = SystemImageName("hand.thumbsup")
-
-  // Episode Status
-  static let downloadEpisode = SystemImageName("arrow.down.circle")
-  static let episodeCached = SystemImageName("arrow.down.circle.fill")
-  static let episodeSavedInCache = SystemImageName("pin.circle.fill")
-  static let episodeUnsavedFromCache = SystemImageName("pin.slash")
-  static let episodeDownloadCancel = SystemImageName("stop.circle")
-  static let episodeUncached = SystemImageName("tray.and.arrow.up")
-  static let episodeFinished = SystemImageName("checkmark.circle.fill")
-  static let episodePlaying = SystemImageName("play.circle")
-  static let episodePaused = SystemImageName("pause.circle")
-  static let selectionEmpty = SystemImageName("circle")
-  static let selectionFilled = SystemImageName("record.circle")
-
-  // External Links
-  static let externalLink = SystemImageName("arrow.up.right")
-  static let share = SystemImageName("square.and.arrow.up")
-  static let website = SystemImageName("link")
-  static let manualEntry = SystemImageName("link.badge.plus")
-
-  // Filtering
-  static let filter = SystemImageName("line.horizontal.3.decrease.circle")
-  static let filterAllEpisodes = SystemImageName("list.bullet")
-  static let filterUncached = SystemImageName("tray")
-  static let filterUnstarted = SystemImageName("play.circle")
-  static let filterUnfinished = SystemImageName("circle.lefthalf.filled")
-  static let filterUnqueued = SystemImageName("text.badge.minus")
-
-  // Information Display
-  static let aboutInfo = SystemImageName("questionmark.circle")
-  static let tag = SystemImageName("tag")
-  static let audioPlaceholder = SystemImageName("music.note")
-  static let calendar = SystemImageName("calendar")
-  static let duration = SystemImageName("clock")
-  static let episodeCount = SystemImageName("number")
-  static let error = SystemImageName("exclamationmark.triangle")
-  static let noImage = SystemImageName("photo")
-  static let publishDate = SystemImageName("calendar.badge.clock")
-  static let recommendation = SystemImageName("sparkles")
-  static let recommendationSimilar = SystemImageName("wand.and.stars")
-  static let recommendationFromPodcast = SystemImageName("antenna.radiowaves.left.and.right")
-  static let recommendationRecent = SystemImageName("flame.fill")
-  static let trending = SystemImageName("chart.line.uptrend.xyaxis")
-  static let trendingTop = SystemImageName("chart.bar.xaxis")
-  static let trendingNews = SystemImageName("newspaper")
-  static let trendingTrueCrime = SystemImageName("magnifyingglass.circle")
-  static let trendingComedy = SystemImageName("theatermasks")
-  static let trendingBusiness = SystemImageName("briefcase.fill")
-  static let trendingTechnology = SystemImageName("cpu")
-  static let trendingSports = SystemImageName("sportscourt")
-  static let trendingHealth = SystemImageName("heart.text.square")
-  static let trendingScience = SystemImageName("atom")
-  static let trendingEducation = SystemImageName("graduationcap.fill")
-  static let trendingKids = SystemImageName("figure.2.and.child.holdinghands")
-  static let trendingHistory = SystemImageName("building.columns")
-  static let trendingArts = SystemImageName("paintpalette.fill")
-  static let trendingGovernment = SystemImageName("seal.fill")
-  static let trendingLeisure = SystemImageName("figure.walk")
-  static let trendingMusic = SystemImageName("music.note")
-  static let trendingSocietyCulture = SystemImageName("globe.americas.fill")
-  static let trendingTVFilm = SystemImageName("tv.fill")
-
-  // Playback Controls
-  static let loading = SystemImageName("hourglass.circle")
-  static let nextChapter = SystemImageName("forward.frame.fill")
-  static let noEpisode = SystemImageName("waveform.slash")
-  static let pauseButton = SystemImageName("pause.circle.fill")
-  static let play = SystemImageName("play.fill")
-  static let playButton = SystemImageName("play.circle.fill")
-  static let previousChapter = SystemImageName("backward.frame.fill")
-  static let finishEpisode = SystemImageName("forward.end.fill")
-  static let jumpToMaxPosition = SystemImageName("arrow.forward.to.line")
-  static let undoSeekBackward = SystemImageName("arrow.uturn.backward")
-  static let undoSeekForward = SystemImageName("arrow.uturn.forward")
-
-  // Podcast Status
-  static let subscribed = SystemImageName("checkmark.circle.fill")
-
-  // Queue Management
-  static let editFinished = SystemImageName("checkmark.circle")
-  static let episodeQueued = SystemImageName("line.3.horizontal")
-  static let moveToTop = SystemImageName("arrow.up.to.line")
-  static let moveToBottom = SystemImageName("arrow.down.to.line")
-  static let queueBottom = SystemImageName("text.line.last.and.arrowtriangle.forward")
-  static let queueTop = SystemImageName("text.line.first.and.arrowtriangle.forward")
-
-  // Sorting
-  static let sort = SystemImageName("arrow.up.arrow.down.circle")
-  static let sortByServerOrder = SystemImageName("list.number")
-  static let sortByTitle = SystemImageName("textformat")
-  static let sortByEpisodeCount = SystemImageName("number")
-  static let sortByRecentlySubscribed = SystemImageName("person.crop.circle.badge.plus")
-  static let sortByOldest = SystemImageName("calendar")
-  static let sortByNewest = SystemImageName("calendar.badge.clock")
-  static let sortByLongest = SystemImageName("clock.badge.fill")
-  static let sortByShortest = SystemImageName("clock")
-  static let sortByMostRecentlyQueued = SystemImageName("clock.arrow.2.circlepath")
-  static let sortByLeastRecentlyQueued = SystemImageName("clock.badge")
-  static let sortByRecentlyAdded = SystemImageName("calendar.badge.plus")
-  static let sortByRecentlyFinished = SystemImageName("checkmark.circle.fill")
-  static let sortByRecommendationScore = SystemImageName("sparkles")
-
-  // Status Indicators
-  static let waiting = SystemImageName("clock.arrow.circlepath")
-  static let embeddingPending = SystemImageName("hourglass")
-}
-
 // MARK: - AppIcon
 
 @MainActor enum AppIcon: Equatable, Hashable, Sendable {
@@ -319,6 +157,8 @@ private struct SystemImageName:
   case seekBackward(Int)
   case seekForward(Int)
   case finishEpisode
+  case stopAfterEpisode
+  case stopAfterEpisodeOn
   case jumpToMaxPosition
   case undoSeekBackward
   case undoSeekForward
@@ -329,9 +169,18 @@ private struct SystemImageName:
   case waiting
   case website
 
+  // Brand Links
+  case discord
+  case github
+
+  private enum IconSource {
+    case system(SystemImageName)
+    case asset(String)
+  }
+
   private struct Data {
     let text: String
-    let systemImageName: SystemImageName
+    let source: IconSource
     let darkColor: Color
     let lightColor: Color
 
@@ -342,7 +191,7 @@ private struct SystemImageName:
       lightColor: Color
     ) {
       self.text = text
-      self.systemImageName = systemImageName
+      self.source = .system(systemImageName)
       self.darkColor = darkColor
       self.lightColor = lightColor
     }
@@ -353,7 +202,18 @@ private struct SystemImageName:
       color: Color = .accentColor
     ) {
       self.text = text
-      self.systemImageName = systemImageName
+      self.source = .system(systemImageName)
+      self.darkColor = color
+      self.lightColor = color
+    }
+
+    init(
+      text: String,
+      asset: String,
+      color: Color = .accentColor
+    ) {
+      self.text = text
+      self.source = .asset(asset)
       self.darkColor = color
       self.lightColor = color
     }
@@ -769,6 +629,18 @@ private struct SystemImageName:
       )
     case .finishEpisode:
       return Data(text: "Finish Episode", systemImageName: .finishEpisode, color: .blue)
+    case .stopAfterEpisode:
+      return Data(
+        text: "Stop After This Episode",
+        systemImageName: .stopAfterEpisode,
+        color: .secondary
+      )
+    case .stopAfterEpisodeOn:
+      return Data(
+        text: "Stop After This Episode",
+        systemImageName: .stopAfterEpisodeOn,
+        color: .indigo
+      )
     case .jumpToMaxPosition:
       return Data(
         text: "Resume Furthest Position",
@@ -802,6 +674,12 @@ private struct SystemImageName:
     case .website:
       return Data(text: "Visit Website", systemImageName: .website)
 
+    // Brand Links
+    case .discord:
+      return Data(text: "Discord", asset: "discord-mark", color: .primary)
+    case .github:
+      return Data(text: "GitHub", asset: "github-mark", color: .primary)
+
     // Manual Entry
     case .manualEntry:
       return Data(text: "Add Feed URL", systemImageName: .manualEntry, color: .purple)
@@ -809,11 +687,18 @@ private struct SystemImageName:
   }
 
   var rawLabel: Label<Text, Image> {
-    Label(LocalizedStringKey(data.text), systemImage: data.systemImageName.rawValue)
+    Label {
+      Text(textKey)
+    } icon: {
+      rawImage
+    }
   }
 
   var rawImage: Image {
-    Image(systemName: data.systemImageName.rawValue)
+    switch data.source {
+    case .system(let name): Image(systemName: name.rawValue)
+    case .asset(let name): Image(name)
+    }
   }
 
   var image: some View {
@@ -828,7 +713,10 @@ private struct SystemImageName:
   var text: String { data.text }
 
   var systemImageName: String {
-    data.systemImageName.rawValue
+    switch data.source {
+    case .system(let name): name.rawValue
+    case .asset: Assert.fatal("systemImageName is unavailable for asset-backed icon \(self)")
+    }
   }
 
   func color(for colorScheme: ColorScheme) -> Color {
@@ -844,11 +732,19 @@ private struct SystemImageName:
   }
 
   func rawLabel(_ text: String) -> Label<Text, Image> {
-    Label(LocalizedStringKey(text), systemImage: data.systemImageName.rawValue)
+    Label {
+      Text(LocalizedStringKey(text))
+    } icon: {
+      rawImage
+    }
   }
 
   func rawLabel(_ text: LocalizedStringKey) -> Label<Text, Image> {
-    Label(text, systemImage: data.systemImageName.rawValue)
+    Label {
+      Text(text)
+    } icon: {
+      rawImage
+    }
   }
 
   func labelButton(action: @MainActor @escaping () -> Void) -> some View {
@@ -874,94 +770,6 @@ private struct SystemImageName:
 
   func rawImageButton(action: @MainActor @escaping () -> Void) -> some View {
     Button(action: action) { rawImage }
-  }
-}
-
-// MARK: - Icon Views
-
-private struct AppIconImage: View {
-  @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.isEnabled) private var isEnabled
-
-  let icon: AppIcon
-
-  var body: some View {
-    icon.rawImage
-      .foregroundStyle(icon.color(for: colorScheme))
-      .opacity(isEnabled ? 1 : 0.4)
-  }
-}
-
-private struct AppIconLabel: View {
-  @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.isEnabled) private var isEnabled
-
-  let icon: AppIcon
-  let textKey: LocalizedStringKey
-
-  init(icon: AppIcon) {
-    self.icon = icon
-    self.textKey = icon.textKey
-  }
-
-  init(icon: AppIcon, textKey: LocalizedStringKey) {
-    self.icon = icon
-    self.textKey = textKey
-  }
-
-  var body: some View {
-    Label {
-      Text(textKey)
-    } icon: {
-      icon.rawImage
-        .foregroundStyle(icon.color(for: colorScheme))
-    }
-    .opacity(isEnabled ? 1 : 0.4)
-  }
-}
-
-private struct AppIconLabelButton: View {
-  @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.isEnabled) private var isEnabled
-
-  let icon: AppIcon
-  let textKey: LocalizedStringKey
-  let action: () -> Void
-
-  init(icon: AppIcon, action: @escaping () -> Void) {
-    self.icon = icon
-    self.textKey = icon.textKey
-    self.action = action
-  }
-
-  init(icon: AppIcon, textKey: LocalizedStringKey, action: @escaping () -> Void) {
-    self.icon = icon
-    self.textKey = textKey
-    self.action = action
-  }
-
-  var body: some View {
-    Button(action: action) {
-      AppIconLabel(icon: icon, textKey: textKey)
-    }
-    .tint(icon.color(for: colorScheme))
-    .opacity(isEnabled ? 1 : 0.4)
-  }
-}
-
-private struct AppIconImageButton: View {
-  @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.isEnabled) private var isEnabled
-
-  let icon: AppIcon
-  let action: () -> Void
-
-  var body: some View {
-    Button(action: action) {
-      AppIconImage(icon: icon)
-    }
-    .tint(icon.color(for: colorScheme))
-    .opacity(isEnabled ? 1 : 0.4)
   }
 }
 

@@ -96,13 +96,7 @@ class EpisodesListViewModel:
   // MARK: - Filter Text
 
   private var textSearchFilter: SQLExpression {
-    filterText
-      .split(separator: /\s+/)
-      .map { word in
-        let pattern = "%\(word.lowercased())%"
-        return Episode.contains(pattern) || Podcast.contains(pattern)
-      }
-      .reduce(AppDB.noOp) { $0 && $1 }
+    Episode.matchesText(allWordsIn: filterText)
   }
 
   private var filterText = ""

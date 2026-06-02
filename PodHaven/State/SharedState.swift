@@ -30,6 +30,9 @@ struct SharedState: Sendable {
   // observation task's guarded no-op writes must still wake observers.
   @Broadcasted(duplicates: .notifyAlways) var onDeck: OnDeck? = nil
   @Broadcasted var playbackStatus: PlaybackStatus = .stopped
+  // When set, PlayManager stops at the current episode's end instead of
+  // auto-advancing, then clears this back to false (single-use sleep stop).
+  @Broadcasted var stopAfterCurrentEpisode: Bool = false
   @Broadcasted var playRate: Float = 1.0
   @Broadcasted var tags: IdentifiedArrayOf<Tag> = []
   @Broadcasted var queuedPodcastEpisodes: [ListablePodcastEpisode] = []
@@ -92,6 +95,10 @@ struct SharedState: Sendable {
 
   func setPlaybackStatus(_ status: PlaybackStatus) {
     $playbackStatus.new(status)
+  }
+
+  func setStopAfterCurrentEpisode(_ enabled: Bool) {
+    $stopAfterCurrentEpisode.new(enabled)
   }
 
   func setPlayRate(_ rate: Float) {

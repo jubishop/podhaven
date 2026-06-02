@@ -110,6 +110,15 @@ struct CachePurger: Sendable {
         do {
           fileSize = try fileManager.fileSize(for: cachedURL.rawValue)
         } catch {
+          if ErrorKit.isMissingFile(error) {
+            Self.log.caughtError(
+              "executePurge: cached file already missing for \(cachedURL) (\(episode.toString))",
+              error,
+              level: { _ in .debug }
+            )
+            continue
+          }
+
           Self.log.caughtError(
             "executePurge: failed to get file size for \(cachedURL) (\(episode.toString))",
             error
@@ -218,7 +227,21 @@ struct CachePurger: Sendable {
       """
     )
 
-    return try cachedFiles.reduce(into: 0) { $0 += try fileManager.fileSize(for: $1) }
+    var totalSize: Int64 = 0
+    for cachedFile in cachedFiles {
+      do {
+        totalSize += try fileManager.fileSize(for: cachedFile)
+      } catch {
+        guard ErrorKit.isMissingFile(error) else { throw error }
+        Self.log.caughtError(
+          "calculateCacheSize: cached file already missing for \(cachedFile.lastPathComponent)",
+          error,
+          level: { _ in .debug }
+        )
+      }
+    }
+
+    return totalSize
   }
 
   // MARK: - Episode Deletion Heuristic

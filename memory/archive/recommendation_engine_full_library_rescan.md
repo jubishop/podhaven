@@ -2,9 +2,8 @@
 name: recommendation-engine-full-library-rescan
 description: #296 — RecommendationEngine rescanned the entire ~95.5K-episode library on every Unqueued-list display / tab switch, pegging the app on a cold launch. Fixed via Option C (PR #305): coalescing + leading-edge debounce + off-main marshalling + wider reader pool. The in-memory embedding cache that would stop the rescan entirely is deferred to #304.
 type: project
----
-
-# RecommendationEngine full-library rescan (#296)
+status: resolved
+--- (#296)
 
 Fixed via Option C in PR #305. Root cause was confirmed from a diagnostic
 TestFlight build and a code read; the diagnosis below is retained as reference.
@@ -100,7 +99,7 @@ drop on background / memory warning). Tracked in #304.
 
 ## Related
 
-- [[podcast_detail_recommendation_storm]] — #293, the sibling bug: same
+- [[podcast-detail-observation-storm]] — #293, the sibling bug: same
   architectural weakness (a SwiftUI observation triggering uncoalesced heavy
   work), different loop. Either one alone pegs the whole app.
 - #298 — revert of the `c45e2908` diagnostic probes, blocked by #293 + #296.

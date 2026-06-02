@@ -147,6 +147,47 @@ struct Queue: Queueing {
     }
   }
 
+  // Keeps only the `limit` newest episodes (by pubDate) among the podcast's
+  // currently-queued and incoming episodes, evicting the podcast's own oldest
+  // queued episodes to make room. Returns the incoming episodes that fit, in
+  // their original order, for the caller to queue.
+  func limitPodcast(
+    _ db: Database,
+    podcastID: Podcast.ID,
+    incoming: [Episode],
+    to limit: Int
+  ) throws -> [Episode] {
+    Assert.precondition(db.isInsideTransaction, "limitPodcast method requires a transaction")
+
+    let existingQueued =
+      try Episode
+      .all()
+      .queued()
+      .filter(Episode.Columns.podcastId == podcastID)
+      .order(\.pubDate.desc)
+      .fetchAll(db)
+
+    let survivingIDs = Set(
+      (existingQueued + incoming)
+        .sorted { $0.pubDate > $1.pubDate }
+        .prefix(limit)
+        .map(\.id)
+    )
+
+    // Only trim when at least one incoming episode is actually being auto-queued.
+    // When the incoming episodes are all older than the limit window, none survive
+    // and the existing queue is left untouched.
+    let survivors = incoming.filter { survivingIDs.contains($0.id) }
+    guard !survivors.isEmpty else { return [] }
+
+    let staleIDs = existingQueued.filter { !survivingIDs.contains($0.id) }.map(\.id)
+    if !staleIDs.isEmpty {
+      try _dequeue(db, staleIDs)
+    }
+
+    return survivors
+  }
+
   // MARK: - Private Helpers
 
   private func _updateQueueDate(_ db: Database, _ episodeIDs: [Episode.ID]) throws {

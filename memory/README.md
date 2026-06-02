@@ -27,8 +27,11 @@ Each page is one `.md` file with frontmatter:
 name: kebab-case-slug
 description: one-line summary, used in search snippets
 type: user | feedback | project | reference
+status: active | resolved   # project notes only; omit on other types
 ---
 ```
+
+The filename (e.g. `my_topic.md`) does not need to match `name`; cross-links use the frontmatter `name` slug.
 
 Types:
 
@@ -36,6 +39,8 @@ Types:
 - `feedback`: user corrections and validated approaches.
 - `project`: non-derivable ongoing context; convert relative dates to absolute.
 - `reference`: library quirks, external refs, and other durable learnings.
+
+`project` notes must include `status: active` while the incident or investigation is live. Set `status: resolved` and move to `memory/archive/` when verified done.
 
 For `feedback` and `project`, lead with the rule/fact, then:
 

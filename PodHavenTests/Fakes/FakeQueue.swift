@@ -99,4 +99,17 @@ struct FakeQueue: Sendable, FakeCallable, Queueing {
     recordCall(methodName: "enforceMaxQueueLength", parameters: ())
     try await queue.enforceMaxQueueLength()
   }
+
+  func limitPodcast(
+    _ db: Database,
+    podcastID: Podcast.ID,
+    incoming: [Episode],
+    to limit: Int
+  ) throws -> [Episode] {
+    recordCall(
+      methodName: "limitPodcast",
+      parameters: (podcastID: podcastID, incoming: incoming, limit: limit)
+    )
+    return try queue.limitPodcast(db, podcastID: podcastID, incoming: incoming, to: limit)
+  }
 }

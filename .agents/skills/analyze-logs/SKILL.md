@@ -1,6 +1,8 @@
 ---
 name: analyze-logs
 description: Analyze PodHaven NDJSON log files and reconstruct failure timelines. Use when inspecting log.ndjson or widget-log.ndjson, diagnosing warnings or errors, correlating a Sentry timestamp to local logs, or explaining what happened around a specific time, subsystem, category, source file, or message.
+user_invocable: true
+disable-model-invocation: true
 ---
 
 # Analyze Logs

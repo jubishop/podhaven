@@ -1,5 +1,5 @@
 ---
-name: Observable + Broadcast observation gap
+name: observation-broadcast-viewmodel
 description: Reading SharedState's @Broadcasted properties through an @Observable viewModel's computed property may silently fail to trigger SwiftUI re-renders, especially for conditional view creation (if let)
 type: feedback
 ---
@@ -13,4 +13,4 @@ Theoretically the Broadcast's `access()`/`withMutation()` cycle should propagate
 
 ## Related
 
-- [[factory_v3_migration]] — `@DynamicInjected` resolution and Factory v3 actor-isolation rules; relevant when refactoring a view to read SharedState directly.
+- [[factory-v3-migration]] — `@DynamicInjected` resolution and Factory v3 actor-isolation rules; relevant when refactoring a view to read SharedState directly.

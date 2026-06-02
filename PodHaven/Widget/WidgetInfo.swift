@@ -9,6 +9,7 @@ enum WidgetInfo {
 
   static let nowPlayingKind = "NowPlayingWidget"
   static let queueKind = "QueueWidget"
+  static let nowPlayingQueueKind = "NowPlayingQueueWidget"
   static let lockScreenNowPlayingKind = "LockScreenNowPlayingWidget"
   static let playPauseControlKind = "PlayPauseControl"
   static let skipForwardControlKind = "SkipForwardControl"

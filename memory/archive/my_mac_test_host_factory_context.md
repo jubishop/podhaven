@@ -2,6 +2,7 @@
 name: my-mac-test-host-factory-context
 description: Tests (My Mac and CI) resolved production types instead of fakes because the test target linked a duplicate static copy of FactoryKit, breaking the AutoRegistering conformance lookup. Fixed by removing the test target's direct FactoryKit link.
 type: project
+status: resolved
 ---
 
 # My Mac / CI test fakes not resolving — duplicate FactoryKit (RESOLVED)
@@ -51,6 +52,6 @@ The earlier attempts in `AppInfo`/`AppDB`/`AppLauncher` were reverted. They were
 
 ## Related
 
-- [[factory_v3_migration]] — Factory v3 / FactoryTesting packaging.
+- [[factory-v3-migration]] — Factory v3 / FactoryTesting packaging.
 - [[build-variants-dev-debug-release]] — Run = Development/`.dev`, Test = Debug/`.debug`, separate data dirs.
-- [[flaky_test_observation_restarts]] — parallel Swift Testing + DI timing family.
+- [[flaky-test-observation-restarts]] — parallel Swift Testing + DI timing family.

@@ -3,6 +3,7 @@ name: analyze-sentry-logs
 description: >
   Analyze Sentry logs to find real issues, severity mismatches, and missing observability.
   Only runs when explicitly invoked via /analyze-sentry-logs.
+user_invocable: true
 allowed-tools: Bash, Read, Grep, Glob, Agent
 disable-model-invocation: true
 ---
@@ -20,22 +21,48 @@ Accepts a time span argument. Examples:
 
 **If no argument is provided, ask the user what time span they want before proceeding.**
 
+Optional second argument: a Sentry logs search query. Use `user.id:<uuid>` to
+scope to one user (PodHaven sets this to the device IDFV). Use `trace:<id>` when
+correlating to a specific error event. The `analyze-sentry-issue` skill uses
+these filters for targeted timelines — this skill uses them for bulk pattern
+triage across the whole window.
+
+**Environment mismatch (PodHaven):** error events often tag `environment:testFlight`
+while structured logs usually tag `environment:deployed`. Do not filter logs by
+the event's environment unless you have confirmed that tag on log rows. Prefer
+`user.id` and optional `release`.
+
 ## Prerequisites
 
 Requires `~/.sentryclirc` with a valid auth token. If the fetch script fails with an auth error, tell the user to run `! sentry-cli login`.
 
 ## Step 1: Fetch logs
 
-Run the fetch script at `~/.claude/skills/analyze-sentry-logs/fetch_sentry_logs.sh`. It queries the Sentry REST API directly (not sentry-cli, which deduplicates entries) and produces two JSON files:
+Run the fetch script at `.agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh`
+(in the PodHaven repo; also under `.claude/skills/`). It queries the Sentry
+REST API directly (not sentry-cli, which deduplicates entries) and produces two
+JSON files:
 
 ```bash
-bash ~/.claude/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod>
+bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod>
+bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh 6h \
+  'user.id:<uuid> (severity:warn OR severity:error)'
+bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh 1h \
+  'trace:<trace_id> (severity:warn OR severity:error)'
 ```
 
 Where `<statsPeriod>` matches the user's time span (e.g., `10h`, `2d`, `1w`).
 
+To narrow fetched rows to an incident window (used heavily by
+`analyze-sentry-issue`):
+
+```bash
+python3 .agents/skills/analyze-sentry-logs/filter_sentry_logs.py \
+  --around-ms <event_epoch_ms> --window-ms 600000 --oneline
+```
+
 This outputs:
-- `/tmp/sentry_logs_detail.json` — individual log entries with timestamps (up to 500)
+- `/tmp/sentry_logs_detail.json` — individual log entries with timestamps (up to 9999)
 - `/tmp/sentry_logs_summary.json` — aggregated counts grouped by severity + message
 - A summary table printed to stdout
 

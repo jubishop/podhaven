@@ -1,7 +1,8 @@
 ---
-name: PlayBar sheet stuck off-screen bug
+name: playbar-sheet-stuck-off-screen
 description: Theory + fix attempt for PlayBar chevron-up tap failing to present a sheet (non-reproducible, 2026-04-26)
 type: project
+status: resolved
 ---
 
 # PlayBar sheet stuck off-screen (2026-04-26)

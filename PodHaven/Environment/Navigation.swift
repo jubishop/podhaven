@@ -126,6 +126,7 @@ extension Container {
   enum SettingsSection {
     case opml
     case tags
+    case swipeActions
     case feedback
   }
 
@@ -183,6 +184,8 @@ extension Container {
         OPMLView().id("opml")
       case .tags:
         TagsSettingsView().id("tags")
+      case .swipeActions:
+        EpisodeSwipeSettingsView().id("swipeActions")
       case .feedback:
         FeedbackFormView().id("feedback")
       }

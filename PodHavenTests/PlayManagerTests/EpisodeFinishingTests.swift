@@ -180,6 +180,62 @@ import Testing
     try await PlayHelpers.waitForFinished(podcastEpisode)
   }
 
+  // MARK: - Stop After Current Episode
+
+  @Test("stopAfterCurrentEpisode stops at episode end instead of advancing to queued episode")
+  func stopAfterCurrentEpisodeStopsInsteadOfAdvancing() async throws {
+    await playManager.start()
+    let (currentEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await queue.unshift(queuedEpisode.id)
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    sharedState.setStopAfterCurrentEpisode(true)
+    avPlayer.finishEpisode()
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForOnDeck(nil)
+    try await PlayHelpers.waitForFinished(currentEpisode)
+    try await PlayHelpers.waitForQueue([queuedEpisode])
+    #expect(sharedState.stopAfterCurrentEpisode == false)
+  }
+
+  @Test("stopAfterCurrentEpisode stops instead of auto-playing top recommendation")
+  func stopAfterCurrentEpisodeStopsInsteadOfRecommendation() async throws {
+    await playManager.start()
+    userSettings.$autoPlayTopRecommendationWhenQueueEmpty.new(true)
+    let (currentEpisode, recommendedEpisode) = try await Create.twoPodcastEpisodes()
+
+    sharedState.setRecommendedEpisodePool([recommendedEpisode.id])
+
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    sharedState.setStopAfterCurrentEpisode(true)
+    await playManager.finishEpisode(currentEpisode.id)
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForOnDeck(nil)
+    try await PlayHelpers.waitForFinished(currentEpisode)
+    #expect(sharedState.stopAfterCurrentEpisode == false)
+  }
+
+  @Test("manually starting a different episode clears stopAfterCurrentEpisode")
+  func startingDifferentEpisodeClearsStopAfterCurrentEpisode() async throws {
+    await playManager.start()
+    let (currentEpisode, otherEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    sharedState.setStopAfterCurrentEpisode(true)
+    try await playManager.load(otherEpisode)
+
+    try await PlayHelpers.waitForOnDeck(otherEpisode)
+    #expect(sharedState.stopAfterCurrentEpisode == false)
+  }
+
   // MARK: - Auto-play Top Recommendation
 
   @Test(

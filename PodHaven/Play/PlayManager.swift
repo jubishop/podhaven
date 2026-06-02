@@ -191,6 +191,12 @@ final class PlayManager {
       return false
     }
 
+    // Manually starting a different episode cancels a pending sleep stop.
+    if sharedState.stopAfterCurrentEpisode {
+      Self.log.debug("performLoad: new episode starting, clearing stopAfterCurrentEpisode")
+      sharedState.setStopAfterCurrentEpisode(false)
+    }
+
     let task = Task<Bool, any Error> { [weak self] in
       guard let self else { return false }
       let loadStart = Date()
@@ -435,6 +441,13 @@ final class PlayManager {
     suppressRemoteScrubCommands()
 
     await clearOnDeck()
+
+    if sharedState.stopAfterCurrentEpisode {
+      Self.log.debug("finishEpisode: stopAfterCurrentEpisode set, stopping instead of advancing")
+      sharedState.setStopAfterCurrentEpisode(false)
+      setStatus(.stopped)
+      return
+    }
 
     do {
       if let nextEpisode = try await queue.nextEpisode {

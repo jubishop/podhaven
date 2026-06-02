@@ -2,7 +2,8 @@
 Repo context lives in `memory/`, `docs/`, and GitHub issues:
 
 - `memory/`: long-lived notes; search before writing and update existing notes when possible.
-  - Move notes that are no longer relevant to active work into `memory/archive/` (excluded from `qmd` search).
+  - New or updated pages must follow [`memory/README.md`](memory/README.md): kebab-case `name`, one-line `description`, `type`, **Why** / **How to apply** for `project` and `feedback`, and `status: active` on open `project` notes.
+  - Move notes that are no longer relevant to active work into `memory/archive/` with `status: resolved` (excluded from `qmd` search).
 - `docs/`: PR-reviewed design docs; update `docs/README.md` when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
@@ -74,7 +75,8 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - Never use `map`/`flatMap` to unwrap optionals; use `if let`/`guard let`. Reserve `map`/`flatMap` for collections.
 - Run `swift-format` on every Swift file you touch. Production code must pass `bin/lint-swift-format`.
 - Comments use `//`, not `///`; no doc comments. Default to no comment whenever possible, or very succinct comment if absolutely necessary.
-- No external refs in code comments — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`), etc. They move or disappear; context belongs in the commit/PR.
+- No code-comment refs to repo items — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`); that context belongs in the commit/PR. Stable external urls are fine.
+- Don't bake specific constant values into comments; they drift when the constant changes and silently go wrong. Describe behavior relative to the named constant.
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
 - No non-specializing extension splits. Put conformances on the main declaration and requirements in the body. Use extensions only for constrained methods, retroactive external conformance, or `where Self == X`.
 - Avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary.

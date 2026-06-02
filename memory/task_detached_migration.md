@@ -41,5 +41,5 @@ func onSomething() {
 
 ## Related
 
-- [[factory_v3_migration]] — actor-isolation rules for Factory-resolved types, where many `@MainActor` / cooperative-pool boundary issues surface.
-- [[flaky_test_observation_restarts]] — example of a `Task` inheriting an unexpected priority (`.background`) from its parent context; that inheritance is exactly what `Task.detached` *removes* by severing the chain.
+- [[factory-v3-migration]] — actor-isolation rules for Factory-resolved types, where many `@MainActor` / cooperative-pool boundary issues surface.
+- [[flaky-test-observation-restarts]] — example of a `Task` inheriting an unexpected priority (`.background`) from its parent context; that inheritance is exactly what `Task.detached` *removes* by severing the chain.

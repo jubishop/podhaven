@@ -1,26 +1,28 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
-import WidgetKit
 
 @testable import PodHaven
 
 final class FakeWidgetCenter: WidgetReloading, Sendable {
-  private let configurations = ThreadSafe<[WidgetKit.WidgetInfo]>([])
   private let reloadedKinds = ThreadSafe<[String]>([])
 
-  // Returns .failure by default so isWidgetPlaced falls through to the
-  // safe default of true. Tests that need specific placement behavior
-  // can set a custom result via configurationsResult.
-  private let configurationsResult =
-    ThreadSafe<Result<[WidgetKit.WidgetInfo], any Error>>(.failure(FakeError.notConfigured))
+  // Reports every widget kind as placed so reloadWidgets fans out to all
+  // requested kinds, letting tests assert which kinds a given event reloads.
+  private static let allKinds: Set<String> = [
+    WidgetInfo.nowPlayingKind,
+    WidgetInfo.queueKind,
+    WidgetInfo.nowPlayingQueueKind,
+    WidgetInfo.lockScreenNowPlayingKind,
+    WidgetInfo.playPauseControlKind,
+    WidgetInfo.skipForwardControlKind,
+    WidgetInfo.skipBackwardControlKind,
+  ]
 
-  private enum FakeError: Error { case notConfigured }
-
-  func getCurrentConfigurations(
-    _ completion: @escaping @Sendable (Result<[WidgetKit.WidgetInfo], any Error>) -> Void
+  func placedWidgetKinds(
+    _ completion: @escaping @Sendable (Result<Set<String>, any Error>) -> Void
   ) {
-    completion(configurationsResult())
+    completion(.success(Self.allKinds))
   }
 
   func reloadTimelines(ofKind kind: String) {
