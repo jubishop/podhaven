@@ -76,6 +76,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - Run `swift-format` on every Swift file you touch. Production code must pass `bin/lint-swift-format`.
 - Comments use `//`, not `///`; no doc comments. Default to no comment whenever possible, or very succinct comment if absolutely necessary.
 - No code-comment refs to things that move or vanish — repo issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`); that context belongs in the commit/PR. Stable external docs (e.g. a `sqlite.org` spec link) are fine.
+- Don't bake specific constant values into comments (e.g. "0.5 at 21 days"); they drift when the constant changes and silently go wrong. Describe behavior relative to the named constant (e.g. "0.5 at twice the half-life").
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
 - No non-specializing extension splits. Put conformances on the main declaration and requirements in the body. Use extensions only for constrained methods, retroactive external conformance, or `where Self == X`.
 - Avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary.
