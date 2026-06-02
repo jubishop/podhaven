@@ -255,8 +255,18 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     EpisodeEmbedding
     .select(EpisodeEmbedding.Columns.episodeId)
     .contains(Columns.id)
-  static func contains(_ pattern: String) -> SQLExpression {
-    Columns.title.lowercased.like(pattern) || Columns.description.lowercased.like(pattern)
+  // Each word must match, but a word may land in either the episode's own text
+  // or its parent podcast's text — so "tech daily" finds the "Daily" episode of
+  // the "Tech" podcast. AND across words, OR across the two FTS mirrors per word.
+  static func matchesText(allWordsIn text: String) -> SQLExpression {
+    text
+      .split(separator: /\s+/)
+      .compactMap { FTS5Pattern(matchingAllPrefixesIn: String($0)) }
+      .map { pattern in
+        EpisodeFTS.matching(pattern).select(Column.rowID).contains(Columns.id)
+          || PodcastFTS.matching(pattern).select(Column.rowID).contains(Columns.podcastId)
+      }
+      .reduce(AppDB.noOp) { $0 && $1 }
   }
 
   // MARK: - Columns
