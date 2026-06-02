@@ -174,12 +174,18 @@ struct Queue: Queueing {
         .map(\.id)
     )
 
+    // Only trim when at least one incoming episode is actually being auto-queued.
+    // When the incoming episodes are all older than the limit window, none survive
+    // and the existing queue is left untouched.
+    let survivors = incoming.filter { survivingIDs.contains($0.id) }
+    guard !survivors.isEmpty else { return [] }
+
     let staleIDs = existingQueued.filter { !survivingIDs.contains($0.id) }.map(\.id)
     if !staleIDs.isEmpty {
       try _dequeue(db, staleIDs)
     }
 
-    return incoming.filter { survivingIDs.contains($0.id) }
+    return survivors
   }
 
   // MARK: - Private Helpers
