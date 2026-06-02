@@ -61,6 +61,7 @@ enum Create {
     subscriptionDate: Date? = nil,
     defaultPlaybackRate: Double? = nil,
     queueAllEpisodes: QueueAllEpisodes = .never,
+    autoQueueLimit: Int? = nil,
     cacheAllEpisodes: CacheAllEpisodes = .never,
     notifyNewEpisodes: Bool = false,
     freshnessCadence: FreshnessCadence? = nil
@@ -76,6 +77,7 @@ enum Create {
       subscriptionDate: subscriptionDate,
       defaultPlaybackRate: defaultPlaybackRate,
       queueAllEpisodes: queueAllEpisodes,
+      autoQueueLimit: autoQueueLimit,
       cacheAllEpisodes: cacheAllEpisodes,
       notifyNewEpisodes: notifyNewEpisodes,
       freshnessCadence: freshnessCadence
@@ -93,6 +95,7 @@ enum Create {
     subscriptionDate: Date? = nil,
     defaultPlaybackRate: Double? = nil,
     queueAllEpisodes: QueueAllEpisodes = .never,
+    autoQueueLimit: Int? = nil,
     cacheAllEpisodes: CacheAllEpisodes = .never,
     notifyNewEpisodes: Bool = false,
     freshnessCadence: FreshnessCadence? = nil
@@ -112,6 +115,7 @@ enum Create {
               subscriptionDate: subscriptionDate,
               defaultPlaybackRate: defaultPlaybackRate,
               queueAllEpisodes: queueAllEpisodes,
+              autoQueueLimit: autoQueueLimit,
               cacheAllEpisodes: cacheAllEpisodes,
               notifyNewEpisodes: notifyNewEpisodes,
               freshnessCadence: freshnessCadence

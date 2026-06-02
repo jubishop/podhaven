@@ -27,13 +27,11 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   // archives where freshness is meaningless even if the median gap was weekly.
   private static let dormantThresholdHours: Double = 2880  // 120 days
 
-  // Upper bounds on the *median* inter-episode gap, in hours. Each boundary
-  // sits near the geometric midpoint between the two cadences' natural
-  // periods (e.g. ~17h between twiceDaily's 12h and daily's 24h).
-  private static let hourlyMaxMedianHours: Double = 4
-  private static let twiceDailyMaxMedianHours: Double = 18
+  // Upper bounds on the *median* inter-episode gap, in hours.
+  private static let hourlyMaxMedianHours: Double = 2
+  private static let twiceDailyMaxMedianHours: Double = 24
   private static let dailyMaxMedianHours: Double = 48
-  private static let twiceWeeklyMaxMedianHours: Double = 120
+  private static let twiceWeeklyMaxMedianHours: Double = 168
   private static let weeklyMaxMedianHours: Double = 336
   private static let monthlyMaxMedianHours: Double = 1440
 

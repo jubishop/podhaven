@@ -94,6 +94,37 @@ struct PodcastSettingsView: View {
             .onChange(of: temp.queueAllEpisodes) {
               viewModel.updateSettings(temp)
             }
+
+            if temp.queueAllEpisodes != .never {
+              SettingsRow(
+                infoText: """
+                  Limit how many of this podcast's episodes stay in your queue.  \
+                  When a new episode is auto-queued, the oldest episodes beyond this \
+                  limit are removed so only the latest ones remain.
+                  """
+              ) {
+                Toggle("Limit Episodes", isOn: autoQueueLimitEnabled)
+                Spacer(minLength: 0)
+              }
+
+              if let limit = temp.autoQueueLimit {
+                HStack {
+                  Text(limit == 1 ? "Keep latest episode" : "Keep latest \(limit) episodes")
+                  Spacer()
+                  Slider(
+                    value: autoQueueLimitValue,
+                    in: autoQueueLimitBounds,
+                    step: 1,
+                    onEditingChanged: { editing in
+                      if !editing {
+                        viewModel.updateSettings(temp)
+                      }
+                    }
+                  )
+                  .frame(maxWidth: 160)
+                }
+              }
+            }
           }
         }
 
@@ -202,6 +233,28 @@ struct PodcastSettingsView: View {
   private var formattedPlaybackRate: String {
     let rate = temp.defaultPlaybackRate ?? userSettings.defaultPlaybackRate
     return "\(rate.formatted(decimalPlaces: 1))×"
+  }
+
+  private var autoQueueLimitEnabled: Binding<Bool> {
+    Binding(
+      get: { temp.autoQueueLimit != nil },
+      set: { isOn in
+        temp.autoQueueLimit = isOn ? PodcastSettings.defaultAutoQueueLimit : nil
+        viewModel.updateSettings(temp)
+      }
+    )
+  }
+
+  private var autoQueueLimitValue: Binding<Double> {
+    Binding(
+      get: { Double(temp.autoQueueLimit ?? PodcastSettings.defaultAutoQueueLimit) },
+      set: { temp.autoQueueLimit = Int($0) }
+    )
+  }
+
+  private var autoQueueLimitBounds: ClosedRange<Double> {
+    let range = PodcastSettings.autoQueueLimitRange
+    return Double(range.lowerBound)...Double(range.upperBound)
   }
 }
 

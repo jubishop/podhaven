@@ -272,9 +272,27 @@ struct Repo: Databasing {
         newEpisodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
       }
 
-      if podcastSeries.podcast.queueAllEpisodes == .onTop {
+      let queueMode = podcastSeries.podcast.queueAllEpisodes
+      guard queueMode != .never, !newEpisodes.isEmpty else { return newEpisodes }
+
+      if let autoQueueLimit = podcastSeries.podcast.autoQueueLimit {
+        // Keep only this podcast's `autoQueueLimit` newest episodes, evicting its
+        // own oldest queued episodes to make room for the surviving incoming ones.
+        let episodesToQueue = try queue.limitPodcast(
+          db,
+          podcastID: podcastSeries.id,
+          incoming: newEpisodes,
+          to: autoQueueLimit
+        )
+        guard !episodesToQueue.isEmpty else { return newEpisodes }
+        if queueMode == .onTop {
+          try queue.unshift(db, episodesToQueue.map(\.id))
+        } else if queueMode == .onBottom {
+          try queue.append(db, episodesToQueue.map(\.id))
+        }
+      } else if queueMode == .onTop {
         try queue.unshift(db, newEpisodes.map(\.id))
-      } else if podcastSeries.podcast.queueAllEpisodes == .onBottom {
+      } else if queueMode == .onBottom {
         try queue.append(db, newEpisodes.map(\.id))
       }
       return newEpisodes
@@ -573,6 +591,7 @@ struct Repo: Databasing {
           db,
           Podcast.Columns.defaultPlaybackRate.set(to: settings.defaultPlaybackRate),
           Podcast.Columns.queueAllEpisodes.set(to: settings.queueAllEpisodes),
+          Podcast.Columns.autoQueueLimit.set(to: settings.autoQueueLimit),
           Podcast.Columns.cacheAllEpisodes.set(to: settings.cacheAllEpisodes),
           Podcast.Columns.notifyNewEpisodes.set(to: settings.notifyNewEpisodes),
           Podcast.Columns.freshnessCadence.set(to: settings.freshnessCadence)

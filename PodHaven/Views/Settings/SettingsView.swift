@@ -72,6 +72,13 @@ struct SettingsView: View {
           )
         }
 
+        Section("Gestures") {
+          NavigationLink(
+            value: Navigation.Destination.settingsSection(.swipeActions),
+            label: { Text("Swipe Left Actions") }
+          )
+        }
+
         Section("Playback") {
           VStack(alignment: .leading, spacing: 24) {
             SettingsRow(

@@ -4,6 +4,7 @@ import GRDB
 
 extension Schema {
   static func migrateV47(_ db: Database) throws {
+<<<<<<< HEAD
     // v39's freshnessCadence CHECK only allowed daily/weekly/monthly/evergreen.
     // The finer-grained cadences (hourly, twiceDaily, twiceWeekly) need the
     // constraint widened, and SQLite can't alter a CHECK in place, so rebuild
@@ -81,6 +82,10 @@ extension Schema {
         resultCode: .SQLITE_CONSTRAINT_FOREIGNKEY,
         message: "v47 foreign_key_check failed: \(fkViolations)"
       )
+=======
+    try db.alter(table: "podcast") { t in
+      t.add(column: "autoQueueLimit", .integer).check { $0 == nil || ($0 >= 1 && $0 <= 5) }
+>>>>>>> origin/main
     }
   }
 }
