@@ -273,24 +273,22 @@ struct Repo: Databasing {
       }
 
       let queueMode = podcastSeries.podcast.queueAllEpisodes
-      if queueMode != .never, !newEpisodes.isEmpty,
-        let autoQueueLimit = podcastSeries.podcast.autoQueueLimit
-      {
-        // Evict the podcast's own oldest queued episodes to make room, then queue
-        // only the incoming episodes that fit within the limit — so newer episodes
-        // are never dropped, nor another podcast evicted, when the queue is full.
+      guard queueMode != .never, !newEpisodes.isEmpty else { return newEpisodes }
+
+      if let autoQueueLimit = podcastSeries.podcast.autoQueueLimit {
+        // Keep only this podcast's `autoQueueLimit` newest episodes, evicting its
+        // own oldest queued episodes to make room for the surviving incoming ones.
         let episodesToQueue = try queue.limitPodcast(
           db,
           podcastID: podcastSeries.id,
           incoming: newEpisodes,
           to: autoQueueLimit
         )
-        if !episodesToQueue.isEmpty {
-          if queueMode == .onTop {
-            try queue.unshift(db, episodesToQueue.map(\.id))
-          } else if queueMode == .onBottom {
-            try queue.append(db, episodesToQueue.map(\.id))
-          }
+        guard !episodesToQueue.isEmpty else { return newEpisodes }
+        if queueMode == .onTop {
+          try queue.unshift(db, episodesToQueue.map(\.id))
+        } else if queueMode == .onBottom {
+          try queue.append(db, episodesToQueue.map(\.id))
         }
       } else if queueMode == .onTop {
         try queue.unshift(db, newEpisodes.map(\.id))

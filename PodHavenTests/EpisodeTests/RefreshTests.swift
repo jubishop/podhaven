@@ -358,10 +358,11 @@ class EpisodeRefreshTests {
       existingEpisodes: []
     )
 
-    // The unrelated podcast keeps its episode; the limited podcast keeps its two newest.
+    // The unrelated podcast keeps its episode; the limited podcast keeps its two
+    // newest, with the freshly auto-queued episode placed on top of the queue.
     let queuedTitles = try await repo.db.read { db in
-      Set(try Episode.all().queued().fetchAll(db).map(\.title))
+      try Episode.all().queued().order(\.queueOrder.asc).fetchAll(db).map(\.title)
     }
-    #expect(queuedTitles == ["other", "middle", "newest"])
+    #expect(queuedTitles == ["newest", "other", "middle"])
   }
 }
