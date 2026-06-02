@@ -10,18 +10,12 @@ import SwiftUI
 
   static let maxActions = 3
 
-  // The List edits this array directly. It is held here and mutated
-  // synchronously so SwiftUI's reorder/delete edits land in the same
-  // transaction as the gesture. A computed pass-through to userSettings
-  // notifies observers a turn late (Broadcast hops to the main actor),
-  // which scrambles in-flight List edits. didSet persists every mutation;
-  // it does not fire for the init seed below.
+  // Pass-through to the persisted setting the List edits directly. Broadcast
+  // notifies main-actor writes synchronously, so reorder/delete edits land
+  // within the same gesture transaction instead of a runloop turn later.
   private(set) var actions: [UserSettings.EpisodeSwipeAction] {
-    didSet { userSettings.$episodeSwipeActions.new(actions) }
-  }
-
-  init() {
-    actions = Container.shared.userSettings().episodeSwipeActions
+    get { userSettings.episodeSwipeActions }
+    set { userSettings.$episodeSwipeActions.new(newValue) }
   }
 
   // The configured actions laid out left-to-right as a swipe reveals them.
