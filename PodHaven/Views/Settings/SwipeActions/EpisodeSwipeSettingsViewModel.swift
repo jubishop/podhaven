@@ -32,11 +32,14 @@ import SwiftUI
     actions.reversed()
   }
 
-  // Actions not yet selected, gating "Tag" on at least one tag existing.
-  // Empty once the maximum is reached.
-  var addableActions: [UserSettings.EpisodeSwipeAction] {
-    guard actions.count < Self.maxActions else { return [] }
+  var canAddMore: Bool {
+    actions.count < Self.maxActions
+  }
 
+  // Actions not yet selected, gating "Tag" on at least one tag existing. These
+  // stay listed even at the maximum so the section doesn't appear and disappear;
+  // canAddMore drives whether they are enabled.
+  var addableActions: [UserSettings.EpisodeSwipeAction] {
     let selected = Set(actions)
     return UserSettings.EpisodeSwipeAction.allCases.filter { action in
       guard !selected.contains(action) else { return false }

@@ -142,14 +142,20 @@ import Testing
     #expect(viewModel.addableActions.contains(.markFinished))
   }
 
-  @Test("addableActions is empty once the maximum is selected")
-  func addableEmptyAtMaximum() {
+  // The Add Action entries stay listed at the maximum (the section just
+  // disables) so the UI doesn't appear and disappear; canAddMore gates adding.
+  @Test("addableActions stays listed at the maximum but canAddMore is false")
+  func addableListedButBlockedAtMaximum() {
     let viewModel = EpisodeSwipeSettingsViewModel()
+    #expect(viewModel.canAddMore)
 
     viewModel.add(.cache)
 
     #expect(viewModel.actions.count == EpisodeSwipeSettingsViewModel.maxActions)
-    #expect(viewModel.addableActions.isEmpty)
+    #expect(!viewModel.canAddMore)
+    #expect(viewModel.addableActions.contains(.markFinished))
+    #expect(viewModel.addableActions.contains(.saveInCache))
+    #expect(!viewModel.addableActions.contains(.cache))
   }
 
   @Test("addableActions hides Tag until a tag exists")

@@ -34,6 +34,7 @@ struct EpisodeSwipeSettingsView: View {
             }
           }
         }
+        .disabled(!viewModel.canAddMore)
       }
 
       Section {
