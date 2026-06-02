@@ -27,13 +27,15 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   // archives where freshness is meaningless even if the median gap was weekly.
   private static let dormantThresholdHours: Double = 2880  // 120 days
 
-  // Upper bounds on the *median* inter-episode gap, in hours.
-  private static let hourlyMaxMedianHours: Double = 2
-  private static let twiceDailyMaxMedianHours: Double = 24
-  private static let dailyMaxMedianHours: Double = 48
-  private static let twiceWeeklyMaxMedianHours: Double = 168
-  private static let weeklyMaxMedianHours: Double = 336
-  private static let monthlyMaxMedianHours: Double = 1440
+  // Upper bounds on the *median* inter-episode gap, in hours — ~1.5× each
+  // cadence's natural publish period (the same values as `halfLifeHours`), so
+  // a show at its nominal cadence lands inside its own band.
+  private static let hourlyMaxMedianHours: Double = 3
+  private static let twiceDailyMaxMedianHours: Double = 16
+  private static let dailyMaxMedianHours: Double = 36
+  private static let twiceWeeklyMaxMedianHours: Double = 126
+  private static let weeklyMaxMedianHours: Double = 252
+  private static let monthlyMaxMedianHours: Double = 1080
 
   var displayName: String {
     switch self {
