@@ -9,7 +9,7 @@ struct FreshnessSignal: Sendable, Equatable {
   let inPlateau: Bool
 
   // Flat 1.0 inside the cadence's grace window (a 6-day-old weekly isn't
-  // stale yet), then `1 / (1 + (age - halfLife) / halfLife)` — a 28-day-old
+  // stale yet), then `1 / (1 + (age - halfLife) / halfLife)` — a 21-day-old
   // weekly hits 0.5. Computed in hours so sub-daily cadences (hourly,
   // twiceDaily) decay on their own timescale. Evergreen has no half-life and
   // stays at 1.0.
