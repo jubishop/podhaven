@@ -25,11 +25,11 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   // Past this long without a new episode, treat the show as evergreen
   // regardless of historical spacing — catches wrapped-up serials and
   // archives where freshness is meaningless even if the median gap was weekly.
-  private static let dormantThresholdHours: Double = 2880  // 120 days
+  private static let dormantThresholdHours: Double = 120 * 24
 
-  // Upper bounds on the *median* inter-episode gap, in hours — ~1.5× each
-  // cadence's natural publish period (the same values as `halfLifeHours`), so
-  // a show at its nominal cadence lands inside its own band.
+  // Upper bounds on the *median* inter-episode gap, in hours. Each ceiling
+  // sits far enough above its cadence's nominal publish period that a show
+  // publishing at that cadence lands inside its own band despite jitter.
   private static let hourlyMaxMedianHours: Double = 3
   private static let twiceDailyMaxMedianHours: Double = 16
   private static let dailyMaxMedianHours: Double = 36
@@ -49,7 +49,7 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
     }
   }
 
-  // Half-life for FreshnessSignal's hyperbolic decay, in hours - evergreen returns nil — no decay.
+  // Half-life for FreshnessSignal's hyperbolic decay, in hours. Evergreen returns nil — no decay.
   var halfLifeHours: Int? {
     switch self {
     case .hourly: 3
