@@ -47,16 +47,15 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
     }
   }
 
-  // Half-life for FreshnessSignal's hyperbolic decay, in hours — roughly twice
-  // the show's natural publish period. evergreen returns nil — no decay.
+  // Half-life for FreshnessSignal's hyperbolic decay, in hours - evergreen returns nil — no decay.
   var halfLifeHours: Int? {
     switch self {
-    case .hourly: 2
-    case .twiceDaily: 24
-    case .daily: 48
-    case .twiceWeekly: 168
-    case .weekly: 336
-    case .monthly: 1440
+    case .hourly: 3
+    case .twiceDaily: 16
+    case .daily: 36
+    case .twiceWeekly: 126
+    case .weekly: 252
+    case .monthly: 1080
     case .evergreen: nil
     }
   }
