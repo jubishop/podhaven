@@ -125,6 +125,11 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.listablePodcastEpisodes(filter: filter, order: order, limit: limit)
   }
 
+  func episodeIDs(filter: SQLExpression) -> AsyncValueObservation<[Episode.ID]> {
+    recordCall(methodName: "episodeIDs", parameters: ())
+    return observatory.episodeIDs(filter: filter)
+  }
+
   // MARK: - Queue
 
   func queuedPodcastEpisodes(limit: Int) -> AsyncValueObservation<[ListablePodcastEpisode]> {

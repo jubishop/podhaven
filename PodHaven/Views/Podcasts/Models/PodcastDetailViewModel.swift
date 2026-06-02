@@ -10,51 +10,6 @@ import SwiftUI
 import Tagged
 import UIKit
 
-enum PodcastDetailState: Equatable, Sendable, Stringable {
-  case initial(ListedPodcast)
-  case unsaved(UnsavedPodcast, episodes: IdentifiedArrayOf<UnsavedEpisode>)
-  case saved(PodcastSeriesDetail)
-
-  var savedSeries: PodcastSeriesDetail? {
-    guard case .saved(let series) = self else { return nil }
-    return series
-  }
-
-  var detailContent: PodcastDetailContent {
-    switch self {
-    case .initial(let listed): return PodcastDetailContent(initial: listed)
-    case .unsaved(let unsavedPodcast, _):
-      return PodcastDetailContent(loaded: DisplayedPodcast(unsavedPodcast))
-    case .saved(let series): return PodcastDetailContent(loaded: DisplayedPodcast(series.podcast))
-    }
-  }
-
-  var feedURL: FeedURL {
-    switch self {
-    case .initial(let listed): return listed.feedURL
-    case .unsaved(let unsavedPodcast, _): return unsavedPodcast.feedURL
-    case .saved(let series): return series.podcast.feedURL
-    }
-  }
-
-  var iTunesID: ITunesPodcastID? {
-    switch self {
-    case .initial(let listed): return listed.iTunesID
-    case .unsaved(let unsavedPodcast, _): return unsavedPodcast.iTunesID
-    case .saved(let series): return series.podcast.iTunesID
-    }
-  }
-
-  var toString: String {
-    switch self {
-    case .initial(let listed): return "initial(\(listed.toString))"
-    case .unsaved(let unsavedPodcast, let episodes):
-      return "unsaved(\(unsavedPodcast.toString), episodes: \(episodes.count))"
-    case .saved(let series): return "saved(\(series.toString))"
-    }
-  }
-}
-
 @Observable @MainActor
 class PodcastDetailViewModel:
   ManagingEpisodes,
@@ -178,8 +133,7 @@ class PodcastDetailViewModel:
     didSet {
       guard oldValue != currentSortMethod else { return }
       Self.log.debug("currentSortMethod: \(oldValue) → \(currentSortMethod)")
-      baseFilter = currentSortMethod.filterMethod
-      updateEpisodeFilter()
+      episodeListFilter.setBaseFilter(currentSortMethod.filterMethod)
       if currentSortMethod == .recommendationScore, lifecycle.isOnScreen {
         startRecommendationObservation()
       } else {
@@ -191,87 +145,15 @@ class PodcastDetailViewModel:
 
   // MARK: - Filter Text
 
-  // Mirrors EpisodesListView: the search field drives this debouncer rather
-  // than PowerList's built-in substring search. `allEntries` stays the full
-  // podcast so freshness, recommendation scoring, and counts keep seeing every
-  // episode; the active query only narrows `filteredEntries` via `searchFilter`.
   @ObservationIgnored lazy var filterDebouncer = StringDebouncer(
     debounceDuration: .milliseconds(400)
   ) { [weak self] filteredText in
     guard let self else { return }
-    filterText = filteredText
-    restartFilterObservation()
+    episodeListFilter.apply(text: filteredText)
   }
-  @ObservationIgnored private var filterText = ""
-
-  // `baseFilter` qualifies rows for the current sort/recommendation view;
-  // `searchFilter` is the active text query. They AND together so the two
-  // dimensions compose instead of overwriting each other.
-  @ObservationIgnored private var baseFilter: (@Sendable (ListedEpisode) -> Bool)?
-  @ObservationIgnored private var searchFilter: (@Sendable (ListedEpisode) -> Bool)?
-  @ObservationIgnored private var filterObservationTask: Task<Void, Never>?
-
-  private func updateEpisodeFilter() {
-    switch (baseFilter, searchFilter) {
-    case (nil, nil):
-      episodeList.filterMethod = nil
-    case (let base?, nil):
-      episodeList.filterMethod = base
-    case (nil, let search?):
-      episodeList.filterMethod = search
-    case (let base?, let search?):
-      episodeList.filterMethod = { base($0) && search($0) }
-    }
-  }
-
-  private func restartFilterObservation() {
-    filterObservationTask?.cancel()
-    filterObservationTask = nil
-
-    let text = filterText
-    guard !text.isEmpty else {
-      searchFilter = nil
-      updateEpisodeFilter()
-      return
-    }
-
-    guard let podcastID = state.savedSeries?.id else {
-      // Unsaved/preview episodes are not in the DB, but their in-memory rows
-      // carry the description, so match the same searchableString substring
-      // contract the saved FTS query covers.
-      let terms = text.lowercased().split(separator: /\s+/).map(String.init)
-      searchFilter = { episode in
-        let searchable = episode.searchableString.lowercased()
-        return terms.allSatisfy { searchable.contains($0) }
-      }
-      updateEpisodeFilter()
-      return
-    }
-
-    // Saved: reuse EpisodesListView's FTS path so episode title, description,
-    // and parent-podcast text all match, scoped to this podcast.
-    let filter = Episode.Columns.podcastId == podcastID && Episode.matchesText(allWordsIn: text)
-    filterObservationTask = Task { [weak self] in
-      guard let self else { return }
-      do {
-        for try await matches in observatory.listablePodcastEpisodes(filter: filter) {
-          try Task.checkCancellation()
-          let matchedIDs = Set(matches.map(\.id))
-          searchFilter = { episode in
-            guard let episodeID = episode.episodeID else { return false }
-            return matchedIDs.contains(episodeID)
-          }
-          updateEpisodeFilter()
-        }
-      } catch is CancellationError {
-      } catch {
-        Self.log.caughtError(
-          "restartFilterObservation: text filter failed for podcast \(podcastID)",
-          error
-        )
-      }
-    }
-  }
+  @ObservationIgnored private lazy var episodeListFilter = EpisodeListFilter(
+    episodeList: episodeList
+  )
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
@@ -481,11 +363,10 @@ class PodcastDetailViewModel:
     let values = pass.values
     switch pass.kind {
     case .saved:
-      baseFilter = { values[$0.mediaGUID] != nil }
+      episodeListFilter.setBaseFilter { values[$0.mediaGUID] != nil }
     case .unsaved:
-      baseFilter = currentSortMethod.filterMethod
+      episodeListFilter.setBaseFilter(currentSortMethod.filterMethod)
     }
-    updateEpisodeFilter()
     episodeList.sortMethod = { lhs, rhs in
       let lhsScore = values[lhs.mediaGUID] ?? 0
       let rhsScore = values[rhs.mediaGUID] ?? 0
@@ -657,8 +538,7 @@ class PodcastDetailViewModel:
     lifecycle.disappear()
     cancelShareArtworkLoad()
     recommendationCoordinator.cancel()
-    filterObservationTask?.cancel()
-    filterObservationTask = nil
+    episodeListFilter.cancel()
   }
 
   private func performAppear() async throws {
@@ -681,10 +561,7 @@ class PodcastDetailViewModel:
       refreshEpisodeList(from: state)
     }
     loadShareArtworkIfNeeded()
-
-    if !filterText.isEmpty {
-      restartFilterObservation()
-    }
+    episodeListFilter.refresh(podcastID: state.savedSeries?.id)
 
     if currentSortMethod == .recommendationScore {
       startRecommendationObservation()
@@ -959,11 +836,7 @@ class PodcastDetailViewModel:
     refreshEpisodeList(from: newState)
     loadShareArtworkIfNeeded()
     startObservation(newState.savedSeries?.id)
-    if !filterText.isEmpty {
-      // A saved↔unsaved transition swaps the matching strategy (FTS vs
-      // in-memory), so recompute the active query against the new state.
-      restartFilterObservation()
-    }
+    episodeListFilter.refresh(podcastID: newState.savedSeries?.id)
     if currentSortMethod == .recommendationScore {
       recommendationCoordinator.refresh()
     }

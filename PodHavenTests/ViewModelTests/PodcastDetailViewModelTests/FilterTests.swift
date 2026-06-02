@@ -6,11 +6,8 @@ import Testing
 
 @testable import PodHaven
 
-// The saved podcast detail filter routes through the same FTS5 query as
-// EpisodesListView (Episode.matchesText), so episode title, episode
-// description, and parent-podcast text all match — without widening the slim
-// `ListablePodcastEpisode` row model. Unsaved previews keep matching their
-// in-memory `searchableString`, which already carries the description.
+// Saved detail filters via FTS (title, description, parent-podcast text);
+// unsaved previews match their in-memory searchableString.
 @Suite("of PodcastDetailViewModel filter tests", .container)
 @MainActor final class FilterTests {
   @DynamicInjected(\.repo) private var repo
@@ -59,8 +56,7 @@ import Testing
     return viewModel
   }
 
-  // Regression: before the FTS switch this filtered to nothing because the slim
-  // row model exposes only title + podcast title to the in-memory search.
+  // Regression: a description-only word matched nothing before the FTS switch.
   @Test("saved detail filter matches a word only in the episode description")
   func savedDetailFilterMatchesDescriptionViaFTS() async throws {
     let series = try await makeSavedSeries()
@@ -104,8 +100,6 @@ import Testing
     )
   }
 
-  // The parent podcast's title matches every episode, just like the OR-on-the
-  // podcast-mirror clause in EpisodesListView's matchesText.
   @Test("saved detail filter matches the parent podcast title across all episodes")
   func savedDetailFilterMatchesParentPodcastTitle() async throws {
     let series = try await makeSavedSeries()
@@ -146,8 +140,6 @@ import Testing
     )
   }
 
-  // Unsaved previews aren't in the DB, so they keep matching their in-memory
-  // searchableString — which already includes the description.
   @Test("unsaved detail preview still matches a word in the episode description")
   func unsavedDetailFilterMatchesDescription() async throws {
     let viewModel = PodcastDetailViewModel(

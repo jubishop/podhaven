@@ -49,6 +49,7 @@ protocol Observing: Sendable {
     order: SQLOrdering?,
     limit: Int
   ) -> AsyncValueObservation<[ListablePodcastEpisode]>
+  func episodeIDs(filter: SQLExpression) -> AsyncValueObservation<[Episode.ID]>
 
   // MARK: - Queue
 
