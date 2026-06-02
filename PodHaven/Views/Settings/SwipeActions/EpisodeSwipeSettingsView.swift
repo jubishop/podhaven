@@ -50,6 +50,7 @@ struct EpisodeSwipeSettingsView: View {
     case .rate: .rateEpisode
     case .markFinished: .markEpisodeFinished
     case .cache: .cacheEpisode
+    case .saveInCache: .saveEpisodeInCache
     case .addTag: .addTag
     }
   }

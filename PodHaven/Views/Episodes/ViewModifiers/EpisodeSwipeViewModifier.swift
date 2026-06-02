@@ -26,7 +26,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
         leadingActions
       }
       .swipeActions(edge: .trailing) {
-        ForEach(userSettings.episodeSwipeActions, id: \.self) { action in
+        ForEach(renderedActions, id: \.self) { action in
           trailingAction(action)
         }
       }
@@ -98,10 +98,8 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
         }
 
     case .markFinished:
-      if !episode.finished {
-        AppIcon.markEpisodeFinished.imageButton {
-          viewModel.markEpisodeFinished(episode)
-        }
+      AppIcon.markEpisodeFinished.imageButton {
+        viewModel.markEpisodeFinished(episode)
       }
 
     case .cache:
@@ -111,24 +109,29 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
           viewModel.cacheEpisode(episode)
         }
       case .caching:
-        if viewModel.canClearCache(episode) {
-          AppIcon.cancelEpisodeDownload.imageButton {
-            viewModel.uncacheEpisode(episode)
-          }
+        AppIcon.cancelEpisodeDownload.imageButton {
+          viewModel.uncacheEpisode(episode)
         }
       case .cached:
-        if viewModel.canClearCache(episode) {
-          AppIcon.uncacheEpisode.imageButton {
-            viewModel.uncacheEpisode(episode)
-          }
+        AppIcon.uncacheEpisode.imageButton {
+          viewModel.uncacheEpisode(episode)
+        }
+      }
+
+    case .saveInCache:
+      if episode.saveInCache {
+        AppIcon.unsaveEpisodeFromCache.imageButton {
+          viewModel.unsaveEpisodeFromCache(episode)
+        }
+      } else {
+        AppIcon.saveEpisodeInCache.imageButton {
+          viewModel.saveEpisodeInCache(episode)
         }
       }
 
     case .addTag:
-      if !addableTags.isEmpty {
-        AppIcon.addTag.imageButton {
-          activeDialog = .tag
-        }
+      AppIcon.addTag.imageButton {
+        activeDialog = .tag
       }
     }
   }
@@ -164,6 +167,31 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
   }
 
   // MARK: - Helpers
+
+  // The configured actions that currently apply to this episode, in order.
+  // Falls back to Play/Pause so the swipe-left row is never empty — e.g. when
+  // the only configured action is Add Tag and no tags exist, or Mark Finished
+  // on an already-finished episode.
+  private var renderedActions: [UserSettings.EpisodeSwipeAction] {
+    let available = userSettings.episodeSwipeActions.filter(isAvailable)
+    return available.isEmpty ? [.playPause] : available
+  }
+
+  private func isAvailable(_ action: UserSettings.EpisodeSwipeAction) -> Bool {
+    switch action {
+    case .playPause, .rate, .saveInCache:
+      true
+    case .markFinished:
+      !episode.finished
+    case .cache:
+      switch episode.cacheStatus {
+      case .uncached: true
+      case .caching, .cached: viewModel.canClearCache(episode)
+      }
+    case .addTag:
+      !addableTags.isEmpty
+    }
+  }
 
   private var addableTags: [Tag] {
     guard let assigned = viewModel.tagIDs(for: episode) else { return [] }

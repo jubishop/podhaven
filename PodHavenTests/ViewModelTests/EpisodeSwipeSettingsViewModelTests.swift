@@ -83,6 +83,7 @@ import Testing
     #expect(!viewModel.addableActions.contains(.playPause))
     #expect(!viewModel.addableActions.contains(.rate))
     #expect(viewModel.addableActions.contains(.cache))
+    #expect(viewModel.addableActions.contains(.saveInCache))
     #expect(viewModel.addableActions.contains(.markFinished))
   }
 
