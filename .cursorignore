@@ -1,2 +1,2 @@
-# Claude Code reads CLAUDE.md (symlink to AGENTS.md). Cursor should use AGENTS.md only.
+# Claude Code: CLAUDE.md imports AGENTS.md. Cursor should use AGENTS.md only (ignore this stub).
 CLAUDE.md
