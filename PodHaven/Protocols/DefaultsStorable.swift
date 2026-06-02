@@ -36,6 +36,12 @@ extension Optional: DefaultsStorable where Wrapped: DefaultsStorable {
   }
 }
 
+// MARK: - Array Conformance
+
+// An array of storable, Codable elements persists as a single JSON blob via the
+// Codable default implementation below.
+extension Array: DefaultsStorable where Element: DefaultsStorable & Codable {}
+
 // MARK: - Codable Conformance
 
 extension DefaultsStorable where Self: Codable {
