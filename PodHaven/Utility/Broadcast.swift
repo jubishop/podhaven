@@ -33,6 +33,12 @@ extension BroadcastDuplicatePolicy where T: Equatable {
 // A thread-safe, observable value holder that broadcasts changes to multiple
 // async stream consumers and SwiftUI views.
 //
+// Observation timing is thread-conditional: a write on the main actor notifies
+// SwiftUI observers synchronously (matching the standard Observation contract,
+// so List edits land within the gesture transaction); a write off the main
+// actor notifies on the next main-actor turn, since it can't reach the main
+// actor synchronously. `onChange` persistence always runs synchronously.
+//
 // Usage:
 // ```swift
 // let broadcast = Broadcast<Int>(0)
@@ -131,12 +137,23 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
     notifyObservers(broadcastValue)
   }
 
-  // Hop to MainActor so SwiftUI picks up the change regardless of which thread mutated.
+  // Notify SwiftUI observers. A main-actor write notifies synchronously so the
+  // change lands within the current main-actor turn — matching the standard
+  // Observation contract and letting SwiftUI List edits (.onMove/.onDelete)
+  // observe the bound collection inside the gesture transaction. An off-main
+  // write can't synchronously touch the main actor, so it hops there on the
+  // next turn.
   private func notifyObservers(_ value: T) {
     onChange?(value)
-    Task { @MainActor [weak self] in
-      guard let self else { return }
-      registrar.withMutation(of: self, keyPath: \.current) {}
+    if Thread.isMainThread {
+      MainActor.assumeIsolated {
+        registrar.withMutation(of: self, keyPath: \.current) {}
+      }
+    } else {
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        registrar.withMutation(of: self, keyPath: \.current) {}
+      }
     }
   }
 
