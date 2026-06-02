@@ -188,9 +188,6 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
 
   static let subscribed: SQLExpression = Columns.subscriptionDate != nil
   static let unsubscribed: SQLExpression = Columns.subscriptionDate == nil
-  static func contains(_ pattern: String) -> SQLExpression {
-    Columns.title.lowercased.like(pattern) || Columns.description.lowercased.like(pattern)
-  }
 
   // MARK: - PodcastFilters
 
