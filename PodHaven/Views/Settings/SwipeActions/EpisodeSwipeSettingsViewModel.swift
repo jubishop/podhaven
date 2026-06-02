@@ -29,6 +29,7 @@ import SwiftUI
 
   func add(_ action: UserSettings.EpisodeSwipeAction) {
     guard actions.count < Self.maxActions, !actions.contains(action) else { return }
+    if action == .addTag, sharedState.tags.isEmpty { return }
     userSettings.$episodeSwipeActions.new(actions + [action])
   }
 

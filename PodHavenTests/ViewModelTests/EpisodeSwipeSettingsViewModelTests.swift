@@ -56,6 +56,27 @@ import Testing
     #expect(viewModel.actions == [.playPause, .rate, .cache])
   }
 
+  @Test("add ignores Add Tag when no tags exist")
+  func addIgnoresAddTagWithoutTags() {
+    let viewModel = EpisodeSwipeSettingsViewModel()
+
+    viewModel.add(.addTag)
+
+    #expect(viewModel.actions == [.playPause, .rate])
+  }
+
+  @Test("add appends Add Tag once a tag exists")
+  func addAppendsAddTagWithTag() async throws {
+    let viewModel = EpisodeSwipeSettingsViewModel()
+
+    let tag = try await repo.insertTag(UnsavedTag(name: "Listen Later"))
+    sharedState.setTags([tag])
+
+    viewModel.add(.addTag)
+
+    #expect(viewModel.actions == [.playPause, .rate, .addTag])
+  }
+
   @Test("delete removes an action but always keeps at least one")
   func deleteKeepsAtLeastOne() {
     let viewModel = EpisodeSwipeSettingsViewModel()
