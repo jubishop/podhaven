@@ -49,6 +49,8 @@ import SwiftUI
 
   // Keeps at least one action; an empty delete request is ignored.
   func delete(at offsets: IndexSet) {
+    guard !offsets.isEmpty else { return }
+
     var updated = actions
     updated.remove(atOffsets: offsets)
     guard !updated.isEmpty else { return }
