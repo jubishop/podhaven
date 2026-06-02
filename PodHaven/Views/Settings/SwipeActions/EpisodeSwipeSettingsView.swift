@@ -87,18 +87,21 @@ struct EpisodeSwipeSettingsView: View {
       .frame(height: 64)
     }
 
+    // Flexible placeholder content (no fixed widths) so the cell compresses to
+    // whatever space the action buttons leave, keeping every button fully on
+    // screen instead of letting the last one spill past the row's edge.
     private var episodeCell: some View {
       HStack(spacing: 10) {
         RoundedRectangle(cornerRadius: 6)
           .fill(.quaternary)
-          .frame(width: 40, height: 40)
+          .frame(width: 36, height: 36)
         VStack(alignment: .leading, spacing: 6) {
-          Capsule().fill(.quaternary).frame(width: 120, height: 9)
-          Capsule().fill(.quaternary).frame(width: 80, height: 9)
+          Capsule().fill(.quaternary).frame(height: 9)
+          Capsule().fill(.quaternary).frame(height: 9).padding(.trailing, 28)
         }
-        Spacer(minLength: 8)
+        Spacer(minLength: 0)
       }
-      .padding(.horizontal, 16)
+      .padding(.horizontal, 14)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(Color(.secondarySystemGroupedBackground))
     }
