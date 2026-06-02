@@ -38,7 +38,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
         ratingDialogButtons
       }
       .confirmationDialog(
-        "Add Tag",
+        "Tag",
         isPresented: dialogBinding(.tag),
         titleVisibility: .visible
       ) {
@@ -129,8 +129,8 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
         }
       }
 
-    case .addTag:
-      AppIcon.addTag.imageButton {
+    case .tag:
+      AppIcon.tag.imageButton {
         activeDialog = .tag
       }
     }
@@ -160,8 +160,13 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
 
   @ViewBuilder private var tagDialogButtons: some View {
     ForEach(addableTags) { tag in
-      Button(tag.name) {
+      Button("Add \(tag.name)") {
         viewModel.addTag(tag.id, to: episode)
+      }
+    }
+    ForEach(removableTags) { tag in
+      Button("Remove \(tag.name)", role: .destructive) {
+        viewModel.removeTag(tag.id, from: episode)
       }
     }
   }
@@ -170,7 +175,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
 
   // The configured actions that currently apply to this episode, in order.
   // Falls back to Play/Pause so the swipe-left row is never empty — e.g. when
-  // the only configured action is Add Tag and no tags exist, or Mark Finished
+  // the only configured action is Tag and no tags exist, or Mark Finished
   // on an already-finished episode.
   private var renderedActions: [UserSettings.EpisodeSwipeAction] {
     let available = userSettings.episodeSwipeActions.filter(isAvailable)
@@ -188,14 +193,19 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
       case .uncached: true
       case .caching, .cached: viewModel.canClearCache(episode)
       }
-    case .addTag:
-      !addableTags.isEmpty
+    case .tag:
+      !addableTags.isEmpty || !removableTags.isEmpty
     }
   }
 
   private var addableTags: [Tag] {
     guard let assigned = viewModel.tagIDs(for: episode) else { return [] }
     return sharedState.tags.filter { !assigned.contains($0.id) }
+  }
+
+  private var removableTags: [Tag] {
+    guard let assigned = viewModel.tagIDs(for: episode) else { return [] }
+    return sharedState.tags.filter { assigned.contains($0.id) }
   }
 
   private func dialogBinding(_ dialog: Dialog) -> Binding<Bool> {

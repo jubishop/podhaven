@@ -51,30 +51,30 @@ import Testing
     viewModel.add(.markFinished)
     #expect(viewModel.actions.count == EpisodeSwipeSettingsViewModel.maxActions)
 
-    viewModel.add(.addTag)
+    viewModel.add(.tag)
 
     #expect(viewModel.actions == [.playPause, .rate, .cache])
   }
 
-  @Test("add ignores Add Tag when no tags exist")
-  func addIgnoresAddTagWithoutTags() {
+  @Test("add ignores Tag when no tags exist")
+  func addIgnoresTagWithoutTags() {
     let viewModel = EpisodeSwipeSettingsViewModel()
 
-    viewModel.add(.addTag)
+    viewModel.add(.tag)
 
     #expect(viewModel.actions == [.playPause, .rate])
   }
 
-  @Test("add appends Add Tag once a tag exists")
-  func addAppendsAddTagWithTag() async throws {
+  @Test("add appends Tag once a tag exists")
+  func addAppendsTagWithTag() async throws {
     let viewModel = EpisodeSwipeSettingsViewModel()
 
     let tag = try await repo.insertTag(UnsavedTag(name: "Listen Later"))
     sharedState.setTags([tag])
 
-    viewModel.add(.addTag)
+    viewModel.add(.tag)
 
-    #expect(viewModel.actions == [.playPause, .rate, .addTag])
+    #expect(viewModel.actions == [.playPause, .rate, .tag])
   }
 
   @Test("delete removes an action but always keeps at least one")
@@ -118,14 +118,14 @@ import Testing
     #expect(viewModel.addableActions.isEmpty)
   }
 
-  @Test("addableActions hides Add Tag until a tag exists")
-  func addTagHiddenUntilTagExists() async throws {
+  @Test("addableActions hides Tag until a tag exists")
+  func tagHiddenUntilTagExists() async throws {
     let viewModel = EpisodeSwipeSettingsViewModel()
-    #expect(!viewModel.addableActions.contains(.addTag))
+    #expect(!viewModel.addableActions.contains(.tag))
 
     let tag = try await repo.insertTag(UnsavedTag(name: "Listen Later"))
     sharedState.setTags([tag])
 
-    #expect(viewModel.addableActions.contains(.addTag))
+    #expect(viewModel.addableActions.contains(.tag))
   }
 }

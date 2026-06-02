@@ -14,7 +14,7 @@ import SwiftUI
     userSettings.episodeSwipeActions
   }
 
-  // Actions not yet selected, gating "Add Tag" on at least one tag existing.
+  // Actions not yet selected, gating "Tag" on at least one tag existing.
   // Empty once the maximum is reached.
   var addableActions: [UserSettings.EpisodeSwipeAction] {
     guard actions.count < Self.maxActions else { return [] }
@@ -22,14 +22,14 @@ import SwiftUI
     let selected = Set(actions)
     return UserSettings.EpisodeSwipeAction.allCases.filter { action in
       guard !selected.contains(action) else { return false }
-      if action == .addTag { return !sharedState.tags.isEmpty }
+      if action == .tag { return !sharedState.tags.isEmpty }
       return true
     }
   }
 
   func add(_ action: UserSettings.EpisodeSwipeAction) {
     guard actions.count < Self.maxActions, !actions.contains(action) else { return }
-    if action == .addTag, sharedState.tags.isEmpty { return }
+    if action == .tag, sharedState.tags.isEmpty { return }
     userSettings.$episodeSwipeActions.new(actions + [action])
   }
 
