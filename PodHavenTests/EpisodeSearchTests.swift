@@ -2,7 +2,6 @@
 
 import FactoryKit
 import Foundation
-import GRDB
 import Testing
 
 @testable import PodHaven
@@ -13,10 +12,9 @@ class EpisodeSearchTests {
   @DynamicInjected(\.repo) private var repo
 
   private func searchIDs(_ text: String) async throws -> Set<Episode.ID> {
-    let pattern = try #require(FTS5Pattern(matchingAllPrefixesIn: text))
     let results =
       try await observatory
-      .listablePodcastEpisodes(filter: Episode.matchesText(pattern))
+      .listablePodcastEpisodes(filter: Episode.matchesText(allWordsIn: text))
       .get()
     return Set(results.map(\.id))
   }
@@ -98,6 +96,27 @@ class EpisodeSearchTests {
     #expect(!ids.contains(onlyOne.id))
   }
 
+  @Test("matches when typed words span the episode and its podcast")
+  func matchesWordsAcrossEpisodeAndPodcast() async throws {
+    let target = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Tech Talk"),
+        unsavedEpisode: try Create.unsavedEpisode(guid: "ep-cross", title: "Daily News")
+      )
+    )
+    let other = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Sports Hour"),
+        unsavedEpisode: try Create.unsavedEpisode(guid: "ep-sports", title: "Daily News")
+      )
+    )
+
+    let ids = try await searchIDs("tech daily")
+
+    #expect(ids.contains(target.id))
+    #expect(!ids.contains(other.id))
+  }
+
   @Test("returns nothing when no episode matches")
   func excludesNonMatches() async throws {
     _ = try await Create.podcastEpisode(
@@ -109,29 +128,68 @@ class EpisodeSearchTests {
     #expect(ids.isEmpty)
   }
 
+  private func upsertEpisode(
+    feedURL: FeedURL,
+    mediaURL: MediaURL,
+    podcastTitle: String,
+    episodeTitle: String
+  ) async throws -> Episode.ID {
+    try await repo.upsertPodcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: podcastTitle),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "ep-rename",
+          mediaURL: mediaURL,
+          title: episodeTitle
+        )
+      )
+    )
+    .id
+  }
+
   @Test("reflects an episode title change from a feed refresh")
   func reflectsTitleUpdateFromFeed() async throws {
     let feedURL = FeedURL(URL.valid())
     let media = MediaURL(URL.valid())
 
-    func upsert(title: String) async throws -> Episode.ID {
-      try await repo.upsertPodcastEpisode(
-        UnsavedPodcastEpisode(
-          unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Tech Pod"),
-          unsavedEpisode: try Create.unsavedEpisode(
-            guid: "ep-rename",
-            mediaURL: media,
-            title: title
-          )
-        )
-      )
-      .id
-    }
-
-    let episodeID = try await upsert(title: "Original Headline")
+    let episodeID = try await upsertEpisode(
+      feedURL: feedURL,
+      mediaURL: media,
+      podcastTitle: "Tech Pod",
+      episodeTitle: "Original Headline"
+    )
     #expect(try await searchIDs("original").contains(episodeID))
 
-    let updatedID = try await upsert(title: "Refreshed Headline")
+    let updatedID = try await upsertEpisode(
+      feedURL: feedURL,
+      mediaURL: media,
+      podcastTitle: "Tech Pod",
+      episodeTitle: "Refreshed Headline"
+    )
+    #expect(updatedID == episodeID)
+    #expect(try await searchIDs("refreshed").contains(episodeID))
+    #expect(!(try await searchIDs("original").contains(episodeID)))
+  }
+
+  @Test("reflects a podcast title change from a feed refresh")
+  func reflectsPodcastTitleUpdateFromFeed() async throws {
+    let feedURL = FeedURL(URL.valid())
+    let media = MediaURL(URL.valid())
+
+    let episodeID = try await upsertEpisode(
+      feedURL: feedURL,
+      mediaURL: media,
+      podcastTitle: "Original Network",
+      episodeTitle: "Episode One"
+    )
+    #expect(try await searchIDs("original").contains(episodeID))
+
+    let updatedID = try await upsertEpisode(
+      feedURL: feedURL,
+      mediaURL: media,
+      podcastTitle: "Refreshed Network",
+      episodeTitle: "Episode One"
+    )
     #expect(updatedID == episodeID)
     #expect(try await searchIDs("refreshed").contains(episodeID))
     #expect(!(try await searchIDs("original").contains(episodeID)))

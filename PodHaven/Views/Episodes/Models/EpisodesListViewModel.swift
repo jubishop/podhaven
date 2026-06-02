@@ -96,10 +96,7 @@ class EpisodesListViewModel:
   // MARK: - Filter Text
 
   private var textSearchFilter: SQLExpression {
-    guard let pattern = FTS5Pattern(matchingAllPrefixesIn: filterText) else {
-      return AppDB.noOp
-    }
-    return Episode.matchesText(pattern)
+    Episode.matchesText(allWordsIn: filterText)
   }
 
   private var filterText = ""
