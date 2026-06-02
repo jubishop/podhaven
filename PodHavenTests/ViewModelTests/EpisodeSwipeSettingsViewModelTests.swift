@@ -118,6 +118,19 @@ import Testing
     #expect(notified())
   }
 
+  // The first configured action lands at the trailing (right) edge, so the
+  // left-to-right preview reverses the configuration order.
+  @Test("previewActions reverses the configured order")
+  func previewActionsReversesOrder() {
+    let viewModel = EpisodeSwipeSettingsViewModel()
+
+    #expect(viewModel.previewActions == [.rate, .playPause])
+
+    viewModel.add(.cache)
+
+    #expect(viewModel.previewActions == [.cache, .rate, .playPause])
+  }
+
   @Test("addableActions excludes already-selected actions")
   func addableExcludesSelected() {
     let viewModel = EpisodeSwipeSettingsViewModel()

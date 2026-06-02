@@ -35,6 +35,21 @@ struct EpisodeSwipeSettingsView: View {
           }
         }
       }
+
+      Section {
+        SwipePreview(actions: viewModel.previewActions)
+          .listRowInsets(EdgeInsets())
+      } header: {
+        Text("Preview")
+      } footer: {
+        Text(
+          """
+          Swiping an episode from right to left reveals these actions. \
+          The action at the top of the list appears on the far right, \
+          where a full swipe triggers it.
+          """
+        )
+      }
     }
     .navigationTitle("Swipe Left Actions")
     .toolbar {
@@ -52,6 +67,56 @@ struct EpisodeSwipeSettingsView: View {
     case .cache: .cacheEpisode
     case .saveInCache: .saveEpisodeInCache
     case .tag: .tag
+    }
+  }
+
+  // A mock episode row frozen mid-swipe: a placeholder cell on the left with
+  // the configured actions revealed on the right, in their on-screen order.
+  private struct SwipePreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let actions: [UserSettings.EpisodeSwipeAction]
+
+    var body: some View {
+      HStack(spacing: 0) {
+        episodeCell
+        ForEach(actions) { action in
+          button(for: action)
+        }
+      }
+      .frame(height: 64)
+    }
+
+    private var episodeCell: some View {
+      HStack(spacing: 10) {
+        RoundedRectangle(cornerRadius: 6)
+          .fill(.quaternary)
+          .frame(width: 40, height: 40)
+        VStack(alignment: .leading, spacing: 6) {
+          Capsule().fill(.quaternary).frame(width: 120, height: 9)
+          Capsule().fill(.quaternary).frame(width: 80, height: 9)
+        }
+        Spacer(minLength: 8)
+      }
+      .padding(.horizontal, 16)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(Color(.secondarySystemGroupedBackground))
+    }
+
+    private func button(for action: UserSettings.EpisodeSwipeAction) -> some View {
+      let icon = EpisodeSwipeSettingsView.icon(for: action)
+      return VStack(spacing: 4) {
+        icon.rawImage
+        Text(action.title)
+          .font(.caption2)
+          .lineLimit(1)
+          .minimumScaleFactor(0.6)
+      }
+      .foregroundStyle(.white)
+      .padding(.horizontal, 4)
+      .frame(width: 76)
+      .frame(maxHeight: .infinity)
+      .background(icon.color(for: colorScheme))
     }
   }
 }

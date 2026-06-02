@@ -24,6 +24,14 @@ import SwiftUI
     actions = Container.shared.userSettings().episodeSwipeActions
   }
 
+  // The configured actions laid out left-to-right as a swipe reveals them.
+  // SwiftUI fills trailing-edge swipe actions from the trailing edge inward,
+  // so the first configured action is rightmost (and the full-swipe action);
+  // reverse to read the row left-to-right for the preview.
+  var previewActions: [UserSettings.EpisodeSwipeAction] {
+    actions.reversed()
+  }
+
   // Actions not yet selected, gating "Tag" on at least one tag existing.
   // Empty once the maximum is reached.
   var addableActions: [UserSettings.EpisodeSwipeAction] {
