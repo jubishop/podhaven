@@ -211,7 +211,7 @@ struct PodcastDetailView: View {
     }
     .safeAreaInset(edge: .top, spacing: 0) {
       SearchBar(
-        text: $viewModel.episodeList.entryFilter,
+        text: $viewModel.filterDebouncer.currentValue,
         prompt: "Filter episodes",
         searchIcon: .search
       )
