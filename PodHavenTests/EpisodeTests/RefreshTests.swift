@@ -13,6 +13,7 @@ import Testing
 class EpisodeRefreshTests {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.userSettings) private var userSettings
 
   @Test("that a series with new episodes can be refreshed")
   func refreshSeriesWithNewEpisodes() async throws {
@@ -288,5 +289,79 @@ class EpisodeRefreshTests {
       Set(try Episode.all().queued().fetchAll(db).map(\.title))
     }
     #expect(queuedTitles == ["older", "newer"])
+  }
+
+  @Test(
+    "auto-queue limit evicts the podcast's oldest to admit a newer episode when the queue is full"
+  )
+  func autoQueueLimitSwapsOldestWhenQueueFull() async throws {
+    // Global queue holds only two episodes; the podcast keeps its two newest.
+    userSettings.$maxQueueLength.new(2)
+
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(queueAllEpisodes: .onBottom, autoQueueLimit: 2),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(title: "oldest", pubDate: 300.minutesAgo),
+          try Create.unsavedEpisode(title: "middle", pubDate: 200.minutesAgo),
+        ]
+      )
+    )
+    // Fill the queue to its max with the podcast's two existing episodes.
+    try await queue.append(podcastSeries.episodes.map(\.id))
+
+    // A refresh brings a newer episode while the queue is already full.
+    let newEpisodes = try await repo.updateSeriesFromFeed(
+      podcastSeries: podcastSeries,
+      podcast: nil,
+      unsavedEpisodes: [try Create.unsavedEpisode(title: "newest", pubDate: 100.minutesAgo)],
+      existingEpisodes: []
+    )
+    #expect(newEpisodes.count == 1)
+
+    // The oldest is evicted to make room; the two newest remain queued.
+    let queuedTitles = try await repo.db.read { db in
+      Set(try Episode.all().queued().fetchAll(db).map(\.title))
+    }
+    #expect(queuedTitles == ["middle", "newest"])
+  }
+
+  @Test("auto-queue limit on top evicts the podcast's own oldest, not another podcast's, when full")
+  func autoQueueLimitOnTopEvictsOwnOldestWhenQueueFull() async throws {
+    userSettings.$maxQueueLength.new(3)
+
+    // An unrelated podcast with one queued episode that must be left alone.
+    let other = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: "other", pubDate: 500.minutesAgo)]
+      )
+    )
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(queueAllEpisodes: .onTop, autoQueueLimit: 2),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(title: "oldest", pubDate: 300.minutesAgo),
+          try Create.unsavedEpisode(title: "middle", pubDate: 200.minutesAgo),
+        ]
+      )
+    )
+    // Fill the queue to its max of three: the other podcast plus this one's two.
+    try await queue.append(other.episodes.map(\.id))
+    try await queue.append(podcastSeries.episodes.map(\.id))
+
+    // A refresh brings a newer episode for the limited podcast while full.
+    _ = try await repo.updateSeriesFromFeed(
+      podcastSeries: podcastSeries,
+      podcast: nil,
+      unsavedEpisodes: [try Create.unsavedEpisode(title: "newest", pubDate: 100.minutesAgo)],
+      existingEpisodes: []
+    )
+
+    // The unrelated podcast keeps its episode; the limited podcast keeps its two newest.
+    let queuedTitles = try await repo.db.read { db in
+      Set(try Episode.all().queued().fetchAll(db).map(\.title))
+    }
+    #expect(queuedTitles == ["other", "middle", "newest"])
   }
 }
