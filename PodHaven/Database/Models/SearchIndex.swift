@@ -3,7 +3,7 @@
 import GRDB
 
 // External-content FTS5 mirrors of `episode` and `podcast`, kept in sync by
-// triggers created in the v47 migration. Their `rowid` equals the source row's
+// triggers created in the v48 migration. Their `rowid` equals the source row's
 // `id`, so a MATCH subquery resolves straight back to episode/podcast ids.
 
 enum EpisodeFTS: TableRecord {
