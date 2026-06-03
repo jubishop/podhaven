@@ -525,7 +525,7 @@ final class PlayManager {
     }
   }
 
-  func saveInCache(_ episodeID: Episode.ID) async {
+  private func saveInCache(_ episodeID: Episode.ID) async {
     Self.log.debug("saveInCache: \(episodeID)")
     do {
       try await repo.updateSaveInCache(episodeID, saveInCache: true)
@@ -540,7 +540,7 @@ final class PlayManager {
     }
   }
 
-  func removeFromCache(_ episodeID: Episode.ID) async {
+  private func removeFromCache(_ episodeID: Episode.ID) async {
     Self.log.debug("removeFromCache: \(episodeID)")
     do {
       try await repo.updateSaveInCache(episodeID, saveInCache: false)
