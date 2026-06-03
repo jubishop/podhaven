@@ -15,6 +15,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
@@ -77,6 +78,7 @@ import SwiftUI
     case recentlyAdded
     case mostRecentlyQueued
     case leastRecentlyQueued
+    case recommendationScore
 
     var appIcon: AppIcon {
       switch self {
@@ -90,10 +92,14 @@ import SwiftUI
         return .sortByMostRecentlyQueued
       case .leastRecentlyQueued:
         return .sortByLeastRecentlyQueued
+      case .recommendationScore:
+        return .sortByRecommendationScore
       }
     }
 
-    var sortMethod: (ListablePodcastEpisode, ListablePodcastEpisode) -> Bool {
+    // Nil for recommendationScore: scoring is async, so `sort(by:)` resolves
+    // the order off the engine's score map rather than a synchronous comparator.
+    var sortMethod: ((ListablePodcastEpisode, ListablePodcastEpisode) -> Bool)? {
       switch self {
       case .newestFirst:
         return { lhs, rhs in lhs.pubDate > rhs.pubDate }
@@ -113,6 +119,8 @@ import SwiftUI
           let rhsDate = rhs.queueDate ?? rhs.creationDate
           return lhsDate < rhsDate
         }
+      case .recommendationScore:
+        return nil
       }
     }
   }
@@ -335,8 +343,26 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        let sortedEpisodes = episodeList.allEntries.sorted(by: method.sortMethod)
-        try await queue.updateQueueOrders(sortedEpisodes.map(\.id))
+        let entries = episodeList.allEntries
+        let orderedIDs: [Episode.ID]
+        if let comparator = method.sortMethod {
+          orderedIDs = entries.sorted(by: comparator).map(\.id)
+        } else {
+          let scores = try await recommendationEngine.recommendationScores(
+            forEpisodeIDs: entries.map(\.id)
+          )
+          orderedIDs =
+            entries
+            .sorted { lhs, rhs in
+              let lhsScore = scores[lhs.id] ?? 0
+              let rhsScore = scores[rhs.id] ?? 0
+              if lhsScore != rhsScore { return lhsScore > rhsScore }
+              if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
+              return lhs.id > rhs.id
+            }
+            .map(\.id)
+        }
+        try await queue.updateQueueOrders(orderedIDs)
       } catch {
         Self.log.caughtError("sort: failed to sort queue by \(method)", error)
         guard ErrorKit.isRemarkable(error) else { return }

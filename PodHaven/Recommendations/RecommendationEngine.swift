@@ -251,6 +251,20 @@ struct RecommendationEngine: Sendable {
     }
   }
 
+  // Scores arbitrary saved episodes by ID, ignoring the candidate gate — the
+  // queue sort scores already-queued episodes, which are by definition not
+  // candidates. IDs without an embedding are omitted from the result map.
+  func recommendationScores(
+    forEpisodeIDs episodeIDs: [Episode.ID]
+  ) async throws -> [Episode.ID: Float] {
+    let episodes = try await recommendationRepo.episodes(for: episodeIDs)
+    return try await recommendationScores(
+      for: episodes.map {
+        CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
+      }
+    )
+  }
+
   // Returns nil if the episode doesn't exist, has no embedding, or the
   // cache is cold.
   func recommendation(for episodeID: Episode.ID) async throws -> RecommendationScore? {
