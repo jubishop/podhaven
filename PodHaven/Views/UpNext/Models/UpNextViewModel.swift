@@ -97,32 +97,39 @@ import SwiftUI
       }
     }
 
-    // Nil for recommendationScore: scoring is async, so `sort(by:)` resolves
-    // the order off the engine's score map rather than a synchronous comparator.
-    var sortMethod: ((ListablePodcastEpisode, ListablePodcastEpisode) -> Bool)? {
+    var sortStrategy: SortStrategy {
       switch self {
       case .newestFirst:
-        return { lhs, rhs in lhs.pubDate > rhs.pubDate }
+        return .comparator { lhs, rhs in lhs.pubDate > rhs.pubDate }
       case .oldestFirst:
-        return { lhs, rhs in lhs.pubDate < rhs.pubDate }
+        return .comparator { lhs, rhs in lhs.pubDate < rhs.pubDate }
       case .recentlyAdded:
-        return { lhs, rhs in lhs.creationDate > rhs.creationDate }
+        return .comparator { lhs, rhs in lhs.creationDate > rhs.creationDate }
       case .mostRecentlyQueued:
-        return { lhs, rhs in
+        return .comparator { lhs, rhs in
           let lhsDate = lhs.queueDate ?? lhs.creationDate
           let rhsDate = rhs.queueDate ?? rhs.creationDate
           return lhsDate > rhsDate
         }
       case .leastRecentlyQueued:
-        return { lhs, rhs in
+        return .comparator { lhs, rhs in
           let lhsDate = lhs.queueDate ?? lhs.creationDate
           let rhsDate = rhs.queueDate ?? rhs.creationDate
           return lhsDate < rhsDate
         }
       case .recommendationScore:
-        return nil
+        return .recommendationScore
       }
     }
+  }
+
+  // A sort either runs a synchronous comparator over the loaded rows or defers
+  // to the recommendation engine's async score map. Modeling the two explicitly
+  // keeps `sort(by:)` from treating "no comparator" as an implicit signal for
+  // recommendation scoring.
+  enum SortStrategy {
+    case comparator((ListablePodcastEpisode, ListablePodcastEpisode) -> Bool)
+    case recommendationScore
   }
 
   // recommendationScore is hidden until the engine's scoring cache is warm:
@@ -355,9 +362,10 @@ import SwiftUI
       do {
         let entries = episodeList.allEntries
         let orderedIDs: [Episode.ID]
-        if let comparator = method.sortMethod {
+        switch method.sortStrategy {
+        case .comparator(let comparator):
           orderedIDs = entries.sorted(by: comparator).map(\.id)
-        } else {
+        case .recommendationScore:
           let scores = try await recommendationEngine.unscaledRecommendationScores(
             forEpisodeIDs: entries.map(\.id)
           )
