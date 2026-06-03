@@ -35,9 +35,11 @@ import GRDB
   }
 
   // A saved↔unsaved transition swaps the matching strategy, so the active query
-  // is recomputed against the new podcast. The id is stored unconditionally so
-  // a later query resolves against the current state.
+  // is recomputed against the new podcast. Same-podcast updates leave the query
+  // unchanged — the live observation already tracks the DB — so they must not
+  // tear it down and restart it.
   func refresh(podcastID: Podcast.ID?) {
+    guard self.podcastID != podcastID else { return }
     self.podcastID = podcastID
     guard !filterText.isEmpty else { return }
     restart()

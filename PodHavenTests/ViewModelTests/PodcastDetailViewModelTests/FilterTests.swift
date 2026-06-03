@@ -10,7 +10,22 @@ import Testing
 // unsaved previews match their in-memory searchableString.
 @Suite("of PodcastDetailViewModel filter tests", .container)
 @MainActor final class FilterTests {
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
+
+  private var fakeObservatory: FakeObservatory { observatory as! FakeObservatory }
+
+  private func yieldForSpuriousAsyncWork() async throws {
+    let yields = ThreadSafe(0)
+    try await Wait.until(
+      { @MainActor in
+        await Task.yield()
+        yields { $0 += 1 }
+        return yields() >= 20
+      },
+      { "Expected to finish yielding before asserting no FTS restart occurred." }
+    )
+  }
 
   private static let podcastTitleToken = "kaleidoscope"
   private static let episodeTitleToken = "tangerine"
@@ -185,5 +200,42 @@ import Testing
         """
       }
     )
+  }
+
+  // Regression: with a filter active, an unrelated series update (here a
+  // settings change) re-fires the series observation and drives a same-podcast
+  // transition. The live FTS observation must not be torn down and recreated,
+  // since it already tracks the DB — restarting it on every series update is
+  // wasted work.
+  @Test("saved detail filter does not restart the FTS observation on same-podcast updates")
+  func savedDetailFilterDoesNotRestartFTSOnSamePodcastUpdate() async throws {
+    let series = try await makeSavedSeries()
+    let viewModel = try await appearedViewModel(for: series)
+
+    viewModel.filterDebouncer.currentValue = Self.episodeTitleToken
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.count == 1 },
+      { @MainActor in
+        "Expected the episode-title filter to match before mutating; got \(viewModel.episodeList.filteredEntries.count)"
+      }
+    )
+
+    fakeObservatory.clearAllCalls()
+    var newSettings = viewModel.settings ?? .defaults
+    newSettings.notifyNewEpisodes = true
+    try await repo.updatePodcastSettings(series.podcast.id, newSettings)
+
+    try await Wait.until(
+      { @MainActor in viewModel.settings?.notifyNewEpisodes == true },
+      { @MainActor in
+        """
+        Expected the settings update to land via the series observation.
+        notifyNewEpisodes: \(String(describing: viewModel.settings?.notifyNewEpisodes))
+        """
+      }
+    )
+    try await yieldForSpuriousAsyncWork()
+
+    _ = try fakeObservatory.expectCalls(methodName: "episodeIDs", count: 0)
   }
 }
