@@ -33,6 +33,8 @@ status: active | resolved   # project notes only; omit on other types
 
 The filename (e.g. `my_topic.md`) does not need to match `name`; cross-links use the frontmatter `name` slug.
 
+This schema applies to memory **pages**. Tool-managed review ledgers under `pr_reviews/` are exempt — they keep the `/review` and `/prfix` skill frontmatter; see [PR review ledgers](#pr-review-ledgers).
+
 Types:
 
 - `user`: user facts and preferences.
@@ -54,4 +56,8 @@ Use `[[page-name]]` to cross-link pages.
 
 ## Archive
 
-When a note is no longer relevant for day-to-day lookup — resolved incidents, superseded guidance, outdated context — move it to `memory/archive/`. Archived notes stay in git for history but are excluded from `qmd` indexing so stale pages do not compete with live notes in search.
+When a note is no longer relevant for day-to-day lookup — resolved incidents, superseded guidance, outdated context — move it to `memory/archive/` with `status: resolved`. Archived notes stay in git for history but are excluded from `qmd` indexing — the `memory` collection ignores `archive/**` — so stale pages do not compete with live notes in search.
+
+## PR review ledgers
+
+`memory/pr_reviews/<pr-number>.md` files are tool-managed review ledgers written by the `/review` and `/prfix` skills. They use those skills' own frontmatter (`pr`, `title`, `branch`, `base`, `repo`) rather than the page schema above, and are excluded from `qmd` indexing — the `memory` collection ignores `pr_reviews/**` alongside `archive/**`. Don't reformat them to the page schema or hand-edit them; the skills own their lifecycle.

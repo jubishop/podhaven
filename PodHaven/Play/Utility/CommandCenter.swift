@@ -34,6 +34,7 @@ enum CommandCenter: Sendable {
     case changePlaybackRate(Float)
     case nextEpisode
     case previousEpisode
+    case bookmark(sourceEpisodeID: Episode.ID?)
   }
 
   private static let log = Log.as(LogSubsystem.Play.commandCenter)
@@ -62,6 +63,7 @@ enum CommandCenter: Sendable {
     commandCenter.changePlaybackRate.removeCommandTarget()
     commandCenter.nextTrack.removeCommandTarget()
     commandCenter.previousTrack.removeCommandTarget()
+    commandCenter.bookmark.removeCommandTarget()
 
     commandCenter.play.addCommandTarget { event in
       yield(.play)
@@ -119,6 +121,12 @@ enum CommandCenter: Sendable {
       yield(.previousEpisode)
       return .success
     }
+    commandCenter.bookmark.localizedTitle = "Save in Cache"
+    commandCenter.bookmark.localizedShortTitle = "Save"
+    commandCenter.bookmark.addCommandTarget { event in
+      yield(.bookmark(sourceEpisodeID: Container.shared.sharedState().$onDeck.value?.id))
+      return .success
+    }
 
     commandCenter.play.isEnabled = true
     commandCenter.pause.isEnabled = true
@@ -126,14 +134,24 @@ enum CommandCenter: Sendable {
     commandCenter.skipForward.isEnabled = true
     commandCenter.skipBackward.isEnabled = true
     commandCenter.changePlaybackRate.isEnabled = true
+    commandCenter.bookmark.isEnabled = true
     commandCenter.like.isEnabled = false
     commandCenter.dislike.isEnabled = false
-    commandCenter.bookmark.isEnabled = false
     commandCenter.rating.isEnabled = false
 
     updateSkipIntervals()
     updateNextTrack()
     updateScrubbing()
+    updateBookmark()
+  }
+
+  static func updateBookmark() {
+    let saveInCache = Container.shared.sharedState().$onDeck.value?.saveInCache ?? false
+    let bookmark = Container.shared.mpRemoteCommandCenter().bookmark
+    guard bookmark.isActive != saveInCache else { return }
+
+    log.debug("updateBookmark: bookmark isActive: \(saveInCache)")
+    bookmark.isActive = saveInCache
   }
 
   static func updateScrubbing() {
