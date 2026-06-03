@@ -851,6 +851,38 @@ import Testing
     #expect(updateCall.parameters == expectedOrder)
   }
 
+  // Issue #411: because UpNext persists the sort, the rec-score option stays
+  // hidden until the engine's scoring cache is warm (a cold cache would score
+  // everything 0 and scramble the saved queue). The base options are always
+  // offered.
+  @Test("recommendationScore sort option appears only once the scoring cache is warm")
+  func recommendationScoreSortHiddenUntilScoringCacheWarms() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Signal") { return [1, 0, 0] }
+      return [0, 0, 1]
+    }
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let viewModel = UpNextViewModel()
+
+    // Engine not started yet: cache cold, option hidden, base options present.
+    #expect(viewModel.allSortMethods.contains(.newestFirst))
+    #expect(!viewModel.allSortMethods.contains(.recommendationScore))
+
+    // Warming the engine flips the observable flag and reveals the option.
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signals)
+    #expect(viewModel.allSortMethods.contains(.recommendationScore))
+  }
+
   private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
     try await repo.db.read { db in
       let episode =

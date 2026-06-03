@@ -124,7 +124,17 @@ import SwiftUI
       }
     }
   }
-  let allSortMethods = SortMethod.allCases
+
+  // recommendationScore is hidden until the engine's scoring cache is warm:
+  // a cold cache scores everything 0, and unlike the other sort sites UpNext
+  // persists the result, so offering it cold would scramble the saved queue.
+  // Reading the engine's observable flag here keeps the menu reactive without
+  // mirroring it into local state.
+  var allSortMethods: [SortMethod] {
+    SortMethod.allCases.filter {
+      $0 != .recommendationScore || recommendationEngine.hasScoringContext
+    }
+  }
 
   // MARK: - Initialization
 
@@ -351,6 +361,9 @@ import SwiftUI
           let scores = try await recommendationEngine.recommendationScores(
             forEpisodeIDs: entries.map(\.id)
           )
+          // No scores (cold cache, or no queued row is embedded yet): leave the
+          // persisted queue untouched rather than reorder it by tiebreakers.
+          guard !scores.isEmpty else { return }
           orderedIDs =
             entries
             .sorted { lhs, rhs in

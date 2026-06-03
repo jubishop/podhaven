@@ -165,11 +165,14 @@ struct RecommendationEngine: Sendable {
   // to know when to re-score; the value itself is uninteresting.
   @Broadcasted var scoringRevision: Int = 0
 
+  // True once a non-nil scoring context is cached, false when a rebuild yields
+  // none. Observable so SwiftUI surfaces that persist a recommendation ordering
+  // can hide the option while scoring would be meaningless.
+  @Broadcasted var hasScoringContext: Bool = false
+
   fileprivate init() {}
 
   // MARK: - Public API
-
-  var hasScoringContext: Bool { cache() != nil }
 
   // Idempotent. Public scoring methods do NOT auto-call `start()` — they
   // read whatever the cache currently has and return empty when it's nil.
@@ -534,6 +537,7 @@ struct RecommendationEngine: Sendable {
 
         try Task.checkCancellation()
         cache(context)
+        $hasScoringContext.new(context != nil)
         $scoringRevision.update { $0 += 1 }
         scheduleRecommendationsRebuild()
       } catch {
