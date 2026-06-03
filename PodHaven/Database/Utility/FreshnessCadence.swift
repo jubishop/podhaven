@@ -25,8 +25,8 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   // Upper bounds on the *median* inter-episode gap, in hours. Each ceiling
   // sits far enough above its cadence's nominal publish period that a show
   // publishing at that cadence lands inside its own band despite jitter.
-  private static let hourlyMaxMedianHours: Double = 3
-  private static let twiceDailyMaxMedianHours: Double = 16
+  private static let hourlyMaxMedianHours: Double = 1.5
+  private static let twiceDailyMaxMedianHours: Double = 18
   private static let dailyMaxMedianHours: Double = 36
   private static let twiceWeeklyMaxMedianHours: Double = 126
   private static let weeklyMaxMedianHours: Double = 252
@@ -45,10 +45,10 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   }
 
   // Half-life for FreshnessSignal's hyperbolic decay, in hours. Evergreen returns nil — no decay.
-  var halfLifeHours: Int? {
+  var halfLifeHours: Double? {
     switch self {
-    case .hourly: 3
-    case .twiceDaily: 16
+    case .hourly: 1.5
+    case .twiceDaily: 18
     case .daily: 36
     case .twiceWeekly: 126
     case .weekly: 252

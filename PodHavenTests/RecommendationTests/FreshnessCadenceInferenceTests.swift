@@ -33,7 +33,7 @@ struct FreshnessCadenceInferenceTests {
 
   @Test("infers .daily for shows publishing every 1-2 days")
   func detectsDailyCadence() {
-    // Daily band is (16h, 36h]: a once-a-day cadence (24h) lands squarely here.
+    // Daily band is (18h, 36h]: a once-a-day cadence (24h) lands squarely here.
     let weekdayNews = dates(daysAgo: [0, 1, 2, 3, 6, 7, 8, 9, 10])
     #expect(FreshnessCadence.infer(from: weekdayNews) == .daily)
 
