@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 
 // Stored on Podcast as Optional — `nil` means "auto", resolved lazily via
-// `infer(from:now:)` against the show's episode pubDates.
+// `infer(from:)` against the show's episode pubDates.
 enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, CaseIterable {
   case hourly
   case twiceDaily
@@ -21,11 +21,6 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   // callers (e.g. the Observatory's SQL window query) bound their fetch to
   // the same window without diverging from in-memory callers.
   static let inferenceMaxSamples = 100
-
-  // Past this long without a new episode, treat the show as evergreen
-  // regardless of historical spacing — catches wrapped-up serials and
-  // archives where freshness is meaningless even if the median gap was weekly.
-  private static let dormantThresholdHours: Double = 120 * 24
 
   // Upper bounds on the *median* inter-episode gap, in hours. Each ceiling
   // sits far enough above its cadence's nominal publish period that a show
@@ -62,15 +57,13 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
     }
   }
 
-  static func infer(from pubDates: [Date], now: Date = Date()) -> FreshnessCadence {
+  // Inference is purely a function of the median inter-episode gap; episode
+  // recency is deliberately ignored, so a show that published weekly for years
+  // and then went quiet stays .weekly rather than decaying into .evergreen.
+  static func infer(from pubDates: [Date]) -> FreshnessCadence {
     guard pubDates.count >= 3 else { return .default }
 
     let sorted = Array(pubDates.sorted().suffix(inferenceMaxSamples))
-    guard let mostRecent = sorted.last else { return .default }
-    if now.timeIntervalSince(mostRecent) > dormantThresholdHours * 3600 {
-      return .evergreen
-    }
-
     var gaps = [Double](capacity: sorted.count - 1)
     for index in 1..<sorted.count {
       gaps.append(sorted[index].timeIntervalSince(sorted[index - 1]) / 3600)

@@ -137,12 +137,12 @@ actor ObservatoryScoringContextInputsTests {
     #expect(inputs.freshnessCadences[podcast.id] == .weekly)
   }
 
-  @Test("infers evergreen for dormant podcasts past the threshold")
-  func infersEvergreenForDormant() async throws {
+  @Test("infers from spacing for dormant podcasts, ignoring episode recency")
+  func infersFromSpacingForDormant() async throws {
     let now = Date()
     let podcast = try await insertPodcast(title: "Wrapped Serial")
-    // Most recent episode is 200 days old → past the 180-day dormancy
-    // threshold even though historical spacing was weekly.
+    // Most recent episode is 200 days old, but historical spacing was weekly.
+    // Recency is irrelevant: a dormant weekly show stays .weekly.
     for index in 0..<5 {
       _ = try await upsertEpisode(
         podcast: podcast,
@@ -152,7 +152,7 @@ actor ObservatoryScoringContextInputsTests {
     }
 
     let inputs = try await observatory.scoringContextInputsWithoutPartialSignals().get()
-    #expect(inputs.freshnessCadences[podcast.id] == .evergreen)
+    #expect(inputs.freshnessCadences[podcast.id] == .weekly)
   }
 
   @Test("falls back to default cadence with insufficient pubDates")
