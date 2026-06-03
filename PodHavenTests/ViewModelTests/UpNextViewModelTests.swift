@@ -779,6 +779,147 @@ import Testing
     )
   }
 
+  // Issue #411: UpNext gains a recommendation-score sort that persists the
+  // reordered queue. Unlike the EpisodesList/PodcastDetail rec sorts, the
+  // queued episodes are not candidates (they're queued), so the engine must
+  // score them anyway and the new order has to land in the DB.
+  @Test("recommendationScore sort persists the queue in score-descending order")
+  func recommendationScoreSortPersistsScoreDescendingOrder() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Filler") { return [0, 0, 1] }
+      if text.contains("Signal") { return [1, 0, 0] }
+      if text.contains("Target 0") { return [0.2, 0.98, 0] }
+      if text.contains("Target 1") { return [0.4, 0.917, 0] }
+      if text.contains("Target 2") { return [0.6, 0.8, 0] }
+      if text.contains("Target 3") { return [0.8, 0.6, 0] }
+      if text.contains("Target") { return [0, 1, 0] }
+      return [0, 0, 1]
+    }
+
+    let (_, fillers) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 10,
+      podcastTitle: "Filler",
+      podcastDescription: "Filler",
+      episodeDescriptions: Array(repeating: "Filler", count: 10),
+      ratings: Array(repeating: .notInterested, count: 10)
+    )
+    try await RecommendationHelpers.embedEpisodes(fillers, embeddable: embeddable)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    // Spread the queued episodes across two podcasts so the sort has to look
+    // up each row's own podcastID for the engine's affinity/freshness inputs.
+    let (_, podcastA) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target A",
+      podcastDescription: "Target A",
+      episodeDescriptions: ["Target 0", "Target 3"]
+    )
+    try await RecommendationHelpers.embedEpisodes(podcastA, embeddable: embeddable)
+
+    let (_, podcastB) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Target B",
+      podcastDescription: "Target B",
+      episodeDescriptions: ["Target 1", "Target 2"]
+    )
+    try await RecommendationHelpers.embedEpisodes(podcastB, embeddable: embeddable)
+
+    let targets = podcastA + podcastB
+    let scoreMap = try await RecommendationHelpers.startAndWaitForScores(for: targets)
+    let expectedOrder =
+      targets
+      .sorted { lhs, rhs in
+        let lhsScore = scoreMap[lhs.id]?.value ?? 0
+        let rhsScore = scoreMap[rhs.id]?.value ?? 0
+        if lhsScore != rhsScore { return lhsScore > rhsScore }
+        if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
+        return lhs.id > rhs.id
+      }
+      .map(\.id)
+
+    // Queue the targets in their original (non-score) order so a successful
+    // sort has to actually reorder the persisted queue.
+    let queuedOrder = targets.map(\.id)
+    try #require(
+      expectedOrder != queuedOrder,
+      "Score order matched the initial queue order; the test wouldn't prove the sort applied."
+    )
+    try await queue.append(queuedOrder)
+    sharedState.setQueuedPodcastEpisodes(try await fetchListables(queuedOrder))
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.map(\.id) == queuedOrder },
+      { @MainActor in
+        "Queue didn't hydrate in append order, got \(viewModel.episodeList.allEntries.map(\.id))"
+      }
+    )
+
+    viewModel.sort(by: .recommendationScore)
+
+    try await Wait.until(
+      { @MainActor in try await self.persistedQueueOrder(of: queuedOrder) == expectedOrder },
+      { @MainActor in
+        """
+        Expected persisted queue in score order \(expectedOrder), \
+        got \(try await self.persistedQueueOrder(of: queuedOrder))
+        """
+      }
+    )
+
+    let fakeQueue = try #require(queue as? FakeQueue)
+    let updateCall = try fakeQueue.expectCall(
+      methodName: "updateQueueOrders",
+      parameters: [Episode.ID].self
+    )
+    #expect(updateCall.parameters == expectedOrder)
+  }
+
+  // Issue #411: because UpNext persists the sort, the rec-score option stays
+  // hidden until the engine's scoring cache is warm (a cold cache would score
+  // everything 0 and scramble the saved queue). The base options are always
+  // offered.
+  @Test("recommendationScore sort option appears only once the scoring cache is warm")
+  func recommendationScoreSortHiddenUntilScoringCacheWarms() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Signal") { return [1, 0, 0] }
+      return [0, 0, 1]
+    }
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
+    let viewModel = UpNextViewModel()
+
+    // Engine not started yet: cache cold, option hidden, base options present.
+    #expect(viewModel.allSortMethods.contains(.newestFirst))
+    #expect(!viewModel.allSortMethods.contains(.recommendationScore))
+
+    // Warming the engine flips the observable flag and reveals the option.
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signals)
+    #expect(viewModel.allSortMethods.contains(.recommendationScore))
+  }
+
   private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
     try await repo.db.read { db in
       let episode =
@@ -787,5 +928,22 @@ import Testing
         .fetchOne(db)
       return try #require(episode)
     }
+  }
+
+  private func fetchListables(_ ids: [Episode.ID]) async throws -> [ListablePodcastEpisode] {
+    try await repo.db.read { db in
+      let byID =
+        try ListablePodcastEpisode
+        .request(filter: ids.contains(Episode.Columns.id))
+        .fetchAll(db)
+        .reduce(into: [Episode.ID: ListablePodcastEpisode]()) { $0[$1.id] = $1 }
+      return ids.compactMap { byID[$0] }
+    }
+  }
+
+  private func persistedQueueOrder(of ids: [Episode.ID]) async throws -> [Episode.ID] {
+    try await fetchListables(ids)
+      .sorted { ($0.queueOrder ?? Int.max) < ($1.queueOrder ?? Int.max) }
+      .map(\.id)
   }
 }
