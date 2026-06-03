@@ -191,10 +191,15 @@ struct SettingsView: View {
               position; the skip buttons and the progress display stay available.
               """
           ) {
-            Toggle(
-              "Command Center Scrubbing",
-              isOn: userSettings.$commandCenterScrubbingEnabled.binding
-            )
+            VStack(alignment: .leading, spacing: 24) {
+              Text("Command Center Scrubbing")
+              Toggle(
+                "Command Center Scrubbing",
+                isOn: userSettings.$commandCenterScrubbingEnabled.binding
+              )
+              .labelsHidden()
+            }
+            Spacer(minLength: 0)
           }
         }
 
@@ -427,9 +432,9 @@ struct SettingsView: View {
               """
           ) {
             VStack(alignment: .leading, spacing: 24) {
-              Text("Auto-play Top Recommendation")
+              Text("Auto-play Recommendation")
               Toggle(
-                "Auto-play Top Recommendation",
+                "Auto-play Recommendation",
                 isOn: userSettings.$autoPlayTopRecommendationWhenQueueEmpty.binding
               )
               .labelsHidden()
