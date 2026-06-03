@@ -118,19 +118,27 @@ struct Queue: Queueing {
     guard episodeIDs.count > 1 else { return }
 
     try await writer.write { db in
-      let maxQueueOrder =
+      let queuedIDs = Set(
         try Episode
-        .select(max(Episode.Columns.queueOrder), as: Int.self)
-        .fetchOne(db) ?? -1
+          .all()
+          .queued()
+          .select(Episode.Columns.id, as: Episode.ID.self)
+          .fetchAll(db)
+      )
 
-      guard maxQueueOrder == episodeIDs.count - 1 else {
-        Assert.fatal(
+      // The order is computed from a snapshot taken before the (possibly slow,
+      // async) sort. If the live queue changed underneath us — e.g. a dequeue
+      // from playback completion landing during a recommendation-score sort —
+      // skip rather than corrupting queueOrder or crashing the dense-sequence
+      // invariant.
+      guard Set(episodeIDs) == queuedIDs else {
+        Self.log.error(
           """
-          Queue reordering requires all queued episodes
-            Expected max queueOrder: \(episodeIDs.count - 1)
-            Actual max queueOrder: \(maxQueueOrder)
+          queue: skipping reorder — the \(episodeIDs.count) supplied ids no longer \
+          match the \(queuedIDs.count) queued episodes
           """
         )
+        return
       }
 
       for (index, episodeID) in episodeIDs.enumerated() {

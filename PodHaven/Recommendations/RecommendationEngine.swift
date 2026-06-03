@@ -245,6 +245,9 @@ struct RecommendationEngine: Sendable {
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
   }
 
+  // Display-scaled, like `recommendations(for:)` — the top candidate reads as
+  // 1.0. Use `unscaledRecommendationScores(forEpisodeIDs:)` when ordering rather
+  // than displaying.
   func recommendationScores(
     for candidates: [CandidateEpisode]
   ) async throws -> [Episode.ID: Float] {
@@ -256,16 +259,23 @@ struct RecommendationEngine: Sendable {
 
   // Scores arbitrary saved episodes by ID, ignoring the candidate gate — the
   // queue sort scores already-queued episodes, which are by definition not
-  // candidates. IDs without an embedding are omitted from the result map.
-  func recommendationScores(
+  // candidates. Unlike the display-scaled scorers, returns raw scores: callers
+  // here only order by them, and the display rescale clamps every value above
+  // the candidate-pool anchor to 1.0, which would collapse the ordering of the
+  // highest-scoring queued episodes into a tie. IDs without an embedding are
+  // omitted from the result map.
+  func unscaledRecommendationScores(
     forEpisodeIDs episodeIDs: [Episode.ID]
   ) async throws -> [Episode.ID: Float] {
     let episodes = try await recommendationRepo.episodes(for: episodeIDs)
-    return try await recommendationScores(
-      for: episodes.map {
-        CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
-      }
-    )
+    guard
+      let (scores, _) = try await scoredCandidates(
+        episodes.map {
+          CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
+        }
+      )
+    else { return [:] }
+    return scores.mapValues(\.value)
   }
 
   // Returns nil if the episode doesn't exist, has no embedding, or the

@@ -358,7 +358,7 @@ import SwiftUI
         if let comparator = method.sortMethod {
           orderedIDs = entries.sorted(by: comparator).map(\.id)
         } else {
-          let scores = try await recommendationEngine.recommendationScores(
+          let scores = try await recommendationEngine.unscaledRecommendationScores(
             forEpisodeIDs: entries.map(\.id)
           )
           // No scores (cold cache, or no queued row is embedded yet): leave the

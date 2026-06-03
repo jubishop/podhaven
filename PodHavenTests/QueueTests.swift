@@ -450,6 +450,34 @@ class QueueTests {
     #expect(finalGUIDs == ["top", "midtop", "middle", "midbottom", "bottom"])
   }
 
+  // A recommendation-score sort snapshots the queue, then awaits scoring before
+  // persisting. If an episode is dequeued (e.g. playback completion) during that
+  // await, the supplied id list no longer matches the live queue. The reorder
+  // must skip rather than crash on the dense-sequence invariant.
+  @Test("updateQueueOrders skips a stale reorder after a concurrent dequeue")
+  func updateQueueOrdersSkipsStaleReorderAfterDequeue() async throws {
+    let topEpisode = try await fetchEpisode("top")
+    let midtopEpisode = try await fetchEpisode("midtop")
+    let middleEpisode = try await fetchEpisode("middle")
+    let midbottomEpisode = try await fetchEpisode("midbottom")
+    let bottomEpisode = try await fetchEpisode("bottom")
+
+    // Order computed from the full-queue snapshot, but a dequeue lands first.
+    let staleOrder = [
+      bottomEpisode.id, midbottomEpisode.id, middleEpisode.id, midtopEpisode.id, topEpisode.id,
+    ]
+    try await queue.dequeue(bottomEpisode.id)
+
+    // Live queue is now ["top", "midtop", "middle", "midbottom"]; the stale order
+    // still references the dequeued "bottom", so this must no-op rather than crash.
+    try await queue.updateQueueOrders(staleOrder)
+
+    let finalGUIDs = try await fetchGUIDs()
+    #expect(finalGUIDs == ["top", "midtop", "middle", "midbottom"])
+    let finalOrder = try await fetchOrder()
+    #expect(finalOrder == [0, 1, 2, 3])
+  }
+
   @Test("appending episodes is no-op when queue is full")
   func testAppendNoOpWhenQueueFull() async throws {
     // Set max queue length to 5 (current queue size)
