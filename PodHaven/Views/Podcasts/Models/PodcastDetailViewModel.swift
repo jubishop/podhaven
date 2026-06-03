@@ -10,51 +10,6 @@ import SwiftUI
 import Tagged
 import UIKit
 
-enum PodcastDetailState: Equatable, Sendable, Stringable {
-  case initial(ListedPodcast)
-  case unsaved(UnsavedPodcast, episodes: IdentifiedArrayOf<UnsavedEpisode>)
-  case saved(PodcastSeriesDetail)
-
-  var savedSeries: PodcastSeriesDetail? {
-    guard case .saved(let series) = self else { return nil }
-    return series
-  }
-
-  var detailContent: PodcastDetailContent {
-    switch self {
-    case .initial(let listed): return PodcastDetailContent(initial: listed)
-    case .unsaved(let unsavedPodcast, _):
-      return PodcastDetailContent(loaded: DisplayedPodcast(unsavedPodcast))
-    case .saved(let series): return PodcastDetailContent(loaded: DisplayedPodcast(series.podcast))
-    }
-  }
-
-  var feedURL: FeedURL {
-    switch self {
-    case .initial(let listed): return listed.feedURL
-    case .unsaved(let unsavedPodcast, _): return unsavedPodcast.feedURL
-    case .saved(let series): return series.podcast.feedURL
-    }
-  }
-
-  var iTunesID: ITunesPodcastID? {
-    switch self {
-    case .initial(let listed): return listed.iTunesID
-    case .unsaved(let unsavedPodcast, _): return unsavedPodcast.iTunesID
-    case .saved(let series): return series.podcast.iTunesID
-    }
-  }
-
-  var toString: String {
-    switch self {
-    case .initial(let listed): return "initial(\(listed.toString))"
-    case .unsaved(let unsavedPodcast, let episodes):
-      return "unsaved(\(unsavedPodcast.toString), episodes: \(episodes.count))"
-    case .saved(let series): return "saved(\(series.toString))"
-    }
-  }
-}
-
 @Observable @MainActor
 class PodcastDetailViewModel:
   ManagingEpisodes,
@@ -94,8 +49,7 @@ class PodcastDetailViewModel:
   // MARK: - SelectableEpisodeList & SortableEpisodeList
 
   var episodeList = PowerList<ListedEpisode>(
-    sortMethod: SortMethod.newestFirst.sortMethod,
-    debounceDuration: .milliseconds(250)
+    sortMethod: SortMethod.newestFirst.sortMethod
   )
 
   enum SortMethod: SortingMethod {
@@ -179,7 +133,7 @@ class PodcastDetailViewModel:
     didSet {
       guard oldValue != currentSortMethod else { return }
       Self.log.debug("currentSortMethod: \(oldValue) → \(currentSortMethod)")
-      episodeList.filterMethod = currentSortMethod.filterMethod
+      episodeListFilter.setBaseFilter(currentSortMethod.filterMethod)
       if currentSortMethod == .recommendationScore, lifecycle.isOnScreen {
         startRecommendationObservation()
       } else {
@@ -188,6 +142,18 @@ class PodcastDetailViewModel:
       }
     }
   }
+
+  // MARK: - Filter Text
+
+  @ObservationIgnored lazy var filterDebouncer = StringDebouncer(
+    debounceDuration: .milliseconds(400)
+  ) { [weak self] filteredText in
+    guard let self else { return }
+    episodeListFilter.apply(text: filteredText)
+  }
+  @ObservationIgnored private lazy var episodeListFilter = EpisodeListFilter(
+    episodeList: episodeList
+  )
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
@@ -397,9 +363,9 @@ class PodcastDetailViewModel:
     let values = pass.values
     switch pass.kind {
     case .saved:
-      episodeList.filterMethod = { values[$0.mediaGUID] != nil }
+      episodeListFilter.setBaseFilter { values[$0.mediaGUID] != nil }
     case .unsaved:
-      episodeList.filterMethod = currentSortMethod.filterMethod
+      episodeListFilter.setBaseFilter(currentSortMethod.filterMethod)
     }
     episodeList.sortMethod = { lhs, rhs in
       let lhsScore = values[lhs.mediaGUID] ?? 0
@@ -572,6 +538,7 @@ class PodcastDetailViewModel:
     lifecycle.disappear()
     cancelShareArtworkLoad()
     recommendationCoordinator.cancel()
+    episodeListFilter.cancel()
   }
 
   private func performAppear() async throws {
@@ -594,6 +561,8 @@ class PodcastDetailViewModel:
       refreshEpisodeList(from: state)
     }
     loadShareArtworkIfNeeded()
+    episodeListFilter.refresh(podcastID: state.savedSeries?.id)
+    episodeListFilter.resume()
 
     if currentSortMethod == .recommendationScore {
       startRecommendationObservation()
@@ -868,6 +837,7 @@ class PodcastDetailViewModel:
     refreshEpisodeList(from: newState)
     loadShareArtworkIfNeeded()
     startObservation(newState.savedSeries?.id)
+    episodeListFilter.refresh(podcastID: newState.savedSeries?.id)
     if currentSortMethod == .recommendationScore {
       recommendationCoordinator.refresh()
     }
