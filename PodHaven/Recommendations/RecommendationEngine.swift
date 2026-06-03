@@ -193,7 +193,7 @@ struct RecommendationEngine: Sendable {
         break
       case .recommendations:
         Self.log.debug("Running deferred recommendations rebuild on foreground")
-        scheduleRecommendationsRebuild()
+        scheduleTopRecommendationsRebuild()
       case .cache:
         Self.log.debug("Running deferred cache rebuild on foreground")
         scheduleCacheRebuild()
@@ -487,7 +487,7 @@ struct RecommendationEngine: Sendable {
       for await _ in userSettings.$podcastAffinityWeight.stream().dropFirst() {
         guard !Task.isCancelled else { return }
         $scoringRevision.update { $0 += 1 }
-        scheduleRecommendationsRebuild()
+        scheduleTopRecommendationsRebuild()
       }
     }
   }
@@ -539,14 +539,14 @@ struct RecommendationEngine: Sendable {
         cache(context)
         $hasScoringContext.new(context != nil)
         $scoringRevision.update { $0 += 1 }
-        scheduleRecommendationsRebuild()
+        scheduleTopRecommendationsRebuild()
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)
       }
     }
   }
 
-  private func scheduleRecommendationsRebuild() {
+  private func scheduleTopRecommendationsRebuild() {
     guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
       Self.log.debug("Recommendations rebuild deferred — app backgrounded")
       return
