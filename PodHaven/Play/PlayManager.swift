@@ -502,6 +502,23 @@ final class PlayManager {
     return nil
   }
 
+  // MARK: - Cache
+
+  func saveInCache(_ episodeID: Episode.ID) async {
+    Self.log.debug("saveInCache: \(episodeID)")
+    do {
+      try await repo.updateSaveInCache(episodeID, saveInCache: true)
+    } catch {
+      Self.log.caughtError("saveInCache: failed to set saveInCache for episode \(episodeID)", error)
+      return
+    }
+    do {
+      try await cacheManager.downloadToCache(for: episodeID)
+    } catch {
+      Self.log.caughtError("saveInCache: failed to cache episode \(episodeID)", error)
+    }
+  }
+
   // MARK: - Remote Scrub Suppression
 
   // After an AirPods-triggered pause, fire snapshots every 5s for 45s so the

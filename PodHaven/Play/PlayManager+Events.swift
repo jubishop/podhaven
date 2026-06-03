@@ -454,6 +454,12 @@ extension PlayManager {
           case .nextChapter:
             await seekToPreviousChapter()
           }
+        case .bookmark(let sourceEpisodeID):
+          guard let sourceEpisodeID else {
+            Self.log.debug("bookmark command received with no on-deck episode, ignoring")
+            continue
+          }
+          await saveInCache(sourceEpisodeID)
         }
       }
     }

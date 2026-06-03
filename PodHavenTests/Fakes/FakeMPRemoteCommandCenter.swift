@@ -180,4 +180,8 @@ final class FakeMPRemoteCommandCenter: MPRemoteCommandableCenter {
   func firePreviousTrack() {
     _previousTrackCommand.fire(FakeMPRemoteCommandEvent())
   }
+
+  func fireBookmark() {
+    _bookmarkCommand.fire(FakeMPRemoteCommandEvent())
+  }
 }
