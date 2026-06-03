@@ -504,6 +504,27 @@ final class PlayManager {
 
   // MARK: - Cache
 
+  func toggleSaveInCache(_ episodeID: Episode.ID) async {
+    let alreadySaved: Bool
+    do {
+      guard let episode = try await repo.episode(episodeID) else {
+        Self.log.warning("toggleSaveInCache: episode \(episodeID) not found")
+        return
+      }
+      alreadySaved = episode.saveInCache
+    } catch {
+      Self.log.caughtError("toggleSaveInCache: failed to load episode \(episodeID)", error)
+      return
+    }
+    Self.log.debug("toggleSaveInCache: \(episodeID) alreadySaved: \(alreadySaved)")
+
+    if alreadySaved {
+      await removeFromCache(episodeID)
+    } else {
+      await saveInCache(episodeID)
+    }
+  }
+
   func saveInCache(_ episodeID: Episode.ID) async {
     Self.log.debug("saveInCache: \(episodeID)")
     do {
@@ -516,6 +537,24 @@ final class PlayManager {
       try await cacheManager.downloadToCache(for: episodeID)
     } catch {
       Self.log.caughtError("saveInCache: failed to cache episode \(episodeID)", error)
+    }
+  }
+
+  func removeFromCache(_ episodeID: Episode.ID) async {
+    Self.log.debug("removeFromCache: \(episodeID)")
+    do {
+      try await repo.updateSaveInCache(episodeID, saveInCache: false)
+    } catch {
+      Self.log.caughtError(
+        "removeFromCache: failed to unset saveInCache for episode \(episodeID)",
+        error
+      )
+      return
+    }
+    do {
+      try await cacheManager.clearCache(for: episodeID)
+    } catch {
+      Self.log.caughtError("removeFromCache: failed to clear cache for episode \(episodeID)", error)
     }
   }
 

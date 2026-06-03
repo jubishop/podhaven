@@ -35,6 +35,12 @@ protocol MPChangePlaybackRateCommandable: MPRemoteCommandable {
   var supportedPlaybackRates: [NSNumber] { get set }
 }
 
+protocol MPFeedbackCommandable: MPRemoteCommandable {
+  var isActive: Bool { get set }
+  var localizedTitle: String { get set }
+  var localizedShortTitle: String { get set }
+}
+
 protocol MPRemoteCommandableCenter {
   var play: any MPRemoteCommandable { get }
   var pause: any MPRemoteCommandable { get }
@@ -45,8 +51,8 @@ protocol MPRemoteCommandableCenter {
   var nextTrack: any MPRemoteCommandable { get }
   var previousTrack: any MPRemoteCommandable { get }
   var changePlaybackRate: any MPChangePlaybackRateCommandable { get }
-  var like: any MPRemoteCommandable { get }
-  var dislike: any MPRemoteCommandable { get }
-  var bookmark: any MPRemoteCommandable { get }
+  var like: any MPFeedbackCommandable { get }
+  var dislike: any MPFeedbackCommandable { get }
+  var bookmark: any MPFeedbackCommandable { get }
   var rating: any MPRemoteCommandable { get }
 }

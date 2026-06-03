@@ -459,7 +459,7 @@ extension PlayManager {
             Self.log.debug("bookmark command received with no on-deck episode, ignoring")
             continue
           }
-          await saveInCache(sourceEpisodeID)
+          await toggleSaveInCache(sourceEpisodeID)
         }
       }
     }
@@ -561,6 +561,15 @@ extension PlayManager {
       for await _ in sharedState.$queuedPodcastEpisodes.stream() {
         Self.log.debug("queue changed, count: \(sharedState.queueCount)")
         handleTrackBehaviorChange()
+      }
+    }
+
+    // onDeck re-emits whenever the current episode's row changes (including
+    // saveInCache from any source), keeping the bookmark's active state in sync.
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await _ in sharedState.$onDeck.stream() {
+        CommandCenter.updateBookmark()
       }
     }
   }

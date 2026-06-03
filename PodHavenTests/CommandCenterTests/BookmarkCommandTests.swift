@@ -27,9 +27,10 @@ import Testing
     PlayHelpers.setupCommandHandling()
   }
 
-  @Test("bookmark command is enabled")
+  @Test("bookmark command is enabled with a Save title")
   func bookmarkCommandIsEnabled() async throws {
     #expect(mpRemoteCommandCenter.bookmark.isEnabled == true)
+    #expect(mpRemoteCommandCenter.bookmark.localizedTitle == "Save")
   }
 
   @Test("bookmark saves the on-deck episode in the cache")
@@ -47,5 +48,46 @@ import Testing
       { "Expected on-deck episode to be saved in cache after bookmark" }
     )
     try await CacheHelpers.waitForDownloading(podcastEpisode.id)
+  }
+
+  @Test("bookmark toggles a saved on-deck episode back out of the cache")
+  func bookmarkTogglesSavedEpisodeOff() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await PlayHelpers.load(podcastEpisode)
+
+    mpRemoteCommandCenter.fireBookmark()
+    try await Wait.until(
+      { try await self.repo.episode(podcastEpisode.id)?.saveInCache == true },
+      { "Expected on-deck episode to be saved after first bookmark" }
+    )
+
+    mpRemoteCommandCenter.fireBookmark()
+    try await Wait.until(
+      { try await self.repo.episode(podcastEpisode.id)?.saveInCache == false },
+      { "Expected on-deck episode to be unsaved after second bookmark" }
+    )
+  }
+
+  @Test("bookmark isActive reflects whether the on-deck episode is saved")
+  func bookmarkIsActiveReflectsSavedState() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await PlayHelpers.load(podcastEpisode)
+    #expect(mpRemoteCommandCenter.bookmark.isActive == false)
+
+    mpRemoteCommandCenter.fireBookmark()
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.bookmark.isActive == true },
+      { "Expected bookmark isActive to become true after saving" }
+    )
+
+    mpRemoteCommandCenter.fireBookmark()
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.bookmark.isActive == false },
+      { "Expected bookmark isActive to become false after unsaving" }
+    )
   }
 }

@@ -121,6 +121,8 @@ enum CommandCenter: Sendable {
       yield(.previousEpisode)
       return .success
     }
+    commandCenter.bookmark.localizedTitle = "Save"
+    commandCenter.bookmark.localizedShortTitle = "Save"
     commandCenter.bookmark.addCommandTarget { event in
       yield(.bookmark(sourceEpisodeID: Container.shared.sharedState().$onDeck.value?.id))
       return .success
@@ -140,6 +142,16 @@ enum CommandCenter: Sendable {
     updateSkipIntervals()
     updateNextTrack()
     updateScrubbing()
+    updateBookmark()
+  }
+
+  static func updateBookmark() {
+    let saveInCache = Container.shared.sharedState().$onDeck.value?.saveInCache ?? false
+    let bookmark = Container.shared.mpRemoteCommandCenter().bookmark
+    guard bookmark.isActive != saveInCache else { return }
+
+    log.debug("updateBookmark: bookmark isActive: \(saveInCache)")
+    bookmark.isActive = saveInCache
   }
 
   static func updateScrubbing() {
