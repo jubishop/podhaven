@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 
 // Stored on Podcast as Optional — `nil` means "auto", resolved lazily via
-// `infer(from:now:)` against the show's episode pubDates.
+// `infer(from:)` against the show's episode pubDates.
 enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, CaseIterable {
   case hourly
   case twiceDaily
@@ -22,16 +22,11 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   // the same window without diverging from in-memory callers.
   static let inferenceMaxSamples = 100
 
-  // Past this long without a new episode, treat the show as evergreen
-  // regardless of historical spacing — catches wrapped-up serials and
-  // archives where freshness is meaningless even if the median gap was weekly.
-  private static let dormantThresholdHours: Double = 120 * 24
-
   // Upper bounds on the *median* inter-episode gap, in hours. Each ceiling
   // sits far enough above its cadence's nominal publish period that a show
   // publishing at that cadence lands inside its own band despite jitter.
-  private static let hourlyMaxMedianHours: Double = 3
-  private static let twiceDailyMaxMedianHours: Double = 16
+  private static let hourlyMaxMedianHours: Double = 1.5
+  private static let twiceDailyMaxMedianHours: Double = 18
   private static let dailyMaxMedianHours: Double = 36
   private static let twiceWeeklyMaxMedianHours: Double = 126
   private static let weeklyMaxMedianHours: Double = 252
@@ -50,10 +45,10 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   }
 
   // Half-life for FreshnessSignal's hyperbolic decay, in hours. Evergreen returns nil — no decay.
-  var halfLifeHours: Int? {
+  var halfLifeHours: Double? {
     switch self {
-    case .hourly: 3
-    case .twiceDaily: 16
+    case .hourly: 1.5
+    case .twiceDaily: 18
     case .daily: 36
     case .twiceWeekly: 126
     case .weekly: 252
@@ -62,15 +57,13 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
     }
   }
 
-  static func infer(from pubDates: [Date], now: Date = Date()) -> FreshnessCadence {
+  // Inference is purely a function of the median inter-episode gap; episode
+  // recency is deliberately ignored, so a show that published weekly for years
+  // and then went quiet stays .weekly rather than decaying into .evergreen.
+  static func infer(from pubDates: [Date]) -> FreshnessCadence {
     guard pubDates.count >= 3 else { return .default }
 
     let sorted = Array(pubDates.sorted().suffix(inferenceMaxSamples))
-    guard let mostRecent = sorted.last else { return .default }
-    if now.timeIntervalSince(mostRecent) > dormantThresholdHours * 3600 {
-      return .evergreen
-    }
-
     var gaps = [Double](capacity: sorted.count - 1)
     for index in 1..<sorted.count {
       gaps.append(sorted[index].timeIntervalSince(sorted[index - 1]) / 3600)

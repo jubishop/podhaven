@@ -8,6 +8,26 @@ import Testing
 
 @Suite("of Broadcast tests")
 struct BroadcastTests {
+  // The Observation contract notifies synchronously on the main actor, and
+  // SwiftUI List edits (.onMove/.onDelete) require the bound collection's
+  // change to be observed within the gesture transaction. A main-actor write
+  // must wake observers before control returns, not a runloop turn later.
+  @Test("notifies observers synchronously when mutated on the main actor")
+  @MainActor func notifiesObserversSynchronouslyOnMain() {
+    let broadcast = Broadcast<Int>(0)
+
+    let notified = ThreadSafe(false)
+    withObservationTracking {
+      _ = broadcast.current
+    } onChange: {
+      notified(true)
+    }
+
+    broadcast.new(1)
+
+    #expect(notified())
+  }
+
   @Test("new(_:) suppresses re-publishes of an unchanged Equatable value")
   func newSuppressesIdenticalRepublishes() async throws {
     let broadcast = Broadcast<Int>(0)

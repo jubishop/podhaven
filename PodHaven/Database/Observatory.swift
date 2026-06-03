@@ -136,6 +136,19 @@ struct Observatory: Observing {
     }
   }
 
+  // MARK: - Episodes
+
+  // Bare matching IDs, skipping row hydration and the podcast join, for callers
+  // that only need membership rather than displayable rows.
+  func episodeIDs(filter: SQLExpression) -> AsyncValueObservation<[Episode.ID]> {
+    reader.observe { db in
+      try Episode
+        .filter(filter)
+        .select(Episode.Columns.id, as: Episode.ID.self)
+        .fetchAll(db)
+    }
+  }
+
   // MARK: - Queue
 
   func queuedPodcastEpisodes(limit: Int = Int.max) -> AsyncValueObservation<

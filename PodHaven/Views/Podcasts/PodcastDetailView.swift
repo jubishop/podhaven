@@ -100,6 +100,16 @@ struct PodcastDetailView: View {
           }
         )
       }
+
+      if viewModel.saved {
+        ToolbarItem(placement: .topBarLeading) {
+          AppIcon.settings
+            .labelButton {
+              viewModel.showingSettings = true
+            }
+            .buttonStyle(.plain)  // Necessary to keep button coloring after sheet is dismissed
+        }
+      }
     }
 
     if !viewModel.episodeList.isSelecting || viewModel.displayingAboutSection {
@@ -111,16 +121,6 @@ struct PodcastDetailView: View {
             label: { AppIcon.sharePodcast.label }
           )
         }
-      }
-    }
-
-    if viewModel.displayingAboutSection && viewModel.saved {
-      ToolbarItem(placement: .primaryAction) {
-        AppIcon.settings
-          .labelButton {
-            viewModel.showingSettings = true
-          }
-          .buttonStyle(.plain)  // Necessary to keep button coloring after sheet is dismissed
       }
     }
 
@@ -211,7 +211,7 @@ struct PodcastDetailView: View {
     }
     .safeAreaInset(edge: .top, spacing: 0) {
       SearchBar(
-        text: $viewModel.episodeList.entryFilter,
+        text: $viewModel.filterDebouncer.currentValue,
         prompt: "Filter episodes",
         searchIcon: .search
       )

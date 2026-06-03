@@ -15,6 +15,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
@@ -77,6 +78,7 @@ import SwiftUI
     case recentlyAdded
     case mostRecentlyQueued
     case leastRecentlyQueued
+    case recommendationScore
 
     var appIcon: AppIcon {
       switch self {
@@ -90,33 +92,56 @@ import SwiftUI
         return .sortByMostRecentlyQueued
       case .leastRecentlyQueued:
         return .sortByLeastRecentlyQueued
+      case .recommendationScore:
+        return .sortByRecommendationScore
       }
     }
 
-    var sortMethod: (ListablePodcastEpisode, ListablePodcastEpisode) -> Bool {
+    var sortStrategy: SortStrategy {
       switch self {
       case .newestFirst:
-        return { lhs, rhs in lhs.pubDate > rhs.pubDate }
+        return .comparator { lhs, rhs in lhs.pubDate > rhs.pubDate }
       case .oldestFirst:
-        return { lhs, rhs in lhs.pubDate < rhs.pubDate }
+        return .comparator { lhs, rhs in lhs.pubDate < rhs.pubDate }
       case .recentlyAdded:
-        return { lhs, rhs in lhs.creationDate > rhs.creationDate }
+        return .comparator { lhs, rhs in lhs.creationDate > rhs.creationDate }
       case .mostRecentlyQueued:
-        return { lhs, rhs in
+        return .comparator { lhs, rhs in
           let lhsDate = lhs.queueDate ?? lhs.creationDate
           let rhsDate = rhs.queueDate ?? rhs.creationDate
           return lhsDate > rhsDate
         }
       case .leastRecentlyQueued:
-        return { lhs, rhs in
+        return .comparator { lhs, rhs in
           let lhsDate = lhs.queueDate ?? lhs.creationDate
           let rhsDate = rhs.queueDate ?? rhs.creationDate
           return lhsDate < rhsDate
         }
+      case .recommendationScore:
+        return .recommendationScore
       }
     }
   }
-  let allSortMethods = SortMethod.allCases
+
+  // A sort either runs a synchronous comparator over the loaded rows or defers
+  // to the recommendation engine's async score map. Modeling the two explicitly
+  // keeps `sort(by:)` from treating "no comparator" as an implicit signal for
+  // recommendation scoring.
+  enum SortStrategy {
+    case comparator((ListablePodcastEpisode, ListablePodcastEpisode) -> Bool)
+    case recommendationScore
+  }
+
+  // recommendationScore is hidden until the engine's scoring cache is warm:
+  // a cold cache scores everything 0, and unlike the other sort sites UpNext
+  // persists the result, so offering it cold would scramble the saved queue.
+  // Reading the engine's observable flag here keeps the menu reactive without
+  // mirroring it into local state.
+  var allSortMethods: [SortMethod] {
+    SortMethod.allCases.filter {
+      $0 != .recommendationScore || recommendationEngine.hasScoringContext
+    }
+  }
 
   // MARK: - Initialization
 
@@ -335,8 +360,30 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        let sortedEpisodes = episodeList.allEntries.sorted(by: method.sortMethod)
-        try await queue.updateQueueOrders(sortedEpisodes.map(\.id))
+        let entries = episodeList.allEntries
+        let orderedIDs: [Episode.ID]
+        switch method.sortStrategy {
+        case .comparator(let comparator):
+          orderedIDs = entries.sorted(by: comparator).map(\.id)
+        case .recommendationScore:
+          let scores = try await recommendationEngine.unscaledRecommendationScores(
+            forEpisodeIDs: entries.map(\.id)
+          )
+          // No scores (cold cache, or no queued row is embedded yet): leave the
+          // persisted queue untouched rather than reorder it by tiebreakers.
+          guard !scores.isEmpty else { return }
+          orderedIDs =
+            entries
+            .sorted { lhs, rhs in
+              let lhsScore = scores[lhs.id] ?? 0
+              let rhsScore = scores[rhs.id] ?? 0
+              if lhsScore != rhsScore { return lhsScore > rhsScore }
+              if lhs.pubDate != rhs.pubDate { return lhs.pubDate > rhs.pubDate }
+              return lhs.id > rhs.id
+            }
+            .map(\.id)
+        }
+        try await queue.updateQueueOrders(orderedIDs)
       } catch {
         Self.log.caughtError("sort: failed to sort queue by \(method)", error)
         guard ErrorKit.isRemarkable(error) else { return }
