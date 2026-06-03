@@ -236,6 +236,9 @@ struct Repo: Databasing {
         unsavedEpisode.podcastId = podcast.id
         episodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
       }
+      if !episodes.isEmpty {
+        try RecommendationRepo.updateInferredFreshnessCadence(db, podcastID: podcast.id)
+      }
       return PodcastSeries(podcast: podcast, episodes: episodes)
     }
   }
@@ -270,6 +273,10 @@ struct Repo: Databasing {
       for var unsavedEpisode in unsavedEpisodes {
         unsavedEpisode.podcastId = podcastSeries.id
         newEpisodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
+      }
+
+      if !unsavedEpisodes.isEmpty || !existingEpisodes.isEmpty {
+        try RecommendationRepo.updateInferredFreshnessCadence(db, podcastID: podcastSeries.id)
       }
 
       let queueMode = podcastSeries.podcast.queueAllEpisodes
@@ -477,8 +484,9 @@ struct Repo: Databasing {
         IdentifiedArray(id: \.feedURL)
       var upsertedPodcastsByITunesID: IdentifiedArray<ITunesPodcastID?, Podcast> =
         IdentifiedArray(id: \.iTunesID)
+      var affectedPodcastIDs = Set<Podcast.ID>()
 
-      return try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in
+      let podcastEpisodes = try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in
         let podcast: Podcast
         let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
 
@@ -516,8 +524,14 @@ struct Repo: Databasing {
           updating: .noColumnUnlessSpecified,
           doUpdate: newUnsavedEpisode.rssUpsertAssignments
         )
+        affectedPodcastIDs.insert(podcast.id)
         return PodcastEpisode(podcast: podcast, episode: episode)
       }
+
+      for podcastID in affectedPodcastIDs {
+        try RecommendationRepo.updateInferredFreshnessCadence(db, podcastID: podcastID)
+      }
+      return podcastEpisodes
     }
   }
 
