@@ -165,11 +165,14 @@ struct RecommendationEngine: Sendable {
   // to know when to re-score; the value itself is uninteresting.
   @Broadcasted var scoringRevision: Int = 0
 
+  // True once a non-nil scoring context is cached, false when a rebuild yields
+  // none. Observable so SwiftUI surfaces that persist a recommendation ordering
+  // can hide the option while scoring would be meaningless.
+  @Broadcasted var hasScoringContext: Bool = false
+
   fileprivate init() {}
 
   // MARK: - Public API
-
-  var hasScoringContext: Bool { cache() != nil }
 
   // Idempotent. Public scoring methods do NOT auto-call `start()` — they
   // read whatever the cache currently has and return empty when it's nil.
@@ -190,7 +193,7 @@ struct RecommendationEngine: Sendable {
         break
       case .recommendations:
         Self.log.debug("Running deferred recommendations rebuild on foreground")
-        scheduleRecommendationsRebuild()
+        scheduleTopRecommendationsRebuild()
       case .cache:
         Self.log.debug("Running deferred cache rebuild on foreground")
         scheduleCacheRebuild()
@@ -242,6 +245,9 @@ struct RecommendationEngine: Sendable {
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
   }
 
+  // Display-scaled, like `recommendations(for:)` — the top candidate reads as
+  // 1.0. Use `unscaledRecommendationScores(forEpisodeIDs:)` when ordering rather
+  // than displaying.
   func recommendationScores(
     for candidates: [CandidateEpisode]
   ) async throws -> [Episode.ID: Float] {
@@ -249,6 +255,27 @@ struct RecommendationEngine: Sendable {
     return scores.mapValues {
       RecommendationScore.rescaledForDisplay(value: $0.value, max: displayMax)
     }
+  }
+
+  // Scores arbitrary saved episodes by ID, ignoring the candidate gate — the
+  // queue sort scores already-queued episodes, which are by definition not
+  // candidates. Unlike the display-scaled scorers, returns raw scores: callers
+  // here only order by them, and the display rescale clamps every value above
+  // the candidate-pool anchor to 1.0, which would collapse the ordering of the
+  // highest-scoring queued episodes into a tie. IDs without an embedding are
+  // omitted from the result map.
+  func unscaledRecommendationScores(
+    forEpisodeIDs episodeIDs: [Episode.ID]
+  ) async throws -> [Episode.ID: Float] {
+    let episodes = try await recommendationRepo.episodes(for: episodeIDs)
+    guard
+      let (scores, _) = try await scoredCandidates(
+        episodes.map {
+          CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
+        }
+      )
+    else { return [:] }
+    return scores.mapValues(\.value)
   }
 
   // Returns nil if the episode doesn't exist, has no embedding, or the
@@ -470,7 +497,7 @@ struct RecommendationEngine: Sendable {
       for await _ in userSettings.$podcastAffinityWeight.stream().dropFirst() {
         guard !Task.isCancelled else { return }
         $scoringRevision.update { $0 += 1 }
-        scheduleRecommendationsRebuild()
+        scheduleTopRecommendationsRebuild()
       }
     }
   }
@@ -520,15 +547,16 @@ struct RecommendationEngine: Sendable {
 
         try Task.checkCancellation()
         cache(context)
+        $hasScoringContext.new(context != nil)
         $scoringRevision.update { $0 += 1 }
-        scheduleRecommendationsRebuild()
+        scheduleTopRecommendationsRebuild()
       } catch {
         Self.log.caughtError("scoring context rebuild failed", error)
       }
     }
   }
 
-  private func scheduleRecommendationsRebuild() {
+  private func scheduleTopRecommendationsRebuild() {
     guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
       Self.log.debug("Recommendations rebuild deferred — app backgrounded")
       return
