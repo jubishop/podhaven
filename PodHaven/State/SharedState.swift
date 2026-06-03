@@ -21,6 +21,10 @@ struct SharedState: Sendable {
   // Only StateManager should write this.
   @PersistedBroadcast("currentEpisodeID") var currentEpisodeID: Episode.ID? = nil
 
+  // Persisted so the Up Next "Recommended" section seeds from the prior
+  // session on cold launch instead of sitting empty until the engine warms.
+  @PersistedBroadcast("recommendedEpisodePool") var recommendedEpisodePool: [Episode.ID] = []
+
   // MARK: - In-Memory State (Observable Broadcasts)
 
   @Broadcasted var downloadProgress: [Episode.ID: Double] = [:]
@@ -36,7 +40,6 @@ struct SharedState: Sendable {
   @Broadcasted var playRate: Float = 1.0
   @Broadcasted var tags: IdentifiedArrayOf<Tag> = []
   @Broadcasted var queuedPodcastEpisodes: [ListablePodcastEpisode] = []
-  @Broadcasted var recommendedEpisodePool: [Episode.ID] = []
 
   // MARK: - Download Progress
 

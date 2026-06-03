@@ -117,6 +117,43 @@ import Testing
     #expect(viewModel.recommendedEpisodes.map(\.id) == [older.id, newer.id])
   }
 
+  // On a cold launch the recommendation pool must seed from persistence so the
+  // Up Next "Recommended" section isn't empty until the engine warms up.
+  // Nothing publishes the pool here — it's restored straight from the persisted
+  // store a prior session wrote, before sharedState is ever resolved.
+  @Test("recommended section restores from the persisted pool on cold launch")
+  func recommendedSectionRestoresFromPersistedPool() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "first", title: "First"),
+          try Create.unsavedEpisode(guid: "second", title: "Second"),
+        ]
+      )
+    )
+    let first = series.episodes[0]
+    let second = series.episodes[1]
+
+    let persistedPool: [Episode.ID] = [first.id, second.id]
+    persistedPool.store(
+      to: Container.shared.standardDefaults(),
+      forKey: "recommendedEpisodePool"
+    )
+
+    let viewModel = UpNextViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.recommendedEpisodes.count == 2 },
+      { @MainActor in
+        "Expected persisted pool to seed 2 recommendations, got \(viewModel.recommendedEpisodes.count)"
+      }
+    )
+    #expect(viewModel.recommendedEpisodes.map(\.id) == [first.id, second.id])
+  }
+
   // Regression for #168: when the queue is empty, `maxQueuePosition` is nil
   // and unqueued episodes have `queueOrder == nil`. The old implementation
   // returned `nil == nil` → true, which hid "Queue at Bottom" from swipe
