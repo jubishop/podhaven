@@ -132,7 +132,7 @@ struct Queue: Queueing {
       // skip rather than corrupting queueOrder or crashing the dense-sequence
       // invariant.
       guard Set(episodeIDs) == queuedIDs else {
-        Self.log.error(
+        Self.log.notice(
           """
           queue: skipping reorder — the \(episodeIDs.count) supplied ids no longer \
           match the \(queuedIDs.count) queued episodes
