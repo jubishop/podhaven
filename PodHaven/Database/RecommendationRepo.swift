@@ -89,6 +89,9 @@ struct RecommendationRepo: Recommending {
   static func resolveFreshnessCadences(
     _ db: Database
   ) throws -> [Podcast.ID: FreshnessCadence] {
+    let clockNow = Container.shared.continuousClockNow()
+    let start = clockNow()
+
     let manualRows = try Row.fetchAll(
       db,
       Podcast
@@ -101,11 +104,13 @@ struct RecommendationRepo: Recommending {
       let cadence: FreshnessCadence = row[Podcast.Columns.freshnessCadence]
       resolved[id] = cadence
     }
+    let manualDuration = clockNow() - start
 
     // Raw SQL: window functions aren't expressible via the GRDB query builder.
     // ORDER BY podcastId lets us stream rows into per-podcast buckets and
     // flush each one before starting the next, instead of accumulating a
     // [Podcast.ID: [Date]] map of dynamically-grown arrays.
+    let fetchStart = clockNow()
     let pubDateRows = try Row.fetchAll(
       db,
       sql: """
@@ -121,6 +126,9 @@ struct RecommendationRepo: Recommending {
         """,
       arguments: [FreshnessCadence.inferenceMaxSamples]
     )
+    let fetchDuration = clockNow() - fetchStart
+
+    let inferStart = clockNow()
     var currentID: Podcast.ID? = nil
     var currentDates = [Date](capacity: FreshnessCadence.inferenceMaxSamples)
     for row in pubDateRows {
@@ -138,6 +146,16 @@ struct RecommendationRepo: Recommending {
     if let lastID = currentID {
       resolved[lastID] = FreshnessCadence.infer(from: currentDates)
     }
+    let inferDuration = clockNow() - inferStart
+
+    Self.log.debug(
+      """
+      perf: resolveFreshnessCadences took \(clockNow() - start) — \
+      manual=\(manualRows.count) (\(manualDuration)) \
+      inferred=\(resolved.count - manualRows.count) from \(pubDateRows.count) pubDates \
+      (fetch \(fetchDuration), infer \(inferDuration))
+      """
+    )
     return resolved
   }
 
