@@ -562,6 +562,7 @@ class PodcastDetailViewModel:
     }
     loadShareArtworkIfNeeded()
     episodeListFilter.refresh(podcastID: state.savedSeries?.id)
+    episodeListFilter.resume()
 
     if currentSortMethod == .recommendationScore {
       startRecommendationObservation()

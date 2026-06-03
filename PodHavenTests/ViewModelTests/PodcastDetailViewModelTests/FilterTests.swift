@@ -202,6 +202,55 @@ import Testing
     )
   }
 
+  // Regression: disappear() cancels the live FTS observation; reappear (the
+  // @State view model is reused across a push/pop) must revive it while the
+  // query is still active. Without resume(), the stale id set drops a matching
+  // episode that lands in the DB after returning.
+  @Test("saved detail filter revives the FTS observation after a disappear/reappear")
+  func savedDetailFilterResumesAfterReappear() async throws {
+    let series = try await makeSavedSeries()
+    let viewModel = try await appearedViewModel(for: series)
+
+    viewModel.filterDebouncer.currentValue = Self.episodeTitleToken
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.count == 1 },
+      { @MainActor in
+        "Expected the episode-title filter to match one row before backgrounding; got \(viewModel.episodeList.filteredEntries.count)"
+      }
+    )
+
+    viewModel.disappear()
+    viewModel.appear()
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.allEntries.count == 2 },
+      { @MainActor in
+        "Expected reappear to re-hydrate the episode list; got \(viewModel.episodeList.allEntries.count)"
+      }
+    )
+
+    _ = try await repo.upsertPodcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: series.podcast.unsaved,
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "late-arrival",
+          title: "Late \(Self.episodeTitleToken) arrival",
+          description: "fresh episode delivered after returning to the detail"
+        )
+      )
+    )
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.count == 2 },
+      { @MainActor in
+        """
+        Expected the newly inserted matching episode to surface once the FTS \
+        observation resumes.
+        filteredEntries: \(viewModel.episodeList.filteredEntries.map(\.title))
+        """
+      }
+    )
+  }
+
   // Regression: with a filter active, an unrelated series update (here a
   // settings change) re-fires the series observation and drives a same-podcast
   // transition. The live FTS observation must not be torn down and recreated,

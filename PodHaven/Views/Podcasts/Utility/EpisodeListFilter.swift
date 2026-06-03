@@ -50,6 +50,16 @@ import GRDB
     observationTask = nil
   }
 
+  // cancel() frees the live DB observation while off-screen; on reappear the
+  // query is unchanged so refresh() (which only restarts on a podcast swap)
+  // leaves it dead. resume() revives the saved-podcast FTS observation cancel()
+  // tore down. The unsaved in-memory filter needs no revival — its searchFilter
+  // survives cancel().
+  func resume() {
+    guard observationTask == nil, podcastID != nil, !filterText.isEmpty else { return }
+    restart()
+  }
+
   private func updateEpisodeFilter() {
     switch (baseFilter, searchFilter) {
     case (nil, nil):
