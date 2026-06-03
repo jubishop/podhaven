@@ -27,10 +27,11 @@ import Testing
     PlayHelpers.setupCommandHandling()
   }
 
-  @Test("bookmark command is enabled with a Save title")
+  @Test("bookmark command is enabled with a Save in Cache title")
   func bookmarkCommandIsEnabled() async throws {
     #expect(mpRemoteCommandCenter.bookmark.isEnabled == true)
-    #expect(mpRemoteCommandCenter.bookmark.localizedTitle == "Save")
+    #expect(mpRemoteCommandCenter.bookmark.localizedTitle == "Save in Cache")
+    #expect(mpRemoteCommandCenter.bookmark.localizedShortTitle == "Save")
   }
 
   @Test("bookmark saves the on-deck episode in the cache")

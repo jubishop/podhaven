@@ -121,7 +121,7 @@ enum CommandCenter: Sendable {
       yield(.previousEpisode)
       return .success
     }
-    commandCenter.bookmark.localizedTitle = "Save"
+    commandCenter.bookmark.localizedTitle = "Save in Cache"
     commandCenter.bookmark.localizedShortTitle = "Save"
     commandCenter.bookmark.addCommandTarget { event in
       yield(.bookmark(sourceEpisodeID: Container.shared.sharedState().$onDeck.value?.id))
