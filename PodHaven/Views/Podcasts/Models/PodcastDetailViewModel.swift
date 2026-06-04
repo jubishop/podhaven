@@ -40,10 +40,24 @@ class PodcastDetailViewModel:
   // MARK: - ManagingEpisodes
 
   func getOrCreatePodcastEpisode(_ episode: ListedEpisode) async throws -> PodcastEpisode {
-    let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
+    let podcastEpisode = try await persistPodcastEpisode(episode)
     guard lifecycle.isOnScreen else { return podcastEpisode }
     startObservation(podcastEpisode.podcast.id)
     return podcastEpisode
+  }
+
+  // Persisting a single episode from an unsaved podcast would save only that
+  // row, so observation collapses the detail list to just it once it transitions
+  // to `.saved`. Persist the whole unsaved series so every episode survives,
+  // then return the row for the acted-on episode.
+  private func persistPodcastEpisode(_ episode: ListedEpisode) async throws -> PodcastEpisode {
+    guard case .unsaved = state else { return try await episode.getOrCreatePodcastEpisode() }
+    let unsavedEpisodes = episodeList.allEntries.compactMap(\.unsaved)
+    guard !unsavedEpisodes.isEmpty else { return try await episode.getOrCreatePodcastEpisode() }
+    let podcastEpisodes = try await repo.upsertPodcastEpisodes(unsavedEpisodes)
+    guard let match = podcastEpisodes.first(where: { $0.mediaGUID == episode.mediaGUID })
+    else { return try await episode.getOrCreatePodcastEpisode() }
+    return match
   }
 
   // MARK: - SelectableEpisodeList & SortableEpisodeList
