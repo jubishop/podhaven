@@ -107,7 +107,6 @@ import GRDB
           }
           updateEpisodeFilter()
         }
-      } catch is CancellationError {
       } catch {
         Self.log.caughtError(
           "EpisodeListFilter: text filter failed for podcast \(podcastID)",
