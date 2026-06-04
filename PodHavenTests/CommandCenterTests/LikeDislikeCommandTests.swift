@@ -271,22 +271,37 @@ import Testing
     )
   }
 
-  @Test("feedback title follows a configured tag's rename")
+  @Test("feedback titles follow a configured tag's rename")
   func titleFollowsTagRename() async throws {
     let tag = try await repo.insertTag(UnsavedTag(name: "Favorites"))
     userSettings.$commandCenterLikeAction.new(.addTag(tag.id))
+    userSettings.$commandCenterDislikeAction.new(.addTag(tag.id))
     try await Wait.until(
-      { @MainActor in self.mpRemoteCommandCenter.like.localizedTitle == "Tag: Favorites" },
       { @MainActor in
-        "Expected like title to be Tag: Favorites, got \(self.mpRemoteCommandCenter.like.localizedTitle)"
+        self.mpRemoteCommandCenter.like.localizedTitle == "Tag: Favorites"
+          && self.mpRemoteCommandCenter.dislike.localizedTitle == "Tag: Favorites"
+      },
+      { @MainActor in
+        """
+        Expected like/dislike titles to be Tag: Favorites, got \
+        \(self.mpRemoteCommandCenter.like.localizedTitle) / \
+        \(self.mpRemoteCommandCenter.dislike.localizedTitle)
+        """
       }
     )
 
     _ = try await repo.renameTag(tag.id, newName: "Sports")
     try await Wait.until(
-      { @MainActor in self.mpRemoteCommandCenter.like.localizedTitle == "Tag: Sports" },
       { @MainActor in
-        "Expected like title to be Tag: Sports after rename, got \(self.mpRemoteCommandCenter.like.localizedTitle)"
+        self.mpRemoteCommandCenter.like.localizedTitle == "Tag: Sports"
+          && self.mpRemoteCommandCenter.dislike.localizedTitle == "Tag: Sports"
+      },
+      { @MainActor in
+        """
+        Expected like/dislike titles to be Tag: Sports after rename, got \
+        \(self.mpRemoteCommandCenter.like.localizedTitle) / \
+        \(self.mpRemoteCommandCenter.dislike.localizedTitle)
+        """
       }
     )
   }
