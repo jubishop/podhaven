@@ -271,6 +271,23 @@ class PodcastTests {
     #expect(fetchedPodcast3.podcast.subscribed == false)
   }
 
+  @Test("markUnsubscribed(_:) returns true for a matched podcast and false for a missing one")
+  func testMarkUnsubscribedSingle() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(subscriptionDate: Date()))
+    )
+    #expect(series.podcast.subscribed == true)
+
+    let didUnsubscribe = try await repo.markUnsubscribed(series.id)
+    #expect(didUnsubscribe == true)
+    let fetched = try await repo.podcastSeries(series.id)!
+    #expect(fetched.podcast.subscribed == false)
+
+    // No row matches a non-existent id, so nothing is updated.
+    let didUnsubscribeMissing = try await repo.markUnsubscribed(Podcast.ID(99999))
+    #expect(didUnsubscribeMissing == false)
+  }
+
   @Test("updateLastUpdates() writes per-row timestamps in a single transaction")
   func testUpdateLastUpdates() async throws {
     let podcastSeries1 = try await repo.insertSeries(

@@ -14,6 +14,9 @@ COMMON_GIT_DIR="$(git -C "$WORKTREE_PATH" rev-parse --path-format=absolute --git
 MAIN_REPO="$(cd "$COMMON_GIT_DIR/.." && pwd)"
 DERIVED_DATA_DIR="$HOME/Library/Developer/Xcode/DerivedData"
 PROJECT_NAME="PodHaven"
+# Stable SwiftPM clone path, deliberately outside DerivedData so cache cleaners
+# that target DerivedData can't destroy it.
+SHARED_SPM="$HOME/Library/Developer/SharedSourcePackages/$PROJECT_NAME"
 
 allow_direnv_envrc() {
   if ! command -v direnv >/dev/null 2>&1 || [ ! -f "$WORKTREE_PATH/.envrc" ]; then
@@ -48,7 +51,26 @@ print(''.join(r))
 " "$1"
 }
 
+# Delete DerivedData left behind by removed worktrees. Xcode records the project
+# it built from in each folder's info.plist; if that path is gone, so is the
+# worktree. Git has no worktree-removal hook, so this garbage-collects on the
+# next worktree creation regardless of how the old one was removed.
+prune_orphan_derived_data() {
+  [ -d "$DERIVED_DATA_DIR" ] || return
+  for dd in "$DERIVED_DATA_DIR/$PROJECT_NAME"-*; do
+    [ -d "$dd" ] || continue
+    [ -f "$dd/info.plist" ] || continue
+    local ws
+    ws="$(plutil -extract WorkspacePath raw "$dd/info.plist" 2>/dev/null || true)"
+    if [ -n "$ws" ] && [ ! -e "$ws" ]; then
+      echo "Pruning orphaned DerivedData: $(basename "$dd")"
+      rm -rf "$dd"
+    fi
+  done
+}
+
 allow_direnv_envrc
+prune_orphan_derived_data
 
 MAIN_HASH=$(xcode_hash "$MAIN_REPO/$PROJECT_NAME.xcodeproj")
 MAIN_DD="$DERIVED_DATA_DIR/$PROJECT_NAME-$MAIN_HASH"
@@ -56,15 +78,40 @@ MAIN_DD="$DERIVED_DATA_DIR/$PROJECT_NAME-$MAIN_HASH"
 WT_HASH=$(xcode_hash "$WORKTREE_PATH/$PROJECT_NAME.xcodeproj")
 WT_DD="$DERIVED_DATA_DIR/$PROJECT_NAME-$WT_HASH"
 
-# Symlink SourcePackages
-if [ -d "$MAIN_DD/SourcePackages" ] && [ ! -e "$WT_DD/SourcePackages" ]; then
-  mkdir -p "$WT_DD"
-  ln -s "$MAIN_DD/SourcePackages" "$WT_DD/SourcePackages"
-  echo "Linked SourcePackages"
-elif [ -L "$WT_DD/SourcePackages" ]; then
-  echo "SourcePackages already linked"
-elif [ ! -d "$MAIN_DD/SourcePackages" ]; then
-  echo "Warning: main repo SourcePackages not found — build in Xcode from main first"
+# Share SwiftPM checkouts via one clone at SHARED_SPM. xcodebuild is pointed
+# straight at it below; Xcode's IDE only reads <DerivedData>/SourcePackages, so
+# we also symlink that to SHARED_SPM. A DerivedData wipe then only removes the
+# symlinks, never the checkouts.
+mkdir -p "$(dirname "$SHARED_SPM")"
+if [ ! -e "$SHARED_SPM" ]; then
+  if [ -d "$MAIN_DD/SourcePackages" ] && [ ! -L "$MAIN_DD/SourcePackages" ]; then
+    mv "$MAIN_DD/SourcePackages" "$SHARED_SPM"
+    ln -s "$SHARED_SPM" "$MAIN_DD/SourcePackages"
+    echo "Seeded shared SourcePackages from main repo"
+  elif [ -d "$WT_DD/SourcePackages" ] && [ ! -L "$WT_DD/SourcePackages" ]; then
+    mv "$WT_DD/SourcePackages" "$SHARED_SPM"
+    echo "Seeded shared SourcePackages from this worktree"
+  else
+    mkdir -p "$SHARED_SPM"
+    echo "Created shared SourcePackages (background build will populate it)"
+  fi
+fi
+
+# Point main's DerivedData at the shared path too, so the IDE on main shares it.
+if [ -d "$SHARED_SPM/checkouts" ] && [ -d "$MAIN_DD/SourcePackages" ] && [ ! -L "$MAIN_DD/SourcePackages" ]; then
+  rm -rf "$MAIN_DD/SourcePackages"
+  ln -s "$SHARED_SPM" "$MAIN_DD/SourcePackages"
+  echo "Relinked main repo SourcePackages to shared clone path"
+fi
+
+# Point this worktree's DerivedData at the shared path.
+mkdir -p "$WT_DD"
+if [ -L "$WT_DD/SourcePackages" ] && [ "$(readlink "$WT_DD/SourcePackages")" = "$SHARED_SPM" ]; then
+  echo "SourcePackages already linked to shared clone path"
+else
+  rm -rf "$WT_DD/SourcePackages"
+  ln -s "$SHARED_SPM" "$WT_DD/SourcePackages"
+  echo "Linked SourcePackages to shared clone path"
 fi
 
 # Symlink qmd model cache (~2GB of immutable HF GGUFs) from main repo
@@ -97,6 +144,7 @@ if [ ! -f "$WT_DD/Build/Products" ] || [ "$(find "$WT_DD/Build" -name '*.o' 2>/d
     -project "$PROJECT_NAME.xcodeproj" \
     -scheme "$PROJECT_NAME" \
     -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+    -clonedSourcePackagesDirPath "$SHARED_SPM" \
     -quiet \
     > "$BUILD_LOG" 2>&1 </dev/null &
   disown 2>/dev/null || true
