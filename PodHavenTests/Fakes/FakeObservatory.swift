@@ -165,11 +165,6 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
 
   // MARK: - Singular Observations
 
-  func podcastSeries(_ podcastID: Podcast.ID) -> AsyncValueObservation<PodcastSeries?> {
-    recordCall(methodName: "podcastSeries", parameters: podcastID)
-    return observatory.podcastSeries(podcastID)
-  }
-
   func podcastSeriesDetail(_ podcastID: Podcast.ID)
     -> AsyncValueObservation<PodcastSeriesDetail?>
   {

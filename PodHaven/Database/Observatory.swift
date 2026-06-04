@@ -204,16 +204,6 @@ struct Observatory: Observing {
 
   // MARK: - Singular Observations
 
-  func podcastSeries(_ podcastID: Podcast.ID) -> AsyncValueObservation<PodcastSeries?> {
-    reader.observe { db in
-      try Podcast
-        .withID(podcastID)
-        .including(all: Podcast.episodes)
-        .asRequest(of: PodcastSeries.self)
-        .fetchOne(db)
-    }
-  }
-
   func podcastSeriesDetail(_ podcastID: Podcast.ID)
     -> AsyncValueObservation<PodcastSeriesDetail?>
   {

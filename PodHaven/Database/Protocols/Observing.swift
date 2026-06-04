@@ -70,7 +70,6 @@ protocol Observing: Sendable {
 
   // MARK: - Singular Observations
 
-  func podcastSeries(_ podcastID: Podcast.ID) -> AsyncValueObservation<PodcastSeries?>
   func podcastSeriesDetail(_ podcastID: Podcast.ID)
     -> AsyncValueObservation<PodcastSeriesDetail?>
   func podcastEpisodeWithTags(_ episodeID: Episode.ID)

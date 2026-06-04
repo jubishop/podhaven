@@ -141,18 +141,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     )
   }
 
-  func episodesMatching(
-    podcastID: Podcast.ID,
-    guids: [GUID],
-    mediaURLs: [MediaURL]
-  ) async throws -> [Episode] {
-    recordCall(
-      methodName: "episodesMatching",
-      parameters: (podcastID: podcastID, guids: guids, mediaURLs: mediaURLs)
-    )
-    return try await repo.episodesMatching(podcastID: podcastID, guids: guids, mediaURLs: mediaURLs)
-  }
-
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     recordCall(methodName: "podcastEpisode", parameters: episodeID)
     return try await repo.podcastEpisode(episodeID)
@@ -405,11 +393,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       throw injected
     }
     return try await repo.updateSaveInCache(episodeIDs, saveInCache: saveInCache)
-  }
-
-  func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
-    recordCall(methodName: "podcast", parameters: podcastID)
-    return try await repo.podcast(podcastID)
   }
 
   @discardableResult
