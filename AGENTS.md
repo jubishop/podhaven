@@ -44,7 +44,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - Catch only to add local-only context; otherwise propagate. The top of the stack must log every error.
 - Keep `do`/`catch` around `try` calls only.
 - Caught object: `log.caughtError()`; no object: `log.error()`.
-- `caughtError()`/`error()` auto-downgrade unremarkable errors (`CancellationError`, cancelled/timed-out `URLError`) to `.debug` via `ErrorKit.isRemarkable`.
+- `caughtError()` auto-downgrades unremarkable errors (`CancellationError`, cancelled/timed-out `URLError`) to `.debug` via `ErrorKit.isRemarkable`.
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
