@@ -177,7 +177,15 @@ class PodcastDetailViewModel:
       Self.log.debug("selectedPodcastEpisodes: \(selectedEpisodes.count) episodes selected")
 
       let savedEpisodeIDs = selectedEpisodes.compactMap(\.episodeID)
-      let unsavedPodcastEpisodes = selectedEpisodes.compactMap(\.unsaved)
+      // Saving any unsaved episode persists the whole series, so upsert the full
+      // in-memory list (not just the selection) to keep the detail from
+      // collapsing to the acted-on rows once observation transitions to .saved.
+      let unsavedPodcastEpisodes: [UnsavedPodcastEpisode]
+      if case .unsaved = state {
+        unsavedPodcastEpisodes = episodeList.allEntries.compactMap(\.unsaved)
+      } else {
+        unsavedPodcastEpisodes = selectedEpisodes.compactMap(\.unsaved)
+      }
       let savedByID = Dictionary(
         uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs).map { ($0.id, $0) }
       )
