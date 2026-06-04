@@ -13,7 +13,7 @@ Development (Run / `.dev` bundle) — **one rolling file per destination** (all 
 
 | Destination | App log | Widget log |
 |-------------|---------|------------|
-| Booted Simulator | `$DATA/Documents/PodHavenDev/log.ndjson` where `DATA=$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev data)` | `$GROUP/widget-log.ndjson` where `GROUP=$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev group)` |
+| Booted Simulator | `$DATA/Documents/PodHavenDev/log.ndjson` where `DATA=$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev data)` | `$GROUP/widget-log.ndjson` where `GROUP=$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev group.podhaven.shared.dev)` |
 | My Mac | `~/Library/Containers/com.artisanalsoftware.PodHaven.dev/Data/Documents/PodHavenDev/log.ndjson` | `~/Library/Group Containers/group.podhaven.shared.dev/widget-log.ndjson` |
 
 Production (Release bundle): `Documents/log.ndjson` (no `PodHavenDev` subdir) under the production container; app group `group.podhaven.shared`.

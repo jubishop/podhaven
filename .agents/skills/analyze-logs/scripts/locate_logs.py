@@ -118,13 +118,13 @@ def widget_log_candidates(*, variant: str) -> list[LogCandidate]:
     bundle = DEV_APP_BUNDLE if variant == "dev" else PROD_APP_BUNDLE
     candidates: list[LogCandidate] = []
 
-    sim_group = _simctl_container(bundle, "group")
+    sim_group = _simctl_container(bundle, group)
     if sim_group is not None:
         candidates.append(
             _stat_candidate(
                 "simulator (booted) app group",
                 sim_group / "widget-log.ndjson",
-                f"Run `xcrun simctl get_app_container booted {bundle} group`.",
+                f"Run `xcrun simctl get_app_container booted {bundle} {group}`.",
             )
         )
     else:
