@@ -160,17 +160,65 @@ enum CommandCenter: Sendable {
 
   static func updateFeedbackCommands() {
     let userSettings = Container.shared.userSettings()
-    let tags = Container.shared.sharedState().$tags.value
+    let sharedState = Container.shared.sharedState()
+    let onDeck = sharedState.$onDeck.value
+    let tags = sharedState.$tags.value
     let commandCenter = Container.shared.mpRemoteCommandCenter()
 
-    let likeTitle = userSettings.commandCenterLikeAction.title(tags: tags)
-    let dislikeTitle = userSettings.commandCenterDislikeAction.title(tags: tags)
-    log.debug("updateFeedbackCommands: like '\(likeTitle)', dislike '\(dislikeTitle)'")
+    let likeAction = userSettings.commandCenterLikeAction
+    let dislikeAction = userSettings.commandCenterDislikeAction
+    apply(
+      title: likeAction.title(tags: tags),
+      isActive: likeIsActive(likeAction, onDeck: onDeck),
+      to: commandCenter.like
+    )
+    apply(
+      title: dislikeAction.title(tags: tags),
+      isActive: dislikeIsActive(dislikeAction, onDeck: onDeck),
+      to: commandCenter.dislike
+    )
+  }
 
-    commandCenter.like.localizedTitle = likeTitle
-    commandCenter.like.localizedShortTitle = likeTitle
-    commandCenter.dislike.localizedTitle = dislikeTitle
-    commandCenter.dislike.localizedShortTitle = dislikeTitle
+  // Only writes properties that changed, since this runs on every on-deck
+  // emission (including per-tick currentTime updates).
+  private static func apply(
+    title: String,
+    isActive: Bool,
+    to command: any MPFeedbackCommandable
+  ) {
+    if command.localizedTitle != title {
+      log.debug("updateFeedbackCommands: title '\(title)'")
+      command.localizedTitle = title
+      command.localizedShortTitle = title
+    }
+    if command.isActive != isActive {
+      log.debug("updateFeedbackCommands: '\(title)' isActive: \(isActive)")
+      command.isActive = isActive
+    }
+  }
+
+  private static func likeIsActive(
+    _ action: UserSettings.CommandCenterLikeAction,
+    onDeck: OnDeck?
+  ) -> Bool {
+    guard let onDeck else { return false }
+    switch action {
+    case .love: return onDeck.rating == .loved
+    case .like: return onDeck.rating == .liked
+    case .saveInCache: return onDeck.saveInCache
+    case .addTag(let tagID): return onDeck.tagIDs.contains(tagID)
+    }
+  }
+
+  private static func dislikeIsActive(
+    _ action: UserSettings.CommandCenterDislikeAction,
+    onDeck: OnDeck?
+  ) -> Bool {
+    guard let onDeck else { return false }
+    switch action {
+    case .dislike: return onDeck.rating == .disliked
+    case .addTag(let tagID): return onDeck.tagIDs.contains(tagID)
+    }
   }
 
   static func updateBookmark() {

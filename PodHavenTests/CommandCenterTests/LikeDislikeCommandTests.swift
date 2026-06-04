@@ -146,4 +146,48 @@ import Testing
       }
     )
   }
+
+  @Test("like isActive reflects whether the on-deck episode already has the configured rating")
+  func likeIsActiveReflectsRating() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await PlayHelpers.load(podcastEpisode)
+    #expect(mpRemoteCommandCenter.like.isActive == false)
+
+    mpRemoteCommandCenter.fireLike()
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.like.isActive == true },
+      { "Expected like isActive to become true after the episode is liked" }
+    )
+  }
+
+  @Test("dislike isActive reflects whether the on-deck episode already has the configured rating")
+  func dislikeIsActiveReflectsRating() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await PlayHelpers.load(podcastEpisode)
+    #expect(mpRemoteCommandCenter.dislike.isActive == false)
+
+    mpRemoteCommandCenter.fireDislike()
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.dislike.isActive == true },
+      { "Expected dislike isActive to become true after the episode is disliked" }
+    )
+  }
+
+  @Test("like isActive reflects whether the on-deck episode already has the configured tag")
+  func likeIsActiveReflectsTagMembership() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "Sports"))
+    userSettings.$commandCenterLikeAction.new(.addTag(tag.id))
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await PlayHelpers.load(podcastEpisode)
+    #expect(mpRemoteCommandCenter.like.isActive == false)
+
+    mpRemoteCommandCenter.fireLike()
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.like.isActive == true },
+      { "Expected like isActive to become true after the episode is tagged" }
+    )
+  }
 }

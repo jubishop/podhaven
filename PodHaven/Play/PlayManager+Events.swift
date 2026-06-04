@@ -598,12 +598,14 @@ extension PlayManager {
       }
     }
 
-    // onDeck re-emits whenever the current episode's row changes (including
-    // saveInCache from any source), keeping the bookmark's active state in sync.
+    // onDeck re-emits whenever the current episode's row changes (rating,
+    // saveInCache, tags from any source), keeping the bookmark and like/dislike
+    // active states in sync.
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in sharedState.$onDeck.stream() {
         CommandCenter.updateBookmark()
+        CommandCenter.updateFeedbackCommands()
       }
     }
 
