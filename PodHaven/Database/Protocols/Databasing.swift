@@ -29,6 +29,11 @@ protocol Databasing: Sendable {
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode?
+  func episodesMatching(
+    podcastID: Podcast.ID,
+    guids: [GUID],
+    mediaURLs: [MediaURL]
+  ) async throws -> [Episode]
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode?
   func podcastEpisodes(_ episodeIDs: [Episode.ID]) async throws -> [PodcastEpisode]
   func podcastEpisode(_ mediaGUID: MediaGUID, feedURL: FeedURL) async throws -> PodcastEpisode?

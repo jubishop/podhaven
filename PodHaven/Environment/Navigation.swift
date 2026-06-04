@@ -116,6 +116,7 @@ extension Container {
     case listedPodcast(ListedPodcast)
     case listedEpisode(ListedEpisode)
     case unsavedPodcastSeries(UnsavedPodcastSeries)
+    case searchDiscovery(SearchRecommendationCollector.Source, SearchDiscoveryActionsViewModel)
 
     static func episode(_ episode: DisplayedEpisode) -> Destination {
       .episode(episode, startTime: nil)
@@ -328,6 +329,9 @@ extension Container {
         viewModel: PodcastDetailViewModel(unsavedPodcastSeries: unsavedPodcastSeries)
       )
       .id(unsavedPodcastSeries.id)
+    case .searchDiscovery(let source, let actionsViewModel):
+      SearchDiscoveryListView(source: source, actionsViewModel: actionsViewModel)
+        .id("searchDiscovery-\(source.stableID)")
     }
   }
 
@@ -364,6 +368,17 @@ extension Container {
 
     sheet.dismiss()
     search.path = [.unsavedPodcastSeries(unsavedPodcastSeries)]
+    currentTab = .search
+  }
+
+  func showSearchDiscovery(
+    source: SearchRecommendationCollector.Source,
+    actionsViewModel: SearchDiscoveryActionsViewModel
+  ) {
+    Self.log.debug("Showing search discovery list: \(source)")
+
+    sheet.dismiss()
+    search.path.append(.searchDiscovery(source, actionsViewModel))
     currentTab = .search
   }
 

@@ -18,8 +18,14 @@ class SearchViewModel:
 {
   @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
 
   nonisolated private static let log = Log.as(LogSubsystem.SearchView.main)
+
+  // MARK: - Recommendation Collector
+
+  let recommendationCollector = SearchRecommendationCollector()
+  let searchDiscoveryActionsViewModel: SearchDiscoveryActionsViewModel
 
   // MARK: - ManagingPodcasts
 
@@ -175,13 +181,18 @@ class SearchViewModel:
 
   // MARK: - Search State
 
+  // Holds keystrokes before kicking the iTunes search. Independent of the
+  // collector's `stableSourceDebounce`, which is a separate hold between an
+  // iTunes result emit and RSS fan-out.
+  nonisolated static let searchQueryDebounce: Duration = .milliseconds(400)
+
   var searchText: String {
     get { searchDebouncer.currentValue }
     set { searchDebouncer.currentValue = newValue }
   }
   @ObservationIgnored private lazy var searchDebouncer = Debouncer(
     initialValue: "",
-    debounceDuration: .milliseconds(400)
+    debounceDuration: Self.searchQueryDebounce
   ) { [weak self] _ in
     guard let self else { return }
 
@@ -236,6 +247,10 @@ class SearchViewModel:
       TrendingSection(genreID: 1309, icon: .trendingTVFilm),
     ]
 
+    searchDiscoveryActionsViewModel = SearchDiscoveryActionsViewModel(
+      collector: recommendationCollector
+    )
+
     podcastList.sortMethod = currentSortMethod.sortMethod
   }
 
@@ -245,7 +260,21 @@ class SearchViewModel:
     for section in trendingSections {
       section.owner = self
     }
-    showTrendingSection(currentTrendingSection)
+
+    guard isShowingSearchResults else {
+      showTrendingSection(currentTrendingSection)
+      return
+    }
+
+    // A typed search survived the tab switch; re-run it so the results, the DB
+    // observation, and the recommendation collector (all torn down on leave)
+    // come back instead of dropping to trending. Show .loading now so we don't
+    // flash the empty placeholder before the re-run starts.
+    searchState = .loading
+    Task { [weak self] in
+      guard let self else { return }
+      await refreshSearch()
+    }
   }
 
   // MARK: - Trending
@@ -255,7 +284,9 @@ class SearchViewModel:
     syncPodcastListToTrendingResults(trendingSection)
     if !loadTrendingSection(trendingSection) {
       restartObservationForTrendingSection(trendingSection)
+      pushTrendingResultsToCollector(trendingSection)
     }
+    syncCollectorActiveSource()
   }
 
   func refreshCurrentTrendingSection() async {
@@ -317,6 +348,7 @@ class SearchViewModel:
           uniquingIDsWith: { _, new in new }
         )
         trendingSection.state = .loaded
+        pushTrendingResultsToCollector(trendingSection)
         Self.log.debug(
           """
           Set trending results for trending section: \(trendingSection)
@@ -357,8 +389,8 @@ class SearchViewModel:
     let task = Task<Bool, Never> { [weak self] in
       guard let self else { return false }
 
+      let term = searchedText
       do {
-        let term = searchedText
         let results = try await self.iTunesService.searchedPodcasts(matching: term, limit: 48)
         try Task.checkCancellation()
         guard term == searchedText else { return false }
@@ -375,6 +407,8 @@ class SearchViewModel:
           uniquingIDsWith: { _, new in new }
         )
         searchState = .loaded
+        pushSearchResultsToCollector(query: term)
+        syncCollectorActiveSource()
         Self.log.debug(
           """
           Set search results for search term: \(term)
@@ -382,11 +416,13 @@ class SearchViewModel:
           """
         )
       } catch {
-        Self.log.caughtError("executeSearch: failed for term '\(searchedText)'", error)
+        Self.log.caughtError("executeSearch: failed for term '\(term)'", error)
         guard !Task.isCancelled else { return false }
 
         searchResults.removeAll()
         searchState = .error(ErrorKit.message(for: error))
+        pushSearchResultsToCollector(query: term)
+        syncCollectorActiveSource()
       }
       return true
     }
@@ -399,6 +435,9 @@ class SearchViewModel:
 
   private func restartObservationForSearchResults() {
     guard isShowingSearchResults else { return }
+    // Capture the term once so a late emission can't reattribute its picks
+    // to whatever query happens to be live by then.
+    let query = searchedText
 
     restartObservation(
       feedURLs: Array(searchResults.ids),
@@ -409,7 +448,7 @@ class SearchViewModel:
       Self.log.debug(
         """
         Observed:
-          search term: \(searchedText)
+          search term: \(query)
           \(podcasts.count) saved podcasts
         """
       )
@@ -430,6 +469,8 @@ class SearchViewModel:
 
       searchResults = revertDeletedPodcasts(in: searchResults, updatedIDs: updatedIDs)
       syncPodcastListToSearchResults()
+      // Re-push so the collector drops rows that just became subscribed.
+      pushSearchResultsToCollector(query: query)
     }
   }
 
@@ -470,6 +511,8 @@ class SearchViewModel:
         updatedIDs: updatedIDs
       )
       syncPodcastListToTrendingResults(trendingSection)
+      // Re-push so the collector drops rows that just became subscribed.
+      pushTrendingResultsToCollector(trendingSection)
     }
   }
 
@@ -634,15 +677,61 @@ class SearchViewModel:
   func disappear() {
     Self.log.debug("SearchViewModel: disappearing")
 
-    searchDebouncer.reset()
+    // Keep the typed query so the search survives a tab switch (appear() re-runs
+    // it); stop in-flight work and clear the transient .loading so we don't
+    // return to a stuck "Searching…".
+    searchDebouncer.cancelPending()
+    searchDebouncer.commitValue()
     searchTask?.cancel()
     searchTask = nil
     searchState = .idle
     for trendingSection in trendingSections {
       trendingSection.task?.cancel()
       trendingSection.task = nil
+      if trendingSection.state == .loading {
+        trendingSection.state = .idle
+      }
     }
     currentResultsObservationTask?.cancel()
     currentResultsObservationTask = nil
+    Self.log.debug("SearchViewModel: resetting recommendation collector")
+    recommendationCollector.reset()
+
+    // Search always reopens at its top level; don't restore a deep stack (a
+    // pushed discovery list would also be backed by the just-reset collector).
+    navigation.search.path = []
+  }
+
+  // MARK: - Recommendation Collector Wiring
+
+  fileprivate func syncCollectorActiveSource() {
+    let source: SearchRecommendationCollector.Source?
+    if isShowingSearchResults {
+      source = .search(query: searchedText)
+    } else {
+      source = .trending(
+        .init(
+          genreID: currentTrendingSection.genreID,
+          title: currentTrendingSection.title
+        )
+      )
+    }
+    recommendationCollector.setActiveSource(source)
+  }
+
+  fileprivate func pushTrendingResultsToCollector(_ trendingSection: TrendingSection) {
+    guard trendingSection.state == .loaded, !trendingSection.results.isEmpty else { return }
+    recommendationCollector.recordSourcePodcasts(
+      source: .trending(.init(genreID: trendingSection.genreID, title: trendingSection.title)),
+      podcasts: Array(trendingSection.results)
+    )
+  }
+
+  fileprivate func pushSearchResultsToCollector(query: String) {
+    guard !query.isEmpty else { return }
+    recommendationCollector.recordSourcePodcasts(
+      source: .search(query: query),
+      podcasts: Array(searchResults)
+    )
   }
 }
