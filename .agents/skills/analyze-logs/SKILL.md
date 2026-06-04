@@ -1,6 +1,6 @@
 ---
 name: analyze-logs
-description: Analyze PodHaven NDJSON log files and reconstruct failure timelines. Use when inspecting log.ndjson or widget-log.ndjson, diagnosing warnings or errors, correlating a Sentry timestamp to local logs, or explaining what happened around a specific time, subsystem, category, source file, or message.
+description: Analyze PodHaven NDJSON log files and reconstruct failure timelines. Requires the user to specify the log file path and run context (do not infer). Use when inspecting log.ndjson or widget-log.ndjson, diagnosing warnings or errors, correlating a Sentry timestamp to local logs, or explaining what happened around a specific time, subsystem, category, source file, or message.
 user_invocable: true
 disable-model-invocation: true
 ---
@@ -9,80 +9,82 @@ disable-model-invocation: true
 
 Inspect PodHaven NDJSON logs without reading the entire file into context. Use the bundled summary script for structured analysis, then targeted `rg` searches when you need line-level confirmation.
 
+## Required: user must say where the logs are
+
+**Do not infer or auto-select a log path.** Before running `log_summary.py` or reading a file:
+
+1. **Ask the user** which run they reproduced (Simulator, My Mac, physical device export, path they copied, attachment from feedback/Sentry, etc.).
+2. **Require a concrete path** (or a clear copy destination they name, e.g. `/tmp/podhaven-log.ndjson`).
+3. **Repeat back** the path and run context in your first analysis message.
+
+If the user has not supplied a path, stop and ask. You may run `scripts/locate_logs.py` only to show **reference** locations while waiting — that script does not choose a file for you.
+
+## Reference: where logs usually live (confirm with the user)
+
+Use this table to help the user find files; **do not analyze until they confirm the path.**
+
+| Run context | App log (`log.ndjson`) | Widget log (`widget-log.ndjson`) |
+|-------------|------------------------|----------------------------------|
+| **iOS Simulator** (Development / Run) | `<sim-data>/Documents/PodHavenDev/log.ndjson` | `<sim-group>/widget-log.ndjson` |
+| **My Mac** (Designed for iPhone, `.dev`) | `~/Library/Containers/com.artisanalsoftware.PodHaven.dev/Data/Documents/PodHavenDev/log.ndjson` | `~/Library/Group Containers/group.podhaven.shared.dev/widget-log.ndjson` |
+| **Physical iPhone** (dev) | User must Share/Save or copy via Finder/device tools — **ask for the saved path** | Same; separate widget file |
+| **Production** (Release) | `~/Library/Containers/com.artisanalsoftware.PodHaven/Data/Documents/log.ndjson` | `~/Library/Group Containers/group.podhaven.shared/widget-log.ndjson` |
+
+**Simulator — copy to Mac host** (after user confirms they reproduced on Simulator):
+
+```bash
+DATA="$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev data)"
+cp "$DATA/Documents/PodHavenDev/log.ndjson" /tmp/podhaven-log.ndjson
+# Give /tmp/podhaven-log.ndjson (or another path the user chooses) to analysis.
+```
+
+Share sheet on **Simulator does not export to the Mac** — `simctl` copy or an explicit path the user provides.
+
+**Reference listing** (no path selection):
+
+```bash
+python3 scripts/locate_logs.py
+python3 scripts/locate_logs.py --widget
+python3 scripts/log_summary.py --list-locations
+```
+
+### Rolling buffer and worktrees
+
+- All **Development** runs on the same simulator (or same My Mac container) append to **one** `log.ndjson`.
+- Worktrees do not create separate log files.
+- After repro, user should **copy immediately** or you scope with `--sessions` and match **Settings → Git** / `Git commit hash is:` in the log.
+
 ## Quick Start
 
-1. Determine the log path.
-   - Use the user-provided path first.
-   - Default: `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`.
-   - Widget logs: look for `widget-log.ndjson` instead.
-2. Run the script with no filters for the initial overview.
+1. **Get path from the user** — mandatory; no defaults.
+2. Run `python3 scripts/log_summary.py "$LOG_PATH"` with no filters for the initial overview.
 3. Add structural filters (`--subsystem`, `--category`, `--source`, `--file`, `--function`) before falling back to broad `--match`.
 4. Use `--last-hours`, `--tail`, `--after`/`--before` to narrow time ranges.
-5. Use `--sessions` to find app launch boundaries, then `--session N` to scope every later command to one launch — essential for rolling-buffer logs that span many sessions.
-6. Use `--call-sites` to see which `file:line` is chattiest, and `--oneline` for a dense one-entry-per-line timeline.
-7. Use `--json` when the next step needs machine-readable output.
-8. Use `--compare-other` when the user gives both app and widget logs or asks for a before/after comparison.
-9. Use `rg` on the raw file to zoom in on specific timestamps, levels, subsystems, or messages.
-10. Read `references/podhaven-log-format.md` only if you need field or truncation details.
+5. Use `--sessions` to find app launch boundaries, then `--session N` to scope every later command to one launch.
+6. Use `--call-sites`, `--oneline`, `--json`, `--compare-other` as needed.
+7. Use `rg` on the raw file for line-level precision.
+8. Read `references/podhaven-log-format.md` for field or truncation details.
 
 ## Commands
 
 ```bash
-# Overview: time range, level counts, subsystem breakdown, top recurring issues
-python3 scripts/log_summary.py
+# Reference only — does not pick a log file
+python3 scripts/locate_logs.py
+
+# Analysis — LOG_PATH must come from the user
 python3 scripts/log_summary.py "$LOG_PATH"
+python3 scripts/log_summary.py "$LOG_PATH" --sessions
+python3 scripts/log_summary.py "$LOG_PATH" --session 12 --call-sites
 
-# Session detection: find app launches with per-session problem counts
-python3 scripts/log_summary.py --sessions
-python3 scripts/log_summary.py --sessions --json
+python3 scripts/log_summary.py "$LOG_PATH" --min-level warning --last-hours 6
+python3 scripts/log_summary.py "$LOG_PATH" --around 1768679500000 --window-ms 30000
+python3 scripts/log_summary.py "$LOG_PATH" --subsystem Feed --category refreshManager
+python3 scripts/log_summary.py "$LOG_PATH" --match "cache load failed" --min-level warning
+python3 scripts/log_summary.py "$LOG_PATH" --tail 200 --json
+python3 scripts/log_summary.py "$LOG_PATH" --compare-other "$WIDGET_LOG_PATH"
 
-# Scope every analysis to one detected session (number comes from --sessions)
-python3 scripts/log_summary.py --session 12
-python3 scripts/log_summary.py --session 12 --call-sites
-
-# Call-site histogram: which file:line + function is chattiest in the selection
-python3 scripts/log_summary.py --call-sites
-python3 scripts/log_summary.py --session 12 --call-sites --limit 30
-
-# Compact one-line-per-entry timeline (good for dense storms)
-python3 scripts/log_summary.py --around 1768679500000 --oneline --coalesce-window-ms 0
-
-# Filter by level
-python3 scripts/log_summary.py --min-level error
-python3 scripts/log_summary.py --min-level warning --coalesce-window-ms 0
-
-# Filter by time range
-python3 scripts/log_summary.py --last-hours 6 --min-level warning
-python3 scripts/log_summary.py --after "2026-04-03" --before "2026-04-04"
-python3 scripts/log_summary.py --after "2026-04-03 10:00" --before "2026-04-03 12:00"
-
-# Filter by structure
-python3 scripts/log_summary.py --subsystem Feed --category refreshManager --function refreshSeries
-python3 scripts/log_summary.py --source PodHavenWidget
-python3 scripts/log_summary.py --file PlayManager.swift
-
-# Timeline around a specific event
-python3 scripts/log_summary.py --around 1768679500000 --window-ms 30000
-
-# Text search across all fields
-python3 scripts/log_summary.py --match "cache load failed" --min-level warning
-
-# Show last N entries
-python3 scripts/log_summary.py --tail 200 --json
-
-# Compare two log files (e.g. app vs widget, or before vs after)
-python3 scripts/log_summary.py "$LOG_PATH" --compare-other "$OTHER_LOG_PATH"
-
-# Raw rg searches when you need line-level precision
 rg -n '"level":(4|5|6)' "$LOG_PATH"
-rg -n '"timestamp":17686795' "$LOG_PATH"
-rg -n '"subsystem":"Play"|"category":"refreshScheduler"' "$LOG_PATH"
-
-# Symbolicate MetricKit call stacks (crash/hang/cpuException/diskWriteException/appLaunch)
 python3 scripts/symbolicate_metrickit.py "$LOG_PATH"
-python3 scripts/symbolicate_metrickit.py "$LOG_PATH" --around 1768679500000 --window-ms 60000
-python3 scripts/symbolicate_metrickit.py "$LOG_PATH" --category crash --json
-python3 scripts/symbolicate_metrickit.py "$LOG_PATH" --offline   # cache-only, no Sentry fetch
 ```
 
 ## Flags Reference
@@ -122,53 +124,50 @@ Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, 
 | `--call-sites` | Print a histogram of the selection grouped by `file:line` + function |
 | `--oneline` | Print each selected entry as one dense line instead of the multi-line block |
 | `--compare-other PATH` | Compare the primary log to another log using the same filters |
+| `--list-locations` | Print reference log locations and exit (same as `locate_logs.py`) |
 
 ## Workflow
 
+### 0. Obtain path (mandatory)
+
+- Ask: Simulator, My Mac, device copy, Sentry/feedback attachment, or other?
+- Do not run analysis until the user supplies or confirms a filesystem path.
+- Optionally show `locate_logs.py` output to help them find files; still require their confirmation.
+
 ### 1. Orient
 
-- Run the script with no filters to get the parsed entry count, time range, level distribution, top sources/subsystems, and recurring warning/error families.
-- Use `--sessions` to identify app launch boundaries and which sessions have problems. The log is a rolling buffer that usually spans many launches — once you know which session matters, pass `--session N` so every later command is scoped to that one launch instead of the whole file.
-- Use `--call-sites` to find a runaway log site fast: it surfaces the chattiest `file:line` even when no line crosses the `warning` threshold (storms and loops are usually all `debug`/`notice`).
-- The recurring issue section groups by logger location, message, and metadata, and includes cadence (avg/min/max gap between occurrences) plus NSURLErrorDomain decoding.
-- Present all user-facing timestamps in Pacific Time.
+- Run `log_summary.py "$LOG_PATH"` with no filters.
+- Use `--sessions` for rolling-buffer logs spanning many launches.
+- Present user-facing timestamps in Pacific Time.
 
 ### 2. Find candidate failures
 
-- Prioritize `error` and `critical` entries.
-- Include `warning` entries when they plausibly lead to a later failure or show repeated unhealthy behavior.
-- Watch for repeated messages, bursts in the same time window, and the same subsystem/category appearing across multiple entries.
+- Prioritize `error` and `critical`; include relevant `warning` entries.
+- Use `--call-sites` for chattiness without high severity.
 
 ### 3. Reconstruct the timeline
 
-- Use `--around` with a narrow `--window-ms` to see what happened around a specific event.
-- Use `--after`/`--before` for broader time ranges.
-- Correlate `source`, `subsystem`, `category`, `file`, `function`, and `metadata` to identify the code path.
-- Use `rg` on the raw file for timestamp-prefix searches when you already know the exact millisecond.
+- `--around`, `--after`/`--before`, structural filters, then `rg` as needed.
 
 ### 4. Correlate external references
 
-- If the user gives a Sentry timestamp, convert it to milliseconds and use `--around`.
-- If the user gives a subsystem, category, source file, or function name, prefer the dedicated flags before using `rg`.
-- If the user gives multiple log files, analyze them separately first, then use `--compare-other` for a side-by-side diff.
+- Sentry timestamp → `--around` in ms.
+- Multiple files → separate analysis, then `--compare-other`.
 
 ### 5. Symbolicate MetricKit call stacks
 
-- MetricKit diagnostics show up as `notice`-level entries with `subsystem=PodHaven`, `category=MetricKit`, and a `metadata.metricKitDiagnostic` JSON blob (raw `MXDiagnosticPayload.jsonRepresentation()`). The frames are unsymbolicated — each carries `binaryUUID` + `offsetIntoBinaryTextSegment` only.
-- When such an entry lands in the window you care about, run `scripts/symbolicate_metrickit.py "$LOG_PATH"`. It resolves dSYMs from Sentry's Debug Files API (cached under `~/Library/Caches/podhaven-symbolicate`) and runs `atos`, producing function/file/line frames.
-- Use `--around <ms> --window-ms <ms>` and/or `--category crash` to scope when many MetricKit entries are present.
-- Pass `--offline` when there's no network or you only want to consult the local cache.
-- See `references/podhaven-log-format.md` for the exact NDJSON shape of MetricKit entries.
+- See `references/podhaven-log-format.md` and `scripts/symbolicate_metrickit.py`.
 
 ## Reporting
 
-- State the time range and timezone explicitly.
-- Separate direct observations from inferred root cause.
-- Quote only the minimum log text needed to support the conclusion.
-- Mention possible missing lead-up context when the file appears truncated from the top.
+- State **log path and run context** as given by the user.
+- State time range and timezone (Pacific unless asked otherwise).
+- Separate observations from inferred root cause.
+- Note truncation / missing lead-up when the file was trimmed from the top.
 
 ## Resources
 
-- `scripts/log_summary.py` — primary analysis tool
-- `scripts/symbolicate_metrickit.py` — resolve MetricKit call-stack `binaryUUID+offset` frames to function/file/line via Sentry dSYMs + `atos`
-- `references/podhaven-log-format.md` — entry schema (including the MetricKit metadata shape), log file names, and truncation behavior
+- `scripts/locate_logs.py` — reference list of common host paths (does not select a file)
+- `scripts/log_summary.py` — primary analysis tool (requires explicit path)
+- `scripts/symbolicate_metrickit.py` — MetricKit symbolication
+- `references/podhaven-log-format.md` — entry schema and truncation behavior

@@ -27,6 +27,15 @@ enum EnvironmentType: String {
   case testFlight
   case testing
   case deployed
+
+  // `.deployed` is a release build whose distribution channel hasn't been
+  // refined to `.appStore` / `.testFlight` yet.
+  var isRelease: Bool {
+    switch self {
+    case .deployed, .appStore, .testFlight: true
+    case .iPhoneDev, .macDev, .preview, .simulator, .testing: false
+    }
+  }
 }
 
 enum AppInfo {
