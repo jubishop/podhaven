@@ -235,14 +235,21 @@ private struct LogFileShareItem: Transferable {
   let exportFilename: String
   let flushBeforeExport: Bool
 
+  private static let log = Log.as(LogSubsystem.SettingsView.main)
+
   static var transferRepresentation: some TransferRepresentation {
     DataRepresentation(exportedContentType: LogFilePayload.contentType) { item in
-      try LogFilePayload.load(
-        sourceURL: item.sourceURL,
-        exportFilename: item.exportFilename,
-        flushBeforeExport: item.flushBeforeExport
-      )
-      .data
+      do {
+        let payload = try LogFilePayload.load(
+          sourceURL: item.sourceURL,
+          exportFilename: item.exportFilename,
+          flushBeforeExport: item.flushBeforeExport
+        )
+        return payload.data
+      } catch {
+        log.caughtError("Log export: failed to prepare \(item.exportFilename)", error)
+        throw error
+      }
     }
     .suggestedFileName { item in item.exportFilename }
   }
