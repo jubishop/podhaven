@@ -680,7 +680,7 @@ class SearchViewModel:
     // Keep the typed query so the search survives a tab switch (appear() re-runs
     // it); stop in-flight work and clear the transient .loading so we don't
     // return to a stuck "Searching…".
-    searchDebouncer.cancelPending()
+    searchDebouncer.cancelPendingAndCommitCurrentValue()
     searchTask?.cancel()
     searchTask = nil
     searchState = .idle

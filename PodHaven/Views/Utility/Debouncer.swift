@@ -56,6 +56,12 @@ class Debouncer<Value: Equatable & Sendable> {
     debounceAction.cancel()
   }
 
+  // Commits the visible value for readers without firing onChange during teardown.
+  func cancelPendingAndCommitCurrentValue() {
+    debounceAction.cancel()
+    debouncedValue = currentValue
+  }
+
   // MARK: - Private Helpers
 
   private func debounce() {

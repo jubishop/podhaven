@@ -697,6 +697,42 @@ import Testing
     )
   }
 
+  @Test("a pending typed search survives leaving and returning to the Search tab")
+  func pendingTypedSearchSurvivesTabSwitch() async throws {
+    await configureITunesResponses()
+
+    let viewModel = SearchViewModel()
+    viewModel.appear()
+
+    viewModel.searchText = "growth"
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+
+    viewModel.disappear()
+    #expect(
+      viewModel.searchText == "growth",
+      "Expected the pending query to survive leaving Search"
+    )
+
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.searchState == .loaded
+          && viewModel.isShowingSearchResults
+          && viewModel.searchResults.count == 2
+      },
+      { @MainActor in
+        """
+        Expected pending search text to restore search results on return.
+        state: \(viewModel.searchState)
+        searchedText: \(viewModel.searchedText)
+        searchText: \(viewModel.searchText)
+        results: \(viewModel.searchResults.count)
+        """
+      }
+    )
+  }
+
   private func configureITunesResponses(emptyForSearchTerm: String? = nil) async {
     let topFeed = PreviewBundle.loadAsset(named: "top_feed", in: .iTunesResults)
     let topLookup = PreviewBundle.loadAsset(named: "top_lookup", in: .iTunesResults)
