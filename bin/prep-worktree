@@ -78,10 +78,10 @@ MAIN_DD="$DERIVED_DATA_DIR/$PROJECT_NAME-$MAIN_HASH"
 WT_HASH=$(xcode_hash "$WORKTREE_PATH/$PROJECT_NAME.xcodeproj")
 WT_DD="$DERIVED_DATA_DIR/$PROJECT_NAME-$WT_HASH"
 
-# Share SwiftPM checkouts via one clone at SHARED_SPM. xcodebuild is pointed
-# straight at it below; Xcode's IDE only reads <DerivedData>/SourcePackages, so
-# we also symlink that to SHARED_SPM. A DerivedData wipe then only removes the
-# symlinks, never the checkouts.
+# Share SwiftPM checkouts via one clone at SHARED_SPM. Builds reach it through a
+# symlink at <DerivedData>/SourcePackages (the IDE and xcodebuild both read that
+# default location), so a DerivedData wipe only drops the symlink, never the
+# checkouts.
 mkdir -p "$(dirname "$SHARED_SPM")"
 if [ ! -e "$SHARED_SPM" ]; then
   if [ -d "$MAIN_DD/SourcePackages" ] && [ ! -L "$MAIN_DD/SourcePackages" ]; then
@@ -134,23 +134,6 @@ if [ -f "$SETTINGS_SRC" ] && [ ! -f "$SETTINGS_DST" ]; then
   mkdir -p "$(dirname "$SETTINGS_DST")"
   cp "$SETTINGS_SRC" "$SETTINGS_DST"
   echo "Copied workspace settings (compilation caching)"
-fi
-
-# Kick off a background build to warm the cache
-BUILD_LOG="/tmp/prep-worktree-build-$(basename "$WORKTREE_PATH").log"
-if [ ! -f "$WT_DD/Build/Products" ] || [ "$(find "$WT_DD/Build" -name '*.o' 2>/dev/null | head -1)" = "" ]; then
-  echo "Starting background build to warm cache..."
-  cd "$WORKTREE_PATH" && xcodebuild build \
-    -project "$PROJECT_NAME.xcodeproj" \
-    -scheme "$PROJECT_NAME" \
-    -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-    -clonedSourcePackagesDirPath "$SHARED_SPM" \
-    -quiet \
-    > "$BUILD_LOG" 2>&1 </dev/null &
-  disown 2>/dev/null || true
-  echo "Build running in background (log: $BUILD_LOG)"
-else
-  echo "Build artifacts already exist, skipping background build"
 fi
 
 echo "Ready: open $WORKTREE_PATH/$PROJECT_NAME.xcodeproj"
