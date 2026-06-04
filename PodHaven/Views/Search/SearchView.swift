@@ -183,16 +183,17 @@ struct SearchView: View {
 
   // MARK: - Grid & List
 
-  @ViewBuilder
   private var resultsView: some View {
-    VStack(spacing: 0) {
-      recommendationBanner
+    Group {
       switch viewModel.displayMode {
       case .grid:
         resultsGrid
       case .list:
         resultsList
       }
+    }
+    .safeAreaInset(edge: .top, spacing: 0) {
+      recommendationBanner
     }
   }
 
@@ -275,19 +276,24 @@ struct SearchView: View {
     text: String,
     tappable: Bool
   ) -> some View {
-    if tappable {
-      Button {
-        navigation.showSearchDiscovery(
-          source: source,
-          actionsViewModel: viewModel.searchDiscoveryActionsViewModel
-        )
-      } label: {
-        bannerLabel(text: text, showsChevron: true)
+    Group {
+      if tappable {
+        Button {
+          navigation.showSearchDiscovery(
+            source: source,
+            actionsViewModel: viewModel.searchDiscoveryActionsViewModel
+          )
+        } label: {
+          bannerLabel(text: text, showsChevron: true)
+        }
+        .buttonStyle(.glass)
+      } else {
+        bannerLabel(text: text, showsChevron: false)
+          .glassEffect()
       }
-      .buttonStyle(.plain)
-    } else {
-      bannerLabel(text: text, showsChevron: false)
     }
+    .padding(.horizontal)
+    .padding(.vertical, 6)
   }
 
   private func bannerLabel(text: String, showsChevron: Bool) -> some View {
@@ -305,7 +311,6 @@ struct SearchView: View {
     }
     .padding(.horizontal)
     .padding(.vertical, 10)
-    .background(Color.secondary.opacity(0.08))
   }
 
   private func loadingBannerCopy(for source: SearchRecommendationCollector.Source) -> String {
