@@ -201,6 +201,30 @@ struct SettingsView: View {
             }
             Spacer(minLength: 0)
           }
+
+          SettingsRow(
+            infoText: """
+              Choose what the Like button does on car controls, headphones, \
+              and other remotes to the currently playing episode. \
+              "Add Tag" assigns a tag you pick; it appears only once you have tags.
+              """
+          ) {
+            Text("Like Button")
+            Spacer()
+            CommandCenterLikeMenu()
+          }
+
+          SettingsRow(
+            infoText: """
+              Choose what the Dislike button does on car controls, headphones, \
+              and other remotes to the currently playing episode. \
+              "Add Tag" assigns a tag you pick; it appears only once you have tags.
+              """
+          ) {
+            Text("Dislike Button")
+            Spacer()
+            CommandCenterDislikeMenu()
+          }
         }
 
         Section("Appearance") {

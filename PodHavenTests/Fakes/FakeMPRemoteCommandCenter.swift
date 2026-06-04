@@ -192,4 +192,12 @@ final class FakeMPRemoteCommandCenter: MPRemoteCommandableCenter {
   func fireBookmark() {
     _bookmarkCommand.fire(FakeMPRemoteCommandEvent())
   }
+
+  func fireLike() {
+    _likeCommand.fire(FakeMPRemoteCommandEvent())
+  }
+
+  func fireDislike() {
+    _dislikeCommand.fire(FakeMPRemoteCommandEvent())
+  }
 }
