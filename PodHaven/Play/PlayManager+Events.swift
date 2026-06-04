@@ -454,6 +454,32 @@ extension PlayManager {
           case .nextChapter:
             await seekToPreviousChapter()
           }
+        case .bookmark(let sourceEpisodeID):
+          guard let sourceEpisodeID else {
+            Self.log.debug("bookmark command received with no on-deck episode, ignoring")
+            continue
+          }
+          await toggleSaveInCache(sourceEpisodeID)
+        case .like(let sourceEpisodeID):
+          guard let sourceEpisodeID else {
+            Self.log.debug("like command received with no on-deck episode, ignoring")
+            continue
+          }
+          switch userSettings.commandCenterLikeAction {
+          case .love: await toggleRating(.loved, for: sourceEpisodeID)
+          case .like: await toggleRating(.liked, for: sourceEpisodeID)
+          case .saveInCache: await toggleSaveInCache(sourceEpisodeID)
+          case .addTag(let tagID): await toggleTag(tagID, for: sourceEpisodeID)
+          }
+        case .dislike(let sourceEpisodeID):
+          guard let sourceEpisodeID else {
+            Self.log.debug("dislike command received with no on-deck episode, ignoring")
+            continue
+          }
+          switch userSettings.commandCenterDislikeAction {
+          case .dislike: await toggleRating(.disliked, for: sourceEpisodeID)
+          case .addTag(let tagID): await toggleTag(tagID, for: sourceEpisodeID)
+          }
         }
       }
     }
@@ -548,6 +574,20 @@ extension PlayManager {
       }
     }
 
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await _ in userSettings.$commandCenterLikeAction.stream() {
+        CommandCenter.updateFeedbackCommands()
+      }
+    }
+
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await _ in userSettings.$commandCenterDislikeAction.stream() {
+        CommandCenter.updateFeedbackCommands()
+      }
+    }
+
     // SharedState
 
     Task { @PlayActor [weak self] in
@@ -555,6 +595,26 @@ extension PlayManager {
       for await _ in sharedState.$queuedPodcastEpisodes.stream() {
         Self.log.debug("queue changed, count: \(sharedState.queueCount)")
         handleTrackBehaviorChange()
+      }
+    }
+
+    // onDeck re-emits whenever the current episode's row changes (rating,
+    // saveInCache, tags from any source), keeping the bookmark and like/dislike
+    // active states in sync.
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await _ in sharedState.$onDeck.stream() {
+        CommandCenter.updateBookmark()
+        CommandCenter.updateFeedbackCommands()
+      }
+    }
+
+    // Tag renames/adds/deletes change the "Add Tag" feedback button titles and
+    // can orphan a configured tag, so keep the like/dislike titles in sync.
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await _ in sharedState.$tags.stream() {
+        CommandCenter.updateFeedbackCommands()
       }
     }
   }

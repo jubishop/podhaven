@@ -276,4 +276,38 @@ actor ObservatoryListableTests {
     }
     try await updateCount.wait(for: 2)
   }
+
+  @Test(
+    "listable podcastsWithEpisodeMetadata(feedURLs:iTunesIDs:) matches by feed URL or iTunes ID"
+  )
+  func testListablePodcastsByFeedURLsAndITunesIDs() async throws {
+    let feedURL = FeedURL(URL(string: "https://by-feed.com/feed.rss")!)
+    let iTunesID = ITunesPodcastID(424242)
+
+    try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "By Feed"),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(iTunesID: iTunesID, title: "By iTunes"),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Unrelated"),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+
+    let result: [PodcastWithEpisodeMetadata<ListablePodcast>] =
+      try await observatory.listablePodcastsWithEpisodeMetadata([feedURL], iTunesIDs: [iTunesID])
+      .get()
+
+    let titles = Set(result.map(\.podcast.title))
+    #expect(titles == Set(["By Feed", "By iTunes"]))
+  }
 }

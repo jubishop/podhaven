@@ -513,4 +513,145 @@ class EmbeddingRepoTests {
 
     #expect(try await recommendationRepo.podcastEmbedding(for: pe.podcast.id) == nil)
   }
+
+  // MARK: - embeddings(for:) Tests
+
+  @Test("embeddings(for:) returns only the requested episodes, keyed by episodeId")
+  func embeddingsForReturnsByEpisode() async throws {
+    let a = try await createPodcastEpisode()
+    let b = try await createPodcastEpisode()
+    let c = try await createPodcastEpisode()
+    try await insertEmbedding(for: a.episode.id)
+    try await insertEmbedding(for: b.episode.id)
+
+    let result = try await recommendationRepo.embeddings(
+      for: [a.episode.id, b.episode.id, c.episode.id]
+    )
+
+    #expect(result.count == 2)
+    #expect(result[id: a.episode.id]?.episodeId == a.episode.id)
+    #expect(result[id: b.episode.id]?.episodeId == b.episode.id)
+    #expect(result[id: c.episode.id] == nil)
+  }
+
+  @Test("embeddings(for:) returns empty for empty input")
+  func embeddingsForEmptyInput() async throws {
+    let pe = try await createPodcastEpisode()
+    try await insertEmbedding(for: pe.episode.id)
+
+    let result = try await recommendationRepo.embeddings(for: [])
+    #expect(result.isEmpty)
+  }
+
+  // MARK: - podcasts(for:) Tests
+
+  @Test("podcasts(for:) returns only the requested podcasts")
+  func podcastsForReturnsRequested() async throws {
+    let a = try await createPodcastEpisode()
+    let b = try await createPodcastEpisode()
+    let c = try await createPodcastEpisode()
+
+    let result = try await recommendationRepo.podcasts(for: [a.podcast.id, b.podcast.id])
+
+    #expect(result.count == 2)
+    #expect(result[id: a.podcast.id]?.id == a.podcast.id)
+    #expect(result[id: b.podcast.id]?.id == b.podcast.id)
+    #expect(result[id: c.podcast.id] == nil)
+  }
+
+  @Test("podcasts(for:) returns empty for empty input")
+  func podcastsForEmptyInput() async throws {
+    _ = try await createPodcastEpisode()
+
+    let result = try await recommendationRepo.podcasts(for: [])
+    #expect(result.isEmpty)
+  }
+
+  // MARK: - podcastEmbeddings(for:) Tests
+
+  private func insertPodcastEmbedding(for podcastID: Podcast.ID) async throws {
+    try await recommendationRepo.upsertPodcastEmbeddings([
+      UnsavedPodcastEmbedding(
+        podcastId: podcastID,
+        vector: UnsavedPodcastEmbedding.vectorData(from: [1.0, 0.0, 0.0]),
+        sourceHash: "test-hash",
+        embeddingRevision: 1,
+        dimension: 3
+      )
+    ])
+  }
+
+  @Test("podcastEmbeddings(for:) returns only the requested podcasts, keyed by podcastId")
+  func podcastEmbeddingsForReturnsByPodcast() async throws {
+    let a = try await createPodcastEpisode()
+    let b = try await createPodcastEpisode()
+    let c = try await createPodcastEpisode()
+    try await insertPodcastEmbedding(for: a.podcast.id)
+    try await insertPodcastEmbedding(for: b.podcast.id)
+
+    let result = try await recommendationRepo.podcastEmbeddings(
+      for: [a.podcast.id, b.podcast.id, c.podcast.id]
+    )
+
+    #expect(result.count == 2)
+    #expect(result[id: a.podcast.id]?.podcastId == a.podcast.id)
+    #expect(result[id: b.podcast.id]?.podcastId == b.podcast.id)
+    #expect(result[id: c.podcast.id] == nil)
+  }
+
+  @Test("podcastEmbeddings(for:) returns empty for empty input")
+  func podcastEmbeddingsForEmptyInput() async throws {
+    let pe = try await createPodcastEpisode()
+    try await insertPodcastEmbedding(for: pe.podcast.id)
+
+    let result = try await recommendationRepo.podcastEmbeddings(for: [])
+    #expect(result.isEmpty)
+  }
+
+  // MARK: - touchEmbeddingVerification Tests
+
+  private func insertEmbedding(
+    for episodeID: Episode.ID,
+    verificationDate: Date
+  ) async throws {
+    try await recommendationRepo.upsertEmbeddings([
+      UnsavedEpisodeEmbedding(
+        episodeId: episodeID,
+        vector: UnsavedEpisodeEmbedding.vectorData(from: [1.0, 0.0, 0.0]),
+        sourceHash: "test-hash",
+        embeddingRevision: 1,
+        dimension: 3,
+        verificationDate: verificationDate
+      )
+    ])
+  }
+
+  @Test("touchEmbeddingVerification advances verificationDate for the given episodes")
+  func touchAdvancesVerificationDate() async throws {
+    let pe = try await createPodcastEpisode()
+    let original = Date(timeIntervalSince1970: 1_000_000)
+    try await insertEmbedding(for: pe.episode.id, verificationDate: original)
+
+    let touchDate = Date()
+    try await recommendationRepo.touchEmbeddingVerification(
+      forEpisodeIDs: [pe.episode.id],
+      at: touchDate
+    )
+
+    let updated = try #require(try await recommendationRepo.embedding(for: pe.episode.id))
+    #expect(updated.verificationDate.approximatelyEquals(touchDate))
+    #expect(!updated.verificationDate.approximatelyEquals(original))
+  }
+
+  @Test("touchEmbeddingVerification with empty episode IDs leaves rows untouched")
+  func touchEmptyInputNoOp() async throws {
+    let pe = try await createPodcastEpisode()
+    let original = Date(timeIntervalSince1970: 1_000_000)
+    try await insertEmbedding(for: pe.episode.id, verificationDate: original)
+
+    try await recommendationRepo.touchEmbeddingVerification(forEpisodeIDs: [], at: Date())
+
+    let unchanged = try #require(try await recommendationRepo.embedding(for: pe.episode.id))
+    #expect(unchanged.verificationDate.approximatelyEquals(original))
+  }
 }

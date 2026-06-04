@@ -17,9 +17,9 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   static let `default`: FreshnessCadence = .weekly
 
   // Cap on samples used by `infer`. Median-gap inference is stable well
-  // before this many samples, so we ignore older history; this also lets
-  // callers (e.g. the Observatory's SQL window query) bound their fetch to
-  // the same window without diverging from in-memory callers.
+  // before this many samples, so we ignore older history; the per-podcast
+  // recompute that caches the inferred cadence bounds its pubDate fetch to
+  // this same window so the stored value matches an in-memory `infer` call.
   static let inferenceMaxSamples = 100
 
   // Upper bounds on the *median* inter-episode gap, in hours. Each ceiling

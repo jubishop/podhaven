@@ -36,6 +36,8 @@ extension MPSkipIntervalCommand: MPSkipCommandable {}
 
 extension MPChangePlaybackRateCommand: MPChangePlaybackRateCommandable {}
 
+extension MPFeedbackCommand: MPFeedbackCommandable {}
+
 extension MPRemoteCommandCenter: MPRemoteCommandableCenter {
   var play: any MPRemoteCommandable { playCommand }
   var pause: any MPRemoteCommandable { pauseCommand }
@@ -46,8 +48,8 @@ extension MPRemoteCommandCenter: MPRemoteCommandableCenter {
   var nextTrack: any MPRemoteCommandable { nextTrackCommand }
   var previousTrack: any MPRemoteCommandable { previousTrackCommand }
   var changePlaybackRate: any MPChangePlaybackRateCommandable { changePlaybackRateCommand }
-  var like: any MPRemoteCommandable { likeCommand }
-  var dislike: any MPRemoteCommandable { dislikeCommand }
-  var bookmark: any MPRemoteCommandable { bookmarkCommand }
+  var like: any MPFeedbackCommandable { likeCommand }
+  var dislike: any MPFeedbackCommandable { dislikeCommand }
+  var bookmark: any MPFeedbackCommandable { bookmarkCommand }
   var rating: any MPRemoteCommandable { ratingCommand }
 }

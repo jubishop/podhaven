@@ -5,6 +5,7 @@ import Combine
 import FactoryKit
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Logging
 import Nuke
 import SwiftUI
@@ -500,6 +501,121 @@ final class PlayManager {
       return podcastEpisode
     }
     return nil
+  }
+
+  // MARK: - Cache
+
+  func toggleSaveInCache(_ episodeID: Episode.ID) async {
+    let alreadySaved: Bool
+    do {
+      guard let episode = try await repo.episode(episodeID) else {
+        Self.log.warning("toggleSaveInCache: episode \(episodeID) not found")
+        return
+      }
+      alreadySaved = episode.saveInCache
+    } catch {
+      Self.log.caughtError("toggleSaveInCache: failed to load episode \(episodeID)", error)
+      return
+    }
+    Self.log.debug("toggleSaveInCache: \(episodeID) alreadySaved: \(alreadySaved)")
+
+    if alreadySaved {
+      await removeFromCache(episodeID)
+    } else {
+      await saveInCache(episodeID)
+    }
+  }
+
+  private func saveInCache(_ episodeID: Episode.ID) async {
+    Self.log.debug("saveInCache: \(episodeID)")
+    do {
+      try await repo.updateSaveInCache(episodeID, saveInCache: true)
+    } catch {
+      Self.log.caughtError("saveInCache: failed to set saveInCache for episode \(episodeID)", error)
+      return
+    }
+    do {
+      try await cacheManager.downloadToCache(for: episodeID)
+    } catch {
+      Self.log.caughtError("saveInCache: failed to cache episode \(episodeID)", error)
+    }
+  }
+
+  private func removeFromCache(_ episodeID: Episode.ID) async {
+    Self.log.debug("removeFromCache: \(episodeID)")
+    do {
+      try await repo.updateSaveInCache(episodeID, saveInCache: false)
+    } catch {
+      Self.log.caughtError(
+        "removeFromCache: failed to unset saveInCache for episode \(episodeID)",
+        error
+      )
+      return
+    }
+    do {
+      try await cacheManager.clearCache(for: episodeID)
+    } catch {
+      Self.log.caughtError("removeFromCache: failed to clear cache for episode \(episodeID)", error)
+    }
+  }
+
+  // MARK: - Feedback Commands
+
+  // Pressing the feedback button while its rating is already applied clears it,
+  // mirroring the command's isActive toggle affordance (and toggleSaveInCache).
+  func toggleRating(_ rating: EpisodeRating, for episodeID: Episode.ID) async {
+    let current: EpisodeRating?
+    do {
+      guard let episode = try await repo.episode(episodeID) else {
+        Self.log.warning("toggleRating: episode \(episodeID) not found")
+        return
+      }
+      current = episode.rating
+    } catch {
+      Self.log.caughtError("toggleRating: failed to load episode \(episodeID)", error)
+      return
+    }
+    let newRating: EpisodeRating? = current == rating ? nil : rating
+    Self.log.debug(
+      "toggleRating: \(episodeID) \(String(describing: current)) -> \(String(describing: newRating))"
+    )
+    do {
+      try await repo.updateRating(episodeID, rating: newRating)
+    } catch {
+      Self.log.caughtError(
+        "toggleRating: failed to set \(String(describing: newRating)) for episode \(episodeID)",
+        error
+      )
+    }
+  }
+
+  // Removes the tag when already present, otherwise adds it (when it still
+  // exists), so the feedback button toggles tag membership.
+  func toggleTag(_ tagID: Tag.ID, for episodeID: Episode.ID) async {
+    let removed: Bool
+    do {
+      removed = try await repo.removeTag(tagID, from: episodeID)
+    } catch {
+      Self.log.caughtError(
+        "toggleTag: failed to remove tag \(tagID) from episode \(episodeID)",
+        error
+      )
+      return
+    }
+    if removed {
+      Self.log.debug("toggleTag: removed \(tagID) from \(episodeID)")
+      return
+    }
+    guard sharedState.tags[id: tagID] != nil else {
+      Self.log.debug("toggleTag: tag \(tagID) no longer exists, ignoring")
+      return
+    }
+    Self.log.debug("toggleTag: added \(tagID) to \(episodeID)")
+    do {
+      try await repo.addTag(tagID, toEpisodes: [episodeID])
+    } catch {
+      Self.log.caughtError("toggleTag: failed to add tag \(tagID) to episode \(episodeID)", error)
+    }
   }
 
   // MARK: - Remote Scrub Suppression

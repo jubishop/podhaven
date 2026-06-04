@@ -214,6 +214,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let cacheAllEpisodes = Column("cacheAllEpisodes")
     static let notifyNewEpisodes = Column("notifyNewEpisodes")
     static let freshnessCadence = Column("freshnessCadence")
+    static let inferredFreshnessCadence = Column("inferredFreshnessCadence")
     static let contentUpdatedAt = Column("contentUpdatedAt")
   }
 

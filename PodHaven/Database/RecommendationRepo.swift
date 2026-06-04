@@ -83,80 +83,72 @@ struct RecommendationRepo: Recommending {
     )
   }
 
-  // Manual cadence choices win; nil-cadence podcasts are inferred from their
-  // pubDates. Podcasts with no episodes and no manual choice are absent from
-  // the map.
+  // Plain column reads: the manual override wins, else the cached per-podcast
+  // inference (`updateInferredFreshnessCadence` keeps it current at write time),
+  // else the call site's `.default` for podcasts absent from the map. The
+  // windowed pubDate scan + medians that used to run here on every observation
+  // fire are gone, so `episode(pubDate)` no longer sits in the scoring
+  // observation's tracked region.
   static func resolveFreshnessCadences(
     _ db: Database
   ) throws -> [Podcast.ID: FreshnessCadence] {
-    let clockNow = Container.shared.continuousClockNow()
-    let start = clockNow()
-
-    let manualRows = try Row.fetchAll(
+    let rows = try Row.fetchAll(
       db,
       Podcast
-        .filter(Podcast.Columns.freshnessCadence != nil)
-        .select(Podcast.Columns.id, Podcast.Columns.freshnessCadence)
+        .filter(
+          Podcast.Columns.freshnessCadence != nil
+            || Podcast.Columns.inferredFreshnessCadence != nil
+        )
+        .select(
+          Podcast.Columns.id,
+          Podcast.Columns.freshnessCadence,
+          Podcast.Columns.inferredFreshnessCadence
+        )
     )
-    var resolved = [Podcast.ID: FreshnessCadence](capacity: manualRows.count)
-    for row in manualRows {
+    var resolved = [Podcast.ID: FreshnessCadence](capacity: rows.count)
+    for row in rows {
       let id: Podcast.ID = row[Podcast.Columns.id]
-      let cadence: FreshnessCadence = row[Podcast.Columns.freshnessCadence]
-      resolved[id] = cadence
-    }
-    let manualDuration = clockNow() - start
-
-    // Raw SQL: window functions aren't expressible via the GRDB query builder.
-    // ORDER BY podcastId lets us stream rows into per-podcast buckets and
-    // flush each one before starting the next, instead of accumulating a
-    // [Podcast.ID: [Date]] map of dynamically-grown arrays.
-    let fetchStart = clockNow()
-    let pubDateRows = try Row.fetchAll(
-      db,
-      sql: """
-        SELECT podcastId, pubDate FROM (
-          SELECT
-            podcastId,
-            pubDate,
-            ROW_NUMBER() OVER (PARTITION BY podcastId ORDER BY pubDate DESC) AS rn
-          FROM episode
-          WHERE podcastId IN (SELECT id FROM podcast WHERE freshnessCadence IS NULL)
-        ) WHERE rn <= ?
-        ORDER BY podcastId
-        """,
-      arguments: [FreshnessCadence.inferenceMaxSamples]
-    )
-    let fetchDuration = clockNow() - fetchStart
-
-    let inferStart = clockNow()
-    var currentID: Podcast.ID? = nil
-    var currentDates = [Date](capacity: FreshnessCadence.inferenceMaxSamples)
-    for row in pubDateRows {
-      let id: Podcast.ID = row[Episode.Columns.podcastId]
-      let pubDate: Date = row[Episode.Columns.pubDate]
-      if id != currentID {
-        if let previousID = currentID {
-          resolved[previousID] = FreshnessCadence.infer(from: currentDates)
-        }
-        currentID = id
-        currentDates.removeAll(keepingCapacity: true)
+      let manual: FreshnessCadence? = row[Podcast.Columns.freshnessCadence]
+      let inferred: FreshnessCadence? = row[Podcast.Columns.inferredFreshnessCadence]
+      if let cadence = manual ?? inferred {
+        resolved[id] = cadence
       }
-      currentDates.append(pubDate)
     }
-    if let lastID = currentID {
-      resolved[lastID] = FreshnessCadence.infer(from: currentDates)
-    }
-    let inferDuration = clockNow() - inferStart
-
-    Self.log.debug(
-      """
-      perf: resolveFreshnessCadences took \(clockNow() - start) — \
-      manual=\(manualRows.count) (\(manualDuration)) \
-      inferred=\(resolved.count - manualRows.count) from \(pubDateRows.count) pubDates \
-      (fetch \(fetchDuration), infer \(inferDuration))
-      """
-    )
     return resolved
+  }
+
+  // Recompute one podcast's cached inference from its most-recent pubDates and
+  // write `inferredFreshnessCadence` only when it changes, so a stable cadence
+  // produces no write (and doesn't wake the scoring observation). No episodes
+  // clears the column to nil, dropping the podcast from the resolved map. Called
+  // from the repo's feed-insert / refresh transactions so the windowed scan runs
+  // once per changed podcast at write time, never fleet-wide in the scoring path.
+  static func updateInferredFreshnessCadence(
+    _ db: Database,
+    podcastID: Podcast.ID
+  ) throws {
+    let pubDates =
+      try Episode
+      .filter(Episode.Columns.podcastId == podcastID)
+      .select(Episode.Columns.pubDate, as: Date.self)
+      .order(Episode.Columns.pubDate.desc)
+      .limit(FreshnessCadence.inferenceMaxSamples)
+      .fetchAll(db)
+    let newValue: FreshnessCadence? =
+      pubDates.isEmpty ? nil : FreshnessCadence.infer(from: pubDates)
+
+    var currentValue: FreshnessCadence? = nil
+    if let row = try Row.fetchOne(
+      db,
+      Podcast.withID(podcastID).select(Podcast.Columns.inferredFreshnessCadence)
+    ) {
+      currentValue = row[Podcast.Columns.inferredFreshnessCadence]
+    }
+    guard newValue != currentValue else { return }
+
+    try Podcast
+      .withID(podcastID)
+      .updateAll(db, Podcast.Columns.inferredFreshnessCadence.set(to: newValue))
   }
 
   func allCandidateEpisodes() async throws -> [CandidateEpisode] {

@@ -49,6 +49,14 @@ final class FakeMPChangePlaybackRateCommand:
   var supportedPlaybackRates: [NSNumber] = []
 }
 
+final class FakeMPFeedbackCommand: FakeMPRemoteCommandable, MPFeedbackCommandable {
+  var handler: ((any MPRemoteCommandEventable) -> MPRemoteCommandHandlerStatus)?
+  var isEnabled: Bool = false
+  var isActive: Bool = false
+  var localizedTitle: String = ""
+  var localizedShortTitle: String = ""
+}
+
 // MARK: - Fake Events
 
 class FakeMPRemoteCommandEvent: MPRemoteCommandEventable {
@@ -104,9 +112,9 @@ final class FakeMPRemoteCommandCenter: MPRemoteCommandableCenter {
   private let _changePlaybackRateCommand: FakeMPChangePlaybackRateCommand
   private let _nextTrackCommand: FakeMPRemoteCommand
   private let _previousTrackCommand: FakeMPRemoteCommand
-  private let _likeCommand: FakeMPRemoteCommand
-  private let _dislikeCommand: FakeMPRemoteCommand
-  private let _bookmarkCommand: FakeMPRemoteCommand
+  private let _likeCommand: FakeMPFeedbackCommand
+  private let _dislikeCommand: FakeMPFeedbackCommand
+  private let _bookmarkCommand: FakeMPFeedbackCommand
   private let _ratingCommand: FakeMPRemoteCommand
 
   init() {
@@ -119,9 +127,9 @@ final class FakeMPRemoteCommandCenter: MPRemoteCommandableCenter {
     self._changePlaybackRateCommand = FakeMPChangePlaybackRateCommand()
     self._nextTrackCommand = FakeMPRemoteCommand()
     self._previousTrackCommand = FakeMPRemoteCommand()
-    self._likeCommand = FakeMPRemoteCommand()
-    self._dislikeCommand = FakeMPRemoteCommand()
-    self._bookmarkCommand = FakeMPRemoteCommand()
+    self._likeCommand = FakeMPFeedbackCommand()
+    self._dislikeCommand = FakeMPFeedbackCommand()
+    self._bookmarkCommand = FakeMPFeedbackCommand()
     self._ratingCommand = FakeMPRemoteCommand()
   }
 
@@ -134,9 +142,9 @@ final class FakeMPRemoteCommandCenter: MPRemoteCommandableCenter {
   var changePlaybackRate: any MPChangePlaybackRateCommandable { _changePlaybackRateCommand }
   var nextTrack: any MPRemoteCommandable { _nextTrackCommand }
   var previousTrack: any MPRemoteCommandable { _previousTrackCommand }
-  var like: any MPRemoteCommandable { _likeCommand }
-  var dislike: any MPRemoteCommandable { _dislikeCommand }
-  var bookmark: any MPRemoteCommandable { _bookmarkCommand }
+  var like: any MPFeedbackCommandable { _likeCommand }
+  var dislike: any MPFeedbackCommandable { _dislikeCommand }
+  var bookmark: any MPFeedbackCommandable { _bookmarkCommand }
   var rating: any MPRemoteCommandable { _ratingCommand }
 
   // MARK: - Testing Manipulators
@@ -179,5 +187,17 @@ final class FakeMPRemoteCommandCenter: MPRemoteCommandableCenter {
 
   func firePreviousTrack() {
     _previousTrackCommand.fire(FakeMPRemoteCommandEvent())
+  }
+
+  func fireBookmark() {
+    _bookmarkCommand.fire(FakeMPRemoteCommandEvent())
+  }
+
+  func fireLike() {
+    _likeCommand.fire(FakeMPRemoteCommandEvent())
+  }
+
+  func fireDislike() {
+    _dislikeCommand.fire(FakeMPRemoteCommandEvent())
   }
 }

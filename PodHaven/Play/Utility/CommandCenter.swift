@@ -34,6 +34,9 @@ enum CommandCenter: Sendable {
     case changePlaybackRate(Float)
     case nextEpisode
     case previousEpisode
+    case bookmark(sourceEpisodeID: Episode.ID?)
+    case like(sourceEpisodeID: Episode.ID?)
+    case dislike(sourceEpisodeID: Episode.ID?)
   }
 
   private static let log = Log.as(LogSubsystem.Play.commandCenter)
@@ -62,6 +65,9 @@ enum CommandCenter: Sendable {
     commandCenter.changePlaybackRate.removeCommandTarget()
     commandCenter.nextTrack.removeCommandTarget()
     commandCenter.previousTrack.removeCommandTarget()
+    commandCenter.bookmark.removeCommandTarget()
+    commandCenter.like.removeCommandTarget()
+    commandCenter.dislike.removeCommandTarget()
 
     commandCenter.play.addCommandTarget { event in
       yield(.play)
@@ -119,6 +125,20 @@ enum CommandCenter: Sendable {
       yield(.previousEpisode)
       return .success
     }
+    commandCenter.bookmark.localizedTitle = "Save in Cache"
+    commandCenter.bookmark.localizedShortTitle = "Save"
+    commandCenter.bookmark.addCommandTarget { event in
+      yield(.bookmark(sourceEpisodeID: Container.shared.sharedState().$onDeck.value?.id))
+      return .success
+    }
+    commandCenter.like.addCommandTarget { event in
+      yield(.like(sourceEpisodeID: Container.shared.sharedState().$onDeck.value?.id))
+      return .success
+    }
+    commandCenter.dislike.addCommandTarget { event in
+      yield(.dislike(sourceEpisodeID: Container.shared.sharedState().$onDeck.value?.id))
+      return .success
+    }
 
     commandCenter.play.isEnabled = true
     commandCenter.pause.isEnabled = true
@@ -126,14 +146,88 @@ enum CommandCenter: Sendable {
     commandCenter.skipForward.isEnabled = true
     commandCenter.skipBackward.isEnabled = true
     commandCenter.changePlaybackRate.isEnabled = true
-    commandCenter.like.isEnabled = false
-    commandCenter.dislike.isEnabled = false
-    commandCenter.bookmark.isEnabled = false
+    commandCenter.bookmark.isEnabled = true
+    commandCenter.like.isEnabled = true
+    commandCenter.dislike.isEnabled = true
     commandCenter.rating.isEnabled = false
 
     updateSkipIntervals()
     updateNextTrack()
     updateScrubbing()
+    updateBookmark()
+    updateFeedbackCommands()
+  }
+
+  static func updateFeedbackCommands() {
+    let userSettings = Container.shared.userSettings()
+    let sharedState = Container.shared.sharedState()
+    let onDeck = sharedState.$onDeck.value
+    let tags = sharedState.$tags.value
+    let commandCenter = Container.shared.mpRemoteCommandCenter()
+
+    let likeAction = userSettings.commandCenterLikeAction
+    let dislikeAction = userSettings.commandCenterDislikeAction
+    apply(
+      title: likeAction.title(tags: tags),
+      isActive: likeIsActive(likeAction, onDeck: onDeck),
+      to: commandCenter.like
+    )
+    apply(
+      title: dislikeAction.title(tags: tags),
+      isActive: dislikeIsActive(dislikeAction, onDeck: onDeck),
+      to: commandCenter.dislike
+    )
+  }
+
+  // Only writes properties that changed, since this runs on every on-deck
+  // emission (including per-tick currentTime updates).
+  private static func apply(
+    title: String,
+    isActive: Bool,
+    to command: any MPFeedbackCommandable
+  ) {
+    if command.localizedTitle != title {
+      log.debug("updateFeedbackCommands: title '\(title)'")
+      command.localizedTitle = title
+      command.localizedShortTitle = title
+    }
+    if command.isActive != isActive {
+      log.debug("updateFeedbackCommands: '\(title)' isActive: \(isActive)")
+      command.isActive = isActive
+    }
+  }
+
+  private static func likeIsActive(
+    _ action: UserSettings.CommandCenterLikeAction,
+    onDeck: OnDeck?
+  ) -> Bool {
+    guard let onDeck else { return false }
+    switch action {
+    case .love: return onDeck.rating == .loved
+    case .like: return onDeck.rating == .liked
+    case .saveInCache: return onDeck.saveInCache
+    case .addTag(let tagID): return onDeck.tagIDs.contains(tagID)
+    }
+  }
+
+  private static func dislikeIsActive(
+    _ action: UserSettings.CommandCenterDislikeAction,
+    onDeck: OnDeck?
+  ) -> Bool {
+    guard let onDeck else { return false }
+    switch action {
+    case .dislike: return onDeck.rating == .disliked
+    case .addTag(let tagID): return onDeck.tagIDs.contains(tagID)
+    }
+  }
+
+  static func updateBookmark() {
+    let saveInCache = Container.shared.sharedState().$onDeck.value?.saveInCache ?? false
+    let bookmark = Container.shared.mpRemoteCommandCenter().bookmark
+    guard bookmark.isActive != saveInCache else { return }
+
+    log.debug("updateBookmark: bookmark isActive: \(saveInCache)")
+    bookmark.isActive = saveInCache
   }
 
   static func updateScrubbing() {

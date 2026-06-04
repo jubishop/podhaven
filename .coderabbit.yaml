@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+reviews:
+  # Preserve the org-UI profile so this file doesn't reset it if repo config
+  # replaces (rather than merges with) the dashboard settings.
+  profile: assertive
+  pre_merge_checks:
+    # This repo deliberately uses no doc comments (see AGENTS.md), so the
+    # docstring-coverage check is permanent noise. Default mode is "warning".
+    docstrings:
+      mode: "off"
