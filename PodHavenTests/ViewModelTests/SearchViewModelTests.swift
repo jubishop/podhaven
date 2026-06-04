@@ -266,6 +266,71 @@ import Testing
     #expect(viewModel.searchState != .loading)
   }
 
+  @Test("disappear clears stuck .loading state when trending is cancelled in flight")
+  func disappearClearsStuckTrendingLoadingState() async throws {
+    let topFeed = PreviewBundle.loadAsset(named: "top_feed", in: .iTunesResults)
+    let topLookup = PreviewBundle.loadAsset(named: "top_lookup", in: .iTunesResults)
+    let searchResults = PreviewBundle.loadAsset(named: "search_results", in: .iTunesResults)
+    let topHang = AsyncSemaphore(value: 0)
+
+    await session.setDefaultHandler { url in
+      if url.path.contains("/rss/toppodcasts") {
+        try await topHang.waitUnlessCancelled()
+        return (topFeed, URL.response(url))
+      }
+      if url.path.contains("/lookup") {
+        return (topLookup, URL.response(url))
+      }
+      if url.path.contains("/search") {
+        return (searchResults, URL.response(url))
+      }
+      return (url.dataRepresentation, URL.response(url))
+    }
+
+    let viewModel = SearchViewModel()
+    let fakeSession = session
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.currentTrendingSection.state == .loading
+      },
+      { @MainActor in
+        """
+        Expected trending to enter .loading.
+        state: \(viewModel.currentTrendingSection.state)
+        """
+      }
+    )
+    try await Wait.until(
+      { await fakeSession.requests.contains { $0.path.contains("/rss/toppodcasts") } },
+      {
+        let requests = await fakeSession.requests
+        return "Expected an in-flight top request; got \(requests)"
+      }
+    )
+
+    viewModel.disappear()
+    await configureITunesResponses()
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.currentTrendingSection.state == .loaded
+          && viewModel.podcastList.allEntries.count == 3
+      },
+      { @MainActor in
+        let requests = await fakeSession.requests
+        return """
+          Expected Search reappear to restart cancelled trending load.
+          state: \(viewModel.currentTrendingSection.state)
+          entries: \(viewModel.podcastList.allEntries.count)
+          requests: \(requests)
+          """
+      }
+    )
+  }
+
   @Test("subscribing to a trending row removes its picks from the collector")
   func subscribingTrendingRowRemovesPicksFromCollector() async throws {
     let scripted = ScriptedEmbeddable { text in

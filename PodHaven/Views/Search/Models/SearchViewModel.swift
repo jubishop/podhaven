@@ -687,6 +687,9 @@ class SearchViewModel:
     for trendingSection in trendingSections {
       trendingSection.task?.cancel()
       trendingSection.task = nil
+      if trendingSection.state == .loading {
+        trendingSection.state = .idle
+      }
     }
     currentResultsObservationTask?.cancel()
     currentResultsObservationTask = nil

@@ -206,12 +206,13 @@ with `ListedEpisode`: `PowerList<ListedEpisode>`, `EpisodeListView`, episode
 swipe/context actions, and `.listedEpisode` navigation.
 
 Sort is fixed: score descending, then `pubDate` descending, then GUID/media URL.
-Hide the standard sort toolbar. Row actions that materialize or mutate an
-episode (play, queue, cache, rate, mark finished) should remove that entry from
-the collector's published array after success instead of trying to live-convert
-the discovery row. Episode detail can handle its own unsaved-to-saved transition.
-Tag UI stays hidden for unsaved rows until a materialized row is observed with
-tags.
+Hide the standard sort toolbar. Candidate-breaking row actions (play, queue,
+rate, mark finished) should remove that entry from the collector's published
+array after success instead of trying to live-convert the discovery row.
+Caching, save-in-cache, and tagging are non-consuming because they do not change
+`Episode.candidate`; those rows stay visible. Episode detail can handle its own
+unsaved-to-saved transition. Tag UI stays hidden for unsaved rows until a
+materialized row is observed with tags.
 
 ## Persistent Cache Deferred
 
