@@ -475,7 +475,7 @@ class PodcastDetailViewModel:
         Self.log.caughtError(
           "loadShareArtworkIfNeeded: failed to load share artwork for \(imageURL)",
           error,
-          level: { _ in .info }
+          level: .info
         )
       }
     }

@@ -114,7 +114,7 @@ struct CachePurger: Sendable {
             Self.log.caughtError(
               "executePurge: cached file already missing for \(cachedURL) (\(episode.toString))",
               error,
-              level: { _ in .debug }
+              level: .debug
             )
             continue
           }
@@ -236,7 +236,7 @@ struct CachePurger: Sendable {
         Self.log.caughtError(
           "calculateCacheSize: cached file already missing for \(cachedFile.lastPathComponent)",
           error,
-          level: { _ in .debug }
+          level: .debug
         )
       }
     }

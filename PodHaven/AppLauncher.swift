@@ -164,15 +164,20 @@ struct AppLauncher: Sendable {
 
       Task(priority: taskPriority(.utility)) {
         for await _ in self.notifications(ProcessInfo.thermalStateDidChangeNotification) {
+          let thermalState = ProcessInfo.processInfo.thermalState
           let state =
-            switch ProcessInfo.processInfo.thermalState {
+            switch thermalState {
             case .nominal: "nominal"
             case .fair: "fair"
             case .serious: "serious"
             case .critical: "critical"
             @unknown default: "unknown"
             }
-          Self.log.warning("Thermal state changed to: \(state)")
+          let message: Logging.Logger.Message = "Thermal state changed to: \(state)"
+          switch thermalState {
+          case .nominal, .fair: Self.log.debug(message)
+          default: Self.log.warning(message)
+          }
         }
       }
     }

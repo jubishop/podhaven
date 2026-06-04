@@ -104,7 +104,7 @@ struct UnsavedEpisode:
         Self.log.caughtError(
           "Invalid link URL '\(link)' for episode '\(title)'",
           error,
-          level: { _ in .info }
+          level: .info
         )
         self.link = nil
       }
@@ -118,7 +118,7 @@ struct UnsavedEpisode:
         Self.log.caughtError(
           "Invalid image URL '\(image)' for episode '\(title)'",
           error,
-          level: { _ in .info }
+          level: .info
         )
         self.image = nil
       }

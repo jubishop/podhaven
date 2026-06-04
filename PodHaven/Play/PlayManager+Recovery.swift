@@ -50,7 +50,7 @@ extension PlayManager {
         Self.log.caughtError(
           "handlePlaybackFailure: auto-recovery failed",
           error,
-          level: { _ in .warning }
+          level: .warning
         )
       }
     } else {

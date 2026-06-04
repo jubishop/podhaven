@@ -35,7 +35,7 @@ struct EpisodeFeed: Sendable, Equatable {
 
   fileprivate init?(rssEpisode: PodcastRSS.Episode) {
     guard let mediaURL = rssEpisode.enclosure?.url else {
-      Self.log.warning("Missing required enclosure media url for \(rssEpisode.title)")
+      Self.log.debug("Missing enclosure for \(rssEpisode.title); skipping")
       return nil
     }
 
@@ -46,7 +46,7 @@ struct EpisodeFeed: Sendable, Equatable {
       Self.log.caughtError(
         "Invalid MediaURL: \(mediaURL) for '\(rssEpisode.title)'",
         error,
-        level: { _ in .warning }
+        level: .warning
       )
       return nil
     }
@@ -210,7 +210,7 @@ struct PodcastFeed: Sendable, Stringable {
           Self.log.caughtError(
             "Failed to convert episode feed to unsaved episode: \(episodeFeed.mediaGUID)",
             error,
-            level: { _ in .warning }
+            level: .warning
           )
           return nil
         }

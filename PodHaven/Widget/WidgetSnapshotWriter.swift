@@ -247,7 +247,7 @@ final class WidgetSnapshotWriter: Sendable {
             Self.log.caughtError(
               "writeQueueSnapshot: failed to load \(urlString)",
               error,
-              level: { _ in .info }
+              level: .info
             )
             return (urlString, nil)
           }
