@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: shipped
 ---
 
 # Freshness Cadence Cache
@@ -8,16 +8,16 @@ Cache each podcast's auto-inferred `FreshnessCadence` in a stored
 `inferredFreshnessCadence` column so recommendation scoring stops re-deriving it
 from raw episode `pubDate`s on every observation fire.
 
-## Blocked on #408
+## Unblocked by #408
 
-Do not start until **#408 ("Stop inferring evergreen freshness cadence from
-episode recency")** is merged and closed. #408 removes the `dormantThresholdHours`
-short-circuit from `FreshnessCadence.infer(from:now:)`, which makes inference a
-**pure function of episode `pubDate`s** — no `now` dependency. That purity is the
-unlock for this initiative: a cached value is then invalidated *only* by episode
-changes, with no time-based staleness and no live read-time dormancy check. If we
-cached before #408, the dormant→evergreen transition (driven by wall-clock, not
-data) would silently rot the cache. Proceed only once #408 has landed.
+This was gated on **#408 ("Stop inferring evergreen freshness cadence from
+episode recency")**, now merged. #408 removed the `dormantThresholdHours`
+short-circuit from `FreshnessCadence.infer`, making inference a **pure function
+of episode `pubDate`s** — no `now` dependency. That purity is the unlock: a
+cached value is invalidated *only* by episode changes, with no time-based
+staleness and no live read-time dormancy check. Caching before #408 would have
+let the dormant→evergreen transition (driven by wall-clock, not data) silently
+rot the cache.
 
 ## Why
 
@@ -68,35 +68,29 @@ but the SQL + medians still execute to produce the value being compared.
    the scoring observation's tracked region, so feed inserts stop waking the
    recommendation observation for cadence reasons.
 
-### Open questions
+### Open questions (resolved)
 
-- **Backfill.** Migrations use literals only (no model types / `infer`), so we
-  can't backfill in the migration body. Options: leave the column nil and
-  populate lazily at the next per-podcast refresh (resolution falls back to
-  `.default` meanwhile), or run a one-time backfill pass on launch. Decide based
-  on how jarring a transient `.default` window is.
-- **Hook point.** Exactly where in the refresh path (RefreshManager /
-  RefreshScheduler / episode-insert site) to trigger the per-podcast recompute.
-- **Episode deletion.** Whether to recompute on deletion (rare) or ignore.
-- **Settings UI.** Whether to surface the inferred value read-only (e.g. "Auto:
-  Weekly") in `PodcastSettingsView`. Out of scope but worth a follow-up.
+- **Backfill.** Done in the migration (v50). Migrations can't call `infer`, so
+  the backfill bucket-medians the 100 most-recent pubDates per podcast in raw
+  SQL with literal hour ceilings that mirror `FreshnessCadence.infer`. Podcasts
+  with fewer than 3 episodes stay nil and resolve to the default, exactly as
+  `infer` returns `.default` for sparse input; the live per-podcast recompute
+  fills them in as episodes arrive.
+- **Hook point.** `RecommendationRepo.updateInferredFreshnessCadence(_:podcastID:)`,
+  called inside the repo's own write transactions — `insertSeries`,
+  `updateSeriesFromFeed`, and `upsertPodcastEpisodes` — right after the episode
+  rows land, scoped to the changed podcast(s). It writes only when the value
+  changes, so a stable cadence produces no write (and no observation wake).
+- **Episode deletion.** No partial-episode-deletion path exists; `deletePodcast`
+  cascades via FK, removing the row and its cached cadence outright, so the
+  podcast drops from the resolved map with no recompute. If pruning is added
+  later it should call `updateInferredFreshnessCadence`.
+- **Settings UI.** Still out of scope — a follow-up could surface the inferred
+  value read-only (e.g. "Auto: Weekly") in `PodcastSettingsView`.
 
-## Telemetry (gathering data before we proceed)
+## Telemetry
 
-A `perf:` probe is in `resolveFreshnessCadences` to quantify the current cost
-before committing to the cache. It logs at `.debug` from
-`LogSubsystem.Database.recommendationRepo`:
-
-```
-perf: resolveFreshnessCadences took <total> — manual=<m> (<dur>) inferred=<i> from <n> pubDates (fetch <dur>, infer <dur>)
-```
-
-- Pull it from a device/TestFlight build (not simulator — file logging is
-  device-only): export `log.ndjson` from Settings → Debug, or via the feedback
-  form attachment. Then `grep 'perf: resolveFreshnessCadences'`.
-- It fires from **both** consumers (observation and rebuild), so frequency in
-  the log also shows how often the observation re-fires.
-- **Decision gate:** if `fetch + infer` is negligible relative to fleet size,
-  the cache is low priority. If it's significant and fires on every feed insert,
-  proceed with the plan above.
+The `perf:` probe that quantified the old per-fire cost was removed along with
+the windowed scan it measured — `resolveFreshnessCadences` is now a plain
+two-column read, so there is nothing left to time in the hot path.
 </content>
