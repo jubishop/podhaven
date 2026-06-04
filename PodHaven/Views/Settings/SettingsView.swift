@@ -493,11 +493,13 @@ struct SettingsView: View {
           }
         }
 
-        Section("Feedback") {
-          NavigationLink(
-            value: Navigation.Destination.settingsSection(.feedback),
-            label: { Text("Send Feedback") }
-          )
+        if AppInfo.environment.isRelease {
+          Section("Feedback") {
+            NavigationLink(
+              value: Navigation.Destination.settingsSection(.feedback),
+              label: { Text("Send Feedback") }
+            )
+          }
         }
 
         if AppInfo.environment != .appStore {
