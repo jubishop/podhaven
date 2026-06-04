@@ -466,10 +466,10 @@ extension PlayManager {
             continue
           }
           switch userSettings.commandCenterLikeAction {
-          case .love: await applyRating(.loved, to: sourceEpisodeID)
-          case .like: await applyRating(.liked, to: sourceEpisodeID)
+          case .love: await toggleRating(.loved, for: sourceEpisodeID)
+          case .like: await toggleRating(.liked, for: sourceEpisodeID)
           case .saveInCache: await toggleSaveInCache(sourceEpisodeID)
-          case .addTag(let tagID): await applyTag(tagID, to: sourceEpisodeID)
+          case .addTag(let tagID): await toggleTag(tagID, for: sourceEpisodeID)
           }
         case .dislike(let sourceEpisodeID):
           guard let sourceEpisodeID else {
@@ -477,8 +477,8 @@ extension PlayManager {
             continue
           }
           switch userSettings.commandCenterDislikeAction {
-          case .dislike: await applyRating(.disliked, to: sourceEpisodeID)
-          case .addTag(let tagID): await applyTag(tagID, to: sourceEpisodeID)
+          case .dislike: await toggleRating(.disliked, for: sourceEpisodeID)
+          case .addTag(let tagID): await toggleTag(tagID, for: sourceEpisodeID)
           }
         }
       }

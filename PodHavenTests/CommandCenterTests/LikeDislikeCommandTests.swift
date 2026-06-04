@@ -190,4 +190,104 @@ import Testing
       { "Expected like isActive to become true after the episode is tagged" }
     )
   }
+
+  @Test("like pressed again clears the rating it applied")
+  func likeTogglesRatingOff() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await PlayHelpers.load(podcastEpisode)
+
+    mpRemoteCommandCenter.fireLike()
+    try await PlayHelpers.waitForEpisode(podcastEpisode.id, attribute: \.rating, toBe: .liked)
+
+    mpRemoteCommandCenter.fireLike()
+    try await PlayHelpers.waitForEpisode(podcastEpisode.id, attribute: \.rating, toBe: nil)
+  }
+
+  @Test("dislike pressed again clears the rating it applied")
+  func dislikeTogglesRatingOff() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await PlayHelpers.load(podcastEpisode)
+
+    mpRemoteCommandCenter.fireDislike()
+    try await PlayHelpers.waitForEpisode(podcastEpisode.id, attribute: \.rating, toBe: .disliked)
+
+    mpRemoteCommandCenter.fireDislike()
+    try await PlayHelpers.waitForEpisode(podcastEpisode.id, attribute: \.rating, toBe: nil)
+  }
+
+  @Test("like configured to Add Tag removes the tag when pressed again")
+  func likeTogglesTagOff() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "Sports"))
+    userSettings.$commandCenterLikeAction.new(.addTag(tag.id))
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await PlayHelpers.load(podcastEpisode)
+
+    mpRemoteCommandCenter.fireLike()
+    try await Wait.until(
+      { try await self.episodeTagIDs(podcastEpisode.id) == [tag.id] },
+      { "Expected on-deck episode to be tagged after the first like" }
+    )
+
+    mpRemoteCommandCenter.fireLike()
+    try await Wait.until(
+      { try await self.episodeTagIDs(podcastEpisode.id) == [] },
+      { "Expected on-deck episode to be untagged after a second like" }
+    )
+  }
+
+  @Test("like configured to Save in Cache reflects cache state in isActive")
+  func likeIsActiveReflectsSaveInCache() async throws {
+    userSettings.$commandCenterLikeAction.new(.saveInCache)
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await PlayHelpers.load(podcastEpisode)
+    #expect(mpRemoteCommandCenter.like.isActive == false)
+
+    mpRemoteCommandCenter.fireLike()
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.like.isActive == true },
+      { "Expected like isActive to become true after the episode is saved in cache" }
+    )
+
+    mpRemoteCommandCenter.fireLike()
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.like.isActive == false },
+      { "Expected like isActive to become false after the episode is removed from cache" }
+    )
+  }
+
+  @Test("dislike command title tracks the configured action")
+  func dislikeTitleTracksConfiguration() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "Skip"))
+    userSettings.$commandCenterDislikeAction.new(.addTag(tag.id))
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.dislike.localizedTitle == "Tag: Skip" },
+      { @MainActor in
+        "Expected dislike title to be Tag: Skip, got \(self.mpRemoteCommandCenter.dislike.localizedTitle)"
+      }
+    )
+  }
+
+  @Test("feedback title follows a configured tag's rename")
+  func titleFollowsTagRename() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "Favorites"))
+    userSettings.$commandCenterLikeAction.new(.addTag(tag.id))
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.like.localizedTitle == "Tag: Favorites" },
+      { @MainActor in
+        "Expected like title to be Tag: Favorites, got \(self.mpRemoteCommandCenter.like.localizedTitle)"
+      }
+    )
+
+    _ = try await repo.renameTag(tag.id, newName: "Sports")
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter.like.localizedTitle == "Tag: Sports" },
+      { @MainActor in
+        "Expected like title to be Tag: Sports after rename, got \(self.mpRemoteCommandCenter.like.localizedTitle)"
+      }
+    )
+  }
 }

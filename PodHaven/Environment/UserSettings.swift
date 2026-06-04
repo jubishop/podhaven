@@ -74,7 +74,12 @@ struct UserSettings: Sendable {
       case .love: "Love"
       case .like: "Like"
       case .saveInCache: "Save in Cache"
-      case .addTag(let tagID): tags[id: tagID].map { "Tag: \($0.name)" } ?? "Add Tag"
+      case .addTag(let tagID):
+        if let tag = tags[id: tagID] {
+          "Tag: \(tag.name)"
+        } else {
+          "Add Tag"
+        }
       }
     }
   }
@@ -90,7 +95,12 @@ struct UserSettings: Sendable {
     func title(tags: IdentifiedArrayOf<Tag>) -> String {
       switch self {
       case .dislike: "Dislike"
-      case .addTag(let tagID): tags[id: tagID].map { "Tag: \($0.name)" } ?? "Add Tag"
+      case .addTag(let tagID):
+        if let tag = tags[id: tagID] {
+          "Tag: \(tag.name)"
+        } else {
+          "Add Tag"
+        }
       }
     }
   }
