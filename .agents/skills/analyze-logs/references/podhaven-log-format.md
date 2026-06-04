@@ -6,7 +6,19 @@ Use this reference when you need exact field details or file-behavior context wh
 
 - `log.ndjson`: main app log file. The app constructs this path from `AppInfo.logFileURL`.
 - `widget-log.ndjson`: widget log file. The widget constructs this path from `WidgetInfo.logFileURL`.
-- `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`: common exported app log path used in the older Claude skill.
+
+### Where files live on the Mac host
+
+Development (Run / `.dev` bundle) — **one rolling file per destination** (all worktrees share it):
+
+| Destination | App log | Widget log |
+|-------------|---------|------------|
+| Booted Simulator | `$DATA/Documents/PodHavenDev/log.ndjson` where `DATA=$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev data)` | `$GROUP/widget-log.ndjson` where `GROUP=$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev group)` |
+| My Mac | `~/Library/Containers/com.artisanalsoftware.PodHaven.dev/Data/Documents/PodHavenDev/log.ndjson` | `~/Library/Group Containers/group.podhaven.shared.dev/widget-log.ndjson` |
+
+Production (Release bundle): `Documents/log.ndjson` (no `PodHavenDev` subdir) under the production container; app group `group.podhaven.shared`.
+
+The analyze-logs skill requires the user to supply the path explicitly. Run `scripts/locate_logs.py` for a reference list only — it does not choose a file.
 
 ## Entry Schema
 
