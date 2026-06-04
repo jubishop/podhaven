@@ -29,15 +29,16 @@ import Testing
     #expect(debouncer.debouncedValue == "", "onChange never ran, so debouncedValue stays initial")
   }
 
-  @Test("cancelPendingAndCommitCurrentValue stops the pending fire and commits the value")
-  func cancelPendingAndCommitCurrentValueCommitsValue() async throws {
+  @Test("cancelPending then commitValue stops the pending fire and commits the value")
+  func commitValueCommitsWithoutFiringOnChange() async throws {
     let fired = ThreadSafe<Bool>(false)
     let debouncer = StringDebouncer(debounceDuration: .milliseconds(500)) { _ in fired(true) }
 
     debouncer.currentValue = "growth"
     try await fakeSleeper.waitForSleepRequests(count: 1)
 
-    debouncer.cancelPendingAndCommitCurrentValue()
+    debouncer.cancelPending()
+    debouncer.commitValue()
     await fakeSleeper.advanceTime(by: .milliseconds(500))
 
     #expect(await didFire(fired) == false, "committing must stop the pending onChange")
