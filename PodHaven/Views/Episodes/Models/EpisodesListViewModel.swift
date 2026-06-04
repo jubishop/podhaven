@@ -26,72 +26,9 @@ class EpisodesListViewModel:
 
   var episodeList = PowerList<ListablePodcastEpisode>()
 
-  enum SortMethod: String, Codable, DefaultsStorable, SortingMethod {
-    case newestFirst
-    case oldestFirst
-    case recentlyAdded
-    case longest
-    case shortest
-    case recentlyFinished
-    case recentlyQueued
-    case recommendationScore
+  let allSortMethods = SmartListSortMethod.allCases
 
-    var appIcon: AppIcon {
-      switch self {
-      case .newestFirst:
-        return .sortByNewest
-      case .oldestFirst:
-        return .sortByOldest
-      case .recentlyAdded:
-        return .sortByRecentlyAdded
-      case .longest:
-        return .sortByLongest
-      case .shortest:
-        return .sortByShortest
-      case .recentlyFinished:
-        return .sortByRecentlyFinished
-      case .recentlyQueued:
-        return .sortByMostRecentlyQueued
-      case .recommendationScore:
-        return .sortByRecommendationScore
-      }
-    }
-
-    var sqlOrdering: SQLOrdering? {
-      switch self {
-      case .newestFirst:
-        return Episode.Columns.pubDate.desc
-      case .oldestFirst:
-        return Episode.Columns.pubDate.asc
-      case .recentlyAdded:
-        return Episode.Columns.creationDate.desc
-      case .longest:
-        return Episode.Columns.duration.desc
-      case .shortest:
-        return Episode.Columns.duration.asc
-      case .recentlyFinished:
-        return (Episode.Columns.finishDate ?? Date.distantPast).desc
-      case .recentlyQueued:
-        return (Episode.Columns.queueDate ?? Date.distantPast).desc
-      case .recommendationScore:
-        // Sorted in memory from the cached score map.
-        return nil
-      }
-    }
-
-    var sqlFilter: SQLExpression {
-      switch self {
-      case .recentlyFinished:
-        return Episode.finished
-      case .recentlyQueued:
-        return Episode.previouslyQueued
-      default: return AppDB.noOp
-      }
-    }
-  }
-  let allSortMethods = SortMethod.allCases
-
-  @ObservationIgnored @PersistedBroadcast var currentSortMethod: SortMethod
+  @ObservationIgnored @PersistedBroadcast var currentSortMethod: SmartListSortMethod
 
   // MARK: - Filter Text
 
@@ -126,7 +63,7 @@ class EpisodesListViewModel:
   // the recommendationScore sort is the one keyed here.
   @ObservationIgnored private var lastDisplayObservationKey: DisplayObservationKey?
   struct DisplayObservationKey: Hashable {
-    let sort: SortMethod
+    let sort: SmartListSortMethod
     let filterText: String
   }
   var displayObservationKey: DisplayObservationKey {
@@ -137,7 +74,7 @@ class EpisodesListViewModel:
 
   init(title: String, filter: SQLExpression = AppDB.noOp) {
     self._currentSortMethod = PersistedBroadcast(
-      wrappedValue: SortMethod.newestFirst,
+      wrappedValue: SmartListSortMethod.newestFirst,
       "EpisodesList-sortMethod-\(title)"
     )
     self.title = title

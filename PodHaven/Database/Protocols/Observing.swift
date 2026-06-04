@@ -64,6 +64,11 @@ protocol Observing: Sendable {
   func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]>
   func episodeCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]>
 
+  // MARK: - Smart Lists
+
+  func smartLists() -> AsyncValueObservation<[SmartList]>
+  func smartList(_ id: SmartList.ID) -> AsyncValueObservation<SmartList?>
+
   // MARK: - On Deck
 
   func onDeck(_ episodeID: Episode.ID) -> AsyncValueObservation<OnDeck?>

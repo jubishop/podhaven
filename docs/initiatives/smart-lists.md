@@ -1,10 +1,19 @@
 ---
-status: planning
+status: in-progress
 ---
 
 # Smart Lists
 
-User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; planning only.
+User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; Phase 1 (data layer) in progress.
+
+## Phasing
+
+The initiative ships in two phases so the migration + engine are independently reviewable before any UI depends on them:
+
+- **Phase 1 — data layer (in progress).** `SmartListFilter` value + SQL engine, the `SmartList` model, the v51 migration that creates and seeds the `smartList` table, `SmartListRepo`, the scrub-on-tag-delete hook, and the new observations. `EpisodesView` and `EpisodesListViewModel` keep their current runtime behavior: nothing reads the `smartList` table yet, so this phase ships green on its own. The migration **copies** the per-title UserDefaults sort prefs onto the seeded rows but does **not** delete the old `EpisodesList-sortMethod-*` keys, and `SmartListSortMethod` keeps its `DefaultsStorable` conformance, because the existing view model still reads sort from UserDefaults until Phase 2.
+- **Phase 2 — UI swap (sections 6–10).** Navigation refactor, the observed `EpisodesView` hub with drag-reorder, the configurator sheet, and rewiring `EpisodesListViewModel` to observe its row. Phase 2 deletes the old UserDefaults keys and drops the now-unused `DefaultsStorable` conformance.
+
+Section line/symbol references below are approximate and drift across schema versions; treat them as pointers, not exact coordinates.
 
 ## Context
 
@@ -35,14 +44,20 @@ struct SmartListFilter: Codable, Hashable, Sendable {
 
   enum Combinator: String, Codable, Sendable { case all, any }
 
+  // Seven condition kinds. Each variant carries an explicit `kind` discriminator
+  // in its Codable so v2 kinds can't break v1 saved JSON.
   enum Condition: Codable, Hashable, Sendable {
-    case text(TextField, TextOp, String)
+    case episodeText(TextField, TextOp, String)               // episode title/description LIKE
+    case podcastText(TextField, TextOp, String)               // parent-podcast title/description LIKE
     case state(StateCondition)
-    case episodeTag(TagCondition)
-    case podcastTag(TagCondition)
+    case episodeTag(TagCondition)                             // joins episodeTag on episode.id
+    case podcastTag(TagCondition)                             // joins podcastTag on episode.podcastId
+    case duration(minSeconds: Int?, maxSeconds: Int?)         // open-ended on either nil bound
+    case publishDate(PublishDateOp, days: Int)               // evaluated against referenceDate
   }
   enum TextField: String, Codable, Sendable { case title, description }
   enum TextOp: String, Codable, Sendable { case contains, doesNotContain, equals, startsWith }
+  enum PublishDateOp: String, Codable, Sendable { case withinLast, olderThan }
   enum StateCondition: String, Codable, Sendable {
     case isQueued, isUnqueued, isFinished, isUnfinished, isStarted, isUnstarted,
          isCached, isSaved, isLoved, isLiked, isDisliked, isNotInterested,
@@ -52,77 +67,87 @@ struct SmartListFilter: Codable, Hashable, Sendable {
   enum TagCondition: Codable, Hashable, Sendable {
     case hasTag(Tag.ID), doesNotHaveTag(Tag.ID), hasAnyTag, hasNoTags
   }
+
+  // Pure scrub used when a Tag is deleted: drops any episode/podcast-tag
+  // condition naming `tag` from the top group and the nested group, dropping a
+  // nested group that empties. An emptied top group falls back to match-all.
+  func removingTag(_ tag: Tag.ID) -> SmartListFilter
 }
 ```
 
-`.episodeTag` and `.podcastTag` are deliberately separate `Condition` cases (rather than one `.tag(scope, …)` case) so the discriminator lives at the `Condition` level — same shape as `.text`/`.state`. The shared `TagCondition` payload keeps the four membership predicates (`hasTag`/`doesNotHaveTag`/`hasAnyTag`/`hasNoTags`) defined once. A single Smart List can mix both scopes freely (e.g., a top group with `.podcastTag(.hasTag(techTagID))` AND `.episodeTag(.hasTag(interviewTagID))`).
+`.episodeText`/`.podcastText` and `.episodeTag`/`.podcastTag` are deliberately separate `Condition` cases (rather than a `.text(scope,…)` / `.tag(scope,…)` case) so the discriminator lives at the `Condition` level. The shared `TagCondition` payload keeps the four membership predicates (`hasTag`/`doesNotHaveTag`/`hasAnyTag`/`hasNoTags`) defined once. A single Smart List can mix scopes freely (e.g., a top group with `.podcastTag(.hasTag(techTagID))` AND `.episodeTag(.hasTag(interviewTagID))`).
 
-Custom `init(from:)` / `encode(to:)` on `Condition` and `TagCondition` write a stable `kind` string for each payload variant (`"episodeTag"` and `"podcastTag"` are the two tag discriminators). Decoding an unknown `kind` throws; `SmartListRepo` logs+drops the row so a future-version filter doesn't crash older clients. The outer `SmartListFilter` and inner `Group` use synthesized Codable since their fields are fixed.
+Custom `init(from:)` / `encode(to:)` on `Condition` and `TagCondition` write a stable `kind` string for each payload variant. Decoding an unknown `kind` throws; `SmartListRepo` logs+drops the row so a future-version filter doesn't crash older clients. The outer `SmartListFilter` and inner `Group` use synthesized Codable since their fields are fixed. `SmartListFilter` also conforms to `DatabaseValueConvertible` (JSON `TEXT`) so it bridges straight into the `filter` column.
 
 ### 2. Filter → SQLExpression — `PodHaven/Database/SmartListFilterEngine.swift`
 
-Pure `(SmartListFilter) -> SQLExpression`. Two-level walk only: combine the top group's condition expressions, optionally append the nested group's combined expression as one extra term, then combine again with the top combinator. Reuses existing `Episode` static expressions (`Episode.swift:222–246`) wherever the mapping is direct.
+Pure `(SmartListFilter, referenceDate: Date) -> SQLExpression`. The `referenceDate` is injected (not `Date()` inside the engine) so publish-date windows are deterministic and testable. Two-level walk only: combine the top group's condition expressions, optionally append the nested group's combined expression as one extra term, then combine again with the top combinator. Reuses existing `Episode` static expressions (`Episode.swift`, `Episode.queued`…`Episode.rated`) wherever the mapping is direct.
 
-- Combine helper: empty list → `AppDB.NoOp` (`AppDB.swift:65` is `true.sqlExpression`); for `.all`, reduce with `&&`; for `.any`, seed the reduce with the first term (`dropFirst().reduce(first) { $0 || $1 }`) — do **not** seed `||` reduce with `NoOp`, which would short-circuit to true.
-- An empty top group with no nested group → `NoOp`. Matches today's "Recent Episodes" semantics.
-- State conditions → existing constants: `isLoved` → `Episode.loved`, `isUnqueued` → `Episode.unqueued`, etc. `isSaved` → `Episode.savedInCache` (kept atomic since `saveInCache` isn't user-pickable in v1).
-- Text conditions: lowercase compare on both sides via `lower(col) LIKE ?` (matches `Episode.contains` style at `Episode.swift:244–246`). For nullable `description` with `doesNotContain`, emit `(description IS NULL OR lower(description) NOT LIKE ?)` — required because `NOT (NULL LIKE ?)` is NULL, which excludes null-description rows incorrectly. `equals` → `lower(col) = lower(?)`. `startsWith` → escape `%` and `_` in input then `lower(col) LIKE lower(?) || '%'`.
-- Tag conditions: subquery via raw `SQL`/`sqlExpression` — `Observatory.listablePodcastEpisodes(filter:order:limit:)` (`Observatory.swift:122–130`) only accepts a flat `SQLExpression` and offers no request-builder overload, so joins are not available. The two scopes use different join tables; pick the SQL by `Condition` case:
-  - **`.episodeTag(...)` — joins `episodeTag` on `episode.id`:**
+- Combine helper: empty list → `AppDB.noOp` (`true.sqlExpression`); for `.all`, reduce with `&&`; for `.any`, seed the reduce with the first term (`dropFirst().reduce(first) { $0 || $1 }`) — do **not** seed `||` reduce with `noOp`, which would short-circuit to true.
+- An empty top group with no nested group → `noOp`. Matches today's "Recent Episodes" semantics.
+- State conditions → existing constants: `isLoved` → `Episode.loved`, `isUnqueued` → `Episode.unqueued`, etc. `isSaved` → `Episode.savedInCache`; `isUnrated` → `!Episode.rated`.
+- Text conditions (`.episodeText`): lowercase compare on both sides via `lower(col) LIKE ?`. For nullable `description` with `doesNotContain`, emit `(description IS NULL OR lower(description) NOT LIKE ?)` — required because `NOT (NULL LIKE ?)` is NULL, which excludes null-description rows incorrectly. `equals` → `lower(col) = lower(?)`. `startsWith` → escape `%` and `_` in input then `lower(col) LIKE lower(?) || '%'`.
+- Podcast text (`.podcastText`): same operators, but against the parent podcast's `title`/`description` via a subquery — `episode.podcastId IN (SELECT id FROM podcast WHERE <text predicate>)`, aliased (`podcast p`) so it doesn't collide with the request's joined `podcast` scope. `Observatory.listablePodcastEpisodes(filter:order:limit:)` only accepts a flat `SQLExpression` and offers no request-builder overload, so joins are not available. `doesNotContain` is `podcastId NOT IN (…)`.
+- Duration (`.duration(minSeconds:maxSeconds:)`): the `duration` column stores seconds (a `Double`). Emit `duration >= min` and/or `duration <= max`, omitting whichever bound is `nil`; both `nil` → `noOp`. `min = 0` includes the shortest episodes.
+- Publish date (`.publishDate(op, days:)`): compute the cutoff from `referenceDate` (`referenceDate - days`). `withinLast` → `pubDate >= cutoff`; `olderThan` → `pubDate < cutoff`.
+- Tag conditions: built with pure GRDB — `JoinTable.select(parentIdColumn).contains(outerColumn)` produces an `outer IN (SELECT …)` subquery (the same shape as `Episode.hasEmbedding`), with `!` for the negative forms. The two scopes use different join tables; pick by `Condition` case:
+  - **`.episodeTag(...)` — `episodeTag.episodeId` matched against `episode.id`:**
     - `hasTag(id)` → `episode.id IN (SELECT episodeId FROM episodeTag WHERE tagId = ?)`
-    - `doesNotHaveTag(id)` → `episode.id NOT IN (...)` (NULL-safe; `episodeTag.episodeId` is NOT NULL)
-    - `hasAnyTag` → `EXISTS (SELECT 1 FROM episodeTag WHERE episodeId = episode.id)`
-    - `hasNoTags` → `NOT EXISTS (...)`
-  - **`.podcastTag(...)` — joins `podcastTag` on `episode.podcastId` (which is nullable, per `Episode.swift:47`):**
-    - `hasTag(id)` → `episode.podcastId IN (SELECT podcastId FROM podcastTag WHERE tagId = ?)` — episodes with `podcastId IS NULL` correctly fall out (NULL never matches `IN`).
-    - `doesNotHaveTag(id)` → `(episode.podcastId IS NULL OR episode.podcastId NOT IN (SELECT podcastId FROM podcastTag WHERE tagId = ?))` — orphan episodes count as "podcast doesn't have this tag" since there's no podcast to bear the tag.
-    - `hasAnyTag` → `EXISTS (SELECT 1 FROM podcastTag WHERE podcastId = episode.podcastId)` — `EXISTS` returns false on NULL `podcastId`, which is the desired semantics (no podcast → no tags).
-    - `hasNoTags` → `(episode.podcastId IS NULL OR NOT EXISTS (SELECT 1 FROM podcastTag WHERE podcastId = episode.podcastId))` — orphan episodes count as having no podcast tags.
+    - `doesNotHaveTag(id)` → `episode.id NOT IN (…)` (NULL-safe; `episodeTag.episodeId` is NOT NULL)
+    - `hasAnyTag` → `episode.id IN (SELECT episodeId FROM episodeTag)`
+    - `hasNoTags` → `episode.id NOT IN (SELECT episodeId FROM episodeTag)`
+  - **`.podcastTag(...)` — `podcastTag.podcastId` matched against `episode.podcastId`:** `episode.podcastId` is **NOT NULL** (`belongsTo("podcast").notNull()` with cascade delete), so every episode has a parent podcast and there are no orphans — plain `IN`/`NOT IN` are null-safe. (Note the model surfaces `Episode.podcastId: Podcast.ID?` as optional and `Episode.podcastID` asserts non-nil, but the column itself is NOT NULL.)
+    - `hasTag(id)` → `episode.podcastId IN (SELECT podcastId FROM podcastTag WHERE tagId = ?)`
+    - `doesNotHaveTag(id)` → `episode.podcastId NOT IN (…)`
+    - `hasAnyTag` → `episode.podcastId IN (SELECT podcastId FROM podcastTag)`
+    - `hasNoTags` → `episode.podcastId NOT IN (SELECT podcastId FROM podcastTag)`
   - All eight forms are per-row but acceptable for v1; extending Observatory to take a request builder is a follow-up if perf bites.
 
 Per CLAUDE.md, do not use `Optional.map` to project off `nested` — branch with `if let nested = filter.nested { … }` and append the nested combine to the top list before the final combine.
 
-### 3. Migration v43 — `PodHaven/Database/Schema.swift`
+### 3. Migration v51 — `PodHaven/Database/Migrations/Migration_v51.swift` (registered in `Schema.swift`)
 
-String-literals-only per CLAUDE.md. Append after current latest (v42, `Schema.swift:566`):
+String-literals-only per CLAUDE.md. Each migration body is a `static func migrateVNN(_ db: Database)` in its own file; append `migrator.registerMigration("v51", migrate: migrateV51)` after `v50` in `Schema.makeMigrator()`.
 
 ```swift
-migrator.registerMigration("v43") { db in
-  let allowedSortMethods = [
-    "newestFirst", "oldestFirst", "recentlyAdded",
-    "longest", "shortest", "recentlyFinished", "recentlyQueued",
-  ]
-  try db.create(table: "smartList") { t in
-    t.autoIncrementedPrimaryKey("id")
-    t.column("title", .text).notNull()
-    t.column("filter", .text).notNull()                    // JSON
-    t.column("displayOrder", .integer).notNull()
-    t.column("sortMethod", .text).notNull().defaults(to: "newestFirst")
-      .check { allowedSortMethods.contains($0) }
-    t.column("creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
-  }
-  try db.execute(sql: "CREATE INDEX smartList_displayOrder ON smartList(displayOrder)")
+extension Schema {
+  static func migrateV51(_ db: Database) throws {
+    // All 8 sort methods incl. recommendationScore (lifted SmartListSortMethod).
+    let allowedSortMethods = [
+      "newestFirst", "oldestFirst", "recentlyAdded", "longest", "shortest",
+      "recentlyFinished", "recentlyQueued", "recommendationScore",
+    ]
+    try db.create(table: "smartList") { t in
+      t.autoIncrementedPrimaryKey("id")
+      t.column("title", .text).notNull()
+      t.column("filter", .text).notNull()                    // JSON
+      t.column("displayOrder", .integer).notNull()
+      t.column("sortMethod", .text).notNull().defaults(to: "newestFirst")
+        .check { allowedSortMethods.contains($0) }
+      t.column("creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+    }
+    try db.execute(sql: "CREATE INDEX smartList_displayOrder ON smartList(displayOrder)")
 
-  // Migrate per-title sort prefs from UserDefaults onto the seeded rows, then
-  // delete the old keys. PersistedBroadcast stores values as JSON-encoded Data
-  // (see v29 migration); for a String-rawValue enum that's `"newestFirst"` etc.
-  let defaults = Container.shared.standardDefaults()
-  func migratedSortMethod(forTitle title: String) -> String {
-    let key = "EpisodesList-sortMethod-\(title)"
-    defer { defaults.removeObject(forKey: key) }
-    guard let data = defaults.data(forKey: key),
-          let raw = try? JSONDecoder().decode(String.self, from: data),
-          allowedSortMethods.contains(raw)
-    else { return "newestFirst" }
-    return raw
-  }
+    // COPY per-title sort prefs from UserDefaults onto the seeded rows. We do
+    // NOT delete the old `EpisodesList-sortMethod-*` keys: the existing view
+    // model still reads them until Phase 2. PersistedBroadcast stores values as
+    // JSON-encoded Data; for a String-rawValue enum that's `"newestFirst"` etc.
+    let defaults = Container.shared.standardDefaults()
+    func migratedSortMethod(forTitle title: String) -> String {
+      guard let data = defaults.data(forKey: "EpisodesList-sortMethod-\(title)"),
+            let raw = try? JSONDecoder().decode(String.self, from: data),
+            allowedSortMethods.contains(raw)
+      else { return "newestFirst" }
+      return raw
+    }
 
-  // Then 10 INSERT statements, each using migratedSortMethod(forTitle:) for the
-  // sortMethod arg. See "Seeded defaults" below.
+    // Then 10 INSERT statements, each using migratedSortMethod(forTitle:) for the
+    // sortMethod arg. See "Seeded defaults" below.
+  }
 }
 ```
 
-Seed each default with a raw SQL `INSERT` whose `filter` arg is a hand-spelled JSON string literal (no `JSONEncoder`, no model types — string-literals rule) and whose `sortMethod` arg comes from `migratedSortMethod(forTitle:)`. `displayOrder` 0–9 in the order below. None of the defaults need a nested group — all are flat.
+Seed each default with a raw SQL `INSERT` whose `filter` arg is a hand-spelled JSON string literal (no `JSONEncoder`, no model types — string-literals rule) and whose `sortMethod` arg comes from `migratedSortMethod(forTitle:)`. `displayOrder` 0–9 in the order below. None of the defaults need a nested group — all are flat, and all use only `state` conditions, so the new condition kinds don't appear in seeds.
 
 | # | Title | Today's filter (Navigation.swift:192–254) | Filter (SmartListFilter shape) |
 |---|---|---|---|
@@ -147,38 +172,46 @@ Sample seed JSON for "Liked":
 
 ### 4. SmartList model — `PodHaven/Database/Models/SmartList.swift`
 
-Standard PodHaven saved/unsaved pair following `Episode.swift` conventions: an `UnsavedSmartList` value type for in-flight construction, a `SmartList` saved record conforming to GRDB's `FetchableRecord` + `PersistableRecord` + `Identifiable`, with a `Tagged` ID for type-safe IDs across the codebase.
+Standard PodHaven saved/unsaved pair using the `@Saved<Unsaved>` macro (same as `Tag`/`Episode`/`Podcast`): an `UnsavedSmartList` value type conforming to `Savable` for in-flight construction, and `SmartList` annotated `@Saved<UnsavedSmartList>` (which synthesizes `ID = Tagged<SmartList, Int64>`, `id`, `creationDate`, `unsaved`, and the `init(id:creationDate:from:)`). `Saved` already supplies `FetchableRecord`/`PersistableRecord`/`Identifiable` via the protocol's `init(row:)`/`encode(to:)`.
 
 ```swift
-struct UnsavedSmartList: Codable, Sendable {
+struct UnsavedSmartList: Savable {
+  static let databaseTableName = "smartList"
   var title: String
   var filter: SmartListFilter
   var displayOrder: Int
   var sortMethod: SmartListSortMethod
+
+  var toString: String { title }          // Stringable
+  var searchableString: String { title }  // Searchable
 }
 
-struct SmartList: FetchableRecord, PersistableRecord, Identifiable, Codable, Hashable, Sendable {
-  typealias ID = Tagged<SmartList, Int64>
-  let id: ID
-  var title: String
-  var filter: SmartListFilter
-  var displayOrder: Int
-  var sortMethod: SmartListSortMethod
-  let creationDate: Date
-
+@Saved<UnsavedSmartList>
+struct SmartList: Saved {
   enum Columns {
-    static let id, title, filter, displayOrder, sortMethod, creationDate: Column   // (literal column refs)
+    static let id = Column("id")
+    static let title = Column("title")
+    static let filter = Column("filter")
+    static let displayOrder = Column("displayOrder")
+    static let sortMethod = Column("sortMethod")
+    static let creationDate = Column("creationDate")
   }
+
+  var title: String { unsaved.title }
+  var filter: SmartListFilter { unsaved.filter }
+  var displayOrder: Int { unsaved.displayOrder }
+  var sortMethod: SmartListSortMethod { unsaved.sortMethod }
 }
 ```
 
-`filter` column is `TEXT` (JSON). Conformance is via a `DatabaseValueConvertible` extension on `SmartListFilter` that encodes/decodes JSON through `JSONEncoder`/`JSONDecoder` — matches how other Codable columns in the project bridge to SQLite TEXT.
+`filter` column is `TEXT` (JSON), bridged by `SmartListFilter`'s `DatabaseValueConvertible` conformance (JSON via `JSONEncoder`/`JSONDecoder`). The macro-generated record persists `unsaved`'s fields through GRDB's Codable encoding, so the `filter` JSON string lands in the column.
 
-`SmartListSortMethod` is the existing `EpisodesListViewModel.SortMethod` lifted out of the view model into its own file (`PodHaven/Database/Models/SmartListSortMethod.swift`) so both the model layer and the view model can refer to it. Same `String, Codable, DefaultsStorable, SortingMethod` conformances and same raw values — wire-compatible with anything currently persisted. The `SortableEpisodeList` protocol and `EpisodesListViewModel` references update to the new top-level name.
+`SmartListSortMethod` is the existing `EpisodesListViewModel.SortMethod` lifted out of the view model into its own file (`PodHaven/Database/Models/SmartListSortMethod.swift`) so both the model layer and the view model refer to it. All 8 cases (incl. `recommendationScore`) with the same `String, Codable, DefaultsStorable, SortingMethod` conformances and raw values — wire-compatible with anything currently persisted. It gains `DatabaseValueConvertible` (GRDB auto-derives it for a `String`-raw enum, like `EpisodeRating`) so the rawValue bridges into the `sortMethod` column and satisfies the CHECK. In Phase 1 the `DefaultsStorable` conformance is **kept** because `EpisodesListViewModel` still persists sort via `@PersistedBroadcast` (which requires it); Phase 2 removes that usage and drops the conformance. The `SortableEpisodeList` protocol and `EpisodesListViewModel` references update to the new top-level name.
 
 ### 5. Repo + Observatory
 
-- New repo type: `SmartListRepo`. Follow factory pattern at `Repo.swift:11–16`: `fileprivate init(_ appDB: AppDB)`, registered via `Container` extension with `.scope(.cached)`. Methods: `fetchAll`, `fetchOne`, `insert`, `updateTitle`, `updateFilter`, `updateSortMethod(_:to:)`, `moveSmartList(_:to:)`, `delete`.
+- New repo type: `SmartListRepo`, a concrete `struct` (like `RecommendationRepo`) with `init(reader: AppDB.Reader, writer: AppDB.Writer)`, built by a `makeSmartListRepo()` in `AppDB.swift` (that file owns the `fileprivate writer`) and registered via `Container.smartListRepo: Factory<SmartListRepo>` with `.scope(.cached)`. Methods: `fetchAll`, `fetchOne`, `insert`, `updateTitle`, `updateFilter`, `updateSortMethod(_:to:)`, `moveSmartList(_:to:)`, `delete`. In Phase 1 these CRUD methods (and `SmartListFilterEngine`) have only test callers; the `EpisodesView`/`EpisodesListViewModel` consumers arrive in Phase 2.
+- Scrub-on-tag-delete: `Repo.deleteTag` (production) gains a step inside its existing single `writer.write` transaction — after deleting the `Tag`, fetch every `smartList` row, apply `SmartListFilter.removingTag(_:)`, and `UPDATE` the rows whose filter changed. Tag IDs live inside the `filter` JSON, so there's no FK cascade to lean on; the scrub keeps stored filters from referencing a tag that no longer exists. (The engine is also defensive: an unresolved `Tag.ID` matches nothing.)
 - `moveSmartList(_ id: SmartList.ID, to position: Int)` mirrors the renumbering pattern in `Queue._insert` (`Queue.swift:209–220`): inside one write transaction, fetch IDs ordered by `displayOrder`, remove the moved ID, insert at `position` (clamped), then issue per-row `UPDATE smartList SET displayOrder = ? WHERE id = ?` for the affected slice. Simpler than Queue because there's no `queueDate` analog — `displayOrder` is the only field to update.
 - `updateSortMethod(_ id: SmartList.ID, to: SmartListSortMethod)` is a single-row `UPDATE smartList SET sortMethod = ? WHERE id = ?`. Called by `EpisodesListViewModel` whenever the user picks a new sort from the toolbar.
 - `Observatory.smartLists() -> AsyncValueObservation<[SmartList]>` ordered by `displayOrder ASC, id ASC` — drives the `EpisodesView` hub.
@@ -272,29 +305,27 @@ Add a `.primaryAction` toolbar item using existing `AppIcon.settings` (gear). Ta
 - `PodHaven/Database/Models/SmartListSortMethod.swift` — extracted from `EpisodesListViewModel.SortMethod`
 - `PodHaven/Database/SmartListFilterEngine.swift`
 - `PodHaven/Database/SmartListRepo.swift`
-- `PodHaven/Views/Episodes/Models/EpisodesViewModel.swift` — small VM owning `smartLists` + `editMode` + `moveSmartList`
-- `PodHaven/Views/Episodes/SmartListEditor/SmartListEditorView.swift`
-- `PodHaven/Views/Episodes/SmartListEditor/SmartListEditorViewModel.swift`
-- `PodHaven/Views/Episodes/SmartListEditor/SmartListGroupView.swift`
-- `PodHaven/Views/Episodes/SmartListEditor/SmartListConditionRow.swift`
-- `PodHavenTests/MigrationTests/v43Tests.swift`
+- `PodHaven/Database/Migrations/Migration_v51.swift`
+- `PodHavenTests/MigrationTests/v51Tests.swift`
 - `PodHavenTests/SmartListFilterEngineTests.swift`
 - `PodHavenTests/SmartListFilterCodableTests.swift`
 - `PodHavenTests/SmartListRepoTests.swift`
 
-**Modified:**
-- `PodHaven/Database/Schema.swift` — register v43 migration with seed inserts
-- `PodHaven/Database/Observatory.swift` — add `smartLists()`
-- `PodHaven/Environment/Navigation.swift` — delete `EpisodesViewType` + handler, add `smartList(ID)` case
-- `PodHaven/Environment/AppIcon.swift` — add `.addSmartList` case
-- `PodHaven/Views/Episodes/EpisodesView.swift` — observed `List` of SmartList rows with `.onMove`, `+` and edit toggle toolbar items
-- `PodHaven/Views/Episodes/EpisodesListView.swift` — add gear toolbar button
-- `PodHaven/Views/Episodes/Models/EpisodesListViewModel.swift` — take `SmartList` in init; observe `Observatory.smartList(id:)` for live row updates; remove `@PersistedBroadcast` sort; persist sort changes through `SmartListRepo.updateSortMethod`
+Phase 2 (not this issue) additionally adds `EpisodesViewModel.swift` and the `SmartListEditor/` view + view model + group/condition-row views.
+
+**Modified (Phase 1):**
+- `PodHaven/Database/Schema.swift` — register v51 migration
+- `PodHaven/Database/AppDB.swift` — `makeSmartListRepo()`
+- `PodHaven/Database/Observatory.swift` + `Protocols/Observing.swift` — add `smartLists()` and `smartList(id:)`
+- `PodHaven/Database/Repo.swift` — scrub-on-tag-delete in `deleteTag`
+- `PodHaven/Views/Episodes/Models/EpisodesListViewModel.swift`, `Protocols/SortableEpisodeList.swift`, `EpisodesListView.swift` — rename nested `SortMethod` to the lifted `SmartListSortMethod` (no behavior change)
+
+**Modified (Phase 2):** `Navigation.swift` (delete `EpisodesViewType`, add `smartList(ID)`), `AppIcon.swift` (`.addSmartList`), `EpisodesView.swift` (observed list + reorder + toolbar), `EpisodesListView.swift` (gear button), and `EpisodesListViewModel.swift` (take `SmartList`, observe its row, drop `@PersistedBroadcast`).
 
 ## Reused building blocks
 
 - `Episode.queued`, `unqueued`, `cached`, `savedInCache`, `finished`, `unfinished`, `started`, `unstarted`, `loved`, `liked`, `disliked`, `notInterested`, `rated`, `previouslyQueued` (`Episode.swift:222–246`) — direct mapping for state conditions.
-- `AppDB.NoOp` (`AppDB.swift:65`) — empty group sentinel.
+- `AppDB.noOp` (`true.sqlExpression`) — empty group sentinel.
 - `Observatory._observe(...)` + `ValueObservation.tracking` (`Observatory.swift:266–272`) — observation helper, no changes.
 - `Observatory.listablePodcastEpisodes(filter:order:limit:)` (`Observatory.swift:122–130`) — used as-is; engine produces the `SQLExpression` it expects.
 - `PodcastsViewType` Codable at `Navigation.swift:142–172` — exact pattern for discriminated-`kind` Codable to mimic.
@@ -306,14 +337,15 @@ Add a `.primaryAction` toolbar item using existing `AppIcon.settings` (gear). Ta
 
 ## Test plan
 
-1. **v43 migration test** (`v43Tests.swift`, raw SQL only, follows `v42Tests.swift` pattern): schema columns + types correct (including the `sortMethod` CHECK constraint); `smartList_displayOrder` index exists; exactly 10 rows seeded with distinct titles and displayOrder 0–9; each `filter` parses as JSON via `JSONSerialization` (don't use the model — pin the JSON shape, not its decoder); rows default to `sortMethod = "newestFirst"` when no UserDefaults pref exists; v42 data untouched. **Sort-pref migration sub-test**: pre-seed `EpisodesList-sortMethod-Liked` with the JSON-encoded value `Data("\"recentlyAdded\"".utf8)` and `EpisodesList-sortMethod-Finished` with garbage data into `Container.shared.standardDefaults()` before running the migration; assert the "Liked" row's `sortMethod` is `recentlyAdded` (carried over), the "Finished" row's `sortMethod` is `newestFirst` (garbage rejected, defaulted), all 10 known UserDefaults keys are absent after, and an unrelated key (e.g., `EpisodesList-sortMethod-SomeUserList`) is left untouched.
+1. **v51 migration test** (`v51Tests.swift`, raw SQL only, follows `v50Tests.swift` pattern): schema columns + types correct (including the `sortMethod` CHECK constraint, which must accept `recommendationScore` and reject an unknown value); `smartList_displayOrder` index exists; exactly 10 rows seeded with distinct titles and displayOrder 0–9; each `filter` parses as JSON via `JSONSerialization` (don't use the model — pin the JSON shape, not its decoder); rows default to `sortMethod = "newestFirst"` when no UserDefaults pref exists; v50 data untouched. **Sort-pref migration sub-test**: pre-seed `EpisodesList-sortMethod-Liked` with the JSON-encoded value `Data("\"recentlyAdded\"".utf8)` and `EpisodesList-sortMethod-Finished` with garbage data into `Container.shared.standardDefaults()` before running the migration; assert the "Liked" row's `sortMethod` is `recentlyAdded` (carried over) and the "Finished" row's `sortMethod` is `newestFirst` (garbage rejected, defaulted). Phase 1 **copies** prefs but does **not** delete keys: assert the `EpisodesList-sortMethod-Liked`/`-Finished` keys are still present after, and an unrelated key (e.g., `EpisodesList-sortMethod-SomeUserList`) is left untouched.
 2. **Filter engine parity test** (`SmartListFilterEngineTests.swift`): for each of the 10 default filters, build the `SmartListFilter` value, run through the engine, and assert the output `SQLExpression` returns the **same episode set** as the existing hardcoded expression on a fixture DB. This is the regression anchor — if engine ever drifts from today's behavior, this fails.
-3. **Filter engine edge-case tests**: nullable-description `doesNotContain` matches null rows; one-level-nested `any`-inside-`all` produces correctly parenthesized SQL (fixture designed so wrong precedence yields a different result set); `equals` and `startsWith` are case-insensitive; `startsWith` escapes `%` and `_`. **Tag-scope tests** (run for both `.episodeTag` and `.podcastTag` against the same fixture so divergence is impossible to miss): `hasNoTags` ↔ `hasAnyTag` complementarity; `hasTag` and `doesNotHaveTag` partition the row set correctly. **Tag-scope orphan tests** (`.podcastTag` only, since `episode.podcastId` is nullable): an episode with `podcastId = NULL` is excluded by `hasTag`/`hasAnyTag` and included by `doesNotHaveTag`/`hasNoTags`. **Tag-scope independence test**: a filter combining `.episodeTag(.hasTag(X))` AND `.podcastTag(.hasTag(Y))` matches only episodes whose own row carries tag X *and* whose parent podcast carries tag Y — verify with a fixture that includes episodes where only one of the two tags is present so swapping the join paths would yield a different result set.
+3. **Filter engine edge-case tests**: nullable-description `doesNotContain` matches null rows; one-level-nested `any`-inside-`all` produces correctly parenthesized SQL (fixture designed so wrong precedence yields a different result set); `equals` and `startsWith` are case-insensitive; `startsWith` escapes `%` and `_`. **Tag-scope tests** (run for both `.episodeTag` and `.podcastTag`): `hasNoTags` ↔ `hasAnyTag` complementarity; `hasTag` and `doesNotHaveTag` partition the row set correctly (episode tags by the episode's own rows, podcast tags by the parent podcast's tags). **Tag-scope independence test**: a filter combining `.episodeTag(.hasTag(X))` AND `.podcastTag(.hasTag(Y))` is evaluated per join independently — verify with a fixture where an episode carries the podcast tag but not the episode tag so swapping the join paths would yield a different result set. **Podcast-text tests**: `.podcastText` matches `contains`/`doesNotContain`/`startsWith` against the parent podcast's title. **Duration boundary test**: `.duration(minSeconds: 0, maxSeconds: nil)` includes the shortest (0-second) episode; an exclusive upper bound is partitioned correctly. **Publish-date window tests** (fixed `referenceDate`): `withinLast(days:)` and `olderThan(days:)` partition a fixture of episodes at known offsets from `referenceDate`. **Unresolved-tag test**: a `.hasTag(id)` for a `Tag.ID` that no longer exists matches nothing.
 4. **Codable round-trip** (`SmartListFilterCodableTests.swift`): each of 10 default filters + a fixture with a non-nil nested group: encode → decode → encode → assert byte-equal. Decoding an unknown `Condition` `kind` throws.
 5. **Repo CRUD** (`SmartListRepoTests.swift`): insert / fetchAll / fetchOne / updateTitle / updateFilter / updateSortMethod / delete / `Observatory.smartLists()` emits on insert and on update; `Observatory.smartList(id:)` emits on row update and yields nil after delete.
 6. **Repo reorder** (`SmartListRepoTests.swift`): seed 5 rows with displayOrder 0–4; call `moveSmartList(_:to:)` to move row index 0 to position 3, then row index 4 to position 1; assert resulting ordered IDs match the expected sequence; assert `Observatory.smartLists()` emits the new order.
-7. **VM live-update** (`EpisodesListViewModelTests/`): construct an `EpisodesListViewModel(smartList:)` against an in-memory DB; mutate the SmartList row's filter via `SmartListRepo.updateFilter`; assert the VM's `filter` and the displayed episode set update via `Wait.until`. Repeat for `updateSortMethod`.
-8. **Integration**: observe a SmartList whose filter is `isLoved`; mutate an episode rating to `loved`; assert the row appears via `Wait.until` (no `Task.sleep`, per CLAUDE.md).
+7. **Scrub-on-tag-delete** (`SmartListRepoTests.swift` or `RepoTests`): seed lists whose filters reference tag X (both `.episodeTag`/`.podcastTag`) plus a list that doesn't; call `Repo.deleteTag(X)`; assert the referencing filters drop the X conditions (nested group dropped if emptied, top group falls back to match-all if emptied) and the unrelated list is untouched. Confirm `Observatory.smartLists()` emits the scrubbed rows.
+8. **Integration** (engine + Observatory): observe `listablePodcastEpisodes` with the engine output for an `isLoved` filter; mutate an episode rating to `loved`; assert the row appears via `Wait.until` (no `Task.sleep`, per CLAUDE.md).
+9. **(Phase 2) VM live-update** (`EpisodesListViewModelTests/`): construct an `EpisodesListViewModel(smartList:)` against an in-memory DB; mutate the SmartList row's filter via `SmartListRepo.updateFilter`; assert the VM's `filter` and the displayed episode set update via `Wait.until`. Repeat for `updateSortMethod`.
 
 Per CLAUDE.md regression-test rule: each engine-edge-case test must be confirmed to **fail against an intentionally-broken engine** (e.g., before adding the null-safe `description` branch) before the fix lands, to prove the test exercises the right behavior.
 

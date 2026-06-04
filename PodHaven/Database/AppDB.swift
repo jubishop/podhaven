@@ -28,6 +28,11 @@ extension Container {
     let appDB = appDB()
     return RecommendationRepo(reader: appDB.reader, writer: appDB.writer)
   }
+
+  internal func makeSmartListRepo() -> SmartListRepo {
+    let appDB = appDB()
+    return SmartListRepo(reader: appDB.reader, writer: appDB.writer)
+  }
 }
 
 struct AppDB {
