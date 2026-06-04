@@ -15,7 +15,7 @@ struct DebugSection: View {
 
   @State private var pendingEmbeddings: Int? = nil
 
-  private static let log = Log.as(LogSubsystem.SettingsView.main)
+  private static var log: Logger { Log.as(LogSubsystem.SettingsView.main) }
 
   private var pendingEmbeddingsLabel: String {
     if let pendingEmbeddings {
@@ -78,21 +78,19 @@ struct DebugSection: View {
         }
       }
 
-      ShareLink(
-        item: AppInfo.logFileURL,
-        preview: SharePreview(
-          "PodHaven Logs",
-          image: AppIcon.shareLogs.rawImage
-        ),
+      LogFileExportButton(
+        sourceURL: AppInfo.logFileURL,
+        previewTitle: "PodHaven Logs",
+        exportFilename: "log.ndjson",
+        flushBeforeExport: true,
         label: { AppIcon.shareLogs.label }
       )
 
-      ShareLink(
-        item: WidgetInfo.logFileURL,
-        preview: SharePreview(
-          "Widget Logs",
-          image: AppIcon.shareLogs.rawImage
-        ),
+      LogFileExportButton(
+        sourceURL: WidgetInfo.logFileURL,
+        previewTitle: "Widget Logs",
+        exportFilename: "widget-log.ndjson",
+        flushBeforeExport: false,
         label: { AppIcon.shareLogs.label("Share Widget Logs") }
       )
 
@@ -105,6 +103,148 @@ struct DebugSection: View {
         label: { AppIcon.shareDatabase.label }
       )
     }
+  }
+}
+
+private struct LogFileExportButton<Label: View>: View {
+  let sourceURL: URL
+  let previewTitle: String
+  let exportFilename: String
+  let flushBeforeExport: Bool
+  let label: () -> Label
+
+  @DynamicInjected(\.alert) private var alert
+  @State private var exportDocument: LogFileDocument?
+  @State private var isExporting = false
+
+  private static var log: Logger { Log.as(LogSubsystem.SettingsView.main) }
+
+  init(
+    sourceURL: URL,
+    previewTitle: String,
+    exportFilename: String,
+    flushBeforeExport: Bool,
+    @ViewBuilder label: @escaping () -> Label
+  ) {
+    self.sourceURL = sourceURL
+    self.previewTitle = previewTitle
+    self.exportFilename = exportFilename
+    self.flushBeforeExport = flushBeforeExport
+    self.label = label
+  }
+
+  var body: some View {
+    if AppInfo.environment == .macDev {
+      Button(action: startExport, label: label)
+        .fileExporter(
+          isPresented: $isExporting,
+          document: exportDocument,
+          contentType: LogFilePayload.contentType,
+          defaultFilename: exportFilename,
+          onCompletion: completeExport
+        )
+    } else {
+      ShareLink(
+        item: LogFileShareItem(
+          sourceURL: sourceURL,
+          exportFilename: exportFilename,
+          flushBeforeExport: flushBeforeExport
+        ),
+        preview: SharePreview(previewTitle),
+        label: label
+      )
+    }
+  }
+
+  private func startExport() {
+    do {
+      exportDocument = LogFileDocument(
+        payload: try LogFilePayload.load(
+          sourceURL: sourceURL,
+          exportFilename: exportFilename,
+          flushBeforeExport: flushBeforeExport
+        )
+      )
+      isExporting = true
+    } catch {
+      Self.log.caughtError("Log export: failed to prepare \(exportFilename)", error)
+      alert(title: "Failed to Export Logs", "Could not prepare \(exportFilename).")
+    }
+  }
+
+  private func completeExport(_ result: Result<URL, any Error>) {
+    defer { exportDocument = nil }
+    guard case .failure(let error) = result else { return }
+    guard !Self.isUserCancelled(error) else { return }
+
+    Self.log.caughtError("Log export: failed to write \(exportFilename)", error)
+    alert(title: "Failed to Export Logs", "Could not export \(exportFilename).")
+  }
+
+  private static func isUserCancelled(_ error: any Error) -> Bool {
+    let nsError = error as NSError
+    return nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError
+  }
+}
+
+private struct LogFilePayload: Sendable {
+  let data: Data
+
+  static let contentType = UTType(filenameExtension: "ndjson") ?? .json
+  private static let log = Log.as(LogSubsystem.SettingsView.main)
+
+  static func load(
+    sourceURL: URL,
+    exportFilename: String,
+    flushBeforeExport: Bool
+  ) throws -> Self {
+    if flushBeforeExport {
+      FileLogHandler.flush(fileURL: sourceURL)
+    }
+
+    if FileManager.default.fileExists(atPath: sourceURL.path) {
+      return Self(data: try Data(contentsOf: sourceURL))
+    }
+
+    log.info("Log export: no file at \(sourceURL.path); exporting empty \(exportFilename)")
+    return Self(data: Data())
+  }
+}
+
+private struct LogFileDocument: FileDocument {
+  static var readableContentTypes: [UTType] { [LogFilePayload.contentType] }
+  static var writableContentTypes: [UTType] { [LogFilePayload.contentType] }
+
+  let data: Data
+
+  init(payload: LogFilePayload) {
+    self.data = payload.data
+  }
+
+  init(configuration: ReadConfiguration) throws {
+    self.data = configuration.file.regularFileContents ?? Data()
+  }
+
+  func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+    FileWrapper(regularFileWithContents: data)
+  }
+}
+
+private struct LogFileShareItem: Transferable {
+  let sourceURL: URL
+  let exportFilename: String
+  let flushBeforeExport: Bool
+
+  static var transferRepresentation: some TransferRepresentation {
+    DataRepresentation(exportedContentType: LogFilePayload.contentType) { item in
+      try LogFilePayload.load(
+        sourceURL: item.sourceURL,
+        exportFilename: item.exportFilename,
+        flushBeforeExport: item.flushBeforeExport
+      )
+      .data
+    }
+    .suggestedFileName { item in item.exportFilename }
   }
 }
 

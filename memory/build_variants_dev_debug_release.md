@@ -27,15 +27,14 @@ variants never share a database.
 `AppInfo.environment` (`EnvironmentType`) is *detected at runtime*, independent of the build config: a `.dev` build is `.simulator` in the Simulator or `.iPhoneDev` / `.macDev` on hardware; Release is `.testFlight` or `.appStore`; tests are `.testing`; previews `.preview`.
 
 Environment — not the build config — drives logging (`AppLauncher.configureLogging`):
-- `.simulator` / `.testing` → `OSLogHandler` only (no file log).
-- real-device Release (TestFlight / App Store) → `MultiplexLogHandler` of `OSLogHandler` + `FileLogHandler` + Sentry + crash reporting.
+- `.testing` → skipped (tests bootstrap their own handlers when needed).
 - `.preview` → `PrintLogHandler`.
-
-Consequence: `FileLogHandler` and its `log.ndjson` exist **only** on real-device Release builds — never in the Simulator.
+- `.simulator`, `.iPhoneDev`, `.macDev` → `OSLogHandler` + `FileLogHandler` only.
+- Release (`.deployed` / `.testFlight` / `.appStore`) → `OSLogHandler` + `FileLogHandler` + Sentry + crash reporting.
 
 ## Practical notes
 
-- Simulator container for the dev build: `xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev data` → DB at `<container>/Documents/PodHavenDev/db.sqlite`.
+- Simulator container for the dev build: `xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev data` → DB at `<container>/Documents/PodHavenDev/db.sqlite`, logs at `<container>/Documents/PodHavenDev/log.ndjson` (share from Settings → Debug, or copy from that path).
 - To load the real device DB into the Simulator: export it on the phone via Settings → Debug → "Share PodHaven Database" (GRDB backup into a self-contained `.sqlite` file), then drop it into the dev build's `PodHavenDev/` directory as `db.sqlite`. The path differs (production uses root `Documents`, dev uses the subdir) but the file is interchangeable. Delete any stale `db.sqlite-wal` / `db.sqlite-shm` in the destination before launching — the app recreates them.
 
 Related: [[device-debug-builds-break-background-scheduling]]
