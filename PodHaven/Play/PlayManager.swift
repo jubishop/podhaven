@@ -5,6 +5,7 @@ import Combine
 import FactoryKit
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Logging
 import Nuke
 import SwiftUI
@@ -555,6 +556,30 @@ final class PlayManager {
       try await cacheManager.clearCache(for: episodeID)
     } catch {
       Self.log.caughtError("removeFromCache: failed to clear cache for episode \(episodeID)", error)
+    }
+  }
+
+  // MARK: - Feedback Commands
+
+  func applyRating(_ rating: EpisodeRating, to episodeID: Episode.ID) async {
+    Self.log.debug("applyRating: \(rating) to \(episodeID)")
+    do {
+      try await repo.updateRating(episodeID, rating: rating)
+    } catch {
+      Self.log.caughtError("applyRating: failed to set \(rating) for episode \(episodeID)", error)
+    }
+  }
+
+  func applyTag(_ tagID: Tag.ID, to episodeID: Episode.ID) async {
+    guard sharedState.tags[id: tagID] != nil else {
+      Self.log.debug("applyTag: tag \(tagID) no longer exists, ignoring")
+      return
+    }
+    Self.log.debug("applyTag: \(tagID) to \(episodeID)")
+    do {
+      try await repo.addTag(tagID, toEpisodes: [episodeID])
+    } catch {
+      Self.log.caughtError("applyTag: failed to add tag \(tagID) to episode \(episodeID)", error)
     }
   }
 

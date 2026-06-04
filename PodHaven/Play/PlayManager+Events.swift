@@ -460,6 +460,26 @@ extension PlayManager {
             continue
           }
           await toggleSaveInCache(sourceEpisodeID)
+        case .like(let sourceEpisodeID):
+          guard let sourceEpisodeID else {
+            Self.log.debug("like command received with no on-deck episode, ignoring")
+            continue
+          }
+          switch userSettings.commandCenterLikeAction {
+          case .love: await applyRating(.loved, to: sourceEpisodeID)
+          case .like: await applyRating(.liked, to: sourceEpisodeID)
+          case .saveInCache: await toggleSaveInCache(sourceEpisodeID)
+          case .addTag(let tagID): await applyTag(tagID, to: sourceEpisodeID)
+          }
+        case .dislike(let sourceEpisodeID):
+          guard let sourceEpisodeID else {
+            Self.log.debug("dislike command received with no on-deck episode, ignoring")
+            continue
+          }
+          switch userSettings.commandCenterDislikeAction {
+          case .dislike: await applyRating(.disliked, to: sourceEpisodeID)
+          case .addTag(let tagID): await applyTag(tagID, to: sourceEpisodeID)
+          }
         }
       }
     }
@@ -554,6 +574,20 @@ extension PlayManager {
       }
     }
 
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await _ in userSettings.$commandCenterLikeAction.stream() {
+        CommandCenter.updateFeedbackCommands()
+      }
+    }
+
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await _ in userSettings.$commandCenterDislikeAction.stream() {
+        CommandCenter.updateFeedbackCommands()
+      }
+    }
+
     // SharedState
 
     Task { @PlayActor [weak self] in
@@ -570,6 +604,15 @@ extension PlayManager {
       guard let self else { return }
       for await _ in sharedState.$onDeck.stream() {
         CommandCenter.updateBookmark()
+      }
+    }
+
+    // Tag renames/adds/deletes change the "Add Tag" feedback button titles and
+    // can orphan a configured tag, so keep the like/dislike titles in sync.
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await _ in sharedState.$tags.stream() {
+        CommandCenter.updateFeedbackCommands()
       }
     }
   }

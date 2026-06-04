@@ -35,6 +35,8 @@ enum CommandCenter: Sendable {
     case nextEpisode
     case previousEpisode
     case bookmark(sourceEpisodeID: Episode.ID?)
+    case like(sourceEpisodeID: Episode.ID?)
+    case dislike(sourceEpisodeID: Episode.ID?)
   }
 
   private static let log = Log.as(LogSubsystem.Play.commandCenter)
@@ -64,6 +66,8 @@ enum CommandCenter: Sendable {
     commandCenter.nextTrack.removeCommandTarget()
     commandCenter.previousTrack.removeCommandTarget()
     commandCenter.bookmark.removeCommandTarget()
+    commandCenter.like.removeCommandTarget()
+    commandCenter.dislike.removeCommandTarget()
 
     commandCenter.play.addCommandTarget { event in
       yield(.play)
@@ -127,6 +131,14 @@ enum CommandCenter: Sendable {
       yield(.bookmark(sourceEpisodeID: Container.shared.sharedState().$onDeck.value?.id))
       return .success
     }
+    commandCenter.like.addCommandTarget { event in
+      yield(.like(sourceEpisodeID: Container.shared.sharedState().$onDeck.value?.id))
+      return .success
+    }
+    commandCenter.dislike.addCommandTarget { event in
+      yield(.dislike(sourceEpisodeID: Container.shared.sharedState().$onDeck.value?.id))
+      return .success
+    }
 
     commandCenter.play.isEnabled = true
     commandCenter.pause.isEnabled = true
@@ -135,14 +147,30 @@ enum CommandCenter: Sendable {
     commandCenter.skipBackward.isEnabled = true
     commandCenter.changePlaybackRate.isEnabled = true
     commandCenter.bookmark.isEnabled = true
-    commandCenter.like.isEnabled = false
-    commandCenter.dislike.isEnabled = false
+    commandCenter.like.isEnabled = true
+    commandCenter.dislike.isEnabled = true
     commandCenter.rating.isEnabled = false
 
     updateSkipIntervals()
     updateNextTrack()
     updateScrubbing()
     updateBookmark()
+    updateFeedbackCommands()
+  }
+
+  static func updateFeedbackCommands() {
+    let userSettings = Container.shared.userSettings()
+    let tags = Container.shared.sharedState().$tags.value
+    let commandCenter = Container.shared.mpRemoteCommandCenter()
+
+    let likeTitle = userSettings.commandCenterLikeAction.title(tags: tags)
+    let dislikeTitle = userSettings.commandCenterDislikeAction.title(tags: tags)
+    log.debug("updateFeedbackCommands: like '\(likeTitle)', dislike '\(dislikeTitle)'")
+
+    commandCenter.like.localizedTitle = likeTitle
+    commandCenter.like.localizedShortTitle = likeTitle
+    commandCenter.dislike.localizedTitle = dislikeTitle
+    commandCenter.dislike.localizedShortTitle = dislikeTitle
   }
 
   static func updateBookmark() {

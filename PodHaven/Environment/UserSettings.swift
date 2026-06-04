@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
+import IdentifiedCollections
 import Logging
 import SwiftUI
 
@@ -58,6 +59,43 @@ struct UserSettings: Sendable {
     var id: String { rawValue }
   }
   @PersistedBroadcast("nextTrackBehavior") var nextTrackBehavior: NextTrackBehavior = .skipInterval
+
+  // What the remote Command Center "like" feedback button does to the on-deck
+  // episode. `.addTag` carries the tag it assigns; a tag deleted after being
+  // chosen is treated as no action until the user picks another.
+  enum CommandCenterLikeAction: Codable, DefaultsStorable, Sendable {
+    case love
+    case like
+    case saveInCache
+    case addTag(Tag.ID)
+
+    func title(tags: IdentifiedArrayOf<Tag>) -> String {
+      switch self {
+      case .love: "Love"
+      case .like: "Like"
+      case .saveInCache: "Save in Cache"
+      case .addTag(let tagID): tags[id: tagID].map { "Tag: \($0.name)" } ?? "Add Tag"
+      }
+    }
+  }
+  @PersistedBroadcast("commandCenterLikeAction")
+  var commandCenterLikeAction: CommandCenterLikeAction = .like
+
+  // What the remote Command Center "dislike" feedback button does to the on-deck
+  // episode. See CommandCenterLikeAction for the `.addTag` lifetime note.
+  enum CommandCenterDislikeAction: Codable, DefaultsStorable, Sendable {
+    case dislike
+    case addTag(Tag.ID)
+
+    func title(tags: IdentifiedArrayOf<Tag>) -> String {
+      switch self {
+      case .dislike: "Dislike"
+      case .addTag(let tagID): tags[id: tagID].map { "Tag: \($0.name)" } ?? "Add Tag"
+      }
+    }
+  }
+  @PersistedBroadcast("commandCenterDislikeAction")
+  var commandCenterDislikeAction: CommandCenterDislikeAction = .dislike
 
   // The trailing (swipe-left) row actions on episode lists, in display order.
   // The leading (swipe-right) queue actions are fixed and not configurable.
