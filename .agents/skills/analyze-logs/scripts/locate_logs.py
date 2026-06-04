@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-import sys
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -198,7 +197,7 @@ def main() -> int:
     )
 
     if args.json:
-        print(json.dumps({"candidates": [asdict(c) for c in candidates]}, indent=2))
+        print(json.dumps({"candidates": [asdict(c) for c in candidates]}, indent=2, default=str))
         return 0
 
     print(format_candidates(candidates))
