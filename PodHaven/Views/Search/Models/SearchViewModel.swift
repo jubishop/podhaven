@@ -503,7 +503,7 @@ class SearchViewModel:
         Self.log.caughtError(
           "restartObservation: observation failed for \(feedURLs.count) feed URLs",
           error,
-          level: { _ in .info }
+          level: .info
         )
       }
     }

@@ -141,7 +141,8 @@ enum EmbeddingService {
       } catch {
         Self.log.caughtError(
           "Failed to embed episode \(episode.toString); continuing batch",
-          error
+          error,
+          level: .notice
         )
       }
     }

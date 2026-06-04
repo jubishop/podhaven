@@ -2,6 +2,7 @@
 
 import Foundation
 import Logging
+import StoreKit
 
 enum ErrorKit {
   // MARK: - Messaging
@@ -37,6 +38,10 @@ enum ErrorKit {
     if let urlError = error as? URLError,
       urlError.code == .cancelled || urlError.code == .timedOut
     {
+      return false
+    }
+
+    if let storeKitError = error as? StoreKitError, case .userCancelled = storeKitError {
       return false
     }
 

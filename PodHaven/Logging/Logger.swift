@@ -19,6 +19,17 @@ extension Logger {
     self.log(level: resolvedLevel, message, file: file, function: function, line: line)
   }
 
+  func caughtError(
+    _ header: String,
+    _ error: any Error,
+    file: String = #fileID,
+    function: String = #function,
+    line: UInt = #line,
+    level: Logger.Level
+  ) {
+    caughtError(header, error, file: file, function: function, line: line, level: { _ in level })
+  }
+
   func error(
     _ error: any Error,
     file: String = #fileID,

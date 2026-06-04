@@ -72,7 +72,7 @@ struct RefreshManager {
             Self.log.caughtError(
               "Failed to refresh series: \(podcastSeries.toString)",
               error,
-              level: { _ in .info }
+              level: .info
             )
             return nil
           }
@@ -163,7 +163,7 @@ struct RefreshManager {
           FeedURL: \(podcastSeries.podcast.feedURL)
         """,
         error,
-        level: { _ in .notice }
+        level: .notice
       )
       return nil
     }

@@ -80,15 +80,15 @@ enum AppInfo {
         case .testFlight:
           refined = .testFlight
         case .marketplace(let identifier):
-          log.warning(
+          log.notice(
             "Distributed via marketplace \(identifier); treating as App Store for debug gating"
           )
           refined = .appStore
         case .web:
-          log.warning("AppDistributor.web; treating as App Store for debug gating")
+          log.notice("AppDistributor.web; treating as App Store for debug gating")
           refined = .appStore
         case .other:
-          log.warning("AppDistributor.other; treating as App Store for debug gating")
+          log.notice("AppDistributor.other; treating as App Store for debug gating")
           refined = .appStore
         @unknown default:
           log.warning("Unknown AppDistributor; treating as App Store for debug gating")
@@ -174,7 +174,7 @@ enum AppInfo {
       log.caughtError(
         "Failed to read Info.plist attributes at \(infoPath)",
         error,
-        level: { _ in .info }
+        level: .info
       )
       return Date()
     }

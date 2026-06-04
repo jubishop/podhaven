@@ -156,7 +156,7 @@ enum PodAVPlayerError: Error, LocalizedError {
       Self.log.caughtError(
         "performLoadAsset: cache load failed, clearing cached filename and falling back to remote",
         error,
-        level: { _ in .warning }
+        level: .warning
       )
       do {
         try await repo.updateCachedFilename(podcastEpisode.id, cachedFilename: nil)
@@ -311,7 +311,7 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   private func saveCurrentTime(_ currentTime: CMTime) async {
     guard let episodeID else {
-      Self.log.warning("Setting current time on nil player item with CMTime: \(currentTime)")
+      Self.log.debug("Setting current time on nil player item with CMTime: \(currentTime)")
       return
     }
 
@@ -331,7 +331,7 @@ enum PodAVPlayerError: Error, LocalizedError {
   // the user actually heard, so the bitmap and `lastPlayedDate` shouldn't grow.
   private func savePlaybackTick(_ currentTime: CMTime) async {
     guard let episodeID else {
-      Self.log.warning("Saving tick on nil player item with CMTime: \(currentTime)")
+      Self.log.debug("Saving tick on nil player item with CMTime: \(currentTime)")
       return
     }
 
@@ -359,7 +359,7 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   private func handleCurrentTimeChange(_ currentTime: CMTime) async {
     guard let episodeID else {
-      Self.log.warning("Setting current time on nil player item with CMTime: \(currentTime)")
+      Self.log.debug("Setting current time on nil player item with CMTime: \(currentTime)")
       return
     }
 

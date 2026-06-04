@@ -72,7 +72,7 @@ struct UnsavedPodcast:
         Self.log.caughtError(
           "Invalid link URL '\(link)' for podcast '\(title)'",
           error,
-          level: { _ in .info }
+          level: .info
         )
         self.link = nil
       }

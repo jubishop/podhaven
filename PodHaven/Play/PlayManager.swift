@@ -851,7 +851,11 @@ final class PlayManager {
       do {
         try Container.shared.setAudioSessionActive()(false)
       } catch {
-        Self.log.caughtError("setStatus: failed to deactivate audio session", error)
+        Self.log.caughtError(
+          "setStatus: failed to deactivate audio session",
+          error,
+          level: .notice
+        )
       }
     }
   }

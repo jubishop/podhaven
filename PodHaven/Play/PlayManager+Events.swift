@@ -262,7 +262,7 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in notifications(AVAudioSession.mediaServicesWereLostNotification) {
-        Self.log.error("Media services were lost")
+        Self.log.notice("Media services were lost")
       }
     }
 
@@ -316,7 +316,7 @@ extension PlayManager {
         Self.log.caughtError(
           "AVPlayerItem failed to play to end time",
           error,
-          level: { _ in .warning }
+          level: .warning
         )
 
         await handlePlaybackFailure()
