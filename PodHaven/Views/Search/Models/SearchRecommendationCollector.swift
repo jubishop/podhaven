@@ -55,7 +55,8 @@ final class SearchRecommendationCollector {
     var discoveryListTitle: String {
       switch self {
       case .search(let query): return "\"\(query)\""
-      case .trending(let trending): return trending.title
+      case .trending(let trending):
+        return trending.genreID == nil ? "Top picks" : trending.title
       }
     }
 
