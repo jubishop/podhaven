@@ -1,7 +1,0 @@
-interface:
-  display_name: "Analyze Logs"
-  short_description: "Diagnose PodHaven NDJSON logs"
-  default_prompt: "Use $analyze-logs to inspect this PodHaven NDJSON log and explain the failure timeline."
-
-policy:
-  allow_implicit_invocation: false
