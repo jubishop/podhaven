@@ -12,8 +12,10 @@ struct DebugSection: View {
   @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
   @DynamicInjected(\.userSettings) private var userSettings
+  @DynamicInjected(\.appDB) private var appDB
 
   @State private var pendingEmbeddings: Int? = nil
+  @State private var dbStats: AppDB.FileStats? = nil
 
   private static var log: Logger { Log.as(LogSubsystem.SettingsView.main) }
 
@@ -22,6 +24,20 @@ struct DebugSection: View {
       return "Embeddings remaining: \(pendingEmbeddings.formatted())"
     }
     return "Embeddings remaining: …"
+  }
+
+  private var dbStatsLabel: String {
+    guard let dbStats else { return "Database: …" }
+    let size = ByteCountFormatter.string(
+      fromByteCount: Int64(dbStats.byteCount),
+      countStyle: .file
+    )
+    let free = ByteCountFormatter.string(
+      fromByteCount: Int64(dbStats.freeByteCount),
+      countStyle: .file
+    )
+    let percent = Int((dbStats.freeFraction * 100).rounded())
+    return "Database: \(size) (\(percent)% free · \(free))"
   }
 
   var body: some View {
@@ -37,6 +53,15 @@ struct DebugSection: View {
             pendingEmbeddings = ids.count
           } catch {
             Self.log.caughtError("Failed to count pending embeddings", error)
+          }
+        }
+
+      Text(dbStatsLabel)
+        .task {
+          do {
+            dbStats = try await appDB.fileStats()
+          } catch {
+            Self.log.caughtError("Failed to read database file stats", error)
           }
         }
 
