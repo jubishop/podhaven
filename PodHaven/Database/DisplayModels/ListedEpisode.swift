@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2026
 
 import AVFoundation
-import FactoryKit
 import Foundation
 import GRDB
 
@@ -87,8 +86,6 @@ struct ListedEpisode:
     }
   }
 
-  @DynamicInjected(\.repo) private var repo
-
   let source: Source
 
   init(_ episode: ListablePodcastEpisode) { source = .saved(episode) }
@@ -138,7 +135,7 @@ struct ListedEpisode:
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     switch source {
     case .saved(let episode): return try await episode.getPodcastEpisode()
-    case .unsaved(let episode): return try await repo.upsertPodcastEpisode(episode)
+    case .unsaved(let episode): return try await episode.getOrCreatePodcastEpisodeSavingSeries()
     }
   }
 

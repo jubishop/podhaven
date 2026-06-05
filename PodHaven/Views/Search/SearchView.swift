@@ -41,13 +41,17 @@ struct SearchView: View {
       }
       .toolbar { toolbar }
       .toolbarRole(.editor)
+      // Attached to the root content rather than the NavStack so pushed
+      // destinations (e.g. SearchDiscoveryListView) don't inherit the
+      // search field — otherwise editing the query from a pushed view can
+      // invalidate the source the discovery list was instantiated with.
+      .searchable(
+        text: $viewModel.searchText,
+        placement: .automatic,
+        prompt: Text("Search podcasts")
+      )
+      .searchPresentationToolbarBehavior(.avoidHidingContent)
     }
-    .searchable(
-      text: $viewModel.searchText,
-      placement: .automatic,
-      prompt: Text("Search podcasts")
-    )
-    .searchPresentationToolbarBehavior(.avoidHidingContent)
     .onChange(of: isShowingManualFeedEntry) { _, showing in
       if showing {
         Self.log.debug("ManualFeedEntry sheet presented")
@@ -181,11 +185,14 @@ struct SearchView: View {
 
   @ViewBuilder
   private var resultsView: some View {
-    switch viewModel.displayMode {
-    case .grid:
-      resultsGrid
-    case .list:
-      resultsList
+    VStack(spacing: 0) {
+      recommendationBanner
+      switch viewModel.displayMode {
+      case .grid:
+        resultsGrid
+      case .list:
+        resultsList
+      }
     }
   }
 
@@ -241,6 +248,92 @@ struct SearchView: View {
     }
   }
 
+  // MARK: - Recommendation Banner
+
+  @ViewBuilder
+  private var recommendationBanner: some View {
+    let collector = viewModel.recommendationCollector
+    if let source = collector.activeSource {
+      switch collector.bannerState {
+      case .hidden:
+        EmptyView()
+      case .loading:
+        bannerStrip(source: source, text: loadingBannerCopy(for: source), tappable: false)
+      case .loaded(let count):
+        bannerStrip(
+          source: source,
+          text: loadedBannerCopy(for: source, count: count),
+          tappable: true
+        )
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func bannerStrip(
+    source: SearchRecommendationCollector.Source,
+    text: String,
+    tappable: Bool
+  ) -> some View {
+    if tappable {
+      Button {
+        navigation.showSearchDiscovery(
+          source: source,
+          actionsViewModel: viewModel.searchDiscoveryActionsViewModel
+        )
+      } label: {
+        bannerLabel(text: text, showsChevron: true)
+      }
+      .buttonStyle(.plain)
+    } else {
+      bannerLabel(text: text, showsChevron: false)
+    }
+  }
+
+  private func bannerLabel(text: String, showsChevron: Bool) -> some View {
+    HStack(spacing: 6) {
+      Text(text)
+        .font(.subheadline.weight(.semibold))
+        .foregroundColor(.primary)
+        .lineLimit(1)
+      Spacer(minLength: 8)
+      if showsChevron {
+        AppIcon.navigateInto.image
+          .font(.subheadline.weight(.semibold))
+          .foregroundColor(.accentColor)
+      }
+    }
+    .padding(.horizontal)
+    .padding(.vertical, 10)
+    .background(Color.secondary.opacity(0.08))
+  }
+
+  private func loadingBannerCopy(for source: SearchRecommendationCollector.Source) -> String {
+    switch source {
+    case .search(let query):
+      return "Finding top picks from \"\(query)\"..."
+    case .trending(let trending):
+      if trending.genreID == nil { return "Finding top picks..." }
+      return "Finding top picks from \(trending.title)..."
+    }
+  }
+
+  private func loadedBannerCopy(
+    for source: SearchRecommendationCollector.Source,
+    count: Int
+  ) -> String {
+    switch source {
+    case .search(let query):
+      return count == 1 ? "Top pick from \"\(query)\"" : "Top \(count) from \"\(query)\""
+    case .trending(let trending):
+      if trending.genreID == nil {
+        return count == 1 ? "Top pick" : "Top \(count) picks"
+      }
+      return count == 1
+        ? "Top pick from \(trending.title)" : "Top \(count) from \(trending.title)"
+    }
+  }
+
   // MARK: - Reusable Views
 
   private func loadingView(text: String) -> some View {
@@ -288,6 +381,8 @@ struct SearchView: View {
     }
   }
   .task {
+    Container.shared.registerPreviewDefaults()
+
     // Load sample data
     let topTechnologyFeed = PreviewBundle.loadAsset(
       named: "top_technology_feed",

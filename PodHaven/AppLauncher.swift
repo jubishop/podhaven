@@ -187,12 +187,34 @@ struct AppLauncher: Sendable {
 
   private func configureLogging() {
     switch AppInfo.environment {
-    case .deployed, .appStore, .testFlight, .iPhoneDev, .macDev:
+    case .deployed, .appStore, .testFlight:
       Self.configureSentry()
+      Self.bootstrapOSLogAndFileLog { label in
+        [SentryLogHandler(label: label), CrashReportHandler(label: label)]
+      }
+      Self.log.debug("configureLogging: OSLog, FileLog, CrashReport")
+    case .preview:
+      LoggingSystem.bootstrap(PrintLogHandler.init)
+      Self.log.debug("configureLogging: PrintLog")
+    case .simulator, .iPhoneDev, .macDev:
+      Self.bootstrapOSLogAndFileLog()
+      Self.log.debug("configureLogging: OSLog, FileLog")
+    case .testing:
+      // Skipped on purpose. Tests that need swift-log capture bootstrap a
+      // capturing handler themselves; tests that don't get the default
+      // stderr handler, which is fine — no test currently relies on log
+      // output going to a specific destination.
+      break
+    }
+  }
 
-      let sharedState = Container.shared.sharedState()
-      LoggingSystem.bootstrap { label in
-        MultiplexLogHandler([
+  private static func bootstrapOSLogAndFileLog(
+    extraHandlers: @escaping @Sendable (String) -> [any LogHandler] = { _ in [] }
+  ) {
+    let sharedState = Container.shared.sharedState()
+    LoggingSystem.bootstrap { label in
+      MultiplexLogHandler(
+        [
           OSLogHandler(label: label),
           FileLogHandler(
             label: label,
@@ -205,23 +227,9 @@ struct AppLauncher: Sendable {
               $0 >= .critical || sharedState.$scenePhase.value == .background
             }
           ),
-          SentryLogHandler(label: label),
-          CrashReportHandler(label: label),
-        ])
-      }
-      Self.log.debug("configureLogging: OSLog, FileLog, CrashReport")
-    case .preview:
-      LoggingSystem.bootstrap(PrintLogHandler.init)
-      Self.log.debug("configureLogging: PrintLog")
-    case .simulator:
-      LoggingSystem.bootstrap(OSLogHandler.init)
-      Self.log.debug("configureLogging: OSLog")
-    case .testing:
-      // Skipped on purpose. Tests that need swift-log capture bootstrap a
-      // capturing handler themselves; tests that don't get the default
-      // stderr handler, which is fine — no test currently relies on log
-      // output going to a specific destination.
-      break
+        ]
+          + extraHandlers(label)
+      )
     }
   }
 

@@ -56,6 +56,7 @@ enum LogSubsystem {
   enum SearchView: String, LogCategorizable {
     case main
     case manual
+    case recommendations
   }
 
   enum SettingsView: String, LogCategorizable {

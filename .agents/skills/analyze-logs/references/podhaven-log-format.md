@@ -6,7 +6,19 @@ Use this reference when you need exact field details or file-behavior context wh
 
 - `log.ndjson`: main app log file. The app constructs this path from `AppInfo.logFileURL`.
 - `widget-log.ndjson`: widget log file. The widget constructs this path from `WidgetInfo.logFileURL`.
-- `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`: common exported app log path used in the older Claude skill.
+
+### Where files live on the Mac host
+
+Development (Run / `.dev` bundle) — **one rolling file per destination** (all worktrees share it):
+
+| Destination | App log | Widget log |
+|-------------|---------|------------|
+| Booted Simulator | `$DATA/Documents/PodHavenDev/log.ndjson` where `DATA=$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev data)` | `$GROUP/widget-log.ndjson` where `GROUP=$(xcrun simctl get_app_container booted com.artisanalsoftware.PodHaven.dev group.podhaven.shared.dev)` |
+| My Mac | `~/Library/Containers/com.artisanalsoftware.PodHaven.dev/Data/Documents/PodHavenDev/log.ndjson` | `~/Library/Group Containers/group.podhaven.shared.dev/widget-log.ndjson` |
+
+Production (Release bundle): `Documents/log.ndjson` (no `PodHavenDev` subdir) under the production container; app group `group.podhaven.shared`.
+
+The analyze-logs skill requires the user to supply the path explicitly. Run `scripts/locate_logs.py` for a reference list only — it does not choose a file.
 
 ## Entry Schema
 
@@ -25,6 +37,25 @@ Each line is a standalone JSON object with these fields:
 | `file` | string | Source file path reported by the logger |
 | `function` | string | Swift function name |
 | `line` | number | Source line number |
+
+## Unified log (os_log) mapping
+
+The same entries are mirrored to the OS unified log via `OSLogHandler` (capture commands live in the skill's "OS unified logs" section). Level correspondence:
+
+| swift-log level | NDJSON `level` | Unified `messageType` |
+| --- | --- | --- |
+| trace | 0 | Debug |
+| debug | 1 | Debug |
+| info | 2 | Info |
+| notice | 3 | Info |
+| warning | 4 | Error |
+| error | 5 | Error |
+| critical | 6 | Fault |
+
+- Unified-log **subsystem** = the entry's `subsystem` (a bare module name like `Feed`, `Database`, or `PodHaven`); **category** = `category`. Filter by **process** (`PodHaven`) — subsystems share no common prefix.
+- `log show` omits Debug/Info unless `--info --debug` is passed; most entries are Debug.
+- Only `message` is emitted to os_log (with `privacy: .public`, so never redacted). `source`, `file`, `function`, `line`, and `metadata` exist **only** in the NDJSON file.
+- The unified log adds thread IDs and interleaved system/framework events the NDJSON does not capture.
 
 ## Behavior
 
