@@ -111,6 +111,67 @@ import Testing
     #expect(series.episodes.count == 1)
   }
 
+  @Test("saving an unsaved episode whose podcast already exists upserts only that episode")
+  func savingUnsavedEpisodeForExistingPodcastSkipsFeedPull() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/already-saved.rss")!)
+    let mediaURL = MediaURL(URL(string: "https://example.com/already-saved-1.mp3")!)
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Already Saved"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "saved-1", mediaURL: mediaURL, title: "Episode 1"),
+          try Create.unsavedEpisode(guid: "saved-2", title: "Episode 2"),
+        ]
+      )
+    )
+
+    let actedOn = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Already Saved"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "saved-1",
+        mediaURL: mediaURL,
+        title: "Episode 1"
+      )
+    )
+
+    let resolved = try await actedOn.getOrCreatePodcastEpisodeSavingSeries()
+    #expect(resolved.mediaGUID == actedOn.mediaGUID)
+
+    // The podcast already exists, so the feed is never pulled and no episode is added.
+    #expect(await feedSession.requests.contains(feedURL.rawValue) == false)
+    let series = try #require(try await repo.podcastSeries(feedURL))
+    #expect(series.episodes.count == 2)
+  }
+
+  @Test("saving an unsaved episode missing from the feed window keeps the series and the lone row")
+  func savingUnsavedEpisodeMissingFromFeedPersistsSeriesAndLoneEpisode() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let parsed = try await PodcastFeed.parse(
+      data,
+      from: FeedURL(URL(string: "https://example.com/predates-window.rss")!)
+    )
+    let unsavedPodcast = try parsed.toUnsavedPodcast()
+    let feedURL = unsavedPodcast.feedURL
+    await feedSession.respond(to: feedURL.rawValue, data: data)
+
+    let feedEpisodes = parsed.toUnsavedEpisodes()
+    #expect(feedEpisodes.count > 1)
+
+    // The acted-on episode is older than anything still in the pulled feed.
+    let actedOn = UnsavedPodcastEpisode(
+      unsavedPodcast: unsavedPodcast,
+      unsavedEpisode: try Create.unsavedEpisode(guid: "predates-window", title: "Older Than Feed")
+    )
+    #expect(feedEpisodes.map(\.id).contains(actedOn.mediaGUID) == false)
+
+    let resolved = try await actedOn.getOrCreatePodcastEpisodeSavingSeries()
+    #expect(resolved.mediaGUID == actedOn.mediaGUID)
+
+    // The whole feed lands plus the acted-on episode that predates the feed window.
+    let series = try #require(try await repo.podcastSeries(feedURL))
+    #expect(series.episodes.count == feedEpisodes.count + 1)
+  }
+
   @Test("a bulk action on an unsaved selection persists the whole series, not just the selection")
   func bulkActionOnUnsavedSelectionPersistsWholeSeries() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/bulk-unsaved.rss")!)
