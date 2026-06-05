@@ -38,6 +38,25 @@ Each line is a standalone JSON object with these fields:
 | `function` | string | Swift function name |
 | `line` | number | Source line number |
 
+## Unified log (os_log) mapping
+
+The same entries are mirrored to the OS unified log via `OSLogHandler` (capture commands live in the skill's "OS unified logs" section). Level correspondence:
+
+| swift-log level | NDJSON `level` | Unified `messageType` |
+| --- | --- | --- |
+| trace | 0 | Debug |
+| debug | 1 | Debug |
+| info | 2 | Info |
+| notice | 3 | Info |
+| warning | 4 | Error |
+| error | 5 | Error |
+| critical | 6 | Fault |
+
+- Unified-log **subsystem** = the entry's `subsystem` (a bare module name like `Feed`, `Database`, or `PodHaven`); **category** = `category`. Filter by **process** (`PodHaven`) — subsystems share no common prefix.
+- `log show` omits Debug/Info unless `--info --debug` is passed; most entries are Debug.
+- Only `message` is emitted to os_log (with `privacy: .public`, so never redacted). `source`, `file`, `function`, `line`, and `metadata` exist **only** in the NDJSON file.
+- The unified log adds thread IDs and interleaved system/framework events the NDJSON does not capture.
+
 ## Behavior
 
 - The log format is NDJSON, not a JSON array. Parse one line at a time.

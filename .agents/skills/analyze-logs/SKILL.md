@@ -1,6 +1,6 @@
 ---
 name: analyze-logs
-description: Analyze PodHaven NDJSON log files and reconstruct failure timelines. Requires the user to specify the log file path and run context (do not infer). Use when inspecting log.ndjson or widget-log.ndjson, diagnosing warnings or errors, correlating a Sentry timestamp to local logs, or explaining what happened around a specific time, subsystem, category, source file, or message.
+description: Analyze PodHaven logs and reconstruct failure timelines from the NDJSON file logs and/or the OS unified log (os_log / Console). Requires the user to specify the log source and run context (do not infer). Use when inspecting log.ndjson or widget-log.ndjson, capturing os_log/Console output from the Simulator or the My Mac (macDev) build, diagnosing warnings or errors, correlating a Sentry timestamp to local logs, or explaining what happened around a specific time, subsystem, category, source file, or message.
 user_invocable: true
 disable-model-invocation: true
 ---
@@ -26,7 +26,7 @@ Use this table to help the user find files; **do not analyze until they confirm 
 | Run context | App log (`log.ndjson`) | Widget log (`widget-log.ndjson`) |
 |-------------|------------------------|----------------------------------|
 | **iOS Simulator** (Development / Run) | `<sim-data>/Documents/PodHavenDev/log.ndjson` | `<sim-group>/widget-log.ndjson` |
-| **My Mac** (Designed for iPhone, `.dev`) | `~/Library/Containers/com.artisanalsoftware.PodHaven.dev/Data/Documents/PodHavenDev/log.ndjson` | `~/Library/Group Containers/group.podhaven.shared.dev/widget-log.ndjson` |
+| **My Mac** (`macDev` — Xcode "My Mac" run; Mac Catalyst / iOS-app-on-Mac, `.dev`) | `~/Library/Containers/com.artisanalsoftware.PodHaven.dev/Data/Documents/PodHavenDev/log.ndjson` | `~/Library/Group Containers/group.podhaven.shared.dev/widget-log.ndjson` |
 | **Physical iPhone** (dev) | User must Share/Save or copy via Finder/device tools — **ask for the saved path** | Same; separate widget file |
 | **Production** (Release) | `~/Library/Containers/com.artisanalsoftware.PodHaven/Data/Documents/log.ndjson` | `~/Library/Group Containers/group.podhaven.shared/widget-log.ndjson` |
 
@@ -53,6 +53,54 @@ python3 scripts/log_summary.py --list-locations
 - All **Development** runs on the same simulator (or same My Mac container) append to **one** `log.ndjson`.
 - Worktrees do not create separate log files.
 - After repro, user should **copy immediately** or you scope with `--sessions` and match **Settings → Git** / `Git commit hash is:` in the log.
+
+## OS unified logs (os_log / Console)
+
+PodHaven mirrors **every** swift-log entry to the OS unified log via `OSLogHandler`, alongside the NDJSON file. Active in `.simulator`, `.iPhoneDev`, `.macDev`, and deployed builds (not `.preview` / `.testing`). The unique value over the file log: the app's own entries arrive **interleaved with system/framework events** (XPC, AVFoundation, networking, SkyLight) that the NDJSON never captures — use it when the OS, not just app code, is in the failure path.
+
+Same rule as the file logs: **ask which run the user reproduced; do not infer.** The "My Mac" run is the `macDev` environment (`isMacCatalystApp || isiOSAppOnMac`) and runs as a native Mac process named `PodHaven` on this host.
+
+### How PodHaven maps onto the unified log
+
+- **Subsystem is the swift-log label prefix, not a bundle id.** Each `LogCategorizable` enum is its own subsystem equal to the enum's type name — `Feed`, `Play`, `Cache`, `Database`, `Recommendations`, `State`, `PlayBar`, `SearchView`, `Widget`, etc. Default `Log.as(String)` loggers use `PodHaven`; the share extension uses `PodHavenShare`. There is **no shared `com.apple`-style prefix**, so filter by **process**, not subsystem.
+- **Process name is `PodHaven`** (Simulator and My Mac alike). Only one PodHaven run exists at a time, so the process filter is unambiguous regardless of branch/worktree.
+- **Level remap** (`OSLogHandler`): swift-log `trace`/`debug` → `Debug`, `info`/`notice` → `Info`, `warning`/`error` → `Error`, `critical` → `Fault`. So a swift-log **warning surfaces as an `Error`-type** unified entry and a **critical as `Fault`** — predicate on `messageType`, not the original swift-log name.
+- **`log show` hides `Debug`/`Info` by default.** Most app entries are `.debug`, so pass `--info --debug` or you'll see almost nothing.
+- Messages emit with `privacy: .public` — never redacted to `<private>`.
+- If a bare `log` command errors with `too many arguments`, a shell function is shadowing it — call `/usr/bin/log` explicitly.
+
+### Capture — My Mac (`macDev`) on this host
+
+```bash
+# Live tail (Ctrl-C to stop); historical via `log show --last 30m` with the same flags
+/usr/bin/log stream --info --debug --style compact \
+  --predicate 'process == "PodHaven" AND eventType == "logEvent" AND NOT subsystem BEGINSWITH "com.apple"'
+
+# Permanent artifact you can re-query offline, like a file
+/usr/bin/log collect --last 30m --output /tmp/podhaven-mymac.logarchive
+/usr/bin/log show /tmp/podhaven-mymac.logarchive --info --debug --style compact \
+  --predicate 'process == "PodHaven" AND eventType == "logEvent" AND NOT subsystem BEGINSWITH "com.apple"'
+```
+
+Drop `AND NOT subsystem BEGINSWITH "com.apple"` to **include** surrounding framework/system events; keep it to see (almost) only PodHaven's own log statements — the exclusion is best-effort, so a few non-Apple framework subsystems (e.g. `IOSurface`) still slip through. `--style ndjson` (or `json`) emits machine-readable output for `jq`.
+
+### Capture — Simulator
+
+Scope `log` to the booted simulator with `simctl spawn booted`; the in-sim process is also named `PodHaven`:
+
+```bash
+xcrun simctl spawn booted log show --last 30m --info --debug --style compact \
+  --predicate 'process == "PodHaven" AND eventType == "logEvent" AND NOT subsystem BEGINSWITH "com.apple"'
+```
+
+### Analyze NDJSON + unified log in tandem
+
+Both carry the same `subsystem`, `category`, and message text, so they align by timestamp:
+
+- Run `log_summary.py` on the **NDJSON** for structured triage (sessions, call-sites, level families, `--around`) — it also has `source`/`file`/`function`/`line`/`metadata` the unified message text lacks.
+- Pull the matching window from the **unified log** (`log show --start/--end`, or `--last`) to see what the OS was doing at the same instant — the file log can't show that.
+- Unified-log timestamps print in the host's local zone; report in Pacific (as with the file logs).
+- Save a `.logarchive` when you'll re-query the same capture more than once; the live buffer is rolling and system-wide.
 
 ## Quick Start
 
@@ -128,11 +176,11 @@ Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, 
 
 ## Workflow
 
-### 0. Obtain path (mandatory)
+### 0. Obtain source (mandatory)
 
-- Ask: Simulator, My Mac, device copy, Sentry/feedback attachment, or other?
-- Do not run analysis until the user supplies or confirms a filesystem path.
-- Optionally show `locate_logs.py` output to help them find files; still require their confirmation.
+- Ask: Simulator, My Mac (`macDev`), device copy, Sentry/feedback attachment, or other? And which surface — NDJSON file log, OS unified log (os_log/Console), or both?
+- For a file log, do not run analysis until the user supplies or confirms a filesystem path. Optionally show `locate_logs.py` output to help; still require confirmation.
+- For the unified log, confirm the run context, then capture live/historical per "OS unified logs" above (process `PodHaven`; pass `--info --debug`).
 
 ### 1. Orient
 

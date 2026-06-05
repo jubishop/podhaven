@@ -134,7 +134,8 @@ private struct LogFileExportButton<Label: View>: View {
   }
 
   var body: some View {
-    if AppInfo.environment == .macDev {
+    switch AppInfo.environment {
+    case .macDev:
       Button(action: startExport, label: label)
         .fileExporter(
           isPresented: $isExporting,
@@ -143,7 +144,11 @@ private struct LogFileExportButton<Label: View>: View {
           defaultFilename: exportFilename,
           onCompletion: completeExport
         )
-    } else {
+    case .simulator:
+      // The Simulator share sheet can't reach the Mac, so write straight to the
+      // host Desktop via the path the Simulator injects into the environment.
+      Button(action: copyToHostDesktop, label: label)
+    default:
       ShareLink(
         item: LogFileShareItem(
           sourceURL: sourceURL,
@@ -169,6 +174,29 @@ private struct LogFileExportButton<Label: View>: View {
     } catch {
       Self.log.caughtError("Log export: failed to prepare \(exportFilename)", error)
       alert(title: "Failed to Export Logs", "Could not prepare \(exportFilename).")
+    }
+  }
+
+  private func copyToHostDesktop() {
+    guard let hostHome = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] else {
+      Self.log.error("Log export: SIMULATOR_HOST_HOME unset; cannot copy \(exportFilename)")
+      alert(title: "Failed to Export Logs", "Simulator host path unavailable.")
+      return
+    }
+    let destination = URL(filePath: hostHome)
+      .appending(path: "Desktop")
+      .appending(path: exportFilename)
+    do {
+      let payload = try LogFilePayload.load(
+        sourceURL: sourceURL,
+        exportFilename: exportFilename,
+        flushBeforeExport: flushBeforeExport
+      )
+      try payload.data.write(to: destination, options: .atomic)
+      alert(title: "Logs Saved", "Saved to \(destination.path)")
+    } catch {
+      Self.log.caughtError("Log export: failed to copy \(exportFilename) to host Desktop", error)
+      alert(title: "Failed to Export Logs", "Could not copy \(exportFilename) to the Mac.")
     }
   }
 
