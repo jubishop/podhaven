@@ -32,7 +32,12 @@ struct DebugSection: View {
       fromByteCount: Int64(dbStats.byteCount),
       countStyle: .file
     )
-    return "Database: \(size) (\(Int((dbStats.freeFraction * 100).rounded()))% free)"
+    let free = ByteCountFormatter.string(
+      fromByteCount: Int64(dbStats.freeByteCount),
+      countStyle: .file
+    )
+    let percent = Int((dbStats.freeFraction * 100).rounded())
+    return "Database: \(size) (\(percent)% free · \(free))"
   }
 
   var body: some View {

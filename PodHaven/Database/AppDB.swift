@@ -202,6 +202,7 @@ struct AppDB {
     let pageSize: Int
 
     var byteCount: Int { pageCount * pageSize }
+    var freeByteCount: Int { freelistCount * pageSize }
     var freeFraction: Double {
       pageCount > 0 ? Double(freelistCount) / Double(pageCount) : 0
     }
