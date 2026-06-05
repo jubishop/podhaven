@@ -94,16 +94,23 @@ struct DebugSection: View {
         label: { AppIcon.shareLogs.label("Share Widget Logs") }
       )
 
-      ShareLink(
-        item: DatabaseExportItem(),
-        preview: SharePreview(
-          "PodHaven Database",
-          image: AppIcon.shareDatabase.rawImage
-        ),
-        label: { AppIcon.shareDatabase.label }
-      )
+      DatabaseExportButton(label: { AppIcon.shareDatabase.label })
     }
   }
+}
+
+// In the Simulator the iOS share sheet can't reach the Mac, so exports write
+// straight to the host Desktop via the path the Simulator injects.
+private func simulatorDesktopURL(for filename: String) -> URL? {
+  guard let hostHome = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] else {
+    return nil
+  }
+  return URL(filePath: hostHome).appending(path: "Desktop").appending(path: filename)
+}
+
+private func isExportCancelled(_ error: any Error) -> Bool {
+  let nsError = error as NSError
+  return nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError
 }
 
 private struct LogFileExportButton<Label: View>: View {
@@ -145,8 +152,6 @@ private struct LogFileExportButton<Label: View>: View {
           onCompletion: completeExport
         )
     case .simulator:
-      // The Simulator share sheet can't reach the Mac, so write straight to the
-      // host Desktop via the path the Simulator injects into the environment.
       Button(action: copyToHostDesktop, label: label)
     default:
       ShareLink(
@@ -178,14 +183,11 @@ private struct LogFileExportButton<Label: View>: View {
   }
 
   private func copyToHostDesktop() {
-    guard let hostHome = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] else {
+    guard let destination = simulatorDesktopURL(for: exportFilename) else {
       Self.log.error("Log export: SIMULATOR_HOST_HOME unset; cannot copy \(exportFilename)")
       alert(title: "Failed to Export Logs", "Simulator host path unavailable.")
       return
     }
-    let destination = URL(filePath: hostHome)
-      .appending(path: "Desktop")
-      .appending(path: exportFilename)
     do {
       let payload = try LogFilePayload.load(
         sourceURL: sourceURL,
@@ -203,15 +205,10 @@ private struct LogFileExportButton<Label: View>: View {
   private func completeExport(_ result: Result<URL, any Error>) {
     defer { exportDocument = nil }
     guard case .failure(let error) = result else { return }
-    guard !Self.isUserCancelled(error) else { return }
+    guard !isExportCancelled(error) else { return }
 
     Self.log.caughtError("Log export: failed to write \(exportFilename)", error)
     alert(title: "Failed to Export Logs", "Could not export \(exportFilename).")
-  }
-
-  private static func isUserCancelled(_ error: any Error) -> Bool {
-    let nsError = error as NSError
-    return nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError
   }
 }
 
@@ -283,23 +280,127 @@ private struct LogFileShareItem: Transferable {
   }
 }
 
+private struct DatabaseExportButton<Label: View>: View {
+  let label: () -> Label
+
+  @DynamicInjected(\.alert) private var alert
+  @State private var exportDocument: DatabaseDocument?
+  @State private var isExporting = false
+
+  private static var log: Logger { Log.as(LogSubsystem.Database.appDB) }
+
+  init(@ViewBuilder label: @escaping () -> Label) {
+    self.label = label
+  }
+
+  var body: some View {
+    switch AppInfo.environment {
+    case .macDev:
+      Button(action: startExport, label: label)
+        .fileExporter(
+          isPresented: $isExporting,
+          document: exportDocument,
+          contentType: DatabaseExportItem.contentType,
+          defaultFilename: DatabaseExportItem.exportFilename,
+          onCompletion: completeExport
+        )
+    case .simulator:
+      Button(action: copyToHostDesktop, label: label)
+    default:
+      ShareLink(
+        item: DatabaseExportItem(),
+        preview: SharePreview(
+          "PodHaven Database",
+          image: AppIcon.shareDatabase.rawImage
+        ),
+        label: label
+      )
+    }
+  }
+
+  private func startExport() {
+    do {
+      exportDocument = DatabaseDocument(data: try DatabaseExportItem.snapshotData())
+      isExporting = true
+    } catch {
+      Self.log.caughtError("Database export: failed to prepare snapshot", error)
+      alert(title: "Failed to Export Database", "Could not prepare the database snapshot.")
+    }
+  }
+
+  private func copyToHostDesktop() {
+    guard let destination = simulatorDesktopURL(for: DatabaseExportItem.exportFilename) else {
+      Self.log.error("Database export: SIMULATOR_HOST_HOME unset; cannot copy snapshot")
+      alert(title: "Failed to Export Database", "Simulator host path unavailable.")
+      return
+    }
+    do {
+      try Container.shared.appDB().exportSnapshot(to: destination)
+      alert(title: "Database Saved", "Saved to \(destination.path)")
+    } catch {
+      Self.log.caughtError("Database export: failed to copy snapshot to host Desktop", error)
+      alert(title: "Failed to Export Database", "Could not copy the database to the Mac.")
+    }
+  }
+
+  private func completeExport(_ result: Result<URL, any Error>) {
+    defer { exportDocument = nil }
+    guard case .failure(let error) = result else { return }
+    guard !isExportCancelled(error) else { return }
+
+    Self.log.caughtError("Database export: failed to write snapshot", error)
+    alert(title: "Failed to Export Database", "Could not export the database.")
+  }
+}
+
+private struct DatabaseDocument: FileDocument {
+  static var readableContentTypes: [UTType] { [DatabaseExportItem.contentType] }
+  static var writableContentTypes: [UTType] { [DatabaseExportItem.contentType] }
+
+  let data: Data
+
+  init(data: Data) {
+    self.data = data
+  }
+
+  init(configuration: ReadConfiguration) throws {
+    self.data = configuration.file.regularFileContents ?? Data()
+  }
+
+  func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+    FileWrapper(regularFileWithContents: data)
+  }
+}
+
 private struct DatabaseExportItem: Transferable {
+  static let exportFilename = "db.sqlite"
+  static let contentType = UTType(filenameExtension: "sqlite") ?? .data
+
   private static let log = Log.as(LogSubsystem.Database.appDB)
-  private static let sqliteExportContentType =
-    UTType(filenameExtension: "sqlite") ?? .data
+
+  static func exportSnapshotFile() throws -> URL {
+    let exportDirectory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: exportDirectory,
+      withIntermediateDirectories: true
+    )
+    let exportURL = exportDirectory.appendingPathComponent(exportFilename)
+    try Container.shared.appDB().exportSnapshot(to: exportURL)
+    return exportURL
+  }
+
+  static func snapshotData() throws -> Data {
+    try Data(contentsOf: exportSnapshotFile())
+  }
 
   static var transferRepresentation: some TransferRepresentation {
-    FileRepresentation(exportedContentType: sqliteExportContentType) { _ in
+    FileRepresentation(exportedContentType: contentType) { _ in
       do {
-        let exportDirectory = FileManager.default.temporaryDirectory
-          .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(
-          at: exportDirectory,
-          withIntermediateDirectories: true
+        return SentTransferredFile(
+          try exportSnapshotFile(),
+          allowAccessingOriginalFile: true
         )
-        let exportURL = exportDirectory.appendingPathComponent("db.sqlite")
-        try Container.shared.appDB().exportSnapshot(to: exportURL)
-        return SentTransferredFile(exportURL, allowAccessingOriginalFile: true)
       } catch {
         Self.log.caughtError("Failed to export database snapshot", error)
         throw error
