@@ -33,7 +33,7 @@ struct SearchView: View {
                 await viewModel.refreshCurrentTrendingSection()
               }
           }
-          .safeAreaInset(edge: .top, spacing: 12) {
+          .safeAreaInset(edge: .top, spacing: 2) {
             categoryChipsView
           }
           .navigationTitle(viewModel.currentTrendingSection.title)
@@ -293,7 +293,8 @@ struct SearchView: View {
       }
     }
     .padding(.horizontal)
-    .padding(.vertical, 6)
+    .padding(.top, 2)
+    .padding(.bottom, 6)
   }
 
   private func bannerLabel(text: String, showsChevron: Bool) -> some View {
@@ -374,54 +375,70 @@ struct SearchView: View {
 // MARK: - Preview
 
 #if DEBUG
-#Preview {
-  @Previewable @State var isSetupComplete = false
+#Preview("Trending") {
+  SearchPreview(serveFeeds: false, seedRecommendations: false)
+}
 
-  Group {
-    if isSetupComplete {
-      SearchView(viewModel: SearchViewModel())
-        .preview()
-    } else {
-      ProgressView("Setting up preview…")
-    }
-  }
-  .task {
-    Container.shared.registerPreviewDefaults()
+// Seeds a scoring context and serves synthetic feeds so the discovery banner
+// reaches its loaded state (tappable, with chevron) instead of staying on
+// "Finding top picks…".
+#Preview("Top Picks Loaded") {
+  SearchPreview(serveFeeds: true, seedRecommendations: true)
+}
 
-    // Load sample data
-    let topTechnologyFeed = PreviewBundle.loadAsset(
-      named: "top_technology_feed",
-      in: .iTunesResults
-    )
-    let topLookup = PreviewBundle.loadAsset(named: "top_technology_lookup", in: .iTunesResults)
-    let searchTechnology = PreviewBundle.loadAsset(named: "search_technology", in: .iTunesResults)
+private struct SearchPreview: View {
+  let serveFeeds: Bool
+  let seedRecommendations: Bool
 
-    // Configure default handler for all iTunes requests
-    await PreviewHelpers.dataFetcher.setDefaultHandler { url in
-      // Determine request type by URL path and return appropriate data
-      if url.path.contains("/rss/toppodcasts") {
-        // Any top podcasts request (any genre or no genre)
-        return (topTechnologyFeed, URL.response(url))
-      } else if url.path.contains("/lookup") {
-        // Any lookup request
-        return (topLookup, URL.response(url))
-      } else if url.path.contains("/search") {
-        // Any search request
-        return (searchTechnology, URL.response(url))
+  @State private var isSetupComplete = false
+
+  var body: some View {
+    Group {
+      if isSetupComplete {
+        SearchView(viewModel: SearchViewModel())
       } else {
-        // Fallback for unknown requests
-        return (url.dataRepresentation, URL.response(url))
+        ProgressView("Setting up preview…")
       }
     }
-
-    // Configure image loader to return random image
-    let allThumbnails = PreviewBundle.loadAllThumbnails()
-    Container.shared.fakeDataLoader()
-      .setDefaultHandler { url in
-        allThumbnails.values.randomElement()!.data
+    .preview()
+    .task {
+      await configureSearchPreviewDataFetcher(serveFeeds: serveFeeds)
+      if seedRecommendations {
+        do {
+          try await PreviewRecommendations.seedScoringContext()
+        } catch {
+          print("Preview error: \(error)")
+        }
       }
-
-    isSetupComplete = true
+      isSetupComplete = true
+    }
   }
+}
+
+@MainActor
+private func configureSearchPreviewDataFetcher(serveFeeds: Bool) async {
+  let topTechnologyFeed = PreviewBundle.loadAsset(named: "top_technology_feed", in: .iTunesResults)
+  let topLookup = PreviewBundle.loadAsset(named: "top_technology_lookup", in: .iTunesResults)
+  let searchTechnology = PreviewBundle.loadAsset(named: "search_technology", in: .iTunesResults)
+
+  await PreviewHelpers.dataFetcher.setDefaultHandler { url in
+    if url.path.contains("/rss/toppodcasts") {
+      return (topTechnologyFeed, URL.response(url))
+    } else if url.path.contains("/lookup") {
+      return (topLookup, URL.response(url))
+    } else if url.path.contains("/search") {
+      return (searchTechnology, URL.response(url))
+    } else if serveFeeds {
+      return (PreviewFeed.rss(for: url), URL.response(url))
+    } else {
+      return (url.dataRepresentation, URL.response(url))
+    }
+  }
+
+  let allThumbnails = PreviewBundle.loadAllThumbnails()
+  Container.shared.fakeDataLoader()
+    .setDefaultHandler { _ in
+      allThumbnails.values.randomElement()!.data
+    }
 }
 #endif
