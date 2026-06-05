@@ -89,7 +89,15 @@ class EpisodesListViewModel:
       }
     }
   }
-  let allSortMethods = SortMethod.allCases
+  // recommendationScore is hidden until the engine's scoring cache is warm:
+  // a cold cache produces no scores, which collapses the rec sort to an empty
+  // list. Reading the engine's observable flag keeps the menu reactive without
+  // mirroring it into local state.
+  var allSortMethods: [SortMethod] {
+    SortMethod.allCases.filter {
+      $0 != .recommendationScore || recommendationEngine.hasScoringContext
+    }
+  }
 
   @ObservationIgnored @PersistedBroadcast var currentSortMethod: SortMethod
 

@@ -87,8 +87,8 @@ import Testing
     }
   }
 
-  @Test("saved episode without an embedding surfaces an embedding-pending indicator")
-  func savedEpisodeWithoutEmbeddingSurfacesEmbeddingPending() async throws {
+  @Test("saved episode without an embedding surfaces a pending indicator")
+  func savedEpisodeWithoutEmbeddingSurfacesPending() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: try Create.unsavedPodcast(title: "Pending Embedding"),
@@ -104,12 +104,46 @@ import Testing
 
     try await Wait.until(
       { @MainActor in
-        if case .embeddingPending = viewModel.displayedScore { return true }
+        if case .pending = viewModel.displayedScore { return true }
         return false
       },
       { @MainActor in
         """
-        Expected saved episode without an embedding to surface .embeddingPending.
+        Expected saved episode without an embedding to surface .pending.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+  }
+
+  @Test("saved episode with an embedding but a cold engine surfaces a pending indicator")
+  func savedEpisodeWithEmbeddingButColdEngineSurfacesPending() async throws {
+    // Embed the episode itself but plant no signals, so the engine cache
+    // stays cold and recommendation(for:) returns nil. The section must show
+    // pending rather than disappearing.
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Cold Engine Pending"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "cold-engine-pending",
+          title: "Cold Engine Pending"
+        )
+      )
+    )
+    try await RecommendationHelpers.embedEpisodes([podcastEpisode.episode])
+
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .pending = viewModel.displayedScore { return true }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected saved episode with an embedding but a cold engine to surface .pending.
         score: \(String(describing: viewModel.displayedScore))
         """
       }

@@ -128,7 +128,15 @@ class PodcastDetailViewModel:
       }
     }
   }
-  var allSortMethods: [SortMethod] { SortMethod.allCases }
+  // recommendationScore is hidden until the engine's scoring cache is warm:
+  // a cold cache can't score saved candidates or compute unsaved similarity,
+  // so the option would surface an empty or pubDate-only list. Reading the
+  // engine's observable flag keeps the menu reactive without local mirroring.
+  var allSortMethods: [SortMethod] {
+    SortMethod.allCases.filter {
+      $0 != .recommendationScore || recommendationEngine.hasScoringContext
+    }
+  }
   var currentSortMethod: SortMethod = .newestFirst {
     didSet {
       guard oldValue != currentSortMethod else { return }

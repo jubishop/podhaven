@@ -10,8 +10,10 @@ import Testing
 @MainActor final class RecommendationSortTests {
   @DynamicInjected(\.repo) private var repo
 
-  @Test("recommendationScore is offered in the sort menu for both unsaved and saved podcasts")
-  func recommendationScoreOfferedForUnsavedAndSavedPodcasts() async throws {
+  @Test(
+    "recommendationScore sort option appears only once the scoring cache is warm, for both unsaved and saved podcasts"
+  )
+  func recommendationScoreSortHiddenUntilScoringCacheWarms() async throws {
     let unsavedSeries = UnsavedPodcastSeries(
       unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved Preview"),
       unsavedEpisodes: [
@@ -20,7 +22,6 @@ import Testing
       ]
     )
     let unsavedViewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
-    #expect(unsavedViewModel.allSortMethods.contains(.recommendationScore))
 
     let savedSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
@@ -29,6 +30,27 @@ import Testing
       )
     )
     let savedViewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+
+    // Engine cold: the rec sort is hidden for both unsaved and saved podcasts.
+    #expect(!unsavedViewModel.allSortMethods.contains(.recommendationScore))
+    #expect(!savedViewModel.allSortMethods.contains(.recommendationScore))
+
+    // Warming the engine flips the observable flag and reveals the option.
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Signal") { return [1, 0, 0] }
+      return [0, 0, 1]
+    }
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signals)
+
+    #expect(unsavedViewModel.allSortMethods.contains(.recommendationScore))
     #expect(savedViewModel.allSortMethods.contains(.recommendationScore))
   }
 

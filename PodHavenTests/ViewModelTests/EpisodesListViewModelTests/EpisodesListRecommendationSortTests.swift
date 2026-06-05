@@ -8,9 +8,31 @@ import Testing
 
 @Suite("of EpisodesListViewModel recommendation sort tests", .container)
 @MainActor final class EpisodesListRecommendationSortTests {
-  @Test("recommendationScore is offered as a sort option")
-  func recommendationScoreOfferedAsSortOption() async throws {
+  @Test("recommendationScore sort option appears only once the scoring cache is warm")
+  func recommendationScoreSortHiddenUntilScoringCacheWarms() async throws {
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let embeddable = ScriptedEmbeddable { text in
+      if text.contains("Signal") { return [1, 0, 0] }
+      return [0, 0, 1]
+    }
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      podcastDescription: "Signal",
+      episodeDescriptions: ["Signal", "Signal", "Signal"],
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
+
     let viewModel = EpisodesListViewModel(title: "RecOption")
+
+    // Engine not started yet: cache cold, option hidden, base options present.
+    #expect(viewModel.allSortMethods.contains(.newestFirst))
+    #expect(!viewModel.allSortMethods.contains(.recommendationScore))
+
+    // Warming the engine flips the observable flag and reveals the option.
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signals)
     #expect(viewModel.allSortMethods.contains(.recommendationScore))
   }
 
