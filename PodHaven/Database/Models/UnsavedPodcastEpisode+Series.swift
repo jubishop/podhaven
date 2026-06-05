@@ -41,6 +41,12 @@ extension UnsavedPodcastEpisode {
     else {
       // The acted-on episode predates the pulled feed window, so persist it on
       // its own to guarantee the action resolves to a real row.
+      Self.log.info(
+        """
+        Acted-on \(mediaGUID) absent from \(podcastEpisodes.count) pulled \
+        \(unsavedPodcast.feedURL) episodes; saving lone episode
+        """
+      )
       return try await repo.upsertPodcastEpisode(self)
     }
     return match
