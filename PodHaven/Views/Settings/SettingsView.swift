@@ -424,7 +424,9 @@ struct SettingsView: View {
             SettingsRow(
               infoText: """
                 Number of recommended episodes shown below the queue in Up Next. \
-                Set to Off to hide the recommendations section entirely.
+                Set to Off to hide the recommendations section entirely. \
+                Recommendations don't appear until you've rated or listened to at \
+                least \(RecommendationEngine.minimumDataThreshold) episodes.
                 """
             ) {
               HStack {

@@ -29,8 +29,8 @@ struct EpisodeDetailView: View {
             recommendationSection(score: score)
           case .similarity(let value):
             similaritySection(value: value)
-          case .embeddingPending:
-            embeddingPendingSection
+          case .pending:
+            pendingSection
           }
 
           Divider()
@@ -237,7 +237,7 @@ struct EpisodeDetailView: View {
     return "\(Int((clamped * 100).rounded()))%"
   }
 
-  private var embeddingPendingSection: some View {
+  private var pendingSection: some View {
     HStack(spacing: 8) {
       AppIcon.recommendation.label
       Spacer()
@@ -553,7 +553,7 @@ struct EpisodeDetailView: View {
   }
 }
 
-#Preview("Embedding Pending (Saved)") {
+#Preview("Pending (Saved)") {
   let viewModel = EpisodeDetailViewModel(
     episode: DisplayedEpisode(
       UnsavedPodcastEpisode(
@@ -571,7 +571,7 @@ struct EpisodeDetailView: View {
       )
     )
   )
-  viewModel.previewSeedDisplayedScore(.embeddingPending)
+  viewModel.previewSeedDisplayedScore(.pending)
   return NavigationStack {
     EpisodeDetailView(viewModel: viewModel)
       .preview()

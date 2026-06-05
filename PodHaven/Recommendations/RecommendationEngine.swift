@@ -68,7 +68,7 @@ struct RecommendationEngine: Sendable {
 
   private static let log = Log.as(LogSubsystem.Recommendations.engine)
 
-  private static let minimumDataThreshold = 3
+  static let minimumDataThreshold = 3
   private static let minimumScoreThreshold: Float = 0.1
 
   private static let recommendationPoolSize = 100
