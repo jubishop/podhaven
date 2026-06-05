@@ -604,7 +604,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     case .saved(let saved):
       return saved
     case .unsaved(let unsavedPodcastEpisode):
-      podcastEpisode = try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
+      podcastEpisode = try await unsavedPodcastEpisode.getOrCreatePodcastEpisodeSavingSeries()
     case .initial(let listedEpisode):
       podcastEpisode = try await listedEpisode.getOrCreatePodcastEpisode()
     }

@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2026
 
 import AVFoundation
-import FactoryKit
 import Foundation
 
 struct DisplayedEpisode:
@@ -20,8 +19,6 @@ struct DisplayedEpisode:
       }
     }
   }
-
-  @DynamicInjected(\.repo) private var repo
 
   let source: Source
 
@@ -72,7 +69,7 @@ struct DisplayedEpisode:
     case .saved(let podcastEpisode):
       return podcastEpisode
     case .unsaved(let unsavedPodcastEpisode):
-      return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
+      return try await unsavedPodcastEpisode.getOrCreatePodcastEpisodeSavingSeries()
     }
   }
 }
