@@ -76,37 +76,66 @@ before fetching, so they can catch a mis-paste early.
 
 If no reference is provided, ask for one and stop.
 
+## Prerequisites
+
+Requires the **`sentry` CLI** ([cli.sentry.dev](https://cli.sentry.dev)) and Sentry auth.
+Install once (user-managed, not repo-managed):
+
+```bash
+curl https://cli.sentry.dev/install -fsS | bash
+sentry auth login
+```
+
+If `sentry` is not on `PATH`, the bundled scripts fall back to `npx sentry@latest`.
+Auth uses `~/.sentryclirc` or `SENTRY_AUTH_TOKEN` — do not commit tokens.
+
+Optional fish completions (installs under `~/.config/fish/completions/` only):
+
+```bash
+sentry cli setup
+```
+
+All fetches use repo scripts under `.agents/skills/sentry-cli/` wrapping `sentry`
+commands. Do not use the Sentry MCP server or hand-rolled curl.
+
 ## Step 2: Fetch the issue
 
-Use the available Sentry integration (Sentry MCP server if connected, otherwise
-`sentry-cli` or the Sentry REST API with credentials from `~/.sentryclirc`) to
-retrieve the issue. You want:
+Run:
 
-- Title, status, level, first seen / last seen (UTC)
-- Event count and affected user count
-- Issue short ID (e.g. `PODHAVEN-123`)
-- Linked project and environment tags when available
-- Culprit / primary exception type and message from the latest event
+```bash
+bash .agents/skills/sentry-cli/fetch_issue_bundle.sh <issue-ref> \
+  --out /tmp/sentry_issue
+```
 
-If the integration is not available, tell the user what to install or
-authenticate and stop.
+`<issue-ref>` is the parsed URL, short ID (`PODHAVEN-123`), or numeric issue ID.
+Add `--event-query 'environment:testFlight'` when the user scoped to one environment.
 
-Show a short header: short ID, title, status, last seen (Pacific Time), event
-count, user count, and the top-level exception type.
+This writes:
+
+- `/tmp/sentry_issue/issue.json` — title, status, counts, first/last seen
+- `/tmp/sentry_issue/events.json` — latest full event payloads
+- `/tmp/sentry_issue/event_<id>.json` — same events, one file each
+- `/tmp/sentry_issue/tags_<key>.json` — tag distribution per key
+
+Read those JSON files for everything below. The command prints a short header —
+echo that to the user before diving in.
+
+If auth fails, tell the user to run `sentry auth login` and stop.
 
 ## Step 3: Pull representative events
 
 An issue groups many events. Do not stop at the issue summary — inspect actual
 events.
 
-1. Fetch the **latest event** on the issue (default view).
+1. Fetch the **latest event** from `/tmp/sentry_issue/event_<id>.json` (newest in
+   `events.json`).
 2. If the URL or user notes mention a specific environment, release, or time,
-   search events **within this issue** filtered to that scope.
-3. If the latest event looks like noise (e.g. a one-off timeout) but tag
-   distribution shows a cluster elsewhere, fetch 1–2 more events from the
-   dominant bucket (most common release, environment, or URL).
+   re-run `fetch-issue` with `--event-query` scoped to that filter, or pick a
+   matching event from the bundle.
+3. If the latest event looks like noise but tag distribution shows a cluster
+   elsewhere, read another `event_<id>.json` from the dominant bucket.
 
-For each inspected event, capture:
+For each inspected event JSON, capture:
 
 - Exception type, message, and **full stack trace** (in-app frames first)
 - Breadcrumbs in the minute before the error
@@ -137,7 +166,7 @@ When tags include `release` (e.g. `com.artisanalsoftware.PodHaven@1.0+498`) and
 
 ## Step 4: Understand impact and patterns
 
-Use tag-value distribution on the issue for keys that narrow scope:
+Read `/tmp/sentry_issue/tags_*.json` for keys that narrow scope:
 
 - `environment`, `release`, `device`, `os`, `url` (web), `user` (if not PII-
   sensitive for the report)
@@ -150,26 +179,23 @@ URL), say whether events in that bucket match the general pattern or diverge.
 
 ## Step 5: Trace and replay (when available)
 
-If the event links a trace ID:
+If the event JSON's `contexts.trace.trace_id` is present, note the trace ID,
+transaction name, and linked replay tag (`replayId` / `replay_id`) from tags.
+Replays show UX context the stack trace alone cannot — include the replay URL
+when present, but do not try to render it.
 
-- Fetch the trace and identify the failing span, parent transaction, and any
-  slow or erroring child spans (DB, network, custom operations).
-- Note timing — did the error follow a timeout, cancellation, or upstream 4xx/5xx?
+## Step 6: Event attachments and logs
 
-If a replay ID is present, note it in the report with a link. Replays show UX
-context the stack trace alone cannot.
+List attachments on the representative event, then download into the per-issue
+cache when needed:
 
-## Step 6: Optional deep analysis (Seer)
+```bash
+bash .agents/skills/sentry-cli/download_event_attachments.sh \
+  --event <event_id> \
+  --dir ~/Library/Caches/analyze-sentry-issue/<issue-short-id>/
+```
 
-When the Sentry integration exposes AI root-cause analysis (Seer) for the issue,
-run it **after** you have read the raw stack and breadcrumbs yourself. Use Seer
-output as a hypothesis to validate against the codebase — not as ground truth.
-
-If Seer is unavailable, skip this step without padding the report.
-
-## Step 7: Event attachments and logs
-
-List attachments on the representative event(s).
+Replace characters unsafe in paths in the cache directory name.
 
 ### PodHaven NDJSON logs
 
@@ -220,20 +246,19 @@ the user separately invoked `/analyze-sentry-logs`; here you only need a
 
 **How to fetch:**
 
-1. Locate `fetch_sentry_logs.sh` in the repo's `analyze-sentry-logs` skill
-   (`.agents/skills/` or `.claude/skills/`).
+1. Use `.agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh`.
 2. Build a Sentry logs query. Prefer user scope first:
 
 ```bash
-bash analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
-  'user.id:<uuid> (severity:warn OR severity:error)'
+bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
+  'user.id:<uuid> severity:[warn,error]'
 ```
 
 Narrow with release when useful — **not** event `environment` alone:
 
 ```bash
-bash analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
-  'user.id:<uuid> release:<release> (severity:warn OR severity:error)'
+bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
+  'user.id:<uuid> release:<release> severity:[warn,error]'
 ```
 
 **Environment mismatch:** PodHaven error events often tag `environment:testFlight`
@@ -245,8 +270,8 @@ if you first confirm that value appears in the fetched log rows.
 3. If user-scoped fetch returns nothing but the event has a trace ID, retry:
 
 ```bash
-bash analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
-  'trace:<trace_id> (severity:warn OR severity:error)'
+bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
+  'trace:<trace_id> severity:[warn,error]'
 ```
 
 4. Pick `<statsPeriod>` to cover the event time (`1h`, `6h`, `12h`, `1d`, …).
@@ -254,7 +279,7 @@ bash analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
    minutes, widen to ±30 if sparse):
 
 ```bash
-python3 analyze-sentry-logs/filter_sentry_logs.py \
+python3 .agents/skills/analyze-sentry-logs/filter_sentry_logs.py \
   --around-ms <event_epoch_ms> --window-ms 600000 --oneline
 ```
 
@@ -272,7 +297,7 @@ environment/release breakdowns for the filtered slice — use those to spot
 PT. If neither `user.id` nor `trace_id` correlates, write "Not correlatable —
 no user.id or trace on event" and rely on attachments/breadcrumbs.
 
-## Step 8: Investigate the codebase
+## Step 7: Investigate the codebase
 
 Cross-reference the stack trace against the repo:
 
@@ -287,7 +312,7 @@ Cross-reference the stack trace against the repo:
 If frames do not match the current tree (renamed files, line drift), say so and
 use symbol names and nearby code to locate the real site.
 
-## Step 9: Synthesize
+## Step 8: Synthesize
 
 Build one report. Lead with what broke and who it affects, then evidence, then
 the verdict and recommended action.
@@ -301,8 +326,7 @@ Weight signals roughly in this order:
 5. **Attached NDJSON logs** (PodHaven when present)
 6. **User-scoped Sentry structured logs** (PodHaven `ourlogs` correlated by
    `user.id` or trace — complements attachments when those are missing or thin)
-7. **Seer / AI analysis** — supporting hypothesis only
-8. **Known fixes in git/memory/issues** — recurrence vs stale build
+7. **Known fixes in git/memory/issues** — recurrence vs stale build
 
 If sources disagree, name the disagreement in *Alternatives considered*.
 
