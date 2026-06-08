@@ -216,49 +216,6 @@ final class SearchRecommendationCollector {
     }
   }
 
-  // Cancels every in-flight task and clears all caches. The collector is
-  // re-usable afterwards: the next `recordSourcePodcasts` will respin the
-  // drain task and watcher.
-  func reset() {
-    Self.log.debug("Resetting collector")
-    drainTask?.cancel()
-    drainTask = nil
-    queueContinuation?.finish()
-    queueContinuation = nil
-    scoringContextWatcherTask?.cancel()
-    scoringContextWatcherTask = nil
-    scoringAvailability = .unknown
-
-    let toCancel = Array(permanent) + Array(temporary)
-    permanent.removeAll()
-    temporary.removeAll()
-    pickIndex.removeAll()
-    trendingSourceIndex.removeAll()
-    typedSearchOverlay = nil
-    // Dropping Debounce references doesn't cancel their pending sleeps —
-    // those run to the deadline and re-enter the stale action.
-    for debouncer in trendingDebouncers.values { debouncer.cancel() }
-    trendingDebouncers.removeAll()
-    typedSearchDebouncer?.cancel()
-    typedSearchDebouncer = nil
-    queued.removeAll()
-    inFlight.removeAll()
-    activeSource = nil
-
-    // Cancel only the snapshot's URLs. Calling `cancelAllDownloads` would
-    // also tear down any download a fresh `recordSourcePodcasts` registered
-    // before this unstructured Task got to run, since `downloadManager` is
-    // reused across resets. URLs whose entries were mid-`addURL` (fetchToken
-    // not yet assigned) self-cancel through the detach guard in
-    // `processFeedURL`.
-    Task { [downloadManager, toCancel] in
-      for entry in toCancel {
-        await downloadManager.cancelDownload(url: entry.feedURL.rawValue)
-        await entry.cancel()
-      }
-    }
-  }
-
   func removePick(mediaGUID: MediaGUID) {
     Self.log.debug("Removing pick \(mediaGUID)")
     guard let entry = pickIndex.removeValue(forKey: mediaGUID) else { return }

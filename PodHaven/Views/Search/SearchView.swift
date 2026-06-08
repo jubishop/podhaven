@@ -60,7 +60,6 @@ struct SearchView: View {
       }
     }
     .onAppear { viewModel.appear() }
-    .onDisappear { viewModel.disappear() }
   }
 
   // MARK: - Toolbar

@@ -18,7 +18,6 @@ class SearchViewModel:
 {
   @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
-  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
 
   nonisolated private static let log = Log.as(LogSubsystem.SearchView.main)
 
@@ -261,20 +260,11 @@ class SearchViewModel:
       section.owner = self
     }
 
-    guard isShowingSearchResults else {
-      showTrendingSection(currentTrendingSection)
-      return
-    }
-
-    // A typed search survived the tab switch; re-run it so the results, the DB
-    // observation, and the recommendation collector (all torn down on leave)
-    // come back instead of dropping to trending. Show .loading now so we don't
-    // flash the empty placeholder before the re-run starts.
-    searchState = .loading
-    Task { [weak self] in
-      guard let self else { return }
-      await refreshSearch()
-    }
+    // First appearance kicks the initial load; everything it starts (results,
+    // the DB observation, the collector, and any in-flight fetch) lives for this
+    // view model's lifetime, so leaving and returning to the tab is a no-op.
+    guard !isShowingSearchResults, currentTrendingSection.state == .idle else { return }
+    showTrendingSection(currentTrendingSection)
   }
 
   // MARK: - Trending
@@ -670,36 +660,6 @@ class SearchViewModel:
   fileprivate func syncPodcastListToTrendingResults(_ trendingSection: TrendingSection) {
     guard !isShowingSearchResults, trendingSection == currentTrendingSection else { return }
     podcastList.allEntries = trendingSection.results
-  }
-
-  // MARK: - Disappear
-
-  func disappear() {
-    Self.log.debug("SearchViewModel: disappearing")
-
-    // Keep the typed query so the search survives a tab switch (appear() re-runs
-    // it); stop in-flight work and clear the transient .loading so we don't
-    // return to a stuck "Searching…".
-    searchDebouncer.cancelPending()
-    searchDebouncer.commitValue()
-    searchTask?.cancel()
-    searchTask = nil
-    searchState = .idle
-    for trendingSection in trendingSections {
-      trendingSection.task?.cancel()
-      trendingSection.task = nil
-      if trendingSection.state == .loading {
-        trendingSection.state = .idle
-      }
-    }
-    currentResultsObservationTask?.cancel()
-    currentResultsObservationTask = nil
-    Self.log.debug("SearchViewModel: resetting recommendation collector")
-    recommendationCollector.reset()
-
-    // Search always reopens at its top level; don't restore a deep stack (a
-    // pushed discovery list would also be backed by the just-reset collector).
-    navigation.search.path = []
   }
 
   // MARK: - Recommendation Collector Wiring
