@@ -53,6 +53,11 @@ worktrees
 .cache/
 .envrc.local
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Sidecar
 .sidecar/
 .sidecar-agent
