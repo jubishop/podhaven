@@ -708,7 +708,9 @@ import Testing
     let navigation = Container.shared.navigation()
     let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     navigation.search.path = [
-      Navigation.Destination.searchDiscovery(source, viewModel.searchDiscoveryActionsViewModel)
+      Navigation.Destination.searchDiscovery(
+        SearchDiscoveryListViewModel(collector: viewModel.recommendationCollector, source: source)
+      )
     ]
 
     viewModel.disappear()

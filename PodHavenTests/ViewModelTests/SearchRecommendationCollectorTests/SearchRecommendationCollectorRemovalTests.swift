@@ -216,13 +216,12 @@ import Testing
     #expect(collector.picks(for: source).isEmpty)
   }
 
-  // MARK: - Test: actionsViewModel Drives removePick End-To-End
+  // MARK: - Test: View Model Drives removePick End-To-End
 
-  // SearchViewModel owns one SearchDiscoveryActionsViewModel that's threaded
-  // through the discovery list's init, so it survives every body re-render.
+  // Each discovery list owns a SearchDiscoveryListViewModel for its source.
   // This exercises the happy path: a row action through that view-model
   // materializes the episode and removes the pick from the collector.
-  @Test("actionsViewModel.queueEpisodeOnTop removes the pick after success")
+  @Test("queueEpisodeOnTop removes the pick after success")
   func actionsViewModelRemovesPickAfterQueueAction() async throws {
     let collector = SearchRecommendationCollector()
     let scripted = H.makeScriptedEmbeddable()
@@ -244,14 +243,63 @@ import Testing
       { @MainActor in "Expected one pick to land, got \(collector.visiblePicks.count)" }
     )
 
-    let actionsViewModel = SearchDiscoveryActionsViewModel(collector: collector)
+    let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
     let pick = collector.visiblePicks[0]
-    actionsViewModel.queueEpisodeOnTop(ListedEpisode(pick.episode))
+    viewModel.queueEpisodeOnTop(ListedEpisode(pick.episode))
 
     try await Wait.until(
       { @MainActor in collector.visiblePicks.isEmpty },
       { @MainActor in
         "Expected pick to be removed after queue action; \(collector.visiblePicks.count) remain"
+      }
+    )
+  }
+
+  // MARK: - Test: Bulk Action Drives removePick End-To-End
+
+  // The multi-select toolbar's consuming bulk actions drop every acted-on pick,
+  // mirroring the per-row hook: projecting the picks, selecting them, and
+  // queueing the selection must empty the discovery list.
+  @Test("addSelectedEpisodesToTopOfQueue removes the selected picks after success")
+  func bulkActionRemovesSelectedPicks() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/bulk-vm.rss")!)
+    await H.respondWithFeed(at: feedURL, title: "Bulk VM", episodes: 2)
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(2400))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in !collector.visiblePicks.isEmpty },
+      { @MainActor in "Expected picks to land, got \(collector.visiblePicks.count)" }
+    )
+
+    let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
+    let pickCount = collector.visiblePicks.count
+    viewModel.syncEntries(for: viewModel.discoveryListState)
+
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.count == pickCount },
+      { @MainActor in
+        "Expected \(pickCount) entries to project, got \(viewModel.episodeList.filteredEntries.count)"
+      }
+    )
+
+    viewModel.selectAllEntries()
+    viewModel.addSelectedEpisodesToTopOfQueue()
+
+    try await Wait.until(
+      { @MainActor in collector.visiblePicks.isEmpty },
+      { @MainActor in
+        "Expected picks to be removed after bulk queue; \(collector.visiblePicks.count) remain"
       }
     )
   }
@@ -288,8 +336,8 @@ import Testing
     let listed = ListedEpisode(pick.episode)
     let episodeID = try await listed.getOrCreatePodcastEpisode().id
 
-    let actionsViewModel = SearchDiscoveryActionsViewModel(collector: collector)
-    actionsViewModel.cacheEpisode(listed)
+    let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
+    viewModel.cacheEpisode(listed)
 
     // Drive the cache to completion — well past the point where a consuming
     // action would have removed the pick via didPerformAction.
@@ -378,8 +426,8 @@ import Testing
       "Test setup invariant: pick's feedURL must reflect the parsed atom:self URL"
     )
 
-    let actionsViewModel = SearchDiscoveryActionsViewModel(collector: collector)
-    actionsViewModel.queueEpisodeOnTop(ListedEpisode(pick.episode))
+    let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
+    viewModel.queueEpisodeOnTop(ListedEpisode(pick.episode))
 
     try await Wait.until(
       { @MainActor in collector.visiblePicks.isEmpty },
