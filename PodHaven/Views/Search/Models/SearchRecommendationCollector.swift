@@ -267,10 +267,10 @@ final class SearchRecommendationCollector {
       iTunesIDs: iTunesIDs
     )
 
-    // firstObservationEmission swallows CancellationError to return [], so
-    // a reset (or any debouncer cancel that lands during the await) would
-    // otherwise let us continue and recreate the overlay / temporary cache
-    // and queue RSS for entries we just tore down.
+    // firstObservationEmission swallows CancellationError to return [], so a
+    // debouncer cancel that lands during the await (typed-overlay clear or
+    // pruneTemporary) would otherwise let us continue and recreate the overlay /
+    // temporary cache and queue RSS for entries we just tore down.
     if Task.isCancelled { return }
 
     // The observation can take long enough that a newer typed-search query
@@ -423,9 +423,10 @@ final class SearchRecommendationCollector {
     queueContinuation?.yield(feedURL)
   }
 
-  // `.failed` is terminal for the visit: a feed that already failed its fetch
-  // shouldn't be re-fetched every time the source re-records (observation
-  // re-emits do this constantly). Leaving and returning to Search retries it.
+  // `.failed` is terminal: a feed that already failed its fetch shouldn't be
+  // re-fetched every time the source re-records (observation re-emits do this
+  // constantly). The collector outlives tab switches and never resets, so a
+  // failed feed stays terminal for the collector's lifetime.
   private func shouldDrain(_ feedURL: FeedURL) -> Bool {
     guard !inFlight.contains(feedURL), let status = entry(for: feedURL)?.status
     else { return false }
@@ -506,8 +507,8 @@ final class SearchRecommendationCollector {
     if let drainTask, !drainTask.isCancelled { return }
     let (stream, continuation) = AsyncStream<FeedURL>.makeStream(bufferingPolicy: .unbounded)
     queueContinuation = continuation
-    // A fresh stream (first run or post-reset) replays whatever was scheduled
-    // before it existed — applyReconciledRanking schedules, then calls us.
+    // The first run's stream replays whatever was scheduled before it existed —
+    // applyReconciledRanking schedules, then calls us.
     for feedURL in queued { continuation.yield(feedURL) }
     drainTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }

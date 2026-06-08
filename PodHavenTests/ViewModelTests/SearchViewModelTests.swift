@@ -355,6 +355,61 @@ import Testing
     )
   }
 
+  @Test("returning to Search retries a trending section that failed its first load")
+  func returningAfterTrendingErrorRetriesLoad() async throws {
+    let topFeed = PreviewBundle.loadAsset(named: "top_feed", in: .iTunesResults)
+    let topLookup = PreviewBundle.loadAsset(named: "top_lookup", in: .iTunesResults)
+    // First top request fails (e.g. launched offline); every later one succeeds.
+    let firstLoadShouldFail = ThreadSafe<Bool>(true)
+
+    await session.setDefaultHandler { url in
+      if url.path.contains("/rss/toppodcasts") {
+        let shouldFail = firstLoadShouldFail { (flag: inout Bool) in
+          let was = flag
+          flag = false
+          return was
+        }
+        if shouldFail { throw URLError(.notConnectedToInternet) }
+        return (topFeed, URL.response(url))
+      }
+      if url.path.contains("/lookup") {
+        return (topLookup, URL.response(url))
+      }
+      return (url.dataRepresentation, URL.response(url))
+    }
+
+    let viewModel = SearchViewModel()
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .error = viewModel.currentTrendingSection.state { return true }
+        return false
+      },
+      { @MainActor in
+        "Expected the failed first load to land on .error; got \(viewModel.currentTrendingSection.state)"
+      }
+    )
+
+    // Leaving and returning to the tab must retry the errored section rather
+    // than leaving the user stuck on the error screen for the session.
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.currentTrendingSection.state == .loaded
+          && viewModel.podcastList.allEntries.count == 3
+      },
+      { @MainActor in
+        """
+        Expected returning to Search to retry the errored trending load.
+        state: \(viewModel.currentTrendingSection.state)
+        entries: \(viewModel.podcastList.allEntries.count)
+        """
+      }
+    )
+  }
+
   @Test("subscribing to a trending row removes its picks from the collector")
   func subscribingTrendingRowRemovesPicksFromCollector() async throws {
     let scripted = ScriptedEmbeddable { text in

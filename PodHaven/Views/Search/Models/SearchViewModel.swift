@@ -260,11 +260,17 @@ class SearchViewModel:
       section.owner = self
     }
 
-    // First appearance kicks the initial load; everything it starts (results,
-    // the DB observation, the collector, and any in-flight fetch) lives for this
-    // view model's lifetime, so leaving and returning to the tab is a no-op.
-    guard !isShowingSearchResults, currentTrendingSection.state == .idle else { return }
-    showTrendingSection(currentTrendingSection)
+    // The initial load (and a retry after a failed one) is the only work appear
+    // does; results, the DB observation, the collector, and any in-flight fetch
+    // live for this view model's lifetime, so returning to a loading or loaded
+    // tab is a no-op.
+    guard !isShowingSearchResults else { return }
+    switch currentTrendingSection.state {
+    case .idle, .error:
+      showTrendingSection(currentTrendingSection)
+    case .loading, .loaded:
+      break
+    }
   }
 
   // MARK: - Trending
