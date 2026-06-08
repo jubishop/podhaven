@@ -216,49 +216,6 @@ final class SearchRecommendationCollector {
     }
   }
 
-  // Cancels every in-flight task and clears all caches. The collector is
-  // re-usable afterwards: the next `recordSourcePodcasts` will respin the
-  // drain task and watcher.
-  func reset() {
-    Self.log.debug("Resetting collector")
-    drainTask?.cancel()
-    drainTask = nil
-    queueContinuation?.finish()
-    queueContinuation = nil
-    scoringContextWatcherTask?.cancel()
-    scoringContextWatcherTask = nil
-    scoringAvailability = .unknown
-
-    let toCancel = Array(permanent) + Array(temporary)
-    permanent.removeAll()
-    temporary.removeAll()
-    pickIndex.removeAll()
-    trendingSourceIndex.removeAll()
-    typedSearchOverlay = nil
-    // Dropping Debounce references doesn't cancel their pending sleeps —
-    // those run to the deadline and re-enter the stale action.
-    for debouncer in trendingDebouncers.values { debouncer.cancel() }
-    trendingDebouncers.removeAll()
-    typedSearchDebouncer?.cancel()
-    typedSearchDebouncer = nil
-    queued.removeAll()
-    inFlight.removeAll()
-    activeSource = nil
-
-    // Cancel only the snapshot's URLs. Calling `cancelAllDownloads` would
-    // also tear down any download a fresh `recordSourcePodcasts` registered
-    // before this unstructured Task got to run, since `downloadManager` is
-    // reused across resets. URLs whose entries were mid-`addURL` (fetchToken
-    // not yet assigned) self-cancel through the detach guard in
-    // `processFeedURL`.
-    Task { [downloadManager, toCancel] in
-      for entry in toCancel {
-        await downloadManager.cancelDownload(url: entry.feedURL.rawValue)
-        await entry.cancel()
-      }
-    }
-  }
-
   func removePick(mediaGUID: MediaGUID) {
     Self.log.debug("Removing pick \(mediaGUID)")
     guard let entry = pickIndex.removeValue(forKey: mediaGUID) else { return }
@@ -310,10 +267,10 @@ final class SearchRecommendationCollector {
       iTunesIDs: iTunesIDs
     )
 
-    // firstObservationEmission swallows CancellationError to return [], so
-    // a reset (or any debouncer cancel that lands during the await) would
-    // otherwise let us continue and recreate the overlay / temporary cache
-    // and queue RSS for entries we just tore down.
+    // firstObservationEmission swallows CancellationError to return [], so a
+    // debouncer cancel that lands during the await (typed-overlay clear or
+    // pruneTemporary) would otherwise let us continue and recreate the overlay /
+    // temporary cache and queue RSS for entries we just tore down.
     if Task.isCancelled { return }
 
     // The observation can take long enough that a newer typed-search query
@@ -466,9 +423,10 @@ final class SearchRecommendationCollector {
     queueContinuation?.yield(feedURL)
   }
 
-  // `.failed` is terminal for the visit: a feed that already failed its fetch
-  // shouldn't be re-fetched every time the source re-records (observation
-  // re-emits do this constantly). Leaving and returning to Search retries it.
+  // `.failed` is terminal: a feed that already failed its fetch shouldn't be
+  // re-fetched every time the source re-records (observation re-emits do this
+  // constantly). The collector outlives tab switches and never resets, so a
+  // failed feed stays terminal for the collector's lifetime.
   private func shouldDrain(_ feedURL: FeedURL) -> Bool {
     guard !inFlight.contains(feedURL), let status = entry(for: feedURL)?.status
     else { return false }
@@ -549,8 +507,8 @@ final class SearchRecommendationCollector {
     if let drainTask, !drainTask.isCancelled { return }
     let (stream, continuation) = AsyncStream<FeedURL>.makeStream(bufferingPolicy: .unbounded)
     queueContinuation = continuation
-    // A fresh stream (first run or post-reset) replays whatever was scheduled
-    // before it existed — applyReconciledRanking schedules, then calls us.
+    // The first run's stream replays whatever was scheduled before it existed —
+    // applyReconciledRanking schedules, then calls us.
     for feedURL in queued { continuation.yield(feedURL) }
     drainTask = Task(priority: taskPriority(.utility)) { [weak self] in
       guard let self else { return }

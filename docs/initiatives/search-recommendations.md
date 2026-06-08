@@ -244,9 +244,9 @@ typed queries are not a V1 cache target because they can grow without bound.
 
 ## Risks And Follow-Ups
 
-- **Banner lifecycle.** Preserve the collector while the pushed discovery list is
-  visible. Do not let root `SearchView.onDisappear` discard the backing episodes
-  if that disappear is only a navigation push.
+- **Banner lifecycle.** The collector and the search nav stack live for the view
+  model's lifetime; leaving the tab no longer tears them down, so a pushed
+  discovery list and its in-flight work survive a tab switch and resume intact.
 - **Churn.** Category switches should enqueue only new feed URLs and reuse
   shared scored podcast entries. Typed-search churn should cancel and discard the
   previous query overlay without promoting query-only podcasts into the shared
@@ -254,7 +254,7 @@ typed queries are not a V1 cache target because they can grow without bound.
 - **Tests.** Cover top-category feed URL index reuse, shared podcast cache reuse
   across categories, typed-search reuse of shared cached podcasts without adding
   query-only misses to the category cache, typed-query overlay replacement,
-  Search-exit cache teardown, subscribed-podcast exclusion after feed URL/iTunes
+  subscribed-podcast exclusion after feed URL/iTunes
   ID reconciliation, cancellation of active and pending downloads,
   candidate-gate filtering for materialized episodes, score ordering, and
   post-action removal.
