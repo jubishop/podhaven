@@ -410,6 +410,66 @@ import Testing
     )
   }
 
+  @Test("returning to Search retries a typed search that failed its first load")
+  func returningAfterSearchErrorRetriesLoad() async throws {
+    let topFeed = PreviewBundle.loadAsset(named: "top_feed", in: .iTunesResults)
+    let topLookup = PreviewBundle.loadAsset(named: "top_lookup", in: .iTunesResults)
+    let searchResults = PreviewBundle.loadAsset(named: "search_results", in: .iTunesResults)
+    let firstSearchShouldFail = ThreadSafe<Bool>(true)
+
+    await session.setDefaultHandler { url in
+      if url.path.contains("/rss/toppodcasts") {
+        return (topFeed, URL.response(url))
+      }
+      if url.path.contains("/lookup") {
+        return (topLookup, URL.response(url))
+      }
+      if url.path.contains("/search") {
+        let shouldFail = firstSearchShouldFail { (flag: inout Bool) in
+          let was = flag
+          flag = false
+          return was
+        }
+        if shouldFail { throw URLError(.notConnectedToInternet) }
+        return (searchResults, URL.response(url))
+      }
+      return (url.dataRepresentation, URL.response(url))
+    }
+
+    let viewModel = SearchViewModel()
+    viewModel.searchText = "growth"
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
+
+    try await Wait.until(
+      { @MainActor in
+        if case .error = viewModel.searchState { return true }
+        return false
+      },
+      { @MainActor in
+        "Expected the failed first search to land on .error; got \(viewModel.searchState)"
+      }
+    )
+
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.searchState == .loaded
+          && viewModel.isShowingSearchResults
+          && viewModel.searchResults.count == 2
+      },
+      { @MainActor in
+        """
+        Expected returning to Search to retry the errored typed search.
+        state: \(viewModel.searchState)
+        searchedText: \(viewModel.searchedText)
+        results: \(viewModel.searchResults.count)
+        """
+      }
+    )
+  }
+
   @Test("subscribing to a trending row removes its picks from the collector")
   func subscribingTrendingRowRemovesPicksFromCollector() async throws {
     let scripted = ScriptedEmbeddable { text in

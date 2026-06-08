@@ -264,7 +264,20 @@ class SearchViewModel:
     // does; results, the DB observation, the collector, and any in-flight fetch
     // live for this view model's lifetime, so returning to a loading or loaded
     // tab is a no-op.
-    guard !isShowingSearchResults else { return }
+    if isShowingSearchResults {
+      switch searchState {
+      case .idle, .error:
+        searchState = .loading
+        Task { [weak self] in
+          guard let self else { return }
+          await self.refreshSearch()
+        }
+      case .loading, .loaded:
+        break
+      }
+      return
+    }
+
     switch currentTrendingSection.state {
     case .idle, .error:
       showTrendingSection(currentTrendingSection)
