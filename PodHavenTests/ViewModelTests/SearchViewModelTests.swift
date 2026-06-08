@@ -470,6 +470,99 @@ import Testing
     )
   }
 
+  @Test("returning to Search does not retry an errored search after editing the query")
+  func returningAfterSearchErrorWithEditedQueryDoesNotRetryStaleSearch() async throws {
+    let topFeed = PreviewBundle.loadAsset(named: "top_feed", in: .iTunesResults)
+    let topLookup = PreviewBundle.loadAsset(named: "top_lookup", in: .iTunesResults)
+    let searchResults = PreviewBundle.loadAsset(named: "search_results", in: .iTunesResults)
+
+    await session.setDefaultHandler { url in
+      if url.path.contains("/rss/toppodcasts") {
+        return (topFeed, URL.response(url))
+      }
+      if url.path.contains("/lookup") {
+        return (topLookup, URL.response(url))
+      }
+      if url.path.contains("/search") {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+          let term = components.queryItems?.first(where: { $0.name == "term" })?.value
+        else {
+          return (url.dataRepresentation, URL.response(url))
+        }
+        if term.contains("growth") { throw URLError(.notConnectedToInternet) }
+        return (searchResults, URL.response(url))
+      }
+      return (url.dataRepresentation, URL.response(url))
+    }
+
+    func searchRequestCount(containing term: String) async -> Int {
+      let requests = await session.requests
+      return
+        requests.filter { url in
+          guard url.path.contains("/search"),
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+            let value = components.queryItems?.first(where: { $0.name == "term" })?.value
+          else {
+            return false
+          }
+          return value.contains(term)
+        }
+        .count
+    }
+
+    let viewModel = SearchViewModel()
+    viewModel.searchText = "growth"
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
+
+    try await Wait.until(
+      { @MainActor in
+        if case .error = viewModel.searchState { return true }
+        return false
+      },
+      { @MainActor in
+        "Expected the failed first search to land on .error; got \(viewModel.searchState)"
+      }
+    )
+    let growthRequestsBeforeReturn = await searchRequestCount(containing: "growth")
+    let pendingSleepsBeforeEdit = fakeSleeper.pendingCount()
+
+    viewModel.searchText = "science"
+    try await fakeSleeper.waitForSleepRequests(count: pendingSleepsBeforeEdit + 1)
+    viewModel.appear()
+
+    var stayedOnError = false
+    if case .error = viewModel.searchState {
+      stayedOnError = true
+    }
+    #expect(
+      stayedOnError,
+      "Returning with edited visible text must not retry the stale errored query"
+    )
+    #expect(await searchRequestCount(containing: "growth") == growthRequestsBeforeReturn)
+
+    await fakeSleeper.advanceTime(by: SearchViewModel.searchQueryDebounce)
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.searchState == .loaded
+          && viewModel.isShowingSearchResults
+          && viewModel.searchedText == "science"
+          && viewModel.searchResults.count == 2
+      },
+      { @MainActor in
+        """
+        Expected the edited query to run after its debounce.
+        state: \(viewModel.searchState)
+        searchedText: \(viewModel.searchedText)
+        results: \(viewModel.searchResults.count)
+        """
+      }
+    )
+    #expect(await searchRequestCount(containing: "growth") == growthRequestsBeforeReturn)
+    #expect(await searchRequestCount(containing: "science") == 1)
+  }
+
   @Test("subscribing to a trending row removes its picks from the collector")
   func subscribingTrendingRowRemovesPicksFromCollector() async throws {
     let scripted = ScriptedEmbeddable { text in

@@ -267,6 +267,8 @@ class SearchViewModel:
     if isShowingSearchResults {
       switch searchState {
       case .idle, .error:
+        let liveSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard liveSearchText == searchedText else { return }
         searchState = .loading
         Task { [weak self] in
           guard let self else { return }
