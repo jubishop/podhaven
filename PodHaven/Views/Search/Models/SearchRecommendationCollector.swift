@@ -95,8 +95,14 @@ final class SearchRecommendationCollector {
 
   struct ScoredEpisode: Identifiable, Sendable, Hashable {
     var id: MediaGUID { episode.mediaGUID }
+    let feedURL: FeedURL
     let episode: UnsavedPodcastEpisode
     let score: Float
+  }
+
+  private struct PickIndexKey: Hashable {
+    let feedURL: FeedURL
+    let mediaGUID: MediaGUID
   }
 
   // MARK: - Observed Outputs
@@ -136,9 +142,7 @@ final class SearchRecommendationCollector {
   private var queued: OrderedSet<FeedURL> = []
   private var inFlight: Set<FeedURL> = []
 
-  // mediaGUID -> indexed entries, so removePick doesn't need the caller's
-  // feedURL to line up with any cache key.
-  private var pickIndex: [MediaGUID: IdentifiedArrayOf<CachedPodcastEntry>] = [:]
+  private var pickIndex: [PickIndexKey: CachedPodcastEntry] = [:]
 
   // `.unavailable` surfaces .hidden on the banner and lets the drain proceed
   // instead of blocking forever.
@@ -216,17 +220,20 @@ final class SearchRecommendationCollector {
     }
   }
 
-  func removePick(mediaGUID: MediaGUID) {
-    Self.log.debug("Removing pick \(mediaGUID)")
-    guard let entries = pickIndex.removeValue(forKey: mediaGUID) else { return }
-    for entry in entries {
-      entry.scoredEpisodes.remove(id: mediaGUID)
-      // `.exhausted` distinguishes a user-dismissed-all entry from a
-      // pipeline-finished-empty entry, so the close → open recovery in
-      // `handleScoringContextBecameAvailable` doesn't resurrect dismissed picks.
-      if entry.scoredEpisodes.isEmpty, entry.status == .scored {
-        entry.status = .exhausted
-      }
+  func removePick(mediaGUID: MediaGUID, feedURL: FeedURL) {
+    Self.log.debug("Removing pick \(mediaGUID) from \(feedURL)")
+    let key = PickIndexKey(feedURL: feedURL, mediaGUID: mediaGUID)
+    guard let entry = pickIndex.removeValue(forKey: key) else { return }
+    removePick(mediaGUID: mediaGUID, from: entry)
+  }
+
+  private func removePick(mediaGUID: MediaGUID, from entry: CachedPodcastEntry) {
+    entry.scoredEpisodes.remove(id: mediaGUID)
+    // `.exhausted` distinguishes a user-dismissed-all entry from a
+    // pipeline-finished-empty entry, so the close → open recovery in
+    // `handleScoringContextBecameAvailable` doesn't resurrect dismissed picks.
+    if entry.scoredEpisodes.isEmpty, entry.status == .scored {
+      entry.status = .exhausted
     }
   }
 
@@ -415,21 +422,15 @@ final class SearchRecommendationCollector {
   ) {
     unregisterPicks(of: entry)
     for pick in scored {
-      var entries = pickIndex[pick.id] ?? IdentifiedArrayOf<CachedPodcastEntry>()
-      entries[id: entry.id] = entry
-      pickIndex[pick.id] = entries
+      let key = PickIndexKey(feedURL: entry.feedURL, mediaGUID: pick.id)
+      pickIndex[key] = entry
     }
   }
 
   private func unregisterPicks(of entry: CachedPodcastEntry) {
     for pick in entry.scoredEpisodes {
-      guard var entries = pickIndex[pick.id] else { continue }
-      entries.remove(id: entry.id)
-      if entries.isEmpty {
-        pickIndex.removeValue(forKey: pick.id)
-      } else {
-        pickIndex[pick.id] = entries
-      }
+      let key = PickIndexKey(feedURL: entry.feedURL, mediaGUID: pick.id)
+      pickIndex.removeValue(forKey: key)
     }
   }
 
@@ -599,6 +600,7 @@ final class SearchRecommendationCollector {
     }
 
     let result = await Self.runPipeline(
+      feedURL: feedURL,
       downloadTask: downloadTask,
       podcastID: podcastID,
       iTunesID: iTunesID,
@@ -659,6 +661,7 @@ final class SearchRecommendationCollector {
   }
 
   private nonisolated static func runPipeline(
+    feedURL: FeedURL,
     downloadTask: DownloadTask,
     podcastID: Podcast.ID?,
     iTunesID: ITunesPodcastID?,
@@ -751,7 +754,7 @@ final class SearchRecommendationCollector {
     var scored = [ScoredEpisode](capacity: payloads.count)
     for (payload, score) in zip(payloads, similarities) {
       guard let score, score > scoreFloor else { continue }
-      scored.append(ScoredEpisode(episode: payload, score: score))
+      scored.append(ScoredEpisode(feedURL: feedURL, episode: payload, score: score))
     }
 
     return .success(scored)

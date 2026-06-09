@@ -29,6 +29,7 @@ final class SearchDiscoveryListViewModel:
 
   @ObservationIgnored let collector: SearchRecommendationCollector
   @ObservationIgnored let source: SearchRecommendationCollector.Source
+  @ObservationIgnored private var backingFeedURLByMediaGUID: [MediaGUID: FeedURL] = [:]
 
   var episodeList = PowerList<ListedEpisode>()
 
@@ -46,6 +47,10 @@ final class SearchDiscoveryListViewModel:
   func syncEntries(for state: SearchRecommendationCollector.DiscoveryListState) {
     switch state {
     case .picks(let picks):
+      backingFeedURLByMediaGUID = Dictionary(
+        picks.map { ($0.id, $0.feedURL) },
+        uniquingKeysWith: { first, _ in first }
+      )
       // The collector coalesces by mediaGUID first; keep this defensive so a
       // duplicate never trips the uniqueElements precondition at the view edge.
       episodeList.allEntries = IdentifiedArray(
@@ -53,6 +58,7 @@ final class SearchDiscoveryListViewModel:
         uniquingIDsWith: { first, _ in first }
       )
     case .loading, .empty:
+      backingFeedURLByMediaGUID = [:]
       episodeList.allEntries = []
     }
   }
@@ -60,7 +66,8 @@ final class SearchDiscoveryListViewModel:
   // MARK: - ManagingEpisodes
 
   func didPerformAction(_ episode: ListedEpisode) {
-    collector.removePick(mediaGUID: episode.mediaGUID)
+    guard let feedURL = backingFeedURLByMediaGUID[episode.mediaGUID] else { return }
+    collector.removePick(mediaGUID: episode.mediaGUID, feedURL: feedURL)
   }
 
   // MARK: - SelectableEpisodeList
@@ -78,7 +85,8 @@ final class SearchDiscoveryListViewModel:
 
   func didPerformBulkAction(on episodes: [ListedEpisode]) {
     for episode in episodes {
-      collector.removePick(mediaGUID: episode.mediaGUID)
+      guard let feedURL = backingFeedURLByMediaGUID[episode.mediaGUID] else { continue }
+      collector.removePick(mediaGUID: episode.mediaGUID, feedURL: feedURL)
     }
   }
 }

@@ -38,11 +38,11 @@ import Testing
     )
 
     let initialCount = collector.visiblePicks.count
-    let removed = collector.visiblePicks[0].episode.mediaGUID
-    collector.removePick(mediaGUID: removed)
+    let removed = collector.visiblePicks[0]
+    collector.removePick(mediaGUID: removed.id, feedURL: removed.feedURL)
 
     #expect(collector.visiblePicks.count == initialCount - 1)
-    #expect(!collector.visiblePicks.contains { $0.episode.mediaGUID == removed })
+    #expect(!collector.visiblePicks.contains { $0.id == removed.id })
   }
 
   // MARK: - Test: removePick Works When Parsed Feed URL Differs From Entry Key
@@ -101,7 +101,7 @@ import Testing
     )
 
     let listed = ListedEpisode(pick.episode)
-    collector.removePick(mediaGUID: listed.mediaGUID)
+    collector.removePick(mediaGUID: listed.mediaGUID, feedURL: pick.feedURL)
 
     #expect(
       collector.visiblePicks.isEmpty,
@@ -109,14 +109,14 @@ import Testing
     )
   }
 
-  // MARK: - Test: removePick Clears Duplicate MediaGUID Entries
+  // MARK: - Test: Action Removes Only Visible Duplicate MediaGUID Owner
 
-  @Test("duplicate MediaGUID picks project highest-ranked pick and clean up every owner")
-  func duplicateMediaGUIDPicksProjectHighestRankedPickAndCleanUpEveryOwner() async throws {
+  @Test("duplicate MediaGUID action removes only the visible backing owner")
+  func duplicateMediaGUIDActionRemovesOnlyVisibleBackingOwner() async throws {
     let collector = SearchRecommendationCollector()
     let scripted = ScriptedEmbeddable { text in
       if text.contains("Older Higher Rank Pick") { return [1, 0, 0] }
-      if text.contains("Newer Lower Rank Pick") { return [0, 1, 0] }
+      if text.contains("Newer Lower Rank Pick") { return [0.9, 0.1, 0] }
       if text.contains("of Signal") {
         if text.contains("Episode 0") { return [1, 0, 0] }
         if text.contains("Episode 1") { return [0, 1, 0] }
@@ -184,6 +184,37 @@ import Testing
     #expect(collector.visiblePicks.count == 1)
     #expect(collector.bannerState(for: source) == .loaded(count: 1))
 
+    let laterSource = SearchRecommendationCollector.Source.search(query: "section")
+    collector.setActiveSource(laterSource)
+    collector.recordSourcePodcasts(
+      source: laterSource,
+      podcasts: [H.makeUnsavedRow(feedURL: secondFeedURL, iTunesID: ITunesPodcastID(2601))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      {
+        @MainActor in
+        collector.visiblePicks.map(\.episode.title) == ["Newer Lower Rank Pick"]
+      },
+      { @MainActor in
+        let titles = collector.visiblePicks.map(\.episode.title)
+        return "Expected narrowed source to prove the second owner is scored, got \(titles)"
+      }
+    )
+
+    collector.setActiveSource(source)
+    try await Wait.until(
+      {
+        @MainActor in
+        collector.visiblePicks.map(\.episode.title) == ["Older Higher Rank Pick"]
+      },
+      { @MainActor in
+        let titles = collector.visiblePicks.map(\.episode.title)
+        return "Expected aggregate source to show the highest-ranked owner, got \(titles)"
+      }
+    )
+
     let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
     viewModel.syncEntries(for: viewModel.discoveryListState)
     try await Wait.until(
@@ -198,9 +229,31 @@ import Testing
     viewModel.queueEpisodeOnTop(visibleEpisode)
 
     try await Wait.until(
-      { @MainActor in collector.visiblePicks.isEmpty },
+      {
+        @MainActor in
+        collector.visiblePicks.map(\.episode.title) == ["Newer Lower Rank Pick"]
+      },
       { @MainActor in
-        "Expected every duplicate pick to be removed; \(collector.visiblePicks.count) remain"
+        let titles = collector.visiblePicks.map(\.episode.title)
+        return "Expected only the targeted duplicate owner to be removed, got \(titles)"
+      }
+    )
+
+    collector.setActiveSource(laterSource)
+    collector.recordSourcePodcasts(
+      source: laterSource,
+      podcasts: [H.makeUnsavedRow(feedURL: secondFeedURL, iTunesID: ITunesPodcastID(2601))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      {
+        @MainActor in
+        collector.visiblePicks.map(\.episode.title) == ["Newer Lower Rank Pick"]
+      },
+      { @MainActor in
+        let titles = collector.visiblePicks.map(\.episode.title)
+        return "Expected later source to keep the other owner, got \(titles)"
       }
     )
   }
@@ -254,8 +307,8 @@ import Testing
     let initialRequests = await H.session.requests.filter { $0 == feedURL.rawValue }.count
     #expect(initialRequests == 1, "Test premise: pipeline should have made exactly one RSS request")
 
-    let pickGUID = collector.visiblePicks[0].episode.mediaGUID
-    collector.removePick(mediaGUID: pickGUID)
+    let pick = collector.visiblePicks[0]
+    collector.removePick(mediaGUID: pick.id, feedURL: pick.feedURL)
     #expect(collector.visiblePicks.isEmpty)
 
     // Drive the engine through close → open by unrating signals (cache=nil)
@@ -340,6 +393,7 @@ import Testing
     )
 
     let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
+    viewModel.syncEntries(for: viewModel.discoveryListState)
     let pick = collector.visiblePicks[0]
     viewModel.queueEpisodeOnTop(ListedEpisode(pick.episode))
 
@@ -523,6 +577,7 @@ import Testing
     )
 
     let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
+    viewModel.syncEntries(for: viewModel.discoveryListState)
     viewModel.queueEpisodeOnTop(ListedEpisode(pick.episode))
 
     try await Wait.until(
