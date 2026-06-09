@@ -30,6 +30,7 @@ struct SearchDiscoveryListView: View {
     .onChange(of: viewModel.discoveryListState, initial: true) { _, state in
       viewModel.syncEntries(for: state)
     }
+    .task(id: viewModel.savedObservationKey, viewModel.observeSavedEpisodes)
   }
 
   // MARK: - List
@@ -37,7 +38,10 @@ struct SearchDiscoveryListView: View {
   private var listView: some View {
     List(viewModel.episodeList.filteredEntries) { episode in
       NavigationLink(
-        value: Navigation.Destination.listedEpisode(episode),
+        value: Navigation.Destination.listedEpisode(
+          episode,
+          similarityScore: viewModel.similarityScoreByMediaGUID[episode.mediaGUID]
+        ),
         label: {
           EpisodeListView(
             episode: episode,

@@ -114,12 +114,16 @@ extension Container {
     case podcast(DisplayedPodcast)
     case episode(DisplayedEpisode, startTime: Int?)
     case listedPodcast(ListedPodcast)
-    case listedEpisode(ListedEpisode)
+    case listedEpisode(ListedEpisode, similarityScore: Float?)
     case unsavedPodcastSeries(UnsavedPodcastSeries)
     case searchDiscovery(SearchDiscoveryListViewModel)
 
     static func episode(_ episode: DisplayedEpisode) -> Destination {
       .episode(episode, startTime: nil)
+    }
+
+    static func listedEpisode(_ listedEpisode: ListedEpisode) -> Destination {
+      .listedEpisode(listedEpisode, similarityScore: nil)
     }
   }
 
@@ -321,9 +325,14 @@ extension Container {
       // tear down + recreate the view mid-flow. See ListedPodcast.slotID.
       PodcastDetailView(viewModel: PodcastDetailViewModel(listedPodcast: listedPodcast))
         .id(listedPodcast.slotID)
-    case .listedEpisode(let listedEpisode):
-      EpisodeDetailView(viewModel: EpisodeDetailViewModel(listedEpisode: listedEpisode))
-        .id(listedEpisode.id)
+    case .listedEpisode(let listedEpisode, let similarityScore):
+      EpisodeDetailView(
+        viewModel: EpisodeDetailViewModel(
+          listedEpisode: listedEpisode,
+          similarityScore: similarityScore
+        )
+      )
+      .id(listedEpisode.id)
     case .unsavedPodcastSeries(let unsavedPodcastSeries):
       PodcastDetailView(
         viewModel: PodcastDetailViewModel(unsavedPodcastSeries: unsavedPodcastSeries)

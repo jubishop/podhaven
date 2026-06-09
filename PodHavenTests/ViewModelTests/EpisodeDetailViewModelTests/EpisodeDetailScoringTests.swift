@@ -197,6 +197,60 @@ import Testing
     )
   }
 
+  @Test("a seeded list score shows immediately and is replaced by a fresh scoring pass")
+  func seededSimilarityScoreShowsImmediatelyThenRescores() async throws {
+    let (_, signalEpisodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Seeded Score Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signalEpisodes)
+    _ = try await RecommendationHelpers.startAndWaitForScores(for: signalEpisodes)
+
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Seeded Score Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "seeded-score",
+        title: "Seeded Score Episode"
+      )
+    )
+    // Sentinel no real pass can produce, so the fresh-pass overwrite is
+    // observable.
+    let staleSeed: Float = -1
+    let viewModel = EpisodeDetailViewModel(
+      listedEpisode: ListedEpisode(unsavedPodcastEpisode),
+      similarityScore: staleSeed
+    )
+
+    // Before appear(), no scoring pass has run: the seed is the only
+    // possible source of a displayed score.
+    if case .similarity(let seeded) = viewModel.displayedScore {
+      #expect(seeded == staleSeed)
+    } else {
+      Issue.record(
+        """
+        Expected the seeded similarity score to display before any scoring pass.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      )
+    }
+
+    viewModel.appear()
+
+    try await Wait.until(
+      { @MainActor in
+        if case .similarity(let value) = viewModel.displayedScore { return value != staleSeed }
+        return false
+      },
+      { @MainActor in
+        """
+        Expected a fresh scoring pass to replace the seeded score after appear.
+        score: \(String(describing: viewModel.displayedScore))
+        """
+      }
+    )
+  }
+
   @Test("unsaved episode hides the score when the engine cache is cold")
   func unsavedEpisodeHidesScoreWhenCacheIsCold() async throws {
     // Probe-then-assert pattern: no signals planted means similarityScore

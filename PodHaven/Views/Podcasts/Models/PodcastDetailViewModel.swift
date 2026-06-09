@@ -234,6 +234,10 @@ class PodcastDetailViewModel:
   @ObservationIgnored
   private let unsavedEpisodeEmbeddingScorer = UnsavedEpisodeEmbeddingScorer()
 
+  // The score that ranked each row; passed along on navigation so the detail
+  // view can show it immediately instead of waiting on a fresh scoring pass.
+  @ObservationIgnored private(set) var similarityScoreByMediaGUID: [MediaGUID: Float] = [:]
+
   private struct RecommendationScoringSnapshot: Equatable, Sendable {
     let scoringRevision: Int
     let state: State
@@ -393,8 +397,12 @@ class PodcastDetailViewModel:
     let values = pass.values
     switch pass.kind {
     case .saved:
+      // Saved-pass values are recommendation scores, not similarity scores;
+      // expose nothing rather than the wrong scale.
+      similarityScoreByMediaGUID = [:]
       episodeListFilter.setBaseFilter { values[$0.mediaGUID] != nil }
     case .unsaved:
+      similarityScoreByMediaGUID = values
       episodeListFilter.setBaseFilter(currentSortMethod.filterMethod)
     }
     episodeList.sortMethod = { lhs, rhs in

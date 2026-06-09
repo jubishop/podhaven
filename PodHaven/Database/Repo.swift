@@ -497,7 +497,19 @@ struct Repo: Databasing {
             db,
             as: Podcast.self,
             updating: .noColumnUnlessSpecified,
-            doUpdate: unsavedPodcast.rssUpsertAssignments
+            doUpdate: { excluded in
+              var assignments = unsavedPodcast.rssUpsertAssignments(excluded)
+              if unsavedPodcast.iTunesID != nil {
+                // In DO UPDATE, the bare column is the existing row's value:
+                // backfill iTunesID only when the existing row lacks one.
+                assignments.append(
+                  Podcast.Columns.iTunesID.set(
+                    to: Podcast.Columns.iTunesID ?? excluded[Podcast.Columns.iTunesID]
+                  )
+                )
+              }
+              return assignments
+            }
           )
         }
 
