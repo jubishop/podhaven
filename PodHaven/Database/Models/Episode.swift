@@ -61,6 +61,9 @@ struct UnsavedEpisode:
   let finishDate: Date?
   let currentTime: CMTime
   let maxPlaybackTime: CMTime
+  // Boundary-flipped mirror of `currentTime > 0`; observation filters read it
+  // so per-checkpoint playback writes stay out of their tracked regions.
+  let playbackStarted: Bool
   let queueOrder: Int?
   let queueDate: Date?
   private let cachedFilename: String?
@@ -128,6 +131,7 @@ struct UnsavedEpisode:
     self.finishDate = finishDate
     self.currentTime = currentTime ?? CMTime.zero
     self.maxPlaybackTime = maxPlaybackTime ?? CMTime.zero
+    self.playbackStarted = self.currentTime.seconds > 0
     self.queueOrder = queueOrder
     self.queueDate = queueDate
     self.cachedFilename = cachedFilename
@@ -237,8 +241,10 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   static let savedInCache: SQLExpression = cached && Columns.saveInCache == true
   static let finished: SQLExpression = Columns.finishDate != nil
   static let unfinished: SQLExpression = Columns.finishDate == nil
-  static let unstarted: SQLExpression = Columns.currentTime == 0
-  static let started: SQLExpression = Columns.currentTime > 0
+  // Read the boundary-flipped flag, not currentTime: observations filtering
+  // on these must not wake on per-checkpoint playback writes.
+  static let unstarted: SQLExpression = Columns.playbackStarted == false
+  static let started: SQLExpression = Columns.playbackStarted == true
   static let previouslyQueued: SQLExpression = Columns.queueDate != nil
   static let loved: SQLExpression = Columns.rating == EpisodeRating.loved.rawValue
   static let liked: SQLExpression = Columns.rating == EpisodeRating.liked.rawValue
@@ -285,6 +291,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     static let finishDate = Column("finishDate")
     static let currentTime = Column("currentTime")
     static let maxPlaybackTime = Column("maxPlaybackTime")
+    static let playbackStarted = Column("playbackStarted")
     static let queueOrder = Column("queueOrder")
     static let queueDate = Column("queueDate")
     static let cachedFilename = Column("cachedFilename")

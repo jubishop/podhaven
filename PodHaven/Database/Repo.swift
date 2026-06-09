@@ -621,16 +621,32 @@ struct Repo: Databasing {
     Self.log.trace("updateCurrentTime: \(episodeID) to \(currentTime)")
 
     return try await writer.write(level: .trace) { db in
-      try Episode
+      let wasStarted = try Bool.fetchOne(
+        db,
+        Episode
+          .withID(episodeID)
+          .select(Episode.Columns.playbackStarted, as: Bool.self)
+      )
+      guard let wasStarted else { return false }
+
+      var assignments: [ColumnAssignment] = [
+        Episode.Columns.currentTime.set(to: currentTime),
+        Episode.Columns.maxPlaybackTime.set(
+          to: sqlMax(Episode.Columns.maxPlaybackTime, currentTime)
+        ),
+      ]
+      // playbackStarted is assigned only when playback crosses zero; steady
+      // writes must not put the column in the commit's changed set.
+      let isStarted = currentTime.seconds > 0
+      if isStarted != wasStarted {
+        assignments.append(Episode.Columns.playbackStarted.set(to: isStarted))
+      }
+
+      return
+        try Episode
         .withID(episodeID)
-        .updateAll(
-          db,
-          Episode.Columns.currentTime.set(to: currentTime),
-          Episode.Columns.maxPlaybackTime.set(
-            to: sqlMax(Episode.Columns.maxPlaybackTime, currentTime)
-          )
-        )
-    } > 0
+        .updateAll(db, assignments) > 0
+    }
   }
 
   // Caller passes the previous-checkpoint position as `playedFrom` so the
@@ -652,7 +668,11 @@ struct Repo: Databasing {
         db,
         Episode
           .withID(episodeID)
-          .select(Episode.Columns.duration, Episode.Columns.playbackCoverage)
+          .select(
+            Episode.Columns.duration,
+            Episode.Columns.playbackCoverage,
+            Episode.Columns.playbackStarted
+          )
       )
       guard let row else { return false }
 
@@ -663,6 +683,14 @@ struct Repo: Databasing {
         ),
         Episode.Columns.lastPlayedDate.set(to: now),
       ]
+
+      // playbackStarted is assigned only when playback crosses zero; steady
+      // checkpoint writes must not put the column in the commit's changed set.
+      let wasStarted: Bool = row[Episode.Columns.playbackStarted]
+      let isStarted = currentTime.seconds > 0
+      if isStarted != wasStarted {
+        assignments.append(Episode.Columns.playbackStarted.set(to: isStarted))
+      }
 
       let duration: CMTime? = row[Episode.Columns.duration]
       let durationSeconds = duration?.positiveFiniteSeconds ?? 0
@@ -759,7 +787,8 @@ struct Repo: Databasing {
           db,
           Episode.Columns.finishDate.set(to: Date()),
           Episode.Columns.currentTime.set(to: 0),
-          Episode.Columns.maxPlaybackTime.set(to: 0)
+          Episode.Columns.maxPlaybackTime.set(to: 0),
+          Episode.Columns.playbackStarted.set(to: false)
         )
     }
   }
