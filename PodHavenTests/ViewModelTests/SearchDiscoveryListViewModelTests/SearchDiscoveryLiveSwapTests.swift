@@ -140,6 +140,115 @@ import Testing
     }
   }
 
+  // MARK: - Test: Same-GUID Owner Swap
+
+  @Test("saved row clears when the visible same-mediaGUID owner changes feed")
+  func savedRowClearsWhenVisibleOwnerChangesFeed() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = ScriptedEmbeddable { text in
+      if text.contains("First Owner") { return [1, 0, 0] }
+      if text.contains("Second Owner") { return [0.9, 0.1, 0] }
+      if text.contains("of Signal") {
+        if text.contains("Episode 0") { return [1, 0, 0] }
+        if text.contains("Episode 1") { return [0, 1, 0] }
+        return [0, 0, 1]
+      }
+      return [1, 0, 0]
+    }
+    try await H.primeEngine(embeddable: scripted)
+
+    let firstFeed = FeedURL(URL(string: "https://example.com/owner-first.rss")!)
+    let secondFeed = FeedURL(URL(string: "https://example.com/owner-second.rss")!)
+    let sharedGUID = "same-visible-guid"
+    await H.session.respond(
+      to: firstFeed.rawValue,
+      data: H.rssXML(
+        title: "First Owner Feed",
+        feedURL: firstFeed,
+        episodes: [
+          (
+            sharedGUID,
+            "First Owner Pick",
+            Date(timeIntervalSince1970: 1_700_000_000)
+          )
+        ]
+      )
+    )
+    await H.session.respond(
+      to: secondFeed.rawValue,
+      data: H.rssXML(
+        title: "Second Owner Feed",
+        feedURL: secondFeed,
+        episodes: [
+          (
+            sharedGUID,
+            "Second Owner Pick",
+            Date(timeIntervalSince1970: 1_800_000_000)
+          )
+        ]
+      )
+    )
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [
+        H.makeUnsavedRow(feedURL: firstFeed, iTunesID: ITunesPodcastID(7301)),
+        H.makeUnsavedRow(feedURL: secondFeed, iTunesID: ITunesPodcastID(7302)),
+      ]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      {
+        @MainActor in
+        collector.picks(for: source).first?.feedURL == firstFeed
+      },
+      { @MainActor in "Expected first owner to win initial coalescing" }
+    )
+
+    let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
+    viewModel.syncEntries(for: viewModel.discoveryListState)
+    let firstPick = try #require(collector.picks(for: source).first)
+
+    try await withRunningDiscoveryObservationLoop(viewModel) {
+      try await insertRow(feedURL: firstFeed, mediaGUID: firstPick.id)
+      try await Wait.until(
+        {
+          @MainActor in
+          let entry = viewModel.episodeList.filteredEntries[id: firstPick.id]
+          return entry?.feedURL == firstFeed && entry?.episodeID != nil
+        },
+        { @MainActor in "Expected first owner to be shown as saved" }
+      )
+
+      collector.removePick(mediaGUID: firstPick.id, feedURL: firstFeed)
+      try await Wait.until(
+        {
+          @MainActor in
+          collector.picks(for: source).first?.feedURL == secondFeed
+        },
+        { @MainActor in "Expected second owner to become visible" }
+      )
+
+      viewModel.syncEntries(for: viewModel.discoveryListState)
+
+      try await Wait.until(
+        {
+          @MainActor in
+          let entry = viewModel.episodeList.filteredEntries[id: firstPick.id]
+          return entry?.feedURL == secondFeed && entry?.episodeID == nil
+        },
+        { @MainActor in
+          let entry = viewModel.episodeList.filteredEntries[id: firstPick.id]
+          return
+            "Expected unsaved second owner row, got \(String(describing: entry?.feedURL)), id=\(String(describing: entry?.episodeID))"
+        }
+      )
+    }
+  }
+
   // MARK: - Test: Empty Pick Set
 
   @Test("an empty pick set starts no observation")

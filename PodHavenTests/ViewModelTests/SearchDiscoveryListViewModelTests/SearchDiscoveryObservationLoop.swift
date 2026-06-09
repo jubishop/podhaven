@@ -46,10 +46,12 @@ func withRunningDiscoveryObservationLoop<T>(
 private final class SavedKeyWatcher {
   private let viewModel: SearchDiscoveryListViewModel
   private let continuation: AsyncStream<Void>.Continuation
+  private var currentKey: Set<SearchDiscoveryListViewModel.SavedObservationKey>
 
   init(viewModel: SearchDiscoveryListViewModel, continuation: AsyncStream<Void>.Continuation) {
     self.viewModel = viewModel
     self.continuation = continuation
+    currentKey = viewModel.savedObservationKey
     track()
   }
 
@@ -59,7 +61,10 @@ private final class SavedKeyWatcher {
     } onChange: { [weak self] in
       Task { @MainActor in
         guard let self else { return }
-        self.continuation.yield()
+        let nextKey = self.viewModel.savedObservationKey
+        let changed = nextKey != self.currentKey
+        self.currentKey = nextKey
+        if changed { self.continuation.yield() }
         self.track()
       }
     }
