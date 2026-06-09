@@ -39,6 +39,14 @@ final class SearchDiscoveryListViewModel:
   @ObservationIgnored private var backingFeedURLByMediaGUID: [MediaGUID: FeedURL] = [:]
 
   struct SavedObservationKey: Hashable {
+    let removalFeedURL: FeedURL
+    let episodeFeedURL: FeedURL
+    let mediaGUID: MediaGUID
+
+    var matchingFeedURLs: Set<FeedURL> { [removalFeedURL, episodeFeedURL] }
+  }
+
+  private struct SavedRowLookupKey: Hashable {
     let feedURL: FeedURL
     let mediaGUID: MediaGUID
   }
@@ -70,13 +78,13 @@ final class SearchDiscoveryListViewModel:
         uniquingKeysWith: { first, _ in first }
       )
       savedByPickKey = savedByPickKey.filter {
-        backingFeedURLByMediaGUID[$0.key.mediaGUID] == $0.key.feedURL
+        backingFeedURLByMediaGUID[$0.key.mediaGUID] == $0.key.removalFeedURL
       }
       // The collector coalesces by mediaGUID first; keep this defensive so a
       // duplicate never trips the uniqueElements precondition at the view edge.
       episodeList.allEntries = IdentifiedArray(
         picks.map { pick in
-          let key = SavedObservationKey(feedURL: pick.feedURL, mediaGUID: pick.id)
+          let key = savedObservationKey(for: pick)
           if let saved = savedByPickKey[key] {
             return ListedEpisode(saved)
           }
@@ -97,10 +105,16 @@ final class SearchDiscoveryListViewModel:
   // observation; reorder is re-projected by syncEntries.
   var savedObservationKey: Set<SavedObservationKey> {
     guard case .picks(let picks) = discoveryListState else { return [] }
-    return Set(
-      picks.map {
-        SavedObservationKey(feedURL: $0.feedURL, mediaGUID: $0.id)
-      }
+    return Set(picks.map(savedObservationKey))
+  }
+
+  private func savedObservationKey(
+    for pick: SearchRecommendationCollector.ScoredEpisode
+  ) -> SavedObservationKey {
+    SavedObservationKey(
+      removalFeedURL: pick.feedURL,
+      episodeFeedURL: pick.episode.feedURL,
+      mediaGUID: pick.id
     )
   }
 
@@ -121,22 +135,31 @@ final class SearchDiscoveryListViewModel:
 
     do {
       let guids = Set(key.map(\.mediaGUID.guid))
+      var pickKeyBySavedRowKey: [SavedRowLookupKey: SavedObservationKey] = [:]
+      for pickKey in key {
+        for feedURL in pickKey.matchingFeedURLs {
+          let lookupKey = SavedRowLookupKey(feedURL: feedURL, mediaGUID: pickKey.mediaGUID)
+          pickKeyBySavedRowKey[lookupKey] = pickKey
+        }
+      }
+
       let observation = observatory.listablePodcastEpisodes(
         filter: guids.contains(Episode.Columns.guid)
       )
       for try await listables in observation {
         try Task.checkCancellation()
-        // The guid-only SQL filter over-matches: the same (guid, mediaURL)
-        // can exist under multiple podcasts, so keep only the row from the
-        // pick's own feed.
+        // The guid-only SQL filter over-matches: the same (guid, mediaURL) can
+        // exist under multiple podcasts, so keep only rows owned by this pick.
         var saved: [SavedObservationKey: ListablePodcastEpisode] = [:]
         for listable in listables {
-          let savedKey = SavedObservationKey(
+          let lookupKey = SavedRowLookupKey(
             feedURL: listable.feedURL,
             mediaGUID: listable.mediaGUID
           )
-          guard key.contains(savedKey) else { continue }
-          saved[savedKey] = listable
+          guard let pickKey = pickKeyBySavedRowKey[lookupKey] else { continue }
+          if saved[pickKey] == nil || listable.feedURL == pickKey.episodeFeedURL {
+            saved[pickKey] = listable
+          }
         }
         savedByPickKey = saved
         syncEntries(for: discoveryListState)

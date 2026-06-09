@@ -102,6 +102,87 @@ import Testing
     }
   }
 
+  @Test("a saved pick swaps when RSS publishes a different feed URL")
+  func savedRowSwapsWhenParsedFeedURLDiffers() async throws {
+    let collector = SearchRecommendationCollector()
+    try await H.primeEngine(embeddable: H.makeScriptedEmbeddable())
+
+    let requestedFeed = FeedURL(URL(string: "https://example.com/requested-swap.rss")!)
+    let parsedFeed = FeedURL(URL(string: "https://example.com/parsed-swap.rss")!)
+    let guid = "parsed-feed-live-swap"
+    let xml = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" \
+      xmlns:atom="http://www.w3.org/2005/Atom">
+        <channel>
+          <title>Parsed Swap</title>
+          <link>\(requestedFeed.absoluteString)</link>
+          <description>Parsed Swap description</description>
+          <itunes:image href="https://example.com/image.png" />
+          <atom:link rel="self" href="\(parsedFeed.absoluteString)" />
+          <item>
+            <guid isPermaLink="false">\(guid)</guid>
+            <title>Parsed Swap Pick</title>
+            <pubDate>Mon, 14 Nov 2023 22:13:20 +0000</pubDate>
+            <enclosure url="https://example.com/audio/\(guid).mp3" type="audio/mpeg" length="0" />
+            <description>Parsed Swap Pick description</description>
+          </item>
+        </channel>
+      </rss>
+      """
+    let data = Data(xml.utf8)
+    await H.session.respond(to: requestedFeed.rawValue, data: data)
+    await H.session.respond(to: parsedFeed.rawValue, data: data)
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: requestedFeed, iTunesID: ITunesPodcastID(7401))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      {
+        @MainActor in
+        let pick = collector.picks(for: source).first
+        return pick?.feedURL == requestedFeed && pick?.episode.feedURL == parsedFeed
+      },
+      { @MainActor in
+        let pick = collector.picks(for: source).first
+        return
+          "Expected requested-feed collector key and parsed-feed episode row, got \(String(describing: pick))"
+      }
+    )
+
+    let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
+
+    try await withRunningDiscoveryObservationLoop(viewModel) {
+      try await Wait.until(
+        { @MainActor in viewModel.episodeList.filteredEntries.count == 1 },
+        { @MainActor in
+          "Expected one entry, got \(viewModel.episodeList.filteredEntries.count)"
+        }
+      )
+      let pick = try #require(collector.picks(for: source).first)
+      let initial = try #require(viewModel.episodeList.filteredEntries[id: pick.id])
+      #expect(initial.feedURL == parsedFeed)
+      #expect(initial.episodeID == nil)
+
+      _ = try await initial.getOrCreatePodcastEpisode()
+
+      try await Wait.until(
+        { @MainActor in
+          viewModel.episodeList.filteredEntries[id: pick.id]?.episodeID != nil
+        },
+        { @MainActor in "Expected parsed-feed pick \(pick.id) to swap to a saved row" }
+      )
+
+      let swapped = try #require(viewModel.episodeList.filteredEntries[id: pick.id])
+      #expect(swapped.feedURL == parsedFeed)
+    }
+  }
+
   // MARK: - Test: Cross-Feed Disambiguation
 
   // Episode uniqueness is per podcast, so the same (guid, mediaURL) can exist
