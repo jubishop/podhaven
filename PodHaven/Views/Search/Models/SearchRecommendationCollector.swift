@@ -136,8 +136,8 @@ final class SearchRecommendationCollector {
   private var queued: OrderedSet<FeedURL> = []
   private var inFlight: Set<FeedURL> = []
 
-  // mediaGUID -> entry that currently holds the pick, so removePick is O(1)
-  // regardless of how the caller's feedURL relates to the cache key.
+  // mediaGUID -> the indexed entry, so removePick doesn't need the caller's
+  // feedURL to line up with the cache key.
   private var pickIndex: [MediaGUID: CachedPodcastEntry] = [:]
 
   // `.unavailable` surfaces .hidden on the banner and lets the drain proceed
@@ -219,7 +219,7 @@ final class SearchRecommendationCollector {
   func removePick(mediaGUID: MediaGUID) {
     Self.log.debug("Removing pick \(mediaGUID)")
     guard let entry = pickIndex.removeValue(forKey: mediaGUID) else { return }
-    entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
+    entry.scoredEpisodes.remove(id: mediaGUID)
     // `.exhausted` distinguishes a user-dismissed-all entry from a
     // pipeline-finished-empty entry, so the close → open recovery in
     // `handleScoringContextBecameAvailable` doesn't resurrect dismissed picks.
@@ -405,10 +405,12 @@ final class SearchRecommendationCollector {
     }
   }
 
-  // Each scored episode lives in exactly one entry, so picks added here can
-  // never collide with another entry's index. Re-scoring an already-scored
-  // entry would, so unregister the old picks first.
-  private func registerPicks(_ scored: [ScoredEpisode], for entry: CachedPodcastEntry) {
+  // Re-scoring an already-scored entry can leave stale index entries, so clear
+  // this entry's previous picks before indexing its current picks.
+  private func registerPicks(
+    _ scored: IdentifiedArrayOf<ScoredEpisode>,
+    for entry: CachedPodcastEntry
+  ) {
     unregisterPicks(of: entry)
     for pick in scored { pickIndex[pick.id] = entry }
   }
@@ -602,8 +604,12 @@ final class SearchRecommendationCollector {
       // the entry; writing scoredEpisodes / registerPicks here would leave
       // pickIndex pointing at an instance no one can reach through picks(for:).
       if isAttached {
-        registerPicks(scored, for: entry)
-        entry.scoredEpisodes = scored
+        let scoredEpisodes = IdentifiedArray(
+          scored,
+          uniquingIDsWith: { first, _ in first }
+        )
+        registerPicks(scoredEpisodes, for: entry)
+        entry.scoredEpisodes = scoredEpisodes
         entry.status = .scored
       } else {
         entry.status = .cancelled
@@ -904,7 +910,7 @@ private final class CachedPodcastEntry: Identifiable {
   let podcastID: Podcast.ID?
   let iTunesID: ITunesPodcastID?
   var status: Status = .pending
-  var scoredEpisodes: [SearchRecommendationCollector.ScoredEpisode] = []
+  var scoredEpisodes = IdentifiedArrayOf<SearchRecommendationCollector.ScoredEpisode>()
   @ObservationIgnored var fetchToken: DownloadTask?
 
   var id: FeedURL { feedURL }
