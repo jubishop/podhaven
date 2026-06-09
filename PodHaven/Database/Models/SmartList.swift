@@ -25,8 +25,12 @@ struct UnsavedSmartList: Identifiable, Savable {
     filter: SmartListFilter,
     displayOrder: Int,
     sortMethod: SmartListSortMethod = .newestFirst
-  ) {
-    self.title = title
+  ) throws {
+    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      throw DatabaseError(message: "Smart List title cannot be empty")
+    }
+    self.title = trimmed
     self.filter = filter
     self.displayOrder = displayOrder
     self.sortMethod = sortMethod

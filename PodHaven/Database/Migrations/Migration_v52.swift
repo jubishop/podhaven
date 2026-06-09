@@ -44,7 +44,7 @@ extension Schema {
         .check { allowedSortMethods.contains($0) }
       t.column("creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
     }
-    try db.execute(sql: "CREATE INDEX smartList_displayOrder ON smartList(displayOrder)")
+    try db.create(index: "smartList_displayOrder", on: "smartList", columns: ["displayOrder"])
 
     // Copy each list's persisted sort pref from UserDefaults onto its seeded
     // row. The keys are NOT deleted: the existing episodes view model still

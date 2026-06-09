@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
@@ -64,7 +65,7 @@ class SmartListRepoTests {
 
     let filter = SmartListFilter(combinator: .all, conditions: [.state(.isLoved)])
     let inserted = try await smartListRepo.insert(
-      UnsavedSmartList(title: "Loved", filter: filter, displayOrder: 0)
+      try UnsavedSmartList(title: "Loved", filter: filter, displayOrder: 0)
     )
     #expect(inserted.title == "Loved")
     #expect(inserted.filter == filter)
@@ -88,6 +89,28 @@ class SmartListRepoTests {
     #expect(try await smartListRepo.fetchAll().isEmpty)
   }
 
+  @Test("blank titles are rejected and stored titles are trimmed")
+  func rejectsBlankTitles() async throws {
+    try await clearAll()
+
+    #expect(throws: DatabaseError.self) {
+      _ = try UnsavedSmartList(title: "   ", filter: SmartListFilter(), displayOrder: 0)
+    }
+
+    let list = try await smartListRepo.insert(
+      try UnsavedSmartList(title: "  Valid  ", filter: SmartListFilter(), displayOrder: 0)
+    )
+    #expect(list.title == "Valid")
+
+    await #expect(throws: DatabaseError.self) {
+      try await self.smartListRepo.updateTitle(list.id, to: "   ")
+    }
+    #expect(try await smartListRepo.fetchOne(list.id)?.title == "Valid")
+
+    #expect(try await smartListRepo.updateTitle(list.id, to: "  Renamed  "))
+    #expect(try await smartListRepo.fetchOne(list.id)?.title == "Renamed")
+  }
+
   // MARK: - Reorder
 
   @Test("moveSmartList renumbers displayOrder into a dense sequence")
@@ -97,7 +120,7 @@ class SmartListRepoTests {
     var ids: [SmartList.ID] = []
     for index in 0..<5 {
       let list = try await smartListRepo.insert(
-        UnsavedSmartList(title: "L\(index)", filter: SmartListFilter(), displayOrder: index)
+        try UnsavedSmartList(title: "L\(index)", filter: SmartListFilter(), displayOrder: index)
       )
       ids.append(list.id)
     }
@@ -129,7 +152,7 @@ class SmartListRepoTests {
 
     try await count.wait(for: 1)  // initial empty snapshot
     let list = try await smartListRepo.insert(
-      UnsavedSmartList(title: "A", filter: SmartListFilter(), displayOrder: 0)
+      try UnsavedSmartList(title: "A", filter: SmartListFilter(), displayOrder: 0)
     )
     try await count.wait(for: 2)  // after insert
     _ = try await smartListRepo.updateTitle(list.id, to: "B")
@@ -141,7 +164,7 @@ class SmartListRepoTests {
     try await clearAll()
 
     let list = try await smartListRepo.insert(
-      UnsavedSmartList(title: "A", filter: SmartListFilter(), displayOrder: 0)
+      try UnsavedSmartList(title: "A", filter: SmartListFilter(), displayOrder: 0)
     )
     #expect(try await observatory.smartList(list.id).get()?.title == "A")
 
@@ -163,7 +186,7 @@ class SmartListRepoTests {
 
     // Condition removed from a mixed top group.
     let mixed = try await smartListRepo.insert(
-      UnsavedSmartList(
+      try UnsavedSmartList(
         title: "Mixed",
         filter: SmartListFilter(
           combinator: .all,
@@ -178,7 +201,7 @@ class SmartListRepoTests {
     )
     // Nested group consisting solely of the doomed tag is dropped.
     let nested = try await smartListRepo.insert(
-      UnsavedSmartList(
+      try UnsavedSmartList(
         title: "Nested",
         filter: SmartListFilter(
           combinator: .all,
@@ -193,7 +216,7 @@ class SmartListRepoTests {
     )
     // Top group consisting solely of the doomed tag falls back to match-all.
     let solo = try await smartListRepo.insert(
-      UnsavedSmartList(
+      try UnsavedSmartList(
         title: "Solo",
         filter: SmartListFilter(combinator: .all, conditions: [.episodeTag(.hasTag(doomed.id))]),
         displayOrder: 2
@@ -205,7 +228,7 @@ class SmartListRepoTests {
       conditions: [.episodeTag(.hasTag(keeper.id))]
     )
     let keep = try await smartListRepo.insert(
-      UnsavedSmartList(title: "Keep", filter: keepFilter, displayOrder: 3)
+      try UnsavedSmartList(title: "Keep", filter: keepFilter, displayOrder: 3)
     )
 
     #expect(try await repo.deleteTag(doomed.id))

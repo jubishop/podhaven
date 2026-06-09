@@ -47,8 +47,12 @@ struct SmartListRepo: Sendable {
 
   @discardableResult
   func updateTitle(_ id: SmartList.ID, to title: String) async throws -> Bool {
-    try await writer.write { db in
-      try SmartList.withID(id).updateAll(db, SmartList.Columns.title.set(to: title))
+    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      throw DatabaseError(message: "Smart List title cannot be empty")
+    }
+    return try await writer.write { db in
+      try SmartList.withID(id).updateAll(db, SmartList.Columns.title.set(to: trimmed))
     } > 0
   }
 
