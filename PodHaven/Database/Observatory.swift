@@ -268,9 +268,24 @@ struct Observatory: Observing {
     }
   }
 
-  func episodesNeedingEmbeddings(revision: Int) -> AsyncValueObservation<[Episode.ID]> {
+  // Region is just `episode.contentUpdatedAt` + `podcast.contentUpdatedAt`, so
+  // playback-path writes (`updatePlayback`) never wake it. `EmbeddingProcessor`
+  // debounces each emission and runs the expensive `episodesNeedingEmbeddings`
+  // scan once per burst, off the database writer.
+  func embeddingWorkSignal() -> AsyncValueObservation<EmbeddingWorkSignal> {
     reader.observe { db in
-      try RecommendationRepo.episodesNeedingEmbeddings(db, revision: revision)
+      let latestEpisode =
+        try Episode
+        .select(max(Episode.Columns.contentUpdatedAt), as: Date.self)
+        .fetchOne(db)
+      let latestPodcast =
+        try Podcast
+        .select(max(Podcast.Columns.contentUpdatedAt), as: Date.self)
+        .fetchOne(db)
+      return EmbeddingWorkSignal(
+        latestEpisodeContentUpdate: latestEpisode,
+        latestPodcastContentUpdate: latestPodcast
+      )
     }
   }
 

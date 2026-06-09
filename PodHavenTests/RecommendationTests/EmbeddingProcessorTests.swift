@@ -53,17 +53,17 @@ class EmbeddingProcessorTests {
       pubDateOffset: { i in TimeInterval(-(i + 100) * 86400) }
     )
 
-    // If the cancelled task were still alive, the GRDB emission triggered
-    // by inserting `newEpisodes` would feed `upsertEpisodeEmbeddings` and
-    // pendingNew would shrink. Poll for consecutive stable reads instead
-    // of a fixed yield count — cancellation leaks fail loudly via timeout.
+    // If the cancelled task were still alive, the GRDB emission triggered by
+    // inserting `newEpisodes` would arm the drain debounce; advancing the
+    // FakeSleeper each poll would then fire it and shrink pendingNew. Poll for
+    // consecutive stable reads — cancellation leaks fail loudly via timeout.
     let recommendationRepo = self.recommendationRepo
     let revision = contextualEmbedding.revision
     let newIDs = Set(newEpisodes.map(\.id))
     let stableReads = ThreadSafe(0)
     let requiredStable = 30
 
-    try await Wait.until({
+    try await RecommendationHelpers.untilAdvancing({
       let pending = try await recommendationRepo.episodesNeedingEmbeddings(revision: revision)
       let pendingNew = Set(pending).intersection(newIDs)
       guard pendingNew.count == newEpisodes.count else {
@@ -101,7 +101,7 @@ class EmbeddingProcessorTests {
     // Verify the single-task guard: three .active calls but only one
     // observatory subscription. Without the `guard task == nil` in
     // startForegroundObservation, this would be 3.
-    _ = try fakeObservatory.expectCalls(methodName: "episodesNeedingEmbeddings", count: 1)
+    _ = try fakeObservatory.expectCalls(methodName: "embeddingWorkSignal", count: 1)
 
     processor.handleScenePhaseChange(to: .background)
   }
@@ -110,10 +110,10 @@ class EmbeddingProcessorTests {
   func observationRetriesAfterFailure() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = Container.shared.appDB().unsafeTestDB
-    fakeObservatory.episodesNeedingEmbeddingsScript([
-      { _ in
+    fakeObservatory.embeddingWorkSignalScript([
+      {
         ValueObservation
-          .tracking { _ -> [Episode.ID] in
+          .tracking { _ -> EmbeddingWorkSignal in
             throw TestError.simulatedFailure
           }
           .values(in: dbReader)
@@ -147,7 +147,9 @@ class EmbeddingProcessorTests {
     let recommendationRepo = self.recommendationRepo
     let revision = contextualEmbedding.revision
     let episodeIDs = Set(episodes.map(\.id))
-    try await Wait.until({
+    // The drain runs behind a Debounce, so advance the FakeSleeper each poll to
+    // fire whatever sleep is currently armed.
+    try await RecommendationHelpers.untilAdvancing({
       let pending = try await recommendationRepo.episodesNeedingEmbeddings(revision: revision)
       return Set(pending).intersection(episodeIDs).isEmpty
     }) {

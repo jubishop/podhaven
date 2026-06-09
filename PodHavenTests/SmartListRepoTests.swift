@@ -24,7 +24,7 @@ class SmartListRepoTests {
   // Locks the migration's hand-spelled filter JSON literals to the model: every
   // seeded row must decode through the SmartList read path into the intended
   // filter, catching a semantic typo that json_valid + a shape check would miss.
-  @Test("the v51 migration seeds decode to the expected default filters")
+  @Test("the v52 migration seeds decode to the expected default filters")
   func seededDefaultsDecode() async throws {
     let expected: [(title: String, filter: SmartListFilter)] = [
       ("Recent Episodes", SmartListFilter()),

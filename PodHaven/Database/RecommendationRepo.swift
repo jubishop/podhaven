@@ -430,8 +430,8 @@ struct RecommendationRepo: Recommending {
     }
   }
 
-  // Shared builder for both the async repo function and the GRDB observation
-  // in `Observatory.episodesNeedingEmbeddings(revision:)`.
+  // Query builder behind the async `episodesNeedingEmbeddings(revision:)`,
+  // run inside that function's reader transaction.
   static func episodesNeedingEmbeddings(
     _ db: Database,
     revision: Int
