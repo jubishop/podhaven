@@ -416,6 +416,41 @@ import Testing
     #expect(collector.visiblePicks.isEmpty)
   }
 
+  // MARK: - Test: Discovery Projection Exposes Pick Scores
+
+  @Test("discovery list projection exposes each pick's score by mediaGUID")
+  func discoveryProjectionExposesPickScores() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/score-projection.rss")!)
+    await H.respondWithFeed(at: feedURL, title: "Score Projection", episodes: 3)
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(902))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in !collector.picks(for: source).isEmpty },
+      { @MainActor in "Expected picks to land, got \(collector.picks(for: source).count)" }
+    )
+
+    let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
+    viewModel.syncEntries(for: viewModel.discoveryListState)
+
+    let picks = collector.picks(for: source)
+    #expect(!picks.isEmpty)
+    for pick in picks {
+      #expect(viewModel.similarityScoreByMediaGUID[pick.id] == pick.score)
+    }
+    #expect(viewModel.similarityScoreByMediaGUID.count == picks.count)
+  }
+
   // MARK: - Test: Cross-Category Cache Reuse
 
   @Test("trending categories share the per-feed cache (one RSS request per feed)")
