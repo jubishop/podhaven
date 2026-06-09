@@ -12,9 +12,13 @@ import Observation
 func runDiscoveryObservationLoop(_ viewModel: SearchDiscoveryListViewModel) async {
   let (changes, continuation) = AsyncStream<Void>.makeStream()
   let watcher = SavedKeyWatcher(viewModel: viewModel, continuation: continuation)
-  _ = watcher
 
-  defer { continuation.finish() }
+  // Nothing else holds the watcher strongly; without this, ARC could release
+  // it after its last use and silently stop replaying key-change restarts.
+  defer {
+    withExtendedLifetime(watcher) {}
+    continuation.finish()
+  }
 
   var iterator = changes.makeAsyncIterator()
   while !Task.isCancelled {
