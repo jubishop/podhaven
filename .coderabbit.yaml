@@ -3,6 +3,12 @@ reviews:
   # Preserve the org-UI profile so this file doesn't reset it if repo config
   # replaces (rather than merges with) the dashboard settings.
   profile: assertive
+  path_filters:
+    # Tool-managed review ledgers written by the /review, /prfix, and
+    # /team-review skills. They keep the skills' own frontmatter rather than the
+    # memory-page schema (see memory/README.md), so reviewing them only yields
+    # spurious "doesn't match memory/README.md" findings.
+    - "!memory/pr_reviews/**"
   pre_merge_checks:
     # This repo deliberately uses no doc comments (see AGENTS.md), so the
     # docstring-coverage check is permanent noise. Default mode is "warning".

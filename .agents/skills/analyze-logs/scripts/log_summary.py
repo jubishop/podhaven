@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -14,11 +15,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 PACIFIC = ZoneInfo("America/Los_Angeles")
-
-DEFAULT_LOG = (
-    "/Users/jubi/Library/Mobile Documents/"
-    "com~apple~CloudDocs/PodHaven Assets/log.ndjson"
-)
 
 LEVEL_NAMES = {
     0: "trace",
@@ -137,7 +133,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Summarize PodHaven NDJSON logs and optionally filter or compare them."
     )
-    parser.add_argument("path", nargs="?", default=DEFAULT_LOG, help="Path to log.ndjson or widget-log.ndjson")
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=None,
+        help="Path to log.ndjson or widget-log.ndjson (required unless --list-locations).",
+    )
+    parser.add_argument(
+        "--list-locations",
+        action="store_true",
+        help="Print reference log locations (Simulator, My Mac) and exit.",
+    )
     parser.add_argument(
         "--compare-other",
         help="Compare the first log file to another log file using the same scope and filters.",
@@ -1112,8 +1118,27 @@ def print_sessions(sessions: list[dict[str, Any]]) -> None:
         )
 
 
+def _locate_script() -> Path:
+    return Path(__file__).resolve().parent / "locate_logs.py"
+
+
 def main() -> int:
     args = parse_args()
+
+    if args.list_locations:
+        script = _locate_script()
+        completed = subprocess.run([sys.executable, str(script)], check=False)
+        return completed.returncode
+
+    if args.path is None:
+        print(
+            "Log path required. Ask the user where the log file is (run context + path), "
+            "then pass it as the first argument. Run scripts/locate_logs.py for a reference "
+            "list of common host paths — do not guess.",
+            file=sys.stderr,
+        )
+        return 1
+
     path = Path(args.path).expanduser()
     if not path.exists():
         print(f"Log file not found: {path}", file=sys.stderr)

@@ -201,6 +201,28 @@ struct AppDB {
     try db.backup(to: destination)
   }
 
+  struct FileStats: Sendable {
+    let pageCount: Int
+    let freelistCount: Int
+    let pageSize: Int
+
+    var byteCount: Int { pageCount * pageSize }
+    var freeByteCount: Int { freelistCount * pageSize }
+    var freeFraction: Double {
+      pageCount > 0 ? Double(freelistCount) / Double(pageCount) : 0
+    }
+  }
+
+  func fileStats() async throws -> FileStats {
+    try await db.read { db in
+      FileStats(
+        pageCount: try Int.fetchOne(db, sql: "PRAGMA page_count") ?? 0,
+        freelistCount: try Int.fetchOne(db, sql: "PRAGMA freelist_count") ?? 0,
+        pageSize: try Int.fetchOne(db, sql: "PRAGMA page_size") ?? 0
+      )
+    }
+  }
+
   #if DEBUG
   var unsafeTestDB: any DatabaseWriter { db }
 

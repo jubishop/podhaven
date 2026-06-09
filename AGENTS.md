@@ -3,7 +3,7 @@ Repo context lives in `memory/`, `docs/`, and GitHub issues:
 
 - `memory/`: long-lived notes; search before writing and update existing notes when possible.
   - New or updated pages must follow [`memory/README.md`](memory/README.md): kebab-case `name`, one-line `description`, `type`, **Why** / **How to apply** for `project` and `feedback`, and `status: active` on open `project` notes.
-  - Move notes that are no longer relevant to active work into `memory/archive/` with `status: resolved` (excluded from `qmd` search).
+  - Move notes that are no longer relevant to active work into `memory/archive/` with `status: resolved`.
 - `docs/`: PR-reviewed design docs; update `docs/README.md` when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
@@ -78,7 +78,8 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - No code-comment refs to repo items — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`); that context belongs in the commit/PR. Stable external urls are fine.
 - Don't bake specific constant values into comments; they drift when the constant changes and silently go wrong. Describe behavior relative to the named constant.
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
-- Put protocol conformances on the main declaration with their requirements in the body; don't spin up an `extension Foo: SomeProtocol` just to hold a conformance. Reserve conformance extensions for constrained methods, retroactive external conformance, or `where Self == X`. Splitting a large type across files with plain `extension Foo { … }` for file size/organization is fine (i.e. `PlayManager`).
+- Keep every Swift file under 1000 lines.
+- Put protocol conformances on the main declaration with their requirements in the body; don't spin up an `extension Foo: SomeProtocol` just to hold a conformance. Reserve conformance extensions for constrained methods, retroactive external conformance, or `where Self == X`. Splitting a type across files with a plain `extension Foo { … }` is justified only to keep a file under that 1000-line limit (as with `PlayManager`); when the type's own file is comfortably under it, keep the extension inline.
 - Avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary.
 - Avoid `inout` or passing reference types only to be mutated and read back by the caller; return values instead.
 - Prefer `@MainActor` on declarations over `MainActor.run`.

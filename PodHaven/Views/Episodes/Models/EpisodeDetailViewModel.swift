@@ -58,7 +58,7 @@ enum EpisodeDetailState: Equatable, Sendable, Stringable {
 enum EpisodeDetailDisplayedScore: Sendable {
   case recommendation(RecommendationScore)
   case similarity(Float)
-  case embeddingPending
+  case pending
 }
 
 @Observable @MainActor class EpisodeDetailViewModel {
@@ -559,12 +559,15 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   private func scoreSavedEpisode(
     _ podcastEpisode: PodcastEpisode
-  ) async throws -> EpisodeDetailDisplayedScore? {
+  ) async throws -> EpisodeDetailDisplayedScore {
     guard try await recommendationRepo.embedding(for: podcastEpisode.id) != nil else {
-      return .embeddingPending
+      return .pending
     }
+    // The embedding exists but the engine cache is still cold (too few
+    // signals to build a scoring context): keep showing pending rather than
+    // letting the section vanish.
     guard let score = try await recommendationEngine.recommendation(for: podcastEpisode.id)
-    else { return nil }
+    else { return .pending }
     return .recommendation(score)
   }
 
@@ -601,7 +604,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
     case .saved(let saved):
       return saved
     case .unsaved(let unsavedPodcastEpisode):
-      podcastEpisode = try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
+      podcastEpisode = try await unsavedPodcastEpisode.getOrCreatePodcastEpisodeSavingSeries()
     case .initial(let listedEpisode):
       podcastEpisode = try await listedEpisode.getOrCreatePodcastEpisode()
     }

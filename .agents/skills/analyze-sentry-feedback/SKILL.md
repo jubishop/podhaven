@@ -80,31 +80,38 @@ same line so they know they were picked up (not silently dropped).
 
 ## Step 2: Fetch the feedback from Sentry
 
-Use the available Sentry integration (the Sentry MCP server if connected,
-otherwise the `sentry-cli` or Sentry REST API with the token in
-`~/.sentryclirc`) to retrieve the feedback by slug. You want:
+Requires the **`sentry` CLI** and auth (`sentry auth login`). See
+`analyze-sentry-issue` prerequisites for install notes. Do not use the Sentry MCP
+server.
 
-- The user's original free-text message / comment.
-- **Any follow-up activity on the feedback**: notes, comments, replies, status
-  changes, or assignments the project owner (the user of this skill) has added
-  inside Sentry after the initial submission. These are often the most current
-  context — pull them all and sort chronologically. If the Sentry integration
-  exposes a separate "activity" or "notes" or "comments" endpoint for a
-  feedback issue, hit it explicitly; don't assume the feedback object alone
-  contains the thread.
-- Contact email or user identifier, if present.
-- The feedback's submission timestamp (UTC).
-- The associated event ID, replay ID, trace ID, release, environment, device,
-  OS version — whatever Sentry exposes for that feedback.
-- Any linked issue or transaction.
+Run:
 
-If the integration only returns the base feedback and you can't find a
-comments/activity endpoint, say so in the report ("no Sentry-side follow-ups
-fetched — endpoint not available") rather than silently omitting that section.
+```bash
+bash .agents/skills/sentry-cli/fetch_feedback_bundle.sh <slug> \
+  --out /tmp/sentry_feedback
+```
 
-If the Sentry integration is not available, tell the user what to install or
-authenticate (e.g. "run `! sentry-cli login`" or "add the Sentry MCP server")
-and stop.
+This writes:
+
+- `/tmp/sentry_feedback/issue.json` — feedback title, metadata (message, contact)
+- `/tmp/sentry_feedback/event_<id>.json` — full event (tags, contexts, breadcrumbs)
+- `/tmp/sentry_feedback/activities.json` — issue activity stream
+- `/tmp/sentry_feedback/notes.json` — owner notes/comments (may be empty)
+- `/tmp/sentry_feedback/attachments.json` — attachment metadata
+
+Read those files for:
+
+- The user's original free-text message (`issue.metadata.message` or event contexts)
+- **Follow-up activity** from `activities.json` and `notes.json` — sort
+  chronologically. User-authored notes live in `notes.json`; system activity in
+  `activities.json`. If both are empty, say so in the report.
+- Contact email or user identifier from metadata/event `user`
+- Submission timestamp (`event.dateCreated`, UTC)
+- Associated event ID, replay ID, trace ID, release, environment, device, OS
+  from event tags/contexts
+- Any linked issue or transaction
+
+If auth fails, tell the user to run `sentry auth login` and stop.
 
 Show the user a short header with: feedback slug, submission time (converted
 to Pacific Time), reporter (email or "anonymous"), release, environment, and
@@ -112,8 +119,7 @@ the verbatim user message. Keep the message quoted, not paraphrased.
 
 ## Step 3: Pull the associated event, replay, and trace if any
 
-If the feedback links an event ID, replay ID, or trace ID, fetch each through
-the same Sentry integration. Note especially:
+Use `/tmp/sentry_feedback/event_<id>.json` from Step 2. Note especially:
 
 - The event's exception type and top stack frame (if any).
 - Breadcrumbs in the minute leading up to the feedback.
@@ -154,23 +160,27 @@ linked). Search Sentry for issues whose events fired in the window leading up
 to the feedback submission and surface them even when nothing is attached to
 the feedback itself.
 
-Use the Sentry MCP `search_events` / `search_issues` with:
+Convert the feedback timestamp to an ISO range (10 minutes before submission,
+1 minute after), then run:
 
-- **Time range:** feedback timestamp minus 10 minutes through feedback
-  timestamp plus 1 minute. Widen to 30 minutes prior only if the 10-minute
-  window is empty.
-- **Reporter scope:** if the feedback exposes a `user.id`, `user.email`, or
-  installation ID, filter on it first — same-user events in that window are
-  almost always the proximate cause.
-- **Fallback scope:** if no reporter identifier is available, filter by the
-  same `release` and `environment` as the feedback and rank candidates by
-  timestamp proximity and severity. Be explicit in the report that the match
-  is release-wide, not reporter-specific.
-- **Sort:** most recent first.
+```bash
+bash .agents/skills/sentry-cli/search_related_errors.sh \
+  --period '2026-05-30T00:10:00Z..2026-05-30T00:21:00Z' \
+  --query 'user.id:<uuid>' \
+  --out /tmp/sentry_feedback_related.json
+```
 
-For each candidate capture: issue short ID, title, error type, last-seen
-timestamp (PT), event count in the window, and whether the reporter's
-identifier appears on at least one event. Keep the top ~5.
+Use `..` between timestamps (not `/`). Widen the start time to 30 minutes before
+only if the window is empty.
+
+**Reporter scope:** if the feedback event exposes `user.id`, filter on it first.
+**Fallback scope:** if no reporter identifier is available, omit `user.id` and
+add `release:<release> environment:<environment>` — say explicitly in the report
+that matches are release-wide, not reporter-specific.
+
+Read `/tmp/sentry_feedback_related.json` — sort by timestamp, keep the top ~5.
+For each row capture: issue short ID, title, timestamp (PT), and whether the
+reporter's identifier appears on the event.
 
 If Step 3 already pulled a linked event, this search may rediscover the same
 issue group — fine, but still surface any *other* issues clustered around the
@@ -197,21 +207,25 @@ session.
 - "Missing attachments" means the *app* failed to attach (timing, disk, code path), not that Sentry lost them.
 - This also bounds what fixes you can recommend: if the conclusion is "we couldn't tell because the log only goes back X seconds," the action is to change PodHaven's logger policy, not to ask Sentry for more data.
 
-1. List attachments on the feedback's event using the Sentry MCP:
-   `get_event_attachment(organizationSlug='artisanal-software',
-   projectSlug='podhaven', eventId='<feedback event id from Step 2>')`. If the
-   feedback had no linked event, fall back to the highest-ranked event from a
-   related issue in Step 4 — its attachments are still the reporter's logs.
+1. Read attachment names from `/tmp/sentry_feedback/attachments.json`. If the
+   feedback had no linked event, fall back to the highest-ranked related event
+   from Step 4 — download attachments for that event instead.
 2. Expect at minimum two attachments named:
    - `log.ndjson` — the app log
    - `widget-log.ndjson` — the widget log
    If other `.ndjson` files appear, download them too and mention them. If a
    name diverges from the expected pair, note it and proceed with what you got.
-3. Create a per-feedback working directory and download each attachment by ID
-   into it, preserving the original filename:
-   `~/Library/Caches/analyze-sentry-feedback/<feedback-slug>/`
-   (replace `:` in the slug with `-` so it's path-safe, e.g.
-   `podhaven-7485822944`). Create the directory if it doesn't exist.
+3. Create a per-feedback working directory and download attachments:
+
+```bash
+bash .agents/skills/sentry-cli/download_event_attachments.sh \
+  --event <event_id> \
+  --dir ~/Library/Caches/analyze-sentry-feedback/<feedback-slug>/
+```
+
+Replace `:` in the slug with `-` for a path-safe directory name (e.g.
+`podhaven-7485822944`). Preserve original filenames (`log.ndjson`,
+`widget-log.ndjson`).
 4. Sanity-check the downloads: each file should be non-empty NDJSON, and the
    latest entry should be near (within seconds to a few minutes of) the
    feedback timestamp. If a file is empty, truncated, or its latest entry is
@@ -277,7 +291,7 @@ each carries only `binaryUUID + offsetIntoBinaryTextSegment`. Run
 NDJSON file to resolve them:
 
 ```bash
-python3 ~/.claude/skills/analyze-logs/scripts/symbolicate_metrickit.py \
+python3 .agents/skills/analyze-logs/scripts/symbolicate_metrickit.py \
   "$LOG_PATH" --around <feedback_ms> --window-ms 300000
 ```
 
@@ -335,8 +349,8 @@ Report format:
 ## Sentry follow-ups
 (Chronological list of every comment/note/activity entry added on the Sentry
 feedback after submission. Format each as `<PT timestamp> — <author>: <verbatim
-text>`. If none exist, write "None." If the integration couldn't fetch the
-thread, write "Not fetched — <reason>".)
+text>`. If none exist, write "None." If notes/activities files were empty after
+fetch, write "None fetched."
 
 ## Related Sentry issues near feedback time
 (Issues from Step 4 whose events fired in the window leading up to the

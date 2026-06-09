@@ -34,21 +34,21 @@ the event's environment unless you have confirmed that tag on log rows. Prefer
 
 ## Prerequisites
 
-Requires `~/.sentryclirc` with a valid auth token. If the fetch script fails with an auth error, tell the user to run `! sentry-cli login`.
+Requires the **`sentry` CLI** ([cli.sentry.dev](https://cli.sentry.dev)) and
+`Sentry auth` (`sentry auth login`). See `analyze-sentry-issue` prerequisites
+for install notes. Do not use the Sentry MCP server.
 
 ## Step 1: Fetch logs
 
-Run the fetch script at `.agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh`
-(in the PodHaven repo; also under `.claude/skills/`). It queries the Sentry
-REST API directly (not sentry-cli, which deduplicates entries) and produces two
-JSON files:
+Run `.agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh` — it uses
+`sentry log list` and `sentry explore` under the hood:
 
 ```bash
 bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod>
 bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh 6h \
-  'user.id:<uuid> (severity:warn OR severity:error)'
+  'user.id:<uuid> severity:[warn,error]'
 bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh 1h \
-  'trace:<trace_id> (severity:warn OR severity:error)'
+  'trace:<trace_id> severity:[warn,error]'
 ```
 
 Where `<statsPeriod>` matches the user's time span (e.g., `10h`, `2d`, `1w`).
@@ -62,7 +62,7 @@ python3 .agents/skills/analyze-sentry-logs/filter_sentry_logs.py \
 ```
 
 This outputs:
-- `/tmp/sentry_logs_detail.json` — individual log entries with timestamps (up to 9999)
+- `/tmp/sentry_logs_detail.json` — individual log entries (up to 1000 per fetch)
 - `/tmp/sentry_logs_summary.json` — aggregated counts grouped by severity + message
 - A summary table printed to stdout
 
