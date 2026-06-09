@@ -118,8 +118,8 @@ class V52MigrationTests {
       )
     }
 
-    // Rejected: non-JSON, non-object JSON, missing required keys, wrong nested type —
-    // all of which satisfy json_valid but the SmartListFilter decoder cannot read.
+    // Rejected: non-JSON, plus valid-JSON shapes (non-object, missing required
+    // keys, wrong nested type) the SmartListFilter decoder cannot read.
     let rejected: [(title: String, filter: String)] = [
       ("Garbage", "not json at all"),
       ("String", #""justastring""#),

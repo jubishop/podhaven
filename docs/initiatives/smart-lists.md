@@ -1,10 +1,10 @@
 ---
-status: planning
+status: in-progress
 ---
 
 # Smart Lists
 
-User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v50, condition set expanded, scrub-on-tag-delete, two-phase build).
+User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v51, condition set expanded, scrub-on-tag-delete, two-phase build).
 
 ## Context
 
@@ -383,7 +383,7 @@ Per CLAUDE.md regression-test rule: each engine edge-case test must be confirmed
 2. Run full test suite.
 3. Launch in simulator:
    - Fresh install: confirm 10 lists appear in `EpisodesView` with the names above; tapping each shows the same episodes as before the migration.
-   - Upgrade install (from a v50 DB if possible): migration succeeds, all 10 lists present, seeded sort matches the pre-upgrade pref. After Phase 2 ships, confirm the 10 `EpisodesList-sortMethod-{title}` keys are gone.
+   - Upgrade install (from a v51 DB if possible): migration succeeds, all 10 lists present, seeded sort matches the pre-upgrade pref. After Phase 2 ships, confirm the 10 `EpisodesList-sortMethod-{title}` keys are gone.
    - Tap `+` → editor opens; build a one-level-nested filter (top ALL with `Episode Title contains "AI"` AND a nested ANY group with `loved` OR `liked`), Save → new list appears, tapping shows expected episodes.
    - Build a mixed-scope filter (`Podcast Title contains "Tech"` AND `Episode Tag is "Interview"`), Save → only episodes satisfying *both*; toggle the episode-tag clause to a different tag and confirm the set changes.
    - Build a `Duration longer than 30 min` AND `Published within 7 days` filter → confirm the set narrows accordingly.
