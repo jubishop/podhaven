@@ -46,9 +46,8 @@ final class SearchDiscoveryListViewModel:
   func syncEntries(for state: SearchRecommendationCollector.DiscoveryListState) {
     switch state {
     case .picks(let picks):
-      // picks arrive rank-sorted; keep the first occurrence so a duplicate
-      // mediaGUID across entries degrades to the higher-ranked pick instead of
-      // tripping the uniqueElements precondition.
+      // The collector coalesces by mediaGUID first; keep this defensive so a
+      // duplicate never trips the uniqueElements precondition at the view edge.
       episodeList.allEntries = IdentifiedArray(
         picks.map { ListedEpisode($0.episode) },
         uniquingIDsWith: { first, _ in first }

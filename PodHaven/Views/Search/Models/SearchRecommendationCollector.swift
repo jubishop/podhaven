@@ -808,25 +808,43 @@ final class SearchRecommendationCollector {
   // Decoupled from `activeSource` so a pushed discovery list keeps rendering
   // its own source even if SearchView later swaps `activeSource`.
   func picks(for source: Source) -> [ScoredEpisode] {
-    let feedURLs = activeFeedURLs(for: source)
-    var collected: [ScoredEpisode] = []
-    for feedURL in feedURLs {
-      guard let entry = entry(for: feedURL), entry.status == .scored else { continue }
-      collected.append(contentsOf: entry.scoredEpisodes)
-    }
+    var collected = Array(coalescedPicks(for: source))
     collected.sort(by: Self.rankComparator)
     return collected
   }
 
-  // The banner only needs the count and emptiness, so skip picks(for:)'s sort:
-  // the banner re-renders on every observation tick while a source loads.
+  // The banner only needs the coalesced count and emptiness, so skip
+  // picks(for:)'s sort: the banner re-renders on every observation tick while a
+  // source loads.
   private func pickCount(for source: Source) -> Int {
-    var count = 0
+    coalescedPicks(for: source).count
+  }
+
+  private func coalescedPicks(for source: Source) -> IdentifiedArrayOf<ScoredEpisode> {
+    var collected = IdentifiedArrayOf<ScoredEpisode>()
     for feedURL in activeFeedURLs(for: source) {
       guard let entry = entry(for: feedURL), entry.status == .scored else { continue }
-      count += entry.scoredEpisodes.count
+      for pick in entry.scoredEpisodes {
+        if let existing = collected[id: pick.id] {
+          if Self.shouldReplaceCoalescedPick(existing, with: pick) {
+            collected[id: pick.id] = pick
+          }
+        } else {
+          collected.append(pick)
+        }
+      }
     }
-    return count
+    return collected
+  }
+
+  private static func shouldReplaceCoalescedPick(
+    _ existing: ScoredEpisode,
+    with candidate: ScoredEpisode
+  ) -> Bool {
+    if candidate.episode.pubDate != existing.episode.pubDate {
+      return candidate.episode.pubDate > existing.episode.pubDate
+    }
+    return rankComparator(candidate, existing)
   }
 
   // Empty picks during an active drain read as `.loading`, not `.empty`, so the

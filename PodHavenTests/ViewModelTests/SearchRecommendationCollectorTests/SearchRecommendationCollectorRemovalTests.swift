@@ -111,26 +111,31 @@ import Testing
 
   // MARK: - Test: removePick Clears Duplicate MediaGUID Entries
 
-  @Test("queueing a de-duplicated discovery row removes every matching pick")
-  func queueingDeduplicatedDiscoveryRowRemovesAllMatchingPicks() async throws {
+  @Test("duplicate MediaGUID picks project latest pubDate and clean up every owner")
+  func duplicateMediaGUIDPicksProjectLatestPubDateAndCleanUpEveryOwner() async throws {
     let collector = SearchRecommendationCollector()
     let scripted = H.makeScriptedEmbeddable()
     try await H.primeEngine(embeddable: scripted)
 
     let firstFeedURL = FeedURL(URL(string: "https://example.com/aggregate-feed.rss")!)
     let secondFeedURL = FeedURL(URL(string: "https://example.com/section-feed.rss")!)
-    let duplicateEpisode = (
+    let olderEpisode = (
       guid: "shared-media-guid",
-      title: "Shared Pick",
+      title: "Older Shared Pick",
       pubDate: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let newerEpisode = (
+      guid: "shared-media-guid",
+      title: "Latest Shared Pick",
+      pubDate: Date(timeIntervalSince1970: 1_800_000_000)
     )
     await H.session.respond(
       to: firstFeedURL.rawValue,
-      data: H.rssXML(title: "Aggregate Feed", feedURL: firstFeedURL, episodes: [duplicateEpisode])
+      data: H.rssXML(title: "Aggregate Feed", feedURL: firstFeedURL, episodes: [olderEpisode])
     )
     await H.session.respond(
       to: secondFeedURL.rawValue,
-      data: H.rssXML(title: "Section Feed", feedURL: secondFeedURL, episodes: [duplicateEpisode])
+      data: H.rssXML(title: "Section Feed", feedURL: secondFeedURL, episodes: [newerEpisode])
     )
 
     let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
@@ -145,11 +150,22 @@ import Testing
     try await H.advanceStableSourceDebounce()
 
     try await Wait.until(
-      { @MainActor in collector.visiblePicks.count == 2 },
+      {
+        @MainActor in
+        let requests = await H.session.requests
+        return requests.contains(firstFeedURL.rawValue)
+          && requests.contains(secondFeedURL.rawValue)
+          && collector.visiblePicks.first?.episode.title == "Latest Shared Pick"
+      },
       { @MainActor in
-        "Expected duplicate backing picks to land, got \(collector.visiblePicks.count)"
+        let requests = await H.session.requests
+        let titles = collector.visiblePicks.map(\.episode.title)
+        return
+          "Expected latest duplicate pick after both feeds scored; requests=\(requests), titles=\(titles)"
       }
     )
+    #expect(collector.visiblePicks.count == 1)
+    #expect(collector.bannerState(for: source) == .loaded(count: 1))
 
     let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
     viewModel.syncEntries(for: viewModel.discoveryListState)
@@ -159,6 +175,7 @@ import Testing
         "Expected discovery projection to de-duplicate picks, got \(viewModel.episodeList.filteredEntries.count)"
       }
     )
+    #expect(viewModel.episodeList.filteredEntries.first?.title == "Latest Shared Pick")
 
     let visibleEpisode = try #require(viewModel.episodeList.filteredEntries.first)
     viewModel.queueEpisodeOnTop(visibleEpisode)
