@@ -1,56 +1,57 @@
 // Copyright Justin Bishop, 2026
 
-import FactoryKit
 import SwiftUI
 
 struct SearchDiscoveryListView: View {
-  @DynamicInjected(\.navigation) private var navigation
+  @State private var viewModel: SearchDiscoveryListViewModel
 
-  private let source: SearchRecommendationCollector.Source
-  private let actionsViewModel: SearchDiscoveryActionsViewModel
-
-  init(
-    source: SearchRecommendationCollector.Source,
-    actionsViewModel: SearchDiscoveryActionsViewModel
-  ) {
-    self.source = source
-    self.actionsViewModel = actionsViewModel
+  init(viewModel: SearchDiscoveryListViewModel) {
+    self.viewModel = viewModel
   }
 
   var body: some View {
     Group {
-      switch actionsViewModel.collector.discoveryListState(for: source) {
-      case .loading:
-        loadingPlaceholder
-      case .picks(let picks):
-        listView(picks: picks)
-      case .empty:
-        emptyPlaceholder
+      if !viewModel.episodeList.filteredEntries.isEmpty {
+        listView
+      } else {
+        switch viewModel.discoveryListState {
+        case .empty:
+          emptyPlaceholder
+        // Picks exist but the projection into `episodeList` hasn't landed yet;
+        // show progress instead of a blank list for that single hop.
+        case .loading, .picks:
+          loadingPlaceholder
+        }
       }
     }
-    .navigationTitle(source.discoveryListTitle)
+    .navigationTitle(viewModel.source.discoveryListTitle)
+    .toolbar { selectableEpisodesToolbarItems(viewModel: viewModel) }
     .toolbarRole(.editor)
+    .onChange(of: viewModel.discoveryListState, initial: true) { _, state in
+      viewModel.syncEntries(for: state)
+    }
   }
 
   // MARK: - List
 
-  private func listView(
-    picks: [SearchRecommendationCollector.ScoredEpisode]
-  ) -> some View {
-    List(picks) { pick in
-      let listed = ListedEpisode(pick.episode)
+  private var listView: some View {
+    List(viewModel.episodeList.filteredEntries) { episode in
       NavigationLink(
-        value: Navigation.Destination.listedEpisode(listed),
+        value: Navigation.Destination.listedEpisode(episode),
         label: {
-          EpisodeListView(episode: listed)
-            .listRowSeparator()
+          EpisodeListView(
+            episode: episode,
+            isSelecting: viewModel.episodeList.isSelecting,
+            isSelected: $viewModel.episodeList.isSelected[episode.id]
+          )
+          .listRowSeparator()
         }
       )
       .listRow()
-      .episodeSwipeActions(viewModel: actionsViewModel, episode: listed)
-      .episodeContextMenu(viewModel: actionsViewModel, episode: listed)
+      .episodeSwipeActions(viewModel: viewModel, episode: episode)
+      .episodeContextMenu(viewModel: viewModel, episode: episode)
     }
-    .animation(.default, value: picks)
+    .animation(.default, value: viewModel.episodeList.filteredEntries)
   }
 
   // MARK: - Placeholder

@@ -95,8 +95,14 @@ final class SearchRecommendationCollector {
 
   struct ScoredEpisode: Identifiable, Sendable, Hashable {
     var id: MediaGUID { episode.mediaGUID }
+    let feedURL: FeedURL
     let episode: UnsavedPodcastEpisode
     let score: Float
+  }
+
+  private struct PickIndexKey: Hashable {
+    let feedURL: FeedURL
+    let mediaGUID: MediaGUID
   }
 
   // MARK: - Observed Outputs
@@ -136,9 +142,7 @@ final class SearchRecommendationCollector {
   private var queued: OrderedSet<FeedURL> = []
   private var inFlight: Set<FeedURL> = []
 
-  // mediaGUID -> entry that currently holds the pick, so removePick is O(1)
-  // regardless of how the caller's feedURL relates to the cache key.
-  private var pickIndex: [MediaGUID: CachedPodcastEntry] = [:]
+  private var pickIndex: [PickIndexKey: CachedPodcastEntry] = [:]
 
   // `.unavailable` surfaces .hidden on the banner and lets the drain proceed
   // instead of blocking forever.
@@ -216,10 +220,15 @@ final class SearchRecommendationCollector {
     }
   }
 
-  func removePick(mediaGUID: MediaGUID) {
-    Self.log.debug("Removing pick \(mediaGUID)")
-    guard let entry = pickIndex.removeValue(forKey: mediaGUID) else { return }
-    entry.scoredEpisodes.removeAll { $0.id == mediaGUID }
+  func removePick(mediaGUID: MediaGUID, feedURL: FeedURL) {
+    Self.log.debug("Removing pick \(mediaGUID) from \(feedURL)")
+    let key = PickIndexKey(feedURL: feedURL, mediaGUID: mediaGUID)
+    guard let entry = pickIndex.removeValue(forKey: key) else { return }
+    removePick(mediaGUID: mediaGUID, from: entry)
+  }
+
+  private func removePick(mediaGUID: MediaGUID, from entry: CachedPodcastEntry) {
+    entry.scoredEpisodes.remove(id: mediaGUID)
     // `.exhausted` distinguishes a user-dismissed-all entry from a
     // pipeline-finished-empty entry, so the close → open recovery in
     // `handleScoringContextBecameAvailable` doesn't resurrect dismissed picks.
@@ -405,16 +414,24 @@ final class SearchRecommendationCollector {
     }
   }
 
-  // Each scored episode lives in exactly one entry, so picks added here can
-  // never collide with another entry's index. Re-scoring an already-scored
-  // entry would, so unregister the old picks first.
-  private func registerPicks(_ scored: [ScoredEpisode], for entry: CachedPodcastEntry) {
+  // Re-scoring an already-scored entry can leave stale index entries, so clear
+  // this entry's previous picks before indexing its current picks.
+  private func registerPicks(
+    _ scored: IdentifiedArrayOf<ScoredEpisode>,
+    for entry: CachedPodcastEntry
+  ) {
     unregisterPicks(of: entry)
-    for pick in scored { pickIndex[pick.id] = entry }
+    for pick in scored {
+      let key = PickIndexKey(feedURL: entry.feedURL, mediaGUID: pick.id)
+      pickIndex[key] = entry
+    }
   }
 
   private func unregisterPicks(of entry: CachedPodcastEntry) {
-    for pick in entry.scoredEpisodes { pickIndex.removeValue(forKey: pick.id) }
+    for pick in entry.scoredEpisodes {
+      let key = PickIndexKey(feedURL: entry.feedURL, mediaGUID: pick.id)
+      pickIndex.removeValue(forKey: key)
+    }
   }
 
   private func scheduleDrain(for feedURL: FeedURL) {
@@ -583,6 +600,7 @@ final class SearchRecommendationCollector {
     }
 
     let result = await Self.runPipeline(
+      feedURL: feedURL,
       downloadTask: downloadTask,
       podcastID: podcastID,
       iTunesID: iTunesID,
@@ -602,8 +620,12 @@ final class SearchRecommendationCollector {
       // the entry; writing scoredEpisodes / registerPicks here would leave
       // pickIndex pointing at an instance no one can reach through picks(for:).
       if isAttached {
-        registerPicks(scored, for: entry)
-        entry.scoredEpisodes = scored
+        let scoredEpisodes = IdentifiedArray(
+          scored,
+          uniquingIDsWith: { first, _ in first }
+        )
+        registerPicks(scoredEpisodes, for: entry)
+        entry.scoredEpisodes = scoredEpisodes
         entry.status = .scored
       } else {
         entry.status = .cancelled
@@ -639,6 +661,7 @@ final class SearchRecommendationCollector {
   }
 
   private nonisolated static func runPipeline(
+    feedURL: FeedURL,
     downloadTask: DownloadTask,
     podcastID: Podcast.ID?,
     iTunesID: ITunesPodcastID?,
@@ -731,7 +754,7 @@ final class SearchRecommendationCollector {
     var scored = [ScoredEpisode](capacity: payloads.count)
     for (payload, score) in zip(payloads, similarities) {
       guard let score, score > scoreFloor else { continue }
-      scored.append(ScoredEpisode(episode: payload, score: score))
+      scored.append(ScoredEpisode(feedURL: feedURL, episode: payload, score: score))
     }
 
     return .success(scored)
@@ -788,25 +811,33 @@ final class SearchRecommendationCollector {
   // Decoupled from `activeSource` so a pushed discovery list keeps rendering
   // its own source even if SearchView later swaps `activeSource`.
   func picks(for source: Source) -> [ScoredEpisode] {
-    let feedURLs = activeFeedURLs(for: source)
-    var collected: [ScoredEpisode] = []
-    for feedURL in feedURLs {
-      guard let entry = entry(for: feedURL), entry.status == .scored else { continue }
-      collected.append(contentsOf: entry.scoredEpisodes)
-    }
+    var collected = Array(coalescedPicks(for: source))
     collected.sort(by: Self.rankComparator)
     return collected
   }
 
-  // The banner only needs the count and emptiness, so skip picks(for:)'s sort:
-  // the banner re-renders on every observation tick while a source loads.
+  // The banner only needs the coalesced count and emptiness, so skip
+  // picks(for:)'s sort: the banner re-renders on every observation tick while a
+  // source loads.
   private func pickCount(for source: Source) -> Int {
-    var count = 0
+    coalescedPicks(for: source).count
+  }
+
+  private func coalescedPicks(for source: Source) -> IdentifiedArrayOf<ScoredEpisode> {
+    var collected = IdentifiedArrayOf<ScoredEpisode>()
     for feedURL in activeFeedURLs(for: source) {
       guard let entry = entry(for: feedURL), entry.status == .scored else { continue }
-      count += entry.scoredEpisodes.count
+      for pick in entry.scoredEpisodes {
+        if let existing = collected[id: pick.id] {
+          if Self.rankComparator(pick, existing) {
+            collected[id: pick.id] = pick
+          }
+        } else {
+          collected.append(pick)
+        }
+      }
     }
-    return count
+    return collected
   }
 
   // Empty picks during an active drain read as `.loading`, not `.empty`, so the
@@ -904,7 +935,7 @@ private final class CachedPodcastEntry: Identifiable {
   let podcastID: Podcast.ID?
   let iTunesID: ITunesPodcastID?
   var status: Status = .pending
-  var scoredEpisodes: [SearchRecommendationCollector.ScoredEpisode] = []
+  var scoredEpisodes = IdentifiedArrayOf<SearchRecommendationCollector.ScoredEpisode>()
   @ObservationIgnored var fetchToken: DownloadTask?
 
   var id: FeedURL { feedURL }

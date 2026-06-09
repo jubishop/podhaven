@@ -24,7 +24,6 @@ class SearchViewModel:
   // MARK: - Recommendation Collector
 
   let recommendationCollector = SearchRecommendationCollector()
-  let searchDiscoveryActionsViewModel: SearchDiscoveryActionsViewModel
 
   // MARK: - ManagingPodcasts
 
@@ -245,10 +244,6 @@ class SearchViewModel:
       TrendingSection(genreID: 1488, icon: .trendingTrueCrime),
       TrendingSection(genreID: 1309, icon: .trendingTVFilm),
     ]
-
-    searchDiscoveryActionsViewModel = SearchDiscoveryActionsViewModel(
-      collector: recommendationCollector
-    )
 
     podcastList.sortMethod = currentSortMethod.sortMethod
   }

@@ -279,8 +279,10 @@ struct SearchView: View {
       if tappable {
         Button {
           navigation.showSearchDiscovery(
-            source: source,
-            actionsViewModel: viewModel.searchDiscoveryActionsViewModel
+            viewModel: SearchDiscoveryListViewModel(
+              collector: viewModel.recommendationCollector,
+              source: source
+            )
           )
         } label: {
           bannerLabel(text: text, showsChevron: true)

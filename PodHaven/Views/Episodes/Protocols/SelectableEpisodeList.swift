@@ -43,6 +43,11 @@ import OrderedCollections
   func rateSelectedEpisodes(rating: EpisodeRating?)
   func applyTagToSelectedEpisodes(_ tagID: Tag.ID)
   func removeTagFromSelectedEpisodes(_ tagID: Tag.ID)
+
+  // Fired after a consuming bulk action mutates `episodes` successfully. Default
+  // no-op; discovery overrides it to drop the acted-on picks, mirroring the
+  // per-row `didPerformAction` hook.
+  func didPerformBulkAction(on episodes: [EpisodeType])
 }
 
 extension SelectableEpisodeList {
@@ -124,10 +129,15 @@ extension SelectableEpisodeList {
     selectedEpisodes.contains { $0.rating != nil }
   }
 
+  // MARK: - Post-Action Hook
+
+  func didPerformBulkAction(on episodes: [EpisodeType]) {}
+
   // MARK: - Actions
 
   func addSelectedEpisodesToBottomOfQueue() {
     guard !selectedEpisodes.isEmpty else { return }
+    let episodes = selectedEpisodes
 
     Task { [weak self] in
       guard let self else { return }
@@ -135,6 +145,7 @@ extension SelectableEpisodeList {
       do {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await queue.append(episodeIDs)
+        didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("addSelectedEpisodesToBottomOfQueue: failed", error)
       }
@@ -143,6 +154,7 @@ extension SelectableEpisodeList {
 
   func addSelectedEpisodesToTopOfQueue() {
     guard !selectedEpisodes.isEmpty else { return }
+    let episodes = selectedEpisodes
 
     Task { [weak self] in
       guard let self else { return }
@@ -150,6 +162,7 @@ extension SelectableEpisodeList {
       do {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await queue.unshift(episodeIDs)
+        didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("addSelectedEpisodesToTopOfQueue: failed", error)
       }
@@ -158,6 +171,7 @@ extension SelectableEpisodeList {
 
   func replaceQueueWithSelected() {
     guard !selectedEpisodes.isEmpty else { return }
+    let episodes = selectedEpisodes
 
     Task { [weak self] in
       guard let self else { return }
@@ -165,6 +179,7 @@ extension SelectableEpisodeList {
       do {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await queue.replace(episodeIDs)
+        didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("replaceQueueWithSelected: failed", error)
       }
@@ -173,6 +188,7 @@ extension SelectableEpisodeList {
 
   func playSelectedEpisodes() {
     guard !selectedEpisodes.isEmpty else { return }
+    let episodes = selectedEpisodes
 
     Task { [weak self] in
       guard let self else { return }
@@ -186,9 +202,10 @@ extension SelectableEpisodeList {
           try await playManager.load(firstPodcastEpisode)
           await playManager.play()
         }
+        didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError(
-          "playSelectedEpisodes: failed to play \(selectedEpisodes.count) episodes",
+          "playSelectedEpisodes: failed to play \(episodes.count) episodes",
           error
         )
       }
@@ -367,6 +384,7 @@ extension SelectableEpisodeList {
 
   func markSelectedEpisodesFinished() {
     guard anySelectedUnfinished else { return }
+    let episodes = selectedEpisodes
 
     Task { [weak self] in
       guard let self else { return }
@@ -374,6 +392,7 @@ extension SelectableEpisodeList {
       do {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await repo.markFinished(episodeIDs)
+        didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("markSelectedEpisodesFinished: failed", error)
       }
@@ -382,6 +401,7 @@ extension SelectableEpisodeList {
 
   func rateSelectedEpisodes(rating: EpisodeRating?) {
     guard !selectedEpisodes.isEmpty else { return }
+    let episodes = selectedEpisodes
 
     Task { [weak self] in
       guard let self else { return }
@@ -389,9 +409,10 @@ extension SelectableEpisodeList {
       do {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await repo.updateRating(episodeIDs, rating: rating)
+        didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError(
-          "rateSelectedEpisodes: failed for \(selectedEpisodes.count) episodes",
+          "rateSelectedEpisodes: failed for \(episodes.count) episodes",
           error
         )
       }
