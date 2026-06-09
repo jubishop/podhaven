@@ -84,9 +84,9 @@ enum SmartListFilterEngine {
 
   // MARK: - Text
 
-  // SQLite `lower()` ASCII-folds both sides; `%`/`_`/`\` in user input are
-  // escaped and matched literally via `ESCAPE '\'` so only the added wildcards
-  // act as wildcards.
+  // SQLite's LIKE is ASCII case-insensitive, so it carries the case-folding;
+  // `%`/`_`/`\` in user input are escaped here and matched literally via
+  // `ESCAPE '\'` so only the added wildcards act as wildcards.
   private static func escapeLike(_ value: String) -> String {
     value
       .replacingOccurrences(of: "\\", with: "\\\\")
@@ -99,70 +99,51 @@ enum SmartListFilterEngine {
     _ op: SmartListFilter.TextOp,
     _ value: String
   ) -> SQLExpression {
-    let column = field == .title ? "episode.title" : "episode.description"
+    let column = field == .title ? Episode.Columns.title : Episode.Columns.description
     switch op {
     case .contains:
-      return SQL(
-        sql: "lower(\(column)) LIKE lower(?) ESCAPE '\\'",
-        arguments: ["%\(escapeLike(value))%"]
-      )
-      .sqlExpression
+      return column.like("%\(escapeLike(value))%", escape: "\\")
     case .startsWith:
-      return SQL(
-        sql: "lower(\(column)) LIKE lower(?) ESCAPE '\\'",
-        arguments: ["\(escapeLike(value))%"]
-      )
-      .sqlExpression
+      return column.like("\(escapeLike(value))%", escape: "\\")
     case .equals:
-      return SQL(sql: "lower(\(column)) = lower(?)", arguments: [value]).sqlExpression
+      return column.collating(.nocase) == value
     case .doesNotContain:
-      // Null-safe: `NOT (NULL LIKE ?)` is NULL, which would wrongly drop
-      // null-description rows, so include them explicitly.
-      return SQL(
-        sql: "(\(column) IS NULL OR NOT (lower(\(column)) LIKE lower(?) ESCAPE '\\'))",
-        arguments: ["%\(escapeLike(value))%"]
-      )
-      .sqlExpression
+      // NOT (NULL LIKE ?) is NULL, which would drop null-description rows, so
+      // include them explicitly.
+      return column == nil || !column.like("%\(escapeLike(value))%", escape: "\\")
     }
   }
 
+  // The podcast-text predicate runs in a subquery GRDB auto-aliases, isolating
+  // it from the observation request's joined `podcast` scope.
   private static func podcastTextExpression(
     _ field: SmartListFilter.TextField,
     _ op: SmartListFilter.TextOp,
     _ value: String
   ) -> SQLExpression {
-    let column = field == .title ? "p.title" : "p.description"
-    // `p` aliases the subquery's own podcast row, isolating it from the
-    // observation request's joined `podcast` scope.
+    let column = field == .title ? Podcast.Columns.title : Podcast.Columns.description
+    let predicate: SQLExpression
+    let negate: Bool
     switch op {
     case .contains:
-      return SQL(
-        sql:
-          "episode.podcastId IN (SELECT p.id FROM podcast p WHERE lower(\(column)) LIKE lower(?) ESCAPE '\\')",
-        arguments: ["%\(escapeLike(value))%"]
-      )
-      .sqlExpression
+      predicate = column.like("%\(escapeLike(value))%", escape: "\\")
+      negate = false
     case .startsWith:
-      return SQL(
-        sql:
-          "episode.podcastId IN (SELECT p.id FROM podcast p WHERE lower(\(column)) LIKE lower(?) ESCAPE '\\')",
-        arguments: ["\(escapeLike(value))%"]
-      )
-      .sqlExpression
+      predicate = column.like("\(escapeLike(value))%", escape: "\\")
+      negate = false
     case .equals:
-      return SQL(
-        sql: "episode.podcastId IN (SELECT p.id FROM podcast p WHERE lower(\(column)) = lower(?))",
-        arguments: [value]
-      )
-      .sqlExpression
+      predicate = column.collating(.nocase) == value
+      negate = false
     case .doesNotContain:
-      return SQL(
-        sql:
-          "episode.podcastId NOT IN (SELECT p.id FROM podcast p WHERE lower(\(column)) LIKE lower(?) ESCAPE '\\')",
-        arguments: ["%\(escapeLike(value))%"]
-      )
-      .sqlExpression
+      predicate = column.like("%\(escapeLike(value))%", escape: "\\")
+      negate = true
     }
+    let matches =
+      Podcast
+      .select(Podcast.Columns.id)
+      .filter(predicate)
+      .contains(Episode.Columns.podcastId)
+    return negate ? !matches : matches
   }
 
   // MARK: - Tags

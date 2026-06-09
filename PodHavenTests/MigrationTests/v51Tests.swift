@@ -88,6 +88,31 @@ class V51MigrationTests {
     }
   }
 
+  @Test("v51 filter CHECK accepts valid JSON and rejects non-JSON text")
+  func filterJSONCheck() async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v51")
+
+    try await appDB.unsafeTestDB.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO smartList (title, filter, displayOrder, sortMethod)
+          VALUES ('Valid', '{"combinator":"all","conditions":[],"nested":null}', 99, 'newestFirst')
+          """
+      )
+    }
+
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.unsafeTestDB.write { db in
+        try db.execute(
+          sql: """
+            INSERT INTO smartList (title, filter, displayOrder, sortMethod)
+            VALUES ('Garbage', 'not json at all', 100, 'newestFirst')
+            """
+        )
+      }
+    }
+  }
+
   // MARK: - Sort-Pref Copy (keys retained)
 
   @Test("v51 copies UserDefaults sort prefs onto rows without deleting the keys")

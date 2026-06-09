@@ -8,7 +8,7 @@ import Tagged
 struct UnsavedSmartList: Identifiable, Savable {
   // MARK: - Identifiable
 
-  // No business key before save; identity is the value itself.
+  // An unsaved row has no database id yet, so the value is its own identity.
   var id: Self { self }
 
   // MARK: - Data

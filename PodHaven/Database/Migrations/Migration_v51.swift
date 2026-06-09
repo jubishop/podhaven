@@ -17,7 +17,10 @@ extension Schema {
     try db.create(table: "smartList") { t in
       t.autoIncrementedPrimaryKey("id")
       t.column("title", .text).notNull()
-      t.column("filter", .text).notNull()
+      // filter holds the SmartListFilter as JSON; reject non-JSON text at the
+      // DB level. The column is opaque to SQL otherwise, so this is the one
+      // structural guard available without normalizing the filter into tables.
+      t.column("filter", .text).notNull().check(sql: "json_valid(filter)")
       t.column("displayOrder", .integer).notNull()
       t.column("sortMethod", .text).notNull().defaults(to: "newestFirst")
         .check { allowedSortMethods.contains($0) }

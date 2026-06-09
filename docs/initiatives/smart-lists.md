@@ -120,7 +120,7 @@ extension Schema {
     try db.create(table: "smartList") { t in
       t.autoIncrementedPrimaryKey("id")
       t.column("title", .text).notNull()
-      t.column("filter", .text).notNull()                    // JSON
+      t.column("filter", .text).notNull().check(sql: "json_valid(filter)")  // JSON
       t.column("displayOrder", .integer).notNull()
       t.column("sortMethod", .text).notNull().defaults(to: "newestFirst")
         .check { allowedSortMethods.contains($0) }
@@ -244,7 +244,7 @@ init(smartList: SmartList) {
 
 This also fixes a latent issue: today, the configurator sheet saving a filter change wouldn't propagate to a currently-displayed `EpisodesListView`. With row observation, it will.
 
-The v43 migration carries existing sort prefs onto the rows, so users see the same sort they had before the upgrade. No PersistedBroadcast keys remain after the migration.
+The v51 migration copies existing sort prefs onto the rows, so users see the same sort they had before the upgrade. Per the Phase 1 contract it leaves the old `EpisodesList-sortMethod-*` keys in place — the existing view model keeps reading them until this rework lands and switches to the row's `sortMethod`.
 
 ### 8. EpisodesView — `PodHaven/Views/Episodes/EpisodesView.swift`
 
@@ -355,7 +355,7 @@ Per CLAUDE.md regression-test rule: each engine-edge-case test must be confirmed
 2. Run full test suite.
 3. Launch in simulator:
    - On fresh install: confirm 10 lists appear in `EpisodesView` with names matching the table above; tapping each shows the same episodes as before the migration (sanity).
-   - On upgrade install (start from a v42 DB if possible): confirm migration succeeds and all 10 lists are present, and that `Container.shared.standardDefaults()` no longer contains the 10 old `EpisodesList-sortMethod-{title}` keys.
+   - On upgrade install (start from a v42 DB if possible): confirm migration succeeds and all 10 lists are present, and that each list's `sortMethod` matches the pref previously stored under its `EpisodesList-sortMethod-{title}` key (Phase 1 copies these prefs; it does not delete the keys).
    - Tap `+` on `EpisodesView` → editor sheet opens, can build a one-level-nested filter (e.g., top group ALL with `title contains "AI"` AND a nested ANY group with `loved` OR `liked`), Save → new list appears in hub, tapping shows expected episodes.
    - Tap `+` again and build a mixed-scope filter (e.g., `Podcast Tag is "Tech"` AND `Episode Tag is "Interview"`), Save → list shows only episodes that satisfy *both* scopes (podcast carries Tech, episode itself carries Interview); add a third row toggling the episode-tag clause to a *different* tag and confirm the result set changes accordingly.
    - Tap gear on an existing list → sheet pre-populates with that list's title + filter, edit title → list renames in hub.
