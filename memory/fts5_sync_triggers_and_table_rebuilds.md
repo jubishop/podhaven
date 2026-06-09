@@ -6,7 +6,7 @@ type: reference
 
 # FTS5 sync triggers don't survive a source-table rebuild
 
-Episode/podcast text search (the filter box on `EpisodesListView`) is backed by two **external-content FTS5** virtual tables, `episode_fts` and `podcast_fts`, created in the v47 migration. They hold only the search index; the actual text is read from `episode`/`podcast` by `rowid` (which equals the source row's `id`). They're kept current by GRDB's `synchronize(withTable:)`, which installs **AFTER INSERT/UPDATE/DELETE triggers on the source `episode`/`podcast` tables** and back-fills existing rows once at creation.
+Episode/podcast text search is backed by two **external-content FTS5** virtual tables, `episode_fts` and `podcast_fts`, created in the v48 migration (#400). They hold only the search index; the actual text is read from `episode`/`podcast` by `rowid` (which equals the source row's `id`). They're kept current by GRDB's `synchronize(withTable:)`, which installs **AFTER INSERT/UPDATE/DELETE triggers on the source `episode`/`podcast` tables** and back-fills existing rows once at creation.
 
 ## The gotcha
 
