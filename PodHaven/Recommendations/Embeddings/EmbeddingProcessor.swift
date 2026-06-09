@@ -112,6 +112,13 @@ struct EmbeddingProcessor: Sendable {
 
   // MARK: - Foreground Observation
 
+  // A feed refresh bumps `contentUpdatedAt` across a burst of episodes while
+  // playback ticks write in parallel. `embeddingWorkSignal` ignores the
+  // playback-path columns, and this debounce collapses each burst into a single
+  // `episodesNeedingEmbeddings` scan once the writes settle — so the heavy
+  // three-table join never runs per-commit on the database writer.
+  private let drainDebounce = Debounce(duration: .seconds(5), priority: .background)
+
   private func startForegroundObservation() {
     foregroundTask { task in
       guard task == nil else { return }
@@ -131,16 +138,10 @@ struct EmbeddingProcessor: Sendable {
         var retryDelay: Duration = .seconds(1)
         while !Task.isCancelled {
           do {
-            for try await ids in observatory.episodesNeedingEmbeddings(
-              revision: contextualEmbedding.revision
-            ) {
+            for try await _ in observatory.embeddingWorkSignal() {
               guard !Task.isCancelled else { return }
-              guard !ids.isEmpty else { continue }
               retryDelay = .seconds(1)
-              try await EmbeddingService.upsertEpisodeEmbeddings(
-                forIDs: ids,
-                embedding: contextualEmbedding
-              )
+              scheduleDrain()
             }
           } catch is CancellationError {
             return
@@ -154,7 +155,28 @@ struct EmbeddingProcessor: Sendable {
     }
   }
 
+  private func scheduleDrain() {
+    drainDebounce {
+      do {
+        let ids = try await recommendationRepo.episodesNeedingEmbeddings(
+          revision: contextualEmbedding.revision
+        )
+        guard !ids.isEmpty else { return }
+        try await EmbeddingService.upsertEpisodeEmbeddings(
+          forIDs: ids,
+          embedding: contextualEmbedding
+        )
+      } catch is CancellationError {
+        // Superseded by a newer trigger or backgrounded mid-drain; the next
+        // foreground pass re-queries any remaining work.
+      } catch {
+        Self.log.caughtError("Foreground embedding drain failed", error)
+      }
+    }
+  }
+
   private func stopForegroundObservation() {
+    drainDebounce.cancel()
     foregroundTask { task in
       task?.cancel()
       task = nil
