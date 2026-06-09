@@ -80,8 +80,8 @@ struct SmartListRepo: Sendable {
     } > 0
   }
 
-  // Renumbers displayOrder into a dense 0-based sequence with `id` moved to
-  // `position` (clamped), all in one transaction.
+  // Renumbers displayOrder into a dense 0-based sequence after moving `id`.
+  // `position` is the destination offset from the original order.
   func moveSmartList(_ id: SmartList.ID, to position: Int) async throws {
     try await writer.write { db in
       var ids =
@@ -91,8 +91,9 @@ struct SmartListRepo: Sendable {
         .select(SmartList.Columns.id, as: SmartList.ID.self)
         .fetchAll(db)
       guard let from = ids.firstIndex(of: id) else { return }
+      let destination = position > from ? position - 1 : position
       ids.remove(at: from)
-      ids.insert(id, at: max(0, min(position, ids.count)))
+      ids.insert(id, at: max(0, min(destination, ids.count)))
       for (index, rowID) in ids.enumerated() {
         try SmartList
           .withID(rowID)

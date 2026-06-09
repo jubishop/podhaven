@@ -125,13 +125,15 @@ class SmartListRepoTests {
       ids.append(list.id)
     }
 
-    // [0,1,2,3,4] -> move 0 to position 3 -> [1,2,3,0,4]
+    // SwiftUI reports the destination offset from the original list, matching
+    // Queue.insert: a downward move to 3 lands at post-removal index 2.
+    // [0,1,2,3,4] -> move 0 to position 3 -> [1,2,0,3,4]
     try await smartListRepo.moveSmartList(ids[0], to: 3)
-    // -> move 4 to position 1 -> [1,4,2,3,0]
+    // -> move 4 to position 1 -> [1,4,2,0,3]
     try await smartListRepo.moveSmartList(ids[4], to: 1)
 
     let ordered = try await smartListRepo.fetchAll().map(\.id)
-    #expect(ordered == [ids[1], ids[4], ids[2], ids[3], ids[0]])
+    #expect(ordered == [ids[1], ids[4], ids[2], ids[0], ids[3]])
     // displayOrder is a dense 0-based sequence.
     #expect(try await smartListRepo.fetchAll().map(\.displayOrder) == Array(0..<5))
   }
