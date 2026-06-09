@@ -181,6 +181,82 @@ class ITunesIDTests {
     #expect(allPodcasts.count == 1)
   }
 
+  @Test("upsertPodcastEpisodes backfills iTunesID on existing podcast that lacks it")
+  func testUpsertBackfillsITunesID() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "No ID Yet")
+      )
+    )
+    #expect(series.podcast.iTunesID == nil)
+
+    let iTunesID = ITunesPodcastID(606)
+    let results = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: feedURL,
+          iTunesID: iTunesID,
+          title: "No ID Yet"
+        ),
+        unsavedEpisode: try Create.unsavedEpisode()
+      )
+    ])
+    #expect(results.count == 1)
+    #expect(results[0].podcast.id == series.podcast.id)
+    #expect(results[0].podcast.iTunesID == iTunesID)
+
+    let fetched = try await repo.podcastSeries(series.podcast.id)
+    #expect(fetched?.podcast.iTunesID == iTunesID)
+
+    // A later upsert at a divergent feedURL with the same iTunesID reuses the row
+    let divergedFeedURL = FeedURL(URL(string: "https://example.com/itunes.rss")!)
+    let divergedResults = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: divergedFeedURL,
+          iTunesID: iTunesID,
+          title: "No ID Yet"
+        ),
+        unsavedEpisode: try Create.unsavedEpisode()
+      )
+    ])
+    #expect(divergedResults.count == 1)
+    #expect(divergedResults[0].podcast.id == series.podcast.id)
+
+    let allPodcasts = try await repo.allPodcasts(AppDB.noOp)
+    #expect(allPodcasts.count == 1)
+  }
+
+  @Test("upsertPodcastEpisodes keeps existing iTunesID when incoming differs")
+  func testUpsertPreservesExistingITunesID() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
+    let existingITunesID = ITunesPodcastID(111)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: feedURL,
+          iTunesID: existingITunesID,
+          title: "Has ID"
+        )
+      )
+    )
+
+    let results = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: feedURL,
+          iTunesID: ITunesPodcastID(222),
+          title: "Has ID"
+        ),
+        unsavedEpisode: try Create.unsavedEpisode()
+      )
+    ])
+    #expect(results.count == 1)
+    #expect(results[0].podcast.id == series.podcast.id)
+    #expect(results[0].podcast.iTunesID == existingITunesID)
+  }
+
   // MARK: - Observatory: podcastsWithEpisodeMetadata with iTunesIDs
 
   @Test("podcastsWithEpisodeMetadata finds podcasts by iTunesID")
