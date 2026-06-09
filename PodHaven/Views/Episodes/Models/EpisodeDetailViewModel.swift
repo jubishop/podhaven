@@ -135,9 +135,15 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
   }
 
-  convenience init(listedEpisode: ListedEpisode) {
+  // `similarityScore` seeds the displayed score with a value the presenting
+  // list already computed, so the section renders immediately; the scoring
+  // coordinator's first pass then confirms or replaces it.
+  convenience init(listedEpisode: ListedEpisode, similarityScore: Float? = nil) {
     if let unsavedPodcastEpisode = listedEpisode.unsaved {
       self.init(state: .unsaved(unsavedPodcastEpisode))
+      if let similarityScore {
+        score = .similarity(similarityScore)
+      }
     } else {
       self.init(state: .initial(listedEpisode))
     }
