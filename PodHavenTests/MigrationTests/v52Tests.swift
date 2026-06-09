@@ -94,13 +94,14 @@ class V52MigrationTests {
     try await populateAtV51()
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v52")
 
-    let row = try await appDB.unsafeTestDB.read { db in
-      try Row.fetchOne(db, sql: "SELECT * FROM episodeEmbedding WHERE id = 620")
+    try await appDB.unsafeTestDB.read { db in
+      let row = try #require(
+        try Row.fetchOne(db, sql: "SELECT * FROM episodeEmbedding WHERE id = 620")
+      )
+      #expect(row["episodeId"] as Int == 610)
+      #expect(row["embeddingRevision"] as Int == 3)
+      #expect(row["sourceHash"] as String == "hash-1")
     }
-    let embeddingRow = try #require(row)
-    #expect(embeddingRow["episodeId"] as Int == 610)
-    #expect(embeddingRow["embeddingRevision"] as Int == 3)
-    #expect(embeddingRow["sourceHash"] as String == "hash-1")
   }
 
   private func indexNames(on table: String) async throws -> Set<String> {
