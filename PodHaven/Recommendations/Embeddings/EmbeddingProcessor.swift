@@ -117,6 +117,12 @@ struct EmbeddingProcessor: Sendable {
   // playback-path columns, and this debounce collapses each burst into a single
   // `episodesNeedingEmbeddings` scan once the writes settle — so the heavy
   // three-table join never runs per-commit on the database writer.
+  //
+  // The duration must stay larger than `contentUpdatedAt`'s timestamp
+  // resolution: two content writes within one resolution tick share a MAX, so
+  // the second's emission is dropped by the observation's `removeDuplicates`.
+  // It is only ever picked up because it lands inside this debounce window of
+  // the write that advanced MAX, so the pending drain still re-queries it.
   private let drainDebounce = Debounce(duration: .seconds(5), priority: .background)
 
   private func startForegroundObservation() {
@@ -176,10 +182,13 @@ struct EmbeddingProcessor: Sendable {
   }
 
   private func stopForegroundObservation() {
-    drainDebounce.cancel()
+    // Cancel the task before the debounce: a still-live task could arm a fresh
+    // drain via `scheduleDrain`, and that debounce Task isn't a child of the
+    // observation task. Cancelling the debounce last sweeps any such straggler.
     foregroundTask { task in
       task?.cancel()
       task = nil
     }
+    drainDebounce.cancel()
   }
 }
