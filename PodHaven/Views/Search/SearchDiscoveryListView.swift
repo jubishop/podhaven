@@ -39,7 +39,7 @@ struct SearchDiscoveryListView: View {
       NavigationLink(
         value: Navigation.Destination.listedEpisode(
           episode,
-          similarityScore: viewModel.similarityScore(for: episode.mediaGUID)
+          similarityScore: viewModel.similarityScoreByMediaGUID[episode.mediaGUID]
         ),
         label: {
           EpisodeListView(

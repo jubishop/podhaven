@@ -446,13 +446,9 @@ import Testing
     let picks = collector.picks(for: source)
     #expect(!picks.isEmpty)
     for pick in picks {
-      #expect(viewModel.similarityScore(for: pick.id) == pick.score)
+      #expect(viewModel.similarityScoreByMediaGUID[pick.id] == pick.score)
     }
-    let unknownGUID = MediaGUID(
-      guid: GUID("not-a-pick"),
-      mediaURL: MediaURL(URL(string: "https://example.com/not-a-pick.mp3")!)
-    )
-    #expect(viewModel.similarityScore(for: unknownGUID) == nil)
+    #expect(viewModel.similarityScoreByMediaGUID.count == picks.count)
   }
 
   // MARK: - Test: Cross-Category Cache Reuse

@@ -234,13 +234,9 @@ class PodcastDetailViewModel:
   @ObservationIgnored
   private let unsavedEpisodeEmbeddingScorer = UnsavedEpisodeEmbeddingScorer()
 
-  @ObservationIgnored private var similarityScoreByMediaGUID: [MediaGUID: Float] = [:]
-
-  // The score that ranked this row; passed along on navigation so the detail
+  // The score that ranked each row; passed along on navigation so the detail
   // view can show it immediately instead of waiting on a fresh scoring pass.
-  func similarityScore(for mediaGUID: MediaGUID) -> Float? {
-    similarityScoreByMediaGUID[mediaGUID]
-  }
+  @ObservationIgnored private(set) var similarityScoreByMediaGUID: [MediaGUID: Float] = [:]
 
   private struct RecommendationScoringSnapshot: Equatable, Sendable {
     let scoringRevision: Int

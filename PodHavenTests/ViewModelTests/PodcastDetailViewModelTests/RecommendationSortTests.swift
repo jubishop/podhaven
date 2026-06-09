@@ -416,9 +416,7 @@ import Testing
     )
 
     // No scoring pass has run under the default sort: nothing to expose yet.
-    for episode in unsavedPodcastEpisodes {
-      #expect(viewModel.similarityScore(for: episode.mediaGUID) == nil)
-    }
+    #expect(viewModel.similarityScoreByMediaGUID.isEmpty)
 
     viewModel.currentSortMethod = .recommendationScore
 
@@ -426,27 +424,23 @@ import Testing
       priority: .userInitiated,
       { @MainActor in
         unsavedPodcastEpisodes.allSatisfy {
-          viewModel.similarityScore(for: $0.mediaGUID) != nil
+          viewModel.similarityScoreByMediaGUID[$0.mediaGUID] != nil
         }
       },
       { @MainActor in
         """
         Expected the similarity pass to expose a score for every row.
-        scores: \(unsavedPodcastEpisodes.map { viewModel.similarityScore(for: $0.mediaGUID) })
+        scores: \(unsavedPodcastEpisodes.map { viewModel.similarityScoreByMediaGUID[$0.mediaGUID] })
         """
       }
     )
     for episode in unsavedPodcastEpisodes {
       #expect(
-        viewModel.similarityScore(for: episode.mediaGUID)
+        viewModel.similarityScoreByMediaGUID[episode.mediaGUID]
           == scoresByMediaGUID[episode.mediaGUID]
       )
     }
-    let unknownGUID = MediaGUID(
-      guid: GUID("not-a-row"),
-      mediaURL: MediaURL(URL(string: "https://example.com/not-a-row.mp3")!)
-    )
-    #expect(viewModel.similarityScore(for: unknownGUID) == nil)
+    #expect(viewModel.similarityScoreByMediaGUID.count == unsavedPodcastEpisodes.count)
   }
 
   @Test(

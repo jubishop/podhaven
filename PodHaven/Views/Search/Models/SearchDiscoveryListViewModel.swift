@@ -32,6 +32,10 @@ final class SearchDiscoveryListViewModel:
   @ObservationIgnored private var backingPickByMediaGUID:
     [MediaGUID: SearchRecommendationCollector.ScoredEpisode] = [:]
 
+  // The score that ranked each row; passed along on navigation so the detail
+  // view can show it immediately instead of waiting on a fresh scoring pass.
+  @ObservationIgnored private(set) var similarityScoreByMediaGUID: [MediaGUID: Float] = [:]
+
   var episodeList = PowerList<ListedEpisode>()
 
   init(collector: SearchRecommendationCollector, source: SearchRecommendationCollector.Source) {
@@ -52,6 +56,7 @@ final class SearchDiscoveryListViewModel:
         picks.map { ($0.id, $0) },
         uniquingKeysWith: { first, _ in first }
       )
+      similarityScoreByMediaGUID = backingPickByMediaGUID.mapValues(\.score)
       // The collector coalesces by mediaGUID first; keep this defensive so a
       // duplicate never trips the uniqueElements precondition at the view edge.
       episodeList.allEntries = IdentifiedArray(
@@ -60,14 +65,9 @@ final class SearchDiscoveryListViewModel:
       )
     case .loading, .empty:
       backingPickByMediaGUID = [:]
+      similarityScoreByMediaGUID = [:]
       episodeList.allEntries = []
     }
-  }
-
-  // The score that ranked this row; passed along on navigation so the detail
-  // view can show it immediately instead of waiting on a fresh scoring pass.
-  func similarityScore(for mediaGUID: MediaGUID) -> Float? {
-    backingPickByMediaGUID[mediaGUID]?.score
   }
 
   // MARK: - ManagingEpisodes
