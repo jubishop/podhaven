@@ -3,7 +3,7 @@ Repo context lives in `memory/`, `docs/`, and GitHub issues:
 
 - `memory/`: long-lived notes; search before writing and update existing notes when possible.
   - New or updated pages must follow [`memory/README.md`](memory/README.md): kebab-case `name`, one-line `description`, `type`, **Why** / **How to apply** for `project` and `feedback`, and `status: active` on open `project` notes.
-  - Exception: `memory/pr_reviews/**` ledgers are tool-managed by the `/review`, `/prfix`, and `/team-review` skills and keep those skills' frontmatter (`pr`, `title`, `branch`, `base`, `repo`); do not apply the page schema to them or hand-edit them.
+  - Exception: `memory/pr_reviews/**` (tool-managed by the `/review`, `/prfix`, and `/team-review` skills).
   - Move notes that are no longer relevant to active work into `memory/archive/` with `status: resolved` (excluded from `qmd` search).
 - `docs/`: PR-reviewed design docs; update `docs/README.md` when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
