@@ -136,9 +136,9 @@ final class SearchRecommendationCollector {
   private var queued: OrderedSet<FeedURL> = []
   private var inFlight: Set<FeedURL> = []
 
-  // mediaGUID -> the indexed entry, so removePick doesn't need the caller's
-  // feedURL to line up with the cache key.
-  private var pickIndex: [MediaGUID: CachedPodcastEntry] = [:]
+  // mediaGUID -> indexed entries, so removePick doesn't need the caller's
+  // feedURL to line up with any cache key.
+  private var pickIndex: [MediaGUID: IdentifiedArrayOf<CachedPodcastEntry>] = [:]
 
   // `.unavailable` surfaces .hidden on the banner and lets the drain proceed
   // instead of blocking forever.
@@ -218,13 +218,15 @@ final class SearchRecommendationCollector {
 
   func removePick(mediaGUID: MediaGUID) {
     Self.log.debug("Removing pick \(mediaGUID)")
-    guard let entry = pickIndex.removeValue(forKey: mediaGUID) else { return }
-    entry.scoredEpisodes.remove(id: mediaGUID)
-    // `.exhausted` distinguishes a user-dismissed-all entry from a
-    // pipeline-finished-empty entry, so the close → open recovery in
-    // `handleScoringContextBecameAvailable` doesn't resurrect dismissed picks.
-    if entry.scoredEpisodes.isEmpty, entry.status == .scored {
-      entry.status = .exhausted
+    guard let entries = pickIndex.removeValue(forKey: mediaGUID) else { return }
+    for entry in entries {
+      entry.scoredEpisodes.remove(id: mediaGUID)
+      // `.exhausted` distinguishes a user-dismissed-all entry from a
+      // pipeline-finished-empty entry, so the close → open recovery in
+      // `handleScoringContextBecameAvailable` doesn't resurrect dismissed picks.
+      if entry.scoredEpisodes.isEmpty, entry.status == .scored {
+        entry.status = .exhausted
+      }
     }
   }
 
@@ -412,11 +414,23 @@ final class SearchRecommendationCollector {
     for entry: CachedPodcastEntry
   ) {
     unregisterPicks(of: entry)
-    for pick in scored { pickIndex[pick.id] = entry }
+    for pick in scored {
+      var entries = pickIndex[pick.id] ?? IdentifiedArrayOf<CachedPodcastEntry>()
+      entries[id: entry.id] = entry
+      pickIndex[pick.id] = entries
+    }
   }
 
   private func unregisterPicks(of entry: CachedPodcastEntry) {
-    for pick in entry.scoredEpisodes { pickIndex.removeValue(forKey: pick.id) }
+    for pick in entry.scoredEpisodes {
+      guard var entries = pickIndex[pick.id] else { continue }
+      entries.remove(id: entry.id)
+      if entries.isEmpty {
+        pickIndex.removeValue(forKey: pick.id)
+      } else {
+        pickIndex[pick.id] = entries
+      }
+    }
   }
 
   private func scheduleDrain(for feedURL: FeedURL) {

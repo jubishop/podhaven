@@ -109,6 +109,68 @@ import Testing
     )
   }
 
+  // MARK: - Test: removePick Clears Duplicate MediaGUID Entries
+
+  @Test("queueing a de-duplicated discovery row removes every matching pick")
+  func queueingDeduplicatedDiscoveryRowRemovesAllMatchingPicks() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+    try await H.primeEngine(embeddable: scripted)
+
+    let firstFeedURL = FeedURL(URL(string: "https://example.com/aggregate-feed.rss")!)
+    let secondFeedURL = FeedURL(URL(string: "https://example.com/section-feed.rss")!)
+    let duplicateEpisode = (
+      guid: "shared-media-guid",
+      title: "Shared Pick",
+      pubDate: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    await H.session.respond(
+      to: firstFeedURL.rawValue,
+      data: H.rssXML(title: "Aggregate Feed", feedURL: firstFeedURL, episodes: [duplicateEpisode])
+    )
+    await H.session.respond(
+      to: secondFeedURL.rawValue,
+      data: H.rssXML(title: "Section Feed", feedURL: secondFeedURL, episodes: [duplicateEpisode])
+    )
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [
+        H.makeUnsavedRow(feedURL: firstFeedURL, iTunesID: ITunesPodcastID(2600)),
+        H.makeUnsavedRow(feedURL: secondFeedURL, iTunesID: ITunesPodcastID(2601)),
+      ]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in collector.visiblePicks.count == 2 },
+      { @MainActor in
+        "Expected duplicate backing picks to land, got \(collector.visiblePicks.count)"
+      }
+    )
+
+    let viewModel = SearchDiscoveryListViewModel(collector: collector, source: source)
+    viewModel.syncEntries(for: viewModel.discoveryListState)
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.count == 1 },
+      { @MainActor in
+        "Expected discovery projection to de-duplicate picks, got \(viewModel.episodeList.filteredEntries.count)"
+      }
+    )
+
+    let visibleEpisode = try #require(viewModel.episodeList.filteredEntries.first)
+    viewModel.queueEpisodeOnTop(visibleEpisode)
+
+    try await Wait.until(
+      { @MainActor in collector.visiblePicks.isEmpty },
+      { @MainActor in
+        "Expected every duplicate pick to be removed; \(collector.visiblePicks.count) remain"
+      }
+    )
+  }
+
   // MARK: - Test: removePick'd Entry Is Not Re-Queued On Scoring-Context Re-Open
 
   // After the user clears the last pick, the entry must not come back the
