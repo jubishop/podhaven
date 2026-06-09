@@ -310,6 +310,63 @@ actor ObservatoryScoringContextInputsTests {
     )
   }
 
+  // MARK: - embeddingWorkSignal()
+
+  @Test("updatePlayback writes do not wake the embeddingWorkSignal observation")
+  func updatePlaybackDoesNotWakeEmbeddingSignal() async throws {
+    let podcast = try await insertPodcast()
+    let played = try await upsertEpisode(podcast: podcast, title: "Played")
+
+    let emissionCount = Counter()
+    Task {
+      for try await _ in observatory.embeddingWorkSignal() {
+        await emissionCount.increment()
+      }
+    }
+    try await emissionCount.wait(for: 1)
+
+    // The signal tracks only MAX(contentUpdatedAt); playback writes touch
+    // currentTime/maxPlaybackTime/lastPlayedDate/playbackCoverage, none of which
+    // belong to the tracked region, so a tick burst must not re-emit.
+    for second in stride(from: 3, through: 60, by: 3) {
+      _ = try await repo.updatePlayback(
+        played.id,
+        currentTime: CMTime.seconds(Double(second)),
+        playedFrom: CMTime.seconds(Double(second - 3)),
+        now: Date()
+      )
+    }
+
+    try await Wait.until(
+      maxAttempts: 50,
+      { await emissionCount.maxValue == 1 },
+      {
+        "Expected exactly one emission across playback ticks, "
+          + "got \(await emissionCount.maxValue)"
+      }
+    )
+  }
+
+  @Test("a new episode wakes the embeddingWorkSignal observation")
+  func newEpisodeWakesEmbeddingSignal() async throws {
+    let podcast = try await insertPodcast()
+
+    let emissionCount = Counter()
+    Task {
+      for try await _ in observatory.embeddingWorkSignal() {
+        await emissionCount.increment()
+      }
+    }
+    // First emission has no episodes, so latestEpisodeContentUpdate is nil.
+    try await emissionCount.wait(for: 1)
+
+    // Inserting an episode moves the tracked MAX from nil to a date — a distinct
+    // value that survives `removeDuplicates()` regardless of timestamp
+    // resolution — so the signal must re-emit.
+    _ = try await upsertEpisode(podcast: podcast, title: "First")
+    try await emissionCount.wait(for: 2)
+  }
+
   @Test("embeddingCount counts non-signal episodes too")
   func embeddingCountCoversCandidatesToo() async throws {
     let podcast = try await insertPodcast()

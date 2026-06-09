@@ -35,8 +35,8 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     [@Sendable () -> AsyncValueObservation<[CandidateEpisode]>]
   >([])
 
-  let episodesNeedingEmbeddingsScript = ThreadSafe<
-    [@Sendable (Int) -> AsyncValueObservation<[Episode.ID]>]
+  let embeddingWorkSignalScript = ThreadSafe<
+    [@Sendable () -> AsyncValueObservation<EmbeddingWorkSignal>]
   >([])
 
   private let observatory: any Observing
@@ -218,14 +218,14 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.scoringContextInputsWithoutPartialSignals()
   }
 
-  func episodesNeedingEmbeddings(revision: Int) -> AsyncValueObservation<[Episode.ID]> {
-    recordCall(methodName: "episodesNeedingEmbeddings", parameters: revision)
-    var script = episodesNeedingEmbeddingsScript()
+  func embeddingWorkSignal() -> AsyncValueObservation<EmbeddingWorkSignal> {
+    recordCall(methodName: "embeddingWorkSignal", parameters: ())
+    var script = embeddingWorkSignalScript()
     if let next = script.first {
       script.removeFirst()
-      episodesNeedingEmbeddingsScript(script)
-      return next(revision)
+      embeddingWorkSignalScript(script)
+      return next()
     }
-    return observatory.episodesNeedingEmbeddings(revision: revision)
+    return observatory.embeddingWorkSignal()
   }
 }

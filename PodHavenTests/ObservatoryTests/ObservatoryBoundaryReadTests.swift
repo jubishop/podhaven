@@ -109,18 +109,16 @@ actor ObservatoryBoundaryReadTests {
     #expect(!ids.contains(unembedded.episode.id))
   }
 
-  // MARK: - episodesNeedingEmbeddings(revision:)
+  // MARK: - embeddingWorkSignal()
 
-  @Test("episodesNeedingEmbeddings(revision:) surfaces episodes lacking an embedding")
-  func testEpisodesNeedingEmbeddings() async throws {
-    let pe = try await createPodcastEpisode(rating: .loved)
+  @Test("embeddingWorkSignal() reflects whether any episode content exists")
+  func testEmbeddingWorkSignal() async throws {
+    let empty = try await observatory.embeddingWorkSignal().get()
+    #expect(empty.latestEpisodeContentUpdate == nil)
 
-    let needing = try await observatory.episodesNeedingEmbeddings(revision: 1).get()
-    #expect(needing.contains(pe.episode.id))
-
-    try await insertEmbedding(for: pe.episode.id)
-    let afterEmbedding = try await observatory.episodesNeedingEmbeddings(revision: 1).get()
-    #expect(!afterEmbedding.contains(pe.episode.id))
+    try await createPodcastEpisode()
+    let populated = try await observatory.embeddingWorkSignal().get()
+    #expect(populated.latestEpisodeContentUpdate != nil)
   }
 
   // MARK: - podcastSeriesDetail(_:)
