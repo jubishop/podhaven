@@ -29,7 +29,8 @@ final class SearchDiscoveryListViewModel:
 
   @ObservationIgnored let collector: SearchRecommendationCollector
   @ObservationIgnored let source: SearchRecommendationCollector.Source
-  @ObservationIgnored private var backingFeedURLByMediaGUID: [MediaGUID: FeedURL] = [:]
+  @ObservationIgnored private var backingPickByMediaGUID:
+    [MediaGUID: SearchRecommendationCollector.ScoredEpisode] = [:]
 
   var episodeList = PowerList<ListedEpisode>()
 
@@ -47,8 +48,8 @@ final class SearchDiscoveryListViewModel:
   func syncEntries(for state: SearchRecommendationCollector.DiscoveryListState) {
     switch state {
     case .picks(let picks):
-      backingFeedURLByMediaGUID = Dictionary(
-        picks.map { ($0.id, $0.feedURL) },
+      backingPickByMediaGUID = Dictionary(
+        picks.map { ($0.id, $0) },
         uniquingKeysWith: { first, _ in first }
       )
       // The collector coalesces by mediaGUID first; keep this defensive so a
@@ -58,16 +59,22 @@ final class SearchDiscoveryListViewModel:
         uniquingIDsWith: { first, _ in first }
       )
     case .loading, .empty:
-      backingFeedURLByMediaGUID = [:]
+      backingPickByMediaGUID = [:]
       episodeList.allEntries = []
     }
+  }
+
+  // The score that ranked this row; passed along on navigation so the detail
+  // view can show it immediately instead of waiting on a fresh scoring pass.
+  func similarityScore(for mediaGUID: MediaGUID) -> Float? {
+    backingPickByMediaGUID[mediaGUID]?.score
   }
 
   // MARK: - ManagingEpisodes
 
   func didPerformAction(_ episode: ListedEpisode) {
-    guard let feedURL = backingFeedURLByMediaGUID[episode.mediaGUID] else { return }
-    collector.removePick(mediaGUID: episode.mediaGUID, feedURL: feedURL)
+    guard let pick = backingPickByMediaGUID[episode.mediaGUID] else { return }
+    collector.removePick(mediaGUID: episode.mediaGUID, feedURL: pick.feedURL)
   }
 
   // MARK: - SelectableEpisodeList
@@ -85,8 +92,8 @@ final class SearchDiscoveryListViewModel:
 
   func didPerformBulkAction(on episodes: [ListedEpisode]) {
     for episode in episodes {
-      guard let feedURL = backingFeedURLByMediaGUID[episode.mediaGUID] else { continue }
-      collector.removePick(mediaGUID: episode.mediaGUID, feedURL: feedURL)
+      guard let pick = backingPickByMediaGUID[episode.mediaGUID] else { continue }
+      collector.removePick(mediaGUID: episode.mediaGUID, feedURL: pick.feedURL)
     }
   }
 }
