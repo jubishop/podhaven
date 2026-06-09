@@ -826,7 +826,7 @@ final class SearchRecommendationCollector {
       guard let entry = entry(for: feedURL), entry.status == .scored else { continue }
       for pick in entry.scoredEpisodes {
         if let existing = collected[id: pick.id] {
-          if Self.shouldReplaceCoalescedPick(existing, with: pick) {
+          if Self.rankComparator(pick, existing) {
             collected[id: pick.id] = pick
           }
         } else {
@@ -835,16 +835,6 @@ final class SearchRecommendationCollector {
       }
     }
     return collected
-  }
-
-  private static func shouldReplaceCoalescedPick(
-    _ existing: ScoredEpisode,
-    with candidate: ScoredEpisode
-  ) -> Bool {
-    if candidate.episode.pubDate != existing.episode.pubDate {
-      return candidate.episode.pubDate > existing.episode.pubDate
-    }
-    return rankComparator(candidate, existing)
   }
 
   // Empty picks during an active drain read as `.loading`, not `.empty`, so the
