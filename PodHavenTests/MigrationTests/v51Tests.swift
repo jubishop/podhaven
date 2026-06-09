@@ -88,27 +88,41 @@ class V51MigrationTests {
     }
   }
 
-  @Test("v51 filter CHECK accepts valid JSON and rejects non-JSON text")
+  @Test("v51 filter CHECK enforces the SmartListFilter top-level shape")
   func filterJSONCheck() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v51")
 
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO smartList (title, filter, displayOrder, sortMethod)
-          VALUES ('Valid', '{"combinator":"all","conditions":[],"nested":null}', 99, 'newestFirst')
-          """
-      )
+    func insertFilter(_ title: String, _ filter: String, order: Int) async throws {
+      try await appDB.unsafeTestDB.write { db in
+        try db.execute(
+          sql:
+            "INSERT INTO smartList (title, filter, displayOrder, sortMethod) VALUES (?, ?, ?, 'newestFirst')",
+          arguments: [title, filter, order]
+        )
+      }
     }
 
-    await #expect(throws: DatabaseError.self) {
-      try await self.appDB.unsafeTestDB.write { db in
-        try db.execute(
-          sql: """
-            INSERT INTO smartList (title, filter, displayOrder, sortMethod)
-            VALUES ('Garbage', 'not json at all', 100, 'newestFirst')
-            """
-        )
+    // Accepted: a well-formed object, and one that omits the optional nested key.
+    try await insertFilter(
+      "Valid",
+      #"{"combinator":"all","conditions":[],"nested":null}"#,
+      order: 90
+    )
+    try await insertFilter("NoNested", #"{"combinator":"all","conditions":[]}"#, order: 91)
+
+    // Rejected: non-JSON, non-object JSON, missing required keys, wrong nested type —
+    // all of which satisfy json_valid but the SmartListFilter decoder cannot read.
+    let rejected: [(title: String, filter: String)] = [
+      ("Garbage", "not json at all"),
+      ("String", #""justastring""#),
+      ("Array", "[]"),
+      ("NoCombinator", #"{"conditions":[],"nested":null}"#),
+      ("NoConditions", #"{"combinator":"all","nested":null}"#),
+      ("BadNested", #"{"combinator":"all","conditions":[],"nested":5}"#),
+    ]
+    for (index, row) in rejected.enumerated() {
+      await #expect(throws: DatabaseError.self) {
+        try await insertFilter(row.title, row.filter, order: 100 + index)
       }
     }
   }

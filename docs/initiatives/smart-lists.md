@@ -92,10 +92,10 @@ Pure `(SmartListFilter, referenceDate: Date) -> SQLExpression`. The `referenceDa
 - **Combine helper:** empty list → `AppDB.noOp` (`AppDB.swift:88` is `true.sqlExpression`); for `.all`, reduce with `&&`; for `.any`, seed the reduce with the first term (`dropFirst().reduce(first) { $0 || $1 }`) — do **not** seed `||` reduce with `noOp`, which would short-circuit to true.
 - An empty top group with no nested group → `noOp`. Matches today's "Recent Episodes" semantics.
 - **State conditions** → existing constants: `isQueued`→`Episode.queued`, `isUnqueued`→`Episode.unqueued`, `isFinished`→`Episode.finished`, `isUnfinished`→`Episode.unfinished`, `isStarted`→`Episode.started`, `isUnstarted`→`Episode.unstarted`, `isCached`→`Episode.cached`, `isSaved`→`Episode.savedInCache`, `isLoved`→`Episode.loved`, `isLiked`→`Episode.liked`, `isDisliked`→`Episode.disliked`, `isNotInterested`→`Episode.notInterested`, `isRated`→`Episode.rated`, `isUnrated`→`!Episode.rated`, `wasPreviouslyQueued`→`Episode.previouslyQueued`. (`isSaved`→`Episode.savedInCache` kept atomic since `saveInCache` isn't separately user-pickable in v1.)
-- **Episode text conditions** (`.text`): lowercase compare on the episode column via `lower(col) LIKE ?` (matches `Episode.matchesText` style). For nullable `description` with `doesNotContain`, emit `(description IS NULL OR lower(description) NOT LIKE ?)` — required because `NOT (NULL LIKE ?)` is NULL, which excludes null-description rows incorrectly. `equals` → `lower(col) = lower(?)`. `startsWith` → escape `%` and `_` in input then `lower(col) LIKE lower(?) || '%'`.
-- **Podcast text conditions** (`.podcastText`): `Observatory.listablePodcastEpisodes(filter:)` takes only a flat `SQLExpression` with no join, so route through the parent podcast via subquery on `episode.podcastId` (nullable, per `Episode.swift:48`). `podcast.title` and `podcast.description` are both **non-optional** (`Podcast.swift`), so no NULL-text branch is needed (unlike episode `description`). Orphan episodes (`podcastId IS NULL`) follow the same "no podcast → predicate fails for positive ops, succeeds for negative ops" rule as podcast tags:
-  - `contains`/`equals`/`startsWith` → `episode.podcastId IN (SELECT id FROM podcast WHERE lower(<field>) LIKE ?)` — orphans fall out (NULL never matches `IN`).
-  - `doesNotContain` → `(episode.podcastId IS NULL OR episode.podcastId IN (SELECT id FROM podcast WHERE lower(<field>) NOT LIKE ?))` — orphans count as "podcast text doesn't contain it".
+- **Episode text conditions** (`.episodeText`): GRDB column expressions, not raw SQL. `contains`/`startsWith` use `column.like(_:escape:)` with `%`/`_`/`\` escaped in the user input so only the added wildcards are wildcards; SQLite `LIKE` is ASCII case-insensitive, so no `lower()` is needed. `equals` uses `column.collating(.nocase) == value`. For nullable `description` with `doesNotContain`, emit `column == nil || !column.like(...)` — required because `NOT (NULL LIKE ?)` is NULL, which would drop null-description rows.
+- **Podcast text conditions** (`.podcastText`): `Observatory.listablePodcastEpisodes(filter:)` takes only a flat `SQLExpression`, so route through the parent podcast with a `Podcast.select(id).filter(<predicate>).contains(Episode.Columns.podcastId)` subquery instead of a join (GRDB auto-aliases the subquery's `podcast`, isolating it from the request's joined `podcast`). `episode.podcastId` is NOT NULL (FK with cascade delete) and `podcast.id` is the primary key, so `IN`/`NOT IN` membership is null-safe and no orphan branch is needed.
+  - `contains`/`startsWith`/`equals` reuse the same `like(_:escape:)` / `collating(.nocase)` predicates as the episode case, wrapped in the membership subquery.
+  - `doesNotContain` negates the membership (`!matches`), which also keeps podcasts whose text is null — they never match the inner `LIKE`, so they fall outside the matched set.
 - **Tag conditions** — subquery via raw `SQL`/`sqlExpression`; pick the SQL by `Condition` case:
   - **`.episodeTag(...)` — joins `episodeTag` on `episode.id`:**
     - `hasTag(id)` → `episode.id IN (SELECT episodeId FROM episodeTag WHERE tagId = ?)`
@@ -128,7 +128,18 @@ extension Schema {
     try db.create(table: "smartList") { t in
       t.autoIncrementedPrimaryKey("id")
       t.column("title", .text).notNull()
-      t.column("filter", .text).notNull().check(sql: "json_valid(filter)")  // JSON
+      t.column("filter", .text).notNull().check(  // JSON, top-level shape guarded
+        sql: """
+          json_valid(filter)
+          AND json_type(filter) = 'object'
+          AND json_type(filter, '$.combinator') IS 'text'
+          AND json_type(filter, '$.conditions') IS 'array'
+          AND (
+            json_type(filter, '$.nested') IS NULL
+            OR json_type(filter, '$.nested') IN ('null', 'object')
+          )
+          """
+      )
       t.column("displayOrder", .integer).notNull()
       t.column("sortMethod", .text).notNull().defaults(to: "newestFirst")
         .check { allowedSortMethods.contains($0) }

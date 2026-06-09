@@ -19,6 +19,43 @@ class SmartListRepoTests {
     }
   }
 
+  // MARK: - Seeded Defaults
+
+  // Locks the migration's hand-spelled filter JSON literals to the model: every
+  // seeded row must decode through the SmartList read path into the intended
+  // filter, catching a semantic typo that json_valid + a shape check would miss.
+  @Test("the v51 migration seeds decode to the expected default filters")
+  func seededDefaultsDecode() async throws {
+    let expected: [(title: String, filter: SmartListFilter)] = [
+      ("Recent Episodes", SmartListFilter()),
+      (
+        "Unqueued",
+        SmartListFilter(combinator: .all, conditions: [.state(.isUnqueued), .state(.isUnfinished)])
+      ),
+      ("Cached", SmartListFilter(combinator: .all, conditions: [.state(.isCached)])),
+      ("Saved", SmartListFilter(combinator: .all, conditions: [.state(.isSaved)])),
+      ("Finished", SmartListFilter(combinator: .all, conditions: [.state(.isFinished)])),
+      (
+        "Unfinished",
+        SmartListFilter(combinator: .all, conditions: [.state(.isUnfinished), .state(.isStarted)])
+      ),
+      (
+        "Previously Queued",
+        SmartListFilter(combinator: .all, conditions: [.state(.wasPreviouslyQueued)])
+      ),
+      (
+        "Liked",
+        SmartListFilter(combinator: .any, conditions: [.state(.isLiked), .state(.isLoved)])
+      ),
+      ("Disliked", SmartListFilter(combinator: .all, conditions: [.state(.isDisliked)])),
+      ("Not Interested", SmartListFilter(combinator: .all, conditions: [.state(.isNotInterested)])),
+    ]
+
+    let seeded = try await smartListRepo.fetchAll()
+    #expect(seeded.map(\.title) == expected.map(\.title))
+    #expect(seeded.map(\.filter) == expected.map(\.filter))
+  }
+
   // MARK: - CRUD
 
   @Test("insert, fetch, update, and delete a smart list")

@@ -6,9 +6,11 @@ import GRDB
 // Lifted out of EpisodesListViewModel so the SmartList model layer and the view
 // model share one sort type. DatabaseValueConvertible bridges the rawValue into
 // the smartList.sortMethod column; DefaultsStorable is retained while
-// EpisodesListView still persists sort via @PersistedBroadcast.
+// EpisodesListView still persists sort via @PersistedBroadcast. The UI affordance
+// (appIcon) and the View-layer SortingMethod conformance live in a separate
+// View-layer extension so this data-layer type stays free of UI dependencies.
 enum SmartListSortMethod:
-  String, Codable, DatabaseValueConvertible, DefaultsStorable, SortingMethod
+  String, Codable, DatabaseValueConvertible, DefaultsStorable, CaseIterable
 {
   case newestFirst
   case oldestFirst
@@ -18,27 +20,6 @@ enum SmartListSortMethod:
   case recentlyFinished
   case recentlyQueued
   case recommendationScore
-
-  var appIcon: AppIcon {
-    switch self {
-    case .newestFirst:
-      return .sortByNewest
-    case .oldestFirst:
-      return .sortByOldest
-    case .recentlyAdded:
-      return .sortByRecentlyAdded
-    case .longest:
-      return .sortByLongest
-    case .shortest:
-      return .sortByShortest
-    case .recentlyFinished:
-      return .sortByRecentlyFinished
-    case .recentlyQueued:
-      return .sortByMostRecentlyQueued
-    case .recommendationScore:
-      return .sortByRecommendationScore
-    }
-  }
 
   var sqlOrdering: SQLOrdering? {
     switch self {

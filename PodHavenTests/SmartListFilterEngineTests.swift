@@ -31,6 +31,17 @@ class SmartListFilterEngineTests {
     )
   }
 
+  // The engine's production target joins `podcast`; episodeIDs(filter:) does not.
+  // Run a filter through the joined request to prove the podcast subqueries still
+  // resolve to their own inner `podcast` rather than the request's joined one.
+  private func listableIDs(
+    for filter: SmartListFilter,
+    referenceDate: Date = SmartListFilterEngineTests.referenceDate
+  ) async throws -> Set<Episode.ID> {
+    let expression = SmartListFilterEngine.sqlExpression(for: filter, referenceDate: referenceDate)
+    return Set(try await observatory.listablePodcastEpisodes(filter: expression).get().map(\.id))
+  }
+
   private func all(_ conditions: SmartListFilter.Condition...) -> SmartListFilter {
     SmartListFilter(combinator: .all, conditions: conditions)
   }
@@ -281,6 +292,38 @@ class SmartListFilterEngineTests {
     #expect(try await ids(for: all(.podcastTag(.hasTag(ghost)))).isEmpty)
     // The episode still exists; the filter just excludes it.
     #expect(try await ids(for: all()) == Set(series.episodes.map(\.id)))
+  }
+
+  // MARK: - Joined Request Parity
+
+  @Test("podcast-text and podcast-tag filters hold through the joined listable request")
+  func filtersThroughJoinedRequest() async throws {
+    let techSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "The Tech Show"),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "tech-ep")]
+      )
+    )
+    let gardenSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Garden Hour"),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "garden-ep")]
+      )
+    )
+    let techEp = techSeries.episodes[0].id
+    let gardenEp = gardenSeries.episodes[0].id
+    let tag = try await repo.insertTag(UnsavedTag(name: "Tech"))
+    try await repo.addTag(tag.id, to: techSeries.id)
+
+    // The joined request must agree with the unjoined episodeIDs path: the
+    // podcast-text subquery's `podcast` resolves to its own inner table, not the
+    // request's joined `podcast`.
+    #expect(try await ids(for: all(.podcastText(.title, .contains, "tech"))) == [techEp])
+    #expect(try await listableIDs(for: all(.podcastText(.title, .contains, "tech"))) == [techEp])
+    #expect(
+      try await listableIDs(for: all(.podcastText(.title, .doesNotContain, "tech"))) == [gardenEp]
+    )
+    #expect(try await listableIDs(for: all(.podcastTag(.hasTag(tag.id)))) == [techEp])
   }
 
   // MARK: - Podcast Text

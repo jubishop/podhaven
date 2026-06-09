@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import GRDB
+import Logging
 
 extension Schema {
   static func migrateV51(_ db: Database) throws {
@@ -17,10 +18,27 @@ extension Schema {
     try db.create(table: "smartList") { t in
       t.autoIncrementedPrimaryKey("id")
       t.column("title", .text).notNull()
-      // filter holds the SmartListFilter as JSON; reject non-JSON text at the
-      // DB level. The column is opaque to SQL otherwise, so this is the one
-      // structural guard available without normalizing the filter into tables.
-      t.column("filter", .text).notNull().check(sql: "json_valid(filter)")
+      // filter holds the SmartListFilter as JSON. Guard the top-level shape the
+      // decoder requires (object with a text combinator, an array of conditions,
+      // and an absent/null/object nested group) so a malformed write can't leave
+      // a row the read path later fails to decode. Per-condition validation
+      // would need normalizing the filter into tables.
+      t.column("filter", .text).notNull()
+        .check(
+          // `IS` (not `=`) so a missing combinator/conditions key resolves to
+          // FALSE, not NULL — a CHECK passes on NULL, so `= 'text'` would let a
+          // row missing the key through.
+          sql: """
+            json_valid(filter)
+            AND json_type(filter) = 'object'
+            AND json_type(filter, '$.combinator') IS 'text'
+            AND json_type(filter, '$.conditions') IS 'array'
+            AND (
+              json_type(filter, '$.nested') IS NULL
+              OR json_type(filter, '$.nested') IN ('null', 'object')
+            )
+            """
+        )
       t.column("displayOrder", .integer).notNull()
       t.column("sortMethod", .text).notNull().defaults(to: "newestFirst")
         .check { allowedSortMethods.contains($0) }
@@ -41,6 +59,11 @@ extension Schema {
         let raw = try JSONDecoder().decode(String.self, from: data)
         return allowedSortMethods.contains(raw) ? raw : "newestFirst"
       } catch {
+        log.caughtError(
+          "v51: failed to decode stored sort pref for \(title)",
+          error,
+          level: { _ in .info }
+        )
         return "newestFirst"
       }
     }
