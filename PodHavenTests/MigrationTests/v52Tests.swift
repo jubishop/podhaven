@@ -16,14 +16,24 @@ class V52MigrationTests {
     self.migrator = Schema.makeMigrator()
   }
 
-  private var defaults: FakeKeyValueStore {
-    Container.shared.standardDefaults() as! FakeKeyValueStore
+  private func defaults() throws -> FakeKeyValueStore {
+    try #require(Container.shared.standardDefaults() as? FakeKeyValueStore)
   }
 
   private static let expectedTitles = [
     "Recent Episodes", "Unqueued", "Cached", "Saved", "Finished",
     "Unfinished", "Previously Queued", "Liked", "Disliked", "Not Interested",
   ]
+
+  private static func insertFilter(_ db: Database, title: String, filter: String, order: Int)
+    throws
+  {
+    try db.execute(
+      sql:
+        "INSERT INTO smartList (title, filter, displayOrder, sortMethod) VALUES (?, ?, ?, 'newestFirst')",
+      arguments: [title, filter, order]
+    )
+  }
 
   // MARK: - Schema & Seeds
 
@@ -92,23 +102,21 @@ class V52MigrationTests {
   func filterJSONCheck() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v52")
 
-    func insertFilter(_ title: String, _ filter: String, order: Int) async throws {
-      try await appDB.unsafeTestDB.write { db in
-        try db.execute(
-          sql:
-            "INSERT INTO smartList (title, filter, displayOrder, sortMethod) VALUES (?, ?, ?, 'newestFirst')",
-          arguments: [title, filter, order]
-        )
-      }
-    }
-
     // Accepted: a well-formed object, and one that omits the optional nested key.
-    try await insertFilter(
-      "Valid",
-      #"{"combinator":"all","conditions":[],"nested":null}"#,
-      order: 90
-    )
-    try await insertFilter("NoNested", #"{"combinator":"all","conditions":[]}"#, order: 91)
+    try await appDB.unsafeTestDB.write { db in
+      try Self.insertFilter(
+        db,
+        title: "Valid",
+        filter: #"{"combinator":"all","conditions":[],"nested":null}"#,
+        order: 90
+      )
+      try Self.insertFilter(
+        db,
+        title: "NoNested",
+        filter: #"{"combinator":"all","conditions":[]}"#,
+        order: 91
+      )
+    }
 
     // Rejected: non-JSON, non-object JSON, missing required keys, wrong nested type —
     // all of which satisfy json_valid but the SmartListFilter decoder cannot read.
@@ -122,7 +130,9 @@ class V52MigrationTests {
     ]
     for (index, row) in rejected.enumerated() {
       await #expect(throws: DatabaseError.self) {
-        try await insertFilter(row.title, row.filter, order: 100 + index)
+        try await self.appDB.unsafeTestDB.write { db in
+          try Self.insertFilter(db, title: row.title, filter: row.filter, order: 100 + index)
+        }
       }
     }
   }
@@ -133,6 +143,7 @@ class V52MigrationTests {
   func copiesSortPrefsWithoutDeletingKeys() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v51")
 
+    let defaults = try defaults()
     defaults.set(Data(#""recentlyAdded""#.utf8), forKey: "EpisodesList-sortMethod-Liked")
     defaults.set(Data("not-json".utf8), forKey: "EpisodesList-sortMethod-Finished")
     defaults.set(Data(#""oldestFirst""#.utf8), forKey: "EpisodesList-sortMethod-SomeUserList")
