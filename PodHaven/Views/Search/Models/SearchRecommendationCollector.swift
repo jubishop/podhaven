@@ -120,8 +120,6 @@ final class SearchRecommendationCollector {
   private var queued: OrderedSet<FeedURL> = []
   private var inFlight: Set<FeedURL> = []
 
-  private var pickIndex = SearchPickIndex()
-
   // Stays armed for the collector's lifetime so any close → open transition
   // re-queues entries that finished empty-and-.scored during the cold window.
   @ObservationIgnored private let scoringGate = ScoringReadinessGate()
@@ -191,8 +189,12 @@ final class SearchRecommendationCollector {
 
   func removePick(mediaGUID: MediaGUID, feedURL: FeedURL) {
     Self.log.debug("Removing pick \(mediaGUID) from \(feedURL)")
-    guard let entry = pickIndex.remove(mediaGUID: mediaGUID, feedURL: feedURL) else { return }
-    entry.scoredEpisodes.remove(id: mediaGUID)
+    // A pick's feedURL is its owning entry's cache key, so the caches resolve
+    // the owner directly; remove(id:) doubles as the membership check that
+    // makes a stale dismissal for a purged or re-scored entry a no-op.
+    guard let entry = entry(for: feedURL),
+      entry.scoredEpisodes.remove(id: mediaGUID) != nil
+    else { return }
     // `.exhausted` distinguishes a user-dismissed-all entry from a
     // pipeline-finished-empty entry, so the close → open recovery in
     // `handleScoringContextBecameAvailable` doesn't resurrect dismissed picks.
@@ -218,7 +220,6 @@ final class SearchRecommendationCollector {
     typedSearchOverlay = nil
     let toCancel = Array(temporary)
     let purgedURLs = Set(temporary.ids)
-    for entry in toCancel { pickIndex.unregister(of: entry) }
     temporary.removeAll()
     queued.removeAll { purgedURLs.contains($0) }
     Task {
@@ -370,7 +371,6 @@ final class SearchRecommendationCollector {
       purgedURLs.insert(entry.feedURL)
     }
     guard !purgedURLs.isEmpty else { return }
-    for entry in toCancel { pickIndex.unregister(of: entry) }
     for url in purgedURLs { temporary.remove(id: url) }
     queued.removeAll { purgedURLs.contains($0) }
     Task {
@@ -515,15 +515,13 @@ final class SearchRecommendationCollector {
     switch result {
     case .success(let scored):
       // A purge mid-pipeline (typed-overlay clear or pruneTemporary) detaches
-      // the entry; writing scoredEpisodes / registering picks here would leave
-      // pickIndex pointing at an instance no one can reach through picks(for:).
+      // the entry; its picks would be unreachable through picks(for:), so
+      // record the discard instead of marking it .scored.
       if isAttached {
-        let scoredEpisodes = IdentifiedArray(
+        entry.scoredEpisodes = IdentifiedArray(
           scored,
           uniquingIDsWith: { first, _ in first }
         )
-        pickIndex.register(scoredEpisodes, for: entry)
-        entry.scoredEpisodes = scoredEpisodes
         entry.status = .scored
       } else {
         entry.status = .cancelled

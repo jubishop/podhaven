@@ -28,6 +28,10 @@ final class ScoringReadinessGate {
   private var watcherTask: Task<Void, Never>?
   private var onTransitionToReady: (@MainActor () -> Void)?
 
+  deinit {
+    watcherTask?.cancel()
+  }
+
   // Arms the lifetime watcher. Stays armed so any close → open transition
   // fires the callback, letting the owner re-queue work that finished while
   // scoring was cold. Re-arming refreshes the callback so the latest one wins.
