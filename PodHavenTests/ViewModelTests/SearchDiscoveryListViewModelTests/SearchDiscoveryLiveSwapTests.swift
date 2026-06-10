@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import AVFoundation
 import FactoryKit
 import Foundation
 import Tagged
@@ -413,6 +414,44 @@ import Testing
         { @MainActor in "Expected onDeck pick \(target.id) to leave the projected list" }
       )
     }
+  }
+
+  // MARK: - Test: Tick-Free Task Key
+
+  // The task key must restart the observation on episode transitions without
+  // tracking the onDeck broadcast itself, which playback mutates every tick;
+  // otherwise the discovery list body re-evaluates for the whole session.
+  @Test("playback ticks do not invalidate the saved-observation task key")
+  func playbackTickDoesNotInvalidateTaskKey() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/tick-free-key.rss")!)
+    let viewModel = try await makeViewModelWithPicks(
+      feeds: [(feedURL: feedURL, iTunesID: ITunesPodcastID(7701), episodes: 2)]
+    )
+    viewModel.syncEntries(for: viewModel.discoveryListState)
+    try await Wait.until(
+      { @MainActor in viewModel.episodeList.filteredEntries.count == 2 },
+      { @MainActor in
+        "Expected 2 entries, got \(viewModel.episodeList.filteredEntries.count)"
+      }
+    )
+    let first = try #require(viewModel.episodeList.filteredEntries.first)
+    let last = try #require(viewModel.episodeList.filteredEntries.last)
+    let stateManager = Container.shared.stateManager()
+    stateManager.setOnDeck(try await first.getOrCreatePodcastEpisode())
+
+    let invalidated = ThreadSafe(false)
+    withObservationTracking {
+      _ = viewModel.savedObservationTaskKey
+    } onChange: {
+      invalidated(true)
+    }
+
+    stateManager.setCurrentTime(CMTime.seconds(30))
+    #expect(!invalidated())
+
+    // The same registration must still wake for a real episode transition.
+    stateManager.setOnDeck(try await last.getOrCreatePodcastEpisode())
+    #expect(invalidated())
   }
 
   // MARK: - Test: Empty Pick Set

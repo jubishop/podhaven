@@ -54,7 +54,7 @@ final class SearchDiscoveryListViewModel:
 
   struct SavedObservationTaskKey: Hashable {
     let picks: Set<SavedObservationKey>
-    let onDeckID: Episode.ID?
+    let currentEpisodeID: Episode.ID?
   }
 
   private struct SavedRowLookupKey: Hashable {
@@ -121,11 +121,14 @@ final class SearchDiscoveryListViewModel:
     return Set(picks.map(savedObservationKey))
   }
 
+  // Keys the restart off `currentEpisodeID`, which moves only on episode
+  // transitions; reading `onDeck` here would put every playback tick in the
+  // view body's tracked region.
   var savedObservationTaskKey: SavedObservationTaskKey {
     let picks = savedObservationKey
     return SavedObservationTaskKey(
       picks: picks,
-      onDeckID: picks.isEmpty ? nil : sharedState.onDeck?.id
+      currentEpisodeID: picks.isEmpty ? nil : sharedState.currentEpisodeID
     )
   }
 
@@ -145,9 +148,10 @@ final class SearchDiscoveryListViewModel:
   // the discovery candidate gate (e.g. queued, rated, played, or finished
   // from the detail screen) drop their pick from the collector instead of
   // staying listed stale. Driven by the view's
-  // `.task(id: savedObservationKey)`, which restarts when the pick set
-  // changes and cancels on disappear — a gate broken while this view was
-  // covered is caught by the restarted observation's first emission.
+  // `.task(id: savedObservationTaskKey)`, which restarts when the pick set
+  // or current episode changes and cancels on disappear — a gate broken
+  // while this view was covered is caught by the restarted observation's
+  // first emission.
   // `savedByPickKey` is intentionally not cleared across restarts so swapped
   // rows don't flicker back to `.unsaved` before the new observation's first
   // emission.
