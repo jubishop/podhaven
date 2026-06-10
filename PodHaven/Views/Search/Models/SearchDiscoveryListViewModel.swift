@@ -192,7 +192,7 @@ final class SearchDiscoveryListViewModel:
         }
         let onDeckID = sharedState.onDeck?.id
         for (pickKey, row) in saved
-        where !SearchPipelineRunner.isDiscoveryCandidate(row, excludingOnDeck: onDeckID) {
+        where !row.isDiscoveryCandidate(excludingOnDeck: onDeckID) {
           saved.removeValue(forKey: pickKey)
           collector.removePick(mediaGUID: pickKey.mediaGUID, feedURL: pickKey.removalFeedURL)
         }

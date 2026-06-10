@@ -151,22 +151,11 @@ enum SearchPipelineRunner {
     var result = [UnsavedEpisode](capacity: newest.count)
     for unsaved in newest {
       let match = existingByGUID[unsaved.guid] ?? existingByMediaURL[unsaved.mediaURL]
-      if let match, !isDiscoveryCandidate(match, excludingOnDeck: onDeckID) {
+      if let match, !match.isDiscoveryCandidate(excludingOnDeck: onDeckID) {
         continue
       }
       result.append(unsaved)
     }
     return result
-  }
-
-  // Also the live re-gate predicate for SearchDiscoveryListViewModel's
-  // saved-row observation, which drops picks whose materialized row stops
-  // qualifying (e.g. queued or rated from the detail screen).
-  static func isDiscoveryCandidate(
-    _ episode: some EpisodeFoundational,
-    excludingOnDeck onDeckID: Episode.ID?
-  ) -> Bool {
-    if let onDeckID, episode.episodeID == onDeckID { return false }
-    return episode.isCandidate
   }
 }
