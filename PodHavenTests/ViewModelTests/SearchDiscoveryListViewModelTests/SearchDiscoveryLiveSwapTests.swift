@@ -330,6 +330,47 @@ import Testing
     }
   }
 
+  // MARK: - Test: Candidate Re-Gate
+
+  // Detail-screen mutating actions materialize the episode without going
+  // through the row-action removal hook; the saved-row observation must drop
+  // the pick once its DB row fails the discovery candidate gate.
+  @Test("a detail-screen queue action removes the pick from the collector")
+  func detailQueueActionRemovesPick() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/detail-regate.rss")!)
+    let viewModel = try await makeViewModelWithPicks(
+      feeds: [(feedURL: feedURL, iTunesID: ITunesPodcastID(7501), episodes: 2)]
+    )
+    let picks = viewModel.collector.picks(for: viewModel.source)
+    let target = try #require(picks.first)
+    let untouched = try #require(picks.last)
+
+    try await withRunningDiscoveryObservationLoop(viewModel) {
+      try await Wait.until(
+        { @MainActor in viewModel.episodeList.filteredEntries.count == picks.count },
+        { @MainActor in
+          "Expected \(picks.count) entries, got \(viewModel.episodeList.filteredEntries.count)"
+        }
+      )
+      let entry = try #require(viewModel.episodeList.filteredEntries[id: target.id])
+      let detailViewModel = EpisodeDetailViewModel(listedEpisode: entry)
+
+      detailViewModel.appendToQueue()
+
+      try await Wait.until(
+        { @MainActor in
+          !viewModel.collector.picks(for: viewModel.source).contains { $0.id == target.id }
+        },
+        { @MainActor in "Expected queued pick \(target.id) to be removed from the collector" }
+      )
+      #expect(viewModel.collector.picks(for: viewModel.source).map(\.id) == [untouched.id])
+      try await Wait.until(
+        { @MainActor in viewModel.episodeList.filteredEntries[id: target.id] == nil },
+        { @MainActor in "Expected queued pick \(target.id) to leave the projected list" }
+      )
+    }
+  }
+
   // MARK: - Test: Empty Pick Set
 
   @Test("an empty pick set starts no observation")

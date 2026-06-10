@@ -31,6 +31,7 @@ final class SearchDiscoveryListViewModel:
   }
 
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
 
   nonisolated private static let log = Log.as(LogSubsystem.SearchView.recommendations)
 
@@ -127,11 +128,16 @@ final class SearchDiscoveryListViewModel:
 
   // Continuously mirrors the DB rows backing the current picks so a pick that
   // becomes saved while staying listed re-renders as `.saved`, with a live
-  // episodeID and cacheStatus for the status icons. Driven by the view's
+  // episodeID and cacheStatus for the status icons. Rows that stop passing
+  // the discovery candidate gate (e.g. queued, rated, played, or finished
+  // from the detail screen) drop their pick from the collector instead of
+  // staying listed stale. Driven by the view's
   // `.task(id: savedObservationKey)`, which restarts when the pick set
-  // changes and cancels on disappear. `savedByPickKey` is intentionally not
-  // cleared across restarts so swapped rows don't flicker back to `.unsaved`
-  // before the new observation's first emission.
+  // changes and cancels on disappear — a gate broken while this view was
+  // covered is caught by the restarted observation's first emission.
+  // `savedByPickKey` is intentionally not cleared across restarts so swapped
+  // rows don't flicker back to `.unsaved` before the new observation's first
+  // emission.
   func observeSavedEpisodes() async {
     // Populate backingPickByMediaGUID before the observation's single
     // up-front emission, in case this task starts before the view's onChange.
@@ -167,6 +173,12 @@ final class SearchDiscoveryListViewModel:
           if saved[pickKey] == nil || listable.feedURL == pickKey.episodeFeedURL {
             saved[pickKey] = listable
           }
+        }
+        let onDeckID = sharedState.onDeck?.id
+        for (pickKey, row) in saved
+        where !SearchRecommendationCollector.isDiscoveryCandidate(row, excludingOnDeck: onDeckID) {
+          saved.removeValue(forKey: pickKey)
+          collector.removePick(mediaGUID: pickKey.mediaGUID, feedURL: pickKey.removalFeedURL)
         }
         savedByPickKey = saved
         syncEntries(for: discoveryListState)
