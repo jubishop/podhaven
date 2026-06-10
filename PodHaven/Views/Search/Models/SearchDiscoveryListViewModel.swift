@@ -31,6 +31,7 @@ final class SearchDiscoveryListViewModel:
   }
 
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
 
   nonisolated private static let log = Log.as(LogSubsystem.SearchView.recommendations)
 
@@ -48,6 +49,11 @@ final class SearchDiscoveryListViewModel:
     let mediaGUID: MediaGUID
 
     var matchingFeedURLs: Set<FeedURL> { [removalFeedURL, episodeFeedURL] }
+  }
+
+  struct SavedObservationTaskKey: Hashable {
+    let picks: Set<SavedObservationKey>
+    let currentEpisodeID: Episode.ID?
   }
 
   private struct SavedRowLookupKey: Hashable {
@@ -109,9 +115,20 @@ final class SearchDiscoveryListViewModel:
 
   // A Set so a pure score reorder of the same picks doesn't restart the
   // observation; reorder is re-projected by syncEntries.
-  var savedObservationKey: Set<SavedObservationKey> {
+  private var savedObservationKey: Set<SavedObservationKey> {
     guard case .picks(let picks) = discoveryListState else { return [] }
     return Set(picks.map(savedObservationKey))
+  }
+
+  // Keys the restart off `currentEpisodeID`, which moves only on episode
+  // transitions; reading `onDeck` here would put every playback tick in the
+  // view body's tracked region.
+  var savedObservationTaskKey: SavedObservationTaskKey {
+    let picks = savedObservationKey
+    return SavedObservationTaskKey(
+      picks: picks,
+      currentEpisodeID: picks.isEmpty ? nil : sharedState.currentEpisodeID
+    )
   }
 
   private func savedObservationKey(
@@ -126,11 +143,17 @@ final class SearchDiscoveryListViewModel:
 
   // Continuously mirrors the DB rows backing the current picks so a pick that
   // becomes saved while staying listed re-renders as `.saved`, with a live
-  // episodeID and cacheStatus for the status icons. Driven by the view's
-  // `.task(id: savedObservationKey)`, which restarts when the pick set
-  // changes and cancels on disappear. `savedByPickKey` is intentionally not
-  // cleared across restarts so swapped rows don't flicker back to `.unsaved`
-  // before the new observation's first emission.
+  // episodeID and cacheStatus for the status icons. Rows that stop passing
+  // the discovery candidate gate (e.g. queued, rated, played, or finished
+  // from the detail screen) drop their pick from the collector instead of
+  // staying listed stale. Driven by the view's
+  // `.task(id: savedObservationTaskKey)`, which restarts when the pick set
+  // or current episode changes and cancels on disappear — a gate broken
+  // while this view was covered is caught by the restarted observation's
+  // first emission.
+  // `savedByPickKey` is intentionally not cleared across restarts so swapped
+  // rows don't flicker back to `.unsaved` before the new observation's first
+  // emission.
   func observeSavedEpisodes() async {
     // Populate backingPickByMediaGUID before the observation's single
     // up-front emission, in case this task starts before the view's onChange.
@@ -166,6 +189,12 @@ final class SearchDiscoveryListViewModel:
           if saved[pickKey] == nil || listable.feedURL == pickKey.episodeFeedURL {
             saved[pickKey] = listable
           }
+        }
+        let onDeckID = sharedState.onDeck?.id
+        for (pickKey, row) in saved
+        where !SearchPipelineRunner.isDiscoveryCandidate(row, excludingOnDeck: onDeckID) {
+          saved.removeValue(forKey: pickKey)
+          collector.removePick(mediaGUID: pickKey.mediaGUID, feedURL: pickKey.removalFeedURL)
         }
         savedByPickKey = saved
         syncEntries(for: discoveryListState)

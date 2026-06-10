@@ -159,15 +159,14 @@ enum SearchPipelineRunner {
     return result
   }
 
-  private static func isDiscoveryCandidate(
-    _ episode: Episode,
+  // Also the live re-gate predicate for SearchDiscoveryListViewModel's
+  // saved-row observation, which drops picks whose materialized row stops
+  // qualifying (e.g. queued or rated from the detail screen).
+  static func isDiscoveryCandidate(
+    _ episode: some EpisodeFoundational,
     excludingOnDeck onDeckID: Episode.ID?
   ) -> Bool {
-    if let onDeckID, episode.id == onDeckID { return false }
-    if episode.currentTime != .zero { return false }
-    if episode.finishDate != nil { return false }
-    if episode.rating != nil { return false }
-    if episode.queueOrder != nil { return false }
-    return true
+    if let onDeckID, episode.episodeID == onDeckID { return false }
+    return episode.isCandidate
   }
 }

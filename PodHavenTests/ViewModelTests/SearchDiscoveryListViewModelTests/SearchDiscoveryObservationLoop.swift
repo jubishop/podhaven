@@ -5,13 +5,16 @@ import Observation
 @testable import PodHaven
 
 // Drives `viewModel.observeSavedEpisodes()`, restarting it whenever the
-// saved-observation key changes. SwiftUI's `.task(id:)` block provides this
+// saved-observation task key changes. SwiftUI's `.task(id:)` block provides this
 // behavior in production but is unavailable in unit tests; this helper replays
-// the same semantics so tests can exercise pick-set changes.
+// the same semantics so tests can exercise pick-set and onDeck changes.
 @MainActor
 func runDiscoveryObservationLoop(_ viewModel: SearchDiscoveryListViewModel) async {
   let (changes, continuation) = AsyncStream<Void>.makeStream()
-  let watcher = SavedKeyWatcher(viewModel: viewModel, continuation: continuation)
+  let watcher = SavedObservationTaskKeyWatcher(
+    viewModel: viewModel,
+    continuation: continuation
+  )
 
   // Nothing else holds the watcher strongly; without this, ARC could release
   // it after its last use and silently stop replaying key-change restarts.
@@ -47,25 +50,25 @@ func withRunningDiscoveryObservationLoop<T>(
 }
 
 @MainActor
-private final class SavedKeyWatcher {
+private final class SavedObservationTaskKeyWatcher {
   private let viewModel: SearchDiscoveryListViewModel
   private let continuation: AsyncStream<Void>.Continuation
-  private var currentKey: Set<SearchDiscoveryListViewModel.SavedObservationKey>
+  private var currentKey: SearchDiscoveryListViewModel.SavedObservationTaskKey
 
   init(viewModel: SearchDiscoveryListViewModel, continuation: AsyncStream<Void>.Continuation) {
     self.viewModel = viewModel
     self.continuation = continuation
-    currentKey = viewModel.savedObservationKey
+    currentKey = viewModel.savedObservationTaskKey
     track()
   }
 
   private func track() {
     withObservationTracking {
-      _ = viewModel.savedObservationKey
+      _ = viewModel.savedObservationTaskKey
     } onChange: { [weak self] in
       Task { @MainActor in
         guard let self else { return }
-        let nextKey = self.viewModel.savedObservationKey
+        let nextKey = self.viewModel.savedObservationTaskKey
         let changed = nextKey != self.currentKey
         self.currentKey = nextKey
         if changed { self.continuation.yield() }
