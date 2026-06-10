@@ -18,6 +18,9 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
 
+## Xcode Project
+- All four target folders (`PodHaven`, `PodHavenShare`, `PodHavenWidget`, `PodHavenTests`) are synchronized folder groups (`PBXFileSystemSynchronizedRootGroup`): files added on disk join the target automatically; never edit `project.pbxproj` to register files. `PodHavenMacros` is a local SPM package.
+
 ## Repo Guardrails
 - Public repo: no secrets, API keys, tokens, or credentials.
 - No commits or pushes unless explicitly asked; preserve user edits and never reset/revert unknown changes.
