@@ -30,13 +30,17 @@ actor CandidateEpisodeTests {
 
     // Episode columns CandidateEpisode does NOT read must not be in the
     // projection's tracked region. The candidate filter touches
-    // currentTime / finishDate / rating / queueOrder, so those are tracked
-    // even though the projection skips them — keep them out of this list.
+    // playbackStarted / finishDate / rating / queueOrder, so those are
+    // tracked even though the projection skips them — keep them out of this
+    // list. Per-tick playback columns (currentTime, maxPlaybackTime,
+    // playbackCoverage, lastPlayedDate) must stay untracked so checkpoint
+    // writes never wake candidate observations.
     for column in [
       "guid", "mediaURL", "title", "duration", "image", "link",
       "description", "creationDate", "queueDate", "saveInCache",
-      "cachedFilename", "downloading", "ratingDate", "maxPlaybackTime",
-      "playbackCoverage", "lastPlayedDate", "contentUpdatedAt",
+      "cachedFilename", "downloading", "ratingDate", "currentTime",
+      "maxPlaybackTime", "playbackCoverage", "lastPlayedDate",
+      "contentUpdatedAt",
     ] {
       #expect(
         !region.isModified(
@@ -57,8 +61,8 @@ actor CandidateEpisodeTests {
     }
 
     // Filter columns must trigger so a candidate joining/leaving the pool
-    // is detected (queueOrder/finishDate/rating/currentTime flips).
-    for column in ["currentTime", "finishDate", "rating", "queueOrder"] {
+    // is detected (queueOrder/finishDate/rating/playbackStarted flips).
+    for column in ["playbackStarted", "finishDate", "rating", "queueOrder"] {
       #expect(
         region.isModified(
           byEventsOfKind: .update(tableName: "episode", columnNames: [column])

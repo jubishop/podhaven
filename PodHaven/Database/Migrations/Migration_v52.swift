@@ -4,14 +4,12 @@ import GRDB
 
 extension Schema {
   static func migrateV52(_ db: Database) throws {
-    // The embedding-needs scan probes episodeEmbedding by episodeId and reads
-    // only embeddingRevision and verificationDate. The covering composite
-    // answers each probe from the index alone, instead of fetching a row that
-    // carries the full vector blob.
-    try db.create(
-      index: "episodeEmbedding_on_episodeId_embeddingRevision_verificationDate",
-      on: "episodeEmbedding",
-      columns: ["episodeId", "embeddingRevision", "verificationDate"]
-    )
+    // Boundary-flipped mirror of `currentTime > 0`. Candidate/started filters
+    // read this flag instead of currentTime, keeping per-checkpoint playback
+    // writes out of their observations' tracked regions.
+    try db.alter(table: "episode") { t in
+      t.add(column: "playbackStarted", .boolean).notNull().defaults(to: false)
+    }
+    try db.execute(sql: "UPDATE episode SET playbackStarted = 1 WHERE currentTime > 0")
   }
 }

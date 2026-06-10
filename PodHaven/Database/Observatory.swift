@@ -227,6 +227,10 @@ struct Observatory: Observing {
 
   // MARK: - Recommendations
 
+  // Tracked region: the caller's filter + the embedding join over the slim
+  // (id, podcastId, pubDate) projection. Membership filters (`Episode.candidate`,
+  // `Episode.started`) read the boundary-flipped `playbackStarted` flag, so
+  // per-checkpoint `updatePlayback` writes do not wake this observation.
   func embeddedCandidateEpisodes(filter: SQLExpression) -> AsyncValueObservation<[CandidateEpisode]>
   {
     reader.observe { db in

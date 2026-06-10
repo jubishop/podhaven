@@ -30,6 +30,7 @@ struct SearchDiscoveryListView: View {
     .onChange(of: viewModel.discoveryListState, initial: true) { _, state in
       viewModel.syncEntries(for: state)
     }
+    .task(id: viewModel.savedObservationKey, viewModel.observeSavedEpisodes)
   }
 
   // MARK: - List
