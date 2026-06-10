@@ -797,11 +797,7 @@ final class SearchRecommendationCollector {
     excludingOnDeck onDeckID: Episode.ID?
   ) -> Bool {
     if let onDeckID, episode.episodeID == onDeckID { return false }
-    if episode.currentTime != .zero { return false }
-    if episode.finishDate != nil { return false }
-    if episode.rating != nil { return false }
-    if episode.queueOrder != nil { return false }
-    return true
+    return episode.isCandidate
   }
 
   // MARK: - Computed Outputs
