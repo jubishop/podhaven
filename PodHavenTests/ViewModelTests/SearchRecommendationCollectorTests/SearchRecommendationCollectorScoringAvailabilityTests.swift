@@ -12,6 +12,7 @@ import Testing
   private typealias H = SearchRecommendationCollectorTestHelpers
 
   @DynamicInjected(\.recommendationEngine) private var engine
+  @DynamicInjected(\.repo) private var repo
 
   // MARK: - Test: Banner Hides And No RSS When Engine Pre-Rebuilt To Nil
 
@@ -149,6 +150,73 @@ import Testing
 
     #expect(collector.picks(for: source).isEmpty)
     #expect(collector.discoveryListState(for: source) == .loading)
+  }
+
+  // MARK: - Test: Banner Reflects A Cooled Engine
+
+  // Once the engine cools (signals cleared → rebuild yields no context), a
+  // zero-pick source must hide its banner rather than keep showing a loading
+  // spinner that cannot complete until the engine warms again.
+  @Test("banner hides when the engine cools while a fetch is still in flight")
+  func bannerHidesWhenEngineCoolsMidDrain() async throws {
+    let collector = SearchRecommendationCollector()
+    let scripted = H.makeScriptedEmbeddable()
+
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: scripted) }
+      .scope(.cached)
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: scripted)
+
+    let localEngine = Container.shared.recommendationEngine()
+    localEngine.start()
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in localEngine.hasScoringContext },
+      { @Sendable in "Expected scoring context to land" }
+    )
+
+    // Park the RSS fetch on a semaphore so the entry stays .fetching (and the
+    // banner .loading) across the cool-down below.
+    let feedURL = FeedURL(URL(string: "https://example.com/cooled-mid-drain.rss")!)
+    let release = await H.session.waitRespond(to: feedURL.rawValue)
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1801))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    try await Wait.until(
+      { @MainActor in collector.bannerState == .loading },
+      { @MainActor in
+        "Expected banner to load while the fetch hangs; got \(collector.bannerState)"
+      }
+    )
+
+    for signal in signals {
+      _ = try await repo.updateRating(signal.id, rating: nil)
+    }
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in !localEngine.hasScoringContext },
+      { @Sendable in "Expected scoring context to close after unrating signals" }
+    )
+
+    try await Wait.until(
+      { @MainActor in collector.bannerState == .hidden },
+      { @MainActor in
+        "Expected banner to hide once the engine cooled, got \(collector.bannerState)"
+      }
+    )
+
+    release.signal()
   }
 
   // MARK: - Test: Banner Hides When Engine Cannot Build A Scoring Context

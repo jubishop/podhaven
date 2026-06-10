@@ -62,13 +62,13 @@ final class ScoringReadinessGate {
     }
   }
 
-  // `.ready` is sticky across a later engine cool-down: picks scored while it
-  // was warm stay visible, and the transition callback — not a state flip —
-  // handles recovery when the engine warms again.
+  // A rebuild that yields no context downgrades `.ready` so surfaces reflect
+  // the cooled engine. Picks scored while it was warm keep rendering — the
+  // banner checks pick count before consulting this state.
   private func apply(revision: Int, isOpen: Bool) {
     if isOpen {
       $state.new(.ready)
-    } else if state != .ready, revision > 0 {
+    } else if revision > 0 {
       $state.new(.unavailable)
     }
   }
