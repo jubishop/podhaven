@@ -3,10 +3,10 @@
 import Foundation
 import IdentifiedCollections
 
-// MARK: - CachedPodcastEntry
+// MARK: - SearchCachedPodcastEntry
 
 @Observable @MainActor
-final class CachedPodcastEntry: Identifiable {
+final class SearchCachedPodcastEntry: Identifiable {
   enum Status: Equatable {
     case pending
     case fetching

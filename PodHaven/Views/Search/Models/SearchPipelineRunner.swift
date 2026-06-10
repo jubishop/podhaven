@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import CoreMedia
+import FactoryKit
 import Foundation
 import Logging
 
@@ -34,11 +35,12 @@ enum SearchPipelineRunner {
     podcastID: Podcast.ID?,
     iTunesID: ITunesPodcastID?,
     onDeckID: Episode.ID?,
-    isDetached: @Sendable () async -> Bool,
-    embedding: ContextualEmbedding,
-    engine: RecommendationEngine,
-    repo: any Databasing
+    isDetached: @Sendable () async -> Bool
   ) async -> PipelineResult {
+    let embedding = Container.shared.contextualEmbedding()
+    let engine = Container.shared.recommendationEngine()
+    let repo = Container.shared.repo()
+
     let feedData: DownloadData
     do {
       feedData = try await downloadTask.downloadFinished()

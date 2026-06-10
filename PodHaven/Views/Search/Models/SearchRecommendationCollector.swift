@@ -15,9 +15,6 @@ import Tagged
 @Observable @MainActor
 final class SearchRecommendationCollector {
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
-  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
-  @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
-  @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
@@ -93,11 +90,11 @@ final class SearchRecommendationCollector {
   // MARK: - Internal State
 
   // Survives chip switches and query changes for the collector's lifetime.
-  private var permanent: IdentifiedArrayOf<CachedPodcastEntry> = []
+  private var permanent: IdentifiedArrayOf<SearchCachedPodcastEntry> = []
 
   // Owned by the current typed-search query. Purged with in-flight downloads
   // cancelled when the query changes.
-  private var temporary: IdentifiedArrayOf<CachedPodcastEntry> = []
+  private var temporary: IdentifiedArrayOf<SearchCachedPodcastEntry> = []
 
   // Bumped on every typed-search `recordSourcePodcasts` call. An in-flight
   // `reconcileAndIngest` that wakes up after a newer query has already taken
@@ -123,7 +120,7 @@ final class SearchRecommendationCollector {
   private var queued: OrderedSet<FeedURL> = []
   private var inFlight: Set<FeedURL> = []
 
-  private var pickIndex = PickIndex()
+  private var pickIndex = SearchPickIndex()
 
   // Stays armed for the collector's lifetime so any close → open transition
   // re-queues entries that finished empty-and-.scored during the cold window.
@@ -332,7 +329,7 @@ final class SearchRecommendationCollector {
         if let promoted = temporary.remove(id: feedURL) {
           permanent[id: feedURL] = promoted
         } else if permanent[id: feedURL] == nil {
-          permanent[id: feedURL] = CachedPodcastEntry(
+          permanent[id: feedURL] = SearchCachedPodcastEntry(
             feedURL: feedURL,
             podcastID: podcastIDs[feedURL],
             iTunesID: iTunesIDs[feedURL]
@@ -351,7 +348,7 @@ final class SearchRecommendationCollector {
       }
       for feedURL in feedURLs {
         if permanent[id: feedURL] == nil, temporary[id: feedURL] == nil {
-          temporary[id: feedURL] = CachedPodcastEntry(
+          temporary[id: feedURL] = SearchCachedPodcastEntry(
             feedURL: feedURL,
             podcastID: podcastIDs[feedURL],
             iTunesID: iTunesIDs[feedURL]
@@ -366,7 +363,7 @@ final class SearchRecommendationCollector {
 
   private func pruneTemporary(keeping survivors: Set<FeedURL>) {
     guard !temporary.isEmpty else { return }
-    var toCancel: [CachedPodcastEntry] = []
+    var toCancel: [SearchCachedPodcastEntry] = []
     var purgedURLs: Set<FeedURL> = []
     for entry in temporary where !survivors.contains(entry.feedURL) {
       toCancel.append(entry)
@@ -397,7 +394,7 @@ final class SearchRecommendationCollector {
     return status != .scored && status != .exhausted && status != .failed
   }
 
-  private func entry(for feedURL: FeedURL) -> CachedPodcastEntry? {
+  private func entry(for feedURL: FeedURL) -> SearchCachedPodcastEntry? {
     if let entry = permanent[id: feedURL] { return entry }
     return temporary[id: feedURL]
   }
@@ -509,10 +506,7 @@ final class SearchRecommendationCollector {
       podcastID: podcastID,
       iTunesID: iTunesID,
       onDeckID: onDeckID,
-      isDetached: isDetached,
-      embedding: contextualEmbedding,
-      engine: recommendationEngine,
-      repo: repo
+      isDetached: isDetached
     )
 
     entry.fetchToken = nil

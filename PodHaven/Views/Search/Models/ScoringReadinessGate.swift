@@ -30,10 +30,10 @@ final class ScoringReadinessGate {
 
   // Arms the lifetime watcher. Stays armed so any close → open transition
   // fires the callback, letting the owner re-queue work that finished while
-  // scoring was cold.
+  // scoring was cold. Re-arming refreshes the callback so the latest one wins.
   func ensureWatching(onTransitionToReady: @escaping @MainActor () -> Void) {
-    if let watcherTask, !watcherTask.isCancelled { return }
     self.onTransitionToReady = onTransitionToReady
+    if let watcherTask, !watcherTask.isCancelled { return }
     let engine = recommendationEngine
     watcherTask = Task(priority: taskPriority(.utility)) { [weak self] in
       // The replayed bootstrap emit seeds `wasOpen` and the initial state
