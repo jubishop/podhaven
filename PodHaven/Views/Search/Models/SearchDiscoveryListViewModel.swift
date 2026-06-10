@@ -116,7 +116,7 @@ final class SearchDiscoveryListViewModel:
 
   // A Set so a pure score reorder of the same picks doesn't restart the
   // observation; reorder is re-projected by syncEntries.
-  var savedObservationKey: Set<SavedObservationKey> {
+  private var savedObservationKey: Set<SavedObservationKey> {
     guard case .picks(let picks) = discoveryListState else { return [] }
     return Set(picks.map(savedObservationKey))
   }
