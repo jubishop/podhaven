@@ -134,18 +134,9 @@ final class SearchRecommendationCollector {
 
   private var pickIndex = PickIndex()
 
-  // `.unavailable` surfaces .hidden on the banner and lets the drain proceed
-  // instead of blocking forever.
-  private enum ScoringAvailability: Equatable {
-    case unknown
-    case ready
-    case unavailable
-  }
-  private var scoringAvailability: ScoringAvailability = .unknown
-
   // Stays armed for the collector's lifetime so any close → open transition
   // re-queues entries that finished empty-and-.scored during the cold window.
-  private var scoringContextWatcherTask: Task<Void, Never>?
+  @ObservationIgnored private let scoringGate = ScoringReadinessGate()
 
   // MARK: - Lifecycle
 
@@ -427,53 +418,7 @@ final class SearchRecommendationCollector {
     return ObjectIdentifier(current) != entryID
   }
 
-  private func awaitScoringContext() async {
-    if recommendationEngine.hasScoringContext {
-      scoringAvailability = .ready
-      return
-    }
-    // Surface .unavailable for the banner if the engine has already finished
-    // its bootstrap with no context, but keep waiting: returning here would
-    // let the drain fetch + embed RSS for nothing, and re-do all of it when
-    // the watcher later flips us back to .ready.
-    if recommendationEngine.scoringRevision > 0 {
-      scoringAvailability = .unavailable
-    }
-    for await revision in recommendationEngine.$scoringRevision.stream() {
-      if Task.isCancelled { return }
-      if recommendationEngine.hasScoringContext {
-        scoringAvailability = .ready
-        return
-      }
-      if revision == 0 { continue }
-      scoringAvailability = .unavailable
-    }
-  }
-
-  private func ensureScoringContextWatcherRunning() {
-    if let task = scoringContextWatcherTask, !task.isCancelled { return }
-    let engine = recommendationEngine
-    scoringContextWatcherTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      // Track close → open transitions so an engine that cools (cache cleared)
-      // and warms again still re-queues entries that scored empty in between.
-      // `dropFirst()` skips the bootstrap replay so we only react to genuine
-      // rebuild emits.
-      var wasOpen = engine.hasScoringContext
-      for await _ in engine.$scoringRevision.stream().dropFirst() {
-        if Task.isCancelled { return }
-        let isOpen = engine.hasScoringContext
-        let transitionedToOpen = isOpen && !wasOpen
-        wasOpen = isOpen
-        if transitionedToOpen {
-          guard let self else { return }
-          self.handleScoringContextBecameAvailable()
-        }
-      }
-    }
-  }
-
   private func handleScoringContextBecameAvailable() {
-    scoringAvailability = .ready
     let allEntries = Array(permanent) + Array(temporary)
     for entry in allEntries where entry.status == .scored && entry.scoredEpisodes.isEmpty {
       entry.status = .pending
@@ -485,7 +430,10 @@ final class SearchRecommendationCollector {
   // MARK: - Drain Task
 
   private func ensureDrainTaskRunning() {
-    ensureScoringContextWatcherRunning()
+    scoringGate.ensureWatching { [weak self] in
+      guard let self else { return }
+      self.handleScoringContextBecameAvailable()
+    }
     if let drainTask, !drainTask.isCancelled { return }
     let (stream, continuation) = AsyncStream<FeedURL>.makeStream(bufferingPolicy: .unbounded)
     queueContinuation = continuation
@@ -501,7 +449,7 @@ final class SearchRecommendationCollector {
   private func runDrainLoop(stream: AsyncStream<FeedURL>) async {
     // Without a hydrated cache, every candidate scores nil, entries finish
     // empty-and-.scored, and nothing retries them.
-    await awaitScoringContext()
+    await scoringGate.awaitReady()
     if Task.isCancelled { return }
 
     // A discarding group reaps each child the instant it finishes, so feeds
@@ -671,7 +619,7 @@ final class SearchRecommendationCollector {
     guard !feedURLs.isEmpty else { return .hidden }
     let count = pickCount(for: source)
     if count > 0 { return .loaded(count: count) }
-    if scoringAvailability == .unavailable { return .hidden }
+    if scoringGate.state == .unavailable { return .hidden }
     let anyInFlight = feedURLs.contains { url in
       guard let entry = entry(for: url) else { return true }
       switch entry.status {
