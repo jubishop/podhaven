@@ -95,11 +95,6 @@ final class SearchRecommendationCollector {
     let score: Float
   }
 
-  private struct PickIndexKey: Hashable {
-    let feedURL: FeedURL
-    let mediaGUID: MediaGUID
-  }
-
   // MARK: - Observed Outputs
 
   var activeSource: Source? = nil
@@ -137,7 +132,7 @@ final class SearchRecommendationCollector {
   private var queued: OrderedSet<FeedURL> = []
   private var inFlight: Set<FeedURL> = []
 
-  private var pickIndex: [PickIndexKey: CachedPodcastEntry] = [:]
+  private var pickIndex = PickIndex()
 
   // `.unavailable` surfaces .hidden on the banner and lets the drain proceed
   // instead of blocking forever.
@@ -217,12 +212,7 @@ final class SearchRecommendationCollector {
 
   func removePick(mediaGUID: MediaGUID, feedURL: FeedURL) {
     Self.log.debug("Removing pick \(mediaGUID) from \(feedURL)")
-    let key = PickIndexKey(feedURL: feedURL, mediaGUID: mediaGUID)
-    guard let entry = pickIndex.removeValue(forKey: key) else { return }
-    removePick(mediaGUID: mediaGUID, from: entry)
-  }
-
-  private func removePick(mediaGUID: MediaGUID, from entry: CachedPodcastEntry) {
+    guard let entry = pickIndex.remove(mediaGUID: mediaGUID, feedURL: feedURL) else { return }
     entry.scoredEpisodes.remove(id: mediaGUID)
     // `.exhausted` distinguishes a user-dismissed-all entry from a
     // pipeline-finished-empty entry, so the close → open recovery in
@@ -249,7 +239,7 @@ final class SearchRecommendationCollector {
     typedSearchOverlay = nil
     let toCancel = Array(temporary)
     let purgedURLs = Set(temporary.ids)
-    for entry in toCancel { unregisterPicks(of: entry) }
+    for entry in toCancel { pickIndex.unregister(of: entry) }
     temporary.removeAll()
     queued.removeAll { purgedURLs.contains($0) }
     Task {
@@ -401,31 +391,11 @@ final class SearchRecommendationCollector {
       purgedURLs.insert(entry.feedURL)
     }
     guard !purgedURLs.isEmpty else { return }
-    for entry in toCancel { unregisterPicks(of: entry) }
+    for entry in toCancel { pickIndex.unregister(of: entry) }
     for url in purgedURLs { temporary.remove(id: url) }
     queued.removeAll { purgedURLs.contains($0) }
     Task {
       for entry in toCancel { await entry.cancel() }
-    }
-  }
-
-  // Re-scoring an already-scored entry can leave stale index entries, so clear
-  // this entry's previous picks before indexing its current picks.
-  private func registerPicks(
-    _ scored: IdentifiedArrayOf<ScoredEpisode>,
-    for entry: CachedPodcastEntry
-  ) {
-    unregisterPicks(of: entry)
-    for pick in scored {
-      let key = PickIndexKey(feedURL: entry.feedURL, mediaGUID: pick.id)
-      pickIndex[key] = entry
-    }
-  }
-
-  private func unregisterPicks(of entry: CachedPodcastEntry) {
-    for pick in entry.scoredEpisodes {
-      let key = PickIndexKey(feedURL: entry.feedURL, mediaGUID: pick.id)
-      pickIndex.removeValue(forKey: key)
     }
   }
 
@@ -612,14 +582,14 @@ final class SearchRecommendationCollector {
     switch result {
     case .success(let scored):
       // A purge mid-pipeline (typed-overlay clear or pruneTemporary) detaches
-      // the entry; writing scoredEpisodes / registerPicks here would leave
+      // the entry; writing scoredEpisodes / registering picks here would leave
       // pickIndex pointing at an instance no one can reach through picks(for:).
       if isAttached {
         let scoredEpisodes = IdentifiedArray(
           scored,
           uniquingIDsWith: { first, _ in first }
         )
-        registerPicks(scoredEpisodes, for: entry)
+        pickIndex.register(scoredEpisodes, for: entry)
         entry.scoredEpisodes = scoredEpisodes
         entry.status = .scored
       } else {
@@ -764,7 +734,7 @@ final class SearchRecommendationCollector {
 // MARK: - CachedPodcastEntry
 
 @Observable @MainActor
-private final class CachedPodcastEntry: Identifiable {
+final class CachedPodcastEntry: Identifiable {
   enum Status: Equatable {
     case pending
     case fetching
