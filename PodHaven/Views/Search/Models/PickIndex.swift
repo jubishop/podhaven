@@ -22,7 +22,7 @@ struct PickIndex {
   // un-indexes the entry's current picks first. Call before overwriting
   // `entry.scoredEpisodes` with `scored`.
   mutating func register(
-    _ scored: IdentifiedArrayOf<SearchRecommendationCollector.ScoredEpisode>,
+    _ scored: IdentifiedArrayOf<ScoredEpisode>,
     for entry: CachedPodcastEntry
   ) {
     unregister(of: entry)

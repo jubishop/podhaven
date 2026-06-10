@@ -9,8 +9,6 @@ import Logging
 // Fetch → parse → filter → embed → score for a single podcast feed. Owns no
 // cache state, so the collector stays "schedule + cache + post-process."
 enum SearchPipelineRunner {
-  typealias ScoredEpisode = SearchRecommendationCollector.ScoredEpisode
-
   private static let log = Log.as(LogSubsystem.SearchView.recommendations)
 
   // MARK: - Tunable Caps

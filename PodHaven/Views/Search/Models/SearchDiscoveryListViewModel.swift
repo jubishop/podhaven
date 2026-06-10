@@ -36,8 +36,7 @@ final class SearchDiscoveryListViewModel:
 
   @ObservationIgnored let collector: SearchRecommendationCollector
   @ObservationIgnored let source: SearchRecommendationCollector.Source
-  @ObservationIgnored private var backingPickByMediaGUID:
-    [MediaGUID: SearchRecommendationCollector.ScoredEpisode] = [:]
+  @ObservationIgnored private var backingPickByMediaGUID: [MediaGUID: ScoredEpisode] = [:]
 
   // The score that ranked each row; passed along on navigation so the detail
   // view can show it immediately instead of waiting on a fresh scoring pass.
@@ -116,7 +115,7 @@ final class SearchDiscoveryListViewModel:
   }
 
   private func savedObservationKey(
-    for pick: SearchRecommendationCollector.ScoredEpisode
+    for pick: ScoredEpisode
   ) -> SavedObservationKey {
     SavedObservationKey(
       removalFeedURL: pick.feedURL,
