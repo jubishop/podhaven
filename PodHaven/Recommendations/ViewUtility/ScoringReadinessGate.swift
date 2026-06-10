@@ -56,6 +56,9 @@ final class ScoringReadinessGate {
   // `.unavailable` keeps waiting: returning early would let callers fetch and
   // embed for nothing, then re-do all of it when the engine later warms.
   func awaitReady() async {
+    // Only the watcher writes `state`; awaiting an unarmed gate would suspend
+    // forever with nothing to point at why.
+    Assert.precondition(watcherTask != nil, "awaitReady() requires ensureWatching() first")
     for await current in $state.stream() {
       if Task.isCancelled { return }
       if current == .ready { return }

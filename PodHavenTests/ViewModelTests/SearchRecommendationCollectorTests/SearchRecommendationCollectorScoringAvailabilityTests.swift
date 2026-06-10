@@ -185,6 +185,7 @@ import Testing
     // banner .loading) across the cool-down below.
     let feedURL = FeedURL(URL(string: "https://example.com/cooled-mid-drain.rss")!)
     let release = await H.session.waitRespond(to: feedURL.rawValue)
+    defer { release.signal() }
 
     let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
     collector.setActiveSource(source)
@@ -215,8 +216,6 @@ import Testing
         "Expected banner to hide once the engine cooled, got \(collector.bannerState)"
       }
     )
-
-    release.signal()
   }
 
   // MARK: - Test: Banner Hides When Engine Cannot Build A Scoring Context
