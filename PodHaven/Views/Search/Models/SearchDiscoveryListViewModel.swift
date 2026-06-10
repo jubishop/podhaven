@@ -52,6 +52,11 @@ final class SearchDiscoveryListViewModel:
     var matchingFeedURLs: Set<FeedURL> { [removalFeedURL, episodeFeedURL] }
   }
 
+  struct SavedObservationTaskKey: Hashable {
+    let picks: Set<SavedObservationKey>
+    let onDeckID: Episode.ID?
+  }
+
   private struct SavedRowLookupKey: Hashable {
     let feedURL: FeedURL
     let mediaGUID: MediaGUID
@@ -114,6 +119,14 @@ final class SearchDiscoveryListViewModel:
   var savedObservationKey: Set<SavedObservationKey> {
     guard case .picks(let picks) = discoveryListState else { return [] }
     return Set(picks.map(savedObservationKey))
+  }
+
+  var savedObservationTaskKey: SavedObservationTaskKey {
+    let picks = savedObservationKey
+    return SavedObservationTaskKey(
+      picks: picks,
+      onDeckID: picks.isEmpty ? nil : sharedState.onDeck?.id
+    )
   }
 
   private func savedObservationKey(
