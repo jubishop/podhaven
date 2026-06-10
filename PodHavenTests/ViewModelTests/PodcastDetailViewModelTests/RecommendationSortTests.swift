@@ -366,6 +366,83 @@ import Testing
     )
   }
 
+  @Test("unsaved similarity pass exposes each row's score by mediaGUID")
+  func unsavedSimilarityPassExposesRowScores() async throws {
+    let embeddable = discoveryScriptedEmbeddable()
+    try await primeEngine(with: embeddable)
+    registerContainerEmbedding(embeddable)
+
+    let unsavedSeries = UnsavedPodcastSeries(
+      unsavedPodcast: try Create.unsavedPodcast(
+        title: "Discovery",
+        description: "Discovery"
+      ),
+      unsavedEpisodes: [
+        try Create.unsavedEpisode(
+          guid: "discovery-0",
+          title: "Episode A",
+          pubDate: Date(timeIntervalSince1970: 400),
+          description: "Discovery 0"
+        ),
+        try Create.unsavedEpisode(
+          guid: "discovery-1",
+          title: "Episode B",
+          pubDate: Date(timeIntervalSince1970: 300),
+          description: "Discovery 1"
+        ),
+      ]
+    )
+    let unsavedPodcastEpisodes = unsavedSeries.unsavedEpisodes.map { unsavedEpisode in
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedSeries.unsavedPodcast,
+        unsavedEpisode: unsavedEpisode
+      )
+    }
+    let scoresByMediaGUID = try await unsavedSimilarityScores(unsavedPodcastEpisodes)
+    try #require(scoresByMediaGUID.count == unsavedPodcastEpisodes.count)
+
+    let viewModel = PodcastDetailViewModel(unsavedPodcastSeries: unsavedSeries)
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in viewModel.episodeList.allEntries.count == unsavedPodcastEpisodes.count },
+      { @MainActor in
+        """
+        Expected all unsaved episodes to surface before sorting.
+        count: \(viewModel.episodeList.allEntries.count)
+        """
+      }
+    )
+
+    // No scoring pass has run under the default sort: nothing to expose yet.
+    #expect(viewModel.similarityScoreByMediaGUID.isEmpty)
+
+    viewModel.currentSortMethod = .recommendationScore
+
+    try await Wait.until(
+      priority: .userInitiated,
+      { @MainActor in
+        unsavedPodcastEpisodes.allSatisfy {
+          viewModel.similarityScoreByMediaGUID[$0.mediaGUID] != nil
+        }
+      },
+      { @MainActor in
+        """
+        Expected the similarity pass to expose a score for every row.
+        scores: \(unsavedPodcastEpisodes.map { viewModel.similarityScoreByMediaGUID[$0.mediaGUID] })
+        """
+      }
+    )
+    for episode in unsavedPodcastEpisodes {
+      #expect(
+        viewModel.similarityScoreByMediaGUID[episode.mediaGUID]
+          == scoresByMediaGUID[episode.mediaGUID]
+      )
+    }
+    #expect(viewModel.similarityScoreByMediaGUID.count == unsavedPodcastEpisodes.count)
+  }
+
   @Test(
     "unsaved series rescores by similarity once embedding assets become available on a later appear"
   )

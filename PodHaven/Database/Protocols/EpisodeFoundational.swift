@@ -38,6 +38,14 @@ extension EpisodeFoundational {
   var finished: Bool { finishDate != nil }
   var isCandidate: Bool { rating == nil && !queued && !started && !finished }
 
+  // Discovery candidacy: `isCandidate` plus the on-deck exclusion. Used by the
+  // search pipeline's DB pre-filter and as the live re-gate for saved rows
+  // backing visible discovery picks.
+  func isDiscoveryCandidate(excludingOnDeck onDeckID: Episode.ID?) -> Bool {
+    if let onDeckID, episodeID == onDeckID { return false }
+    return isCandidate
+  }
+
   // MARK: - Stringable
 
   var toString: String { "[\(id)] - (\(mediaGUID)) - \(title)" }

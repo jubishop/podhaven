@@ -18,10 +18,14 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
 
+## Xcode Project
+- All four target folders (`PodHaven`, `PodHavenShare`, `PodHavenWidget`, `PodHavenTests`) are synchronized folder groups (`PBXFileSystemSynchronizedRootGroup`): files added on disk join the target automatically; never edit `project.pbxproj` to register files. `PodHavenMacros` is a local SPM package.
+
 ## Repo Guardrails
 - Public repo: no secrets, API keys, tokens, or credentials.
 - No commits or pushes unless explicitly asked; preserve user edits and never reset/revert unknown changes.
 - Build/test must end with zero compiler/linker/runtime/deprecation/unused-result/Sendable warnings.
+- The Lint Swift build phase fails before `SwiftCompile`: a lint-only failure says nothing about whether the code compiles. Fix formatting (`bin/lint-swift-format`), then rebuild to surface compile errors.
 
 ## Compatibility
 - No backward compatibility requirement for older iOS or library versions; use the latest.
@@ -67,6 +71,8 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 
 ## Migrations
 - Migration code uses only literals: table/column strings and inline allowed values; no model types/enums/drifting refs. Renames must not alter shipped behavior.
+- New derived/cached columns backfill existing rows inside the same migration with raw SQL; no launch-time backfill pass.
+- `CHECK` constraints pass when the expression is NULL: use `IS`, not `=`, for `json_type(col, '$.path')` guards so rows missing the key are rejected.
 
 ## Coding Standards (Production Only)
 - Use `[weak self]` in closures/Tasks that capture `self` unless a strong reference is required. Unwrap with `guard let self else { return }`; use `self.x`, not `self?.x`.

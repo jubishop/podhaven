@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2026
 
-import CoreMedia
 import FactoryKit
 import Foundation
 import GRDB
@@ -16,9 +15,6 @@ import Tagged
 @Observable @MainActor
 final class SearchRecommendationCollector {
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
-  @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
-  @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
-  @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
@@ -29,10 +25,6 @@ final class SearchRecommendationCollector {
   // MARK: - Tunable Caps
 
   nonisolated static let podcastCap = 25
-  nonisolated static let episodesPerPodcast = 10
-
-  // Discovery removes freshness, so neutral content clusters around 0.5.
-  nonisolated static let scoreFloor: Float = 0.5
 
   // Embedding serializes through ContextualEmbedding; wider RSS concurrency
   // only buys faster first-paint.
@@ -91,20 +83,6 @@ final class SearchRecommendationCollector {
     case empty
   }
 
-  // MARK: - Scored Episode
-
-  struct ScoredEpisode: Identifiable, Sendable, Hashable {
-    var id: MediaGUID { episode.mediaGUID }
-    let feedURL: FeedURL
-    let episode: UnsavedPodcastEpisode
-    let score: Float
-  }
-
-  private struct PickIndexKey: Hashable {
-    let feedURL: FeedURL
-    let mediaGUID: MediaGUID
-  }
-
   // MARK: - Observed Outputs
 
   var activeSource: Source? = nil
@@ -112,11 +90,11 @@ final class SearchRecommendationCollector {
   // MARK: - Internal State
 
   // Survives chip switches and query changes for the collector's lifetime.
-  private var permanent: IdentifiedArrayOf<CachedPodcastEntry> = []
+  private var permanent: IdentifiedArrayOf<SearchCachedPodcastEntry> = []
 
   // Owned by the current typed-search query. Purged with in-flight downloads
   // cancelled when the query changes.
-  private var temporary: IdentifiedArrayOf<CachedPodcastEntry> = []
+  private var temporary: IdentifiedArrayOf<SearchCachedPodcastEntry> = []
 
   // Bumped on every typed-search `recordSourcePodcasts` call. An in-flight
   // `reconcileAndIngest` that wakes up after a newer query has already taken
@@ -142,20 +120,9 @@ final class SearchRecommendationCollector {
   private var queued: OrderedSet<FeedURL> = []
   private var inFlight: Set<FeedURL> = []
 
-  private var pickIndex: [PickIndexKey: CachedPodcastEntry] = [:]
-
-  // `.unavailable` surfaces .hidden on the banner and lets the drain proceed
-  // instead of blocking forever.
-  private enum ScoringAvailability: Equatable {
-    case unknown
-    case ready
-    case unavailable
-  }
-  private var scoringAvailability: ScoringAvailability = .unknown
-
   // Stays armed for the collector's lifetime so any close → open transition
   // re-queues entries that finished empty-and-.scored during the cold window.
-  private var scoringContextWatcherTask: Task<Void, Never>?
+  @ObservationIgnored private let scoringGate = ScoringReadinessGate()
 
   // MARK: - Lifecycle
 
@@ -222,13 +189,12 @@ final class SearchRecommendationCollector {
 
   func removePick(mediaGUID: MediaGUID, feedURL: FeedURL) {
     Self.log.debug("Removing pick \(mediaGUID) from \(feedURL)")
-    let key = PickIndexKey(feedURL: feedURL, mediaGUID: mediaGUID)
-    guard let entry = pickIndex.removeValue(forKey: key) else { return }
-    removePick(mediaGUID: mediaGUID, from: entry)
-  }
-
-  private func removePick(mediaGUID: MediaGUID, from entry: CachedPodcastEntry) {
-    entry.scoredEpisodes.remove(id: mediaGUID)
+    // A pick's feedURL is its owning entry's cache key, so the caches resolve
+    // the owner directly; remove(id:) doubles as the membership check that
+    // makes a stale dismissal for a purged or re-scored entry a no-op.
+    guard let entry = entry(for: feedURL),
+      entry.scoredEpisodes.remove(id: mediaGUID) != nil
+    else { return }
     // `.exhausted` distinguishes a user-dismissed-all entry from a
     // pipeline-finished-empty entry, so the close → open recovery in
     // `handleScoringContextBecameAvailable` doesn't resurrect dismissed picks.
@@ -254,7 +220,6 @@ final class SearchRecommendationCollector {
     typedSearchOverlay = nil
     let toCancel = Array(temporary)
     let purgedURLs = Set(temporary.ids)
-    for entry in toCancel { unregisterPicks(of: entry) }
     temporary.removeAll()
     queued.removeAll { purgedURLs.contains($0) }
     Task {
@@ -365,7 +330,7 @@ final class SearchRecommendationCollector {
         if let promoted = temporary.remove(id: feedURL) {
           permanent[id: feedURL] = promoted
         } else if permanent[id: feedURL] == nil {
-          permanent[id: feedURL] = CachedPodcastEntry(
+          permanent[id: feedURL] = SearchCachedPodcastEntry(
             feedURL: feedURL,
             podcastID: podcastIDs[feedURL],
             iTunesID: iTunesIDs[feedURL]
@@ -384,7 +349,7 @@ final class SearchRecommendationCollector {
       }
       for feedURL in feedURLs {
         if permanent[id: feedURL] == nil, temporary[id: feedURL] == nil {
-          temporary[id: feedURL] = CachedPodcastEntry(
+          temporary[id: feedURL] = SearchCachedPodcastEntry(
             feedURL: feedURL,
             podcastID: podcastIDs[feedURL],
             iTunesID: iTunesIDs[feedURL]
@@ -399,38 +364,17 @@ final class SearchRecommendationCollector {
 
   private func pruneTemporary(keeping survivors: Set<FeedURL>) {
     guard !temporary.isEmpty else { return }
-    var toCancel: [CachedPodcastEntry] = []
+    var toCancel: [SearchCachedPodcastEntry] = []
     var purgedURLs: Set<FeedURL> = []
     for entry in temporary where !survivors.contains(entry.feedURL) {
       toCancel.append(entry)
       purgedURLs.insert(entry.feedURL)
     }
     guard !purgedURLs.isEmpty else { return }
-    for entry in toCancel { unregisterPicks(of: entry) }
     for url in purgedURLs { temporary.remove(id: url) }
     queued.removeAll { purgedURLs.contains($0) }
     Task {
       for entry in toCancel { await entry.cancel() }
-    }
-  }
-
-  // Re-scoring an already-scored entry can leave stale index entries, so clear
-  // this entry's previous picks before indexing its current picks.
-  private func registerPicks(
-    _ scored: IdentifiedArrayOf<ScoredEpisode>,
-    for entry: CachedPodcastEntry
-  ) {
-    unregisterPicks(of: entry)
-    for pick in scored {
-      let key = PickIndexKey(feedURL: entry.feedURL, mediaGUID: pick.id)
-      pickIndex[key] = entry
-    }
-  }
-
-  private func unregisterPicks(of entry: CachedPodcastEntry) {
-    for pick in entry.scoredEpisodes {
-      let key = PickIndexKey(feedURL: entry.feedURL, mediaGUID: pick.id)
-      pickIndex.removeValue(forKey: key)
     }
   }
 
@@ -450,7 +394,7 @@ final class SearchRecommendationCollector {
     return status != .scored && status != .exhausted && status != .failed
   }
 
-  private func entry(for feedURL: FeedURL) -> CachedPodcastEntry? {
+  private func entry(for feedURL: FeedURL) -> SearchCachedPodcastEntry? {
     if let entry = permanent[id: feedURL] { return entry }
     return temporary[id: feedURL]
   }
@@ -462,53 +406,7 @@ final class SearchRecommendationCollector {
     return ObjectIdentifier(current) != entryID
   }
 
-  private func awaitScoringContext() async {
-    if recommendationEngine.hasScoringContext {
-      scoringAvailability = .ready
-      return
-    }
-    // Surface .unavailable for the banner if the engine has already finished
-    // its bootstrap with no context, but keep waiting: returning here would
-    // let the drain fetch + embed RSS for nothing, and re-do all of it when
-    // the watcher later flips us back to .ready.
-    if recommendationEngine.scoringRevision > 0 {
-      scoringAvailability = .unavailable
-    }
-    for await revision in recommendationEngine.$scoringRevision.stream() {
-      if Task.isCancelled { return }
-      if recommendationEngine.hasScoringContext {
-        scoringAvailability = .ready
-        return
-      }
-      if revision == 0 { continue }
-      scoringAvailability = .unavailable
-    }
-  }
-
-  private func ensureScoringContextWatcherRunning() {
-    if let task = scoringContextWatcherTask, !task.isCancelled { return }
-    let engine = recommendationEngine
-    scoringContextWatcherTask = Task(priority: taskPriority(.utility)) { [weak self] in
-      // Track close → open transitions so an engine that cools (cache cleared)
-      // and warms again still re-queues entries that scored empty in between.
-      // `dropFirst()` skips the bootstrap replay so we only react to genuine
-      // rebuild emits.
-      var wasOpen = engine.hasScoringContext
-      for await _ in engine.$scoringRevision.stream().dropFirst() {
-        if Task.isCancelled { return }
-        let isOpen = engine.hasScoringContext
-        let transitionedToOpen = isOpen && !wasOpen
-        wasOpen = isOpen
-        if transitionedToOpen {
-          guard let self else { return }
-          self.handleScoringContextBecameAvailable()
-        }
-      }
-    }
-  }
-
   private func handleScoringContextBecameAvailable() {
-    scoringAvailability = .ready
     let allEntries = Array(permanent) + Array(temporary)
     for entry in allEntries where entry.status == .scored && entry.scoredEpisodes.isEmpty {
       entry.status = .pending
@@ -520,7 +418,10 @@ final class SearchRecommendationCollector {
   // MARK: - Drain Task
 
   private func ensureDrainTaskRunning() {
-    ensureScoringContextWatcherRunning()
+    scoringGate.ensureWatching { [weak self] in
+      guard let self else { return }
+      self.handleScoringContextBecameAvailable()
+    }
     if let drainTask, !drainTask.isCancelled { return }
     let (stream, continuation) = AsyncStream<FeedURL>.makeStream(bufferingPolicy: .unbounded)
     queueContinuation = continuation
@@ -536,7 +437,7 @@ final class SearchRecommendationCollector {
   private func runDrainLoop(stream: AsyncStream<FeedURL>) async {
     // Without a hydrated cache, every candidate scores nil, entries finish
     // empty-and-.scored, and nothing retries them.
-    await awaitScoringContext()
+    await scoringGate.awaitReady()
     if Task.isCancelled { return }
 
     // A discarding group reaps each child the instant it finishes, so feeds
@@ -599,16 +500,13 @@ final class SearchRecommendationCollector {
       return await self.isFeedURLDetached(feedURL, from: entryID)
     }
 
-    let result = await Self.runPipeline(
+    let result = await SearchPipelineRunner.run(
       feedURL: feedURL,
       downloadTask: downloadTask,
       podcastID: podcastID,
       iTunesID: iTunesID,
       onDeckID: onDeckID,
-      isDetached: isDetached,
-      embedding: contextualEmbedding,
-      engine: recommendationEngine,
-      repo: repo
+      isDetached: isDetached
     )
 
     entry.fetchToken = nil
@@ -617,15 +515,13 @@ final class SearchRecommendationCollector {
     switch result {
     case .success(let scored):
       // A purge mid-pipeline (typed-overlay clear or pruneTemporary) detaches
-      // the entry; writing scoredEpisodes / registerPicks here would leave
-      // pickIndex pointing at an instance no one can reach through picks(for:).
+      // the entry; its picks would be unreachable through picks(for:), so
+      // record the discard instead of marking it .scored.
       if isAttached {
-        let scoredEpisodes = IdentifiedArray(
+        entry.scoredEpisodes = IdentifiedArray(
           scored,
           uniquingIDsWith: { first, _ in first }
         )
-        registerPicks(scoredEpisodes, for: entry)
-        entry.scoredEpisodes = scoredEpisodes
         entry.status = .scored
       } else {
         entry.status = .cancelled
@@ -650,155 +546,6 @@ final class SearchRecommendationCollector {
     {
       scheduleDrain(for: feedURL)
     }
-  }
-
-  // MARK: - Pipeline Static Helper
-
-  private enum PipelineResult {
-    case success([ScoredEpisode])
-    case cancelled
-    case failed(any Error)
-  }
-
-  private nonisolated static func runPipeline(
-    feedURL: FeedURL,
-    downloadTask: DownloadTask,
-    podcastID: Podcast.ID?,
-    iTunesID: ITunesPodcastID?,
-    onDeckID: Episode.ID?,
-    isDetached: @Sendable () async -> Bool,
-    embedding: ContextualEmbedding,
-    engine: RecommendationEngine,
-    repo: any Databasing
-  ) async -> PipelineResult {
-    let feedData: DownloadData
-    do {
-      feedData = try await downloadTask.downloadFinished()
-    } catch is CancellationError {
-      return .cancelled
-    } catch {
-      return .failed(error)
-    }
-
-    if Task.isCancelled { return .cancelled }
-
-    let podcastFeed: PodcastFeed
-    do {
-      podcastFeed = try await PodcastFeed.parse(feedData)
-    } catch {
-      return .failed(error)
-    }
-
-    let unsavedPodcast: UnsavedPodcast
-    do {
-      unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: iTunesID)
-    } catch {
-      return .failed(error)
-    }
-
-    let newest = Array(
-      podcastFeed.toUnsavedEpisodes()
-        .sorted { $0.pubDate > $1.pubDate }
-        .prefix(episodesPerPodcast)
-    )
-    let candidates: [UnsavedEpisode]
-    do {
-      candidates = try await filteredCandidates(
-        newest: newest,
-        podcastID: podcastID,
-        onDeckID: onDeckID,
-        repo: repo
-      )
-    } catch {
-      return .failed(error)
-    }
-
-    if Task.isCancelled { return .cancelled }
-
-    var payloads = [UnsavedPodcastEpisode](capacity: candidates.count)
-    var vectors = [[Float]](capacity: candidates.count)
-    for unsavedEpisode in candidates {
-      if Task.isCancelled { return .cancelled }
-      if await isDetached() { return .cancelled }
-      let payload = UnsavedPodcastEpisode(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisode: unsavedEpisode
-      )
-      do {
-        let vector = try await EmbeddingService.embeddingVector(for: payload, embedding: embedding)
-        payloads.append(payload)
-        vectors.append(vector)
-      } catch is CancellationError {
-        return .cancelled
-      } catch {
-        log.caughtError(
-          "Embedding failed for \(payload.toString); skipping",
-          error,
-          level: { _ in .info }
-        )
-      }
-    }
-
-    if Task.isCancelled { return .cancelled }
-    if await isDetached() { return .cancelled }
-
-    let similarities: [Float?]
-    do {
-      similarities = try await engine.similarityScores(forEmbeddings: vectors)
-    } catch is CancellationError {
-      return .cancelled
-    } catch {
-      return .failed(error)
-    }
-
-    var scored = [ScoredEpisode](capacity: payloads.count)
-    for (payload, score) in zip(payloads, similarities) {
-      guard let score, score > scoreFloor else { continue }
-      scored.append(ScoredEpisode(feedURL: feedURL, episode: payload, score: score))
-    }
-
-    return .success(scored)
-  }
-
-  // Drops episodes whose existing DB row fails the candidate gate. Unreconciled
-  // podcasts (no DB row) pass through unchanged.
-  private nonisolated static func filteredCandidates(
-    newest: [UnsavedEpisode],
-    podcastID: Podcast.ID?,
-    onDeckID: Episode.ID?,
-    repo: any Databasing
-  ) async throws -> [UnsavedEpisode] {
-    guard let podcastID, !newest.isEmpty else { return newest }
-    let existing = try await repo.episodesMatching(
-      podcastID: podcastID,
-      guids: newest.map(\.guid),
-      mediaURLs: newest.map(\.mediaURL)
-    )
-
-    let existingByGUID = Dictionary(uniqueKeysWithValues: existing.map { ($0.guid, $0) })
-    let existingByMediaURL = Dictionary(uniqueKeysWithValues: existing.map { ($0.mediaURL, $0) })
-
-    var result = [UnsavedEpisode](capacity: newest.count)
-    for unsaved in newest {
-      let match = existingByGUID[unsaved.guid] ?? existingByMediaURL[unsaved.mediaURL]
-      if let match, !isDiscoveryCandidate(match, excludingOnDeck: onDeckID) {
-        continue
-      }
-      result.append(unsaved)
-    }
-    return result
-  }
-
-  private nonisolated static func isDiscoveryCandidate(
-    _ episode: Episode,
-    excludingOnDeck onDeckID: Episode.ID?
-  ) -> Bool {
-    if let onDeckID, episode.id == onDeckID { return false }
-    if episode.currentTime != .zero { return false }
-    if episode.finishDate != nil { return false }
-    if episode.rating != nil { return false }
-    if episode.queueOrder != nil { return false }
-    return true
   }
 
   // MARK: - Computed Outputs
@@ -855,7 +602,7 @@ final class SearchRecommendationCollector {
     guard !feedURLs.isEmpty else { return .hidden }
     let count = pickCount(for: source)
     if count > 0 { return .loaded(count: count) }
-    if scoringAvailability == .unavailable { return .hidden }
+    if scoringGate.state == .unavailable { return .hidden }
     let anyInFlight = feedURLs.contains { url in
       guard let entry = entry(for: url) else { return true }
       switch entry.status {
@@ -915,54 +662,9 @@ final class SearchRecommendationCollector {
   }
 }
 
-// MARK: - CachedPodcastEntry
-
-@Observable @MainActor
-private final class CachedPodcastEntry: Identifiable {
-  enum Status: Equatable {
-    case pending
-    case fetching
-    case scored
-    // Set only by `removePick` after the last pick is dismissed. Terminal —
-    // skipped by the scoring-context recovery loop so user-dismissed entries
-    // don't resurrect on the next close → open cycle.
-    case exhausted
-    case failed
-    case cancelled
-  }
-
-  let feedURL: FeedURL
-  let podcastID: Podcast.ID?
-  let iTunesID: ITunesPodcastID?
-  var status: Status = .pending
-  var scoredEpisodes = IdentifiedArrayOf<SearchRecommendationCollector.ScoredEpisode>()
-  @ObservationIgnored var fetchToken: DownloadTask?
-
-  var id: FeedURL { feedURL }
-
-  init(feedURL: FeedURL, podcastID: Podcast.ID?, iTunesID: ITunesPodcastID?) {
-    self.feedURL = feedURL
-    self.podcastID = podcastID
-    self.iTunesID = iTunesID
-  }
-
-  func cancel() async {
-    let token = fetchToken
-    fetchToken = nil
-    status = .cancelled
-    await token?.cancel()
-  }
-}
-
 // MARK: - TypedSearchOverlay
 
-@MainActor
-private final class TypedSearchOverlay {
+private struct TypedSearchOverlay {
   let query: String
   let feedURLs: [FeedURL]
-
-  init(query: String, feedURLs: [FeedURL]) {
-    self.query = query
-    self.feedURLs = feedURLs
-  }
 }
