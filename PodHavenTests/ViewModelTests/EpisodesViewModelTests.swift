@@ -77,4 +77,15 @@ import Testing
       #expect(persisted.map(\.displayOrder) == Array(0..<10))
     }
   }
+
+  @Test("moveSmartList ignores a stale out-of-bounds source index")
+  func moveSmartListIgnoresStaleIndex() async throws {
+    // No observation started, so the view model still holds an empty array.
+    let viewModel = EpisodesViewModel()
+
+    viewModel.moveSmartList(from: IndexSet(integer: 0), to: 1)
+
+    let persisted = try await smartListRepo.fetchAll()
+    #expect(persisted.map(\.displayOrder) == Array(0..<10))
+  }
 }

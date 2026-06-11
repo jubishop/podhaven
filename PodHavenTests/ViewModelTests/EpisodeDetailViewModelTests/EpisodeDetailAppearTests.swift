@@ -138,7 +138,10 @@ import Testing
     let listedEpisode = try #require(listableEpisodes.first)
     let listed = ListedEpisode(listedEpisode)
 
-    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
+    let smartList = try await Container.shared.smartListRepo()
+      .insert(
+        try UnsavedSmartList(title: "Detail Dismiss", filter: SmartListFilter(), displayOrder: 99)
+      )
     navigation.currentTab = .episodes
     navigation.episodes.path = [.smartList(smartList.id), .listedEpisode(listed)]
 

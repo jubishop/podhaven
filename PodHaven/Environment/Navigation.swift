@@ -444,13 +444,14 @@ extension Container {
   func popEpisodesIfSmartListMissing(_ smartListID: SmartList.ID) async {
     do {
       guard try await smartListRepo.fetchOne(smartListID) == nil else { return }
-      Self.log.debug("Smart list \(smartListID) no longer exists; popping to the hub")
     } catch {
       Self.log.caughtError(
         "popEpisodesIfSmartListMissing: failed to resolve smart list \(smartListID)",
         error
       )
+      return
     }
+    Self.log.debug("Smart list \(smartListID) no longer exists; popping to the hub")
     episodes.path = []
   }
 

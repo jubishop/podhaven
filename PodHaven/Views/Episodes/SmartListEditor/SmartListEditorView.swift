@@ -2,6 +2,7 @@
 
 import FactoryKit
 import SwiftUI
+import Tagged
 
 struct SmartListEditorView: View {
   @DynamicInjected(\.sheet) private var sheet
@@ -85,7 +86,7 @@ struct SmartListEditorView: View {
 #Preview("Edit") {
   SmartListEditorView(
     viewModel: SmartListEditorViewModel(
-      mode: .create,
+      mode: .edit(SmartList.ID(1)),
       title: "Quick Tech Hits",
       filter: SmartListFilter(
         combinator: .all,

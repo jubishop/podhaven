@@ -50,6 +50,10 @@ class EpisodesViewModel {
   func moveSmartList(from: IndexSet, to: Int) {
     guard from.count == 1, let from = from.first
     else { Assert.fatal("Somehow dragged none or several?") }
+    guard smartLists.indices.contains(from) else {
+      Self.log.error("moveSmartList: stale source index \(from) with \(smartLists.count) lists")
+      return
+    }
 
     let smartListID = smartLists[from].id
     Task { [weak self] in

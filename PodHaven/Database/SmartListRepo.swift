@@ -93,61 +93,6 @@ struct SmartListRepo: Sendable {
     } > 0
   }
 
-  // MARK: - Legacy Sort Preference Cleanup
-
-  // One-time cleanup after the UI swap to row-persisted sort. A surviving
-  // legacy key holds the newest pre-upgrade sort pick (sort changes made after
-  // the v54 copy landed only in UserDefaults), so re-copy each onto its
-  // matching row by title, then delete the key. Title matching is reliable
-  // because lists couldn't be renamed before the editor shipped. No-ops once
-  // the keys are gone; a failed row write keeps its key for a retry next launch.
-  func migrateLegacySortPreferences() async {
-    let store = Container.shared.standardDefaults()
-    let prefix = "EpisodesList-sortMethod-"
-    let keys = store.allKeys.filter { $0.hasPrefix(prefix) }
-    guard !keys.isEmpty else { return }
-    Self.log.info("migrateLegacySortPreferences: cleaning up \(keys.count) legacy sort keys")
-
-    var rowIDsByTitle: [String: SmartList.ID] = [:]
-    do {
-      for smartList in try await fetchAll() where rowIDsByTitle[smartList.title] == nil {
-        rowIDsByTitle[smartList.title] = smartList.id
-      }
-    } catch {
-      Self.log.caughtError("migrateLegacySortPreferences: failed to fetch smart lists", error)
-      return
-    }
-
-    for key in keys {
-      let title = String(key.dropFirst(prefix.count))
-      if let id = rowIDsByTitle[title], let sortMethod = Self.decodeLegacySortMethod(store, key) {
-        do {
-          try await updateSortMethod(id, to: sortMethod)
-        } catch {
-          Self.log.caughtError(
-            "migrateLegacySortPreferences: failed to copy '\(title)' sort onto its row",
-            error
-          )
-          continue
-        }
-      }
-      store.removeObject(forKey: key)
-    }
-  }
-
-  private static func decodeLegacySortMethod(
-    _ store: any KeyValueStore,
-    _ key: String
-  ) -> SmartListSortMethod? {
-    guard let data = store.data(forKey: key) else { return nil }
-    do {
-      return try JSONDecoder().decode(SmartListSortMethod.self, from: data)
-    } catch {
-      Self.log.caughtError("decodeLegacySortMethod: undecodable value for '\(key)'", error)
-      return nil
-    }
-  }
-
   // Renumbers displayOrder into a dense 0-based sequence after moving `id`.
   // `position` is the destination offset from the original order.
   func moveSmartList(_ id: SmartList.ID, to position: Int) async throws {
