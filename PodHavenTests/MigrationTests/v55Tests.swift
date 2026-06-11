@@ -81,4 +81,21 @@ class V55MigrationTests {
     #expect(defaults.data(forKey: "EpisodesList-sortMethod-No Such List") == nil)
     #expect(defaults.data(forKey: "SomeOtherSetting") == Data("unrelated".utf8))
   }
+
+  @Test("v55 leaves every pref key in place when a row update throws")
+  func failedUpdateLeavesKeys() async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v54")
+    let defaults = try defaults()
+    defaults.set(Data(#""recentlyAdded""#.utf8), forKey: "EpisodesList-sortMethod-Liked")
+    // Force the UPDATE to throw: UserDefaults aren't rolled back with the
+    // migration transaction, so the keys must survive for the retry.
+    try await appDB.unsafeTestDB.write { db in
+      try db.execute(sql: "DROP TABLE smartList")
+    }
+
+    #expect(throws: (any Error).self) {
+      try self.migrator.migrate(self.appDB.unsafeTestDB, upTo: "v55")
+    }
+    #expect(defaults.data(forKey: "EpisodesList-sortMethod-Liked") != nil)
+  }
 }

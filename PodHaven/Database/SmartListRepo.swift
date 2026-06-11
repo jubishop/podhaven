@@ -48,27 +48,28 @@ struct SmartListRepo: Sendable {
     }
   }
 
+  // Title and filter land in one transaction so a save can't half-apply.
   @discardableResult
-  func updateTitle(_ id: SmartList.ID, to title: String) async throws -> Bool {
+  func update(_ id: SmartList.ID, title: String, filter: SmartListFilter) async throws -> Bool {
     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       throw DatabaseError(message: "Smart List title cannot be empty")
     }
-    Self.log.debug("updateTitle: \(id) to \(trimmed)")
-
-    return try await writer.write { db in
-      try SmartList.withID(id).updateAll(db, SmartList.Columns.title.set(to: trimmed))
-    } > 0
-  }
-
-  @discardableResult
-  func updateFilter(_ id: SmartList.ID, to filter: SmartListFilter) async throws -> Bool {
     Self.log.debug(
-      "updateFilter: \(id) to \(filter.conditions.count) conditions (nested: \(filter.nested != nil))"
+      """
+      update: \(id) to '\(trimmed)' with \(filter.conditions.count) conditions \
+      (nested: \(filter.nested != nil))
+      """
     )
 
     return try await writer.write { db in
-      try SmartList.withID(id).updateAll(db, SmartList.Columns.filter.set(to: filter.databaseValue))
+      try SmartList
+        .withID(id)
+        .updateAll(
+          db,
+          SmartList.Columns.title.set(to: trimmed),
+          SmartList.Columns.filter.set(to: filter.databaseValue)
+        )
     } > 0
   }
 

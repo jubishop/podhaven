@@ -120,8 +120,7 @@ class SmartListEditorViewModel {
             )
           )
         case .edit(let id):
-          try await smartListRepo.updateTitle(id, to: trimmedTitle)
-          try await smartListRepo.updateFilter(id, to: filter)
+          try await smartListRepo.update(id, title: trimmedTitle, filter: filter)
         }
         sheet.dismiss()
       } catch {

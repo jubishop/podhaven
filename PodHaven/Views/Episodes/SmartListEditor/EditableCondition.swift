@@ -204,10 +204,14 @@ struct EditableCondition: Identifiable, Hashable {
     case minutes(Int)
   }
 
+  // Generous ceiling on entered minutes that keeps the seconds conversion far
+  // from Int overflow.
+  private static let maxMinutes = 1_000_000
+
   private static func parseMinutes(_ text: String) -> MinutesField {
     let trimmed = text.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { return .empty }
-    guard let minutes = Int(trimmed), minutes >= 0 else { return .invalid }
+    guard let minutes = Int(trimmed), (0...maxMinutes).contains(minutes) else { return .invalid }
     return .minutes(minutes)
   }
 

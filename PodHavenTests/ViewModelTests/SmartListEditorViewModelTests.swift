@@ -186,6 +186,20 @@ import Testing
     #expect(viewModel.validationMessage == "Enter a number of days")
   }
 
+  @Test("overflow-magnitude duration minutes are invalid instead of trapping")
+  func hugeDurationMinutesAreInvalid() {
+    let viewModel = SmartListEditorViewModel(mode: .create, title: "Named")
+
+    // Large enough that converting minutes to seconds would overflow Int.
+    var duration = EditableCondition()
+    duration.kind = .duration
+    duration.minMinutesText = "999999999999999999"
+    viewModel.topGroup.conditions = [duration]
+
+    #expect(!viewModel.canSave)
+    #expect(viewModel.validationMessage == "Durations must be whole minutes")
+  }
+
   @Test("an incomplete nested condition blocks save")
   func incompleteNestedConditionBlocksSave() {
     let viewModel = SmartListEditorViewModel(mode: .create, title: "Named")

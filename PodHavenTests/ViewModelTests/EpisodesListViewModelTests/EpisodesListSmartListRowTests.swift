@@ -43,7 +43,7 @@ import Testing
       )
 
       let lovedOnly = SmartListFilter(combinator: .all, conditions: [.state(.isLoved)])
-      try await smartListRepo.updateFilter(viewModel.smartListID, to: lovedOnly)
+      try await smartListRepo.update(viewModel.smartListID, title: "Live Filter", filter: lovedOnly)
 
       try await Wait.until(
         { @MainActor in viewModel.smartListFilter == lovedOnly },
@@ -116,7 +116,11 @@ import Testing
     let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Before")
 
     try await withRunningObservationLoop(viewModel) {
-      try await smartListRepo.updateTitle(viewModel.smartListID, to: "After")
+      try await smartListRepo.update(
+        viewModel.smartListID,
+        title: "After",
+        filter: SmartListFilter()
+      )
 
       try await Wait.until(
         { @MainActor in viewModel.title == "After" },

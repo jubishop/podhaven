@@ -18,8 +18,8 @@ extension Schema {
     ]
     let defaults = Container.shared.standardDefaults()
     let prefix = "EpisodesList-sortMethod-"
-    for key in defaults.allKeys where key.hasPrefix(prefix) {
-      defer { defaults.removeObject(forKey: key) }
+    let keys = defaults.allKeys.filter { $0.hasPrefix(prefix) }
+    for key in keys {
       guard let data = defaults.data(forKey: key) else { continue }
       let raw: String
       do {
@@ -33,6 +33,12 @@ extension Schema {
         sql: "UPDATE smartList SET sortMethod = ? WHERE title = ?",
         arguments: [raw, String(key.dropFirst(prefix.count))]
       )
+    }
+    // Keys go only after every surviving pref has been re-copied: defaults
+    // aren't covered by the migration transaction, so a thrown UPDATE must
+    // leave them in place for the retry.
+    for key in keys {
+      defaults.removeObject(forKey: key)
     }
   }
 }
