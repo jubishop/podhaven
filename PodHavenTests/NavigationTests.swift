@@ -357,15 +357,15 @@ import Testing
     #expect(navigation.episodes.path == [.smartList(smartList.id)])
   }
 
-  @Test("dismiss pops a smart list back to the hub")
-  func dismissEpisodeSmartListPopsToHub() async throws {
+  @Test("dismiss keeps the smart list root destination intact")
+  func dismissEpisodeSmartListRootNoOp() async throws {
     let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
     navigation.currentTab = .episodes
     navigation.episodes.path = [.smartList(smartList.id)]
 
     navigation.dismiss()
 
-    #expect(navigation.episodes.path.isEmpty)
+    #expect(navigation.episodes.path == [.smartList(smartList.id)])
   }
 
   @Test("dismiss on the episodes hub is a no-op")
@@ -396,5 +396,59 @@ import Testing
 
     navigation.podcasts.path = []
     #expect(navigation.podcasts.path.isEmpty)
+  }
+
+  // MARK: - Episodes Last-Viewed Persistence
+
+  private func makeRestoredEpisodesPathManager() -> Navigation.SavedPathManager<SmartList.ID> {
+    Navigation.SavedPathManager<SmartList.ID>(
+      storageKey: "navigationEpisodesTopDestination",
+      extractTopDestination: {
+        guard case .smartList(let smartListID) = $0 else { return nil }
+        return smartListID
+      },
+      makeDestination: { .smartList($0) }
+    )
+  }
+
+  @Test("episodes tab saves and restores the last-viewed smart list")
+  func episodesTabSavesAndRestoresTopDestination() async throws {
+    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
+    navigation.episodes.path = [.smartList(smartList.id)]
+
+    let restored = makeRestoredEpisodesPathManager()
+    #expect(restored.path == [.smartList(smartList.id)])
+  }
+
+  @Test("clearing the episodes path resets the saved top destination")
+  func clearingEpisodesPathResetsTopDestination() async throws {
+    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
+    navigation.episodes.path = [.smartList(smartList.id)]
+    navigation.episodes.path = []
+
+    let restored = makeRestoredEpisodesPathManager()
+    #expect(restored.path.isEmpty)
+  }
+
+  @Test("popEpisodesIfSmartListMissing pops a deleted smart list to the hub")
+  func popEpisodesIfSmartListMissingPops() async throws {
+    let smartListRepo = Container.shared.smartListRepo()
+    let smartList = try #require(try await smartListRepo.fetchAll().first)
+    navigation.episodes.path = [.smartList(smartList.id)]
+    _ = try await smartListRepo.delete(smartList.id)
+
+    await navigation.popEpisodesIfSmartListMissing(smartList.id)
+
+    #expect(navigation.episodes.path.isEmpty)
+  }
+
+  @Test("popEpisodesIfSmartListMissing leaves an existing smart list in place")
+  func popEpisodesIfSmartListMissingNoOpWhenPresent() async throws {
+    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
+    navigation.episodes.path = [.smartList(smartList.id)]
+
+    await navigation.popEpisodesIfSmartListMissing(smartList.id)
+
+    #expect(navigation.episodes.path == [.smartList(smartList.id)])
   }
 }

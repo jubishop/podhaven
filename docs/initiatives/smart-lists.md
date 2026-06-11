@@ -240,7 +240,7 @@ The `filter` column is `TEXT` (JSON). Conformance is via a `DatabaseValueConvert
 
 - **Delete** `EpisodesViewType` enum (`Navigation.swift:132–135`) and the entire `case .episodesViewType` switch (`Navigation.swift:193–258`).
 - **Add** `case smartList(SmartList.ID)` to `Destination`, with a handler that resolves the row (from a `sharedState`/repo lookup) and instantiates `EpisodesListView(viewModel: EpisodesListViewModel(smartList: row))`. If the ID is missing (deleted since the path was built), pop to the `EpisodesView` root rather than crashing — same defensive shape as the `.tag` fallback at `Navigation.swift:287–304`. The "no SmartLists at all" state (user deleted every row) is handled at the `EpisodesView` level with an empty state plus the `+` button still in the toolbar.
-- The Episodes tab currently uses `SavedPathManager<EpisodesViewType>` (`Navigation.swift:467–474`) to persist the last-viewed top destination. Switch it to a plain `PathManager()` (like `upNext`/`search`/`settings`) and drop the `navigationEpisodesTopDestination` storage key. Per the original design, losing last-viewed-list across upgrade is acceptable, and this avoids needing `SmartList.ID: DefaultsStorable`. (If we later want to persist last-viewed list, revisit.)
+- The Episodes tab keeps `SavedPathManager` for last-viewed persistence, re-keyed to `SmartList.ID` under the same `navigationEpisodesTopDestination` storage key (`Tagged` already conforms to `DefaultsStorable`). The pre-upgrade `EpisodesViewType` value fails to decode and self-clears, so last-viewed resets exactly once across the upgrade. A restored ID can render before `sharedState.smartLists` first emits, so the missing-row fallback confirms against the database (`popEpisodesIfSmartListMissing`) before popping to the hub — a mirror miss alone doesn't distinguish "not loaded yet" from "deleted".
 
 ### 7. EpisodesListViewModel — sort moves to the SmartList row, VM observes its row (Phase 2)
 
@@ -399,4 +399,3 @@ Per CLAUDE.md regression-test rule: each engine edge-case test must be confirmed
 - Tag/podcast-text-condition perf via an Observatory request-builder overload, if subqueries become a hotspot.
 - Continuous re-evaluation of relative `.publishDate` windows (today the cutoff is fixed at observation start).
 - Multi-select / bulk delete for SmartLists in edit mode.
-- Persisting last-viewed Smart List for the Episodes tab (dropped in this design).
