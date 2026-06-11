@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2026
 
-import FactoryKit
 import Foundation
 import GRDB
 import Testing
@@ -16,177 +15,101 @@ class V52MigrationTests {
     self.migrator = Schema.makeMigrator()
   }
 
-  private func defaults() throws -> FakeKeyValueStore {
-    try #require(Container.shared.standardDefaults() as? FakeKeyValueStore)
+  // MARK: - Fixture
+
+  // Seed at v51 with one podcast and two episodes — one in progress, one
+  // untouched — so the backfill has both branches to cover.
+  private func populateAtV51() async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v51")
+
+    try await appDB.unsafeTestDB.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO podcast (
+            id, feedURL, title, image, description, link, lastUpdate,
+            subscriptionDate, creationDate, defaultPlaybackRate,
+            queueAllEpisodes, cacheAllEpisodes, notifyNewEpisodes, iTunesID,
+            contentUpdatedAt
+          ) VALUES (
+            600, 'https://example.com/v52.xml', 'V52 Podcast',
+            'https://example.com/img.jpg', 'Description',
+            NULL, '2024-01-01 00:00:00', NULL, '2024-01-01 00:00:00',
+            1.0, 'never', 'never', 0, NULL, '2024-01-01 00:00:00'
+          )
+          """
+      )
+      try db.execute(
+        sql: """
+          INSERT INTO episode (
+            id, podcastId, guid, mediaURL, title, pubDate, creationDate,
+            contentUpdatedAt, currentTime, maxPlaybackTime, saveInCache,
+            downloading
+          ) VALUES (
+            610, 600, 'guid-1', 'https://example.com/ep1.mp3',
+            'In Progress', '2024-02-01 00:00:00', '2024-02-01 00:00:00',
+            '2024-02-01 00:00:00', 123.5, 123.5, 0, 0
+          )
+          """
+      )
+      try db.execute(
+        sql: """
+          INSERT INTO episode (
+            id, podcastId, guid, mediaURL, title, pubDate, creationDate,
+            contentUpdatedAt, currentTime, maxPlaybackTime, saveInCache,
+            downloading
+          ) VALUES (
+            611, 600, 'guid-2', 'https://example.com/ep2.mp3',
+            'Untouched', '2024-02-02 00:00:00', '2024-02-02 00:00:00',
+            '2024-02-02 00:00:00', 0, 0, 0, 0
+          )
+          """
+      )
+    }
   }
 
-  private static let expectedTitles = [
-    "Recent Episodes", "Unqueued", "Cached", "Saved", "Finished",
-    "Unfinished", "Previously Queued", "Liked", "Disliked", "Not Interested",
-  ]
+  // MARK: - Column Addition
 
-  private static func insertFilter(_ db: Database, title: String, filter: String, order: Int)
-    throws
-  {
-    try db.execute(
-      sql:
-        "INSERT INTO smartList (title, filter, displayOrder, sortMethod) VALUES (?, ?, ?, 'newestFirst')",
-      arguments: [title, filter, order]
-    )
-  }
+  @Test("v52 adds a NOT NULL playbackStarted column defaulting to false")
+  func addsPlaybackStartedColumn() async throws {
+    try await populateAtV51()
 
-  // MARK: - Schema & Seeds
+    let before = try await appDB.unsafeTestDB.read { db in
+      try Row.fetchAll(db, sql: "PRAGMA table_info(episode)")
+        .map { $0["name"] as String }
+    }
+    #expect(!before.contains("playbackStarted"))
 
-  @Test("v52 creates, indexes, and seeds the smartList table")
-  func createsIndexesAndSeeds() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v52")
 
-    let rows = try await appDB.unsafeTestDB.read { db -> [(String, Int, String, String)] in
+    let column: (notNull: Int64, defaultValue: String)? = try await appDB.unsafeTestDB.read {
+      db in
+      guard
+        let row = try Row.fetchAll(db, sql: "PRAGMA table_info(episode)")
+          .first(where: { $0["name"] as String == "playbackStarted" })
+      else { return nil }
+      return (row["notnull"] as Int64, row["dflt_value"] as String)
+    }
+    let info = try #require(column)
+    #expect(info.notNull == 1)
+    #expect(info.defaultValue == "0")
+  }
+
+  // MARK: - Backfill
+
+  @Test("v52 backfills playbackStarted from currentTime > 0")
+  func backfillsFromCurrentTime() async throws {
+    try await populateAtV51()
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v52")
+
+    let flags = try await appDB.unsafeTestDB.read { db in
       try Row.fetchAll(
         db,
-        sql: "SELECT title, displayOrder, filter, sortMethod FROM smartList ORDER BY displayOrder"
+        sql: "SELECT id, playbackStarted FROM episode ORDER BY id"
       )
-      .map { ($0["title"], $0["displayOrder"], $0["filter"], $0["sortMethod"]) }
+      .map { ($0["id"] as Int64, $0["playbackStarted"] as Bool) }
     }
-
-    #expect(rows.map(\.0) == Self.expectedTitles)
-    #expect(rows.map(\.1) == Array(0..<10))
-    // No UserDefaults prefs set, so every row defaults to newestFirst.
-    #expect(rows.allSatisfy { $0.3 == "newestFirst" })
-
-    // Each filter is valid JSON with the documented shape.
-    for row in rows {
-      let object = try JSONSerialization.jsonObject(with: Data(row.2.utf8)) as? [String: Any]
-      let json = try #require(object)
-      #expect(json["combinator"] is String)
-      #expect(json["conditions"] is [Any])
-      #expect(json.keys.contains("nested"))
-    }
-
-    let indexExists = try await appDB.unsafeTestDB.read { db in
-      try Bool.fetchOne(
-        db,
-        sql:
-          "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='index' AND name='smartList_displayOrder')"
-      ) ?? false
-    }
-    #expect(indexExists)
-  }
-
-  @Test("v52 sortMethod CHECK accepts recommendationScore and rejects unknown values")
-  func sortMethodCheck() async throws {
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v52")
-
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO smartList (title, filter, displayOrder, sortMethod)
-          VALUES ('Recs', '{"combinator":"all","conditions":[],"nested":null}', 99, 'recommendationScore')
-          """
-      )
-    }
-
-    await #expect(throws: DatabaseError.self) {
-      try await self.appDB.unsafeTestDB.write { db in
-        try db.execute(
-          sql: """
-            INSERT INTO smartList (title, filter, displayOrder, sortMethod)
-            VALUES ('Bad', '{"combinator":"all","conditions":[],"nested":null}', 100, 'bogusSort')
-            """
-        )
-      }
-    }
-  }
-
-  @Test("v52 filter CHECK enforces the SmartListFilter top-level shape")
-  func filterJSONCheck() async throws {
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v52")
-
-    // Accepted: a well-formed object, and one that omits the optional nested key.
-    try await appDB.unsafeTestDB.write { db in
-      try Self.insertFilter(
-        db,
-        title: "Valid",
-        filter: #"{"combinator":"all","conditions":[],"nested":null}"#,
-        order: 90
-      )
-      try Self.insertFilter(
-        db,
-        title: "NoNested",
-        filter: #"{"combinator":"all","conditions":[]}"#,
-        order: 91
-      )
-    }
-
-    // Rejected: non-JSON, plus valid-JSON shapes (non-object, missing required
-    // keys, wrong nested type) the SmartListFilter decoder cannot read.
-    let rejected: [(title: String, filter: String)] = [
-      ("Garbage", "not json at all"),
-      ("String", #""justastring""#),
-      ("Array", "[]"),
-      ("NoCombinator", #"{"conditions":[],"nested":null}"#),
-      ("NoConditions", #"{"combinator":"all","nested":null}"#),
-      ("BadNested", #"{"combinator":"all","conditions":[],"nested":5}"#),
-    ]
-    for (index, row) in rejected.enumerated() {
-      await #expect(throws: DatabaseError.self) {
-        try await self.appDB.unsafeTestDB.write { db in
-          try Self.insertFilter(db, title: row.title, filter: row.filter, order: 100 + index)
-        }
-      }
-    }
-  }
-
-  // MARK: - Sort-Pref Copy (keys retained)
-
-  @Test("v52 copies UserDefaults sort prefs onto rows without deleting the keys")
-  func copiesSortPrefsWithoutDeletingKeys() async throws {
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v51")
-
-    let defaults = try defaults()
-    defaults.set(Data(#""recentlyAdded""#.utf8), forKey: "EpisodesList-sortMethod-Liked")
-    defaults.set(Data("not-json".utf8), forKey: "EpisodesList-sortMethod-Finished")
-    defaults.set(Data(#""oldestFirst""#.utf8), forKey: "EpisodesList-sortMethod-SomeUserList")
-
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v52")
-
-    let sorts = try await appDB.unsafeTestDB.read { db -> [String: String] in
-      Dictionary(
-        uniqueKeysWithValues: try Row.fetchAll(db, sql: "SELECT title, sortMethod FROM smartList")
-          .map { ($0["title"], $0["sortMethod"]) }
-      )
-    }
-    #expect(sorts["Liked"] == "recentlyAdded")  // carried over
-    #expect(sorts["Finished"] == "newestFirst")  // garbage rejected, defaulted
-
-    // Phase 1 copies but does NOT delete the keys (the old VM still reads them).
-    #expect(defaults.data(forKey: "EpisodesList-sortMethod-Liked") != nil)
-    #expect(defaults.data(forKey: "EpisodesList-sortMethod-Finished") != nil)
-    // Unrelated keys are untouched.
-    #expect(
-      defaults.data(forKey: "EpisodesList-sortMethod-SomeUserList") == Data(#""oldestFirst""#.utf8)
-    )
-  }
-
-  // MARK: - Pre-existing data
-
-  @Test("v52 leaves v51 data intact")
-  func leavesV51DataIntact() async throws {
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v51")
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO podcast (feedURL, title, image, description)
-          VALUES ('https://feed', 'T', 'img', 'desc')
-          """
-      )
-    }
-
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v52")
-
-    let podcastCount = try await appDB.unsafeTestDB.read { db in
-      try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM podcast") ?? 0
-    }
-    #expect(podcastCount == 1)
+    #expect(flags.count == 2)
+    #expect(flags[0] == (610, true))
+    #expect(flags[1] == (611, false))
   }
 }

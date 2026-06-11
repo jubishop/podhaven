@@ -7,7 +7,7 @@ import Testing
 
 @Suite("of SmartListFilter Codable tests")
 struct SmartListFilterCodableTests {
-  // The 10 seeded defaults, as values (mirrors Migration_v52's JSON literals).
+  // The 10 seeded defaults, as values (mirrors Migration_v54's JSON literals).
   private static let defaults: [SmartListFilter] = [
     SmartListFilter(combinator: .all, conditions: [], nested: nil),
     SmartListFilter(combinator: .all, conditions: [.state(.isUnqueued), .state(.isUnfinished)]),

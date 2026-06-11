@@ -12,8 +12,6 @@ extension Container {
 }
 
 struct SmartListRepo: Sendable {
-  private static let log = Log.as(LogSubsystem.Database.repo)
-
   // MARK: - Initialization
 
   private let reader: AppDB.Reader

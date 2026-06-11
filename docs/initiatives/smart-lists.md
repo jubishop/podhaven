@@ -4,7 +4,7 @@ status: in-progress
 
 # Smart Lists
 
-User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v51, condition set expanded, scrub-on-tag-delete, two-phase build).
+User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v53, condition set expanded, scrub-on-tag-delete, two-phase build).
 
 ## Context
 
@@ -24,10 +24,10 @@ The intended outcome: every list visible in `EpisodesView` becomes a row in the 
 
 The migration replaces the entire `EpisodesView` hub, so the work lands as two independently-reviewable PRs:
 
-- **Phase 1 — data + engine (dormant).** Model, `@Saved` macro, `SmartListFilter`, `SmartListFilterEngine`, `SmartListSortMethod`, the v52 migration (creates + seeds the table), `SmartListRepo`, the two new `Observatory` entry points, the `DatabaseValueConvertible` bridge, the scrub-on-tag-delete hook, and the full test suite. The existing `EpisodesView` / `EpisodesViewType` hub is **left untouched** — the table is seeded but nothing reads it yet, so Phase 1 ships green on its own.
+- **Phase 1 — data + engine (dormant).** Model, `@Saved` macro, `SmartListFilter`, `SmartListFilterEngine`, `SmartListSortMethod`, the v54 migration (creates + seeds the table), `SmartListRepo`, the two new `Observatory` entry points, the `DatabaseValueConvertible` bridge, the scrub-on-tag-delete hook, and the full test suite. The existing `EpisodesView` / `EpisodesViewType` hub is **left untouched** — the table is seeded but nothing reads it yet, so Phase 1 ships green on its own.
 - **Phase 2 — UI swap.** Rewrite `EpisodesView` as an observed `List` with reorder + `+`, repoint `Navigation` to `smartList(ID)`, rebuild `EpisodesListViewModel` to take a `SmartList` and observe its row, add the gear toolbar + editor sheet, and delete `EpisodesViewType` and its switch. A one-time launch cleanup removes the now-orphaned `EpisodesList-sortMethod-*` UserDefaults keys.
 
-**Why Phase 1 copies but does not delete the old sort-pref keys:** if Phase 1 reaches users before Phase 2, the old `EpisodesListView` still reads `EpisodesList-sortMethod-{title}`. So the v52 migration *copies* those prefs onto seeded rows but leaves the keys in place; Phase 2 — which removes the old reader — deletes them. Migrations are immutable, so the destructive cleanup belongs in Phase 2 code, not the migration.
+**Why Phase 1 copies but does not delete the old sort-pref keys:** if Phase 1 reaches users before Phase 2, the old `EpisodesListView` still reads `EpisodesList-sortMethod-{title}`. So the v54 migration *copies* those prefs onto seeded rows but leaves the keys in place; Phase 2 — which removes the old reader — deletes them. Migrations are immutable, so the destructive cleanup belongs in Phase 2 code, not the migration.
 
 ---
 
@@ -103,13 +103,13 @@ Pure `(SmartListFilter, referenceDate: Date) -> SQLExpression`. The `referenceDa
 
 Per CLAUDE.md, do not use `Optional.map` to project off `nested` — branch with `if let nested = filter.nested { … }` and append the nested combine to the top list before the final combine.
 
-### 3. Migration v52 — `PodHaven/Database/Migrations/Migration_v52.swift`
+### 3. Migration v54 — `PodHaven/Database/Migrations/Migration_v54.swift`
 
-Migrations are no longer inline in `Schema.swift`; each is a `migrateV{n}` static func in its own `Migration_v{n}.swift` file, registered by one line in `Schema.makeMigrator()` (`Schema.swift:29–66`, currently registered through v51). Add `migrator.registerMigration("v52", migrate: migrateV52)` and the new file. String-literals-only per CLAUDE.md.
+Migrations are no longer inline in `Schema.swift`; each is a `migrateV{n}` static func in its own `Migration_v{n}.swift` file, registered by one line in `Schema.makeMigrator()` (`Schema.swift:29–66`, currently registered through v53). Add `migrator.registerMigration("v54", migrate: migrateV54)` and the new file. String-literals-only per CLAUDE.md.
 
 ```swift
 extension Schema {
-  static func migrateV52(_ db: Database) throws {
+  static func migrateV54(_ db: Database) throws {
     let allowedSortMethods = [
       "newestFirst", "oldestFirst", "recentlyAdded",
       "longest", "shortest", "recentlyFinished", "recentlyQueued",
@@ -135,7 +135,7 @@ extension Schema {
         .check { allowedSortMethods.contains($0) }
       t.column("creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
     }
-    try db.create(index: "smartList_displayOrder", on: "smartList", columns: ["displayOrder"])
+    try db.create(index: "smartList_on_displayOrder", on: "smartList", columns: ["displayOrder"])
 
     // Copy per-title sort prefs from UserDefaults onto the seeded rows. Do NOT
     // delete the keys here — the old EpisodesListView still reads them until
@@ -328,19 +328,19 @@ Add a `.primaryAction` toolbar item using existing `AppIcon.settings` (gear). Ta
 - `PodHaven/Database/Models/SmartListSortMethod.swift` — extracted from `EpisodesListViewModel.SortMethod`
 - `PodHaven/Database/SmartListFilterEngine.swift`
 - `PodHaven/Database/SmartListRepo.swift`
-- `PodHaven/Database/Migrations/Migration_v52.swift`
+- `PodHaven/Database/Migrations/Migration_v54.swift`
 - `PodHaven/Views/Episodes/Models/EpisodesViewModel.swift` *(Phase 2)*
 - `PodHaven/Views/Episodes/SmartListEditor/SmartListEditorView.swift` *(Phase 2)*
 - `PodHaven/Views/Episodes/SmartListEditor/SmartListEditorViewModel.swift` *(Phase 2)*
 - `PodHaven/Views/Episodes/SmartListEditor/SmartListGroupView.swift` *(Phase 2)*
 - `PodHaven/Views/Episodes/SmartListEditor/SmartListConditionRow.swift` *(Phase 2)*
-- `PodHavenTests/MigrationTests/v52Tests.swift`
+- `PodHavenTests/MigrationTests/v54Tests.swift`
 - `PodHavenTests/SmartListFilterEngineTests.swift`
 - `PodHavenTests/SmartListFilterCodableTests.swift`
 - `PodHavenTests/SmartListRepoTests.swift`
 
 **Modified:**
-- `PodHaven/Database/Schema.swift` — register `v52` *(Phase 1)*
+- `PodHaven/Database/Schema.swift` — register `v54` *(Phase 1)*
 - `PodHaven/Database/Repo.swift` + `Database/Protocols/Databasing.swift` — scrub Smart List filters inside `deleteTag` *(Phase 1)*
 - `PodHaven/Database/Observatory.swift` (+ its protocol) — add `smartLists()` and `smartList(id:)` *(Phase 1)*
 - `PodHaven/Views/Episodes/Models/EpisodesListViewModel.swift` — move `SortMethod` out *(Phase 1)*; take `SmartList` in init, observe `smartList(id:)`, remove `@PersistedBroadcast`, persist sort via `SmartListRepo.updateSortMethod` *(Phase 2)*
@@ -365,7 +365,7 @@ Add a `.primaryAction` toolbar item using existing `AppIcon.settings` (gear). Ta
 
 ## Test plan
 
-1. **v52 migration test** (`v52Tests.swift`, raw SQL only, follows the latest `v{n}Tests.swift` pattern): schema columns + types correct (including the `sortMethod` CHECK constraint, which must accept `recommendationScore` and reject an unknown value); `smartList_displayOrder` index exists; exactly 10 rows seeded with distinct titles and `displayOrder` 0–9; each `filter` parses as JSON via `JSONSerialization` (pin the JSON shape, not the model's decoder); rows default to `sortMethod = "newestFirst"` when no UserDefaults pref exists; v51 data untouched. **Sort-pref sub-test:** pre-seed `EpisodesList-sortMethod-Liked` with `Data("\"recentlyAdded\"".utf8)` and `EpisodesList-sortMethod-Finished` with garbage `Data` into `Container.shared.standardDefaults()` before migrating; assert "Liked" → `recentlyAdded` (carried), "Finished" → `newestFirst` (garbage rejected). **Assert the keys are NOT deleted by the migration** (they're cleaned up in Phase 2, not here).
+1. **v54 migration test** (`v54Tests.swift`, raw SQL only, follows the latest `v{n}Tests.swift` pattern): schema columns + types correct (including the `sortMethod` CHECK constraint, which must accept `recommendationScore` and reject an unknown value); `smartList_on_displayOrder` index exists; exactly 10 rows seeded with distinct titles and `displayOrder` 0–9; each `filter` parses as JSON via `JSONSerialization` (pin the JSON shape, not the model's decoder); rows default to `sortMethod = "newestFirst"` when no UserDefaults pref exists; v53 data untouched. **Sort-pref sub-test:** pre-seed `EpisodesList-sortMethod-Liked` with `Data("\"recentlyAdded\"".utf8)` and `EpisodesList-sortMethod-Finished` with garbage `Data` into `Container.shared.standardDefaults()` before migrating; assert "Liked" → `recentlyAdded` (carried), "Finished" → `newestFirst` (garbage rejected). **Assert the keys are NOT deleted by the migration** (they're cleaned up in Phase 2, not here).
 2. **Filter engine parity test** (`SmartListFilterEngineTests.swift`): for each of the 10 default filters, build the `SmartListFilter`, run it through the engine, and assert the output `SQLExpression` returns the **same episode set** as the existing hardcoded expression on a fixture DB. This is the regression anchor.
 3. **Filter engine edge-case tests:** nullable-description `doesNotContain` matches null rows; one-level-nested `any`-inside-`all` parenthesizes correctly (fixture designed so wrong precedence yields a different set); `equals`/`startsWith` are case-insensitive; `startsWith` escapes `%`/`_`. **Podcast text tests** mirror the episode-text tests against the parent podcast (no orphan tests — `episode.podcastId` is NOT NULL), and run through the joined `listablePodcastEpisodes(filter:)` request to prove the subquery's `podcast` stays isolated from the request's joined `podcast`. **Tag-scope tests** (run for both `.episodeTag` and `.podcastTag` on the same fixture): `hasNoTags`↔`hasAnyTag` complementarity; `hasTag`/`doesNotHaveTag` partition; a missing/unresolved `Tag.ID` makes `hasTag` match nothing. **Scope-independence test:** `.episodeTag(.hasTag(X))` AND `.podcastTag(.hasTag(Y))` matches only episodes whose own row carries X *and* whose podcast carries Y (fixture includes single-tag episodes so swapping joins changes the result). **Duration tests:** `minSeconds`/`maxSeconds` bounds are inclusive and open-ended on `nil`; `minSeconds: 0` includes unknown-duration (`0`) rows. **PubDate tests:** with a fixed `referenceDate`, `withinLast` and `olderThan` day windows partition around the cutoff.
 4. **Codable round-trip** (`SmartListFilterCodableTests.swift`): the 10 default filters + a fixture with a non-nil nested group + one fixture per new condition kind (`podcastText`, `duration`, `pubDate`): encode → decode → encode → assert byte-equal. Decoding an unknown `Condition` `kind` throws.
@@ -383,7 +383,7 @@ Per CLAUDE.md regression-test rule: each engine edge-case test must be confirmed
 2. Run full test suite.
 3. Launch in simulator:
    - Fresh install: confirm 10 lists appear in `EpisodesView` with the names above; tapping each shows the same episodes as before the migration.
-   - Upgrade install (from a v51 DB if possible): migration succeeds, all 10 lists present, seeded sort matches the pre-upgrade pref. After Phase 2 ships, confirm the 10 `EpisodesList-sortMethod-{title}` keys are gone.
+   - Upgrade install (from a v53 DB if possible): migration succeeds, all 10 lists present, seeded sort matches the pre-upgrade pref. After Phase 2 ships, confirm the 10 `EpisodesList-sortMethod-{title}` keys are gone.
    - Tap `+` → editor opens; build a one-level-nested filter (top ALL with `Episode Title contains "AI"` AND a nested ANY group with `loved` OR `liked`), Save → new list appears, tapping shows expected episodes.
    - Build a mixed-scope filter (`Podcast Title contains "Tech"` AND `Episode Tag is "Interview"`), Save → only episodes satisfying *both*; toggle the episode-tag clause to a different tag and confirm the set changes.
    - Build a `Duration longer than 30 min` AND `Published within 7 days` filter → confirm the set narrows accordingly.
