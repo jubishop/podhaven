@@ -370,9 +370,18 @@ struct Repo: Databasing {
   @discardableResult
   func deleteTag(_ tagID: Tag.ID) async throws -> Bool {
     try await writer.write { db in
-      try Tag
-        .withID(tagID)
-        .deleteAll(db)
+      let deleted = try Tag.withID(tagID).deleteAll(db)
+      // Tag IDs live inside smartList.filter JSON, so there's no FK cascade:
+      // strip any condition naming the deleted tag from every stored filter in
+      // the same transaction.
+      for smartList in try SmartList.fetchAll(db) {
+        let scrubbed = smartList.filter.removingTag(tagID)
+        guard scrubbed != smartList.filter else { continue }
+        try SmartList
+          .withID(smartList.id)
+          .updateAll(db, SmartList.Columns.filter.set(to: scrubbed.databaseValue))
+      }
+      return deleted
     } > 0
   }
 

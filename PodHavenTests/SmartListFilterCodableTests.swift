@@ -1,0 +1,112 @@
+// Copyright Justin Bishop, 2026
+
+import Foundation
+import Testing
+
+@testable import PodHaven
+
+@Suite("of SmartListFilter Codable tests")
+struct SmartListFilterCodableTests {
+  // The 10 seeded defaults, as values (mirrors Migration_v54's JSON literals).
+  private static let defaults: [SmartListFilter] = [
+    SmartListFilter(combinator: .all, conditions: [], nested: nil),
+    SmartListFilter(combinator: .all, conditions: [.state(.isUnqueued), .state(.isUnfinished)]),
+    SmartListFilter(combinator: .all, conditions: [.state(.isCached)]),
+    SmartListFilter(combinator: .all, conditions: [.state(.isSaved)]),
+    SmartListFilter(combinator: .all, conditions: [.state(.isFinished)]),
+    SmartListFilter(combinator: .all, conditions: [.state(.isUnfinished), .state(.isStarted)]),
+    SmartListFilter(combinator: .all, conditions: [.state(.wasPreviouslyQueued)]),
+    SmartListFilter(combinator: .any, conditions: [.state(.isLiked), .state(.isLoved)]),
+    SmartListFilter(combinator: .all, conditions: [.state(.isDisliked)]),
+    SmartListFilter(combinator: .all, conditions: [.state(.isNotInterested)]),
+  ]
+
+  // Exercises every condition kind, both tag scopes, and a nested group.
+  private static let complex = SmartListFilter(
+    combinator: .all,
+    conditions: [
+      .episodeText(.title, .contains, "AI"),
+      .podcastText(.description, .doesNotContain, "sports"),
+      .state(.isUnrated),
+      .episodeTag(.hasTag(Tag.ID(rawValue: 3))),
+      .podcastTag(.doesNotHaveTag(Tag.ID(rawValue: 7))),
+      .duration(minSeconds: 0, maxSeconds: 3600),
+      .publishDate(.withinLast, days: 30),
+    ],
+    nested: SmartListFilter.Group(
+      combinator: .any,
+      conditions: [
+        .state(.isLoved),
+        .episodeTag(.hasAnyTag),
+        .podcastTag(.hasNoTags),
+        .duration(minSeconds: 600, maxSeconds: nil),
+        .publishDate(.olderThan, days: 365),
+      ]
+    )
+  )
+
+  private func roundTrip(_ filter: SmartListFilter) throws {
+    // `.sortedKeys` is required for a byte comparison: JSONEncoder's key order is
+    // otherwise unspecified, so two encodes of the same value can differ.
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+    let encoded = try encoder.encode(filter)
+    let decoded = try JSONDecoder().decode(SmartListFilter.self, from: encoded)
+    #expect(decoded == filter)
+    #expect(try encoder.encode(decoded) == encoded)
+  }
+
+  @Test("each seeded default round-trips")
+  func defaultsRoundTrip() throws {
+    for filter in Self.defaults {
+      try roundTrip(filter)
+    }
+  }
+
+  @Test("a filter with a nested group and every kind round-trips")
+  func complexRoundTrips() throws {
+    try roundTrip(Self.complex)
+  }
+
+  @Test("seed JSON decodes to the expected value")
+  func seedJSONDecodes() throws {
+    let liked = Data(
+      #"{"combinator":"any","conditions":[{"kind":"state","value":"isLiked"},{"kind":"state","value":"isLoved"}],"nested":null}"#
+        .utf8
+    )
+    let decoded = try JSONDecoder().decode(SmartListFilter.self, from: liked)
+    #expect(
+      decoded
+        == SmartListFilter(combinator: .any, conditions: [.state(.isLiked), .state(.isLoved)])
+    )
+  }
+
+  @Test("tag conditions nest under `tag` without colliding with the condition kind")
+  func tagConditionEncoding() throws {
+    let filter = SmartListFilter(
+      combinator: .all,
+      conditions: [.episodeTag(.hasTag(Tag.ID(rawValue: 42)))]
+    )
+    let json = try #require(String(data: try JSONEncoder().encode(filter), encoding: .utf8))
+    #expect(json.contains(#""kind":"episodeTag""#))
+    #expect(json.contains(#""kind":"hasTag""#))
+    #expect(json.contains(#""tagID":42"#))
+    try roundTrip(filter)
+  }
+
+  @Test("decoding an unknown Condition kind throws")
+  func unknownConditionKindThrows() {
+    let json = Data(#"{"kind":"telepathy","value":"isLoved"}"#.utf8)
+    #expect(throws: DecodingError.self) {
+      _ = try JSONDecoder().decode(SmartListFilter.Condition.self, from: json)
+    }
+  }
+
+  @Test("decoding an unknown TagCondition kind throws")
+  func unknownTagConditionKindThrows() {
+    let json = Data(#"{"kind":"hasMostTags","tagID":1}"#.utf8)
+    #expect(throws: DecodingError.self) {
+      _ = try JSONDecoder().decode(SmartListFilter.TagCondition.self, from: json)
+    }
+  }
+}

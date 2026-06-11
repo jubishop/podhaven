@@ -194,6 +194,20 @@ struct Observatory: Observing {
     }
   }
 
+  // MARK: - Smart Lists
+
+  func smartLists() -> AsyncValueObservation<[SmartList]> {
+    reader.observe { db in
+      try SmartList.all().orderedByDisplay().fetchAll(db)
+    }
+  }
+
+  func smartList(_ id: SmartList.ID) -> AsyncValueObservation<SmartList?> {
+    reader.observe { db in
+      try SmartList.withID(id).fetchOne(db)
+    }
+  }
+
   // MARK: - On Deck
 
   func onDeck(_ episodeID: Episode.ID) -> AsyncValueObservation<OnDeck?> {

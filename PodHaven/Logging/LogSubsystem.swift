@@ -17,6 +17,7 @@ enum LogSubsystem {
     case podcast
     case recommendationRepo
     case repo
+    case smartListRepo
     case queue
     case schema
   }

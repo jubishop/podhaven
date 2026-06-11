@@ -156,6 +156,18 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.episodeCountsByTag()
   }
 
+  // MARK: - Smart Lists
+
+  func smartLists() -> AsyncValueObservation<[SmartList]> {
+    recordCall(methodName: "smartLists", parameters: ())
+    return observatory.smartLists()
+  }
+
+  func smartList(_ id: SmartList.ID) -> AsyncValueObservation<SmartList?> {
+    recordCall(methodName: "smartList", parameters: id)
+    return observatory.smartList(id)
+  }
+
   // MARK: - On Deck
 
   func onDeck(_ episodeID: Episode.ID) -> AsyncValueObservation<OnDeck?> {
