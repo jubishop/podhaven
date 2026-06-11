@@ -15,7 +15,8 @@ struct UnsavedSmartList: Identifiable, Savable {
 
   static let databaseTableName: String = "smartList"
 
-  var title: String
+  // `let` so the init's trim/blank guard can't be bypassed by later mutation.
+  let title: String
   var filter: SmartListFilter
   var displayOrder: Int
   var sortMethod: SmartListSortMethod
