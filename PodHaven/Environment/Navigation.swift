@@ -195,7 +195,10 @@ extension Container {
         EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
           .id("smartList-\(smartListID)")
       } else {
-        // Not in the mirror means deleted: pop to the hub.
+        // Not in the mirror means deleted: pop to the hub. The pop must be
+        // deferred — this builder runs during the NavigationStack's update pass,
+        // and writing the bound path mid-update is undefined behavior. Color.clear
+        // rather than EmptyView because .task never fires on EmptyView.
         Color.clear
           .task { [weak self] in
             guard let self else { return }
