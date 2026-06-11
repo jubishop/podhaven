@@ -17,7 +17,6 @@ extension Container {
 @Observable @MainActor class Navigation {
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.sheet) private var sheet
-  @ObservationIgnored @DynamicInjected(\.smartListRepo) private var smartListRepo
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
 
   @MainActor
@@ -196,13 +195,12 @@ extension Container {
         EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
           .id("smartList-\(smartListID)")
       } else {
-        // Not in the mirror: either still loading at cold launch or deleted.
-        // If sharedState catches up with the row, this destination re-renders
-        // as the real list; if the row is truly gone, the check pops instead.
+        // Not in the mirror means deleted: pop to the hub.
         Color.clear
           .task { [weak self] in
             guard let self else { return }
-            await popEpisodesIfSmartListMissing(smartListID)
+            Self.log.debug("Smart list \(smartListID) missing from sharedState; popping to the hub")
+            episodes.path = []
           }
       }
 
@@ -437,23 +435,6 @@ extension Container {
     },
     makeDestination: { .smartList($0) }
   )
-
-  // The restored destination can render before the first smartLists emission
-  // reaches sharedState, so a missing mirror entry doesn't mean the row is
-  // gone. Confirm against the database before popping to the hub.
-  func popEpisodesIfSmartListMissing(_ smartListID: SmartList.ID) async {
-    do {
-      guard try await smartListRepo.fetchOne(smartListID) == nil else { return }
-    } catch {
-      Self.log.caughtError(
-        "popEpisodesIfSmartListMissing: failed to resolve smart list \(smartListID)",
-        error
-      )
-      return
-    }
-    Self.log.debug("Smart list \(smartListID) no longer exists; popping to the hub")
-    episodes.path = []
-  }
 
   // MARK: - Podcasts
 

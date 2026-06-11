@@ -3,7 +3,6 @@
 import FactoryKit
 import FactoryTesting
 import Foundation
-import GRDB
 import SwiftUI
 import Testing
 
@@ -431,41 +430,4 @@ import Testing
     #expect(restored.path.isEmpty)
   }
 
-  @Test("popEpisodesIfSmartListMissing pops a deleted smart list to the hub")
-  func popEpisodesIfSmartListMissingPops() async throws {
-    let smartListRepo = Container.shared.smartListRepo()
-    let smartList = try #require(try await smartListRepo.fetchAll().first)
-    navigation.episodes.path = [.smartList(smartList.id)]
-    _ = try await smartListRepo.delete(smartList.id)
-
-    await navigation.popEpisodesIfSmartListMissing(smartList.id)
-
-    #expect(navigation.episodes.path.isEmpty)
-  }
-
-  @Test("popEpisodesIfSmartListMissing leaves an existing smart list in place")
-  func popEpisodesIfSmartListMissingNoOpWhenPresent() async throws {
-    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
-    navigation.episodes.path = [.smartList(smartList.id)]
-
-    await navigation.popEpisodesIfSmartListMissing(smartList.id)
-
-    #expect(navigation.episodes.path == [.smartList(smartList.id)])
-  }
-
-  @Test("popEpisodesIfSmartListMissing keeps the path when the existence check fails")
-  func popEpisodesIfSmartListMissingKeepsPathOnError() async throws {
-    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
-    navigation.episodes.path = [.smartList(smartList.id)]
-
-    // Dropping the table makes the existence check throw instead of returning nil.
-    try await Container.shared.appDB().unsafeTestDB
-      .write { db in
-        try db.drop(table: "smartList")
-      }
-
-    await navigation.popEpisodesIfSmartListMissing(smartList.id)
-
-    #expect(navigation.episodes.path == [.smartList(smartList.id)])
-  }
 }
