@@ -65,6 +65,23 @@ import Testing
     )
   }
 
+  @Test("a second save while the create is in flight cannot insert a duplicate")
+  func inFlightSaveBlocksDuplicateCreate() async throws {
+    let viewModel = SmartListEditorViewModel(mode: .create, title: "Once")
+
+    #expect(viewModel.canSave)
+    viewModel.save()
+    #expect(!viewModel.canSave)
+    viewModel.save()
+
+    try await Wait.until(
+      { @MainActor in try await self.smartListRepo.fetchAll().contains { $0.title == "Once" } },
+      { "Expected the first save to insert the list" }
+    )
+    let count = try await smartListRepo.fetchAll().filter { $0.title == "Once" }.count
+    #expect(count == 1)
+  }
+
   @Test("edit mode saves the new title and filter onto the existing row")
   func editSavesTitleAndFilter() async throws {
     let existing = try #require(try await smartListRepo.fetchAll().first)

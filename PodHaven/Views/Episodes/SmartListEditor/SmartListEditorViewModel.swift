@@ -37,8 +37,17 @@ class SmartListEditorViewModel {
 
   // MARK: - Validation
 
+  // Latches on save so a double-tap can't fire a second write; a successful
+  // save dismisses the sheet, so only failure resets to idle.
+  enum SaveState: Equatable {
+    case idle
+    case saving
+  }
+
+  private(set) var saveState: SaveState = .idle
+
   var canSave: Bool {
-    !trimmedTitle.isEmpty && composedFilter != nil
+    saveState == .idle && !trimmedTitle.isEmpty && composedFilter != nil
   }
 
   // First incomplete row's message; nil when every row composes.
@@ -105,7 +114,8 @@ class SmartListEditorViewModel {
   // MARK: - Persistence
 
   func save() {
-    guard !trimmedTitle.isEmpty, let filter = composedFilter else { return }
+    guard saveState == .idle, !trimmedTitle.isEmpty, let filter = composedFilter else { return }
+    saveState = .saving
     Task { [weak self] in
       guard let self else { return }
       do {
@@ -124,6 +134,7 @@ class SmartListEditorViewModel {
         }
         sheet.dismiss()
       } catch {
+        saveState = .idle
         Self.log.caughtError("save: failed for '\(trimmedTitle)'", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
