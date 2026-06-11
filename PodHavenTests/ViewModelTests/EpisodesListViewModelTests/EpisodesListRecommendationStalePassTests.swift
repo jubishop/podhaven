@@ -63,11 +63,11 @@ import Testing
     let finishedID = targets[2].id
     let liveIDs = Set(targets.prefix(2).map(\.id))
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecStaleMidFlight",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     // Strand the initial scoring pass on its embeddings read so a
     // candidate-set change can land while it is in flight.
@@ -193,11 +193,11 @@ import Testing
     let alphaIDs = Set(alphas.map(\.id))
     let betaIDs = Set(betas.map(\.id))
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecReEnterNewSearch",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       // Score the rec sort under the empty search: all four targets land.
@@ -338,11 +338,11 @@ import Testing
     let alphaIDs = Set(alphas.map(\.id))
     let betaIDs = Set(betas.map(\.id))
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecSearchChangeStaleHydration",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       // Score the rec sort under the empty search: all four targets land and

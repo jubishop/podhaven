@@ -1,57 +1,88 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
-import GRDB
 import SwiftUI
 
 struct EpisodesView: View {
   @DynamicInjected(\.navigation) private var navigation
+  @DynamicInjected(\.sheet) private var sheet
+
+  @State private var viewModel = EpisodesViewModel()
 
   var body: some View {
     NavStack(manager: navigation.episodes) {
-      Form {
-        NavigationLink(
-          value: Navigation.Destination.episodesViewType(.recentEpisodes),
-          label: { Text("Recent Episodes") }
-        )
-        NavigationLink(
-          value: Navigation.Destination.episodesViewType(.unqueued),
-          label: { Text("Unqueued") }
-        )
-        NavigationLink(
-          value: Navigation.Destination.episodesViewType(.cached),
-          label: { Text("Cached") }
-        )
-        NavigationLink(
-          value: Navigation.Destination.episodesViewType(.saved),
-          label: { Text("Saved") }
-        )
-        NavigationLink(
-          value: Navigation.Destination.episodesViewType(.finished),
-          label: { Text("Finished") }
-        )
-        NavigationLink(
-          value: Navigation.Destination.episodesViewType(.unfinished),
-          label: { Text("Unfinished") }
-        )
-        NavigationLink(
-          value: Navigation.Destination.episodesViewType(.previouslyQueued),
-          label: { Text("Previously Queued") }
-        )
-        NavigationLink(
-          value: Navigation.Destination.episodesViewType(.liked),
-          label: { Text("Liked") }
-        )
-        NavigationLink(
-          value: Navigation.Destination.episodesViewType(.disliked),
-          label: { Text("Disliked") }
-        )
-        NavigationLink(
-          value: Navigation.Destination.episodesViewType(.notInterested),
-          label: { Text("Not Interested") }
-        )
+      content
+        .navigationTitle("Episodes")
+        .toolbar { toolbar }
+        .task(viewModel.observeSmartLists)
+    }
+  }
+
+  @ViewBuilder
+  private var content: some View {
+    switch viewModel.loadingState {
+    case .loading:
+      VStack {
+        ProgressView("Loading Smart Lists…")
+          .foregroundColor(.secondary)
+          .padding()
+        Spacer()
       }
-      .navigationTitle("Episodes")
+    case .loaded:
+      if viewModel.smartLists.isEmpty {
+        emptyState
+      } else {
+        smartListsView
+      }
+    case .failed:
+      VStack {
+        Text("Couldn't load Smart Lists.")
+          .foregroundColor(.secondary)
+          .padding()
+        Spacer()
+      }
+    }
+  }
+
+  private var smartListsView: some View {
+    List {
+      ForEach(viewModel.smartLists) { smartList in
+        NavigationLink(value: Navigation.Destination.smartList(smartList.id)) {
+          Text(smartList.title)
+        }
+      }
+      .onMove(perform: viewModel.moveSmartList)
+    }
+    .environment(\.editMode, $viewModel.editMode)
+    .animation(.default, value: viewModel.smartLists)
+  }
+
+  private var emptyState: some View {
+    VStack {
+      Text("No Smart Lists. Tap + to create one.")
+        .foregroundColor(.secondary)
+        .padding()
+      Spacer()
+    }
+  }
+
+  // MARK: - Toolbar
+
+  @ToolbarContentBuilder
+  private var toolbar: some ToolbarContent {
+    ToolbarItem(placement: .primaryAction) {
+      AppIcon.addSmartList.labelButton {
+        sheet(id: "smart-list-create") {
+          SmartListEditorView(viewModel: SmartListEditorViewModel(mode: .create))
+        }
+      }
+    }
+    ToolbarItem(placement: .topBarTrailing) {
+      if viewModel.editMode == .active {
+        AppIcon.editFinished.labelButton { viewModel.editMode = .inactive }
+      } else {
+        AppIcon.editItems.labelButton { viewModel.editMode = .active }
+      }
     }
   }
 }

@@ -138,8 +138,9 @@ import Testing
     let listedEpisode = try #require(listableEpisodes.first)
     let listed = ListedEpisode(listedEpisode)
 
+    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
     navigation.currentTab = .episodes
-    navigation.episodes.path = [.episodesViewType(.recentEpisodes), .listedEpisode(listed)]
+    navigation.episodes.path = [.smartList(smartList.id), .listedEpisode(listed)]
 
     _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
 
@@ -157,7 +158,7 @@ import Testing
         """
       }
     )
-    #expect(navigation.episodes.path == [.episodesViewType(.recentEpisodes)])
+    #expect(navigation.episodes.path == [.smartList(smartList.id)])
   }
 
   @Test("missing listed unsaved episodes revert to unsaved detail without dismissing")

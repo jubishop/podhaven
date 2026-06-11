@@ -28,7 +28,7 @@ import Testing
         .request(filter: AppDB.noOp, order: Episode.Columns.id.asc)
         .fetchAll(db)
     }
-    let viewModel = EpisodesListViewModel(title: "Test")
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
     try await EpisodesListTestHelpers.loadEntries(into: viewModel, episodes: listables)
     EpisodesListTestHelpers.select(viewModel, ids: [cachedEpisode.id])
 

@@ -26,8 +26,10 @@ import Testing
       }
     ])
 
-    let viewModel = EpisodesListViewModel(title: "RecFetchError")
-    viewModel.currentSortMethod = .recommendationScore
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
+      title: "RecFetchError",
+      sortMethod: .recommendationScore
+    )
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
@@ -65,8 +67,10 @@ import Testing
     }
     fakeObservatory.embeddedCandidateEpisodesScript([scriptedFailure, scriptedFailure])
 
-    let viewModel = EpisodesListViewModel(title: "RecPersistentFailureReappear")
-    viewModel.currentSortMethod = .recommendationScore
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
+      title: "RecPersistentFailureReappear",
+      sortMethod: .recommendationScore
+    )
 
     // First appear: the candidate observation throws and the failure UI surfaces.
     try await withRunningObservationLoop(viewModel) {
@@ -128,8 +132,10 @@ import Testing
       }
     ])
 
-    let viewModel = EpisodesListViewModel(title: "NonRecFailureSilent")
-    viewModel.currentSortMethod = .newestFirst
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
+      title: "NonRecFailureSilent",
+      sortMethod: .newestFirst
+    )
 
     try await withRunningObservationLoop(viewModel) {
       // The standard sort still settles on its own observation.
@@ -224,11 +230,11 @@ import Testing
     }
     defer { revisionWatcher.cancel() }
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecLoopGuard",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
@@ -322,11 +328,11 @@ import Testing
     try await RecommendationScoringTestHelpers.settleRecommendationEngine()
 
     let targetIDs = Set(targets.map(\.id))
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecTransientFailure",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     // First appear: the candidate observation succeeds and the scoring pass
     // lands, so the coordinator caches the score map against the current

@@ -11,6 +11,35 @@ import Testing
 @MainActor enum EpisodesListTestHelpers {
   private static var repo: any Databasing { Container.shared.repo() }
 
+  // Mirrors Episode.candidate (unstarted && unfinished && !rated && unqueued)
+  // in SmartListFilter form for SmartList-driven view models.
+  static let candidateFilter = SmartListFilter(
+    combinator: .all,
+    conditions: [
+      .state(.isUnstarted), .state(.isUnfinished), .state(.isUnrated), .state(.isUnqueued),
+    ]
+  )
+
+  // Inserts a SmartList row and builds the view model from it, so the row
+  // carries the desired sort up front instead of racing a write-through toggle.
+  static func makeViewModel(
+    title: String,
+    filter: SmartListFilter = SmartListFilter(),
+    sortMethod: SmartListSortMethod = .newestFirst
+  ) async throws -> EpisodesListViewModel {
+    let smartListRepo = Container.shared.smartListRepo()
+    let maxDisplayOrder = try await smartListRepo.fetchAll().map(\.displayOrder).max()
+    let smartList = try await smartListRepo.insert(
+      try UnsavedSmartList(
+        title: title,
+        filter: filter,
+        displayOrder: (maxDisplayOrder ?? -1) + 1,
+        sortMethod: sortMethod
+      )
+    )
+    return EpisodesListViewModel(smartList: smartList)
+  }
+
   struct Setup {
     let ep1: Episode
     let ep2: Episode

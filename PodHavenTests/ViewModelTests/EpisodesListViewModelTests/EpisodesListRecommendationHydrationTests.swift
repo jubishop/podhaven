@@ -61,11 +61,11 @@ import Testing
       for: alphas + betas
     )
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecSearch",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       let allIDs = Set((alphas + betas).map(\.id))
@@ -145,11 +145,11 @@ import Testing
 
     _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecBaseFilter",
-      filter: Episode.unfinished
+      filter: SmartListFilter(combinator: .all, conditions: [.state(.isUnfinished)]),
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       let allIDs = Set(targets.map(\.id))
@@ -227,11 +227,11 @@ import Testing
 
     _ = try await RecommendationHelpers.startAndWaitForScores(for: initialTargets)
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecSnapIn",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       let initialIDs = Set(initialTargets.map(\.id))
@@ -316,11 +316,11 @@ import Testing
     _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
 
     let targetID = try #require(targets.first?.id)
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecTitleHydration",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(

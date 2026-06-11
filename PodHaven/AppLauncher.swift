@@ -22,6 +22,7 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
+  @DynamicInjected(\.smartListRepo) private var smartListRepo
   @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
 
@@ -143,6 +144,8 @@ struct AppLauncher: Sendable {
 
       self.cacheManager.start()
       self.recommendationEngine.start()
+
+      await self.smartListRepo.migrateLegacySortPreferences()
 
       self.startSystemMonitoring()
     }

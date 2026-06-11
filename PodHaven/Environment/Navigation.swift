@@ -105,7 +105,7 @@ extension Container {
     case settingsSection(SettingsSection)
 
     // Episodes destinations
-    case episodesViewType(EpisodesViewType)
+    case smartList(SmartList.ID)
 
     // Podcasts destinations
     case podcastsViewType(PodcastsViewType)
@@ -132,11 +132,6 @@ extension Container {
     case tags
     case swipeActions
     case feedback
-  }
-
-  enum EpisodesViewType: String, Codable, DefaultsStorable, CaseIterable {
-    case recentEpisodes, finished, unqueued, cached, saved, unfinished, previouslyQueued, liked,
-      disliked, notInterested
   }
 
   enum PodcastsViewType: DefaultsStorable, Codable, Hashable, Sendable {
@@ -195,71 +190,17 @@ extension Container {
       }
 
     // Episodes destinations
-    case .episodesViewType(let viewType):
-      switch viewType {
-      case .recentEpisodes:
-        EpisodesListView(viewModel: EpisodesListViewModel(title: "Recent Episodes"))
-          .id("recentEpisodes")
-      case .unqueued:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(
-            title: "Unqueued",
-            filter: Episode.unqueued && Episode.unfinished
-          )
-        )
-        .id("unqueued")
-      case .cached:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(title: "Cached", filter: Episode.cached)
-        )
-        .id("cached")
-      case .saved:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(title: "Saved", filter: Episode.savedInCache)
-        )
-        .id("saved")
-      case .finished:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(title: "Finished", filter: Episode.finished)
-        )
-        .id("finished")
-      case .unfinished:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(
-            title: "Unfinished",
-            filter: Episode.unfinished && Episode.started
-          )
-        )
-        .id("unfinished")
-      case .previouslyQueued:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(
-            title: "Previously Queued",
-            filter: Episode.previouslyQueued
-          )
-        )
-        .id("previouslyQueued")
-      case .liked:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(
-            title: "Liked",
-            filter: Episode.liked || Episode.loved
-          )
-        )
-        .id("liked")
-      case .disliked:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(title: "Disliked", filter: Episode.disliked)
-        )
-        .id("disliked")
-      case .notInterested:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(
-            title: "Not Interested",
-            filter: Episode.notInterested
-          )
-        )
-        .id("notInterested")
+    case .smartList(let smartListID):
+      if let smartList = sharedState.smartLists[id: smartListID] {
+        EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
+          .id("smartList-\(smartListID)")
+      } else {
+        // Deleted since the path was built; recover by popping to the hub.
+        Color.clear
+          .onAppear { [weak self] in
+            guard let self else { return }
+            episodes.path = []
+          }
       }
 
     // Podcasts destinations
@@ -462,7 +403,7 @@ extension Container {
       return
     }
 
-    // Episodes and podcasts tabs always have a root destination entry,
+    // The podcasts tab always has a root destination entry,
     // so we guard count > 1 to preserve it.
     switch targetTab {
     case .settings:
@@ -475,7 +416,7 @@ extension Container {
       guard !upNext.path.isEmpty else { return }
       upNext.path.removeLast()
     case .episodes:
-      guard episodes.path.count > 1 else { return }
+      guard !episodes.path.isEmpty else { return }
       episodes.path.removeLast()
     case .podcasts:
       guard podcasts.path.count > 1 else { return }
@@ -485,14 +426,7 @@ extension Container {
 
   // MARK: - Episodes
 
-  var episodes = SavedPathManager<EpisodesViewType>(
-    storageKey: "navigationEpisodesTopDestination",
-    extractTopDestination: {
-      guard case .episodesViewType(let viewType) = $0 else { return nil }
-      return viewType
-    },
-    makeDestination: { .episodesViewType($0) }
-  )
+  var episodes = PathManager()
 
   // MARK: - Podcasts
 

@@ -52,11 +52,11 @@ import Testing
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let targetIDs = Set(targets.map(\.id))
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "ToggleOnDemand",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .newestFirst
     )
-    viewModel.currentSortMethod = .newestFirst
 
     fakeObservatory.clearAllCalls()
 
@@ -147,11 +147,11 @@ import Testing
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     fakeObservatory.clearAllCalls()
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "NonRecNoScoring",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .newestFirst
     )
-    viewModel.currentSortMethod = .newestFirst
 
     try await withRunningObservationLoop(viewModel) {
       // Poll a window: while the sort stays non-rec, the candidate observation
@@ -239,11 +239,11 @@ import Testing
     )
     let targetIDs = Set(targets.map(\.id))
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "ColdToggle",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .newestFirst
     )
-    viewModel.currentSortMethod = .newestFirst
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
@@ -332,11 +332,11 @@ import Testing
     _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
 
     let targetIDs = Set(targets.map(\.id))
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecReappear",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     // First appear: let the initial scoring pass land and surface both targets.
     try await withRunningObservationLoop(viewModel) {
@@ -427,11 +427,11 @@ import Testing
     _ = try await RecommendationHelpers.startAndWaitForScores(for: targets)
 
     let targetIDs = Set(targets.map(\.id))
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecAffinityReappear",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     // First appear: let the initial scoring pass land and surface both targets.
     try await withRunningObservationLoop(viewModel) {

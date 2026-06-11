@@ -8,8 +8,10 @@ import Testing
 @MainActor final class EpisodesListLoadingStateTests {
   @Test("loadingState is .loading during rec-sort cold start until scoring lands")
   func loadingStateIsLoadingOnRecSortColdStart() async throws {
-    let viewModel = EpisodesListViewModel(title: "RecLoadingState")
-    viewModel.currentSortMethod = .recommendationScore
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
+      title: "RecLoadingState",
+      sortMethod: .recommendationScore
+    )
 
     let recorder = LoadingStateRecorder(viewModel: viewModel)
 
@@ -46,8 +48,10 @@ import Testing
 
   @Test("rec-sort with empty scoring result reaches .loaded([]) so empty-state UI is reachable")
   func loadingStateReachesLoadedAfterEmptyRecScoring() async throws {
-    let viewModel = EpisodesListViewModel(title: "EmptyRecReady")
-    viewModel.currentSortMethod = .recommendationScore
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
+      title: "EmptyRecReady",
+      sortMethod: .recommendationScore
+    )
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
@@ -70,7 +74,7 @@ import Testing
   func loadingStateForNonRecSort() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
 
-    let viewModel = EpisodesListViewModel(title: "NonRecLoadingState")
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "NonRecLoadingState")
     if case .loading = viewModel.loadingState {
     } else {
       Issue.record("Expected initial state .loading, got \(viewModel.loadingState)")

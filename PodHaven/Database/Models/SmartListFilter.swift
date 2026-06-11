@@ -40,19 +40,19 @@ struct SmartListFilter: Codable, Hashable, Sendable {
     case description
   }
 
-  enum TextOp: String, Codable, Sendable {
+  enum TextOp: String, Codable, Sendable, CaseIterable {
     case contains
     case doesNotContain
     case equals
     case startsWith
   }
 
-  enum PublishDateOp: String, Codable, Sendable {
+  enum PublishDateOp: String, Codable, Sendable, CaseIterable {
     case withinLast
     case olderThan
   }
 
-  enum StateCondition: String, Codable, Sendable {
+  enum StateCondition: String, Codable, Sendable, CaseIterable {
     case isQueued
     case isUnqueued
     case isFinished

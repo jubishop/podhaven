@@ -25,6 +25,8 @@ enum LogSubsystem {
   enum EpisodesView: String, LogCategorizable {
     case detail
     case list
+    case main
+    case smartListEditor
   }
 
   enum Feed: String, LogCategorizable {
