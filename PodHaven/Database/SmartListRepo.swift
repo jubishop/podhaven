@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import GRDB
+import Logging
 import Tagged
 
 extension Container {
@@ -12,6 +13,8 @@ extension Container {
 }
 
 struct SmartListRepo: Sendable {
+  private static let log = Log.as(LogSubsystem.Database.smartListRepo)
+
   // MARK: - Initialization
 
   private let reader: AppDB.Reader
@@ -38,7 +41,9 @@ struct SmartListRepo: Sendable {
   // MARK: - Writes
 
   func insert(_ unsaved: UnsavedSmartList) async throws -> SmartList {
-    try await writer.write { db in
+    Self.log.debug("insert: \(unsaved.title)")
+
+    return try await writer.write { db in
       try unsaved.insertAndFetch(db, as: SmartList.self)
     }
   }
@@ -49,6 +54,8 @@ struct SmartListRepo: Sendable {
     guard !trimmed.isEmpty else {
       throw DatabaseError(message: "Smart List title cannot be empty")
     }
+    Self.log.debug("updateTitle: \(id) to \(trimmed)")
+
     return try await writer.write { db in
       try SmartList.withID(id).updateAll(db, SmartList.Columns.title.set(to: trimmed))
     } > 0
@@ -56,7 +63,11 @@ struct SmartListRepo: Sendable {
 
   @discardableResult
   func updateFilter(_ id: SmartList.ID, to filter: SmartListFilter) async throws -> Bool {
-    try await writer.write { db in
+    Self.log.debug(
+      "updateFilter: \(id) to \(filter.conditions.count) conditions (nested: \(filter.nested != nil))"
+    )
+
+    return try await writer.write { db in
       try SmartList.withID(id).updateAll(db, SmartList.Columns.filter.set(to: filter.databaseValue))
     } > 0
   }
@@ -64,7 +75,9 @@ struct SmartListRepo: Sendable {
   @discardableResult
   func updateSortMethod(_ id: SmartList.ID, to sortMethod: SmartListSortMethod) async throws -> Bool
   {
-    try await writer.write { db in
+    Self.log.debug("updateSortMethod: \(id) to \(sortMethod.rawValue)")
+
+    return try await writer.write { db in
       try SmartList
         .withID(id)
         .updateAll(db, SmartList.Columns.sortMethod.set(to: sortMethod.databaseValue))
@@ -73,7 +86,9 @@ struct SmartListRepo: Sendable {
 
   @discardableResult
   func delete(_ id: SmartList.ID) async throws -> Bool {
-    try await writer.write { db in
+    Self.log.debug("delete: \(id)")
+
+    return try await writer.write { db in
       try SmartList.withID(id).deleteAll(db)
     } > 0
   }
@@ -81,6 +96,8 @@ struct SmartListRepo: Sendable {
   // Renumbers displayOrder into a dense 0-based sequence after moving `id`.
   // `position` is the destination offset from the original order.
   func moveSmartList(_ id: SmartList.ID, to position: Int) async throws {
+    Self.log.debug("moveSmartList: \(id) to position \(position)")
+
     try await writer.write { db in
       var ids =
         try SmartList
