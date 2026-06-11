@@ -195,16 +195,10 @@ extension Container {
         EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
           .id("smartList-\(smartListID)")
       } else {
-        // Not in the mirror means deleted: pop to the hub. The pop must be
-        // deferred — this builder runs during the NavigationStack's update pass,
-        // and writing the bound path mid-update is undefined behavior. Color.clear
-        // rather than EmptyView because .task never fires on EmptyView.
-        Color.clear
-          .task { [weak self] in
-            guard let self else { return }
-            Self.log.debug("Smart list \(smartListID) missing from sharedState; popping to the hub")
-            episodes.path = []
-          }
+        deferredHubPop(
+          episodes,
+          message: "Smart list \(smartListID) missing from sharedState; popping to the hub"
+        )
       }
 
     // Podcasts destinations
@@ -244,13 +238,10 @@ extension Container {
           )
           .id("tag-\(tagID)")
         } else {
-          PodcastsListView(
-            viewModel: PodcastsListViewModel(
-              title: "Subscribed",
-              filter: { $0.filter(Podcast.subscribed) }
-            )
+          deferredHubPop(
+            podcasts,
+            message: "Tag \(tagID) missing from sharedState; popping to the hub"
           )
-          .id("subscribed")
         }
       }
 
@@ -287,6 +278,19 @@ extension Container {
       SearchDiscoveryListView(viewModel: viewModel)
         .id("searchDiscovery-\(viewModel.source.stableID)")
     }
+  }
+
+  // A destination whose backing row is gone from the mirror (deleted, or not
+  // yet loaded at cold launch) pops its tab to the hub. The pop must be
+  // deferred — the destination builder runs during the NavigationStack's
+  // update pass, and writing the bound path mid-update is undefined behavior.
+  // Color.clear rather than EmptyView because .task never fires on EmptyView.
+  private func deferredHubPop(_ manager: some ManagingPath, message: Logger.Message) -> some View {
+    Color.clear
+      .task {
+        Self.log.debug(message)
+        manager.path = []
+      }
   }
 
   // MARK: - Settings
