@@ -124,10 +124,12 @@ import Testing
         { @MainActor in "Expected the 10 seeded lists; got \(viewModel.smartLists.count)" }
       )
 
+      let originalTitles = viewModel.smartLists.map(\.title)
       viewModel.requestDeleteSmartList(at: IndexSet(integer: 0))
       // The dialog's cancel path just clears the pending list.
       viewModel.pendingDelete = nil
 
+      #expect(viewModel.smartLists.map(\.title) == originalTitles)
       let persisted = try await smartListRepo.fetchAll()
       #expect(persisted.count == 10)
     }
