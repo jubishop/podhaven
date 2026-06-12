@@ -30,9 +30,13 @@ struct SmartListEditorView: View {
 
           ForEach($viewModel.topGroup.conditions) { $condition in
             SmartListConditionRow(condition: $condition) {
-              viewModel.topGroup.conditions.removeAll { $0.id == condition.id }
+              viewModel.removeTopCondition(condition.id)
             }
           }
+
+          // The top group's add button precedes the groups so it sits beside
+          // the rows it appends to; the group views carry their own.
+          Button("Add Condition") { viewModel.addTopCondition() }
 
           ForEach($viewModel.groups) { $group in
             SmartListGroupView(group: $group) {
@@ -40,9 +44,6 @@ struct SmartListEditorView: View {
             }
           }
 
-          Button("Add Condition") {
-            viewModel.topGroup.conditions.append(EditableCondition())
-          }
           Button("Add Group") { viewModel.addGroup() }
         }
 

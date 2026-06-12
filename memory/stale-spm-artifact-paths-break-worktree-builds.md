@@ -25,7 +25,7 @@ Fix: rewrite the stale prefix in
 point at the shared clone itself:
 
 ```sh
-sed -i '' 's|<stale DerivedData path>/SourcePackages|/Users/jubi/Library/Developer/SharedSourcePackages/PodHaven|g' workspace-state.json
+sed -i '' "s|<stale DerivedData path>/SourcePackages|$HOME/Library/Developer/SharedSourcePackages/PodHaven|g" workspace-state.json
 ```
 
 `xcodebuild -resolvePackageDependencies` does NOT fix it (resolution succeeds;

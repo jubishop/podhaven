@@ -130,6 +130,9 @@ import Testing
       title: existing.title,
       filter: existing.filter
     )
+    // The pre-save row already has no groups, so a groups assertion alone
+    // could pass without any write; the title edit proves the save landed.
+    viewModel.title = existing.title + " Updated"
     viewModel.addGroup()
     viewModel.addGroup()
     #expect(viewModel.canSave)
@@ -138,10 +141,12 @@ import Testing
 
     try await Wait.until(
       { @MainActor in
-        try await self.smartListRepo.fetchOne(existing.id)?.filter.groups.isEmpty == true
+        try await self.smartListRepo.fetchOne(existing.id)?.title == existing.title + " Updated"
       },
-      { "Expected the empty nested groups to be dropped" }
+      { "Expected save to update the row" }
     )
+    let saved = try #require(try await smartListRepo.fetchOne(existing.id))
+    #expect(saved.filter.groups.isEmpty)
   }
 
   @Test("delete removes the row in edit mode")

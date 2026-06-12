@@ -97,6 +97,16 @@ class SmartListEditorViewModel {
     )
   }
 
+  // MARK: - Top Group
+
+  func addTopCondition() {
+    topGroup.conditions.append(EditableCondition())
+  }
+
+  func removeTopCondition(_ id: EditableCondition.ID) {
+    topGroup.conditions.removeAll { $0.id == id }
+  }
+
   // MARK: - Nested Groups
 
   func addGroup() {
