@@ -74,7 +74,12 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - New derived/cached columns backfill existing rows inside the same migration with raw SQL; no launch-time backfill pass.
 - `CHECK` constraints pass when the expression is NULL: use `IS`, not `=`, for `json_type(col, '$.path')` guards so rows missing the key are rejected.
 
-## Coding Standards (Production Only)
+## Coding Standards
+
+- Keep every Swift file under 1000 lines.
+
+### Production Only
+
 - Use `[weak self]` in closures/Tasks that capture `self` unless a strong reference is required. Unwrap with `guard let self else { return }`; use `self.x`, not `self?.x`.
 - Avoid `try?`; use `do`/`catch`. Exceptions: `Task.checkCancellation()` and `sleeper.sleep()` when silent failure is intentional.
 - No force unwraps (`!`); use `Assert` or guarded error handling.
@@ -84,7 +89,6 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - No code-comment refs to repo items — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`); that context belongs in the commit/PR. Stable external urls are fine.
 - Don't bake specific constant values into comments; they drift when the constant changes and silently go wrong. Describe behavior relative to the named constant.
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
-- Keep every Swift file under 1000 lines.
 - Put protocol conformances on the main declaration with their requirements in the body; don't spin up an `extension Foo: SomeProtocol` just to hold a conformance. Reserve conformance extensions for constrained methods, retroactive external conformance, or `where Self == X`. Splitting a type across files with a plain `extension Foo { … }` is justified only to keep a file under that 1000-line limit (as with `PlayManager`); when the type's own file is comfortably under it, keep the extension inline.
 - Avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary.
 - Avoid `inout` or passing reference types only to be mutated and read back by the caller; return values instead.
