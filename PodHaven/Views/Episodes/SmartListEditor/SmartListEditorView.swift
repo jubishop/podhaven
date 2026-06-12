@@ -25,9 +25,18 @@ struct SmartListEditorView: View {
           SmartListGroupView(group: $viewModel.topGroup, onRemoveGroup: nil)
         }
 
-        if let nestedGroup = Binding($viewModel.nested) {
+        if let nested = viewModel.nested {
           Section("Nested Group") {
-            SmartListGroupView(group: nestedGroup) {
+            // Binding($viewModel.nested) force-unwraps on reads that can arrive
+            // after Remove Group nils the value, trapping mid-update; fall back
+            // to the last value while the section disappears, and drop late
+            // writes so they can't resurrect the removed group.
+            SmartListGroupView(
+              group: Binding(
+                get: { viewModel.nested ?? nested },
+                set: { if viewModel.nested != nil { viewModel.nested = $0 } }
+              )
+            ) {
               viewModel.removeNestedGroup()
             }
           }
