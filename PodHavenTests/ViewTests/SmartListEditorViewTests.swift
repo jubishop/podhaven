@@ -15,7 +15,11 @@ import UIKit
       filter: SmartListFilter(groups: [SmartListFilter.Group(combinator: .any)])
     )
     let host = UIHostingController(rootView: SmartListEditorView(viewModel: viewModel))
-    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+    let scene = try #require(
+      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+    )
+    let window = UIWindow(windowScene: scene)
+    window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
     window.rootViewController = host
     window.makeKeyAndVisible()
     host.view.layoutIfNeeded()

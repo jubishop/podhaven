@@ -25,6 +25,7 @@ class EpisodesViewModel {
   private(set) var smartLists: [SmartList] = []
   private(set) var loadingState: LoadingState = .loading
   var editMode: EditMode = .inactive
+  var pendingDelete: SmartList?
 
   // MARK: - Smart List Observation
 
@@ -62,6 +63,36 @@ class EpisodesViewModel {
         try await smartListRepo.moveSmartList(smartListID, to: to)
       } catch {
         Self.log.caughtError("moveSmartList: failed to move from \(from) to \(to)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func requestDeleteSmartList(at offsets: IndexSet) {
+    guard offsets.count == 1, let index = offsets.first
+    else { Assert.fatal("Somehow deleted none or several?") }
+    guard smartLists.indices.contains(index) else {
+      Self.log.error("requestDeleteSmartList: stale index \(index) with \(smartLists.count) lists")
+      return
+    }
+
+    pendingDelete = smartLists[index]
+  }
+
+  func confirmDeleteSmartList() {
+    guard let smartList = pendingDelete else {
+      Self.log.error("confirmDeleteSmartList: no pending smart list")
+      return
+    }
+    pendingDelete = nil
+
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await smartListRepo.delete(smartList.id)
+      } catch {
+        Self.log.caughtError("confirmDeleteSmartList: failed to delete \(smartList.id)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

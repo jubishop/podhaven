@@ -52,9 +52,20 @@ struct EpisodesView: View {
         }
       }
       .onMove(perform: viewModel.moveSmartList)
+      .onDelete(perform: viewModel.requestDeleteSmartList)
     }
     .environment(\.editMode, $viewModel.editMode)
     .animation(.default, value: viewModel.smartLists)
+    .confirmationDialog(
+      "Delete “\(viewModel.pendingDelete?.title ?? "Smart List")”?",
+      isPresented: Binding(
+        get: { viewModel.pendingDelete != nil },
+        set: { if !$0 { viewModel.pendingDelete = nil } }
+      ),
+      titleVisibility: .visible
+    ) {
+      Button("Delete", role: .destructive) { viewModel.confirmDeleteSmartList() }
+    }
   }
 
   private var emptyState: some View {
@@ -70,14 +81,14 @@ struct EpisodesView: View {
 
   @ToolbarContentBuilder
   private var toolbar: some ToolbarContent {
-    ToolbarItem(placement: .primaryAction) {
+    ToolbarItem(placement: .topBarTrailing) {
       AppIcon.addSmartList.labelButton {
         sheet(id: "smart-list-create") {
           SmartListEditorView(viewModel: SmartListEditorViewModel(mode: .create))
         }
       }
     }
-    ToolbarItem(placement: .topBarTrailing) {
+    ToolbarItem(placement: .primaryAction) {
       if viewModel.editMode == .active {
         AppIcon.editFinished.labelButton { viewModel.editMode = .inactive }
       } else {

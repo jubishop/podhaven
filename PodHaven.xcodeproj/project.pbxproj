@@ -868,6 +868,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				LM_SKIP_METADATA_EXTRACTION = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHaven.debug.PodHavenShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -900,6 +901,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				LM_SKIP_METADATA_EXTRACTION = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHaven.dev.PodHavenShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -931,6 +933,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				LM_SKIP_METADATA_EXTRACTION = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHaven.PodHavenShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
