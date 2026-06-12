@@ -265,11 +265,13 @@ order:
 3. **Find storms/loops.** `--session N --call-sites` surfaces the chattiest
    `file:line` even when every line is `debug`/`notice` and nothing crosses
    `warning` — runaway loops never alert, so the level filters won't catch them.
-4. **Timeline.** Convert the Sentry timestamp to epoch milliseconds and use
-   `--around` with a window wide enough for lead-up *and* aftermath: start
-   `--window-ms 60000`, widen to `300000` then `1800000` if empty. Add
-   `--oneline` for a dense one-entry-per-line timeline. Run `--min-level
-   warning` first, then without the level filter if nothing surfaces.
+4. **Timeline.** Pass the Sentry timestamp directly to `--around` — it accepts
+   ISO-8601 with timezone (e.g. `2026-06-12T16:26:55Z`) as well as epoch ms;
+   never hand-convert to epoch. Use a window wide enough for lead-up *and*
+   aftermath: start `--window-ms 60000`, widen to `300000` then `1800000` if
+   empty. Add `--oneline` for a dense one-entry-per-line timeline. Run
+   `--min-level warning` first, then without the level filter if nothing
+   surfaces.
 
 Run the same scoped analysis on `widget-log.ndjson` whenever the feedback
 plausibly involves widget behavior — i.e. the user mentions home/lock screen,
@@ -292,8 +294,16 @@ NDJSON file to resolve them:
 
 ```bash
 python3 .agents/skills/analyze-logs/scripts/symbolicate_metrickit.py \
-  "$LOG_PATH" --around <feedback_ms> --window-ms 300000
+  "$LOG_PATH" --category crash
 ```
+
+Lead with `--category <category>` over the whole file, not `--around` the
+feedback timestamp: MetricKit delivers diagnostics at the *next launch* after
+the incident, so the entry's timestamp rarely matches the crash or the
+feedback. Narrow with `--around <sentry-timestamp>` (ISO-8601 with timezone
+accepted, same as `log_summary.py`) only when the file holds many diagnostics
+of that category; if the window comes back empty, the script lists the
+matching entries outside it.
 
 The script fetches the matching dSYM from Sentry's Debug Files API (Sentry
 keys them by debug-id == binary UUID), caches it under
