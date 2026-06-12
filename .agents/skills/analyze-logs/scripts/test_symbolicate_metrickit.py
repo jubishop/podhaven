@@ -211,6 +211,86 @@ class TestRendering(unittest.TestCase):
         self.assertEqual(decoded["callStacks"][0]["frames"][0]["offsetIntoBinaryTextSegment"], 1024)
 
 
+def metrickit_entry(timestamp_ms: int, category: str = "crash") -> dict:
+    return {
+        "level": 3,
+        "timestamp": timestamp_ms,
+        "message": f"MetricKit {category} diagnostic received",
+        "metadata": {"metricKitDiagnostic": json.dumps(SAMPLE_PAYLOAD)},
+    }
+
+
+class TestEmptyWindowReporting(unittest.TestCase):
+    def _run_main(self, argv: list[str]) -> tuple[int, str]:
+        import contextlib
+        import io
+        from unittest.mock import patch
+
+        stdout = io.StringIO()
+        with patch.object(sys, "argv", ["symbolicate_metrickit.py", *argv]):
+            with contextlib.redirect_stdout(stdout):
+                code = sm.main()
+        return code, stdout.getvalue()
+
+    def test_text_output_lists_entries_outside_window(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            log = write_log(tmp_path, metrickit_entry(100), metrickit_entry(200))
+            code, out = self._run_main([
+                str(log),
+                "--around", "500000",
+                "--window-ms", "1000",
+                "--offline",
+                "--cache-dir", str(tmp_path / "cache"),
+            ])
+        self.assertEqual(code, 0)
+        self.assertIn("No MetricKit entries matched", out)
+        self.assertIn("2 matching-category entries fall outside the --around window:", out)
+        self.assertIn("epoch-ms 100", out)
+        self.assertIn("epoch-ms 200", out)
+
+    def test_text_output_counts_category_exclusions(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            log = write_log(tmp_path, metrickit_entry(100), metrickit_entry(200))
+            code, out = self._run_main([
+                str(log),
+                "--category", "hang",
+                "--offline",
+                "--cache-dir", str(tmp_path / "cache"),
+            ])
+        self.assertEqual(code, 0)
+        self.assertIn("No MetricKit entries matched", out)
+        self.assertIn("2 entries excluded by --category.", out)
+
+    def test_json_output_includes_outside_window(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            log = write_log(tmp_path, metrickit_entry(100), metrickit_entry(200))
+            code, out = self._run_main([
+                str(log),
+                "--around", "500000",
+                "--window-ms", "1000",
+                "--offline",
+                "--json",
+                "--cache-dir", str(tmp_path / "cache"),
+            ])
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertEqual(payload["entries"], [])
+        self.assertEqual(payload["excluded_by_category"], 0)
+        self.assertEqual(
+            [(e["timestamp_ms"], e["category"]) for e in payload["outside_window"]],
+            [(100, "crash"), (200, "crash")],
+        )
+
+
 class TestUUIDNormalization(unittest.TestCase):
     def test_normalize_uuid_lowercases(self) -> None:
         self.assertEqual(
