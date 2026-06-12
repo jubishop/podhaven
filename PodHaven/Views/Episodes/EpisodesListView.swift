@@ -9,6 +9,7 @@ import SwiftUI
 struct EpisodesListView: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
+  @DynamicInjected(\.sheet) private var sheet
 
   private static let log = Log.as(LogSubsystem.EpisodesView.list)
 
@@ -29,10 +30,24 @@ struct EpisodesListView: View {
       .animation(.default, value: viewModel.episodeList.filteredEntries)
       .navigationTitle(viewModel.title)
       .toolbar {
+        ToolbarItem(placement: .primaryAction) {
+          AppIcon.settings.labelButton("Edit Smart List") {
+            sheet(id: "smart-list-editor-\(viewModel.smartListID)") {
+              SmartListEditorView(
+                viewModel: SmartListEditorViewModel(
+                  mode: .edit(viewModel.smartListID),
+                  title: viewModel.title,
+                  filter: viewModel.smartListFilter
+                )
+              )
+            }
+          }
+        }
         sortableEpisodesToolbarItems(viewModel: viewModel)
         selectableEpisodesToolbarItems(viewModel: viewModel)
       }
       .toolbarRole(.editor)
+      .task(viewModel.observeSmartList)
       .task(id: viewModel.displayObservationKey, viewModel.startDisplayObservation)
       .onDisappear { viewModel.disappear() }
   }
@@ -113,19 +128,11 @@ struct EpisodesListView: View {
 
 #if DEBUG
 #Preview("Recent Episodes") {
-  @Previewable @State var path: [String] = []
+  @Previewable @State var smartList: SmartList?
 
-  NavigationStack(path: $path) {
-    Button("Go to Recent Episodes") {
-      path = ["episodes"]
-    }
-    .navigationDestination(for: String.self) { _ in
-      EpisodesListView(
-        viewModel: EpisodesListViewModel(
-          title: "Recent Episodes",
-          filter: AppDB.noOp
-        )
-      )
+  NavigationStack {
+    if let smartList {
+      EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
     }
   }
   .preview()
@@ -161,7 +168,7 @@ struct EpisodesListView: View {
         UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(), unsavedEpisodes: episodes)
       )
 
-      path = ["episodes"]
+      smartList = try await Container.shared.smartListRepo().fetchAll().first
     } catch {
       print("Preview error: \(error)")
     }
@@ -169,19 +176,11 @@ struct EpisodesListView: View {
 }
 
 #Preview("Rating States") {
-  @Previewable @State var path: [String] = []
+  @Previewable @State var smartList: SmartList?
 
-  NavigationStack(path: $path) {
-    Button("Go to Rating States") {
-      path = ["episodes"]
-    }
-    .navigationDestination(for: String.self) { _ in
-      EpisodesListView(
-        viewModel: EpisodesListViewModel(
-          title: "Rating States",
-          filter: AppDB.noOp
-        )
-      )
+  NavigationStack {
+    if let smartList {
+      EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
     }
   }
   .preview()
@@ -220,7 +219,7 @@ struct EpisodesListView: View {
         )
       )
 
-      path = ["episodes"]
+      smartList = try await Container.shared.smartListRepo().fetchAll().first
     } catch {
       print("Preview error: \(error)")
     }

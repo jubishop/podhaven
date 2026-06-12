@@ -29,16 +29,22 @@ func runObservationLoop(_ viewModel: EpisodesListViewModel) async {
 
 // Wraps `runObservationLoop` so each test doesn't have to hand-roll the
 // `Task.cancel() + viewModel.disappear()` teardown in both the success and
-// catch arms — `defer` guarantees both fire.
+// catch arms — `defer` guarantees both fire. Also runs the SmartList row
+// observation (production's second `.task`) so write-through sort changes
+// round-trip back into the view model.
 @MainActor
 func withRunningObservationLoop<T>(
   _ viewModel: EpisodesListViewModel,
   _ body: () async throws -> T
 ) async throws -> T {
+  let rowTask = Task { @MainActor in
+    await viewModel.observeSmartList()
+  }
   let task = Task { @MainActor in
     await runObservationLoop(viewModel)
   }
   defer {
+    rowTask.cancel()
     task.cancel()
     viewModel.disappear()
   }

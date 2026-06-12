@@ -39,6 +39,9 @@ struct SharedState: Sendable {
   @Broadcasted var stopAfterCurrentEpisode: Bool = false
   @Broadcasted var playRate: Float = 1.0
   @Broadcasted var tags: IdentifiedArrayOf<Tag> = []
+  // Only StateManager should write this. Mirrors the smartList table so
+  // Navigation can resolve a smartList destination synchronously.
+  @Broadcasted var smartLists: IdentifiedArrayOf<SmartList> = []
   @Broadcasted var queuedPodcastEpisodes: [ListablePodcastEpisode] = []
 
   // MARK: - Download Progress
@@ -111,6 +114,10 @@ struct SharedState: Sendable {
 
   func setTags(_ tags: IdentifiedArrayOf<Tag>) {
     $tags.new(tags)
+  }
+
+  func setSmartLists(_ smartLists: IdentifiedArrayOf<SmartList>) {
+    $smartLists.new(smartLists)
   }
 
   // MARK: - Initialization

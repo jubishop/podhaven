@@ -74,9 +74,8 @@ class SmartListRepoTests {
     #expect(try await smartListRepo.fetchAll().map(\.id) == [inserted.id])
     #expect(try await smartListRepo.fetchOne(inserted.id)?.filter == filter)
 
-    #expect(try await smartListRepo.updateTitle(inserted.id, to: "Favorites"))
     let newFilter = SmartListFilter(combinator: .any, conditions: [.state(.isLiked)])
-    #expect(try await smartListRepo.updateFilter(inserted.id, to: newFilter))
+    #expect(try await smartListRepo.update(inserted.id, title: "Favorites", filter: newFilter))
     #expect(try await smartListRepo.updateSortMethod(inserted.id, to: .longest))
 
     let updated = try #require(try await smartListRepo.fetchOne(inserted.id))
@@ -103,11 +102,13 @@ class SmartListRepoTests {
     #expect(list.title == "Valid")
 
     await #expect(throws: DatabaseError.self) {
-      try await self.smartListRepo.updateTitle(list.id, to: "   ")
+      try await self.smartListRepo.update(list.id, title: "   ", filter: SmartListFilter())
     }
     #expect(try await smartListRepo.fetchOne(list.id)?.title == "Valid")
 
-    #expect(try await smartListRepo.updateTitle(list.id, to: "  Renamed  "))
+    #expect(
+      try await smartListRepo.update(list.id, title: "  Renamed  ", filter: SmartListFilter())
+    )
     #expect(try await smartListRepo.fetchOne(list.id)?.title == "Renamed")
   }
 
@@ -157,7 +158,7 @@ class SmartListRepoTests {
       try UnsavedSmartList(title: "A", filter: SmartListFilter(), displayOrder: 0)
     )
     try await count.wait(for: 2)  // after insert
-    _ = try await smartListRepo.updateTitle(list.id, to: "B")
+    _ = try await smartListRepo.update(list.id, title: "B", filter: SmartListFilter())
     try await count.wait(for: 3)  // after update
   }
 
@@ -170,7 +171,7 @@ class SmartListRepoTests {
     )
     #expect(try await observatory.smartList(list.id).get()?.title == "A")
 
-    _ = try await smartListRepo.updateTitle(list.id, to: "B")
+    _ = try await smartListRepo.update(list.id, title: "B", filter: SmartListFilter())
     #expect(try await observatory.smartList(list.id).get()?.title == "B")
 
     _ = try await smartListRepo.delete(list.id)

@@ -105,7 +105,7 @@ extension Container {
     case settingsSection(SettingsSection)
 
     // Episodes destinations
-    case episodesViewType(EpisodesViewType)
+    case smartList(SmartList.ID)
 
     // Podcasts destinations
     case podcastsViewType(PodcastsViewType)
@@ -132,11 +132,6 @@ extension Container {
     case tags
     case swipeActions
     case feedback
-  }
-
-  enum EpisodesViewType: String, Codable, DefaultsStorable, CaseIterable {
-    case recentEpisodes, finished, unqueued, cached, saved, unfinished, previouslyQueued, liked,
-      disliked, notInterested
   }
 
   enum PodcastsViewType: DefaultsStorable, Codable, Hashable, Sendable {
@@ -195,71 +190,15 @@ extension Container {
       }
 
     // Episodes destinations
-    case .episodesViewType(let viewType):
-      switch viewType {
-      case .recentEpisodes:
-        EpisodesListView(viewModel: EpisodesListViewModel(title: "Recent Episodes"))
-          .id("recentEpisodes")
-      case .unqueued:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(
-            title: "Unqueued",
-            filter: Episode.unqueued && Episode.unfinished
-          )
+    case .smartList(let smartListID):
+      if let smartList = sharedState.smartLists[id: smartListID] {
+        EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
+          .id("smartList-\(smartListID)")
+      } else {
+        deferredHubPop(
+          episodes,
+          message: "Smart list \(smartListID) missing from sharedState; popping to the hub"
         )
-        .id("unqueued")
-      case .cached:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(title: "Cached", filter: Episode.cached)
-        )
-        .id("cached")
-      case .saved:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(title: "Saved", filter: Episode.savedInCache)
-        )
-        .id("saved")
-      case .finished:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(title: "Finished", filter: Episode.finished)
-        )
-        .id("finished")
-      case .unfinished:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(
-            title: "Unfinished",
-            filter: Episode.unfinished && Episode.started
-          )
-        )
-        .id("unfinished")
-      case .previouslyQueued:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(
-            title: "Previously Queued",
-            filter: Episode.previouslyQueued
-          )
-        )
-        .id("previouslyQueued")
-      case .liked:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(
-            title: "Liked",
-            filter: Episode.liked || Episode.loved
-          )
-        )
-        .id("liked")
-      case .disliked:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(title: "Disliked", filter: Episode.disliked)
-        )
-        .id("disliked")
-      case .notInterested:
-        EpisodesListView(
-          viewModel: EpisodesListViewModel(
-            title: "Not Interested",
-            filter: Episode.notInterested
-          )
-        )
-        .id("notInterested")
       }
 
     // Podcasts destinations
@@ -299,13 +238,10 @@ extension Container {
           )
           .id("tag-\(tagID)")
         } else {
-          PodcastsListView(
-            viewModel: PodcastsListViewModel(
-              title: "Subscribed",
-              filter: { $0.filter(Podcast.subscribed) }
-            )
+          deferredHubPop(
+            podcasts,
+            message: "Tag \(tagID) missing from sharedState; popping to the hub"
           )
-          .id("subscribed")
         }
       }
 
@@ -342,6 +278,19 @@ extension Container {
       SearchDiscoveryListView(viewModel: viewModel)
         .id("searchDiscovery-\(viewModel.source.stableID)")
     }
+  }
+
+  // A destination whose backing row is gone from the mirror (deleted, or not
+  // yet loaded at cold launch) pops its tab to the hub. The pop must be
+  // deferred — the destination builder runs during the NavigationStack's
+  // update pass, and writing the bound path mid-update is undefined behavior.
+  // Color.clear rather than EmptyView because .task never fires on EmptyView.
+  private func deferredHubPop(_ manager: some ManagingPath, message: Logger.Message) -> some View {
+    Color.clear
+      .task {
+        Self.log.debug(message)
+        manager.path = []
+      }
   }
 
   // MARK: - Settings
@@ -485,13 +434,13 @@ extension Container {
 
   // MARK: - Episodes
 
-  var episodes = SavedPathManager<EpisodesViewType>(
+  var episodes = SavedPathManager<SmartList.ID>(
     storageKey: "navigationEpisodesTopDestination",
     extractTopDestination: {
-      guard case .episodesViewType(let viewType) = $0 else { return nil }
-      return viewType
+      guard case .smartList(let smartListID) = $0 else { return nil }
+      return smartListID
     },
-    makeDestination: { .episodesViewType($0) }
+    makeDestination: { .smartList($0) }
   )
 
   // MARK: - Podcasts

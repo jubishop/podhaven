@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: shipped
 ---
 
 # Smart Lists
@@ -25,9 +25,9 @@ The intended outcome: every list visible in `EpisodesView` becomes a row in the 
 The migration replaces the entire `EpisodesView` hub, so the work lands as two independently-reviewable PRs:
 
 - **Phase 1 — data + engine (dormant).** Model, `@Saved` macro, `SmartListFilter`, `SmartListFilterEngine`, `SmartListSortMethod`, the v54 migration (creates + seeds the table), `SmartListRepo`, the two new `Observatory` entry points, the `DatabaseValueConvertible` bridge, the scrub-on-tag-delete hook, and the full test suite. The existing `EpisodesView` / `EpisodesViewType` hub is **left untouched** — the table is seeded but nothing reads it yet, so Phase 1 ships green on its own.
-- **Phase 2 — UI swap.** Rewrite `EpisodesView` as an observed `List` with reorder + `+`, repoint `Navigation` to `smartList(ID)`, rebuild `EpisodesListViewModel` to take a `SmartList` and observe its row, add the gear toolbar + editor sheet, and delete `EpisodesViewType` and its switch. A one-time launch cleanup **re-copies** each `EpisodesList-sortMethod-*` UserDefaults pref onto its matching row (by title) and only then removes the now-orphaned keys.
+- **Phase 2 — UI swap.** Rewrite `EpisodesView` as an observed `List` with reorder + `+`, repoint `Navigation` to `smartList(ID)`, rebuild `EpisodesListViewModel` to take a `SmartList` and observe its row, add the gear toolbar + editor sheet, and delete `EpisodesViewType` and its switch. A v55 migration **re-copies** each `EpisodesList-sortMethod-*` UserDefaults pref onto its matching row (by title) and only then removes the now-orphaned keys, with GRDB guaranteeing the single run.
 
-**Why Phase 1 copies but does not delete the old sort-pref keys:** if Phase 1 reaches users before Phase 2, the old `EpisodesListView` still reads — and **writes** — `EpisodesList-sortMethod-{title}`. So the v54 migration *copies* those prefs onto seeded rows but leaves the keys in place; Phase 2 — which removes the old reader — deletes them. Migrations are immutable, so the destructive cleanup belongs in Phase 2 code, not the migration. Because sort changes made between the two releases land only in UserDefaults (nothing syncs them onto rows in Phase 1), Phase 2's cleanup must **re-copy each key's value onto its row before deleting the key** — matching by title is reliable there since lists can't be renamed until Phase 2's editor ships.
+**Why Phase 1 copies but does not delete the old sort-pref keys:** if Phase 1 reaches users before Phase 2, the old `EpisodesListView` still reads — and **writes** — `EpisodesList-sortMethod-{title}`. So the v54 migration *copies* those prefs onto seeded rows but leaves the keys in place; Phase 2 — which removes the old reader — deletes them. Shipped migrations are immutable, so the destructive cleanup belongs in Phase 2's own v55 migration, not v54. Because sort changes made between the two releases land only in UserDefaults (nothing syncs them onto rows in Phase 1), v55 must **re-copy each key's value onto its row before deleting the key** — matching by title is reliable there since lists can't be renamed until Phase 2's editor ships.
 
 ---
 
@@ -240,7 +240,7 @@ The `filter` column is `TEXT` (JSON). Conformance is via a `DatabaseValueConvert
 
 - **Delete** `EpisodesViewType` enum (`Navigation.swift:132–135`) and the entire `case .episodesViewType` switch (`Navigation.swift:193–258`).
 - **Add** `case smartList(SmartList.ID)` to `Destination`, with a handler that resolves the row (from a `sharedState`/repo lookup) and instantiates `EpisodesListView(viewModel: EpisodesListViewModel(smartList: row))`. If the ID is missing (deleted since the path was built), pop to the `EpisodesView` root rather than crashing — same defensive shape as the `.tag` fallback at `Navigation.swift:287–304`. The "no SmartLists at all" state (user deleted every row) is handled at the `EpisodesView` level with an empty state plus the `+` button still in the toolbar.
-- The Episodes tab currently uses `SavedPathManager<EpisodesViewType>` (`Navigation.swift:467–474`) to persist the last-viewed top destination. Switch it to a plain `PathManager()` (like `upNext`/`search`/`settings`) and drop the `navigationEpisodesTopDestination` storage key. Per the original design, losing last-viewed-list across upgrade is acceptable, and this avoids needing `SmartList.ID: DefaultsStorable`. (If we later want to persist last-viewed list, revisit.)
+- The Episodes tab keeps `SavedPathManager` for last-viewed persistence, re-keyed to `SmartList.ID` under the same `navigationEpisodesTopDestination` storage key (`Tagged` already conforms to `DefaultsStorable`). The pre-upgrade `EpisodesViewType` value fails to decode and self-clears, so last-viewed resets exactly once across the upgrade. A smart list missing from the `sharedState.smartLists` mirror simply pops to the hub — the theoretical restored-ID-renders-before-first-emission race isn't worth a DB-confirmed fallback's complexity.
 
 ### 7. EpisodesListViewModel — sort moves to the SmartList row, VM observes its row (Phase 2)
 
@@ -383,7 +383,7 @@ Per CLAUDE.md regression-test rule: each engine edge-case test must be confirmed
 2. Run full test suite.
 3. Launch in simulator:
    - Fresh install: confirm 10 lists appear in `EpisodesView` with the names above; tapping each shows the same episodes as before the migration.
-   - Upgrade install (from a v53 DB if possible): migration succeeds, all 10 lists present, seeded sort matches the pre-upgrade pref. After Phase 2 ships, confirm the 10 `EpisodesList-sortMethod-{title}` keys are gone and a sort change made between the two releases survived the cleanup's re-copy.
+   - Upgrade install (from a v53 DB if possible): migration succeeds, all 10 lists present, seeded sort matches the pre-upgrade pref. After Phase 2 ships, confirm the 10 `EpisodesList-sortMethod-{title}` keys are gone and a sort change made between the two releases survived the v55 re-copy.
    - Tap `+` → editor opens; build a one-level-nested filter (top ALL with `Episode Title contains "AI"` AND a nested ANY group with `loved` OR `liked`), Save → new list appears, tapping shows expected episodes.
    - Build a mixed-scope filter (`Podcast Title contains "Tech"` AND `Episode Tag is "Interview"`), Save → only episodes satisfying *both*; toggle the episode-tag clause to a different tag and confirm the set changes.
    - Build a `Duration longer than 30 min` AND `Published within 7 days` filter → confirm the set narrows accordingly.
@@ -399,4 +399,3 @@ Per CLAUDE.md regression-test rule: each engine edge-case test must be confirmed
 - Tag/podcast-text-condition perf via an Observatory request-builder overload, if subqueries become a hotspot.
 - Continuous re-evaluation of relative `.publishDate` windows (today the cutoff is fixed at observation start).
 - Multi-select / bulk delete for SmartLists in edit mode.
-- Persisting last-viewed Smart List for the Episodes tab (dropped in this design).

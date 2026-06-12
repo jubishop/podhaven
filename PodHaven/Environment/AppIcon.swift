@@ -73,6 +73,10 @@ import SwiftUI
   // Manual Entry
   case manualEntry
 
+  // Smart List Actions
+  case addSmartList
+  case removeSmartListCondition
+
   // Tag Actions
   case addTag
   case manageTags
@@ -380,6 +384,12 @@ import SwiftUI
       return Data(text: "TV & Film", systemImageName: .trendingTVFilm, color: .indigo)
     case .upNext:
       return Data(text: "Up Next", systemImageName: .queueTop)
+
+    // Smart List Actions
+    case .addSmartList:
+      return Data(text: "New Smart List", systemImageName: .addSmartList, color: .green)
+    case .removeSmartListCondition:
+      return Data(text: "Remove Condition", systemImageName: .removeSmartListCondition, color: .red)
 
     // Tag Actions
     case .addTag:

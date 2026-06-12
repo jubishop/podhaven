@@ -13,11 +13,15 @@ class EpisodesListViewModel:
   SelectableEpisodeList,
   SortableEpisodeList
 {
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.dateProvider) private var dateProvider
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.smartListRepo) private var smartListRepo
   @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as(LogSubsystem.EpisodesView.list)
@@ -36,7 +40,32 @@ class EpisodesListViewModel:
     }
   }
 
-  @ObservationIgnored @PersistedBroadcast var currentSortMethod: SmartListSortMethod
+  // Write-through: the setter persists the pick onto the SmartList row and the
+  // row observation reads it back, so the row stays the single source of truth.
+  // No optimistic local write — the pick → DB write → observation tick → UI
+  // round-trip is fast.
+  var currentSortMethod: SmartListSortMethod {
+    get { rowSortMethod }
+    set { persistSortMethod(newValue) }
+  }
+
+  private var rowSortMethod: SmartListSortMethod
+
+  private func persistSortMethod(_ sortMethod: SmartListSortMethod) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await smartListRepo.updateSortMethod(smartListID, to: sortMethod)
+      } catch {
+        Self.log.caughtError(
+          "persistSortMethod: failed to persist \(sortMethod.rawValue) for '\(title)'",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
 
   // MARK: - Filter Text
 
@@ -62,31 +91,64 @@ class EpisodesListViewModel:
   }
 
   private static let displayLimit = 100
-  let title: String
-  let filter: SQLExpression
+  let smartListID: SmartList.ID
+  private(set) var title: String
+  private(set) var smartListFilter: SmartListFilter
   private(set) var loadingState: LoadingState = .loading
 
-  // Keys the single `.task(id:)` block in the view. A sort or filterText
-  // change restarts the observation; recommendation scoring runs only while
-  // the recommendationScore sort is the one keyed here.
+  // Compiled fresh at each observation (re)start so relative publish-date
+  // cutoffs are fixed per observation, not per view-model lifetime.
+  private var filter: SQLExpression {
+    SmartListFilterEngine.sqlExpression(for: smartListFilter, referenceDate: dateProvider.now)
+  }
+
+  // Keys the single `.task(id:)` block in the view. A sort, filter, or
+  // filterText change restarts the observation; recommendation scoring runs
+  // only while the recommendationScore sort is the one keyed here. Keyed on the
+  // SmartListFilter value, not the compiled expression — SQLExpression isn't
+  // Hashable.
   @ObservationIgnored private var lastDisplayObservationKey: DisplayObservationKey?
   struct DisplayObservationKey: Hashable {
     let sort: SmartListSortMethod
     let filterText: String
+    let filter: SmartListFilter
   }
   var displayObservationKey: DisplayObservationKey {
-    DisplayObservationKey(sort: currentSortMethod, filterText: filterText)
+    DisplayObservationKey(sort: currentSortMethod, filterText: filterText, filter: smartListFilter)
   }
 
   // MARK: - Initialization
 
-  init(title: String, filter: SQLExpression = AppDB.noOp) {
-    self._currentSortMethod = PersistedBroadcast(
-      wrappedValue: SmartListSortMethod.newestFirst,
-      "EpisodesList-sortMethod-\(title)"
-    )
-    self.title = title
-    self.filter = filter
+  init(smartList: SmartList) {
+    self.smartListID = smartList.id
+    self.title = smartList.title
+    self.smartListFilter = smartList.filter
+    self.rowSortMethod = smartList.sortMethod
+  }
+
+  // MARK: - Smart List Row Observation
+
+  // Long-lived while the view is on screen; keeps title, filter, and sort in
+  // step with edits from the configurator sheet (or this view model's own sort
+  // writes). A deleted row pops the Episodes tab back to the hub.
+  func observeSmartList() async {
+    do {
+      let observation: AsyncValueObservation<SmartList?> = observatory.smartList(smartListID)
+      for try await smartList in observation {
+        try Task.checkCancellation()
+        guard let smartList else {
+          Self.log.debug("Smart List '\(title)' was deleted; popping to the hub")
+          navigation.episodes.path = []
+          return
+        }
+        if title != smartList.title { title = smartList.title }
+        if smartListFilter != smartList.filter { smartListFilter = smartList.filter }
+        if rowSortMethod != smartList.sortMethod { rowSortMethod = smartList.sortMethod }
+      }
+    } catch is CancellationError {
+    } catch {
+      Self.log.caughtError("observeSmartList: observation failed for '\(title)'", error)
+    }
   }
 
   // MARK: - Display Observation

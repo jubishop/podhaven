@@ -11,7 +11,7 @@ import Testing
   func selectedEpisodesTagIntersectionAcrossSelection() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
 
-    let viewModel = EpisodesListViewModel(title: "Test")
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
     try await EpisodesListTestHelpers.loadEntries(into: viewModel, episodes: setup.episodes)
 
     // ep1 = {A, B}, ep2 = {B, C}, ep3 = {A, B, C} → common is {B}.
@@ -26,7 +26,7 @@ import Testing
   func selectedEpisodesTagIntersectionWithUntagged() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
 
-    let viewModel = EpisodesListViewModel(title: "Test")
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
     try await EpisodesListTestHelpers.loadEntries(into: viewModel, episodes: setup.episodes)
 
     // Adding ep4 (no tags) drags the intersection to empty even though
@@ -44,7 +44,7 @@ import Testing
   func selectedEpisodesTagHelpersOnUntaggedOnly() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
 
-    let viewModel = EpisodesListViewModel(title: "Test")
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
     try await EpisodesListTestHelpers.loadEntries(into: viewModel, episodes: setup.episodes)
 
     EpisodesListTestHelpers.select(viewModel, ids: [setup.ep4.id])
@@ -56,7 +56,7 @@ import Testing
   func selectedEpisodesTagHelpersOnEmptySelection() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
 
-    let viewModel = EpisodesListViewModel(title: "Test")
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
     try await EpisodesListTestHelpers.loadEntries(into: viewModel, episodes: setup.episodes)
 
     #expect(viewModel.selectedEpisodesTagIntersection == [])
@@ -67,7 +67,7 @@ import Testing
   func selectedEpisodesTagIntersectionForSingleSelection() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
 
-    let viewModel = EpisodesListViewModel(title: "Test")
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
     try await EpisodesListTestHelpers.loadEntries(into: viewModel, episodes: setup.episodes)
 
     EpisodesListTestHelpers.select(viewModel, ids: [setup.ep2.id])
@@ -79,7 +79,7 @@ import Testing
   func selectedPodcastEpisodesPreservesSelectionOrder() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
 
-    let viewModel = EpisodesListViewModel(title: "Test")
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Test")
     // Visible order is reversed from DB rowid order so the test fails if
     // `WHERE id IN (...)` row order leaks through `selectedPodcastEpisodes`.
     let reversed = IdentifiedArray(

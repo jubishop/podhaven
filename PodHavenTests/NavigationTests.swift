@@ -338,8 +338,9 @@ import Testing
     #expect(navigation.search.path == [.unsavedPodcastSeries(series)])
   }
 
-  @Test("dismiss pops episode detail but preserves the root episodes destination")
-  func dismissEpisodeDestination() throws {
+  @Test("dismiss pops episode detail but preserves the smart list destination")
+  func dismissEpisodeDestination() async throws {
+    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
     let listedEpisode = ListedEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: try Create.unsavedPodcast(title: "Episode Root"),
@@ -348,22 +349,33 @@ import Testing
     )
     navigation.currentTab = .episodes
     navigation.episodes.path = [
-      .episodesViewType(.recentEpisodes), .listedEpisode(listedEpisode),
+      .smartList(smartList.id), .listedEpisode(listedEpisode),
     ]
 
     navigation.dismiss()
 
-    #expect(navigation.episodes.path == [.episodesViewType(.recentEpisodes)])
+    #expect(navigation.episodes.path == [.smartList(smartList.id)])
   }
 
-  @Test("dismiss keeps the root episodes destination intact")
-  func dismissEpisodeRootNoOp() {
+  @Test("dismiss keeps the smart list root destination intact")
+  func dismissEpisodeSmartListRootNoOp() async throws {
+    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
     navigation.currentTab = .episodes
-    navigation.episodes.path = [.episodesViewType(.recentEpisodes)]
+    navigation.episodes.path = [.smartList(smartList.id)]
 
     navigation.dismiss()
 
-    #expect(navigation.episodes.path == [.episodesViewType(.recentEpisodes)])
+    #expect(navigation.episodes.path == [.smartList(smartList.id)])
+  }
+
+  @Test("dismiss on the episodes hub is a no-op")
+  func dismissEpisodeHubNoOp() {
+    navigation.currentTab = .episodes
+    navigation.episodes.path = []
+
+    navigation.dismiss()
+
+    #expect(navigation.episodes.path.isEmpty)
   }
 
   // MARK: - SavedPathManager
@@ -385,4 +397,37 @@ import Testing
     navigation.podcasts.path = []
     #expect(navigation.podcasts.path.isEmpty)
   }
+
+  // MARK: - Episodes Last-Viewed Persistence
+
+  private func makeRestoredEpisodesPathManager() -> Navigation.SavedPathManager<SmartList.ID> {
+    Navigation.SavedPathManager<SmartList.ID>(
+      storageKey: "navigationEpisodesTopDestination",
+      extractTopDestination: {
+        guard case .smartList(let smartListID) = $0 else { return nil }
+        return smartListID
+      },
+      makeDestination: { .smartList($0) }
+    )
+  }
+
+  @Test("episodes tab saves and restores the last-viewed smart list")
+  func episodesTabSavesAndRestoresTopDestination() async throws {
+    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
+    navigation.episodes.path = [.smartList(smartList.id)]
+
+    let restored = makeRestoredEpisodesPathManager()
+    #expect(restored.path == [.smartList(smartList.id)])
+  }
+
+  @Test("clearing the episodes path resets the saved top destination")
+  func clearingEpisodesPathResetsTopDestination() async throws {
+    let smartList = try #require(try await Container.shared.smartListRepo().fetchAll().first)
+    navigation.episodes.path = [.smartList(smartList.id)]
+    navigation.episodes.path = []
+
+    let restored = makeRestoredEpisodesPathManager()
+    #expect(restored.path.isEmpty)
+  }
+
 }

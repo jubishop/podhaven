@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Logging
 import UIKit
 
@@ -33,6 +34,7 @@ struct StateManager: Sendable {
 
       startObservingQueuedPodcastEpisodes()
       startObservingTags()
+      startObservingSmartLists()
     }
   }
 
@@ -136,6 +138,26 @@ struct StateManager: Sendable {
           }
         } catch {
           Self.log.caughtError("startObservingTags: observation failed", error)
+          try? await sleeper.sleep(for: retryDelay)
+          retryDelay = min(retryDelay * 2, .seconds(60))
+        }
+      }
+    }
+  }
+
+  private func startObservingSmartLists() {
+    Task {
+      var retryDelay: Duration = .seconds(1)
+      while !Task.isCancelled {
+        do {
+          for try await smartLists in observatory.smartLists() {
+            guard !Task.isCancelled else { return }
+            retryDelay = .seconds(1)
+            Self.log.debug("Updating observed smart lists: \(smartLists.count) lists")
+            sharedState.setSmartLists(IdentifiedArray(uniqueElements: smartLists))
+          }
+        } catch {
+          Self.log.caughtError("startObservingSmartLists: observation failed", error)
           try? await sleeper.sleep(for: retryDelay)
           retryDelay = min(retryDelay * 2, .seconds(60))
         }

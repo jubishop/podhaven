@@ -25,7 +25,7 @@ import Testing
     )
     try await RecommendationHelpers.embedEpisodes(signals, embeddable: embeddable)
 
-    let viewModel = EpisodesListViewModel(title: "RecOption")
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "RecOption")
 
     // Engine not started yet: cache cold, option hidden, base options present.
     #expect(viewModel.allSortMethods.contains(.newestFirst))
@@ -110,11 +110,11 @@ import Testing
       "Rec-score order matched newestFirst; the test wouldn't prove the sort applied."
     )
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecSort",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
@@ -205,11 +205,11 @@ import Testing
       "Score order matched pubDate-desc; the toggle assertion wouldn't prove the sort changed."
     )
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "ToggleTest",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .newestFirst
     )
-    viewModel.currentSortMethod = .newestFirst
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
@@ -305,11 +305,11 @@ import Testing
       for: includedEpisodes + excludedEpisodes
     )
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "FinishedOnly",
-      filter: Episode.finished
+      filter: SmartListFilter(combinator: .all, conditions: [.state(.isFinished)]),
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
@@ -371,11 +371,11 @@ import Testing
     let fakeObservatory = try #require(Container.shared.observatory() as? FakeObservatory)
     fakeObservatory.clearAllCalls()
 
-    let viewModel = EpisodesListViewModel(
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
       title: "RecTopHydration",
-      filter: Episode.candidate
+      filter: EpisodesListTestHelpers.candidateFilter,
+      sortMethod: .recommendationScore
     )
-    viewModel.currentSortMethod = .recommendationScore
 
     try await withRunningObservationLoop(viewModel) {
       try await Wait.until(
