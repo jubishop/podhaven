@@ -9,7 +9,7 @@ import Testing
 struct SmartListFilterCodableTests {
   // The 10 seeded defaults, as values (mirrors Migration_v54's JSON literals).
   private static let defaults: [SmartListFilter] = [
-    SmartListFilter(combinator: .all, conditions: [], nested: nil),
+    SmartListFilter(combinator: .all, conditions: [], groups: []),
     SmartListFilter(combinator: .all, conditions: [.state(.isUnqueued), .state(.isUnfinished)]),
     SmartListFilter(combinator: .all, conditions: [.state(.isCached)]),
     SmartListFilter(combinator: .all, conditions: [.state(.isSaved)]),
@@ -21,7 +21,8 @@ struct SmartListFilterCodableTests {
     SmartListFilter(combinator: .all, conditions: [.state(.isNotInterested)]),
   ]
 
-  // Exercises every condition kind, both tag scopes, and a nested group.
+  // Exercises every condition kind, both tag scopes, and multiple nested
+  // groups.
   private static let complex = SmartListFilter(
     combinator: .all,
     conditions: [
@@ -33,16 +34,22 @@ struct SmartListFilterCodableTests {
       .duration(minSeconds: 0, maxSeconds: 3600),
       .publishDate(.withinLast, days: 30),
     ],
-    nested: SmartListFilter.Group(
-      combinator: .any,
-      conditions: [
-        .state(.isLoved),
-        .episodeTag(.hasAnyTag),
-        .podcastTag(.hasNoTags),
-        .duration(minSeconds: 600, maxSeconds: nil),
-        .publishDate(.olderThan, days: 365),
-      ]
-    )
+    groups: [
+      SmartListFilter.Group(
+        combinator: .any,
+        conditions: [
+          .state(.isLoved),
+          .episodeTag(.hasAnyTag),
+          .podcastTag(.hasNoTags),
+          .duration(minSeconds: 600, maxSeconds: nil),
+          .publishDate(.olderThan, days: 365),
+        ]
+      ),
+      SmartListFilter.Group(
+        combinator: .all,
+        conditions: [.state(.isUnqueued), .episodeText(.description, .startsWith, "Bonus")]
+      ),
+    ]
   )
 
   private func roundTrip(_ filter: SmartListFilter) throws {
@@ -63,15 +70,15 @@ struct SmartListFilterCodableTests {
     }
   }
 
-  @Test("a filter with a nested group and every kind round-trips")
+  @Test("a filter with multiple nested groups and every kind round-trips")
   func complexRoundTrips() throws {
     try roundTrip(Self.complex)
   }
 
-  @Test("seed JSON decodes to the expected value")
-  func seedJSONDecodes() throws {
+  @Test("stored JSON (post-v56 shape) decodes to the expected value")
+  func storedJSONDecodes() throws {
     let liked = Data(
-      #"{"combinator":"any","conditions":[{"kind":"state","value":"isLiked"},{"kind":"state","value":"isLoved"}],"nested":null}"#
+      #"{"combinator":"any","conditions":[{"kind":"state","value":"isLiked"},{"kind":"state","value":"isLoved"}],"groups":[]}"#
         .utf8
     )
     let decoded = try JSONDecoder().decode(SmartListFilter.self, from: liked)
@@ -79,6 +86,16 @@ struct SmartListFilterCodableTests {
       decoded
         == SmartListFilter(combinator: .any, conditions: [.state(.isLiked), .state(.isLoved)])
     )
+  }
+
+  // The v56 migration rewrites every stored row to carry a `groups` array, so
+  // the decoder requires the key rather than tolerating the pre-v56 shape.
+  @Test("decoding JSON without a groups key throws")
+  func missingGroupsKeyThrows() {
+    let legacy = Data(#"{"combinator":"all","conditions":[],"nested":null}"#.utf8)
+    #expect(throws: DecodingError.self) {
+      _ = try JSONDecoder().decode(SmartListFilter.self, from: legacy)
+    }
   }
 
   @Test("tag conditions nest under `tag` without colliding with the condition kind")

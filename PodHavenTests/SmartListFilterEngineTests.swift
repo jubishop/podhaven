@@ -182,12 +182,72 @@ class SmartListFilterEngineTests {
     let filter = SmartListFilter(
       combinator: .all,
       conditions: [.episodeText(.title, .contains, "tech")],
-      nested: SmartListFilter.Group(
-        combinator: .any,
-        conditions: [.state(.isLoved), .state(.isLiked)]
-      )
+      groups: [
+        SmartListFilter.Group(
+          combinator: .any,
+          conditions: [.state(.isLoved), .state(.isLiked)]
+        )
+      ]
     )
     #expect(try await ids(for: filter) == [series.episodes[0].id])
+  }
+
+  @Test("each nested group is its own term in the outer combinator")
+  func multipleGroupsCombineIndependently() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "loved-cached",
+            cachedFilename: "a.mp3",
+            rating: .loved
+          ),
+          try Create.unsavedEpisode(guid: "loved-only", rating: .loved),
+          try Create.unsavedEpisode(guid: "cached-only", cachedFilename: "b.mp3"),
+          try Create.unsavedEpisode(guid: "neither"),
+        ]
+      )
+    )
+
+    // (loved OR liked) AND (cached OR saved) — only the first episode.
+    let conjoined = SmartListFilter(
+      combinator: .all,
+      groups: [
+        SmartListFilter.Group(combinator: .any, conditions: [.state(.isLoved), .state(.isLiked)]),
+        SmartListFilter.Group(combinator: .any, conditions: [.state(.isCached), .state(.isSaved)]),
+      ]
+    )
+    #expect(try await ids(for: conjoined) == [series.episodes[0].id])
+
+    // (loved AND cached) OR (cached AND unstarted) — everything but "loved-only"
+    // and "neither".
+    let disjoined = SmartListFilter(
+      combinator: .any,
+      groups: [
+        SmartListFilter.Group(combinator: .all, conditions: [.state(.isLoved), .state(.isCached)]),
+        SmartListFilter.Group(
+          combinator: .all,
+          conditions: [.state(.isCached), .state(.isUnstarted)]
+        ),
+      ]
+    )
+    #expect(
+      try await ids(for: disjoined) == [series.episodes[0].id, series.episodes[2].id]
+    )
+
+    // An empty group contributes no term: with combinator any, it must not
+    // short-circuit the disjunction to always-true.
+    let withEmptyGroup = SmartListFilter(
+      combinator: .any,
+      groups: [
+        SmartListFilter.Group(combinator: .all, conditions: []),
+        SmartListFilter.Group(combinator: .all, conditions: [.state(.isLoved)]),
+      ]
+    )
+    #expect(
+      try await ids(for: withEmptyGroup) == [series.episodes[0].id, series.episodes[1].id]
+    )
   }
 
   // MARK: - Tags (both scopes)

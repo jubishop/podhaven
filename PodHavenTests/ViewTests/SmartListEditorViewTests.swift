@@ -8,11 +8,11 @@ import UIKit
 
 @Suite("of SmartListEditorView tests", .container)
 @MainActor final class SmartListEditorViewTests {
-  @Test("removing the nested group while its section is rendered does not trap")
-  func removeNestedGroupWhileRendered() {
+  @Test("removing a group while its section is rendered does not trap")
+  func removeGroupWhileRendered() throws {
     let viewModel = SmartListEditorViewModel(
       mode: .create,
-      filter: SmartListFilter(nested: SmartListFilter.Group(combinator: .any))
+      filter: SmartListFilter(groups: [SmartListFilter.Group(combinator: .any)])
     )
     let host = UIHostingController(rootView: SmartListEditorView(viewModel: viewModel))
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
@@ -20,10 +20,11 @@ import UIKit
     window.makeKeyAndVisible()
     host.view.layoutIfNeeded()
 
-    viewModel.removeNestedGroup()
+    let group = try #require(viewModel.groups.first)
+    viewModel.removeGroup(group.id)
     host.view.setNeedsLayout()
     host.view.layoutIfNeeded()
 
-    #expect(viewModel.nested == nil)
+    #expect(viewModel.groups.isEmpty)
   }
 }

@@ -76,6 +76,7 @@ import SwiftUI
   // Smart List Actions
   case addSmartList
   case removeSmartListCondition
+  case removeSmartListGroup
 
   // Tag Actions
   case addTag
@@ -390,6 +391,8 @@ import SwiftUI
       return Data(text: "New Smart List", systemImageName: .addSmartList, color: .green)
     case .removeSmartListCondition:
       return Data(text: "Remove Condition", systemImageName: .removeSmartListCondition, color: .red)
+    case .removeSmartListGroup:
+      return Data(text: "Remove Group", systemImageName: .removeSmartListGroup, color: .red)
 
     // Tag Actions
     case .addTag:

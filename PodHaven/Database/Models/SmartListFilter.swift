@@ -4,20 +4,21 @@ import Foundation
 import GRDB
 import Logging
 
-// Flat, non-recursive filter value: a top group of conditions plus at most one
-// nested group. Each Condition/TagCondition writes an explicit `kind`
-// discriminator in its Codable so new kinds can't break previously-saved JSON.
+// Flat, non-recursive filter value: a top group of conditions plus any number
+// of nested groups, each holding only conditions (no deeper recursion). Each
+// Condition/TagCondition writes an explicit `kind` discriminator in its Codable
+// so new kinds can't break previously-saved JSON.
 struct SmartListFilter: Codable, Hashable, Sendable {
   private static let log = Log.as("SmartListFilter")
 
   var combinator: Combinator
   var conditions: [Condition]
-  var nested: Group?
+  var groups: [Group]
 
-  init(combinator: Combinator = .all, conditions: [Condition] = [], nested: Group? = nil) {
+  init(combinator: Combinator = .all, conditions: [Condition] = [], groups: [Group] = []) {
     self.combinator = combinator
     self.conditions = conditions
-    self.nested = nested
+    self.groups = groups
   }
 
   struct Group: Codable, Hashable, Sendable {
@@ -247,15 +248,17 @@ struct SmartListFilter: Codable, Hashable, Sendable {
     }
   }
 
-  // Drops any condition naming `tag` from the top group and the nested group;
-  // an emptied nested group is removed entirely, and an emptied top group falls
-  // back to match-all (the engine treats empty top + nil nested as no-op).
+  // Drops any condition naming `tag` from the top group and every nested
+  // group; an emptied nested group is removed entirely, and an emptied top
+  // group falls back to match-all (the engine treats empty top + no groups as
+  // no-op).
   func removingTag(_ tag: Tag.ID) -> SmartListFilter {
     var result = self
     result.conditions.removeAll { $0.references(tag) }
-    if var nested = result.nested {
-      nested.conditions.removeAll { $0.references(tag) }
-      result.nested = nested.conditions.isEmpty ? nil : nested
+    result.groups = result.groups.compactMap { group in
+      var group = group
+      group.conditions.removeAll { $0.references(tag) }
+      return group.conditions.isEmpty ? nil : group
     }
     return result
   }

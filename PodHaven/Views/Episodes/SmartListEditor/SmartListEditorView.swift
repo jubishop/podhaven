@@ -22,28 +22,29 @@ struct SmartListEditorView: View {
         }
 
         Section("Conditions") {
-          SmartListGroupView(group: $viewModel.topGroup, onRemoveGroup: nil)
-        }
+          Picker("Match", selection: $viewModel.topGroup.combinator) {
+            Text("All").tag(SmartListFilter.Combinator.all)
+            Text("Any").tag(SmartListFilter.Combinator.any)
+          }
+          .pickerStyle(.segmented)
 
-        if let nested = viewModel.nested {
-          Section("Nested Group") {
-            // Binding($viewModel.nested) force-unwraps on reads that can arrive
-            // after Remove Group nils the value, trapping mid-update; fall back
-            // to the last value while the section disappears, and drop late
-            // writes so they can't resurrect the removed group.
-            SmartListGroupView(
-              group: Binding(
-                get: { viewModel.nested ?? nested },
-                set: { if viewModel.nested != nil { viewModel.nested = $0 } }
-              )
-            ) {
-              viewModel.removeNestedGroup()
+          ForEach($viewModel.topGroup.conditions) { $condition in
+            SmartListConditionRow(condition: $condition) {
+              viewModel.removeTopCondition(condition.id)
             }
           }
-        } else {
-          Section {
-            Button("Add Group") { viewModel.addNestedGroup() }
+
+          // The top group's add button precedes the groups so it sits beside
+          // the rows it appends to; the group views carry their own.
+          Button("Add Condition") { viewModel.addTopCondition() }
+
+          ForEach($viewModel.groups) { $group in
+            SmartListGroupView(group: $group) {
+              viewModel.removeGroup(group.id)
+            }
           }
+
+          Button("Add Group") { viewModel.addGroup() }
         }
 
         if let message = viewModel.validationMessage {
@@ -104,10 +105,16 @@ struct SmartListEditorView: View {
           .duration(minSeconds: nil, maxSeconds: 1800),
           .publishDate(.withinLast, days: 7),
         ],
-        nested: SmartListFilter.Group(
-          combinator: .any,
-          conditions: [.state(.isLiked), .state(.isLoved)]
-        )
+        groups: [
+          SmartListFilter.Group(
+            combinator: .any,
+            conditions: [.state(.isLiked), .state(.isLoved)]
+          ),
+          SmartListFilter.Group(
+            combinator: .any,
+            conditions: [.state(.isCached), .state(.isSaved)]
+          ),
+        ]
       )
     )
   )

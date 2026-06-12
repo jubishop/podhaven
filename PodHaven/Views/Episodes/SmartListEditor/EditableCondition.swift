@@ -2,9 +2,10 @@
 
 import Foundation
 
-// Mutable editing surface for one SmartListFilter group. Conditions carry
-// stable UUID identities so SwiftUI rows survive reorders and removals.
-struct EditableGroup: Hashable {
+// Mutable editing surface for one SmartListFilter group. Groups and conditions
+// carry stable UUID identities so SwiftUI rows survive reorders and removals.
+struct EditableGroup: Identifiable, Hashable {
+  let id = UUID()
   var combinator: SmartListFilter.Combinator
   var conditions: [EditableCondition]
 

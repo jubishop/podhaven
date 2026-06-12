@@ -2,32 +2,35 @@
 
 import SwiftUI
 
-// Renders one filter group: a combinator toggle, its condition rows, and an
-// add button. Deliberately non-recursive — the editor shows at most the top
-// group plus one nested group.
+// Renders one nested group inline in the top group's condition list: a header
+// row with a remove button and combinator toggle, then the group's condition
+// rows and add button indented so the group reads as a single term of the
+// outer Any/All. Deliberately non-recursive — groups hold only conditions.
 struct SmartListGroupView: View {
   @Binding var group: EditableGroup
-  let onRemoveGroup: (() -> Void)?
+  let onRemove: @MainActor @Sendable () -> Void
 
   var body: some View {
-    Picker("Match", selection: $group.combinator) {
-      Text("All").tag(SmartListFilter.Combinator.all)
-      Text("Any").tag(SmartListFilter.Combinator.any)
+    HStack {
+      AppIcon.removeSmartListGroup.imageButton(action: onRemove)
+        .buttonStyle(.borderless)
+      Picker("Match", selection: $group.combinator) {
+        Text("All").tag(SmartListFilter.Combinator.all)
+        Text("Any").tag(SmartListFilter.Combinator.any)
+      }
+      .pickerStyle(.segmented)
     }
-    .pickerStyle(.segmented)
 
     ForEach($group.conditions) { $condition in
       SmartListConditionRow(condition: $condition) {
         group.conditions.removeAll { $0.id == condition.id }
       }
+      .padding(.leading)
     }
 
     Button("Add Condition") {
       group.conditions.append(EditableCondition())
     }
-
-    if let onRemoveGroup {
-      Button("Remove Group", role: .destructive, action: onRemoveGroup)
-    }
+    .padding(.leading)
   }
 }
