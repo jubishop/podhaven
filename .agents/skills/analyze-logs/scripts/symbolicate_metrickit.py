@@ -41,6 +41,8 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 from zoneinfo import ZoneInfo
 
+from log_summary import parse_time_arg
+
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
 METRICKIT_METADATA_KEY = "metricKitDiagnostic"
@@ -577,8 +579,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("path", help="Path to log.ndjson or widget-log.ndjson.")
     parser.add_argument(
         "--around",
-        type=int,
-        help="Restrict to MetricKit entries within --window-ms of this epoch-ms timestamp.",
+        type=parse_time_arg,
+        help="Restrict to MetricKit entries within --window-ms of this time "
+        "(datetime string, ISO-8601 with optional timezone, or epoch ms).",
     )
     parser.add_argument(
         "--window-ms",
@@ -648,10 +651,14 @@ def main() -> int:
     selected_categories = set(args.category) if args.category else set(DEFAULT_CATEGORIES) | {"unknown"}
 
     entries: list[MetricKitEntry] = []
+    outside_window: list[MetricKitEntry] = []
+    other_category = 0
     for entry in iter_metrickit_entries(path):
         if entry.category not in selected_categories:
+            other_category += 1
             continue
         if args.around is not None and abs(entry.timestamp_ms - args.around) > args.window_ms:
+            outside_window.append(entry)
             continue
         entries.append(entry)
         if len(entries) >= args.limit:
@@ -669,7 +676,31 @@ def main() -> int:
 
     if not entries:
         if args.json_output:
-            print(json.dumps({"file": str(path), "entries": []}, indent=2))
+            payload = {
+                "file": str(path),
+                "entries": [],
+                "outside_window": [
+                    {
+                        "timestamp_ms": e.timestamp_ms,
+                        "timestamp": format_timestamp(e.timestamp_ms),
+                        "category": e.category,
+                    }
+                    for e in outside_window
+                ],
+                "excluded_by_category": other_category,
+            }
+            print(json.dumps(payload, indent=2))
+        elif outside_window or other_category:
+            print(f"No MetricKit entries matched in {path}.")
+            if outside_window:
+                print(
+                    f"{len(outside_window)} matching-category entries fall outside the "
+                    f"--around window:"
+                )
+                for e in outside_window:
+                    print(f"  {format_timestamp(e.timestamp_ms)}  {e.category}  (epoch-ms {e.timestamp_ms})")
+            if other_category:
+                print(f"{other_category} entries excluded by --category.")
         else:
             print(f"No MetricKit entries found in {path}.")
         return 0

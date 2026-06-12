@@ -2,7 +2,6 @@
 name: analyze-logs
 description: Analyze PodHaven logs and reconstruct failure timelines from the NDJSON file logs and/or the OS unified log (os_log / Console). Requires the user to specify the log source and run context (do not infer). Use when inspecting log.ndjson or widget-log.ndjson, capturing os_log/Console output from the Simulator or the My Mac (macDev) build, diagnosing warnings or errors, correlating a Sentry timestamp to local logs, or explaining what happened around a specific time, subsystem, category, source file, or message.
 user_invocable: true
-disable-model-invocation: true
 ---
 
 # Analyze Logs
@@ -18,6 +17,8 @@ Inspect PodHaven NDJSON logs without reading the entire file into context. Use t
 3. **Repeat back** the path and run context in your first analysis message.
 
 If the user has not supplied a path, stop and ask. You may run `scripts/locate_logs.py` only to show **reference** locations while waiting — that script does not choose a file for you.
+
+A concrete path supplied by an invoking skill counts as user-supplied — e.g. the `analyze-sentry-feedback` flow passes the paths of the reporter's downloaded attachments. Repeat the path and its run context back and proceed; do not re-ask.
 
 ## Reference: where logs usually live (confirm with the user)
 
@@ -125,7 +126,7 @@ python3 scripts/log_summary.py "$LOG_PATH" --sessions
 python3 scripts/log_summary.py "$LOG_PATH" --session 12 --call-sites
 
 python3 scripts/log_summary.py "$LOG_PATH" --min-level warning --last-hours 6
-python3 scripts/log_summary.py "$LOG_PATH" --around 1768679500000 --window-ms 30000
+python3 scripts/log_summary.py "$LOG_PATH" --around '2026-06-12T16:26:55Z' --window-ms 30000
 python3 scripts/log_summary.py "$LOG_PATH" --subsystem Feed --category refreshManager
 python3 scripts/log_summary.py "$LOG_PATH" --match "cache load failed" --min-level warning
 python3 scripts/log_summary.py "$LOG_PATH" --tail 200 --json
@@ -146,13 +147,13 @@ python3 scripts/symbolicate_metrickit.py "$LOG_PATH"
 | `--tail N` | Keep only the last N entries after other scope filters |
 | `--session N` | Restrict to a single detected session by number (see `--sessions`) |
 
-Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, `MM/DD HH:MM`, or raw epoch milliseconds.
+Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, `MM/DD HH:MM`, ISO-8601 with optional timezone (e.g. `2026-06-12T16:26:55Z` — paste Sentry timestamps directly), or raw epoch milliseconds. Times without a timezone are interpreted as Pacific. The same formats work for `symbolicate_metrickit.py --around`.
 
 ### Selection filters (choose which entries to display)
 | Flag | Description |
 |------|-------------|
 | `--min-level LEVEL` | Minimum level: trace, debug, info, notice, warning, error, critical |
-| `--around TIMESTAMP_MS` | Select entries within `--window-ms` of this timestamp |
+| `--around TIME` | Select entries within `--window-ms` of this time (same formats as `--after`/`--before`) |
 | `--window-ms N` | Window size for `--around` (default: 30000) |
 | `--subsystem NAME` | Case-insensitive subsystem filter |
 | `--category NAME` | Case-insensitive category filter |
@@ -199,7 +200,7 @@ Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, 
 
 ### 4. Correlate external references
 
-- Sentry timestamp → `--around` in ms.
+- Sentry timestamp → paste directly into `--around` (ISO-8601 with timezone accepted; epoch ms too).
 - Multiple files → separate analysis, then `--compare-other`.
 
 ### 5. Symbolicate MetricKit call stacks

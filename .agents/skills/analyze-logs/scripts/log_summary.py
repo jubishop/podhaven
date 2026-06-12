@@ -66,8 +66,15 @@ def parse_time_arg(s: str) -> int:
     try:
         return int(s)
     except ValueError:
+        pass
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
         print(f"error: cannot parse time '{s}'", file=sys.stderr)
         sys.exit(1)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=PACIFIC)
+    return int(dt.timestamp() * 1000)
 
 
 @dataclass(frozen=True)
@@ -155,8 +162,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--around",
-        type=int,
-        help="Select entries within --window-ms of this timestamp in milliseconds.",
+        type=parse_time_arg,
+        help="Select entries within --window-ms of this time "
+        "(datetime string, ISO-8601 with optional timezone, or epoch ms).",
     )
     parser.add_argument(
         "--window-ms",
