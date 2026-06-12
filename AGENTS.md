@@ -75,11 +75,9 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - `CHECK` constraints pass when the expression is NULL: use `IS`, not `=`, for `json_type(col, '$.path')` guards so rows missing the key are rejected.
 
 ## Coding Standards
-
 - Keep every Swift file under 1000 lines.
 
 ### Production Only
-
 - Use `[weak self]` in closures/Tasks that capture `self` unless a strong reference is required. Unwrap with `guard let self else { return }`; use `self.x`, not `self?.x`.
 - Avoid `try?`; use `do`/`catch`. Exceptions: `Task.checkCancellation()` and `sleeper.sleep()` when silent failure is intentional.
 - No force unwraps (`!`); use `Assert` or guarded error handling.
