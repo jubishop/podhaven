@@ -30,33 +30,11 @@ copies.
 The goal is one focused report: what the user complained about, what the logs
 around that time show, the most likely root cause, and how to fix it.
 
-> **Log analysis (Step 6) runs through the `analyze-logs` skill's
-> `log_summary.py` script — never ad-hoc `python`/`jq` parsing.** Sessionize
-> first (`--sessions`), scope to the launch that contains the feedback
-> timestamp (`--session N`), then drill in. Reaching Step 5 with downloaded
-> `.ndjson` files is the cue to use that script.
+## Scope
 
-## When to use
-
-- The user pastes a URL that contains `issues/feedback/` and/or `feedbackSlug=`.
-- The user says "look at this feedback", "triage feedback NNN", or "what
-  happened to the user who reported X".
-- The user gives a slug like `podhaven:7485822944` or a bare numeric feedback
-  ID and asks for analysis.
-
-Do **not** use this skill to summarize many feedbacks at once or to do general
-Sentry log triage — for that, use `analyze-sentry-logs`.
-
-## Inputs you may receive
-
-- A full Sentry URL, e.g.
-  `https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A7485822944&project=4508469264711681&...`
-- A feedback slug like `podhaven:7485822944` (the part after `feedbackSlug=`,
-  URL-decoded — `%3A` decodes to `:`).
-- A bare numeric ID like `7485822944`. Combine with the project short name
-  `podhaven` to form the slug.
-
-If none is provided, ask the user for one before proceeding.
+One feedback at a time. Do **not** use this skill to summarize many feedbacks
+at once or to do general Sentry log triage — for that, use
+`analyze-sentry-logs`.
 
 ## Step 1: Parse the reference and the user's own notes
 
