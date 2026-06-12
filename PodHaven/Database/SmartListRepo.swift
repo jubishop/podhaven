@@ -58,7 +58,7 @@ struct SmartListRepo: Sendable {
     Self.log.debug(
       """
       update: \(id) to '\(trimmed)' with \(filter.conditions.count) conditions \
-      (nested: \(filter.nested != nil))
+      and \(filter.groups.count) groups
       """
     )
 

@@ -21,7 +21,7 @@ class SmartListEditorViewModel {
   let mode: Mode
   var title: String
   var topGroup: EditableGroup
-  var nested: EditableGroup?
+  var groups: [EditableGroup]
 
   init(mode: Mode = .create, title: String = "", filter: SmartListFilter = SmartListFilter()) {
     self.mode = mode
@@ -30,9 +30,7 @@ class SmartListEditorViewModel {
       combinator: filter.combinator,
       conditions: filter.conditions.map(EditableCondition.init)
     )
-    if let nestedGroup = filter.nested {
-      self.nested = EditableGroup(nestedGroup)
-    }
+    self.groups = filter.groups.map(EditableGroup.init)
   }
 
   // MARK: - Validation
@@ -68,10 +66,10 @@ class SmartListEditorViewModel {
   }
 
   private var allConditions: [EditableCondition] {
-    topGroup.conditions + (nested?.conditions ?? [])
+    topGroup.conditions + groups.flatMap(\.conditions)
   }
 
-  // nil while any row is incomplete. An empty nested group is dropped rather
+  // nil while any row is incomplete. Empty nested groups are dropped rather
   // than persisted.
   private var composedFilter: SmartListFilter? {
     var conditions: [SmartListFilter.Condition] = []
@@ -80,35 +78,33 @@ class SmartListEditorViewModel {
       conditions.append(condition)
     }
 
-    var nestedGroup: SmartListFilter.Group?
-    if let nested, !nested.conditions.isEmpty {
-      var nestedConditions: [SmartListFilter.Condition] = []
-      for editable in nested.conditions {
+    var composedGroups: [SmartListFilter.Group] = []
+    for group in groups where !group.conditions.isEmpty {
+      var groupConditions: [SmartListFilter.Condition] = []
+      for editable in group.conditions {
         guard let condition = editable.condition else { return nil }
-        nestedConditions.append(condition)
+        groupConditions.append(condition)
       }
-      nestedGroup = SmartListFilter.Group(
-        combinator: nested.combinator,
-        conditions: nestedConditions
+      composedGroups.append(
+        SmartListFilter.Group(combinator: group.combinator, conditions: groupConditions)
       )
     }
 
     return SmartListFilter(
       combinator: topGroup.combinator,
       conditions: conditions,
-      nested: nestedGroup
+      groups: composedGroups
     )
   }
 
-  // MARK: - Nested Group
+  // MARK: - Nested Groups
 
-  func addNestedGroup() {
-    guard nested == nil else { return }
-    nested = EditableGroup(combinator: topGroup.combinator == .all ? .any : .all)
+  func addGroup() {
+    groups.append(EditableGroup(combinator: topGroup.combinator == .all ? .any : .all))
   }
 
-  func removeNestedGroup() {
-    nested = nil
+  func removeGroup(_ id: EditableGroup.ID) {
+    groups.removeAll { $0.id == id }
   }
 
   // MARK: - Persistence

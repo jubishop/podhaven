@@ -202,17 +202,24 @@ class SmartListRepoTests {
         displayOrder: 0
       )
     )
-    // Nested group consisting solely of the doomed tag is dropped.
-    let nested = try await smartListRepo.insert(
+    // A group consisting solely of the doomed tag is dropped; a mixed group is
+    // scrubbed in place.
+    let grouped = try await smartListRepo.insert(
       try UnsavedSmartList(
-        title: "Nested",
+        title: "Grouped",
         filter: SmartListFilter(
           combinator: .all,
           conditions: [.state(.isFinished)],
-          nested: SmartListFilter.Group(
-            combinator: .any,
-            conditions: [.episodeTag(.hasTag(doomed.id))]
-          )
+          groups: [
+            SmartListFilter.Group(
+              combinator: .any,
+              conditions: [.episodeTag(.hasTag(doomed.id))]
+            ),
+            SmartListFilter.Group(
+              combinator: .any,
+              conditions: [.state(.isLiked), .podcastTag(.hasTag(doomed.id))]
+            ),
+          ]
         ),
         displayOrder: 1
       )
@@ -241,8 +248,12 @@ class SmartListRepoTests {
         == SmartListFilter(combinator: .all, conditions: [.state(.isLoved)])
     )
     #expect(
-      try #require(try await smartListRepo.fetchOne(nested.id)).filter
-        == SmartListFilter(combinator: .all, conditions: [.state(.isFinished)], nested: nil)
+      try #require(try await smartListRepo.fetchOne(grouped.id)).filter
+        == SmartListFilter(
+          combinator: .all,
+          conditions: [.state(.isFinished)],
+          groups: [SmartListFilter.Group(combinator: .any, conditions: [.state(.isLiked)])]
+        )
     )
     #expect(
       try #require(try await smartListRepo.fetchOne(solo.id)).filter

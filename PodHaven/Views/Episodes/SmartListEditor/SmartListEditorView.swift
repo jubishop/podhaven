@@ -22,19 +22,28 @@ struct SmartListEditorView: View {
         }
 
         Section("Conditions") {
-          SmartListGroupView(group: $viewModel.topGroup, onRemoveGroup: nil)
-        }
+          Picker("Match", selection: $viewModel.topGroup.combinator) {
+            Text("All").tag(SmartListFilter.Combinator.all)
+            Text("Any").tag(SmartListFilter.Combinator.any)
+          }
+          .pickerStyle(.segmented)
 
-        if let nestedGroup = Binding($viewModel.nested) {
-          Section("Nested Group") {
-            SmartListGroupView(group: nestedGroup) {
-              viewModel.removeNestedGroup()
+          ForEach($viewModel.topGroup.conditions) { $condition in
+            SmartListConditionRow(condition: $condition) {
+              viewModel.topGroup.conditions.removeAll { $0.id == condition.id }
             }
           }
-        } else {
-          Section {
-            Button("Add Group") { viewModel.addNestedGroup() }
+
+          ForEach($viewModel.groups) { $group in
+            SmartListGroupView(group: $group) {
+              viewModel.removeGroup(group.id)
+            }
           }
+
+          Button("Add Condition") {
+            viewModel.topGroup.conditions.append(EditableCondition())
+          }
+          Button("Add Group") { viewModel.addGroup() }
         }
 
         if let message = viewModel.validationMessage {
@@ -95,10 +104,16 @@ struct SmartListEditorView: View {
           .duration(minSeconds: nil, maxSeconds: 1800),
           .publishDate(.withinLast, days: 7),
         ],
-        nested: SmartListFilter.Group(
-          combinator: .any,
-          conditions: [.state(.isLiked), .state(.isLoved)]
-        )
+        groups: [
+          SmartListFilter.Group(
+            combinator: .any,
+            conditions: [.state(.isLiked), .state(.isLoved)]
+          ),
+          SmartListFilter.Group(
+            combinator: .any,
+            conditions: [.state(.isCached), .state(.isSaved)]
+          ),
+        ]
       )
     )
   )

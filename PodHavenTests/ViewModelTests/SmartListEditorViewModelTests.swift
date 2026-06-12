@@ -28,14 +28,23 @@ import Testing
     viewModel.topGroup.combinator = .all
     viewModel.topGroup.conditions = [text, duration]
 
-    viewModel.addNestedGroup()
+    viewModel.addGroup()
     var loved = EditableCondition()
     loved.kind = .state
     loved.state = .isLoved
     var liked = EditableCondition()
     liked.kind = .state
     liked.state = .isLiked
-    viewModel.nested?.conditions = [loved, liked]
+    viewModel.groups[0].conditions = [loved, liked]
+
+    viewModel.addGroup()
+    var cached = EditableCondition()
+    cached.kind = .state
+    cached.state = .isCached
+    var savedInCache = EditableCondition()
+    savedInCache.kind = .state
+    savedInCache.state = .isSaved
+    viewModel.groups[1].conditions = [cached, savedInCache]
 
     #expect(viewModel.canSave)
     viewModel.save()
@@ -57,10 +66,16 @@ import Testing
             .podcastText(.title, .contains, "Tech"),
             .duration(minSeconds: nil, maxSeconds: 1800),
           ],
-          nested: SmartListFilter.Group(
-            combinator: .any,
-            conditions: [.state(.isLoved), .state(.isLiked)]
-          )
+          groups: [
+            SmartListFilter.Group(
+              combinator: .any,
+              conditions: [.state(.isLoved), .state(.isLiked)]
+            ),
+            SmartListFilter.Group(
+              combinator: .any,
+              conditions: [.state(.isCached), .state(.isSaved)]
+            ),
+          ]
         )
     )
   }
@@ -107,22 +122,25 @@ import Testing
     #expect(saved.filter.conditions == [.state(.isCached)])
   }
 
-  @Test("an empty nested group is dropped on save")
-  func emptyNestedGroupDroppedOnSave() async throws {
+  @Test("empty nested groups are dropped on save")
+  func emptyGroupsDroppedOnSave() async throws {
     let existing = try #require(try await smartListRepo.fetchAll().first)
     let viewModel = SmartListEditorViewModel(
       mode: .edit(existing.id),
       title: existing.title,
       filter: existing.filter
     )
-    viewModel.addNestedGroup()
+    viewModel.addGroup()
+    viewModel.addGroup()
     #expect(viewModel.canSave)
 
     viewModel.save()
 
     try await Wait.until(
-      { @MainActor in try await self.smartListRepo.fetchOne(existing.id)?.filter.nested == nil },
-      { "Expected the empty nested group to be dropped" }
+      { @MainActor in
+        try await self.smartListRepo.fetchOne(existing.id)?.filter.groups.isEmpty == true
+      },
+      { "Expected the empty nested groups to be dropped" }
     )
   }
 
@@ -220,25 +238,41 @@ import Testing
   @Test("an incomplete nested condition blocks save")
   func incompleteNestedConditionBlocksSave() {
     let viewModel = SmartListEditorViewModel(mode: .create, title: "Named")
-    viewModel.addNestedGroup()
+    viewModel.addGroup()
     var text = EditableCondition()
     text.kind = .podcastDescription
-    viewModel.nested?.conditions = [text]
+    viewModel.groups[0].conditions = [text]
     #expect(!viewModel.canSave)
   }
 
-  @Test("the nested group defaults to the opposite combinator of the top group")
-  func nestedGroupDefaultsToOppositeCombinator() {
+  @Test("each added group defaults to the opposite combinator of the top group")
+  func addedGroupsDefaultToOppositeCombinator() {
     let viewModel = SmartListEditorViewModel(mode: .create, title: "Named")
     viewModel.topGroup.combinator = .all
-    viewModel.addNestedGroup()
-    #expect(viewModel.nested?.combinator == .any)
+    viewModel.addGroup()
+    viewModel.addGroup()
+    #expect(viewModel.groups.map(\.combinator) == [.any, .any])
 
-    viewModel.removeNestedGroup()
-    #expect(viewModel.nested == nil)
     viewModel.topGroup.combinator = .any
-    viewModel.addNestedGroup()
-    #expect(viewModel.nested?.combinator == .all)
+    viewModel.addGroup()
+    #expect(viewModel.groups.map(\.combinator) == [.any, .any, .all])
+  }
+
+  @Test("removeGroup removes only the identified group")
+  func removeGroupRemovesOnlyThatGroup() {
+    let viewModel = SmartListEditorViewModel(mode: .create, title: "Named")
+    viewModel.addGroup()
+    viewModel.addGroup()
+    viewModel.addGroup()
+    var condition = EditableCondition()
+    condition.kind = .state
+    condition.state = .isLoved
+    viewModel.groups[2].conditions = [condition]
+
+    viewModel.removeGroup(viewModel.groups[1].id)
+
+    #expect(viewModel.groups.count == 2)
+    #expect(viewModel.groups[1].conditions.count == 1)
   }
 
   // MARK: - EditableCondition Round-Trip

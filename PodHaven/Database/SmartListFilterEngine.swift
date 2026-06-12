@@ -5,8 +5,8 @@ import GRDB
 
 // Pure translation of a SmartListFilter into a flat SQLExpression suitable for
 // `Observatory.listablePodcastEpisodes(filter:)`. Two-level walk only: the top
-// group's conditions, optionally AND/OR'd with a single nested group's combined
-// expression. `referenceDate` is injected so publish-date windows are
+// group's conditions, AND/OR'd with each nested group's combined expression as
+// one extra term. `referenceDate` is injected so publish-date windows are
 // deterministic and testable. All expressions are evaluated against the
 // `episode` base table; tag and podcast-text predicates use subqueries since the
 // observation request takes only a flat expression (no joins/request builder).
@@ -16,9 +16,9 @@ enum SmartListFilterEngine {
     referenceDate: Date
   ) -> SQLExpression {
     var terms = filter.conditions.map { expression(for: $0, referenceDate: referenceDate) }
-    if let nested = filter.nested, !nested.conditions.isEmpty {
-      let nestedTerms = nested.conditions.map { expression(for: $0, referenceDate: referenceDate) }
-      terms.append(combine(nestedTerms, with: nested.combinator))
+    for group in filter.groups where !group.conditions.isEmpty {
+      let groupTerms = group.conditions.map { expression(for: $0, referenceDate: referenceDate) }
+      terms.append(combine(groupTerms, with: group.combinator))
     }
     return combine(terms, with: filter.combinator)
   }

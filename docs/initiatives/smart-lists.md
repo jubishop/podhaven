@@ -4,13 +4,13 @@ status: shipped
 
 # Smart Lists
 
-User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v53, condition set expanded, scrub-on-tag-delete, two-phase build).
+User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v53, condition set expanded, scrub-on-tag-delete, two-phase build); revised 2026-06-12 (multiple nested groups, v56 migration, inline group editing — see §1/§2/§3a/§10).
 
 ## Context
 
 `EpisodesView` is currently a static hub of 10 hardcoded `NavigationLink`s inside a `Form` (`EpisodesView.swift:10–56`), each pointing at an `EpisodesViewType` case whose destination instantiates `EpisodesListView` with a hand-written `SQLExpression` filter (`Navigation.swift:193–258`). The structure is already filter-driven — every list is just a different `SQLExpression` fed to the same view model — so generalizing it into user-editable rules is a natural extension rather than a rewrite.
 
-This initiative introduces **Smart Lists**: persisted, editable any/all filter groups with at most **one level of nesting** (a top-level group of conditions plus, optionally, a single sub-group). One level is sufficient — every realistic filter reduces to a top combinator with conditions and at most one group of the opposite combinator inside it. Disallowing deeper recursion keeps the data model, the engine, and the editor UI dramatically simpler. The 10 existing defaults are migrated into seeded `smartList` rows so users can rename/edit/delete them; new lists are created via a `+` toolbar button on `EpisodesView`; each existing list gains a gear toolbar button that opens a full-size configurator sheet.
+This initiative introduces **Smart Lists**: persisted, editable any/all filter groups with at most **one level of nesting** — a top-level group of conditions plus any number of sub-groups, each holding only conditions. One level is sufficient — every realistic filter reduces to a top combinator over conditions and condition-groups. Disallowing deeper recursion keeps the data model, the engine, and the editor UI dramatically simpler. (v1 allowed at most a single sub-group; the 2026-06-12 revision lifted that to an array.) The 10 existing defaults are migrated into seeded `smartList` rows so users can rename/edit/delete them; new lists are created via a `+` toolbar button on `EpisodesView`; each existing list gains a gear toolbar button that opens a full-size configurator sheet.
 
 v1 supports **seven condition kinds**: episode text (title/description), **podcast text** (parent podcast title/description), episode state, episode-tag membership, podcast-tag membership, **duration range**, and **publish-date age**. Tags exist independently in two scopes — **episode tags** (via the `episodeTag` join table) and **podcast tags** (via the `podcastTag` join table on the episode's parent podcast) — and the filter must be able to target each scope independently within a single Smart List (e.g., "podcast tagged 'Tech' AND episode tagged 'Interview'"). The two scopes share the same `Tag` table; only the join path differs.
 
@@ -35,13 +35,13 @@ The migration replaces the entire `EpisodesView` hub, so the work lands as two i
 
 ### 1. Filter shape — `PodHaven/Database/Models/SmartListFilter.swift`
 
-Flat, non-recursive `Codable` value. A top-level `Group` of conditions plus an optional single `Group` nested inside it. Each enum-with-payload uses an explicit `kind` discriminator (mirroring `PodcastsViewType` Codable at `Navigation.swift:137–174`) so adding new condition kinds in v2 cannot break v1 saved JSON.
+Flat, non-recursive `Codable` value. A top-level `Group` of conditions plus an array of `Group`s nested inside it. Each enum-with-payload uses an explicit `kind` discriminator (mirroring `PodcastsViewType` Codable at `Navigation.swift:137–174`) so adding new condition kinds in v2 cannot break v1 saved JSON.
 
 ```swift
 struct SmartListFilter: Codable, Hashable, Sendable {
   var combinator: Combinator
   var conditions: [Condition]
-  var nested: Group?              // at most one — no further recursion
+  var groups: [Group]             // one level deep — no further recursion
 
   struct Group: Codable, Hashable, Sendable {
     var combinator: Combinator
@@ -81,14 +81,14 @@ struct SmartListFilter: Codable, Hashable, Sendable {
 
 Custom `init(from:)` / `encode(to:)` on `Condition` and `TagCondition` write a stable `kind` string for each payload variant (`"episodeText"`, `"podcastText"`, `"state"`, `"episodeTag"`, `"podcastTag"`, `"duration"`, `"publishDate"`). Decoding an unknown `kind` throws, which surfaces as a thrown error from the repo/observation read paths — the migration's CHECK guards the JSON shape at write time, and every production write encodes from a typed value, so an undecodable row is unreachable without an app downgrade. (If Smart Lists ever sync across devices, tolerant log+drop row decoding becomes a requirement.) The outer `SmartListFilter` and inner `Group` use synthesized Codable since their fields are fixed.
 
-`SmartListFilter` also exposes a pure `func removingTag(_ id: Tag.ID) -> SmartListFilter` that strips every `.episodeTag`/`.podcastTag` condition whose `TagCondition` carries `id` (in both the top group and the nested group), returning a value with the same combinators. Used by the scrub-on-delete path (§5).
+`SmartListFilter` also exposes a pure `func removingTag(_ id: Tag.ID) -> SmartListFilter` that strips every `.episodeTag`/`.podcastTag` condition whose `TagCondition` carries `id` (in the top group and every nested group, dropping a group emptied by the scrub), returning a value with the same combinators. Used by the scrub-on-delete path (§5).
 
 ### 2. Filter → SQLExpression — `PodHaven/Database/SmartListFilterEngine.swift`
 
-Pure `(SmartListFilter, referenceDate: Date) -> SQLExpression`. The `referenceDate` parameter exists so relative `.publishDate` windows are computed deterministically (production passes `Date()`; tests pass a fixed date — keeps the engine pure and testable). Two-level walk only: combine the top group's condition expressions, optionally append the nested group's combined expression as one extra term, then combine again with the top combinator. Reuses existing `Episode` static expressions (`Episode.swift:234–248`) wherever the mapping is direct.
+Pure `(SmartListFilter, referenceDate: Date) -> SQLExpression`. The `referenceDate` parameter exists so relative `.publishDate` windows are computed deterministically (production passes `Date()`; tests pass a fixed date — keeps the engine pure and testable). Two-level walk only: combine the top group's condition expressions, append each non-empty nested group's combined expression as one extra term, then combine again with the top combinator. Reuses existing `Episode` static expressions (`Episode.swift:234–248`) wherever the mapping is direct.
 
 - **Combine helper:** empty list → `AppDB.noOp` (`AppDB.swift:88` is `true.sqlExpression`); for `.all`, reduce with `&&`; for `.any`, seed the reduce with the first term (`dropFirst().reduce(first) { $0 || $1 }`) — do **not** seed `||` reduce with `noOp`, which would short-circuit to true.
-- An empty top group with no nested group → `noOp`. Matches today's "Recent Episodes" semantics.
+- An empty top group with no nested groups → `noOp`. Matches today's "Recent Episodes" semantics.
 - **State conditions** → existing constants: `isQueued`→`Episode.queued`, `isUnqueued`→`Episode.unqueued`, `isFinished`→`Episode.finished`, `isUnfinished`→`Episode.unfinished`, `isStarted`→`Episode.started`, `isUnstarted`→`Episode.unstarted`, `isCached`→`Episode.cached`, `isSaved`→`Episode.savedInCache`, `isLoved`→`Episode.loved`, `isLiked`→`Episode.liked`, `isDisliked`→`Episode.disliked`, `isNotInterested`→`Episode.notInterested`, `isRated`→`Episode.rated`, `isUnrated`→`!Episode.rated`, `wasPreviouslyQueued`→`Episode.previouslyQueued`. (`isSaved`→`Episode.savedInCache` kept atomic since `saveInCache` isn't separately user-pickable in v1.)
 - **Episode text conditions** (`.episodeText`): GRDB column expressions, not raw SQL. `contains`/`startsWith` use `column.like(_:escape:)` with `%`/`_`/`\` escaped in the user input so only the added wildcards are wildcards; SQLite `LIKE` is ASCII case-insensitive, so no `lower()` is needed. `equals` uses `column.collating(.nocase) == value`. For nullable `description` with `doesNotContain`, emit `column == nil || !column.like(...)` — required because `NOT (NULL LIKE ?)` is NULL, which would drop null-description rows.
 - **Podcast text conditions** (`.podcastText`): `Observatory.listablePodcastEpisodes(filter:)` takes only a flat `SQLExpression`, so route through the parent podcast with a `Podcast.select(id).filter(<predicate>).contains(Episode.Columns.podcastId)` subquery instead of a join (GRDB auto-aliases the subquery's `podcast`, isolating it from the request's joined `podcast`). `episode.podcastId` is NOT NULL (FK with cascade delete) and `podcast.id` is the primary key, so `IN`/`NOT IN` membership is null-safe and no orphan branch is needed.
@@ -101,7 +101,7 @@ Pure `(SmartListFilter, referenceDate: Date) -> SQLExpression`. The `referenceDa
 - **Duration conditions** (`.duration(minSeconds:maxSeconds:)`): `episode.duration` is stored as **seconds (Double)** (`CMTime.databaseValue` → `seconds.databaseValue`, `CMTime.swift:94–105`). Inclusive bounds — `duration >= Double(minSeconds)` AND/or `duration <= Double(maxSeconds)`; a `nil` bound is open-ended (both nil → no-op). Note unknown-duration rows store `0`, so `minSeconds: 0` includes them and any positive `minSeconds` excludes them.
 - **Publish-date conditions** (`.publishDate(op, days:)`): cutoff = `referenceDate - days × 86,400s` (flat seconds, no calendar arithmetic). `withinLast` → `Episode.Columns.pubDate >= cutoff`; `olderThan` → `< cutoff`. Caveat: the cutoff is fixed when the display observation (re)starts (filter/sort/search change, or app session), not continuously re-evaluated — acceptable for v1.
 
-Per CLAUDE.md, do not use `Optional.map` to project off `nested` — branch with `if let nested = filter.nested { … }` and append the nested combine to the top list before the final combine.
+Loop `for group in filter.groups where !group.conditions.isEmpty { … }` and append each group's combine to the top list before the final combine.
 
 ### 3. Migration v54 — `PodHaven/Database/Migrations/Migration_v54.swift`
 
@@ -182,6 +182,10 @@ Sample seed JSON for "Liked":
   {"kind":"state","value":"isLoved"}
 ],"nested":null}
 ```
+
+### 3a. Migration v56 — multiple nested groups (2026-06-12 revision)
+
+The v1 JSON stored at most one sub-group under a `nested` key (guarded by v54's CHECK as null/object). Lifting the limit moves the shape to a required `groups` **array**. SQLite cannot alter a CHECK constraint, so `Migration_v56` rebuilds `smartList`: it creates `smartList_new` with the same columns but a CHECK requiring `json_type(filter, '$.groups') IS 'array'`, copies every row with the filter converted in SQL (`nested` object → `json_array(filter -> '$.nested')` under `groups`; null/absent `nested` → `[]`; the `nested` key removed), drops the old table, renames, and recreates `smartList_on_displayOrder`. The `->` operator (not `->>`) keeps the extracted sub-group real JSON inside `json_array`. Because every row is rewritten and every production write encodes from the typed value, the decoder requires `groups` and does not tolerate the pre-v56 shape. v54's section above is historical — its CHECK and seed literals shipped with `nested` and are immutable.
 
 ### 4. SmartList model — `PodHaven/Database/Models/SmartList.swift`
 
@@ -306,8 +310,8 @@ Add a `.primaryAction` toolbar item using existing `AppIcon.settings` (gear). Ta
 ### 10. Configurator sheet — `PodHaven/Views/Episodes/SmartListEditor/` (Phase 2)
 
 - `SmartListEditorViewModel` — `@Observable @MainActor`; owns `var title: String`, `var filter: SmartListFilter`, `mode: .create | .edit(SmartList.ID)`. `save()` validates and calls `smartListRepo.insert` or `smartListRepo.updateTitle`+`updateFilter`. `delete()` for edit mode only.
-- `SmartListEditorView` — sheet root; title `TextField` at top; then `SmartListGroupView(top: true, …)` bound to `vm.filter`'s top group; then, if `vm.filter.nested` is non-nil, a second `SmartListGroupView(top: false, …)` bound to the nested group with a small destructive "Remove Group" button; otherwise an "Add Group" button. Save/Cancel/Delete in the toolbar. Uses the canonical sheet pattern (`@DynamicInjected(\.sheet)` + `sheet(id:) { … }`, `Sheet.swift` / `PodHavenApp.swift`).
-- `SmartListGroupView` — **non-recursive**. Renders a segmented `Picker` for `.any/.all`, a `ForEach` of `SmartListConditionRow`s bound to its conditions array, and an "Add Condition" button. Top group has padding 0; nested group is indented once and visually distinguished.
+- `SmartListEditorView` — sheet root; title `TextField` at top; then one "Conditions" section containing the top group's segmented `.any/.all` picker, its condition rows, every nested group rendered inline (so groups visibly participate in the same Any/All math), and trailing "Add Condition" / "Add Group" buttons — adding a group is part of the same workflow as adding a condition. Save/Cancel/Delete in the toolbar. Uses the canonical sheet pattern (`@DynamicInjected(\.sheet)` + `sheet(id:) { … }`, `Sheet.swift` / `PodHavenApp.swift`).
+- `SmartListGroupView` — **non-recursive**; renders one nested group inline in that list: a header row (leading "−" remove button + segmented `.any/.all` picker), then its `SmartListConditionRow`s and an "Add Condition" button, indented so the group reads as a single term of the outer combinator.
 - `SmartListConditionRow` — a leading Kind picker (Episode Title / Episode Description / Podcast Title / Podcast Description / State / Episode Tag / Podcast Tag / Duration / Publish Date); the trailing controls swap by Kind:
   - **Text / Podcast text:** a `TextOp` picker + a text field.
   - **State:** a picker over the `StateCondition` cases with human labels.
@@ -315,7 +319,7 @@ Add a `.primaryAction` toolbar item using existing `AppIcon.settings` (gear). Ta
   - **Duration:** min/max minutes steppers/fields (stored as `minSeconds`/`maxSeconds`; either side can be left open).
   - **Publish Date:** a `PublishDateOp` picker (within last / older than) + a days field.
   - Each row has a leading "−" remove button.
-- Validation: empty title disables Save; an empty text/duration/pubDate value blocks Save with inline error; empty top group with no nested group is allowed (matches `noOp`) but shows a soft warning ("This list will match every episode").
+- Validation: empty title disables Save; an empty text/duration/pubDate value blocks Save with inline error; an entirely empty filter is allowed (matches `noOp`) but shows a soft warning ("This list will match every episode"). Empty nested groups are dropped on save rather than persisted.
 - Delete is always available in edit mode, behind a `.confirmationDialog`. Seeded defaults are just rows — users can rename, edit, or delete them like any other SmartList.
 
 ---
