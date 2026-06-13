@@ -88,4 +88,63 @@ import Testing
     let persisted = try await smartListRepo.fetchAll()
     #expect(persisted.map(\.displayOrder) == Array(0..<10))
   }
+
+  @Test("confirming a requested delete persists the deletion")
+  func confirmedDeletePersistsDeletion() async throws {
+    try await withObservingViewModel { viewModel in
+      try await Wait.until(
+        { @MainActor in viewModel.smartLists.count == 10 },
+        { @MainActor in "Expected the 10 seeded lists; got \(viewModel.smartLists.count)" }
+      )
+
+      let deletedTitle = viewModel.smartLists[0].title
+      viewModel.requestDeleteSmartList(at: IndexSet(integer: 0))
+      #expect(viewModel.pendingDelete?.title == deletedTitle)
+
+      viewModel.confirmDeleteSmartList()
+      #expect(viewModel.pendingDelete == nil)
+
+      try await Wait.until(
+        { @MainActor in viewModel.smartLists.count == 9 },
+        { @MainActor in "Expected 9 lists after the delete; got \(viewModel.smartLists.count)" }
+      )
+      #expect(!viewModel.smartLists.map(\.title).contains(deletedTitle))
+
+      let persisted = try await smartListRepo.fetchAll()
+      #expect(persisted.count == 9)
+      #expect(!persisted.map(\.title).contains(deletedTitle))
+    }
+  }
+
+  @Test("a cancelled delete request leaves every list in place")
+  func cancelledDeleteLeavesListsInPlace() async throws {
+    try await withObservingViewModel { viewModel in
+      try await Wait.until(
+        { @MainActor in viewModel.smartLists.count == 10 },
+        { @MainActor in "Expected the 10 seeded lists; got \(viewModel.smartLists.count)" }
+      )
+
+      let originalTitles = viewModel.smartLists.map(\.title)
+      viewModel.requestDeleteSmartList(at: IndexSet(integer: 0))
+      // The dialog's cancel path just clears the pending list.
+      viewModel.pendingDelete = nil
+
+      #expect(viewModel.smartLists.map(\.title) == originalTitles)
+      let persisted = try await smartListRepo.fetchAll()
+      #expect(persisted.count == 10)
+    }
+  }
+
+  @Test("requestDeleteSmartList ignores a stale out-of-bounds index")
+  func requestDeleteIgnoresStaleIndex() async throws {
+    // No observation started, so the view model still holds an empty array.
+    let viewModel = EpisodesViewModel()
+
+    viewModel.requestDeleteSmartList(at: IndexSet(integer: 0))
+    #expect(viewModel.pendingDelete == nil)
+    viewModel.confirmDeleteSmartList()
+
+    let persisted = try await smartListRepo.fetchAll()
+    #expect(persisted.count == 10)
+  }
 }
