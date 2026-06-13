@@ -39,4 +39,42 @@ struct AppDBOptimizeTests {
     }
     #expect(episodeCount == 1)
   }
+
+  @Test("optimize checks tables without connection-local query history")
+  func optimizeChecksAllTables() async throws {
+    try await appDB.unsafeTestDB.write { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE podhaven_optimize_probe(value INTEGER);
+          CREATE INDEX podhaven_optimize_probe_value ON podhaven_optimize_probe(value);
+          INSERT INTO podhaven_optimize_probe VALUES (1);
+          ANALYZE podhaven_optimize_probe;
+          WITH RECURSIVE c(x) AS (
+            VALUES(2)
+            UNION ALL
+            SELECT x + 1 FROM c WHERE x < 1000
+          )
+          INSERT INTO podhaven_optimize_probe SELECT x FROM c;
+          """
+      )
+    }
+
+    let staleStats = try await appDB.reader.read { db in
+      try String.fetchOne(
+        db,
+        sql: "SELECT stat FROM sqlite_stat1 WHERE tbl = 'podhaven_optimize_probe'"
+      )
+    }
+    #expect(staleStats == "1 1")
+
+    try await appDB.optimize()
+
+    let refreshedStats = try await appDB.reader.read { db in
+      try String.fetchOne(
+        db,
+        sql: "SELECT stat FROM sqlite_stat1 WHERE tbl = 'podhaven_optimize_probe'"
+      )
+    }
+    #expect(refreshedStats == "1000 1")
+  }
 }
