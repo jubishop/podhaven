@@ -148,6 +148,20 @@ class SmartListEditorViewModel {
     }
   }
 
+  func requestDelete() {
+    guard case .edit = mode else { return }
+    alert(
+      title: "Delete Smart List?",
+      "Are you sure you want to delete \"\(title.trimmingCharacters(in: .whitespacesAndNewlines))\"?"
+    ) { [weak self] in
+      Button("Delete", role: .destructive) {
+        guard let self else { return }
+        self.delete()
+      }
+      Button("Cancel", role: .cancel) {}
+    }
+  }
+
   func delete() {
     guard case .edit(let id) = mode else { return }
     Task { [weak self] in

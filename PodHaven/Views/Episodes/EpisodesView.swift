@@ -50,22 +50,16 @@ struct EpisodesView: View {
         NavigationLink(value: Navigation.Destination.smartList(smartList.id)) {
           Text(smartList.title)
         }
+        .swipeActions(edge: .trailing) {
+          AppIcon.delete.imageButton {
+            viewModel.deleteSmartList(smartList)
+          }
+        }
       }
       .onMove(perform: viewModel.moveSmartList)
-      .onDelete(perform: viewModel.requestDeleteSmartList)
     }
     .environment(\.editMode, $viewModel.editMode)
     .animation(.default, value: viewModel.smartLists)
-    .confirmationDialog(
-      "Delete “\(viewModel.pendingDelete?.title ?? "Smart List")”?",
-      isPresented: Binding(
-        get: { viewModel.pendingDelete != nil },
-        set: { if !$0 { viewModel.pendingDelete = nil } }
-      ),
-      titleVisibility: .visible
-    ) {
-      Button("Delete", role: .destructive) { viewModel.confirmDeleteSmartList() }
-    }
   }
 
   private var emptyState: some View {

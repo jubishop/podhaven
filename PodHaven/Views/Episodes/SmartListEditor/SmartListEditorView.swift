@@ -8,7 +8,6 @@ struct SmartListEditorView: View {
   @DynamicInjected(\.sheet) private var sheet
 
   @State private var viewModel: SmartListEditorViewModel
-  @State private var confirmingDelete = false
 
   init(viewModel: SmartListEditorViewModel) {
     self.viewModel = viewModel
@@ -61,7 +60,7 @@ struct SmartListEditorView: View {
 
         if case .edit = viewModel.mode {
           Section {
-            Button("Delete Smart List", role: .destructive) { confirmingDelete = true }
+            Button("Delete Smart List", role: .destructive) { viewModel.requestDelete() }
           }
         }
       }
@@ -75,13 +74,6 @@ struct SmartListEditorView: View {
           Button("Save") { viewModel.save() }
             .disabled(!viewModel.canSave)
         }
-      }
-      .confirmationDialog(
-        "Delete this Smart List?",
-        isPresented: $confirmingDelete,
-        titleVisibility: .visible
-      ) {
-        Button("Delete", role: .destructive) { viewModel.delete() }
       }
     }
   }
