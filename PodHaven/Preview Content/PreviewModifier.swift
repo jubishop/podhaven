@@ -23,8 +23,8 @@ struct PreviewModifier: ViewModifier {
 
   func body(content: Content) -> some View {
     content
-      .customAlert($alert.config)
-      .customSheet($sheet.config)
+      .customAlert($alert.config, isEnabled: sheet.config == nil)
+      .customSheet($sheet.config, alert: $alert.config)
       .task {
         await Self.startOnce.run {
           await self.playManager.start()
