@@ -358,6 +358,28 @@ struct SettingsView: View {
 
           SettingsRow(
             infoText: """
+              When enabled, \
+              recommended episodes in Up Next will always display the podcast artwork \
+              instead of the episode-specific artwork.
+              """
+          ) {
+            VStack(alignment: .leading, spacing: 24) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Always Show Podcast Art")
+                Text("for Recommendations")
+                  .foregroundStyle(.secondary)
+              }
+              Toggle(
+                "Always Show Podcast Art for Recommendations",
+                isOn: userSettings.$alwaysShowPodcastImageForUpNextRecommendations.binding
+              )
+              .labelsHidden()
+            }
+            Spacer(minLength: 0)
+          }
+
+          SettingsRow(
+            infoText: """
               When enabled, the currently playing episode will always display \
               the podcast artwork instead of the episode-specific artwork — \
               in the Playbar, the lock screen, the Now Playing widget, \
