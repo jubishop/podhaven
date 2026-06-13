@@ -48,9 +48,15 @@ struct SmartListRepo: Sendable {
     }
   }
 
-  // Title and filter land in one transaction so a save can't half-apply.
+  // Title, filter, and artwork preference land in one transaction so a save
+  // can't half-apply.
   @discardableResult
-  func update(_ id: SmartList.ID, title: String, filter: SmartListFilter) async throws -> Bool {
+  func update(
+    _ id: SmartList.ID,
+    title: String,
+    filter: SmartListFilter,
+    alwaysShowPodcastImage: Bool
+  ) async throws -> Bool {
     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       throw DatabaseError(message: "Smart List title cannot be empty")
@@ -68,7 +74,8 @@ struct SmartListRepo: Sendable {
         .updateAll(
           db,
           SmartList.Columns.title.set(to: trimmed),
-          SmartList.Columns.filter.set(to: filter.databaseValue)
+          SmartList.Columns.filter.set(to: filter.databaseValue),
+          SmartList.Columns.alwaysShowPodcastImage.set(to: alwaysShowPodcastImage)
         )
     } > 0
   }

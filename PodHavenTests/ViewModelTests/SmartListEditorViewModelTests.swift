@@ -123,6 +123,39 @@ import Testing
     #expect(saved.filter.conditions == [.state(.isCached)])
   }
 
+  @Test("the artwork preference is persisted on create and edited onto the row")
+  func artworkPreferencePersists() async throws {
+    let createVM = SmartListEditorViewModel(mode: .create, title: "Podcast Art")
+    createVM.alwaysShowPodcastImage = true
+    createVM.save()
+
+    try await Wait.until(
+      { @MainActor in try await self.smartListRepo.fetchAll().contains { $0.title == "Podcast Art" }
+      },
+      { "Expected save to insert the new list" }
+    )
+    let created = try #require(
+      try await smartListRepo.fetchAll().first { $0.title == "Podcast Art" }
+    )
+    #expect(created.alwaysShowPodcastImage)
+
+    let editVM = SmartListEditorViewModel(
+      mode: .edit(created.id),
+      title: created.title,
+      filter: created.filter,
+      alwaysShowPodcastImage: created.alwaysShowPodcastImage
+    )
+    editVM.alwaysShowPodcastImage = false
+    editVM.save()
+
+    try await Wait.until(
+      { @MainActor in try await self.smartListRepo.fetchOne(created.id)?.alwaysShowPodcastImage
+          == false
+      },
+      { "Expected the edit to clear the artwork preference" }
+    )
+  }
+
   @Test("empty nested groups are dropped on save")
   func emptyGroupsDroppedOnSave() async throws {
     let existing = try #require(try await smartListRepo.fetchAll().first)

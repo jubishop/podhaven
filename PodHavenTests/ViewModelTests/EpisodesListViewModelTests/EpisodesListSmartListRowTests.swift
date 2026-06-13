@@ -43,7 +43,12 @@ import Testing
       )
 
       let lovedOnly = SmartListFilter(combinator: .all, conditions: [.state(.isLoved)])
-      try await smartListRepo.update(viewModel.smartListID, title: "Live Filter", filter: lovedOnly)
+      try await smartListRepo.update(
+        viewModel.smartListID,
+        title: "Live Filter",
+        filter: lovedOnly,
+        alwaysShowPodcastImage: false
+      )
 
       try await Wait.until(
         { @MainActor in viewModel.smartListFilter == lovedOnly },
@@ -119,13 +124,36 @@ import Testing
       try await smartListRepo.update(
         viewModel.smartListID,
         title: "After",
-        filter: SmartListFilter()
+        filter: SmartListFilter(),
+        alwaysShowPodcastImage: false
       )
 
       try await Wait.until(
         { @MainActor in viewModel.title == "After" },
         { @MainActor in
           "Expected the row observation to deliver the new title; got \(viewModel.title)"
+        }
+      )
+    }
+  }
+
+  @Test("an alwaysShowPodcastImage edit on the row updates the open list live")
+  func artworkEditPropagatesToOpenList() async throws {
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Artwork")
+    #expect(!viewModel.alwaysShowPodcastImage)
+
+    try await withRunningObservationLoop(viewModel) {
+      try await smartListRepo.update(
+        viewModel.smartListID,
+        title: "Artwork",
+        filter: SmartListFilter(),
+        alwaysShowPodcastImage: true
+      )
+
+      try await Wait.until(
+        { @MainActor in viewModel.alwaysShowPodcastImage },
+        { @MainActor in
+          "Expected the row observation to deliver the artwork preference; got \(viewModel.alwaysShowPodcastImage)"
         }
       )
     }

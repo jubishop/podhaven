@@ -74,14 +74,24 @@ class SmartListRepoTests {
     #expect(try await smartListRepo.fetchAll().map(\.id) == [inserted.id])
     #expect(try await smartListRepo.fetchOne(inserted.id)?.filter == filter)
 
+    #expect(!inserted.alwaysShowPodcastImage)
+
     let newFilter = SmartListFilter(combinator: .any, conditions: [.state(.isLiked)])
-    #expect(try await smartListRepo.update(inserted.id, title: "Favorites", filter: newFilter))
+    #expect(
+      try await smartListRepo.update(
+        inserted.id,
+        title: "Favorites",
+        filter: newFilter,
+        alwaysShowPodcastImage: true
+      )
+    )
     #expect(try await smartListRepo.updateSortMethod(inserted.id, to: .longest))
 
     let updated = try #require(try await smartListRepo.fetchOne(inserted.id))
     #expect(updated.title == "Favorites")
     #expect(updated.filter == newFilter)
     #expect(updated.sortMethod == .longest)
+    #expect(updated.alwaysShowPodcastImage)
 
     #expect(try await smartListRepo.delete(inserted.id))
     #expect(try await smartListRepo.fetchOne(inserted.id) == nil)
@@ -102,12 +112,22 @@ class SmartListRepoTests {
     #expect(list.title == "Valid")
 
     await #expect(throws: DatabaseError.self) {
-      try await self.smartListRepo.update(list.id, title: "   ", filter: SmartListFilter())
+      try await self.smartListRepo.update(
+        list.id,
+        title: "   ",
+        filter: SmartListFilter(),
+        alwaysShowPodcastImage: false
+      )
     }
     #expect(try await smartListRepo.fetchOne(list.id)?.title == "Valid")
 
     #expect(
-      try await smartListRepo.update(list.id, title: "  Renamed  ", filter: SmartListFilter())
+      try await smartListRepo.update(
+        list.id,
+        title: "  Renamed  ",
+        filter: SmartListFilter(),
+        alwaysShowPodcastImage: false
+      )
     )
     #expect(try await smartListRepo.fetchOne(list.id)?.title == "Renamed")
   }
@@ -158,7 +178,12 @@ class SmartListRepoTests {
       try UnsavedSmartList(title: "A", filter: SmartListFilter(), displayOrder: 0)
     )
     try await count.wait(for: 2)  // after insert
-    _ = try await smartListRepo.update(list.id, title: "B", filter: SmartListFilter())
+    _ = try await smartListRepo.update(
+      list.id,
+      title: "B",
+      filter: SmartListFilter(),
+      alwaysShowPodcastImage: false
+    )
     try await count.wait(for: 3)  // after update
   }
 
@@ -171,7 +196,12 @@ class SmartListRepoTests {
     )
     #expect(try await observatory.smartList(list.id).get()?.title == "A")
 
-    _ = try await smartListRepo.update(list.id, title: "B", filter: SmartListFilter())
+    _ = try await smartListRepo.update(
+      list.id,
+      title: "B",
+      filter: SmartListFilter(),
+      alwaysShowPodcastImage: false
+    )
     #expect(try await observatory.smartList(list.id).get()?.title == "B")
 
     _ = try await smartListRepo.delete(list.id)

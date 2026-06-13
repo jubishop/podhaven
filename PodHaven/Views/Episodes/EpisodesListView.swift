@@ -37,7 +37,8 @@ struct EpisodesListView: View {
                 viewModel: SmartListEditorViewModel(
                   mode: .edit(viewModel.smartListID),
                   title: viewModel.title,
-                  filter: viewModel.smartListFilter
+                  filter: viewModel.smartListFilter,
+                  alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage
                 )
               )
             }
@@ -75,6 +76,7 @@ struct EpisodesListView: View {
         label: {
           EpisodeListView(
             episode: podcastEpisode,
+            alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage,
             isSelecting: viewModel.episodeList.isSelecting,
             isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
           )
