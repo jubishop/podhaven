@@ -133,6 +133,11 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
       AppIcon.tag.imageButton {
         activeDialog = .tag
       }
+
+    case .transcribe:
+      AppIcon.transcribeEpisode.imageButton {
+        viewModel.transcribeEpisode(episode)
+      }
     }
   }
 
@@ -184,7 +189,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
 
   private func isAvailable(_ action: UserSettings.EpisodeSwipeAction) -> Bool {
     switch action {
-    case .playPause, .rate, .saveInCache:
+    case .playPause, .rate, .saveInCache, .transcribe:
       true
     case .markFinished:
       !episode.finished

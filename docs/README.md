@@ -15,7 +15,8 @@ status: planning | in-progress | shipped | blocked | abandoned
 ## Initiatives
 
 - [ML Recommendations](initiatives/ml-recommendations.md): on-device ML recommendations with `NLContextualEmbedding`
-- [Episode Transcripts](initiatives/transcripts.md): RSS transcript parsing plus background/user-initiated transcript fetching
+- [Manual Episode Transcription](initiatives/manual-transcripts.md): user-initiated on-device transcripts with timed segments, tap-to-seek, and a persisted one-at-a-time queue
+- [Episode Transcripts](initiatives/transcripts.md): abandoned autonomous design; retained as research for deferred tiers (RSS import, autonomous catch-up, diarization)
 - [Smart Lists](initiatives/smart-lists.md): editable nested episode-list filters with persisted ordering
 - [Search Recommendations](initiatives/search-recommendations.md): rank unsubscribed-podcast episodes in search/trending with existing similarity scoring
 - [Freshness Cadence Cache](initiatives/freshness-cadence-cache.md): cache auto-inferred `FreshnessCadence` in a column so scoring stops re-deriving it from episode pubDates

@@ -40,6 +40,7 @@ import OrderedCollections
   func unsaveSelectedEpisodesFromCache()
   func cancelSelectedEpisodeDownloads()
   func markSelectedEpisodesFinished()
+  func transcribeSelectedEpisodes()
   func rateSelectedEpisodes(rating: EpisodeRating?)
   func applyTagToSelectedEpisodes(_ tagID: Tag.ID)
   func removeTagFromSelectedEpisodes(_ tagID: Tag.ID)
@@ -56,6 +57,7 @@ extension SelectableEpisodeList {
   private var queue: any Queueing { Container.shared.queue() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
+  private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
 
   nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
@@ -395,6 +397,23 @@ extension SelectableEpisodeList {
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("markSelectedEpisodesFinished: failed", error)
+      }
+    }
+  }
+
+  func transcribeSelectedEpisodes() {
+    guard !selectedEpisodes.isEmpty else { return }
+    let episodes = selectedEpisodes
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let episodeIDs = try await selectedPodcastEpisodeIDs
+        transcriptionQueue.enqueue(episodeIDs)
+        didPerformBulkAction(on: episodes)
+      } catch {
+        Self.log.caughtError("transcribeSelectedEpisodes: failed", error)
       }
     }
   }

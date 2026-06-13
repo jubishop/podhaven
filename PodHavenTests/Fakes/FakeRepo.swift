@@ -383,6 +383,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
+  func updateTranscript(_ episodeID: Episode.ID, transcript: String?) async throws -> Bool {
+    recordCall(
+      methodName: "updateTranscript",
+      parameters: (episodeID: episodeID, transcript: transcript)
+    )
+    return try await repo.updateTranscript(episodeID, transcript: transcript)
+  }
+
+  @discardableResult
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool {
     recordCall(
       methodName: "updateSaveInCache",

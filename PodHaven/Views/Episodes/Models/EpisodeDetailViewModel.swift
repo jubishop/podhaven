@@ -72,6 +72,7 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
@@ -106,6 +107,11 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   var canClearCache: Bool {
     episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
+  }
+
+  var transcriptionStatus: TranscriptionStatus {
+    guard let episodeID = episode.episodeID else { return .none }
+    return transcriptionQueue.status(for: episodeID, hasTranscript: episode.hasTranscript)
   }
 
   // Hide the score once the user has rated or finished the episode: a
@@ -341,6 +347,16 @@ enum EpisodeDetailDisplayedScore: Sendable {
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.updateRating(podcastEpisode.id, rating: rating)
+    }
+  }
+
+  func transcribe() {
+    guard transcriptionStatus.canTranscribe else { return }
+
+    lifecycle.runTask("transcribe: \(state.toString)") { [weak self] in
+      guard let self else { return }
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      transcriptionQueue.enqueue(podcastEpisode.id)
     }
   }
 

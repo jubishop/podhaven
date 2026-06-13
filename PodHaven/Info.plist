@@ -9,6 +9,7 @@
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).feedRefresh</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).cachePurge</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).embeddingComputation</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).transcription</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>

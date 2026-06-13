@@ -22,6 +22,7 @@ import Logging
   func unsaveEpisodeFromCache(_ episode: EpisodeType)
   func rateEpisode(_ episode: EpisodeType, rating: EpisodeRating?)
   func markEpisodeFinished(_ episode: EpisodeType)
+  func transcribeEpisode(_ episode: EpisodeType)
   func addTag(_ tagID: Tag.ID, to episode: EpisodeType)
   func removeTag(_ tagID: Tag.ID, from episode: EpisodeType)
 
@@ -42,6 +43,7 @@ extension ManagingEpisodes {
   private var queue: any Queueing { Container.shared.queue() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
+  private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
 
   private var alert: Alert { Container.shared.alert() }
 
@@ -260,6 +262,22 @@ extension ManagingEpisodes {
         didPerformAction(episode)
       } catch {
         Self.log.caughtError("markEpisodeFinished: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func transcribeEpisode(_ episode: EpisodeType) {
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let episodeID = try await getOrCreateEpisodeID(episode)
+        transcriptionQueue.enqueue(episodeID)
+        didPerformAction(episode)
+      } catch {
+        Self.log.caughtError("transcribeEpisode: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

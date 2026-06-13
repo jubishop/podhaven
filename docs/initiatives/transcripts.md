@@ -4,11 +4,13 @@ status: abandoned
 
 # Episode Transcripts
 
-On-device transcription of podcast episodes for search and (future) summary generation. No code yet — design conclusions captured 2026-05-05.
+> **Superseded for v1 by [Manual Episode Transcription](manual-transcripts.md).** The autonomous, three-tier, two-table design below was not built — v1 ships user-initiated, on-device transcription storing timed segments as JSON in a single `episode.transcript` column. This doc is retained as the **research record for the deferred pieces**: RSS `<podcast:transcript>` import (Tier 1), opportunistic/autonomous transcription (Tier 2), speaker diarization, and transcript search/summaries. Pick those up here.
+
+On-device transcription of podcast episodes for search and (future) summary generation. Design conclusions captured 2026-05-05; RSS-format and diarization research added 2026-06-13.
 
 ## Status
 
-Planning only. iOS 26 minimum. No timeline committed.
+Abandoned as a standalone initiative. The salvageable research below feeds future tiers layered on top of the v1 manual feature. iOS 26 minimum.
 
 ## Why
 
@@ -36,9 +38,19 @@ The Podcasting 2.0 RSS namespace lets publishers attach a transcript URL directl
 
 Coverage in the wild varies wildly by host. A scan of the user's 165 subscribed feeds showed very few publish this tag — but parsing it is small and free, so the few episodes that do come along get transcripts at zero compute cost and with no iOS-version requirement.
 
-Prefer `text/vtt` > SRT > plain text. Fetch lazily on first access (or eagerly during cache, since the audio is already being downloaded).
+Whether the tag is useful depends entirely on its `type` — it is **not** always "just raw text":
 
-`Feed/Models/PodcastRSS.swift` does not parse the `podcast:` namespace today — that's the work.
+| `type` | Timed? | Speaker labels? | Notes |
+| --- | --- | --- | --- |
+| `text/vtt` (WebVTT) | Yes — cue start/end (segment-level) | Optional, via `<v Name>` voice tags | Most common machine export; maps directly onto `TranscriptSegment`. |
+| `application/srt` / `application/x-subrip` | Yes — segment-level | Possible (inline) | Same shape as VTT. |
+| `application/json` (Podcasting 2.0) | Yes — per-segment, often word-level | **Yes** — `segments[].speaker` alongside `startTime`/`endTime`/`body` | Richest: this format alone supplies diarization for free. |
+| `text/html` | No | No | Formatted prose; store untimed (readable, no seek). |
+| `text/plain` | No | No | Raw text; untimed. |
+
+So a VTT/SRT/JSON `<podcast:transcript>` carries the same timing the on-device path produces and drops straight into the v1 timed-segment column model; a JSON one even supplies the speaker labels we otherwise defer. Only HTML/plain are untimed. Coverage in the wild is low and skews VTT/SRT, so treat RSS transcripts as a **bonus source** that pre-empts on-device compute when present: prefer `json > vtt > srt > html/plain`, and fetch lazily (or eagerly during caching, since the audio is already downloading).
+
+`Feed/Models/PodcastRSS.swift` does not parse the `podcast:` namespace today — that, plus a small VTT/SRT/JSON → `[TranscriptSegment]` parser, is the work.
 
 ### Tier 2 — Opportunistic on-device via `BGProcessingTask`
 
@@ -79,6 +91,20 @@ New migration. Two tables:
 Storage cost is small — an hour-long episode is on the order of 10–20 KB of segment rows. Don't compress; keep it queryable.
 
 `modelRevision` lets us invalidate and re-transcribe when Apple ships a meaningfully better model, the same pattern `EmbeddingService.recipeVersion` uses. RSS-sourced rows are immune to this — they never re-fetch on model bumps.
+
+(v1 diverged from this two-table sketch: it stores timed segments as JSON in a single `episode.transcript` column — see [Manual Episode Transcription](manual-transcripts.md). Migrating to the `transcript_segment` table here becomes worthwhile if cross-episode search or diarization lands.)
+
+## Speaker diarization (deferred)
+
+Multi-speaker labeling ("who spoke when") is **deferred past v1** but captured here so it can be picked up cleanly.
+
+- **No first-party API.** iOS 26 `SpeechAnalyzer`/`SpeechTranscriber` transcribe but do not diarize; `SpeechDetector` only does voice-activity detection, not speaker identity. There is no Apple on-device diarization to call.
+- **The path: FluidAudio** (open-source) — `FluidInference/FluidAudio`, a Swift package wrapping CoreML pyannote models (segmentation + speaker-embedding) plus VAD, optimized for the Neural Engine; supports iOS 17+/macOS 14+. Pipeline mirrors pyannote: powerset segmentation → embedding → VBx clustering, producing time ranges tagged with a speaker index. Models are a ~tens-of-MB CoreML download (Hugging Face `FluidInference/speaker-diarization-coreml`).
+- **How it slots in.** Run diarization as a second pass over the same cached `AVAudioFile`, producing `(timeRange, speakerIndex)` spans; map each transcript segment to the speaker whose span covers its start time, and add a `speaker` field to `TranscriptSegment`. This is the point where the single JSON column may be worth migrating to a `transcript_segment` table (per-segment speaker queries; "episodes featuring speaker X").
+- **Free alternative when present:** a publisher's `application/json` `<podcast:transcript>` already includes `segments[].speaker` — diarization with zero compute. The RSS Tier-1 importer should preserve it.
+- **Cost/UX caveats:** an added model download plus a clustering pass on top of the ~5× transcription cost; speaker counts are estimated, not named; accuracy degrades with crosstalk and music. Gate behind an explicit opt-in.
+
+References: FluidAudio (`github.com/FluidInference/FluidAudio`), Hugging Face `FluidInference/speaker-diarization-coreml`.
 
 ## Rejected alternatives
 

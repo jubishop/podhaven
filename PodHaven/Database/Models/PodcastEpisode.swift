@@ -44,6 +44,8 @@ struct PodcastEpisode:
   var cacheStatus: Episode.CacheStatus { episode.cacheStatus }
   var finishDate: Date? { episode.finishDate }
   var rating: EpisodeRating? { episode.rating }
+  var hasTranscript: Bool { episode.hasTranscript }
+  var decodedTranscript: Transcript? { episode.decodedTranscript }
   var chapters: [CMTime]? { episode.unsaved.chapters }
 
   // MARK: - Reset

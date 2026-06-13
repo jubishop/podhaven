@@ -126,6 +126,9 @@ protocol Databasing: Sendable {
   func updateCachedFilename(_ episodeID: Episode.ID, cachedFilename: String?) async throws -> Bool
 
   @discardableResult
+  func updateTranscript(_ episodeID: Episode.ID, transcript: String?) async throws -> Bool
+
+  @discardableResult
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool
 
   @discardableResult

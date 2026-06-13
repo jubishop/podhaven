@@ -15,6 +15,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
+  @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.sharedState) private var sharedState
@@ -91,6 +92,7 @@ struct PodHavenApp: App {
     refreshScheduler.handleScenePhaseChange(to: phase)
     cachePurger.handleScenePhaseChange(to: phase)
     embeddingProcessor.handleScenePhaseChange(to: phase)
+    transcriptionProcessor.handleScenePhaseChange(to: phase)
     recommendationEngine.handleScenePhaseChange(to: phase)
     Task { await userNotificationManager.handleScenePhaseChange(to: phase) }
   }

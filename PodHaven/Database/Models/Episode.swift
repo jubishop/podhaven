@@ -71,6 +71,7 @@ struct UnsavedEpisode:
   let saveInCache: Bool
   let rating: EpisodeRating?
   let ratingDate: Date?
+  private let transcript: String?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -91,7 +92,8 @@ struct UnsavedEpisode:
     downloading: Bool = false,
     saveInCache: Bool = false,
     rating: EpisodeRating? = nil,
-    ratingDate: Date? = nil
+    ratingDate: Date? = nil,
+    transcript: String? = nil
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
@@ -139,6 +141,7 @@ struct UnsavedEpisode:
     self.saveInCache = saveInCache
     self.rating = rating
     self.ratingDate = ratingDate
+    self.transcript = transcript
   }
 
   // MARK: - EpisodeFoundational
@@ -165,6 +168,21 @@ struct UnsavedEpisode:
     else { return nil }
 
     return CacheManager.resolveCachedFilepath(for: cachedFilename)
+  }
+
+  // MARK: - Transcript
+
+  var hasTranscript: Bool { transcript != nil }
+
+  var decodedTranscript: Transcript? {
+    guard let transcript else { return nil }
+
+    do {
+      return try Transcript(decoding: transcript)
+    } catch {
+      Self.log.caughtError("Failed to decode transcript for '\(title)'", error)
+      return nil
+    }
   }
 
   // MARK: - RSSUpdatable
@@ -303,6 +321,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     static let contentUpdatedAt = Column("contentUpdatedAt")
     static let playbackCoverage = Column("playbackCoverage")
     static let lastPlayedDate = Column("lastPlayedDate")
+    static let transcript = Column("transcript")
   }
 
   // MARK: - RSSUpdatable
@@ -334,6 +353,8 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
 
   // MARK: - Derived Passthroughs
   var cachedURL: CachedURL? { unsaved.cachedURL }
+  var hasTranscript: Bool { unsaved.hasTranscript }
+  var decodedTranscript: Transcript? { unsaved.decodedTranscript }
 
   // MARK: - Reset
 

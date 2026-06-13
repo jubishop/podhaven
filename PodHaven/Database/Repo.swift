@@ -756,6 +756,17 @@ struct Repo: Databasing {
   }
 
   @discardableResult
+  func updateTranscript(_ episodeID: Episode.ID, transcript: String?) async throws -> Bool {
+    Self.log.debug("updateTranscript: \(episodeID) to \(transcript?.count ?? 0) chars")
+
+    return try await writer.write { db in
+      try Episode
+        .withID(episodeID)
+        .updateAll(db, Episode.Columns.transcript.set(to: transcript))
+    } > 0
+  }
+
+  @discardableResult
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool {
     try await updateSaveInCache([episodeID], saveInCache: saveInCache) > 0
   }
