@@ -31,9 +31,9 @@ enum SmartListSortMethod: String, Codable, DatabaseValueConvertible, CaseIterabl
     case .shortest:
       return Episode.Columns.duration.asc
     case .recentlyFinished:
-      return (Episode.Columns.finishDate ?? Date.distantPast).desc
+      return Episode.Columns.finishDate.desc
     case .recentlyQueued:
-      return (Episode.Columns.queueDate ?? Date.distantPast).desc
+      return Episode.Columns.queueDate.desc
     case .recommendationScore:
       // Sorted in memory from the cached score map.
       return nil

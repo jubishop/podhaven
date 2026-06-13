@@ -149,7 +149,8 @@ import Testing
     editVM.save()
 
     try await Wait.until(
-      { @MainActor in try await self.smartListRepo.fetchOne(created.id)?.alwaysShowPodcastImage
+      { @MainActor in
+        try await self.smartListRepo.fetchOne(created.id)?.alwaysShowPodcastImage
           == false
       },
       { "Expected the edit to clear the artwork preference" }
@@ -347,7 +348,7 @@ import Testing
     let conditions: [SmartListFilter.Condition] = [
       .episodeText(.title, .contains, "AI"),
       .episodeText(.description, .doesNotContain, "ad"),
-      .podcastText(.title, .startsWith, "The"),
+      .podcastText(.title, .contains, "The"),
       .podcastText(.description, .equals, "exact"),
       .state(.wasPreviouslyQueued),
       .episodeTag(.hasTag(tag.id)),
