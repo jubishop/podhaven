@@ -85,11 +85,13 @@ enum SmartListFilterEngine {
 
   // MARK: - Text
 
-  // contains/doesNotContain match whole words and word-prefixes through the
-  // FTS5 mirrors (episode_fts/podcast_fts, kept in sync by triggers), scoped to
-  // the queried column so a title filter ignores description text;
-  // titleOrDescription matches the whole virtual table, so it covers both
-  // columns at once. Each mirror's rowid is its source row's id, so the subquery
+  // contains/doesNotContain match the value as a phrase: its tokens contiguous
+  // and in order (whole words, no prefixes), appearing anywhere in the field,
+  // through the FTS5 mirrors (episode_fts/podcast_fts, kept in sync by triggers),
+  // scoped to the queried column so a title filter ignores description text.
+  // titleOrDescription matches the whole virtual table; an FTS5 phrase never
+  // spans columns, so that is exactly the phrase appearing in title or in
+  // description. Each mirror's rowid is its source row's id, so the subquery
   // resolves straight back. A value with no tokenizable content yields no
   // pattern: contains then matches nothing and doesNotContain matches everything.
   private static let matchNone = false.sqlExpression
@@ -112,7 +114,7 @@ enum SmartListFilterEngine {
     _ field: SmartListFilter.TextField,
     _ value: String
   ) -> SQLExpression? {
-    guard let pattern = FTS5Pattern(matchingAllPrefixesIn: value) else { return nil }
+    guard let pattern = FTS5Pattern(matchingPhrase: value) else { return nil }
     return ftsRowIDs(EpisodeFTS.self, field, pattern).contains(Episode.Columns.id)
   }
 
@@ -134,7 +136,7 @@ enum SmartListFilterEngine {
     _ field: SmartListFilter.TextField,
     _ value: String
   ) -> SQLExpression? {
-    guard let pattern = FTS5Pattern(matchingAllPrefixesIn: value) else { return nil }
+    guard let pattern = FTS5Pattern(matchingPhrase: value) else { return nil }
     return ftsRowIDs(PodcastFTS.self, field, pattern).contains(Episode.Columns.podcastId)
   }
 

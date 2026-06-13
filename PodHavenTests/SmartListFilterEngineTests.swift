@@ -150,26 +150,32 @@ class SmartListFilterEngineTests {
     #expect(matched == [nullID, barID])
   }
 
-  @Test("contains matches whole words and word-prefixes, not mid-word substrings")
-  func containsWordPrefix() async throws {
+  @Test("contains matches whole words and contiguous phrases, never prefixes or out-of-order tokens")
+  func containsWholeWordsAndPhrases() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
         unsavedEpisodes: [
-          try Create.unsavedEpisode(guid: "about", title: "All About AI"),
-          try Create.unsavedEpisode(guid: "category", title: "Category Five"),
-          try Create.unsavedEpisode(guid: "scatter", title: "Scatter Plot"),
+          try Create.unsavedEpisode(guid: "rock", title: "Rock Anthems"),
+          try Create.unsavedEpisode(guid: "rocket", title: "Rocket Science"),
+          try Create.unsavedEpisode(guid: "phrase", title: "The Quantum Physics Hour"),
+          try Create.unsavedEpisode(guid: "split", title: "Physics of the Quantum World"),
         ]
       )
     )
-    let aboutID = series.episodes[0].id
-    let categoryID = series.episodes[1].id
+    let rock = series.episodes[0].id
+    let phrase = series.episodes[2].id
 
-    // Whole word, case-insensitive.
-    #expect(try await ids(for: all(.episodeText(.title, .contains, "about"))) == [aboutID])
-    // A prefix matches the start of a token ("cat" → "Category") but never a
-    // mid-word substring, so "cat" must not match "Scatter".
-    #expect(try await ids(for: all(.episodeText(.title, .contains, "cat"))) == [categoryID])
+    // Whole word, case-insensitive — never a prefix: "rock" matches "Rock" but
+    // not "Rocket".
+    #expect(try await ids(for: all(.episodeText(.title, .contains, "rock"))) == [rock])
+
+    // A multi-word value matches only as a contiguous, in-order phrase:
+    // "quantum physics" hits "The Quantum Physics Hour" but not a title that
+    // holds the same words apart and out of order.
+    #expect(
+      try await ids(for: all(.episodeText(.title, .contains, "quantum physics"))) == [phrase]
+    )
   }
 
   @Test("text match is scoped to the queried field")
@@ -248,6 +254,54 @@ class SmartListFilterEngineTests {
         miss
       ]
     )
+  }
+
+  @Test("title-or-description matches a phrase within one column, never split across the two")
+  func titleOrDescriptionPhraseDoesNotSpanColumns() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "inTitle",
+            title: "Quantum Physics Hour",
+            description: "cooking"
+          ),
+          try Create.unsavedEpisode(
+            guid: "inDesc",
+            title: "Daily Show",
+            description: "a quantum physics deep dive"
+          ),
+          try Create.unsavedEpisode(
+            guid: "split",
+            title: "Quantum Computing",
+            description: "about physics today"
+          ),
+        ]
+      )
+    )
+    let inTitle = series.episodes[0].id
+    let inDesc = series.episodes[1].id
+
+    // The phrase lives wholly within one column for the first two rows; the
+    // third splits the words across title and description, so it must not match.
+    let combined = try await ids(
+      for: all(.episodeText(.titleOrDescription, .contains, "quantum physics"))
+    )
+    #expect(combined == [inTitle, inDesc])
+
+    // titleOrDescription is the OR of the two single-column phrase matches, not a
+    // whole-document bag of words: the split row is absent from both.
+    let oneOfEach = try await ids(
+      for: SmartListFilter(
+        combinator: .any,
+        conditions: [
+          .episodeText(.title, .contains, "quantum physics"),
+          .episodeText(.description, .contains, "quantum physics"),
+        ]
+      )
+    )
+    #expect(combined == oneOfEach)
   }
 
   @Test("contains with no tokenizable content matches nothing")
