@@ -33,7 +33,7 @@ status: active | resolved   # project notes only; omit on other types
 
 The filename (e.g. `my_topic.md`) does not need to match `name`; cross-links use the frontmatter `name` slug.
 
-This schema applies to memory **pages**. Tool-managed review ledgers under `pr_reviews/` are exempt — they keep the `/review`, `/prfix`, and `/team-review` skill frontmatter; see [PR review ledgers](#pr-review-ledgers).
+This schema applies to memory **pages**. Tool-managed ledgers under `pr_reviews/` and `sentry_feedback/` are exempt — they keep their owning skills' frontmatter; see [PR review ledgers](#pr-review-ledgers) and [Sentry feedback ledgers](#sentry-feedback-ledgers).
 
 Types:
 
@@ -61,3 +61,7 @@ When a note is no longer relevant for day-to-day lookup — resolved incidents, 
 ## PR review ledgers
 
 `memory/pr_reviews/<pr-number>.md` files are tool-managed review ledgers written by the `/review`, `/prfix`, and `/team-review` skills. They use those skills' own frontmatter (`pr`, `title`, `branch`, `base`, `repo`) rather than the page schema above, and are excluded from `qmd` indexing — the `memory` collection ignores `pr_reviews/**` alongside `archive/**`. `/team-review` only appends `pending` findings for a later `/review` pass; don't reformat ledgers to the page schema or hand-edit them; the skills own their lifecycle.
+
+## Sentry feedback ledgers
+
+`memory/sentry_feedback/<path-safe-slug>.md` files (slug `:` replaced with `-`, e.g. `podhaven-7485822944.md`) are tool-managed triage ledgers written by the `analyze-sentry-feedback` skill — one per Sentry feedback item, with skill-owned frontmatter (`slug`, `shortId`, `description`, `sentry-status`) and a newest-first session log. Unlike `pr_reviews/`, they stay in the `qmd` index so past feedback analyses surface in topical search. Don't reformat them to the page schema; the skill owns their lifecycle.

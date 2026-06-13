@@ -7,7 +7,8 @@ description: >-
   happened plus a suggested fix. Use when the user pastes a Sentry feedback
   URL (e.g. .../issues/feedback/?feedbackSlug=podhaven:NNN...), references a
   feedback by slug or ID, or asks to investigate a piece of user feedback
-  from Sentry.
+  from Sentry. Invoked with no reference at all, it lists the feedback
+  entries still unresolved in Sentry and lets the user pick one to triage.
 user_invocable: true
 disable-model-invocation: true
 argument: >-
@@ -15,7 +16,8 @@ argument: >-
   numeric feedback ID. Any additional free-text the user types alongside that
   reference (hunches, context, focus areas, "ignore X", "this user is on beta",
   etc.) should be treated as triage instructions and surfaced in the report.
-  If no reference is provided, ask the user for one before proceeding.
+  If no reference is provided, list the feedback entries still unresolved in
+  Sentry and let the user choose one (Step 0).
 ---
 
 # Analyze Sentry Feedback
@@ -34,7 +36,38 @@ around that time show, the most likely root cause, and how to fix it.
 
 One feedback at a time. Do **not** use this skill to summarize many feedbacks
 at once or to do general Sentry log triage — for that, use
-`analyze-sentry-logs`.
+`analyze-sentry-logs`. The no-argument listing in Step 0 is the one exception:
+it only enumerates open entries so the user can pick one to triage.
+
+## Step 0: No reference given? List unresolved feedback
+
+When invoked with no feedback URL, slug, or ID (and none is obvious from the
+conversation), switch to discovery mode instead of asking for a reference:
+
+1. List the feedback issues still unresolved in Sentry (auth prerequisites as
+   in Step 3):
+
+```bash
+sentry issue list artisanal-software/podhaven \
+  --query 'issue.category:feedback is:unresolved' \
+  --period 365d --limit 100 --fresh --json
+```
+
+2. From each row keep: numeric `id`, `shortId`, `metadata.message`,
+   `metadata.contact_email`, and `permalink` (its `feedbackSlug=` query param
+   is the slug). Feedback rows carry no timestamps in this listing; higher
+   numeric IDs are newer.
+3. For each entry, check whether a prior-analysis ledger exists at
+   `memory/sentry_feedback/podhaven-<id>.md` — an unresolved entry *with* a
+   ledger has been looked at before and deliberately left open.
+4. Present the entries newest first and let the user choose one (multiple-
+   choice prompt if supported, otherwise a numbered list), one line each:
+   `PODHAVEN-XX  podhaven:<id> — "<message, trimmed to one line>"
+   (<contact email or anonymous>; prior analysis: yes/no)`.
+5. If there are no unresolved entries, say so plainly and stop.
+6. When the user picks one, continue to Step 1 with `podhaven:<id>` as the
+   reference, treating anything else they typed alongside the pick as triage
+   notes.
 
 ## Step 1: Parse the reference and the user's own notes
 
@@ -43,20 +76,40 @@ From the argument, extract:
 1. **Feedback slug**: prefer the value of `feedbackSlug=` in the URL (URL-decode
    it). If only a numeric ID is provided, assume the slug is `podhaven:<id>`.
 2. **Numeric feedback ID**: the part after `:` in the slug.
-3. **Sentry org**: `artisanal-software` (default for this repo).
-4. **Project ID**: `4508469264711681` if present in the URL, else assume the
+3. **Path-safe slug**: the slug with `:` replaced by `-` (e.g.
+   `podhaven-7485822944`) — names both the ledger file (Step 2) and the
+   attachment download directory (Step 6).
+4. **Sentry org**: `artisanal-software` (default for this repo).
+5. **Project ID**: `4508469264711681` if present in the URL, else assume the
    PodHaven project.
-5. **User notes alongside the link**: any free-text the user typed in the same
+6. **User notes alongside the link**: any free-text the user typed in the same
    argument that isn't part of the URL/slug. Treat it as triage instructions
    (e.g. "I think this is the search bug from last week", "ignore the widget
    side", "user is on TestFlight build 412"). Carry these notes forward — they
-   shape what to focus on in Steps 4–6 and must appear verbatim in the report.
+   shape what to focus on in Steps 5–7 and must appear verbatim in the report.
 
 Tell the user the parsed slug in one short line before fetching, so they can
 catch a mis-paste early. If the user attached notes, echo them back in the
 same line so they know they were picked up (not silently dropped).
 
-## Step 2: Fetch the feedback from Sentry
+## Step 2: Check for prior analysis
+
+Every feedback this skill has worked before has a ledger at
+`memory/sentry_feedback/<path-safe-slug>.md` (e.g.
+`memory/sentry_feedback/podhaven-7485822944.md`).
+
+- **If the ledger exists, read it before fetching anything from Sentry.**
+  Prior sessions record what was concluded, what fixes/issues/PRs came out of
+  it, and whether the entry was deliberately left unresolved. Tell the user in
+  a line or two what prior sessions found, and carry those conclusions into
+  the synthesis. Don't redo analysis a prior session already settled unless
+  the user asks, or new evidence (a newer build, a fresh Sentry follow-up)
+  contradicts it — in that case say what changed.
+- If it doesn't exist, this is first-time triage; move on.
+
+Either way, the session ends by creating or appending this ledger (Step 9).
+
+## Step 3: Fetch the feedback from Sentry
 
 Requires the **`sentry` CLI** and auth (`sentry auth login`). See
 `analyze-sentry-issue` prerequisites for install notes. Do not use the Sentry MCP
@@ -95,9 +148,9 @@ Show the user a short header with: feedback slug, submission time (converted
 to Pacific Time), reporter (email or "anonymous"), release, environment, and
 the verbatim user message. Keep the message quoted, not paraphrased.
 
-## Step 3: Pull the associated event, replay, and trace if any
+## Step 4: Pull the associated event, replay, and trace if any
 
-Use `/tmp/sentry_feedback/event_<id>.json` from Step 2. Note especially:
+Use `/tmp/sentry_feedback/event_<id>.json` from Step 3. Note especially:
 
 - The event's exception type and top stack frame (if any).
 - Breadcrumbs in the minute leading up to the feedback.
@@ -130,7 +183,7 @@ of something I already fixed?".
 - Search `memory/` and closed GitHub issues for the suspected bug first, so you
   have concrete fix commits / PR numbers to test ancestry against.
 
-## Step 4: Hunt for related Sentry issues right before the feedback
+## Step 5: Hunt for related Sentry issues right before the feedback
 
 Users typically file feedback in the moments after something went wrong, so
 the most useful issue is often *not* the one Sentry auto-linked (or none was
@@ -160,7 +213,7 @@ Read `/tmp/sentry_feedback_related.json` — sort by timestamp, keep the top ~5.
 For each row capture: issue short ID, title, timestamp (PT), and whether the
 reporter's identifier appears on the event.
 
-If Step 3 already pulled a linked event, this search may rediscover the same
+If Step 4 already pulled a linked event, this search may rediscover the same
 issue group — fine, but still surface any *other* issues clustered around the
 same time. Multiple distinct errors right before a feedback usually mean one
 underlying failure produced several symptoms; the linked event is often just
@@ -169,7 +222,7 @@ whichever one Sentry happened to attach.
 If nothing relevant turns up, say so plainly ("no Sentry issues from this
 reporter in the 10 minutes before feedback") rather than omitting the section.
 
-## Step 5: Download the reporter's NDJSON logs from the feedback event
+## Step 6: Download the reporter's NDJSON logs from the feedback event
 
 PodHaven attaches the reporter's local NDJSON logs to every feedback event,
 so the right logs to analyze are the ones on the Sentry event — **not** the
@@ -187,7 +240,7 @@ session.
 
 1. Read attachment names from `/tmp/sentry_feedback/attachments.json`. If the
    feedback had no linked event, fall back to the highest-ranked related event
-   from Step 4 — download attachments for that event instead.
+   from Step 5 — download attachments for that event instead.
 2. Expect at minimum two attachments named:
    - `log.ndjson` — the app log
    - `widget-log.ndjson` — the widget log
@@ -201,9 +254,8 @@ bash .agents/skills/sentry-cli/download_event_attachments.sh \
   --dir ~/Library/Caches/analyze-sentry-feedback/<feedback-slug>/
 ```
 
-Replace `:` in the slug with `-` for a path-safe directory name (e.g.
-`podhaven-7485822944`). Preserve original filenames (`log.ndjson`,
-`widget-log.ndjson`).
+The directory name is the path-safe slug from Step 1. Preserve original
+filenames (`log.ndjson`, `widget-log.ndjson`).
 4. Sanity-check the downloads: each file should be non-empty NDJSON, and the
    latest entry should be near (within seconds to a few minutes of) the
    feedback timestamp. If a file is empty, truncated, or its latest entry is
@@ -223,9 +275,9 @@ Fallbacks, in order, if the attachment route fails:
   - `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`
   - `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/widget-log.ndjson`
 
-## Step 6: Analyze the logs with the `analyze-logs` script
+## Step 7: Analyze the logs with the `analyze-logs` script
 
-**Do not hand-roll log parsing.** Analyze the **downloaded** NDJSON from Step 5
+**Do not hand-roll log parsing.** Analyze the **downloaded** NDJSON from Step 6
 with the `analyze-logs` skill's bundled script — `scripts/log_summary.py` in
 that skill's directory. Invoke the `analyze-logs` skill to load its full
 reference (every flag, the format spec). Ad-hoc `python`/`jq` only earns its
@@ -289,7 +341,7 @@ keys them by debug-id == binary UUID), caches it under
 top frames in the Timeline section instead of the raw `Binary+offset` line —
 they are usually the most important evidence in the report.
 
-## Step 7: Synthesize
+## Step 8: Synthesize
 
 Build one report. Lead with the user's words, then the evidence, then the
 verdict and suggested fix. The reader should be able to act on this without
@@ -299,17 +351,19 @@ When forming the inferred root cause, weight signals in this rough order:
 
 1. **Triage notes from this invocation** — the user just told you what to focus
    on; respect that unless the logs flatly contradict it.
-2. **Sentry follow-ups** — later comments often reflect what the user has
+2. **Prior-session conclusions from the ledger (Step 2)** — settled verdicts
+   and shipped fixes from earlier sessions; only new evidence overturns them.
+3. **Sentry follow-ups** — later comments often reflect what the user has
    already learned or ruled out since submission. A follow-up that says "turned
    out to be X" beats anything the original message implied.
-3. **Linked event / stack frame / breadcrumbs** — concrete crash or error data.
-4. **Related Sentry issues from Step 4** — same-user errors in the minutes
+4. **Linked event / stack frame / breadcrumbs** — concrete crash or error data.
+5. **Related Sentry issues from Step 5** — same-user errors in the minutes
    before submission are usually the trigger, especially when no event was
    directly linked to the feedback. Treat them as peers to the linked event;
    prefer same-user matches over release-wide ones.
-5. **Reporter's attached NDJSON log timeline** — broadest context, but also
+6. **Reporter's attached NDJSON log timeline** — broadest context, but also
    the noisiest.
-6. **Original feedback text** — frames the user's experience but is often
+7. **Original feedback text** — frames the user's experience but is often
    imprecise about cause.
 
 If two sources disagree, name the disagreement in *Alternatives considered*
@@ -325,7 +379,7 @@ Report format:
 - **From:** <email or "anonymous">
 - **Release / env:** <release> / <environment>
 - **Build vs. known fixes:** <build number + git-commit-hash, and which
-  relevant fixes it does/does not contain per Step 3; omit if not a suspected
+  relevant fixes it does/does not contain per Step 4; omit if not a suspected
   recurrence of a known bug>
 - **Device:** <model, OS version> (if known)
 - **Replay:** <link or "none">
@@ -334,6 +388,11 @@ Report format:
 ## What the user said
 > <verbatim feedback message>
 
+## Prior analysis
+(Summary of earlier sessions from the `memory/sentry_feedback/` ledger — when
+each ran, the verdict, and what actions came out of it. Omit the section on
+first-time triage.)
+
 ## Sentry follow-ups
 (Chronological list of every comment/note/activity entry added on the Sentry
 feedback after submission. Format each as `<PT timestamp> — <author>: <verbatim
@@ -341,7 +400,7 @@ text>`. If none exist, write "None." If notes/activities files were empty after
 fetch, write "None fetched."
 
 ## Related Sentry issues near feedback time
-(Issues from Step 4 whose events fired in the window leading up to the
+(Issues from Step 5 whose events fired in the window leading up to the
 feedback. Format each line as `<PT timestamp> — <issue short id> — <title>
 (<error type>, <N events>, <same-user|release-wide>)`. List most recent first.
 Note the search window used (e.g. "10 min before, 1 min after"). If none, write
@@ -377,6 +436,52 @@ Anything the user could clarify that would sharpen the diagnosis (e.g.
 Omit this section if there are no useful follow-ups.
 ```
 
+## Step 9: Record the session and offer to resolve
+
+After delivering the report — and after any follow-up work the user directs in
+the same session (filing issues, ancestry checks, deeper log digging) — record
+what happened in the ledger at `memory/sentry_feedback/<path-safe-slug>.md`
+(create the `memory/sentry_feedback/` directory if needed).
+
+First-time triage creates the file:
+
+```markdown
+---
+slug: podhaven:7485822944
+shortId: PODHAVEN-3K
+description: <one-line summary of the feedback>
+sentry-status: unresolved
+---
+
+# Sentry Feedback podhaven:7485822944 — <short title>
+
+## Sessions
+
+### <ISO-8601 timestamp with timezone>
+
+- Verdict: <root cause / conclusion, with confidence>
+- Actions: <what this session did: report delivered, issue filed, fix
+  commits ancestry-checked, "analysis only", ...>
+- Sentry: <left unresolved | marked resolved>
+```
+
+Later sessions insert a new `### <timestamp>` block at the **top** of
+`## Sessions` (newest first) and leave earlier entries untouched. Keep each
+session to a few bullets — enough that a future session can skip re-deriving
+the verdict, not a copy of the whole report. These ledgers are tool-managed
+(exempt from the memory page schema, like `memory/pr_reviews/`); this skill
+owns their lifecycle.
+
+Then ask the user whether to mark the feedback resolved in Sentry. If yes:
+
+```bash
+sentry issue resolve <numeric-feedback-id>
+```
+
+and set `sentry-status: resolved` in the ledger frontmatter; if no, leave
+`sentry-status: unresolved`. Either way the session entry's `Sentry:` bullet
+records the choice. Never resolve in Sentry without asking first.
+
 ## Rules
 
 - Convert all user-facing timestamps to Pacific Time and include the timezone.
@@ -392,6 +497,9 @@ Omit this section if there are no useful follow-ups.
 - Keep the report dense. Every line should help the reader either understand
   what happened or decide what to do next.
 - When the feedback looks like a known or already-"fixed" bug, correlate the
-  reporter's build/commit to git ancestry (Step 3) before concluding. A
+  reporter's build/commit to git ancestry (Step 4) before concluding. A
   recurrence on a build that already contains the fix is an incomplete fix —
   the report must say so explicitly rather than blaming a stale build.
+- Never end a session that triaged a feedback without writing or appending its
+  ledger (Step 9), and never mark a feedback resolved in Sentry without the
+  user's explicit yes in that session.
