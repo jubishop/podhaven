@@ -22,8 +22,14 @@ class SmartListEditorViewModel {
   var title: String
   var topGroup: EditableGroup
   var groups: [EditableGroup]
+  var alwaysShowPodcastImage: Bool
 
-  init(mode: Mode = .create, title: String = "", filter: SmartListFilter = SmartListFilter()) {
+  init(
+    mode: Mode = .create,
+    title: String = "",
+    filter: SmartListFilter = SmartListFilter(),
+    alwaysShowPodcastImage: Bool = false
+  ) {
     self.mode = mode
     self.title = title
     self.topGroup = EditableGroup(
@@ -31,6 +37,7 @@ class SmartListEditorViewModel {
       conditions: filter.conditions.map(EditableCondition.init)
     )
     self.groups = filter.groups.map(EditableGroup.init)
+    self.alwaysShowPodcastImage = alwaysShowPodcastImage
   }
 
   // MARK: - Validation
@@ -132,11 +139,17 @@ class SmartListEditorViewModel {
             try UnsavedSmartList(
               title: trimmedTitle,
               filter: filter,
-              displayOrder: (maxDisplayOrder ?? -1) + 1
+              displayOrder: (maxDisplayOrder ?? -1) + 1,
+              alwaysShowPodcastImage: alwaysShowPodcastImage
             )
           )
         case .edit(let id):
-          try await smartListRepo.update(id, title: trimmedTitle, filter: filter)
+          try await smartListRepo.update(
+            id,
+            title: trimmedTitle,
+            filter: filter,
+            alwaysShowPodcastImage: alwaysShowPodcastImage
+          )
         }
         sheet.dismiss()
       } catch {

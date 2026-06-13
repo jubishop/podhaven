@@ -21,6 +21,17 @@ struct SmartListEditorView: View {
           TextField("Title", text: $viewModel.title)
         }
 
+        Section {
+          Toggle("Always Show Podcast Art", isOn: $viewModel.alwaysShowPodcastImage)
+        } footer: {
+          Text(
+            """
+            When enabled, episodes in this list will always display the podcast \
+            artwork instead of the episode-specific artwork.
+            """
+          )
+        }
+
         Section("Conditions") {
           Picker("Match", selection: $viewModel.topGroup.combinator) {
             Text("All").tag(SmartListFilter.Combinator.all)
