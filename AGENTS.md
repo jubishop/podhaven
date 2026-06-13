@@ -61,7 +61,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - All test files belong to `PodHavenTests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete all test-only surfaces.
-- Put the test seam at the OS-integration boundary, not above our own logic. Wrap system-framework types in app-owned protocols that the real types conform to (via `extension`) and fake those, so our orchestration runs for real in tests. Follow the existing pattern: `AVPlayer`/`AVPlayerItem` → `AVPlayable`/`AVPlayableItem`, `URLSession` → `DataFetchable`, `SpeechAnalyzer`/`SpeechTranscriber` → `SpeechAnalyzing`/`SpeechTranscribing`. For a parent/child framework pair, fake both; for an opaque framework result with no public initializer (e.g. `SpeechTranscriber.Result`), abstract it behind a protocol the real type conforms to so fakes can supply values.
+- Put the test seam at the OS-integration boundary, not above our own logic. Wrap system-framework types in app-owned protocols that the real types conform to (via `extension`) and fake those, so our orchestration runs for real in tests.
 - To assert on swift-log output, use `LogCapture.withSink` (per-test isolation via `@TaskLocal`).
 
 ## Previews
