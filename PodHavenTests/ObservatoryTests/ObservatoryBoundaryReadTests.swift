@@ -107,6 +107,42 @@ actor ObservatoryBoundaryReadTests {
     #expect(counts.byFreshnessCadence.count == 2)
   }
 
+  @Test("podcastCounts() resolves inferred cadence, and a manual cadence wins over it")
+  func testPodcastCountsInferredFreshnessCadence() async throws {
+    // Daily-spaced pubDates so inference resolves the show to .daily.
+    func dailyEpisodes() throws -> [UnsavedEpisode] {
+      let base = Date()
+      return [
+        try Create.unsavedEpisode(pubDate: base),
+        try Create.unsavedEpisode(pubDate: base.addingTimeInterval(-86400)),
+        try Create.unsavedEpisode(pubDate: base.addingTimeInterval(-172800)),
+      ]
+    }
+
+    // No manual cadence: resolves only through the inferred fallback branch.
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(subscriptionDate: Date()),
+        unsavedEpisodes: try dailyEpisodes()
+      )
+    )
+    // Manual cadence set: wins over the conflicting inferred (.daily) cadence.
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          subscriptionDate: Date(),
+          freshnessCadence: .weekly
+        ),
+        unsavedEpisodes: try dailyEpisodes()
+      )
+    )
+
+    let counts = try await observatory.podcastCounts().get()
+    #expect(counts.byFreshnessCadence[.daily] == 1)  // inferred-only show
+    #expect(counts.byFreshnessCadence[.weekly] == 1)  // manual wins over inferred .daily
+    #expect(counts.byFreshnessCadence.count == 2)
+  }
+
   // MARK: - episodeIDs(filter:)
 
   @Test("episodeIDs(filter:) returns matching IDs and nothing for a non-matching filter")
