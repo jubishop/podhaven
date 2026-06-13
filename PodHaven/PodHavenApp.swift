@@ -33,8 +33,8 @@ struct PodHavenApp: App {
       Group {
         if initialized {
           ContentView()
-            .customAlert($alert.config)
-            .customSheet($sheet.config)
+            .customAlert($alert.config, isEnabled: sheet.config == nil)
+            .customSheet($sheet.config, alert: $alert.config)
         } else {
           ProgressView("Loading...")
         }
