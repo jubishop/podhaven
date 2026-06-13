@@ -73,22 +73,45 @@ extension Container {
 }
 
 extension View {
-  func customSheet(_ config: Binding<SheetConfig?>) -> some View {
+  func customSheet(
+    _ config: Binding<SheetConfig?>,
+    alert alertConfig: Binding<AlertConfig?>? = nil
+  ) -> some View {
     sheet(item: config) { sheetConfig in
-      sheetConfig.content
-        .onDisappear {
-          // Recover if SwiftUI's binding-setter doesn't fire on dismissal.
-          if config.wrappedValue?.id == sheetConfig.id {
-            Sheet.log.debug(
-              """
-              onDisappear: clearing stale config
-                id: \(sheetConfig.id)
-                userID: \(String(describing: sheetConfig.userID))
-              """
-            )
-            config.wrappedValue = nil
-          }
+      SheetContentView(config: config, sheetConfig: sheetConfig, alertConfig: alertConfig)
+    }
+  }
+}
+
+private struct SheetContentView: View {
+  @Binding var config: SheetConfig?
+
+  let sheetConfig: SheetConfig
+  let alertConfig: Binding<AlertConfig?>?
+
+  var body: some View {
+    content
+      .onDisappear {
+        // Recover if SwiftUI's binding-setter doesn't fire on dismissal.
+        if config?.id == sheetConfig.id {
+          Sheet.log.debug(
+            """
+            onDisappear: clearing stale config
+              id: \(sheetConfig.id)
+              userID: \(String(describing: sheetConfig.userID))
+            """
+          )
+          config = nil
         }
+      }
+  }
+
+  @ViewBuilder private var content: some View {
+    if let alertConfig {
+      sheetConfig.content
+        .customAlert(alertConfig)
+    } else {
+      sheetConfig.content
     }
   }
 }
