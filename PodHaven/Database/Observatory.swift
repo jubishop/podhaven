@@ -48,6 +48,18 @@ struct Observatory: Observing {
       let unsubscribed = try Podcast.all().unsubscribed().fetchCount(db)
       let untagged = try Podcast.all().having(Podcast.podcastTags.isEmpty).fetchCount(db)
 
+      // Per-setting buckets count every podcast regardless of subscription,
+      // matching the untagged/per-tag counts above.
+      func count(_ predicate: SQLExpression) throws -> Int {
+        try Podcast.all().filter(predicate).fetchCount(db)
+      }
+
+      var byFreshnessCadence: [FreshnessCadence: Int] = [:]
+      for cadence in FreshnessCadence.allCases {
+        let cadenceCount = try count(Podcast.resolvedFreshnessCadence(cadence))
+        if cadenceCount > 0 { byFreshnessCadence[cadence] = cadenceCount }
+      }
+
       return PodcastCounts(
         subscribed: subscribed,
         unsubscribed: unsubscribed,
@@ -57,7 +69,13 @@ struct Observatory: Observing {
           tagIdColumn: PodcastTag.Columns.tagId,
           countingColumn: PodcastTag.Columns.podcastId,
           in: db
-        )
+        ),
+        byFreshnessCadence: byFreshnessCadence,
+        queueOnTop: try count(Podcast.queuesAllEpisodes(.onTop)),
+        queueOnBottom: try count(Podcast.queuesAllEpisodes(.onBottom)),
+        autoCache: try count(Podcast.cachesAllEpisodes(.cache)),
+        autoSave: try count(Podcast.cachesAllEpisodes(.save)),
+        notifyNewEpisodes: try count(Podcast.notifiesNewEpisodes)
       )
     }
   }

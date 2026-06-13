@@ -139,9 +139,15 @@ extension Container {
     case unsubscribed
     case untagged
     case tag(Tag.ID)
+    case freshnessCadence(FreshnessCadence)
+    case queueOnTop
+    case queueOnBottom
+    case autoCache
+    case autoSave
+    case notifyNewEpisodes
 
     enum CodingKeys: String, CodingKey {
-      case type, tagID
+      case type, tagID, cadence
     }
 
     init(from decoder: any Decoder) throws {
@@ -153,6 +159,13 @@ extension Container {
       case "untagged": self = .untagged
       case "tag":
         self = .tag(try container.decode(Tag.ID.self, forKey: .tagID))
+      case "freshnessCadence":
+        self = .freshnessCadence(try container.decode(FreshnessCadence.self, forKey: .cadence))
+      case "queueOnTop": self = .queueOnTop
+      case "queueOnBottom": self = .queueOnBottom
+      case "autoCache": self = .autoCache
+      case "autoSave": self = .autoSave
+      case "notifyNewEpisodes": self = .notifyNewEpisodes
       default: self = .subscribed
       }
     }
@@ -169,6 +182,19 @@ extension Container {
       case .tag(let tagID):
         try container.encode("tag", forKey: .type)
         try container.encode(tagID, forKey: .tagID)
+      case .freshnessCadence(let cadence):
+        try container.encode("freshnessCadence", forKey: .type)
+        try container.encode(cadence, forKey: .cadence)
+      case .queueOnTop:
+        try container.encode("queueOnTop", forKey: .type)
+      case .queueOnBottom:
+        try container.encode("queueOnBottom", forKey: .type)
+      case .autoCache:
+        try container.encode("autoCache", forKey: .type)
+      case .autoSave:
+        try container.encode("autoSave", forKey: .type)
+      case .notifyNewEpisodes:
+        try container.encode("notifyNewEpisodes", forKey: .type)
       }
     }
   }
@@ -243,6 +269,54 @@ extension Container {
             message: "Tag \(tagID) missing from sharedState; popping to the hub"
           )
         }
+      case .freshnessCadence(let cadence):
+        PodcastsListView(
+          viewModel: PodcastsListViewModel(
+            title: cadence.displayName,
+            filter: { $0.filter(Podcast.resolvedFreshnessCadence(cadence)) }
+          )
+        )
+        .id("freshness-\(cadence.rawValue)")
+      case .queueOnTop:
+        PodcastsListView(
+          viewModel: PodcastsListViewModel(
+            title: "On Top",
+            filter: { $0.filter(Podcast.queuesAllEpisodes(.onTop)) }
+          )
+        )
+        .id("queueOnTop")
+      case .queueOnBottom:
+        PodcastsListView(
+          viewModel: PodcastsListViewModel(
+            title: "On Bottom",
+            filter: { $0.filter(Podcast.queuesAllEpisodes(.onBottom)) }
+          )
+        )
+        .id("queueOnBottom")
+      case .autoCache:
+        PodcastsListView(
+          viewModel: PodcastsListViewModel(
+            title: "Cache",
+            filter: { $0.filter(Podcast.cachesAllEpisodes(.cache)) }
+          )
+        )
+        .id("autoCache")
+      case .autoSave:
+        PodcastsListView(
+          viewModel: PodcastsListViewModel(
+            title: "Save",
+            filter: { $0.filter(Podcast.cachesAllEpisodes(.save)) }
+          )
+        )
+        .id("autoSave")
+      case .notifyNewEpisodes:
+        PodcastsListView(
+          viewModel: PodcastsListViewModel(
+            title: "Notify New Episodes",
+            filter: { $0.filter(Podcast.notifiesNewEpisodes) }
+          )
+        )
+        .id("notifyNewEpisodes")
       }
 
     // Universal destinations
