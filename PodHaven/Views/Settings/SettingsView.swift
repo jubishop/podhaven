@@ -274,28 +274,6 @@ struct SettingsView: View {
         }
 
         Section("Recommendations") {
-          SettingsRow(
-            infoText: """
-              When enabled, \
-              recommended episodes in Up Next will always display the podcast artwork \
-              instead of the episode-specific artwork.
-              """
-          ) {
-            VStack(alignment: .leading, spacing: 24) {
-              VStack(alignment: .leading, spacing: 2) {
-                Text("Always Show Podcast Art")
-                Text("for Recommendations")
-                  .foregroundStyle(.secondary)
-              }
-              Toggle(
-                "Always Show Podcast Art for Recommendations",
-                isOn: userSettings.$alwaysShowPodcastImageForUpNextRecommendations.binding
-              )
-              .labelsHidden()
-            }
-            Spacer(minLength: 0)
-          }
-
           VStack(alignment: .leading, spacing: 24) {
             SettingsRow(
               infoText: """
@@ -372,6 +350,28 @@ struct SettingsView: View {
               Toggle(
                 "Always Show Podcast Art in Queue",
                 isOn: userSettings.$alwaysShowPodcastImageInUpNext.binding
+              )
+              .labelsHidden()
+            }
+            Spacer(minLength: 0)
+          }
+
+          SettingsRow(
+            infoText: """
+              When enabled, \
+              recommended episodes in Up Next will always display the podcast artwork \
+              instead of the episode-specific artwork.
+              """
+          ) {
+            VStack(alignment: .leading, spacing: 24) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("Always Show Podcast Art")
+                Text("for Recommendations")
+                  .foregroundStyle(.secondary)
+              }
+              Toggle(
+                "Always Show Podcast Art for Recommendations",
+                isOn: userSettings.$alwaysShowPodcastImageForUpNextRecommendations.binding
               )
               .labelsHidden()
             }
