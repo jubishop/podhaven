@@ -4,7 +4,7 @@ status: shipped
 
 # Smart Lists
 
-User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v53, condition set expanded, scrub-on-tag-delete, two-phase build); revised 2026-06-12 (multiple nested groups, v56 migration, inline group editing — see §1/§2/§3a/§10); revised 2026-06-12 (swipe/edit-mode delete on the hub list).
+User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v53, condition set expanded, scrub-on-tag-delete, two-phase build); revised 2026-06-12 (multiple nested groups, v56 migration, inline group editing — see §1/§2/§3a/§10); revised 2026-06-12 (custom swipe delete on the hub list).
 
 ## Context
 
@@ -276,6 +276,11 @@ List {
   ForEach(viewModel.smartLists) { list in
     NavigationLink(value: Navigation.Destination.smartList(list.id)) {
       Text(list.title)
+    }
+    .swipeActions(edge: .trailing) {
+      AppIcon.delete.imageButton {
+        viewModel.deleteSmartList(list)
+      }
     }
   }
   .onMove(perform: viewModel.moveSmartList)      // SwiftUI shows native drag handles in editMode
