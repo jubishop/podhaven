@@ -109,7 +109,6 @@ extension SmartListFilter.TextOp {
     case .contains: return "contains"
     case .doesNotContain: return "exclude"
     case .equals: return "equals"
-    case .startsWith: return "starts with"
     }
   }
 }

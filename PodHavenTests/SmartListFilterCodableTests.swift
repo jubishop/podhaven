@@ -47,7 +47,7 @@ struct SmartListFilterCodableTests {
       ),
       SmartListFilter.Group(
         combinator: .all,
-        conditions: [.state(.isUnqueued), .episodeText(.description, .startsWith, "Bonus")]
+        conditions: [.state(.isUnqueued), .episodeText(.description, .contains, "Bonus")]
       ),
     ]
   )
