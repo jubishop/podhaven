@@ -4,7 +4,7 @@ status: shipped
 
 # Smart Lists
 
-User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v53, condition set expanded, scrub-on-tag-delete, two-phase build); revised 2026-06-12 (multiple nested groups, v56 migration, inline group editing — see §1/§2/§3a/§10); revised 2026-06-12 (swipe/edit-mode delete on the hub list).
+User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v53, condition set expanded, scrub-on-tag-delete, two-phase build); revised 2026-06-12 (multiple nested groups, v56 migration, inline group editing — see §1/§2/§3a/§10); revised 2026-06-12 (custom swipe delete on the hub list).
 
 ## Context
 
@@ -14,7 +14,7 @@ This initiative introduces **Smart Lists**: persisted, editable any/all filter g
 
 v1 supports **seven condition kinds**: episode text (title/description), **podcast text** (parent podcast title/description), episode state, episode-tag membership, podcast-tag membership, **duration range**, and **publish-date age**. Tags exist independently in two scopes — **episode tags** (via the `episodeTag` join table) and **podcast tags** (via the `podcastTag` join table on the episode's parent podcast) — and the filter must be able to target each scope independently within a single Smart List (e.g., "podcast tagged 'Tech' AND episode tagged 'Interview'"). The two scopes share the same `Tag` table; only the join path differs.
 
-`EpisodesView` itself gains an edit mode (mirroring the Queue) for drag-to-reorder of lists; multi-select is **not** part of v1. Delete is available two ways: swipe/edit-mode `.onDelete` on the hub list and the Delete button inside the editor sheet — both behind a confirmation dialog, since a mistaken delete throws away a hand-built filter. The row stores **title + filter + sortMethod**: title and filter are user-editable in the configurator sheet, sortMethod is changed (as today) via the sort toolbar menu in `EpisodesListView` — the only difference is it now persists in SQLite instead of UserDefaults. Per-list-`PersistedBroadcast` sort prefs go away.
+`EpisodesView` itself gains an edit mode (mirroring the Queue) for drag-to-reorder of lists; multi-select is **not** part of v1. Delete is available two ways: a custom trash swipe action on the hub rows (not `.onDelete` — its optimistic row-removal animation makes the row flicker when a confirmation gates the actual delete) and the Delete button inside the editor sheet — both confirmed via the injected `alert` (the same Delete/Cancel alert tag deletion uses), since a mistaken delete throws away a hand-built filter. The row stores **title + filter + sortMethod**: title and filter are user-editable in the configurator sheet, sortMethod is changed (as today) via the sort toolbar menu in `EpisodesListView` — the only difference is it now persists in SQLite instead of UserDefaults. Per-list-`PersistedBroadcast` sort prefs go away.
 
 When a `Tag` is deleted, every Smart List filter that references it is **scrubbed in the same write transaction** (decode → drop the matching `.episodeTag`/`.podcastTag` conditions → re-encode → update). List cardinality is low, so this is cheaper than building an "unknown tag" placeholder state in the editor. The engine and editor remain **defensive** anyway — a tag ID that fails to resolve matches nothing rather than crashing — to cover cross-device / mid-delete races.
 
@@ -277,6 +277,11 @@ List {
     NavigationLink(value: Navigation.Destination.smartList(list.id)) {
       Text(list.title)
     }
+    .swipeActions(edge: .trailing) {
+      AppIcon.delete.imageButton {
+        viewModel.deleteSmartList(list)
+      }
+    }
   }
   .onMove(perform: viewModel.moveSmartList)      // SwiftUI shows native drag handles in editMode
 }
@@ -299,7 +304,7 @@ List {
 }
 ```
 
-`EpisodesViewModel` (new — small `@Observable @MainActor` in `PodHaven/Views/Episodes/Models/EpisodesViewModel.swift`): owns `var smartLists: [SmartList]`, `var editMode: EditMode = .inactive`, runs `for await rows in observatory.smartLists() { … }`, and exposes `moveSmartList(from: IndexSet, to: Int)` calling `smartListRepo.moveSmartList(_:to:)` (same shape as `UpNextViewModel.moveEpisode` at `UpNextViewModel.swift:312–326`) plus `requestDeleteSmartList(at: IndexSet)` / `confirmDeleteSmartList()` (a `pendingDelete: SmartList?` drives the confirmation dialog; confirm calls `smartListRepo.delete`). No multi-select state — row delete comes from the list's `.onDelete` (swipe or edit-mode minus), with the editor sheet's confirmed Delete button as the second path.
+`EpisodesViewModel` (new — small `@Observable @MainActor` in `PodHaven/Views/Episodes/Models/EpisodesViewModel.swift`): owns `var smartLists: [SmartList]`, `var editMode: EditMode = .inactive`, runs `for await rows in observatory.smartLists() { … }`, and exposes `moveSmartList(from: IndexSet, to: Int)` calling `smartListRepo.moveSmartList(_:to:)` (same shape as `UpNextViewModel.moveEpisode` at `UpNextViewModel.swift:312–326`) plus `deleteSmartList(_ smartList:)` which confirms via the injected `alert` (Delete/Cancel, matching tag deletion) before calling `smartListRepo.delete`. No multi-select state — row delete comes from a trash swipe action (edit mode only reorders), with the editor sheet's confirmed Delete button as the second path.
 
 Add `.addSmartList` case to `AppIcon.swift` (`plus.circle`) — the existing `.subscribe`/`.addTag` cases are semantically loaded. `AppIcon.editItems` / `.editFinished` already exist.
 
@@ -320,7 +325,7 @@ Add a `.primaryAction` toolbar item using existing `AppIcon.settings` (gear). Ta
   - **Publish Date:** a `PublishDateOp` picker (within last / older than) + a days field.
   - Each row has a leading "−" remove button.
 - Validation: empty title disables Save; an empty text/duration/pubDate value blocks Save with inline error; an entirely empty filter is allowed (matches `noOp`) but shows a soft warning ("This list will match every episode"). Empty nested groups are dropped on save rather than persisted.
-- Delete is always available in edit mode, behind a `.confirmationDialog`. Seeded defaults are just rows — users can rename, edit, or delete them like any other SmartList.
+- Delete is always available in edit mode, behind the standard Delete/Cancel alert. Seeded defaults are just rows — users can rename, edit, or delete them like any other SmartList.
 
 ---
 

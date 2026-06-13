@@ -25,7 +25,6 @@ class EpisodesViewModel {
   private(set) var smartLists: [SmartList] = []
   private(set) var loadingState: LoadingState = .loading
   var editMode: EditMode = .inactive
-  var pendingDelete: SmartList?
 
   // MARK: - Smart List Observation
 
@@ -69,30 +68,28 @@ class EpisodesViewModel {
     }
   }
 
-  func requestDeleteSmartList(at offsets: IndexSet) {
-    guard offsets.count == 1, let index = offsets.first
-    else { Assert.fatal("Somehow deleted none or several?") }
-    guard smartLists.indices.contains(index) else {
-      Self.log.error("requestDeleteSmartList: stale index \(index) with \(smartLists.count) lists")
-      return
+  func deleteSmartList(_ smartList: SmartList) {
+    alert(
+      title: "Delete Smart List?",
+      "Are you sure you want to delete \"\(smartList.title)\"?"
+    ) { [weak self] in
+      Button("Delete", role: .destructive) {
+        guard let self else { return }
+        self.performDeleteSmartList(smartList)
+      }
+      Button("Cancel", role: .cancel) {}
     }
-
-    pendingDelete = smartLists[index]
   }
 
-  func confirmDeleteSmartList() {
-    guard let smartList = pendingDelete else {
-      Self.log.error("confirmDeleteSmartList: no pending smart list")
-      return
-    }
-    pendingDelete = nil
+  // MARK: - Private Helpers
 
+  private func performDeleteSmartList(_ smartList: SmartList) {
     Task { [weak self] in
       guard let self else { return }
       do {
         try await smartListRepo.delete(smartList.id)
       } catch {
-        Self.log.caughtError("confirmDeleteSmartList: failed to delete \(smartList.id)", error)
+        Self.log.caughtError("deleteSmartList: failed to delete \(smartList.id)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
