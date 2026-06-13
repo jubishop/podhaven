@@ -189,6 +189,25 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   static let subscribed: SQLExpression = Columns.subscriptionDate != nil
   static let unsubscribed: SQLExpression = Columns.subscriptionDate == nil
 
+  // Mirrors `RecommendationRepo.resolveFreshnessCadences`: a podcast resolves to
+  // a cadence via `freshnessCadence ?? inferredFreshnessCadence`. Shows with
+  // neither set are indeterminate and match no cadence.
+  static func resolvedFreshnessCadence(_ cadence: FreshnessCadence) -> SQLExpression {
+    let raw = cadence.rawValue
+    return Columns.freshnessCadence == raw
+      || (Columns.freshnessCadence == nil && Columns.inferredFreshnessCadence == raw)
+  }
+
+  static func queuesAllEpisodes(_ value: QueueAllEpisodes) -> SQLExpression {
+    Columns.queueAllEpisodes == value.rawValue
+  }
+
+  static func cachesAllEpisodes(_ value: CacheAllEpisodes) -> SQLExpression {
+    Columns.cacheAllEpisodes == value.rawValue
+  }
+
+  static let notifiesNewEpisodes: SQLExpression = Columns.notifyNewEpisodes == true
+
   // MARK: - PodcastFilters
 
   static func hasTag(_ tagID: Tag.ID) -> PodcastFilter {
