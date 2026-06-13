@@ -94,11 +94,19 @@ struct AppDB {
 
   // MARK: - Private Static Helpers
 
+  // Bounds the per-table sampling each `optimize()` may do, so periodic stats
+  // maintenance stays cheap even on a large library.
+  private static let analysisLimit = 400
+
   private static func makeConfiguration(qos: DispatchQoS? = nil) -> Configuration {
     var config = Configuration()
     if let qos = qos { config.qos = qos }
 
     config.maximumReaderCount = 10
+
+    config.prepareDatabase { db in
+      try db.execute(sql: "PRAGMA analysis_limit=\(analysisLimit)")
+    }
 
     return config
   }
@@ -220,6 +228,16 @@ struct AppDB {
         freelistCount: try Int.fetchOne(db, sql: "PRAGMA freelist_count") ?? 0,
         pageSize: try Int.fetchOne(db, sql: "PRAGMA page_size") ?? 0
       )
+    }
+  }
+
+  // SQLite never refreshes its planner statistics on its own, so the migration's
+  // one-time ANALYZE goes stale as the library grows. Re-running optimize on a
+  // recurring lifecycle signal re-ANALYZEs only the tables whose stats have
+  // drifted, keeping the indexed sort/filter paths on their fast plans.
+  func optimize() async throws {
+    try await db.write { db in
+      try db.execute(sql: "PRAGMA optimize")
     }
   }
 
