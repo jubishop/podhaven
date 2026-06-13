@@ -21,20 +21,26 @@ struct UpNextView: View {
     NavStack(manager: navigation.upNext) {
       List {
         ForEach(viewModel.episodeList.allEntries) { podcastEpisode in
-          upNextListView(podcastEpisode)
-            .listRow()
-            .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
-            .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
+          upNextListView(
+            podcastEpisode,
+            alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageInUpNext
+          )
+          .listRow()
+          .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
+          .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
         }
         .onMove(perform: viewModel.moveEpisode)
 
         if !viewModel.recommendedEpisodes.isEmpty {
           Section("Recommended") {
             ForEach(viewModel.recommendedEpisodes) { recommendedEpisode in
-              upNextListView(recommendedEpisode)
-                .listRow()
-                .episodeSwipeActions(viewModel: viewModel, episode: recommendedEpisode)
-                .episodeContextMenu(viewModel: viewModel, episode: recommendedEpisode)
+              upNextListView(
+                recommendedEpisode,
+                alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageForUpNextRecommendations
+              )
+              .listRow()
+              .episodeSwipeActions(viewModel: viewModel, episode: recommendedEpisode)
+              .episodeContextMenu(viewModel: viewModel, episode: recommendedEpisode)
             }
           }
         }
@@ -98,10 +104,13 @@ struct UpNextView: View {
   // MARK: - Episode List
 
   @ViewBuilder
-  func upNextListView(_ podcastEpisode: ListablePodcastEpisode) -> some View {
+  func upNextListView(
+    _ podcastEpisode: ListablePodcastEpisode,
+    alwaysShowPodcastImage: Bool
+  ) -> some View {
     let episodeListView = EpisodeListView(
       episode: podcastEpisode,
-      alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageInUpNext,
+      alwaysShowPodcastImage: alwaysShowPodcastImage,
       isSelecting: viewModel.episodeList.isSelecting,
       isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
     )

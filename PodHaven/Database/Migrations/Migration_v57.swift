@@ -1,14 +1,34 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
+import Foundation
 import GRDB
+import Logging
 
 extension Schema {
-  static func migrateV57(_ db: Database) throws {
-    // Per-list artwork preference. false (the default) keeps the existing
-    // behavior of showing episode-specific artwork when one exists; true always
-    // shows the parent podcast's artwork. The default backfills existing rows.
-    try db.alter(table: "smartList") { t in
-      t.add(column: "alwaysShowPodcastImage", .boolean).notNull().defaults(to: false)
+  static func migrateV57(_: Database) throws {
+    let defaults = Container.shared.standardDefaults()
+    let oldKey = "alwaysShowPodcastImageInUpNext"
+    let newKey = "alwaysShowPodcastImageForUpNextRecommendations"
+    guard defaults.data(forKey: newKey) == nil else { return }
+    guard let data = defaults.data(forKey: oldKey) else { return }
+    let value: Bool
+    do {
+      value = try JSONDecoder().decode(Bool.self, from: data)
+    } catch {
+      log.caughtError(
+        "v57: failed to decode \(oldKey)",
+        error,
+        level: { _ in .info }
+      )
+      return
+    }
+    do {
+      let encoded = try JSONEncoder().encode(value)
+      defaults.set(encoded, forKey: newKey)
+      log.info("v57: seeded \(newKey) = \(value)")
+    } catch {
+      log.caughtError("v57: failed to encode \(newKey)", error)
     }
   }
 }

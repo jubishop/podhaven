@@ -12,55 +12,80 @@ class V57MigrationTests {
   private let appDB = AppDB.inMemory(migrate: false)
   private let migrator: DatabaseMigrator
 
+  private static let oldKey = "alwaysShowPodcastImageInUpNext"
+  private static let newKey = "alwaysShowPodcastImageForUpNextRecommendations"
+
   init() async throws {
     self.migrator = Schema.makeMigrator()
   }
 
-  @Test("v57 adds alwaysShowPodcastImage defaulting existing rows to false")
-  func backfillsExistingRows() async throws {
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v56")
-
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO smartList (title, filter, displayOrder, sortMethod)
-          VALUES ('Existing', '{"combinator":"all","conditions":[],"groups":[]}', 50, 'newestFirst')
-          """
-      )
-    }
-
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v57")
-
-    // Every pre-existing row (the 10 seeds plus the inserted one) backfills to 0.
-    let nonFalse = try await appDB.unsafeTestDB.read { db in
-      try Int.fetchOne(
-        db,
-        sql: "SELECT COUNT(*) FROM smartList WHERE alwaysShowPodcastImage <> 0"
-      ) ?? -1
-    }
-    #expect(nonFalse == 0)
+  private var defaults: FakeKeyValueStore {
+    Container.shared.standardDefaults() as! FakeKeyValueStore
   }
 
-  @Test("v57 lets new rows opt into alwaysShowPodcastImage")
-  func acceptsTrueValue() async throws {
+  // MARK: - Helpers
+
+  private func seedBool(_ value: Bool, forKey key: String) throws {
+    let data = try JSONEncoder().encode(value)
+    defaults.set(data, forKey: key)
+  }
+
+  private func loadBool(forKey key: String) throws -> Bool? {
+    guard let data = defaults.data(forKey: key) else { return nil }
+    return try JSONDecoder().decode(Bool.self, from: data)
+  }
+
+  // MARK: - Tests
+
+  @Test("seeds recommendations key from queue key when queue key is true")
+  func testSeedsTrue() async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v56")
+    try seedBool(true, forKey: Self.oldKey)
+
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v57")
 
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO smartList (title, filter, displayOrder, sortMethod, alwaysShowPodcastImage)
-          VALUES ('Podcast Art', '{"combinator":"all","conditions":[],"groups":[]}', 99,
-                  'newestFirst', 1)
-          """
-      )
-    }
+    #expect(try loadBool(forKey: Self.newKey) == true)
+    #expect(try loadBool(forKey: Self.oldKey) == true)
+  }
 
-    let value = try await appDB.unsafeTestDB.read { db in
-      try Bool.fetchOne(
-        db,
-        sql: "SELECT alwaysShowPodcastImage FROM smartList WHERE title = 'Podcast Art'"
-      )
-    }
-    #expect(value == true)
+  @Test("seeds recommendations key from queue key when queue key is false")
+  func testSeedsFalse() async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v56")
+    try seedBool(false, forKey: Self.oldKey)
+
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v57")
+
+    #expect(try loadBool(forKey: Self.newKey) == false)
+    #expect(try loadBool(forKey: Self.oldKey) == false)
+  }
+
+  @Test("does not seed recommendations key when queue key is missing")
+  func testNoSeedWhenOldMissing() async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v56")
+
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v57")
+
+    #expect(try loadBool(forKey: Self.newKey) == nil)
+  }
+
+  @Test("does not overwrite recommendations key if it is already set")
+  func testDoesNotOverwriteExistingNewKey() async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v56")
+    try seedBool(true, forKey: Self.oldKey)
+    try seedBool(false, forKey: Self.newKey)
+
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v57")
+
+    #expect(try loadBool(forKey: Self.newKey) == false)
+  }
+
+  @Test("skips when queue key is corrupt and leaves recommendations key missing")
+  func testCorruptOldKey() async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v56")
+    defaults.set(Data([0xFF, 0xFE]), forKey: Self.oldKey)
+
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v57")
+
+    #expect(try loadBool(forKey: Self.newKey) == nil)
   }
 }
