@@ -44,6 +44,8 @@ struct SmartListConditionRow: View {
           }
         }
         .labelsHidden()
+        .fixedSize(horizontal: true, vertical: false)
+        .layoutPriority(1)
         TextField("Text", text: $condition.text)
       }
     case .state:
@@ -105,7 +107,7 @@ extension SmartListFilter.TextOp {
   fileprivate var label: String {
     switch self {
     case .contains: return "contains"
-    case .doesNotContain: return "doesn't contain"
+    case .doesNotContain: return "exclude"
     case .equals: return "equals"
     }
   }
