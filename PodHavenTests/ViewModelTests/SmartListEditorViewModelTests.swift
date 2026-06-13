@@ -8,6 +8,7 @@ import Testing
 
 @Suite("of SmartListEditorViewModel tests", .container)
 @MainActor final class SmartListEditorViewModelTests {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.smartListRepo) private var smartListRepo
 
@@ -147,6 +148,31 @@ import Testing
     )
     let saved = try #require(try await smartListRepo.fetchOne(existing.id))
     #expect(saved.filter.groups.isEmpty)
+  }
+
+  @Test("requestDelete confirms with an alert before deleting")
+  func requestDeleteConfirmsBeforeDeleting() async throws {
+    let existing = try #require(try await smartListRepo.fetchAll().first)
+    let viewModel = SmartListEditorViewModel(
+      mode: .edit(existing.id),
+      title: existing.title,
+      filter: existing.filter
+    )
+
+    viewModel.requestDelete()
+
+    #expect(alert.config?.title == "Delete Smart List?")
+    let persisted = try #require(try await smartListRepo.fetchOne(existing.id))
+    #expect(persisted.id == existing.id)
+  }
+
+  @Test("requestDelete does nothing in create mode")
+  func requestDeleteIgnoredInCreateMode() async throws {
+    let viewModel = SmartListEditorViewModel(mode: .create)
+
+    viewModel.requestDelete()
+
+    #expect(alert.config == nil)
   }
 
   @Test("delete removes the row in edit mode")

@@ -37,7 +37,7 @@ struct TagsSettingsView: View {
             .contentShape(Rectangle())
             .onTapGesture { viewModel.startEditing(tag) }
             .swipeActions(edge: .trailing) {
-              AppIcon.removeTag.imageButton {
+              AppIcon.delete.imageButton {
                 viewModel.deleteTag(tag.id)
               }
             }

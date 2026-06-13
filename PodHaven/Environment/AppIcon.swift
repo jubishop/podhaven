@@ -84,9 +84,7 @@ import SwiftUI
   case removeTag
 
   // General Actions
-  case document
   case exportOPML
-  case importOPML
   case shareEpisode
   case shareEpisodeFromStart
   case sharePodcast
@@ -111,14 +109,6 @@ import SwiftUI
   case tag
   case updated
 
-  // Filtering
-  case filter
-  case filterAllEpisodes
-  case filterUncached
-  case filterUnstarted
-  case filterUnfinished
-  case filterUnqueued
-
   // Sorting
   case sort
   case sortByServerOrder
@@ -140,7 +130,6 @@ import SwiftUI
   case clear
   case clearSearch
   case downloadEpisode
-  case edit
   case editFinished
   case episodeCached
   case episodeSavedInCache
@@ -403,12 +392,8 @@ import SwiftUI
       return Data(text: "Remove Tag", systemImageName: .removeTag, color: .red)
 
     // General Actions
-    case .document:
-      return Data(text: "Document", systemImageName: .document)
     case .exportOPML:
       return Data(text: "Export OPML", systemImageName: .share)
-    case .importOPML:
-      return Data(text: "Import OPML", systemImageName: .downloadEpisode)
     case .shareEpisode:
       return Data(text: "Share Episode", systemImageName: .share)
     case .shareEpisodeFromStart:
@@ -495,8 +480,6 @@ import SwiftUI
       return Data(text: "Clear Search", systemImageName: .clearSearch)
     case .downloadEpisode:
       return Data(text: "Download", systemImageName: .downloadEpisode, color: .blue)
-    case .edit:
-      return Data(text: "Edit", systemImageName: .edit)
     case .editFinished:
       return Data(text: "Done", systemImageName: .editFinished)
     case .episodeCached:
@@ -519,18 +502,6 @@ import SwiftUI
       return Data(text: "Expand", systemImageName: .expandUp)
     case .failed:
       return Data(text: "Failed", systemImageName: .failed, color: .red)
-    case .filter:
-      return Data(text: "Filter", systemImageName: .filter)
-    case .filterAllEpisodes:
-      return Data(text: "All Episodes", systemImageName: .filterAllEpisodes)
-    case .filterUncached:
-      return Data(text: "Uncached", systemImageName: .filterUncached, color: .blue)
-    case .filterUnstarted:
-      return Data(text: "Unstarted", systemImageName: .filterUnstarted, color: .green)
-    case .filterUnfinished:
-      return Data(text: "Unfinished", systemImageName: .filterUnfinished, color: .orange)
-    case .filterUnqueued:
-      return Data(text: "Unqueued", systemImageName: .filterUnqueued, color: .purple)
 
     // Sorting
     case .sort:

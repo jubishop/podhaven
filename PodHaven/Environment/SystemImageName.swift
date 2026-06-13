@@ -48,7 +48,6 @@ struct SystemImageName:
   static let replaceQueue = SystemImageName("arrow.triangle.2.circlepath")
 
   // Documents & Data
-  static let document = SystemImageName("doc.text")
   static let edit = SystemImageName("pencil.circle")
   static let selectAll = SystemImageName("checklist")
 
@@ -77,14 +76,6 @@ struct SystemImageName:
   static let share = SystemImageName("square.and.arrow.up")
   static let website = SystemImageName("link")
   static let manualEntry = SystemImageName("link.badge.plus")
-
-  // Filtering
-  static let filter = SystemImageName("line.horizontal.3.decrease.circle")
-  static let filterAllEpisodes = SystemImageName("list.bullet")
-  static let filterUncached = SystemImageName("tray")
-  static let filterUnstarted = SystemImageName("play.circle")
-  static let filterUnfinished = SystemImageName("circle.lefthalf.filled")
-  static let filterUnqueued = SystemImageName("text.badge.minus")
 
   // Information Display
   static let aboutInfo = SystemImageName("questionmark.circle")
