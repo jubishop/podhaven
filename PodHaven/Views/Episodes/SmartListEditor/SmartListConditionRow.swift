@@ -36,7 +36,8 @@ struct SmartListConditionRow: View {
   @ViewBuilder
   private var detailControls: some View {
     switch condition.kind {
-    case .episodeTitle, .episodeDescription, .podcastTitle, .podcastDescription:
+    case .episodeTitle, .episodeDescription, .episodeTitleOrDescription,
+      .podcastTitle, .podcastDescription, .podcastTitleOrDescription:
       HStack {
         Picker("Operator", selection: $condition.textOp) {
           ForEach(SmartListFilter.TextOp.allCases, id: \.self) { textOp in
@@ -108,7 +109,6 @@ extension SmartListFilter.TextOp {
     switch self {
     case .contains: return "contains"
     case .doesNotContain: return "exclude"
-    case .equals: return "equals"
     }
   }
 }
@@ -132,6 +132,7 @@ extension SmartListFilter.StateCondition {
     case .isStarted: return "Started"
     case .isUnstarted: return "Unstarted"
     case .isCached: return "Cached"
+    case .isUncached: return "Uncached"
     case .isSaved: return "Saved"
     case .isLoved: return "Loved"
     case .isLiked: return "Liked"

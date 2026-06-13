@@ -39,12 +39,12 @@ struct SmartListFilter: Codable, Hashable, Sendable {
   enum TextField: String, Codable, Sendable {
     case title
     case description
+    case titleOrDescription
   }
 
   enum TextOp: String, Codable, Sendable, CaseIterable {
     case contains
     case doesNotContain
-    case equals
   }
 
   enum PublishDateOp: String, Codable, Sendable, CaseIterable {
@@ -60,6 +60,7 @@ struct SmartListFilter: Codable, Hashable, Sendable {
     case isStarted
     case isUnstarted
     case isCached
+    case isUncached
     case isSaved
     case isLoved
     case isLiked

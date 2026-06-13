@@ -28,8 +28,10 @@ struct EditableCondition: Identifiable, Hashable {
   enum Kind: String, CaseIterable {
     case episodeTitle
     case episodeDescription
+    case episodeTitleOrDescription
     case podcastTitle
     case podcastDescription
+    case podcastTitleOrDescription
     case state
     case episodeTag
     case podcastTag
@@ -40,8 +42,10 @@ struct EditableCondition: Identifiable, Hashable {
       switch self {
       case .episodeTitle: return "Episode Title"
       case .episodeDescription: return "Episode Description"
+      case .episodeTitleOrDescription: return "Episode Title or Description"
       case .podcastTitle: return "Podcast Title"
       case .podcastDescription: return "Podcast Description"
+      case .podcastTitleOrDescription: return "Podcast Title or Description"
       case .state: return "State"
       case .episodeTag: return "Episode Tag"
       case .podcastTag: return "Podcast Tag"
@@ -84,11 +88,19 @@ struct EditableCondition: Identifiable, Hashable {
   init(_ condition: SmartListFilter.Condition) {
     switch condition {
     case .episodeText(let field, let op, let value):
-      kind = field == .title ? .episodeTitle : .episodeDescription
+      switch field {
+      case .title: kind = .episodeTitle
+      case .description: kind = .episodeDescription
+      case .titleOrDescription: kind = .episodeTitleOrDescription
+      }
       textOp = op
       text = value
     case .podcastText(let field, let op, let value):
-      kind = field == .title ? .podcastTitle : .podcastDescription
+      switch field {
+      case .title: kind = .podcastTitle
+      case .description: kind = .podcastDescription
+      case .titleOrDescription: kind = .podcastTitleOrDescription
+      }
       textOp = op
       text = value
     case .state(let state):
@@ -136,12 +148,18 @@ struct EditableCondition: Identifiable, Hashable {
     case .episodeDescription:
       guard !trimmedText.isEmpty else { return nil }
       return .episodeText(.description, textOp, trimmedText)
+    case .episodeTitleOrDescription:
+      guard !trimmedText.isEmpty else { return nil }
+      return .episodeText(.titleOrDescription, textOp, trimmedText)
     case .podcastTitle:
       guard !trimmedText.isEmpty else { return nil }
       return .podcastText(.title, textOp, trimmedText)
     case .podcastDescription:
       guard !trimmedText.isEmpty else { return nil }
       return .podcastText(.description, textOp, trimmedText)
+    case .podcastTitleOrDescription:
+      guard !trimmedText.isEmpty else { return nil }
+      return .podcastText(.titleOrDescription, textOp, trimmedText)
     case .state:
       return .state(state)
     case .episodeTag:
@@ -165,7 +183,8 @@ struct EditableCondition: Identifiable, Hashable {
   var validationMessage: String? {
     guard condition == nil else { return nil }
     switch kind {
-    case .episodeTitle, .episodeDescription, .podcastTitle, .podcastDescription:
+    case .episodeTitle, .episodeDescription, .episodeTitleOrDescription,
+      .podcastTitle, .podcastDescription, .podcastTitleOrDescription:
       return "Enter text to match"
     case .state:
       return nil

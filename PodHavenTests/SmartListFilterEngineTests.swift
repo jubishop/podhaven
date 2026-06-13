@@ -103,6 +103,30 @@ class SmartListFilterEngineTests {
     #expect(try await ids(for: all()) == Set(series.episodes.map(\.id)))
   }
 
+  // MARK: - State
+
+  @Test("uncached is the complement of cached")
+  func uncachedState() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "cached", cachedFilename: "c.mp3"),
+          try Create.unsavedEpisode(guid: "uncached"),
+        ]
+      )
+    )
+    let cached = series.episodes[0].id
+    let uncached = series.episodes[1].id
+
+    #expect(try await ids(for: all(.state(.isCached))) == [cached])
+    #expect(try await ids(for: all(.state(.isUncached))) == [uncached])
+    // Parity with the hardcoded complement of the cached expression.
+    let uncachedIDs = try await ids(for: all(.state(.isUncached)))
+    let hardcoded = try await ids(matching: !Episode.cached)
+    #expect(uncachedIDs == hardcoded)
+  }
+
   // MARK: - Text
 
   @Test("episode doesNotContain includes null-description rows")
@@ -124,23 +148,6 @@ class SmartListFilterEngineTests {
     // A null-description row is absent from the FTS index, so the NOT IN
     // subquery correctly retains it.
     #expect(matched == [nullID, barID])
-  }
-
-  @Test("equals matches the whole field case-insensitively")
-  func equalsWholeField() async throws {
-    let series = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [
-          try Create.unsavedEpisode(guid: "hello", title: "Hello"),
-          try Create.unsavedEpisode(guid: "helloworld", title: "Hello World"),
-        ]
-      )
-    )
-    let helloID = series.episodes[0].id
-
-    // Case-insensitive, but a whole-field match: "Hello World" is excluded.
-    #expect(try await ids(for: all(.episodeText(.title, .equals, "hello"))) == [helloID])
   }
 
   @Test("contains matches whole words and word-prefixes, not mid-word substrings")
@@ -192,6 +199,54 @@ class SmartListFilterEngineTests {
     #expect(try await ids(for: all(.episodeText(.title, .contains, "quantum"))) == [titleHit])
     #expect(
       try await ids(for: all(.episodeText(.description, .contains, "quantum"))) == [descHit]
+    )
+  }
+
+  @Test("title-or-description spans both columns and equals an Any of the two single-field rows")
+  func episodeTitleOrDescriptionCombinesColumns() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "titleHit",
+            title: "Quantum Physics",
+            description: "unrelated"
+          ),
+          try Create.unsavedEpisode(
+            guid: "descHit",
+            title: "Daily Show",
+            description: "About quantum mechanics"
+          ),
+          try Create.unsavedEpisode(guid: "miss", title: "Cooking Hour", description: "recipes"),
+        ]
+      )
+    )
+    let titleHit = series.episodes[0].id
+    let descHit = series.episodes[1].id
+    let miss = series.episodes[2].id
+
+    // contains spans both columns: a title-only hit and a description-only hit.
+    let combined = try await ids(for: all(.episodeText(.titleOrDescription, .contains, "quantum")))
+    #expect(combined == [titleHit, descHit])
+
+    // Identical to one title condition and one description condition OR'd.
+    let oneOfEach = try await ids(
+      for: SmartListFilter(
+        combinator: .any,
+        conditions: [
+          .episodeText(.title, .contains, "quantum"),
+          .episodeText(.description, .contains, "quantum"),
+        ]
+      )
+    )
+    #expect(combined == oneOfEach)
+
+    // exclude keeps only rows where neither column contains the term.
+    #expect(
+      try await ids(for: all(.episodeText(.titleOrDescription, .doesNotContain, "quantum"))) == [
+        miss
+      ]
     )
   }
 
@@ -458,6 +513,52 @@ class SmartListFilterEngineTests {
     #expect(try await ids(for: all(.podcastText(.title, .contains, "tech"))) == [techEp])
     #expect(try await ids(for: all(.podcastText(.title, .doesNotContain, "tech"))) == [gardenEp])
     #expect(try await ids(for: all(.podcastText(.title, .contains, "the tech"))) == [techEp])
+  }
+
+  @Test("podcast title-or-description spans both columns through the joined request")
+  func podcastTitleOrDescriptionCombinesColumns() async throws {
+    let titleSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          title: "Tech Weekly",
+          description: "general chatter"
+        ),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "title-pod")]
+      )
+    )
+    let descSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          title: "Garden Hour",
+          description: "all about tech gadgets"
+        ),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "desc-pod")]
+      )
+    )
+    let missSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Cooking", description: "recipes"),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "miss-pod")]
+      )
+    )
+    let titleEp = titleSeries.episodes[0].id
+    let descEp = descSeries.episodes[0].id
+    let missEp = missSeries.episodes[0].id
+
+    #expect(
+      try await ids(for: all(.podcastText(.titleOrDescription, .contains, "tech")))
+        == [titleEp, descEp]
+    )
+    // The whole-table podcast FTS subquery resolves through the joined listable
+    // request to its own inner `podcast`, not the request's joined one.
+    #expect(
+      try await listableIDs(for: all(.podcastText(.titleOrDescription, .contains, "tech")))
+        == [titleEp, descEp]
+    )
+    #expect(
+      try await listableIDs(for: all(.podcastText(.titleOrDescription, .doesNotContain, "tech")))
+        == [missEp]
+    )
   }
 
   // MARK: - Duration

@@ -348,9 +348,12 @@ import Testing
     let conditions: [SmartListFilter.Condition] = [
       .episodeText(.title, .contains, "AI"),
       .episodeText(.description, .doesNotContain, "ad"),
+      .episodeText(.titleOrDescription, .contains, "space"),
       .podcastText(.title, .contains, "The"),
-      .podcastText(.description, .equals, "exact"),
+      .podcastText(.description, .contains, "exact"),
+      .podcastText(.titleOrDescription, .doesNotContain, "sports"),
       .state(.wasPreviouslyQueued),
+      .state(.isUncached),
       .episodeTag(.hasTag(tag.id)),
       .episodeTag(.hasNoTags),
       .podcastTag(.doesNotHaveTag(tag.id)),
