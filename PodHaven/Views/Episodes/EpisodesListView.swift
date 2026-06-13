@@ -30,7 +30,7 @@ struct EpisodesListView: View {
       .animation(.default, value: viewModel.episodeList.filteredEntries)
       .navigationTitle(viewModel.title)
       .toolbar {
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarItem(placement: .topBarLeading) {
           AppIcon.settings.labelButton("Edit Smart List") {
             sheet(id: "smart-list-editor-\(viewModel.smartListID)") {
               SmartListEditorView(
