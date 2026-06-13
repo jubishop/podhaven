@@ -24,16 +24,12 @@ extension Container {
 struct TranscriptionProcessor: Sendable {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.sleeper) private var sleeper
   @DynamicInjected(\.taskPriority) private var taskPriority
   @DynamicInjected(\.transcriber) private var transcriber
   @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
 
   private static let log = Log.as(LogSubsystem.Transcription.processor)
   private static let locale = Locale(identifier: "en-US")
-  // Bounded wait for an uncached episode's audio to finish downloading.
-  private static let downloadPollInterval: Duration = .seconds(2)
-  private static let maxDownloadPolls = 150
 
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).transcription"
 
@@ -104,23 +100,23 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
+  // Foreground drain: every queue change wakes a drain of the head down to
+  // empty. The stream replays the current queue on subscription and ends on
+  // task cancellation, so a backgrounded processor falls out of the loop
+  // cleanly and the persisted queue resumes on the next activation.
   private func drain() async {
-    while !Task.isCancelled {
-      guard let episodeID = transcriptionQueue.episodeIDs.first else {
-        await waitForWork()
-        continue
-      }
-
+    for await _ in transcriptionQueue.$episodeIDs.stream() {
       do {
-        try await processHead(episodeID)
+        try await drainUntilEmpty()
       } catch {
-        return  // Cancelled — the foreground loop stops; the queue resumes later.
+        return  // Cancelled — the queue resumes on the next activation.
       }
     }
   }
 
-  // Bounded drain for the background task: process until the queue empties, or
-  // until expiry surfaces as cancellation (rethrown so register() completes).
+  // Process the head episode until the queue empties, or until expiry surfaces
+  // as cancellation (rethrown so callers stop). Shared by the foreground drain
+  // and the background task.
   private func drainUntilEmpty() async throws {
     while let episodeID = transcriptionQueue.episodeIDs.first {
       try Task.checkCancellation()
@@ -142,14 +138,6 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  // Suspend until the queue next becomes non-empty. AsyncStream ends on task
-  // cancellation, so a backgrounded processor falls out of the loop cleanly.
-  private func waitForWork() async {
-    for await ids in transcriptionQueue.$episodeIDs.stream() where !ids.isEmpty {
-      return
-    }
-  }
-
   private func process(_ episodeID: Episode.ID) async throws {
     guard let episode = try await repo.episode(episodeID) else {
       transcriptionQueue.remove(episodeID)
@@ -163,8 +151,13 @@ struct TranscriptionProcessor: Sendable {
     transcriptionQueue.setProgress(0, for: episodeID)
     Self.log.info("Transcribing \(episodeID)")
 
-    let fileURL = try await cachedAudioURL(for: episode)
-    let segments = try await transcriber.transcribe(fileURL: fileURL, locale: Self.locale)
+    guard let cachedURL = try await cacheManager.cachedURL(downloadingIfNeeded: episodeID) else {
+      throw TranscriptionError.audioUnavailable(episodeID)
+    }
+    let segments = try await transcriber.transcribe(
+      fileURL: cachedURL.rawValue,
+      locale: Self.locale
+    )
     let transcript = Transcript(
       segments: segments,
       locale: Self.locale.identifier(.bcp47),
@@ -176,22 +169,5 @@ struct TranscriptionProcessor: Sendable {
     transcriptionQueue.clearProgress(for: episodeID)
     transcriptionQueue.remove(episodeID)
     Self.log.info("Transcribed \(episodeID): \(segments.count) segments")
-  }
-
-  private func cachedAudioURL(for episode: Episode) async throws -> URL {
-    if let cachedURL = episode.cachedURL { return cachedURL.rawValue }
-
-    Self.log.debug("Audio not cached for \(episode.id); downloading")
-    try await cacheManager.downloadToCache(for: episode.id)
-
-    for _ in 0..<Self.maxDownloadPolls {
-      try Task.checkCancellation()
-      if let cachedURL = try await repo.episode(episode.id)?.cachedURL {
-        return cachedURL.rawValue
-      }
-      try await sleeper.sleep(for: Self.downloadPollInterval)
-    }
-
-    throw TranscriptionError.audioUnavailable(episode.id)
   }
 }

@@ -53,6 +53,10 @@ struct CacheManager {
 
   private let startOnce = Once()
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
+  // One-shot completion signals for in-flight downloads, keyed by episode.
+  // CacheBackgroundDelegate opens a latch when a download finishes or fails, so
+  // callers can await a download instead of polling for the cached file.
+  private let downloadLatches = ThreadSafe<[Episode.ID: AsyncLatch<Void>]>([:])
 
   // MARK: - Initialization
 
@@ -117,6 +121,36 @@ struct CacheManager {
     downloadTask.resume()
 
     return downloadTask.taskID
+  }
+
+  // Ensures the episode's audio is cached, starting a download if needed, and
+  // suspends until it finishes. Returns the cached URL, or nil if the episode
+  // vanished or the download failed. Event-driven via AsyncLatch — no polling.
+  func cachedURL(downloadingIfNeeded episodeID: Episode.ID) async throws -> CachedURL? {
+    // Register the latch before inspecting state so a completion that fires
+    // mid-flight can't slip between the cache check and the await.
+    let latch = downloadLatches { latches in
+      let latch = latches[episodeID] ?? AsyncLatch<Void>()
+      latches[episodeID] = latch
+      return latch
+    }
+    defer { downloadLatches { _ = $0.removeValue(forKey: episodeID) } }
+
+    if let cachedURL = try await repo.episode(episodeID)?.cachedURL { return cachedURL }
+
+    try await downloadToCache(for: episodeID)
+    // downloadToCache no-ops when already cached/caching, so re-check rather
+    // than await a latch whose completion may have already fired.
+    if let cachedURL = try await repo.episode(episodeID)?.cachedURL { return cachedURL }
+
+    try await latch.wait()
+    return try await repo.episode(episodeID)?.cachedURL
+  }
+
+  // Opens the completion latch for an episode whose download just finished or
+  // failed. A no-op when nothing is awaiting it.
+  func signalDownloadComplete(for episodeID: Episode.ID) {
+    downloadLatches { $0[episodeID] }?.open()
   }
 
   @discardableResult

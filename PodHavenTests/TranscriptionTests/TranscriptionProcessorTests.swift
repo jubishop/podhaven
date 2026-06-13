@@ -9,9 +9,9 @@ import Testing
 struct TranscriptionProcessorTests {
   @Test("drains queued episodes one at a time, writing transcripts")
   func drainsQueueWritingTranscripts() async throws {
-    Container.shared.transcriber.register {
-      FakeTranscriber(behavior: .succeed([TranscriptSegment(start: 0, text: "hello")]))
-    }
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+    )
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
@@ -35,9 +35,40 @@ struct TranscriptionProcessorTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
+  @Test("an uncached episode is downloaded, awaited, then transcribed")
+  func downloadsUncachedEpisodeBeforeTranscribing() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+    )
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    queue.enqueue(podcastEpisode.id)
+    processor.handleScenePhaseChange(to: .active)
+
+    // The processor starts the download and suspends until it completes;
+    // driving the background finish must resume it without any clock advance.
+    let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
+    try await CacheHelpers.waitForResumed(taskID)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "queue did not drain after download finished: \(queue.episodeIDs)" }
+    )
+
+    let segments = try await repo.episode(podcastEpisode.id)?.decodedTranscript?.segments
+    #expect(segments?.first?.text == "hello")
+
+    processor.handleScenePhaseChange(to: .background)
+  }
+
   @Test("a failing transcription is marked failed and dequeued")
   func failureMarksFailedAndDequeues() async throws {
-    Container.shared.transcriber.register { FakeTranscriber(behavior: .fail) }
+    TranscriptionHelpers.stubSpeechFailure()
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()

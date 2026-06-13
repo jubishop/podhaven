@@ -9,9 +9,9 @@ import Testing
 struct TranscriptionBackgroundTaskTests {
   @Test("the iOS-granted background task drains the queue and completes")
   func backgroundTaskDrainsQueue() async throws {
-    Container.shared.transcriber.register {
-      FakeTranscriber(behavior: .succeed([TranscriptSegment(start: 0, text: "hi")]))
-    }
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0)]
+    )
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()

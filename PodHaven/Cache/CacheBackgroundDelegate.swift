@@ -15,6 +15,7 @@ extension Container {
 }
 
 final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
+  private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
@@ -112,6 +113,13 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     downloadTask: any DownloadingTask,
     didFinishDownloadingTo location: URL
   ) async {
+    // Signal completion on every exit (cached, or any give-up) so an awaiting
+    // caller resumes; keyed off the task so a deleted row still unblocks.
+    let signalEpisodeID = episodeID(for: downloadTask)
+    defer {
+      if let signalEpisodeID { cacheManager.signalDownloadComplete(for: signalEpisodeID) }
+    }
+
     let episode: Episode
     do {
       guard let fetched = try await self.episode(for: downloadTask) else {
@@ -292,6 +300,13 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) async {
     guard let downloadError = error else { return }
 
+    // A failed download unblocks any awaiting caller; success is signaled by
+    // didFinishDownloadingTo after the cached filename is written.
+    let signalEpisodeID = episodeID(for: task)
+    defer {
+      if let signalEpisodeID { cacheManager.signalDownloadComplete(for: signalEpisodeID) }
+    }
+
     let episode: Episode?
     do {
       episode = try await self.episode(for: task)
@@ -341,10 +356,18 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   // session-scoped and reset on each background-session creation, so they
   // can't be trusted to map a task to a row that survived an app relaunch.
   private func episode(for task: any DownloadingTask) async throws -> Episode? {
+    guard let episodeID = episodeID(for: task) else { return nil }
+    return try await repo.episode(episodeID)
+  }
+
+  // Parse the episode id from the task's stable taskDescription without a DB
+  // hit, so download completion can be signaled even if the episode row was
+  // deleted mid-download.
+  private func episodeID(for task: any DownloadingTask) -> Episode.ID? {
     guard let description = task.taskDescription,
       let raw = Episode.ID.RawValue(description)
     else { return nil }
-    return try await repo.episode(Episode.ID(rawValue: raw))
+    return Episode.ID(rawValue: raw)
   }
 
   private func generateCacheFilename(for episode: Episode) -> String {

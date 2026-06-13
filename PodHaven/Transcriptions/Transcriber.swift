@@ -1,15 +1,13 @@
 // Copyright Justin Bishop, 2026
 
-import AVFoundation
 import FactoryKit
 import Foundation
 import Logging
-import Speech
 
 // MARK: - Container
 
 extension Container {
-  var transcriber: Factory<any Transcribing> {
+  var transcriber: Factory<Transcriber> {
     Factory(self) { Transcriber() }.scope(.cached)
   }
 }
@@ -30,15 +28,18 @@ enum TranscriptionError: LocalizedError {
   }
 }
 
-// MARK: - Transcribing
-
-protocol Transcribing: Sendable {
-  func transcribe(fileURL: URL, locale: Locale) async throws -> [TranscriptSegment]
-}
-
 // MARK: - Transcriber
 
-struct Transcriber: Transcribing {
+// Orchestrates an on-device transcription: ensure the locale's model is
+// installed, then drive the audio through a SpeechAnalyzing while collecting the
+// SpeechTranscribing's phrases. The OS objects sit behind protocols so this
+// orchestration is testable; SpeechAnalyzer/SpeechTranscriber conform in
+// extensions.
+struct Transcriber: Sendable {
+  @DynamicInjected(\.speechAnalyzer) private var speechAnalyzer
+  @DynamicInjected(\.speechModelManager) private var speechModelManager
+  @DynamicInjected(\.speechTranscriber) private var speechTranscriber
+
   // Bump when the transcription recipe changes so stored transcripts can be
   // invalidated and regenerated, mirroring EmbeddingService.recipeVersion.
   static let recipeVersion = 1
@@ -51,22 +52,16 @@ struct Transcriber: Transcribing {
     try Task.checkCancellation()
     try await ensureModelInstalled(for: locale)
 
-    let transcriber = SpeechTranscriber(
-      locale: locale,
-      transcriptionOptions: [],
-      reportingOptions: [],
-      attributeOptions: [.audioTimeRange]
-    )
-    let analyzer = SpeechAnalyzer(modules: [transcriber])
-    let file = try AVAudioFile(forReading: fileURL)
+    let transcriber = speechTranscriber(locale)
+    let analyzer = speechAnalyzer(transcriber)
 
     // Consume results concurrently while the analyzer feeds the file through.
-    async let collected = Self.collectSegments(from: transcriber.results)
+    async let collected = Self.collectSegments(from: transcriber.resultStream)
 
-    if let lastSample = try await analyzer.analyzeSequence(from: file) {
-      try await analyzer.finalizeAndFinish(through: lastSample)
+    if let lastSample = try await analyzer.analyze(audioFileAt: fileURL) {
+      try await analyzer.finalize(through: lastSample)
     } else {
-      await analyzer.cancelAndFinishNow()
+      await analyzer.cancel()
     }
 
     let segments = try await collected
@@ -74,18 +69,17 @@ struct Transcriber: Transcribing {
     return segments
   }
 
-  private static func collectSegments<Results: AsyncSequence & Sendable>(
-    from results: Results
-  ) async throws -> [TranscriptSegment] where Results.Element == SpeechTranscriber.Result {
+  private static func collectSegments(
+    from results: AsyncThrowingStream<any SpeechTranscriptionResult, any Error>
+  ) async throws -> [TranscriptSegment] {
     var segments: [TranscriptSegment] = []
     for try await result in results {
       try Task.checkCancellation()
 
-      let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
+      let text = result.phrase.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !text.isEmpty else { continue }
 
-      let start = result.text.runs.compactMap { $0.audioTimeRange?.start.seconds }.min() ?? 0
-      segments.append(TranscriptSegment(start: start, text: text))
+      segments.append(TranscriptSegment(start: result.startSeconds ?? 0, text: text))
     }
     return segments
   }
@@ -93,23 +87,13 @@ struct Transcriber: Transcribing {
   private func ensureModelInstalled(for locale: Locale) async throws {
     let target = locale.identifier(.bcp47)
 
-    let supported = await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) }
-    guard supported.contains(target) else {
-      throw TranscriptionError.localeNotSupported(locale)
-    }
+    guard await speechModelManager.supportedLocaleIdentifiers().contains(target)
+    else { throw TranscriptionError.localeNotSupported(locale) }
 
-    let installed = await SpeechTranscriber.installedLocales.map { $0.identifier(.bcp47) }
-    guard !installed.contains(target) else { return }
+    guard !(await speechModelManager.installedLocaleIdentifiers().contains(target))
+    else { return }
 
     Self.log.info("Downloading transcription model for \(target)")
-    let module = SpeechTranscriber(
-      locale: locale,
-      transcriptionOptions: [],
-      reportingOptions: [],
-      attributeOptions: [.audioTimeRange]
-    )
-    if let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
-      try await request.downloadAndInstall()
-    }
+    try await speechModelManager.installModel(for: locale)
   }
 }
