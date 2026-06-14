@@ -127,6 +127,7 @@ extension SmartListFilter.StateCondition {
     switch self {
     case .isQueued: return "Queued"
     case .isUnqueued: return "Unqueued"
+    case .wasPreviouslyQueued: return "Previously Queued"
     case .isFinished: return "Finished"
     case .isUnfinished: return "Unfinished"
     case .isStarted: return "Started"
@@ -140,7 +141,6 @@ extension SmartListFilter.StateCondition {
     case .isNotInterested: return "Not Interested"
     case .isRated: return "Rated"
     case .isUnrated: return "Unrated"
-    case .wasPreviouslyQueued: return "Previously Queued"
     }
   }
 }
