@@ -66,6 +66,14 @@ extension ManagingEpisodes {
     episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
   }
 
+  func canTranscribe(_ episode: EpisodeType) -> Bool {
+    guard let episodeID = episode.episodeID else { return !episode.hasTranscript }
+    return
+      transcriptionQueue
+      .status(for: episodeID, hasTranscript: episode.hasTranscript)
+      .canTranscribe
+  }
+
   // MARK: - Actions
 
   func playEpisode(_ episode: EpisodeType) {

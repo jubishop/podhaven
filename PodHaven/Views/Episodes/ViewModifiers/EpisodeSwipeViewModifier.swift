@@ -189,10 +189,12 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
 
   private func isAvailable(_ action: UserSettings.EpisodeSwipeAction) -> Bool {
     switch action {
-    case .playPause, .rate, .saveInCache, .transcribe:
+    case .playPause, .rate, .saveInCache:
       true
     case .markFinished:
       !episode.finished
+    case .transcribe:
+      viewModel.canTranscribe(episode)
     case .cache:
       switch episode.cacheStatus {
       case .uncached: true

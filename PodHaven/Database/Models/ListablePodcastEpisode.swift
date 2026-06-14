@@ -45,6 +45,7 @@ struct ListablePodcastEpisode:
   var queueOrder: Int? { core.queueOrder }
   var cacheStatus: Episode.CacheStatus { core.cacheStatus }
   var saveInCache: Bool { core.saveInCache }
+  var hasTranscript: Bool { core.hasTranscript }
   var currentTime: CMTime { core.currentTime }
   var finishDate: Date? { core.finishDate }
   var rating: EpisodeRating? { core.rating }

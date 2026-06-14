@@ -476,6 +476,10 @@ extension SelectableEpisodeList {
 // MARK: - Tag Selection Helpers
 
 extension SelectableEpisodeList where Self: ManagingEpisodes {
+  var anySelectedCanTranscribe: Bool {
+    selectedEpisodes.contains { canTranscribe($0) }
+  }
+
   // True only when every selected episode has loaded tag data.
   var selectionHasTagData: Bool {
     !selectedEpisodes.isEmpty && selectedEpisodes.allSatisfy { tagIDs(for: $0) != nil }

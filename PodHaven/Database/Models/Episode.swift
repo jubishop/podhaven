@@ -279,6 +279,15 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     EpisodeEmbedding
     .select(EpisodeEmbedding.Columns.episodeId)
     .contains(Columns.id)
+
+  // The alias and derived selectable for the transcript-presence flag exposed on
+  // a slim list row, so projections avoid fetching the whole transcript blob.
+  // Shared so the selectable and row decoders agree on the alias.
+  static let hasTranscriptColumnName: String = "hasTranscript"
+  static var hasTranscriptSelectable: any SQLSelectable {
+    (Columns.transcript != nil).forKey(hasTranscriptColumnName)
+  }
+
   // Each word must match, but a word may land in either the episode's own text
   // or its parent podcast's text — so "tech daily" finds the "Daily" episode of
   // the "Tech" podcast. AND across words, OR across the two FTS mirrors per word.
