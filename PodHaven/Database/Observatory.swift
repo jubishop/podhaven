@@ -228,7 +228,10 @@ struct Observatory: Observing {
 
   // Per-list count of matching episodes newer than the list's last-seen
   // watermark — the unread badge. Each count is an indexed COUNT, so the hub
-  // never loads any list to display it.
+  // never loads any list to display it. "Newer" is by episode id (ingestion
+  // order), not membership recency: an older episode that begins matching from a
+  // state change (finished, loved, podcast tagged) sits below the watermark and
+  // never badges — only freshly-ingested matches count toward the badge.
   func smartListUnreadCounts() -> AsyncValueObservation<[SmartList.ID: Int]> {
     reader.observe { db in
       let referenceDate = Container.shared.dateProvider().now
