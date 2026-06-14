@@ -9,6 +9,8 @@ struct SmartListEditorView: View {
 
   @State private var viewModel: SmartListEditorViewModel
 
+  @FocusState private var titleFocused: Bool
+
   init(viewModel: SmartListEditorViewModel) {
     self.viewModel = viewModel
   }
@@ -18,6 +20,7 @@ struct SmartListEditorView: View {
       Form {
         Section {
           TextField("Title", text: $viewModel.title)
+            .focused($titleFocused)
         }
 
         Section {
@@ -77,6 +80,12 @@ struct SmartListEditorView: View {
       }
       .navigationTitle(viewModel.mode == .create ? "New Smart List" : "Edit Smart List")
       .navigationBarTitleDisplayMode(.inline)
+      .onAppear {
+        // Creating starts at the title; editing usually targets conditions.
+        if viewModel.mode == .create {
+          titleFocused = true
+        }
+      }
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { sheet.dismiss() }
