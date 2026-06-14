@@ -68,6 +68,11 @@ class EpisodesViewModel {
     }
   }
 
+  func deleteSmartList(at offsets: IndexSet) {
+    guard let index = offsets.first, smartLists.indices.contains(index) else { return }
+    deleteSmartList(smartLists[index])
+  }
+
   func deleteSmartList(_ smartList: SmartList) {
     alert(
       title: "Delete Smart List?",
