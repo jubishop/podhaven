@@ -68,6 +68,7 @@ protocol Observing: Sendable {
 
   func smartLists() -> AsyncValueObservation<[SmartList]>
   func smartList(_ id: SmartList.ID) -> AsyncValueObservation<SmartList?>
+  func smartListUnreadCounts() -> AsyncValueObservation<[SmartList.ID: Int]>
 
   // MARK: - On Deck
 

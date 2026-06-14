@@ -362,6 +362,22 @@ class EpisodesListViewModel:
 
   func disappear() {
     cancelRecommendationWork()
+    markSeen()
+  }
+
+  // Advances this list's unread watermark to the newest episode on leave, so
+  // everything visited (including episodes that arrived mid-session) clears its
+  // hub badge. Fire-and-forget housekeeping: a failure only leaves a stale
+  // badge, so it logs without surfacing an alert.
+  private func markSeen() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await smartListRepo.markSeen(smartListID)
+      } catch {
+        Self.log.caughtError("markSeen: failed for '\(title)'", error)
+      }
+    }
   }
 
   // The coordinator's score cache deliberately survives teardown.
