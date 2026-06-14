@@ -353,9 +353,12 @@ struct EpisodeDetailView: View {
             .foregroundStyle(.secondary)
         }
       case .transcribed:
-        if let transcript = viewModel.episode.decodedTranscript {
+        if let transcript = viewModel.decodedTranscript, !transcript.segments.isEmpty {
           Text(transcript.segments.map(\.text).joined(separator: "\n"))
             .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+          Text("No speech detected")
+            .foregroundStyle(.secondary)
         }
       case .failed:
         VStack(alignment: .leading, spacing: 8) {

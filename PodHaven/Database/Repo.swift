@@ -204,6 +204,15 @@ struct Repo: Databasing {
     }
   }
 
+  func downloadingEpisodeIDs() async throws -> [Episode.ID] {
+    try await reader.read { db in
+      try Episode
+        .filter(Episode.Columns.downloading == true)
+        .select(Episode.Columns.id, as: Episode.ID.self)
+        .fetchAll(db)
+    }
+  }
+
   // MARK: - Series Writers
 
   @discardableResult

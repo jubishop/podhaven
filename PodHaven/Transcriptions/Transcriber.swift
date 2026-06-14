@@ -17,6 +17,7 @@ extension Container {
 enum TranscriptionError: LocalizedError {
   case localeNotSupported(Locale)
   case audioUnavailable(Episode.ID)
+  case noDecodableAudio(URL)
 
   var errorDescription: String? {
     switch self {
@@ -24,6 +25,8 @@ enum TranscriptionError: LocalizedError {
       "On-device transcription is not supported for \(locale.identifier(.bcp47))"
     case .audioUnavailable(let episodeID):
       "Audio for episode \(episodeID) could not be downloaded for transcription"
+    case .noDecodableAudio(let url):
+      "No audio could be decoded from \(url.lastPathComponent) for transcription"
     }
   }
 }
@@ -58,11 +61,14 @@ struct Transcriber: Sendable {
     // Consume results concurrently while the analyzer feeds the file through.
     async let collected = Self.collectSegments(from: transcriber.resultStream)
 
-    if let lastSample = try await analyzer.analyze(audioFileAt: fileURL) {
-      try await analyzer.finalize(through: lastSample)
-    } else {
+    // A nil last sample means the file decoded to no audio at all — a failed
+    // transcription (retryable), distinct from audio that contained no
+    // recognizable speech, which finalizes to an empty, terminal transcript.
+    guard let lastSample = try await analyzer.analyze(audioFileAt: fileURL) else {
       await analyzer.cancel()
+      throw TranscriptionError.noDecodableAudio(fileURL)
     }
+    try await analyzer.finalize(through: lastSample)
 
     let segments = try await collected
     Self.log.debug("Transcribed \(segments.count) segments from \(fileURL.lastPathComponent)")

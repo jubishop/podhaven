@@ -21,6 +21,12 @@ extension Container {
       config.waitsForConnectivity = true
       config.isDiscretionary = false
       config.httpMaximumConnectionsPerHost = 4
+      // Cap the overall per-download deadline (which includes time spent waiting
+      // for connectivity) well below the framework's multi-day default, so a
+      // download that never makes progress is abandoned in bounded time.
+      // Genuinely dead tasks (e.g. cancelled by a force-quit, which never
+      // deliver a completion callback) are reset by reconcileStaleDownloads().
+      config.timeoutIntervalForResource = 24 * 60 * 60
       return URLSession(
         configuration: config,
         delegate: self.cacheBackgroundDelegate(),
@@ -75,8 +81,37 @@ struct CacheManager {
         Assert.fatal("Couldn't create cache directory?")
       }
 
+      reconcileStaleDownloads()
       startCurrentEpisodeIDObservation()
       startQueueObservation()
+    }
+  }
+
+  // A download tracked as in-flight (downloading == true) is normally cleared
+  // only by the delegate's terminal callbacks, but a force-quit cancels the
+  // background tasks without delivering them, stranding the flag set. On launch
+  // the recreated session re-lists only the still-live tasks, so any downloading
+  // row absent from that set is dead and gets cleared. Reading the DB rows
+  // before the live-task snapshot is deliberate: downloadToCache creates the
+  // task before flipping the flag, so a genuinely in-flight download can never
+  // appear in the rows yet be missing from the snapshot.
+  private func reconcileStaleDownloads() {
+    Task(priority: taskPriority(.utility)) {
+      do {
+        let downloadingIDs = try await repo.downloadingEpisodeIDs()
+        guard !downloadingIDs.isEmpty else { return }
+
+        let liveDescriptions = Set(
+          await cacheManagerSession.allCreatedTasks.compactMap(\.taskDescription)
+        )
+        for episodeID in downloadingIDs
+        where !liveDescriptions.contains(String(episodeID.rawValue)) {
+          Self.log.debug("reconcileStaleDownloads: clearing stranded download for \(episodeID)")
+          try await repo.updateDownloading(episodeID, downloading: false)
+        }
+      } catch {
+        Self.log.caughtError("reconcileStaleDownloads failed", error)
+      }
     }
   }
 

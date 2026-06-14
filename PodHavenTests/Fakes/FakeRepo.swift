@@ -181,6 +181,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.cachedEpisodes()
   }
 
+  func downloadingEpisodeIDs() async throws -> [Episode.ID] {
+    recordCall(methodName: "downloadingEpisodeIDs")
+    return try await repo.downloadingEpisodeIDs()
+  }
+
   // MARK: - Series Writers
 
   @discardableResult

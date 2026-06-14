@@ -89,4 +89,29 @@ struct TranscriptionProcessorTests {
 
     processor.handleScenePhaseChange(to: .background)
   }
+
+  @Test("an episode with no recognizable speech stores an empty transcript and isn't failed")
+  func noSpeechStoresEmptyTranscript() async throws {
+    TranscriptionHelpers.stubSpeech(phrases: [])
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+
+    let ep = try await Create.podcastEpisode(Create.unsavedEpisode(cachedFilename: "ep.mp3"))
+
+    queue.enqueue(ep.id)
+    processor.handleScenePhaseChange(to: .active)
+
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "queue did not drain: \(queue.episodeIDs)" }
+    )
+
+    let episode = try await repo.episode(ep.id)
+    #expect(episode?.hasTranscript == true)
+    #expect(episode?.decodedTranscript?.segments.isEmpty == true)
+    #expect(!queue.failed.contains(ep.id))
+
+    processor.handleScenePhaseChange(to: .background)
+  }
 }

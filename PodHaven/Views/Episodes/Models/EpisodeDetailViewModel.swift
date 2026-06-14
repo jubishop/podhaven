@@ -81,8 +81,22 @@ enum EpisodeDetailDisplayedScore: Sendable {
   private let originTab: Navigation.Tab
   var tags: IdentifiedArrayOf<Tag> = []
   private var score: EpisodeDetailDisplayedScore?
+  // Decoding the transcript JSON isn't free, and `episode` rebuilds on every
+  // read; memoize the decode per episode so it happens once, not per body pass.
+  @ObservationIgnored private var transcriptCache: (episodeID: Episode.ID, transcript: Transcript)?
 
   var episode: EpisodeDetailContent { state.detailContent }
+
+  var decodedTranscript: Transcript? {
+    let content = episode
+    guard content.hasTranscript, let episodeID = content.episodeID else { return nil }
+    if let transcriptCache, transcriptCache.episodeID == episodeID {
+      return transcriptCache.transcript
+    }
+    guard let transcript = content.loaded?.decodedTranscript else { return nil }
+    transcriptCache = (episodeID, transcript)
+    return transcript
+  }
 
   // MARK: - Derived State
 

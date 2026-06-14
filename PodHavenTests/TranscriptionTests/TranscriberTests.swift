@@ -19,10 +19,11 @@ struct TranscriberTests {
       FakeSpeechTranscriptionResult(phrase: "world", startSeconds: nil),
     ])
 
-    let segments = try await Container.shared.transcriber().transcribe(
-      fileURL: fileURL,
-      locale: locale
-    )
+    let segments = try await Container.shared.transcriber()
+      .transcribe(
+        fileURL: fileURL,
+        locale: locale
+      )
 
     #expect(segments.count == 2)
     #expect(segments.first?.text == "hello")
@@ -46,13 +47,17 @@ struct TranscriberTests {
   func installsWhenNotInstalled() async throws {
     let modelManager = TranscriptionHelpers.stubSpeech(
       phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0)],
-      modelManager: FakeSpeechModelManager(supportedIdentifiers: ["en-US"], installedIdentifiers: [])
+      modelManager: FakeSpeechModelManager(
+        supportedIdentifiers: ["en-US"],
+        installedIdentifiers: []
+      )
     )
 
-    let segments = try await Container.shared.transcriber().transcribe(
-      fileURL: fileURL,
-      locale: locale
-    )
+    let segments = try await Container.shared.transcriber()
+      .transcribe(
+        fileURL: fileURL,
+        locale: locale
+      )
 
     #expect(segments.first?.text == "hi")
     #expect(modelManager.installRequests() == ["en-US"])
@@ -65,5 +70,30 @@ struct TranscriberTests {
     await #expect(throws: FakeSpeechError.self) {
       try await Container.shared.transcriber().transcribe(fileURL: fileURL, locale: locale)
     }
+  }
+
+  @Test("throws when the audio file decodes to no audio")
+  func throwsWhenNoDecodableAudio() async throws {
+    TranscriptionHelpers.stubSpeech(phrases: [
+      FakeSpeechTranscriptionResult(phrase: "ignored", startSeconds: 0)
+    ])
+    Container.shared.speechAnalyzer.register { { _ in FakeSpeechAnalyzer(lastSampleTime: nil) } }
+
+    await #expect(throws: TranscriptionError.self) {
+      try await Container.shared.transcriber().transcribe(fileURL: fileURL, locale: locale)
+    }
+  }
+
+  @Test("returns no segments when audio has no recognizable speech")
+  func returnsNoSegmentsForSpeechlessAudio() async throws {
+    TranscriptionHelpers.stubSpeech(phrases: [])
+
+    let segments = try await Container.shared.transcriber()
+      .transcribe(
+        fileURL: fileURL,
+        locale: locale
+      )
+
+    #expect(segments.isEmpty)
   }
 }
