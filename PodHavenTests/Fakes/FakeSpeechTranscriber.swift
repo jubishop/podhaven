@@ -7,6 +7,7 @@ import Foundation
 struct FakeSpeechTranscriptionResult: SpeechTranscriptionResult {
   let phrase: String
   let startSeconds: Double?
+  var endSeconds: Double? = nil
 }
 
 enum FakeSpeechError: Error {

@@ -34,6 +34,9 @@ extension SpeechTranscriber.Result: SpeechTranscriptionResult {
   var startSeconds: Double? {
     text.runs.compactMap { $0.audioTimeRange?.start.seconds }.min()
   }
+  var endSeconds: Double? {
+    text.runs.compactMap { $0.audioTimeRange?.end.seconds }.max()
+  }
 }
 
 // MARK: - SpeechTranscriber Conformance

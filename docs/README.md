@@ -15,7 +15,7 @@ status: planning | in-progress | shipped | blocked | abandoned
 ## Initiatives
 
 - [ML Recommendations](initiatives/ml-recommendations.md): on-device ML recommendations with `NLContextualEmbedding`
-- [Manual Episode Transcription](initiatives/manual-transcripts.md): user-initiated on-device transcripts with timed segments, tap-to-seek, and a persisted one-at-a-time queue
+- [Manual Episode Transcription](initiatives/manual-transcripts.md): user-initiated on-device transcripts with timed segments and a persisted one-at-a-time queue, rendered read-only (tap-to-seek deferred to v2)
 - [Episode Transcripts](initiatives/transcripts.md): abandoned autonomous design; retained as research for deferred tiers (RSS import, autonomous catch-up, diarization)
 - [Smart Lists](initiatives/smart-lists.md): editable nested episode-list filters with persisted ordering
 - [Search Recommendations](initiatives/search-recommendations.md): rank unsubscribed-podcast episodes in search/trending with existing similarity scoring

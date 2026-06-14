@@ -11,4 +11,7 @@ protocol SpeechTranscriptionResult: Sendable {
   var phrase: String { get }
   // Earliest audio start time across the phrase's runs, in seconds.
   var startSeconds: Double? { get }
+  // Latest audio end time across the phrase's runs, in seconds — the high-water
+  // mark used to report transcription progress against the file duration.
+  var endSeconds: Double? { get }
 }

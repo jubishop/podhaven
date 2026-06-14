@@ -346,11 +346,21 @@ struct EpisodeDetailView: View {
       case .queued:
         Text("Queued for transcription")
           .foregroundStyle(.secondary)
-      case .transcribing:
-        HStack(spacing: 8) {
-          ProgressView()
-          Text("Transcribing…")
-            .foregroundStyle(.secondary)
+      case .transcribing(let progress):
+        if progress > 0 {
+          ProgressView(value: progress) {
+            Text("Transcribing…")
+              .foregroundStyle(.secondary)
+          } currentValueLabel: {
+            Text(progress, format: .percent.precision(.fractionLength(0)))
+              .foregroundStyle(.secondary)
+          }
+        } else {
+          HStack(spacing: 8) {
+            ProgressView()
+            Text("Transcribing…")
+              .foregroundStyle(.secondary)
+          }
         }
       case .transcribed:
         if let transcript = viewModel.decodedTranscript, !transcript.segments.isEmpty {

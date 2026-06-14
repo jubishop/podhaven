@@ -29,6 +29,11 @@ extension Container {
 extension SpeechAnalyzer: SpeechAnalyzing {
   // Opening the file lives here, behind the seam, so transcription tests drive
   // a FakeSpeechAnalyzer without a real audio file on disk.
+  func duration(ofAudioFileAt url: URL) async throws -> Double {
+    let file = try AVAudioFile(forReading: url)
+    return Double(file.length) / file.processingFormat.sampleRate
+  }
+
   func analyze(audioFileAt url: URL) async throws -> CMTime? {
     try await analyzeSequence(from: AVAudioFile(forReading: url))
   }

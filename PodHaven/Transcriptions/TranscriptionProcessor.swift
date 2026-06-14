@@ -154,9 +154,11 @@ struct TranscriptionProcessor: Sendable {
     guard let cachedURL = try await cacheManager.cachedURL(downloadingIfNeeded: episodeID) else {
       throw TranscriptionError.audioUnavailable(episodeID)
     }
+    let queue = transcriptionQueue
     let segments = try await transcriber.transcribe(
       fileURL: cachedURL.rawValue,
-      locale: Self.locale
+      locale: Self.locale,
+      onProgress: { queue.setProgress($0, for: episodeID) }
     )
     let transcript = Transcript(
       segments: segments,

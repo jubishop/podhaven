@@ -32,6 +32,27 @@ struct TranscriberTests {
     #expect(segments.last?.start == 0)
   }
 
+  @Test("reports monotonic progress from each result's audio end over the duration")
+  func reportsProgress() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(phrase: "a", startSeconds: 0, endSeconds: 25),
+        FakeSpeechTranscriptionResult(phrase: "b", startSeconds: 25, endSeconds: 50),
+        FakeSpeechTranscriptionResult(phrase: "c", startSeconds: 50, endSeconds: 100),
+      ],
+      durationSeconds: 100
+    )
+
+    let reported = ThreadSafe<[Double]>([])
+    let segments = try await Container.shared.transcriber()
+      .transcribe(fileURL: fileURL, locale: locale) { progress in
+        reported { $0.append(progress) }
+      }
+
+    #expect(segments.count == 3)
+    #expect(reported() == [0.25, 0.5, 1])
+  }
+
   @Test("throws when the locale's model is unsupported")
   func throwsWhenLocaleUnsupported() async throws {
     TranscriptionHelpers.stubSpeech(

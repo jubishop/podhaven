@@ -56,6 +56,8 @@ So a VTT/SRT/JSON `<podcast:transcript>` carries the same timing the on-device p
 
 iOS 26+ `SpeechAnalyzer` + `SpeechTranscriber` with `preset: .offlineTranscription`, run from the existing `BackgroundTaskScheduler` template (the same one `EmbeddingProcessor` uses). Transcribes one episode per wake against the cached audio file, persists segments incrementally so a kill mid-episode resumes via "needs transcript" query on the next wake.
 
+(v1 diverged: it configures `SpeechTranscriber(attributeOptions: [.audioTimeRange])` directly — `preset: .offlineTranscription` is superseded by the current API — and persists the finished transcript as JSON in one column rather than an incremental segment table.)
+
 Scoped to a **priority queue**, in order:
 
 1. Episodes in the queue
@@ -74,6 +76,8 @@ iOS 26's new user-initiated background API. Two trigger points:
 - **Explicit "Transcribe" button** on the episode detail view, for the case where the user wants a transcript without playing.
 
 This is the **guaranteed path** — it's the only one that doesn't depend on iOS giving us discretionary background time. If autonomous tier 2 hasn't gotten to an episode yet, play-time tier 3 catches up.
+
+(v1 diverged: it evaluated and **rejected** `BGContinuedProcessingTask` — heavyweight Live Activity UI, flagged Beta, launch-time reliability reports — and ships a discretionary `BGProcessingTask` instead. A reviver of this tier should re-evaluate the API rather than assume the "guaranteed path" framing; see [Manual Episode Transcription → Key decisions](manual-transcripts.md#key-decisions).)
 
 ## Why we don't try to keep up
 

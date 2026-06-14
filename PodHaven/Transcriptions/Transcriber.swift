@@ -51,15 +51,24 @@ struct Transcriber: Sendable {
 
   fileprivate init() {}
 
-  func transcribe(fileURL: URL, locale: Locale) async throws -> [TranscriptSegment] {
+  func transcribe(
+    fileURL: URL,
+    locale: Locale,
+    onProgress: @Sendable (Double) -> Void = { _ in }
+  ) async throws -> [TranscriptSegment] {
     try Task.checkCancellation()
     try await ensureModelInstalled(for: locale)
 
     let transcriber = speechTranscriber(locale)
     let analyzer = speechAnalyzer(transcriber)
+    let durationSeconds = try await analyzer.duration(ofAudioFileAt: fileURL)
 
     // Consume results concurrently while the analyzer feeds the file through.
-    async let collected = Self.collectSegments(from: transcriber.resultStream)
+    async let collected = Self.collectSegments(
+      from: transcriber.resultStream,
+      durationSeconds: durationSeconds,
+      onProgress: onProgress
+    )
 
     // A nil last sample means the file decoded to no audio at all — a failed
     // transcription (retryable), distinct from audio that contained no
@@ -76,11 +85,24 @@ struct Transcriber: Sendable {
   }
 
   private static func collectSegments(
-    from results: AsyncThrowingStream<any SpeechTranscriptionResult, any Error>
+    from results: AsyncThrowingStream<any SpeechTranscriptionResult, any Error>,
+    durationSeconds: Double,
+    onProgress: @Sendable (Double) -> Void
   ) async throws -> [TranscriptSegment] {
     var segments: [TranscriptSegment] = []
+    var lastProgress = 0.0
     for try await result in results {
       try Task.checkCancellation()
+
+      // Report the latest audio time covered as a fraction of the duration,
+      // clamped and monotonic so the bar never jumps backward.
+      if durationSeconds > 0, let end = result.endSeconds {
+        let progress = min(1, end / durationSeconds)
+        if progress > lastProgress {
+          lastProgress = progress
+          onProgress(progress)
+        }
+      }
 
       let text = result.phrase.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !text.isEmpty else { continue }
