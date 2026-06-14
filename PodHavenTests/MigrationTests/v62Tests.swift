@@ -49,11 +49,20 @@ class V62MigrationTests {
 
     try await appDB.unsafeTestDB.write { db in
       try db.execute(sql: "INSERT INTO tag (name, icon) VALUES ('Tech', 'cpu')")
+      try db.execute(
+        sql: """
+          INSERT INTO smartList (title, filter, displayOrder, sortMethod, lastSeenEpisodeId, icon)
+          VALUES ('Tech', '{"combinator":"all","conditions":[],"groups":[]}', 50, 'newestFirst', 0, 'rss')
+          """
+      )
     }
 
-    let icon = try await appDB.unsafeTestDB.read { db in
-      try String.fetchOne(db, sql: "SELECT icon FROM tag WHERE name = 'Tech'")
+    let (tagIcon, listIcon) = try await appDB.unsafeTestDB.read { db in
+      let tag = try String.fetchOne(db, sql: "SELECT icon FROM tag WHERE name = 'Tech'")
+      let list = try String.fetchOne(db, sql: "SELECT icon FROM smartList WHERE title = 'Tech'")
+      return (tag, list)
     }
-    #expect(icon == "cpu")
+    #expect(tagIcon == "cpu")
+    #expect(listIcon == "rss")
   }
 }

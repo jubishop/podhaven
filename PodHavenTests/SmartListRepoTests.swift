@@ -75,6 +75,7 @@ class SmartListRepoTests {
     #expect(try await smartListRepo.fetchOne(inserted.id)?.filter == filter)
 
     #expect(!inserted.alwaysShowPodcastImage)
+    #expect(inserted.icon == .listMusic)
 
     let newFilter = SmartListFilter(combinator: .any, conditions: [.state(.isLiked)])
     #expect(
@@ -83,7 +84,7 @@ class SmartListRepoTests {
         title: "Favorites",
         filter: newFilter,
         alwaysShowPodcastImage: true,
-        icon: .listMusic
+        icon: .star
       )
     )
     #expect(try await smartListRepo.updateSortMethod(inserted.id, to: .longest))
@@ -93,6 +94,7 @@ class SmartListRepoTests {
     #expect(updated.filter == newFilter)
     #expect(updated.sortMethod == .longest)
     #expect(updated.alwaysShowPodcastImage)
+    #expect(updated.icon == .star)
 
     #expect(try await smartListRepo.delete(inserted.id))
     #expect(try await smartListRepo.fetchOne(inserted.id) == nil)
