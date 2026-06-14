@@ -45,7 +45,6 @@ struct SmartListFilter: Codable, Hashable, Sendable {
     case contains
     case doesNotContain
     case equals
-    case startsWith
   }
 
   enum PublishDateOp: String, Codable, Sendable, CaseIterable {

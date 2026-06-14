@@ -121,44 +121,94 @@ class SmartListFilterEngineTests {
     let barID = series.episodes[1].id
 
     let matched = try await ids(for: all(.episodeText(.description, .doesNotContain, "foo")))
-    // The null-description row would be wrongly dropped by a naive NOT LIKE.
+    // A null-description row is absent from the FTS index, so the NOT IN
+    // subquery correctly retains it.
     #expect(matched == [nullID, barID])
   }
 
-  @Test("equals is case-insensitive; startsWith escapes wildcards")
-  func equalsAndStartsWith() async throws {
+  @Test("equals matches the whole field case-insensitively")
+  func equalsWholeField() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
         unsavedEpisodes: [
           try Create.unsavedEpisode(guid: "hello", title: "Hello"),
-          try Create.unsavedEpisode(guid: "literal", title: "50% off"),
-          try Create.unsavedEpisode(guid: "wildcard", title: "50X off"),
+          try Create.unsavedEpisode(guid: "helloworld", title: "Hello World"),
         ]
       )
     )
     let helloID = series.episodes[0].id
-    let literalID = series.episodes[1].id
 
+    // Case-insensitive, but a whole-field match: "Hello World" is excluded.
     #expect(try await ids(for: all(.episodeText(.title, .equals, "hello"))) == [helloID])
-    // `%` in input is escaped, so it only matches the literal "50%…", not "50X…".
-    #expect(try await ids(for: all(.episodeText(.title, .startsWith, "50%"))) == [literalID])
   }
 
-  @Test("contains matches a substring case-insensitively")
-  func containsSubstring() async throws {
+  @Test("contains matches whole words and word-prefixes, not mid-word substrings")
+  func containsWordPrefix() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
         unsavedEpisodes: [
-          try Create.unsavedEpisode(guid: "ai", title: "All About AI"),
-          try Create.unsavedEpisode(guid: "other", title: "Gardening hour"),
+          try Create.unsavedEpisode(guid: "about", title: "All About AI"),
+          try Create.unsavedEpisode(guid: "category", title: "Category Five"),
+          try Create.unsavedEpisode(guid: "scatter", title: "Scatter Plot"),
         ]
       )
     )
+    let aboutID = series.episodes[0].id
+    let categoryID = series.episodes[1].id
+
+    // Whole word, case-insensitive.
+    #expect(try await ids(for: all(.episodeText(.title, .contains, "about"))) == [aboutID])
+    // A prefix matches the start of a token ("cat" → "Category") but never a
+    // mid-word substring, so "cat" must not match "Scatter".
+    #expect(try await ids(for: all(.episodeText(.title, .contains, "cat"))) == [categoryID])
+  }
+
+  @Test("text match is scoped to the queried field")
+  func textFieldScoping() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "titleHit",
+            title: "Quantum Physics",
+            description: "unrelated"
+          ),
+          try Create.unsavedEpisode(
+            guid: "descHit",
+            title: "Daily Show",
+            description: "About quantum mechanics"
+          ),
+        ]
+      )
+    )
+    let titleHit = series.episodes[0].id
+    let descHit = series.episodes[1].id
+
+    // "quantum" lives in titleHit's title and descHit's description; each field
+    // filter sees only its own column.
+    #expect(try await ids(for: all(.episodeText(.title, .contains, "quantum"))) == [titleHit])
     #expect(
-      try await ids(for: all(.episodeText(.title, .contains, "about")))
-        == [series.episodes[0].id]
+      try await ids(for: all(.episodeText(.description, .contains, "quantum"))) == [descHit]
+    )
+  }
+
+  @Test("contains with no tokenizable content matches nothing")
+  func containsUntokenizable() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "a", title: "Hello")]
+      )
+    )
+    // Punctuation-only input yields no FTS pattern: contains matches nothing,
+    // doesNotContain matches everything.
+    #expect(try await ids(for: all(.episodeText(.title, .contains, "!!!"))).isEmpty)
+    #expect(
+      try await ids(for: all(.episodeText(.title, .doesNotContain, "!!!")))
+        == Set(series.episodes.map(\.id))
     )
   }
 
@@ -407,7 +457,7 @@ class SmartListFilterEngineTests {
 
     #expect(try await ids(for: all(.podcastText(.title, .contains, "tech"))) == [techEp])
     #expect(try await ids(for: all(.podcastText(.title, .doesNotContain, "tech"))) == [gardenEp])
-    #expect(try await ids(for: all(.podcastText(.title, .startsWith, "the tech"))) == [techEp])
+    #expect(try await ids(for: all(.podcastText(.title, .contains, "the tech"))) == [techEp])
   }
 
   // MARK: - Duration

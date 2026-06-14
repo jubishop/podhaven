@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import GRDB
 import Testing
@@ -15,83 +16,105 @@ class V59MigrationTests {
     self.migrator = Schema.makeMigrator()
   }
 
-  // MARK: - Fixture
+  private static func insertFilter(_ db: Database, title: String, filter: String, order: Int)
+    throws
+  {
+    try db.execute(
+      sql:
+        "INSERT INTO smartList (title, filter, displayOrder, sortMethod) VALUES (?, ?, ?, 'newestFirst')",
+      arguments: [title, filter, order]
+    )
+  }
 
-  // Seed at v58 with one podcast + one episode, before the transcript column.
-  private func seedEpisodeAtV58() async throws {
+  private func indexExists(_ name: String) async throws -> Bool {
+    try await appDB.unsafeTestDB.read { db in
+      try Bool.fetchOne(
+        db,
+        sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='index' AND name=?)",
+        arguments: [name]
+      ) ?? false
+    }
+  }
+
+  private func indexSQL(_ name: String) async throws -> String {
+    try await appDB.unsafeTestDB.read { db in
+      try String.fetchOne(
+        db,
+        sql: "SELECT sql FROM sqlite_master WHERE type='index' AND name=?",
+        arguments: [name]
+      ) ?? ""
+    }
+  }
+
+  // MARK: - Indexes
+
+  @Test("v59 adds sort and tag indexes and replaces the rating index")
+  func addsIndexes() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v58")
-
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO podcast (
-            id, feedURL, title, image, description, link, lastUpdate,
-            subscriptionDate, creationDate, defaultPlaybackRate,
-            queueAllEpisodes, cacheAllEpisodes, notifyNewEpisodes, iTunesID,
-            contentUpdatedAt
-          ) VALUES (
-            700, 'https://example.com/v59.xml', 'V59 Podcast',
-            'https://example.com/img.jpg', 'Description',
-            NULL, '2024-01-01 00:00:00', NULL, '2024-01-01 00:00:00',
-            1.0, 'never', 'never', 0, NULL, '2024-01-01 00:00:00'
-          )
-          """
-      )
-      try db.execute(
-        sql: """
-          INSERT INTO episode (
-            id, podcastId, guid, mediaURL, title, pubDate, creationDate,
-            contentUpdatedAt, currentTime, maxPlaybackTime, saveInCache,
-            downloading
-          ) VALUES (
-            710, 700, 'guid-1', 'https://example.com/ep1.mp3',
-            'Episode One', '2024-02-01 00:00:00', '2024-02-01 00:00:00',
-            '2024-02-01 00:00:00', 0, 0, 0, 0
-          )
-          """
-      )
-    }
-  }
-
-  @Test("v59 adds a nullable transcript column, NULL for existing episodes")
-  func addsNullableTranscriptColumn() async throws {
-    try await seedEpisodeAtV58()
+    #expect(try await indexExists("episode_on_rating"))
 
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v59")
 
-    let transcript = try await appDB.unsafeTestDB.read { db in
-      try String.fetchOne(db, sql: "SELECT transcript FROM episode WHERE id = 710")
+    for name in [
+      "episode_on_creationDate",
+      "episode_on_duration",
+      "episode_on_finishDate",
+      "episode_on_queueDate",
+      "episode_on_rating_pubDate",
+      "episodeTag_on_tagId_episodeId",
+      "podcastTag_on_tagId_podcastId",
+    ] {
+      #expect(try await indexExists(name))
     }
-    #expect(transcript == nil)
+
+    // The rating-only partial index is replaced by the composite.
+    #expect(try await indexExists("episode_on_rating") == false)
+
+    // The non-null sorts stay partial; the rating composite spans both columns
+    // and keeps its non-null guard.
+    #expect(try await indexSQL("episode_on_finishDate").contains("WHERE"))
+    #expect(try await indexSQL("episode_on_queueDate").contains("WHERE"))
+    let ratingSQL = try await indexSQL("episode_on_rating_pubDate")
+    #expect(ratingSQL.contains("rating"))
+    #expect(ratingSQL.contains("pubDate"))
+    #expect(ratingSQL.contains("WHERE"))
   }
 
-  @Test("v59 stores timed-segment transcript JSON")
-  func storesTranscriptJSON() async throws {
-    try await seedEpisodeAtV58()
+  // MARK: - startsWith → contains
+
+  @Test("v59 rewrites the startsWith operator to contains in top and nested groups")
+  func rewritesStartsWith() async throws {
+    let literalInput =
+      #"{"combinator":"all","conditions":[{"kind":"episodeText","field":"title","op":"contains","value":"startsWith"}],"groups":[]}"#
+
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v58")
+    try await appDB.unsafeTestDB.write { db in
+      try Self.insertFilter(
+        db,
+        title: "StartsWith",
+        filter:
+          #"{"combinator":"all","conditions":[{"kind":"episodeText","field":"title","op":"startsWith","value":"The"}],"groups":[{"combinator":"any","conditions":[{"kind":"podcastText","field":"description","op":"startsWith","value":"Bonus"}]}]}"#,
+        order: 90
+      )
+      try Self.insertFilter(db, title: "LiteralValue", filter: literalInput, order: 91)
+    }
+
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v59")
 
-    let json =
-      #"{"segments":[{"start":0,"text":"Hello"}],"locale":"en-US","createdAt":760000000,"modelRevision":1}"#
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO episode (
-            id, podcastId, guid, mediaURL, title, pubDate, creationDate,
-            contentUpdatedAt, currentTime, maxPlaybackTime, saveInCache,
-            downloading, transcript
-          ) VALUES (
-            711, 700, 'guid-2', 'https://example.com/ep2.mp3',
-            'Episode Two', '2024-02-02 00:00:00', '2024-02-02 00:00:00',
-            '2024-02-02 00:00:00', 0, 0, 0, 0, ?
-          )
-          """,
-        arguments: [json]
+    let filters = try await appDB.unsafeTestDB.read { db -> [String: String] in
+      Dictionary(
+        uniqueKeysWithValues: try Row.fetchAll(db, sql: "SELECT title, filter FROM smartList")
+          .map { ($0["title"], $0["filter"]) }
       )
     }
 
-    let stored = try await appDB.unsafeTestDB.read { db in
-      try String.fetchOne(db, sql: "SELECT transcript FROM episode WHERE id = 711")
-    }
-    #expect(stored == json)
+    // Both the top-level and nested startsWith operators become contains, and no
+    // startsWith token remains (neither value held that substring).
+    let rewritten = try #require(filters["StartsWith"])
+    #expect(!rewritten.contains("startsWith"))
+    #expect(rewritten.components(separatedBy: #""op":"contains""#).count - 1 == 2)
+
+    // A contains value that happens to equal the operator name is untouched.
+    #expect(filters["LiteralValue"] == literalInput)
   }
 }

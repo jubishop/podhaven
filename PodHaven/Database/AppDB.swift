@@ -94,11 +94,20 @@ struct AppDB {
 
   // MARK: - Private Static Helpers
 
+  // Bounds the per-table sampling each `optimize()` may do, so periodic stats
+  // maintenance stays cheap even when SQLite examines every table for drift.
+  private static let analysisLimit = 400
+  private static let optimizeMask = 0x1fffe
+
   private static func makeConfiguration(qos: DispatchQoS? = nil) -> Configuration {
     var config = Configuration()
     if let qos = qos { config.qos = qos }
 
     config.maximumReaderCount = 10
+
+    config.prepareDatabase { db in
+      try db.execute(sql: "PRAGMA analysis_limit=\(analysisLimit)")
+    }
 
     return config
   }
@@ -220,6 +229,17 @@ struct AppDB {
         freelistCount: try Int.fetchOne(db, sql: "PRAGMA freelist_count") ?? 0,
         pageSize: try Int.fetchOne(db, sql: "PRAGMA page_size") ?? 0
       )
+    }
+  }
+
+  // SQLite never refreshes its planner statistics on its own, so the migration's
+  // one-time ANALYZE goes stale as the library grows. Re-running optimize on a
+  // recurring lifecycle signal re-ANALYZEs only the tables whose stats have
+  // drifted. The mask keeps SQLite's default optimize behavior while checking
+  // every table, even when this connection did not run the read-heavy queries.
+  func optimize() async throws {
+    try await db.writeWithoutTransaction { db in
+      try db.execute(sql: "PRAGMA optimize=\(Self.optimizeMask)")
     }
   }
 

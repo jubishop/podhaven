@@ -84,66 +84,80 @@ enum SmartListFilterEngine {
 
   // MARK: - Text
 
-  // SQLite's LIKE is ASCII case-insensitive, so it carries the case-folding;
-  // `%`/`_`/`\` in user input are escaped here and matched literally via
-  // `ESCAPE '\'` so only the added wildcards act as wildcards.
-  private static func escapeLike(_ value: String) -> String {
-    value
-      .replacingOccurrences(of: "\\", with: "\\\\")
-      .replacingOccurrences(of: "%", with: "\\%")
-      .replacingOccurrences(of: "_", with: "\\_")
-  }
+  // contains/doesNotContain match whole words and word-prefixes through the
+  // FTS5 mirrors (episode_fts/podcast_fts, kept in sync by triggers), scoped to
+  // the queried column so a title filter ignores description text. Each mirror's
+  // rowid is its source row's id, so the subquery resolves straight back. A
+  // value with no tokenizable content yields no pattern: contains then matches
+  // nothing and doesNotContain matches everything.
+  private static let matchNone = false.sqlExpression
 
   private static func episodeTextExpression(
     _ field: SmartListFilter.TextField,
     _ op: SmartListFilter.TextOp,
     _ value: String
   ) -> SQLExpression {
-    let column = field == .title ? Episode.Columns.title : Episode.Columns.description
     switch op {
     case .contains:
-      return column.like("%\(escapeLike(value))%", escape: "\\")
-    case .startsWith:
-      return column.like("\(escapeLike(value))%", escape: "\\")
-    case .equals:
-      return column.collating(.nocase) == value
+      return episodeTextMatches(field, value) ?? matchNone
     case .doesNotContain:
-      // NOT (NULL LIKE ?) is NULL, which would drop null-description rows, so
-      // include them explicitly.
-      return column == nil || !column.like("%\(escapeLike(value))%", escape: "\\")
+      guard let matches = episodeTextMatches(field, value) else { return AppDB.noOp }
+      return !matches
+    case .equals:
+      let column = field == .title ? Episode.Columns.title : Episode.Columns.description
+      return column.collating(.nocase) == value
     }
   }
 
-  // The podcast-text predicate runs in a subquery GRDB auto-aliases, isolating
-  // it from the observation request's joined `podcast` scope.
+  private static func episodeTextMatches(
+    _ field: SmartListFilter.TextField,
+    _ value: String
+  ) -> SQLExpression? {
+    guard let pattern = FTS5Pattern(matchingAllPrefixesIn: value) else { return nil }
+    return
+      EpisodeFTS
+      .select(Column.rowID)
+      .filter(ftsColumn(field).match(pattern))
+      .contains(Episode.Columns.id)
+  }
+
+  // equals routes through a Podcast subquery GRDB auto-aliases, isolating it
+  // from the observation request's joined `podcast` scope.
   private static func podcastTextExpression(
     _ field: SmartListFilter.TextField,
     _ op: SmartListFilter.TextOp,
     _ value: String
   ) -> SQLExpression {
-    let column = field == .title ? Podcast.Columns.title : Podcast.Columns.description
-    let predicate: SQLExpression
-    let negate: Bool
     switch op {
     case .contains:
-      predicate = column.like("%\(escapeLike(value))%", escape: "\\")
-      negate = false
-    case .startsWith:
-      predicate = column.like("\(escapeLike(value))%", escape: "\\")
-      negate = false
-    case .equals:
-      predicate = column.collating(.nocase) == value
-      negate = false
+      return podcastTextMatches(field, value) ?? matchNone
     case .doesNotContain:
-      predicate = column.like("%\(escapeLike(value))%", escape: "\\")
-      negate = true
+      guard let matches = podcastTextMatches(field, value) else { return AppDB.noOp }
+      return !matches
+    case .equals:
+      let column = field == .title ? Podcast.Columns.title : Podcast.Columns.description
+      return
+        Podcast
+        .select(Podcast.Columns.id)
+        .filter(column.collating(.nocase) == value)
+        .contains(Episode.Columns.podcastId)
     }
-    let matches =
-      Podcast
-      .select(Podcast.Columns.id)
-      .filter(predicate)
+  }
+
+  private static func podcastTextMatches(
+    _ field: SmartListFilter.TextField,
+    _ value: String
+  ) -> SQLExpression? {
+    guard let pattern = FTS5Pattern(matchingAllPrefixesIn: value) else { return nil }
+    return
+      PodcastFTS
+      .select(Column.rowID)
+      .filter(ftsColumn(field).match(pattern))
       .contains(Episode.Columns.podcastId)
-    return negate ? !matches : matches
+  }
+
+  private static func ftsColumn(_ field: SmartListFilter.TextField) -> Column {
+    field == .title ? Column("title") : Column("description")
   }
 
   // MARK: - Tags

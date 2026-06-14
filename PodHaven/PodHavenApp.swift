@@ -14,6 +14,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.appLauncher) private var appLauncher
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
   @DynamicInjected(\.cachePurger) private var cachePurger
+  @DynamicInjected(\.databaseMaintainer) private var databaseMaintainer
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
   @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -91,6 +92,7 @@ struct PodHavenApp: App {
     appDelegate.handleScenePhaseChange(to: phase)
     refreshScheduler.handleScenePhaseChange(to: phase)
     cachePurger.handleScenePhaseChange(to: phase)
+    databaseMaintainer.handleScenePhaseChange(to: phase)
     embeddingProcessor.handleScenePhaseChange(to: phase)
     transcriptionProcessor.handleScenePhaseChange(to: phase)
     recommendationEngine.handleScenePhaseChange(to: phase)
