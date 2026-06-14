@@ -71,6 +71,7 @@ enum SmartListFilterEngine {
     case .isStarted: return Episode.started
     case .isUnstarted: return Episode.unstarted
     case .isCached: return Episode.cached
+    case .isUncached: return !Episode.cached
     case .isSaved: return Episode.savedInCache
     case .isLoved: return Episode.loved
     case .isLiked: return Episode.liked
@@ -84,12 +85,15 @@ enum SmartListFilterEngine {
 
   // MARK: - Text
 
-  // contains/doesNotContain match whole words and word-prefixes through the
-  // FTS5 mirrors (episode_fts/podcast_fts, kept in sync by triggers), scoped to
-  // the queried column so a title filter ignores description text. Each mirror's
-  // rowid is its source row's id, so the subquery resolves straight back. A
-  // value with no tokenizable content yields no pattern: contains then matches
-  // nothing and doesNotContain matches everything.
+  // contains/doesNotContain match the value as a phrase: its tokens contiguous
+  // and in order (whole words, no prefixes), appearing anywhere in the field,
+  // through the FTS5 mirrors (episode_fts/podcast_fts, kept in sync by triggers),
+  // scoped to the queried column so a title filter ignores description text.
+  // titleOrDescription matches the whole virtual table; an FTS5 phrase never
+  // spans columns, so that is exactly the phrase appearing in title or in
+  // description. Each mirror's rowid is its source row's id, so the subquery
+  // resolves straight back. A value with no tokenizable content yields no
+  // pattern: contains then matches nothing and doesNotContain matches everything.
   private static let matchNone = false.sqlExpression
 
   private static func episodeTextExpression(
@@ -103,9 +107,6 @@ enum SmartListFilterEngine {
     case .doesNotContain:
       guard let matches = episodeTextMatches(field, value) else { return AppDB.noOp }
       return !matches
-    case .equals:
-      let column = field == .title ? Episode.Columns.title : Episode.Columns.description
-      return column.collating(.nocase) == value
     }
   }
 
@@ -113,16 +114,10 @@ enum SmartListFilterEngine {
     _ field: SmartListFilter.TextField,
     _ value: String
   ) -> SQLExpression? {
-    guard let pattern = FTS5Pattern(matchingAllPrefixesIn: value) else { return nil }
-    return
-      EpisodeFTS
-      .select(Column.rowID)
-      .filter(ftsColumn(field).match(pattern))
-      .contains(Episode.Columns.id)
+    guard let pattern = FTS5Pattern(matchingPhrase: value) else { return nil }
+    return ftsRowIDs(EpisodeFTS.self, field, pattern).contains(Episode.Columns.id)
   }
 
-  // equals routes through a Podcast subquery GRDB auto-aliases, isolating it
-  // from the observation request's joined `podcast` scope.
   private static func podcastTextExpression(
     _ field: SmartListFilter.TextField,
     _ op: SmartListFilter.TextOp,
@@ -134,13 +129,6 @@ enum SmartListFilterEngine {
     case .doesNotContain:
       guard let matches = podcastTextMatches(field, value) else { return AppDB.noOp }
       return !matches
-    case .equals:
-      let column = field == .title ? Podcast.Columns.title : Podcast.Columns.description
-      return
-        Podcast
-        .select(Podcast.Columns.id)
-        .filter(column.collating(.nocase) == value)
-        .contains(Episode.Columns.podcastId)
     }
   }
 
@@ -148,16 +136,26 @@ enum SmartListFilterEngine {
     _ field: SmartListFilter.TextField,
     _ value: String
   ) -> SQLExpression? {
-    guard let pattern = FTS5Pattern(matchingAllPrefixesIn: value) else { return nil }
-    return
-      PodcastFTS
-      .select(Column.rowID)
-      .filter(ftsColumn(field).match(pattern))
-      .contains(Episode.Columns.podcastId)
+    guard let pattern = FTS5Pattern(matchingPhrase: value) else { return nil }
+    return ftsRowIDs(PodcastFTS.self, field, pattern).contains(Episode.Columns.podcastId)
   }
 
-  private static func ftsColumn(_ field: SmartListFilter.TextField) -> Column {
-    field == .title ? Column("title") : Column("description")
+  // Rowids of the FTS mirror whose indexed text matches `pattern` in `field`.
+  // title/description filter a single column; titleOrDescription matches the
+  // whole virtual table, which spans both indexed columns.
+  private static func ftsRowIDs<Mirror: TableRecord>(
+    _ mirror: Mirror.Type,
+    _ field: SmartListFilter.TextField,
+    _ pattern: FTS5Pattern
+  ) -> QueryInterfaceRequest<Mirror> {
+    switch field {
+    case .title:
+      return Mirror.filter(Column("title").match(pattern)).select(Column.rowID)
+    case .description:
+      return Mirror.filter(Column("description").match(pattern)).select(Column.rowID)
+    case .titleOrDescription:
+      return Mirror.matching(pattern).select(Column.rowID)
+    }
   }
 
   // MARK: - Tags

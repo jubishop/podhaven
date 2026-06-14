@@ -217,6 +217,13 @@ import Testing
 
       // Leave rec sort, then change the search text while on a standard sort.
       viewModel.currentSortMethod = .newestFirst
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in viewModel.displayObservationKey.sort == .newestFirst },
+        { @MainActor in
+          "Expected newestFirst sort to round-trip before changing search text."
+        }
+      )
       let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
       let pendingBeforeSearch = fakeSleeper.pendingCount()
       viewModel.filterDebouncer.currentValue = "Betacand"
