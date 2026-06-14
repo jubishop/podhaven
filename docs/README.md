@@ -19,6 +19,7 @@ status: planning | in-progress | shipped | blocked | abandoned
 - [Smart Lists](initiatives/smart-lists.md): editable nested episode-list filters with persisted ordering
 - [Search Recommendations](initiatives/search-recommendations.md): rank unsubscribed-podcast episodes in search/trending with existing similarity scoring
 - [Freshness Cadence Cache](initiatives/freshness-cadence-cache.md): cache auto-inferred `FreshnessCadence` in a column so scoring stops re-deriving it from episode pubDates
+- [Auto-Skip Silence](initiatives/auto-skip-silence.md): compare playback architectures for skipping silent segments with global, podcast, and current-episode controls
 
 ## Research
 
