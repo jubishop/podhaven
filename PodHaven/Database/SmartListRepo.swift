@@ -157,9 +157,9 @@ struct SmartListRepo: Sendable {
 
   // MARK: - Private Helpers
 
-  // The newest episode id, or nil when the library is empty. Used as the unread-
+  // The newest episode id, or 0 when the library is empty. Used as the unread-
   // badge watermark on insert / markSeen / filter change.
-  private static func maxEpisodeID(_ db: Database) throws -> Episode.ID? {
-    try Episode.select(max(Episode.Columns.id), as: Episode.ID.self).fetchOne(db)
+  private static func maxEpisodeID(_ db: Database) throws -> Episode.ID {
+    try Episode.select(max(Episode.Columns.id), as: Episode.ID.self).fetchOne(db) ?? 0
   }
 }

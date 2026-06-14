@@ -6,9 +6,7 @@ import GRDB
 import IdentifiedCollections
 
 extension Container {
-  internal func makeObservatory() -> Observatory {
-    Observatory(reader: self.appDB().reader, dateProvider: self.dateProvider())
-  }
+  internal func makeObservatory() -> Observatory { Observatory(self.appDB().reader) }
 
   var observatory: Factory<any Observing> {
     Factory(self) { self.makeObservatory() }.scope(.cached)
@@ -21,10 +19,8 @@ struct Observatory: Observing {
   // MARK: - Initialization
 
   private let reader: AppDB.Reader
-  private let dateProvider: any DateProviding
-  fileprivate init(reader: AppDB.Reader, dateProvider: any DateProviding) {
+  fileprivate init(_ reader: AppDB.Reader) {
     self.reader = reader
-    self.dateProvider = dateProvider
   }
 
   // MARK: - Podcasts
@@ -234,21 +230,15 @@ struct Observatory: Observing {
   // watermark — the unread badge. Each count is an indexed COUNT, so the hub
   // never loads any list to display it.
   func smartListUnreadCounts() -> AsyncValueObservation<[SmartList.ID: Int]> {
-    let dateProvider = self.dateProvider
-    return reader.observe { db in
-      let referenceDate = dateProvider.now
+    reader.observe { db in
+      let referenceDate = Container.shared.dateProvider().now
       var counts: [SmartList.ID: Int] = [:]
       for list in try SmartList.all().fetchAll(db) {
         let expression = SmartListFilterEngine.sqlExpression(
           for: list.filter,
           referenceDate: referenceDate
         )
-        let unseen: SQLExpression
-        if let watermark = list.lastSeenEpisodeId {
-          unseen = Episode.Columns.id > watermark
-        } else {
-          unseen = AppDB.noOp
-        }
+        let unseen = Episode.Columns.id > list.lastSeenEpisodeId
         counts[list.id] = try Episode.filter(expression && unseen).fetchCount(db)
       }
       return counts

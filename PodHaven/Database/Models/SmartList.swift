@@ -25,8 +25,9 @@ struct UnsavedSmartList: Identifiable, Savable {
   var alwaysShowPodcastImage: Bool
   // Unread-badge watermark: the highest episode id this list has "seen". A high-
   // water threshold, not a live reference (the episode may later be deleted; the
-  // AUTOINCREMENT id is never reused). Repo-managed, not user-editable.
-  var lastSeenEpisodeId: Episode.ID?
+  // AUTOINCREMENT id is never reused). Repo-managed, not user-editable. 0 means
+  // nothing seen yet, so every episode (ids start at 1) counts as new.
+  var lastSeenEpisodeId: Episode.ID
 
   init(
     title: String,
@@ -34,7 +35,7 @@ struct UnsavedSmartList: Identifiable, Savable {
     displayOrder: Int,
     sortMethod: SmartListSortMethod = .newestFirst,
     alwaysShowPodcastImage: Bool = false,
-    lastSeenEpisodeId: Episode.ID? = nil
+    lastSeenEpisodeId: Episode.ID = 0
   ) throws {
     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -76,7 +77,7 @@ struct SmartList: Saved {
   var displayOrder: Int { unsaved.displayOrder }
   var sortMethod: SmartListSortMethod { unsaved.sortMethod }
   var alwaysShowPodcastImage: Bool { unsaved.alwaysShowPodcastImage }
-  var lastSeenEpisodeId: Episode.ID? { unsaved.lastSeenEpisodeId }
+  var lastSeenEpisodeId: Episode.ID { unsaved.lastSeenEpisodeId }
 }
 
 // MARK: - DerivableRequest

@@ -8,7 +8,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of Observatory smart-list unread-count tests", .container)
-actor SmartListUnreadCountsTests {
+class SmartListUnreadCountsTests {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.smartListRepo) private var smartListRepo
@@ -77,10 +77,10 @@ actor SmartListUnreadCountsTests {
   }
 
   @Test("a list created against an empty library counts all later matching episodes")
-  func nilWatermarkCountsAll() async throws {
+  func zeroWatermarkCountsAll() async throws {
     try await clearLists()
 
-    // No episodes yet → the list's watermark is nil (the fresh-install case).
+    // No episodes yet → the list's watermark is 0 (the fresh-install case).
     let list = try await smartListRepo.insert(
       try UnsavedSmartList(title: "All", filter: SmartListFilter(), displayOrder: 0)
     )

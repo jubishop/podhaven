@@ -58,7 +58,7 @@ class V61MigrationTests {
     }
   }
 
-  @Test("v61 adds a nullable INTEGER lastSeenEpisodeId column to smartList")
+  @Test("v61 adds a non-null INTEGER lastSeenEpisodeId column to smartList")
   func addsColumn() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v61")
 
@@ -72,7 +72,7 @@ class V61MigrationTests {
 
     let column = try #require(info)
     #expect(column.type == "INTEGER")
-    #expect(column.notnull == 0)
+    #expect(column.notnull == 1)
   }
 
   @Test("v61 backfills the watermark to the newest episode id")
@@ -89,16 +89,14 @@ class V61MigrationTests {
     #expect(watermarks.allSatisfy { $0 == 511 })
   }
 
-  @Test("v61 leaves the watermark NULL when the library is empty")
-  func nullWhenNoEpisodes() async throws {
+  @Test("v61 sets the watermark to 0 when the library is empty")
+  func zeroWhenNoEpisodes() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v61")
 
-    let nonNullCount = try await appDB.unsafeTestDB.read { db in
-      try Int.fetchOne(
-        db,
-        sql: "SELECT COUNT(*) FROM smartList WHERE lastSeenEpisodeId IS NOT NULL"
-      ) ?? -1
+    let watermarks = try await appDB.unsafeTestDB.read { db in
+      try Int64.fetchAll(db, sql: "SELECT lastSeenEpisodeId FROM smartList")
     }
-    #expect(nonNullCount == 0)
+    #expect(!watermarks.isEmpty)
+    #expect(watermarks.allSatisfy { $0 == 0 })
   }
 }

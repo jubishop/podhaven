@@ -312,11 +312,11 @@ class SmartListRepoTests {
   func insertStampsWatermark() async throws {
     try await clearAll()
 
-    // Empty library → no watermark.
+    // Empty library → watermark 0.
     let empty = try await smartListRepo.insert(
       try UnsavedSmartList(title: "Empty", filter: SmartListFilter(), displayOrder: 0)
     )
-    #expect(empty.lastSeenEpisodeId == nil)
+    #expect(empty.lastSeenEpisodeId == 0)
 
     try await addEpisodes(2)
     let maxID = try await currentMaxEpisodeID()
@@ -351,7 +351,7 @@ class SmartListRepoTests {
     let list = try await smartListRepo.insert(
       try UnsavedSmartList(title: "A", filter: lovedFilter, displayOrder: 0)
     )
-    let initial = try #require(list.lastSeenEpisodeId)
+    let initial = list.lastSeenEpisodeId
 
     // Move the high-water mark forward with newer episodes.
     try await addEpisodes(3)
