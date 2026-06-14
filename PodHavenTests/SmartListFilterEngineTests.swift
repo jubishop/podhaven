@@ -103,6 +103,30 @@ class SmartListFilterEngineTests {
     #expect(try await ids(for: all()) == Set(series.episodes.map(\.id)))
   }
 
+  // MARK: - State
+
+  @Test("uncached is the complement of cached")
+  func uncachedState() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "cached", cachedFilename: "c.mp3"),
+          try Create.unsavedEpisode(guid: "uncached"),
+        ]
+      )
+    )
+    let cached = series.episodes[0].id
+    let uncached = series.episodes[1].id
+
+    #expect(try await ids(for: all(.state(.isCached))) == [cached])
+    #expect(try await ids(for: all(.state(.isUncached))) == [uncached])
+    // Parity with the hardcoded complement of the cached expression.
+    let uncachedIDs = try await ids(for: all(.state(.isUncached)))
+    let hardcoded = try await ids(matching: !Episode.cached)
+    #expect(uncachedIDs == hardcoded)
+  }
+
   // MARK: - Text
 
   @Test("episode doesNotContain includes null-description rows")
@@ -126,43 +150,32 @@ class SmartListFilterEngineTests {
     #expect(matched == [nullID, barID])
   }
 
-  @Test("equals matches the whole field case-insensitively")
-  func equalsWholeField() async throws {
+  @Test("contains matches whole words and contiguous phrases, never prefixes or out-of-order tokens")
+  func containsWholeWordsAndPhrases() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
         unsavedEpisodes: [
-          try Create.unsavedEpisode(guid: "hello", title: "Hello"),
-          try Create.unsavedEpisode(guid: "helloworld", title: "Hello World"),
+          try Create.unsavedEpisode(guid: "rock", title: "Rock Anthems"),
+          try Create.unsavedEpisode(guid: "rocket", title: "Rocket Science"),
+          try Create.unsavedEpisode(guid: "phrase", title: "The Quantum Physics Hour"),
+          try Create.unsavedEpisode(guid: "split", title: "Physics of the Quantum World"),
         ]
       )
     )
-    let helloID = series.episodes[0].id
+    let rock = series.episodes[0].id
+    let phrase = series.episodes[2].id
 
-    // Case-insensitive, but a whole-field match: "Hello World" is excluded.
-    #expect(try await ids(for: all(.episodeText(.title, .equals, "hello"))) == [helloID])
-  }
+    // Whole word, case-insensitive — never a prefix: "rock" matches "Rock" but
+    // not "Rocket".
+    #expect(try await ids(for: all(.episodeText(.title, .contains, "rock"))) == [rock])
 
-  @Test("contains matches whole words and word-prefixes, not mid-word substrings")
-  func containsWordPrefix() async throws {
-    let series = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [
-          try Create.unsavedEpisode(guid: "about", title: "All About AI"),
-          try Create.unsavedEpisode(guid: "category", title: "Category Five"),
-          try Create.unsavedEpisode(guid: "scatter", title: "Scatter Plot"),
-        ]
-      )
+    // A multi-word value matches only as a contiguous, in-order phrase:
+    // "quantum physics" hits "The Quantum Physics Hour" but not a title that
+    // holds the same words apart and out of order.
+    #expect(
+      try await ids(for: all(.episodeText(.title, .contains, "quantum physics"))) == [phrase]
     )
-    let aboutID = series.episodes[0].id
-    let categoryID = series.episodes[1].id
-
-    // Whole word, case-insensitive.
-    #expect(try await ids(for: all(.episodeText(.title, .contains, "about"))) == [aboutID])
-    // A prefix matches the start of a token ("cat" → "Category") but never a
-    // mid-word substring, so "cat" must not match "Scatter".
-    #expect(try await ids(for: all(.episodeText(.title, .contains, "cat"))) == [categoryID])
   }
 
   @Test("text match is scoped to the queried field")
@@ -193,6 +206,102 @@ class SmartListFilterEngineTests {
     #expect(
       try await ids(for: all(.episodeText(.description, .contains, "quantum"))) == [descHit]
     )
+  }
+
+  @Test("title-or-description spans both columns and equals an Any of the two single-field rows")
+  func episodeTitleOrDescriptionCombinesColumns() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "titleHit",
+            title: "Quantum Physics",
+            description: "unrelated"
+          ),
+          try Create.unsavedEpisode(
+            guid: "descHit",
+            title: "Daily Show",
+            description: "About quantum mechanics"
+          ),
+          try Create.unsavedEpisode(guid: "miss", title: "Cooking Hour", description: "recipes"),
+        ]
+      )
+    )
+    let titleHit = series.episodes[0].id
+    let descHit = series.episodes[1].id
+    let miss = series.episodes[2].id
+
+    // contains spans both columns: a title-only hit and a description-only hit.
+    let combined = try await ids(for: all(.episodeText(.titleOrDescription, .contains, "quantum")))
+    #expect(combined == [titleHit, descHit])
+
+    // Identical to one title condition and one description condition OR'd.
+    let oneOfEach = try await ids(
+      for: SmartListFilter(
+        combinator: .any,
+        conditions: [
+          .episodeText(.title, .contains, "quantum"),
+          .episodeText(.description, .contains, "quantum"),
+        ]
+      )
+    )
+    #expect(combined == oneOfEach)
+
+    // exclude keeps only rows where neither column contains the term.
+    #expect(
+      try await ids(for: all(.episodeText(.titleOrDescription, .doesNotContain, "quantum"))) == [
+        miss
+      ]
+    )
+  }
+
+  @Test("title-or-description matches a phrase within one column, never split across the two")
+  func titleOrDescriptionPhraseDoesNotSpanColumns() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "inTitle",
+            title: "Quantum Physics Hour",
+            description: "cooking"
+          ),
+          try Create.unsavedEpisode(
+            guid: "inDesc",
+            title: "Daily Show",
+            description: "a quantum physics deep dive"
+          ),
+          try Create.unsavedEpisode(
+            guid: "split",
+            title: "Quantum Computing",
+            description: "about physics today"
+          ),
+        ]
+      )
+    )
+    let inTitle = series.episodes[0].id
+    let inDesc = series.episodes[1].id
+
+    // The phrase lives wholly within one column for the first two rows; the
+    // third splits the words across title and description, so it must not match.
+    let combined = try await ids(
+      for: all(.episodeText(.titleOrDescription, .contains, "quantum physics"))
+    )
+    #expect(combined == [inTitle, inDesc])
+
+    // titleOrDescription is the OR of the two single-column phrase matches, not a
+    // whole-document bag of words: the split row is absent from both.
+    let oneOfEach = try await ids(
+      for: SmartListFilter(
+        combinator: .any,
+        conditions: [
+          .episodeText(.title, .contains, "quantum physics"),
+          .episodeText(.description, .contains, "quantum physics"),
+        ]
+      )
+    )
+    #expect(combined == oneOfEach)
   }
 
   @Test("contains with no tokenizable content matches nothing")
@@ -458,6 +567,52 @@ class SmartListFilterEngineTests {
     #expect(try await ids(for: all(.podcastText(.title, .contains, "tech"))) == [techEp])
     #expect(try await ids(for: all(.podcastText(.title, .doesNotContain, "tech"))) == [gardenEp])
     #expect(try await ids(for: all(.podcastText(.title, .contains, "the tech"))) == [techEp])
+  }
+
+  @Test("podcast title-or-description spans both columns through the joined request")
+  func podcastTitleOrDescriptionCombinesColumns() async throws {
+    let titleSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          title: "Tech Weekly",
+          description: "general chatter"
+        ),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "title-pod")]
+      )
+    )
+    let descSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          title: "Garden Hour",
+          description: "all about tech gadgets"
+        ),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "desc-pod")]
+      )
+    )
+    let missSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Cooking", description: "recipes"),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "miss-pod")]
+      )
+    )
+    let titleEp = titleSeries.episodes[0].id
+    let descEp = descSeries.episodes[0].id
+    let missEp = missSeries.episodes[0].id
+
+    #expect(
+      try await ids(for: all(.podcastText(.titleOrDescription, .contains, "tech")))
+        == [titleEp, descEp]
+    )
+    // The whole-table podcast FTS subquery resolves through the joined listable
+    // request to its own inner `podcast`, not the request's joined one.
+    #expect(
+      try await listableIDs(for: all(.podcastText(.titleOrDescription, .contains, "tech")))
+        == [titleEp, descEp]
+    )
+    #expect(
+      try await listableIDs(for: all(.podcastText(.titleOrDescription, .doesNotContain, "tech")))
+        == [missEp]
+    )
   }
 
   // MARK: - Duration

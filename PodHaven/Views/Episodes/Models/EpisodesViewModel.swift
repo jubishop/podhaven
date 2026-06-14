@@ -23,6 +23,7 @@ class EpisodesViewModel {
   }
 
   private(set) var smartLists: [SmartList] = []
+  private(set) var unreadCounts: [SmartList.ID: Int] = [:]
   private(set) var loadingState: LoadingState = .loading
   var editMode: EditMode = .inactive
 
@@ -37,11 +38,25 @@ class EpisodesViewModel {
         self.smartLists = smartLists
         loadingState = .loaded
       }
-    } catch is CancellationError {
     } catch {
       Self.log.caughtError("observeSmartLists: observation failed", error)
       guard !Task.isCancelled else { return }
       loadingState = .failed
+    }
+  }
+
+  // Drives the per-row unread badge. Failures only drop the badges (not the
+  // whole hub), so they log without flipping loadingState.
+  func observeUnreadCounts() async {
+    do {
+      let observation: AsyncValueObservation<[SmartList.ID: Int]> =
+        observatory.smartListUnreadCounts()
+      for try await counts in observation {
+        try Task.checkCancellation()
+        unreadCounts = counts
+      }
+    } catch {
+      Self.log.caughtError("observeUnreadCounts: observation failed", error)
     }
   }
 
@@ -66,6 +81,11 @@ class EpisodesViewModel {
         alert(ErrorKit.message(for: error))
       }
     }
+  }
+
+  func deleteSmartList(at offsets: IndexSet) {
+    guard let index = offsets.first, smartLists.indices.contains(index) else { return }
+    deleteSmartList(smartLists[index])
   }
 
   func deleteSmartList(_ smartList: SmartList) {

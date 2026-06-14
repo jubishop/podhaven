@@ -1,6 +1,6 @@
 ---
 name: worktree-setup-hooks
-description: How worktree build prep is triggered — git post-checkout hook (preferred) vs Claude SessionStart hook, plus failed approaches and key technical details
+description: How worktree build prep is triggered — git post-checkout hook (preferred) vs Claude SessionStart hook, PodHaven prep-worktree details, stale SPM artifact-path recovery, and failed approaches
 type: project
 status: active
 ---
@@ -28,6 +28,20 @@ Previously used a global `SessionStart` hook in `~/.claude/settings.json` that r
 4. **Orphan DerivedData GC** — deletes `PodHaven-*` DerivedData folders whose `info.plist` `WorkspacePath` no longer exists (i.e. removed worktrees)
 
 Teardown deliberately stays out of the generic `ghdw`/`git worktree remove` path: git has no worktree-removal hook, so orphaned DerivedData is garbage-collected on the next worktree creation (step 4) instead, regardless of how the old worktree was removed.
+
+### Stale SPM artifact paths (orphan GC side effect)
+
+When step 4 deletes a removed worktree's DerivedData, the shared clone's `workspace-state.json` may still record Sentry xcframework paths through that deleted DerivedData. Every remaining worktree then fails with `error: There is no XCFramework found at '~/Library/Developer/Xcode/DerivedData/PodHaven-<hash>/SourcePackages/artifacts/sentry-cocoa/Sentry/Sentry.xcframework'` even though the artifacts still exist under `~/Library/Developer/SharedSourcePackages/PodHaven/artifacts/`.
+
+Fix: rewrite the stale prefix in `~/Library/Developer/SharedSourcePackages/PodHaven/workspace-state.json` to point at the shared clone itself:
+
+```sh
+sed -i '' "s|<stale DerivedData path>/SourcePackages|$HOME/Library/Developer/SharedSourcePackages/PodHaven|g" workspace-state.json
+```
+
+`xcodebuild -resolvePackageDependencies` does not fix it — resolution succeeds but never re-checks artifact paths. This can recur whenever SwiftPM re-resolves from a worktree that is later removed.
+
+Related symptom at the same time: "Provisioning profile … doesn't include signing certificate" — a stale iOS Team Provisioning Profile; one build with `xcodebuild -allowProvisioningUpdates` regenerates it.
 
 ## Failed Approaches
 

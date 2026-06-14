@@ -4,10 +4,16 @@ import GRDB
 
 extension Schema {
   static func migrateV60(_ db: Database) throws {
-    // User-initiated on-device transcripts, stored as timed-segment JSON.
-    // Nullable with no default: existing rows are untranscribed (NULL).
-    try db.alter(table: "episode") { t in
-      t.add(column: "transcript", .text)
-    }
+    // The equals text operator is removed; fold any saved filter using it into
+    // contains. JSONEncoder emits compact JSON so the operator token is exact,
+    // and a user value containing the literal would be quote-escaped and cannot
+    // match this pattern.
+    try db.execute(
+      sql: """
+        UPDATE smartList
+        SET filter = REPLACE(filter, '"op":"equals"', '"op":"contains"')
+        WHERE filter LIKE '%"op":"equals"%'
+        """
+    )
   }
 }

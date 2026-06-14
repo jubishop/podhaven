@@ -27,8 +27,11 @@ struct SmartListFilterCodableTests {
     combinator: .all,
     conditions: [
       .episodeText(.title, .contains, "AI"),
+      .episodeText(.titleOrDescription, .contains, "space"),
       .podcastText(.description, .doesNotContain, "sports"),
+      .podcastText(.titleOrDescription, .doesNotContain, "ads"),
       .state(.isUnrated),
+      .state(.isUncached),
       .episodeTag(.hasTag(Tag.ID(rawValue: 3))),
       .podcastTag(.doesNotHaveTag(Tag.ID(rawValue: 7))),
       .duration(minSeconds: 0, maxSeconds: 3600),

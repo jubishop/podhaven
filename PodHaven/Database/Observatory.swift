@@ -226,6 +226,28 @@ struct Observatory: Observing {
     }
   }
 
+  // Per-list count of matching episodes newer than the list's last-seen
+  // watermark — the unread badge. Each count is an indexed COUNT, so the hub
+  // never loads any list to display it. "Newer" is by episode id (ingestion
+  // order), not membership recency: an older episode that begins matching from a
+  // state change (finished, loved, podcast tagged) sits below the watermark and
+  // never badges — only freshly-ingested matches count toward the badge.
+  func smartListUnreadCounts() -> AsyncValueObservation<[SmartList.ID: Int]> {
+    reader.observe { db in
+      let referenceDate = Container.shared.dateProvider().now
+      var counts: [SmartList.ID: Int] = [:]
+      for list in try SmartList.all().fetchAll(db) {
+        let expression = SmartListFilterEngine.sqlExpression(
+          for: list.filter,
+          referenceDate: referenceDate
+        )
+        let unseen = Episode.Columns.id > list.lastSeenEpisodeId
+        counts[list.id] = try Episode.filter(expression && unseen).fetchCount(db)
+      }
+      return counts
+    }
+  }
+
   // MARK: - On Deck
 
   func onDeck(_ episodeID: Episode.ID) -> AsyncValueObservation<OnDeck?> {

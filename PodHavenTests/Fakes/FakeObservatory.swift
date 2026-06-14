@@ -168,6 +168,11 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.smartList(id)
   }
 
+  func smartListUnreadCounts() -> AsyncValueObservation<[SmartList.ID: Int]> {
+    recordCall(methodName: "smartListUnreadCounts", parameters: ())
+    return observatory.smartListUnreadCounts()
+  }
+
   // MARK: - On Deck
 
   func onDeck(_ episodeID: Episode.ID) -> AsyncValueObservation<OnDeck?> {
