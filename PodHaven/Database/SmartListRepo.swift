@@ -44,7 +44,24 @@ struct SmartListRepo: Sendable {
     Self.log.debug("insert: \(unsaved.title)")
 
     return try await writer.write { db in
-      try unsaved.insertAndFetch(db, as: SmartList.self)
+      // Start "fully seen" so a freshly created list reads as zero unread.
+      var toInsert = unsaved
+      toInsert.lastSeenEpisodeId = try Self.maxEpisodeID(db)
+      return try toInsert.insertAndFetch(db, as: SmartList.self)
+    }
+  }
+
+  // Advances the unread-badge watermark to the newest episode id, clearing the
+  // list's badge. Called when the user leaves the list.
+  func markSeen(_ id: SmartList.ID) async throws {
+    Self.log.debug("markSeen: \(id)")
+
+    try await writer.write { db in
+      let watermark = try Self.maxEpisodeID(db)
+      _ =
+        try SmartList
+        .withID(id)
+        .updateAll(db, SmartList.Columns.lastSeenEpisodeId.set(to: watermark))
     }
   }
 
@@ -70,15 +87,28 @@ struct SmartListRepo: Sendable {
     )
 
     return try await writer.write { db in
-      try SmartList
+      // A changed filter redefines membership, so its badge starts over: stamp
+      // the watermark to "now" alongside the edit. Title/artwork-only edits keep
+      // the existing watermark so the badge survives a rename.
+      let existingFilter =
+        try SmartList
         .withID(id)
-        .updateAll(
-          db,
-          SmartList.Columns.title.set(to: trimmed),
-          SmartList.Columns.filter.set(to: filter.databaseValue),
-          SmartList.Columns.alwaysShowPodcastImage.set(to: alwaysShowPodcastImage),
-          SmartList.Columns.icon.set(to: icon.databaseValue)
+        .select(SmartList.Columns.filter, as: SmartListFilter.self)
+        .fetchOne(db)
+
+      var assignments: [ColumnAssignment] = [
+        SmartList.Columns.title.set(to: trimmed),
+        SmartList.Columns.filter.set(to: filter.databaseValue),
+        SmartList.Columns.alwaysShowPodcastImage.set(to: alwaysShowPodcastImage),
+        SmartList.Columns.icon.set(to: icon.databaseValue),
+      ]
+      if existingFilter != filter {
+        assignments.append(
+          SmartList.Columns.lastSeenEpisodeId.set(to: try Self.maxEpisodeID(db))
         )
+      }
+
+      return try SmartList.withID(id).updateAll(db, assignments)
     } > 0
   }
 
@@ -125,5 +155,13 @@ struct SmartListRepo: Sendable {
           .updateAll(db, SmartList.Columns.displayOrder.set(to: index))
       }
     }
+  }
+
+  // MARK: - Private Helpers
+
+  // The newest episode id, or 0 when the library is empty. Used as the unread-
+  // badge watermark on insert / markSeen / filter change.
+  private static func maxEpisodeID(_ db: Database) throws -> Episode.ID {
+    try Episode.select(max(Episode.Columns.id), as: Episode.ID.self).fetchOne(db) ?? 0
   }
 }

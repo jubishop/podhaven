@@ -37,48 +37,6 @@ extension Container {
     private static let log = Log.as("Navigation")
   }
 
-  @MainActor @Observable
-  class SavedPathManager<TopDestination: DefaultsStorable & Hashable>: ManagingPath {
-    @ObservationIgnored @Persisted private var topDestination: TopDestination?
-
-    var path: [Destination] = [] {
-      didSet {
-        if path.count < oldValue.count {
-          log.debug("Path popped: \(oldValue.count) → \(path.count)")
-        }
-
-        guard let first = path.first
-        else {
-          topDestination = nil
-          return
-        }
-
-        guard let extracted = extractTopDestination(first)
-        else { Assert.fatal("Top view isn't the expected destination type?") }
-
-        topDestination = extracted
-      }
-    }
-
-    private let log = Log.as("Navigation")
-    private let extractTopDestination: (Destination) -> TopDestination?
-    private let makeDestination: (TopDestination) -> Destination
-
-    init(
-      storageKey: String,
-      extractTopDestination: @escaping (Destination) -> TopDestination?,
-      makeDestination: @escaping (TopDestination) -> Destination
-    ) {
-      self._topDestination = Persisted(wrappedValue: nil, storageKey)
-      self.extractTopDestination = extractTopDestination
-      self.makeDestination = makeDestination
-
-      if let topDestination = topDestination {
-        self.path = [makeDestination(topDestination)]
-      }
-    }
-  }
-
   private static let log = Log.as("Navigation")
 
   // MARK: - Tab Management
@@ -134,7 +92,7 @@ extension Container {
     case feedback
   }
 
-  enum PodcastsViewType: DefaultsStorable, Codable, Hashable, Sendable {
+  enum PodcastsViewType: Hashable, Sendable {
     case subscribed
     case unsubscribed
     case untagged
@@ -145,58 +103,6 @@ extension Container {
     case autoCache
     case autoSave
     case notifyNewEpisodes
-
-    enum CodingKeys: String, CodingKey {
-      case type, tagID, cadence
-    }
-
-    init(from decoder: any Decoder) throws {
-      let container = try decoder.container(keyedBy: CodingKeys.self)
-      let type = try container.decode(String.self, forKey: .type)
-      switch type {
-      case "subscribed": self = .subscribed
-      case "unsubscribed": self = .unsubscribed
-      case "untagged": self = .untagged
-      case "tag":
-        self = .tag(try container.decode(Tag.ID.self, forKey: .tagID))
-      case "freshnessCadence":
-        self = .freshnessCadence(try container.decode(FreshnessCadence.self, forKey: .cadence))
-      case "queueOnTop": self = .queueOnTop
-      case "queueOnBottom": self = .queueOnBottom
-      case "autoCache": self = .autoCache
-      case "autoSave": self = .autoSave
-      case "notifyNewEpisodes": self = .notifyNewEpisodes
-      default: self = .subscribed
-      }
-    }
-
-    func encode(to encoder: any Encoder) throws {
-      var container = encoder.container(keyedBy: CodingKeys.self)
-      switch self {
-      case .subscribed:
-        try container.encode("subscribed", forKey: .type)
-      case .unsubscribed:
-        try container.encode("unsubscribed", forKey: .type)
-      case .untagged:
-        try container.encode("untagged", forKey: .type)
-      case .tag(let tagID):
-        try container.encode("tag", forKey: .type)
-        try container.encode(tagID, forKey: .tagID)
-      case .freshnessCadence(let cadence):
-        try container.encode("freshnessCadence", forKey: .type)
-        try container.encode(cadence, forKey: .cadence)
-      case .queueOnTop:
-        try container.encode("queueOnTop", forKey: .type)
-      case .queueOnBottom:
-        try container.encode("queueOnBottom", forKey: .type)
-      case .autoCache:
-        try container.encode("autoCache", forKey: .type)
-      case .autoSave:
-        try container.encode("autoSave", forKey: .type)
-      case .notifyNewEpisodes:
-        try container.encode("notifyNewEpisodes", forKey: .type)
-      }
-    }
   }
 
   @ViewBuilder
@@ -508,25 +414,11 @@ extension Container {
 
   // MARK: - Episodes
 
-  var episodes = SavedPathManager<SmartList.ID>(
-    storageKey: "navigationEpisodesTopDestination",
-    extractTopDestination: {
-      guard case .smartList(let smartListID) = $0 else { return nil }
-      return smartListID
-    },
-    makeDestination: { .smartList($0) }
-  )
+  var episodes = PathManager()
 
   // MARK: - Podcasts
 
-  var podcasts = SavedPathManager<PodcastsViewType>(
-    storageKey: "navigationPodcastsTopDestination",
-    extractTopDestination: {
-      guard case .podcastsViewType(let viewType) = $0 else { return nil }
-      return viewType
-    },
-    makeDestination: { .podcastsViewType($0) }
-  )
+  var podcasts = PathManager()
 
   // MARK: - Podcast Navigation
 

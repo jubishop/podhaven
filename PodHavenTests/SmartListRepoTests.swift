@@ -296,4 +296,95 @@ class SmartListRepoTests {
     )
     #expect(try #require(try await smartListRepo.fetchOne(keep.id)).filter == keepFilter)
   }
+
+  // MARK: - Unread Watermark
+
+  // Insert `count` fresh episodes (one new podcast) so each gets a higher id.
+  private func addEpisodes(_ count: Int) async throws {
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: try (0..<count).map { _ in try Create.unsavedEpisode() }
+      )
+    )
+  }
+
+  private func currentMaxEpisodeID() async throws -> Episode.ID? {
+    try await observatory.episodeIDs(filter: AppDB.noOp).get().max()
+  }
+
+  @Test("insert stamps the watermark to the current newest episode id")
+  func insertStampsWatermark() async throws {
+    try await clearAll()
+
+    // Empty library → watermark 0.
+    let empty = try await smartListRepo.insert(
+      try UnsavedSmartList(title: "Empty", filter: SmartListFilter(), displayOrder: 0)
+    )
+    #expect(empty.lastSeenEpisodeId == 0)
+
+    try await addEpisodes(2)
+    let maxID = try await currentMaxEpisodeID()
+    let stamped = try await smartListRepo.insert(
+      try UnsavedSmartList(title: "Stamped", filter: SmartListFilter(), displayOrder: 1)
+    )
+    #expect(stamped.lastSeenEpisodeId == maxID)
+  }
+
+  @Test("markSeen advances the watermark to the current newest episode id")
+  func markSeenAdvancesWatermark() async throws {
+    try await clearAll()
+    try await addEpisodes(1)
+
+    let list = try await smartListRepo.insert(
+      try UnsavedSmartList(title: "A", filter: SmartListFilter(), displayOrder: 0)
+    )
+    try await addEpisodes(3)
+    let newMax = try await currentMaxEpisodeID()
+    #expect(list.lastSeenEpisodeId != newMax)  // newer episodes arrived since insert
+
+    try await smartListRepo.markSeen(list.id)
+    #expect(try await smartListRepo.fetchOne(list.id)?.lastSeenEpisodeId == newMax)
+  }
+
+  @Test("update resets the watermark only when the filter changes")
+  func updateResetsWatermarkOnFilterChange() async throws {
+    try await clearAll()
+    try await addEpisodes(2)
+
+    let lovedFilter = SmartListFilter(combinator: .all, conditions: [.state(.isLoved)])
+    let list = try await smartListRepo.insert(
+      try UnsavedSmartList(title: "A", filter: lovedFilter, displayOrder: 0)
+    )
+    let initial = list.lastSeenEpisodeId
+
+    // Move the high-water mark forward with newer episodes.
+    try await addEpisodes(3)
+    let movedMax = try await currentMaxEpisodeID()
+    #expect(movedMax != initial)
+
+    // Same filter (title/artwork-only edit) keeps the watermark.
+    #expect(
+      try await smartListRepo.update(
+        list.id,
+        title: "Renamed",
+        filter: lovedFilter,
+        alwaysShowPodcastImage: true,
+        icon: .listMusic
+      )
+    )
+    #expect(try await smartListRepo.fetchOne(list.id)?.lastSeenEpisodeId == initial)
+
+    // A changed filter resets the watermark to the current newest id.
+    #expect(
+      try await smartListRepo.update(
+        list.id,
+        title: "Renamed",
+        filter: SmartListFilter(combinator: .all, conditions: [.state(.isLiked)]),
+        alwaysShowPodcastImage: true,
+        icon: .listMusic
+      )
+    )
+    #expect(try await smartListRepo.fetchOne(list.id)?.lastSeenEpisodeId == movedMax)
+  }
 }

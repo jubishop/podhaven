@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2026
 
-import FactoryKit
 import Foundation
 import GRDB
 import Testing
@@ -16,45 +15,88 @@ class V61MigrationTests {
     self.migrator = Schema.makeMigrator()
   }
 
-  @Test("v61 backfills existing tags and smart lists with default icons")
-  func backfillsExistingRows() async throws {
+  // Seed one podcast and two episodes (max id 511) at v60 so the backfill has a
+  // determinate high-water mark.
+  private func seedEpisodesAtV60() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v60")
 
     try await appDB.unsafeTestDB.write { db in
-      try db.execute(sql: "INSERT INTO tag (name) VALUES ('Existing')")
       try db.execute(
         sql: """
-          INSERT INTO smartList (title, filter, displayOrder, sortMethod)
-          VALUES ('Existing', '{"combinator":"all","conditions":[],"groups":[]}', 50, 'newestFirst')
+          INSERT INTO podcast (
+            id, feedURL, title, image, description, link, lastUpdate,
+            subscriptionDate, creationDate, defaultPlaybackRate,
+            queueAllEpisodes, cacheAllEpisodes, notifyNewEpisodes, iTunesID,
+            contentUpdatedAt
+          ) VALUES (
+            500, 'https://example.com/v61.xml', 'V61 Podcast',
+            'https://example.com/img.jpg', 'Description',
+            NULL, '2024-01-01 00:00:00', NULL, '2024-01-01 00:00:00',
+            1.0, 'never', 'never', 0, NULL, '2024-01-01 00:00:00'
+          )
           """
       )
+      for (id, guid, mediaURL) in [
+        (510, "guid-1", "https://example.com/ep-510.mp3"),
+        (511, "guid-2", "https://example.com/ep-511.mp3"),
+      ] {
+        try db.execute(
+          sql: """
+            INSERT INTO episode (
+              id, podcastId, guid, mediaURL, title, pubDate, creationDate,
+              contentUpdatedAt, currentTime, maxPlaybackTime, saveInCache,
+              downloading
+            ) VALUES (
+              ?, 500, ?, ?, 'Ep',
+              '2024-02-01 00:00:00', '2024-02-01 00:00:00', '2024-02-01 00:00:00',
+              0, 0, 0, 0
+            )
+            """,
+          arguments: [id, guid, mediaURL]
+        )
+      }
     }
-
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v61")
-
-    let (tagIcon, listIcon) = try await appDB.unsafeTestDB.read { db in
-      let tag = try String.fetchOne(db, sql: "SELECT icon FROM tag WHERE name = 'Existing'")
-      let list = try String.fetchOne(
-        db,
-        sql: "SELECT icon FROM smartList WHERE title = 'Existing'"
-      )
-      return (tag, list)
-    }
-    #expect(tagIcon == "tag")
-    #expect(listIcon == "list-music")
   }
 
-  @Test("v61 lets new rows set an explicit icon")
-  func acceptsExplicitIcon() async throws {
+  @Test("v61 adds a non-null INTEGER lastSeenEpisodeId column to smartList")
+  func addsColumn() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v61")
 
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(sql: "INSERT INTO tag (name, icon) VALUES ('Tech', 'cpu')")
+    let info = try await appDB.unsafeTestDB.read { db -> (type: String, notnull: Int)? in
+      for row in try Row.fetchAll(db, sql: "PRAGMA table_info(smartList)")
+      where (row["name"] as String) == "lastSeenEpisodeId" {
+        return (row["type"] as String, row["notnull"] as Int)
+      }
+      return nil
     }
 
-    let icon = try await appDB.unsafeTestDB.read { db in
-      try String.fetchOne(db, sql: "SELECT icon FROM tag WHERE name = 'Tech'")
+    let column = try #require(info)
+    #expect(column.type == "INTEGER")
+    #expect(column.notnull == 1)
+  }
+
+  @Test("v61 backfills the watermark to the newest episode id")
+  func backfillsToMaxEpisodeId() async throws {
+    try await seedEpisodesAtV60()
+
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v61")
+
+    let watermarks = try await appDB.unsafeTestDB.read { db in
+      try Int64.fetchAll(db, sql: "SELECT lastSeenEpisodeId FROM smartList")
     }
-    #expect(icon == "cpu")
+    // The v54 seed shipped 10 lists; every one starts seen at the top id.
+    #expect(!watermarks.isEmpty)
+    #expect(watermarks.allSatisfy { $0 == 511 })
+  }
+
+  @Test("v61 sets the watermark to 0 when the library is empty")
+  func zeroWhenNoEpisodes() async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v61")
+
+    let watermarks = try await appDB.unsafeTestDB.read { db in
+      try Int64.fetchAll(db, sql: "SELECT lastSeenEpisodeId FROM smartList")
+    }
+    #expect(!watermarks.isEmpty)
+    #expect(watermarks.allSatisfy { $0 == 0 })
   }
 }
