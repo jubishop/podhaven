@@ -4,10 +4,9 @@
 
 set -euo pipefail
 
-SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SENTRY_CLI="${SKILLS_DIR}/sentry-cli"
-FETCH_LOGS="${SKILLS_DIR}/analyze-sentry-logs/fetch_sentry_logs.sh"
-FILTER_LOGS="${SKILLS_DIR}/analyze-sentry-logs/filter_sentry_logs.py"
+SENTRY_CLI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FETCH_LOGS="${SENTRY_CLI}/fetch_sentry_logs.sh"
+FILTER_LOGS="${SENTRY_CLI}/filter_sentry_logs.py"
 
 # shellcheck source=lib.sh
 source "${SENTRY_CLI}/lib.sh"

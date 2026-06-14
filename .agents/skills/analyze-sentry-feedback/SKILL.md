@@ -36,8 +36,10 @@ around that time show, the most likely root cause, and how to fix it.
 
 One feedback at a time. Do **not** use this skill to summarize many feedbacks
 at once or to do general Sentry log triage — for that, use
-`analyze-sentry-logs`. The no-argument listing in Step 0 is the one exception:
-it only enumerates open entries so the user can pick one to triage.
+`analyze-sentry-logs`. For a non-feedback error issue (an `issues/<id>` URL or
+short ID), use `analyze-sentry-issue`. The no-argument listing in Step 0 is the
+one exception: it only enumerates open entries so the user can pick one to
+triage.
 
 ## Step 0: No reference given? List unresolved feedback
 
@@ -118,7 +120,7 @@ server.
 Run:
 
 ```bash
-bash .agents/skills/sentry-cli/fetch_feedback_bundle.sh <slug> \
+bash .agents/scripts/sentry-cli/fetch_feedback_bundle.sh <slug> \
   --out /tmp/sentry_feedback
 ```
 
@@ -195,7 +197,7 @@ Convert the feedback timestamp to an ISO range (10 minutes before submission,
 1 minute after), then run:
 
 ```bash
-bash .agents/skills/sentry-cli/search_related_errors.sh \
+bash .agents/scripts/sentry-cli/search_related_errors.sh \
   --period '2026-05-30T00:10:00Z..2026-05-30T00:21:00Z' \
   --query 'user.id:<uuid>' \
   --out /tmp/sentry_feedback_related.json
@@ -249,7 +251,7 @@ session.
 3. Create a per-feedback working directory and download attachments:
 
 ```bash
-bash .agents/skills/sentry-cli/download_event_attachments.sh \
+bash .agents/scripts/sentry-cli/download_event_attachments.sh \
   --event <event_id> \
   --dir ~/Library/Caches/analyze-sentry-feedback/<feedback-slug>/
 ```

@@ -12,6 +12,8 @@ disable-model-invocation: true
 
 Analyze Sentry logs for the PodHaven iOS app. This is a **logs-only** analysis — no Sentry issues, events, crashes, or other data. Focus exclusively on what the logs reveal.
 
+"Sentry logs" here means Sentry's **structured logs** (`ourlogs`) — a different source from the device NDJSON files the `analyze-logs` skill reads. For a single error issue use `analyze-sentry-issue`; for one user feedback use `analyze-sentry-feedback`. Those two reuse the shared `sentry-cli/` fetch scripts (`fetch_sentry_logs.sh`, `filter_sentry_logs.py`) for targeted, user/trace-scoped timelines rather than the bulk pattern triage here.
+
 ## Arguments
 
 Accepts a time span argument. Examples:
@@ -40,14 +42,14 @@ for install notes. Do not use the Sentry MCP server.
 
 ## Step 1: Fetch logs
 
-Run `.agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh` — it uses
+Run `.agents/scripts/sentry-cli/fetch_sentry_logs.sh` — it uses
 `sentry log list` and `sentry explore` under the hood:
 
 ```bash
-bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod>
-bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh 6h \
+bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh <statsPeriod>
+bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh 6h \
   'user.id:<uuid> severity:[warn,error]'
-bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh 1h \
+bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh 1h \
   'trace:<trace_id> severity:[warn,error]'
 ```
 
@@ -57,7 +59,7 @@ To narrow fetched rows to an incident window (used heavily by
 `analyze-sentry-issue`):
 
 ```bash
-python3 .agents/skills/analyze-sentry-logs/filter_sentry_logs.py \
+python3 .agents/scripts/sentry-cli/filter_sentry_logs.py \
   --around-ms <event_epoch_ms> --window-ms 600000 --oneline
 ```
 

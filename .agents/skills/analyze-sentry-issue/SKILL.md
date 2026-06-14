@@ -95,7 +95,7 @@ Optional fish completions (installs under `~/.config/fish/completions/` only):
 sentry cli setup
 ```
 
-All fetches use repo scripts under `.agents/skills/sentry-cli/` wrapping `sentry`
+All fetches use repo scripts under `.agents/scripts/sentry-cli/` wrapping `sentry`
 commands. Do not use the Sentry MCP server or hand-rolled curl.
 
 ## Step 2: Fetch the issue
@@ -103,7 +103,7 @@ commands. Do not use the Sentry MCP server or hand-rolled curl.
 Run:
 
 ```bash
-bash .agents/skills/sentry-cli/fetch_issue_bundle.sh <issue-ref> \
+bash .agents/scripts/sentry-cli/fetch_issue_bundle.sh <issue-ref> \
   --out /tmp/sentry_issue
 ```
 
@@ -190,7 +190,7 @@ List attachments on the representative event, then download into the per-issue
 cache when needed:
 
 ```bash
-bash .agents/skills/sentry-cli/download_event_attachments.sh \
+bash .agents/scripts/sentry-cli/download_event_attachments.sh \
   --event <event_id> \
   --dir ~/Library/Caches/analyze-sentry-issue/<issue-short-id>/
 ```
@@ -206,16 +206,21 @@ When the project is PodHaven and attachments include `log.ndjson` and/or
    `~/Library/Caches/analyze-sentry-issue/<issue-short-id>/`
    (replace characters unsafe in paths).
 2. Sanity-check: non-empty NDJSON, latest entry near the event timestamp.
-3. Analyze with the `analyze-logs` skill's `log_summary.py` script — never
-   ad-hoc hand parsing:
+3. Analyze with the `analyze-logs` skill — never ad-hoc hand parsing. Invoke
+   that skill to load its full flag reference, then drive its `log_summary.py`:
    - `--sessions` to find the launch containing the event time
    - `--session N` on all follow-up commands
-   - `--around <event_ms> --window-ms 60000` (widen if empty)
+   - `--around <event-timestamp> --window-ms 60000` (widen if empty). Paste the
+     Sentry timestamp straight in — `--around` accepts ISO-8601 with timezone;
+     never hand-convert to epoch ms.
    - `--min-level warning` first, then unfiltered if needed
    - `--call-sites` when the issue looks like a loop or storm
 4. Run the same on `widget-log.ndjson` when widget behavior is plausible.
-5. If MetricKit diagnostics appear, symbolicate with
-   `analyze-logs/scripts/symbolicate_metrickit.py`.
+5. If a `MetricKit <category> diagnostic received` entry appears, symbolicate
+   with `analyze-logs/scripts/symbolicate_metrickit.py`. MetricKit delivers
+   diagnostics at the *next launch* after the incident, so the entry's
+   timestamp rarely matches the event — lead with `--category <category>` over
+   the whole file, not `--around` the event time.
 
 These attachments are the **reporter's** logs — not the developer's local
 iCloud copies. Do not substitute local logs unless the event user provably
@@ -228,8 +233,8 @@ adapt the analysis approach to the log format.
 
 When the project is PodHaven and the event exposes a correlatable identifier,
 pull **Sentry structured logs** (`ourlogs`) scoped to that user or trace. This
-uses the fetch script documented in the `analyze-sentry-logs` skill — follow
-that script's query syntax and output files. Do **not** run the full
+uses the shared `sentry-cli/fetch_sentry_logs.sh` script, whose query syntax and
+output files are documented in the `analyze-sentry-logs` skill. Do **not** run the full
 `analyze-sentry-logs` pattern-triage workflow (Steps 2–3 of that skill) unless
 the user separately invoked `/analyze-sentry-logs`; here you only need a
 **targeted timeline** around the failure.
@@ -246,18 +251,18 @@ the user separately invoked `/analyze-sentry-logs`; here you only need a
 
 **How to fetch:**
 
-1. Use `.agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh`.
+1. Use `.agents/scripts/sentry-cli/fetch_sentry_logs.sh`.
 2. Build a Sentry logs query. Prefer user scope first:
 
 ```bash
-bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
+bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh <statsPeriod> \
   'user.id:<uuid> severity:[warn,error]'
 ```
 
 Narrow with release when useful — **not** event `environment` alone:
 
 ```bash
-bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
+bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh <statsPeriod> \
   'user.id:<uuid> release:<release> severity:[warn,error]'
 ```
 
@@ -270,7 +275,7 @@ if you first confirm that value appears in the fetched log rows.
 3. If user-scoped fetch returns nothing but the event has a trace ID, retry:
 
 ```bash
-bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
+bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh <statsPeriod> \
   'trace:<trace_id> severity:[warn,error]'
 ```
 
@@ -279,7 +284,7 @@ bash .agents/skills/analyze-sentry-logs/fetch_sentry_logs.sh <statsPeriod> \
    minutes, widen to ±30 if sparse):
 
 ```bash
-python3 .agents/skills/analyze-sentry-logs/filter_sentry_logs.py \
+python3 .agents/scripts/sentry-cli/filter_sentry_logs.py \
   --around-ms <event_epoch_ms> --window-ms 600000 --oneline
 ```
 

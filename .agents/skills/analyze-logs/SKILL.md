@@ -8,6 +8,8 @@ user_invocable: true
 
 Inspect PodHaven NDJSON logs without reading the entire file into context. Use the bundled summary script for structured analysis, then targeted `rg` searches when you need line-level confirmation.
 
+Scope: this skill covers **local** logs — the NDJSON file logs and the OS unified log (os_log/Console). Sentry's **structured logs** (`ourlogs`) are a different source; use `analyze-sentry-logs` for those. Sentry event/feedback NDJSON **attachments** are fetched by `analyze-sentry-issue` / `analyze-sentry-feedback`, which then hand the downloaded files back to this skill's scripts.
+
 ## Required: user must say where the logs are
 
 **Do not infer or auto-select a log path.** Before running `log_summary.py` or reading a file:
@@ -18,7 +20,7 @@ Inspect PodHaven NDJSON logs without reading the entire file into context. Use t
 
 If the user has not supplied a path, stop and ask. You may run `scripts/locate_logs.py` only to show **reference** locations while waiting — that script does not choose a file for you.
 
-A concrete path supplied by an invoking skill counts as user-supplied — e.g. the `analyze-sentry-feedback` flow passes the paths of the reporter's downloaded attachments. Repeat the path and its run context back and proceed; do not re-ask.
+A concrete path supplied by an invoking skill counts as user-supplied — e.g. the `analyze-sentry-issue` / `analyze-sentry-feedback` flows pass the paths of the reporter's downloaded attachments. Repeat the path and its run context back and proceed; do not re-ask.
 
 ## Reference: where logs usually live (confirm with the user)
 
