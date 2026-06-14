@@ -15,6 +15,7 @@ struct EpisodesView: View {
         .navigationTitle("Episodes")
         .toolbar { toolbar }
         .task(viewModel.observeSmartLists)
+        .task(viewModel.observeUnreadCounts)
     }
   }
 
@@ -50,6 +51,7 @@ struct EpisodesView: View {
         NavigationLink(value: Navigation.Destination.smartList(smartList.id)) {
           Text(smartList.title)
         }
+        .badge(viewModel.unreadCounts[smartList.id, default: 0])
         .swipeActions(edge: .trailing) {
           AppIcon.delete.imageButton {
             viewModel.deleteSmartList(smartList)
