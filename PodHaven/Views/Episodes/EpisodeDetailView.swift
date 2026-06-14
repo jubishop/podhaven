@@ -354,7 +354,7 @@ struct EpisodeDetailView: View {
         }
       case .transcribed:
         if let transcript = viewModel.episode.decodedTranscript {
-          Text(transcript.segments.map(\.text).joined(separator: " "))
+          Text(transcript.segments.map(\.text).joined(separator: "\n"))
             .frame(maxWidth: .infinity, alignment: .leading)
         }
       case .failed:
