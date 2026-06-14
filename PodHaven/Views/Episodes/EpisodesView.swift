@@ -57,6 +57,7 @@ struct EpisodesView: View {
         }
       }
       .onMove(perform: viewModel.moveSmartList)
+      .onDelete(perform: viewModel.deleteSmartList(at:))
     }
     .environment(\.editMode, $viewModel.editMode)
     .animation(.default, value: viewModel.smartLists)
