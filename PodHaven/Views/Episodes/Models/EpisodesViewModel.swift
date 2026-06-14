@@ -38,7 +38,6 @@ class EpisodesViewModel {
         self.smartLists = smartLists
         loadingState = .loaded
       }
-    } catch is CancellationError {
     } catch {
       Self.log.caughtError("observeSmartLists: observation failed", error)
       guard !Task.isCancelled else { return }
@@ -56,7 +55,6 @@ class EpisodesViewModel {
         try Task.checkCancellation()
         unreadCounts = counts
       }
-    } catch is CancellationError {
     } catch {
       Self.log.caughtError("observeUnreadCounts: observation failed", error)
     }
