@@ -82,7 +82,8 @@ class SmartListRepoTests {
         inserted.id,
         title: "Favorites",
         filter: newFilter,
-        alwaysShowPodcastImage: true
+        alwaysShowPodcastImage: true,
+        icon: .listMusic
       )
     )
     #expect(try await smartListRepo.updateSortMethod(inserted.id, to: .longest))
@@ -116,7 +117,8 @@ class SmartListRepoTests {
         list.id,
         title: "   ",
         filter: SmartListFilter(),
-        alwaysShowPodcastImage: false
+        alwaysShowPodcastImage: false,
+        icon: .listMusic
       )
     }
     #expect(try await smartListRepo.fetchOne(list.id)?.title == "Valid")
@@ -126,7 +128,8 @@ class SmartListRepoTests {
         list.id,
         title: "  Renamed  ",
         filter: SmartListFilter(),
-        alwaysShowPodcastImage: false
+        alwaysShowPodcastImage: false,
+        icon: .listMusic
       )
     )
     #expect(try await smartListRepo.fetchOne(list.id)?.title == "Renamed")
@@ -182,7 +185,8 @@ class SmartListRepoTests {
       list.id,
       title: "B",
       filter: SmartListFilter(),
-      alwaysShowPodcastImage: false
+      alwaysShowPodcastImage: false,
+      icon: .listMusic
     )
     try await count.wait(for: 3)  // after update
   }
@@ -200,7 +204,8 @@ class SmartListRepoTests {
       list.id,
       title: "B",
       filter: SmartListFilter(),
-      alwaysShowPodcastImage: false
+      alwaysShowPodcastImage: false,
+      icon: .listMusic
     )
     #expect(try await observatory.smartList(list.id).get()?.title == "B")
 

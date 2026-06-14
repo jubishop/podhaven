@@ -71,6 +71,9 @@ protocol Databasing: Sendable {
   func renameTag(_ tagID: Tag.ID, newName: String) async throws -> Bool
 
   @discardableResult
+  func updateTag(_ tagID: Tag.ID, name: String, icon: LucideIcon) async throws -> Bool
+
+  @discardableResult
   func deleteTag(_ tagID: Tag.ID) async throws -> Bool
 
   func addTag(_ tagID: Tag.ID, to podcastID: Podcast.ID) async throws

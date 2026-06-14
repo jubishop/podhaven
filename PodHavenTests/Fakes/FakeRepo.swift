@@ -244,6 +244,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
+  func updateTag(_ tagID: Tag.ID, name: String, icon: LucideIcon) async throws -> Bool {
+    recordCall(methodName: "updateTag", parameters: (tagID: tagID, name: name, icon: icon))
+    return try await repo.updateTag(tagID, name: name, icon: icon)
+  }
+
+  @discardableResult
   func deleteTag(_ tagID: Tag.ID) async throws -> Bool {
     recordCall(methodName: "deleteTag", parameters: tagID)
     return try await repo.deleteTag(tagID)

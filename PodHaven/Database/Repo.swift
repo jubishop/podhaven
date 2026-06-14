@@ -368,6 +368,24 @@ struct Repo: Databasing {
   }
 
   @discardableResult
+  func updateTag(_ tagID: Tag.ID, name: String, icon: LucideIcon) async throws -> Bool {
+    let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedName.isEmpty else {
+      throw DatabaseError(message: "Tag name cannot be empty")
+    }
+
+    return try await writer.write { db in
+      try Tag
+        .withID(tagID)
+        .updateAll(
+          db,
+          Tag.Columns.name.set(to: normalizedName),
+          Tag.Columns.icon.set(to: icon.databaseValue)
+        )
+    } > 0
+  }
+
+  @discardableResult
   func deleteTag(_ tagID: Tag.ID) async throws -> Bool {
     try await writer.write { db in
       let deleted = try Tag.withID(tagID).deleteAll(db)

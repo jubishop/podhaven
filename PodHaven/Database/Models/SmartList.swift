@@ -23,13 +23,15 @@ struct UnsavedSmartList: Identifiable, Savable {
   // When true the list always shows podcast artwork; when false it shows the
   // episode-specific artwork when one exists. Mirrors the per-Queue setting.
   var alwaysShowPodcastImage: Bool
+  var icon: LucideIcon
 
   init(
     title: String,
     filter: SmartListFilter,
     displayOrder: Int,
     sortMethod: SmartListSortMethod = .newestFirst,
-    alwaysShowPodcastImage: Bool = false
+    alwaysShowPodcastImage: Bool = false,
+    icon: LucideIcon = .listMusic
   ) throws {
     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -40,6 +42,7 @@ struct UnsavedSmartList: Identifiable, Savable {
     self.displayOrder = displayOrder
     self.sortMethod = sortMethod
     self.alwaysShowPodcastImage = alwaysShowPodcastImage
+    self.icon = icon
   }
 
   // MARK: - Stringable / Searchable
@@ -59,6 +62,7 @@ struct SmartList: Saved {
     static let displayOrder = Column("displayOrder")
     static let sortMethod = Column("sortMethod")
     static let alwaysShowPodcastImage = Column("alwaysShowPodcastImage")
+    static let icon = Column("icon")
     static let creationDate = Column("creationDate")
   }
 
@@ -69,6 +73,7 @@ struct SmartList: Saved {
   var displayOrder: Int { unsaved.displayOrder }
   var sortMethod: SmartListSortMethod { unsaved.sortMethod }
   var alwaysShowPodcastImage: Bool { unsaved.alwaysShowPodcastImage }
+  var icon: LucideIcon { unsaved.icon }
 }
 
 // MARK: - DerivableRequest

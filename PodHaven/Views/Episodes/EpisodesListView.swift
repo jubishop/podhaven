@@ -38,7 +38,8 @@ struct EpisodesListView: View {
                   mode: .edit(viewModel.smartListID),
                   title: viewModel.title,
                   filter: viewModel.smartListFilter,
-                  alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage
+                  alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage,
+                  icon: viewModel.icon
                 )
               )
             }
