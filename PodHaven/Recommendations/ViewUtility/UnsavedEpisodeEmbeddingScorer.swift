@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Tagged
 
 // Per-host helper that computes similarity scores for unsaved episodes
 // against the recommendation engine's centroid. Owns a revision-keyed,
@@ -48,6 +49,9 @@ final class UnsavedEpisodeEmbeddingScorer {
 
     var orderedGUIDs = [MediaGUID](capacity: capacity)
     var vectors = [[Float]](capacity: capacity)
+    // The podcast-context vector is identical for every episode of a feed, so
+    // compute it once per feed instead of re-embedding it on each cache miss.
+    var podcastVectors: [FeedURL: [Float]?] = [:]
     for episode in unsavedEpisodes {
       try Task.checkCancellation()
       let mediaGUID = episode.mediaGUID
@@ -56,8 +60,20 @@ final class UnsavedEpisodeEmbeddingScorer {
       if let cached = cachedVectors[mediaGUID], cached.source == source {
         vector = cached.vector
       } else {
-        vector = try await EmbeddingService.embeddingVector(
-          for: episode,
+        let feedURL = episode.feedURL
+        let podcastVector: [Float]?
+        if let cached = podcastVectors[feedURL] {
+          podcastVector = cached
+        } else {
+          podcastVector = try await EmbeddingService.podcastContextVector(
+            for: episode.unsavedPodcast,
+            embedding: contextualEmbedding
+          )
+          podcastVectors[feedURL] = podcastVector
+        }
+        vector = try await EmbeddingService.episodeEmbeddingVector(
+          for: episode.unsavedEpisode,
+          podcastVector: podcastVector,
           embedding: contextualEmbedding
         )
         cachedVectors[mediaGUID] = (source: source, vector: vector)

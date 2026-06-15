@@ -163,27 +163,30 @@ enum EmbeddingService {
 
   // Mirrors the saved-side recipe so an unsaved row scores against the same
   // vector space.
-  @concurrent static func embeddingVector(
-    for unsavedPodcastEpisode: UnsavedPodcastEpisode,
+  //
+  // The podcast-context vector is identical for every episode of a feed, so a
+  // batch caller computes it once and threads it through episodeEmbeddingVector
+  // instead of re-embedding the podcast title/description per episode.
+  @concurrent static func podcastContextVector(
+    for unsavedPodcast: UnsavedPodcast,
+    embedding: ContextualEmbedding
+  ) async throws -> [Float]? {
+    await embedding.loadAssetsIfAvailable()
+    let cleanedTitle = cleanText(unsavedPodcast.title)
+    guard !cleanedTitle.isEmpty else { return nil }
+    return try await computePodcastVector(
+      cleanedTitle: cleanedTitle,
+      cleanedDescription: cleanText(unsavedPodcast.description),
+      embedding: embedding
+    )
+  }
+
+  @concurrent static func episodeEmbeddingVector(
+    for unsavedEpisode: UnsavedEpisode,
+    podcastVector: [Float]?,
     embedding: ContextualEmbedding
   ) async throws -> [Float] {
-    await embedding.loadAssetsIfAvailable()
-
-    let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
-    let unsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
-
-    let cleanedPodcastTitle = cleanText(unsavedPodcast.title)
-    let cleanedPodcastDescription = cleanText(unsavedPodcast.description)
-    let podcastVector: [Float]? =
-      cleanedPodcastTitle.isEmpty
-      ? nil
-      : try await computePodcastVector(
-        cleanedTitle: cleanedPodcastTitle,
-        cleanedDescription: cleanedPodcastDescription,
-        embedding: embedding
-      )
-
-    return try await computeEpisodeEmbedding(
+    try await computeEpisodeEmbedding(
       cleanedTitle: cleanText(unsavedEpisode.title),
       cleanedDescription: cleanText(unsavedEpisode.description ?? ""),
       embedding: embedding,
