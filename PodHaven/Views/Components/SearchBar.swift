@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SearchBar: View {
   @FocusState private var isFocused: Bool
+  @State private var showClear = false
 
   private let fontSize = UIFont.preferredFont(forTextStyle: .body).pointSize
 
@@ -24,7 +25,7 @@ struct SearchBar: View {
       .padding(12)
       .glassEffect(.regular)
 
-      if showClearSearchButton {
+      if showClear {
         AppIcon.clearSearch
           .imageButton {
             text = ""
@@ -36,11 +37,19 @@ struct SearchBar: View {
           .transition(.move(edge: .trailing).combined(with: .opacity))
       }
     }
-    .animation(.easeInOut(duration: 0.15), value: showClearSearchButton)
+    .onChange(of: isFocused) { syncClearButton() }
+    .onChange(of: text) { syncClearButton() }
+    .onAppear { showClear = isFocused || !text.isEmpty }
   }
 
-  private var showClearSearchButton: Bool {
-    isFocused || !text.isEmpty
+  // Drive visibility through explicit state inside withAnimation so focus-triggered
+  // changes animate too: a plain computed condition with .animation(value:) animates
+  // on text edits but not on focus changes, which made the clear button pop in
+  // without sliding.
+  private func syncClearButton() {
+    withAnimation(.easeInOut(duration: 0.15)) {
+      showClear = isFocused || !text.isEmpty
+    }
   }
 }
 
