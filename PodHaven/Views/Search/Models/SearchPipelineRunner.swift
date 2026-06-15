@@ -142,7 +142,7 @@ enum SearchPipelineRunner {
         log.caughtError(
           "Embedding failed for \(payload.toString); skipping",
           error,
-          level: { _ in .info }
+          level: .info
         )
       }
     }
