@@ -33,14 +33,14 @@ struct SearchBar: View {
           .buttonStyle(.plain)
           .padding(16)
           .glassEffect(.regular.interactive(), in: .circle)
-          .transition(.scale.combined(with: .opacity))
+          .transition(.move(edge: .trailing).combined(with: .opacity))
       }
     }
     .animation(.easeInOut(duration: 0.15), value: showClearSearchButton)
   }
 
   private var showClearSearchButton: Bool {
-    !text.isEmpty
+    isFocused || !text.isEmpty
   }
 }
 
