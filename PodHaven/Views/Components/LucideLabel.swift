@@ -23,7 +23,8 @@ struct LucideLabel: View {
 
 // Icon + title for a navigation bar's principal toolbar item. The title conveys
 // the destination, so the icon is hidden from VoiceOver; it scales with the
-// headline title.
+// headline title. A custom principal view doesn't inherit the system title's
+// header trait, so the title restores it for the VoiceOver headings rotor.
 struct LucideNavigationTitle: View {
   let icon: LucideIcon
   let title: String
@@ -38,6 +39,7 @@ struct LucideNavigationTitle: View {
         .accessibilityHidden(true)
       Text(title)
         .font(.headline)
+        .accessibilityAddTraits(.isHeader)
     }
   }
 }
