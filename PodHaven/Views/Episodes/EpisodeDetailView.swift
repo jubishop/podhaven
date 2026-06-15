@@ -127,7 +127,11 @@ struct EpisodeDetailView: View {
           }
         }
 
-        if !viewModel.episode.saveInCache {
+        if viewModel.episode.saveInCache {
+          AppIcon.unsaveEpisodeFromCache.labelButton {
+            viewModel.unsaveEpisodeFromCache()
+          }
+        } else {
           AppIcon.saveEpisodeInCache.labelButton {
             viewModel.saveEpisodeInCache()
           }

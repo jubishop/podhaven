@@ -205,6 +205,19 @@ private let htmlTextPreviewGroups: [HTMLTextPreviewGroup] = [
         color: .green,
         font: .callout
       ),
+      .init(
+        description: "Auto-detected bare URL",
+        html: "No anchor tag here, just a raw link: https://www.swift.org/documentation/",
+        color: .primary,
+        font: .body
+      ),
+      .init(
+        description: "Auto-detected URL alongside email and bare domain",
+        html:
+          "Original post: https://news.ycombinator.com/item?id=123&amp;utm_source=x — feedback to team@example.com or read example.com",
+        color: .blue,
+        font: .body
+      ),
     ]
   ),
   .init(
@@ -559,6 +572,11 @@ struct HTMLTextMenuPreview: View {
       description: "Link on same line as timestamp",
       html:
         "00:20:00 - Check out <a href=\"https://example.com\">this resource</a> for more info"
+    ),
+    MenuSample(
+      description: "Auto-detected raw URLs on their own lines (wondercraft-style)",
+      html:
+        "(00:30): How to earn a billion dollars<br/>Original post: https://news.ycombinator.com/item?id=48526360&amp;utm_source=wondercraft_ai<br/><br/>(01:56): Show HN: Kage<br/>Original post: https://news.ycombinator.com/item?id=48529990&amp;utm_source=wondercraft_ai"
     ),
     MenuSample(
       description: "Multiple timestamps with formatting",

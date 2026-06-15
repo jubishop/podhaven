@@ -9,6 +9,8 @@ struct TagsSettingsView: View {
 
   @State private var viewModel = TagsSettingsViewModel()
 
+  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 24
+
   var body: some View {
     List {
       if viewModel.tags.isEmpty {
@@ -42,8 +44,9 @@ struct TagsSettingsView: View {
   private func tagRow(_ tag: Tag) -> some View {
     HStack(spacing: 12) {
       LucideIconView(icon: tag.icon)
-        .frame(width: 24, height: 24)
+        .frame(width: iconSize, height: iconSize)
         .foregroundStyle(.tint)
+        .accessibilityHidden(true)
       VStack(alignment: .leading) {
         Text(tag.name)
         Text(
