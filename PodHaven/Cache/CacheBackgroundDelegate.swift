@@ -154,6 +154,17 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         "didFinishDownloadingTo: failed to fetch episode for task #\(downloadTask.taskID)",
         error
       )
+      // The row may still exist with downloading == true; clear it via the
+      // parsed id and drop the temp file we can't attribute.
+      if let signalEpisodeID { await clearDownloadState(for: signalEpisodeID) }
+      do {
+        try fileManager.removeItem(at: location)
+      } catch {
+        Self.log.caughtError(
+          "didFinishDownloadingTo: failed to remove temp file at \(location) after fetch failure",
+          error
+        )
+      }
       return
     }
 
@@ -331,6 +342,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         error
       )
       Self.log.caughtError("Download failed for task #\(task.taskID)", downloadError)
+      // The row may still exist with downloading == true; clear it via the
+      // parsed id so the episode isn't stranded as .caching.
+      if let signalEpisodeID { await clearDownloadState(for: signalEpisodeID) }
       return
     }
 

@@ -538,4 +538,59 @@ import Testing
     let updated = try await repo.episode(podcastEpisode.id)!
     #expect(updated.cacheStatus == .uncached)
   }
+
+  // A terminal callback can fail to read its episode row (transient DB error),
+  // not just find it missing. The id is still parseable from taskDescription,
+  // so the give-up path must clear downloading and drop the temp file rather
+  // than strand the episode as .caching with no live task until next launch.
+  @Test("didFinishDownloadingTo clears state when the episode fetch throws")
+  func didFinishDownloadingToClearsStateWhenEpisodeFetchThrows() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+
+    let task = FakeURLSessionDownloadTask(
+      taskDescription: String(podcastEpisode.id.rawValue),
+      originalRequest: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
+    )
+    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try await fileManager.writeData(Data.random(), to: tempFile)
+
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.episodeFetchError(InjectedRepoError())
+
+    await cacheBackgroundDelegate.urlSession(
+      session,
+      downloadTask: task,
+      didFinishDownloadingTo: tempFile
+    )
+
+    let updated = try await repo.episode(podcastEpisode.id)!
+    #expect(updated.cacheStatus == .uncached)
+    #expect(!fileManager.fileExists(at: tempFile))
+  }
+
+  @Test("didCompleteWithError clears state when the episode fetch throws")
+  func didCompleteWithErrorClearsStateWhenEpisodeFetchThrows() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+
+    let task = FakeURLSessionDownloadTask(
+      taskDescription: String(podcastEpisode.id.rawValue),
+      originalRequest: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
+    )
+
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.episodeFetchError(InjectedRepoError())
+
+    await cacheBackgroundDelegate.urlSession(
+      session,
+      task: task,
+      didCompleteWithError: InjectedRepoError()
+    )
+
+    let updated = try await repo.episode(podcastEpisode.id)!
+    #expect(updated.cacheStatus == .uncached)
+  }
 }
+
+private struct InjectedRepoError: Error, Sendable {}
