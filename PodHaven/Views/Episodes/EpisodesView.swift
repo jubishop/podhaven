@@ -51,7 +51,8 @@ struct EpisodesView: View {
         NavigationLink(value: Navigation.Destination.smartList(smartList.id)) {
           CountLabel(
             title: smartList.title,
-            count: viewModel.unreadCounts[smartList.id, default: 0]
+            count: viewModel.unreadCounts[smartList.id, default: 0],
+            icon: smartList.icon
           )
         }
         .swipeActions(edge: .trailing) {

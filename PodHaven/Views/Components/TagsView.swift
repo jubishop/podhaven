@@ -34,8 +34,10 @@ struct TagsView: View {
       onRemove(tag.id)
     } label: {
       HStack(spacing: 4) {
-        AppIcon.removeTag.image
+        LucideIconView(icon: tag.icon)
+          .frame(width: 16, height: 16)
         Text(tag.name)
+        AppIcon.removeTag.image
       }
     }
     .tint(.accentColor)
