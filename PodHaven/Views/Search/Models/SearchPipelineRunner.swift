@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import Logging
+import Tagged
 
 // MARK: - SearchPipelineRunner
 
@@ -40,6 +41,9 @@ enum SearchPipelineRunner {
     let engine = Container.shared.recommendationEngine()
     let repo = Container.shared.repo()
 
+    let now = Container.shared.continuousClockNow()
+    let startTime = now()
+
     let feedData: DownloadData
     do {
       feedData = try await downloadTask.downloadFinished()
@@ -50,6 +54,7 @@ enum SearchPipelineRunner {
     }
 
     if Task.isCancelled { return .cancelled }
+    let fetchedTime = now()
 
     let podcastFeed: PodcastFeed
     do {
@@ -70,6 +75,8 @@ enum SearchPipelineRunner {
         .sorted { $0.pubDate > $1.pubDate }
         .prefix(episodesPerPodcast)
     )
+    let parsedTime = now()
+
     let candidates: [UnsavedEpisode]
     do {
       candidates = try await filteredCandidates(
@@ -83,6 +90,25 @@ enum SearchPipelineRunner {
     }
 
     if Task.isCancelled { return .cancelled }
+    let filteredTime = now()
+
+    // The podcast-context vector is identical for every episode, so compute it
+    // once per feed instead of re-embedding the podcast text inside the loop.
+    let podcastVector: [Float]?
+    if candidates.isEmpty {
+      podcastVector = nil
+    } else {
+      do {
+        podcastVector = try await EmbeddingService.podcastContextVector(
+          for: unsavedPodcast,
+          embedding: embedding
+        )
+      } catch is CancellationError {
+        return .cancelled
+      } catch {
+        return .failed(error)
+      }
+    }
 
     var payloads = [UnsavedPodcastEpisode](capacity: candidates.count)
     var vectors = [[Float]](capacity: candidates.count)
@@ -94,7 +120,11 @@ enum SearchPipelineRunner {
         unsavedEpisode: unsavedEpisode
       )
       do {
-        let vector = try await EmbeddingService.embeddingVector(for: payload, embedding: embedding)
+        let vector = try await EmbeddingService.episodeEmbeddingVector(
+          for: unsavedEpisode,
+          podcastVector: podcastVector,
+          embedding: embedding
+        )
         payloads.append(payload)
         vectors.append(vector)
       } catch is CancellationError {
@@ -110,6 +140,7 @@ enum SearchPipelineRunner {
 
     if Task.isCancelled { return .cancelled }
     if await isDetached() { return .cancelled }
+    let embeddedTime = now()
 
     let similarities: [Float?]
     do {
@@ -125,6 +156,18 @@ enum SearchPipelineRunner {
       guard let score, score > scoreFloor else { continue }
       scored.append(ScoredEpisode(feedURL: feedURL, episode: payload, score: score))
     }
+
+    let scoredTime = now()
+    log.debug(
+      """
+      perf: \(feedURL.rawValue) total \(scoredTime - startTime) \
+      (fetch \(fetchedTime - startTime), \
+      parse \(parsedTime - fetchedTime) for \(newest.count) eps, \
+      filter \(filteredTime - parsedTime) -> \(candidates.count) candidates, \
+      embed \(embeddedTime - filteredTime) -> \(vectors.count) vectors, \
+      score \(scoredTime - embeddedTime)) -> \(scored.count) picks
+      """
+    )
 
     return .success(scored)
   }
