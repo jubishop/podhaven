@@ -9,6 +9,11 @@ import Testing
 @Suite("of CacheManager await-download API", .container)
 struct CacheManagerAwaitTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.repo) private var repo
+
+  private var session: FakeDataFetchable {
+    Container.shared.cacheManagerSession() as! FakeDataFetchable
+  }
 
   init() {
     cacheManager.start()
@@ -115,6 +120,34 @@ struct CacheManagerAwaitTests {
     try await CacheHelpers.simulateBackgroundFinish(okTaskID, data: data)
 
     let resolved = try #require(try await secondPending)
+    let actualData = try await CacheHelpers.cachedFileData(for: resolved)
+    #expect(actualData == data)
+  }
+
+  @Test("cachedURL(downloadingIfNeeded:) awaits a download reattached after relaunch")
+  func awaitsReattachedDownloadWithoutLatch() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let episodeID = podcastEpisode.id
+
+    // Mimic a relaunch: a live background task is reattached to the recreated
+    // session and the row is downloading, but no in-memory latch exists this
+    // launch (downloadToCache never ran for it, so it registered no latch).
+    let task = session.createDownloadTask(
+      with: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue),
+      taskDescription: String(episodeID.rawValue)
+    )
+    task.resume()
+    try await repo.updateDownloading(episodeID, downloading: true)
+
+    // cachedURL must adopt a latch and suspend until the reattached download
+    // finishes, rather than returning a premature nil.
+    async let pending = cacheManager.cachedURL(downloadingIfNeeded: episodeID)
+    for _ in 0..<50 { await Task.yield() }
+
+    let data = Data.random()
+    try await CacheHelpers.simulateBackgroundFinish(task.taskID, data: data)
+
+    let resolved = try #require(try await pending)
     let actualData = try await CacheHelpers.cachedFileData(for: resolved)
     #expect(actualData == data)
   }

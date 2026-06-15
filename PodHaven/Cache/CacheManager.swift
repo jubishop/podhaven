@@ -186,9 +186,17 @@ struct CacheManager {
     }
 
     // Suspend until the in-flight download's terminal callback opens its latch.
-    // If the latch is already gone the download finished while we were checking,
-    // so read the result either way.
-    if let latch = downloadLatches[episodeID] {
+    // A download reattached after a relaunch has a live task but no latch (the
+    // map is in-memory and empty on launch), so adopt the existing latch or
+    // register one. Then re-check liveness: if the task already finished its
+    // signal found no latch, so don't await — read the result directly.
+    let latch = downloadLatches { latches -> AsyncLatch<Void> in
+      if let existing = latches[episodeID] { return existing }
+      let fresh = AsyncLatch<Void>()
+      latches[episodeID] = fresh
+      return fresh
+    }
+    if await hasLiveDownloadTask(for: episodeID) {
       try await latch.wait()
     }
     return try await repo.episode(episodeID)?.cachedURL

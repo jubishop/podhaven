@@ -105,19 +105,8 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       // completion won't run, so do it here; otherwise the episode is stranded
       // downloading with no live task until the next launch's reconcile.
       guard let signalEpisodeID = episodeID(for: downloadTask) else { return }
-      sharedState.clearDownloadProgress(for: signalEpisodeID)
       Task {
-        do {
-          try await repo.updateDownloading(signalEpisodeID, downloading: false)
-        } catch {
-          Self.log.caughtError(
-            """
-            didFinishDownloadingTo: failed to clear downloading flag after \
-            safe-temp move failure for \(signalEpisodeID)
-            """,
-            error
-          )
-        }
+        await clearDownloadState(for: signalEpisodeID)
         cacheManager.signalDownloadComplete(for: signalEpisodeID)
       }
       return
@@ -194,6 +183,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
+      await clearDownloadState(for: episode.id)
       return
     }
 
@@ -349,16 +339,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       return
     }
 
-    sharedState.clearDownloadProgress(for: episode.id)
-
-    do {
-      try await repo.updateDownloading(episode.id, downloading: false)
-    } catch {
-      Self.log.caughtError(
-        "didCompleteWithError: failed to clear downloading flag for \(episode.toString)",
-        error
-      )
-    }
+    await clearDownloadState(for: episode.id)
 
     Self.log.caughtError("Episode \(episode.toString) download failed", downloadError)
   }
@@ -387,6 +368,19 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       let raw = Episode.ID.RawValue(description)
     else { return nil }
     return Episode.ID(rawValue: raw)
+  }
+
+  // Clears the in-flight download state (progress + downloading flag) for an
+  // episode whose download is giving up, before its completion is signaled.
+  // Logs a flag-clear failure rather than propagating it, since the terminal
+  // callback must still run to completion.
+  private func clearDownloadState(for episodeID: Episode.ID) async {
+    sharedState.clearDownloadProgress(for: episodeID)
+    do {
+      try await repo.updateDownloading(episodeID, downloading: false)
+    } catch {
+      Self.log.caughtError("failed to clear downloading flag for \(episodeID)", error)
+    }
   }
 
   private func generateCacheFilename(for episode: Episode) -> String {

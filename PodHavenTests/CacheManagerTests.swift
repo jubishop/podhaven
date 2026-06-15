@@ -489,6 +489,7 @@ import Testing
   @Test("download with mismatched URL is refused, leaving the episode uncached")
   func mismatchedURLRefused() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
 
     let task = FakeURLSessionDownloadTask(
       taskDescription: String(podcastEpisode.id.rawValue),
@@ -503,7 +504,10 @@ import Testing
       didFinishDownloadingTo: tempFile
     )
 
+    // The mismatch give-up path must clear the downloading flag, not just
+    // skip the write — otherwise the episode is stranded .caching with no
+    // live task. .uncached asserts both (not cached, not downloading).
     let updated = try await repo.episode(podcastEpisode.id)!
-    #expect(updated.cacheStatus != .cached)
+    #expect(updated.cacheStatus == .uncached)
   }
 }
