@@ -143,6 +143,7 @@ import Testing
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
 
     let episode: Episode = try await repo.episode(podcastEpisode.id)!
+    #expect(episode.cacheStatus == .uncached)
     #expect(episode.cachedURL == nil)
     #expect(episode.duration == .zero)
   }

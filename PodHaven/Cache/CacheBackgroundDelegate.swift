@@ -201,6 +201,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           """,
           error
         )
+        await clearDownloadState(for: episode.id)
         return
       }
     }
@@ -215,6 +216,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         """,
         error
       )
+      await clearDownloadState(for: episode.id)
       return
     }
 
@@ -234,6 +236,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
+      await clearDownloadState(for: episode.id)
       return
     }
 
@@ -253,6 +256,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
+      await clearDownloadState(for: episode.id)
       return
     }
 
@@ -263,6 +267,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         "didFinishDownloadingTo: failed to update duration for \(episode.toString)",
         error
       )
+      await clearDownloadState(for: episode.id)
       return
     }
 
@@ -276,6 +281,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         """,
         error
       )
+      await clearDownloadState(for: episode.id)
       return
     }
 
