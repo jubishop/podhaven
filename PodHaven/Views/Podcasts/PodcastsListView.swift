@@ -54,7 +54,13 @@ struct PodcastsListView: View {
 
   @ToolbarContentBuilder
   private var toolbar: some ToolbarContent {
-    sortableDisplayingPodcastsToolbarItems(viewModel: viewModel)
+    ToolbarItem(placement: .topBarLeading) {
+      (viewModel.displayMode == .grid ? AppIcon.list : AppIcon.grid)
+        .labelButton {
+          viewModel.toggleDisplayMode()
+        }
+    }
+    sortablePodcastsToolbarItems(viewModel: viewModel)
     selectablePodcastsToolbarItems(viewModel: viewModel)
   }
 
