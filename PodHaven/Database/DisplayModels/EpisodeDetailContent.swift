@@ -43,7 +43,7 @@ struct EpisodeDetailContent:
     saveInCache = listed.saveInCache
     finishDate = listed.finishDate
     rating = listed.rating
-    hasTranscript = false
+    hasTranscript = listed.hasTranscript
     image = listed.image
     podcastImage = listed.podcastImage
     podcastTitle = listed.podcastTitle

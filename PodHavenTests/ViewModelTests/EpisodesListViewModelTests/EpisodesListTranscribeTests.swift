@@ -18,13 +18,15 @@ struct EpisodesListTranscribeTests {
       locale: "en-US",
       createdAt: Date(timeIntervalSince1970: 0),
       modelRevision: Transcriber.recipeVersion
-    ).jsonString()
+    )
+    .jsonString()
   }
 
   // Four episodes ordered transcribed / queued / transcribing / none, returned
   // as the VM's loaded list-row snapshots so `hasTranscript` is current.
-  private func makeLoadedViewModel() async throws -> (EpisodesListViewModel, [ListablePodcastEpisode])
-  {
+  private func makeLoadedViewModel() async throws -> (
+    EpisodesListViewModel, [ListablePodcastEpisode]
+  ) {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
@@ -74,5 +76,27 @@ struct EpisodesListTranscribeTests {
 
     EpisodesListTestHelpers.select(viewModel, ids: [listables[3].id])
     #expect(viewModel.anySelectedCanTranscribe == true)
+  }
+
+  @Test("transcribeSelectedEpisodes enqueues only selected episodes that can transcribe")
+  func transcribeSelectedEpisodesFiltersIneligibleSelection() async throws {
+    let (viewModel, listables) = try await makeLoadedViewModel()
+    let queuedID = listables[1].id
+    let eligibleID = listables[3].id
+
+    EpisodesListTestHelpers.select(
+      viewModel,
+      ids: listables.map(\.id)
+    )
+    viewModel.transcribeSelectedEpisodes()
+
+    try await Wait.until(
+      { @MainActor in transcriptionQueue.episodeIDs.contains(eligibleID) },
+      { @MainActor in
+        "eligible episode was not queued: \(transcriptionQueue.episodeIDs)"
+      }
+    )
+
+    #expect(transcriptionQueue.episodeIDs == [queuedID, eligibleID])
   }
 }

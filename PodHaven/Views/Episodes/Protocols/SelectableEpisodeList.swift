@@ -401,23 +401,6 @@ extension SelectableEpisodeList {
     }
   }
 
-  func transcribeSelectedEpisodes() {
-    guard !selectedEpisodes.isEmpty else { return }
-    let episodes = selectedEpisodes
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let episodeIDs = try await selectedPodcastEpisodeIDs
-        transcriptionQueue.enqueue(episodeIDs)
-        didPerformBulkAction(on: episodes)
-      } catch {
-        Self.log.caughtError("transcribeSelectedEpisodes: failed", error)
-      }
-    }
-  }
-
   func rateSelectedEpisodes(rating: EpisodeRating?) {
     guard !selectedEpisodes.isEmpty else { return }
     let episodes = selectedEpisodes
@@ -478,6 +461,27 @@ extension SelectableEpisodeList {
 extension SelectableEpisodeList where Self: ManagingEpisodes {
   var anySelectedCanTranscribe: Bool {
     selectedEpisodes.contains { canTranscribe($0) }
+  }
+
+  func transcribeSelectedEpisodes() {
+    let episodes = selectedEpisodes.filter { canTranscribe($0) }
+    guard !episodes.isEmpty else { return }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        var episodeIDs: [Episode.ID] = []
+        episodeIDs.reserveCapacity(episodes.count)
+        for episode in episodes {
+          episodeIDs.append(try await getOrCreatePodcastEpisode(episode).id)
+        }
+        transcriptionQueue.enqueue(episodeIDs)
+        didPerformBulkAction(on: episodes)
+      } catch {
+        Self.log.caughtError("transcribeSelectedEpisodes: failed", error)
+      }
+    }
   }
 
   // True only when every selected episode has loaded tag data.

@@ -41,25 +41,25 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 
 ## Data model
 
-- **Migration v60** (`PodHaven/Database/Migrations/Migration_v60.swift`, registered `"v60"` in `Schema.makeMigrator()`): `ALTER TABLE episode ADD COLUMN transcript TEXT` — nullable, default NULL, no backfill. Does not trip the `episode_content_updated` trigger (which fires only on title/description change). Migration test `v60Tests.swift` mirrors `v59Tests.swift`.
+- **Migration v62** (`PodHaven/Database/Migrations/Migration_v62.swift`, registered `"v62"` in `Schema.makeMigrator()`): `ALTER TABLE episode ADD COLUMN transcript TEXT` — nullable, default NULL, no backfill. Does not trip the `episode_content_updated` trigger (which fires only on title/description change). Migration test `v62Tests.swift` migrates through `"v61"` before asserting the new column.
 - **Model:** add `transcript: String?` to `UnsavedEpisode` and `Column("transcript")` to `Episode.Columns`, with a computed `decodedTranscript: Transcript?` for the UI.
 - **Codable payload:** `struct TranscriptSegment { let start: TimeInterval; let text: String }` plus a `Transcript` wrapper carrying `segments`, `locale`, `createdAt`, and a `modelRevision` (so a future model bump can invalidate, mirroring `EmbeddingService.recipeVersion`). Encoded to the column as JSON; the column holds only the finished transcript — transient queue/progress state never touches the DB.
 - **Repo:** `updateTranscript(_ id:transcript:)` mirroring `updateCachedFilename` (nullable single-column `updateAll`).
 
 ## Transcription engine — `PodHaven/Transcriptions/`
 
-- **`Transcriber` actor** (mirrors `ContextualEmbedding`): wraps `SpeechAnalyzer` + `SpeechTranscriber(locale:, attributeOptions: [.audioTimeRange])`, feeds the cached `AVAudioFile` through the analyzer to completion, and collects the finalized `results` AsyncSequence; each result's `AttributedString` runs carry an `audioTimeRange` (`CMTimeRange`) whose start becomes the segment `start`. The range's latest end, over the file duration (read up front via the analyzer seam), drives transcription progress, reported as a monotonic `0...1` fraction through an `onProgress` callback. Heavy work stays on the actor's executor / `@concurrent`, never on MainActor. (Exact file-input entry point per WWDC25 277; use `.audioTimeRange` — the abandoned doc's `preset: .offlineTranscription` is superseded by current API.)
-- **Model availability gate** via `AssetInventory`: check installed locales, trigger a one-time installation request when missing, and expose readiness through an `AsyncLatch` like `ContextualEmbedding.assetsLoaded`. en-US only in v1.
-- **Audio dependency:** on-device transcription needs the **local** file, not the stream. The processor ensures the episode is cached (`CacheManager.downloadToCache` → await cached via a new "await cachedURL" helper observing `sharedState.$downloadProgress`), then transcribes `episode.cachedURL`.
+- **`Transcriber` service**: wraps `SpeechAnalyzer` + `SpeechTranscriber(locale:, attributeOptions: [.audioTimeRange])` behind app-owned speech protocols, feeds the cached `AVAudioFile` through the analyzer to completion, and collects the finalized `results` AsyncSequence; each result's `AttributedString` runs carry an `audioTimeRange` (`CMTimeRange`) whose start becomes the segment `start`. The range's latest end, over the file duration (read up front via the analyzer seam), drives transcription progress, reported as a monotonic `0...1` fraction through an `onProgress` callback. Work stays off MainActor. (Exact file-input entry point per WWDC25 277; use `.audioTimeRange` — the abandoned doc's `preset: .offlineTranscription` is superseded by current API.)
+- **Model availability gate** via the speech model-manager seam: check supported/installed locales and install the en-US model when missing. en-US only in v1.
+- **Audio dependency:** on-device transcription needs the **local** file, not the stream. The processor ensures the episode is cached via `CacheManager.cachedURL(downloadingIfNeeded:)`, which starts or joins the cache download through an `AsyncLatch`, then transcribes the returned cached file URL.
 
 ## Queue, processing & state
 
 - **`TranscriptionQueue`** (cached Factory service, `fileprivate init`): `@PersistedBroadcast("transcriptionQueue") var queue: [Episode.ID] = []` (enqueue/dequeue/move/contains); `@Broadcasted var progress: [Episode.ID: Double] = [:]` (active-item progress fed live by the engine's `onProgress`, mirroring `SharedState.downloadProgress`); `@Broadcasted var failed: Set<Episode.ID> = []` (transient, cleared on retry/dismiss).
-- **`TranscriptionProcessor`** (cached service, mirrors `EmbeddingProcessor` conventions): a single `Task(priority: taskPriority(.background))` loop that pops the queue head, ensures audio, runs `Transcriber`, writes `Repo.updateTranscript`, updates progress, dequeues, and repeats — strictly one at a time. `sleeper` backoff on failure; `Task.checkCancellation()` so a mid-episode stop is clean. The work source is the **persisted queue**, not a DB "needs work" query — the deliberate divergence from the embedding template (which is autonomous).
+- **`TranscriptionProcessor`** (cached service, mirrors `EmbeddingProcessor` conventions): a single `Task(priority: taskPriority(.background))` subscribes to the persisted queue stream, drains the head, ensures audio, runs `Transcriber`, writes `Repo.updateTranscript`, updates progress, dequeues, and repeats — strictly one at a time. Failures are recorded and dequeued; `Task.checkCancellation()` so a mid-episode stop is clean. The work source is the **persisted queue**, not a DB "needs work" query — the deliberate divergence from the embedding template (which is autonomous).
 - **Background drain:** `TranscriptionProcessor` owns a `BackgroundTaskScheduler(identifier: "\(AppInfo.bundleIdentifier).transcription", cadence: .minutes(1), taskType: .processing(...))` (new identifier in `BGTaskSchedulerPermittedIdentifiers`; the `processing` background mode is already declared). `register()` — called from `AppLauncher`, mirroring `embeddingProcessor.register()` — installs a handler that runs a bounded `drainUntilEmpty()`; `handleScenePhaseChange(.background)` calls `scheduleNext()`. On expiry the handler completes `false` and the persisted queue resumes on the next grant/activation. Reuses the existing `BackgroundTaskScheduler` wrapper unchanged.
 - **Per-episode status (mirrors caching's `Episode.CacheStatus` + `downloadProgress`):**
 
-  ```
+  ```swift
   enum TranscriptionStatus { case none, queued, transcribing(Double), transcribed, failed }
   ```
 
@@ -84,9 +84,9 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 
 ## Phased build plan
 
-1. **Schema + model** — Migration v60, `transcript` column + `Episode.Columns`, `Transcript`/`TranscriptSegment` Codable, `Repo.updateTranscript`, migration test. (Foundation; nothing user-visible.)
-2. **Engine** — `PodHaven/Transcriptions/Transcriber` actor + `AssetInventory` model gate + the "await cachedURL" cache helper. Unit-tested behind a `Transcribing` protocol with a fake.
-3. **Queue + processor (foreground)** — `TranscriptionQueue` (persisted) + `TranscriptionProcessor` loop, one-at-a-time, status/progress broadcasts. Tests with fakes (fake transcriber, fake clock/sleeper).
+1. **Schema + model** — Migration v62, `transcript` column + `Episode.Columns`, `Transcript`/`TranscriptSegment` Codable, `Repo.updateTranscript`, migration test. (Foundation; nothing user-visible.)
+2. **Engine** — `PodHaven/Transcriptions/Transcriber` + speech model gate + the awaited `cachedURL(downloadingIfNeeded:)` cache helper. Unit-tested behind speech-framework protocol seams with fakes.
+3. **Queue + processor (foreground)** — `TranscriptionQueue` (persisted) + `TranscriptionProcessor` loop, one-at-a-time, status/progress broadcasts. Tests with speech/cache fakes.
 4. **UI** — detail section (read-only render first), toolbar button, `ManagingEpisodes`/`SelectableEpisodeList` actions, context menu, swipe case + settings, multi-select, `AppIcon`, status across surfaces.
 5. **Background drain** — `BGProcessingTask` via the existing `BackgroundTaskScheduler` (new Info.plist identifier, `register()` in `AppLauncher`, `scheduleNext()` on background), mirroring `EmbeddingProcessor`; unit-tested with `FakeBGTaskScheduler`.
 
@@ -94,9 +94,9 @@ Phases 1–3 are independently shippable; 4 makes it usable; 5 completes it. (In
 
 ## Testing
 
-- Migration test (`v60Tests.swift`) — raw SQL, migrate `upTo: "v59"` then `"v60"`, assert the column.
+- Migration test (`v62Tests.swift`) — raw SQL, migrate `upTo: "v61"` then `"v62"`, assert the column.
 - Queue persistence: enqueue → simulated relaunch (re-read defaults) → order preserved.
-- Processor loop: a fake transcriber drives one-at-a-time ordering, progress, dequeue, and failure/backoff; `FakeBGTaskScheduler.triggerExpiration()` exercises the continued-task path (mirrors `BackgroundTaskSchedulerTests`).
+- Processor loop: speech/cache fakes drive one-at-a-time ordering, progress, dequeue, failure, and stale-download recovery; `FakeBGTaskScheduler.triggerExpiration()` exercises the background-task path (mirrors `BackgroundTaskSchedulerTests`).
 - Status derivation: each `TranscriptionStatus` branch.
 - Swipe-settings VM fixture updated for the new case.
 - `Transcriber` against the real model is integration-only; production stays behind the protocol so units use the fake.

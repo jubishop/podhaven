@@ -66,6 +66,35 @@ struct TranscriptionProcessorTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
+  @Test("a stranded downloading flag restarts the download before transcribing")
+  func strandedDownloadingFlagRestartsDownloadBeforeTranscribing() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+    )
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+
+    queue.enqueue(podcastEpisode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer { processor.handleScenePhaseChange(to: .background) }
+
+    let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
+    try await CacheHelpers.waitForResumed(taskID)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "queue did not drain after stranded download restarted: \(queue.episodeIDs)" }
+    )
+
+    let segments = try await repo.episode(podcastEpisode.id)?.decodedTranscript?.segments
+    #expect(segments?.first?.text == "hello")
+  }
+
   @Test("a failing transcription is marked failed and dequeued")
   func failureMarksFailedAndDequeues() async throws {
     TranscriptionHelpers.stubSpeechFailure()

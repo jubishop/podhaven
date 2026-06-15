@@ -177,6 +177,9 @@ struct CacheManager {
     // downloadToCache no-ops when already cached/caching, so re-check rather
     // than await a latch whose completion may have already fired.
     if let cachedURL = try await repo.episode(episodeID)?.cachedURL { return cachedURL }
+    guard try await ensureDownloadIsActive(for: episodeID) else {
+      return try await repo.episode(episodeID)?.cachedURL
+    }
 
     try await latch.wait()
     return try await repo.episode(episodeID)?.cachedURL
@@ -236,6 +239,32 @@ struct CacheManager {
   }
 
   // MARK: - Private Helpers
+
+  private func ensureDownloadIsActive(for episodeID: Episode.ID) async throws -> Bool {
+    guard let episode = try await repo.episode(episodeID) else { return false }
+    guard episode.cachedURL == nil else { return false }
+
+    switch episode.cacheStatus {
+    case .cached:
+      return false
+    case .uncached:
+      try await downloadToCache(for: episodeID)
+      return await hasLiveDownloadTask(for: episodeID)
+    case .caching:
+      guard !(await hasLiveDownloadTask(for: episodeID)) else { return true }
+      Self.log.debug("ensureDownloadIsActive: restarting stranded download for \(episodeID)")
+      try await repo.updateDownloading(episodeID, downloading: false)
+      try await downloadToCache(for: episodeID)
+      return await hasLiveDownloadTask(for: episodeID)
+    }
+  }
+
+  private func hasLiveDownloadTask(for episodeID: Episode.ID) async -> Bool {
+    let description = String(episodeID.rawValue)
+    return await cacheManagerSession.allCreatedTasks.contains {
+      $0.taskDescription == description
+    }
+  }
 
   private func startCurrentEpisodeIDObservation() {
     Self.log.debug("startCurrentEpisodeIDObservation: starting")
