@@ -14,7 +14,15 @@ struct ScriptedEmbeddable: Embeddable {
 
   let vectorFor: @Sendable (String) -> [Double]
 
-  init(defaultVector: [Double] = [1, 0, 0], vectorFor: @escaping @Sendable (String) -> [Double]) {
+  // Returns a non-nil error to simulate an embedding failure for matching text.
+  let errorFor: @Sendable (String) -> (any Error)?
+
+  init(
+    defaultVector: [Double] = [1, 0, 0],
+    errorFor: @escaping @Sendable (String) -> (any Error)? = { _ in nil },
+    vectorFor: @escaping @Sendable (String) -> [Double]
+  ) {
+    self.errorFor = errorFor
     self.vectorFor = { text in
       let vector = vectorFor(text)
       return vector.isEmpty ? defaultVector : vector
@@ -28,6 +36,7 @@ struct ScriptedEmbeddable: Embeddable {
   }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
-    FakeEmbeddingResult(vectors: [vectorFor(string)])
+    if let error = errorFor(string) { throw error }
+    return FakeEmbeddingResult(vectors: [vectorFor(string)])
   }
 }

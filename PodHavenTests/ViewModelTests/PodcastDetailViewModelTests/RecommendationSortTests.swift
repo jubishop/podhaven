@@ -824,8 +824,13 @@ import Testing
     var orderedGUIDs = [MediaGUID](capacity: unsavedPodcastEpisodes.count)
     var vectors = [[Float]](capacity: unsavedPodcastEpisodes.count)
     for unsavedPodcastEpisode in unsavedPodcastEpisodes {
-      let vector = try await EmbeddingService.embeddingVector(
-        for: unsavedPodcastEpisode,
+      let podcastVector = try await EmbeddingService.podcastContextVector(
+        for: unsavedPodcastEpisode.unsavedPodcast,
+        embedding: contextualEmbedding
+      )
+      let vector = try await EmbeddingService.episodeEmbeddingVector(
+        for: unsavedPodcastEpisode.unsavedEpisode,
+        podcastVector: podcastVector,
         embedding: contextualEmbedding
       )
       orderedGUIDs.append(unsavedPodcastEpisode.mediaGUID)
