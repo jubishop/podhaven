@@ -29,26 +29,25 @@ struct EpisodesListView: View {
       .searchPresentationToolbarBehavior(.avoidHidingContent)
       .animation(.default, value: viewModel.episodeList.filteredEntries)
       .safeAreaInset(edge: .top, spacing: 0) {
-        LucideListHeader(icon: viewModel.icon, title: viewModel.title) {
-          AppIcon.settings
-            .labelButton("Edit Smart List") {
-              sheet(id: "smart-list-editor-\(viewModel.smartListID)") {
-                SmartListEditorView(
-                  viewModel: SmartListEditorViewModel(
-                    mode: .edit(viewModel.smartListID),
-                    title: viewModel.title,
-                    filter: viewModel.smartListFilter,
-                    alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage,
-                    icon: viewModel.icon
-                  )
-                )
-              }
-            }
-            .labelStyle(.iconOnly)
-        }
+        LucideListHeader(icon: viewModel.icon, title: viewModel.title)
       }
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
+        ToolbarItem(placement: .topBarLeading) {
+          AppIcon.settings.labelButton("Edit Smart List") {
+            sheet(id: "smart-list-editor-\(viewModel.smartListID)") {
+              SmartListEditorView(
+                viewModel: SmartListEditorViewModel(
+                  mode: .edit(viewModel.smartListID),
+                  title: viewModel.title,
+                  filter: viewModel.smartListFilter,
+                  alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage,
+                  icon: viewModel.icon
+                )
+              )
+            }
+          }
+        }
         sortableEpisodesToolbarItems(viewModel: viewModel)
         selectableEpisodesToolbarItems(viewModel: viewModel)
       }
