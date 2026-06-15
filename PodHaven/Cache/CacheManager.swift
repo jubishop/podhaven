@@ -59,14 +59,14 @@ struct CacheManager {
 
   private let startOnce = Once()
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
-  // Completion latches for in-flight downloads, keyed by episode. downloadToCache
-  // registers one when a download starts; CacheBackgroundDelegate opens and
-  // removes whatever latch occupies the episode's slot on the terminal callback,
-  // resuming any caller suspended in cachedURL(downloadingIfNeeded:). The key is
-  // the episode, not the attempt, so this assumes a single in-flight attempt per
+  // Completion latches for in-flight downloads, keyed by episode. The sole
+  // awaiter, cachedURL(downloadingIfNeeded:), registers one (get-or-create)
+  // when it suspends; CacheBackgroundDelegate opens and removes whatever latch
+  // occupies the episode's slot on the terminal callback. The key is the
+  // episode, not the attempt, so this assumes a single in-flight attempt per
   // episode: the failure-path signal fires synchronously right after the
   // downloading flag is cleared, leaving no realistic gap for a replacement
-  // attempt to register its own latch before the prior signal lands.
+  // attempt to interleave and have the prior signal resolve the wrong awaiter.
   private let downloadLatches = ThreadSafe<[Episode.ID: AsyncLatch<Void>]>([:])
 
   // MARK: - Initialization
@@ -162,9 +162,6 @@ struct CacheManager {
       taskDescription: String(podcastEpisode.id.rawValue)
     )
     try await repo.updateDownloading(podcastEpisode.id, downloading: true)
-    // Register this attempt's completion latch before resuming, so an awaiter
-    // always finds it and the delegate's terminal callback can open it.
-    downloadLatches[podcastEpisode.id] = AsyncLatch<Void>()
     downloadTask.resume()
 
     return downloadTask.taskID
@@ -185,11 +182,13 @@ struct CacheManager {
       return try await repo.episode(episodeID)?.cachedURL
     }
 
-    // Suspend until the in-flight download's terminal callback opens its latch.
-    // A download reattached after a relaunch has a live task but no latch (the
-    // map is in-memory and empty on launch), so adopt the existing latch or
-    // register one. Then re-check liveness: if the task already finished its
-    // signal found no latch, so don't await — read the result directly.
+    // Suspend until the in-flight download's terminal callback opens this
+    // episode's latch. As the only awaiter, cachedURL owns the latch: adopt the
+    // one a concurrent awaiter already registered, or register it here (no
+    // download pre-registers a latch, and one reattached after a relaunch has a
+    // live task but none either). Then re-check liveness — if the task already
+    // finished, its signal found no latch, so read the result directly instead
+    // of awaiting a latch that will never open.
     let latch = downloadLatches { latches -> AsyncLatch<Void> in
       if let existing = latches[episodeID] { return existing }
       let fresh = AsyncLatch<Void>()
@@ -204,7 +203,7 @@ struct CacheManager {
 
   // Opens and removes the in-flight download's completion latch for an episode
   // whose download just finished or failed, resuming any awaiter. A no-op when
-  // no download is registered.
+  // no caller is awaiting it (no latch registered).
   func signalDownloadComplete(for episodeID: Episode.ID) {
     downloadLatches { $0.removeValue(forKey: episodeID) }?.open()
   }

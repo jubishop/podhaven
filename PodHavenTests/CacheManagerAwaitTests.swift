@@ -131,7 +131,7 @@ struct CacheManagerAwaitTests {
 
     // Mimic a relaunch: a live background task is reattached to the recreated
     // session and the row is downloading, but no in-memory latch exists this
-    // launch (downloadToCache never ran for it, so it registered no latch).
+    // launch (the map is empty after a relaunch and nothing has awaited it).
     let task = session.createDownloadTask(
       with: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue),
       taskDescription: String(episodeID.rawValue)
