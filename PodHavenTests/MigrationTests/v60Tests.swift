@@ -47,11 +47,12 @@ class V60MigrationTests {
 
     let filters = try await appDB.unsafeTestDB.read { db -> [String: String] in
       Dictionary(
-        uniqueKeysWithValues: try Row.fetchAll(
-          db,
-          sql: "SELECT title, filter FROM smartList WHERE title IN ('Equals', 'LiteralValue')"
-        )
-        .map { ($0["title"], $0["filter"]) }
+        uniqueKeysWithValues:
+          try Row.fetchAll(
+            db,
+            sql: "SELECT title, filter FROM smartList WHERE title IN ('Equals', 'LiteralValue')"
+          )
+          .map { ($0["title"], $0["filter"]) }
       )
     }
 
