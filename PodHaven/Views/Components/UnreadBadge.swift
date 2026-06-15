@@ -8,7 +8,7 @@ struct UnreadBadge: View {
 
   var body: some View {
     if count > 0 {
-      Text("\(count)")
+      Text(count >= 100 ? "99+" : "\(count)")
         .font(.footnote.weight(.semibold))
         .monospacedDigit()
         .foregroundStyle(.white)
