@@ -49,8 +49,10 @@ struct EpisodesView: View {
     List {
       ForEach(viewModel.smartLists) { smartList in
         NavigationLink(value: Navigation.Destination.smartList(smartList.id)) {
-          LabeledContent(smartList.title) {
+          LabeledContent {
             UnreadBadge(count: viewModel.unreadCounts[smartList.id, default: 0])
+          } label: {
+            LucideLabel(icon: smartList.icon, title: smartList.title)
           }
         }
         .swipeActions(edge: .trailing) {

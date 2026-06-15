@@ -103,6 +103,23 @@ extension Container {
     case autoCache
     case autoSave
     case notifyNewEpisodes
+
+    // Fixed icon for the built-in list types. `.tag` uses the tag's own
+    // user-chosen icon, supplied by callers, so its value here is a fallback.
+    var icon: LucideIcon {
+      switch self {
+      case .subscribed: .circleCheck
+      case .unsubscribed: .circleX
+      case .untagged: .inbox
+      case .tag: .tag
+      case .freshnessCadence: .calendar
+      case .queueOnTop: .arrowUpToLine
+      case .queueOnBottom: .arrowDownToLine
+      case .autoCache: .download
+      case .autoSave: .bookmark
+      case .notifyNewEpisodes: .bell
+      }
+    }
   }
 
   @ViewBuilder
@@ -140,7 +157,8 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: "Subscribed",
-            filter: { $0.filter(Podcast.subscribed) }
+            filter: { $0.filter(Podcast.subscribed) },
+            icon: viewType.icon
           )
         )
         .id("subscribed")
@@ -148,7 +166,8 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: "Unsubscribed",
-            filter: { $0.filter(Podcast.unsubscribed) }
+            filter: { $0.filter(Podcast.unsubscribed) },
+            icon: viewType.icon
           )
         )
         .id("unsubscribed")
@@ -156,7 +175,8 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: "Untagged",
-            filter: { $0.having(Podcast.podcastTags.isEmpty) }
+            filter: { $0.having(Podcast.podcastTags.isEmpty) },
+            icon: viewType.icon
           )
         )
         .id("untagged")
@@ -165,7 +185,8 @@ extension Container {
           PodcastsListView(
             viewModel: PodcastsListViewModel(
               title: tag.name,
-              filter: Podcast.hasTag(tagID)
+              filter: Podcast.hasTag(tagID),
+              icon: tag.icon
             )
           )
           .id("tag-\(tagID)")
@@ -179,7 +200,8 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: cadence.displayName,
-            filter: { $0.filter(Podcast.resolvedFreshnessCadence(cadence)) }
+            filter: { $0.filter(Podcast.resolvedFreshnessCadence(cadence)) },
+            icon: viewType.icon
           )
         )
         .id("freshness-\(cadence.rawValue)")
@@ -187,7 +209,8 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: "On Top",
-            filter: { $0.filter(Podcast.queuesAllEpisodes(.onTop)) }
+            filter: { $0.filter(Podcast.queuesAllEpisodes(.onTop)) },
+            icon: viewType.icon
           )
         )
         .id("queueOnTop")
@@ -195,7 +218,8 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: "On Bottom",
-            filter: { $0.filter(Podcast.queuesAllEpisodes(.onBottom)) }
+            filter: { $0.filter(Podcast.queuesAllEpisodes(.onBottom)) },
+            icon: viewType.icon
           )
         )
         .id("queueOnBottom")
@@ -203,7 +227,8 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: "Cache",
-            filter: { $0.filter(Podcast.cachesAllEpisodes(.cache)) }
+            filter: { $0.filter(Podcast.cachesAllEpisodes(.cache)) },
+            icon: viewType.icon
           )
         )
         .id("autoCache")
@@ -211,7 +236,8 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: "Save",
-            filter: { $0.filter(Podcast.cachesAllEpisodes(.save)) }
+            filter: { $0.filter(Podcast.cachesAllEpisodes(.save)) },
+            icon: viewType.icon
           )
         )
         .id("autoSave")
@@ -219,7 +245,8 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: "Notify New Episodes",
-            filter: { $0.filter(Podcast.notifiesNewEpisodes) }
+            filter: { $0.filter(Podcast.notifiesNewEpisodes) },
+            icon: viewType.icon
           )
         )
         .id("notifyNewEpisodes")

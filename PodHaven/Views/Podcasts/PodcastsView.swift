@@ -62,7 +62,7 @@ struct PodcastsView: View {
           Section("Tags") {
             row("Untagged", counts?.untagged ?? 0, .untagged)
             ForEach(sharedState.tags) { tag in
-              row(tag.name, counts?.byTag[tag.id] ?? 0, .tag(tag.id))
+              row(tag.name, counts?.byTag[tag.id] ?? 0, .tag(tag.id), icon: tag.icon)
             }
           }
         }
@@ -82,12 +82,15 @@ struct PodcastsView: View {
   private func row(
     _ title: String,
     _ count: Int,
-    _ viewType: Navigation.PodcastsViewType
+    _ viewType: Navigation.PodcastsViewType,
+    icon: LucideIcon? = nil
   ) -> some View {
     NavigationLink(value: Navigation.Destination.podcastsViewType(viewType)) {
-      LabeledContent(title) {
+      LabeledContent {
         Text("\(count)")
           .foregroundStyle(.secondary)
+      } label: {
+        LucideLabel(icon: icon ?? viewType.icon, title: title)
       }
     }
   }

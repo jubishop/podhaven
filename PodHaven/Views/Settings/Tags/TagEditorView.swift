@@ -10,6 +10,8 @@ struct TagEditorView: View {
 
   @FocusState private var nameFocused: Bool
 
+  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 24
+
   init(viewModel: TagEditorViewModel) {
     self.viewModel = viewModel
   }
@@ -29,7 +31,7 @@ struct TagEditorView: View {
           } label: {
             LabeledContent("Icon") {
               LucideIconView(icon: viewModel.icon)
-                .frame(width: 24, height: 24)
+                .frame(width: iconSize, height: iconSize)
                 .foregroundStyle(.tint)
             }
           }

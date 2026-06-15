@@ -11,6 +11,8 @@ struct SmartListEditorView: View {
 
   @FocusState private var titleFocused: Bool
 
+  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 24
+
   init(viewModel: SmartListEditorViewModel) {
     self.viewModel = viewModel
   }
@@ -27,7 +29,7 @@ struct SmartListEditorView: View {
           } label: {
             LabeledContent("Icon") {
               LucideIconView(icon: viewModel.icon)
-                .frame(width: 24, height: 24)
+                .frame(width: iconSize, height: iconSize)
                 .foregroundStyle(.tint)
             }
           }

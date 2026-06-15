@@ -29,7 +29,11 @@ struct EpisodesListView: View {
       .searchPresentationToolbarBehavior(.avoidHidingContent)
       .animation(.default, value: viewModel.episodeList.filteredEntries)
       .navigationTitle(viewModel.title)
+      .navigationBarTitleDisplayMode(.inline)
       .toolbar {
+        ToolbarItem(placement: .principal) {
+          LucideNavigationTitle(icon: viewModel.icon, title: viewModel.title)
+        }
         ToolbarItem(placement: .topBarLeading) {
           AppIcon.settings.labelButton("Edit Smart List") {
             sheet(id: "smart-list-editor-\(viewModel.smartListID)") {
