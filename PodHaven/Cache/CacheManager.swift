@@ -56,8 +56,8 @@ struct CacheManager {
 
   private let startOnce = Once()
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
-  // Per-episode completion latches: cachedURL registers one when it suspends;
-  // the delegate opens and removes it on the terminal callback.
+  // Per-episode completion latches: cachedURL registers one before it may
+  // suspend; the delegate opens and removes it on the terminal callback.
   private let downloadLatches = ThreadSafe<[Episode.ID: AsyncLatch<Void>]>([:])
 
   // MARK: - Initialization
@@ -120,46 +120,35 @@ struct CacheManager {
       return nil
     }
 
-    guard podcastEpisode.episode.cacheStatus != .cached
-    else {
+    switch podcastEpisode.episode.cacheStatus {
+    case .cached:
       Self.log.trace("\(podcastEpisode.toString) already cached")
       return nil
-    }
-
-    guard podcastEpisode.episode.cacheStatus != .caching
-    else {
+    case .caching:
       Self.log.trace("\(podcastEpisode.toString) already being downloaded")
       return nil
+    case .uncached:
+      return try await startDownload(for: podcastEpisode)
     }
-
-    var request = URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
-    request.allowsExpensiveNetworkAccess = true
-    request.allowsConstrainedNetworkAccess = true
-
-    // taskDescription is the stable per-episode identifier the delegate uses
-    // to map a finished download back to its episode. Setting it BEFORE
-    // resume() guarantees it's there when the system invokes any callback,
-    // including across an app relaunch that reattaches to this background
-    // session.
-    let downloadTask = cacheManagerSession.createDownloadTask(
-      with: request,
-      taskDescription: String(podcastEpisode.id.rawValue)
-    )
-    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
-    downloadTask.resume()
-
-    return downloadTask.taskID
   }
 
   func cachedURL(downloadingIfNeeded episodeID: Episode.ID) async throws -> CachedURL? {
-    if let cachedURL = try await repo.episode(episodeID)?.cachedURL { return cachedURL }
+    guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
+      Self.log.warning("Episode \(episodeID) not found for cache operation")
+      return nil
+    }
 
-    try await downloadToCache(for: episodeID)
-    // downloadToCache no-ops if already cached/caching, so re-check state.
-    guard let episode = try await repo.episode(episodeID) else { return nil }
-    if let cachedURL = episode.cachedURL { return cachedURL }
-    guard try await ensureDownloadIsActive(episode) else {
-      return try await repo.episode(episodeID)?.cachedURL
+    switch podcastEpisode.episode.cacheStatus {
+    case .cached:
+      return podcastEpisode.episode.cachedURL
+    case .uncached:
+      try await startDownload(for: podcastEpisode)
+    case .caching:
+      if !(await hasLiveDownloadTask(for: episodeID)) {
+        Self.log.debug("cachedURL: restarting stranded download for \(episodeID)")
+        try await repo.updateDownloading(episodeID, downloading: false)
+        try await startDownload(for: podcastEpisode)
+      }
     }
 
     // Register before re-reading state so a completion after this point opens
@@ -234,23 +223,27 @@ struct CacheManager {
 
   // MARK: - Private Helpers
 
-  private func ensureDownloadIsActive(_ episode: Episode) async throws -> Bool {
-    guard episode.cachedURL == nil else { return false }
+  @discardableResult
+  private func startDownload(for podcastEpisode: PodcastEpisode) async throws
+    -> URLSessionDownloadTask.ID
+  {
+    var request = URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
+    request.allowsExpensiveNetworkAccess = true
+    request.allowsConstrainedNetworkAccess = true
 
-    let episodeID = episode.id
-    switch episode.cacheStatus {
-    case .cached:
-      return false
-    case .uncached:
-      try await downloadToCache(for: episodeID)
-      return await hasLiveDownloadTask(for: episodeID)
-    case .caching:
-      guard !(await hasLiveDownloadTask(for: episodeID)) else { return true }
-      Self.log.debug("ensureDownloadIsActive: restarting stranded download for \(episodeID)")
-      try await repo.updateDownloading(episodeID, downloading: false)
-      try await downloadToCache(for: episodeID)
-      return await hasLiveDownloadTask(for: episodeID)
-    }
+    // taskDescription is the stable per-episode identifier the delegate uses
+    // to map a finished download back to its episode. Setting it BEFORE
+    // resume() guarantees it's there when the system invokes any callback,
+    // including across an app relaunch that reattaches to this background
+    // session.
+    let downloadTask = cacheManagerSession.createDownloadTask(
+      with: request,
+      taskDescription: String(podcastEpisode.id.rawValue)
+    )
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+    downloadTask.resume()
+
+    return downloadTask.taskID
   }
 
   private func hasLiveDownloadTask(for episodeID: Episode.ID) async -> Bool {
