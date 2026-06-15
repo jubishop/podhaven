@@ -11,7 +11,6 @@ import UIKit
 
 @Observable @MainActor
 class SearchViewModel:
-  DisplayingPodcasts,
   ManagingPodcasts,
   SelectablePodcastList,
   SortablePodcastList
@@ -124,9 +123,6 @@ class SearchViewModel:
   }
 
   // MARK: - State Management
-
-  @ObservationIgnored @PersistedBroadcast("SearchView-displayMode")
-  var displayMode: PodcastDisplayMode = .grid
 
   enum LoadingState: Equatable {
     case idle

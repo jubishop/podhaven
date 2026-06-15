@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import GRDB
 import Testing
@@ -11,114 +12,43 @@ class V63MigrationTests {
   private let appDB = AppDB.inMemory(migrate: false)
   private let migrator: DatabaseMigrator
 
+  private static let key = "SearchView-displayMode"
+
   init() async throws {
     self.migrator = Schema.makeMigrator()
   }
 
-  @Test("v63 upgrades each untouched seeded default to a themed icon")
-  func upgradesSeededDefaults() async throws {
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v62")
-
-    // The v54 seed plus the v62 backfill leaves every default on list-music.
-    let before = try await appDB.unsafeTestDB.read { db in
-      try String.fetchAll(db, sql: "SELECT icon FROM smartList")
-    }
-    #expect(before.count == 10)
-    #expect(before.allSatisfy { $0 == "list-music" })
-
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v63")
-
-    let expected: [String: String] = [
-      "Recent Episodes": "sparkles",
-      "Unqueued": "inbox",
-      "Cached": "download",
-      "Saved": "bookmark",
-      "Finished": "circle-check",
-      "Unfinished": "hourglass",
-      "Previously Queued": "history",
-      "Liked": "heart",
-      "Disliked": "frown",
-      "Not Interested": "meh",
-    ]
-    let icons = try await appDB.unsafeTestDB.read { db in
-      try Row.fetchAll(db, sql: "SELECT title, icon FROM smartList")
-        .reduce(into: [String: String]()) { $0[$1["title"]] = $1["icon"] }
-    }
-    #expect(icons == expected)
+  private var defaults: FakeKeyValueStore {
+    Container.shared.standardDefaults() as! FakeKeyValueStore
   }
 
-  @Test("v63 leaves a default whose icon was already customized")
-  func skipsCustomizedIcon() async throws {
+  @Test("removes the orphaned search display-mode key")
+  func testRemovesKey() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v62")
-
-    // Same title and filter as the Cached default, but the user already picked
-    // an icon, so it is no longer on the default list-music.
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO smartList (title, filter, displayOrder, sortMethod, lastSeenEpisodeId, icon)
-          VALUES ('Cached', '{"combinator":"all","conditions":[{"kind":"state","value":"isCached"}],"groups":[]}', 50, 'newestFirst', 0, 'cpu')
-          """
-      )
-    }
-    let id = try await appDB.unsafeTestDB.read { db in
-      try Int.fetchOne(db, sql: "SELECT id FROM smartList WHERE icon = 'cpu'")
-    }
+    defaults.set(Data(#""grid""#.utf8), forKey: Self.key)
 
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v63")
 
-    let icon = try await appDB.unsafeTestDB.read { db in
-      try String.fetchOne(db, sql: "SELECT icon FROM smartList WHERE id = ?", arguments: [id])
-    }
-    #expect(icon == "cpu")
+    #expect(defaults.data(forKey: Self.key) == nil)
   }
 
-  @Test("v63 leaves a list whose filter was edited away from the default")
-  func skipsEditedFilter() async throws {
+  @Test("leaves the podcasts display-mode key untouched")
+  func testLeavesUnrelatedKey() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v62")
-
-    // The default Cached title and icon, but an extra condition was added, so
-    // the filter no longer matches the seeded default.
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO smartList (title, filter, displayOrder, sortMethod, lastSeenEpisodeId, icon)
-          VALUES ('Cached', '{"combinator":"all","conditions":[{"kind":"state","value":"isCached"},{"kind":"state","value":"isSaved"}],"groups":[]}', 50, 'newestFirst', 0, 'list-music')
-          """
-      )
-    }
-    let id = try await appDB.unsafeTestDB.read { db in
-      try Int.fetchOne(db, sql: "SELECT id FROM smartList WHERE displayOrder = 50")
-    }
+    let value = Data(#""grid""#.utf8)
+    defaults.set(value, forKey: "PodcastsList-displayMode")
 
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v63")
 
-    let icon = try await appDB.unsafeTestDB.read { db in
-      try String.fetchOne(db, sql: "SELECT icon FROM smartList WHERE id = ?", arguments: [id])
-    }
-    #expect(icon == "list-music")
+    #expect(defaults.data(forKey: "PodcastsList-displayMode") == value)
   }
 
-  @Test("v63 leaves a renamed list on the default icon")
-  func skipsRenamedTitle() async throws {
+  @Test("is a no-op when the key is absent")
+  func testNoOpWhenAbsent() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v62")
-
-    // A renamed list that still carries the default Cached filter and icon; the
-    // rename means it is no longer a recognized default.
-    try await appDB.unsafeTestDB.write { db in
-      try db.execute(
-        sql: """
-          INSERT INTO smartList (title, filter, displayOrder, sortMethod, lastSeenEpisodeId, icon)
-          VALUES ('Offline', '{"combinator":"all","conditions":[{"kind":"state","value":"isCached"}],"groups":[]}', 50, 'newestFirst', 0, 'list-music')
-          """
-      )
-    }
 
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v63")
 
-    let icon = try await appDB.unsafeTestDB.read { db in
-      try String.fetchOne(db, sql: "SELECT icon FROM smartList WHERE title = 'Offline'")
-    }
-    #expect(icon == "list-music")
+    #expect(defaults.data(forKey: Self.key) == nil)
   }
 }
