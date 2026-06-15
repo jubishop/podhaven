@@ -98,6 +98,7 @@ enum SearchPipelineRunner {
     if candidates.isEmpty {
       podcastVector = nil
     } else {
+      if await isDetached() { return .cancelled }
       do {
         podcastVector = try await EmbeddingService.podcastContextVector(
           for: unsavedPodcast,
