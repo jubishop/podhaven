@@ -106,7 +106,15 @@ enum SearchPipelineRunner {
       } catch is CancellationError {
         return .cancelled
       } catch {
-        return .failed(error)
+        // Mirror the per-episode skip below: a podcast-context embed failure
+        // drops this feed's picks but leaves it recoverable (empty .success,
+        // not terminal .failed) so a later scoring-context reopen can retry it.
+        log.caughtError(
+          "Podcast-context embedding failed for \(feedURL.rawValue); skipping feed",
+          error,
+          level: .info
+        )
+        return .success([])
       }
     }
 
