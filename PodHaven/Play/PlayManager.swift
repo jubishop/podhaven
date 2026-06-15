@@ -520,7 +520,7 @@ final class PlayManager {
     Self.log.debug("toggleSaveInCache: \(episodeID) alreadySaved: \(alreadySaved)")
 
     if alreadySaved {
-      await removeFromCache(episodeID)
+      await unsaveInCache(episodeID)
     } else {
       await saveInCache(episodeID)
     }
@@ -541,21 +541,15 @@ final class PlayManager {
     }
   }
 
-  private func removeFromCache(_ episodeID: Episode.ID) async {
-    Self.log.debug("removeFromCache: \(episodeID)")
+  private func unsaveInCache(_ episodeID: Episode.ID) async {
+    Self.log.debug("unsaveInCache: \(episodeID)")
     do {
       try await repo.updateSaveInCache(episodeID, saveInCache: false)
     } catch {
       Self.log.caughtError(
-        "removeFromCache: failed to unset saveInCache for episode \(episodeID)",
+        "unsaveInCache: failed to unset saveInCache for episode \(episodeID)",
         error
       )
-      return
-    }
-    do {
-      try await cacheManager.clearCache(for: episodeID)
-    } catch {
-      Self.log.caughtError("removeFromCache: failed to clear cache for episode \(episodeID)", error)
     }
   }
 

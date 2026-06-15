@@ -9,6 +9,8 @@ struct IconPickerView: View {
 
   @State private var search = ""
 
+  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 30
+
   private let columns = [GridItem(.adaptive(minimum: 64), spacing: 12)]
 
   var body: some View {
@@ -46,8 +48,9 @@ struct IconPickerView: View {
     } label: {
       VStack(spacing: 4) {
         LucideIconView(icon: entry.icon)
-          .frame(width: 30, height: 30)
+          .frame(width: iconSize, height: iconSize)
           .foregroundStyle(isSelected ? Color.accentColor : .primary)
+          .accessibilityHidden(true)
         Text(entry.label)
           .font(.caption2)
           .lineLimit(1)

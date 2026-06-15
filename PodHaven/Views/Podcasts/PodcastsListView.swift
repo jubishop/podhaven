@@ -27,6 +27,7 @@ struct PodcastsListView: View {
       )
       .searchPresentationToolbarBehavior(.avoidHidingContent)
       .navigationTitle(viewModel.title)
+      .navigationBarTitleDisplayMode(.inline)
       .refreshable {
         do {
           try await viewModel.refreshPodcasts()
@@ -48,6 +49,9 @@ struct PodcastsListView: View {
 
   @ToolbarContentBuilder
   private var toolbar: some ToolbarContent {
+    ToolbarItem(placement: .principal) {
+      LucideNavigationTitle(icon: viewModel.icon, title: viewModel.title)
+    }
     sortableDisplayingPodcastsToolbarItems(viewModel: viewModel)
     selectablePodcastsToolbarItems(viewModel: viewModel)
   }

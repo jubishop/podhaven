@@ -136,6 +136,7 @@ extension LucideIcon {
         (.circleCheck, "Finished"), (.history, "Recently Played"), (.repeat, "Recurring"),
         (.archive, "Archive"), (.download, "Downloaded"), (.bell, "Notifications"),
         (.calendar, "Schedule"), (.eye, "Watched"), (.rss, "Feeds"),
+        (.circleX, "Skipped"), (.arrowUpToLine, "To Top"), (.arrowDownToLine, "To Bottom"),
       ]
     ),
   ]
