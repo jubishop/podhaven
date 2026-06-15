@@ -170,6 +170,9 @@ actor FakeDataFetchable: DataFetchable {
       downloadTask: downloadTasks[id: taskID]!,
       didFinishDownloadingTo: location
     )
+    // A finished task leaves the session's task list, mirroring the real
+    // URLSession dropping a completed task from allTasks.
+    downloadTasks { $0.remove(id: taskID) }
   }
 
   func failDownload(taskID: URLSessionDownloadTask.ID, error: any Error) async {
@@ -179,6 +182,7 @@ actor FakeDataFetchable: DataFetchable {
       task: downloadTasks[id: taskID]!,
       didCompleteWithError: error
     )
+    downloadTasks { $0.remove(id: taskID) }
   }
 
   func progressDownload(

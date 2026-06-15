@@ -93,4 +93,29 @@ struct CacheManagerAwaitTests {
     }
     _ = try await second.value
   }
+
+  @Test("cachedURL(downloadingIfNeeded:) starts a fresh download after an earlier attempt failed")
+  func recoversWithFreshDownloadAfterFailure() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    // First attempt fails and resolves nil; its latch is opened and removed.
+    async let firstPending = cacheManager.cachedURL(downloadingIfNeeded: podcastEpisode.id)
+    let failedTaskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
+    try await CacheHelpers.waitForResumed(failedTaskID)
+    try await CacheHelpers.simulateBackgroundFailure(failedTaskID)
+    let firstResult = try await firstPending
+    #expect(firstResult == nil)
+
+    // A later call must start a brand-new download — the failed attempt's latch
+    // is gone, so it can't resolve this one early — and resolve to its file.
+    async let secondPending = cacheManager.cachedURL(downloadingIfNeeded: podcastEpisode.id)
+    let okTaskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
+    try await CacheHelpers.waitForResumed(okTaskID)
+    let data = Data.random()
+    try await CacheHelpers.simulateBackgroundFinish(okTaskID, data: data)
+
+    let resolved = try #require(try await secondPending)
+    let actualData = try await CacheHelpers.cachedFileData(for: resolved)
+    #expect(actualData == data)
+  }
 }

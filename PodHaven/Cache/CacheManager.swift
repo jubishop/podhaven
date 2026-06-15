@@ -59,17 +59,12 @@ struct CacheManager {
 
   private let startOnce = Once()
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
-  // One-shot completion signals for in-flight downloads, keyed by episode.
-  // CacheBackgroundDelegate opens a latch when a download finishes or fails, so
-  // callers can await a download instead of polling for the cached file. The
-  // waiter count keeps the shared latch registered until the last awaiter
-  // leaves, so an early-returning or cancelled caller can't strand a concurrent
-  // awaiter by removing the latch before its completion signal arrives.
-  private struct DownloadLatch {
-    let latch = AsyncLatch<Void>()
-    var waiters = 0
-  }
-  private let downloadLatches = ThreadSafe<[Episode.ID: DownloadLatch]>([:])
+  // Per-attempt completion latches for in-flight downloads, keyed by episode.
+  // downloadToCache registers one when a download starts; CacheBackgroundDelegate
+  // opens and removes it on the terminal callback, resuming any caller suspended
+  // in cachedURL(downloadingIfNeeded:). One latch per attempt, removed when the
+  // attempt ends, so a finished download's signal can never resolve a later one.
+  private let downloadLatches = ThreadSafe<[Episode.ID: AsyncLatch<Void>]>([:])
 
   // MARK: - Initialization
 
@@ -164,6 +159,9 @@ struct CacheManager {
       taskDescription: String(podcastEpisode.id.rawValue)
     )
     try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+    // Register this attempt's completion latch before resuming, so an awaiter
+    // always finds it and the delegate's terminal callback can open it.
+    downloadLatches[podcastEpisode.id] = AsyncLatch<Void>()
     downloadTask.resume()
 
     return downloadTask.taskID
@@ -173,26 +171,6 @@ struct CacheManager {
   // suspends until it finishes. Returns the cached URL, or nil if the episode
   // vanished or the download failed. Event-driven via AsyncLatch — no polling.
   func cachedURL(downloadingIfNeeded episodeID: Episode.ID) async throws -> CachedURL? {
-    // Register the latch before inspecting state so a completion that fires
-    // mid-flight can't slip between the cache check and the await.
-    let latch = downloadLatches { latches in
-      var entry = latches[episodeID] ?? DownloadLatch()
-      entry.waiters += 1
-      latches[episodeID] = entry
-      return entry.latch
-    }
-    defer {
-      downloadLatches { latches in
-        guard var entry = latches[episodeID] else { return }
-        entry.waiters -= 1
-        if entry.waiters <= 0 {
-          latches.removeValue(forKey: episodeID)
-        } else {
-          latches[episodeID] = entry
-        }
-      }
-    }
-
     if let cachedURL = try await repo.episode(episodeID)?.cachedURL { return cachedURL }
 
     try await downloadToCache(for: episodeID)
@@ -204,14 +182,20 @@ struct CacheManager {
       return try await repo.episode(episodeID)?.cachedURL
     }
 
-    try await latch.wait()
+    // Suspend until the in-flight download's terminal callback opens its latch.
+    // If the latch is already gone the download finished while we were checking,
+    // so read the result either way.
+    if let latch = downloadLatches[episodeID] {
+      try await latch.wait()
+    }
     return try await repo.episode(episodeID)?.cachedURL
   }
 
-  // Opens the completion latch for an episode whose download just finished or
-  // failed. A no-op when nothing is awaiting it.
+  // Opens and removes the in-flight download's completion latch for an episode
+  // whose download just finished or failed, resuming any awaiter. A no-op when
+  // no download is registered.
   func signalDownloadComplete(for episodeID: Episode.ID) {
-    downloadLatches { $0[episodeID]?.latch }?.open()
+    downloadLatches { $0.removeValue(forKey: episodeID) }?.open()
   }
 
   @discardableResult
