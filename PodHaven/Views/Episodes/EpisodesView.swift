@@ -49,10 +49,9 @@ struct EpisodesView: View {
     List {
       ForEach(viewModel.smartLists) { smartList in
         NavigationLink(value: Navigation.Destination.smartList(smartList.id)) {
-          CountLabel(
-            title: smartList.title,
-            count: viewModel.unreadCounts[smartList.id, default: 0]
-          )
+          LabeledContent(smartList.title) {
+            UnreadBadge(count: viewModel.unreadCounts[smartList.id, default: 0])
+          }
         }
         .swipeActions(edge: .trailing) {
           AppIcon.delete.imageButton {
