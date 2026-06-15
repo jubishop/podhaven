@@ -158,6 +158,36 @@ import Testing
     #expect(!fileManager.fileExists(at: fileURL))
   }
 
+  // A successful download must stay .caching until its file is actually cached:
+  // the downloading flag is cleared only after the cached filename is written, so
+  // a request arriving mid-completion sees .caching and no-ops instead of seeing a
+  // transient .uncached and kicking off a duplicate download.
+  @Test("a request arriving mid-completion does not start a duplicate download")
+  func requestMidCompletionDoesNotRestartDownload() async throws {
+    let assetStarted = AsyncSemaphore(value: 0)
+    let assetRelease = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.setDefaultHandler { _ in
+      assetStarted.signal()
+      try await assetRelease.waitUnlessCancelled()
+      return (true, CMTime.seconds(30))
+    }
+
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+
+    // Drive completion concurrently; it parks in the gated asset load, after the
+    // file move but before the cached filename is written and the flag cleared.
+    let finish = Task { try await CacheHelpers.simulateBackgroundFinish(taskID) }
+    await assetStarted.wait()
+
+    let duplicate = try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    #expect(duplicate == nil)
+
+    assetRelease.signal()
+    try await finish.value
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+  }
+
   @Test("download finishing for a deleted episode is cleaned up")
   func downloadFinishingForADeletedEpisodeIsCleanedUp() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
