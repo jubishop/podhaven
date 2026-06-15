@@ -55,6 +55,21 @@ struct EpisodesView: View {
             LucideLabel(icon: smartList.icon, title: smartList.title)
           }
         }
+        .swipeActions(edge: .leading) {
+          AppIcon.settings.imageButton {
+            sheet(id: "smart-list-editor-\(smartList.id)") {
+              SmartListEditorView(
+                viewModel: SmartListEditorViewModel(
+                  mode: .edit(smartList.id),
+                  title: smartList.title,
+                  filter: smartList.filter,
+                  alwaysShowPodcastImage: smartList.alwaysShowPodcastImage,
+                  icon: smartList.icon
+                )
+              )
+            }
+          }
+        }
         .swipeActions(edge: .trailing) {
           AppIcon.delete.imageButton {
             viewModel.deleteSmartList(smartList)
