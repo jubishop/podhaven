@@ -14,7 +14,7 @@ struct TagsSettingsView: View {
   var body: some View {
     List {
       if viewModel.tags.isEmpty {
-        Text("No tags yet")
+        Text("No tags yet. Tap + to create one.")
           .foregroundStyle(.secondary)
       } else {
         ForEach(viewModel.tags) { tag in
@@ -22,7 +22,9 @@ struct TagsSettingsView: View {
             sheet(id: "tag-edit-\(tag.id)") {
               TagEditorView(
                 viewModel: TagEditorViewModel(
-                  tag: tag,
+                  mode: .edit(tag.id),
+                  name: tag.name,
+                  icon: tag.icon,
                   podcastCount: viewModel.podcastCounts[tag.id] ?? 0,
                   episodeCount: viewModel.episodeCounts[tag.id] ?? 0
                 )
@@ -40,10 +42,16 @@ struct TagsSettingsView: View {
         }
       }
     }
-    .safeAreaInset(edge: .top, spacing: 12) {
-      addBar
-    }
     .navigationTitle("Tags")
+    .toolbar {
+      ToolbarItem(placement: .topBarTrailing) {
+        AppIcon.addTag.labelButton {
+          sheet(id: "tag-create") {
+            TagEditorView(viewModel: TagEditorViewModel(mode: .create))
+          }
+        }
+      }
+    }
     .task(viewModel.execute)
   }
 
@@ -67,25 +75,6 @@ struct TagsSettingsView: View {
       Spacer()
     }
     .contentShape(Rectangle())
-  }
-
-  private var addBar: some View {
-    HStack {
-      TextField("New tag name", text: $viewModel.newTagName)
-        .textInputAutocapitalization(.words)
-        .submitLabel(.done)
-        .onSubmit(viewModel.addTag)
-
-      AppIcon.addTag
-        .imageButton(action: viewModel.addTag)
-        .disabled(
-          viewModel.newTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        )
-    }
-    .padding()
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-    .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
-    .padding(.horizontal)
   }
 }
 
