@@ -57,4 +57,40 @@ struct CacheManagerAwaitTests {
     let result = try await pending
     #expect(result == nil)
   }
+
+  @Test("a cancelled awaiter does not strand a concurrent awaiter of the same episode")
+  func cancelledAwaiterDoesNotStrandConcurrentAwaiter() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let episodeID = podcastEpisode.id
+    let cacheManager = self.cacheManager
+    let secondResolved = ThreadSafe<CachedURL?>(nil)
+
+    // First awaiter starts the download and parks on the per-episode latch.
+    let first = Task { try await cacheManager.cachedURL(downloadingIfNeeded: episodeID) }
+    let taskID = try await CacheHelpers.waitForDownloadTask(episodeID)
+    try await CacheHelpers.waitForResumed(taskID)
+    try await CacheHelpers.waitForDownloading(episodeID)
+
+    // Second awaiter joins while the download is in flight, so it shares the
+    // same latch and parks too.
+    let second = Task {
+      let url = try await cacheManager.cachedURL(downloadingIfNeeded: episodeID)
+      secondResolved(url)
+    }
+    for _ in 0..<50 { await Task.yield() }
+
+    // Cancelling the first awaiter must not remove the shared latch out from
+    // under the second; the completion signal must still resolve the second.
+    first.cancel()
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+
+    let resolved = try await Wait.forValue { secondResolved() }
+    let expected = try await CacheHelpers.waitForCached(episodeID)
+    #expect(resolved == expected)
+
+    await #expect(throws: CancellationError.self) {
+      _ = try await first.value
+    }
+    _ = try await second.value
+  }
 }

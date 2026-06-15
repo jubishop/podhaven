@@ -61,8 +61,15 @@ struct CacheManager {
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
   // One-shot completion signals for in-flight downloads, keyed by episode.
   // CacheBackgroundDelegate opens a latch when a download finishes or fails, so
-  // callers can await a download instead of polling for the cached file.
-  private let downloadLatches = ThreadSafe<[Episode.ID: AsyncLatch<Void>]>([:])
+  // callers can await a download instead of polling for the cached file. The
+  // waiter count keeps the shared latch registered until the last awaiter
+  // leaves, so an early-returning or cancelled caller can't strand a concurrent
+  // awaiter by removing the latch before its completion signal arrives.
+  private struct DownloadLatch {
+    let latch = AsyncLatch<Void>()
+    var waiters = 0
+  }
+  private let downloadLatches = ThreadSafe<[Episode.ID: DownloadLatch]>([:])
 
   // MARK: - Initialization
 
@@ -81,9 +88,15 @@ struct CacheManager {
         Assert.fatal("Couldn't create cache directory?")
       }
 
-      reconcileStaleDownloads()
-      startCurrentEpisodeIDObservation()
-      startQueueObservation()
+      // Reconcile stranded downloads before observing: a stale downloading flag
+      // must be cleared before the current-episode/queue observers see it, or
+      // they skip the re-download as "already caching" and the flag is then
+      // reconciled away, leaving the episode uncached with no active download.
+      Task(priority: taskPriority(.utility)) {
+        await reconcileStaleDownloads()
+        startCurrentEpisodeIDObservation()
+        startQueueObservation()
+      }
     }
   }
 
@@ -95,23 +108,21 @@ struct CacheManager {
   // before the live-task snapshot is deliberate: downloadToCache creates the
   // task before flipping the flag, so a genuinely in-flight download can never
   // appear in the rows yet be missing from the snapshot.
-  private func reconcileStaleDownloads() {
-    Task(priority: taskPriority(.utility)) {
-      do {
-        let downloadingIDs = try await repo.downloadingEpisodeIDs()
-        guard !downloadingIDs.isEmpty else { return }
+  private func reconcileStaleDownloads() async {
+    do {
+      let downloadingIDs = try await repo.downloadingEpisodeIDs()
+      guard !downloadingIDs.isEmpty else { return }
 
-        let liveDescriptions = Set(
-          await cacheManagerSession.allCreatedTasks.compactMap(\.taskDescription)
-        )
-        for episodeID in downloadingIDs
-        where !liveDescriptions.contains(String(episodeID.rawValue)) {
-          Self.log.debug("reconcileStaleDownloads: clearing stranded download for \(episodeID)")
-          try await repo.updateDownloading(episodeID, downloading: false)
-        }
-      } catch {
-        Self.log.caughtError("reconcileStaleDownloads failed", error)
+      let liveDescriptions = Set(
+        await cacheManagerSession.allCreatedTasks.compactMap(\.taskDescription)
+      )
+      for episodeID in downloadingIDs
+      where !liveDescriptions.contains(String(episodeID.rawValue)) {
+        Self.log.debug("reconcileStaleDownloads: clearing stranded download for \(episodeID)")
+        try await repo.updateDownloading(episodeID, downloading: false)
       }
+    } catch {
+      Self.log.caughtError("reconcileStaleDownloads failed", error)
     }
   }
 
@@ -165,19 +176,31 @@ struct CacheManager {
     // Register the latch before inspecting state so a completion that fires
     // mid-flight can't slip between the cache check and the await.
     let latch = downloadLatches { latches in
-      let latch = latches[episodeID] ?? AsyncLatch<Void>()
-      latches[episodeID] = latch
-      return latch
+      var entry = latches[episodeID] ?? DownloadLatch()
+      entry.waiters += 1
+      latches[episodeID] = entry
+      return entry.latch
     }
-    defer { downloadLatches { _ = $0.removeValue(forKey: episodeID) } }
+    defer {
+      downloadLatches { latches in
+        guard var entry = latches[episodeID] else { return }
+        entry.waiters -= 1
+        if entry.waiters <= 0 {
+          latches.removeValue(forKey: episodeID)
+        } else {
+          latches[episodeID] = entry
+        }
+      }
+    }
 
     if let cachedURL = try await repo.episode(episodeID)?.cachedURL { return cachedURL }
 
     try await downloadToCache(for: episodeID)
     // downloadToCache no-ops when already cached/caching, so re-check rather
     // than await a latch whose completion may have already fired.
-    if let cachedURL = try await repo.episode(episodeID)?.cachedURL { return cachedURL }
-    guard try await ensureDownloadIsActive(for: episodeID) else {
+    guard let episode = try await repo.episode(episodeID) else { return nil }
+    if let cachedURL = episode.cachedURL { return cachedURL }
+    guard try await ensureDownloadIsActive(episode) else {
       return try await repo.episode(episodeID)?.cachedURL
     }
 
@@ -188,7 +211,7 @@ struct CacheManager {
   // Opens the completion latch for an episode whose download just finished or
   // failed. A no-op when nothing is awaiting it.
   func signalDownloadComplete(for episodeID: Episode.ID) {
-    downloadLatches { $0[episodeID] }?.open()
+    downloadLatches { $0[episodeID]?.latch }?.open()
   }
 
   @discardableResult
@@ -240,10 +263,10 @@ struct CacheManager {
 
   // MARK: - Private Helpers
 
-  private func ensureDownloadIsActive(for episodeID: Episode.ID) async throws -> Bool {
-    guard let episode = try await repo.episode(episodeID) else { return false }
+  private func ensureDownloadIsActive(_ episode: Episode) async throws -> Bool {
     guard episode.cachedURL == nil else { return false }
 
+    let episodeID = episode.id
     switch episode.cacheStatus {
     case .cached:
       return false
