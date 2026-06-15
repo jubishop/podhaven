@@ -18,8 +18,7 @@ struct CacheManagerReconcileTests {
     let live = try await Create.podcastEpisode()
     try await CacheHelpers.downloadToCache(live.id)
 
-    // A stranded flag: downloading == true with no backing task, as a
-    // force-quit mid-download leaves it.
+    // A stranded flag: downloading == true with no backing task (force-quit).
     let stale = try await Create.podcastEpisode()
     try await repo.updateDownloading(stale.id, downloading: true)
 
@@ -34,16 +33,14 @@ struct CacheManagerReconcileTests {
   func resumesStrandedCurrentEpisodeOnStart() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    // Stranded flag with no backing task, as a force-quit mid-download leaves
-    // it, on the episode the user is currently listening to.
+    // Stranded flag (force-quit) on the currently-playing episode.
     try await repo.updateDownloading(podcastEpisode.id, downloading: true)
     sharedState.currentEpisodeID = podcastEpisode.id
 
     cacheManager.start()
 
-    // Reconcile must clear the stale flag before the current-episode observer
-    // runs, so the observer starts a real download instead of skipping it as
-    // "already caching".
+    // Reconcile must clear the stale flag before the observer runs, so it
+    // starts a real download instead of skipping it as "already caching".
     let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
     try await CacheHelpers.waitForResumed(taskID)
   }

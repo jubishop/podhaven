@@ -158,10 +158,8 @@ import Testing
     #expect(!fileManager.fileExists(at: fileURL))
   }
 
-  // A successful download must stay .caching until its file is actually cached:
-  // the downloading flag is cleared only after the cached filename is written, so
-  // a request arriving mid-completion sees .caching and no-ops instead of seeing a
-  // transient .uncached and kicking off a duplicate download.
+  // downloading is cleared only after the cached filename is written, so a
+  // request arriving mid-completion sees .caching and no-ops, not a duplicate.
   @Test("a request arriving mid-completion does not start a duplicate download")
   func requestMidCompletionDoesNotRestartDownload() async throws {
     let assetStarted = AsyncSemaphore(value: 0)
@@ -175,8 +173,8 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
 
-    // Drive completion concurrently; it parks in the gated asset load, after the
-    // file move but before the cached filename is written and the flag cleared.
+    // Drive completion concurrently; it parks in the gated asset load, before
+    // the filename is written and flag cleared.
     let finish = Task { try await CacheHelpers.simulateBackgroundFinish(taskID) }
     await assetStarted.wait()
 
@@ -534,9 +532,8 @@ import Testing
       didFinishDownloadingTo: tempFile
     )
 
-    // The mismatch give-up path must clear the downloading flag, not just
-    // skip the write — otherwise the episode is stranded .caching with no
-    // live task. .uncached asserts both (not cached, not downloading).
+    // The give-up path must clear downloading too, not just skip the write;
+    // .uncached asserts both (not cached, not downloading).
     let updated = try await repo.episode(podcastEpisode.id)!
     #expect(updated.cacheStatus == .uncached)
   }

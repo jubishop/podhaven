@@ -170,8 +170,7 @@ actor FakeDataFetchable: DataFetchable {
       downloadTask: downloadTasks[id: taskID]!,
       didFinishDownloadingTo: location
     )
-    // A finished task leaves the session's task list, mirroring the real
-    // URLSession dropping a completed task from allTasks.
+    // Mirror real URLSession dropping a completed task from its task list.
     downloadTasks { $0.remove(id: taskID) }
   }
 

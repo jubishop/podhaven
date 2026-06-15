@@ -21,11 +21,8 @@ extension Container {
       config.waitsForConnectivity = true
       config.isDiscretionary = false
       config.httpMaximumConnectionsPerHost = 4
-      // Cap the overall per-download deadline (which includes time spent waiting
-      // for connectivity) well below the framework's multi-day default, so a
-      // download that never makes progress is abandoned in bounded time.
-      // Genuinely dead tasks (e.g. cancelled by a force-quit, which never
-      // deliver a completion callback) are reset by reconcileStaleDownloads().
+      // Abandon stalled downloads in bounded time instead of the multi-day
+      // default; force-quit leaks are cleared by reconcileStaleDownloads().
       config.timeoutIntervalForResource = 24 * 60 * 60
       return URLSession(
         configuration: config,
@@ -59,14 +56,8 @@ struct CacheManager {
 
   private let startOnce = Once()
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
-  // Completion latches for in-flight downloads, keyed by episode. The sole
-  // awaiter, cachedURL(downloadingIfNeeded:), registers one (get-or-create)
-  // when it suspends; CacheBackgroundDelegate opens and removes whatever latch
-  // occupies the episode's slot on the terminal callback. The key is the
-  // episode, not the attempt, so this assumes a single in-flight attempt per
-  // episode: the failure-path signal fires synchronously right after the
-  // downloading flag is cleared, leaving no realistic gap for a replacement
-  // attempt to interleave and have the prior signal resolve the wrong awaiter.
+  // Per-episode completion latches: cachedURL registers one when it suspends;
+  // the delegate opens and removes it on the terminal callback.
   private let downloadLatches = ThreadSafe<[Episode.ID: AsyncLatch<Void>]>([:])
 
   // MARK: - Initialization
@@ -86,10 +77,8 @@ struct CacheManager {
         Assert.fatal("Couldn't create cache directory?")
       }
 
-      // Reconcile stranded downloads before observing: a stale downloading flag
-      // must be cleared before the current-episode/queue observers see it, or
-      // they skip the re-download as "already caching" and the flag is then
-      // reconciled away, leaving the episode uncached with no active download.
+      // Reconcile before observing: observers would skip a stale "downloading"
+      // row as already-caching, then reconcile clears it, leaving it uncached.
       Task(priority: taskPriority(.utility)) {
         await reconcileStaleDownloads()
         startCurrentEpisodeIDObservation()
@@ -98,14 +87,9 @@ struct CacheManager {
     }
   }
 
-  // A download tracked as in-flight (downloading == true) is normally cleared
-  // only by the delegate's terminal callbacks, but a force-quit cancels the
-  // background tasks without delivering them, stranding the flag set. On launch
-  // the recreated session re-lists only the still-live tasks, so any downloading
-  // row absent from that set is dead and gets cleared. Reading the DB rows
-  // before the live-task snapshot is deliberate: downloadToCache creates the
-  // task before flipping the flag, so a genuinely in-flight download can never
-  // appear in the rows yet be missing from the snapshot.
+  // Clear downloading flags stranded by a force-quit, which cancels background
+  // tasks without delivering their callbacks: any downloading row absent from
+  // the recreated session's live tasks is dead.
   private func reconcileStaleDownloads() async {
     do {
       let downloadingIDs = try await repo.downloadingEpisodeIDs()
@@ -167,24 +151,19 @@ struct CacheManager {
     return downloadTask.taskID
   }
 
-  // Ensures the episode's audio is cached, starting a download if needed, and
-  // suspends until it finishes. Returns the cached URL, or nil if the episode
-  // vanished or the download failed. Event-driven via AsyncLatch — no polling.
   func cachedURL(downloadingIfNeeded episodeID: Episode.ID) async throws -> CachedURL? {
     if let cachedURL = try await repo.episode(episodeID)?.cachedURL { return cachedURL }
 
     try await downloadToCache(for: episodeID)
-    // downloadToCache no-ops when already cached/caching, so re-check rather
-    // than await a latch whose completion may have already fired.
+    // downloadToCache no-ops if already cached/caching, so re-check state.
     guard let episode = try await repo.episode(episodeID) else { return nil }
     if let cachedURL = episode.cachedURL { return cachedURL }
     guard try await ensureDownloadIsActive(episode) else {
       return try await repo.episode(episodeID)?.cachedURL
     }
 
-    // Register the latch before re-reading state, so a completion landing after
-    // this point opens it rather than signaling an empty slot. As the only
-    // awaiter, cachedURL adopts a concurrent awaiter's latch or registers one.
+    // Register before re-reading state so a completion after this point opens
+    // the latch rather than signaling an empty slot.
     let latch = downloadLatches { latches -> AsyncLatch<Void> in
       if let existing = latches[episodeID] { return existing }
       let fresh = AsyncLatch<Void>()
@@ -192,9 +171,8 @@ struct CacheManager {
       return fresh
     }
 
-    // Re-read after registering: terminal callbacks clear downloading (last on
-    // success) before signaling, so still-downloading means the signal is still
-    // coming; anything else is already resolved.
+    // Re-read after registering: downloading is cleared before the signal, so
+    // still-downloading means the signal is still coming.
     guard let current = try await repo.episode(episodeID) else { return nil }
     if let cachedURL = current.cachedURL { return cachedURL }
     guard current.downloading else { return nil }
@@ -202,9 +180,7 @@ struct CacheManager {
     return try await repo.episode(episodeID)?.cachedURL
   }
 
-  // Opens and removes the in-flight download's completion latch for an episode
-  // whose download just finished or failed, resuming any awaiter. A no-op when
-  // no caller is awaiting it (no latch registered).
+  // Opens and removes the episode's completion latch, resuming any awaiter.
   func signalDownloadComplete(for episodeID: Episode.ID) {
     downloadLatches { $0.removeValue(forKey: episodeID) }?.open()
   }

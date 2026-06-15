@@ -34,8 +34,7 @@ struct CacheManagerAwaitTests {
   func startsDownloadAndResolvesOnCompletion() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    // Start awaiting before the download exists so the latch is registered
-    // before the completion callback fires.
+    // Await before the download exists so the latch registers first.
     async let pending = cacheManager.cachedURL(downloadingIfNeeded: podcastEpisode.id)
 
     let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
@@ -76,16 +75,14 @@ struct CacheManagerAwaitTests {
     try await CacheHelpers.waitForResumed(taskID)
     try await CacheHelpers.waitForDownloading(episodeID)
 
-    // Second awaiter joins while the download is in flight, so it shares the
-    // same latch and parks too.
+    // Second awaiter joins in-flight, sharing the same latch.
     let second = Task {
       let url = try await cacheManager.cachedURL(downloadingIfNeeded: episodeID)
       secondResolved(url)
     }
     for _ in 0..<50 { await Task.yield() }
 
-    // Cancelling the first awaiter must not remove the shared latch out from
-    // under the second; the completion signal must still resolve the second.
+    // Cancelling the first must not strand the second on the shared latch.
     first.cancel()
     try await CacheHelpers.simulateBackgroundFinish(taskID)
 
@@ -111,8 +108,7 @@ struct CacheManagerAwaitTests {
     let firstResult = try await firstPending
     #expect(firstResult == nil)
 
-    // A later call must start a brand-new download — the failed attempt's latch
-    // is gone, so it can't resolve this one early — and resolve to its file.
+    // A later call starts a fresh download; the failed latch can't resolve it early.
     async let secondPending = cacheManager.cachedURL(downloadingIfNeeded: podcastEpisode.id)
     let okTaskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
     try await CacheHelpers.waitForResumed(okTaskID)
@@ -129,9 +125,8 @@ struct CacheManagerAwaitTests {
     let podcastEpisode = try await Create.podcastEpisode()
     let episodeID = podcastEpisode.id
 
-    // Mimic a relaunch: a live background task is reattached to the recreated
-    // session and the row is downloading, but no in-memory latch exists this
-    // launch (the map is empty after a relaunch and nothing has awaited it).
+    // Mimic a relaunch: a live reattached task with downloading == true but no
+    // in-memory latch yet.
     let task = session.createDownloadTask(
       with: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue),
       taskDescription: String(episodeID.rawValue)
@@ -139,8 +134,7 @@ struct CacheManagerAwaitTests {
     task.resume()
     try await repo.updateDownloading(episodeID, downloading: true)
 
-    // cachedURL must adopt a latch and suspend until the reattached download
-    // finishes, rather than returning a premature nil.
+    // cachedURL must adopt a latch and suspend, not return a premature nil.
     async let pending = cacheManager.cachedURL(downloadingIfNeeded: episodeID)
     for _ in 0..<50 { await Task.yield() }
 
