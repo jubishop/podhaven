@@ -134,6 +134,7 @@ struct PodcastsListView: View {
         .listRow()
       }
     }
+    .contentMargins(.top, 8, for: .scrollContent)
   }
 
   // MARK: - Reusable Views

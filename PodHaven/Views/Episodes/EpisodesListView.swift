@@ -94,6 +94,7 @@ struct EpisodesListView: View {
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
     }
+    .contentMargins(.top, 8, for: .scrollContent)
   }
 
   private func loadingView(message: String) -> some View {
