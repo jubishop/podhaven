@@ -98,6 +98,8 @@ Storage cost is small — an hour-long episode is on the order of 10–20 KB of 
 
 (v1 diverged from this two-table sketch: it stores timed segments as JSON in a single `episode.transcript` column — see [Manual Episode Transcription](manual-transcripts.md). Migrating to the `transcript_segment` table here becomes worthwhile if cross-episode search or diarization lands.)
 
+**Implementer note — in-place transcript overwrite.** Any tier that replaces an episode's transcript in place — RSS import (Tier 1), or a model-revision re-transcribe — must do two things v1 deliberately leaves alone. (1) Skip the overwrite when an equivalent transcript already exists: v1 never re-transcribes a transcribed episode (`canTranscribe` is false at `.transcribed`; `TranscriptionProcessor.process` guards `!episode.hasTranscript`), so a needless overwrite is wasted ~5× compute, not just a UI glitch. (2) Invalidate the detail-view memo: `EpisodeDetailViewModel.decodedTranscript` caches the decoded transcript keyed by `episodeID` only, so an in-place change for an episode whose detail is open renders stale until the view is rebuilt — clear `transcriptCache` in `transition(to:)` (the sole post-init `state` writer). Left out of v1 because the overwrite is currently unreachable.
+
 ## Speaker diarization (deferred)
 
 Multi-speaker labeling ("who spoke when") is **deferred past v1** but captured here so it can be picked up cleanly.
