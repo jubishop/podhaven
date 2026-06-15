@@ -163,21 +163,7 @@ enum EmbeddingService {
 
   // Mirrors the saved-side recipe so an unsaved row scores against the same
   // vector space.
-  @concurrent static func embeddingVector(
-    for unsavedPodcastEpisode: UnsavedPodcastEpisode,
-    embedding: ContextualEmbedding
-  ) async throws -> [Float] {
-    let podcastVector = try await podcastContextVector(
-      for: unsavedPodcastEpisode.unsavedPodcast,
-      embedding: embedding
-    )
-    return try await episodeEmbeddingVector(
-      for: unsavedPodcastEpisode.unsavedEpisode,
-      podcastVector: podcastVector,
-      embedding: embedding
-    )
-  }
-
+  //
   // The podcast-context vector is identical for every episode of a feed, so a
   // batch caller computes it once and threads it through episodeEmbeddingVector
   // instead of re-embedding the podcast title/description per episode.
