@@ -91,11 +91,12 @@ class PodcastsListViewModel:
 
   let title: String
   let filter: PodcastFilter
+  let icon: LucideIcon
   private(set) var isLoading = true
 
   // MARK: - Initialization
 
-  init(title: String, filter: @escaping PodcastFilter = { $0 }) {
+  init(title: String, filter: @escaping PodcastFilter = { $0 }, icon: LucideIcon = .podcast) {
     let persistedSortMethod = PersistedBroadcast(
       wrappedValue: SortMethod.byTitle,
       "PodcastsList-sortMethod-\(title)"
@@ -104,6 +105,7 @@ class PodcastsListViewModel:
 
     self.title = title
     self.filter = filter
+    self.icon = icon
     self.podcastList = PowerList(
       sortMethod: persistedSortMethod.wrappedValue.sortMethod
     )

@@ -86,7 +86,7 @@ struct PodcastsView: View {
     icon: LucideIcon? = nil
   ) -> some View {
     NavigationLink(value: Navigation.Destination.podcastsViewType(viewType)) {
-      CountLabel(title: title, count: count, icon: icon)
+      CountLabel(title: title, count: count, icon: icon ?? viewType.icon)
     }
   }
 }
