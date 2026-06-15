@@ -37,17 +37,24 @@ struct TagEditorView: View {
           }
         }
 
-        Section {
-          Button(role: .destructive) {
-            viewModel.deleteTag()
-          } label: {
-            Text("Delete Tag")
-              .frame(maxWidth: .infinity, alignment: .center)
+        if case .edit = viewModel.mode {
+          Section {
+            Button(role: .destructive) {
+              viewModel.deleteTag()
+            } label: {
+              Text("Delete Tag")
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
           }
         }
       }
-      .navigationTitle("Edit Tag")
+      .navigationTitle(viewModel.mode == .create ? "New Tag" : "Edit Tag")
       .navigationBarTitleDisplayMode(.inline)
+      .onAppear {
+        if viewModel.mode == .create {
+          nameFocused = true
+        }
+      }
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { sheet.dismiss() }

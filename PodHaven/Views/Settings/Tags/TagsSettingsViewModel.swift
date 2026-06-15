@@ -20,7 +20,6 @@ import SwiftUI
   var tags: IdentifiedArrayOf<Tag> { sharedState.tags }
   var podcastCounts: [Tag.ID: Int] = [:]
   var episodeCounts: [Tag.ID: Int] = [:]
-  var newTagName: String = ""
 
   // MARK: - Initialization
 
@@ -60,30 +59,6 @@ import SwiftUI
   }
 
   // MARK: - Actions
-
-  func addTag() {
-    let name = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !name.isEmpty else { return }
-
-    if tags.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
-      alert("A tag named \"\(name)\" already exists.")
-      newTagName = ""
-      return
-    }
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.insertTag(UnsavedTag(name: name))
-        newTagName = ""
-      } catch {
-        Self.log.caughtError("addTag: failed to insert tag '\(name)'", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
 
   func deleteTag(_ tagID: Tag.ID) {
     let tagName = tags[id: tagID]?.name ?? "this tag"

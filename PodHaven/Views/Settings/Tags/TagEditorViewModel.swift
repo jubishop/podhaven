@@ -15,17 +15,28 @@ class TagEditorViewModel {
 
   private static let log = Log.as(LogSubsystem.SettingsView.tags)
 
-  let tagID: Tag.ID
+  enum Mode: Hashable {
+    case create
+    case edit(Tag.ID)
+  }
+
+  let mode: Mode
   var name: String
   var icon: LucideIcon
 
   private let podcastCount: Int
   private let episodeCount: Int
 
-  init(tag: Tag, podcastCount: Int, episodeCount: Int) {
-    self.tagID = tag.id
-    self.name = tag.name
-    self.icon = tag.icon
+  init(
+    mode: Mode = .create,
+    name: String = "",
+    icon: LucideIcon = .tag,
+    podcastCount: Int = 0,
+    episodeCount: Int = 0
+  ) {
+    self.mode = mode
+    self.name = name
+    self.icon = icon
     self.podcastCount = podcastCount
     self.episodeCount = episodeCount
   }
@@ -54,10 +65,15 @@ class TagEditorViewModel {
   func save() {
     guard saveState == .idle, !trimmedName.isEmpty else { return }
 
+    let editingID: Tag.ID? =
+      switch mode {
+      case .create: nil
+      case .edit(let id): id
+      }
     if let conflict = sharedState.tags.first(
       where: { $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame }
     ),
-      conflict.id != tagID
+      conflict.id != editingID
     {
       alert("A tag named \"\(conflict.name)\" already exists.")
       return
@@ -67,11 +83,16 @@ class TagEditorViewModel {
     Task { [weak self] in
       guard let self else { return }
       do {
-        try await repo.updateTag(tagID, name: trimmedName, icon: icon)
+        switch mode {
+        case .create:
+          try await repo.insertTag(UnsavedTag(name: trimmedName, icon: icon))
+        case .edit(let id):
+          try await repo.updateTag(id, name: trimmedName, icon: icon)
+        }
         sheet.dismiss()
       } catch {
         saveState = .idle
-        Self.log.caughtError("save: failed to update tag \(tagID)", error)
+        Self.log.caughtError("save: failed to save tag '\(trimmedName)'", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -79,6 +100,8 @@ class TagEditorViewModel {
   }
 
   func deleteTag() {
+    guard case .edit(let id) = mode else { return }
+
     let message: String =
       if podcastCount > 0 || episodeCount > 0 {
         """
@@ -93,13 +116,13 @@ class TagEditorViewModel {
     alert(title: "Delete Tag?", message) { [weak self] in
       Button("Delete", role: .destructive) {
         guard let self else { return }
-        self.performDelete()
+        self.performDelete(id)
       }
       Button("Cancel", role: .cancel) {}
     }
   }
 
-  private func performDelete() {
+  private func performDelete(_ tagID: Tag.ID) {
     Task { [weak self] in
       guard let self else { return }
       do {
