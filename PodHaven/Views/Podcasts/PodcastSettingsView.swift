@@ -198,7 +198,7 @@ struct PodcastSettingsView: View {
               Notifications are triggered during background refresh.
               """
           ) {
-            Toggle("Notify", isOn: $temp.notifyNewEpisodes)
+            Toggle("Notify New Episodes", isOn: $temp.notifyNewEpisodes)
               .onChange(of: temp.notifyNewEpisodes) {
                 viewModel.updateSettings(temp)
               }
