@@ -50,14 +50,16 @@ struct HTMLText: View {
   private static func buildAttributedString(html: String, font: Font) -> AttributedString? {
     guard html.isHTML() else {
       let decoded = html.decodingHTMLEntities()
-      guard decoded != html else { return nil }
-      return AttributedString(decoded)
+      let linked = autodetectedLinks(in: AttributedString(decoded))
+      let foundLink = linked.runs.contains { $0.link != nil }
+      guard decoded != html || foundLink else { return nil }
+      return linked
     }
 
     let cleanedHTML = preprocessHTML(html)
     let textParts = parseTextParts(cleanedHTML)
 
-    return buildAttributedString(from: textParts, baseFont: font)
+    return autodetectedLinks(in: buildAttributedString(from: textParts, baseFont: font))
   }
 
   // MARK: - HTML Preprocessing
@@ -252,6 +254,49 @@ struct HTMLText: View {
     return result
   }
 
+  // Links bare http(s) URLs that aren't already inside an anchor. Restricted to
+  // text that literally begins with the scheme so bare domains (README.md) and
+  // emails stay untouched; NSDataDetector handles the URL boundary (trailing
+  // punctuation, balanced parens) better than a hand-rolled pattern.
+  private static func autodetectedLinks(in attributedString: AttributedString) -> AttributedString {
+    let plainText = String(attributedString.characters)
+    guard plainText.range(of: "http", options: .caseInsensitive) != nil else {
+      return attributedString
+    }
+
+    let fullRange = NSRange(plainText.startIndex..<plainText.endIndex, in: plainText)
+    let matches = linkDetector.matches(in: plainText, options: [], range: fullRange)
+    guard !matches.isEmpty else { return attributedString }
+
+    var result = attributedString
+    for match in matches {
+      guard let url = match.url, let textRange = Range(match.range, in: plainText) else { continue }
+
+      let leading = plainText[textRange].prefix(8).lowercased()
+      guard leading.hasPrefix("http://") || leading.hasPrefix("https://") else { continue }
+
+      let characters = result.characters
+      let lowerOffset = plainText.distance(from: plainText.startIndex, to: textRange.lowerBound)
+      let length = plainText.distance(from: textRange.lowerBound, to: textRange.upperBound)
+      let lowerBound = characters.index(characters.startIndex, offsetBy: lowerOffset)
+      let upperBound = characters.index(lowerBound, offsetBy: length)
+      let linkRange = lowerBound..<upperBound
+
+      guard result[linkRange].link == nil else { continue }
+      result[linkRange].link = url
+    }
+
+    return result
+  }
+
+  private static let linkDetector: NSDataDetector = {
+    do {
+      return try NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+    } catch {
+      Assert.fatal("Failed to create link NSDataDetector: \(error)")
+    }
+  }()
+
   // MARK: - Menu Rendering
 
   @ViewBuilder
@@ -400,7 +445,13 @@ struct HTMLText: View {
             let wordString = String(remaining[wordStart..<wordEnd])
             items.append(
               .word(
-                Self.styledAttributedString(wordString, format: part.format, baseFont: baseFont)
+                Self.autodetectedLinks(
+                  in: Self.styledAttributedString(
+                    wordString,
+                    format: part.format,
+                    baseFont: baseFont
+                  )
+                )
               )
             )
             remaining = remaining[wordEnd...]
