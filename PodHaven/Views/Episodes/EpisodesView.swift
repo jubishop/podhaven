@@ -52,13 +52,7 @@ struct EpisodesView: View {
           LabeledContent {
             UnreadBadge(count: viewModel.unreadCounts[smartList.id, default: 0])
           } label: {
-            Label {
-              Text(smartList.title)
-            } icon: {
-              LucideIconView(icon: smartList.icon)
-                .frame(width: 24, height: 24)
-                .foregroundStyle(.tint)
-            }
+            LucideLabel(icon: smartList.icon, title: smartList.title)
           }
         }
         .swipeActions(edge: .trailing) {

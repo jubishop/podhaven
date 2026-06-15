@@ -50,13 +50,7 @@ struct PodcastsListView: View {
   @ToolbarContentBuilder
   private var toolbar: some ToolbarContent {
     ToolbarItem(placement: .principal) {
-      HStack(spacing: 6) {
-        LucideIconView(icon: viewModel.icon)
-          .frame(width: 20, height: 20)
-          .foregroundStyle(.tint)
-        Text(viewModel.title)
-          .font(.headline)
-      }
+      LucideNavigationTitle(icon: viewModel.icon, title: viewModel.title)
     }
     sortableDisplayingPodcastsToolbarItems(viewModel: viewModel)
     selectablePodcastsToolbarItems(viewModel: viewModel)

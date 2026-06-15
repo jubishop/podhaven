@@ -90,13 +90,7 @@ struct PodcastsView: View {
         Text("\(count)")
           .foregroundStyle(.secondary)
       } label: {
-        Label {
-          Text(title)
-        } icon: {
-          LucideIconView(icon: icon ?? viewType.icon)
-            .frame(width: 24, height: 24)
-            .foregroundStyle(.tint)
-        }
+        LucideLabel(icon: icon ?? viewType.icon, title: title)
       }
     }
   }

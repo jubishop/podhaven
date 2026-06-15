@@ -8,6 +8,8 @@ struct TagsView: View {
   @Environment(\.colorScheme) private var colorScheme
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
 
+  @ScaledMetric(relativeTo: .body) private var tagIconSize: CGFloat = 16
+
   let tags: IdentifiedArrayOf<Tag>
   let allTags: IdentifiedArrayOf<Tag>
   let onAdd: (Tag.ID) -> Void
@@ -35,7 +37,8 @@ struct TagsView: View {
     } label: {
       HStack(spacing: 4) {
         LucideIconView(icon: tag.icon)
-          .frame(width: 16, height: 16)
+          .frame(width: tagIconSize, height: tagIconSize)
+          .accessibilityHidden(true)
         Text(tag.name)
         AppIcon.removeTag.image
       }
