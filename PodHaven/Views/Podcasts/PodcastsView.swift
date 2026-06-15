@@ -86,7 +86,18 @@ struct PodcastsView: View {
     icon: LucideIcon? = nil
   ) -> some View {
     NavigationLink(value: Navigation.Destination.podcastsViewType(viewType)) {
-      CountLabel(title: title, count: count, icon: icon ?? viewType.icon)
+      LabeledContent {
+        Text("\(count)")
+          .foregroundStyle(.secondary)
+      } label: {
+        Label {
+          Text(title)
+        } icon: {
+          LucideIconView(icon: icon ?? viewType.icon)
+            .frame(width: 24, height: 24)
+            .foregroundStyle(.tint)
+        }
+      }
     }
   }
 }
