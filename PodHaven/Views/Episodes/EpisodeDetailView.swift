@@ -363,12 +363,19 @@ struct EpisodeDetailView: View {
           }
         }
       case .transcribed:
-        if let transcript = viewModel.decodedTranscript, !transcript.segments.isEmpty {
-          Text(transcript.segments.map(\.text).joined(separator: "\n"))
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
+        switch viewModel.transcriptDisplay {
+        case .loading:
+          HStack(spacing: 8) {
+            ProgressView()
+            Text("Loading transcript…")
+              .foregroundStyle(.secondary)
+          }
+        case .empty:
           Text("No speech detected")
             .foregroundStyle(.secondary)
+        case .text(let text):
+          Text(text)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
       case .failed:
         VStack(alignment: .leading, spacing: 8) {

@@ -57,5 +57,43 @@ import Testing
     #expect(viewModel.episode.hasTranscript == true)
     #expect(viewModel.transcriptionStatus == .transcribed)
     #expect(viewModel.decodedTranscript == nil)
+    #expect(viewModel.transcriptDisplay == .loading)
+  }
+
+  @Test("transcriptDisplay joins segment text once the episode is hydrated")
+  func transcriptDisplayRendersTextWhenHydrated() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let transcript = Transcript(
+      segments: [
+        TranscriptSegment(start: 0, text: "hello"),
+        TranscriptSegment(start: 1, text: "world"),
+      ],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0),
+      modelRevision: Transcriber.recipeVersion
+    )
+    try await repo.updateTranscript(podcastEpisode.id, transcript: transcript.jsonString())
+
+    let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+
+    #expect(viewModel.transcriptDisplay == .text("hello\nworld"))
+  }
+
+  @Test("transcriptDisplay is empty when a hydrated transcript has no segments")
+  func transcriptDisplayEmptyForNoSegments() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let transcript = Transcript(
+      segments: [],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0),
+      modelRevision: Transcriber.recipeVersion
+    )
+    try await repo.updateTranscript(podcastEpisode.id, transcript: transcript.jsonString())
+
+    let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+
+    #expect(viewModel.transcriptDisplay == .empty)
   }
 }

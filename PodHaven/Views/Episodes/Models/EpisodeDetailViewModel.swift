@@ -61,6 +61,15 @@ enum EpisodeDetailDisplayedScore: Sendable {
   case pending
 }
 
+// What the detail view renders inside the `.transcribed` status: the loaded
+// transcript text, an empty-result notice, or a loading placeholder while a
+// known-transcribed row is still hydrating its transcript off a list snapshot.
+enum EpisodeTranscriptDisplay: Equatable, Sendable {
+  case loading
+  case empty
+  case text(String)
+}
+
 @Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
@@ -96,6 +105,17 @@ enum EpisodeDetailDisplayedScore: Sendable {
     guard let transcript = content.loaded?.decodedTranscript else { return nil }
     transcriptCache = (episodeID, transcript)
     return transcript
+  }
+
+  var transcriptDisplay: EpisodeTranscriptDisplay {
+    guard let transcript = decodedTranscript else {
+      // The view consults this only for `.transcribed`, so the transcript
+      // exists; a nil decode means a list-row seed hasn't hydrated its loaded
+      // episode yet — a loading state, not "no speech".
+      return episode.loaded == nil ? .loading : .empty
+    }
+    guard !transcript.segments.isEmpty else { return .empty }
+    return .text(transcript.segments.map(\.text).joined(separator: "\n"))
   }
 
   // MARK: - Derived State
