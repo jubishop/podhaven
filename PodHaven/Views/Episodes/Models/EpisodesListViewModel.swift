@@ -95,6 +95,7 @@ class EpisodesListViewModel:
   private(set) var title: String
   private(set) var smartListFilter: SmartListFilter
   private(set) var alwaysShowPodcastImage: Bool
+  private(set) var icon: LucideIcon
   private(set) var loadingState: LoadingState = .loading
 
   // Compiled fresh at each observation (re)start so relative publish-date
@@ -125,6 +126,7 @@ class EpisodesListViewModel:
     self.title = smartList.title
     self.smartListFilter = smartList.filter
     self.alwaysShowPodcastImage = smartList.alwaysShowPodcastImage
+    self.icon = smartList.icon
     self.rowSortMethod = smartList.sortMethod
   }
 
@@ -148,6 +150,7 @@ class EpisodesListViewModel:
         if alwaysShowPodcastImage != smartList.alwaysShowPodcastImage {
           alwaysShowPodcastImage = smartList.alwaysShowPodcastImage
         }
+        if icon != smartList.icon { icon = smartList.icon }
         if rowSortMethod != smartList.sortMethod { rowSortMethod = smartList.sortMethod }
       }
     } catch is CancellationError {

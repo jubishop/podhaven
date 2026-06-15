@@ -363,8 +363,8 @@ struct Repo: Databasing {
   }
 
   @discardableResult
-  func renameTag(_ tagID: Tag.ID, newName: String) async throws -> Bool {
-    let normalizedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+  func updateTag(_ tagID: Tag.ID, name: String, icon: LucideIcon) async throws -> Bool {
+    let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalizedName.isEmpty else {
       throw DatabaseError(message: "Tag name cannot be empty")
     }
@@ -372,7 +372,11 @@ struct Repo: Databasing {
     return try await writer.write { db in
       try Tag
         .withID(tagID)
-        .updateAll(db, Tag.Columns.name.set(to: normalizedName))
+        .updateAll(
+          db,
+          Tag.Columns.name.set(to: normalizedName),
+          Tag.Columns.icon.set(to: icon.databaseValue)
+        )
     } > 0
   }
 

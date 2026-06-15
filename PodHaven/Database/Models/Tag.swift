@@ -15,13 +15,15 @@ struct UnsavedTag: Identifiable, Savable {
   static let databaseTableName: String = "tag"
 
   let name: String
+  var icon: LucideIcon
 
-  init(name: String) throws {
+  init(name: String, icon: LucideIcon = .tag) throws {
     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       throw DatabaseError(message: "Tag name cannot be empty")
     }
     self.name = trimmed
+    self.icon = icon
   }
 
   // MARK: - Stringable / Searchable
@@ -44,12 +46,14 @@ struct Tag: Saved {
   enum Columns {
     static let id = Column("id")
     static let name = Column("name")
+    static let icon = Column("icon")
     static let creationDate = Column("creationDate")
   }
 
   // MARK: - Derived Passthroughs
 
   var name: String { unsaved.name }
+  var icon: LucideIcon { unsaved.icon }
 }
 
 // MARK: - DerivableRequest

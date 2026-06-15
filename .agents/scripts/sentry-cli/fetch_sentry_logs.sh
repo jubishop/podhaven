@@ -27,8 +27,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=../sentry-cli/lib.sh
-source "${SCRIPT_DIR}/../sentry-cli/lib.sh"
+# shellcheck source=lib.sh
+source "${SCRIPT_DIR}/lib.sh"
 
 STATS_PERIOD="${1:?Usage: fetch_sentry_logs.sh <statsPeriod> [query]}"
 QUERY="${2:-severity:[warn,error]}"

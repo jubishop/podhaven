@@ -23,12 +23,14 @@ class SmartListEditorViewModel {
   var topGroup: EditableGroup
   var groups: [EditableGroup]
   var alwaysShowPodcastImage: Bool
+  var icon: LucideIcon
 
   init(
     mode: Mode = .create,
     title: String = "",
     filter: SmartListFilter = SmartListFilter(),
-    alwaysShowPodcastImage: Bool = false
+    alwaysShowPodcastImage: Bool = false,
+    icon: LucideIcon = .listMusic
   ) {
     self.mode = mode
     self.title = title
@@ -38,6 +40,7 @@ class SmartListEditorViewModel {
     )
     self.groups = filter.groups.map(EditableGroup.init)
     self.alwaysShowPodcastImage = alwaysShowPodcastImage
+    self.icon = icon
   }
 
   // MARK: - Validation
@@ -140,7 +143,8 @@ class SmartListEditorViewModel {
               title: trimmedTitle,
               filter: filter,
               displayOrder: (maxDisplayOrder ?? -1) + 1,
-              alwaysShowPodcastImage: alwaysShowPodcastImage
+              alwaysShowPodcastImage: alwaysShowPodcastImage,
+              icon: icon
             )
           )
         case .edit(let id):
@@ -148,7 +152,8 @@ class SmartListEditorViewModel {
             id,
             title: trimmedTitle,
             filter: filter,
-            alwaysShowPodcastImage: alwaysShowPodcastImage
+            alwaysShowPodcastImage: alwaysShowPodcastImage,
+            icon: icon
           )
         }
         sheet.dismiss()
