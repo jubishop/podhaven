@@ -72,7 +72,8 @@ struct SmartListRepo: Sendable {
     _ id: SmartList.ID,
     title: String,
     filter: SmartListFilter,
-    alwaysShowPodcastImage: Bool
+    alwaysShowPodcastImage: Bool,
+    icon: LucideIcon
   ) async throws -> Bool {
     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -99,6 +100,7 @@ struct SmartListRepo: Sendable {
         SmartList.Columns.title.set(to: trimmed),
         SmartList.Columns.filter.set(to: filter.databaseValue),
         SmartList.Columns.alwaysShowPodcastImage.set(to: alwaysShowPodcastImage),
+        SmartList.Columns.icon.set(to: icon.databaseValue),
       ]
       if existingFilter != filter {
         assignments.append(

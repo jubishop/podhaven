@@ -290,7 +290,7 @@ import Testing
       }
     )
 
-    _ = try await repo.renameTag(tag.id, newName: "Sports")
+    _ = try await repo.updateTag(tag.id, name: "Sports", icon: .tag)
     try await Wait.until(
       { @MainActor in
         self.mpRemoteCommandCenter.like.localizedTitle == "Tag: Sports"

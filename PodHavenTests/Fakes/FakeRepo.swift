@@ -238,9 +238,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
-  func renameTag(_ tagID: Tag.ID, newName: String) async throws -> Bool {
-    recordCall(methodName: "renameTag", parameters: (tagID: tagID, newName: newName))
-    return try await repo.renameTag(tagID, newName: newName)
+  func updateTag(_ tagID: Tag.ID, name: String, icon: LucideIcon) async throws -> Bool {
+    recordCall(methodName: "updateTag", parameters: (tagID: tagID, name: name, icon: icon))
+    return try await repo.updateTag(tagID, name: name, icon: icon)
   }
 
   @discardableResult

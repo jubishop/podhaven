@@ -75,6 +75,7 @@ class SmartListRepoTests {
     #expect(try await smartListRepo.fetchOne(inserted.id)?.filter == filter)
 
     #expect(!inserted.alwaysShowPodcastImage)
+    #expect(inserted.icon == .listMusic)
 
     let newFilter = SmartListFilter(combinator: .any, conditions: [.state(.isLiked)])
     #expect(
@@ -82,7 +83,8 @@ class SmartListRepoTests {
         inserted.id,
         title: "Favorites",
         filter: newFilter,
-        alwaysShowPodcastImage: true
+        alwaysShowPodcastImage: true,
+        icon: .star
       )
     )
     #expect(try await smartListRepo.updateSortMethod(inserted.id, to: .longest))
@@ -92,6 +94,7 @@ class SmartListRepoTests {
     #expect(updated.filter == newFilter)
     #expect(updated.sortMethod == .longest)
     #expect(updated.alwaysShowPodcastImage)
+    #expect(updated.icon == .star)
 
     #expect(try await smartListRepo.delete(inserted.id))
     #expect(try await smartListRepo.fetchOne(inserted.id) == nil)
@@ -116,7 +119,8 @@ class SmartListRepoTests {
         list.id,
         title: "   ",
         filter: SmartListFilter(),
-        alwaysShowPodcastImage: false
+        alwaysShowPodcastImage: false,
+        icon: .listMusic
       )
     }
     #expect(try await smartListRepo.fetchOne(list.id)?.title == "Valid")
@@ -126,7 +130,8 @@ class SmartListRepoTests {
         list.id,
         title: "  Renamed  ",
         filter: SmartListFilter(),
-        alwaysShowPodcastImage: false
+        alwaysShowPodcastImage: false,
+        icon: .listMusic
       )
     )
     #expect(try await smartListRepo.fetchOne(list.id)?.title == "Renamed")
@@ -182,7 +187,8 @@ class SmartListRepoTests {
       list.id,
       title: "B",
       filter: SmartListFilter(),
-      alwaysShowPodcastImage: false
+      alwaysShowPodcastImage: false,
+      icon: .listMusic
     )
     try await count.wait(for: 3)  // after update
   }
@@ -200,7 +206,8 @@ class SmartListRepoTests {
       list.id,
       title: "B",
       filter: SmartListFilter(),
-      alwaysShowPodcastImage: false
+      alwaysShowPodcastImage: false,
+      icon: .listMusic
     )
     #expect(try await observatory.smartList(list.id).get()?.title == "B")
 
@@ -364,7 +371,8 @@ class SmartListRepoTests {
         list.id,
         title: "Renamed",
         filter: lovedFilter,
-        alwaysShowPodcastImage: true
+        alwaysShowPodcastImage: true,
+        icon: .listMusic
       )
     )
     #expect(try await smartListRepo.fetchOne(list.id)?.lastSeenEpisodeId == initial)
@@ -375,7 +383,8 @@ class SmartListRepoTests {
         list.id,
         title: "Renamed",
         filter: SmartListFilter(combinator: .all, conditions: [.state(.isLiked)]),
-        alwaysShowPodcastImage: true
+        alwaysShowPodcastImage: true,
+        icon: .listMusic
       )
     )
     #expect(try await smartListRepo.fetchOne(list.id)?.lastSeenEpisodeId == movedMax)

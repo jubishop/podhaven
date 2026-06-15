@@ -23,6 +23,7 @@ struct UnsavedSmartList: Identifiable, Savable {
   // When true the list always shows podcast artwork; when false it shows the
   // episode-specific artwork when one exists. Mirrors the per-Queue setting.
   var alwaysShowPodcastImage: Bool
+  var icon: LucideIcon
   // Unread-badge watermark: the highest episode id this list has "seen". A high-
   // water threshold, not a live reference (the episode may later be deleted; the
   // AUTOINCREMENT id is never reused). Repo-managed, not user-editable. 0 means
@@ -35,6 +36,7 @@ struct UnsavedSmartList: Identifiable, Savable {
     displayOrder: Int,
     sortMethod: SmartListSortMethod = .newestFirst,
     alwaysShowPodcastImage: Bool = false,
+    icon: LucideIcon = .listMusic,
     lastSeenEpisodeId: Episode.ID = 0
   ) throws {
     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -46,6 +48,7 @@ struct UnsavedSmartList: Identifiable, Savable {
     self.displayOrder = displayOrder
     self.sortMethod = sortMethod
     self.alwaysShowPodcastImage = alwaysShowPodcastImage
+    self.icon = icon
     self.lastSeenEpisodeId = lastSeenEpisodeId
   }
 
@@ -66,6 +69,7 @@ struct SmartList: Saved {
     static let displayOrder = Column("displayOrder")
     static let sortMethod = Column("sortMethod")
     static let alwaysShowPodcastImage = Column("alwaysShowPodcastImage")
+    static let icon = Column("icon")
     static let lastSeenEpisodeId = Column("lastSeenEpisodeId")
     static let creationDate = Column("creationDate")
   }
@@ -77,6 +81,7 @@ struct SmartList: Saved {
   var displayOrder: Int { unsaved.displayOrder }
   var sortMethod: SmartListSortMethod { unsaved.sortMethod }
   var alwaysShowPodcastImage: Bool { unsaved.alwaysShowPodcastImage }
+  var icon: LucideIcon { unsaved.icon }
   var lastSeenEpisodeId: Episode.ID { unsaved.lastSeenEpisodeId }
 }
 

@@ -47,7 +47,8 @@ import Testing
         viewModel.smartListID,
         title: "Live Filter",
         filter: lovedOnly,
-        alwaysShowPodcastImage: false
+        alwaysShowPodcastImage: false,
+        icon: .listMusic
       )
 
       try await Wait.until(
@@ -125,7 +126,8 @@ import Testing
         viewModel.smartListID,
         title: "After",
         filter: SmartListFilter(),
-        alwaysShowPodcastImage: false
+        alwaysShowPodcastImage: false,
+        icon: .listMusic
       )
 
       try await Wait.until(
@@ -147,7 +149,8 @@ import Testing
         viewModel.smartListID,
         title: "Artwork",
         filter: SmartListFilter(),
-        alwaysShowPodcastImage: true
+        alwaysShowPodcastImage: true,
+        icon: .listMusic
       )
 
       try await Wait.until(

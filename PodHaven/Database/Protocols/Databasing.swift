@@ -68,7 +68,7 @@ protocol Databasing: Sendable {
   func insertTag(_ unsavedTag: UnsavedTag) async throws -> Tag
 
   @discardableResult
-  func renameTag(_ tagID: Tag.ID, newName: String) async throws -> Bool
+  func updateTag(_ tagID: Tag.ID, name: String, icon: LucideIcon) async throws -> Bool
 
   @discardableResult
   func deleteTag(_ tagID: Tag.ID) async throws -> Bool

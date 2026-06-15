@@ -21,6 +21,16 @@ struct SmartListEditorView: View {
         Section {
           TextField("Title", text: $viewModel.title)
             .focused($titleFocused)
+
+          NavigationLink {
+            IconPickerView(selection: $viewModel.icon)
+          } label: {
+            LabeledContent("Icon") {
+              LucideIconView(icon: viewModel.icon)
+                .frame(width: 24, height: 24)
+                .foregroundStyle(.tint)
+            }
+          }
         }
 
         Section {

@@ -91,31 +91,32 @@ class TagsTests {
     #expect(fetched?.tags.map(\.name) == ["Alpha", "beta"])
   }
 
-  @Test("renameTag() updates name and preserves podcast associations")
-  func renameTagPreservesAssociations() async throws {
+  @Test("updateTag() updates name and icon and preserves podcast associations")
+  func updateTagPreservesAssociations() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
     let tag = try await repo.insertTag(UnsavedTag(name: "news"))
     try await repo.addTag(tag.id, to: series.id)
 
-    let renamed = try await repo.renameTag(tag.id, newName: "News")
-    #expect(renamed)
+    let updated = try await repo.updateTag(tag.id, name: "News", icon: .newspaper)
+    #expect(updated)
 
     let tags = try await observatory.tags().get()
     #expect(tags.map(\.name) == ["News"])
+    #expect(tags.first?.icon == .newspaper)
 
     let fetched = try await repo.podcastSeriesDetail(series.id)
     #expect(fetched?.tags.map(\.id) == [tag.id])
   }
 
-  @Test("renameTag() throws on conflict with another tag")
-  func renameTagThrowsOnConflict() async throws {
+  @Test("updateTag() throws on conflict with another tag")
+  func updateTagThrowsOnConflict() async throws {
     _ = try await repo.insertTag(UnsavedTag(name: "News"))
     let tech = try await repo.insertTag(UnsavedTag(name: "Tech"))
 
     await #expect(throws: DatabaseError.self) {
-      _ = try await self.repo.renameTag(tech.id, newName: "news")
+      _ = try await self.repo.updateTag(tech.id, name: "news", icon: .tag)
     }
 
     let tags = try await observatory.tags().get()
