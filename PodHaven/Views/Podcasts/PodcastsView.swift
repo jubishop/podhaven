@@ -30,31 +30,23 @@ struct PodcastsView: View {
           }
         }
 
-        if (counts?.queueOnTop ?? 0) > 0 || (counts?.queueOnBottom ?? 0) > 0 {
-          Section("Queue") {
+        if hasAutomaticActions {
+          Section("Automatic Actions") {
             if let count = counts?.queueOnTop, count > 0 {
-              row("On Top", count, .queueOnTop)
+              row("Queue On Top", count, .queueOnTop)
             }
             if let count = counts?.queueOnBottom, count > 0 {
-              row("On Bottom", count, .queueOnBottom)
+              row("Queue On Bottom", count, .queueOnBottom)
             }
-          }
-        }
-
-        if (counts?.autoCache ?? 0) > 0 || (counts?.autoSave ?? 0) > 0 {
-          Section("Storage") {
             if let count = counts?.autoCache, count > 0 {
               row("Cache", count, .autoCache)
             }
             if let count = counts?.autoSave, count > 0 {
               row("Save", count, .autoSave)
             }
-          }
-        }
-
-        if let count = counts?.notifyNewEpisodes, count > 0 {
-          Section("Notifications") {
-            row("Notify New Episodes", count, .notifyNewEpisodes)
+            if let count = counts?.notifyNewEpisodes, count > 0 {
+              row("Notify", count, .notifyNewEpisodes)
+            }
           }
         }
 
@@ -76,6 +68,12 @@ struct PodcastsView: View {
 
   private var cadenceRows: [FreshnessCadence] {
     FreshnessCadence.allCases.filter { (counts?.byFreshnessCadence[$0] ?? 0) > 0 }
+  }
+
+  private var hasAutomaticActions: Bool {
+    guard let counts else { return false }
+    return counts.queueOnTop > 0 || counts.queueOnBottom > 0
+      || counts.autoCache > 0 || counts.autoSave > 0 || counts.notifyNewEpisodes > 0
   }
 
   @ViewBuilder

@@ -16,7 +16,7 @@ struct LucideLabel: View {
     } icon: {
       LucideIconView(icon: icon)
         .frame(width: iconSize, height: iconSize)
-        .foregroundStyle(.tint)
+        .foregroundStyle(.primary)
     }
   }
 }

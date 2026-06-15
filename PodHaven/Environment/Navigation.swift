@@ -112,7 +112,7 @@ extension Container {
       case .unsubscribed: .circleX
       case .untagged: .inbox
       case .tag: .tag
-      case .freshnessCadence: .calendar
+      case .freshnessCadence(let cadence): cadence.icon
       case .queueOnTop: .arrowUpToLine
       case .queueOnBottom: .arrowDownToLine
       case .autoCache: .download
@@ -208,7 +208,7 @@ extension Container {
       case .queueOnTop:
         PodcastsListView(
           viewModel: PodcastsListViewModel(
-            title: "On Top",
+            title: "Queue On Top",
             filter: { $0.filter(Podcast.queuesAllEpisodes(.onTop)) },
             icon: viewType.icon
           )
@@ -217,7 +217,7 @@ extension Container {
       case .queueOnBottom:
         PodcastsListView(
           viewModel: PodcastsListViewModel(
-            title: "On Bottom",
+            title: "Queue On Bottom",
             filter: { $0.filter(Podcast.queuesAllEpisodes(.onBottom)) },
             icon: viewType.icon
           )
@@ -244,7 +244,7 @@ extension Container {
       case .notifyNewEpisodes:
         PodcastsListView(
           viewModel: PodcastsListViewModel(
-            title: "Notify New Episodes",
+            title: "Notify",
             filter: { $0.filter(Podcast.notifiesNewEpisodes) },
             icon: viewType.icon
           )

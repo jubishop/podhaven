@@ -20,7 +20,13 @@ struct TagsSettingsView: View {
         ForEach(viewModel.tags) { tag in
           Button {
             sheet(id: "tag-edit-\(tag.id)") {
-              TagEditorView(viewModel: TagEditorViewModel(tag: tag))
+              TagEditorView(
+                viewModel: TagEditorViewModel(
+                  tag: tag,
+                  podcastCount: viewModel.podcastCounts[tag.id] ?? 0,
+                  episodeCount: viewModel.episodeCounts[tag.id] ?? 0
+                )
+              )
             }
           } label: {
             tagRow(tag)
@@ -45,7 +51,7 @@ struct TagsSettingsView: View {
     HStack(spacing: 12) {
       LucideIconView(icon: tag.icon)
         .frame(width: iconSize, height: iconSize)
-        .foregroundStyle(.tint)
+        .foregroundStyle(.primary)
         .accessibilityHidden(true)
       VStack(alignment: .leading) {
         Text(tag.name)

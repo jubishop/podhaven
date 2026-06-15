@@ -93,7 +93,7 @@ import SwiftUI
       if podcastCount > 0 || episodeCount > 0 {
         """
         \"\(tagName)\" is used by \
-        \(Self.usageDescription(podcasts: podcastCount, episodes: episodeCount)). \
+        \(TagUsageMessage.usage(podcasts: podcastCount, episodes: episodeCount)). \
         Are you sure you want to delete it?
         """
       } else {
@@ -110,17 +110,6 @@ import SwiftUI
       }
       Button("Cancel", role: .cancel) {}
     }
-  }
-
-  private static func usageDescription(podcasts: Int, episodes: Int) -> String {
-    var parts = [String](capacity: 2)
-    if podcasts > 0 {
-      parts.append("\(podcasts) \(podcasts == 1 ? "podcast" : "podcasts")")
-    }
-    if episodes > 0 {
-      parts.append("\(episodes) \(episodes == 1 ? "episode" : "episodes")")
-    }
-    return parts.joined(separator: " and ")
   }
 
   // MARK: - Private Helpers

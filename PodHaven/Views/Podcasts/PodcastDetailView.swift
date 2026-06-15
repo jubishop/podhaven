@@ -208,6 +208,7 @@ struct PodcastDetailView: View {
           .episodeSwipeActions(viewModel: viewModel, episode: episode)
           .episodeContextMenu(viewModel: viewModel, episode: episode)
         }
+        .contentMargins(.top, 8, for: .scrollContent)
       } else {
         noEpisodesMessage
       }

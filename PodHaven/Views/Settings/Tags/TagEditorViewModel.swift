@@ -19,10 +19,15 @@ class TagEditorViewModel {
   var name: String
   var icon: LucideIcon
 
-  init(tag: Tag) {
+  private let podcastCount: Int
+  private let episodeCount: Int
+
+  init(tag: Tag, podcastCount: Int, episodeCount: Int) {
     self.tagID = tag.id
     self.name = tag.name
     self.icon = tag.icon
+    self.podcastCount = podcastCount
+    self.episodeCount = episodeCount
   }
 
   // MARK: - Validation
@@ -67,6 +72,41 @@ class TagEditorViewModel {
       } catch {
         saveState = .idle
         Self.log.caughtError("save: failed to update tag \(tagID)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func deleteTag() {
+    let message: String =
+      if podcastCount > 0 || episodeCount > 0 {
+        """
+        \"\(name)\" is used by \
+        \(TagUsageMessage.usage(podcasts: podcastCount, episodes: episodeCount)). \
+        Are you sure you want to delete it?
+        """
+      } else {
+        "Are you sure you want to delete \"\(name)\"?"
+      }
+
+    alert(title: "Delete Tag?", message) { [weak self] in
+      Button("Delete", role: .destructive) {
+        guard let self else { return }
+        self.performDelete()
+      }
+      Button("Cancel", role: .cancel) {}
+    }
+  }
+
+  private func performDelete() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await repo.deleteTag(tagID)
+        sheet.dismiss()
+      } catch {
+        Self.log.caughtError("deleteTag: failed to delete tag \(tagID)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
