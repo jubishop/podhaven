@@ -182,22 +182,23 @@ struct CacheManager {
       return try await repo.episode(episodeID)?.cachedURL
     }
 
-    // Suspend until the in-flight download's terminal callback opens this
-    // episode's latch. As the only awaiter, cachedURL owns the latch: adopt the
-    // one a concurrent awaiter already registered, or register it here (no
-    // download pre-registers a latch, and one reattached after a relaunch has a
-    // live task but none either). Then re-check liveness — if the task already
-    // finished, its signal found no latch, so read the result directly instead
-    // of awaiting a latch that will never open.
+    // Register the latch before re-reading state, so a completion landing after
+    // this point opens it rather than signaling an empty slot. As the only
+    // awaiter, cachedURL adopts a concurrent awaiter's latch or registers one.
     let latch = downloadLatches { latches -> AsyncLatch<Void> in
       if let existing = latches[episodeID] { return existing }
       let fresh = AsyncLatch<Void>()
       latches[episodeID] = fresh
       return fresh
     }
-    if await hasLiveDownloadTask(for: episodeID) {
-      try await latch.wait()
-    }
+
+    // Re-read after registering: terminal callbacks clear downloading (last on
+    // success) before signaling, so still-downloading means the signal is still
+    // coming; anything else is already resolved.
+    guard let current = try await repo.episode(episodeID) else { return nil }
+    if let cachedURL = current.cachedURL { return cachedURL }
+    guard current.downloading else { return nil }
+    try await latch.wait()
     return try await repo.episode(episodeID)?.cachedURL
   }
 

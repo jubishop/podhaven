@@ -187,14 +187,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       return
     }
 
-    do {
-      try await repo.updateDownloading(episode.id, downloading: false)
-    } catch {
-      Self.log.caughtError(
-        "didFinishDownloadingTo: failed to clear downloading flag for \(episode.toString)",
-        error
-      )
-    }
     sharedState.clearDownloadProgress(for: episode.id)
 
     let fileName = generateCacheFilename(for: episode)
@@ -287,6 +279,18 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         error
       )
       return
+    }
+
+    // Clear downloading last — after the cached filename is written and right
+    // before completion is signaled — so a caller re-reading the episode never
+    // observes downloading == false while the file is not yet cached.
+    do {
+      try await repo.updateDownloading(episode.id, downloading: false)
+    } catch {
+      Self.log.caughtError(
+        "didFinishDownloadingTo: failed to clear downloading flag for \(episode.toString)",
+        error
+      )
     }
 
     Self.log.debug("Cached episode \(episode.id) to \(fileName)")
