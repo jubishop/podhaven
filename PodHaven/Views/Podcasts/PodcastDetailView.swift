@@ -52,18 +52,23 @@ struct PodcastDetailView: View {
   }
 
   private var contentView: some View {
-    VStack(spacing: 4) {
-      headerView
-        .padding(.horizontal)
-        .padding(.bottom, 8)
-        .dynamicTypeSize(.small ... .xxxLarge)
-
-      if viewModel.displayingAboutSection {
-        expandedAboutInfoView
-          .padding(.bottom)
-      } else {
-        episodeListView
+    mainContent
+      .safeAreaInset(edge: .top, spacing: 8) {
+        headerView
+          .padding()
+          .glassEffect(in: RoundedRectangle(cornerRadius: 24))
+          .padding(.horizontal)
+          .dynamicTypeSize(.small ... .xxxLarge)
       }
+  }
+
+  @ViewBuilder
+  private var mainContent: some View {
+    if viewModel.displayingAboutSection {
+      expandedAboutInfoView
+        .padding(.bottom)
+    } else {
+      episodeListView
     }
   }
 
@@ -248,12 +253,11 @@ struct PodcastDetailView: View {
   private var expandedAboutInfoView: some View {
     ScrollView {
       VStack(spacing: 16) {
-        Divider()
-
         metadataRow
           .padding(.horizontal)
 
         Divider()
+          .padding(.horizontal)
 
         if viewModel.saved {
           TagsView(
@@ -265,6 +269,7 @@ struct PodcastDetailView: View {
           .padding(.horizontal)
 
           Divider()
+            .padding(.horizontal)
         }
 
         VStack(alignment: .leading, spacing: 16) {
