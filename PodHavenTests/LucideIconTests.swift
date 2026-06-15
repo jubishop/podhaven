@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import Testing
+import UIKit
 
 @testable import PodHaven
 
@@ -23,6 +24,17 @@ struct LucideIconTests {
   func everyIconHasLabel() {
     for icon in LucideIcon.allCases {
       #expect(!icon.label.isEmpty)
+    }
+  }
+
+  @Test("every icon resolves to a bundled LucideIcons asset")
+  @MainActor
+  func everyIconResolvesToAsset() {
+    for icon in LucideIcon.allCases {
+      #expect(
+        UIImage(named: "LucideIcons/\(icon.rawValue)") != nil,
+        "Missing asset for LucideIcon.\(icon.rawValue)"
+      )
     }
   }
 }
