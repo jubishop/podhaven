@@ -826,4 +826,98 @@ import UIKit
     #expect(lines[1] == "Paragraph with class")
     #expect(lines[2] == "Another with id")
   }
+
+  // MARK: - Auto-detected Links
+
+  private static func link(for urlString: String, in attributed: AttributedString) -> (
+    url: URL?, length: Int
+  ) {
+    let nsAttributed = NSAttributedString(attributed)
+    let range = (nsAttributed.string as NSString).range(of: urlString)
+    guard range.location != NSNotFound else { return (nil, 0) }
+    var effectiveRange = NSRange()
+    let value = nsAttributed.attribute(.link, at: range.location, effectiveRange: &effectiveRange)
+    return (value as? URL, effectiveRange.length)
+  }
+
+  @Test("that bare URLs in plain text become links")
+  func testPlainTextURLBecomesLink() throws {
+    let html = "Visit https://example.com for details"
+    guard let attributed = HTMLText.buildAttributedStringForTesting(html: html, font: .body) else {
+      Issue.record("Expected attributed string once a bare URL is present")
+      return
+    }
+
+    let detected = Self.link(for: "https://example.com", in: attributed)
+    #expect(detected.url == URL(string: "https://example.com"))
+
+    let leading = Self.link(for: "Visit", in: attributed)
+    #expect(leading.url == nil)
+  }
+
+  @Test("that bare URLs inside HTML descriptions are linked with decoded entities")
+  func testHTMLDescriptionAutoLinksBareURL() throws {
+    // Mirrors a real feed: <br/> tags and a raw URL whose & is entity-encoded.
+    let html =
+      "Original post: https://news.ycombinator.com/item?id=123&amp;utm_source=x<br/>Done"
+    guard let attributed = HTMLText.buildAttributedStringForTesting(html: html, font: .body) else {
+      Issue.record("Expected attributed string for HTML description with a bare URL")
+      return
+    }
+
+    let urlString = "https://news.ycombinator.com/item?id=123&utm_source=x"
+    let detected = Self.link(for: urlString, in: attributed)
+    #expect(detected.url == URL(string: urlString))
+  }
+
+  @Test("that trailing punctuation is excluded from the detected link")
+  func testTrailingPunctuationExcludedFromLink() throws {
+    let html = "See https://example.com."
+    guard let attributed = HTMLText.buildAttributedStringForTesting(html: html, font: .body) else {
+      Issue.record("Expected attributed string for sentence ending in a URL")
+      return
+    }
+
+    let detected = Self.link(for: "https://example.com", in: attributed)
+    #expect(detected.url == URL(string: "https://example.com"))
+    #expect(detected.length == ("https://example.com" as NSString).length)
+  }
+
+  @Test("that existing anchors are not double-linked by auto-detection")
+  func testAutoLinkLeavesExistingAnchors() throws {
+    let html =
+      "<a href=\"https://anchor.example\">click</a> then visit https://bare.example"
+    guard let attributed = HTMLText.buildAttributedStringForTesting(html: html, font: .body) else {
+      Issue.record("Failed to build attributed string")
+      return
+    }
+
+    let anchor = Self.link(for: "click", in: attributed)
+    #expect(anchor.url == URL(string: "https://anchor.example"))
+
+    let bare = Self.link(for: "https://bare.example", in: attributed)
+    #expect(bare.url == URL(string: "https://bare.example"))
+  }
+
+  @Test("that emails and bare domains are not auto-linked")
+  func testEmailsAndBareDomainsNotLinked() throws {
+    let html = "Reach team@wondercraft.ai or read swift.org or visit https://apple.com"
+    guard let attributed = HTMLText.buildAttributedStringForTesting(html: html, font: .body) else {
+      Issue.record("Expected attributed string because an http URL is present")
+      return
+    }
+
+    #expect(Self.link(for: "team@wondercraft.ai", in: attributed).url == nil)
+    #expect(Self.link(for: "swift.org", in: attributed).url == nil)
+    #expect(
+      Self.link(for: "https://apple.com", in: attributed).url == URL(string: "https://apple.com")
+    )
+  }
+
+  @Test("that plain text without a URL still falls back to nil")
+  func testPlainTextWithoutURLReturnsNil() throws {
+    #expect(
+      HTMLText.buildAttributedStringForTesting(html: "Just plain text here", font: .body) == nil
+    )
+  }
 }
