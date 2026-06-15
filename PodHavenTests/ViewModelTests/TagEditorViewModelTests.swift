@@ -17,7 +17,7 @@ import Testing
   func savePersistsNameAndIcon() async throws {
     let tag = try await repo.insertTag(UnsavedTag(name: "news"))
     sharedState.setTags([tag])
-    let viewModel = TagEditorViewModel(tag: tag)
+    let viewModel = TagEditorViewModel(tag: tag, podcastCount: 0, episodeCount: 0)
     viewModel.name = "  Tech  "
     viewModel.icon = .cpu
 
@@ -39,7 +39,7 @@ import Testing
     let news = try await repo.insertTag(UnsavedTag(name: "News"))
     let tech = try await repo.insertTag(UnsavedTag(name: "Tech"))
     sharedState.setTags([news, tech])
-    let viewModel = TagEditorViewModel(tag: tech)
+    let viewModel = TagEditorViewModel(tag: tech, podcastCount: 0, episodeCount: 0)
     viewModel.name = "news"
 
     viewModel.save()
@@ -53,7 +53,7 @@ import Testing
   func iconOnlyEditKeepsSameName() async throws {
     let tag = try await repo.insertTag(UnsavedTag(name: "News"))
     sharedState.setTags([tag])
-    let viewModel = TagEditorViewModel(tag: tag)
+    let viewModel = TagEditorViewModel(tag: tag, podcastCount: 0, episodeCount: 0)
     viewModel.icon = .newspaper
 
     viewModel.save()
@@ -70,11 +70,22 @@ import Testing
   func blankNameCannotBeSaved() async throws {
     let tag = try await repo.insertTag(UnsavedTag(name: "News"))
     sharedState.setTags([tag])
-    let viewModel = TagEditorViewModel(tag: tag)
+    let viewModel = TagEditorViewModel(tag: tag, podcastCount: 0, episodeCount: 0)
     viewModel.name = "   "
 
     #expect(!viewModel.canSave)
     viewModel.save()
     #expect(try await observatory.tags().get()[id: tag.id]?.name == "News")
+  }
+
+  @Test("deleteTag confirms before deleting")
+  func deleteTagConfirmsBeforeDeleting() async throws {
+    let tag = try await repo.insertTag(UnsavedTag(name: "News"))
+    let viewModel = TagEditorViewModel(tag: tag, podcastCount: 2, episodeCount: 1)
+
+    viewModel.deleteTag()
+
+    #expect(alert.config?.title == "Delete Tag?")
+    #expect(try await observatory.tags().get()[id: tag.id] != nil)
   }
 }

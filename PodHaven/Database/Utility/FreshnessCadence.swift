@@ -44,6 +44,18 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
     }
   }
 
+  var icon: LucideIcon {
+    switch self {
+    case .hourly: .zap
+    case .twiceDaily: .clock
+    case .daily: .sun
+    case .twiceWeekly: .history
+    case .weekly: .calendar
+    case .monthly: .hourglass
+    case .evergreen: .treePine
+    }
+  }
+
   // Half-life for FreshnessSignal's hyperbolic decay, in hours. Evergreen returns nil — no decay.
   var halfLifeHours: Double? {
     switch self {

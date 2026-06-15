@@ -32,8 +32,17 @@ struct TagEditorView: View {
             LabeledContent("Icon") {
               LucideIconView(icon: viewModel.icon)
                 .frame(width: iconSize, height: iconSize)
-                .foregroundStyle(.tint)
+                .foregroundStyle(.primary)
             }
+          }
+        }
+
+        Section {
+          Button(role: .destructive) {
+            viewModel.deleteTag()
+          } label: {
+            Text("Delete Tag")
+              .frame(maxWidth: .infinity, alignment: .center)
           }
         }
       }

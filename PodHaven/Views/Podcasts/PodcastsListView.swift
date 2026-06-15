@@ -26,7 +26,9 @@ struct PodcastsListView: View {
         prompt: "Filter podcasts"
       )
       .searchPresentationToolbarBehavior(.avoidHidingContent)
-      .navigationTitle(viewModel.title)
+      .safeAreaInset(edge: .top, spacing: 0) {
+        LucideListHeader(icon: viewModel.icon, title: viewModel.title)
+      }
       .navigationBarTitleDisplayMode(.inline)
       .refreshable {
         do {
@@ -49,9 +51,6 @@ struct PodcastsListView: View {
 
   @ToolbarContentBuilder
   private var toolbar: some ToolbarContent {
-    ToolbarItem(placement: .principal) {
-      LucideNavigationTitle(icon: viewModel.icon, title: viewModel.title)
-    }
     sortableDisplayingPodcastsToolbarItems(viewModel: viewModel)
     selectablePodcastsToolbarItems(viewModel: viewModel)
   }
