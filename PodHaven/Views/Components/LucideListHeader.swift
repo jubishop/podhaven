@@ -10,20 +10,21 @@ struct LucideListHeader: View {
   let icon: LucideIcon
   let title: String
 
-  @ScaledMetric(relativeTo: .title2) private var iconSize: CGFloat = 28
+  @ScaledMetric(relativeTo: .title3) private var iconSize: CGFloat = 22
 
   var body: some View {
-    HStack(spacing: 10) {
+    HStack(spacing: 8) {
       LucideIconView(icon: icon)
         .frame(width: iconSize, height: iconSize)
         .foregroundStyle(.primary)
         .accessibilityHidden(true)
       Text(title)
-        .font(.title2.weight(.semibold))
+        .font(.title3.weight(.semibold))
         .accessibilityAddTraits(.isHeader)
       Spacer(minLength: 0)
     }
-    .padding()
+    .padding(.horizontal)
+    .padding(.vertical, 8)
     .glassEffect(in: RoundedRectangle(cornerRadius: 12))
     .padding(.horizontal)
   }

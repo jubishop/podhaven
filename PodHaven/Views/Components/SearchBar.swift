@@ -40,7 +40,7 @@ struct SearchBar: View {
   }
 
   private var showClearSearchButton: Bool {
-    isFocused || !text.isEmpty
+    !text.isEmpty
   }
 }
 

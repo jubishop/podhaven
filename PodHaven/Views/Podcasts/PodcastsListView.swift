@@ -20,14 +20,17 @@ struct PodcastsListView: View {
 
   var body: some View {
     podcastsView
-      .searchable(
-        text: $viewModel.podcastList.entryFilter,
-        placement: .navigationBarDrawer(displayMode: .always),
-        prompt: "Filter podcasts"
-      )
-      .searchPresentationToolbarBehavior(.avoidHidingContent)
       .safeAreaInset(edge: .top, spacing: 0) {
-        LucideListHeader(icon: viewModel.icon, title: viewModel.title)
+        VStack(spacing: 8) {
+          LucideListHeader(icon: viewModel.icon, title: viewModel.title)
+          SearchBar(
+            text: $viewModel.podcastList.entryFilter,
+            prompt: "Filter podcasts",
+            searchIcon: .search
+          )
+          .padding(.horizontal)
+        }
+        .padding(.top, 4)
       }
       .navigationBarTitleDisplayMode(.inline)
       .refreshable {
