@@ -101,9 +101,23 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         "didFinishDownloadingTo: failed to move \(location) to safe temp \(safeTempURL)",
         error
       )
-      // The async path that normally signals completion won't run, so unblock
-      // any awaiting caller here.
-      if let signalEpisodeID = episodeID(for: downloadTask) {
+      // The async path that normally clears the in-flight state and signals
+      // completion won't run, so do it here; otherwise the episode is stranded
+      // downloading with no live task until the next launch's reconcile.
+      guard let signalEpisodeID = episodeID(for: downloadTask) else { return }
+      sharedState.clearDownloadProgress(for: signalEpisodeID)
+      Task {
+        do {
+          try await repo.updateDownloading(signalEpisodeID, downloading: false)
+        } catch {
+          Self.log.caughtError(
+            """
+            didFinishDownloadingTo: failed to clear downloading flag after \
+            safe-temp move failure for \(signalEpisodeID)
+            """,
+            error
+          )
+        }
         cacheManager.signalDownloadComplete(for: signalEpisodeID)
       }
       return

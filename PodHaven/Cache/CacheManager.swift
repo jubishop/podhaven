@@ -59,11 +59,14 @@ struct CacheManager {
 
   private let startOnce = Once()
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
-  // Per-attempt completion latches for in-flight downloads, keyed by episode.
-  // downloadToCache registers one when a download starts; CacheBackgroundDelegate
-  // opens and removes it on the terminal callback, resuming any caller suspended
-  // in cachedURL(downloadingIfNeeded:). One latch per attempt, removed when the
-  // attempt ends, so a finished download's signal can never resolve a later one.
+  // Completion latches for in-flight downloads, keyed by episode. downloadToCache
+  // registers one when a download starts; CacheBackgroundDelegate opens and
+  // removes whatever latch occupies the episode's slot on the terminal callback,
+  // resuming any caller suspended in cachedURL(downloadingIfNeeded:). The key is
+  // the episode, not the attempt, so this assumes a single in-flight attempt per
+  // episode: the failure-path signal fires synchronously right after the
+  // downloading flag is cleared, leaving no realistic gap for a replacement
+  // attempt to register its own latch before the prior signal lands.
   private let downloadLatches = ThreadSafe<[Episode.ID: AsyncLatch<Void>]>([:])
 
   // MARK: - Initialization
