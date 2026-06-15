@@ -49,10 +49,10 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
     case .hourly: .zap
     case .twiceDaily: .clock
     case .daily: .sun
-    case .twiceWeekly: .history
-    case .weekly: .calendar
-    case .monthly: .hourglass
-    case .evergreen: .treePine
+    case .twiceWeekly: .calendar
+    case .weekly: .calendarDays
+    case .monthly: .calendarRange
+    case .evergreen: .infinity
     }
   }
 

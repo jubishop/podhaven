@@ -98,6 +98,9 @@ enum LucideIcon: String, Codable, DatabaseValueConvertible, CaseIterable, Sendab
   case circleX = "circle-x"
   case arrowUpToLine = "arrow-up-to-line"
   case arrowDownToLine = "arrow-down-to-line"
+  case calendarDays = "calendar-days"
+  case calendarRange = "calendar-range"
+  case infinity
 
   var id: String { rawValue }
 }
