@@ -324,6 +324,16 @@ enum EpisodeDetailDisplayedScore: Sendable {
     }
   }
 
+  func unsaveEpisodeFromCache() {
+    guard episode.saveInCache else { return }
+
+    lifecycle.runTask("unsaveEpisodeFromCache: \(state.toString)") { [weak self] in
+      guard let self else { return }
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
+    }
+  }
+
   func markFinished() {
     guard !episode.finished else { return }
 
