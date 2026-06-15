@@ -85,10 +85,7 @@ struct PodcastsView: View {
     _ viewType: Navigation.PodcastsViewType
   ) -> some View {
     NavigationLink(value: Navigation.Destination.podcastsViewType(viewType)) {
-      LabeledContent(title) {
-        Text("\(count)")
-          .foregroundStyle(.secondary)
-      }
+      CountLabel(title: title, count: count)
     }
   }
 }
