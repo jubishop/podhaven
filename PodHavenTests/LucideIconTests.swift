@@ -20,13 +20,6 @@ struct LucideIconTests {
     #expect(LucideIcon(rawValue: "list-music") == .listMusic)
   }
 
-  @Test("every icon exposes a non-empty label")
-  func everyIconHasLabel() {
-    for icon in LucideIcon.allCases {
-      #expect(!icon.label.isEmpty)
-    }
-  }
-
   @Test("every icon resolves to a bundled LucideIcons asset")
   @MainActor
   func everyIconResolvesToAsset() {

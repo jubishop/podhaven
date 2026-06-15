@@ -6,9 +6,6 @@ import Foundation
 // metadata (categories, human labels, ordering, search) lives here so Database/
 // carries no UI dependency. Only the icon picker reads these.
 extension LucideIcon {
-  // Human label shown in the picker; also searchable.
-  var label: String { Self.labelsByIcon[self] ?? rawValue }
-
   enum Category: String, CaseIterable, Identifiable, Sendable {
     case newsSociety = "News & Society"
     case knowledge = "Knowledge & Learning"
@@ -142,10 +139,6 @@ extension LucideIcon {
       ]
     ),
   ]
-
-  private static let labelsByIcon: [LucideIcon: String] = Dictionary(
-    uniqueKeysWithValues: groups.flatMap { group in group.entries.map { ($0.icon, $0.label) } }
-  )
 }
 
 extension LucideIcon.Group {
