@@ -70,6 +70,7 @@ struct IconPickerView: View {
   private func header(_ category: LucideIcon.Category) -> some View {
     Text(category.rawValue)
       .font(.subheadline.weight(.semibold))
+      .padding(.leading, 8)
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.vertical, 6)
       .background(.bar)

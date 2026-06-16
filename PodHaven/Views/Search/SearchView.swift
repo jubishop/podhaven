@@ -78,7 +78,7 @@ struct SearchView: View {
       }
     }
 
-    sortableDisplayingPodcastsToolbarItems(viewModel: viewModel)
+    sortablePodcastsToolbarItems(viewModel: viewModel)
     selectablePodcastsToolbarItems(viewModel: viewModel)
   }
 
@@ -180,44 +180,13 @@ struct SearchView: View {
     }
   }
 
-  // MARK: - Grid & List
+  // MARK: - List
 
   private var resultsView: some View {
-    Group {
-      switch viewModel.displayMode {
-      case .grid:
-        resultsGrid
-      case .list:
-        resultsList
+    resultsList
+      .safeAreaInset(edge: .top, spacing: 0) {
+        recommendationBanner
       }
-    }
-    .safeAreaInset(edge: .top, spacing: 0) {
-      recommendationBanner
-    }
-  }
-
-  private var resultsGrid: some View {
-    ScrollView {
-      ItemGrid(items: viewModel.podcastList.allEntries, id: \.podcast.slotID) {
-        podcastWithEpisodeMetadata in
-        NavigationLink(
-          value: Navigation.Destination.listedPodcast(podcastWithEpisodeMetadata.podcast),
-          label: {
-            PodcastGridView(
-              podcast: podcastWithEpisodeMetadata.podcast,
-              isSelecting: viewModel.podcastList.isSelecting,
-              isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
-            )
-            .podcastContextMenu(
-              viewModel: viewModel,
-              podcastWithMetadata: podcastWithEpisodeMetadata
-            )
-          }
-        )
-        .buttonStyle(.plain)
-      }
-      .padding(.horizontal)
-    }
   }
 
   private var resultsList: some View {

@@ -45,7 +45,15 @@ struct TagMenu: View {
         if !addable.isEmpty {
           Menu {
             ForEach(addable) { tag in
-              Button(tag.name) { onAdd(tag.id) }
+              Button {
+                onAdd(tag.id)
+              } label: {
+                Label {
+                  Text(tag.name)
+                } icon: {
+                  tag.icon.image
+                }
+              }
             }
           } label: {
             AppIcon.addTag.label("Add Tag")
@@ -55,7 +63,15 @@ struct TagMenu: View {
         if !removable.isEmpty {
           Menu {
             ForEach(removable) { tag in
-              Button(tag.name) { onRemove(tag.id) }
+              Button {
+                onRemove(tag.id)
+              } label: {
+                Label {
+                  Text(tag.name)
+                } icon: {
+                  tag.icon.image
+                }
+              }
             }
           } label: {
             AppIcon.removeTag.label("Remove Tag")

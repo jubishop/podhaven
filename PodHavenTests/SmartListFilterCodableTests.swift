@@ -21,8 +21,7 @@ struct SmartListFilterCodableTests {
     SmartListFilter(combinator: .all, conditions: [.state(.isNotInterested)]),
   ]
 
-  // Exercises every condition kind, both tag scopes, and multiple nested
-  // groups.
+  // Exercises every condition kind and multiple nested groups.
   private static let complex = SmartListFilter(
     combinator: .all,
     conditions: [
@@ -32,8 +31,8 @@ struct SmartListFilterCodableTests {
       .podcastText(.titleOrDescription, .doesNotContain, "ads"),
       .state(.isUnrated),
       .state(.isUncached),
-      .episodeTag(.hasTag(Tag.ID(rawValue: 3))),
-      .podcastTag(.doesNotHaveTag(Tag.ID(rawValue: 7))),
+      .tag(.hasTag(Tag.ID(rawValue: 3))),
+      .tag(.doesNotHaveTag(Tag.ID(rawValue: 7))),
       .duration(minSeconds: 0, maxSeconds: 3600),
       .publishDate(.withinLast, days: 30),
     ],
@@ -42,8 +41,8 @@ struct SmartListFilterCodableTests {
         combinator: .any,
         conditions: [
           .state(.isLoved),
-          .episodeTag(.hasAnyTag),
-          .podcastTag(.hasNoTags),
+          .tag(.hasAnyTag),
+          .tag(.hasNoTags),
           .duration(minSeconds: 600, maxSeconds: nil),
           .publishDate(.olderThan, days: 365),
         ]
@@ -105,10 +104,10 @@ struct SmartListFilterCodableTests {
   func tagConditionEncoding() throws {
     let filter = SmartListFilter(
       combinator: .all,
-      conditions: [.episodeTag(.hasTag(Tag.ID(rawValue: 42)))]
+      conditions: [.tag(.hasTag(Tag.ID(rawValue: 42)))]
     )
     let json = try #require(String(data: try JSONEncoder().encode(filter), encoding: .utf8))
-    #expect(json.contains(#""kind":"episodeTag""#))
+    #expect(json.contains(#""kind":"tag""#))
     #expect(json.contains(#""kind":"hasTag""#))
     #expect(json.contains(#""tagID":42"#))
     try roundTrip(filter)

@@ -32,13 +32,29 @@ struct TagEditorView: View {
             LabeledContent("Icon") {
               LucideIconView(icon: viewModel.icon)
                 .frame(width: iconSize, height: iconSize)
-                .foregroundStyle(.tint)
+                .foregroundStyle(.primary)
+            }
+          }
+        }
+
+        if case .edit = viewModel.mode {
+          Section {
+            Button(role: .destructive) {
+              viewModel.deleteTag()
+            } label: {
+              Text("Delete Tag")
+                .frame(maxWidth: .infinity, alignment: .center)
             }
           }
         }
       }
-      .navigationTitle("Edit Tag")
+      .navigationTitle(viewModel.mode == .create ? "New Tag" : "Edit Tag")
       .navigationBarTitleDisplayMode(.inline)
+      .onAppear {
+        if viewModel.mode == .create {
+          nameFocused = true
+        }
+      }
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { sheet.dismiss() }

@@ -7,9 +7,13 @@ import IdentifiedCollections
 import Logging
 import SwiftUI
 
+enum PodcastDisplayMode: String, Codable, DefaultsStorable {
+  case grid
+  case list
+}
+
 @Observable @MainActor
 class PodcastsListViewModel:
-  DisplayingPodcasts,
   ManagingPodcasts,
   SelectablePodcastList,
   SortablePodcastList
@@ -88,6 +92,10 @@ class PodcastsListViewModel:
 
   @ObservationIgnored @PersistedBroadcast("PodcastsList-displayMode")
   var displayMode: PodcastDisplayMode = .grid
+
+  func toggleDisplayMode() {
+    displayMode = displayMode == .grid ? .list : .grid
+  }
 
   let title: String
   let filter: PodcastFilter

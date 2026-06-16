@@ -21,19 +21,21 @@ struct EpisodesListView: View {
 
   var body: some View {
     episodesView
-      .searchable(
-        text: $viewModel.filterDebouncer.currentValue,
-        placement: .navigationBarDrawer(displayMode: .always),
-        prompt: "Filter episodes"
-      )
-      .searchPresentationToolbarBehavior(.avoidHidingContent)
       .animation(.default, value: viewModel.episodeList.filteredEntries)
-      .navigationTitle(viewModel.title)
+      .safeAreaInset(edge: .top, spacing: 0) {
+        VStack(spacing: 8) {
+          LucideListHeader(icon: viewModel.icon, title: viewModel.title)
+          SearchBar(
+            text: $viewModel.filterDebouncer.currentValue,
+            prompt: "Filter episodes",
+            searchIcon: .search
+          )
+          .padding(.horizontal)
+        }
+        .padding(.top, 4)
+      }
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-        ToolbarItem(placement: .principal) {
-          LucideNavigationTitle(icon: viewModel.icon, title: viewModel.title)
-        }
         ToolbarItem(placement: .topBarLeading) {
           AppIcon.settings.labelButton("Edit Smart List") {
             sheet(id: "smart-list-editor-\(viewModel.smartListID)") {
@@ -92,6 +94,7 @@ struct EpisodesListView: View {
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
     }
+    .contentMargins(.top, 8, for: .scrollContent)
   }
 
   private func loadingView(message: String) -> some View {

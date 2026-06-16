@@ -18,7 +18,7 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
 
   var body: some View {
     VStack(spacing: iconSpacing) {
-      if sharedState.onDeck?.id == episode.episodeID {
+      if sharedState.isOnDeck(episode) {
         switch sharedState.playbackStatus {
         case .playing, .waiting:
           AppIcon.episodePlaying.image

@@ -49,10 +49,8 @@ enum SmartListFilterEngine {
       return podcastTextExpression(field, op, value)
     case .state(let state):
       return stateExpression(state)
-    case .episodeTag(let tagCondition):
-      return episodeTagExpression(tagCondition)
-    case .podcastTag(let tagCondition):
-      return podcastTagExpression(tagCondition)
+    case .tag(let tagCondition):
+      return tagExpression(tagCondition)
     case .duration(let minSeconds, let maxSeconds):
       return durationExpression(minSeconds: minSeconds, maxSeconds: maxSeconds)
     case .publishDate(let op, let days):
@@ -160,23 +158,30 @@ enum SmartListFilterEngine {
 
   // MARK: - Tags
 
-  // `episodeTag.episodeId` is NOT NULL, so plain `IN`/`NOT IN` are null-safe. An
-  // unresolved tag yields an empty subquery, so `hasTag` matches nothing.
-  private static func episodeTagExpression(
+  // A Smart List tag condition matches the effective tags of the episode: tags
+  // attached directly to the episode OR tags attached to its parent podcast.
+  private static func tagExpression(
     _ condition: SmartListFilter.TagCondition
   ) -> SQLExpression {
     switch condition {
     case .hasTag(let tagID):
-      return episodeTagMembers(tagID).contains(Episode.Columns.id)
+      return hasEffectiveTag(tagID)
     case .doesNotHaveTag(let tagID):
-      return !episodeTagMembers(tagID).contains(Episode.Columns.id)
+      return !hasEffectiveTag(tagID)
     case .hasAnyTag:
-      return episodeTagMembers(nil).contains(Episode.Columns.id)
+      return hasEffectiveTag(nil)
     case .hasNoTags:
-      return !episodeTagMembers(nil).contains(Episode.Columns.id)
+      return !hasEffectiveTag(nil)
     }
   }
 
+  private static func hasEffectiveTag(_ tagID: Tag.ID?) -> SQLExpression {
+    episodeTagMembers(tagID).contains(Episode.Columns.id)
+      || podcastTagMembers(tagID).contains(Episode.Columns.podcastId)
+  }
+
+  // `episodeTag.episodeId` is NOT NULL, so plain `IN`/`NOT IN` are null-safe. An
+  // unresolved tag yields an empty subquery.
   private static func episodeTagMembers(
     _ tagID: Tag.ID?
   ) -> QueryInterfaceRequest<EpisodeTag> {
@@ -187,22 +192,7 @@ enum SmartListFilterEngine {
 
   // `episode.podcastId` is NOT NULL (FK with cascade delete), so every episode
   // has a parent podcast and plain `IN`/`NOT IN` are null-safe. An unresolved
-  // tag yields an empty subquery, so `hasTag` matches nothing.
-  private static func podcastTagExpression(
-    _ condition: SmartListFilter.TagCondition
-  ) -> SQLExpression {
-    switch condition {
-    case .hasTag(let tagID):
-      return podcastTagMembers(tagID).contains(Episode.Columns.podcastId)
-    case .doesNotHaveTag(let tagID):
-      return !podcastTagMembers(tagID).contains(Episode.Columns.podcastId)
-    case .hasAnyTag:
-      return podcastTagMembers(nil).contains(Episode.Columns.podcastId)
-    case .hasNoTags:
-      return !podcastTagMembers(nil).contains(Episode.Columns.podcastId)
-    }
-  }
-
+  // tag yields an empty subquery.
   private static func podcastTagMembers(
     _ tagID: Tag.ID?
   ) -> QueryInterfaceRequest<PodcastTag> {

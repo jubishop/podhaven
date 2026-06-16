@@ -20,13 +20,18 @@ struct PodcastsListView: View {
 
   var body: some View {
     podcastsView
-      .searchable(
-        text: $viewModel.podcastList.entryFilter,
-        placement: .navigationBarDrawer(displayMode: .always),
-        prompt: "Filter podcasts"
-      )
-      .searchPresentationToolbarBehavior(.avoidHidingContent)
-      .navigationTitle(viewModel.title)
+      .safeAreaInset(edge: .top, spacing: 0) {
+        VStack(spacing: 8) {
+          LucideListHeader(icon: viewModel.icon, title: viewModel.title)
+          SearchBar(
+            text: $viewModel.podcastList.entryFilter,
+            prompt: "Filter podcasts",
+            searchIcon: .search
+          )
+          .padding(.horizontal)
+        }
+        .padding(.top, 4)
+      }
       .navigationBarTitleDisplayMode(.inline)
       .refreshable {
         do {
@@ -49,10 +54,13 @@ struct PodcastsListView: View {
 
   @ToolbarContentBuilder
   private var toolbar: some ToolbarContent {
-    ToolbarItem(placement: .principal) {
-      LucideNavigationTitle(icon: viewModel.icon, title: viewModel.title)
+    ToolbarItem(placement: .topBarLeading) {
+      (viewModel.displayMode == .grid ? AppIcon.list : AppIcon.grid)
+        .labelButton {
+          viewModel.toggleDisplayMode()
+        }
     }
-    sortableDisplayingPodcastsToolbarItems(viewModel: viewModel)
+    sortablePodcastsToolbarItems(viewModel: viewModel)
     selectablePodcastsToolbarItems(viewModel: viewModel)
   }
 
@@ -132,6 +140,7 @@ struct PodcastsListView: View {
         .listRow()
       }
     }
+    .contentMargins(.top, 8, for: .scrollContent)
   }
 
   // MARK: - Reusable Views

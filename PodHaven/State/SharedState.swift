@@ -85,11 +85,16 @@ struct SharedState: Sendable {
     $recommendedEpisodePool.new(episodeIDs)
   }
 
-  // MARK: - Episode Playing Checks
+  // MARK: - On-Deck & Playing Checks
+
+  func isOnDeck(_ episode: any EpisodeFoundational) -> Bool {
+    guard let episodeID = episode.episodeID else { return false }
+    return onDeck?.id == episodeID
+  }
 
   func isEpisodePlaying(_ episode: any EpisodeFoundational) -> Bool {
-    guard let episodeID = episode.episodeID else { return false }
-    return isEpisodePlaying(episodeID)
+    guard playbackStatus.playing else { return false }
+    return isOnDeck(episode)
   }
 
   func isEpisodePlaying(_ episodeID: Episode.ID) -> Bool {

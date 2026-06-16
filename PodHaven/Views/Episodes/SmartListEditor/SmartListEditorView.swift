@@ -30,7 +30,7 @@ struct SmartListEditorView: View {
             LabeledContent("Icon") {
               LucideIconView(icon: viewModel.icon)
                 .frame(width: iconSize, height: iconSize)
-                .foregroundStyle(.tint)
+                .foregroundStyle(.primary)
             }
           }
         }

@@ -24,7 +24,7 @@ struct SearchBar: View {
       .padding(12)
       .glassEffect(.regular)
 
-      if showClearSearchButton {
+      if isFocused || !text.isEmpty {
         AppIcon.clearSearch
           .imageButton {
             text = ""
@@ -33,14 +33,8 @@ struct SearchBar: View {
           .buttonStyle(.plain)
           .padding(16)
           .glassEffect(.regular.interactive(), in: .circle)
-          .transition(.scale.combined(with: .opacity))
       }
     }
-    .animation(.easeInOut(duration: 0.15), value: showClearSearchButton)
-  }
-
-  private var showClearSearchButton: Bool {
-    isFocused || !text.isEmpty
   }
 }
 

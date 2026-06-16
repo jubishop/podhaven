@@ -65,29 +65,6 @@ func sortablePodcastsToolbarItems<ViewModel: SortablePodcastList>(viewModel: Vie
   }
 }
 
-// MARK: - Sortable & Displaying
-
-@MainActor @ToolbarContentBuilder
-func sortableDisplayingPodcastsToolbarItems<ViewModel: SortablePodcastList & DisplayingPodcasts>(
-  viewModel: ViewModel
-) -> some ToolbarContent {
-  ToolbarItem(placement: .primaryAction) {
-    Menu(
-      content: {
-        sortablePodcastsToolbarMenuItems(viewModel: viewModel)
-
-        Divider()
-
-        (viewModel.displayMode == .grid ? AppIcon.list : AppIcon.grid)
-          .labelButton {
-            viewModel.toggleDisplayMode()
-          }
-      },
-      label: { viewModel.currentSortMethod.appIcon.image }
-    )
-  }
-}
-
 // MARK: - Private Helpers
 
 @MainActor @ViewBuilder
