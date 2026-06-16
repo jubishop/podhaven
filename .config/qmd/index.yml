@@ -5,6 +5,9 @@ collections:
     ignore:
       - 'archive/**'
       - 'pr_reviews/**'
+  home-memory:
+    path: /Users/jubi/memory
+    pattern: '**/*.md'
   docs:
     path: ./docs
     pattern: '**/*.md'
