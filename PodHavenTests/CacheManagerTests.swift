@@ -183,7 +183,7 @@ import Testing
     #expect(duplicate == nil)
 
     assetRelease.signal()
-    try await finish.value
+    _ = try await finish.value
     try await CacheHelpers.waitForCached(podcastEpisode.id)
   }
 
