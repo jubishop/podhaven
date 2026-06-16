@@ -71,9 +71,8 @@ struct SmartListFilter: Codable, Hashable, Sendable {
     case wasPreviouslyQueued
   }
 
-  // Shared by both .episodeTag and .podcastTag — only the join path differs at
-  // SQL time. Nested under the Condition's `tag` key so its own `kind` doesn't
-  // collide with the Condition discriminator.
+  // Nested under the Condition's `tag` key so its own `kind` doesn't collide
+  // with the Condition discriminator.
   enum TagCondition: Codable, Hashable, Sendable {
     case hasTag(Tag.ID)
     case doesNotHaveTag(Tag.ID)
@@ -133,8 +132,7 @@ struct SmartListFilter: Codable, Hashable, Sendable {
     case episodeText(TextField, TextOp, String)
     case podcastText(TextField, TextOp, String)
     case state(StateCondition)
-    case episodeTag(TagCondition)
-    case podcastTag(TagCondition)
+    case tag(TagCondition)
     case duration(minSeconds: Int?, maxSeconds: Int?)
     case publishDate(PublishDateOp, days: Int)
 
@@ -152,8 +150,7 @@ struct SmartListFilter: Codable, Hashable, Sendable {
       case episodeText
       case podcastText
       case state
-      case episodeTag
-      case podcastTag
+      case tag
       case duration
       case publishDate
     }
@@ -176,10 +173,8 @@ struct SmartListFilter: Codable, Hashable, Sendable {
         )
       case Kind.state.rawValue:
         self = .state(try container.decode(StateCondition.self, forKey: .value))
-      case Kind.episodeTag.rawValue:
-        self = .episodeTag(try container.decode(TagCondition.self, forKey: .tag))
-      case Kind.podcastTag.rawValue:
-        self = .podcastTag(try container.decode(TagCondition.self, forKey: .tag))
+      case Kind.tag.rawValue:
+        self = .tag(try container.decode(TagCondition.self, forKey: .tag))
       case Kind.duration.rawValue:
         self = .duration(
           minSeconds: try container.decodeIfPresent(Int.self, forKey: .minSeconds),
@@ -215,11 +210,8 @@ struct SmartListFilter: Codable, Hashable, Sendable {
       case .state(let state):
         try container.encode(Kind.state.rawValue, forKey: .kind)
         try container.encode(state, forKey: .value)
-      case .episodeTag(let tag):
-        try container.encode(Kind.episodeTag.rawValue, forKey: .kind)
-        try container.encode(tag, forKey: .tag)
-      case .podcastTag(let tag):
-        try container.encode(Kind.podcastTag.rawValue, forKey: .kind)
+      case .tag(let tag):
+        try container.encode(Kind.tag.rawValue, forKey: .kind)
         try container.encode(tag, forKey: .tag)
       case .duration(let minSeconds, let maxSeconds):
         try container.encode(Kind.duration.rawValue, forKey: .kind)
@@ -235,7 +227,7 @@ struct SmartListFilter: Codable, Hashable, Sendable {
     // Whether this condition references `tag` in either tag scope.
     func references(_ tag: Tag.ID) -> Bool {
       switch self {
-      case .episodeTag(let condition), .podcastTag(let condition):
+      case .tag(let condition):
         switch condition {
         case .hasTag(let id), .doesNotHaveTag(let id):
           return id == tag
