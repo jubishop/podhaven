@@ -150,7 +150,9 @@ class SmartListFilterEngineTests {
     #expect(matched == [nullID, barID])
   }
 
-  @Test("contains matches whole words and contiguous phrases, never prefixes or out-of-order tokens")
+  @Test(
+    "contains matches whole words and contiguous phrases, never prefixes or out-of-order tokens"
+  )
   func containsWholeWordsAndPhrases() async throws {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
@@ -409,93 +411,68 @@ class SmartListFilterEngineTests {
     )
   }
 
-  // MARK: - Tags (both scopes)
+  // MARK: - Tags
 
-  @Test("episode tag conditions partition and complement correctly")
-  func episodeTagScopes() async throws {
-    let series = try await repo.insertSeries(
+  @Test("tag conditions use episode or parent-podcast tags")
+  func tagConditionsUseEffectiveTags() async throws {
+    let episodeTaggedSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [
-          try Create.unsavedEpisode(guid: "tagged"),
-          try Create.unsavedEpisode(guid: "untagged"),
-        ]
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "episode-tagged")]
       )
     )
-    let tagged = series.episodes[0].id
-    let untagged = series.episodes[1].id
-    let tag = try await repo.insertTag(UnsavedTag(name: "Interview"))
-    try await repo.addTag(tag.id, to: tagged)
-
-    #expect(try await ids(for: all(.episodeTag(.hasTag(tag.id)))) == [tagged])
-    #expect(try await ids(for: all(.episodeTag(.doesNotHaveTag(tag.id)))) == [untagged])
-    #expect(try await ids(for: all(.episodeTag(.hasAnyTag))) == [tagged])
-    #expect(try await ids(for: all(.episodeTag(.hasNoTags))) == [untagged])
-  }
-
-  @Test("podcast tag conditions partition by the parent podcast's tags")
-  func podcastTagScopes() async throws {
-    let seriesA = try await repo.insertSeries(
+    let podcastTaggedSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [try Create.unsavedEpisode(guid: "tagged-podcast")]
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "podcast-tagged")]
       )
     )
-    let seriesB = try await repo.insertSeries(
+    let untaggedSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [try Create.unsavedEpisode(guid: "untagged-podcast")]
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "untagged")]
       )
     )
-    let taggedEp = seriesA.episodes[0].id
-    let untaggedEp = seriesB.episodes[0].id
+    let episodeTagged = episodeTaggedSeries.episodes[0].id
+    let podcastTagged = podcastTaggedSeries.episodes[0].id
+    let untagged = untaggedSeries.episodes[0].id
     let tag = try await repo.insertTag(UnsavedTag(name: "Tech"))
-    try await repo.addTag(tag.id, to: seriesA.id)
+    try await repo.addTag(tag.id, to: episodeTagged)
+    try await repo.addTag(tag.id, to: podcastTaggedSeries.id)
 
-    #expect(try await ids(for: all(.podcastTag(.hasTag(tag.id)))) == [taggedEp])
-    #expect(try await ids(for: all(.podcastTag(.hasAnyTag))) == [taggedEp])
-    #expect(try await ids(for: all(.podcastTag(.doesNotHaveTag(tag.id)))) == [untaggedEp])
-    #expect(try await ids(for: all(.podcastTag(.hasNoTags))) == [untaggedEp])
+    #expect(try await ids(for: all(.tag(.hasTag(tag.id)))) == [episodeTagged, podcastTagged])
+    #expect(try await ids(for: all(.tag(.hasAnyTag))) == [episodeTagged, podcastTagged])
+    #expect(try await ids(for: all(.tag(.doesNotHaveTag(tag.id)))) == [untagged])
+    #expect(try await ids(for: all(.tag(.hasNoTags))) == [untagged])
   }
 
-  @Test("episode-tag and podcast-tag scopes are independent within one filter")
-  func tagScopeIndependence() async throws {
-    let series = try await repo.insertSeries(
+  @Test("multiple tag conditions compose against effective tags")
+  func multipleTagConditionsCompose() async throws {
+    let matchingSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [
-          try Create.unsavedEpisode(guid: "both"),
-          try Create.unsavedEpisode(guid: "episode-only"),
-        ]
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "matching")]
       )
     )
-    let both = series.episodes[0].id
-    let episodeOnly = series.episodes[1].id
-    let episodeTag = try await repo.insertTag(UnsavedTag(name: "Interview"))
-    let podcastTag = try await repo.insertTag(UnsavedTag(name: "Tech"))
-
-    try await repo.addTag(episodeTag.id, to: both)
-    try await repo.addTag(episodeTag.id, to: episodeOnly)
-    try await repo.addTag(podcastTag.id, to: series.id)
-
-    // Both episodes carry the Interview episode tag and share the Tech-tagged
-    // podcast, so both satisfy "episode Interview AND podcast Tech".
-    let filter = all(
-      .episodeTag(.hasTag(episodeTag.id)),
-      .podcastTag(.hasTag(podcastTag.id))
+    let missingPodcastTagSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "missing-podcast-tag")]
+      )
     )
-    #expect(try await ids(for: filter) == [both, episodeOnly])
+    let matching = matchingSeries.episodes[0].id
+    let missingPodcastTag = missingPodcastTagSeries.episodes[0].id
+    let interviewTag = try await repo.insertTag(UnsavedTag(name: "Interview"))
+    let techTag = try await repo.insertTag(UnsavedTag(name: "Tech"))
 
-    // Tag "both" alone with an episode tag: "episode-only" still carries the
-    // podcast tag but lacks this episode tag, so it drops out — proving the
-    // episode-tag join is evaluated independently of the podcast-tag join.
-    let onlyBothTag = try await repo.insertTag(UnsavedTag(name: "Exclusive"))
-    try await repo.addTag(onlyBothTag.id, to: both)
-    let discriminating = all(
-      .episodeTag(.hasTag(onlyBothTag.id)),
-      .podcastTag(.hasTag(podcastTag.id))
+    try await repo.addTag(interviewTag.id, to: matching)
+    try await repo.addTag(techTag.id, to: matchingSeries.id)
+    try await repo.addTag(interviewTag.id, to: missingPodcastTag)
+
+    #expect(
+      try await ids(for: all(.tag(.hasTag(interviewTag.id)), .tag(.hasTag(techTag.id))))
+        == [matching]
     )
-    #expect(try await ids(for: discriminating) == [both])
   }
 
   @Test("an unresolved tag id matches nothing")
@@ -507,20 +484,25 @@ class SmartListFilterEngineTests {
       )
     )
     let ghost = Tag.ID(rawValue: 999_999)
-    #expect(try await ids(for: all(.episodeTag(.hasTag(ghost)))).isEmpty)
-    #expect(try await ids(for: all(.podcastTag(.hasTag(ghost)))).isEmpty)
-    // The episode still exists; the filter just excludes it.
+    #expect(try await ids(for: all(.tag(.hasTag(ghost)))).isEmpty)
+    #expect(try await ids(for: all(.tag(.doesNotHaveTag(ghost)))) == Set(series.episodes.map(\.id)))
     #expect(try await ids(for: all()) == Set(series.episodes.map(\.id)))
   }
 
   // MARK: - Joined Request Parity
 
-  @Test("podcast-text and podcast-tag filters hold through the joined listable request")
+  @Test("podcast-text and tag filters hold through the joined listable request")
   func filtersThroughJoinedRequest() async throws {
     let techSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(title: "The Tech Show"),
         unsavedEpisodes: [try Create.unsavedEpisode(guid: "tech-ep")]
+      )
+    )
+    let episodeTaggedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "episode-tagged")]
       )
     )
     let gardenSeries = try await repo.insertSeries(
@@ -530,19 +512,23 @@ class SmartListFilterEngineTests {
       )
     )
     let techEp = techSeries.episodes[0].id
+    let episodeTagged = episodeTaggedSeries.episodes[0].id
     let gardenEp = gardenSeries.episodes[0].id
     let tag = try await repo.insertTag(UnsavedTag(name: "Tech"))
     try await repo.addTag(tag.id, to: techSeries.id)
+    try await repo.addTag(tag.id, to: episodeTagged)
 
     // The joined request must agree with the unjoined episodeIDs path: the
-    // podcast-text subquery's `podcast` resolves to its own inner table, not the
-    // request's joined `podcast`.
+    // podcast-text subquery resolves to its own inner table, not the request's
+    // joined `podcast`.
     #expect(try await ids(for: all(.podcastText(.title, .contains, "tech"))) == [techEp])
     #expect(try await listableIDs(for: all(.podcastText(.title, .contains, "tech"))) == [techEp])
     #expect(
-      try await listableIDs(for: all(.podcastText(.title, .doesNotContain, "tech"))) == [gardenEp]
+      try await listableIDs(for: all(.podcastText(.title, .doesNotContain, "tech")))
+        == [gardenEp, episodeTagged]
     )
-    #expect(try await listableIDs(for: all(.podcastTag(.hasTag(tag.id)))) == [techEp])
+    #expect(try await listableIDs(for: all(.tag(.hasTag(tag.id)))) == [techEp, episodeTagged])
+    #expect(try await listableIDs(for: all(.tag(.doesNotHaveTag(tag.id)))) == [gardenEp])
   }
 
   // MARK: - Podcast Text
@@ -575,7 +561,7 @@ class SmartListFilterEngineTests {
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(
           title: "Tech Weekly",
-          description: "general chatter"
+          description: "news"
         ),
         unsavedEpisodes: [try Create.unsavedEpisode(guid: "title-pod")]
       )
@@ -583,15 +569,18 @@ class SmartListFilterEngineTests {
     let descSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(
-          title: "Garden Hour",
-          description: "all about tech gadgets"
+          title: "Cooking",
+          description: "tech discussion"
         ),
         unsavedEpisodes: [try Create.unsavedEpisode(guid: "desc-pod")]
       )
     )
     let missSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(title: "Cooking", description: "recipes"),
+        unsavedPodcast: try Create.unsavedPodcast(
+          title: "Garden",
+          description: "plants"
+        ),
         unsavedEpisodes: [try Create.unsavedEpisode(guid: "miss-pod")]
       )
     )
@@ -603,8 +592,6 @@ class SmartListFilterEngineTests {
       try await ids(for: all(.podcastText(.titleOrDescription, .contains, "tech")))
         == [titleEp, descEp]
     )
-    // The whole-table podcast FTS subquery resolves through the joined listable
-    // request to its own inner `podcast`, not the request's joined one.
     #expect(
       try await listableIDs(for: all(.podcastText(.titleOrDescription, .contains, "tech")))
         == [titleEp, descEp]

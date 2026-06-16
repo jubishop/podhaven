@@ -232,8 +232,8 @@ class SmartListRepoTests {
           combinator: .all,
           conditions: [
             .state(.isLoved),
-            .episodeTag(.hasTag(doomed.id)),
-            .podcastTag(.doesNotHaveTag(doomed.id)),
+            .tag(.hasTag(doomed.id)),
+            .tag(.doesNotHaveTag(doomed.id)),
           ]
         ),
         displayOrder: 0
@@ -250,11 +250,11 @@ class SmartListRepoTests {
           groups: [
             SmartListFilter.Group(
               combinator: .any,
-              conditions: [.episodeTag(.hasTag(doomed.id))]
+              conditions: [.tag(.hasTag(doomed.id))]
             ),
             SmartListFilter.Group(
               combinator: .any,
-              conditions: [.state(.isLiked), .podcastTag(.hasTag(doomed.id))]
+              conditions: [.state(.isLiked), .tag(.hasTag(doomed.id))]
             ),
           ]
         ),
@@ -265,14 +265,14 @@ class SmartListRepoTests {
     let solo = try await smartListRepo.insert(
       try UnsavedSmartList(
         title: "Solo",
-        filter: SmartListFilter(combinator: .all, conditions: [.episodeTag(.hasTag(doomed.id))]),
+        filter: SmartListFilter(combinator: .all, conditions: [.tag(.hasTag(doomed.id))]),
         displayOrder: 2
       )
     )
     // References only the keeper tag — untouched.
     let keepFilter = SmartListFilter(
       combinator: .all,
-      conditions: [.episodeTag(.hasTag(keeper.id))]
+      conditions: [.tag(.hasTag(keeper.id))]
     )
     let keep = try await smartListRepo.insert(
       try UnsavedSmartList(title: "Keep", filter: keepFilter, displayOrder: 3)
