@@ -397,7 +397,7 @@ extension PlayManager {
         case .skipBackward(let interval):
           await seekBackward(interval)
         case .playbackPosition(let position, let sourceEpisodeID, let eventTimestamp):
-          guard let sourceEpisodeID, let currentEpisodeID = sharedState.onDeck?.id else {
+          guard let sourceEpisodeID, let onDeck = sharedState.onDeck else {
             await logRemoteScrubDecision(
               action: "dropping",
               requestedPosition: position,
@@ -408,6 +408,7 @@ extension PlayManager {
             )
             continue
           }
+          let currentEpisodeID = onDeck.id
 
           guard sourceEpisodeID == currentEpisodeID else {
             await logRemoteScrubDecision(
@@ -429,6 +430,32 @@ extension PlayManager {
               currentEpisodeID: currentEpisodeID,
               eventTimestamp: eventTimestamp,
               reason: "transition in progress"
+            )
+            continue
+          }
+
+          // iOS can redeliver the tail of the finished episode's lock-screen
+          // drag as a fresh scrub stamped with the new episode's ID and mapped
+          // onto its full duration. Just after a transition the new episode is
+          // still at its start, so honoring a scrub that lands at the very end
+          // would instantly finish the episode the user only moved to. The
+          // time-based suppression above is the first defence; this guard
+          // outlasts it but only ever blocks scrubs to the end of a
+          // still-at-the-start episode, and unlike the suppression window it
+          // also covers manual next/previous transitions.
+          let onDeckDuration = onDeck.duration.seconds
+          let playbackTime = await podAVPlayer.currentTime().seconds
+          if onDeckDuration > remoteScrubEndEpsilon,
+            position >= onDeckDuration - remoteScrubEndEpsilon,
+            playbackTime < remoteScrubJustStartedThreshold
+          {
+            await logRemoteScrubDecision(
+              action: "dropping",
+              requestedPosition: position,
+              sourceEpisodeID: sourceEpisodeID,
+              currentEpisodeID: currentEpisodeID,
+              eventTimestamp: eventTimestamp,
+              reason: "scrub to end of just-started episode"
             )
             continue
           }

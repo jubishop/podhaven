@@ -119,6 +119,12 @@ final class PlayManager {
 
   let recoveryDebounceInterval: TimeInterval = 5
   private let remoteScrubSuppressionDuration: Duration = .seconds(1)
+  // A remote scrub landing within this distance of the episode duration counts
+  // as a scrub to the very end.
+  let remoteScrubEndEpsilon: TimeInterval = 2
+  // Below this playback position an episode counts as just-started, so a
+  // scrub-to-end is almost certainly a stale gesture rather than intent.
+  let remoteScrubJustStartedThreshold: TimeInterval = 3
 
   // MARK: - State Management
 
