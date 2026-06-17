@@ -170,6 +170,44 @@ import Testing
     #expect(PlayHelpers.nowPlayingCurrentTime == .zero)
   }
 
+  @Test("scrub with current episode ID is ignored past the prior suppression window")
+  func scrubWithCurrentEpisodeIDIgnoredPastPriorWindow() async throws {
+    await playManager.start()
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await Container.shared.queue().unshift(queuedEpisode.id)
+    try await playManager.load(playingEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitFor(.playing)
+
+    // Finish the current episode and auto-advance to the queued one.
+    avPlayer.finishEpisode()
+    try await PlayHelpers.waitForOnDeck(queuedEpisode)
+
+    // The tail of a lock-screen drag can land well after the transition — past
+    // the window that previously let it through and skipped the freshly loaded
+    // episode. Suppression must still be active that far out. Asserting the
+    // flag first also settles the suppression task before the scrub below.
+    try await sleeper.waitForSleepRequests(count: 1)
+    await sleeper.advanceTime(by: .milliseconds(750))
+    #expect(await playManager.ignoreRemoteScrubCommands)
+
+    // A scrub to the new episode's end, carrying its ID, is still dropped.
+    commandCenterContinuation.yield(
+      .playbackPosition(
+        TimeInterval.seconds(500),
+        sourceEpisodeID: queuedEpisode.id,
+        eventTimestamp: Date().timeIntervalSinceReferenceDate
+      )
+    )
+    commandCenterContinuation.yield(.changePlaybackRate(1.7))
+    try await PlayHelpers.waitForPlayRate(1.7)
+
+    #expect(sharedState.onDeck?.id == queuedEpisode.id)
+    #expect(sharedState.onDeck?.currentTime == .zero)
+    #expect(PlayHelpers.nowPlayingCurrentTime == .zero)
+  }
+
   @Test("fresh seek commands still work after episode finish")
   func freshSeekCommandsStillWorkAfterEpisodeFinish() async throws {
     await playManager.start()
@@ -185,7 +223,7 @@ import Testing
 
     // Advance past the suppression window
     try await sleeper.waitForSleepRequests(count: 1)
-    await sleeper.advanceTime(by: .milliseconds(500))
+    await sleeper.advanceTime(by: .seconds(2))
     try await Wait.until(
       { await playManager.ignoreRemoteScrubCommands == false },
       { "Expected remote scrub suppression to end after time advance" }

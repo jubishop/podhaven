@@ -103,6 +103,12 @@ extension PlayManager {
     // cannot physically replicate. MPRemoteCommandEvent.timestamp base is
     // NSDate.timeIntervalSinceReferenceDate.
     let eventLag = Date().timeIntervalSinceReferenceDate - eventTimestamp
+    let secondsSinceEpisodeBecameCurrent: String
+    if let onDeckBecameCurrentAt {
+      secondsSinceEpisodeBecameCurrent = String(Date().timeIntervalSince(onDeckBecameCurrentAt))
+    } else {
+      secondsSinceEpisodeBecameCurrent = "nil"
+    }
 
     Self.log.debug(
       """
@@ -121,6 +127,7 @@ extension PlayManager {
         routeOutputs: \(routeOutputs)
         eventTimestamp: \(eventTimestamp)
         eventLagSeconds: \(eventLag)
+        secondsSinceEpisodeBecameCurrent: \(secondsSinceEpisodeBecameCurrent)
         reason: \(reason ?? "accepted")
       """
     )
