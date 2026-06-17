@@ -118,7 +118,7 @@ final class PlayManager {
   // MARK: - Configurable Constants
 
   let recoveryDebounceInterval: TimeInterval = 5
-  private let remoteScrubSuppressionDuration: Duration = .milliseconds(500)
+  private let remoteScrubSuppressionDuration: Duration = .seconds(1)
 
   // MARK: - State Management
 
@@ -129,6 +129,7 @@ final class PlayManager {
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
   private var restartScrubCommandsTask: Task<Void, any Error>?
+  private(set) var onDeckBecameCurrentAt: Date?
   private var lastLoggedTime = Date.distantPast
   private var lastNowPlayingElapsedWrite: CMTime?
   private var lastBackgroundSnapshot: Date?
@@ -652,11 +653,13 @@ final class PlayManager {
   private func suppressRemoteScrubCommands() {
     restartScrubCommandsTask?.cancel()
     ignoreRemoteScrubCommands = true
+    Self.log.debug("suppressing remote scrubs for \(remoteScrubSuppressionDuration)")
     restartScrubCommandsTask = Task { [weak self] in
       guard let self else { return }
       try await sleeper.sleep(for: remoteScrubSuppressionDuration)
       try Task.checkCancellation()
       ignoreRemoteScrubCommands = false
+      Self.log.debug("re-enabling remote scrubs after suppression window")
     }
   }
 
@@ -734,6 +737,7 @@ final class PlayManager {
 
     NowPlayingInfo.setOnDeck(podcastEpisode)
     stateManager.setOnDeck(podcastEpisode)
+    onDeckBecameCurrentAt = Date()
     CommandCenter.updateNextTrack()
     fetchImage(for: podcastEpisode)
 
@@ -790,6 +794,7 @@ final class PlayManager {
     await podAVPlayer.clear()
     NowPlayingInfo.clear()
     stateManager.clearOnDeck()
+    onDeckBecameCurrentAt = nil
     CommandCenter.updateNextTrack()
   }
 
