@@ -233,6 +233,100 @@ import Testing
     try await PlayHelpers.waitFor(.seconds(10))
   }
 
+  @Test("scrub to a just-started episode's full duration is dropped past the suppression window")
+  func scrubToJustStartedEpisodeFullDurationIsDropped() async throws {
+    await playManager.start()
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await Container.shared.queue().unshift(queuedEpisode.id)
+    try await playManager.load(playingEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitFor(.playing)
+
+    // Finish the current episode and auto-advance to the queued one.
+    avPlayer.finishEpisode()
+    try await PlayHelpers.waitForOnDeck(queuedEpisode)
+
+    // Let the blanket time-based suppression lapse so only the position-based
+    // guard is left to reject the scrub.
+    try await sleeper.waitForSleepRequests(count: 1)
+    await sleeper.advanceTime(by: .seconds(2))
+    try await Wait.until(
+      { await playManager.ignoreRemoteScrubCommands == false },
+      { "Expected remote scrub suppression to end after time advance" }
+    )
+
+    // The tail of the finished episode's lock-screen drag, redelivered with the
+    // new episode's ID and mapped onto its full duration while it sits at 0:00.
+    let fullDuration = try #require(sharedState.onDeck?.duration)
+    commandCenterContinuation.yield(
+      .playbackPosition(
+        fullDuration.seconds,
+        sourceEpisodeID: queuedEpisode.id,
+        eventTimestamp: Date().timeIntervalSinceReferenceDate
+      )
+    )
+    commandCenterContinuation.yield(.changePlaybackRate(1.7))
+    try await PlayHelpers.waitForPlayRate(1.7)
+
+    #expect(sharedState.onDeck?.id == queuedEpisode.id)
+    #expect(sharedState.onDeck?.currentTime == .zero)
+    #expect(PlayHelpers.nowPlayingCurrentTime == .zero)
+  }
+
+  @Test("scrub to the end of a long-playing episode is still applied")
+  func scrubToEndIsAppliedAfterPlayingAwhile() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitFor(.playing)
+
+    // Play to the midpoint — well past the just-started window.
+    let fullDuration = try #require(sharedState.onDeck?.duration)
+    let midpoint = CMTime.seconds(fullDuration.seconds / 2)
+    avPlayer.advanceTime(to: midpoint)
+    try await PlayHelpers.waitFor(midpoint)
+
+    // A deliberate scrub to the very end is honored.
+    mpRemoteCommandCenter.fireSeek(to: fullDuration.seconds)
+    try await PlayHelpers.waitFor(fullDuration)
+  }
+
+  @Test("a mid-episode scrub on a just-started episode is still applied")
+  func midScrubOnJustStartedEpisodeIsApplied() async throws {
+    await playManager.start()
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await Container.shared.queue().unshift(queuedEpisode.id)
+    try await playManager.load(playingEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitFor(.playing)
+
+    // Auto-advance to the queued episode, then let the blanket suppression lapse.
+    avPlayer.finishEpisode()
+    try await PlayHelpers.waitForOnDeck(queuedEpisode)
+    try await sleeper.waitForSleepRequests(count: 1)
+    await sleeper.advanceTime(by: .seconds(2))
+    try await Wait.until(
+      { await playManager.ignoreRemoteScrubCommands == false },
+      { "Expected remote scrub suppression to end after time advance" }
+    )
+
+    // A scrub that lands at the midpoint is honored even though the episode just
+    // became current — the guard only rejects scrubs to the very end.
+    let midpoint = CMTime.seconds(try #require(sharedState.onDeck?.duration).seconds / 2)
+    commandCenterContinuation.yield(
+      .playbackPosition(
+        midpoint.seconds,
+        sourceEpisodeID: queuedEpisode.id,
+        eventTimestamp: Date().timeIntervalSinceReferenceDate
+      )
+    )
+    try await PlayHelpers.waitFor(midpoint)
+  }
+
   @Test("audio session interruption stops and restarts playback")
   func audioSessionInterruptionStopsPlayback() async throws {
 
