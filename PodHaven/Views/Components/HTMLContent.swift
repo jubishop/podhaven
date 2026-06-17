@@ -8,16 +8,21 @@ import SwiftUI
 enum HTMLContent {
   // MARK: - Description Builder
 
-  // Builds the full episode-description AttributedString off the main actor:
-  // the same output as `attributedString`, plus timestamp tokens turned into
-  // tappable links the detail view intercepts via openURL. Unlike
-  // `attributedString` it never returns nil for plain text, so timestamps in
-  // entity/tag-free descriptions still link.
+  // Builds a detail-view description's AttributedString off the main actor: the
+  // same output as `attributedString`, optionally turning timestamp tokens into
+  // tappable links the episode detail view intercepts via openURL (the podcast
+  // description opts out — there's no episode to play from). Unlike
+  // `attributedString` it never returns nil for non-empty input, so timestamps
+  // in entity/tag-free descriptions still link.
   @concurrent
-  static func descriptionAttributedString(html: String, font: Font) async -> AttributedString? {
+  static func descriptionAttributedString(html: String, font: Font, linkTimestamps: Bool) async
+    -> AttributedString?
+  {
     guard !html.isEmpty else { return nil }
     var result = attributedString(html: html, font: font) ?? AttributedString(html)
-    applyTimestampLinks(to: &result)
+    if linkTimestamps {
+      applyTimestampLinks(to: &result)
+    }
     return result
   }
 

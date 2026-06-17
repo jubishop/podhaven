@@ -616,7 +616,11 @@ private struct TimestampSample: View {
     }
     .environment(\.openURL, OpenURLAction { _ in .handled })
     .task(id: html) {
-      attributed = await HTMLContent.descriptionAttributedString(html: html, font: .body)
+      attributed = await HTMLContent.descriptionAttributedString(
+        html: html,
+        font: .body,
+        linkTimestamps: true
+      )
     }
   }
 }

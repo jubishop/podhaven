@@ -98,7 +98,11 @@ enum EpisodeDetailDisplayedScore: Sendable {
       return
     }
     guard html != descriptionSource else { return }
-    let built = await HTMLContent.descriptionAttributedString(html: html, font: font)
+    let built = await HTMLContent.descriptionAttributedString(
+      html: html,
+      font: font,
+      linkTimestamps: true
+    )
     // A state transition may have swapped the description while we built.
     guard html == episode.description else { return }
     descriptionSource = html

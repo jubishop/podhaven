@@ -287,13 +287,23 @@ struct PodcastDetailView: View {
             }
           }
 
-          HTMLText(viewModel.podcast.description)
-            .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+          descriptionText
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
       }
+    }
+    .task(id: viewModel.podcast.description) {
+      await viewModel.prepareDescription(font: .body)
+    }
+  }
+
+  @ViewBuilder
+  private var descriptionText: some View {
+    if let attributed = viewModel.descriptionAttributedString {
+      Text(attributed)
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 

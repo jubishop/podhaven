@@ -33,7 +33,7 @@ enum Timestamp {
   // Custom scheme carrying a raw timestamp so a description's tappable
   // timestamp can round-trip through a SwiftUI `Text` link into the episode
   // detail view's openURL handler, kept distinct from real http(s) links.
-  static let urlScheme = "podhaven-timestamp"
+  private static let urlScheme = "podhaven-timestamp"
 
   static func url(for timestamp: some StringProtocol) -> URL? {
     var components = URLComponents()

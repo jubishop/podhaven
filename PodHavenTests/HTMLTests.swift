@@ -939,7 +939,7 @@ struct HTMLTextDescriptionTests {
   func linksInlineTimestamp() async throws {
     let html = "We dive in at 12:34 and wrap up near 1:02:15 with Q&amp;A."
     let attributed = try #require(
-      await HTMLContent.descriptionAttributedString(html: html, font: .body)
+      await HTMLContent.descriptionAttributedString(html: html, font: .body, linkTimestamps: true)
     )
     let links = timestampLinks(in: attributed)
     #expect(links.count == 2)
@@ -951,7 +951,7 @@ struct HTMLTextDescriptionTests {
   func noTimestampsNoLinks() async throws {
     let html = "<p>A plain description with <b>bold</b> but no chapters.</p>"
     let attributed = try #require(
-      await HTMLContent.descriptionAttributedString(html: html, font: .body)
+      await HTMLContent.descriptionAttributedString(html: html, font: .body, linkTimestamps: true)
     )
     #expect(timestampLinks(in: attributed).isEmpty)
   }
@@ -960,7 +960,7 @@ struct HTMLTextDescriptionTests {
   func preservesRealLink() async throws {
     let html = "Notes at https://example.com and a chapter at 5:30."
     let attributed = try #require(
-      await HTMLContent.descriptionAttributedString(html: html, font: .body)
+      await HTMLContent.descriptionAttributedString(html: html, font: .body, linkTimestamps: true)
     )
     let tsLinks = timestampLinks(in: attributed)
     #expect(tsLinks.count == 1)
@@ -973,6 +973,18 @@ struct HTMLTextDescriptionTests {
 
   @Test("returns nil for empty input")
   func emptyReturnsNil() async throws {
-    #expect(await HTMLContent.descriptionAttributedString(html: "", font: .body) == nil)
+    #expect(
+      await HTMLContent.descriptionAttributedString(html: "", font: .body, linkTimestamps: true)
+        == nil
+    )
+  }
+
+  @Test("skips timestamp links when linkTimestamps is false (podcast descriptions)")
+  func skipsTimestampLinksWhenDisabled() async throws {
+    let html = "Recap, then at 12:34 the main story begins."
+    let attributed = try #require(
+      await HTMLContent.descriptionAttributedString(html: html, font: .body, linkTimestamps: false)
+    )
+    #expect(timestampLinks(in: attributed).isEmpty)
   }
 }

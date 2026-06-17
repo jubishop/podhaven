@@ -37,6 +37,34 @@ class PodcastDetailViewModel:
   var podcast: PodcastDetailContent { state.detailContent }
   var saved: Bool { state.savedSeries != nil }
 
+  // MARK: - Description Rendering
+
+  // Built off the main actor and cached so the About description isn't
+  // re-parsed on every body evaluation. The view drives (re)builds via
+  // `.task(id:)` keyed on the description. Timestamps aren't linked here —
+  // there's no episode to play from a podcast-level description.
+  private(set) var descriptionAttributedString: AttributedString?
+  @ObservationIgnored private var descriptionSource: String?
+
+  func prepareDescription(font: Font) async {
+    let html = podcast.description
+    guard !html.isEmpty else {
+      descriptionAttributedString = nil
+      descriptionSource = nil
+      return
+    }
+    guard html != descriptionSource else { return }
+    let built = await HTMLContent.descriptionAttributedString(
+      html: html,
+      font: font,
+      linkTimestamps: false
+    )
+    // A state transition may have swapped the description while we built.
+    guard html == podcast.description else { return }
+    descriptionSource = html
+    descriptionAttributedString = built
+  }
+
   // MARK: - ManagingEpisodes
 
   func getOrCreatePodcastEpisode(_ episode: ListedEpisode) async throws -> PodcastEpisode {
