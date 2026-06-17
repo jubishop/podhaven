@@ -234,13 +234,9 @@ struct Observatory: Observing {
   // never badges — only freshly-ingested matches count toward the badge.
   func smartListUnreadCounts() -> AsyncValueObservation<[SmartList.ID: Int]> {
     reader.observe { db in
-      let referenceDate = Container.shared.dateProvider().now
       var counts: [SmartList.ID: Int] = [:]
       for list in try SmartList.all().fetchAll(db) {
-        let expression = SmartListFilterEngine.sqlExpression(
-          for: list.filter,
-          referenceDate: referenceDate
-        )
+        let expression = SmartListFilterEngine.sqlExpression(for: list.filter)
         let unseen = Episode.Columns.id > list.lastSeenEpisodeId
         counts[list.id] = try Episode.filter(expression && unseen).fetchCount(db)
       }

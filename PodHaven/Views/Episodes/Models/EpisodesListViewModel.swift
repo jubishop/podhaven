@@ -14,7 +14,6 @@ class EpisodesListViewModel:
   SortableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
-  @ObservationIgnored @DynamicInjected(\.dateProvider) private var dateProvider
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
@@ -98,10 +97,8 @@ class EpisodesListViewModel:
   private(set) var icon: LucideIcon
   private(set) var loadingState: LoadingState = .loading
 
-  // Compiled fresh at each observation (re)start so relative publish-date
-  // cutoffs are fixed per observation, not per view-model lifetime.
   private var filter: SQLExpression {
-    SmartListFilterEngine.sqlExpression(for: smartListFilter, referenceDate: dateProvider.now)
+    SmartListFilterEngine.sqlExpression(for: smartListFilter)
   }
 
   // Keys the single `.task(id:)` block in the view. A sort, filter, or
