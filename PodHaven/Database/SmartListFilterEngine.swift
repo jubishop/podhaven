@@ -1,23 +1,20 @@
 // Copyright Justin Bishop, 2026
 
-import Foundation
 import GRDB
 
-// Pure translation of a SmartListFilter into a flat SQLExpression suitable for
+// Translates a SmartListFilter into a flat SQLExpression suitable for
 // `Observatory.listablePodcastEpisodes(filter:)`. Two-level walk only: the top
 // group's conditions, AND/OR'd with each nested group's combined expression as
-// one extra term. `referenceDate` is injected so publish-date windows are
-// deterministic and testable. All expressions are evaluated against the
-// `episode` base table; tag and podcast-text predicates use subqueries since the
-// observation request takes only a flat expression (no joins/request builder).
+// one extra term. Publish-date windows compile to SQLite's `now`, so the cutoff
+// is resolved at query execution rather than captured here. All expressions are
+// evaluated against the `episode` base table; tag and podcast-text predicates
+// use subqueries since the observation request takes only a flat expression (no
+// joins/request builder).
 enum SmartListFilterEngine {
-  static func sqlExpression(
-    for filter: SmartListFilter,
-    referenceDate: Date
-  ) -> SQLExpression {
-    var terms = filter.conditions.map { expression(for: $0, referenceDate: referenceDate) }
+  static func sqlExpression(for filter: SmartListFilter) -> SQLExpression {
+    var terms = filter.conditions.map { expression(for: $0) }
     for group in filter.groups where !group.conditions.isEmpty {
-      let groupTerms = group.conditions.map { expression(for: $0, referenceDate: referenceDate) }
+      let groupTerms = group.conditions.map { expression(for: $0) }
       terms.append(combine(groupTerms, with: group.combinator))
     }
     return combine(terms, with: filter.combinator)
@@ -39,8 +36,7 @@ enum SmartListFilterEngine {
   }
 
   private static func expression(
-    for condition: SmartListFilter.Condition,
-    referenceDate: Date
+    for condition: SmartListFilter.Condition
   ) -> SQLExpression {
     switch condition {
     case .episodeText(let field, let op, let value):
@@ -54,7 +50,7 @@ enum SmartListFilterEngine {
     case .duration(let minSeconds, let maxSeconds):
       return durationExpression(minSeconds: minSeconds, maxSeconds: maxSeconds)
     case .publishDate(let op, let days):
-      return publishDateExpression(op, days: days, referenceDate: referenceDate)
+      return publishDateExpression(op, days: days)
     }
   }
 
@@ -211,13 +207,14 @@ enum SmartListFilterEngine {
     return combine(terms, with: .all)
   }
 
+  // SQLite resolves the cutoff at query time against its own clock. The format
+  // mirrors GRDB's stored Date text so the window stays a chronological string
+  // comparison against the pubDate column.
   private static func publishDateExpression(
     _ op: SmartListFilter.PublishDateOp,
-    days: Int,
-    referenceDate: Date
+    days: Int
   ) -> SQLExpression {
-    let secondsPerDay = 86_400.0
-    let cutoff = referenceDate.addingTimeInterval(-Double(days) * secondsPerDay)
+    let cutoff = SQL("strftime('%Y-%m-%d %H:%M:%f', 'now', \("-\(days) days"))").sqlExpression
     switch op {
     case .withinLast:
       return Episode.Columns.pubDate >= cutoff

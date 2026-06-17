@@ -84,7 +84,7 @@ Custom `init(from:)` / `encode(to:)` on `Condition` and `TagCondition` write a s
 
 ### 2. Filter → SQLExpression — `PodHaven/Database/SmartListFilterEngine.swift`
 
-Pure `(SmartListFilter, referenceDate: Date) -> SQLExpression`. The `referenceDate` parameter exists so relative `.publishDate` windows are computed deterministically (production passes `Date()`; tests pass a fixed date — keeps the engine pure and testable). Two-level walk only: combine the top group's condition expressions, append each non-empty nested group's combined expression as one extra term, then combine again with the top combinator. Reuses existing `Episode` static expressions (`Episode.swift:234–248`) wherever the mapping is direct.
+`(SmartListFilter) -> SQLExpression`. Relative `.publishDate` windows compile to SQLite's `now` via `strftime`, so the cutoff resolves at query execution rather than being captured here. Two-level walk only: combine the top group's condition expressions, append each non-empty nested group's combined expression as one extra term, then combine again with the top combinator. Reuses existing `Episode` static expressions (`Episode.swift:234–248`) wherever the mapping is direct.
 
 - **Combine helper:** empty list → `AppDB.noOp` (`AppDB.swift:88` is `true.sqlExpression`); for `.all`, reduce with `&&`; for `.any`, seed the reduce with the first term (`dropFirst().reduce(first) { $0 || $1 }`) — do **not** seed `||` reduce with `noOp`, which would short-circuit to true.
 - An empty top group with no nested groups → `noOp`. Matches today's "Recent Episodes" semantics.
@@ -94,7 +94,7 @@ Pure `(SmartListFilter, referenceDate: Date) -> SQLExpression`. The `referenceDa
 - **Tag conditions** — GRDB membership subqueries (no raw SQL). `.tag(...)` is effective membership: `EpisodeTag.select(episodeId)` (filtered by `tagId` for `hasTag`/`doesNotHaveTag`) `.contains(Episode.Columns.id)` OR `PodcastTag.select(podcastId)` `.contains(Episode.Columns.podcastId)`, negated for `doesNotHaveTag`/`hasNoTags`. Both `episodeTag.episodeId` and `episode.podcastId` are NOT NULL, so plain `IN`/`NOT IN` membership is null-safe and there are no orphan branches.
   - A `hasTag`/`doesNotHaveTag` whose `Tag.ID` no longer resolves is left as-is; the empty subquery makes `hasTag(missing)` match nothing and `doesNotHaveTag(missing)` match everything — both safe. (Scrub-on-delete normally removes these first; this is the defensive fallback.)
 - **Duration conditions** (`.duration(minSeconds:maxSeconds:)`): `episode.duration` is stored as **seconds (Double)** (`CMTime.databaseValue` → `seconds.databaseValue`, `CMTime.swift:94–105`). Inclusive bounds — `duration >= Double(minSeconds)` AND/or `duration <= Double(maxSeconds)`; a `nil` bound is open-ended (both nil → no-op). Note unknown-duration rows store `0`, so `minSeconds: 0` includes them and any positive `minSeconds` excludes them.
-- **Publish-date conditions** (`.publishDate(op, days:)`): cutoff = `referenceDate - days × 86,400s` (flat seconds, no calendar arithmetic). `withinLast` → `Episode.Columns.pubDate >= cutoff`; `olderThan` → `< cutoff`. Caveat: the cutoff is fixed when the display observation (re)starts (filter/sort/search change, or app session), not continuously re-evaluated — acceptable for v1.
+- **Publish-date conditions** (`.publishDate(op, days:)`): cutoff = `strftime('%Y-%m-%d %H:%M:%f', 'now', '-<days> days')`, formatted to match GRDB's stored Date text so the comparison stays a chronological string compare (UTC, flat days, no calendar arithmetic). `withinLast` → `Episode.Columns.pubDate >= cutoff`; `olderThan` → `< cutoff`. SQLite evaluates `now` at query execution, so the window advances on every observation re-fetch (any tracked write) rather than only at observation start — but still not while the list sits idle with no writes.
 
 Loop `for group in filter.groups where !group.conditions.isEmpty { … }` and append each group's combine to the top list before the final combine.
 
@@ -401,5 +401,5 @@ Per CLAUDE.md regression-test rule: each engine edge-case test must be confirmed
 ## Open follow-ups (not blockers)
 
 - Tag/podcast-text-condition perf via an Observatory request-builder overload, if subqueries become a hotspot.
-- Continuous re-evaluation of relative `.publishDate` windows (today the cutoff is fixed at observation start).
+- Idle re-evaluation of relative `.publishDate` windows: the SQLite-`now` cutoff advances on every observation re-fetch but not while a list sits idle with no writes; a periodic trigger would close that gap.
 - Multi-select / bulk delete for SmartLists in edit mode.
