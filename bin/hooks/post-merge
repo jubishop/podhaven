@@ -1,11 +1,14 @@
 #!/bin/bash
 # Re-index qmd after a pull/merge so local hybrid search stays fresh.
 # Backgrounded so it doesn't block git. Silent unless invoked manually.
-# Skipped cleanly if qmd isn't installed.
+# Skipped cleanly if qmd isn't installed or this checkout lacks the qmd
+# config (the index.yml check stops a configless checkout from re-indexing
+# against an ancestor directory's config).
 
 command -v qmd >/dev/null 2>&1 || exit 0
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+[ -f "$REPO_ROOT/.config/qmd/index.yml" ] || exit 0
 (
   cd "$REPO_ROOT"
   qmd update >/dev/null 2>&1

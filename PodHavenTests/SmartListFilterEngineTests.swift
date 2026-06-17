@@ -13,32 +13,21 @@ class SmartListFilterEngineTests {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
-  // Fixed so publish-date windows are deterministic.
-  private static let referenceDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
-
   // MARK: - Query Helpers
 
   private func ids(matching expression: SQLExpression) async throws -> Set<Episode.ID> {
     Set(try await observatory.episodeIDs(filter: expression).get())
   }
 
-  private func ids(
-    for filter: SmartListFilter,
-    referenceDate: Date = SmartListFilterEngineTests.referenceDate
-  ) async throws -> Set<Episode.ID> {
-    try await ids(
-      matching: SmartListFilterEngine.sqlExpression(for: filter, referenceDate: referenceDate)
-    )
+  private func ids(for filter: SmartListFilter) async throws -> Set<Episode.ID> {
+    try await ids(matching: SmartListFilterEngine.sqlExpression(for: filter))
   }
 
   // The engine's production target joins `podcast`; episodeIDs(filter:) does not.
   // Run a filter through the joined request to prove the podcast subqueries still
   // resolve to their own inner `podcast` rather than the request's joined one.
-  private func listableIDs(
-    for filter: SmartListFilter,
-    referenceDate: Date = SmartListFilterEngineTests.referenceDate
-  ) async throws -> Set<Episode.ID> {
-    let expression = SmartListFilterEngine.sqlExpression(for: filter, referenceDate: referenceDate)
+  private func listableIDs(for filter: SmartListFilter) async throws -> Set<Episode.ID> {
+    let expression = SmartListFilterEngine.sqlExpression(for: filter)
     return Set(try await observatory.listablePodcastEpisodes(filter: expression).get().map(\.id))
   }
 
@@ -631,20 +620,23 @@ class SmartListFilterEngineTests {
 
   // MARK: - Publish Date
 
-  @Test("publish-date windows partition around the reference date")
+  @Test("publish-date windows partition around the current time")
   func publishDateWindows() async throws {
-    let reference = Self.referenceDate
+    // The cutoff resolves against SQLite's clock at query time. Anchoring the
+    // fixtures to this process's clock and keeping them days clear of the 7-day
+    // boundary makes the sub-second skew between the two clocks immaterial.
+    let now = Date()
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
         unsavedEpisodes: [
           try Create.unsavedEpisode(
             guid: "fresh",
-            pubDate: reference.addingTimeInterval(-2 * 86400)
+            pubDate: now.addingTimeInterval(-2 * 86400)
           ),
           try Create.unsavedEpisode(
             guid: "old",
-            pubDate: reference.addingTimeInterval(-30 * 86400)
+            pubDate: now.addingTimeInterval(-30 * 86400)
           ),
         ]
       )
