@@ -50,8 +50,14 @@ struct TagsView: View {
   private var addTagMenu: some View {
     Menu {
       ForEach(availableTags) { tag in
-        Button(tag.name) {
+        Button {
           onAdd(tag.id)
+        } label: {
+          Label {
+            Text(tag.name)
+          } icon: {
+            tag.icon.image
+          }
         }
       }
 
