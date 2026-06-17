@@ -4,16 +4,16 @@ Repo context lives in `memory/`, `docs/`, and GitHub issues:
 - `memory/`: long-lived notes; search before writing and update existing notes when possible.
   - New or updated pages must follow [`memory/README.md`](memory/README.md).
   - Move notes that are no longer relevant to active work into `memory/archive/` with `status: resolved`.
-- `docs/`: PR-reviewed design docs; update `docs/README.md` when adding/removing docs.
+- `docs/`: PR-reviewed design docs and research; update [`docs/README.md`](docs/README.md) when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
-Use `qmd` for topic lookup across `memory/` and `docs`; cheapest mode that fits:
+Use `qmd` for topic lookup across `memory/` and `docs/`; cheapest mode that fits:
 
 - `qmd search "known term"`: first choice for names, files, APIs, issue numbers, and exact concepts.
 - `qmd query "question" --no-rerank`: default for fuzzy or open-ended topic lookup.
 - `qmd get <path>[:line] -l N`: cheap page/slice fetch.
 
-Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known paths. Hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite; no manual `qmd update` or `qmd embed` needed.
+Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known paths. Hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite. The post-checkout hook also runs `bin/prep-worktree` on first checkout of a new worktree. No manual `qmd update` or `qmd embed` is needed.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.

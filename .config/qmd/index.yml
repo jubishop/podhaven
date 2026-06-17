@@ -1,13 +1,13 @@
 collections:
   memory:
     path: ./memory
-    pattern: '**/*.md'
+    pattern: "**/*.md"
     ignore:
-      - 'archive/**'
-      - 'pr_reviews/**'
+      - archive/**
+      - pr_reviews/**
   home-memory:
     path: /Users/jubi/memory
-    pattern: '**/*.md'
+    pattern: "**/*.md"
   docs:
     path: ./docs
-    pattern: '**/*.md'
+    pattern: "**/*.md"
