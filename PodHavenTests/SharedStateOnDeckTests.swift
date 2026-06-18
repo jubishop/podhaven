@@ -52,7 +52,7 @@ import Testing
   }
 
   // Regression: identity checks must not subscribe to the `onDeck` broadcast,
-  // which playback rewrites every 250ms as `currentTime` advances. Reading
+  // which playback rewrites as `currentTime` advances. Reading
   // `onDeck` for an identity-only check pulled every tick into the tracked
   // region of any view that only cares about which episode is current, so an
   // EpisodeDetailView with a long description rebuilt its body 4×/second while

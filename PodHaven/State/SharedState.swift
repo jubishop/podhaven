@@ -87,8 +87,8 @@ struct SharedState: Sendable {
 
   // MARK: - On-Deck & Playing Checks
 
-  // Identity checks read `currentEpisodeID`, never `onDeck`: playback rewrites
-  // `onDeck` every 250ms as `currentTime` advances, so reading it here would
+  // Identity checks read `currentEpisodeID`, never `onDeck`: playback time
+  // updates rewrite `onDeck`, so reading it here would
   // pull every tick into the tracked region of any view that only cares about
   // which episode is current. `currentEpisodeID` moves only on episode
   // transitions, set in lockstep with `onDeck` by `StateManager`.
