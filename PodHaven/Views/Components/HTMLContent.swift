@@ -193,7 +193,7 @@ enum HTMLContent {
   private static func parseTextParts(_ text: String) -> [TextPart] {
     var parts: [TextPart] = []
     var currentText = ""
-    let formatStack = FormatStack()
+    var formatStack = FormatStack()
 
     var index = text.startIndex
 
@@ -402,7 +402,7 @@ enum HTMLContent {
     }
   }
 
-  private class FormatStack {
+  private struct FormatStack {
     private var boldCount = 0
     private var italicCount = 0
     private var underlineCount = 0
@@ -421,7 +421,7 @@ enum HTMLContent {
       )
     }
 
-    func processTag(_ tag: HTMLTag) {
+    mutating func processTag(_ tag: HTMLTag) {
       switch tag {
       case .boldOpen, .strongOpen:
         boldCount += 1
@@ -519,7 +519,7 @@ enum HTMLContent {
         if let match = regex.firstMatch(in: tagString, options: [], range: nsRange),
           let hrefRange = Range(match.range(at: 1), in: tagString)
         {
-          let urlString = String(tagString[hrefRange])
+          let urlString = String(tagString[hrefRange]).decodingHTMLEntities()
           return URL(string: urlString)
         }
       }

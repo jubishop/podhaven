@@ -34,17 +34,18 @@ enum Timestamp {
   // timestamp can round-trip through a SwiftUI `Text` link into the episode
   // detail view's openURL handler, kept distinct from real http(s) links.
   private static let urlScheme = "podhaven-timestamp"
+  private static let urlHost = "play"
 
   static func url(for timestamp: some StringProtocol) -> URL? {
     var components = URLComponents()
     components.scheme = urlScheme
-    components.host = "play"
+    components.host = urlHost
     components.queryItems = [URLQueryItem(name: "t", value: String(timestamp))]
     return components.url
   }
 
   static func timestamp(fromURL url: URL) -> String? {
-    guard url.scheme == urlScheme else { return nil }
+    guard url.scheme == urlScheme, url.host == urlHost else { return nil }
     return URLComponents(url: url, resolvingAgainstBaseURL: false)?
       .queryItems?
       .first { $0.name == "t" }?
