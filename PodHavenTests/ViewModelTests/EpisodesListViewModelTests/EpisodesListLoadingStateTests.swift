@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Testing
 
 @testable import PodHaven
@@ -66,6 +67,70 @@ import Testing
           \(viewModel.episodeList.filteredEntries.count) entries.
           """
         }
+      )
+    }
+  }
+
+  @Test("filter-text change updates a loaded list in place without re-entering .loading")
+  func filterTextChangeDoesNotFlashLoadingState() async throws {
+    let repo = Container.shared.repo()
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "FilterTextPodcast"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(title: "Alphaunique Episode"),
+          try Create.unsavedEpisode(title: "Betaunique Episode"),
+        ]
+      )
+    )
+
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "FilterTextLoadingState")
+
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .loaded && viewModel.episodeList.filteredEntries.count == 2
+        },
+        { @MainActor in
+          """
+          Expected .loaded with 2 entries before filtering; got \(viewModel.loadingState) \
+          with \(viewModel.episodeList.filteredEntries.count) entries.
+          """
+        }
+      )
+
+      // Record loadingState transitions from the settled .loaded baseline.
+      let recorder = LoadingStateRecorder(viewModel: viewModel)
+
+      // Typing in the filter field drives filterText through the debouncer,
+      // which restarts the display observation exactly as production's
+      // `.task(id:)` does.
+      viewModel.filterDebouncer.currentValue = "Alphaunique"
+      let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
+      try await fakeSleeper.waitForSleepRequests(count: 1)
+      await fakeSleeper.advanceTime(by: .milliseconds(500))
+
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.episodeList.filteredEntries.map(\.title) == ["Alphaunique Episode"]
+        },
+        { @MainActor in
+          """
+          Expected the filter text to narrow results to the Alphaunique episode; got \
+          \(viewModel.episodeList.filteredEntries.map(\.title)).
+          """
+        }
+      )
+
+      #expect(
+        !recorder.values.contains(.loading),
+        """
+        Refining the filter text must update results in place; flashing .loading tears \
+        down the list and drops the search field's keyboard focus. \
+        Recorded transitions: \(recorder.values)
+        """
       )
     }
   }

@@ -160,8 +160,22 @@ class EpisodesListViewModel:
 
   func startDisplayObservation() async {
     let currentKey = displayObservationKey
-    let keyChanged = lastDisplayObservationKey != nil && lastDisplayObservationKey != currentKey
+    let previousKey = lastDisplayObservationKey
+    let keyChanged = previousKey != nil && previousKey != currentKey
     lastDisplayObservationKey = currentKey
+
+    // On a standard sort, refining the filter text (same sort and filter) keeps
+    // the current rows on screen and updates them in place, so typing in the
+    // search field doesn't flash loading or drop its keyboard focus. Rec sort
+    // must recompute, and a cold list with nothing to show still loads.
+    var requiresLoading = keyChanged
+    if currentSortMethod != .recommendationScore,
+      let previousKey,
+      previousKey.sort == currentKey.sort,
+      previousKey.filter == currentKey.filter
+    {
+      requiresLoading = false
+    }
 
     Self.log.debug(
       """
@@ -169,7 +183,7 @@ class EpisodesListViewModel:
       """
     )
 
-    if keyChanged || episodeList.allEntries.isEmpty { loadingState = .loading }
+    if requiresLoading || episodeList.allEntries.isEmpty { loadingState = .loading }
 
     if currentSortMethod == .recommendationScore {
       await runRecommendationObservation()
