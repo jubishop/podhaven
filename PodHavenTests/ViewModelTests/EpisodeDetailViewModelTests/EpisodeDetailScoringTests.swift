@@ -286,7 +286,7 @@ import Testing
         """
       }
     )
-    for _ in 0..<30 { await Task.yield() }
+    try await yieldForSpuriousAsyncWork()
 
     #expect(viewModel.displayedScore == nil)
   }
@@ -646,7 +646,7 @@ import Testing
     try await fakeRepo.waitForEpisodeFetchCompleted(count: 1)
     // Drain the MainActor queue so the saved-side tail's gates run before
     // we assert.
-    for _ in 0..<30 { await Task.yield() }
+    try await yieldForSpuriousAsyncWork()
 
     #expect(viewModel.episode.isSaved == false)
     if case .recommendation = viewModel.displayedScore {
