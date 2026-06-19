@@ -135,6 +135,124 @@ import Testing
     }
   }
 
+  @Test("filter-text change after empty result stays loaded without re-entering .loading")
+  func emptyFilterTextChangeDoesNotFlashLoadingState() async throws {
+    let repo = Container.shared.repo()
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "EmptyFilterTextPodcast"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(title: "Gammaempty Episode"),
+          try Create.unsavedEpisode(title: "Deltaempty Episode"),
+        ]
+      )
+    )
+
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
+      title: "EmptyFilterTextLoadingState"
+    )
+    let fakeObservatory = try #require(Container.shared.observatory() as? FakeObservatory)
+
+    try await withRunningObservationLoop(viewModel) {
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .loaded && viewModel.episodeList.filteredEntries.count == 2
+        },
+        { @MainActor in
+          """
+          Expected .loaded with 2 entries before filtering; got \(viewModel.loadingState) \
+          with \(viewModel.episodeList.filteredEntries.count) entries.
+          """
+        }
+      )
+
+      let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
+      var pendingSleepCount = fakeSleeper.pendingCount()
+      viewModel.filterDebouncer.currentValue = "Missingempty"
+      try await fakeSleeper.waitForSleepRequests(count: pendingSleepCount + 1)
+      await fakeSleeper.advanceTime(by: .milliseconds(500))
+
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .loaded
+            && viewModel.displayObservationKey.filterText == "Missingempty"
+            && viewModel.episodeList.filteredEntries.isEmpty
+        },
+        { @MainActor in
+          """
+          Expected first filter to settle as a loaded empty result; got \
+          \(viewModel.loadingState), key \(viewModel.displayObservationKey), entries \
+          \(viewModel.episodeList.filteredEntries.map(\.title)).
+          """
+        }
+      )
+
+      let recorder = LoadingStateRecorder(viewModel: viewModel)
+      let initialListableObservationCount =
+        fakeObservatory.allCallsInOrder
+        .filter { $0.methodName == "listablePodcastEpisodes(filter:order:limit:)" }
+        .count
+
+      fakeObservatory.holdNextListablePodcastEpisodesDelivery()
+      defer { fakeObservatory.releaseHeldListablePodcastEpisodesDelivery() }
+      pendingSleepCount = fakeSleeper.pendingCount()
+      viewModel.filterDebouncer.currentValue = "Stillmissingempty"
+      try await fakeSleeper.waitForSleepRequests(count: pendingSleepCount + 1)
+      await fakeSleeper.advanceTime(by: .milliseconds(500))
+
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          fakeObservatory.allCallsInOrder
+            .filter { $0.methodName == "listablePodcastEpisodes(filter:order:limit:)" }
+            .count > initialListableObservationCount
+        },
+        { @MainActor in
+          """
+          Expected the empty-result filter edit to start a new listable episode observation; \
+          calls: \(fakeObservatory.allCallsInOrder.map(\.toString)).
+          """
+        }
+      )
+
+      #expect(
+        viewModel.loadingState == .loaded,
+        """
+        Editing a loaded empty standard-sort result must keep the view in the loaded \
+        empty state while the new observation is waiting to emit. Got \(viewModel.loadingState).
+        """
+      )
+
+      fakeObservatory.releaseHeldListablePodcastEpisodesDelivery()
+
+      try await Wait.until(
+        priority: .userInitiated,
+        { @MainActor in
+          viewModel.loadingState == .loaded
+            && viewModel.displayObservationKey.filterText == "Stillmissingempty"
+            && viewModel.episodeList.filteredEntries.isEmpty
+        },
+        { @MainActor in
+          """
+          Expected second empty filter to remain loaded; got \(viewModel.loadingState), \
+          key \(viewModel.displayObservationKey), entries \
+          \(viewModel.episodeList.filteredEntries.map(\.title)).
+          """
+        }
+      )
+
+      #expect(
+        !recorder.values.contains(.loading),
+        """
+        Editing a loaded empty standard-sort result must not flash .loading. \
+        Recorded transitions: \(recorder.values)
+        """
+      )
+    }
+  }
+
   @Test("loadingState defaults to .loading and reaches .loaded for non-rec sort")
   func loadingStateForNonRecSort() async throws {
     let setup = try await EpisodesListTestHelpers.setupFourTaggedEpisodes()
