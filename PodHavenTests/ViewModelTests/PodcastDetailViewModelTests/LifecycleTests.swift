@@ -67,18 +67,6 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     recommendationRepo as! FakeRecommendationRepo
   }
 
-  private func yieldForSpuriousAsyncWork() async throws {
-    let yields = ThreadSafe(0)
-    try await Wait.until(
-      { @MainActor in
-        await Task.yield()
-        yields { $0 += 1 }
-        return yields() >= 20
-      },
-      { "Expected to finish yielding before asserting init had no side effects." }
-    )
-  }
-
   @Test("init for a saved displayed podcast does not start an observation task")
   func initForSavedDisplayedPodcastDoesNotStartObservation() async throws {
     let savedPodcast = try await Create.podcast(title: "Saved Init")
@@ -713,9 +701,13 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
 
     viewModel.currentSortMethod = .recommendationScore
 
-    try await yieldForSpuriousAsyncWork()
-
-    #expect(RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs) == 0)
+    await RecommendationScoringTestHelpers.expectNoScopedEmbeddings(
+      matching: targetIDs,
+      regression: """
+        regression: setting the recommendation sort off-screen started a scoring \
+        pass. Scoring must only run on demand while the surface is on-screen.
+        """
+    )
   }
 
   @Test("overlapping appear does not double feed parse")

@@ -63,35 +63,15 @@ import Testing
       }
     )
 
-    // Poll a window, advancing the production sleeper each iteration so any
-    // debounced/scheduled scoring work would fire. While the sort stays
-    // .newestFirst, the recommendation scoring pass — which fetches embeddings
-    // for exactly the candidate set — must never run.
-    let fakeSleeper = Container.shared.sleeper() as! FakeSleeper
-    do {
-      try await Wait.until(
-        maxAttempts: 100,
-        delay: .milliseconds(20),
-        priority: .userInitiated,
-        {
-          await fakeSleeper.advanceTime(by: .milliseconds(400))
-          return await MainActor.run {
-            RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs) >= 1
-          }
-        },
-        { "regression sentinel — see Issue.record below" }
-      )
-      Issue.record(
-        """
+    // While the sort stays .newestFirst, the recommendation scoring pass —
+    // which fetches embeddings for exactly the candidate set — must never run.
+    await RecommendationScoringTestHelpers.expectNoScopedEmbeddings(
+      matching: targetIDs,
+      regression: """
         regression: a non-rec sort ran a recommendation scoring pass. Scoring \
         must only run on demand, while the .recommendationScore sort is selected.
         """
-      )
-    } catch {
-      // Expected timeout under the fixed implementation.
-    }
-
-    #expect(RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(matching: targetIDs) == 0)
+    )
   }
 
   @Test(
