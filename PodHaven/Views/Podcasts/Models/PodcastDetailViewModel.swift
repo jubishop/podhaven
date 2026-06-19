@@ -196,7 +196,7 @@ class PodcastDetailViewModel:
   // MARK: - Filter Text
 
   @ObservationIgnored lazy var filterDebouncer = StringDebouncer(
-    debounceDuration: .milliseconds(400)
+    debounceDuration: .milliseconds(250)
   ) { [weak self] filteredText in
     guard let self else { return }
     episodeListFilter.apply(text: filteredText)

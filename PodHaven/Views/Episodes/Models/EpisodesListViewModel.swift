@@ -75,7 +75,7 @@ class EpisodesListViewModel:
   private var filterText = ""
 
   @ObservationIgnored lazy var filterDebouncer = StringDebouncer(
-    debounceDuration: .milliseconds(400)
+    debounceDuration: .milliseconds(250)
   ) { [weak self] filteredText in
     guard let self else { return }
     self.filterText = filteredText
