@@ -67,7 +67,7 @@ struct EpisodesListView: View {
   @ViewBuilder
   private var episodesView: some View {
     switch viewModel.loadingState {
-    case .loading:
+    case .neverLoaded, .loading:
       loadingView(message: "Loading episodes…")
     case .loaded:
       if viewModel.episodeList.filteredEntries.isEmpty {

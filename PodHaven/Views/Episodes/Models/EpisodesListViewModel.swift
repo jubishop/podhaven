@@ -84,6 +84,7 @@ class EpisodesListViewModel:
   // MARK: - State Management
 
   enum LoadingState: Equatable {
+    case neverLoaded
     case loading
     case loaded
     case failed
@@ -95,8 +96,7 @@ class EpisodesListViewModel:
   private(set) var smartListFilter: SmartListFilter
   private(set) var alwaysShowPodcastImage: Bool
   private(set) var icon: LucideIcon
-  private(set) var loadingState: LoadingState = .loading
-  private var hasCompletedInitialDisplayLoad = false
+  private(set) var loadingState: LoadingState = .neverLoaded
 
   private var filter: SQLExpression {
     SmartListFilterEngine.sqlExpression(for: smartListFilter)
@@ -168,8 +168,8 @@ class EpisodesListViewModel:
     // On a standard sort, refining the filter text (same sort and filter) keeps
     // the current rows on screen and updates them in place, so typing in the
     // search field doesn't flash loading or drop its keyboard focus. Rec sort
-    // must recompute, and a cold list with nothing to show still loads until
-    // the first observation has proven that an empty result is the loaded state.
+    // must recompute, and the initial never-loaded state renders as loading
+    // until the first observation proves whether an empty result is loaded.
     var requiresLoading = keyChanged
     if currentSortMethod != .recommendationScore,
       let previousKey,
@@ -185,7 +185,7 @@ class EpisodesListViewModel:
       """
     )
 
-    if requiresLoading || (!hasCompletedInitialDisplayLoad && episodeList.allEntries.isEmpty) {
+    if requiresLoading || (loadingState == .failed && episodeList.allEntries.isEmpty) {
       loadingState = .loading
     }
 
@@ -252,7 +252,6 @@ class EpisodesListViewModel:
 
   private func transitionToLoaded(_ episodes: [ListablePodcastEpisode]) {
     episodeList.allEntries = IdentifiedArray(uniqueElements: episodes)
-    hasCompletedInitialDisplayLoad = true
     loadingState = .loaded
   }
 
