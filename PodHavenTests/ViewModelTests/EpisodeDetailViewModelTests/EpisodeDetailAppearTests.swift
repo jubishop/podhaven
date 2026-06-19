@@ -19,21 +19,6 @@ import Testing
     observatory as! FakeObservatory
   }
 
-  // For appear branches whose only correct outcome is "nothing changed"
-  // (an unsaved seed staying unsaved), drive performAppear to completion so
-  // a regression that dismissed or fabricated state would surface.
-  private func yieldForSpuriousAsyncWork() async throws {
-    let yields = ThreadSafe(0)
-    try await Wait.until(
-      { @MainActor in
-        await Task.yield()
-        yields { $0 += 1 }
-        return yields() >= 20
-      },
-      { "Expected performAppear to run before asserting it left state intact." }
-    )
-  }
-
   @Test("performAppear loads a saved episode and observes finish updates")
   func performAppearLoadsSavedEpisodeAndObservesFinishUpdates() async throws {
     let podcastEpisode = try await Create.podcastEpisode(

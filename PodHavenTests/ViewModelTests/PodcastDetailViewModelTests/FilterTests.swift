@@ -15,18 +15,6 @@ import Testing
 
   private var fakeObservatory: FakeObservatory { observatory as! FakeObservatory }
 
-  private func yieldForSpuriousAsyncWork() async throws {
-    let yields = ThreadSafe(0)
-    try await Wait.until(
-      { @MainActor in
-        await Task.yield()
-        yields { $0 += 1 }
-        return yields() >= 20
-      },
-      { "Expected to finish yielding before asserting no FTS restart occurred." }
-    )
-  }
-
   private static let podcastTitleToken = "kaleidoscope"
   private static let episodeTitleToken = "tangerine"
   private static let descriptionToken = "rutabaga"

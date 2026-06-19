@@ -78,18 +78,6 @@ enum EpisodeNonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     observatory as! FakeObservatory
   }
 
-  private func yieldForSpuriousAsyncWork() async throws {
-    let yields = ThreadSafe(0)
-    try await Wait.until(
-      { @MainActor in
-        await Task.yield()
-        yields { $0 += 1 }
-        return yields() >= 20
-      },
-      { "Expected to finish yielding before asserting init had no side effects." }
-    )
-  }
-
   @Test("init for a saved displayed episode does not start an observation task")
   func initForSavedDisplayedEpisodeDoesNotStartObservation() async throws {
     let podcastEpisode = try await Create.podcastEpisode(

@@ -177,7 +177,7 @@ import Testing
       { @MainActor in viewModel.saved },
       { @MainActor in "Expected subscribe() to land in saved state" }
     )
-    for _ in 0..<10 { await Task.yield() }
+    try await yieldForSpuriousAsyncWork()
     #expect(
       viewModel.episodeList.allEntries.map(\.title) == [
         "Episode 1", "Episode 2", "Episode 3",

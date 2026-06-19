@@ -250,7 +250,7 @@ import Testing
     coordinator.refresh()
 
     // Give any erroneously-spawned pass room to run before asserting.
-    for _ in 0..<5 { await Task.yield() }
+    try await yieldForSpuriousAsyncWork()
     #expect(probe.scoreStarts == 0)
     #expect(probe.applied.isEmpty)
 
@@ -345,7 +345,7 @@ import Testing
       { @MainActor in probe.scoreStarts == 1 },
       { @MainActor in "Expected the cancelled pass to run before checking side effects." }
     )
-    for _ in 0..<5 { await Task.yield() }
+    try await yieldForSpuriousAsyncWork()
 
     #expect(probe.applied.isEmpty)
 
@@ -400,7 +400,7 @@ import Testing
     )
     // Drain the MainActor so pass A's runPass defer + cancellation guard run
     // before the second cancel.
-    for _ in 0..<5 { await Task.yield() }
+    try await yieldForSpuriousAsyncWork()
 
     // Second cancel. Must reach pass B; if the prior defer orphaned it, this
     // is a no-op and pass B will still apply.
@@ -412,7 +412,7 @@ import Testing
       { @MainActor in probe.scoreEnds == 2 },
       { @MainActor in "Expected pass B's score to return after its gate opened." }
     )
-    for _ in 0..<5 { await Task.yield() }
+    try await yieldForSpuriousAsyncWork()
 
     #expect(
       probe.applied.isEmpty,

@@ -369,48 +369,13 @@ import Testing
     // unchanged. The scores computed before the switch are still valid, so no
     // full-library scoring pass should run.
     try await withRunningObservationLoop(viewModel) {
-      // Drive the production sleeper across a bounded window so any debounced
-      // rescore is forced to fire, watching for the first candidate-scoped
-      // embeddings(for:) read. Reaching the count means a redundant pass ran; a
-      // timeout means the re-appear correctly reused the retained score.
-      let fakeSleeper = Container.shared.sleeper() as! FakeSleeper
-      do {
-        try await Wait.until(
-          maxAttempts: 100,
-          delay: .milliseconds(20),
-          priority: .userInitiated,
-          {
-            await fakeSleeper.advanceTime(by: .milliseconds(400))
-            return await MainActor.run {
-              RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
-                matching: targetIDs
-              ) >= 1
-            }
-          },
-          { "regression sentinel — see Issue.record below" }
-        )
-        Issue.record(
+      await RecommendationScoringTestHelpers.expectNoScopedEmbeddings(
+        matching: targetIDs,
+        regression: """
+          Re-appearing on the Episodes tab with an unchanged candidate set re-ran \
+          a full-library scoring pass. A completed score should survive a tab \
+          switch.
           """
-          regression: re-appearing on the Episodes tab with an unchanged candidate \
-          set re-ran a full-library scoring pass. A completed score should survive \
-          a tab switch.
-          """
-        )
-      } catch {
-        // Expected timeout: the re-appear reused the retained score and ran no
-        // embeddings(for:) pass for the candidate IDs.
-      }
-
-      let rescans = RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
-        matching: targetIDs
-      )
-      #expect(
-        rescans == 0,
-        """
-        Re-appearing on the Episodes tab with an unchanged candidate set re-ran a \
-        full-library scoring pass: \(rescans) embeddings(for:) call(s) for the \
-        candidate IDs. A completed score should survive a tab switch.
-        """
       )
     }
   }
