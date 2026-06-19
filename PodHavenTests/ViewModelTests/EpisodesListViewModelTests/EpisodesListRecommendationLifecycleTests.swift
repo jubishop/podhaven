@@ -356,7 +356,10 @@ import Testing
     // withRunningObservationLoop's teardown already called viewModel.disappear()
     // — the tab switch away from the Episodes list.
 
-    await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+    // Quiesce the setup-driven rebuilds deterministically so $scoringRevision is
+    // steady before re-appear. A stray revision bump landing in the window below
+    // would key a fresh snapshot and trip the negative assertion under load.
+    try await RecommendationScoringTestHelpers.settleRecommendationEngine()
     let fakeRecommendationRepo = try #require(
       Container.shared.recommendationRepo() as? FakeRecommendationRepo
     )
@@ -366,8 +369,37 @@ import Testing
     // unchanged. The scores computed before the switch are still valid, so no
     // full-library scoring pass should run.
     try await withRunningObservationLoop(viewModel) {
-      for _ in 0..<200 { await Task.yield() }
-      await RecommendationScoringTestHelpers.drainRecommendationSleeper()
+      // Drive the production sleeper across a bounded window so any debounced
+      // rescore is forced to fire, watching for the first candidate-scoped
+      // embeddings(for:) read. Reaching the count means a redundant pass ran; a
+      // timeout means the re-appear correctly reused the retained score.
+      let fakeSleeper = Container.shared.sleeper() as! FakeSleeper
+      do {
+        try await Wait.until(
+          maxAttempts: 100,
+          delay: .milliseconds(20),
+          priority: .userInitiated,
+          {
+            await fakeSleeper.advanceTime(by: .milliseconds(400))
+            return await MainActor.run {
+              RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
+                matching: targetIDs
+              ) >= 1
+            }
+          },
+          { "regression sentinel — see Issue.record below" }
+        )
+        Issue.record(
+          """
+          regression: re-appearing on the Episodes tab with an unchanged candidate \
+          set re-ran a full-library scoring pass. A completed score should survive \
+          a tab switch.
+          """
+        )
+      } catch {
+        // Expected timeout: the re-appear reused the retained score and ran no
+        // embeddings(for:) pass for the candidate IDs.
+      }
 
       let rescans = RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
         matching: targetIDs
@@ -466,20 +498,14 @@ import Testing
     // Re-appear (tab switch back) with the candidate set unchanged. The retained
     // key must not suppress the rescore — the weight changed the scoring inputs.
     try await withRunningObservationLoop(viewModel) {
-      for _ in 0..<200 { await Task.yield() }
-      await RecommendationScoringTestHelpers.drainRecommendationSleeper()
-
-      let rescans = RecommendationScoringTestHelpers.scopedEmbeddingsCallCount(
-        matching: targetIDs
-      )
-      #expect(
-        rescans >= 1,
-        """
-        Re-appearing on the Episodes tab after a podcastAffinityWeight change \
-        skipped rescoring: \(rescans) embeddings(for:) call(s) for the candidate \
-        IDs. podcastAffinityWeight feeds scoreEpisodes, so the score retained \
-        across the tab switch is stale and must be recomputed.
-        """
+      try await RecommendationScoringTestHelpers.waitForScopedEmbeddingsCalls(
+        matching: targetIDs,
+        atLeast: 1,
+        reason: """
+          Re-appearing on the Episodes tab after a podcastAffinityWeight change \
+          skipped rescoring. podcastAffinityWeight feeds scoreEpisodes, so the \
+          score retained across the tab switch is stale and must be recomputed.
+          """
       )
     }
   }
