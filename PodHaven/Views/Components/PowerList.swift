@@ -111,6 +111,14 @@ where Item.ID: Sendable {
       return
     }
 
+    // Nothing to compute: skip the async hop so filteredEntries updates in the
+    // same runloop turn as baselineEntries, avoiding a one-frame stale render.
+    if sortMethod == nil, filterMethod == nil, searchTerms.isEmpty {
+      _allEntries = baselineEntries
+      filteredEntries = baselineEntries
+      return
+    }
+
     entriesTask = Task { [weak self, baselineEntries, sortMethod, filterMethod, searchTerms] in
       let (allEntries, filteredEntries) = await Self.computeEntries(
         baselineEntries: baselineEntries,
