@@ -28,7 +28,13 @@ struct PodcastsListView: View {
       VStack(spacing: 8) {
         LucideListHeader(icon: viewModel.icon, title: viewModel.title)
         SearchBar(
-          text: $viewModel.podcastList.entryFilter,
+          // Mutate entryFilter in place rather than via `$viewModel.podcastList.entryFilter`:
+          // the key-path binding's write-back re-assigns the observed `podcastList` on every
+          // edit, re-rendering this view mid-tap and swallowing the clear button's reset + defocus.
+          text: Binding(
+            get: { viewModel.podcastList.entryFilter },
+            set: { viewModel.podcastList.entryFilter = $0 }
+          ),
           prompt: "Filter podcasts",
           searchIcon: .search
         )
