@@ -25,6 +25,8 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
   // Upper bounds on the *median* inter-episode gap, in hours. Each ceiling
   // sits far enough above its cadence's nominal publish period that a show
   // publishing at that cadence lands inside its own band despite jitter.
+  // These bands are baked into cached inferred-cadence migrations; changing
+  // them after release requires a migration that rewrites existing cached rows.
   private static let hourlyMaxMedianHours: Double = 1.5
   private static let twiceDailyMaxMedianHours: Double = 18
   private static let dailyMaxMedianHours: Double = 36
@@ -90,5 +92,13 @@ enum FreshnessCadence: String, Codable, DatabaseValueConvertible, Sendable, Case
     if medianHours <= weeklyMaxMedianHours { return .weekly }
     if medianHours <= monthlyMaxMedianHours { return .monthly }
     return .evergreen
+  }
+
+  // Stored inferred cadence and PodcastsView freshness buckets use nil only
+  // when there is no episode history; sparse history still resolves through the
+  // default returned by infer(from:).
+  static func cachedInference(from pubDates: [Date]) -> FreshnessCadence? {
+    guard !pubDates.isEmpty else { return nil }
+    return infer(from: pubDates)
   }
 }

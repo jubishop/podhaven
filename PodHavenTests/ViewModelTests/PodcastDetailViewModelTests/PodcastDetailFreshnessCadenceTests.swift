@@ -22,10 +22,26 @@ import Testing
     )
   }
 
-  private func appearedViewModel(for podcastID: Podcast.ID) async throws -> PodcastDetailViewModel {
+  private func appearedViewModel(
+    for podcastID: Podcast.ID,
+    expectedEpisodeCount: Int
+  ) async throws -> PodcastDetailViewModel {
     let listablePodcast = try await PodcastDetailTestHelpers.fetchListablePodcast(podcastID)
     let viewModel = PodcastDetailViewModel(listedPodcast: ListedPodcast(saved: listablePodcast))
-    try await PodcastDetailTestHelpers.appear(viewModel)
+    viewModel.appear()
+    try await Wait.until(
+      { @MainActor in
+        viewModel.saved && viewModel.episodeList.allEntries.count == expectedEpisodeCount
+      },
+      { @MainActor in
+        """
+        Expected appear to hydrate saved detail.
+        expected entries: \(expectedEpisodeCount)
+        actual entries: \(viewModel.episodeList.allEntries.count)
+        podcast: \(viewModel.podcast.toString)
+        """
+      }
+    )
     return viewModel
   }
 
@@ -35,7 +51,7 @@ import Testing
       feedURL: "https://example.com/freshness-weekly.rss",
       dayOffsets: [0, 7, 14, 21, 28]
     )
-    let viewModel = try await appearedViewModel(for: series.id)
+    let viewModel = try await appearedViewModel(for: series.id, expectedEpisodeCount: 5)
 
     try await Wait.until(
       { @MainActor in viewModel.resolvedFreshnessCadence == .weekly },
@@ -45,15 +61,27 @@ import Testing
     )
   }
 
-  @Test("resolvedFreshnessCadence stays nil for fewer than three episodes")
-  func nilForSparseEpisodes() async throws {
+  @Test("resolvedFreshnessCadence mirrors the PodcastsView bucket for sparse saved podcasts")
+  func sparseSavedEpisodesUseBucketCadence() async throws {
     let series = try await saveSeries(
       feedURL: "https://example.com/freshness-sparse.rss",
       dayOffsets: [0, 7]
     )
-    let viewModel = try await appearedViewModel(for: series.id)
+    let viewModel = try await appearedViewModel(for: series.id, expectedEpisodeCount: 2)
 
     #expect(viewModel.episodeList.allEntries.count == 2)
+    #expect(viewModel.resolvedFreshnessCadence == .weekly)
+  }
+
+  @Test("resolvedFreshnessCadence stays nil when a saved podcast has no freshness bucket")
+  func nilWithoutFreshnessBucket() async throws {
+    let series = try await saveSeries(
+      feedURL: "https://example.com/freshness-empty.rss",
+      dayOffsets: []
+    )
+    let viewModel = try await appearedViewModel(for: series.id, expectedEpisodeCount: 0)
+
+    #expect(viewModel.episodeList.allEntries.isEmpty)
     #expect(viewModel.resolvedFreshnessCadence == nil)
   }
 
@@ -66,7 +94,7 @@ import Testing
     var settings = PodcastSettings.defaults
     settings.freshnessCadence = .daily
     _ = try await repo.updatePodcastSettings(series.podcast.id, settings)
-    let viewModel = try await appearedViewModel(for: series.id)
+    let viewModel = try await appearedViewModel(for: series.id, expectedEpisodeCount: 5)
 
     try await Wait.until(
       { @MainActor in viewModel.resolvedFreshnessCadence == .daily },

@@ -479,9 +479,9 @@ class PodcastDetailViewModel:
 
   // Cadence for the detail metadata row, recomputed in `refreshEpisodeList`
   // rather than on every body evaluation since `infer` sorts the whole episode
-  // list. Manual override wins; otherwise the inference, but only once there are
-  // enough episodes for `infer` to be meaningful — below that it stays `nil` and
-  // the row falls back to the plain date icon, matching the lists' nil cadence.
+  // list. Metadata icons mirror PodcastsView freshness buckets: manual override
+  // wins, saved rows with episode history use the cached-inference contract, and
+  // nil means the row falls back to the plain date icon.
   private(set) var resolvedFreshnessCadence: FreshnessCadence?
 
   var episodesLoaded: Bool { !episodeList.allEntries.isEmpty }
@@ -948,9 +948,14 @@ class PodcastDetailViewModel:
     episodeList.allEntries = entries
     // Resolve from `entries`, not `episodeList.allEntries`: the latter sorts
     // asynchronously, so it would still be stale on this turn.
-    resolvedFreshnessCadence =
-      state.savedSeries?.podcast.freshnessCadence
-      ?? (entries.count >= 3 ? FreshnessCadence.infer(from: entries.map(\.pubDate)) : nil)
+    switch state {
+    case .initial, .unsaved:
+      resolvedFreshnessCadence = nil
+    case .saved(let series):
+      resolvedFreshnessCadence =
+        series.podcast.freshnessCadence
+        ?? FreshnessCadence.cachedInference(from: entries.map(\.pubDate))
+    }
   }
 
   @discardableResult

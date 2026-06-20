@@ -27,10 +27,9 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Str
   let mostRecentEpisodeDate: Date?
   let tagIDs: Set<Tag.ID>
 
-  // Resolved cadence for saved podcasts, mirroring
-  // `RecommendationRepo.resolveFreshnessCadences`: manual override else the
-  // cached inference. `nil` for unsaved rows (search results), whose query path
-  // never selects these columns — those fall back to the plain date icon.
+  // Resolved cadence for saved podcasts, mirroring the PodcastsView freshness
+  // bucket: manual override else cached inference. `nil` means no freshness
+  // bucket, so metadata UI falls back to the plain date icon.
   let resolvedFreshnessCadence: FreshnessCadence?
 
   // MARK: - Initialization
