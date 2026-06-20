@@ -25,7 +25,6 @@ struct PodcastGridView<Podcast: PodcastListable>: View {
           isSelecting: isSelecting,
           isSelected: isSelected
         )
-        .subscriptionBadge(subscribed: podcast.subscribed, badgeSize: 16)
       Text(podcast.title)
         .font(.caption)
         .lineLimit(1)

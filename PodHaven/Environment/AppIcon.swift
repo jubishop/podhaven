@@ -38,7 +38,6 @@ import SwiftUI
   case editItems
   case showPodcast
   case subscribe
-  case subscribed
   case unsubscribe
 
   // Navigation
@@ -289,8 +288,6 @@ import SwiftUI
       return Data(text: "Show Podcast", systemImageName: .showPodcast, color: .blue)
     case .subscribe:
       return Data(text: "Subscribe", systemImageName: .subscribe, color: .green)
-    case .subscribed:
-      return Data(text: "Subscribed", systemImageName: .subscribed, color: .green)
     case .unsubscribe:
       return Data(text: "Unsubscribe", systemImageName: .unsubscribe, color: .orange)
 
