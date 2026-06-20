@@ -317,7 +317,7 @@ struct PodcastDetailView: View {
         )
       } else {
         DetailedMetadataItem(
-          appIcon: .updated,
+          appIcon: .publishDate,
           value: viewModel.mostRecentEpisodeDate.usShortWithTime
         )
       }

@@ -58,7 +58,7 @@ struct PodcastListView<Podcast: PodcastListable>: View {
               style: .compact
             )
           } else {
-            CompactMetadataItem(appIcon: .updated, value: mostRecentEpisodeDate.usShort)
+            CompactMetadataItem(appIcon: .publishDate, value: mostRecentEpisodeDate.usShort)
           }
         }
 

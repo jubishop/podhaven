@@ -106,7 +106,6 @@ import SwiftUI
   case recommendationRecent
   case similarityScore
   case tag
-  case updated
 
   // Sorting
   case sort
@@ -465,8 +464,6 @@ import SwiftUI
       )
     case .tag:
       return Data(text: "Tag", systemImageName: .tag, color: .secondary)
-    case .updated:
-      return Data(text: "Updated", systemImageName: .calendar, color: .secondary)
 
     // UI Controls & Status
     case .navigateInto:
