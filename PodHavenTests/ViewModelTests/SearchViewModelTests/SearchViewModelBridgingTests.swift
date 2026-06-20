@@ -55,6 +55,7 @@ import Testing
           && bridged.podcast.podcastID != nil
           && bridged.episodeCount == 1
           && bridged.mostRecentEpisodeDate == newestEpisodeDate
+          && bridged.resolvedFreshnessCadence == .weekly
       },
       { @MainActor in
         let bridged = viewModel.searchResults[id: searchFeedURL]
@@ -68,6 +69,7 @@ import Testing
           podcastID: \(String(describing: bridged?.podcast.podcastID))
           episodeCount: \(String(describing: bridged?.episodeCount))
           mostRecentEpisodeDate: \(String(describing: bridged?.mostRecentEpisodeDate))
+          resolvedFreshnessCadence: \(String(describing: bridged?.resolvedFreshnessCadence))
           """
       }
     )
@@ -116,6 +118,7 @@ import Testing
           && bridged.podcast.savedSearchResult != nil
           && bridged.episodeCount == 1
           && bridged.mostRecentEpisodeDate == newestEpisodeDate
+          && bridged.resolvedFreshnessCadence == .weekly
       },
       { @MainActor in
         let bridged = viewModel.searchResults[id: searchFeedURL]
@@ -128,6 +131,7 @@ import Testing
           saved search result: \(String(describing: bridged?.podcast.savedSearchResult))
           episodeCount: \(String(describing: bridged?.episodeCount))
           mostRecentEpisodeDate: \(String(describing: bridged?.mostRecentEpisodeDate))
+          resolvedFreshnessCadence: \(String(describing: bridged?.resolvedFreshnessCadence))
           """
       }
     )
