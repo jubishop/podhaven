@@ -144,7 +144,6 @@ struct PodcastDetailView: View {
         cornerRadius: 12,
         size: 128
       )
-      .subscriptionBadge(subscribed: viewModel.podcast.subscribed, badgeSize: 20)
       .onTapGesture {
         showingImageOverlay = true
       }

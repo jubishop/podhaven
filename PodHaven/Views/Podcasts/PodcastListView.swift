@@ -56,11 +56,6 @@ struct PodcastListView<Podcast: PodcastListable>: View {
 
         Spacer()
 
-        if podcastWithMetadata.subscribed {
-          AppIcon.subscribed.image
-          Spacer()
-        }
-
         CompactMetadataItem(appIcon: .episodeCount, value: "\(podcastWithMetadata.episodeCount) Ep")
       }
       .font(.footnote)
@@ -112,9 +107,9 @@ struct PodcastListView<Podcast: PodcastListable>: View {
         ),
         PodcastWithEpisodeMetadata(
           podcast: try Create.unsavedPodcast(
-            title: "2. Subscribed Podcast (badge overlay)",
+            title: "2. Subscribed Podcast",
             image: allThumbnails.randomElement()!.value.url,
-            description: "A subscribed podcast with badge",
+            description: "A subscribed podcast",
             subscriptionDate: Date().addingTimeInterval(-3600 * 24 * 30)
           ),
           episodeCount: 128,
