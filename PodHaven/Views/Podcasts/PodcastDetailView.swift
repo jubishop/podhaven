@@ -309,9 +309,10 @@ struct PodcastDetailView: View {
 
   var metadataRow: some View {
     HStack {
-      DetailedMetadataItem(
-        appIcon: .updated,
-        value: viewModel.mostRecentEpisodeDate.usShortWithTime
+      FreshnessMetadataItem(
+        cadence: viewModel.resolvedFreshnessCadence,
+        value: viewModel.mostRecentEpisodeDate.usShortWithTime,
+        style: .detailed
       )
 
       Spacer()

@@ -477,6 +477,13 @@ class PodcastDetailViewModel:
     FreshnessCadence.infer(from: episodeList.allEntries.map(\.pubDate))
   }
 
+  // Manual override wins; otherwise the in-memory inference over the loaded
+  // episodes. The detail view always has the full episode list, so this never
+  // needs the cached column the lists read.
+  var resolvedFreshnessCadence: FreshnessCadence {
+    state.savedSeries?.podcast.freshnessCadence ?? inferredFreshnessCadence
+  }
+
   var episodesLoaded: Bool { !episodeList.allEntries.isEmpty }
 
   var tags: IdentifiedArrayOf<Tag> { state.savedSeries?.tags ?? [] }

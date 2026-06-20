@@ -27,18 +27,26 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Str
   let mostRecentEpisodeDate: Date?
   let tagIDs: Set<Tag.ID>
 
+  // Resolved cadence for saved podcasts, mirroring
+  // `RecommendationRepo.resolveFreshnessCadences`: manual override else the
+  // cached inference. `nil` for unsaved rows (search results), whose query path
+  // never selects these columns — those fall back to the plain date icon.
+  let resolvedFreshnessCadence: FreshnessCadence?
+
   // MARK: - Initialization
 
   init(
     podcast: PodcastType,
     episodeCount: Int,
     mostRecentEpisodeDate: Date?,
-    tagIDs: Set<Tag.ID> = []
+    tagIDs: Set<Tag.ID> = [],
+    resolvedFreshnessCadence: FreshnessCadence? = nil
   ) {
     self.podcast = podcast
     self.episodeCount = episodeCount
     self.mostRecentEpisodeDate = mostRecentEpisodeDate
     self.tagIDs = tagIDs
+    self.resolvedFreshnessCadence = resolvedFreshnessCadence
   }
 }
 
@@ -51,6 +59,9 @@ where PodcastType: FetchableRecord & TableRecord {
     self.episodeCount = row[CodingKeys.episodeCount]
     self.mostRecentEpisodeDate = row[CodingKeys.mostRecentEpisodeDate]
     self.tagIDs = try PodcastTag.decodeTagIDs(from: row)
+    let manual: FreshnessCadence? = row[Podcast.Columns.freshnessCadence]
+    let inferred: FreshnessCadence? = row[Podcast.Columns.inferredFreshnessCadence]
+    self.resolvedFreshnessCadence = manual ?? inferred
   }
 
   enum CodingKeys: String, CodingKey, ColumnExpression {
@@ -63,13 +74,17 @@ where PodcastType: FetchableRecord & TableRecord {
   static func all(
     _ filter: PodcastFilter = { $0 }
   ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
-    filter(
-      Podcast.all().select(PodcastType.databaseSelection + [PodcastTag.tagIDsSelectable])
-    )
-    .annotated(with: [
-      Podcast.episodes.count.forKey(CodingKeys.episodeCount),
-      Podcast.episodes.max(\.pubDate).forKey(CodingKeys.mostRecentEpisodeDate),
-    ])
-    .asRequest(of: PodcastWithEpisodeMetadata.self)
+    let selection =
+      PodcastType.databaseSelection + [
+        Podcast.Columns.freshnessCadence,
+        Podcast.Columns.inferredFreshnessCadence,
+        PodcastTag.tagIDsSelectable,
+      ]
+    return filter(Podcast.all().select(selection))
+      .annotated(with: [
+        Podcast.episodes.count.forKey(CodingKeys.episodeCount),
+        Podcast.episodes.max(\.pubDate).forKey(CodingKeys.mostRecentEpisodeDate),
+      ])
+      .asRequest(of: PodcastWithEpisodeMetadata.self)
   }
 }
