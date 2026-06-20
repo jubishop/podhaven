@@ -477,12 +477,12 @@ class PodcastDetailViewModel:
     FreshnessCadence.infer(from: episodeList.allEntries.map(\.pubDate))
   }
 
-  // Manual override wins; otherwise the in-memory inference over the loaded
-  // episodes. The detail view always has the full episode list, so this never
-  // needs the cached column the lists read.
-  var resolvedFreshnessCadence: FreshnessCadence {
-    state.savedSeries?.podcast.freshnessCadence ?? inferredFreshnessCadence
-  }
+  // Cadence for the detail metadata row, recomputed in `refreshEpisodeList`
+  // rather than on every body evaluation since `infer` sorts the whole episode
+  // list. Manual override wins; otherwise the inference, but only once there are
+  // enough episodes for `infer` to be meaningful — below that it stays `nil` and
+  // the row falls back to the plain date icon, matching the lists' nil cadence.
+  private(set) var resolvedFreshnessCadence: FreshnessCadence?
 
   var episodesLoaded: Bool { !episodeList.allEntries.isEmpty }
 
@@ -917,6 +917,7 @@ class PodcastDetailViewModel:
   }
 
   private func refreshEpisodeList(from state: PodcastDetailState) {
+    let entries: IdentifiedArrayOf<ListedEpisode>
     switch state {
     case .initial:
       // List rows are not bundled with the bootstrap snapshot; observation
@@ -924,7 +925,7 @@ class PodcastDetailViewModel:
       return
     case .unsaved(let unsavedPodcast, let episodes):
       Self.log.debug("refreshEpisodeList: setting unsaved entries count=\(episodes.count)")
-      episodeList.allEntries = IdentifiedArray(
+      entries = IdentifiedArray(
         uniqueElements: episodes.map { unsavedEpisode in
           ListedEpisode(
             UnsavedPodcastEpisode(
@@ -936,7 +937,7 @@ class PodcastDetailViewModel:
       )
     case .saved(let series):
       Self.log.debug("refreshEpisodeList: setting saved entries count=\(series.episodes.count)")
-      episodeList.allEntries = IdentifiedArray(
+      entries = IdentifiedArray(
         uniqueElements: series.episodes.map { listableEpisode in
           ListedEpisode(
             ListablePodcastEpisode(podcast: series.podcast, episode: listableEpisode)
@@ -944,6 +945,12 @@ class PodcastDetailViewModel:
         }
       )
     }
+    episodeList.allEntries = entries
+    // Resolve from `entries`, not `episodeList.allEntries`: the latter sorts
+    // asynchronously, so it would still be stale on this turn.
+    resolvedFreshnessCadence =
+      state.savedSeries?.podcast.freshnessCadence
+      ?? (entries.count >= 3 ? FreshnessCadence.infer(from: entries.map(\.pubDate)) : nil)
   }
 
   @discardableResult
