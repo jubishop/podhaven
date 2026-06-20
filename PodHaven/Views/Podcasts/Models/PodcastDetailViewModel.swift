@@ -477,6 +477,13 @@ class PodcastDetailViewModel:
     FreshnessCadence.infer(from: episodeList.allEntries.map(\.pubDate))
   }
 
+  // Cadence for the detail metadata row, recomputed in `refreshEpisodeList`
+  // rather than on every body evaluation since `infer` sorts the whole episode
+  // list. Metadata icons mirror PodcastsView freshness buckets: manual override
+  // wins, saved rows with episode history use the cached-inference contract, and
+  // nil means the row falls back to the plain date icon.
+  private(set) var resolvedFreshnessCadence: FreshnessCadence?
+
   var episodesLoaded: Bool { !episodeList.allEntries.isEmpty }
 
   var tags: IdentifiedArrayOf<Tag> { state.savedSeries?.tags ?? [] }
@@ -910,6 +917,7 @@ class PodcastDetailViewModel:
   }
 
   private func refreshEpisodeList(from state: PodcastDetailState) {
+    let entries: IdentifiedArrayOf<ListedEpisode>
     switch state {
     case .initial:
       // List rows are not bundled with the bootstrap snapshot; observation
@@ -917,7 +925,7 @@ class PodcastDetailViewModel:
       return
     case .unsaved(let unsavedPodcast, let episodes):
       Self.log.debug("refreshEpisodeList: setting unsaved entries count=\(episodes.count)")
-      episodeList.allEntries = IdentifiedArray(
+      entries = IdentifiedArray(
         uniqueElements: episodes.map { unsavedEpisode in
           ListedEpisode(
             UnsavedPodcastEpisode(
@@ -929,13 +937,24 @@ class PodcastDetailViewModel:
       )
     case .saved(let series):
       Self.log.debug("refreshEpisodeList: setting saved entries count=\(series.episodes.count)")
-      episodeList.allEntries = IdentifiedArray(
+      entries = IdentifiedArray(
         uniqueElements: series.episodes.map { listableEpisode in
           ListedEpisode(
             ListablePodcastEpisode(podcast: series.podcast, episode: listableEpisode)
           )
         }
       )
+    }
+    episodeList.allEntries = entries
+    // Resolve from `entries`, not `episodeList.allEntries`: the latter sorts
+    // asynchronously, so it would still be stale on this turn.
+    switch state {
+    case .initial, .unsaved:
+      resolvedFreshnessCadence = nil
+    case .saved(let series):
+      resolvedFreshnessCadence =
+        series.podcast.freshnessCadence
+        ?? FreshnessCadence.cachedInference(from: entries.map(\.pubDate))
     }
   }
 

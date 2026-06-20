@@ -308,10 +308,18 @@ struct PodcastDetailView: View {
 
   var metadataRow: some View {
     HStack {
-      DetailedMetadataItem(
-        appIcon: .updated,
-        value: viewModel.mostRecentEpisodeDate.usShortWithTime
-      )
+      if let cadence = viewModel.resolvedFreshnessCadence {
+        FreshnessMetadataItem(
+          cadence: cadence,
+          value: viewModel.mostRecentEpisodeDate.usShortWithTime,
+          style: .detailed
+        )
+      } else {
+        DetailedMetadataItem(
+          appIcon: .publishDate,
+          value: viewModel.mostRecentEpisodeDate.usShortWithTime
+        )
+      }
 
       Spacer()
 
