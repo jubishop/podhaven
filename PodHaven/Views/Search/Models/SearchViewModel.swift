@@ -632,7 +632,8 @@ class SearchViewModel:
             )
           ),
           episodeCount: podcast.episodeCount,
-          mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+          mostRecentEpisodeDate: podcast.mostRecentEpisodeDate,
+          resolvedFreshnessCadence: podcast.resolvedFreshnessCadence
         )
       )
     }
@@ -657,7 +658,8 @@ class SearchViewModel:
           )
         ),
         episodeCount: podcast.episodeCount,
-        mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+        mostRecentEpisodeDate: podcast.mostRecentEpisodeDate,
+        resolvedFreshnessCadence: podcast.resolvedFreshnessCadence
       )
     )
   }

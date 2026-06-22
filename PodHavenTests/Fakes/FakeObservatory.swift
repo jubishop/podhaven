@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import AVFoundation
+import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
@@ -38,6 +39,12 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
   let embeddingWorkSignalScript = ThreadSafe<
     [@Sendable () -> AsyncValueObservation<EmbeddingWorkSignal>]
   >([])
+
+  private struct HeldDeliveryQueueState: Sendable {
+    var armed: DispatchQueue?
+    var active: DispatchQueue?
+  }
+  private let heldListablePodcastEpisodesQueue = ThreadSafe(HeldDeliveryQueueState())
 
   private let observatory: any Observing
 
@@ -122,7 +129,44 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     limit: Int
   ) -> AsyncValueObservation<[ListablePodcastEpisode]> {
     recordCall(methodName: "listablePodcastEpisodes(filter:order:limit:)", parameters: limit)
+    if let queue = heldListablePodcastEpisodesQueue({ state in
+      let queueToUse = state.armed
+      state.armed = nil
+      state.active = queueToUse
+      return queueToUse
+    }) {
+      return
+        ValueObservation
+        .tracking { db in
+          try ListablePodcastEpisode
+            .request(filter: filter, order: order, limit: limit)
+            .fetchAll(db)
+        }
+        .removeDuplicates()
+        .values(in: Container.shared.appDB().unsafeTestDB, scheduling: .async(onQueue: queue))
+    }
     return observatory.listablePodcastEpisodes(filter: filter, order: order, limit: limit)
+  }
+
+  func holdNextListablePodcastEpisodesDelivery() {
+    let queue = DispatchQueue(label: "FakeObservatory.listablePodcastEpisodes.hold")
+    queue.suspend()
+    releaseHeldListablePodcastEpisodesDelivery()
+    heldListablePodcastEpisodesQueue { state in
+      state.armed = queue
+    }
+  }
+
+  func releaseHeldListablePodcastEpisodesDelivery() {
+    guard
+      let queue = heldListablePodcastEpisodesQueue({ state in
+        let queueToRelease = state.active ?? state.armed
+        state.active = nil
+        state.armed = nil
+        return queueToRelease
+      })
+    else { return }
+    queue.resume()
   }
 
   // MARK: - Episodes

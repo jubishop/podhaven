@@ -144,7 +144,6 @@ struct PodcastDetailView: View {
         cornerRadius: 12,
         size: 128
       )
-      .subscriptionBadge(subscribed: viewModel.podcast.subscribed, badgeSize: 20)
       .onTapGesture {
         showingImageOverlay = true
       }
@@ -287,22 +286,40 @@ struct PodcastDetailView: View {
             }
           }
 
-          HTMLText(viewModel.podcast.description)
-            .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+          descriptionText
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
       }
     }
+    .task(id: viewModel.podcast.description) {
+      await viewModel.prepareDescription(font: .body)
+    }
+  }
+
+  @ViewBuilder
+  private var descriptionText: some View {
+    if let attributed = viewModel.descriptionAttributedString {
+      Text(attributed)
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
   }
 
   var metadataRow: some View {
     HStack {
-      DetailedMetadataItem(
-        appIcon: .updated,
-        value: viewModel.mostRecentEpisodeDate.usShortWithTime
-      )
+      if let cadence = viewModel.resolvedFreshnessCadence {
+        FreshnessMetadataItem(
+          cadence: cadence,
+          value: viewModel.mostRecentEpisodeDate.usShortWithTime,
+          style: .detailed
+        )
+      } else {
+        DetailedMetadataItem(
+          appIcon: .publishDate,
+          value: viewModel.mostRecentEpisodeDate.usShortWithTime
+        )
+      }
 
       Spacer()
 

@@ -81,6 +81,34 @@ import Testing
     )
   }
 
+  // Asserts no candidate-scoped scoring pass runs within a bounded window.
+  // Drives the production sleeper each round so any debounced rescore is forced
+  // to fire, then watches for the first `embeddings(for:)` read whose ID set
+  // equals `ids`. A hit records `regression`; the expected timeout means the
+  // surface reused its retained score and ran no pass. Deterministic stand-in
+  // for a fixed `Task.yield()` settle window when asserting this negative.
+  static func expectNoScopedEmbeddings(
+    matching ids: Set<Episode.ID>,
+    maxAttempts: Int = 100,
+    regression: String
+  ) async {
+    do {
+      try await Wait.until(
+        maxAttempts: maxAttempts,
+        delay: .milliseconds(20),
+        priority: .userInitiated,
+        {
+          await fakeSleeper.advanceTime(by: .milliseconds(400))
+          return await MainActor.run { scopedEmbeddingsCallCount(matching: ids) >= 1 }
+        },
+        { "regression sentinel — see Issue.record below" }
+      )
+      Issue.record("\(regression)")
+    } catch {
+      // Expected timeout: no candidate-scoped pass ran.
+    }
+  }
+
   // Drains every cache rebuild the setup writes kicked off, polling until the
   // engine's `$scoringRevision` holds steady across `stableRounds` consecutive
   // drains. Tests that deliberately strand a scoring pass need this: a late

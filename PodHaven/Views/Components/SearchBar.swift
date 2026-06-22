@@ -28,7 +28,11 @@ struct SearchBar: View {
         AppIcon.clearSearch
           .imageButton {
             text = ""
-            isFocused = false
+            // Resign focus in a follow-up transaction: dropping focus in the
+            // same action that clears the text collapses this button's `if`
+            // wrapper while its own tap is still being handled, which can
+            // swallow the focus change and leave the keyboard up.
+            Task { @MainActor in isFocused = false }
           }
           .buttonStyle(.plain)
           .padding(16)

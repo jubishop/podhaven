@@ -83,12 +83,33 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   var episode: EpisodeDetailContent { state.detailContent }
 
-  // MARK: - Derived State
+  // MARK: - Description Rendering
 
-  var onDeck: Bool {
-    guard let podcastEpisode = state.savedPodcastEpisode else { return false }
-    return sharedState.onDeck?.id == podcastEpisode.id
+  // Built off the main actor and cached so the description isn't re-parsed on
+  // every body evaluation (playback ticks, score/tag updates). The view drives
+  // (re)builds via `.task(id:)` keyed on the description.
+  private(set) var descriptionAttributedString: AttributedString?
+  @ObservationIgnored private var descriptionSource: String?
+
+  func prepareDescription(font: Font) async {
+    guard let html = episode.description, !html.isEmpty else {
+      descriptionAttributedString = nil
+      descriptionSource = nil
+      return
+    }
+    guard html != descriptionSource else { return }
+    let built = await HTMLContent.descriptionAttributedString(
+      html: html,
+      font: font,
+      linkTimestamps: true
+    )
+    // A state transition may have swapped the description while we built.
+    guard html == episode.description else { return }
+    descriptionSource = html
+    descriptionAttributedString = built
   }
+
+  // MARK: - Derived State
 
   var atTopOfQueue: Bool {
     episode.queueOrder == 0

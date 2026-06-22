@@ -16,7 +16,6 @@ import SwiftUI
   case moveToTop
   case moveToBottom
   case markEpisodeFinished
-  case playFromHere
   case playNow
   case playSelection
   case queueAtBottom
@@ -39,7 +38,6 @@ import SwiftUI
   case editItems
   case showPodcast
   case subscribe
-  case subscribed
   case unsubscribe
 
   // Navigation
@@ -107,7 +105,6 @@ import SwiftUI
   case recommendationRecent
   case similarityScore
   case tag
-  case updated
 
   // Sorting
   case sort
@@ -246,8 +243,6 @@ import SwiftUI
       return Data(text: "Move to Bottom", systemImageName: .moveToBottom, color: .purple)
     case .markEpisodeFinished:
       return Data(text: "Mark Finished", systemImageName: .episodeFinished, color: .blue)
-    case .playFromHere:
-      return Data(text: "Play from here", systemImageName: .play, color: .green)
     case .playNow:
       return Data(text: "Play Now", systemImageName: .play, color: .green)
     case .playSelection:
@@ -292,8 +287,6 @@ import SwiftUI
       return Data(text: "Show Podcast", systemImageName: .showPodcast, color: .blue)
     case .subscribe:
       return Data(text: "Subscribe", systemImageName: .subscribe, color: .green)
-    case .subscribed:
-      return Data(text: "Subscribed", systemImageName: .subscribed, color: .green)
     case .unsubscribe:
       return Data(text: "Unsubscribe", systemImageName: .unsubscribe, color: .orange)
 
@@ -468,8 +461,6 @@ import SwiftUI
       )
     case .tag:
       return Data(text: "Tag", systemImageName: .tag, color: .secondary)
-    case .updated:
-      return Data(text: "Updated", systemImageName: .calendar, color: .secondary)
 
     // UI Controls & Status
     case .navigateInto:

@@ -30,6 +30,28 @@ enum Timestamp {
     return hours * 3600 + minutes * 60 + seconds
   }
 
+  // Custom scheme carrying a raw timestamp so a description's tappable
+  // timestamp can round-trip through a SwiftUI `Text` link into the episode
+  // detail view's openURL handler, kept distinct from real http(s) links.
+  private static let urlScheme = "podhaven-timestamp"
+  private static let urlHost = "play"
+
+  static func url(for timestamp: some StringProtocol) -> URL? {
+    var components = URLComponents()
+    components.scheme = urlScheme
+    components.host = urlHost
+    components.queryItems = [URLQueryItem(name: "t", value: String(timestamp))]
+    return components.url
+  }
+
+  static func timestamp(fromURL url: URL) -> String? {
+    guard url.scheme == urlScheme, url.host == urlHost else { return nil }
+    return URLComponents(url: url, resolvingAgainstBaseURL: false)?
+      .queryItems?
+      .first { $0.name == "t" }?
+      .value
+  }
+
   // Formats a timestamp string without unnecessary leading zeros.
   // Examples: "00:08:23" → "8:23", "0:40" → "0:40", "1:05:30" → "1:05:30"
   static func format(_ timestamp: some StringProtocol) -> String {
