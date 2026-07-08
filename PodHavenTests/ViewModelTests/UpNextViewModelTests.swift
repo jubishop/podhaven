@@ -10,7 +10,6 @@ import Testing
 
 @Suite("of UpNextViewModel tests", .container)
 @MainActor final class UpNextViewModelTests {
-  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
@@ -505,34 +504,6 @@ import Testing
       parameters: [Episode.ID].self
     )
     #expect(dequeueCall.parameters == [queued.id])
-  }
-
-  @Test("dequeueSelectedEpisodes alerts when the queue write fails")
-  func dequeueSelectedAlertsOnQueueFailure() async throws {
-    let series = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [try Create.unsavedEpisode(guid: "queued", title: "Queued")]
-      )
-    )
-    let queued = series.episodes[0]
-    try await queue.append([queued.id])
-
-    let viewModel = UpNextViewModel()
-    viewModel.episodeList.allEntries = IdentifiedArray(
-      uniqueElements: [try await fetchListable(queued.id)]
-    )
-    viewModel.episodeList.isSelected[queued.id] = true
-
-    let fakeQueue = try #require(queue as? FakeQueue)
-    fakeQueue.dequeueError(TestError.simulatedFailure)
-
-    viewModel.dequeueSelectedEpisodes()
-
-    try await Wait.until(
-      { @MainActor in self.alert.config != nil },
-      { @MainActor in "Expected a failed bulk dequeue to surface an alert" }
-    )
   }
 
   @Test("dequeueSelectedEpisodes logs a notice when no selected episode is queued")

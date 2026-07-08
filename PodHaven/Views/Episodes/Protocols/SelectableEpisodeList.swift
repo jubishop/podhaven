@@ -51,7 +51,6 @@ import OrderedCollections
 }
 
 extension SelectableEpisodeList {
-  private var alert: Alert { Container.shared.alert() }
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
@@ -154,8 +153,6 @@ extension SelectableEpisodeList {
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("addSelectedEpisodesToBottomOfQueue: failed", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -178,8 +175,6 @@ extension SelectableEpisodeList {
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("addSelectedEpisodesToTopOfQueue: failed", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -202,8 +197,6 @@ extension SelectableEpisodeList {
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("replaceQueueWithSelected: failed", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -235,8 +228,6 @@ extension SelectableEpisodeList {
           "playSelectedEpisodes: failed to play \(episodes.count) episodes",
           error
         )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -265,8 +256,6 @@ extension SelectableEpisodeList {
           "dequeueSelectedEpisodes: failed to dequeue \(queuedSavedEpisodeIDs.count) episodes",
           error
         )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -302,8 +291,6 @@ extension SelectableEpisodeList {
         }
       } catch {
         log.caughtError("cacheSelectedEpisodes: failed to resolve episode IDs", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -324,7 +311,6 @@ extension SelectableEpisodeList {
     )
 
     let log = Self.log
-    let alert = alert
     Task {
       do {
         try await Container.shared.repo().updateSaveInCache(cachedEpisodeIDs, saveInCache: false)
@@ -333,9 +319,6 @@ extension SelectableEpisodeList {
           "uncacheSelectedEpisodes: failed to unsave \(cachedEpisodeIDs.count) episodes",
           error
         )
-        if ErrorKit.isRemarkable(error) {
-          alert(ErrorKit.message(for: error))
-        }
         return
       }
       await withDiscardingTaskGroup { group in
@@ -375,9 +358,6 @@ extension SelectableEpisodeList {
         episodeIDs = try await selectedPodcastEpisodeIDs
       } catch {
         log.caughtError("saveSelectedEpisodesInCache: failed to resolve episode IDs", error)
-        if ErrorKit.isRemarkable(error) {
-          alert(ErrorKit.message(for: error))
-        }
         return
       }
 
@@ -388,9 +368,6 @@ extension SelectableEpisodeList {
           "saveSelectedEpisodesInCache: failed to save \(episodeIDs.count) episodes",
           error
         )
-        if ErrorKit.isRemarkable(error) {
-          alert(ErrorKit.message(for: error))
-        }
         return
       }
 
@@ -429,7 +406,6 @@ extension SelectableEpisodeList {
     )
 
     let log = Self.log
-    let alert = alert
     Task {
       do {
         try await Container.shared.repo().updateSaveInCache(savedEpisodeIDs, saveInCache: false)
@@ -438,8 +414,6 @@ extension SelectableEpisodeList {
           "unsaveSelectedEpisodesFromCache: failed to unsave \(savedEpisodeIDs.count) episodes",
           error
         )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -500,8 +474,6 @@ extension SelectableEpisodeList {
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("markSelectedEpisodesFinished: failed", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -529,8 +501,6 @@ extension SelectableEpisodeList {
           "rateSelectedEpisodes: failed for \(episodes.count) episodes",
           error
         )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -547,7 +517,6 @@ extension SelectableEpisodeList {
     )
 
     let log = Self.log
-    let alert = alert
     Task {
       do {
         try await Container.shared.repo().addTag(tagID, toEpisodes: episodeIDs)
@@ -556,8 +525,6 @@ extension SelectableEpisodeList {
           "applyTagToSelectedEpisodes: failed for \(episodeIDs.count) episodes, tag \(tagID)",
           error
         )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -574,7 +541,6 @@ extension SelectableEpisodeList {
     )
 
     let log = Self.log
-    let alert = alert
     Task {
       do {
         _ = try await Container.shared.repo().removeTag(tagID, fromEpisodes: episodeIDs)
@@ -583,8 +549,6 @@ extension SelectableEpisodeList {
           "removeTagFromSelectedEpisodes: failed for \(episodeIDs.count) episodes, tag \(tagID)",
           error
         )
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
     }
   }

@@ -15,10 +15,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // Cleared on use so subsequent calls reach the real repo.
   nonisolated let updateSaveInCacheBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
 
-  // One-shot error to throw from `deletePodcast(_ podcastIDs:)`. Cleared on
-  // use so subsequent calls reach the real repo.
-  nonisolated let deletePodcastBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
-
   // When true, the next `episode(_:Episode.ID)` call parks until
   // `resumeAllEpisodeFetchSuspensions()` fires; cleared on use. Counts are
   // nonisolated so tests poll without contending for the actor (same pattern
@@ -226,13 +222,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   @discardableResult
   func deletePodcast(_ podcastIDs: [Podcast.ID]) async throws -> Int {
     recordCall(methodName: "delete", parameters: podcastIDs)
-    if let injected = deletePodcastBulkError({ error in
-      let captured = error
-      error = nil
-      return captured
-    }) {
-      throw injected
-    }
     return try await repo.deletePodcast(podcastIDs)
   }
 
