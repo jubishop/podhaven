@@ -12,6 +12,9 @@ struct FakeQueue: Sendable, FakeCallable, Queueing {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
+  // When set, dequeue calls throw instead of forwarding to the real queue.
+  let dequeueError = ThreadSafe<(any Error)?>(nil)
+
   private let queue: any Queueing
 
   init(_ queue: any Queueing) {
@@ -39,16 +42,19 @@ struct FakeQueue: Sendable, FakeCallable, Queueing {
 
   func dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
     recordCall(methodName: "dequeue", parameters: episodeIDs)
+    if let error = dequeueError() { throw error }
     try queue.dequeue(db, episodeIDs)
   }
 
   func dequeue(_ episodeIDs: [Episode.ID]) async throws {
     recordCall(methodName: "dequeue", parameters: episodeIDs)
+    if let error = dequeueError() { throw error }
     try await queue.dequeue(episodeIDs)
   }
 
   func dequeue(_ episodeID: Episode.ID) async throws {
     recordCall(methodName: "dequeue", parameters: episodeID)
+    if let error = dequeueError() { throw error }
     try await queue.dequeue(episodeID)
   }
 

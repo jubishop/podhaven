@@ -15,6 +15,11 @@ where Item.ID: Sendable {
     withAnimation {
       _isSelecting = value
     }
+    // Ending a selection session discards its picks so a stale checkmark
+    // can't leak into a later session.
+    if !value {
+      isSelected.removeAll()
+    }
   }
 
   var anySelected: Bool { filteredEntries.contains { isSelected[$0.id] } }

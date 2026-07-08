@@ -10,6 +10,7 @@ import Testing
 
 @Suite("of UpNextViewModel tests", .container)
 @MainActor final class UpNextViewModelTests {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
@@ -504,6 +505,64 @@ import Testing
       parameters: [Episode.ID].self
     )
     #expect(dequeueCall.parameters == [queued.id])
+  }
+
+  @Test("dequeueSelectedEpisodes alerts when the queue write fails")
+  func dequeueSelectedAlertsOnQueueFailure() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "queued", title: "Queued")]
+      )
+    )
+    let queued = series.episodes[0]
+    try await queue.append([queued.id])
+
+    let viewModel = UpNextViewModel()
+    viewModel.episodeList.allEntries = IdentifiedArray(
+      uniqueElements: [try await fetchListable(queued.id)]
+    )
+    viewModel.episodeList.isSelected[queued.id] = true
+
+    let fakeQueue = try #require(queue as? FakeQueue)
+    fakeQueue.dequeueError(TestError.simulatedFailure)
+
+    viewModel.dequeueSelectedEpisodes()
+
+    try await Wait.until(
+      { @MainActor in self.alert.config != nil },
+      { @MainActor in "Expected a failed bulk dequeue to surface an alert" }
+    )
+  }
+
+  @Test("dequeueSelectedEpisodes logs a notice when no selected episode is queued")
+  func dequeueSelectedLogsNoticeWhenNothingQueued() async throws {
+    try await LogCapture.withSink { sink in
+      let series = try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(),
+          unsavedEpisodes: [try Create.unsavedEpisode(guid: "stale", title: "Stale")]
+        )
+      )
+      // Never queued: simulates a selected row whose episode left the queue
+      // between opening the menu and tapping remove.
+      let stale = try await fetchListable(series.episodes[0].id)
+
+      let viewModel = UpNextViewModel()
+      viewModel.episodeList.allEntries = IdentifiedArray(uniqueElements: [stale])
+      viewModel.episodeList.isSelected[stale.id] = true
+
+      viewModel.dequeueSelectedEpisodes()
+
+      let bailNotices = sink.captured()
+        .filter {
+          $0.level == .notice && $0.message.contains("dequeueSelectedEpisodes")
+        }
+      #expect(bailNotices.count == 1)
+
+      let fakeQueue = try #require(queue as? FakeQueue)
+      try fakeQueue.expectNoCall(methodName: "dequeue")
+    }
   }
 
   // Regression for #338: queueing one of the published recommended episodes
