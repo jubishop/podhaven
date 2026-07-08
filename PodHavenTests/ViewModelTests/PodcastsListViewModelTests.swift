@@ -10,6 +10,7 @@ import Testing
 
 @Suite("of PodcastsListViewModel tests", .container)
 @MainActor final class PodcastsListViewModelTests {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
@@ -157,6 +158,47 @@ import Testing
     )
 
     #expect(viewModel.podcastList.filteredEntryIDs == [subscribed, unsubscribed])
+  }
+
+  @Test("deleteSelectedPodcasts alerts when the repo delete fails")
+  func deleteSelectedAlertsOnRepoFailure() async throws {
+    let setup = try await setupFourTaggedPodcasts()
+
+    let viewModel = PodcastsListViewModel(title: "Test")
+    try await loadEntries(into: viewModel, podcasts: setup.entries)
+    select(viewModel, ids: [setup.pod1])
+
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.deletePodcastBulkError(TestError.simulatedFailure)
+
+    viewModel.deleteSelectedPodcasts()
+
+    try await Wait.until(
+      { @MainActor in self.alert.config != nil },
+      { @MainActor in "Expected a failed bulk delete to surface an alert" }
+    )
+  }
+
+  @Test("deleteSelectedPodcasts logs a notice when nothing is selected")
+  func deleteSelectedLogsNoticeWhenNothingSelected() async throws {
+    try await LogCapture.withSink { sink in
+      let setup = try await setupFourTaggedPodcasts()
+
+      let viewModel = PodcastsListViewModel(title: "Test")
+      try await loadEntries(into: viewModel, podcasts: setup.entries)
+
+      // No selection: simulates a menu tap that raced a selection change.
+      viewModel.deleteSelectedPodcasts()
+
+      let bailNotices = sink.captured()
+        .filter {
+          $0.level == .notice && $0.message.contains("deleteSelectedPodcasts")
+        }
+      #expect(bailNotices.count == 1)
+
+      let fakeRepo = try #require(repo as? FakeRepo)
+      try fakeRepo.expectNoCall(methodName: "delete")
+    }
   }
 
   // MARK: - Helpers
