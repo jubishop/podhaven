@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import Logging
 import Tagged
 import XMLCoder
 
@@ -73,7 +74,11 @@ struct PodcastRSS: Decodable, Sendable {
 
     var pubDate: Date? {
       guard let pubDateString = values.pubDateString else { return nil }
-      return Date.parseFeedDate(pubDateString)
+      guard let date = Date.parseFeedDate(pubDateString) else {
+        PodcastRSS.log.warning("Unparseable pubDate '\(pubDateString)' for \(values.title)")
+        return nil
+      }
+      return date
     }
 
     // MARK: - Meta

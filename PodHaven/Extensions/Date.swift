@@ -23,13 +23,30 @@ extension Date {
     return dateOnly
   }()
 
+  private static let iso8601: DateFormatter = {
+    let iso8601 = DateFormatter()
+    iso8601.locale = Locale(identifier: "en_US_POSIX")
+    iso8601.timeZone = TimeZone(secondsFromGMT: 0)
+    iso8601.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
+    return iso8601
+  }()
+
+  private static let iso8601WithFractionalSeconds: DateFormatter = {
+    let iso8601WithFractionalSeconds = DateFormatter()
+    iso8601WithFractionalSeconds.locale = Locale(identifier: "en_US_POSIX")
+    iso8601WithFractionalSeconds.timeZone = TimeZone(secondsFromGMT: 0)
+    iso8601WithFractionalSeconds.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX"
+    return iso8601WithFractionalSeconds
+  }()
+
   // MARK: - Feed Date Parsing
 
   static func parseFeedDate(_ string: String) -> Date? {
     let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
     if let date = rfc2822.date(from: trimmed) { return date }
-    if let date = ISO8601DateFormatter().date(from: trimmed) { return date }
+    if let date = iso8601.date(from: trimmed) { return date }
+    if let date = iso8601WithFractionalSeconds.date(from: trimmed) { return date }
     return dateOnly.date(from: trimmed)
   }
 

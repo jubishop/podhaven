@@ -57,6 +57,35 @@ struct PodcastRSSTests {
     #expect(episode.pubDate == expectedPubDate)
   }
 
+  @Test("parsing an unparseable pubDate logs a warning and yields nil")
+  func parseUnparseablePubDateLogsWarning() async throws {
+    let xml = """
+      <?xml version="1.0"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+        <channel>
+          <title>Bad Dates</title>
+          <description>Feed with unparseable dates</description>
+          <atom:link href="https://example.com/feed.xml" rel="self" type="application/rss+xml"/>
+          <itunes:image href="https://example.com/art.jpg"/>
+          <item>
+            <title>Episode One</title>
+            <pubDate>sometime last week</pubDate>
+          </item>
+        </channel>
+      </rss>
+      """
+    let podcast = try await PodcastRSS.parse(Data(xml.utf8))
+    let episode = podcast.episodes.first!
+
+    LogCapture.withSink { sink in
+      #expect(episode.pubDate == nil)
+      let warnings = sink.captured()
+        .filter { $0.label == "Feed/podcast" && $0.message.contains("Unparseable pubDate") }
+      #expect(!warnings.isEmpty)
+      #expect(warnings.allSatisfy { $0.level == .warning })
+    }
+  }
+
   @Test("parsing the Marketplace feed")
   func parseMarketplaceFeed() async throws {
     let data = PreviewBundle.loadAsset(named: "marketplace", in: .FeedRSS)
