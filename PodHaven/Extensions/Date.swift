@@ -23,45 +23,27 @@ extension Date {
 
   // MARK: - Feed Date Parsing
 
-  static let rfc2822: DateFormatter = {
-    let rfc2822 = DateFormatter()
-    rfc2822.locale = Locale(identifier: "en_US_POSIX")
-    rfc2822.timeZone = TimeZone(secondsFromGMT: 0)
-    rfc2822.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
-    return rfc2822
-  }()
+  private static func feedDateFormatter(_ format: String) -> DateFormatter {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+    formatter.dateFormat = format
+    return formatter
+  }
 
-  private static let rfc2822NoWeekday: DateFormatter = {
-    let rfc2822NoWeekday = DateFormatter()
-    rfc2822NoWeekday.locale = Locale(identifier: "en_US_POSIX")
-    rfc2822NoWeekday.timeZone = TimeZone(secondsFromGMT: 0)
-    rfc2822NoWeekday.dateFormat = "dd MMM yyyy HH:mm:ss zzz"
-    return rfc2822NoWeekday
-  }()
+  static let rfc2822: DateFormatter = feedDateFormatter("EEE, dd MMM yyyy HH:mm:ss zzz")
 
-  private static let iso8601: DateFormatter = {
-    let iso8601 = DateFormatter()
-    iso8601.locale = Locale(identifier: "en_US_POSIX")
-    iso8601.timeZone = TimeZone(secondsFromGMT: 0)
-    iso8601.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
-    return iso8601
-  }()
+  private static let rfc2822NoWeekday: DateFormatter = feedDateFormatter(
+    "dd MMM yyyy HH:mm:ss zzz"
+  )
 
-  private static let iso8601WithFractionalSeconds: DateFormatter = {
-    let iso8601WithFractionalSeconds = DateFormatter()
-    iso8601WithFractionalSeconds.locale = Locale(identifier: "en_US_POSIX")
-    iso8601WithFractionalSeconds.timeZone = TimeZone(secondsFromGMT: 0)
-    iso8601WithFractionalSeconds.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX"
-    return iso8601WithFractionalSeconds
-  }()
+  private static let iso8601: DateFormatter = feedDateFormatter("yyyy-MM-dd'T'HH:mm:ssXXXXX")
 
-  private static let dateOnly: DateFormatter = {
-    let dateOnly = DateFormatter()
-    dateOnly.locale = Locale(identifier: "en_US_POSIX")
-    dateOnly.timeZone = TimeZone(secondsFromGMT: 0)
-    dateOnly.dateFormat = "yyyy-MM-dd"
-    return dateOnly
-  }()
+  private static let iso8601WithFractionalSeconds: DateFormatter = feedDateFormatter(
+    "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX"
+  )
+
+  private static let dateOnly: DateFormatter = feedDateFormatter("yyyy-MM-dd")
 
   static func parseFeedDate(_ string: String) -> Date? {
     let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
