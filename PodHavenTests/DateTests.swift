@@ -35,6 +35,10 @@ struct DateTests {
       Date.parseFeedDate("Fri, 20 Dec 2024 20:00:00 +0000")
         == utcDate(year: 2024, month: 12, day: 20, hour: 20)
     )
+    #expect(
+      Date.parseFeedDate("07 Jul 2026 12:34:56 +0000")
+        == utcDate(year: 2026, month: 7, day: 7, hour: 12, minute: 34, second: 56)
+    )
   }
 
   @Test("parseFeedDate parses ISO-8601 datetimes")

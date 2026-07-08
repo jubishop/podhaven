@@ -15,6 +15,14 @@ extension Date {
     return rfc2822
   }()
 
+  private static let rfc2822NoWeekday: DateFormatter = {
+    let rfc2822NoWeekday = DateFormatter()
+    rfc2822NoWeekday.locale = Locale(identifier: "en_US_POSIX")
+    rfc2822NoWeekday.timeZone = TimeZone(secondsFromGMT: 0)
+    rfc2822NoWeekday.dateFormat = "dd MMM yyyy HH:mm:ss zzz"
+    return rfc2822NoWeekday
+  }()
+
   private static let dateOnly: DateFormatter = {
     let dateOnly = DateFormatter()
     dateOnly.locale = Locale(identifier: "en_US_POSIX")
@@ -45,6 +53,7 @@ extension Date {
     let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
     if let date = rfc2822.date(from: trimmed) { return date }
+    if let date = rfc2822NoWeekday.date(from: trimmed) { return date }
     if let date = iso8601.date(from: trimmed) { return date }
     if let date = iso8601WithFractionalSeconds.date(from: trimmed) { return date }
     return dateOnly.date(from: trimmed)
