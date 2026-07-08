@@ -1,0 +1,12 @@
+{
+  "data" : [
+    {
+      "filename" : "git_news.rss",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
