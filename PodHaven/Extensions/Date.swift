@@ -7,6 +7,22 @@ extension Date {
 
   // MARK: - Static Formatting Helpers
 
+  static let usShortDateFormat: DateFormatter = {
+    let usShortDateFormat = DateFormatter()
+    usShortDateFormat.locale = Locale(identifier: "en_US_POSIX")
+    usShortDateFormat.dateFormat = "M/d/yy"
+    return usShortDateFormat
+  }()
+
+  static let usShortDateFormatWithTime: DateFormatter = {
+    let usShortDateFormatWithTime = DateFormatter()
+    usShortDateFormatWithTime.locale = Locale(identifier: "en_US_POSIX")
+    usShortDateFormatWithTime.dateFormat = "M/d/yyyy h:mm a"
+    return usShortDateFormatWithTime
+  }()
+
+  // MARK: - Feed Date Parsing
+
   static let rfc2822: DateFormatter = {
     let rfc2822 = DateFormatter()
     rfc2822.locale = Locale(identifier: "en_US_POSIX")
@@ -21,14 +37,6 @@ extension Date {
     rfc2822NoWeekday.timeZone = TimeZone(secondsFromGMT: 0)
     rfc2822NoWeekday.dateFormat = "dd MMM yyyy HH:mm:ss zzz"
     return rfc2822NoWeekday
-  }()
-
-  private static let dateOnly: DateFormatter = {
-    let dateOnly = DateFormatter()
-    dateOnly.locale = Locale(identifier: "en_US_POSIX")
-    dateOnly.timeZone = TimeZone(secondsFromGMT: 0)
-    dateOnly.dateFormat = "yyyy-MM-dd"
-    return dateOnly
   }()
 
   private static let iso8601: DateFormatter = {
@@ -47,7 +55,13 @@ extension Date {
     return iso8601WithFractionalSeconds
   }()
 
-  // MARK: - Feed Date Parsing
+  private static let dateOnly: DateFormatter = {
+    let dateOnly = DateFormatter()
+    dateOnly.locale = Locale(identifier: "en_US_POSIX")
+    dateOnly.timeZone = TimeZone(secondsFromGMT: 0)
+    dateOnly.dateFormat = "yyyy-MM-dd"
+    return dateOnly
+  }()
 
   static func parseFeedDate(_ string: String) -> Date? {
     let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,20 +72,6 @@ extension Date {
     if let date = iso8601WithFractionalSeconds.date(from: trimmed) { return date }
     return dateOnly.date(from: trimmed)
   }
-
-  static let usShortDateFormat: DateFormatter = {
-    let usShortDateFormat = DateFormatter()
-    usShortDateFormat.locale = Locale(identifier: "en_US_POSIX")
-    usShortDateFormat.dateFormat = "M/d/yy"
-    return usShortDateFormat
-  }()
-
-  static let usShortDateFormatWithTime: DateFormatter = {
-    let usShortDateFormatWithTime = DateFormatter()
-    usShortDateFormatWithTime.locale = Locale(identifier: "en_US_POSIX")
-    usShortDateFormatWithTime.dateFormat = "M/d/yyyy h:mm a"
-    return usShortDateFormatWithTime
-  }()
 
   // MARK: - Formatting Helpers
 
