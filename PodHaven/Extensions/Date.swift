@@ -15,6 +15,24 @@ extension Date {
     return rfc2822
   }()
 
+  private static let dateOnly: DateFormatter = {
+    let dateOnly = DateFormatter()
+    dateOnly.locale = Locale(identifier: "en_US_POSIX")
+    dateOnly.timeZone = TimeZone(secondsFromGMT: 0)
+    dateOnly.dateFormat = "yyyy-MM-dd"
+    return dateOnly
+  }()
+
+  // MARK: - Feed Date Parsing
+
+  static func parseFeedDate(_ string: String) -> Date? {
+    let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    if let date = rfc2822.date(from: trimmed) { return date }
+    if let date = ISO8601DateFormatter().date(from: trimmed) { return date }
+    return dateOnly.date(from: trimmed)
+  }
+
   static let usShortDateFormat: DateFormatter = {
     let usShortDateFormat = DateFormatter()
     usShortDateFormat.locale = Locale(identifier: "en_US_POSIX")

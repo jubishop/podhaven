@@ -41,6 +41,22 @@ struct PodcastRSSTests {
     )
   }
 
+  @Test("parsing the Git News feed with date-only pubDates")
+  func parseGitNewsFeedWithDateOnlyPubDates() async throws {
+    let data = PreviewBundle.loadAsset(named: "git_news", in: .FeedRSS)
+    let podcast = try await PodcastRSS.parse(data)
+    #expect(podcast.title == "Git News AI")
+    #expect(podcast.episodes.count == 3)
+
+    let episode = podcast.episodes.first!
+    #expect(episode.title == "AI Repo: HKUDS/AI-Trader")
+
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let expectedPubDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 7))
+    #expect(episode.pubDate == expectedPubDate)
+  }
+
   @Test("parsing the Marketplace feed")
   func parseMarketplaceFeed() async throws {
     let data = PreviewBundle.loadAsset(named: "marketplace", in: .FeedRSS)

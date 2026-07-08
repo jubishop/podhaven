@@ -11,7 +11,6 @@ struct PodcastRSS: Decodable, Sendable {
 
   @concurrent static func parse(_ data: Data) async throws -> Podcast {
     let decoder = XMLDecoder()
-    decoder.dateDecodingStrategy = .formatted(Date.rfc2822)
     return try decoder.decode(PodcastRSS.self, from: data).channel
   }
 
@@ -30,10 +29,11 @@ struct PodcastRSS: Decodable, Sendable {
       let link: String?  // URL?
       let description: String?
       let contentEncoded: String?
-      let pubDate: Date?
+      let pubDateString: String?
 
       enum CodingKeys: String, CodingKey {
-        case title, enclosure, guid, link, description, pubDate
+        case title, enclosure, guid, link, description
+        case pubDateString = "pubDate"
         case contentEncoded = "content:encoded"
       }
     }
@@ -69,6 +69,11 @@ struct PodcastRSS: Decodable, Sendable {
 
     var link: URL? {
       URL(string: values.link ?? "")
+    }
+
+    var pubDate: Date? {
+      guard let pubDateString = values.pubDateString else { return nil }
+      return Date.parseFeedDate(pubDateString)
     }
 
     // MARK: - Meta

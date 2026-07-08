@@ -1,0 +1,44 @@
+<?xml version="1.0" ?>
+<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0">
+  <channel>
+    <title>Git News AI</title>
+    <description>Your weekly roundup of the hottest AI repositories trending on GitHub. Discover new frameworks, model implementations, and tools that are shaping the future of artificial intelligence.</description>
+    <language>en-us</language>
+    <link>https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/rss.xml</link>
+    <itunes:author>Skyler @ LimitLess AI</itunes:author>
+    <itunes:summary>Your weekly roundup of the hottest AI repositories trending on GitHub.</itunes:summary>
+    <itunes:explicit>no</itunes:explicit>
+    <itunes:image href="https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/show-art-3k.jpg"/>
+    <itunes:owner>
+      <itunes:name>Skyler @ LimitLess AI</itunes:name>
+      <itunes:email>git-news@limitless-ai.com</itunes:email>
+    </itunes:owner>
+    <itunes:category text="Technology">
+      <itunes:category text="Tech News"/>
+    </itunes:category>
+    <item>
+      <title>AI Repo: HKUDS/AI-Trader</title>
+      <description>Weekly roundup of trending AI repositories.</description>
+      <guid>https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/2026-07-07/output-44k-with-ad-with-music.mp3</guid>
+      <pubDate>2026-07-07</pubDate>
+      <enclosure url="https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/2026-07-07/output-44k-with-ad-with-music.mp3" type="audio/mpeg" length="4344284"/>
+      <itunes:image href="https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/2026-07-07/show-art-3k.jpg"/>
+    </item>
+    <item>
+      <title>AI Repo: NousResearch/hermes-agent</title>
+      <description>Weekly roundup of trending AI repositories.</description>
+      <guid>https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/2026-06-30/output-44k-with-ad-with-music.mp3</guid>
+      <pubDate>2026-06-30</pubDate>
+      <enclosure url="https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/2026-06-30/output-44k-with-ad-with-music.mp3" type="audio/mpeg" length="4211002"/>
+      <itunes:image href="https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/2026-06-30/show-art-3k.jpg"/>
+    </item>
+    <item>
+      <title>AI Repo: ComposioHQ/awesome-claude-skills</title>
+      <description>Weekly roundup of trending AI repositories.</description>
+      <guid>https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/2025-11-29/output-44k-with-ad-with-music.mp3</guid>
+      <pubDate>2025-11-29</pubDate>
+      <enclosure url="https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/2025-11-29/output-44k-with-ad-with-music.mp3" type="audio/mpeg" length="4102883"/>
+      <itunes:image href="https://limitless-ai-podcasts.s3.us-east-2.amazonaws.com/git-news/2025-11-29/show-art-3k.jpg"/>
+    </item>
+  </channel>
+</rss>
