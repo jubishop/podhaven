@@ -64,7 +64,7 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
         .frame(width: iconSize, height: iconSize)
       } else {
         AppIcon.episodeFinished.image
-          .opacity(episode.finished ? 1 : 0)
+          .opacity(episode.finished && !sharedState.isOnDeck(episode) ? 1 : 0)
       }
     }
     .font(.system(size: iconSize))
