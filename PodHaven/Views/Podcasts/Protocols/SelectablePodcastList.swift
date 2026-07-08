@@ -31,7 +31,6 @@ import Logging
 
 extension SelectablePodcastList {
   private var repo: any Databasing { Container.shared.repo() }
-  private var alert: Alert { Container.shared.alert() }
 
   nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcastList) }
 
@@ -61,8 +60,16 @@ extension SelectablePodcastList {
   // MARK: - Actions
 
   func deleteSelectedPodcasts() {
+    let selectedCount = selectedPodcastsWithMetadata.count
     let savedPodcastIDs = selectedSavedPodcastIDs
-    guard !savedPodcastIDs.isEmpty else { return }
+    guard !savedPodcastIDs.isEmpty else {
+      Self.log.notice("deleteSelectedPodcasts: no saved podcasts among \(selectedCount) selected")
+      return
+    }
+
+    Self.log.debug(
+      "deleteSelectedPodcasts: deleting \(savedPodcastIDs.count) of \(selectedCount) selected podcasts"
+    )
 
     Task { [weak self] in
       guard let self else { return }
@@ -79,6 +86,16 @@ extension SelectablePodcastList {
   }
 
   func subscribeSelectedPodcasts() {
+    let selectedCount = selectedPodcastsWithMetadata.count
+    guard anySelectedUnsubscribed else {
+      Self.log.notice(
+        "subscribeSelectedPodcasts: no unsubscribed podcasts among \(selectedCount) selected"
+      )
+      return
+    }
+
+    Self.log.debug("subscribeSelectedPodcasts: subscribing \(selectedCount) selected podcasts")
+
     Task { [weak self] in
       guard let self else { return }
 
@@ -89,8 +106,18 @@ extension SelectablePodcastList {
   }
 
   func unsubscribeSelectedPodcasts() {
+    let selectedCount = selectedPodcastsWithMetadata.count
     let savedPodcastIDs = selectedSavedPodcastIDs
-    guard !savedPodcastIDs.isEmpty else { return }
+    guard !savedPodcastIDs.isEmpty else {
+      Self.log.notice(
+        "unsubscribeSelectedPodcasts: no saved podcasts among \(selectedCount) selected"
+      )
+      return
+    }
+
+    Self.log.debug(
+      "unsubscribeSelectedPodcasts: unsubscribing \(savedPodcastIDs.count) of \(selectedCount) selected podcasts"
+    )
 
     Task { [weak self] in
       guard let self else { return }
@@ -108,7 +135,14 @@ extension SelectablePodcastList {
 
   func applyTagToSelectedPodcasts(_ tagID: Tag.ID) {
     let podcastIDs = selectedSavedPodcastIDs
-    guard !podcastIDs.isEmpty else { return }
+    guard !podcastIDs.isEmpty else {
+      Self.log.notice("applyTagToSelectedPodcasts: no saved podcasts selected for tag \(tagID)")
+      return
+    }
+
+    Self.log.debug(
+      "applyTagToSelectedPodcasts: tagging \(podcastIDs.count) podcasts with tag \(tagID)"
+    )
 
     let log = Self.log
     Task {
@@ -125,7 +159,14 @@ extension SelectablePodcastList {
 
   func removeTagFromSelectedPodcasts(_ tagID: Tag.ID) {
     let podcastIDs = selectedSavedPodcastIDs
-    guard !podcastIDs.isEmpty else { return }
+    guard !podcastIDs.isEmpty else {
+      Self.log.notice("removeTagFromSelectedPodcasts: no saved podcasts selected for tag \(tagID)")
+      return
+    }
+
+    Self.log.debug(
+      "removeTagFromSelectedPodcasts: untagging \(podcastIDs.count) podcasts from tag \(tagID)"
+    )
 
     let log = Self.log
     Task {

@@ -506,6 +506,36 @@ import Testing
     #expect(dequeueCall.parameters == [queued.id])
   }
 
+  @Test("dequeueSelectedEpisodes logs a notice when no selected episode is queued")
+  func dequeueSelectedLogsNoticeWhenNothingQueued() async throws {
+    try await LogCapture.withSink { sink in
+      let series = try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(),
+          unsavedEpisodes: [try Create.unsavedEpisode(guid: "stale", title: "Stale")]
+        )
+      )
+      // Never queued: simulates a selected row whose episode left the queue
+      // between opening the menu and tapping remove.
+      let stale = try await fetchListable(series.episodes[0].id)
+
+      let viewModel = UpNextViewModel()
+      viewModel.episodeList.allEntries = IdentifiedArray(uniqueElements: [stale])
+      viewModel.episodeList.isSelected[stale.id] = true
+
+      viewModel.dequeueSelectedEpisodes()
+
+      let bailNotices = sink.captured()
+        .filter {
+          $0.level == .notice && $0.message.contains("dequeueSelectedEpisodes")
+        }
+      #expect(bailNotices.count == 1)
+
+      let fakeQueue = try #require(queue as? FakeQueue)
+      try fakeQueue.expectNoCall(methodName: "dequeue")
+    }
+  }
+
   // Regression for #338: queueing one of the published recommended episodes
   // must drop it from `recommendedEpisodes` immediately, without waiting for
   // the engine's debounced rebuild. The pool publishes IDs; the view model is
