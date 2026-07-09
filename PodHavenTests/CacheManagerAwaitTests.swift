@@ -11,6 +11,7 @@ struct CacheManagerAwaitTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.repo) private var repo
 
+  private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var session: FakeDataFetchable {
     Container.shared.cacheManagerSession() as! FakeDataFetchable
   }
@@ -116,6 +117,29 @@ struct CacheManagerAwaitTests {
     try await CacheHelpers.simulateBackgroundFinish(okTaskID, data: data)
 
     let resolved = try #require(try await secondPending)
+    let actualData = try await CacheHelpers.cachedFileData(for: resolved)
+    #expect(actualData == data)
+  }
+
+  @Test("cachedURL(downloadingIfNeeded:) re-downloads when the cached file is missing on disk")
+  func redownloadsWhenCachedFileIsMissing() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let staleTaskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(staleTaskID)
+    let staleURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+
+    // A cached row whose file is gone, e.g. a crash between clearCache's file
+    // delete and its DB update.
+    try fileManager.removeItem(at: staleURL.rawValue)
+
+    async let pending = cacheManager.cachedURL(downloadingIfNeeded: podcastEpisode.id)
+
+    let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
+    try await CacheHelpers.waitForResumed(taskID)
+    let data = Data.random()
+    try await CacheHelpers.simulateBackgroundFinish(taskID, data: data)
+
+    let resolved = try #require(try await pending)
     let actualData = try await CacheHelpers.cachedFileData(for: resolved)
     #expect(actualData == data)
   }

@@ -140,7 +140,16 @@ struct CacheManager {
 
     switch podcastEpisode.episode.cacheStatus {
     case .cached:
-      return podcastEpisode.episode.cachedURL
+      if let cachedURL = podcastEpisode.episode.cachedURL,
+        fileManager.fileExists(at: cachedURL.rawValue)
+      {
+        return cachedURL
+      }
+      // The row says cached but the file is gone (e.g. an interrupted
+      // clearCache): clear the stale filename and download fresh.
+      Self.log.warning("cachedURL: cached file missing on disk for \(episodeID), re-downloading")
+      try await repo.updateCachedFilename(episodeID, cachedFilename: nil)
+      try await startDownload(for: podcastEpisode)
     case .uncached:
       try await startDownload(for: podcastEpisode)
     case .caching:
