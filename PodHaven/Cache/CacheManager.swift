@@ -21,9 +21,11 @@ extension Container {
       config.waitsForConnectivity = true
       config.isDiscretionary = false
       config.httpMaximumConnectionsPerHost = 4
-      // Abandon stalled downloads in bounded time instead of the multi-day
-      // default; force-quit leaks are cleared by reconcileStaleDownloads().
-      config.timeoutIntervalForResource = 24 * 60 * 60
+      // Abandon downloads that never finish in bounded time, below the
+      // framework's week-scale default. The resource timer also counts time
+      // spent waiting for connectivity, so leave headroom for offline
+      // stretches; force-quit leaks are cleared by reconcileStaleDownloads().
+      config.timeoutIntervalForResource = 3 * 24 * 60 * 60
       return URLSession(
         configuration: config,
         delegate: self.cacheBackgroundDelegate(),
