@@ -121,6 +121,61 @@ struct CacheManagerAwaitTests {
     #expect(actualData == data)
   }
 
+  @Test("a stale callback cannot resolve a replacement download attempt")
+  func staleCallbackDoesNotResolveReplacementAttempt() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let episodeID = podcastEpisode.id
+    let fakeRepo = try #require(repo as? FakeRepo)
+
+    async let firstPending = cacheManager.cachedURL(downloadingIfNeeded: episodeID)
+    let firstTaskID = try await CacheHelpers.waitForDownloadTask(episodeID)
+    try await CacheHelpers.waitForResumed(firstTaskID)
+
+    fakeRepo.pendingDownloadingFalseSuspend(true)
+    let finishFirst = Task {
+      try await CacheHelpers.simulateBackgroundFailure(firstTaskID)
+    }
+    try await fakeRepo.waitForDownloadingFalseSuspended()
+
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+    let replacement = Task {
+      try await cacheManager.cachedURL(downloadingIfNeeded: episodeID)
+    }
+    let description = String(episodeID.rawValue)
+    let replacementTaskID = try await Wait.forValue {
+      await session.downloadTasks()
+        .first {
+          $0.taskDescription == description && $0.taskID != firstTaskID
+        }?
+        .taskID
+    }
+    try await CacheHelpers.waitForResumed(replacementTaskID)
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+    let cancelledPeer = Task {
+      try await cacheManager.cachedURL(downloadingIfNeeded: episodeID)
+    }
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 2)
+
+    await fakeRepo.resumeAllDownloadingFalseSuspensions()
+    try await finishFirst.value
+    #expect(try await firstPending == nil)
+
+    cancelledPeer.cancel()
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    await #expect(throws: CancellationError.self) {
+      _ = try await cancelledPeer.value
+    }
+
+    let data = Data.random()
+    try await CacheHelpers.simulateBackgroundFinish(replacementTaskID, data: data)
+
+    let resolved = try #require(try await replacement.value)
+    let actualData = try await CacheHelpers.cachedFileData(for: resolved)
+    #expect(actualData == data)
+  }
+
   @Test("cachedURL(downloadingIfNeeded:) re-downloads when the cached file is missing on disk")
   func redownloadsWhenCachedFileIsMissing() async throws {
     let podcastEpisode = try await Create.podcastEpisode()

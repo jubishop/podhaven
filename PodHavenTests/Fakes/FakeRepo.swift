@@ -30,6 +30,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let completedEpisodeFetchCount = ThreadSafe<Int>(0)
   private var episodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
 
+  nonisolated let pendingDownloadingFalseSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedDownloadingFalseCount = ThreadSafe<Int>(0)
+  private var downloadingFalseSuspensions: [CheckedContinuation<Void, Never>] = []
+
   // Same shape as pendingEpisodeFetchSuspend, but for updateLastUpdates so
   // tests can park the batched flush inside RefreshManager.performRefresh.
   nonisolated let pendingUpdateLastUpdatesSuspend = ThreadSafe<Bool>(false)
@@ -147,6 +151,25 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         """
         Expected at least \(count) completed episode fetches, \
         got \(self.completedEpisodeFetchCount())
+        """
+      }
+    )
+  }
+
+  func resumeAllDownloadingFalseSuspensions() {
+    let toResume = downloadingFalseSuspensions
+    downloadingFalseSuspensions.removeAll()
+    suspendedDownloadingFalseCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForDownloadingFalseSuspended(count: Int = 1) async throws {
+    try await Wait.until(
+      { self.suspendedDownloadingFalseCount() >= count },
+      {
+        """
+        Expected at least \(count) suspended downloading=false writes, \
+        got \(self.suspendedDownloadingFalseCount())
         """
       }
     )
@@ -386,7 +409,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       methodName: "updateDownloading",
       parameters: (episodeID: episodeID, downloading: downloading)
     )
-    return try await repo.updateDownloading(episodeID, downloading: downloading)
+    let result = try await repo.updateDownloading(episodeID, downloading: downloading)
+    if !downloading, pendingDownloadingFalseSuspend() {
+      pendingDownloadingFalseSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        downloadingFalseSuspensions.append(continuation)
+        suspendedDownloadingFalseCount(downloadingFalseSuspensions.count)
+      }
+    }
+    return result
   }
 
   @discardableResult
