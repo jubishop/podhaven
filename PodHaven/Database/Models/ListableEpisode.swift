@@ -41,6 +41,7 @@ struct ListableEpisode:
       Episode.Columns.rating,
       EpisodeTag.tagIDsSelectable,
       EpisodeEmbedding.existsSelectable,
+      Episode.hasTranscriptSelectable,
     ]
   }
 
@@ -64,6 +65,7 @@ struct ListableEpisode:
   let rating: EpisodeRating?
   let tagIDs: Set<Tag.ID>
   let hasEmbedding: Bool
+  let hasTranscript: Bool
 
   // MARK: - EpisodeFoundational
 
@@ -87,6 +89,7 @@ struct ListableEpisode:
     queueDate = row[Episode.Columns.queueDate]
     rating = row[Episode.Columns.rating]
     hasEmbedding = row[EpisodeEmbedding.existsColumnName]
+    hasTranscript = row[Episode.hasTranscriptColumnName]
 
     tagIDs = try EpisodeTag.decodeTagIDs(from: row)
 
@@ -116,5 +119,6 @@ struct ListableEpisode:
     self.tagIDs = tagIDs
     self.cacheStatus = episode.cacheStatus
     self.hasEmbedding = hasEmbedding
+    self.hasTranscript = episode.hasTranscript
   }
 }
