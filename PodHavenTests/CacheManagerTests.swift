@@ -312,6 +312,23 @@ import Testing
     #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
   }
 
+  @Test("concurrent same-episode downloads create one task")
+  func concurrentSameEpisodeDownloadsCreateOneTask() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    await fakeRepo.barrierNextPodcastEpisodeFetches(count: 2)
+
+    async let firstTaskID = cacheManager.downloadToCache(for: podcastEpisode.id)
+    async let secondTaskID = cacheManager.downloadToCache(for: podcastEpisode.id)
+    let results = try await (firstTaskID, secondTaskID)
+    let startedTaskIDs = [results.0, results.1].compactMap { $0 }
+
+    let createdTaskCount = await session.allCreatedTasks.count
+    #expect(startedTaskIDs.count == 1)
+    #expect(createdTaskCount == 1)
+    try await CacheHelpers.waitForResumed(try #require(startedTaskIDs.first))
+  }
+
   @Test("multiple concurrent downloads are cached successfully")
   func multipleConcurrentDownloadsAreCachedSuccessfully() async throws {
     let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()

@@ -122,16 +122,7 @@ struct CacheManager {
       return nil
     }
 
-    switch podcastEpisode.episode.cacheStatus {
-    case .cached:
-      Self.log.trace("\(podcastEpisode.toString) already cached")
-      return nil
-    case .caching:
-      Self.log.trace("\(podcastEpisode.toString) already being downloaded")
-      return nil
-    case .uncached:
-      return try await startDownload(for: podcastEpisode)
-    }
+    return try await startDownload(for: podcastEpisode)
   }
 
   func cachedURL(downloadingIfNeeded episodeID: Episode.ID) async throws -> CachedURL? {
@@ -236,8 +227,13 @@ struct CacheManager {
 
   @discardableResult
   private func startDownload(for podcastEpisode: PodcastEpisode) async throws
-    -> URLSessionDownloadTask.ID
+    -> URLSessionDownloadTask.ID?
   {
+    guard try await repo.claimForDownloadIfUncached(podcastEpisode.id) else {
+      Self.log.trace("startDownload: episode \(podcastEpisode.id) was not uncached")
+      return nil
+    }
+
     var request = URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
     request.allowsExpensiveNetworkAccess = true
     request.allowsConstrainedNetworkAccess = true
@@ -251,7 +247,6 @@ struct CacheManager {
       with: request,
       taskDescription: String(podcastEpisode.id.rawValue)
     )
-    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
     downloadTask.resume()
 
     return downloadTask.taskID
