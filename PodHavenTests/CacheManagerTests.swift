@@ -143,6 +143,7 @@ import Testing
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
 
     let episode: Episode = try await repo.episode(podcastEpisode.id)!
+    #expect(episode.cacheStatus == .uncached)
     #expect(episode.cachedURL == nil)
     #expect(episode.duration == .zero)
   }
@@ -156,6 +157,34 @@ import Testing
 
     let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID)
     #expect(!fileManager.fileExists(at: fileURL))
+  }
+
+  // downloading is cleared only after the cached filename is written, so a
+  // request arriving mid-completion sees .caching and no-ops, not a duplicate.
+  @Test("a request arriving mid-completion does not start a duplicate download")
+  func requestMidCompletionDoesNotRestartDownload() async throws {
+    let assetStarted = AsyncSemaphore(value: 0)
+    let assetRelease = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.setDefaultHandler { _ in
+      assetStarted.signal()
+      try await assetRelease.waitUnlessCancelled()
+      return (true, CMTime.seconds(30))
+    }
+
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+
+    // Drive completion concurrently; it parks in the gated asset load, before
+    // the filename is written and flag cleared.
+    let finish = Task { try await CacheHelpers.simulateBackgroundFinish(taskID) }
+    await assetStarted.wait()
+
+    let duplicate = try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    #expect(duplicate == nil)
+
+    assetRelease.signal()
+    _ = try await finish.value
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
   }
 
   @Test("download finishing for a deleted episode is cleaned up")
@@ -489,6 +518,7 @@ import Testing
   @Test("download with mismatched URL is refused, leaving the episode uncached")
   func mismatchedURLRefused() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
 
     let task = FakeURLSessionDownloadTask(
       taskDescription: String(podcastEpisode.id.rawValue),
@@ -503,7 +533,64 @@ import Testing
       didFinishDownloadingTo: tempFile
     )
 
+    // The give-up path must clear downloading too, not just skip the write;
+    // .uncached asserts both (not cached, not downloading).
     let updated = try await repo.episode(podcastEpisode.id)!
-    #expect(updated.cacheStatus != .cached)
+    #expect(updated.cacheStatus == .uncached)
+  }
+
+  // A terminal callback can fail to read its episode row (transient DB error),
+  // not just find it missing. The id is still parseable from taskDescription,
+  // so the give-up path must clear downloading and drop the temp file rather
+  // than strand the episode as .caching with no live task until next launch.
+  @Test("didFinishDownloadingTo clears state when the episode fetch throws")
+  func didFinishDownloadingToClearsStateWhenEpisodeFetchThrows() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+
+    let task = FakeURLSessionDownloadTask(
+      taskDescription: String(podcastEpisode.id.rawValue),
+      originalRequest: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
+    )
+    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try await fileManager.writeData(Data.random(), to: tempFile)
+
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.episodeFetchError(InjectedRepoError())
+
+    await cacheBackgroundDelegate.urlSession(
+      session,
+      downloadTask: task,
+      didFinishDownloadingTo: tempFile
+    )
+
+    let updated = try await repo.episode(podcastEpisode.id)!
+    #expect(updated.cacheStatus == .uncached)
+    #expect(!fileManager.fileExists(at: tempFile))
+  }
+
+  @Test("didCompleteWithError clears state when the episode fetch throws")
+  func didCompleteWithErrorClearsStateWhenEpisodeFetchThrows() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+
+    let task = FakeURLSessionDownloadTask(
+      taskDescription: String(podcastEpisode.id.rawValue),
+      originalRequest: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
+    )
+
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.episodeFetchError(InjectedRepoError())
+
+    await cacheBackgroundDelegate.urlSession(
+      session,
+      task: task,
+      didCompleteWithError: InjectedRepoError()
+    )
+
+    let updated = try await repo.episode(podcastEpisode.id)!
+    #expect(updated.cacheStatus == .uncached)
   }
 }
+
+private struct InjectedRepoError: Error, Sendable {}

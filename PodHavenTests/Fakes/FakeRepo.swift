@@ -15,6 +15,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // Cleared on use so subsequent calls reach the real repo.
   nonisolated let updateSaveInCacheBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
 
+  // One-shot error to throw from `episode(_:Episode.ID)`. Cleared on use so
+  // subsequent calls reach the real repo.
+  nonisolated let episodeFetchError = ThreadSafe<(any Error & Sendable)?>(nil)
+
   // When true, the next `episode(_:Episode.ID)` call parks until
   // `resumeAllEpisodeFetchSuspensions()` fires; cleared on use. Counts are
   // nonisolated so tests poll without contending for the actor (same pattern
@@ -98,6 +102,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode? {
     recordCall(methodName: "episode", parameters: episodeID)
+    if let injected = episodeFetchError({ error in
+      let captured = error
+      error = nil
+      return captured
+    }) {
+      throw injected
+    }
     let result = try await repo.episode(episodeID)
     if pendingEpisodeFetchSuspend() {
       pendingEpisodeFetchSuspend(false)
@@ -179,6 +190,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func cachedEpisodes() async throws -> [Episode] {
     recordCall(methodName: "cachedEpisodes")
     return try await repo.cachedEpisodes()
+  }
+
+  func downloadingEpisodeIDs() async throws -> [Episode.ID] {
+    recordCall(methodName: "downloadingEpisodeIDs")
+    return try await repo.downloadingEpisodeIDs()
   }
 
   // MARK: - Series Writers
