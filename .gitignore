@@ -53,6 +53,9 @@ worktrees
 .cache/
 .envrc.local
 
+# CI artifacts
+/artifacts/
+
 # Python
 __pycache__/
 *.py[cod]

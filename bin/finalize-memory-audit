@@ -1,0 +1,411 @@
+#!/usr/bin/env bash
+# Validate a completed OpenRouter memory audit and publish approved memory changes.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ARTIFACT_DIR="${RUNNER_TEMP:-/tmp}/memory-audit"
+AGENT_REPORT="$ROOT/artifacts/memory-audit-report.md"
+AGENT_OUTPUT="$ROOT/artifacts/openrouter-final.md"
+AGENT_CONTEXT="$ROOT/artifacts/memory-audit-context.json"
+REPORT_PATH="$ARTIFACT_DIR/memory-audit-report.md"
+META_PATH="$ARTIFACT_DIR/run-meta.json"
+PR_BODY_PATH="$ARTIFACT_DIR/pull-request-body.md"
+PATCH_PATH="$ARTIFACT_DIR/memory-audit.patch"
+REPORT_START_MARKER='<!-- MEMORY_AUDIT_REPORT_START -->'
+REPORT_END_MARKER='<!-- MEMORY_AUDIT_REPORT_END -->'
+PATCH_START_MARKER='<!-- MEMORY_AUDIT_PATCH_START -->'
+PATCH_END_MARKER='<!-- MEMORY_AUDIT_PATCH_END -->'
+
+AUDIT_OUTCOME="${AUDIT_OUTCOME:-failure}"
+MODEL_ID="${MODEL_ID:-deepseek/deepseek-v4-flash}"
+REASONING_EFFORT="${REASONING_EFFORT:-high}"
+OPENROUTER_API_COST="${OPENROUTER_API_COST:-}"
+PUBLISH_CHANGES="${PUBLISH_CHANGES:-true}"
+BASE_BRANCH="${BASE_BRANCH:-main}"
+
+mkdir -p "$ARTIFACT_DIR"
+
+if [[ -f "$AGENT_OUTPUT" ]]; then
+  cp "$AGENT_OUTPUT" "$ARTIFACT_DIR/openrouter-final.md"
+fi
+if [[ -f "$AGENT_CONTEXT" ]]; then
+  cp "$AGENT_CONTEXT" "$ARTIFACT_DIR/memory-audit-context.json"
+fi
+
+extract_report_from_result() {
+  local text="$1"
+  local extracted=""
+
+  if [[ "$text" == *"$REPORT_START_MARKER"* ]]; then
+    extracted="$(awk -v start="$REPORT_START_MARKER" -v end="$REPORT_END_MARKER" '
+      $0 == start { capture=1; next }
+      $0 == end { capture=0 }
+      capture { print }
+    ' <<< "$text")"
+  elif [[ "$text" == *"# Memory audit report"* ]]; then
+    extracted="$(awk '/^# Memory audit report/ { capture=1 } capture { print }' <<< "$text")"
+  fi
+
+  if [[ -n "$extracted" ]]; then
+    printf '%s\n' "$extracted"
+  fi
+}
+
+write_fallback_report() {
+  cat > "$REPORT_PATH" <<EOF
+# Memory audit report (CI fallback)
+
+The OpenRouter agent did not produce a recoverable memory audit report.
+
+- Action outcome: \`$AUDIT_OUTCOME\`
+- Model: \`$MODEL_ID\`
+- Run: ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-unknown}/actions/runs/${GITHUB_RUN_ID:-unknown}
+
+## Agent final message
+
+$(if [[ -f "$AGENT_OUTPUT" ]]; then cat "$AGENT_OUTPUT"; else printf '%s\n' '_No final message._'; fi)
+EOF
+}
+
+REPORT_SOURCE="fallback"
+if [[ -s "$AGENT_REPORT" ]]; then
+  cp "$AGENT_REPORT" "$REPORT_PATH"
+  REPORT_SOURCE="agent"
+elif [[ -s "$AGENT_OUTPUT" ]] && EXTRACTED_REPORT="$(extract_report_from_result "$(< "$AGENT_OUTPUT")")" && [[ -n "$EXTRACTED_REPORT" ]]; then
+  printf '%s\n' "$EXTRACTED_REPORT" > "$REPORT_PATH"
+  REPORT_SOURCE="result"
+else
+  write_fallback_report
+fi
+
+if [[ -f "$AGENT_CONTEXT" ]] && jq -e '.activeNoteCount | numbers' "$AGENT_CONTEXT" >/dev/null; then
+  ACTIVE_NOTE_COUNT="$(jq -r '.activeNoteCount' "$AGENT_CONTEXT")"
+else
+  ACTIVE_NOTE_COUNT="$(find "$ROOT/memory" -maxdepth 1 -type f -name '*.md' ! -name 'README.md' | wc -l | tr -d ' ')"
+fi
+REPORT_VALID=true
+PATCH_VALID=true
+WARNINGS=()
+
+is_allowed_memory_path() {
+  local path="$1"
+  [[ "$path" =~ ^memory/[^/]+\.md$ && "$path" != "memory/README.md" ]] ||
+    [[ "$path" =~ ^memory/archive/[^/]+\.md$ ]]
+}
+
+validate_patch_paths() {
+  local line old_path new_path path
+  local saw_diff=false
+
+  while IFS= read -r line; do
+    if [[ "$line" == "diff --git "* ]]; then
+      saw_diff=true
+      if [[ "$line" =~ ^diff\ --git\ a/([^[:space:]]+)\ b/([^[:space:]]+)$ ]]; then
+        old_path="${BASH_REMATCH[1]}"
+        new_path="${BASH_REMATCH[2]}"
+        is_allowed_memory_path "$old_path" || return 1
+        is_allowed_memory_path "$new_path" || return 1
+        if [[ "$old_path" != "$new_path" && "$new_path" != "memory/archive/${old_path#memory/}" ]]; then
+          return 1
+        fi
+      else
+        return 1
+      fi
+    elif [[ "$line" == "--- "* || "$line" == "+++ "* ]]; then
+      path="${line:4}"
+      path="${path%%$'\t'*}"
+      if [[ "$path" == "/dev/null" ]]; then
+        continue
+      fi
+      path="${path#a/}"
+      path="${path#b/}"
+      is_allowed_memory_path "$path" || return 1
+    fi
+  done < "$PATCH_PATH"
+
+  [[ "$saw_diff" == true ]]
+}
+
+if [[ -s "$AGENT_OUTPUT" ]] &&
+  grep -Fxq "$PATCH_START_MARKER" "$AGENT_OUTPUT" &&
+  grep -Fxq "$PATCH_END_MARKER" "$AGENT_OUTPUT"; then
+  awk -v start="$PATCH_START_MARKER" -v end="$PATCH_END_MARKER" '
+    $0 == start { capture=1; next }
+    $0 == end { capture=0 }
+    capture { print }
+  ' "$AGENT_OUTPUT" > "$PATCH_PATH"
+
+  if grep -q '[^[:space:]]' "$PATCH_PATH"; then
+    if ! validate_patch_paths; then
+      PATCH_VALID=false
+      WARNINGS+=("memory patch contains a disallowed or malformed path")
+    elif ! git -C "$ROOT" apply --check --index "$PATCH_PATH"; then
+      PATCH_VALID=false
+      WARNINGS+=("memory patch failed git apply validation")
+    elif ! git -C "$ROOT" apply --index "$PATCH_PATH"; then
+      PATCH_VALID=false
+      WARNINGS+=("memory patch could not be applied")
+    fi
+  fi
+else
+  : > "$PATCH_PATH"
+  PATCH_VALID=false
+  WARNINGS+=("agent final message is missing the memory patch markers")
+fi
+
+if [[ "$REPORT_SOURCE" == "fallback" ]]; then
+  REPORT_VALID=false
+  WARNINGS+=("agent did not write a report file or return a report in its final message")
+fi
+
+if ! grep -qE '^# Memory audit report' "$REPORT_PATH"; then
+  REPORT_VALID=false
+  WARNINGS+=("missing '# Memory audit report' header")
+fi
+
+if ! grep -q '^## Per-note findings' "$REPORT_PATH"; then
+  REPORT_VALID=false
+  WARNINGS+=("missing '## Per-note findings' section")
+fi
+
+REVIEWED_COUNT=""
+if REVIEWED_LINE="$(grep -E '^- Active notes reviewed:' "$REPORT_PATH" | head -1)"; then
+  REVIEWED_COUNT="$(sed -E 's/^- Active notes reviewed: *([0-9]+).*/\1/' <<< "$REVIEWED_LINE")"
+elif REVIEWED_LINE="$(grep -E '^\| Reviewed \|' "$REPORT_PATH" | head -1)"; then
+  REVIEWED_COUNT="$(sed -E 's/^\| Reviewed \| *([0-9]+) *\|.*/\1/' <<< "$REVIEWED_LINE")"
+fi
+
+if [[ -z "$REVIEWED_COUNT" ]]; then
+  REPORT_VALID=false
+  WARNINGS+=("could not parse active notes reviewed count")
+elif [[ "$REVIEWED_COUNT" != "$ACTIVE_NOTE_COUNT" ]]; then
+  REPORT_VALID=false
+  WARNINGS+=("reviewed count ($REVIEWED_COUNT) != active note count ($ACTIVE_NOTE_COUNT)")
+fi
+
+mapfile -t CHANGED_PATHS < <(
+  {
+    git -C "$ROOT" diff --name-only
+    git -C "$ROOT" diff --cached --name-only
+    git -C "$ROOT" ls-files --others --exclude-standard
+  } | LC_ALL=C sort -u | grep -v '^artifacts/' || true
+)
+
+MEMORY_CHANGED=false
+UNEXPECTED_PATHS=()
+POLICY_VIOLATIONS=()
+for path in "${CHANGED_PATHS[@]}"; do
+  if is_allowed_memory_path "$path"; then
+    MEMORY_CHANGED=true
+    if [[ -L "$ROOT/$path" ]]; then
+      POLICY_VIOLATIONS+=("audit created a symbolic link: $path")
+    fi
+  else
+    UNEXPECTED_PATHS+=("$path")
+  fi
+done
+
+if ((${#UNEXPECTED_PATHS[@]} > 0)); then
+  for path in "${UNEXPECTED_PATHS[@]}"; do
+    WARNINGS+=("agent changed disallowed path: $path")
+  done
+fi
+
+mapfile -t ADDED_PATHS < <(
+  {
+    git -C "$ROOT" diff --diff-filter=A --name-only
+    git -C "$ROOT" diff --cached --diff-filter=A --name-only
+    git -C "$ROOT" ls-files --others --exclude-standard
+  } | LC_ALL=C sort -u
+)
+for path in "${ADDED_PATHS[@]}"; do
+  if [[ "$path" =~ ^memory/[^/]+\.md$ ]]; then
+    POLICY_VIOLATIONS+=("audit created a new active note: $path")
+  fi
+done
+
+mapfile -t ARCHIVE_MUTATIONS < <(
+  {
+    git -C "$ROOT" diff --diff-filter=MD --name-only -- memory/archive
+    git -C "$ROOT" diff --cached --diff-filter=MD --name-only -- memory/archive
+  } | LC_ALL=C sort -u
+)
+for path in "${ARCHIVE_MUTATIONS[@]}"; do
+  POLICY_VIOLATIONS+=("audit changed an existing archived note: $path")
+done
+
+mapfile -t DELETED_ACTIVE_NOTES < <(
+  {
+    git -C "$ROOT" diff --diff-filter=D --name-only
+    git -C "$ROOT" diff --cached --diff-filter=D --name-only
+  } | LC_ALL=C sort -u
+)
+for path in "${DELETED_ACTIVE_NOTES[@]}"; do
+  if [[ "$path" =~ ^memory/[^/]+\.md$ ]]; then
+    archive_path="memory/archive/${path#memory/}"
+    if ! printf '%s\n' "${CHANGED_PATHS[@]}" | grep -Fxq "$archive_path"; then
+      POLICY_VIOLATIONS+=("audit deleted rather than archived note: $path")
+    fi
+  fi
+done
+
+if ((${#POLICY_VIOLATIONS[@]} > 0)); then
+  for violation in "${POLICY_VIOLATIONS[@]}"; do
+    WARNINGS+=("$violation")
+  done
+fi
+
+LOCAL_COMMIT=false
+EXPECTED_SHA="${EXPECTED_HEAD_SHA:-${GITHUB_SHA:-}}"
+if [[ -n "$EXPECTED_SHA" && "$(git -C "$ROOT" rev-parse HEAD)" != "$EXPECTED_SHA" ]]; then
+  LOCAL_COMMIT=true
+  WARNINGS+=("agent changed HEAD; audit changes must remain uncommitted")
+fi
+
+STATUS="FINISHED"
+HEALTH="ok"
+EXIT_CODE=0
+if [[ "$AUDIT_OUTCOME" != "success" ]]; then
+  STATUS="ERROR"
+  HEALTH="failed"
+  EXIT_CODE=2
+  WARNINGS+=("OpenRouter agent ended with outcome $AUDIT_OUTCOME")
+elif [[ "$PATCH_VALID" != true || "$LOCAL_COMMIT" == true || ${#UNEXPECTED_PATHS[@]} -gt 0 || ${#POLICY_VIOLATIONS[@]} -gt 0 ]]; then
+  HEALTH="failed"
+  EXIT_CODE=5
+elif [[ "$REPORT_VALID" != true ]]; then
+  HEALTH="degraded"
+  EXIT_CODE=4
+fi
+
+BRANCH=""
+PR_URL=""
+RUN_URL="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-unknown}/actions/runs/${GITHUB_RUN_ID:-unknown}"
+
+publish_changes() {
+  local branch="$1"
+  local pr_url
+
+  git -C "$ROOT" switch -c "$branch" >&2 || return 1
+  git -C "$ROOT" add -- memory >&2 || return 1
+  if git -C "$ROOT" diff --cached --quiet; then
+    echo "No staged memory changes remained after validation" >&2
+    return 1
+  fi
+
+  git -C "$ROOT" config user.name "github-actions[bot]" || return 1
+  git -C "$ROOT" config user.email "41898282+github-actions[bot]@users.noreply.github.com" || return 1
+  git -C "$ROOT" commit -m "memory: curate notes from scheduled audit" >&2 || return 1
+  gh auth setup-git >&2 || return 1
+  git -C "$ROOT" push --set-upstream origin "$branch" >&2 || return 1
+
+  {
+    echo "Automated memory curation from the scheduled OpenRouter audit."
+    echo ""
+    echo "[Workflow run]($RUN_URL)"
+    echo ""
+    cat "$REPORT_PATH"
+  } > "$PR_BODY_PATH"
+
+  pr_url="$(gh pr create \
+    --repo "$GITHUB_REPOSITORY" \
+    --base "$BASE_BRANCH" \
+    --head "$branch" \
+    --title "memory: curate notes from scheduled audit" \
+    --body-file "$PR_BODY_PATH")" || return 1
+  printf '%s\n' "$pr_url"
+}
+
+if [[ "$MEMORY_CHANGED" == true && "$HEALTH" == "ok" ]]; then
+  if [[ "$PUBLISH_CHANGES" == "true" ]]; then
+    if [[ -z "${GH_TOKEN:-}" || -z "${GITHUB_REPOSITORY:-}" || -z "${GITHUB_RUN_ID:-}" ]]; then
+      HEALTH="failed"
+      EXIT_CODE=6
+      WARNINGS+=("missing GitHub environment required to publish memory changes")
+    else
+      BRANCH="openrouter/memory-audit-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}"
+      if ! PR_URL="$(publish_changes "$BRANCH")"; then
+        HEALTH="failed"
+        EXIT_CODE=6
+        WARNINGS+=("failed to commit, push, or open the memory audit pull request")
+        PR_URL=""
+      fi
+    fi
+  else
+    WARNINGS+=("publication skipped because PUBLISH_CHANGES=$PUBLISH_CHANGES")
+  fi
+fi
+
+WARNINGS_JSON="$(printf '%s\n' "${WARNINGS[@]:-}" | jq -R -s 'split("\n") | map(select(length > 0))')"
+CHANGED_PATHS_JSON="$(printf '%s\n' "${CHANGED_PATHS[@]:-}" | jq -R -s 'split("\n") | map(select(length > 0))')"
+API_COST_JSON="null"
+if [[ "$OPENROUTER_API_COST" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  API_COST_JSON="$OPENROUTER_API_COST"
+fi
+
+jq -n \
+  --arg runId "${GITHUB_RUN_ID:-}" \
+  --arg runUrl "$RUN_URL" \
+  --arg status "$STATUS" \
+  --arg health "$HEALTH" \
+  --arg runner "bin/run-memory-audit.mjs" \
+  --arg provider "openrouter" \
+  --arg model "$MODEL_ID" \
+  --arg effort "$REASONING_EFFORT" \
+  --argjson apiCost "$API_COST_JSON" \
+  --arg prUrl "$PR_URL" \
+  --arg branch "$BRANCH" \
+  --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg reportSource "$REPORT_SOURCE" \
+  --argjson reportValid "$REPORT_VALID" \
+  --argjson patchValid "$PATCH_VALID" \
+  --argjson activeNoteCount "$ACTIVE_NOTE_COUNT" \
+  --arg reviewedCount "$REVIEWED_COUNT" \
+  --argjson changedFiles "$CHANGED_PATHS_JSON" \
+  --argjson warnings "$WARNINGS_JSON" \
+  --argjson exitCode "$EXIT_CODE" \
+  '{
+    runId: $runId,
+    runUrl: $runUrl,
+    status: $status,
+    health: $health,
+    runner: $runner,
+    provider: $provider,
+    model: $model,
+    effort: $effort,
+    apiCost: $apiCost,
+    prUrl: (if $prUrl == "" then null else $prUrl end),
+    branch: (if $branch == "" then null else $branch end),
+    completedAt: $completedAt,
+    reportSource: $reportSource,
+    reportValid: $reportValid,
+    patchValid: $patchValid,
+    activeNoteCount: $activeNoteCount,
+    reviewedCount: (if $reviewedCount == "" then null else ($reviewedCount | tonumber) end),
+    changedFiles: $changedFiles,
+    warnings: $warnings,
+    exitCode: $exitCode
+  }' > "$META_PATH"
+
+echo "=== Memory audit complete ==="
+echo "Status: $STATUS"
+echo "Health: $HEALTH"
+echo "Runner: bin/run-memory-audit.mjs"
+echo "Model:  $MODEL_ID ($REASONING_EFFORT)"
+if [[ -n "$OPENROUTER_API_COST" ]]; then
+  echo "Cost:   \$$OPENROUTER_API_COST"
+fi
+if [[ -n "$PR_URL" ]]; then
+  echo "PR:     $PR_URL"
+else
+  echo "PR:     (none)"
+fi
+echo "Report: $REPORT_PATH ($REPORT_SOURCE, valid=$REPORT_VALID)"
+echo "Notes:  active=$ACTIVE_NOTE_COUNT reviewed=${REVIEWED_COUNT:-unknown}"
+if ((${#WARNINGS[@]} > 0)); then
+  echo "Warnings:"
+  printf '  - %s\n' "${WARNINGS[@]}"
+fi
+echo "Meta:   $META_PATH"
+
+exit "$EXIT_CODE"

@@ -5,10 +5,20 @@ on:
     # Saturdays 13:00 UTC (~5am PST / ~4am PDT). GitHub cron is UTC-only.
     - cron: "0 13 * * 6"
   workflow_dispatch:
+    inputs:
+      publish_changes:
+        description: Commit memory changes and open a pull request
+        required: true
+        type: boolean
+        default: true
 
 concurrency:
   group: memory-audit
   cancel-in-progress: false
+
+env:
+  QMD_CONFIG_DIR: ${{ github.workspace }}/.cache/memory-audit-qmd/config
+  XDG_CACHE_HOME: ${{ github.workspace }}/.cache/memory-audit-qmd/cache
 
 jobs:
   audit:
@@ -16,31 +26,249 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
+      actions: read
       contents: read
-      issues: write
+      issues: read
+      pull-requests: read
+    outputs:
+      audit_outcome: ${{ steps.audit.outcome }}
+      final_message: ${{ steps.result.outputs.final_message }}
+      api_cost: ${{ steps.usage.outputs.cost }}
+      should_run: ${{ steps.gate.outputs.should_run }}
+      skip_reason: ${{ steps.gate.outputs.reason }}
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Prepare audit context
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
 
-      - name: Run memory audit cloud agent
+          mkdir -p artifacts "$RUNNER_TEMP/memory-audit"
+
+          gh run list \
+            --workflow=memory-audit.yml \
+            --branch main \
+            --status success \
+            --limit 1 \
+            --json headSha,updatedAt,url \
+            > "$RUNNER_TEMP/memory-audit/last-success.json"
+          gh issue list \
+            --state all \
+            --limit 1000 \
+            --json number,title,state,closedAt,updatedAt,url,labels \
+            > "$RUNNER_TEMP/memory-audit/issues.json"
+          gh pr list \
+            --state all \
+            --limit 1000 \
+            --json number,title,state,isDraft,closedAt,mergedAt,updatedAt,url,headRefName \
+            > "$RUNNER_TEMP/memory-audit/pulls.json"
+
+          ACTIVE_NOTE_COUNT="$(find memory -maxdepth 1 -type f -name '*.md' ! -name 'README.md' | wc -l | tr -d ' ')"
+          BASE_SHA="$(git rev-parse HEAD)"
+          jq -n \
+            --argjson activeNoteCount "$ACTIVE_NOTE_COUNT" \
+            --arg baseSha "$BASE_SHA" \
+            --slurpfile lastSuccess "$RUNNER_TEMP/memory-audit/last-success.json" \
+            --slurpfile issues "$RUNNER_TEMP/memory-audit/issues.json" \
+            --slurpfile pulls "$RUNNER_TEMP/memory-audit/pulls.json" \
+            '{
+              activeNoteCount: $activeNoteCount,
+              baseSha: $baseSha,
+              lastSuccessfulAudit: (
+                if $lastSuccess[0][0] then
+                  {
+                    completedAt: $lastSuccess[0][0].updatedAt,
+                    headSha: $lastSuccess[0][0].headSha,
+                    url: $lastSuccess[0][0].url
+                  }
+                else null
+                end
+              ),
+              issues: $issues[0],
+              pullRequests: $pulls[0]
+            }' > artifacts/memory-audit-context.json
+
+      - name: Determine whether an audit is needed
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          SHOULD_RUN=true
+          REASON="manual dispatch"
+          if [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            LAST_SHA="$(jq -r '.lastSuccessfulAudit.headSha // empty' artifacts/memory-audit-context.json)"
+            LAST_COMPLETED="$(jq -r '.lastSuccessfulAudit.completedAt // empty' artifacts/memory-audit-context.json)"
+
+            if [[ -z "$LAST_SHA" || -z "$LAST_COMPLETED" ]] || ! git cat-file -e "$LAST_SHA^{commit}" 2>/dev/null; then
+              REASON="no usable previous successful audit"
+            elif ! git diff --quiet "$LAST_SHA" HEAD -- .; then
+              REASON="repository files changed since the previous successful audit"
+            elif jq -e --arg since "$LAST_COMPLETED" '
+              [.issues[], .pullRequests[]]
+              | any(.updatedAt > $since)
+            ' artifacts/memory-audit-context.json >/dev/null; then
+              REASON="GitHub issue or pull-request activity occurred since the previous successful audit"
+            else
+              SHOULD_RUN=false
+              REASON="no repository, issue, or pull-request changes since the previous successful audit"
+            fi
+          fi
+
+          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "Audit gate: $SHOULD_RUN ($REASON)"
+
+      - uses: actions/setup-node@v6
+        if: steps.gate.outputs.should_run == 'true'
+        with:
+          node-version: 24
+
+      - name: Prepare qmd index
+        if: steps.gate.outputs.should_run == 'true'
+        run: |
+          set -euo pipefail
+          npm install --global @tobilu/qmd@2.1.0
+          mkdir -p "$QMD_CONFIG_DIR" "$XDG_CACHE_HOME"
+          awk '
+            /^  home-memory:/ { skip=1; next }
+            skip && /^  [[:alnum:]_-]+:/ { skip=0 }
+            !skip { print }
+          ' .config/qmd/index.yml > "$QMD_CONFIG_DIR/index.yml"
+          qmd update
+
+      - name: Run OpenRouter memory audit
         id: audit
+        if: steps.gate.outputs.should_run == 'true'
         continue-on-error: true
         env:
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          MAX_WAIT_SECONDS: "5400"
-        run: bin/run-memory-audit
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: deepseek/deepseek-v4-flash
+          REASONING_EFFORT: high
+          MAX_API_COST_USD: "0.50"
+        run: node bin/run-memory-audit.mjs
+
+      - name: Expose audit result
+        id: result
+        if: always()
+        run: |
+          set -euo pipefail
+          DELIMITER="memory-audit-${GITHUB_RUN_ID}-${RANDOM}"
+          {
+            echo "final_message<<$DELIMITER"
+            if [[ -f artifacts/openrouter-final.md ]]; then
+              cat artifacts/openrouter-final.md
+            fi
+            echo "$DELIMITER"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Record OpenRouter cost
+        id: usage
+        if: always()
+        run: |
+          set -euo pipefail
+          COST="$(jq -r '.totalCost // empty' artifacts/openrouter-usage.json 2>/dev/null || true)"
+          echo "cost=$COST" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish memory audit
+    needs: audit
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Materialize agent result
+        env:
+          AGENT_FINAL_MESSAGE: ${{ needs.audit.outputs.final_message }}
+          OPENROUTER_API_COST: ${{ needs.audit.outputs.api_cost }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts "$RUNNER_TEMP/memory-audit"
+          printf '%s\n' "$AGENT_FINAL_MESSAGE" > artifacts/openrouter-final.md
+          echo "EXPECTED_HEAD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "OPENROUTER_API_COST=$OPENROUTER_API_COST" >> "$GITHUB_ENV"
+
+      - name: Validate and publish audit
+        id: finalize
+        if: needs.audit.outputs.should_run == 'true'
+        continue-on-error: true
+        env:
+          AUDIT_OUTCOME: ${{ needs.audit.outputs.audit_outcome }}
+          GH_TOKEN: ${{ github.token }}
+          MODEL_ID: deepseek/deepseek-v4-flash
+          PUBLISH_CHANGES: ${{ github.event_name == 'schedule' || inputs.publish_changes }}
+        run: bin/finalize-memory-audit
+
+      - name: Record skipped audit
+        if: needs.audit.outputs.should_run != 'true'
+        env:
+          SKIP_REASON: ${{ needs.audit.outputs.skip_reason }}
+        run: |
+          set -euo pipefail
+          REPORT="$RUNNER_TEMP/memory-audit/memory-audit-report.md"
+          META="$RUNNER_TEMP/memory-audit/run-meta.json"
+          ACTIVE_NOTE_COUNT="$(find memory -maxdepth 1 -type f -name '*.md' ! -name 'README.md' | wc -l | tr -d ' ')"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          {
+            echo "# Memory audit skipped"
+            echo ""
+            echo "No model request was made: $SKIP_REASON."
+          } > "$REPORT"
+
+          jq -n \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg runUrl "$RUN_URL" \
+            --arg model "deepseek/deepseek-v4-flash" \
+            --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg skipReason "$SKIP_REASON" \
+            --argjson activeNoteCount "$ACTIVE_NOTE_COUNT" \
+            '{
+              runId: $runId,
+              runUrl: $runUrl,
+              status: "SKIPPED",
+              health: "skipped",
+              runner: "change gate",
+              provider: "openrouter",
+              model: $model,
+              effort: "high",
+              apiCost: 0,
+              prUrl: null,
+              branch: null,
+              completedAt: $completedAt,
+              reportSource: "change gate",
+              reportValid: true,
+              patchValid: true,
+              activeNoteCount: $activeNoteCount,
+              reviewedCount: null,
+              changedFiles: [],
+              warnings: [],
+              skipReason: $skipReason,
+              exitCode: 0
+            }' > "$META"
 
       - name: Upload audit artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: memory-audit-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/memory-audit/memory-audit-report.md
-            ${{ runner.temp }}/memory-audit/run-meta.json
+          path: ${{ runner.temp }}/memory-audit/
           retention-days: 90
           if-no-files-found: error
 
@@ -49,31 +277,33 @@ jobs:
         run: |
           META="${{ runner.temp }}/memory-audit/run-meta.json"
           REPORT="${{ runner.temp }}/memory-audit/memory-audit-report.md"
-          AUDIT_OUTCOME="${{ steps.audit.outcome }}"
-
           {
-            if [[ "$AUDIT_OUTCOME" == "success" ]]; then
-              echo "## Memory audit succeeded"
-            else
-              echo "## Memory audit failed"
-            fi
-            echo ""
-
             if [[ -f "$META" ]]; then
               HEALTH="$(jq -r '.health' "$META")"
               case "$HEALTH" in
+                ok) echo "## Memory audit succeeded" ;;
+                skipped) echo "## Memory audit skipped" ;;
+                *) echo "## Memory audit failed" ;;
+              esac
+              echo ""
+              case "$HEALTH" in
                 ok) echo "> **Health:** ok" ;;
-                degraded) echo "> **Health:** degraded — agent finished but report failed validation" ;;
-                failed) echo "> **Health:** failed — agent error, timeout, or cancellation" ;;
+                skipped) echo "> **Health:** skipped — no model request was made" ;;
+                degraded) echo "> **Health:** degraded — the agent finished but the report failed validation" ;;
+                failed) echo "> **Health:** failed — the agent or PR publication failed" ;;
                 *) echo "> **Health:** $HEALTH" ;;
               esac
               echo ""
               jq -r '
                 "- **Agent status:** \(.status)",
+                "- **Model:** `\(.model)` (\(.effort) effort)",
+                (if .apiCost then "- **OpenRouter cost:** $\(.apiCost)" else "- **OpenRouter cost:** unavailable" end),
                 "- **Report:** \(.reportSource) (valid: \(.reportValid))",
+                "- **Patch:** valid \(.patchValid)",
                 "- **Notes:** active \(.activeNoteCount), reviewed \(.reviewedCount // "unknown")",
-                "- **Agent:** [\(.agentId)](\(.agentUrl))",
+                "- **Run:** [GitHub Actions #\(.runId)](\(.runUrl))",
                 "- **Completed:** \(.completedAt)",
+                (if .skipReason then "- **Skip reason:** \(.skipReason)" else empty end),
                 (if .prUrl then "- **PR:** \(.prUrl)" else "- **PR:** none (no memory changes)" end)
               ' "$META"
 
@@ -86,7 +316,7 @@ jobs:
                 done <<< "$WARNINGS"
               fi
             else
-              echo "No run metadata found — the audit script likely failed before writing artifacts."
+              echo "No run metadata found — finalization failed before artifacts were written."
             fi
 
             echo ""
@@ -97,7 +327,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail job on audit error
-        if: always() && steps.audit.outcome != 'success'
+        if: always() && needs.audit.outputs.should_run == 'true' && steps.finalize.outcome != 'success'
         run: |
           META="${{ runner.temp }}/memory-audit/run-meta.json"
           if [[ -f "$META" ]]; then
@@ -111,6 +341,7 @@ jobs:
         if: failure() && github.event_name == 'schedule'
         env:
           GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           META="${{ runner.temp }}/memory-audit/run-meta.json"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -143,7 +374,7 @@ jobs:
                 echo ""
               fi
             else
-              echo "_No run metadata was written — the audit script likely failed before the agent finished._"
+              echo "_No run metadata was written — finalization likely failed before the agent finished._"
               echo ""
             fi
             echo "Download the \`memory-audit-${{ github.run_id }}\` artifact from the run for the full report."
