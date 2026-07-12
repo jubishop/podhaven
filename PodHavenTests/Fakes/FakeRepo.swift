@@ -67,6 +67,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   // MARK: - Series Readers
 
+  func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
+    recordCall(methodName: "podcast", parameters: podcastID)
+    return try await repo.podcast(podcastID)
+  }
+
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
     recordCall(methodName: "podcastSeries", parameters: podcastID)
     return try await repo.podcastSeries(podcastID)
@@ -226,23 +231,23 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   func updateSeriesFromFeed(
-    podcastSeries: PodcastSeries,
-    podcast: Podcast?,
+    podcast: Podcast,
+    updatedPodcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [FeedMergeEpisode]
   ) async throws -> [Episode] {
     recordCall(
       methodName: "updateSeriesFromFeed",
       parameters: (
-        podcastSeries: podcastSeries,
         podcast: podcast,
+        updatedPodcast: updatedPodcast,
         unsavedEpisodes: unsavedEpisodes,
         existingEpisodes: existingEpisodes
       )
     )
     return try await repo.updateSeriesFromFeed(
-      podcastSeries: podcastSeries,
       podcast: podcast,
+      updatedPodcast: updatedPodcast,
       unsavedEpisodes: unsavedEpisodes,
       existingEpisodes: existingEpisodes
     )

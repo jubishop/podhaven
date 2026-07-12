@@ -59,6 +59,12 @@ struct Repo: Databasing {
 
   // MARK: - Series Readers
 
+  func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
+    try await reader.read { db in
+      try Podcast.withID(podcastID).fetchOne(db)
+    }
+  }
+
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
     try await reader.read { db in
       try Podcast
@@ -258,8 +264,8 @@ struct Repo: Databasing {
 
   @discardableResult
   func updateSeriesFromFeed(
-    podcastSeries: PodcastSeries,
-    podcast: Podcast?,
+    podcast: Podcast,
+    updatedPodcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [FeedMergeEpisode]
   ) async throws -> [Episode] {
@@ -267,13 +273,13 @@ struct Repo: Databasing {
       var newEpisodes = [Episode](capacity: unsavedEpisodes.count)
 
       let lastUpdateAssignment = Podcast.Columns.lastUpdate.set(to: Date())
-      if let podcast = podcast {
+      if let updatedPodcast {
         try Podcast
-          .withID(podcast.id)
-          .updateAll(db, podcast.rssColumnAssignments + [lastUpdateAssignment])
+          .withID(updatedPodcast.id)
+          .updateAll(db, updatedPodcast.rssColumnAssignments + [lastUpdateAssignment])
       } else {
         try Podcast
-          .withID(podcastSeries.id)
+          .withID(podcast.id)
           .updateAll(db, [lastUpdateAssignment])
       }
 
@@ -284,23 +290,23 @@ struct Repo: Databasing {
       }
 
       for var unsavedEpisode in unsavedEpisodes {
-        unsavedEpisode.podcastId = podcastSeries.id
+        unsavedEpisode.podcastId = podcast.id
         newEpisodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
       }
 
       if !unsavedEpisodes.isEmpty || !existingEpisodes.isEmpty {
-        try RecommendationRepo.updateInferredFreshnessCadence(db, podcastID: podcastSeries.id)
+        try RecommendationRepo.updateInferredFreshnessCadence(db, podcastID: podcast.id)
       }
 
-      let queueMode = podcastSeries.podcast.queueAllEpisodes
+      let queueMode = podcast.queueAllEpisodes
       guard queueMode != .never, !newEpisodes.isEmpty else { return newEpisodes }
 
-      if let autoQueueLimit = podcastSeries.podcast.autoQueueLimit {
+      if let autoQueueLimit = podcast.autoQueueLimit {
         // Keep only this podcast's `autoQueueLimit` newest episodes, evicting its
         // own oldest queued episodes to make room for the surviving incoming ones.
         let episodesToQueue = try queue.limitPodcast(
           db,
-          podcastID: podcastSeries.id,
+          podcastID: podcast.id,
           incoming: newEpisodes,
           to: autoQueueLimit
         )

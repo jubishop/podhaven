@@ -114,8 +114,8 @@ extension Container {
               guard let self else { return }
               do {
                 try await repo.markSubscribed(podcast.id)
-                if let podcastSeries = try await repo.podcastSeries(podcast.id) {
-                  try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+                if let podcast = try await repo.podcast(podcast.id) {
+                  try await refreshManager.refreshSeries(podcast: podcast)
                 }
               } catch {
                 Self.log.caughtError(

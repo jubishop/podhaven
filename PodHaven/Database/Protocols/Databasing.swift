@@ -16,6 +16,7 @@ protocol Databasing: Sendable {
 
   // MARK: - Series Readers
 
+  func podcast(_ podcastID: Podcast.ID) async throws -> Podcast?
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries?
   func podcastSeries(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws -> PodcastSeries?
 
@@ -52,8 +53,8 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func updateSeriesFromFeed(
-    podcastSeries: PodcastSeries,
-    podcast: Podcast?,
+    podcast: Podcast,
+    updatedPodcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [FeedMergeEpisode]
   ) async throws -> [Episode]

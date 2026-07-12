@@ -112,15 +112,15 @@ struct RefreshManager {
     Self.log.debug("performRefresh: completed")
   }
 
-  func refreshSeries(podcastSeries: PodcastSeries) async throws {
+  func refreshSeries(podcast: Podcast) async throws {
     Self.log.trace(
       """
       refreshSeries:
-        podcastSeries: \(podcastSeries.toString)
+        podcast: \(podcast.toString)
       """
     )
 
-    guard let pending = try await performRefreshCycle(podcast: podcastSeries.podcast)
+    guard let pending = try await performRefreshCycle(podcast: podcast)
     else { return }
 
     defer { inFlight { $0.remove(pending.url) } }
@@ -267,8 +267,8 @@ struct RefreshManager {
     let newEpisodes: [Episode]
     do {
       newEpisodes = try await repo.updateSeriesFromFeed(
-        podcastSeries: PodcastSeries(podcast: podcast),
-        podcast: podcastToUpdate,
+        podcast: podcast,
+        updatedPodcast: podcastToUpdate,
         unsavedEpisodes: unsavedEpisodes,
         existingEpisodes: updatedEpisodes
       )
