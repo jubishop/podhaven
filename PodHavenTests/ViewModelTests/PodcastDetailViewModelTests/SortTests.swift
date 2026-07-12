@@ -82,8 +82,8 @@ import Testing
     )
 
     try await repo.updateSeriesFromFeed(
-      podcastSeries: savedSeries,
-      podcast: nil,
+      podcast: savedSeries.podcast,
+      updatedPodcast: nil,
       unsavedEpisodes: [
         try Create.unsavedEpisode(guid: "newest", title: "Newest", pubDate: newestPubDate)
       ],
@@ -134,8 +134,8 @@ import Testing
     )
 
     try await repo.updateSeriesFromFeed(
-      podcastSeries: savedSeries,
-      podcast: nil,
+      podcast: savedSeries.podcast,
+      updatedPodcast: nil,
       unsavedEpisodes: [
         try Create.unsavedEpisode(guid: "newest", title: "Newest", pubDate: newestPubDate)
       ],

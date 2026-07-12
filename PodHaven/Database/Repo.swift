@@ -42,26 +42,28 @@ struct Repo: Databasing {
     }
   }
 
-  func allPodcastSeries(
+  func allPodcasts(
     _ filter: SQLExpression,
     order: SQLOrdering,
     limit: Int
-  ) async throws
-    -> [PodcastSeries]
-  {
+  ) async throws -> [Podcast] {
     try await reader.read { db in
       try Podcast
         .all()
         .filter(filter)
         .order(order)
         .limit(limit)
-        .including(all: Podcast.episodes)
-        .asRequest(of: PodcastSeries.self)
         .fetchAll(db)
     }
   }
 
   // MARK: - Series Readers
+
+  func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
+    try await reader.read { db in
+      try Podcast.withID(podcastID).fetchOne(db)
+    }
+  }
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
     try await reader.read { db in
@@ -146,6 +148,24 @@ struct Repo: Databasing {
         filter = filter && mediaURLs.contains(Episode.Columns.mediaURL)
       }
       return try Episode.filter(filter).fetchAll(db)
+    }
+  }
+
+  func feedMergeEpisodes(
+    podcastID: Podcast.ID,
+    matching mediaGUIDs: [MediaGUID]
+  ) async throws -> [FeedMergeEpisode] {
+    guard !mediaGUIDs.isEmpty else { return [] }
+    let guids = mediaGUIDs.map(\.guid)
+    let mediaURLs = mediaGUIDs.map(\.mediaURL)
+    return try await reader.read { db in
+      try FeedMergeEpisode
+        .filter(
+          Episode.Columns.podcastId == podcastID
+            && (guids.contains(Episode.Columns.guid)
+              || mediaURLs.contains(Episode.Columns.mediaURL))
+        )
+        .fetchAll(db)
     }
   }
 
@@ -244,22 +264,22 @@ struct Repo: Databasing {
 
   @discardableResult
   func updateSeriesFromFeed(
-    podcastSeries: PodcastSeries,
-    podcast: Podcast?,
+    podcast: Podcast,
+    updatedPodcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
-    existingEpisodes: [Episode]
+    existingEpisodes: [FeedMergeEpisode]
   ) async throws -> [Episode] {
     try await writer.write { db in
       var newEpisodes = [Episode](capacity: unsavedEpisodes.count)
 
       let lastUpdateAssignment = Podcast.Columns.lastUpdate.set(to: Date())
-      if let podcast = podcast {
+      if let updatedPodcast {
         try Podcast
-          .withID(podcast.id)
-          .updateAll(db, podcast.rssColumnAssignments + [lastUpdateAssignment])
+          .withID(updatedPodcast.id)
+          .updateAll(db, updatedPodcast.rssColumnAssignments + [lastUpdateAssignment])
       } else {
         try Podcast
-          .withID(podcastSeries.id)
+          .withID(podcast.id)
           .updateAll(db, [lastUpdateAssignment])
       }
 
@@ -270,23 +290,23 @@ struct Repo: Databasing {
       }
 
       for var unsavedEpisode in unsavedEpisodes {
-        unsavedEpisode.podcastId = podcastSeries.id
+        unsavedEpisode.podcastId = podcast.id
         newEpisodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
       }
 
       if !unsavedEpisodes.isEmpty || !existingEpisodes.isEmpty {
-        try RecommendationRepo.updateInferredFreshnessCadence(db, podcastID: podcastSeries.id)
+        try RecommendationRepo.updateInferredFreshnessCadence(db, podcastID: podcast.id)
       }
 
-      let queueMode = podcastSeries.podcast.queueAllEpisodes
+      let queueMode = podcast.queueAllEpisodes
       guard queueMode != .never, !newEpisodes.isEmpty else { return newEpisodes }
 
-      if let autoQueueLimit = podcastSeries.podcast.autoQueueLimit {
+      if let autoQueueLimit = podcast.autoQueueLimit {
         // Keep only this podcast's `autoQueueLimit` newest episodes, evicting its
         // own oldest queued episodes to make room for the surviving incoming ones.
         let episodesToQueue = try queue.limitPodcast(
           db,
-          podcastID: podcastSeries.id,
+          podcastID: podcast.id,
           incoming: newEpisodes,
           to: autoQueueLimit
         )

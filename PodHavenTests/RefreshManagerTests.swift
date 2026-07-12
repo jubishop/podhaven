@@ -53,7 +53,7 @@ actor RefreshManagerTests {
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
     let refreshStart = Self.flooredToMillisecond(Date.now)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
     let refreshEnd = Self.ceiledToMillisecond(Date.now)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
@@ -90,7 +90,7 @@ actor RefreshManagerTests {
     let updatedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
     let refreshStart = Self.flooredToMillisecond(Date.now)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
     let refreshEnd = Self.ceiledToMillisecond(Date.now)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
@@ -129,20 +129,20 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     let call = try fakeRepo.expectCall(
       methodName: "updateSeriesFromFeed",
       parameters: (
-        podcastSeries: PodcastSeries,
-        podcast: Podcast?,
+        podcast: Podcast,
+        updatedPodcast: Podcast?,
         unsavedEpisodes: [UnsavedEpisode],
-        existingEpisodes: [Episode]
+        existingEpisodes: [FeedMergeEpisode]
       )
       .self
     )
-    #expect(call.parameters.podcastSeries == podcastSeries)
-    #expect(call.parameters.podcast != nil)
+    #expect(call.parameters.podcast == podcastSeries.podcast)
+    #expect(call.parameters.updatedPodcast != nil)
     #expect(call.parameters.unsavedEpisodes.count == 1)
     #expect(call.parameters.existingEpisodes.count == 2)
     try fakeRepo.expectNoCall(methodName: "updateLastUpdates")
@@ -168,7 +168,7 @@ actor RefreshManagerTests {
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
 
     // One test is that this doesn't throw a UNIQUE constraint error on MediaURLs
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
     #expect(
@@ -197,7 +197,7 @@ actor RefreshManagerTests {
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
 
     // One test is that this doesn't throw a UNIQUE constraint error on GUIDs
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
     #expect(Set(updatedSeries.episodes.map({ $0.guid })).contains(GUID("dupe_guid")))
@@ -219,7 +219,7 @@ actor RefreshManagerTests {
     fakeRepo.clearAllCalls()
 
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: data)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     let flush = try fakeRepo.expectCall(
@@ -263,7 +263,7 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
     let updatedEpisodeByID = try await repo.episode(episodeID)!
@@ -331,7 +331,7 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Wait for new episodes to be queued on top
     try await Wait.until(
@@ -388,7 +388,7 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Wait for new episodes to be queued on bottom
     try await Wait.until(
@@ -445,7 +445,7 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Verify series was updated with new episode
     let updatedSeries = try await repo.podcastSeries(podcastSeries.id)!
@@ -488,7 +488,7 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Get the updated series to find the new episode
     let updatedSeries = try await repo.podcastSeries(podcastSeries.id)!
@@ -536,7 +536,7 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Get the updated series to find the new episode
     let updatedSeries = try await repo.podcastSeries(podcastSeries.id)!
@@ -586,7 +586,7 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Verify series was updated with new episode
     let updatedSeries = try await repo.podcastSeries(podcastSeries.id)!
@@ -620,7 +620,7 @@ actor RefreshManagerTests {
 
     let plainText = "GoDaddy has moved this domain".data(using: .utf8)!
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: plainText)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     try fakeRepo.expectNoCall(methodName: "updateLastUpdates")
@@ -642,7 +642,7 @@ actor RefreshManagerTests {
 
     let html = "<html><body><h1>404 Not Found</h1></body></html>".data(using: .utf8)!
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: html)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     try fakeRepo.expectNoCall(methodName: "updateLastUpdates")
@@ -668,7 +668,7 @@ actor RefreshManagerTests {
       """
       .data(using: .utf8)!
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: xml)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     try fakeRepo.expectNoCall(methodName: "updateLastUpdates")
@@ -692,7 +692,7 @@ actor RefreshManagerTests {
       to: podcastSeries.podcast.feedURL.rawValue,
       error: URLError(.notConnectedToInternet)
     )
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
     try fakeRepo.expectNoCall(methodName: "updateLastUpdates")
@@ -731,7 +731,7 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     // Get the updated series to find the new episode
     let updatedSeries = try await repo.podcastSeries(podcastSeries.id)!
@@ -799,6 +799,50 @@ actor RefreshManagerTests {
     }
   }
 
+  @Test("performRefresh loads only feed-matching episodes after download")
+  func testPerformRefreshDefersAndNarrowsEpisodeReads() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let parsedFeed = try await PodcastFeed.parse(
+      data,
+      from: FeedURL(URL(string: "https://example.com/large-library.rss")!)
+    )
+    let feedEpisodes = Array(parsedFeed.toUnsavedEpisodes())
+    let backCatalog = try (0..<100)
+      .map { index in
+        try Create.unsavedEpisode(
+          guid: GUID("back-catalog-\(index)"),
+          mediaURL: MediaURL(URL(string: "https://example.com/back-catalog-\(index).mp3")!),
+          title: "Back Catalog \(index)"
+        )
+      }
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try parsedFeed.toUnsavedPodcast(),
+        unsavedEpisodes: feedEpisodes + backCatalog
+      )
+    )
+    try await repo.updateLastUpdates([(series.podcast.id, 2.hoursAgo)])
+
+    let (started, finish) = await session.releaseWaitRespond(
+      to: series.podcast.feedURL.rawValue,
+      data: data
+    )
+    fakeRepo.clearAllCalls()
+    fakeRepo.refreshEpisodeRowsRead(0)
+
+    let refresh = Task {
+      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+    }
+    try await started.waitUnlessCancelled()
+
+    #expect(fakeRepo.refreshEpisodeRowsRead() == 0)
+
+    finish.signal()
+    try await refresh.value
+
+    #expect(fakeRepo.refreshEpisodeRowsRead() == feedEpisodes.count)
+  }
+
   @Test("refreshSeries called concurrently for the same series only fetches once")
   func testRefreshSeriesInFlightDedupAcrossConcurrentCallers() async throws {
     let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
@@ -820,12 +864,12 @@ actor RefreshManagerTests {
     fakeRepo.clearAllCalls()
 
     let first = Task {
-      try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+      try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
     }
     try await startedSemaphore.waitUnlessCancelled()
 
     // Second caller arrives while the first is still parsing/writing — inFlight must dedup.
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     finishSemaphore.signal()
     try await first.value
@@ -861,7 +905,7 @@ actor RefreshManagerTests {
     // pair and the unstructured flush Task is parked inside FakeRepo. If
     // inFlight has been released here, a second refresh of the same still-stale
     // series will re-fetch — the bug this test pins.
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcast: podcastSeries.podcast)
 
     await fakeRepo.resumeAllUpdateLastUpdatesSuspensions()
     try await refresh.value
