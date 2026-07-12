@@ -248,10 +248,28 @@ struct CacheManager {
     }
 
     if episode.downloading {
-      downloadStarts { starts in
-        guard var start = starts[episodeID] else { return }
+      var startCompletion: AsyncLatch<Void>? = downloadStarts { starts in
+        guard var start = starts[episodeID] else { return nil }
         start.disposition = .cancel
+        start.participantCount += 1
         starts[episodeID] = start
+        return start.completion
+      }
+      defer {
+        if startCompletion != nil { leaveDownloadStart(for: episodeID) }
+      }
+
+      let activeAttempt = await activeDownloadAttempt(for: episodeID)
+      let attemptCompletion: AsyncLatch<Void>?
+      if let activeAttempt {
+        attemptCompletion = downloadLatches { latches in
+          if let existing = latches[activeAttempt] { return existing }
+          let fresh = AsyncLatch<Void>()
+          latches[activeAttempt] = fresh
+          return fresh
+        }
+      } else {
+        attemptCompletion = nil
       }
 
       let description = String(episodeID.rawValue)
@@ -260,12 +278,28 @@ struct CacheManager {
       }
       liveTask?.cancel()
       sharedState.clearDownloadProgress(for: episodeID)
-      try await repo.updateDownloading(episode.id, downloading: false)
+
+      if let activeAttempt, let attemptCompletion {
+        if activeDownloadAttempts[episodeID] == activeAttempt {
+          try await attemptCompletion.wait()
+        } else {
+          signalDownloadComplete(for: activeAttempt)
+        }
+      } else {
+        try await repo.updateDownloading(episode.id, downloading: false)
+      }
+
+      if let completion = startCompletion {
+        leaveDownloadStart(for: episodeID)
+        startCompletion = nil
+        try await completion.wait()
+      }
     }
 
-    guard let cachedURL = episode.cachedURL
+    guard let currentEpisode = try await repo.episode(episodeID) else { return nil }
+    guard let cachedURL = currentEpisode.cachedURL
     else {
-      Self.log.debug("episode: \(episode.toString) has no cached file")
+      Self.log.debug("episode: \(currentEpisode.toString) has no cached file")
       return nil
     }
 
@@ -273,13 +307,13 @@ struct CacheManager {
       try fileManager.removeItem(at: cachedURL.rawValue)
     } catch {
       Self.log.caughtError(
-        "clearCache: failed to remove cached file for \(episode.toString)",
+        "clearCache: failed to remove cached file for \(currentEpisode.toString)",
         error
       )
     }
-    try await repo.updateCachedFilename(episode.id, cachedFilename: nil)
+    try await repo.updateCachedFilename(currentEpisode.id, cachedFilename: nil)
 
-    Self.log.debug("cache cleared for: \(episode.toString)")
+    Self.log.debug("cache cleared for: \(currentEpisode.toString)")
 
     return cachedURL
   }
@@ -298,21 +332,7 @@ struct CacheManager {
         starts[podcastEpisode.id] = DownloadStart()
       }
     }
-    defer {
-      let completion: AsyncLatch<Void>? = downloadStarts { starts in
-        guard var start = starts[podcastEpisode.id] else {
-          Assert.fatal("Missing download start state for \(podcastEpisode.id)")
-        }
-        start.participantCount -= 1
-        guard start.participantCount == 0 else {
-          starts[podcastEpisode.id] = start
-          return nil
-        }
-        starts.removeValue(forKey: podcastEpisode.id)
-        return start.completion
-      }
-      completion?.open()
-    }
+    defer { leaveDownloadStart(for: podcastEpisode.id) }
 
     guard try await repo.claimForDownloadIfUncached(podcastEpisode.id) else {
       Self.log.trace("startDownload: episode \(podcastEpisode.id) was not uncached")
@@ -356,6 +376,22 @@ struct CacheManager {
       try await repo.updateDownloading(podcastEpisode.id, downloading: false)
       return nil
     }
+  }
+
+  private func leaveDownloadStart(for episodeID: Episode.ID) {
+    let completion: AsyncLatch<Void>? = downloadStarts { starts in
+      guard var start = starts[episodeID] else {
+        Assert.fatal("Missing download start state for \(episodeID)")
+      }
+      start.participantCount -= 1
+      guard start.participantCount == 0 else {
+        starts[episodeID] = start
+        return nil
+      }
+      starts.removeValue(forKey: episodeID)
+      return start.completion
+    }
+    completion?.open()
   }
 
   private func startOrJoinDownload(for podcastEpisode: PodcastEpisode) async throws

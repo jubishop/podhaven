@@ -341,15 +341,53 @@ import Testing
     }
     try await gate.claimed.wait()
 
-    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+    let clear = Task {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await CacheHelpers.waitForNotDownloading(podcastEpisode.id)
     gate.release.open()
 
+    #expect(try await clear.value == nil)
     let taskID = try await download.value
     let createdTasks = await session.allCreatedTasks
     let episode = try #require(try await repo.episode(podcastEpisode.id))
     #expect(taskID == nil)
     #expect(createdTasks.isEmpty)
     #expect(!episode.downloading)
+  }
+
+  @Test("download after clearCache does not inherit a prior start's cancellation")
+  func downloadAfterClearCacheUsesFreshStartState() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    let gate = await fakeRepo.gateNextWinningDownloadClaim()
+    defer { gate.release.open() }
+    fakeRepo.pendingDownloadingFalseSuspend(true)
+
+    let originalDownload = Task {
+      try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    }
+    try await gate.claimed.wait()
+
+    let clearFinished = AsyncLatch<Void>()
+    let clear = Task {
+      defer { clearFinished.open() }
+      return try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await fakeRepo.waitForDownloadingFalseSuspended()
+    await fakeRepo.resumeAllDownloadingFalseSuspensions()
+    await Task.yield()
+
+    #expect(!clearFinished.isOpen)
+    gate.release.open()
+    #expect(try await originalDownload.value == nil)
+    #expect(try await clear.value == nil)
+
+    let replacementTaskID = try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    let requiredReplacementTaskID = try #require(replacementTaskID)
+    try await CacheHelpers.waitForResumed(requiredReplacementTaskID)
+    let current = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(current.downloading)
   }
 
   @Test("multiple concurrent downloads are cached successfully")
@@ -382,9 +420,15 @@ import Testing
   @Test("clearCache stops in progress download")
   func clearCacheStopsInProgressDownload() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
-    try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
 
-    try await cacheManager.clearCache(for: podcastEpisode.id)
+    let clear = Task {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await CacheHelpers.waitForCancelled(taskID)
+    try await CacheHelpers.simulateBackgroundFailure(taskID)
+
+    _ = try await clear.value
     try await CacheHelpers.waitForNotDownloading(podcastEpisode.id)
   }
 
@@ -400,6 +444,55 @@ import Testing
     try await cacheManager.clearCache(for: podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
+  }
+
+  @Test("clearCache wins when an in-progress download completes after its initial read")
+  func clearCacheWinsAgainstConcurrentCompletion() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+    defer { Task { await fakeRepo.resumeAllEpisodeFetchSuspensions() } }
+
+    let clear = Task {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    let completedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    _ = try await clear.value
+
+    let current = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(current.cachedURL == nil)
+    #expect(!fileManager.fileExists(at: completedURL.rawValue))
+  }
+
+  @Test("clearCache waits for terminal success before applying its final clear")
+  func clearCacheWaitsForConcurrentCompletion() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+    defer { Task { await fakeRepo.resumeAllEpisodeFetchSuspensions() } }
+
+    let finish = Task {
+      try await CacheHelpers.simulateBackgroundFinish(taskID)
+    }
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+
+    let clear = Task {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await CacheHelpers.waitForCancelled(taskID)
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+
+    _ = try await finish.value
+    let clearedURL = try #require(try await clear.value)
+    let current = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(current.cachedURL == nil)
+    #expect(!fileManager.fileExists(at: clearedURL.rawValue))
   }
 
   @Test("clearCache does nothing if episode is queued")
