@@ -137,11 +137,12 @@ actor RefreshManagerTests {
         podcastSeries: PodcastSeries,
         podcast: Podcast?,
         unsavedEpisodes: [UnsavedEpisode],
-        existingEpisodes: [Episode]
+        existingEpisodes: [FeedMergeEpisode]
       )
       .self
     )
-    #expect(call.parameters.podcastSeries == podcastSeries)
+    #expect(call.parameters.podcastSeries.podcast == podcastSeries.podcast)
+    #expect(call.parameters.podcastSeries.episodes.isEmpty)
     #expect(call.parameters.podcast != nil)
     #expect(call.parameters.unsavedEpisodes.count == 1)
     #expect(call.parameters.existingEpisodes.count == 2)
@@ -797,6 +798,50 @@ actor RefreshManagerTests {
       let refreshed = try await repo.podcastSeries(podcastID)!
       #expect(refreshed.podcast.lastUpdate > 1.hoursAgo)
     }
+  }
+
+  @Test("performRefresh loads only feed-matching episodes after download")
+  func testPerformRefreshDefersAndNarrowsEpisodeReads() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let parsedFeed = try await PodcastFeed.parse(
+      data,
+      from: FeedURL(URL(string: "https://example.com/large-library.rss")!)
+    )
+    let feedEpisodes = Array(parsedFeed.toUnsavedEpisodes())
+    let backCatalog = try (0..<100)
+      .map { index in
+        try Create.unsavedEpisode(
+          guid: GUID("back-catalog-\(index)"),
+          mediaURL: MediaURL(URL(string: "https://example.com/back-catalog-\(index).mp3")!),
+          title: "Back Catalog \(index)"
+        )
+      }
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try parsedFeed.toUnsavedPodcast(),
+        unsavedEpisodes: feedEpisodes + backCatalog
+      )
+    )
+    try await repo.updateLastUpdates([(series.podcast.id, 2.hoursAgo)])
+
+    let (started, finish) = await session.releaseWaitRespond(
+      to: series.podcast.feedURL.rawValue,
+      data: data
+    )
+    fakeRepo.clearAllCalls()
+    fakeRepo.refreshEpisodeRowsRead(0)
+
+    let refresh = Task {
+      try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+    }
+    try await started.waitUnlessCancelled()
+
+    #expect(fakeRepo.refreshEpisodeRowsRead() == 0)
+
+    finish.signal()
+    try await refresh.value
+
+    #expect(fakeRepo.refreshEpisodeRowsRead() == feedEpisodes.count)
   }
 
   @Test("refreshSeries called concurrently for the same series only fetches once")

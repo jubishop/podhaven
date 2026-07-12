@@ -10,6 +10,7 @@ import Tagged
 actor FakeRepo: Databasing, Sendable, FakeCallable {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
+  nonisolated let refreshEpisodeRowsRead = ThreadSafe<Int>(0)
 
   // One-shot error to throw from `updateSaveInCache(_ episodeIDs:saveInCache:)`.
   // Cleared on use so subsequent calls reach the real repo.
@@ -52,18 +53,16 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     try await repo.allPodcasts(filter)
   }
 
-  func allPodcastSeries(
+  func allPodcasts(
     _ filter: SQLExpression,
-    order: SQLOrdering = Podcast.Columns.id.desc,
-    limit: Int = Int.max
-  ) async throws
-    -> [PodcastSeries]
-  {
+    order: SQLOrdering,
+    limit: Int
+  ) async throws -> [Podcast] {
     recordCall(
-      methodName: "allPodcastSeries",
+      methodName: "allPodcasts",
       parameters: (filter: filter, order: order, limit: limit)
     )
-    return try await repo.allPodcastSeries(filter, order: order, limit: limit)
+    return try await repo.allPodcasts(filter, order: order, limit: limit)
   }
 
   // MARK: - Series Readers
@@ -164,6 +163,22 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.episodesMatching(podcastID: podcastID, guids: guids, mediaURLs: mediaURLs)
   }
 
+  func feedMergeEpisodes(
+    podcastID: Podcast.ID,
+    matching mediaGUIDs: [MediaGUID]
+  ) async throws -> [FeedMergeEpisode] {
+    recordCall(
+      methodName: "feedMergeEpisodes",
+      parameters: (podcastID: podcastID, mediaGUIDs: mediaGUIDs)
+    )
+    let episodes = try await repo.feedMergeEpisodes(
+      podcastID: podcastID,
+      matching: mediaGUIDs
+    )
+    refreshEpisodeRowsRead { $0 += episodes.count }
+    return episodes
+  }
+
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     recordCall(methodName: "podcastEpisode", parameters: episodeID)
     return try await repo.podcastEpisode(episodeID)
@@ -214,7 +229,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     podcastSeries: PodcastSeries,
     podcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
-    existingEpisodes: [Episode]
+    existingEpisodes: [FeedMergeEpisode]
   ) async throws -> [Episode] {
     recordCall(
       methodName: "updateSeriesFromFeed",

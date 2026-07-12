@@ -100,11 +100,15 @@ class EpisodeRefreshTests {
     )
 
     let newUnsavedEpisode = try Create.unsavedEpisode(title: "episode 2")
+    let updatedFeedMergeEpisode = FeedMergeEpisode(
+      id: updatedEpisode.id,
+      from: updatedEpisode.unsaved
+    )
     let newEpisodes = try await repo.updateSeriesFromFeed(
       podcastSeries: PodcastSeries(podcast: updatedPodcast),
       podcast: updatedPodcast,
       unsavedEpisodes: [newUnsavedEpisode],
-      existingEpisodes: [updatedEpisode]
+      existingEpisodes: [updatedFeedMergeEpisode]
     )
     #expect(newEpisodes.map(\.mediaGUID) == [newUnsavedEpisode.mediaGUID])
 
@@ -137,6 +141,19 @@ class EpisodeRefreshTests {
     #expect(
       episodeRSSColumnNames == expectedEpisodeColumns,
       "Test must be updated if Episode.rssUpdatableColumns changes"
+    )
+    #expect(
+      Set(updatedFeedMergeEpisode.rssUpdatableColumns.map { $0.0.name })
+        == expectedEpisodeColumns,
+      "FeedMergeEpisode must update every Episode RSS column"
+    )
+    #expect(
+      Set(
+        FeedMergeEpisode.databaseSelection.compactMap {
+          ($0 as? any ColumnExpression)?.name
+        }
+      ) == expectedEpisodeColumns.union(["id", "duration"]),
+      "FeedMergeEpisode must select only the fields needed to merge RSS updates"
     )
 
     // RSS attributes should be updated for existing episode (excluding duration)

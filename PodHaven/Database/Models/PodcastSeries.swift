@@ -4,10 +4,9 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 
-// Operational shape used by RefreshManager and series writers. Carries
-// full `Episode` rows for feed merge / migration. Detail-view callers
-// should use `PodcastSeriesDetail` instead — it carries tag IDs and the
-// slim listable-episode shape.
+// Full saved-series shape for callers that genuinely need every `Episode`
+// row. Detail-view callers should use `PodcastSeriesDetail` instead — it
+// carries tag IDs and the slim listable-episode shape.
 struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifiable, Stringable {
   var id: Podcast.ID { podcast.id }
 

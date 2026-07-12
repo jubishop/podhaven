@@ -3,7 +3,6 @@
 import FactoryKit
 import Foundation
 import GRDB
-import IdentifiedCollections
 import Logging
 import Tagged
 
@@ -50,27 +49,27 @@ struct RefreshManager {
       """
     )
 
-    let staleSeries = try await repo.allPodcastSeries(
+    let stalePodcasts = try await repo.allPodcasts(
       Podcast.Columns.lastUpdate < Date.now.advanced(by: -stalenessThreshold.asTimeInterval)
         && filter,
       order: Podcast.Columns.lastUpdate.asc,
       limit: limit
     )
     Self.log.debug(
-      "performRefresh: fetched \(staleSeries.count) stale series (limit: \(limit))"
+      "performRefresh: fetched \(stalePodcasts.count) stale podcasts (limit: \(limit))"
     )
 
     let collected = await withTaskGroup(
       of: PendingFlush?.self,
       returning: [PendingFlush].self
     ) { group in
-      for podcastSeries in staleSeries {
-        group.addTask { [podcastSeries] in
+      for podcast in stalePodcasts {
+        group.addTask { [podcast] in
           do {
-            return try await performRefreshCycle(podcastSeries: podcastSeries)
+            return try await performRefreshCycle(podcast: podcast)
           } catch {
             Self.log.caughtError(
-              "Failed to refresh series: \(podcastSeries.toString)",
+              "Failed to refresh podcast: \(podcast.toString)",
               error,
               level: .info
             )
@@ -78,7 +77,7 @@ struct RefreshManager {
           }
         }
       }
-      var results = [PendingFlush](capacity: staleSeries.count)
+      var results = [PendingFlush](capacity: stalePodcasts.count)
       for await result in group {
         if let result {
           results.append(result)
@@ -121,7 +120,7 @@ struct RefreshManager {
       """
     )
 
-    guard let pending = try await performRefreshCycle(podcastSeries: podcastSeries)
+    guard let pending = try await performRefreshCycle(podcast: podcastSeries.podcast)
     else { return }
 
     defer { inFlight { $0.remove(pending.url) } }
@@ -136,14 +135,14 @@ struct RefreshManager {
   // inFlight after the batched updateLastUpdates flush commits — otherwise a
   // racing refresh of the still-stale row could slip through the gap.
   private func performRefreshCycle(
-    podcastSeries: PodcastSeries
+    podcast: Podcast
   ) async throws -> PendingFlush? {
-    let url = podcastSeries.podcast.feedURL.rawValue
+    let url = podcast.feedURL.rawValue
 
     let alreadyInFlight = inFlight { !$0.insert(url).inserted }
     if alreadyInFlight {
       Self.log.debug(
-        "performRefreshCycle: \(podcastSeries.toString) already in-flight; skipping"
+        "performRefreshCycle: \(podcast.toString) already in-flight; skipping"
       )
       return nil
     }
@@ -159,8 +158,8 @@ struct RefreshManager {
       Self.log.caughtError(
         """
         Failed to parse podcast feed
-          PodcastSeries: \(podcastSeries.toString)
-          FeedURL: \(podcastSeries.podcast.feedURL)
+          Podcast: \(podcast.toString)
+          FeedURL: \(podcast.feedURL)
         """,
         error,
         level: .notice
@@ -168,10 +167,16 @@ struct RefreshManager {
       return nil
     }
 
+    let existingEpisodes = try await repo.feedMergeEpisodes(
+      podcastID: podcast.id,
+      matching: podcastFeed.episodeMediaGUIDs
+    )
+
     guard
       let pending = await applyParsedFeed(
-        podcastSeries: podcastSeries,
-        podcastFeed: podcastFeed
+        podcast: podcast,
+        podcastFeed: podcastFeed,
+        existingEpisodes: existingEpisodes
       )
     else {
       return nil
@@ -181,34 +186,33 @@ struct RefreshManager {
   }
 
   private func applyParsedFeed(
-    podcastSeries: PodcastSeries,
-    podcastFeed: PodcastFeed
+    podcast: Podcast,
+    podcastFeed: PodcastFeed,
+    existingEpisodes: [FeedMergeEpisode]
   ) async -> (id: Podcast.ID, lastUpdate: Date)? {
     Self.log.trace(
       """
       applyParsedFeed
-        podcastSeries: \(podcastSeries.toString)
+        podcast: \(podcast.toString)
         podcastFeed: \(podcastFeed.toString)
       """
     )
 
-    let episodesByMediaURL = IdentifiedArray(
-      uniqueElements: podcastSeries.episodes,
-      id: \.mediaURL
+    let episodesByMediaURL = Dictionary(
+      uniqueKeysWithValues: existingEpisodes.map { ($0.mediaURL, $0) }
     )
-    let episodesByGUID = IdentifiedArray(
-      uniqueElements: podcastSeries.episodes,
-      id: \.guid
+    let episodesByGUID = Dictionary(
+      uniqueKeysWithValues: existingEpisodes.map { ($0.guid, $0) }
     )
 
     let newUnsavedPodcast: UnsavedPodcast
     do {
-      newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries.podcast)
+      newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcast)
     } catch {
       Self.log.caughtError(
         """
         Failed to convert PodcastFeed to UnsavedPodcast
-          PodcastSeries: \(podcastSeries.toString)
+          Podcast: \(podcast.toString)
           PodcastFeed: \(podcastFeed.toString)
         """,
         error
@@ -216,20 +220,19 @@ struct RefreshManager {
       return nil
     }
     let newPodcast = Podcast(
-      id: podcastSeries.id,
-      creationDate: podcastSeries.podcast.creationDate,
+      id: podcast.id,
+      creationDate: podcast.creationDate,
       from: newUnsavedPodcast
     )
     var unsavedEpisodes: [UnsavedEpisode] = []
-    var updatedEpisodes: [Episode] = []
+    var updatedEpisodes: [FeedMergeEpisode] = []
 
-    for unsavedEpisode in podcastFeed.toUnsavedEpisodes(merging: podcastSeries.episodes) {
-      if let existingEpisode = episodesByMediaURL[id: unsavedEpisode.mediaURL]
-        ?? episodesByGUID[id: unsavedEpisode.guid]
+    for unsavedEpisode in podcastFeed.toUnsavedEpisodes(merging: existingEpisodes) {
+      if let existingEpisode = episodesByMediaURL[unsavedEpisode.mediaURL]
+        ?? episodesByGUID[unsavedEpisode.guid]
       {
-        let updatedEpisode = Episode(
+        let updatedEpisode = FeedMergeEpisode(
           id: existingEpisode.id,
-          creationDate: existingEpisode.creationDate,
           from: unsavedEpisode
         )
 
@@ -244,7 +247,7 @@ struct RefreshManager {
     Self.log.log(
       level: unsavedEpisodes.isEmpty ? .trace : .debug,
       """
-      applyParsedFeed: \(podcastSeries.toString)
+      applyParsedFeed: \(podcast.toString)
         \(unsavedEpisodes.count) new episodes
         \(updatedEpisodes.count) updated episodes
         New Episodes are:
@@ -253,27 +256,27 @@ struct RefreshManager {
     )
 
     let now = Date()
-    let podcastToUpdate = podcastSeries.podcast.rssEquals(newPodcast) ? nil : newPodcast
+    let podcastToUpdate = podcast.rssEquals(newPodcast) ? nil : newPodcast
     let hasChanges =
       podcastToUpdate != nil || !unsavedEpisodes.isEmpty || !updatedEpisodes.isEmpty
 
     if !hasChanges {
-      return (podcastSeries.id, now)
+      return (podcast.id, now)
     }
 
     let newEpisodes: [Episode]
     do {
       newEpisodes = try await repo.updateSeriesFromFeed(
-        podcastSeries: podcastSeries,
+        podcastSeries: PodcastSeries(podcast: podcast),
         podcast: podcastToUpdate,
         unsavedEpisodes: unsavedEpisodes,
         existingEpisodes: updatedEpisodes
       )
     } catch {
-      var description = podcastSeries.toString
+      var description = podcast.toString
       if !updatedEpisodes.isEmpty {
         description +=
-          "\nEpisodes:\n    \(updatedEpisodes.map(\.toString).joined(separator: "\n    "))"
+          "\nEpisodes:\n    \(updatedEpisodes.map { "[\($0.id)] - \($0.title)" }.joined(separator: "\n    "))"
       }
       if !unsavedEpisodes.isEmpty {
         description +=
@@ -281,7 +284,7 @@ struct RefreshManager {
       }
       Self.log.caughtError(
         """
-        Failed to update PodcastSeries ID: \(podcastSeries.id.rawValue)
+        Failed to update Podcast ID: \(podcast.id.rawValue)
           \(description)
         """,
         error
@@ -289,14 +292,14 @@ struct RefreshManager {
       return nil
     }
 
-    if podcastSeries.podcast.notifyNewEpisodes {
+    if podcast.notifyNewEpisodes {
       await userNotificationManager.scheduleNewEpisodeNotification(
-        podcast: podcastSeries.podcast,
+        podcast: podcast,
         episodes: newEpisodes  // Ignored if newEpisodes.isEmpty
       )
     }
 
-    switch podcastSeries.podcast.cacheAllEpisodes {
+    switch podcast.cacheAllEpisodes {
     case .never:
       break
     case .cache:
