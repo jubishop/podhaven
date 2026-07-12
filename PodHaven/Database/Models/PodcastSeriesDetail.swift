@@ -11,8 +11,8 @@ import IdentifiedCollections
 //     IDs materialised, *without* the joined Podcast columns the parent
 //     already has
 //   * the podcast's own tags (empty when none assigned)
-// Distinct from `PodcastSeries`, which keeps full `Episode` rows for the
-// operational/refresh path.
+// Distinct from `PodcastSeries`, which keeps full `Episode` rows for callers
+// that need the complete saved shape.
 struct PodcastSeriesDetail: Equatable, Hashable, Identifiable, Sendable, Stringable {
   var id: Podcast.ID { podcast.id }
 

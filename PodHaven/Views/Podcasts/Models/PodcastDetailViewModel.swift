@@ -739,12 +739,12 @@ class PodcastDetailViewModel:
     guard lifecycle.isOnScreen else { return }
     do {
       if let series = state.savedSeries,
-        let operationalSeries = try await repo.podcastSeries(series.id)
+        let podcast = try await repo.podcast(series.id)
       {
         try Task.checkCancellation()
         guard lifecycle.isOnScreen else { return }
-        Self.log.debug("refreshing saved podcast series \(operationalSeries.toString)")
-        try await refreshManager.refreshSeries(podcastSeries: operationalSeries)
+        Self.log.debug("refreshing saved podcast series \(podcast.toString)")
+        try await refreshManager.refreshSeries(podcast: podcast)
         try Task.checkCancellation()
         guard lifecycle.isOnScreen else { return }
       } else {

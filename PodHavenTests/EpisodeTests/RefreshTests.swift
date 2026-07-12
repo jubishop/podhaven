@@ -100,11 +100,15 @@ class EpisodeRefreshTests {
     )
 
     let newUnsavedEpisode = try Create.unsavedEpisode(title: "episode 2")
+    let updatedFeedMergeEpisode = FeedMergeEpisode(
+      id: updatedEpisode.id,
+      from: updatedEpisode.unsaved
+    )
     let newEpisodes = try await repo.updateSeriesFromFeed(
-      podcastSeries: PodcastSeries(podcast: updatedPodcast),
       podcast: updatedPodcast,
+      updatedPodcast: updatedPodcast,
       unsavedEpisodes: [newUnsavedEpisode],
-      existingEpisodes: [updatedEpisode]
+      existingEpisodes: [updatedFeedMergeEpisode]
     )
     #expect(newEpisodes.map(\.mediaGUID) == [newUnsavedEpisode.mediaGUID])
 
@@ -137,6 +141,19 @@ class EpisodeRefreshTests {
     #expect(
       episodeRSSColumnNames == expectedEpisodeColumns,
       "Test must be updated if Episode.rssUpdatableColumns changes"
+    )
+    #expect(
+      Set(updatedFeedMergeEpisode.rssUpdatableColumns.map { $0.0.name })
+        == expectedEpisodeColumns,
+      "FeedMergeEpisode must update every Episode RSS column"
+    )
+    #expect(
+      Set(
+        FeedMergeEpisode.databaseSelection.compactMap {
+          ($0 as? any ColumnExpression)?.name
+        }
+      ) == expectedEpisodeColumns.union(["id", "duration"]),
+      "FeedMergeEpisode must select only the fields needed to merge RSS updates"
     )
 
     // RSS attributes should be updated for existing episode (excluding duration)
@@ -192,8 +209,8 @@ class EpisodeRefreshTests {
     )
 
     let inserted = try await repo.updateSeriesFromFeed(
-      podcastSeries: PodcastSeries(podcast: seriesB.podcast),
-      podcast: nil,
+      podcast: seriesB.podcast,
+      updatedPodcast: nil,
       unsavedEpisodes: [duplicate],
       existingEpisodes: []
     )
@@ -224,8 +241,8 @@ class EpisodeRefreshTests {
     let middle = try Create.unsavedEpisode(title: "middle", pubDate: 200.minutesAgo)
 
     let newEpisodes = try await repo.updateSeriesFromFeed(
-      podcastSeries: PodcastSeries(podcast: podcast),
-      podcast: nil,
+      podcast: podcast,
+      updatedPodcast: nil,
       unsavedEpisodes: [oldest, newest, middle],
       existingEpisodes: []
     )
@@ -242,8 +259,8 @@ class EpisodeRefreshTests {
     let podcast = try await Create.podcast(queueAllEpisodes: .onBottom, autoQueueLimit: nil)
 
     let newEpisodes = try await repo.updateSeriesFromFeed(
-      podcastSeries: PodcastSeries(podcast: podcast),
-      podcast: nil,
+      podcast: podcast,
+      updatedPodcast: nil,
       unsavedEpisodes: [
         try Create.unsavedEpisode(title: "a", pubDate: 300.minutesAgo),
         try Create.unsavedEpisode(title: "b", pubDate: 200.minutesAgo),
@@ -276,8 +293,8 @@ class EpisodeRefreshTests {
 
     // A refresh arrives that queues nothing (e.g. only a metadata change).
     let newEpisodes = try await repo.updateSeriesFromFeed(
-      podcastSeries: podcastSeries,
-      podcast: nil,
+      podcast: podcastSeries.podcast,
+      updatedPodcast: nil,
       unsavedEpisodes: [],
       existingEpisodes: []
     )
@@ -312,8 +329,8 @@ class EpisodeRefreshTests {
 
     // A refresh brings a newer episode while the queue is already full.
     let newEpisodes = try await repo.updateSeriesFromFeed(
-      podcastSeries: podcastSeries,
-      podcast: nil,
+      podcast: podcastSeries.podcast,
+      updatedPodcast: nil,
       unsavedEpisodes: [try Create.unsavedEpisode(title: "newest", pubDate: 100.minutesAgo)],
       existingEpisodes: []
     )
@@ -352,8 +369,8 @@ class EpisodeRefreshTests {
 
     // A refresh brings a newer episode for the limited podcast while full.
     _ = try await repo.updateSeriesFromFeed(
-      podcastSeries: podcastSeries,
-      podcast: nil,
+      podcast: podcastSeries.podcast,
+      updatedPodcast: nil,
       unsavedEpisodes: [try Create.unsavedEpisode(title: "newest", pubDate: 100.minutesAgo)],
       existingEpisodes: []
     )
@@ -384,8 +401,8 @@ class EpisodeRefreshTests {
     // A refresh brings a brand-new episode older than everything queued, so it
     // never survives the limit window and is never auto-queued.
     let newEpisodes = try await repo.updateSeriesFromFeed(
-      podcastSeries: podcastSeries,
-      podcast: nil,
+      podcast: podcastSeries.podcast,
+      updatedPodcast: nil,
       unsavedEpisodes: [try Create.unsavedEpisode(title: "ancient", pubDate: 400.minutesAgo)],
       existingEpisodes: []
     )

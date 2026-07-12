@@ -49,8 +49,8 @@ class RepoFreshnessCadenceTests {
     #expect(try await resolvedCadence(for: series.podcast.id) == .weekly)
 
     _ = try await repo.updateSeriesFromFeed(
-      podcastSeries: PodcastSeries(podcast: series.podcast),
-      podcast: nil,
+      podcast: series.podcast,
+      updatedPodcast: nil,
       unsavedEpisodes: try unsavedEpisodes(atDayOffsets: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
       existingEpisodes: []
     )
