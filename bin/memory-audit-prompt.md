@@ -140,7 +140,7 @@ Do not create a third note when two already cover the same topic.
 
 ## Run result (always)
 
-Deliver the full report as a working file and in your final message, then append the exact memory patch. CI sends only your final message to a clean publisher runner.
+Deliver the full report with the `write_report` tool after all memory edits are complete. The runner copies that report and the exact memory patch to the clean publisher runner.
 
 ### 1. Write the file (required)
 
@@ -150,21 +150,9 @@ Save the complete report to exactly:
 
 Create the `artifacts/` directory if needed. Do not only mention this path in chat — the file must exist on disk.
 
-### 2. Repeat the full report in your final message (required)
+### 2. Report template (required)
 
-Your last assistant message must include the **entire** report verbatim, wrapped in these markers on their own lines:
-
-```markdown
-<!-- MEMORY_AUDIT_REPORT_START -->
-# Memory audit report
-...
-<!-- MEMORY_AUDIT_REPORT_END -->
-```
-
-CI extracts the report from these markers on the clean publisher runner.
-
-- This is **not** a git artifact — never commit the report.
-- Use the exact template below (counts, tables, and section headers must match).
+Call `write_report` exactly once, as the final tool after all memory changes. The runner handles transport and publication. Use this exact template (counts, tables, and section headers must match):
 
 ```markdown
 # Memory audit report
@@ -207,20 +195,7 @@ If none, section: `_None._`
 
 If nothing archived, Archived section: `_None._`
 
-### 3. Append the memory patch (required)
-
-After the report end marker, append the exact output of `git diff "<baseSha>" --binary -- memory`, using `baseSha` from the context file, between these markers on their own lines:
-
-```text
-<!-- MEMORY_AUDIT_PATCH_START -->
-diff --git a/memory/...
-...
-<!-- MEMORY_AUDIT_PATCH_END -->
-```
-
-Do not wrap the actual patch in a code fence. If no memory files changed, emit the two patch markers with nothing between them. The publisher rejects missing markers, invalid patches, new active notes, direct deletions, existing archive edits, and any path outside the allowed memory scope.
-
-Your final message must contain only the marked report followed by the marked patch, with no text before or after them.
+Do not generate or quote the patch yourself. The runner captures it exactly after `write_report` succeeds. The publisher rejects invalid patches, new active notes, direct deletions, existing archive edits, and any path outside the allowed memory scope.
 
 ## Process
 
@@ -232,6 +207,5 @@ Your final message must contain only the marked report followed by the marked pa
 6. Consolidate overlapping notes (merge survivor, archive superseded).
 7. Move every **archive** verdict to `memory/archive/`.
 8. Write `artifacts/memory-audit-report.md`.
-9. Generate `git diff "<baseSha>" --binary -- memory` using the captured base SHA.
-10. Send your final message with the full report markers followed by the exact patch markers.
-11. Leave justified memory changes uncommitted for CI to validate and publish on a clean runner.
+9. Call `write_report` with the complete report as the final tool action.
+10. Leave justified memory changes uncommitted for CI to validate and publish on a clean runner.

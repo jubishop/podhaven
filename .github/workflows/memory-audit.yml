@@ -151,8 +151,8 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_MODEL: deepseek/deepseek-v4-flash
-          REASONING_EFFORT: high
-          MAX_API_COST_USD: "0.50"
+          REASONING_EFFORT: medium
+          MAX_API_COST_USD: "0.20"
         run: node bin/run-memory-audit.mjs
 
       - name: Expose audit result
@@ -212,6 +212,7 @@ jobs:
           AUDIT_OUTCOME: ${{ needs.audit.outputs.audit_outcome }}
           GH_TOKEN: ${{ github.token }}
           MODEL_ID: deepseek/deepseek-v4-flash
+          REASONING_EFFORT: medium
           PUBLISH_CHANGES: ${{ github.event_name == 'schedule' || inputs.publish_changes }}
         run: bin/finalize-memory-audit
 
@@ -247,7 +248,7 @@ jobs:
               runner: "change gate",
               provider: "openrouter",
               model: $model,
-              effort: "high",
+              effort: "medium",
               apiCost: 0,
               prUrl: null,
               branch: null,
