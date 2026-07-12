@@ -53,8 +53,20 @@ struct CacheManager {
 
   private struct DownloadStart: Sendable {
     let completion = AsyncLatch<Void>()
+    let startersDrained = AsyncLatch<Void>()
     var disposition = DownloadStartDisposition.proceed
-    var participantCount = 1
+    var starterCount = 1
+    var clearerCount = 0
+  }
+
+  private enum DownloadStartRegistration: Sendable {
+    case participating
+    case cancelled
+  }
+
+  private struct DownloadClearReservation: Sendable {
+    let completion: AsyncLatch<Void>
+    let startersDrained: AsyncLatch<Void>
   }
 
   private enum DownloadStartOutcome: Sendable {
@@ -247,96 +259,102 @@ struct CacheManager {
       return nil
     }
 
-    if episode.downloading {
-      var startCompletion: AsyncLatch<Void>? = downloadStarts { starts in
-        guard var start = starts[episodeID] else { return nil }
-        start.disposition = .cancel
-        start.participantCount += 1
-        starts[episodeID] = start
-        return start.completion
-      }
-      defer {
-        if startCompletion != nil { leaveDownloadStart(for: episodeID) }
-      }
-
-      let activeAttempt = await activeDownloadAttempt(for: episodeID)
-      let attemptCompletion: AsyncLatch<Void>?
-      if let activeAttempt {
-        attemptCompletion = downloadLatches { latches in
-          if let existing = latches[activeAttempt] { return existing }
-          let fresh = AsyncLatch<Void>()
-          latches[activeAttempt] = fresh
-          return fresh
-        }
-      } else {
-        attemptCompletion = nil
-      }
-
-      let description = String(episodeID.rawValue)
-      let liveTask = await cacheManagerSession.allCreatedTasks.first {
-        $0.taskDescription == description
-      }
-      liveTask?.cancel()
-      sharedState.clearDownloadProgress(for: episodeID)
-
-      if let activeAttempt, let attemptCompletion {
-        if activeDownloadAttempts[episodeID] == activeAttempt {
-          try await attemptCompletion.wait()
-        } else {
-          signalDownloadComplete(for: activeAttempt)
-        }
-      } else {
-        try await repo.updateDownloading(episode.id, downloading: false)
-      }
-
-      if let completion = startCompletion {
-        leaveDownloadStart(for: episodeID)
-        startCompletion = nil
-        try await completion.wait()
-      }
+    let reservation = reserveDownloadClear(for: episodeID)
+    var heldReservation: DownloadClearReservation? = reservation
+    defer {
+      if heldReservation != nil { leaveDownloadClear(for: episodeID) }
     }
 
-    guard var currentEpisode = try await repo.episode(episodeID) else { return nil }
-    if currentEpisode.downloading, activeDownloadAttempts[episodeID] == nil {
-      if let completion = downloadStarts[episodeID]?.completion {
-        try await completion.wait()
-        guard let refreshedEpisode = try await repo.episode(episodeID) else { return nil }
-        currentEpisode = refreshedEpisode
+    let activeAttempt = await activeDownloadAttempt(for: episodeID)
+    let attemptCompletion: AsyncLatch<Void>?
+    if let activeAttempt {
+      attemptCompletion = downloadLatches { latches in
+        if let existing = latches[activeAttempt] { return existing }
+        let fresh = AsyncLatch<Void>()
+        latches[activeAttempt] = fresh
+        return fresh
       }
+    } else {
+      attemptCompletion = nil
+    }
+
+    let liveTask: (any DownloadingTask)?
+    if let activeAttempt {
+      liveTask = await cacheManagerSession.allCreatedTasks.first {
+        $0.taskID == activeAttempt.taskID
+      }
+    } else {
+      liveTask = nil
+    }
+    liveTask?.cancel()
+    if episode.downloading || activeAttempt != nil {
+      sharedState.clearDownloadProgress(for: episodeID)
+    }
+
+    if let activeAttempt, let attemptCompletion {
+      if activeDownloadAttempts[episodeID] == activeAttempt {
+        try await attemptCompletion.wait()
+      } else {
+        signalDownloadComplete(for: activeAttempt)
+      }
+    } else if episode.downloading {
+      try await repo.updateDownloading(episodeID, downloading: false)
+    }
+    try await reservation.startersDrained.wait()
+
+    var clearedURL: CachedURL?
+    if var currentEpisode = try await repo.episode(episodeID) {
       if currentEpisode.downloading, activeDownloadAttempts[episodeID] == nil {
         try await repo.updateDownloading(episodeID, downloading: false)
-        guard let refreshedEpisode = try await repo.episode(episodeID) else { return nil }
-        currentEpisode = refreshedEpisode
+        if let refreshedEpisode = try await repo.episode(episodeID) {
+          currentEpisode = refreshedEpisode
+        }
+      }
+
+      if await Self.canClearCache(currentEpisode) {
+        if let cachedURL = currentEpisode.cachedURL {
+          do {
+            try fileManager.removeItem(at: cachedURL.rawValue)
+          } catch {
+            guard ErrorKit.isMissingFile(error) else {
+              Self.log.caughtError(
+                "clearCache: failed to remove cached file for \(currentEpisode.toString)",
+                error
+              )
+              throw error
+            }
+            Self.log.caughtError(
+              "clearCache: cached file already missing for \(currentEpisode.toString)",
+              error,
+              level: .debug
+            )
+          }
+          try await repo.updateCachedFilename(currentEpisode.id, cachedFilename: nil)
+          clearedURL = cachedURL
+          Self.log.debug("cache cleared for: \(currentEpisode.toString)")
+        } else {
+          Self.log.debug("episode: \(currentEpisode.toString) has no cached file")
+        }
+      } else {
+        Self.log.debug("Can't clear cache after download coordination: \(currentEpisode.toString)")
       }
     }
 
-    guard await Self.canClearCache(currentEpisode) else {
-      Self.log.debug("Can't clear cache after download coordination: \(currentEpisode.toString)")
-      if currentEpisode.cacheStatus == .uncached {
-        try await downloadToCache(for: episodeID)
+    leaveDownloadClear(for: episodeID)
+    heldReservation = nil
+    try await reservation.completion.wait()
+
+    if let finalEpisode = try await repo.episode(episodeID) {
+      let canClearFinalEpisode = await Self.canClearCache(finalEpisode)
+      if !canClearFinalEpisode {
+        if finalEpisode.cacheStatus == .uncached {
+          try await downloadToCache(for: episodeID)
+        }
+        return nil
       }
-      return nil
     }
 
-    guard let cachedURL = currentEpisode.cachedURL
-    else {
-      Self.log.debug("episode: \(currentEpisode.toString) has no cached file")
-      return nil
-    }
-
-    do {
-      try fileManager.removeItem(at: cachedURL.rawValue)
-    } catch {
-      Self.log.caughtError(
-        "clearCache: failed to remove cached file for \(currentEpisode.toString)",
-        error
-      )
-    }
-    try await repo.updateCachedFilename(currentEpisode.id, cachedFilename: nil)
-
-    Self.log.debug("cache cleared for: \(currentEpisode.toString)")
-
-    return cachedURL
+    return clearedURL
   }
 
   // MARK: - Private Helpers
@@ -345,13 +363,19 @@ struct CacheManager {
   private func startDownload(for podcastEpisode: PodcastEpisode) async throws
     -> CacheDownloadAttempt?
   {
-    downloadStarts { starts in
+    let registration: DownloadStartRegistration = downloadStarts { starts in
       if var start = starts[podcastEpisode.id] {
-        start.participantCount += 1
+        guard case .proceed = start.disposition else { return .cancelled }
+        start.starterCount += 1
         starts[podcastEpisode.id] = start
       } else {
         starts[podcastEpisode.id] = DownloadStart()
       }
+      return .participating
+    }
+    guard case .participating = registration else {
+      Self.log.trace("startDownload: clear in progress for \(podcastEpisode.id)")
+      return nil
     }
     defer { leaveDownloadStart(for: podcastEpisode.id) }
 
@@ -400,12 +424,64 @@ struct CacheManager {
   }
 
   private func leaveDownloadStart(for episodeID: Episode.ID) {
+    let signals: (startersDrained: AsyncLatch<Void>?, completion: AsyncLatch<Void>?) =
+      downloadStarts { starts in
+        guard var start = starts[episodeID] else {
+          Assert.fatal("Missing download start state for \(episodeID)")
+        }
+        Assert.precondition(
+          start.starterCount > 0,
+          "Download start count underflow for \(episodeID)"
+        )
+        start.starterCount -= 1
+        guard start.starterCount == 0 else {
+          starts[episodeID] = start
+          return (nil, nil)
+        }
+        guard start.clearerCount == 0 else {
+          starts[episodeID] = start
+          return (start.startersDrained, nil)
+        }
+        starts.removeValue(forKey: episodeID)
+        return (nil, start.completion)
+      }
+    signals.startersDrained?.open()
+    signals.completion?.open()
+  }
+
+  private func reserveDownloadClear(for episodeID: Episode.ID) -> DownloadClearReservation {
+    downloadStarts { starts in
+      if var start = starts[episodeID] {
+        start.disposition = .cancel
+        start.clearerCount += 1
+        starts[episodeID] = start
+        return DownloadClearReservation(
+          completion: start.completion,
+          startersDrained: start.startersDrained
+        )
+      }
+
+      var start = DownloadStart()
+      start.disposition = .cancel
+      start.starterCount = 0
+      start.clearerCount = 1
+      start.startersDrained.open()
+      starts[episodeID] = start
+      return DownloadClearReservation(
+        completion: start.completion,
+        startersDrained: start.startersDrained
+      )
+    }
+  }
+
+  private func leaveDownloadClear(for episodeID: Episode.ID) {
     let completion: AsyncLatch<Void>? = downloadStarts { starts in
       guard var start = starts[episodeID] else {
-        Assert.fatal("Missing download start state for \(episodeID)")
+        Assert.fatal("Missing download clear state for \(episodeID)")
       }
-      start.participantCount -= 1
-      guard start.participantCount == 0 else {
+      Assert.precondition(start.clearerCount > 0, "Download clear count underflow for \(episodeID)")
+      start.clearerCount -= 1
+      guard start.clearerCount == 0, start.starterCount == 0 else {
         starts[episodeID] = start
         return nil
       }

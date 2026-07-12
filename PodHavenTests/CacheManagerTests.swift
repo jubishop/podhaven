@@ -454,18 +454,12 @@ import Testing
   func clearCacheRestartsCachingForNewlyQueuedEpisode() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
     let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
-    let fakeRepo = try #require(repo as? FakeRepo)
-    let completedClaimCount = fakeRepo.completedDownloadClaimCount()
 
     let clear = Task {
       try await cacheManager.clearCache(for: podcastEpisode.id)
     }
     try await CacheHelpers.waitForCancelled(taskID)
     try await queue.unshift(podcastEpisode.id)
-    try await Wait.until(
-      { fakeRepo.completedDownloadClaimCount() > completedClaimCount },
-      { "Queue observer never completed its initial download claim" }
-    )
     try await CacheHelpers.simulateBackgroundFailure(taskID)
 
     #expect(try await clear.value == nil)
@@ -475,6 +469,102 @@ import Testing
     let replacementTaskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
     #expect(replacementTaskID != taskID)
     try await CacheHelpers.waitForResumed(replacementTaskID)
+  }
+
+  @Test("clearCache restarts caching when protection changes during the filename reset")
+  func clearCacheRestartsCachingForProtectionChangeDuringFilenameReset() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    let gate = await fakeRepo.gateNextCachedFilenameClear()
+    defer { gate.release.open() }
+
+    let clear = Task {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await gate.reached.wait()
+    try await queue.unshift(podcastEpisode.id)
+    gate.release.open()
+
+    #expect(try await clear.value == nil)
+    let current = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(current.queued)
+    let replacementTaskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
+    try await CacheHelpers.waitForResumed(replacementTaskID)
+  }
+
+  @Test("clearCache rejects a replacement while terminal cancellation is finishing")
+  func clearCacheRejectsReplacementDuringTerminalCancellation() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let originalTaskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingDownloadingFalseSuspend(true)
+    defer { Task { await fakeRepo.resumeAllDownloadingFalseSuspensions() } }
+
+    let clear = Task {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await CacheHelpers.waitForCancelled(originalTaskID)
+    let terminal = Task {
+      try await CacheHelpers.simulateBackgroundFailure(originalTaskID)
+    }
+    try await fakeRepo.waitForDownloadingFalseSuspended()
+
+    let replacementTaskID = try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    await fakeRepo.resumeAllDownloadingFalseSuspensions()
+    try await terminal.value
+    #expect(try await clear.value == nil)
+
+    let createdTasks = await session.allCreatedTasks
+    #expect(replacementTaskID == nil)
+    #expect(createdTasks.isEmpty)
+    if let replacementTaskID {
+      try await CacheHelpers.simulateBackgroundFailure(replacementTaskID)
+    }
+  }
+
+  @Test("clearCache cancels the active replacement instead of a stale terminal task")
+  func clearCacheCancelsActiveReplacementInsteadOfStaleTerminalTask() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let originalTaskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingDownloadingFalseSuspend(true)
+    defer { Task { await fakeRepo.resumeAllDownloadingFalseSuspensions() } }
+
+    let originalTerminal = Task {
+      try await CacheHelpers.simulateBackgroundFailure(originalTaskID)
+    }
+    try await fakeRepo.waitForDownloadingFalseSuspended()
+    let replacementTaskID = try #require(
+      try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    )
+    try await CacheHelpers.waitForResumed(replacementTaskID)
+
+    let clear = Task {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await Wait.until(
+      {
+        let tasks = await self.session.downloadTasks()
+        let originalCancelled = await tasks[id: originalTaskID]?.isCancelled() == true
+        let replacementCancelled = await tasks[id: replacementTaskID]?.isCancelled() == true
+        return originalCancelled || replacementCancelled
+      },
+      { "clearCache never cancelled an overlapping task" }
+    )
+    let overlappingTasks = await session.downloadTasks()
+    let originalCancelled = await overlappingTasks[id: originalTaskID]?.isCancelled() == true
+    let replacementCancelled = await overlappingTasks[id: replacementTaskID]?.isCancelled() == true
+
+    await fakeRepo.resumeAllDownloadingFalseSuspensions()
+    try await originalTerminal.value
+    try await CacheHelpers.simulateBackgroundFailure(replacementTaskID)
+    _ = try await clear.value
+
+    #expect(!originalCancelled)
+    #expect(replacementCancelled)
   }
 
   @Test("clearCache clears cached file")
@@ -489,6 +579,24 @@ import Testing
     try await cacheManager.clearCache(for: podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
+  }
+
+  @Test("clearCache preserves the cached row when file removal fails")
+  func clearCachePreservesCachedRowWhenFileRemovalFails() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
+    fileManager.setRemoveItemError(InjectedFileRemovalError(), for: cachedURL.rawValue)
+
+    await #expect(throws: InjectedFileRemovalError.self) {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+
+    let current = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(current.cachedURL == cachedURL)
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
   }
 
   @Test("clearCache wins when an in-progress download completes after its initial read")
@@ -772,3 +880,4 @@ import Testing
 }
 
 private struct InjectedRepoError: Error, Sendable {}
+private struct InjectedFileRemovalError: Error, Sendable {}

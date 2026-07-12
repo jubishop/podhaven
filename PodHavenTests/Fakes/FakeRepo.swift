@@ -13,6 +13,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     let release = AsyncLatch<Void>()
   }
 
+  struct CachedFilenameClearGate: Sendable {
+    let reached = AsyncLatch<Void>()
+    let release = AsyncLatch<Void>()
+  }
+
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
   nonisolated let refreshEpisodeRowsRead = ThreadSafe<Int>(0)
@@ -43,6 +48,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   private var podcastEpisodeFetchBarrierRemaining = 0
   private var podcastEpisodeFetchBarrierContinuations: [CheckedContinuation<Void, Never>] = []
   private var nextWinningDownloadClaimGate: WinningDownloadClaimGate?
+  private var nextCachedFilenameClearGate: CachedFilenameClearGate?
   nonisolated let completedDownloadClaimCount = ThreadSafe<Int>(0)
   nonisolated let pendingDownloadingFalseSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedDownloadingFalseCount = ThreadSafe<Int>(0)
@@ -481,6 +487,16 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return gate
   }
 
+  func gateNextCachedFilenameClear() -> CachedFilenameClearGate {
+    Assert.precondition(
+      nextCachedFilenameClearGate == nil,
+      "Cached filename clear gate is already active"
+    )
+    let gate = CachedFilenameClearGate()
+    nextCachedFilenameClearGate = gate
+    return gate
+  }
+
   @discardableResult
   func updateDownloading(_ episodeID: Episode.ID, downloading: Bool) async throws -> Bool {
     recordCall(
@@ -513,6 +529,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       methodName: "updateCachedFilename",
       parameters: (episodeID: episodeID, cachedFilename: cachedFilename)
     )
+    if cachedFilename == nil, let gate = nextCachedFilenameClearGate {
+      nextCachedFilenameClearGate = nil
+      gate.reached.open()
+      try await gate.release.wait()
+    }
     return try await repo.updateCachedFilename(episodeID, cachedFilename: cachedFilename)
   }
 

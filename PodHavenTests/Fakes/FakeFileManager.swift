@@ -8,6 +8,7 @@ final class FakeFileManager: FileManaging, Sendable {
   // MARK: - State
 
   private let inMemoryFiles = ThreadSafe<[URL: Data]>([:])
+  private let removeItemErrors = ThreadSafe<[URL: any Error & Sendable]>([:])
   private struct FileSizeErrorRule: Sendable {
     var successfulCallsRemaining: Int
     let error: any Error & Sendable
@@ -38,6 +39,7 @@ final class FakeFileManager: FileManaging, Sendable {
   // MARK: - File Management Operations
 
   func removeItem(at url: URL) throws {
+    if let error = removeItemErrors({ $0.removeValue(forKey: url) }) { throw error }
     guard fileExists(atPath: url.path) else { throw TestError.fileNotFound(url) }
     inMemoryFiles { files in
       files.removeValue(forKey: url)
@@ -105,6 +107,10 @@ final class FakeFileManager: FileManaging, Sendable {
     fileSizeErrorRules {
       $0[url] = FileSizeErrorRule(successfulCallsRemaining: afterSuccessfulCalls, error: error)
     }
+  }
+
+  func setRemoveItemError(_ error: any Error & Sendable, for url: URL) {
+    removeItemErrors { $0[url] = error }
   }
 
   func fileSize(for url: URL) throws -> Int64 {
