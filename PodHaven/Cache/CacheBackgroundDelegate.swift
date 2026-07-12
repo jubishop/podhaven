@@ -15,6 +15,11 @@ extension Container {
 }
 
 final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
+  private struct FinalizationState: Sendable {
+    var inFlightCount = 0
+    var completionRequested = false
+  }
+
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
@@ -27,6 +32,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private static let log = Log.as(LogSubsystem.Cache.backgroundDelegate)
 
   private let completions = ThreadSafe<[URLSessionConfiguration.ID: @MainActor () -> Void]>([:])
+  private let finalizations = ThreadSafe<[URLSessionConfiguration.ID: FinalizationState]>([:])
 
   // MARK: - Completion Management
 
@@ -35,6 +41,17 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   func complete(for id: URLSessionConfiguration.ID) {
+    let shouldComplete = finalizations { states in
+      guard var state = states[id] else { return true }
+      state.completionRequested = true
+      states[id] = state
+      return false
+    }
+    guard shouldComplete else { return }
+    invokeCompletion(for: id)
+  }
+
+  private func invokeCompletion(for id: URLSessionConfiguration.ID) {
     let completion = completions { dict in
       dict.removeValue(forKey: id)
     }
@@ -104,21 +121,40 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       // The async path that clears state and signals completion won't run here,
       // so do it inline to avoid stranding the episode as downloading.
       guard let signalAttempt = downloadAttempt(for: downloadTask) else { return }
-      Task {
-        await clearDownloadState(for: signalAttempt.episodeID)
-        cacheManager.signalDownloadComplete(for: signalAttempt)
+      let finalizationSessionID = beginFinalization(for: sessionID(for: session))
+      Task { [weak self] in
+        guard let self else { return }
+        await self.performProtectedFinalization(for: finalizationSessionID) {
+          await self.clearDownloadState(for: signalAttempt.episodeID)
+          self.cacheManager.signalDownloadComplete(for: signalAttempt)
+        }
       }
       return
     }
 
-    Task {
-      await urlSession(session, downloadTask: downloadTask, didFinishDownloadingTo: safeTempURL)
+    let finalizationSessionID = beginFinalization(for: sessionID(for: session))
+    Task { [weak self] in
+      guard let self else { return }
+      await self.performProtectedFinalization(for: finalizationSessionID) {
+        await self.processDownloadedFile(downloadTask: downloadTask, location: safeTempURL)
+      }
     }
   }
   func urlSession(
     _ session: any DataFetchable,
     downloadTask: any DownloadingTask,
     didFinishDownloadingTo location: URL
+  ) async {
+    let finalizationSessionID = beginFinalization(for: sessionID(for: session))
+    await performProtectedFinalization(for: finalizationSessionID) { [weak self] in
+      guard let self else { return }
+      await self.processDownloadedFile(downloadTask: downloadTask, location: location)
+    }
+  }
+
+  private func processDownloadedFile(
+    downloadTask: any DownloadingTask,
+    location: URL
   ) async {
     // Signal on every exit so an awaiter resumes, even if the row was deleted.
     let signalAttempt = downloadAttempt(for: downloadTask)
@@ -319,7 +355,14 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard let downloadTask = task as? URLSessionDownloadTask
     else { Assert.fatal("didCompleteWithError passed non URLSessionDownloadTask? \(task)") }
 
-    Task { await urlSession(session, task: downloadTask, didCompleteWithError: error) }
+    guard error != nil else { return }
+    let finalizationSessionID = beginFinalization(for: sessionID(for: session))
+    Task { [weak self] in
+      guard let self else { return }
+      await self.performProtectedFinalization(for: finalizationSessionID) {
+        await self.urlSession(session, task: downloadTask, didCompleteWithError: error)
+      }
+    }
   }
   func urlSession(
     _ session: any DataFetchable,
@@ -372,6 +415,56 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   // MARK: - Private Helpers
+
+  private func beginFinalization(for id: URLSessionConfiguration.ID?)
+    -> URLSessionConfiguration.ID?
+  {
+    guard let id else { return nil }
+    finalizations { states in
+      var state = states[id, default: FinalizationState()]
+      state.inFlightCount += 1
+      states[id] = state
+    }
+    return id
+  }
+
+  private func performProtectedFinalization(
+    for id: URLSessionConfiguration.ID?,
+    operation: () async -> Void
+  ) async {
+    let backgroundTask = await BackgroundTask.start(withName: "cacheDownloadFinalization")
+    await operation()
+    await backgroundTask.end()
+    finishFinalization(for: id)
+  }
+
+  private func finishFinalization(for id: URLSessionConfiguration.ID?) {
+    guard let id else { return }
+    let shouldComplete = finalizations { states -> Bool in
+      guard var state = states[id] else {
+        Assert.fatal("Missing finalization state for background session \(id)")
+      }
+      Assert.precondition(
+        state.inFlightCount > 0,
+        "Invalid finalization count for background session \(id)"
+      )
+      state.inFlightCount -= 1
+      guard state.inFlightCount == 0 else {
+        states[id] = state
+        return false
+      }
+      states.removeValue(forKey: id)
+      return state.completionRequested
+    }
+    if shouldComplete { invokeCompletion(for: id) }
+  }
+
+  private func sessionID(for session: any DataFetchable) -> URLSessionConfiguration.ID? {
+    guard let session = session as? URLSession,
+      let identifier = session.configuration.identifier
+    else { return nil }
+    return URLSessionConfiguration.ID(identifier)
+  }
 
   // Resolve a finished/failed download back to its episode using the
   // taskDescription set when the task was created. URLSession taskIDs are

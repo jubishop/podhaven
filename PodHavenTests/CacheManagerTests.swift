@@ -17,6 +17,7 @@ import Testing
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.uiApplication) private var uiApplication
 
   private var fileManager: FakeFileManager {
     Container.shared.fileManager() as! FakeFileManager
@@ -157,6 +158,107 @@ import Testing
 
     let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID)
     #expect(!fileManager.fileExists(at: fileURL))
+  }
+
+  @Test("background completion waits for protected finalization")
+  func backgroundCompletionWaitsForProtectedFinalization() async throws {
+    let assetStarted = AsyncSemaphore(value: 0)
+    let assetRelease = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.setDefaultHandler { _ in
+      assetStarted.signal()
+      try await assetRelease.waitUnlessCancelled()
+      return (true, CMTime.seconds(30))
+    }
+
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let downloadTasks = await session.downloadTasks()
+    let task = try #require(downloadTasks[id: taskID])
+    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try await fileManager.writeData(Data.random(), to: tempFile)
+
+    let identifier = AppInfo.bundleIdentifier + ".cache.bg.test.\(UUID())"
+    let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
+    let backgroundSession = URLSession(configuration: configuration)
+    defer { backgroundSession.invalidateAndCancel() }
+
+    let completionCalled = ThreadSafe(false)
+    cacheBackgroundDelegate.store(id: URLSessionConfiguration.ID(identifier)) {
+      completionCalled(true)
+    }
+
+    let finalization = Task {
+      await cacheBackgroundDelegate.urlSession(
+        backgroundSession,
+        downloadTask: task,
+        didFinishDownloadingTo: tempFile
+      )
+    }
+    await assetStarted.wait()
+
+    let application = try #require(uiApplication as? FakeApplication)
+    #expect(application.activeTaskCount == 1)
+
+    cacheBackgroundDelegate.urlSessionDidFinishEvents(
+      forBackgroundURLSession: backgroundSession
+    )
+    try await yieldForSpuriousAsyncWork()
+    #expect(!completionCalled())
+
+    assetRelease.signal()
+    await finalization.value
+    try await Wait.until(
+      { completionCalled() },
+      { "Background completion never fired after finalization drained" }
+    )
+    #expect(application.activeTaskCount == 0)
+  }
+
+  @Test("background completion waits for protected failure cleanup")
+  func backgroundCompletionWaitsForProtectedFailureCleanup() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+
+    let identifier = AppInfo.bundleIdentifier + ".cache.bg.test.\(UUID())"
+    let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
+    let backgroundSession = URLSession(configuration: configuration)
+    defer { backgroundSession.invalidateAndCancel() }
+
+    let task = backgroundSession.downloadTask(with: podcastEpisode.episode.mediaURL.rawValue)
+    task.taskDescription = String(podcastEpisode.id.rawValue)
+
+    let completionCalled = ThreadSafe(false)
+    cacheBackgroundDelegate.store(id: URLSessionConfiguration.ID(identifier)) {
+      completionCalled(true)
+    }
+
+    let fakeRepo = try #require(repo as? FakeRepo)
+    let completedFetchCount = fakeRepo.completedEpisodeFetchCount()
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+
+    cacheBackgroundDelegate.urlSession(
+      backgroundSession,
+      task: task as URLSessionTask,
+      didCompleteWithError: InjectedRepoError()
+    )
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+
+    let application = try #require(uiApplication as? FakeApplication)
+    #expect(application.activeTaskCount == 1)
+
+    cacheBackgroundDelegate.urlSessionDidFinishEvents(
+      forBackgroundURLSession: backgroundSession
+    )
+    try await yieldForSpuriousAsyncWork()
+    #expect(!completionCalled())
+
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    try await fakeRepo.waitForEpisodeFetchCompleted(count: completedFetchCount + 1)
+    try await Wait.until(
+      { completionCalled() },
+      { "Background completion never fired after failure cleanup drained" }
+    )
+    #expect(application.activeTaskCount == 0)
   }
 
   // downloading is cleared only after the cached filename is written, so a
