@@ -41,6 +41,22 @@ extension Container {
 }
 
 struct CacheManager {
+  private enum DownloadStartDisposition: Sendable {
+    case proceed
+    case cancel
+  }
+
+  private struct DownloadStart: Sendable {
+    let completion = AsyncLatch<Void>()
+    var disposition = DownloadStartDisposition.proceed
+    var participantCount = 1
+  }
+
+  private enum DownloadStartOutcome: Sendable {
+    case started(URLSessionDownloadTask.ID)
+    case cancelled
+  }
+
   @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
@@ -58,6 +74,7 @@ struct CacheManager {
 
   private let startOnce = Once()
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
+  private let downloadStarts = ThreadSafe<[Episode.ID: DownloadStart]>([:])
   // Per-episode completion latches: cachedURL registers one before it may
   // suspend; the delegate opens and removes it on the terminal callback.
   private let downloadLatches = ThreadSafe<[Episode.ID: AsyncLatch<Void>]>([:])
@@ -96,6 +113,12 @@ struct CacheManager {
     do {
       let downloadingIDs = try await repo.downloadingEpisodeIDs()
       guard !downloadingIDs.isEmpty else { return }
+
+      for episodeID in downloadingIDs {
+        if let completion = downloadStarts[episodeID]?.completion {
+          try await completion.wait()
+        }
+      }
 
       let liveDescriptions = Set(
         await cacheManagerSession.allCreatedTasks.compactMap(\.taskDescription)
@@ -146,6 +169,9 @@ struct CacheManager {
     case .uncached:
       try await startDownload(for: podcastEpisode)
     case .caching:
+      if let completion = downloadStarts[episodeID]?.completion {
+        try await completion.wait()
+      }
       if !(await hasLiveDownloadTask(for: episodeID)) {
         Self.log.debug("cachedURL: restarting stranded download for \(episodeID)")
         try await repo.updateDownloading(episodeID, downloading: false)
@@ -193,6 +219,12 @@ struct CacheManager {
     }
 
     if episode.downloading {
+      downloadStarts { starts in
+        guard var start = starts[episodeID] else { return }
+        start.disposition = .cancel
+        starts[episodeID] = start
+      }
+
       let description = String(episodeID.rawValue)
       let liveTask = await cacheManagerSession.allCreatedTasks.first {
         $0.taskDescription == description
@@ -229,6 +261,30 @@ struct CacheManager {
   private func startDownload(for podcastEpisode: PodcastEpisode) async throws
     -> URLSessionDownloadTask.ID?
   {
+    downloadStarts { starts in
+      if var start = starts[podcastEpisode.id] {
+        start.participantCount += 1
+        starts[podcastEpisode.id] = start
+      } else {
+        starts[podcastEpisode.id] = DownloadStart()
+      }
+    }
+    defer {
+      let completion: AsyncLatch<Void>? = downloadStarts { starts in
+        guard var start = starts[podcastEpisode.id] else {
+          Assert.fatal("Missing download start state for \(podcastEpisode.id)")
+        }
+        start.participantCount -= 1
+        guard start.participantCount == 0 else {
+          starts[podcastEpisode.id] = start
+          return nil
+        }
+        starts.removeValue(forKey: podcastEpisode.id)
+        return start.completion
+      }
+      completion?.open()
+    }
+
     guard try await repo.claimForDownloadIfUncached(podcastEpisode.id) else {
       Self.log.trace("startDownload: episode \(podcastEpisode.id) was not uncached")
       return nil
@@ -243,13 +299,29 @@ struct CacheManager {
     // resume() guarantees it's there when the system invokes any callback,
     // including across an app relaunch that reattaches to this background
     // session.
-    let downloadTask = cacheManagerSession.createDownloadTask(
-      with: request,
-      taskDescription: String(podcastEpisode.id.rawValue)
-    )
-    downloadTask.resume()
+    let session = cacheManagerSession
+    // Publish under the state lock so a concurrent clear either cancels first or finds the task.
+    let outcome: DownloadStartOutcome = downloadStarts { starts in
+      guard let start = starts[podcastEpisode.id] else {
+        Assert.fatal("Missing download start state for \(podcastEpisode.id)")
+      }
+      guard case .proceed = start.disposition else { return .cancelled }
 
-    return downloadTask.taskID
+      let downloadTask = session.createDownloadTask(
+        with: request,
+        taskDescription: String(podcastEpisode.id.rawValue)
+      )
+      downloadTask.resume()
+      return .started(downloadTask.taskID)
+    }
+
+    switch outcome {
+    case .started(let taskID):
+      return taskID
+    case .cancelled:
+      try await repo.updateDownloading(podcastEpisode.id, downloading: false)
+      return nil
+    }
   }
 
   private func hasLiveDownloadTask(for episodeID: Episode.ID) async -> Bool {

@@ -8,6 +8,11 @@ import Tagged
 @testable import PodHaven
 
 actor FakeRepo: Databasing, Sendable, FakeCallable {
+  struct WinningDownloadClaimGate: Sendable {
+    let claimed = AsyncLatch<Void>()
+    let release = AsyncLatch<Void>()
+  }
+
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
 
@@ -32,6 +37,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   private var podcastEpisodeFetchBarrierRemaining = 0
   private var podcastEpisodeFetchBarrierContinuations: [CheckedContinuation<Void, Never>] = []
+  private var nextWinningDownloadClaimGate: WinningDownloadClaimGate?
 
   // Same shape as pendingEpisodeFetchSuspend, but for updateLastUpdates so
   // tests can park the batched flush inside RefreshManager.performRefresh.
@@ -408,7 +414,23 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   @discardableResult
   func claimForDownloadIfUncached(_ episodeID: Episode.ID) async throws -> Bool {
     recordCall(methodName: "claimForDownloadIfUncached", parameters: episodeID)
-    return try await repo.claimForDownloadIfUncached(episodeID)
+    let claimed = try await repo.claimForDownloadIfUncached(episodeID)
+    guard claimed, let gate = nextWinningDownloadClaimGate else { return claimed }
+
+    nextWinningDownloadClaimGate = nil
+    gate.claimed.open()
+    try await gate.release.wait()
+    return true
+  }
+
+  func gateNextWinningDownloadClaim() -> WinningDownloadClaimGate {
+    Assert.precondition(
+      nextWinningDownloadClaimGate == nil,
+      "Winning download claim gate is already active"
+    )
+    let gate = WinningDownloadClaimGate()
+    nextWinningDownloadClaimGate = gate
+    return gate
   }
 
   @discardableResult

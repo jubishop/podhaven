@@ -329,6 +329,29 @@ import Testing
     try await CacheHelpers.waitForResumed(try #require(startedTaskIDs.first))
   }
 
+  @Test("clearCache cancels a download between its claim and task creation")
+  func clearCacheCancelsDownloadWhileClaimIsStarting() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    let gate = await fakeRepo.gateNextWinningDownloadClaim()
+    defer { gate.release.open() }
+
+    let download = Task {
+      try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    }
+    try await gate.claimed.wait()
+
+    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+    gate.release.open()
+
+    let taskID = try await download.value
+    let createdTasks = await session.allCreatedTasks
+    let episode = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(taskID == nil)
+    #expect(createdTasks.isEmpty)
+    #expect(!episode.downloading)
+  }
+
   @Test("multiple concurrent downloads are cached successfully")
   func multipleConcurrentDownloadsAreCachedSuccessfully() async throws {
     let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
