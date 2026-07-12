@@ -21,6 +21,10 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // Cleared on use so subsequent calls reach the real repo.
   nonisolated let updateSaveInCacheBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
 
+  // One-shot error to throw when clearing the downloading flag.
+  // Cleared on use so a caller can retry the failed terminal transition.
+  nonisolated let updateDownloadingFalseError = ThreadSafe<(any Error & Sendable)?>(nil)
+
   // One-shot error to throw from `episode(_:Episode.ID)`. Cleared on use so
   // subsequent calls reach the real repo.
   nonisolated let episodeFetchError = ThreadSafe<(any Error & Sendable)?>(nil)
@@ -39,6 +43,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   private var podcastEpisodeFetchBarrierRemaining = 0
   private var podcastEpisodeFetchBarrierContinuations: [CheckedContinuation<Void, Never>] = []
   private var nextWinningDownloadClaimGate: WinningDownloadClaimGate?
+  nonisolated let completedDownloadClaimCount = ThreadSafe<Int>(0)
   nonisolated let pendingDownloadingFalseSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedDownloadingFalseCount = ThreadSafe<Int>(0)
   private var downloadingFalseSuspensions: [CheckedContinuation<Void, Never>] = []
@@ -457,6 +462,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func claimForDownloadIfUncached(_ episodeID: Episode.ID) async throws -> Bool {
     recordCall(methodName: "claimForDownloadIfUncached", parameters: episodeID)
     let claimed = try await repo.claimForDownloadIfUncached(episodeID)
+    completedDownloadClaimCount { $0 += 1 }
     guard claimed, let gate = nextWinningDownloadClaimGate else { return claimed }
 
     nextWinningDownloadClaimGate = nil
@@ -481,6 +487,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       methodName: "updateDownloading",
       parameters: (episodeID: episodeID, downloading: downloading)
     )
+    if !downloading,
+      let injected = updateDownloadingFalseError({ error in
+        let captured = error
+        error = nil
+        return captured
+      })
+    {
+      throw injected
+    }
     let result = try await repo.updateDownloading(episodeID, downloading: downloading)
     if !downloading, pendingDownloadingFalseSuspend() {
       pendingDownloadingFalseSuspend(false)

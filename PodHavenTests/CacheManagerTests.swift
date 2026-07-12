@@ -432,6 +432,51 @@ import Testing
     try await CacheHelpers.waitForNotDownloading(podcastEpisode.id)
   }
 
+  @Test("clearCache repairs a failed terminal downloading reset")
+  func clearCacheRepairsFailedTerminalDownloadingReset() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.updateDownloadingFalseError(InjectedRepoError())
+
+    let clear = Task {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await CacheHelpers.waitForCancelled(taskID)
+    try await CacheHelpers.simulateBackgroundFailure(taskID)
+
+    #expect(try await clear.value == nil)
+    let current = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(!current.downloading)
+  }
+
+  @Test("clearCache restarts caching when the episode becomes queued while cancellation waits")
+  func clearCacheRestartsCachingForNewlyQueuedEpisode() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    let completedClaimCount = fakeRepo.completedDownloadClaimCount()
+
+    let clear = Task {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await CacheHelpers.waitForCancelled(taskID)
+    try await queue.unshift(podcastEpisode.id)
+    try await Wait.until(
+      { fakeRepo.completedDownloadClaimCount() > completedClaimCount },
+      { "Queue observer never completed its initial download claim" }
+    )
+    try await CacheHelpers.simulateBackgroundFailure(taskID)
+
+    #expect(try await clear.value == nil)
+    let current = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(current.queued)
+    try #require(current.downloading)
+    let replacementTaskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
+    #expect(replacementTaskID != taskID)
+    try await CacheHelpers.waitForResumed(replacementTaskID)
+  }
+
   @Test("clearCache clears cached file")
   func clearCacheClearsCachedFile() async throws {
     let podcastEpisode = try await Create.podcastEpisode()

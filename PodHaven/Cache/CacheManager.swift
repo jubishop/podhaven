@@ -296,7 +296,28 @@ struct CacheManager {
       }
     }
 
-    guard let currentEpisode = try await repo.episode(episodeID) else { return nil }
+    guard var currentEpisode = try await repo.episode(episodeID) else { return nil }
+    if currentEpisode.downloading, activeDownloadAttempts[episodeID] == nil {
+      if let completion = downloadStarts[episodeID]?.completion {
+        try await completion.wait()
+        guard let refreshedEpisode = try await repo.episode(episodeID) else { return nil }
+        currentEpisode = refreshedEpisode
+      }
+      if currentEpisode.downloading, activeDownloadAttempts[episodeID] == nil {
+        try await repo.updateDownloading(episodeID, downloading: false)
+        guard let refreshedEpisode = try await repo.episode(episodeID) else { return nil }
+        currentEpisode = refreshedEpisode
+      }
+    }
+
+    guard await Self.canClearCache(currentEpisode) else {
+      Self.log.debug("Can't clear cache after download coordination: \(currentEpisode.toString)")
+      if currentEpisode.cacheStatus == .uncached {
+        try await downloadToCache(for: episodeID)
+      }
+      return nil
+    }
+
     guard let cachedURL = currentEpisode.cachedURL
     else {
       Self.log.debug("episode: \(currentEpisode.toString) has no cached file")
