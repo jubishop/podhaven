@@ -173,8 +173,8 @@ class PodcastTests {
     #expect(allPodcasts.count == 3)
   }
 
-  @Test("allPodcastSeries()")
-  func testAllPodcastSeries() async throws {
+  @Test("allPodcasts(_:order:limit:)")
+  func testAllPodcastsWithOrderAndLimit() async throws {
     let freshPodcast = try Create.unsavedPodcast(
       lastUpdate: Date(),
       subscriptionDate: 10.minutesAgo
@@ -194,27 +194,30 @@ class PodcastTests {
       UnsavedPodcastSeries(unsavedPodcast: unsubscribedPodcast)
     )
 
-    let allPodcastSeries = try await repo.allPodcastSeries(
+    let allPodcasts = try await repo.allPodcasts(
       AppDB.noOp,
       order: Podcast.Columns.lastUpdate.asc,
       limit: Int.max
     )
-    #expect(allPodcastSeries.count == 3)
-    #expect(allPodcastSeries == [neverUpdatedSeries, staleSeries, freshSeries])
+    #expect(allPodcasts.count == 3)
+    #expect(
+      allPodcasts
+        == [neverUpdatedSeries.podcast, staleSeries.podcast, freshSeries.podcast]
+    )
 
-    let limitedPodcastSeries = try await repo.allPodcastSeries(
+    let limitedPodcasts = try await repo.allPodcasts(
       AppDB.noOp,
       order: Podcast.Columns.id.asc,
       limit: 2
     )
-    #expect(limitedPodcastSeries.count == 2)
+    #expect(limitedPodcasts.count == 2)
 
-    let subscribedPodcastSeries = try await repo.allPodcastSeries(
+    let subscribedPodcasts = try await repo.allPodcasts(
       Podcast.subscribed,
       order: Podcast.Columns.id.asc,
       limit: Int.max
     )
-    #expect(Set(subscribedPodcastSeries) == Set([staleSeries, freshSeries]))
+    #expect(Set(subscribedPodcasts) == Set([staleSeries.podcast, freshSeries.podcast]))
   }
 
   @Test("markSubscribed() successfully marks multiple podcasts as subscribed")

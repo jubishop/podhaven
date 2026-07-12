@@ -56,11 +56,10 @@ struct EpisodeFeed: Sendable, Equatable {
     self.mediaURL = validatedMediaURL
   }
 
-  func toUnsavedEpisode(merging episode: Episode? = nil) throws -> UnsavedEpisode {
+  func toUnsavedEpisode(merging episode: FeedMergeEpisode? = nil) throws -> UnsavedEpisode {
     // We intentionally dont merge other fields from Episode because we will have potentially stale
     // data compared to the database.  We should only use rssColumnAssignments() for updating.
     try UnsavedEpisode(
-      podcastId: episode?.podcastId,
       guid: guid,
       mediaURL: mediaURL,
       title: rssEpisode.title,
@@ -143,6 +142,8 @@ struct PodcastFeed: Sendable, Stringable {
   private let image: URL
   private let episodeFeeds: [EpisodeFeed]
 
+  var episodeMediaGUIDs: [MediaGUID] { episodeFeeds.map(\.mediaGUID) }
+
   private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL) throws {
     self.rssPodcast = rssPodcast
     self.feedURL = try (rssPodcast.feedURL ?? from).convertToHTTPSURL()
@@ -163,7 +164,12 @@ struct PodcastFeed: Sendable, Stringable {
   {
     UnsavedPodcastSeries(
       unsavedPodcast: try toUnsavedPodcast(merging: podcastSeries?.podcast, iTunesID: iTunesID),
-      unsavedEpisodes: toUnsavedEpisodes(merging: podcastSeries?.episodes)
+      unsavedEpisodes: toUnsavedEpisodes(
+        merging: podcastSeries?.episodes
+          .map {
+            FeedMergeEpisode(id: $0.id, from: $0.unsaved)
+          } ?? []
+      )
     )
   }
 
@@ -182,22 +188,15 @@ struct PodcastFeed: Sendable, Stringable {
     )
   }
 
-  func toUnsavedEpisodes(merging episodes: IdentifiedArrayOf<Episode>? = nil)
+  func toUnsavedEpisodes(merging episodes: [FeedMergeEpisode] = [])
     -> IdentifiedArrayOf<UnsavedEpisode>
   {
-    let existingEpisodesByMediaURL: [MediaURL: Episode]
-    let existingEpisodesByGUID: [GUID: Episode]
-    if let episodes {
-      existingEpisodesByMediaURL = Dictionary(
-        uniqueKeysWithValues: episodes.map { ($0.mediaGUID.mediaURL, $0) }
-      )
-      existingEpisodesByGUID = Dictionary(
-        uniqueKeysWithValues: episodes.map { ($0.mediaGUID.guid, $0) }
-      )
-    } else {
-      existingEpisodesByMediaURL = [:]
-      existingEpisodesByGUID = [:]
-    }
+    let existingEpisodesByMediaURL = Dictionary(
+      uniqueKeysWithValues: episodes.map { ($0.mediaURL, $0) }
+    )
+    let existingEpisodesByGUID = Dictionary(
+      uniqueKeysWithValues: episodes.map { ($0.guid, $0) }
+    )
 
     let allEpisodes =
       episodeFeeds.compactMap { episodeFeed -> UnsavedEpisode? in

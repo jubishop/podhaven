@@ -570,6 +570,32 @@ enum NonSavedSeed: Sendable, CaseIterable, CustomTestStringConvertible {
     #expect(requestsAfterReappear == 0)
   }
 
+  @Test("saved refresh does not fetch the full podcast series")
+  func savedRefreshDoesNotFetchFullPodcastSeries() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let feed = try await PodcastFeed.parse(
+      data,
+      from: FeedURL(URL(string: "https://example.com/lazy-manual-refresh.rss")!)
+    )
+    let savedSeries = try await repo.insertSeries(feed.toUnsavedSeries())
+    await feedSession.respond(to: savedSeries.podcast.feedURL.rawValue, data: data)
+
+    let viewModel = PodcastDetailViewModel(podcast: DisplayedPodcast(savedSeries.podcast))
+    try await PodcastDetailTestHelpers.appear(viewModel)
+
+    let fakeRepo = repo as! FakeRepo
+    fakeRepo.clearAllCalls()
+
+    await viewModel.refreshSeries()
+
+    let podcastRead = try fakeRepo.expectCall(
+      methodName: "podcast",
+      parameters: Podcast.ID.self
+    )
+    #expect(podcastRead.parameters == savedSeries.id)
+    try fakeRepo.expectNoCall(methodName: "podcastSeries")
+  }
+
   @Test("getOrCreatePodcastEpisode after disappear does not start observation")
   func getOrCreateAfterDisappearDoesNotStartObservation() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/get-or-create-offscreen.rss")!)

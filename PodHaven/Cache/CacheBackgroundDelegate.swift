@@ -120,13 +120,13 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       )
       // The async path that clears state and signals completion won't run here,
       // so do it inline to avoid stranding the episode as downloading.
-      guard let signalEpisodeID = episodeID(for: downloadTask) else { return }
+      guard let signalAttempt = downloadAttempt(for: downloadTask) else { return }
       let finalizationSessionID = beginFinalization(for: sessionID(for: session))
       Task { [weak self] in
         guard let self else { return }
         await self.performProtectedFinalization(for: finalizationSessionID) {
-          await self.clearDownloadState(for: signalEpisodeID)
-          self.cacheManager.signalDownloadComplete(for: signalEpisodeID)
+          await self.clearDownloadState(for: signalAttempt.episodeID)
+          self.cacheManager.signalDownloadComplete(for: signalAttempt)
         }
       }
       return
@@ -157,9 +157,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     location: URL
   ) async {
     // Signal on every exit so an awaiter resumes, even if the row was deleted.
-    let signalEpisodeID = episodeID(for: downloadTask)
+    let signalAttempt = downloadAttempt(for: downloadTask)
+    let signalEpisodeID = signalAttempt?.episodeID
     defer {
-      if let signalEpisodeID { cacheManager.signalDownloadComplete(for: signalEpisodeID) }
+      if let signalAttempt { cacheManager.signalDownloadComplete(for: signalAttempt) }
     }
 
     let episode: Episode
@@ -364,9 +365,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard let downloadError = error else { return }
 
     // A failure unblocks any awaiter; success is signaled by didFinishDownloadingTo.
-    let signalEpisodeID = episodeID(for: task)
+    let signalAttempt = downloadAttempt(for: task)
+    let signalEpisodeID = signalAttempt?.episodeID
     defer {
-      if let signalEpisodeID { cacheManager.signalDownloadComplete(for: signalEpisodeID) }
+      if let signalAttempt { cacheManager.signalDownloadComplete(for: signalAttempt) }
     }
 
     let episode: Episode?
@@ -473,6 +475,11 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       let raw = Episode.ID.RawValue(description)
     else { return nil }
     return Episode.ID(rawValue: raw)
+  }
+
+  private func downloadAttempt(for task: any DownloadingTask) -> CacheDownloadAttempt? {
+    guard let episodeID = episodeID(for: task) else { return nil }
+    return CacheDownloadAttempt(episodeID: episodeID, taskID: task.taskID)
   }
 
   // Clears progress + downloading flag; logs rather than propagates a failure.
