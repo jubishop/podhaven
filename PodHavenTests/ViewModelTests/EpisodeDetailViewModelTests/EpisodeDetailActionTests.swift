@@ -14,6 +14,36 @@ import Testing
 
   private var fakeQueue: FakeQueue { queue as! FakeQueue }
 
+  @Test("unsaveEpisodeFromCache clears the saved flag but keeps the cached file")
+  func unsaveEpisodeFromCacheKeepsCachedFile() async throws {
+    let cachedEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Saved Episode",
+      cachedFilename: "saved-episode.mp3",
+      saveInCache: true
+    )
+    let cachedURL = try #require(cachedEpisode.cachedURL)
+    let fileManager = try #require(Container.shared.fileManager() as? FakeFileManager)
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
+
+    let podcastEpisode = try #require(try await repo.podcastEpisode(cachedEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    viewModel.appear()
+    viewModel.unsaveEpisodeFromCache()
+
+    try await Wait.until(
+      { @MainActor in viewModel.episode.saveInCache == false },
+      { @MainActor in
+        "Expected unsaveEpisodeFromCache to clear saveInCache, got \(viewModel.episode.saveInCache)"
+      }
+    )
+
+    let final = try #require(try await repo.episode(cachedEpisode.id))
+    #expect(!final.saveInCache)
+    #expect(final.cacheStatus == .cached)
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
+  }
+
   @Test("addToTopOfQueue is a no-op for the first queued episode")
   func addToTopOfQueueIsNoOpForFirstQueuedEpisode() async throws {
     let podcastEpisode = try await Create.podcastEpisode(

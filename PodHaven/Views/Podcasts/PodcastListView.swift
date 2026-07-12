@@ -51,15 +51,18 @@ struct PodcastListView<Podcast: PodcastListable>: View {
       // Metadata Row
       HStack {
         if let mostRecentEpisodeDate = podcastWithMetadata.mostRecentEpisodeDate {
-          CompactMetadataItem(appIcon: .publishDate, value: mostRecentEpisodeDate.usShort)
+          if let cadence = podcastWithMetadata.resolvedFreshnessCadence {
+            FreshnessMetadataItem(
+              cadence: cadence,
+              value: mostRecentEpisodeDate.usShort,
+              style: .compact
+            )
+          } else {
+            CompactMetadataItem(appIcon: .publishDate, value: mostRecentEpisodeDate.usShort)
+          }
         }
 
         Spacer()
-
-        if podcastWithMetadata.subscribed {
-          AppIcon.subscribed.image
-          Spacer()
-        }
 
         CompactMetadataItem(appIcon: .episodeCount, value: "\(podcastWithMetadata.episodeCount) Ep")
       }
@@ -108,17 +111,19 @@ struct PodcastListView<Podcast: PodcastListable>: View {
             description: "A podcast without subscription status"
           ),
           episodeCount: 42,
-          mostRecentEpisodeDate: Date().addingTimeInterval(-3600 * 24 * 1)
+          mostRecentEpisodeDate: Date().addingTimeInterval(-3600 * 24 * 1),
+          resolvedFreshnessCadence: .daily
         ),
         PodcastWithEpisodeMetadata(
           podcast: try Create.unsavedPodcast(
-            title: "2. Subscribed Podcast (badge overlay)",
+            title: "2. Subscribed Podcast",
             image: allThumbnails.randomElement()!.value.url,
-            description: "A subscribed podcast with badge",
+            description: "A subscribed podcast",
             subscriptionDate: Date().addingTimeInterval(-3600 * 24 * 30)
           ),
           episodeCount: 128,
-          mostRecentEpisodeDate: Date().addingTimeInterval(-3600 * 24 * 2)
+          mostRecentEpisodeDate: Date().addingTimeInterval(-3600 * 24 * 2),
+          resolvedFreshnessCadence: .weekly
         ),
         PodcastWithEpisodeMetadata(
           podcast: try Create.unsavedPodcast(
@@ -137,7 +142,8 @@ struct PodcastListView<Podcast: PodcastListable>: View {
             subscriptionDate: Date().addingTimeInterval(-3600 * 24 * 60)
           ),
           episodeCount: 456,
-          mostRecentEpisodeDate: Date().addingTimeInterval(-3600 * 24 * 7)
+          mostRecentEpisodeDate: Date().addingTimeInterval(-3600 * 24 * 7),
+          resolvedFreshnessCadence: .monthly
         ),
       ])
 
@@ -151,7 +157,8 @@ struct PodcastListView<Podcast: PodcastListable>: View {
             subscriptionDate: Date().addingTimeInterval(-3600 * 24 * 7)
           ),
           episodeCount: 89,
-          mostRecentEpisodeDate: Date()
+          mostRecentEpisodeDate: Date(),
+          resolvedFreshnessCadence: .hourly
         ),
         PodcastWithEpisodeMetadata(
           podcast: try Create.unsavedPodcast(
@@ -240,7 +247,8 @@ struct PodcastListView<Podcast: PodcastListable>: View {
             subscriptionDate: Date().addingTimeInterval(-3600 * 24 * 120)
           ),
           episodeCount: 9999,
-          mostRecentEpisodeDate: Date().addingTimeInterval(-3600 * 2)
+          mostRecentEpisodeDate: Date().addingTimeInterval(-3600 * 2),
+          resolvedFreshnessCadence: .evergreen
         ),
         PodcastWithEpisodeMetadata(
           podcast: try Create.unsavedPodcast(

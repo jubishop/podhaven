@@ -101,6 +101,13 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         "didFinishDownloadingTo: failed to move \(location) to safe temp \(safeTempURL)",
         error
       )
+      // The async path that clears state and signals completion won't run here,
+      // so do it inline to avoid stranding the episode as downloading.
+      guard let signalEpisodeID = episodeID(for: downloadTask) else { return }
+      Task {
+        await clearDownloadState(for: signalEpisodeID)
+        cacheManager.signalDownloadComplete(for: signalEpisodeID)
+      }
       return
     }
 
@@ -113,8 +120,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     downloadTask: any DownloadingTask,
     didFinishDownloadingTo location: URL
   ) async {
-    // Signal completion on every exit (cached, or any give-up) so an awaiting
-    // caller resumes; keyed off the task so a deleted row still unblocks.
+    // Signal on every exit so an awaiter resumes, even if the row was deleted.
     let signalEpisodeID = episodeID(for: downloadTask)
     defer {
       if let signalEpisodeID { cacheManager.signalDownloadComplete(for: signalEpisodeID) }
@@ -148,6 +154,17 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         "didFinishDownloadingTo: failed to fetch episode for task #\(downloadTask.taskID)",
         error
       )
+      // The row may still exist with downloading == true; clear it via the
+      // parsed id and drop the temp file we can't attribute.
+      if let signalEpisodeID { await clearDownloadState(for: signalEpisodeID) }
+      do {
+        try fileManager.removeItem(at: location)
+      } catch {
+        Self.log.caughtError(
+          "didFinishDownloadingTo: failed to remove temp file at \(location) after fetch failure",
+          error
+        )
+      }
       return
     }
 
@@ -175,17 +192,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
+      await clearDownloadState(for: episode.id)
       return
     }
 
-    do {
-      try await repo.updateDownloading(episode.id, downloading: false)
-    } catch {
-      Self.log.caughtError(
-        "didFinishDownloadingTo: failed to clear downloading flag for \(episode.toString)",
-        error
-      )
-    }
     sharedState.clearDownloadProgress(for: episode.id)
 
     let fileName = generateCacheFilename(for: episode)
@@ -202,6 +212,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           """,
           error
         )
+        await clearDownloadState(for: episode.id)
         return
       }
     }
@@ -216,6 +227,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         """,
         error
       )
+      await clearDownloadState(for: episode.id)
       return
     }
 
@@ -235,6 +247,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
+      await clearDownloadState(for: episode.id)
       return
     }
 
@@ -254,6 +267,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
+      await clearDownloadState(for: episode.id)
       return
     }
 
@@ -264,6 +278,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         "didFinishDownloadingTo: failed to update duration for \(episode.toString)",
         error
       )
+      await clearDownloadState(for: episode.id)
       return
     }
 
@@ -277,7 +292,19 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         """,
         error
       )
+      await clearDownloadState(for: episode.id)
       return
+    }
+
+    // Clear downloading last, after the filename is written, so a re-reading
+    // caller never sees downloading == false while still uncached.
+    do {
+      try await repo.updateDownloading(episode.id, downloading: false)
+    } catch {
+      Self.log.caughtError(
+        "didFinishDownloadingTo: failed to clear downloading flag for \(episode.toString)",
+        error
+      )
     }
 
     Self.log.debug("Cached episode \(episode.id) to \(fileName)")
@@ -300,8 +327,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) async {
     guard let downloadError = error else { return }
 
-    // A failed download unblocks any awaiting caller; success is signaled by
-    // didFinishDownloadingTo after the cached filename is written.
+    // A failure unblocks any awaiter; success is signaled by didFinishDownloadingTo.
     let signalEpisodeID = episodeID(for: task)
     defer {
       if let signalEpisodeID { cacheManager.signalDownloadComplete(for: signalEpisodeID) }
@@ -316,6 +342,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         error
       )
       Self.log.caughtError("Download failed for task #\(task.taskID)", downloadError)
+      // The row may still exist with downloading == true; clear it via the
+      // parsed id so the episode isn't stranded as .caching.
+      if let signalEpisodeID { await clearDownloadState(for: signalEpisodeID) }
       return
     }
 
@@ -330,16 +359,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       return
     }
 
-    sharedState.clearDownloadProgress(for: episode.id)
-
-    do {
-      try await repo.updateDownloading(episode.id, downloading: false)
-    } catch {
-      Self.log.caughtError(
-        "didCompleteWithError: failed to clear downloading flag for \(episode.toString)",
-        error
-      )
-    }
+    await clearDownloadState(for: episode.id)
 
     Self.log.caughtError("Episode \(episode.toString) download failed", downloadError)
   }
@@ -360,14 +380,23 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     return try await repo.episode(episodeID)
   }
 
-  // Parse the episode id from the task's stable taskDescription without a DB
-  // hit, so download completion can be signaled even if the episode row was
-  // deleted mid-download.
+  // Parse the episode id from taskDescription without a DB hit, so completion
+  // can be signaled even if the row was deleted mid-download.
   private func episodeID(for task: any DownloadingTask) -> Episode.ID? {
     guard let description = task.taskDescription,
       let raw = Episode.ID.RawValue(description)
     else { return nil }
     return Episode.ID(rawValue: raw)
+  }
+
+  // Clears progress + downloading flag; logs rather than propagates a failure.
+  private func clearDownloadState(for episodeID: Episode.ID) async {
+    sharedState.clearDownloadProgress(for: episodeID)
+    do {
+      try await repo.updateDownloading(episodeID, downloading: false)
+    } catch {
+      Self.log.caughtError("failed to clear downloading flag for \(episodeID)", error)
+    }
   }
 
   private func generateCacheFilename(for episode: Episode) -> String {

@@ -123,7 +123,7 @@ import UIKit
   func testEntityOnlyBuildAttributedString() throws {
     let html = "Plain entities: &amp; &lt; &gt; &ldquo;quoted&rdquo; &mdash; no tags."
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -139,7 +139,7 @@ import UIKit
   func testNBSPDecoding() throws {
     let html = "A&nbsp;B"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -155,7 +155,7 @@ import UIKit
   func testNestedFormatting() throws {
     let html = "<b>bold <i>italic</i> bold</b>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -195,7 +195,7 @@ import UIKit
     let html = "plain <b>bold</b>"
     let baseFont = Font.system(.title, design: .default).weight(.semibold)
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: baseFont
       )
@@ -227,8 +227,8 @@ import UIKit
     let html = "<b>Scaling</b> check"
 
     guard
-      let bodyAttributed = HTMLText.buildAttributedStringForTesting(html: html, font: .body),
-      let largeAttributed = HTMLText.buildAttributedStringForTesting(html: html, font: .largeTitle)
+      let bodyAttributed = HTMLContent.attributedString(html: html, font: .body),
+      let largeAttributed = HTMLContent.attributedString(html: html, font: .largeTitle)
     else {
       Issue.record("Failed to build attributed strings for scaling test")
       return
@@ -251,7 +251,7 @@ import UIKit
     let url = URL(string: "https://example.com")!
     let html = "<a href=\"https://example.com\"><u><b>Bold Link</b></u></a> after"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -288,7 +288,7 @@ import UIKit
   func testStrikeTagAppliesStrikethrough() throws {
     let html = "<s>Removed</s> text"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -312,7 +312,7 @@ import UIKit
   func testMarkTagHighlight() throws {
     let html = "<mark>Important</mark> note"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -333,7 +333,7 @@ import UIKit
   func testParagraphWhitespaceHandling() throws {
     let html = "  <p>First paragraph.</p>\n\n<p>Second paragraph.</p>   <br/>  Line break.  "
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -368,9 +368,9 @@ import UIKit
 
   @Test("that empty and whitespace HTML yield expected results")
   func testEmptyAndWhitespaceHTML() throws {
-    #expect(HTMLText.buildAttributedStringForTesting(html: "", font: .body) == nil)
+    #expect(HTMLContent.attributedString(html: "", font: .body) == nil)
     #expect(
-      HTMLText.buildAttributedStringForTesting(
+      HTMLContent.attributedString(
         html: "   \n\t   ",
         font: .body
       ) == nil
@@ -380,7 +380,7 @@ import UIKit
   @Test("that empty tags collapse correctly")
   func testEmptyTags() throws {
     let html = "<p></p><b></b><i></i>"
-    let attributed = HTMLText.buildAttributedStringForTesting(
+    let attributed = HTMLContent.attributedString(
       html: html,
       font: .body
     )
@@ -391,7 +391,7 @@ import UIKit
   func testLinkURLPreservesCasing() throws {
     let html = "<a href=\"https://Example.com/CaseSensitive\">Example</a>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -427,7 +427,7 @@ import UIKit
   func testWellFormedList() throws {
     let html = "<ul><li>First item</li><li>Second item</li><li>Third item</li></ul>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -450,7 +450,7 @@ import UIKit
     // list preprocessing.
     let html = "<ul><li><b>Bold</b></li><li><i>Italic</i></li></ul>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -471,7 +471,7 @@ import UIKit
   func testListWithLinks() throws {
     let html = "<ul><li>Item with <a href=\"https://example.com\">link</a></li></ul>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -495,7 +495,7 @@ import UIKit
   func testUnclosedListItems() throws {
     let html = "<ul><li>First item<li>Second item<li>Third item"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -514,7 +514,7 @@ import UIKit
   func testMixedClosedAndUnclosedListItems() throws {
     let html = "<ul><li>Closed item</li><li>Unclosed item<li>Another closed</li>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -533,7 +533,7 @@ import UIKit
   func testOrphanListItems() throws {
     let html = "<p>Text before</p><li>Orphan item</li><p>Text after</p>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -552,7 +552,7 @@ import UIKit
   func testListInContext() throws {
     let html = "<p>Introduction:</p><ul><li>First</li><li>Second</li></ul><p>Conclusion.</p>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -572,7 +572,7 @@ import UIKit
   func testListWithEntities() throws {
     let html = "<ul><li>Item with &amp; symbol</li><li>Em dash &mdash; here</li></ul>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -590,7 +590,7 @@ import UIKit
   func testOrderedList() throws {
     let html = "<ol><li>First</li><li>Second</li><li>Third</li></ol>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -609,7 +609,7 @@ import UIKit
   func testUnclosedListItemSeparation() throws {
     let html = "<ul><li>First<li>Second<li>Third</ul>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -627,7 +627,7 @@ import UIKit
   func testEmptyListItems() throws {
     let html = "<ul><li></li><li>Content</li><li></li></ul>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -646,7 +646,7 @@ import UIKit
   func testFormattingTagsWithAttributes() throws {
     let html = "<b class=\"hero\">Bold</b> <i style=\"font-style: italic\">Italic</i>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -674,7 +674,7 @@ import UIKit
   func testAnchorTagWithAttributes() throws {
     let html = "<a class=\"link\" href=\"https://example.com\">Example</a>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -696,7 +696,7 @@ import UIKit
   func testBlockTagsCreateLineBreaks() throws {
     let html = "<div>Intro</div><h1>Header</h1><div>Body</div>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -727,7 +727,7 @@ import UIKit
   func testUlWithoutLi() throws {
     let html = "<p>Before</p><ul>Just text</ul><p>After</p>"
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -751,7 +751,7 @@ import UIKit
     let html =
       #"<p class="intro">First paragraph<p class="content">Second paragraph<p id="conclusion">Third paragraph"#
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -778,7 +778,7 @@ import UIKit
       """
 
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -808,7 +808,7 @@ import UIKit
     let html =
       #"<p>Simple paragraph<p class="highlight">Paragraph with class<p id="footer">Another with id"#
     guard
-      let attributed = HTMLText.buildAttributedStringForTesting(
+      let attributed = HTMLContent.attributedString(
         html: html,
         font: .body
       )
@@ -825,5 +825,166 @@ import UIKit
     #expect(lines[0] == "Simple paragraph")
     #expect(lines[1] == "Paragraph with class")
     #expect(lines[2] == "Another with id")
+  }
+
+  // MARK: - Auto-detected Links
+
+  private static func link(for urlString: String, in attributed: AttributedString) -> (
+    url: URL?, length: Int
+  ) {
+    let nsAttributed = NSAttributedString(attributed)
+    let range = (nsAttributed.string as NSString).range(of: urlString)
+    guard range.location != NSNotFound else { return (nil, 0) }
+    var effectiveRange = NSRange()
+    let value = nsAttributed.attribute(.link, at: range.location, effectiveRange: &effectiveRange)
+    return (value as? URL, effectiveRange.length)
+  }
+
+  @Test("that bare URLs in plain text become links")
+  func testPlainTextURLBecomesLink() throws {
+    let html = "Visit https://example.com for details"
+    guard let attributed = HTMLContent.attributedString(html: html, font: .body) else {
+      Issue.record("Expected attributed string once a bare URL is present")
+      return
+    }
+
+    let detected = Self.link(for: "https://example.com", in: attributed)
+    #expect(detected.url == URL(string: "https://example.com"))
+
+    let leading = Self.link(for: "Visit", in: attributed)
+    #expect(leading.url == nil)
+  }
+
+  @Test("that bare URLs inside HTML descriptions are linked with decoded entities")
+  func testHTMLDescriptionAutoLinksBareURL() throws {
+    // Mirrors a real feed: <br/> tags and a raw URL whose & is entity-encoded.
+    let html =
+      "Original post: https://news.ycombinator.com/item?id=123&amp;utm_source=x<br/>Done"
+    guard let attributed = HTMLContent.attributedString(html: html, font: .body) else {
+      Issue.record("Expected attributed string for HTML description with a bare URL")
+      return
+    }
+
+    let urlString = "https://news.ycombinator.com/item?id=123&utm_source=x"
+    let detected = Self.link(for: urlString, in: attributed)
+    #expect(detected.url == URL(string: urlString))
+  }
+
+  @Test("that trailing punctuation is excluded from the detected link")
+  func testTrailingPunctuationExcludedFromLink() throws {
+    let html = "See https://example.com."
+    guard let attributed = HTMLContent.attributedString(html: html, font: .body) else {
+      Issue.record("Expected attributed string for sentence ending in a URL")
+      return
+    }
+
+    let detected = Self.link(for: "https://example.com", in: attributed)
+    #expect(detected.url == URL(string: "https://example.com"))
+    #expect(detected.length == ("https://example.com" as NSString).length)
+  }
+
+  @Test("that existing anchors are not double-linked by auto-detection")
+  func testAutoLinkLeavesExistingAnchors() throws {
+    let html =
+      "<a href=\"https://anchor.example\">click</a> then visit https://bare.example"
+    guard let attributed = HTMLContent.attributedString(html: html, font: .body) else {
+      Issue.record("Failed to build attributed string")
+      return
+    }
+
+    let anchor = Self.link(for: "click", in: attributed)
+    #expect(anchor.url == URL(string: "https://anchor.example"))
+
+    let bare = Self.link(for: "https://bare.example", in: attributed)
+    #expect(bare.url == URL(string: "https://bare.example"))
+  }
+
+  @Test("that emails and bare domains are not auto-linked")
+  func testEmailsAndBareDomainsNotLinked() throws {
+    let html = "Reach team@wondercraft.ai or read swift.org or visit https://apple.com"
+    guard let attributed = HTMLContent.attributedString(html: html, font: .body) else {
+      Issue.record("Expected attributed string because an http URL is present")
+      return
+    }
+
+    #expect(Self.link(for: "team@wondercraft.ai", in: attributed).url == nil)
+    #expect(Self.link(for: "swift.org", in: attributed).url == nil)
+    #expect(
+      Self.link(for: "https://apple.com", in: attributed).url == URL(string: "https://apple.com")
+    )
+  }
+
+  @Test("that plain text without a URL still falls back to nil")
+  func testPlainTextWithoutURLReturnsNil() throws {
+    #expect(
+      HTMLContent.attributedString(html: "Just plain text here", font: .body) == nil
+    )
+  }
+}
+
+@Suite("of HTMLText description rendering")
+struct HTMLTextDescriptionTests {
+  // Collects (display text, decoded raw timestamp) for every run carrying a
+  // timestamp-scheme link.
+  private func timestampLinks(in attributed: AttributedString) -> [(text: String, raw: String)] {
+    var result: [(text: String, raw: String)] = []
+    for run in attributed.runs {
+      guard let url = run.link, let raw = Timestamp.timestamp(fromURL: url) else { continue }
+      result.append((String(attributed[run.range].characters), raw))
+    }
+    return result
+  }
+
+  @Test("links a timestamp embedded in prose and round-trips the raw value")
+  func linksInlineTimestamp() async throws {
+    let html = "We dive in at 12:34 and wrap up near 1:02:15 with Q&amp;A."
+    let attributed = try #require(
+      await HTMLContent.descriptionAttributedString(html: html, font: .body, linkTimestamps: true)
+    )
+    let links = timestampLinks(in: attributed)
+    #expect(links.count == 2)
+    #expect(links.contains { $0.text == "12:34" && $0.raw == "12:34" })
+    #expect(links.contains { $0.text == "1:02:15" && $0.raw == "1:02:15" })
+  }
+
+  @Test("adds no timestamp links when there are none")
+  func noTimestampsNoLinks() async throws {
+    let html = "<p>A plain description with <b>bold</b> but no chapters.</p>"
+    let attributed = try #require(
+      await HTMLContent.descriptionAttributedString(html: html, font: .body, linkTimestamps: true)
+    )
+    #expect(timestampLinks(in: attributed).isEmpty)
+  }
+
+  @Test("preserves a real http link without treating it as a timestamp")
+  func preservesRealLink() async throws {
+    let html = "Notes at https://example.com and a chapter at 5:30."
+    let attributed = try #require(
+      await HTMLContent.descriptionAttributedString(html: html, font: .body, linkTimestamps: true)
+    )
+    let tsLinks = timestampLinks(in: attributed)
+    #expect(tsLinks.count == 1)
+    #expect(tsLinks.first?.raw == "5:30")
+    let hasWebLink = attributed.runs.contains { run in
+      run.link?.scheme == "https"
+    }
+    #expect(hasWebLink)
+  }
+
+  @Test("returns nil for empty input")
+  func emptyReturnsNil() async throws {
+    #expect(
+      await HTMLContent.descriptionAttributedString(html: "", font: .body, linkTimestamps: true)
+        == nil
+    )
+  }
+
+  @Test("skips timestamp links when linkTimestamps is false (podcast descriptions)")
+  func skipsTimestampLinksWhenDisabled() async throws {
+    let html = "Recap, then at 12:34 the main story begins."
+    let attributed = try #require(
+      await HTMLContent.descriptionAttributedString(html: html, font: .body, linkTimestamps: false)
+    )
+    #expect(timestampLinks(in: attributed).isEmpty)
   }
 }

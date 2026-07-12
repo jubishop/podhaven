@@ -16,8 +16,16 @@ struct TranscriptionProcessorTests {
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
 
-    let ep1 = try await Create.podcastEpisode(Create.unsavedEpisode(cachedFilename: "ep1.mp3"))
-    let ep2 = try await Create.podcastEpisode(Create.unsavedEpisode(cachedFilename: "ep2.mp3"))
+    let ep1 = try await CacheHelpers.createCachedEpisode(
+      title: "Episode 1",
+      cachedFilename: "ep1.mp3",
+      dataSize: 1
+    )
+    let ep2 = try await CacheHelpers.createCachedEpisode(
+      title: "Episode 2",
+      cachedFilename: "ep2.mp3",
+      dataSize: 1
+    )
 
     queue.enqueue([ep1.id, ep2.id])
     processor.handleScenePhaseChange(to: .active)
@@ -102,7 +110,11 @@ struct TranscriptionProcessorTests {
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
 
-    let ep = try await Create.podcastEpisode(Create.unsavedEpisode(cachedFilename: "ep.mp3"))
+    let ep = try await CacheHelpers.createCachedEpisode(
+      title: "Failure",
+      cachedFilename: "ep.mp3",
+      dataSize: 1
+    )
 
     queue.enqueue(ep.id)
     processor.handleScenePhaseChange(to: .active)
@@ -126,7 +138,11 @@ struct TranscriptionProcessorTests {
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
 
-    let ep = try await Create.podcastEpisode(Create.unsavedEpisode(cachedFilename: "ep.mp3"))
+    let ep = try await CacheHelpers.createCachedEpisode(
+      title: "No Speech",
+      cachedFilename: "ep.mp3",
+      dataSize: 1
+    )
 
     queue.enqueue(ep.id)
     processor.handleScenePhaseChange(to: .active)

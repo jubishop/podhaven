@@ -52,18 +52,23 @@ struct PodcastDetailView: View {
   }
 
   private var contentView: some View {
-    VStack(spacing: 4) {
-      headerView
-        .padding(.horizontal)
-        .padding(.bottom, 8)
-        .dynamicTypeSize(.small ... .xxxLarge)
-
-      if viewModel.displayingAboutSection {
-        expandedAboutInfoView
-          .padding(.bottom)
-      } else {
-        episodeListView
+    mainContent
+      .safeAreaInset(edge: .top, spacing: 8) {
+        headerView
+          .padding()
+          .glassEffect(in: RoundedRectangle(cornerRadius: 24))
+          .padding(.horizontal)
+          .dynamicTypeSize(.small ... .xxxLarge)
       }
+  }
+
+  @ViewBuilder
+  private var mainContent: some View {
+    if viewModel.displayingAboutSection {
+      expandedAboutInfoView
+        .padding(.bottom)
+    } else {
+      episodeListView
     }
   }
 
@@ -139,7 +144,6 @@ struct PodcastDetailView: View {
         cornerRadius: 12,
         size: 128
       )
-      .subscriptionBadge(subscribed: viewModel.podcast.subscribed, badgeSize: 20)
       .onTapGesture {
         showingImageOverlay = true
       }
@@ -208,6 +212,7 @@ struct PodcastDetailView: View {
           .episodeSwipeActions(viewModel: viewModel, episode: episode)
           .episodeContextMenu(viewModel: viewModel, episode: episode)
         }
+        .contentMargins(.top, 8, for: .scrollContent)
       } else {
         noEpisodesMessage
       }
@@ -247,12 +252,11 @@ struct PodcastDetailView: View {
   private var expandedAboutInfoView: some View {
     ScrollView {
       VStack(spacing: 16) {
-        Divider()
-
         metadataRow
           .padding(.horizontal)
 
         Divider()
+          .padding(.horizontal)
 
         if viewModel.saved {
           TagsView(
@@ -264,6 +268,7 @@ struct PodcastDetailView: View {
           .padding(.horizontal)
 
           Divider()
+            .padding(.horizontal)
         }
 
         VStack(alignment: .leading, spacing: 16) {
@@ -281,22 +286,40 @@ struct PodcastDetailView: View {
             }
           }
 
-          HTMLText(viewModel.podcast.description)
-            .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+          descriptionText
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
       }
     }
+    .task(id: viewModel.podcast.description) {
+      await viewModel.prepareDescription(font: .body)
+    }
+  }
+
+  @ViewBuilder
+  private var descriptionText: some View {
+    if let attributed = viewModel.descriptionAttributedString {
+      Text(attributed)
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
   }
 
   var metadataRow: some View {
     HStack {
-      DetailedMetadataItem(
-        appIcon: .updated,
-        value: viewModel.mostRecentEpisodeDate.usShortWithTime
-      )
+      if let cadence = viewModel.resolvedFreshnessCadence {
+        FreshnessMetadataItem(
+          cadence: cadence,
+          value: viewModel.mostRecentEpisodeDate.usShortWithTime,
+          style: .detailed
+        )
+      } else {
+        DetailedMetadataItem(
+          appIcon: .publishDate,
+          value: viewModel.mostRecentEpisodeDate.usShortWithTime
+        )
+      }
 
       Spacer()
 

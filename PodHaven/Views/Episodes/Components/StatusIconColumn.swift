@@ -18,7 +18,7 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
 
   var body: some View {
     VStack(spacing: iconSpacing) {
-      if sharedState.onDeck?.id == episode.episodeID {
+      if sharedState.isOnDeck(episode) {
         switch sharedState.playbackStatus {
         case .playing, .waiting:
           AppIcon.episodePlaying.image
@@ -64,7 +64,7 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
         .frame(width: iconSize, height: iconSize)
       } else {
         AppIcon.episodeFinished.image
-          .opacity(episode.finished ? 1 : 0)
+          .opacity(episode.finished && !sharedState.isOnDeck(episode) ? 1 : 0)
       }
     }
     .font(.system(size: iconSize))

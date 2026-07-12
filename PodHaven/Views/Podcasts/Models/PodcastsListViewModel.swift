@@ -7,9 +7,13 @@ import IdentifiedCollections
 import Logging
 import SwiftUI
 
+enum PodcastDisplayMode: String, Codable, DefaultsStorable {
+  case grid
+  case list
+}
+
 @Observable @MainActor
 class PodcastsListViewModel:
-  DisplayingPodcasts,
   ManagingPodcasts,
   SelectablePodcastList,
   SortablePodcastList
@@ -89,13 +93,18 @@ class PodcastsListViewModel:
   @ObservationIgnored @PersistedBroadcast("PodcastsList-displayMode")
   var displayMode: PodcastDisplayMode = .grid
 
+  func toggleDisplayMode() {
+    displayMode = displayMode == .grid ? .list : .grid
+  }
+
   let title: String
   let filter: PodcastFilter
+  let icon: LucideIcon
   private(set) var isLoading = true
 
   // MARK: - Initialization
 
-  init(title: String, filter: @escaping PodcastFilter = { $0 }) {
+  init(title: String, filter: @escaping PodcastFilter = { $0 }, icon: LucideIcon = .podcast) {
     let persistedSortMethod = PersistedBroadcast(
       wrappedValue: SortMethod.byTitle,
       "PodcastsList-sortMethod-\(title)"
@@ -104,6 +113,7 @@ class PodcastsListViewModel:
 
     self.title = title
     self.filter = filter
+    self.icon = icon
     self.podcastList = PowerList(
       sortMethod: persistedSortMethod.wrappedValue.sortMethod
     )

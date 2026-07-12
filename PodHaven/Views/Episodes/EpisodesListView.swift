@@ -20,44 +20,54 @@ struct EpisodesListView: View {
   }
 
   var body: some View {
-    episodesView
-      .searchable(
-        text: $viewModel.filterDebouncer.currentValue,
-        placement: .navigationBarDrawer(displayMode: .always),
-        prompt: "Filter episodes"
-      )
-      .searchPresentationToolbarBehavior(.avoidHidingContent)
-      .animation(.default, value: viewModel.episodeList.filteredEntries)
-      .navigationTitle(viewModel.title)
-      .toolbar {
-        ToolbarItem(placement: .topBarLeading) {
-          AppIcon.settings.labelButton("Edit Smart List") {
-            sheet(id: "smart-list-editor-\(viewModel.smartListID)") {
-              SmartListEditorView(
-                viewModel: SmartListEditorViewModel(
-                  mode: .edit(viewModel.smartListID),
-                  title: viewModel.title,
-                  filter: viewModel.smartListFilter,
-                  alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage,
-                  icon: viewModel.icon
-                )
+    // Anchor the search field's inset to a stable container so swapping the
+    // loading/empty/list content beneath it doesn't drop its keyboard focus.
+    VStack(spacing: 0) {
+      episodesView
+        .animation(.default, value: viewModel.episodeList.filteredEntries)
+    }
+    .safeAreaInset(edge: .top, spacing: 0) {
+      VStack(spacing: 8) {
+        LucideListHeader(icon: viewModel.icon, title: viewModel.title)
+        SearchBar(
+          text: $viewModel.filterDebouncer.currentValue,
+          prompt: "Filter episodes",
+          searchIcon: .search
+        )
+        .padding(.horizontal)
+      }
+      .padding(.top, 4)
+    }
+    .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .topBarLeading) {
+        AppIcon.settings.labelButton("Edit Smart List") {
+          sheet(id: "smart-list-editor-\(viewModel.smartListID)") {
+            SmartListEditorView(
+              viewModel: SmartListEditorViewModel(
+                mode: .edit(viewModel.smartListID),
+                title: viewModel.title,
+                filter: viewModel.smartListFilter,
+                alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage,
+                icon: viewModel.icon
               )
-            }
+            )
           }
         }
-        sortableEpisodesToolbarItems(viewModel: viewModel)
-        selectableEpisodesToolbarItems(viewModel: viewModel)
       }
-      .toolbarRole(.editor)
-      .task(viewModel.observeSmartList)
-      .task(id: viewModel.displayObservationKey, viewModel.startDisplayObservation)
-      .onDisappear { viewModel.disappear() }
+      sortableEpisodesToolbarItems(viewModel: viewModel)
+      selectableEpisodesToolbarItems(viewModel: viewModel)
+    }
+    .toolbarRole(.editor)
+    .task(viewModel.observeSmartList)
+    .task(id: viewModel.displayObservationKey, viewModel.startDisplayObservation)
+    .onDisappear { viewModel.disappear() }
   }
 
   @ViewBuilder
   private var episodesView: some View {
     switch viewModel.loadingState {
-    case .loading:
+    case .neverLoaded, .loading:
       loadingView(message: "Loading episodes…")
     case .loaded:
       if viewModel.episodeList.filteredEntries.isEmpty {
@@ -88,6 +98,7 @@ struct EpisodesListView: View {
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
     }
+    .contentMargins(.top, 8, for: .scrollContent)
   }
 
   private func loadingView(message: String) -> some View {

@@ -127,9 +127,6 @@ struct SystemImageName:
   static let undoSeekBackward = SystemImageName("arrow.uturn.backward")
   static let undoSeekForward = SystemImageName("arrow.uturn.forward")
 
-  // Podcast Status
-  static let subscribed = SystemImageName("checkmark.circle.fill")
-
   // Queue Management
   static let editFinished = SystemImageName("checkmark.circle")
   static let episodeQueued = SystemImageName("line.3.horizontal")

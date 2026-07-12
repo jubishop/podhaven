@@ -14,7 +14,6 @@ class EpisodesListViewModel:
   SortableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
-  @ObservationIgnored @DynamicInjected(\.dateProvider) private var dateProvider
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
@@ -76,7 +75,7 @@ class EpisodesListViewModel:
   private var filterText = ""
 
   @ObservationIgnored lazy var filterDebouncer = StringDebouncer(
-    debounceDuration: .milliseconds(400)
+    debounceDuration: .milliseconds(250)
   ) { [weak self] filteredText in
     guard let self else { return }
     self.filterText = filteredText
@@ -85,6 +84,7 @@ class EpisodesListViewModel:
   // MARK: - State Management
 
   enum LoadingState: Equatable {
+    case neverLoaded
     case loading
     case loaded
     case failed
@@ -96,12 +96,10 @@ class EpisodesListViewModel:
   private(set) var smartListFilter: SmartListFilter
   private(set) var alwaysShowPodcastImage: Bool
   private(set) var icon: LucideIcon
-  private(set) var loadingState: LoadingState = .loading
+  private(set) var loadingState: LoadingState = .neverLoaded
 
-  // Compiled fresh at each observation (re)start so relative publish-date
-  // cutoffs are fixed per observation, not per view-model lifetime.
   private var filter: SQLExpression {
-    SmartListFilterEngine.sqlExpression(for: smartListFilter, referenceDate: dateProvider.now)
+    SmartListFilterEngine.sqlExpression(for: smartListFilter)
   }
 
   // Keys the single `.task(id:)` block in the view. A sort, filter, or
@@ -163,8 +161,23 @@ class EpisodesListViewModel:
 
   func startDisplayObservation() async {
     let currentKey = displayObservationKey
-    let keyChanged = lastDisplayObservationKey != nil && lastDisplayObservationKey != currentKey
+    let previousKey = lastDisplayObservationKey
+    let keyChanged = previousKey != nil && previousKey != currentKey
     lastDisplayObservationKey = currentKey
+
+    // On a standard sort, refining the filter text (same sort and filter) keeps
+    // the current rows on screen and updates them in place, so typing in the
+    // search field doesn't flash loading or drop its keyboard focus. Rec sort
+    // must recompute, and the initial never-loaded state renders as loading
+    // until the first observation proves whether an empty result is loaded.
+    var requiresLoading = keyChanged
+    if currentSortMethod != .recommendationScore,
+      let previousKey,
+      previousKey.sort == currentKey.sort,
+      previousKey.filter == currentKey.filter
+    {
+      requiresLoading = false
+    }
 
     Self.log.debug(
       """
@@ -172,7 +185,9 @@ class EpisodesListViewModel:
       """
     )
 
-    if keyChanged || episodeList.allEntries.isEmpty { loadingState = .loading }
+    if requiresLoading || (loadingState == .failed && episodeList.allEntries.isEmpty) {
+      loadingState = .loading
+    }
 
     if currentSortMethod == .recommendationScore {
       await runRecommendationObservation()

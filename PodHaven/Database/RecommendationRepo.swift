@@ -134,8 +134,7 @@ struct RecommendationRepo: Recommending {
       .order(Episode.Columns.pubDate.desc)
       .limit(FreshnessCadence.inferenceMaxSamples)
       .fetchAll(db)
-    let newValue: FreshnessCadence? =
-      pubDates.isEmpty ? nil : FreshnessCadence.infer(from: pubDates)
+    let newValue = FreshnessCadence.cachedInference(from: pubDates)
 
     var currentValue: FreshnessCadence? = nil
     if let row = try Row.fetchOne(

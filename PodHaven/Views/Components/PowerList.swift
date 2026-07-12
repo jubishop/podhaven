@@ -15,6 +15,11 @@ where Item.ID: Sendable {
     withAnimation {
       _isSelecting = value
     }
+    // Ending a selection session discards its picks so a stale checkmark
+    // can't leak into a later session.
+    if !value {
+      isSelected.removeAll()
+    }
   }
 
   var anySelected: Bool { filteredEntries.contains { isSelected[$0.id] } }
@@ -108,6 +113,14 @@ where Item.ID: Sendable {
     guard !baselineEntries.isEmpty else {
       _allEntries = []
       filteredEntries = []
+      return
+    }
+
+    // Nothing to compute: skip the async hop so filteredEntries updates in the
+    // same runloop turn as baselineEntries, avoiding a one-frame stale render.
+    if sortMethod == nil, filterMethod == nil, searchTerms.isEmpty {
+      _allEntries = baselineEntries
+      filteredEntries = baselineEntries
       return
     }
 

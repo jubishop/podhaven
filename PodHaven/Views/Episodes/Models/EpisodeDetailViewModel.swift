@@ -96,6 +96,8 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
 
   var episode: EpisodeDetailContent { state.detailContent }
 
+  // MARK: - Transcript Rendering
+
   var decodedTranscript: Transcript? {
     let content = episode
     guard content.hasTranscript, let episodeID = content.episodeID else { return nil }
@@ -118,12 +120,33 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
     return .text(transcript.segments.map(\.text).joined(separator: "\n"))
   }
 
-  // MARK: - Derived State
+  // MARK: - Description Rendering
 
-  var onDeck: Bool {
-    guard let podcastEpisode = state.savedPodcastEpisode else { return false }
-    return sharedState.onDeck?.id == podcastEpisode.id
+  // Built off the main actor and cached so the description isn't re-parsed on
+  // every body evaluation (playback ticks, score/tag updates). The view drives
+  // (re)builds via `.task(id:)` keyed on the description.
+  private(set) var descriptionAttributedString: AttributedString?
+  @ObservationIgnored private var descriptionSource: String?
+
+  func prepareDescription(font: Font) async {
+    guard let html = episode.description, !html.isEmpty else {
+      descriptionAttributedString = nil
+      descriptionSource = nil
+      return
+    }
+    guard html != descriptionSource else { return }
+    let built = await HTMLContent.descriptionAttributedString(
+      html: html,
+      font: font,
+      linkTimestamps: true
+    )
+    // A state transition may have swapped the description while we built.
+    guard html == episode.description else { return }
+    descriptionSource = html
+    descriptionAttributedString = built
   }
+
+  // MARK: - Derived State
 
   var atTopOfQueue: Bool {
     episode.queueOrder == 0
@@ -361,6 +384,16 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
       try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    }
+  }
+
+  func unsaveEpisodeFromCache() {
+    guard episode.saveInCache else { return }
+
+    lifecycle.runTask("unsaveEpisodeFromCache: \(state.toString)") { [weak self] in
+      guard let self else { return }
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
     }
   }
 

@@ -8,6 +8,8 @@ struct TagsView: View {
   @Environment(\.colorScheme) private var colorScheme
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
 
+  @ScaledMetric(relativeTo: .body) private var tagIconSize: CGFloat = 16
+
   let tags: IdentifiedArrayOf<Tag>
   let allTags: IdentifiedArrayOf<Tag>
   let onAdd: (Tag.ID) -> Void
@@ -34,8 +36,11 @@ struct TagsView: View {
       onRemove(tag.id)
     } label: {
       HStack(spacing: 4) {
-        AppIcon.removeTag.image
+        LucideIconView(icon: tag.icon)
+          .frame(width: tagIconSize, height: tagIconSize)
+          .accessibilityHidden(true)
         Text(tag.name)
+        AppIcon.removeTag.image
       }
     }
     .tint(.accentColor)
@@ -45,8 +50,14 @@ struct TagsView: View {
   private var addTagMenu: some View {
     Menu {
       ForEach(availableTags) { tag in
-        Button(tag.name) {
+        Button {
           onAdd(tag.id)
+        } label: {
+          Label {
+            Text(tag.name)
+          } icon: {
+            tag.icon.image
+          }
         }
       }
 

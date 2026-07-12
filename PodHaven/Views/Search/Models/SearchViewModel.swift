@@ -11,7 +11,6 @@ import UIKit
 
 @Observable @MainActor
 class SearchViewModel:
-  DisplayingPodcasts,
   ManagingPodcasts,
   SelectablePodcastList,
   SortablePodcastList
@@ -124,9 +123,6 @@ class SearchViewModel:
   }
 
   // MARK: - State Management
-
-  @ObservationIgnored @PersistedBroadcast("SearchView-displayMode")
-  var displayMode: PodcastDisplayMode = .grid
 
   enum LoadingState: Equatable {
     case idle
@@ -636,7 +632,8 @@ class SearchViewModel:
             )
           ),
           episodeCount: podcast.episodeCount,
-          mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+          mostRecentEpisodeDate: podcast.mostRecentEpisodeDate,
+          resolvedFreshnessCadence: podcast.resolvedFreshnessCadence
         )
       )
     }
@@ -661,7 +658,8 @@ class SearchViewModel:
           )
         ),
         episodeCount: podcast.episodeCount,
-        mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+        mostRecentEpisodeDate: podcast.mostRecentEpisodeDate,
+        resolvedFreshnessCadence: podcast.resolvedFreshnessCadence
       )
     )
   }

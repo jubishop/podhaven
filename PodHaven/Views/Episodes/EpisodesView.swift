@@ -49,10 +49,26 @@ struct EpisodesView: View {
     List {
       ForEach(viewModel.smartLists) { smartList in
         NavigationLink(value: Navigation.Destination.smartList(smartList.id)) {
-          CountLabel(
-            title: smartList.title,
-            count: viewModel.unreadCounts[smartList.id, default: 0]
-          )
+          LabeledContent {
+            UnreadBadge(count: viewModel.unreadCounts[smartList.id, default: 0])
+          } label: {
+            LucideLabel(icon: smartList.icon, title: smartList.title)
+          }
+        }
+        .swipeActions(edge: .leading) {
+          AppIcon.settings.imageButton {
+            sheet(id: "smart-list-editor-\(smartList.id)") {
+              SmartListEditorView(
+                viewModel: SmartListEditorViewModel(
+                  mode: .edit(smartList.id),
+                  title: smartList.title,
+                  filter: smartList.filter,
+                  alwaysShowPodcastImage: smartList.alwaysShowPodcastImage,
+                  icon: smartList.icon
+                )
+              )
+            }
+          }
         }
         .swipeActions(edge: .trailing) {
           AppIcon.delete.imageButton {

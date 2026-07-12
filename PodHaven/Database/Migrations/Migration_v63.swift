@@ -1,13 +1,11 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import GRDB
 
 extension Schema {
-  static func migrateV63(_ db: Database) throws {
-    // User-initiated on-device transcripts, stored as timed-segment JSON.
-    // Nullable with no default: existing rows are untranscribed.
-    try db.alter(table: "episode") { t in
-      t.add(column: "transcript", .text)
-    }
+  static func migrateV63(_: Database) throws {
+    // Search results are list-only now; drop the orphaned grid/list pref.
+    Container.shared.standardDefaults().removeObject(forKey: "SearchView-displayMode")
   }
 }

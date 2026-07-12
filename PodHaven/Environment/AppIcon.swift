@@ -40,7 +40,6 @@ import SwiftUI
   case editItems
   case showPodcast
   case subscribe
-  case subscribed
   case unsubscribe
 
   // Navigation
@@ -108,7 +107,6 @@ import SwiftUI
   case recommendationRecent
   case similarityScore
   case tag
-  case updated
 
   // Sorting
   case sort
@@ -295,8 +293,6 @@ import SwiftUI
       return Data(text: "Show Podcast", systemImageName: .showPodcast, color: .blue)
     case .subscribe:
       return Data(text: "Subscribe", systemImageName: .subscribe, color: .green)
-    case .subscribed:
-      return Data(text: "Subscribed", systemImageName: .subscribed, color: .green)
     case .unsubscribe:
       return Data(text: "Unsubscribe", systemImageName: .unsubscribe, color: .orange)
 
@@ -471,8 +467,6 @@ import SwiftUI
       )
     case .tag:
       return Data(text: "Tag", systemImageName: .tag, color: .secondary)
-    case .updated:
-      return Data(text: "Updated", systemImageName: .calendar, color: .secondary)
 
     // UI Controls & Status
     case .navigateInto:

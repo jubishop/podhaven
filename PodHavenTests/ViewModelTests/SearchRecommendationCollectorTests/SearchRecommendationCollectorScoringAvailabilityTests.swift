@@ -267,4 +267,105 @@ import Testing
       }
     )
   }
+
+  // MARK: - Test: A Podcast-Embedding Failure Stays Recoverable
+
+  // The podcast-context vector is computed once per feed instead of inside the
+  // per-episode loop. A failure there must not collapse the whole feed to a
+  // terminal `.failed`: the per-episode path it replaces skipped each episode
+  // and finished empty-and-`.scored`, which a later scoring-context reopen
+  // re-drains. `.failed` is excluded from that retry, so a model that was
+  // briefly unavailable would never recover the feed's picks for the
+  // collector's lifetime.
+  @Test("a podcast-embedding failure leaves the feed recoverable, not terminal .failed")
+  func podcastEmbeddingFailureStaysRecoverable() async throws {
+    let collector = SearchRecommendationCollector()
+    // Throw for the candidate feed's podcast title/description only (episode
+    // titles carry "Pick"), so the podcast-context vector fails while the
+    // signal and candidate embeds still succeed.
+    let scripted = ScriptedEmbeddable(
+      errorFor: { text in
+        text.contains("Embed Fails") && !text.contains("Pick") ? EmbeddingProbeError() : nil
+      }
+    ) { text in
+      if text.contains("Below Floor") { return [-1, 0, 0] }
+      if text.contains("of Signal") {
+        if text.contains("Episode 0") { return [1, 0, 0] }
+        if text.contains("Episode 1") { return [0, 1, 0] }
+        return [0, 0, 1]
+      }
+      return [1, 0, 0]
+    }
+
+    Container.shared.contextualEmbedding.reset()
+      .register { ContextualEmbedding(embedding: scripted) }
+      .scope(.cached)
+    Container.shared.userSettings().$recommendationDeconeMode.new(.focused)
+
+    let (_, signals) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 3,
+      podcastTitle: "Signal",
+      ratings: [.loved, .liked, .liked]
+    )
+    try await RecommendationHelpers.embedEpisodes(signals, embeddable: scripted)
+
+    let localEngine = Container.shared.recommendationEngine()
+    localEngine.start()
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in localEngine.hasScoringContext },
+      { @Sendable in "Expected scoring context to land" }
+    )
+
+    let feedURL = FeedURL(URL(string: "https://example.com/embed-fails.rss")!)
+    await H.respondWithFeed(at: feedURL, title: "Embed Fails", episodes: 1)
+
+    let source = SearchRecommendationCollector.Source.trending(.init(genreID: nil, title: "Top"))
+    collector.setActiveSource(source)
+    collector.recordSourcePodcasts(
+      source: source,
+      podcasts: [H.makeUnsavedRow(feedURL: feedURL, iTunesID: ITunesPodcastID(1901))]
+    )
+    try await H.advanceStableSourceDebounce()
+
+    // The feed fetches once, the podcast embed throws, and it settles with no
+    // picks — banner hidden in both the recoverable and the terminal cases.
+    try await Wait.until(
+      { @MainActor in await H.session.requests.contains(feedURL.rawValue) },
+      { @MainActor in "Expected the embed-failing feed to be fetched once" }
+    )
+    try await Wait.until(
+      { @MainActor in collector.bannerState == .hidden },
+      { @MainActor in "Expected the feed to settle with no picks; got \(collector.bannerState)" }
+    )
+    let initialRequests = await H.session.requests.filter { $0 == feedURL.rawValue }.count
+    #expect(initialRequests == 1, "Test premise: exactly one RSS request before the cycle")
+
+    // Drive scoring close → open; the open edge fires
+    // handleScoringContextBecameAvailable, which re-drains empty-`.scored` feeds.
+    for signal in signals {
+      _ = try await repo.updateRating(signal.id, rating: nil)
+    }
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in !localEngine.hasScoringContext },
+      { @Sendable in "Expected scoring context to close after unrating signals" }
+    )
+    let restoredRatings: [EpisodeRating] = [.loved, .liked, .liked]
+    for (signal, rating) in zip(signals, restoredRatings) {
+      _ = try await repo.updateRating(signal.id, rating: rating)
+    }
+    try await RecommendationHelpers.untilAdvancing(
+      { @Sendable in localEngine.hasScoringContext },
+      { @Sendable in "Expected scoring context to reopen after re-rating signals" }
+    )
+
+    // A recoverable empty-`.scored` feed re-drains on the reopen and fetches
+    // again; a terminal `.failed` feed (the regression) never would.
+    try await Wait.until(
+      { @MainActor in await H.session.requests.filter { $0 == feedURL.rawValue }.count == 2 },
+      { @MainActor in "Expected the embed-failed feed to re-fetch after scoring reopened" }
+    )
+  }
 }
+
+// Distinct error so the scripted embeddable can simulate an embedding failure.
+private struct EmbeddingProbeError: Error {}

@@ -10,6 +10,8 @@ struct TagEditorView: View {
 
   @FocusState private var nameFocused: Bool
 
+  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 24
+
   init(viewModel: TagEditorViewModel) {
     self.viewModel = viewModel
   }
@@ -29,14 +31,30 @@ struct TagEditorView: View {
           } label: {
             LabeledContent("Icon") {
               LucideIconView(icon: viewModel.icon)
-                .frame(width: 24, height: 24)
-                .foregroundStyle(.tint)
+                .frame(width: iconSize, height: iconSize)
+                .foregroundStyle(.primary)
+            }
+          }
+        }
+
+        if case .edit = viewModel.mode {
+          Section {
+            Button(role: .destructive) {
+              viewModel.deleteTag()
+            } label: {
+              Text("Delete Tag")
+                .frame(maxWidth: .infinity, alignment: .center)
             }
           }
         }
       }
-      .navigationTitle("Edit Tag")
+      .navigationTitle(viewModel.mode == .create ? "New Tag" : "Edit Tag")
       .navigationBarTitleDisplayMode(.inline)
+      .onAppear {
+        if viewModel.mode == .create {
+          nameFocused = true
+        }
+      }
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { sheet.dismiss() }

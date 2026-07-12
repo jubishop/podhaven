@@ -131,7 +131,11 @@ struct EpisodeDetailView: View {
           }
         }
 
-        if !viewModel.episode.saveInCache {
+        if viewModel.episode.saveInCache {
+          AppIcon.unsaveEpisodeFromCache.labelButton {
+            viewModel.unsaveEpisodeFromCache()
+          }
+        } else {
           AppIcon.saveEpisodeInCache.labelButton {
             viewModel.saveEpisodeInCache()
           }
@@ -309,22 +313,34 @@ struct EpisodeDetailView: View {
           Text("Description")
             .font(.headline)
 
-          unsafe HTMLText(
-            description,
-            menuMatching: Timestamp.regex
-          ) { timestamp in
-            Button {
-              viewModel.playAt(timestamp: timestamp)
-            } label: {
-              Label {
-                Text("Play from \(Timestamp.format(timestamp))")
-              } icon: {
-                AppIcon.playFromHere.image
-              }
-            }
-          }
+          descriptionText
         }
       }
+    }
+    .task(id: viewModel.episode.description) {
+      await viewModel.prepareDescription(font: .body)
+    }
+  }
+
+  @ViewBuilder
+  private var descriptionText: some View {
+    if let attributed = viewModel.descriptionAttributedString {
+      Text(attributed)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .environment(
+          \.openURL,
+          OpenURLAction { url in
+            guard let timestamp = Timestamp.timestamp(fromURL: url) else { return .systemAction }
+            alert(
+              title: "Play from \(Timestamp.format(timestamp))?",
+              "Start playback from this point."
+            ) {
+              Button("Play") { viewModel.playAt(timestamp: timestamp) }
+              Button("Cancel", role: .cancel) {}
+            }
+            return .handled
+          }
+        )
     }
   }
 

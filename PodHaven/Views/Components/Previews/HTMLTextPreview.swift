@@ -205,6 +205,19 @@ private let htmlTextPreviewGroups: [HTMLTextPreviewGroup] = [
         color: .green,
         font: .callout
       ),
+      .init(
+        description: "Auto-detected bare URL",
+        html: "No anchor tag here, just a raw link: https://www.swift.org/documentation/",
+        color: .primary,
+        font: .body
+      ),
+      .init(
+        description: "Auto-detected URL alongside email and bare domain",
+        html:
+          "Original post: https://news.ycombinator.com/item?id=123&amp;utm_source=x — feedback to team@example.com or read example.com",
+        color: .blue,
+        font: .body
+      ),
     ]
   ),
   .init(
@@ -523,206 +536,59 @@ struct HTMLTextPreviewGallery: View {
   }
 }
 
-// MARK: - Menu HTMLText Previews
+// MARK: - Timestamp HTMLText Previews
 
-struct HTMLTextMenuPreview: View {
-  private let timestampPattern = #/\d{1,2}:\d{2}(?::\d{2})?/#
-
-  struct MenuSample {
+struct HTMLTextTimestampPreview: View {
+  struct Sample {
     let description: String
     let html: String
   }
 
-  private let samples: [MenuSample] = [
-    // MARK: - Basic menu with surrounding formatting
-    MenuSample(
-      description: "Bold text before timestamp",
-      html: "<b>Chapter 1:</b> 00:15:30 - Introduction to the topic"
-    ),
-    MenuSample(
-      description: "Italic text after timestamp",
-      html: "00:30:00 - <i>Special guest interview</i> with the author"
-    ),
-    MenuSample(
-      description: "Multiple formats on same line",
-      html: "<b>Act II</b> 01:15:00 - The <i>turning point</i> arrives"
-    ),
-    MenuSample(
-      description: "Bold, italic, and underline mixed",
-      html: "<b><i>Important:</i></b> 00:45:30 - <u>Key takeaway</u> from discussion"
-    ),
-    MenuSample(
-      description: "Strikethrough and mark",
-      html: "<s>Old chapter</s> <mark>NEW:</mark> 02:00:00 - Updated content"
-    ),
-    MenuSample(
-      description: "Link on same line as timestamp",
+  private let samples: [Sample] = [
+    Sample(
+      description: "Timestamp inside a long prose paragraph",
       html:
-        "00:20:00 - Check out <a href=\"https://example.com\">this resource</a> for more info"
+        "We open with a quick recap, then at 12:34 we dive into the main story, "
+        + "circling back near 1:02:15 to answer listener questions before wrapping up."
     ),
-    MenuSample(
-      description: "Multiple timestamps with formatting",
-      html: "<b>Intro:</b> 00:00:00 | <i>Main:</i> 00:10:00 | <u>Outro:</u> 00:55:00"
-    ),
-    MenuSample(
-      description: "Nested formatting around timestamp",
-      html: "Before <b>the <i>big</i> moment</b> at 00:25:00 comes <i>the <b>setup</b></i>"
-    ),
-    MenuSample(
-      description: "Multi-line with mixed formatting",
+    Sample(
+      description: "Chapter list with formatting and a link",
       html: """
-        <p><b>Episode Chapters:</b></p>
-        <p>00:00:00 - <i>Welcome</i> and introductions</p>
-        <p><b>Part 1:</b> 00:05:30 - Background context</p>
-        <p><mark>Highlight:</mark> 00:30:00 - The <b>key revelation</b></p>
-        <p>01:00:00 - <u>Closing thoughts</u> and <a href=\"https://example.com\">links</a></p>
+        <p><b>Chapters</b></p>
+        <p>0:00 Intro<br/>2:15 <i>Guest interview</i><br/>14:30 Deep dive<br/>\
+        1:05:00 Q&amp;A</p>
+        <p>Show notes at <a href="https://example.com">example.com</a>.</p>
         """
     ),
-    MenuSample(
-      description: "Plain line (no timestamp) between formatted lines",
-      html: """
-        <b>Chapter 1:</b> 00:10:00 - Opening
-        This line has no timestamp but has <b>bold</b> and <i>italic</i> text.
-        <b>Chapter 2:</b> 00:20:00 - Continuation
-        """
+    Sample(
+      description: "Mixed inline formatting around a timestamp",
+      html: "<b>Act II</b> 01:15:00 - the <i>turning point</i> arrives"
     ),
-    MenuSample(
-      description: "HTML entities with formatting",
-      html:
-        "<b>Q&amp;A:</b> 00:40:00 - Listener questions &mdash; <i>&ldquo;Best practices?&rdquo;</i>"
-    ),
-    MenuSample(
-      description: "List items with timestamps",
-      html: """
-        <ul>
-        <li><b>Intro:</b> 00:00:00 - Welcome</li>
-        <li><i>Deep dive:</i> 00:15:00 - Technical details</li>
-        <li><u>Wrap-up:</u> 00:45:00 - Summary</li>
-        </ul>
-        """
-    ),
-
-    // MARK: - Formatted Timestamps (timestamp itself is styled)
-    MenuSample(
-      description: "Bold timestamp",
-      html: "Chapter starts at <b>00:15:30</b> with the introduction"
-    ),
-    MenuSample(
-      description: "Italic timestamp",
-      html: "The key moment is at <i>01:23:45</i> in the recording"
-    ),
-    MenuSample(
-      description: "Underlined timestamp",
-      html: "Skip to <u>00:30:00</u> for the good part"
-    ),
-    MenuSample(
-      description: "Bold italic timestamp",
-      html: "Don't miss <b><i>02:00:00</i></b> - it's the climax!"
-    ),
-    MenuSample(
-      description: "Marked/highlighted timestamp",
-      html: "Jump to <mark>00:45:00</mark> for the spoiler"
-    ),
-    MenuSample(
-      description: "Strikethrough timestamp (corrected)",
-      html: "Was at <s>00:10:00</s>, now at <b>00:12:30</b>"
-    ),
-    MenuSample(
-      description: "Linked timestamp",
-      html: "See <a href=\"https://example.com/clip\">00:05:00</a> for the viral clip"
-    ),
-    MenuSample(
-      description: "Multiple formatted timestamps",
-      html: "<b>00:00:00</b> Intro | <i>00:10:00</i> Main | <u>00:50:00</u> Outro"
-    ),
-    MenuSample(
-      description: "Formatted timestamp with formatted surrounding text",
-      html: "<b>Important:</b> Check <i>00:25:00</i> for the <u>key insight</u>"
-    ),
-    MenuSample(
-      description: "All formatting styles on timestamps",
-      html: """
-        <b>00:00:00</b> Bold
-        <i>00:01:00</i> Italic
-        <u>00:02:00</u> Underline
-        <s>00:03:00</s> Strike
-        <mark>00:04:00</mark> Mark
-        <b><i>00:05:00</i></b> Bold+Italic
-        """
-    ),
-
-    // MARK: - Multi-format text segments (format changes within text around timestamps)
-    MenuSample(
-      description: "Bold then italic before timestamp",
-      html: "<b>Bold</b> and <i>italic</i> 00:15:00 - after"
-    ),
-    MenuSample(
-      description: "Multiple formats before and after timestamp",
-      html: "<b>Start bold</b> <i>then italic</i> 00:20:00 <u>underline</u> <s>strike</s> end"
-    ),
-    MenuSample(
-      description: "Format change mid-word before timestamp",
-      html: "Half<b>bold</b> 00:10:00 - description"
-    ),
-    MenuSample(
-      description: "Complex: all formats before timestamp",
-      html:
-        "<b>Bold</b> <i>Italic</i> <u>Under</u> <s>Strike</s> <mark>Mark</mark> 00:30:00 - plain after"
-    ),
-    MenuSample(
-      description: "Alternating formats around multiple timestamps",
-      html:
-        "<b>Ch1</b> 00:00:00 <i>intro</i> | <u>Ch2</u> 00:10:00 <s>old</s> | <mark>Ch3</mark> 00:20:00 end"
-    ),
-    MenuSample(
-      description: "Nested formats before timestamp",
-      html: "<b>Bold <i>and italic</i> just bold</b> 00:25:00 - plain"
-    ),
-    MenuSample(
-      description: "Link and bold before timestamp",
-      html: "<a href=\"https://example.com\">Link text</a> and <b>bold</b> 00:35:00 - more"
-    ),
-    MenuSample(
-      description: "Format spanning before and after timestamp",
-      html: "<b>Bold before</b> 00:40:00 <b>bold after</b> with <i>italic</i> mixed"
-    ),
-    MenuSample(
-      description: "Many format changes in one line",
-      html:
-        "<b>A</b><i>B</i><u>C</u><s>D</s><mark>E</mark> 00:45:00 <mark>F</mark><s>G</s><u>H</u><i>I</i><b>J</b>"
-    ),
-    MenuSample(
-      description: "Real-world chapter list with mixed formatting",
-      html: """
-        <b>Introduction</b> - <i>Setting the scene</i> 00:00:00
-        <b>Part 1:</b> The <i>journey</i> begins 00:05:00
-        <mark>KEY:</mark> <b>Critical</b> <i>insight</i> revealed 00:15:00
-        <b>Conclusion</b> - <u>Final thoughts</u> 00:45:00
-        """
+    Sample(
+      description: "No timestamps (plain styled description)",
+      html: "<p>A short description with <b>bold</b> and <i>italic</i> but no chapters.</p>"
     ),
   ]
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
-        Text("Menu with HTML Formatting")
+        Text("Description Rendering")
           .font(.title2)
           .bold()
 
-        Text("Timestamps are interactive menus; other text preserves HTML styling.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        Text(
+          "Timestamps render as accent links; the detail view confirms via an alert before playing."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
 
         ForEach(Array(samples.enumerated()), id: \.offset) { index, sample in
           VStack(alignment: .leading, spacing: 8) {
             Text(sample.description)
               .font(.headline)
 
-            HTMLText(sample.html, menuMatching: timestampPattern) { timestamp in
-              Button("Play from \(timestamp)") {}
-              Button("Copy timestamp") {}
-            }
-            .font(.body)
+            TimestampSample(html: sample.html)
           }
 
           if index < samples.count - 1 {
@@ -734,4 +600,29 @@ struct HTMLTextMenuPreview: View {
     }
   }
 }
+
+private struct TimestampSample: View {
+  let html: String
+  @State private var attributed: AttributedString?
+
+  var body: some View {
+    Group {
+      if let attributed {
+        Text(attributed)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      } else {
+        Text(html)
+      }
+    }
+    .environment(\.openURL, OpenURLAction { _ in .handled })
+    .task(id: html) {
+      attributed = await HTMLContent.descriptionAttributedString(
+        html: html,
+        font: .body,
+        linkTimestamps: true
+      )
+    }
+  }
+}
+
 #endif

@@ -134,4 +134,75 @@ actor MetadataTests {
     #expect(results.count == 1)
     #expect(results[0].tagIDs == [tag.id])
   }
+
+  // MARK: - Freshness Cadence
+
+  @Test("resolvedFreshnessCadence carries the cached inference from episodes")
+  func testResolvedFreshnessCadenceFromInference() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: try [0, 7, 14, 21, 28]
+          .map {
+            try Create.unsavedEpisode(pubDate: $0.daysAgo)
+          }
+      )
+    )
+
+    let results: [PodcastWithEpisodeMetadata<ListablePodcast>] =
+      try await observatory.listablePodcastsWithEpisodeMetadata().get()
+    let result = results.first { $0.feedURL == series.podcast.feedURL }!
+    #expect(result.resolvedFreshnessCadence == .weekly)
+  }
+
+  @Test("resolvedFreshnessCadence mirrors the sparse-history PodcastsView bucket")
+  func testResolvedFreshnessCadenceFromSparseInference() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: try [0, 7]
+          .map {
+            try Create.unsavedEpisode(pubDate: $0.daysAgo)
+          }
+      )
+    )
+
+    let results: [PodcastWithEpisodeMetadata<ListablePodcast>] =
+      try await observatory.listablePodcastsWithEpisodeMetadata().get()
+    let result = results.first { $0.feedURL == series.podcast.feedURL }!
+    #expect(result.resolvedFreshnessCadence == .weekly)
+  }
+
+  @Test("resolvedFreshnessCadence prefers the manual override over the inference")
+  func testResolvedFreshnessCadencePrefersManualOverride() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: try [0, 7, 14, 21, 28]
+          .map {
+            try Create.unsavedEpisode(pubDate: $0.daysAgo)
+          }
+      )
+    )
+    var settings = PodcastSettings.defaults
+    settings.freshnessCadence = .daily
+    _ = try await repo.updatePodcastSettings(series.podcast.id, settings)
+
+    let results: [PodcastWithEpisodeMetadata<ListablePodcast>] =
+      try await observatory.listablePodcastsWithEpisodeMetadata().get()
+    let result = results.first { $0.feedURL == series.podcast.feedURL }!
+    #expect(result.resolvedFreshnessCadence == .daily)
+  }
+
+  @Test("resolvedFreshnessCadence is nil for a podcast with no episodes")
+  func testResolvedFreshnessCadenceNilWithoutEpisodes() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    )
+
+    let results: [PodcastWithEpisodeMetadata<ListablePodcast>] =
+      try await observatory.listablePodcastsWithEpisodeMetadata().get()
+    let result = results.first { $0.feedURL == series.podcast.feedURL }!
+    #expect(result.resolvedFreshnessCadence == nil)
+  }
 }

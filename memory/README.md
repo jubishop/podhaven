@@ -9,7 +9,7 @@ Not auto-loaded; discover pages with [`qmd`](https://github.com/tobi/qmd). Befor
 - User preferences, feedback, corrections, validated approaches.
 - Open incidents and active investigations.
 - Gotchas, library quirks, workarounds, post-mortems.
-- Pointers to external systems (dashboards, issue projects, Slack channels).
+- Pointers to external systems (dashboards, issue projects, email threads).
 
 Do not use memory for:
 

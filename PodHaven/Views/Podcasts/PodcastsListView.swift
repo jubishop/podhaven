@@ -19,36 +19,58 @@ struct PodcastsListView: View {
   }
 
   var body: some View {
-    podcastsView
-      .searchable(
-        text: $viewModel.podcastList.entryFilter,
-        placement: .navigationBarDrawer(displayMode: .always),
-        prompt: "Filter podcasts"
-      )
-      .searchPresentationToolbarBehavior(.avoidHidingContent)
-      .navigationTitle(viewModel.title)
-      .refreshable {
-        do {
-          try await viewModel.refreshPodcasts()
-        } catch {
-          Self.log.caughtError(
-            "refreshable: failed to refresh podcast list '\(viewModel.title)'",
-            error
-          )
-          guard ErrorKit.isRemarkable(error) else { return }
-          alert(ErrorKit.message(for: error))
-        }
+    // Anchor the search field's inset to a stable container so swapping the
+    // loading/empty/list content beneath it doesn't drop its keyboard focus.
+    VStack(spacing: 0) {
+      podcastsView
+    }
+    .safeAreaInset(edge: .top, spacing: 0) {
+      VStack(spacing: 8) {
+        LucideListHeader(icon: viewModel.icon, title: viewModel.title)
+        SearchBar(
+          // Mutate entryFilter in place rather than via `$viewModel.podcastList.entryFilter`:
+          // the key-path binding's write-back re-assigns the observed `podcastList` on every
+          // edit, re-rendering this view mid-tap and swallowing the clear button's reset + defocus.
+          text: Binding(
+            get: { viewModel.podcastList.entryFilter },
+            set: { viewModel.podcastList.entryFilter = $0 }
+          ),
+          prompt: "Filter podcasts",
+          searchIcon: .search
+        )
+        .padding(.horizontal)
       }
-      .toolbar { toolbar }
-      .toolbarRole(.editor)
-      .task(viewModel.execute)
+      .padding(.top, 4)
+    }
+    .navigationBarTitleDisplayMode(.inline)
+    .refreshable {
+      do {
+        try await viewModel.refreshPodcasts()
+      } catch {
+        Self.log.caughtError(
+          "refreshable: failed to refresh podcast list '\(viewModel.title)'",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+    .toolbar { toolbar }
+    .toolbarRole(.editor)
+    .task(viewModel.execute)
   }
 
   // MARK: - Toolbar
 
   @ToolbarContentBuilder
   private var toolbar: some ToolbarContent {
-    sortableDisplayingPodcastsToolbarItems(viewModel: viewModel)
+    ToolbarItem(placement: .topBarLeading) {
+      (viewModel.displayMode == .grid ? AppIcon.list : AppIcon.grid)
+        .labelButton {
+          viewModel.toggleDisplayMode()
+        }
+    }
+    sortablePodcastsToolbarItems(viewModel: viewModel)
     selectablePodcastsToolbarItems(viewModel: viewModel)
   }
 
@@ -128,6 +150,7 @@ struct PodcastsListView: View {
         .listRow()
       }
     }
+    .contentMargins(.top, 8, for: .scrollContent)
   }
 
   // MARK: - Reusable Views

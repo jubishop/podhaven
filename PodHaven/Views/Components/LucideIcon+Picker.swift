@@ -134,8 +134,10 @@ extension LucideIcon {
         (.shuffle, "Shuffle"), (.play, "Now Playing"), (.inbox, "Inbox"), (.sparkles, "New"),
         (.thumbsUp, "Recommended"), (.clock, "Listen Later"), (.hourglass, "In Progress"),
         (.circleCheck, "Finished"), (.history, "Recently Played"), (.repeat, "Recurring"),
-        (.archive, "Archive"), (.download, "Downloaded"), (.bell, "Notifications"),
-        (.calendar, "Schedule"), (.eye, "Watched"), (.rss, "Feeds"),
+        (.infinity, "Evergreen"), (.archive, "Archive"), (.download, "Downloaded"),
+        (.bell, "Notifications"), (.calendar, "Schedule"), (.calendarDays, "Dates"),
+        (.calendarRange, "Date Range"), (.eye, "Watched"), (.rss, "Feeds"),
+        (.circleX, "Skipped"), (.arrowUpToLine, "To Top"), (.arrowDownToLine, "To Bottom"),
       ]
     ),
   ]

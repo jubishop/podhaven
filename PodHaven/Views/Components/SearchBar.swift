@@ -24,23 +24,21 @@ struct SearchBar: View {
       .padding(12)
       .glassEffect(.regular)
 
-      if showClearSearchButton {
+      if isFocused || !text.isEmpty {
         AppIcon.clearSearch
           .imageButton {
             text = ""
-            isFocused = false
+            // Resign focus in a follow-up transaction: dropping focus in the
+            // same action that clears the text collapses this button's `if`
+            // wrapper while its own tap is still being handled, which can
+            // swallow the focus change and leave the keyboard up.
+            Task { @MainActor in isFocused = false }
           }
           .buttonStyle(.plain)
           .padding(16)
           .glassEffect(.regular.interactive(), in: .circle)
-          .transition(.scale.combined(with: .opacity))
       }
     }
-    .animation(.easeInOut(duration: 0.15), value: showClearSearchButton)
-  }
-
-  private var showClearSearchButton: Bool {
-    isFocused || !text.isEmpty
   }
 }
 

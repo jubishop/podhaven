@@ -256,7 +256,7 @@ import Testing
     #expect(viewModel.validationMessage == "Enter text to match")
 
     var tag = EditableCondition()
-    tag.kind = .episodeTag
+    tag.kind = .tag
     tag.tagMembership = .hasTag
     viewModel.topGroup.conditions = [tag]
     #expect(!viewModel.canSave)
@@ -354,10 +354,10 @@ import Testing
       .podcastText(.titleOrDescription, .doesNotContain, "sports"),
       .state(.wasPreviouslyQueued),
       .state(.isUncached),
-      .episodeTag(.hasTag(tag.id)),
-      .episodeTag(.hasNoTags),
-      .podcastTag(.doesNotHaveTag(tag.id)),
-      .podcastTag(.hasAnyTag),
+      .tag(.hasTag(tag.id)),
+      .tag(.hasNoTags),
+      .tag(.doesNotHaveTag(tag.id)),
+      .tag(.hasAnyTag),
       .duration(minSeconds: 600, maxSeconds: 3600),
       .duration(minSeconds: nil, maxSeconds: 1800),
       .duration(minSeconds: 600, maxSeconds: nil),

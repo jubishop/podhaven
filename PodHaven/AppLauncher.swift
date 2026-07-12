@@ -245,12 +245,30 @@ struct AppLauncher: Sendable {
     }
   }
 
-  private static func sentryLogApplyingCurrentEnvironment(_ log: SentryLog) -> SentryLog {
+  private static func sentryBeforeSendLog(_ log: SentryLog) -> SentryLog? {
     log.setAttribute(
       SentryLog.Attribute(string: AppInfo.environment.rawValue),
       forKey: "sentry.environment"
     )
     return log
+  }
+
+  // Sentry's exception-mechanism type for MetricKit disk-write diagnostics. The
+  // SDK keeps this slug private rather than exposing a typed symbol, so it can
+  // only be matched as a literal off the serialized event; isolated here as the
+  // single source.
+  private static let metricKitDiskWriteMechanism = "mx_disk_write_exception"
+
+  private static func sentryBeforeSend(_ event: Sentry.Event) -> Sentry.Event? {
+    // MetricKit disk-write diagnostics trip a fixed cumulative-bytes threshold
+    // that routine media downloads cross on their own — noise, not an
+    // actionable defect. Drop them; crash, hang, and CPU diagnostics still flow,
+    // and MetricKitMonitor keeps the raw payload for offline analysis.
+    guard let exceptions = event.exceptions else { return event }
+    let isDiskWriteDiagnostic = exceptions.contains {
+      $0.mechanism?.type == metricKitDiskWriteMechanism
+    }
+    return isDiskWriteDiagnostic ? nil : event
   }
 
   private static func configureSentry() {
@@ -263,7 +281,8 @@ struct AppLauncher: Sendable {
       options.enableLogs = true
       options.enableMetricKit = true
       options.enableMetricKitRawPayload = true
-      options.beforeSendLog = sentryLogApplyingCurrentEnvironment
+      options.beforeSendLog = sentryBeforeSendLog
+      options.beforeSend = sentryBeforeSend
       options.initialScope = { scope in
         scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
         scope.setUser(User(userId: AppInfo.deviceIdentifier))

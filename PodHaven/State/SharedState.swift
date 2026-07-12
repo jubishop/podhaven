@@ -85,16 +85,26 @@ struct SharedState: Sendable {
     $recommendedEpisodePool.new(episodeIDs)
   }
 
-  // MARK: - Episode Playing Checks
+  // MARK: - On-Deck & Playing Checks
+
+  // Identity checks read `currentEpisodeID`, never `onDeck`: playback time
+  // updates rewrite `onDeck`, so reading it here would
+  // pull every tick into the tracked region of any view that only cares about
+  // which episode is current. `currentEpisodeID` moves only on episode
+  // transitions, set in lockstep with `onDeck` by `StateManager`.
+  func isOnDeck(_ episode: any EpisodeFoundational) -> Bool {
+    guard let episodeID = episode.episodeID else { return false }
+    return currentEpisodeID == episodeID
+  }
 
   func isEpisodePlaying(_ episode: any EpisodeFoundational) -> Bool {
-    guard let episodeID = episode.episodeID else { return false }
-    return isEpisodePlaying(episodeID)
+    guard playbackStatus.playing else { return false }
+    return isOnDeck(episode)
   }
 
   func isEpisodePlaying(_ episodeID: Episode.ID) -> Bool {
     guard playbackStatus.playing else { return false }
-    return onDeck?.id == episodeID
+    return currentEpisodeID == episodeID
   }
 
   // MARK: - State Setters

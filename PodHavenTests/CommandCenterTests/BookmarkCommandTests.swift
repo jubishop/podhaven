@@ -91,4 +91,27 @@ import Testing
       { "Expected bookmark isActive to become false after unsaving" }
     )
   }
+
+  // Un-saving must only clear the saved flag, never delete the downloaded file.
+  // The episode is deliberately left un-loaded (not the current episode) so that
+  // canClearCache would otherwise permit clearing it; this isolates the un-save
+  // action itself rather than relying on that gate to preserve the file.
+  @Test("toggleSaveInCache un-save keeps the cached file")
+  func unsavingKeepsCachedFile() async throws {
+    let cachedEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Saved Episode",
+      cachedFilename: "saved-episode.mp3",
+      saveInCache: true
+    )
+    let cachedURL = try #require(cachedEpisode.cachedURL)
+    let fileManager = try #require(Container.shared.fileManager() as? FakeFileManager)
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
+
+    await playManager.toggleSaveInCache(cachedEpisode.id)
+
+    let final = try #require(try await repo.episode(cachedEpisode.id))
+    #expect(!final.saveInCache)
+    #expect(final.cacheStatus == .cached)
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
+  }
 }

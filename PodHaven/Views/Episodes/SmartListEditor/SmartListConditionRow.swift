@@ -36,8 +36,8 @@ struct SmartListConditionRow: View {
   @ViewBuilder
   private var detailControls: some View {
     switch condition.kind {
-    case .episodeTitle, .episodeDescription, .episodeTitleOrDescription,
-      .podcastTitle, .podcastDescription, .podcastTitleOrDescription:
+    case .episodeTitle, .episodeDescription, .episodeTitleOrDescription, .podcastTitle,
+      .podcastDescription, .podcastTitleOrDescription:
       HStack {
         Picker("Operator", selection: $condition.textOp) {
           ForEach(SmartListFilter.TextOp.allCases, id: \.self) { textOp in
@@ -56,7 +56,7 @@ struct SmartListConditionRow: View {
         }
       }
       .labelsHidden()
-    case .episodeTag, .podcastTag:
+    case .tag:
       HStack {
         Picker("Membership", selection: $condition.tagMembership) {
           ForEach(EditableCondition.TagMembership.allCases, id: \.self) { membership in
@@ -93,6 +93,8 @@ struct SmartListConditionRow: View {
           }
         }
         .labelsHidden()
+        .fixedSize(horizontal: true, vertical: false)
+        .layoutPriority(1)
         TextField("Days", text: $condition.daysText)
           .keyboardType(.numberPad)
         Text("days")

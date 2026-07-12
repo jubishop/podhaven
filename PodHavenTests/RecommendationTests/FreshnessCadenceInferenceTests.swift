@@ -13,6 +13,10 @@ struct FreshnessCadenceInferenceTests {
     daysAgo.map { now.addingTimeInterval(-$0 * 86400) }
   }
 
+  private func dates(hoursAgo: [Double]) -> [Date] {
+    hoursAgo.map { now.addingTimeInterval(-$0 * 3600) }
+  }
+
   @Test("returns .weekly when there are fewer than 3 episodes")
   func fallsBackToWeeklyOnSparseInput() {
     #expect(FreshnessCadence.infer(from: []) == .weekly)
@@ -29,6 +33,12 @@ struct FreshnessCadenceInferenceTests {
   func detectsTwiceDailyCadence() {
     let twiceDaily = stride(from: 0.0, to: 7.0, by: 0.5).map { $0 }
     #expect(FreshnessCadence.infer(from: dates(daysAgo: twiceDaily)) == .twiceDaily)
+  }
+
+  @Test("runtime inference bands protect the persisted cache contract")
+  func runtimeBandsMatchPersistedCacheContract() {
+    #expect(FreshnessCadence.infer(from: dates(hoursAgo: [0, 2, 4, 6, 8])) == .twiceDaily)
+    #expect(FreshnessCadence.infer(from: dates(hoursAgo: [0, 17, 34, 51, 68])) == .twiceDaily)
   }
 
   @Test("infers .daily for shows publishing every 1-2 days")

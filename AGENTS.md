@@ -4,16 +4,16 @@ Repo context lives in `memory/`, `docs/`, and GitHub issues:
 - `memory/`: long-lived notes; search before writing and update existing notes when possible.
   - New or updated pages must follow [`memory/README.md`](memory/README.md).
   - Move notes that are no longer relevant to active work into `memory/archive/` with `status: resolved`.
-- `docs/`: PR-reviewed design docs; update `docs/README.md` when adding/removing docs.
+- `docs/`: PR-reviewed design docs and research; update [`docs/README.md`](docs/README.md) when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
-Use `qmd` for topic lookup across `memory/` and `docs`; cheapest mode that fits:
+Use `qmd` for topic lookup across `memory/` and `docs/`; cheapest mode that fits:
 
 - `qmd search "known term"`: first choice for names, files, APIs, issue numbers, and exact concepts.
 - `qmd query "question" --no-rerank`: default for fuzzy or open-ended topic lookup.
 - `qmd get <path>[:line] -l N`: cheap page/slice fetch.
 
-Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known paths. Hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite; no manual `qmd update` or `qmd embed` needed.
+Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known paths. Hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite. The post-checkout hook also runs `bin/prep-worktree` on first checkout of a new worktree. No manual `qmd update` or `qmd embed` is needed.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
@@ -52,8 +52,9 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
-- Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`). Do not use `.serialized`.
+- Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`).
 - Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.
+- `@Suite("...", .container)` isolates Factory injected state per-test; supporting full test concurrency. Do not use `.serialized`.
 - Bugfixes require a regression test proven failing before the fix; if it passes before and after, it is not a regression test and the bug may not be real.
 - Default local test runs to My Mac (Designed for iPhone): `-destination 'platform=macOS,name=My Mac'`.
 - Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
@@ -88,7 +89,8 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - No code-comment refs to repo items — issues/PRs (e.g. `#262`), docs/memories (e.g. `foo.md`); that context belongs in the commit/PR. Stable external urls are fine.
 - Don't bake specific constant values into comments; they drift when the constant changes and silently go wrong. Describe behavior relative to the named constant.
 - No one-call-site helper unless it earns the hop via early-exit/`guard` flow, recursion, or a clear named phase. Inline linear sequences.
-- Put protocol conformances on the main declaration with their requirements in the body; don't spin up an `extension Foo: SomeProtocol` just to hold a conformance. Reserve conformance extensions for constrained methods, retroactive external conformance, or `where Self == X`. Splitting a type across files with a plain `extension Foo { … }` is justified only to keep a file under that 1000-line limit (as with `PlayManager`); when the type's own file is comfortably under it, keep the extension inline.
+- Put protocol conformances on the main declaration with their requirements in the body; don't spin up an `extension Foo: SomeProtocol` just to hold a conformance. Reserve conformance extensions for constrained methods, retroactive external conformance, or `where Self == X`. Splitting a type across files with a plain `extension Foo { … }` is justified only to keep a file under that 1000-line limit (as with `PlayManager`) or to avoid awkward dependency graphs (such as `Database/` depending on `Views/`).
+- Don't loop/poll to wait for conditions; use async/await and continuations.
 - Avoid `@unchecked`, `@retroactive`, and `unsafe` unless necessary.
 - Avoid `inout` or passing reference types only to be mutated and read back by the caller; return values instead.
 - Prefer `@MainActor` on declarations over `MainActor.run`.

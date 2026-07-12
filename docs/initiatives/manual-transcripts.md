@@ -41,7 +41,7 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 
 ## Data model
 
-- **Migration v62** (`PodHaven/Database/Migrations/Migration_v62.swift`, registered `"v62"` in `Schema.makeMigrator()`): `ALTER TABLE episode ADD COLUMN transcript TEXT` — nullable, default NULL, no backfill. Does not trip the `episode_content_updated` trigger (which fires only on title/description change). Migration test `v62Tests.swift` migrates through `"v61"` before asserting the new column.
+- **Migration v67** (`PodHaven/Database/Migrations/Migration_v67.swift`, registered `"v67"` in `Schema.makeMigrator()`): `ALTER TABLE episode ADD COLUMN transcript TEXT` — nullable, default NULL, no backfill. Does not trip the `episode_content_updated` trigger (which fires only on title/description change). Migration test `v67Tests.swift` migrates through `"v66"` before asserting the new column.
 - **Model:** add `transcript: String?` to `UnsavedEpisode` and `Column("transcript")` to `Episode.Columns`, with a computed `decodedTranscript: Transcript?` for the UI.
 - **Codable payload:** `struct TranscriptSegment { let start: TimeInterval; let text: String }` plus a `Transcript` wrapper carrying `segments`, `locale`, `createdAt`, and a `modelRevision` (so a future model bump can invalidate, mirroring `EmbeddingService.recipeVersion`). Encoded to the column as JSON; the column holds only the finished transcript — transient queue/progress state never touches the DB.
 - **Repo:** `updateTranscript(_ id:transcript:)` mirroring `updateCachedFilename` (nullable single-column `updateAll`).
@@ -84,7 +84,7 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 
 ## Phased build plan
 
-1. **Schema + model** — Migration v62, `transcript` column + `Episode.Columns`, `Transcript`/`TranscriptSegment` Codable, `Repo.updateTranscript`, migration test. (Foundation; nothing user-visible.)
+1. **Schema + model** — Migration v67, `transcript` column + `Episode.Columns`, `Transcript`/`TranscriptSegment` Codable, `Repo.updateTranscript`, migration test. (Foundation; nothing user-visible.)
 2. **Engine** — `PodHaven/Transcriptions/Transcriber` + speech model gate + the awaited `cachedURL(downloadingIfNeeded:)` cache helper. Unit-tested behind speech-framework protocol seams with fakes.
 3. **Queue + processor (foreground)** — `TranscriptionQueue` (persisted) + `TranscriptionProcessor` loop, one-at-a-time, status/progress broadcasts. Tests with speech/cache fakes.
 4. **UI** — detail section (read-only render first), toolbar button, `ManagingEpisodes`/`SelectableEpisodeList` actions, context menu, swipe case + settings, multi-select, `AppIcon`, status across surfaces.
@@ -94,7 +94,7 @@ Phases 1–3 are independently shippable; 4 makes it usable; 5 completes it. (In
 
 ## Testing
 
-- Migration test (`v62Tests.swift`) — raw SQL, migrate `upTo: "v61"` then `"v62"`, assert the column.
+- Migration test (`v67Tests.swift`) — raw SQL, migrate `upTo: "v66"` then `"v67"`, assert the column.
 - Queue persistence: enqueue → simulated relaunch (re-read defaults) → order preserved.
 - Processor loop: speech/cache fakes drive one-at-a-time ordering, progress, dequeue, failure, and stale-download recovery; `FakeBGTaskScheduler.triggerExpiration()` exercises the background-task path (mirrors `BackgroundTaskSchedulerTests`).
 - Status derivation: each `TranscriptionStatus` branch.

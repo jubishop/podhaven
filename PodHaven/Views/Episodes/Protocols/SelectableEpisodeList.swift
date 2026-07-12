@@ -138,8 +138,13 @@ extension SelectableEpisodeList {
   // MARK: - Actions
 
   func addSelectedEpisodesToBottomOfQueue() {
-    guard !selectedEpisodes.isEmpty else { return }
     let episodes = selectedEpisodes
+    guard !episodes.isEmpty else {
+      Self.log.notice("addSelectedEpisodesToBottomOfQueue: requested with no episodes selected")
+      return
+    }
+
+    Self.log.debug("addSelectedEpisodesToBottomOfQueue: queueing \(episodes.count) episodes")
 
     Task { [weak self] in
       guard let self else { return }
@@ -155,8 +160,13 @@ extension SelectableEpisodeList {
   }
 
   func addSelectedEpisodesToTopOfQueue() {
-    guard !selectedEpisodes.isEmpty else { return }
     let episodes = selectedEpisodes
+    guard !episodes.isEmpty else {
+      Self.log.notice("addSelectedEpisodesToTopOfQueue: requested with no episodes selected")
+      return
+    }
+
+    Self.log.debug("addSelectedEpisodesToTopOfQueue: queueing \(episodes.count) episodes")
 
     Task { [weak self] in
       guard let self else { return }
@@ -172,8 +182,13 @@ extension SelectableEpisodeList {
   }
 
   func replaceQueueWithSelected() {
-    guard !selectedEpisodes.isEmpty else { return }
     let episodes = selectedEpisodes
+    guard !episodes.isEmpty else {
+      Self.log.notice("replaceQueueWithSelected: requested with no episodes selected")
+      return
+    }
+
+    Self.log.debug("replaceQueueWithSelected: replacing queue with \(episodes.count) episodes")
 
     Task { [weak self] in
       guard let self else { return }
@@ -189,8 +204,13 @@ extension SelectableEpisodeList {
   }
 
   func playSelectedEpisodes() {
-    guard !selectedEpisodes.isEmpty else { return }
     let episodes = selectedEpisodes
+    guard !episodes.isEmpty else {
+      Self.log.notice("playSelectedEpisodes: requested with no episodes selected")
+      return
+    }
+
+    Self.log.debug("playSelectedEpisodes: playing \(episodes.count) episodes")
 
     Task { [weak self] in
       guard let self else { return }
@@ -215,8 +235,18 @@ extension SelectableEpisodeList {
   }
 
   func dequeueSelectedEpisodes() {
-    let queuedSavedEpisodeIDs = selectedEpisodes.filter(\.queued).compactMap(\.episodeID)
-    guard !queuedSavedEpisodeIDs.isEmpty else { return }
+    let episodes = selectedEpisodes
+    let queuedSavedEpisodeIDs = episodes.filter(\.queued).compactMap(\.episodeID)
+    guard !queuedSavedEpisodeIDs.isEmpty else {
+      Self.log.notice(
+        "dequeueSelectedEpisodes: no queued episodes among \(episodes.count) selected"
+      )
+      return
+    }
+
+    Self.log.debug(
+      "dequeueSelectedEpisodes: dequeueing \(queuedSavedEpisodeIDs.count) of \(episodes.count) selected episodes"
+    )
 
     Task { [weak self] in
       guard let self else { return }
@@ -233,7 +263,13 @@ extension SelectableEpisodeList {
   }
 
   func cacheSelectedEpisodes() {
-    guard anySelectedNotCached else { return }
+    let selectedCount = selectedEpisodes.count
+    guard anySelectedNotCached else {
+      Self.log.notice("cacheSelectedEpisodes: no uncached episodes among \(selectedCount) selected")
+      return
+    }
+
+    Self.log.debug("cacheSelectedEpisodes: caching \(selectedCount) selected episodes")
 
     let log = Self.log
     Task { [weak self] in
@@ -262,11 +298,19 @@ extension SelectableEpisodeList {
   }
 
   func uncacheSelectedEpisodes() {
+    let selectedCount = selectedEpisodes.count
     let cachedEpisodeIDs =
       selectedEpisodes
       .filter { $0.episodeID != nil && $0.cacheStatus == .cached }
       .compactMap(\.episodeID)
-    guard !cachedEpisodeIDs.isEmpty else { return }
+    guard !cachedEpisodeIDs.isEmpty else {
+      Self.log.notice("uncacheSelectedEpisodes: no cached episodes among \(selectedCount) selected")
+      return
+    }
+
+    Self.log.debug(
+      "uncacheSelectedEpisodes: uncaching \(cachedEpisodeIDs.count) of \(selectedCount) selected episodes"
+    )
 
     let log = Self.log
     Task {
@@ -297,7 +341,15 @@ extension SelectableEpisodeList {
   }
 
   func saveSelectedEpisodesInCache() {
-    guard anySelectedNotSavedInCache else { return }
+    let selectedCount = selectedEpisodes.count
+    guard anySelectedNotSavedInCache else {
+      Self.log.notice(
+        "saveSelectedEpisodesInCache: no unsaved episodes among \(selectedCount) selected"
+      )
+      return
+    }
+
+    Self.log.debug("saveSelectedEpisodesInCache: saving \(selectedCount) selected episodes")
 
     let log = Self.log
     Task { [weak self] in
@@ -339,11 +391,21 @@ extension SelectableEpisodeList {
   }
 
   func unsaveSelectedEpisodesFromCache() {
+    let selectedCount = selectedEpisodes.count
     let savedEpisodeIDs =
       selectedEpisodes
       .filter { $0.episodeID != nil && $0.saveInCache }
       .compactMap(\.episodeID)
-    guard !savedEpisodeIDs.isEmpty else { return }
+    guard !savedEpisodeIDs.isEmpty else {
+      Self.log.notice(
+        "unsaveSelectedEpisodesFromCache: no saved episodes among \(selectedCount) selected"
+      )
+      return
+    }
+
+    Self.log.debug(
+      "unsaveSelectedEpisodesFromCache: unsaving \(savedEpisodeIDs.count) of \(selectedCount) selected episodes"
+    )
 
     let log = Self.log
     Task {
@@ -359,11 +421,21 @@ extension SelectableEpisodeList {
   }
 
   func cancelSelectedEpisodeDownloads() {
+    let selectedCount = selectedEpisodes.count
     let downloadingEpisodeIDs =
       selectedEpisodes
       .filter { $0.episodeID != nil && $0.cacheStatus == .caching }
       .compactMap(\.episodeID)
-    guard !downloadingEpisodeIDs.isEmpty else { return }
+    guard !downloadingEpisodeIDs.isEmpty else {
+      Self.log.notice(
+        "cancelSelectedEpisodeDownloads: no downloading episodes among \(selectedCount) selected"
+      )
+      return
+    }
+
+    Self.log.debug(
+      "cancelSelectedEpisodeDownloads: cancelling \(downloadingEpisodeIDs.count) of \(selectedCount) selected episodes"
+    )
 
     let log = Self.log
     Task {
@@ -385,8 +457,15 @@ extension SelectableEpisodeList {
   }
 
   func markSelectedEpisodesFinished() {
-    guard anySelectedUnfinished else { return }
     let episodes = selectedEpisodes
+    guard anySelectedUnfinished else {
+      Self.log.notice(
+        "markSelectedEpisodesFinished: no unfinished episodes among \(episodes.count) selected"
+      )
+      return
+    }
+
+    Self.log.debug("markSelectedEpisodesFinished: marking \(episodes.count) episodes finished")
 
     Task { [weak self] in
       guard let self else { return }
@@ -402,8 +481,15 @@ extension SelectableEpisodeList {
   }
 
   func rateSelectedEpisodes(rating: EpisodeRating?) {
-    guard !selectedEpisodes.isEmpty else { return }
     let episodes = selectedEpisodes
+    guard !episodes.isEmpty else {
+      Self.log.notice("rateSelectedEpisodes: requested with no episodes selected")
+      return
+    }
+
+    Self.log.debug(
+      "rateSelectedEpisodes: rating \(episodes.count) episodes: \(String(describing: rating))"
+    )
 
     Task { [weak self] in
       guard let self else { return }
@@ -423,7 +509,14 @@ extension SelectableEpisodeList {
 
   func applyTagToSelectedEpisodes(_ tagID: Tag.ID) {
     let episodeIDs = selectedSavedEpisodeIDs
-    guard !episodeIDs.isEmpty else { return }
+    guard !episodeIDs.isEmpty else {
+      Self.log.notice("applyTagToSelectedEpisodes: no saved episodes selected for tag \(tagID)")
+      return
+    }
+
+    Self.log.debug(
+      "applyTagToSelectedEpisodes: tagging \(episodeIDs.count) episodes with tag \(tagID)"
+    )
 
     let log = Self.log
     Task {
@@ -440,7 +533,14 @@ extension SelectableEpisodeList {
 
   func removeTagFromSelectedEpisodes(_ tagID: Tag.ID) {
     let episodeIDs = selectedSavedEpisodeIDs
-    guard !episodeIDs.isEmpty else { return }
+    guard !episodeIDs.isEmpty else {
+      Self.log.notice("removeTagFromSelectedEpisodes: no saved episodes selected for tag \(tagID)")
+      return
+    }
+
+    Self.log.debug(
+      "removeTagFromSelectedEpisodes: untagging \(episodeIDs.count) episodes from tag \(tagID)"
+    )
 
     let log = Self.log
     Task {

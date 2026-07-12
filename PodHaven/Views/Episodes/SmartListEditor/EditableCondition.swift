@@ -33,8 +33,7 @@ struct EditableCondition: Identifiable, Hashable {
     case podcastDescription
     case podcastTitleOrDescription
     case state
-    case episodeTag
-    case podcastTag
+    case tag
     case duration
     case publishDate
 
@@ -47,8 +46,7 @@ struct EditableCondition: Identifiable, Hashable {
       case .podcastDescription: return "Podcast Description"
       case .podcastTitleOrDescription: return "Podcast Title or Description"
       case .state: return "State"
-      case .episodeTag: return "Episode Tag"
-      case .podcastTag: return "Podcast Tag"
+      case .tag: return "Tag"
       case .duration: return "Duration"
       case .publishDate: return "Publish Date"
       }
@@ -106,11 +104,8 @@ struct EditableCondition: Identifiable, Hashable {
     case .state(let state):
       kind = .state
       self.state = state
-    case .episodeTag(let tagCondition):
-      kind = .episodeTag
-      apply(tagCondition)
-    case .podcastTag(let tagCondition):
-      kind = .podcastTag
+    case .tag(let tagCondition):
+      kind = .tag
       apply(tagCondition)
     case .duration(let minSeconds, let maxSeconds):
       kind = .duration
@@ -162,12 +157,9 @@ struct EditableCondition: Identifiable, Hashable {
       return .podcastText(.titleOrDescription, textOp, trimmedText)
     case .state:
       return .state(state)
-    case .episodeTag:
+    case .tag:
       guard let tagCondition else { return nil }
-      return .episodeTag(tagCondition)
-    case .podcastTag:
-      guard let tagCondition else { return nil }
-      return .podcastTag(tagCondition)
+      return .tag(tagCondition)
     case .duration:
       guard let durationBounds else { return nil }
       return .duration(
@@ -183,12 +175,12 @@ struct EditableCondition: Identifiable, Hashable {
   var validationMessage: String? {
     guard condition == nil else { return nil }
     switch kind {
-    case .episodeTitle, .episodeDescription, .episodeTitleOrDescription,
-      .podcastTitle, .podcastDescription, .podcastTitleOrDescription:
+    case .episodeTitle, .episodeDescription, .episodeTitleOrDescription, .podcastTitle,
+      .podcastDescription, .podcastTitleOrDescription:
       return "Enter text to match"
     case .state:
       return nil
-    case .episodeTag, .podcastTag:
+    case .tag:
       return "Select a tag"
     case .duration:
       return durationValidationMessage

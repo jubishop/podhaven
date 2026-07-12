@@ -20,7 +20,6 @@ import SwiftUI
   var tags: IdentifiedArrayOf<Tag> { sharedState.tags }
   var podcastCounts: [Tag.ID: Int] = [:]
   var episodeCounts: [Tag.ID: Int] = [:]
-  var newTagName: String = ""
 
   // MARK: - Initialization
 
@@ -61,30 +60,6 @@ import SwiftUI
 
   // MARK: - Actions
 
-  func addTag() {
-    let name = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !name.isEmpty else { return }
-
-    if tags.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
-      alert("A tag named \"\(name)\" already exists.")
-      newTagName = ""
-      return
-    }
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        try await repo.insertTag(UnsavedTag(name: name))
-        newTagName = ""
-      } catch {
-        Self.log.caughtError("addTag: failed to insert tag '\(name)'", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
   func deleteTag(_ tagID: Tag.ID) {
     let tagName = tags[id: tagID]?.name ?? "this tag"
     let podcastCount = podcastCounts[tagID] ?? 0
@@ -93,7 +68,7 @@ import SwiftUI
       if podcastCount > 0 || episodeCount > 0 {
         """
         \"\(tagName)\" is used by \
-        \(Self.usageDescription(podcasts: podcastCount, episodes: episodeCount)). \
+        \(TagUsageMessage.usage(podcasts: podcastCount, episodes: episodeCount)). \
         Are you sure you want to delete it?
         """
       } else {
@@ -110,17 +85,6 @@ import SwiftUI
       }
       Button("Cancel", role: .cancel) {}
     }
-  }
-
-  private static func usageDescription(podcasts: Int, episodes: Int) -> String {
-    var parts = [String](capacity: 2)
-    if podcasts > 0 {
-      parts.append("\(podcasts) \(podcasts == 1 ? "podcast" : "podcasts")")
-    }
-    if episodes > 0 {
-      parts.append("\(episodes) \(episodes == 1 ? "episode" : "episodes")")
-    }
-    return parts.joined(separator: " and ")
   }
 
   // MARK: - Private Helpers
