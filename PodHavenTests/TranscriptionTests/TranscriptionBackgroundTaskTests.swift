@@ -17,7 +17,11 @@ struct TranscriptionBackgroundTaskTests {
     let processor = Container.shared.transcriptionProcessor()
     let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
 
-    let episode = try await Create.podcastEpisode(Create.unsavedEpisode(cachedFilename: "ep.mp3"))
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Background",
+      cachedFilename: "ep.mp3",
+      dataSize: 1
+    )
     queue.enqueue(episode.id)
 
     processor.register()

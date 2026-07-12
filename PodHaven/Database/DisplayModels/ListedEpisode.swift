@@ -33,7 +33,6 @@ struct ListedEpisode:
     var image: URL { canonicalEpisode.image }
     var podcastImage: URL { canonicalEpisode.podcastImage }
     var saveInCache: Bool { canonicalEpisode.saveInCache }
-    var hasTranscript: Bool { canonicalEpisode.hasTranscript }
     var rating: EpisodeRating? { canonicalEpisode.rating }
     var hasEmbedding: Bool { canonicalEpisode.hasEmbedding }
 
@@ -116,7 +115,6 @@ struct ListedEpisode:
   var image: URL { source.image }
   var podcastImage: URL { source.podcastImage }
   var saveInCache: Bool { source.saveInCache }
-  var hasTranscript: Bool { source.hasTranscript }
   var rating: EpisodeRating? { source.rating }
   var tagIDs: Set<Tag.ID>? { source.tagIDs }
   var creationDate: Date? { source.creationDate }

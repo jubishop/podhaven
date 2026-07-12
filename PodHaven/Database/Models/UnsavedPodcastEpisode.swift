@@ -50,8 +50,6 @@ struct UnsavedPodcastEpisode:
   var cacheStatus: Episode.CacheStatus { unsavedEpisode.cacheStatus }
   var finishDate: Date? { unsavedEpisode.finishDate }
   var rating: EpisodeRating? { unsavedEpisode.rating }
-  var hasTranscript: Bool { unsavedEpisode.hasTranscript }
-  var decodedTranscript: Transcript? { unsavedEpisode.decodedTranscript }
 
   // MARK: - Helpers
 

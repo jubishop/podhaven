@@ -70,7 +70,6 @@ struct SystemImageName:
   static let episodePaused = SystemImageName("pause.circle")
   static let selectionEmpty = SystemImageName("circle")
   static let selectionFilled = SystemImageName("record.circle")
-  static let transcribe = SystemImageName("text.bubble")
 
   // External Links
   static let externalLink = SystemImageName("arrow.up.right")

@@ -52,10 +52,6 @@ struct EpisodeDetailView: View {
         }
 
         descriptionView
-
-        Divider()
-
-        transcriptionView
       }
       .padding()
     }
@@ -153,20 +149,6 @@ struct EpisodeDetailView: View {
 
     ToolbarItem(placement: .primaryAction) {
       ShareEpisodeButton(episode: viewModel.episode)
-    }
-
-    ToolbarItem(placement: .primaryAction) {
-      Button {
-        viewModel.transcribe()
-      } label: {
-        switch viewModel.transcriptionStatus {
-        case .transcribing:
-          ProgressView()
-        default:
-          AppIcon.transcribeEpisode.image
-        }
-      }
-      .disabled(!viewModel.transcriptionStatus.canTranscribe)
     }
 
     ToolbarItem(placement: .primaryAction) {
@@ -342,70 +324,6 @@ struct EpisodeDetailView: View {
           }
         )
     }
-  }
-
-  // MARK: - Transcription
-
-  @ViewBuilder
-  private var transcriptionView: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Transcript")
-        .font(.headline)
-
-      switch viewModel.transcriptionStatus {
-      case .none:
-        AppIcon.transcribeEpisode
-          .labelButton {
-            viewModel.transcribe()
-          }
-          .buttonStyle(.borderedProminent)
-      case .queued:
-        Text("Queued for transcription")
-          .foregroundStyle(.secondary)
-      case .transcribing(let progress):
-        if progress > 0 {
-          ProgressView(value: progress) {
-            Text("Transcribing…")
-              .foregroundStyle(.secondary)
-          } currentValueLabel: {
-            Text(progress, format: .percent.precision(.fractionLength(0)))
-              .foregroundStyle(.secondary)
-          }
-        } else {
-          HStack(spacing: 8) {
-            ProgressView()
-            Text("Transcribing…")
-              .foregroundStyle(.secondary)
-          }
-        }
-      case .transcribed:
-        switch viewModel.transcriptDisplay {
-        case .loading:
-          HStack(spacing: 8) {
-            ProgressView()
-            Text("Loading transcript…")
-              .foregroundStyle(.secondary)
-          }
-        case .empty:
-          Text("No speech detected")
-            .foregroundStyle(.secondary)
-        case .text(let text):
-          Text(text)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-      case .failed:
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Transcription failed")
-            .foregroundStyle(.red)
-          AppIcon.transcribeEpisode
-            .labelButton("Retry") {
-              viewModel.transcribe()
-            }
-            .buttonStyle(.bordered)
-        }
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   // MARK: - Full Screen Image Overlay

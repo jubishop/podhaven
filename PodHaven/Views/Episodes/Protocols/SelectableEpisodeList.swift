@@ -40,7 +40,6 @@ import OrderedCollections
   func unsaveSelectedEpisodesFromCache()
   func cancelSelectedEpisodeDownloads()
   func markSelectedEpisodesFinished()
-  func transcribeSelectedEpisodes()
   func rateSelectedEpisodes(rating: EpisodeRating?)
   func applyTagToSelectedEpisodes(_ tagID: Tag.ID)
   func removeTagFromSelectedEpisodes(_ tagID: Tag.ID)
@@ -57,7 +56,6 @@ extension SelectableEpisodeList {
   private var queue: any Queueing { Container.shared.queue() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
-  private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
 
   nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
@@ -559,31 +557,6 @@ extension SelectableEpisodeList {
 // MARK: - Tag Selection Helpers
 
 extension SelectableEpisodeList where Self: ManagingEpisodes {
-  var anySelectedCanTranscribe: Bool {
-    selectedEpisodes.contains { canTranscribe($0) }
-  }
-
-  func transcribeSelectedEpisodes() {
-    let episodes = selectedEpisodes.filter { canTranscribe($0) }
-    guard !episodes.isEmpty else { return }
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        var episodeIDs: [Episode.ID] = []
-        episodeIDs.reserveCapacity(episodes.count)
-        for episode in episodes {
-          episodeIDs.append(try await getOrCreatePodcastEpisode(episode).id)
-        }
-        transcriptionQueue.enqueue(episodeIDs)
-        didPerformBulkAction(on: episodes)
-      } catch {
-        Self.log.caughtError("transcribeSelectedEpisodes: failed", error)
-      }
-    }
-  }
-
   // True only when every selected episode has loaded tag data.
   var selectionHasTagData: Bool {
     !selectedEpisodes.isEmpty && selectedEpisodes.allSatisfy { tagIDs(for: $0) != nil }

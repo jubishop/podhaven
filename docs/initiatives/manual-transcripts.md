@@ -8,7 +8,7 @@ User-initiated, on-device transcription of individual episodes, rendered read-on
 
 ## Status
 
-Implemented 2026-06-13 across five phases (schema → engine → queue/processor → UI → background drain) on the `worktree-manualTranscripts` branch — building clean, lint-clean, unit-tested. The on-device `Transcriber` (real speech model) and the `BGProcessingTask` runtime behaviour are integration/device-tested, not in CI; both sit behind protocols/fakes so everything around them is unit-tested. Not yet merged. The transcript renders read-only — **interactive playback (tap-to-seek, active-segment highlight, auto-scroll) is deferred to v2**; the per-segment timestamps are already stored, so v2 is purely a UI layer. Also deferred and tracked in [Episode Transcripts](transcripts.md): speaker diarization, RSS `<podcast:transcript>` import, transcript search, autonomous transcription.
+Implementation is split across two stacked changes: `worktree-manualTranscripts` contains the schema, engine, queue/processor, and background drain; a follow-up branch contains the UI integration. Both are building clean, lint-clean, and unit-tested. The on-device `Transcriber` (real speech model) and the `BGProcessingTask` runtime behaviour are integration/device-tested, not in CI; both sit behind protocols/fakes so everything around them is unit-tested. Not yet merged. The transcript renders read-only — **interactive playback (tap-to-seek, active-segment highlight, auto-scroll) is deferred to v2**; the per-segment timestamps are already stored, so v2 is purely a UI layer. Also deferred and tracked in [Episode Transcripts](transcripts.md): speaker diarization, RSS `<podcast:transcript>` import, transcript search, autonomous transcription.
 
 ## Why
 
@@ -72,7 +72,7 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 
   A `transcriptionStatus(for:)` accessor feeds every UI surface. Because queue/progress are `Broadcast`s, rows update live — exactly like the download-progress dot in `StatusIconColumn`.
 
-## UI integration
+## UI integration (stacked follow-up)
 
 - **Detail body:** new transcription `Section` inserted after `descriptionView` (with a `Divider()`), as a sibling in the `VStack`. States: a "Transcribe" CTA when `.none`; "Queued" when `.queued`; a determinate progress bar with percentage when `.transcribing` (an indeterminate spinner until the first segment finalizes and progress climbs above 0); the rendered (read-only) transcript when `.transcribed`; an error + retry when `.failed`.
 - **Detail toolbar:** a `ToolbarItem(.primaryAction)` inserted between `ShareEpisodeButton` and the rating `Menu`, so the trailing group reads `[rating] [transcribe] [share]` (primaryAction lays out right-to-left). The control reflects `TranscriptionStatus` (icon → spinner/progress → check).
@@ -87,7 +87,7 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 1. **Schema + model** — Migration v67, `transcript` column + `Episode.Columns`, `Transcript`/`TranscriptSegment` Codable, `Repo.updateTranscript`, migration test. (Foundation; nothing user-visible.)
 2. **Engine** — `PodHaven/Transcriptions/Transcriber` + speech model gate + the awaited `cachedURL(downloadingIfNeeded:)` cache helper. Unit-tested behind speech-framework protocol seams with fakes.
 3. **Queue + processor (foreground)** — `TranscriptionQueue` (persisted) + `TranscriptionProcessor` loop, one-at-a-time, status/progress broadcasts. Tests with speech/cache fakes.
-4. **UI** — detail section (read-only render first), toolbar button, `ManagingEpisodes`/`SelectableEpisodeList` actions, context menu, swipe case + settings, multi-select, `AppIcon`, status across surfaces.
+4. **UI (stacked follow-up)** — detail section (read-only render first), toolbar button, `ManagingEpisodes`/`SelectableEpisodeList` actions, context menu, swipe case + settings, multi-select, `AppIcon`, status across surfaces.
 5. **Background drain** — `BGProcessingTask` via the existing `BackgroundTaskScheduler` (new Info.plist identifier, `register()` in `AppLauncher`, `scheduleNext()` on background), mirroring `EmbeddingProcessor`; unit-tested with `FakeBGTaskScheduler`.
 
 Phases 1–3 are independently shippable; 4 makes it usable; 5 completes it. (Interactive playback — tap-to-seek / highlight / auto-scroll — is deferred to v2.)
@@ -104,7 +104,7 @@ Phases 1–3 are independently shippable; 4 makes it usable; 5 completes it. (In
 ## Known follow-ups
 
 - **Audio retention (decided):** transcription downloads the audio if absent via `CacheManager.cachedURL(downloadingIfNeeded:)` and leaves the episode's existing cache/purge policy unchanged — the original lean, no keep-then-restore.
-- **Failure surfacing (shipped, with a gap):** the detail section shows an inline "Transcription failed" + Retry; `failed` is transient (cleared on retry or relaunch). Open gap: there is no explicit dismiss affordance, so a user who won't retry can't clear the failed state from the UI.
+- **Failure surfacing (UI follow-up, with a gap):** the detail section shows an inline "Transcription failed" + Retry; `failed` is transient (cleared on retry or relaunch). Open gap: there is no explicit dismiss affordance, so a user who won't retry can't clear the failed state from the UI.
 - **Background-grant timing & thermals (open):** `BGProcessingTask` grants are discretionary and can be delayed; the `.minutes(1)` cadence and `requiresExternalPower = false` are tunable once device-tested (transcription is ~5× realtime, so thermal-gating to charging is a possible future knob). A foreground drain and a granted background drain can briefly overlap; processing is idempotent (`hasTranscript` skip + queue dedup), so the only cost is a rare double-transcribe.
 
 ## References

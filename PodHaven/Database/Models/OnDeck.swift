@@ -24,7 +24,6 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
   let rating: EpisodeRating?
   let tagIDs: Set<Tag.ID>
   let hasEmbedding: Bool
-  let hasTranscript: Bool
 
   // MARK: - Podcast Fields
 
@@ -55,7 +54,6 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     saveInCache = row[Episode.Columns.saveInCache]
     rating = row[Episode.Columns.rating]
     hasEmbedding = row[EpisodeEmbedding.existsColumnName]
-    hasTranscript = row[Episode.hasTranscriptColumnName]
 
     tagIDs = try EpisodeTag.decodeTagIDs(from: row)
 
@@ -106,7 +104,6 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     // subqueries in `request(for:)`, so seeding empty/false here is fine.
     tagIDs = []
     hasEmbedding = false
-    hasTranscript = podcastEpisode.hasTranscript
     podcastImage = podcastEpisode.podcastImage
     podcastTitle = podcastEpisode.podcastTitle
     feedURL = podcastEpisode.feedURL
@@ -142,7 +139,6 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       Episode.Columns.downloading,
       EpisodeTag.tagIDsSelectable,
       EpisodeEmbedding.existsSelectable,
-      Episode.hasTranscriptSelectable,
     ]
   }
 
@@ -201,7 +197,6 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     hasher.combine(rating)
     hasher.combine(tagIDs)
     hasher.combine(hasEmbedding)
-    hasher.combine(hasTranscript)
     hasher.combine(podcastImage)
     hasher.combine(podcastTitle)
     hasher.combine(feedURL)
@@ -239,7 +234,6 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       && lhs.rating == rhs.rating
       && lhs.tagIDs == rhs.tagIDs
       && lhs.hasEmbedding == rhs.hasEmbedding
-      && lhs.hasTranscript == rhs.hasTranscript
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle
       && lhs.feedURL == rhs.feedURL

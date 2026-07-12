@@ -17,7 +17,6 @@ protocol EpisodeFoundational: Identifiable, Sendable, Stringable where ID: Senda
   var queueOrder: Int? { get }
   var cacheStatus: Episode.CacheStatus { get }
   var saveInCache: Bool { get }
-  var hasTranscript: Bool { get }
   var currentTime: CMTime { get }
   var finishDate: Date? { get }
   var rating: EpisodeRating? { get }

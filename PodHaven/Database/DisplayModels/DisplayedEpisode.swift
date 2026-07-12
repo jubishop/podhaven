@@ -55,18 +55,6 @@ struct DisplayedEpisode:
   var cacheStatus: Episode.CacheStatus { source.canonicalEpisode.cacheStatus }
   var finishDate: Date? { source.canonicalEpisode.finishDate }
   var rating: EpisodeRating? { source.canonicalEpisode.rating }
-  var hasTranscript: Bool {
-    switch source {
-    case .saved(let episode): return episode.hasTranscript
-    case .unsaved(let episode): return episode.hasTranscript
-    }
-  }
-  var decodedTranscript: Transcript? {
-    switch source {
-    case .saved(let episode): return episode.decodedTranscript
-    case .unsaved(let episode): return episode.decodedTranscript
-    }
-  }
 
   // MARK: - EpisodeDisplayable
 
