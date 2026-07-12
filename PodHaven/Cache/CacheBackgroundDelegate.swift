@@ -355,7 +355,14 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard let downloadTask = task as? URLSessionDownloadTask
     else { Assert.fatal("didCompleteWithError passed non URLSessionDownloadTask? \(task)") }
 
-    Task { await urlSession(session, task: downloadTask, didCompleteWithError: error) }
+    guard error != nil else { return }
+    let finalizationSessionID = beginFinalization(for: sessionID(for: session))
+    Task { [weak self] in
+      guard let self else { return }
+      await self.performProtectedFinalization(for: finalizationSessionID) {
+        await self.urlSession(session, task: downloadTask, didCompleteWithError: error)
+      }
+    }
   }
   func urlSession(
     _ session: any DataFetchable,

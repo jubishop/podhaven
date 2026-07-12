@@ -214,6 +214,53 @@ import Testing
     #expect(application.activeTaskCount == 0)
   }
 
+  @Test("background completion waits for protected failure cleanup")
+  func backgroundCompletionWaitsForProtectedFailureCleanup() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+
+    let identifier = AppInfo.bundleIdentifier + ".cache.bg.test.\(UUID())"
+    let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
+    let backgroundSession = URLSession(configuration: configuration)
+    defer { backgroundSession.invalidateAndCancel() }
+
+    let task = backgroundSession.downloadTask(with: podcastEpisode.episode.mediaURL.rawValue)
+    task.taskDescription = String(podcastEpisode.id.rawValue)
+
+    let completionCalled = ThreadSafe(false)
+    cacheBackgroundDelegate.store(id: URLSessionConfiguration.ID(identifier)) {
+      completionCalled(true)
+    }
+
+    let fakeRepo = try #require(repo as? FakeRepo)
+    let completedFetchCount = fakeRepo.completedEpisodeFetchCount()
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+
+    cacheBackgroundDelegate.urlSession(
+      backgroundSession,
+      task: task as URLSessionTask,
+      didCompleteWithError: InjectedRepoError()
+    )
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+
+    let application = try #require(uiApplication as? FakeApplication)
+    #expect(application.activeTaskCount == 1)
+
+    cacheBackgroundDelegate.urlSessionDidFinishEvents(
+      forBackgroundURLSession: backgroundSession
+    )
+    try await yieldForSpuriousAsyncWork()
+    #expect(!completionCalled())
+
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    try await fakeRepo.waitForEpisodeFetchCompleted(count: completedFetchCount + 1)
+    try await Wait.until(
+      { completionCalled() },
+      { "Background completion never fired after failure cleanup drained" }
+    )
+    #expect(application.activeTaskCount == 0)
+  }
+
   // downloading is cleared only after the cached filename is written, so a
   // request arriving mid-completion sees .caching and no-ops, not a duplicate.
   @Test("a request arriving mid-completion does not start a duplicate download")
