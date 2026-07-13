@@ -31,6 +31,8 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let completedEpisodeFetchCount = ThreadSafe<Int>(0)
   private var episodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
 
+  private var podcastEpisodeFetchBarrierRemaining = 0
+  private var podcastEpisodeFetchBarrierContinuations: [CheckedContinuation<Void, Never>] = []
   nonisolated let pendingDownloadingFalseSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedDownloadingFalseCount = ThreadSafe<Int>(0)
   private var downloadingFalseSuspensions: [CheckedContinuation<Void, Never>] = []
@@ -209,7 +211,29 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     recordCall(methodName: "podcastEpisode", parameters: episodeID)
-    return try await repo.podcastEpisode(episodeID)
+    let result = try await repo.podcastEpisode(episodeID)
+    guard podcastEpisodeFetchBarrierRemaining > 0 else { return result }
+
+    podcastEpisodeFetchBarrierRemaining -= 1
+    if podcastEpisodeFetchBarrierRemaining == 0 {
+      let continuations = podcastEpisodeFetchBarrierContinuations
+      podcastEpisodeFetchBarrierContinuations.removeAll()
+      for continuation in continuations { continuation.resume() }
+    } else {
+      await withCheckedContinuation { continuation in
+        podcastEpisodeFetchBarrierContinuations.append(continuation)
+      }
+    }
+    return result
+  }
+
+  func barrierNextPodcastEpisodeFetches(count: Int) {
+    Assert.precondition(count > 1, "Podcast episode fetch barrier requires multiple callers")
+    Assert.precondition(
+      podcastEpisodeFetchBarrierRemaining == 0,
+      "Podcast episode fetch barrier is already active"
+    )
+    podcastEpisodeFetchBarrierRemaining = count
   }
 
   func podcastEpisodes(_ episodeIDs: [Episode.ID]) async throws -> [PodcastEpisode] {
@@ -421,6 +445,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       playedFrom: playedFrom,
       now: now
     )
+  }
+
+  func claimForDownloadIfUncached(_ episodeID: Episode.ID) async throws -> Bool {
+    recordCall(methodName: "claimForDownloadIfUncached", parameters: episodeID)
+    return try await repo.claimForDownloadIfUncached(episodeID)
   }
 
   @discardableResult

@@ -766,6 +766,18 @@ struct Repo: Databasing {
     }
   }
 
+  func claimForDownloadIfUncached(_ episodeID: Episode.ID) async throws -> Bool {
+    Self.log.debug("claimForDownloadIfUncached: \(episodeID)")
+
+    return try await writer.write { db in
+      try Episode
+        .withID(episodeID)
+        .filter(Episode.Columns.cachedFilename == nil)
+        .filter(Episode.Columns.downloading == false)
+        .updateAll(db, Episode.Columns.downloading.set(to: true))
+    } > 0
+  }
+
   @discardableResult
   func updateDownloading(_ episodeID: Episode.ID, downloading: Bool) async throws -> Bool {
     Self.log.debug("updateDownloading: \(episodeID) to \(downloading)")

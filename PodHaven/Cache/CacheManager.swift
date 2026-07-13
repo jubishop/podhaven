@@ -126,16 +126,8 @@ struct CacheManager {
       return nil
     }
 
-    switch podcastEpisode.episode.cacheStatus {
-    case .cached:
-      Self.log.trace("\(podcastEpisode.toString) already cached")
-      return nil
-    case .caching:
-      Self.log.trace("\(podcastEpisode.toString) already being downloaded")
-      return nil
-    case .uncached:
-      return try await startDownload(for: podcastEpisode).taskID
-    }
+    guard let attempt = try await startDownload(for: podcastEpisode) else { return nil }
+    return attempt.taskID
   }
 
   func cachedURL(downloadingIfNeeded episodeID: Episode.ID) async throws -> CachedURL? {
@@ -156,16 +148,25 @@ struct CacheManager {
       // clearCache): clear the stale filename and download fresh.
       Self.log.warning("cachedURL: cached file missing on disk for \(episodeID), re-downloading")
       try await repo.updateCachedFilename(episodeID, cachedFilename: nil)
-      attempt = try await startDownload(for: podcastEpisode)
+      guard let startedAttempt = try await startOrJoinDownload(for: podcastEpisode) else {
+        return try await repo.episode(episodeID)?.cachedURL
+      }
+      attempt = startedAttempt
     case .uncached:
-      attempt = try await startDownload(for: podcastEpisode)
+      guard let startedAttempt = try await startOrJoinDownload(for: podcastEpisode) else {
+        return try await repo.episode(episodeID)?.cachedURL
+      }
+      attempt = startedAttempt
     case .caching:
       if let activeAttempt = await activeDownloadAttempt(for: episodeID) {
         attempt = activeAttempt
       } else {
         Self.log.debug("cachedURL: restarting stranded download for \(episodeID)")
         try await repo.updateDownloading(episodeID, downloading: false)
-        attempt = try await startDownload(for: podcastEpisode)
+        guard let restartedAttempt = try await startOrJoinDownload(for: podcastEpisode) else {
+          return try await repo.episode(episodeID)?.cachedURL
+        }
+        attempt = restartedAttempt
       }
     }
 
@@ -221,17 +222,17 @@ struct CacheManager {
     }
 
     if episode.downloading {
-      let description = String(episodeID.rawValue)
-      let liveTask = await cacheManagerSession.allCreatedTasks.first {
-        $0.taskDescription == description
+      if let activeAttempt = await activeDownloadAttempt(for: episodeID) {
+        let liveTask = await cacheManagerSession.allCreatedTasks.first {
+          $0.taskID == activeAttempt.taskID
+        }
+        liveTask?.cancel()
       }
-      liveTask?.cancel()
       sharedState.clearDownloadProgress(for: episodeID)
-      try await repo.updateDownloading(episode.id, downloading: false)
+      try await repo.updateDownloading(episodeID, downloading: false)
     }
 
-    guard let cachedURL = episode.cachedURL
-    else {
+    guard let cachedURL = episode.cachedURL else {
       Self.log.debug("episode: \(episode.toString) has no cached file")
       return nil
     }
@@ -239,24 +240,35 @@ struct CacheManager {
     do {
       try fileManager.removeItem(at: cachedURL.rawValue)
     } catch {
+      guard ErrorKit.isMissingFile(error) else {
+        Self.log.caughtError(
+          "clearCache: failed to remove cached file for \(episode.toString)",
+          error
+        )
+        throw error
+      }
       Self.log.caughtError(
-        "clearCache: failed to remove cached file for \(episode.toString)",
-        error
+        "clearCache: cached file already missing for \(episode.toString)",
+        error,
+        level: .debug
       )
     }
     try await repo.updateCachedFilename(episode.id, cachedFilename: nil)
 
     Self.log.debug("cache cleared for: \(episode.toString)")
-
     return cachedURL
   }
 
   // MARK: - Private Helpers
 
-  @discardableResult
   private func startDownload(for podcastEpisode: PodcastEpisode) async throws
-    -> CacheDownloadAttempt
+    -> CacheDownloadAttempt?
   {
+    guard try await repo.claimForDownloadIfUncached(podcastEpisode.id) else {
+      Self.log.trace("startDownload: episode \(podcastEpisode.id) was not uncached")
+      return nil
+    }
+
     var request = URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
     request.allowsExpensiveNetworkAccess = true
     request.allowsConstrainedNetworkAccess = true
@@ -270,15 +282,20 @@ struct CacheManager {
       with: request,
       taskDescription: String(podcastEpisode.id.rawValue)
     )
-    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
     let attempt = CacheDownloadAttempt(
       episodeID: podcastEpisode.id,
       taskID: downloadTask.taskID
     )
     activeDownloadAttempts[podcastEpisode.id] = attempt
     downloadTask.resume()
-
     return attempt
+  }
+
+  private func startOrJoinDownload(for podcastEpisode: PodcastEpisode) async throws
+    -> CacheDownloadAttempt?
+  {
+    if let attempt = try await startDownload(for: podcastEpisode) { return attempt }
+    return await activeDownloadAttempt(for: podcastEpisode.id)
   }
 
   private func activeDownloadAttempt(for episodeID: Episode.ID) async -> CacheDownloadAttempt? {
