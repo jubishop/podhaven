@@ -27,7 +27,9 @@ struct TranscriptionProcessorTests {
       dataSize: 1
     )
 
-    queue.enqueue([ep1.id, ep2.id])
+    for episodeID in [ep1.id, ep2.id] {
+      queue.enqueue(episodeID)
+    }
     processor.handleScenePhaseChange(to: .active)
 
     try await Wait.until(

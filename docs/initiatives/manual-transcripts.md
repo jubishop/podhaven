@@ -42,7 +42,7 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 ## Data model
 
 - **Migration v67** (`PodHaven/Database/Migrations/Migration_v67.swift`, registered `"v67"` in `Schema.makeMigrator()`): `ALTER TABLE episode ADD COLUMN transcript TEXT` — nullable, default NULL, no backfill. Does not trip the `episode_content_updated` trigger (which fires only on title/description change). Migration test `v67Tests.swift` migrates through `"v66"` before asserting the new column.
-- **Model:** add `transcript: String?` to `UnsavedEpisode` and `Column("transcript")` to `Episode.Columns`, with a computed `decodedTranscript: Transcript?` for the UI.
+- **Model:** add `transcript: String?` to `UnsavedEpisode` and `Column("transcript")` to `Episode.Columns`, with a computed `decodedTranscript: Transcript?` that lazily caches its decoded value in memory while persisting only the original JSON.
 - **Codable payload:** `struct TranscriptSegment { let start: TimeInterval; let text: String }` plus a `Transcript` wrapper carrying `segments`, `locale`, `createdAt`, and a `modelRevision` (so a future model bump can invalidate, mirroring `EmbeddingService.recipeVersion`). Encoded to the column as JSON; the column holds only the finished transcript — transient queue/progress state never touches the DB.
 - **Repo:** `updateTranscript(_ id:transcript:)` mirroring `updateCachedFilename` (nullable single-column `updateAll`).
 
@@ -54,9 +54,9 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 
 ## Queue, processing & state
 
-- **`TranscriptionQueue`** (cached Factory service, `fileprivate init`): `@PersistedBroadcast("transcriptionQueue") var queue: [Episode.ID] = []` (enqueue/dequeue/move/contains); `@Broadcasted var progress: [Episode.ID: Double] = [:]` (active-item progress fed live by the engine's `onProgress`, mirroring `SharedState.downloadProgress`); `@Broadcasted var failed: Set<Episode.ID> = []` (transient, cleared on retry/dismiss).
-- **`TranscriptionProcessor`** (cached service, mirrors `EmbeddingProcessor` conventions): a single `Task(priority: taskPriority(.background))` subscribes to the persisted queue stream, drains the head, ensures audio, runs `Transcriber`, writes `Repo.updateTranscript`, updates progress, dequeues, and repeats — strictly one at a time. Failures are recorded and dequeued; `Task.checkCancellation()` so a mid-episode stop is clean. The work source is the **persisted queue**, not a DB "needs work" query — the deliberate divergence from the embedding template (which is autonomous).
-- **Background drain:** `TranscriptionProcessor` owns a `BackgroundTaskScheduler(identifier: "\(AppInfo.bundleIdentifier).transcription", cadence: .minutes(1), taskType: .processing(...))` (new identifier in `BGTaskSchedulerPermittedIdentifiers`; the `processing` background mode is already declared). `register()` — called from `AppLauncher`, mirroring `embeddingProcessor.register()` — installs a handler that runs a bounded `drainUntilEmpty()`; `handleScenePhaseChange(.background)` calls `scheduleNext()`. On expiry the handler completes `false` and the persisted queue resumes on the next grant/activation. Reuses the existing `BackgroundTaskScheduler` wrapper unchanged.
+- **`TranscriptionQueue`** (cached Factory service, `fileprivate init`): `@PersistedBroadcast("transcriptionQueue") var queue: [Episode.ID] = []` (enqueue/dequeue/contains); a head-only `AsyncStream<Episode.ID>` yields the current item and advances after it is removed or failed, replaying a retained head when a lifecycle handoff starts a new stream; `@Broadcasted var progress: [Episode.ID: Double] = [:]` (active-item progress fed live by the engine's `onProgress`, mirroring `SharedState.downloadProgress`); `@Broadcasted var failed: Set<Episode.ID> = []` (transient, cleared on retry/dismiss).
+- **`TranscriptionProcessor`** (cached service, mirrors `EmbeddingProcessor` conventions): one `for await episodeID` loop consumes the queue's head-only work stream, ensures audio, runs `Transcriber`, writes `Repo.updateTranscript`, updates progress, and dequeues — strictly one at a time. Foreground and background entry points serialize on shared drain ownership; cancellation releases the retained head back to the stream. Failures are recorded and dequeued. The work source is the **persisted queue**, not a DB "needs work" query — the deliberate divergence from the embedding template (which is autonomous).
+- **Background drain:** `TranscriptionProcessor` owns a `BackgroundTaskScheduler(identifier: "\(AppInfo.bundleIdentifier).transcription", cadence: .minutes(1), taskType: .processing(...))` (new identifier in `BGTaskSchedulerPermittedIdentifiers`; the `processing` background mode is already declared). `register()` — called from `AppLauncher`, mirroring `embeddingProcessor.register()` — installs a handler using the same processor loop in a bounded-until-empty mode; `handleScenePhaseChange(.background)` calls `scheduleNext()`. On expiry the handler completes `false`, releases its current head, and the persisted queue resumes on the next grant/activation. Reuses the existing `BackgroundTaskScheduler` wrapper unchanged.
 - **Per-episode status (mirrors caching's `Episode.CacheStatus` + `downloadProgress`):**
 
   ```swift
@@ -96,7 +96,7 @@ Phases 1–3 are independently shippable; 4 makes it usable; 5 completes it. (In
 
 - Migration test (`v67Tests.swift`) — raw SQL, migrate `upTo: "v66"` then `"v67"`, assert the column.
 - Queue persistence: enqueue → simulated relaunch (re-read defaults) → order preserved.
-- Processor loop: speech/cache fakes drive one-at-a-time ordering, progress, dequeue, failure, and stale-download recovery; `FakeBGTaskScheduler.triggerExpiration()` exercises the background-task path (mirrors `BackgroundTaskSchedulerTests`).
+- Processor loop: speech/cache fakes drive one-at-a-time ordering, foreground/background exclusivity, progress, dequeue, failure, and stale-download recovery; `FakeBGTask.expire()` verifies that background expiration retains the current head for the next foreground drain.
 - Status derivation: each `TranscriptionStatus` branch.
 - Swipe-settings VM fixture updated for the new case.
 - `Transcriber` against the real model is integration-only; production stays behind the protocol so units use the fake.
@@ -105,7 +105,7 @@ Phases 1–3 are independently shippable; 4 makes it usable; 5 completes it. (In
 
 - **Audio retention (decided):** transcription downloads the audio if absent via `CacheManager.cachedURL(downloadingIfNeeded:)` and leaves the episode's existing cache/purge policy unchanged — the original lean, no keep-then-restore.
 - **Failure surfacing (UI follow-up, with a gap):** the detail section shows an inline "Transcription failed" + Retry; `failed` is transient (cleared on retry or relaunch). Open gap: there is no explicit dismiss affordance, so a user who won't retry can't clear the failed state from the UI.
-- **Background-grant timing & thermals (open):** `BGProcessingTask` grants are discretionary and can be delayed; the `.minutes(1)` cadence and `requiresExternalPower = false` are tunable once device-tested (transcription is ~5× realtime, so thermal-gating to charging is a possible future knob). A foreground drain and a granted background drain can briefly overlap; processing is idempotent (`hasTranscript` skip + queue dedup), so the only cost is a rare double-transcribe.
+- **Background-grant timing & thermals (open):** `BGProcessingTask` grants are discretionary and can be delayed; the `.minutes(1)` cadence and `requiresExternalPower = false` are tunable once device-tested (transcription is ~5× realtime, so thermal-gating to charging is a possible future knob). Foreground and background drains share exclusive ownership, so lifecycle handoff cannot double-transcribe a queue head.
 
 ## References
 

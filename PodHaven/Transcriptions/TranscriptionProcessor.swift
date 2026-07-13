@@ -34,7 +34,13 @@ struct TranscriptionProcessor: Sendable {
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).transcription"
 
   private let backgroundTaskScheduler: BackgroundTaskScheduler
+  private let drainLock = ThreadLock()
   private let processingTask = ThreadSafe<Task<Void, Never>?>(nil)
+
+  private enum DrainMode {
+    case foreground
+    case background
+  }
 
   fileprivate init() {
     backgroundTaskScheduler = BackgroundTaskScheduler(
@@ -53,7 +59,7 @@ struct TranscriptionProcessor: Sendable {
     backgroundTaskScheduler.register { complete in
       Self.log.info("Starting transcription background task")
       do {
-        try await drainUntilEmpty()
+        try await drain(.background)
         Self.log.info("Transcription background task completed")
         complete(true)
       } catch is CancellationError {
@@ -88,7 +94,13 @@ struct TranscriptionProcessor: Sendable {
     processingTask { task in
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
-        await drain()
+        do {
+          try await drain(.foreground)
+        } catch is CancellationError {
+          return
+        } catch {
+          Self.log.caughtError("Foreground transcription drain failed", error)
+        }
       }
     }
   }
@@ -100,28 +112,31 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  // Foreground drain: every queue change wakes a drain of the head down to
-  // empty. The stream replays the current queue on subscription and ends on
-  // task cancellation, so a backgrounded processor falls out of the loop
-  // cleanly and the persisted queue resumes on the next activation.
-  private func drain() async {
-    for await _ in transcriptionQueue.$episodeIDs.stream() {
-      do {
-        try await drainUntilEmpty()
-      } catch {
-        return  // Cancelled — the queue resumes on the next activation.
-      }
-    }
-  }
+  // The queue yields one claimed head at a time. Foreground and background
+  // lifecycle paths share this loop and serialize on drainLock; foreground
+  // waits for future work while a background grant returns when the backlog
+  // empties.
+  private func drain(_ mode: DrainMode) async throws {
+    await drainLock.waitForClaim()
+    try Task.checkCancellation()
+    defer { drainLock.release() }
 
-  // Process the head episode until the queue empties, or until expiry surfaces
-  // as cancellation (rethrown so callers stop). Shared by the foreground drain
-  // and the background task.
-  private func drainUntilEmpty() async throws {
-    while let episodeID = transcriptionQueue.episodeIDs.first {
+    if case .background = mode, transcriptionQueue.episodeIDs.isEmpty {
+      return
+    }
+
+    let stream = transcriptionQueue.makeStream()
+    defer { transcriptionQueue.finishStream() }
+
+    for await episodeID in stream {
       try Task.checkCancellation()
       try await processHead(episodeID)
+      if case .background = mode, transcriptionQueue.episodeIDs.isEmpty {
+        return
+      }
     }
+
+    try Task.checkCancellation()
   }
 
   // Processes one episode; rethrows CancellationError so callers can stop, and
@@ -168,7 +183,6 @@ struct TranscriptionProcessor: Sendable {
     )
     try await repo.updateTranscript(episodeID, transcript: transcript.jsonString())
 
-    transcriptionQueue.clearProgress(for: episodeID)
     transcriptionQueue.remove(episodeID)
     Self.log.info("Transcribed \(episodeID): \(segments.count) segments")
   }

@@ -1,4 +1,3 @@
-# Xcode owns this file and indents with tabs by design; exempt it from
-# core.whitespace=tab-in-indent so `git diff --check` doesn't flag every
-# project edit.
+# Xcode owns these files and indents with tabs by design.
 *.pbxproj -whitespace
+PodHaven/Info.plist whitespace=trailing-space
