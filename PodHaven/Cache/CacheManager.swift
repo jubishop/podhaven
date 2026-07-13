@@ -261,7 +261,6 @@ struct CacheManager {
 
   // MARK: - Private Helpers
 
-  @discardableResult
   private func startDownload(for podcastEpisode: PodcastEpisode) async throws
     -> CacheDownloadAttempt?
   {
