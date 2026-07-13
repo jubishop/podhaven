@@ -445,6 +445,21 @@ import Testing
     #expect(fileManager.fileExists(at: cachedURL.rawValue))
   }
 
+  @Test("clearCache heals the cached row when the file is already missing")
+  func clearCacheHealsCachedRowWhenFileAlreadyMissing() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
+    try fileManager.removeItem(at: cachedURL.rawValue)
+
+    let cleared = try await cacheManager.clearCache(for: podcastEpisode.id)
+
+    #expect(cleared == cachedURL)
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+  }
+
   @Test("clearCache does nothing if episode is queued")
   func clearCacheDoesNothingIfEpisodeIsQueued() async throws {
     let podcastEpisode = try await Create.podcastEpisode()

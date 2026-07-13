@@ -766,7 +766,6 @@ struct Repo: Databasing {
     }
   }
 
-  @discardableResult
   func claimForDownloadIfUncached(_ episodeID: Episode.ID) async throws -> Bool {
     Self.log.debug("claimForDownloadIfUncached: \(episodeID)")
 

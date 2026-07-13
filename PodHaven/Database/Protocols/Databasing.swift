@@ -124,7 +124,6 @@ protocol Databasing: Sendable {
     now: Date
   ) async throws -> Bool
 
-  @discardableResult
   func claimForDownloadIfUncached(_ episodeID: Episode.ID) async throws -> Bool
 
   @discardableResult

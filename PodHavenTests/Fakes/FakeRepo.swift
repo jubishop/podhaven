@@ -447,7 +447,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     )
   }
 
-  @discardableResult
   func claimForDownloadIfUncached(_ episodeID: Episode.ID) async throws -> Bool {
     recordCall(methodName: "claimForDownloadIfUncached", parameters: episodeID)
     return try await repo.claimForDownloadIfUncached(episodeID)
