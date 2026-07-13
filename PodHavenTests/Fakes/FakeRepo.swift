@@ -8,16 +8,6 @@ import Tagged
 @testable import PodHaven
 
 actor FakeRepo: Databasing, Sendable, FakeCallable {
-  struct WinningDownloadClaimGate: Sendable {
-    let claimed = AsyncLatch<Void>()
-    let release = AsyncLatch<Void>()
-  }
-
-  struct CachedFilenameClearGate: Sendable {
-    let reached = AsyncLatch<Void>()
-    let release = AsyncLatch<Void>()
-  }
-
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
   nonisolated let refreshEpisodeRowsRead = ThreadSafe<Int>(0)
@@ -25,10 +15,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // One-shot error to throw from `updateSaveInCache(_ episodeIDs:saveInCache:)`.
   // Cleared on use so subsequent calls reach the real repo.
   nonisolated let updateSaveInCacheBulkError = ThreadSafe<(any Error & Sendable)?>(nil)
-
-  // One-shot error to throw when clearing the downloading flag.
-  // Cleared on use so a caller can retry the failed terminal transition.
-  nonisolated let updateDownloadingFalseError = ThreadSafe<(any Error & Sendable)?>(nil)
 
   // One-shot error to throw from `episode(_:Episode.ID)`. Cleared on use so
   // subsequent calls reach the real repo.
@@ -47,9 +33,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   private var podcastEpisodeFetchBarrierRemaining = 0
   private var podcastEpisodeFetchBarrierContinuations: [CheckedContinuation<Void, Never>] = []
-  private var nextWinningDownloadClaimGate: WinningDownloadClaimGate?
-  private var nextCachedFilenameClearGate: CachedFilenameClearGate?
-  nonisolated let completedDownloadClaimCount = ThreadSafe<Int>(0)
   nonisolated let pendingDownloadingFalseSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedDownloadingFalseCount = ThreadSafe<Int>(0)
   private var downloadingFalseSuspensions: [CheckedContinuation<Void, Never>] = []
@@ -467,34 +450,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   @discardableResult
   func claimForDownloadIfUncached(_ episodeID: Episode.ID) async throws -> Bool {
     recordCall(methodName: "claimForDownloadIfUncached", parameters: episodeID)
-    let claimed = try await repo.claimForDownloadIfUncached(episodeID)
-    completedDownloadClaimCount { $0 += 1 }
-    guard claimed, let gate = nextWinningDownloadClaimGate else { return claimed }
-
-    nextWinningDownloadClaimGate = nil
-    gate.claimed.open()
-    try await gate.release.wait()
-    return true
-  }
-
-  func gateNextWinningDownloadClaim() -> WinningDownloadClaimGate {
-    Assert.precondition(
-      nextWinningDownloadClaimGate == nil,
-      "Winning download claim gate is already active"
-    )
-    let gate = WinningDownloadClaimGate()
-    nextWinningDownloadClaimGate = gate
-    return gate
-  }
-
-  func gateNextCachedFilenameClear() -> CachedFilenameClearGate {
-    Assert.precondition(
-      nextCachedFilenameClearGate == nil,
-      "Cached filename clear gate is already active"
-    )
-    let gate = CachedFilenameClearGate()
-    nextCachedFilenameClearGate = gate
-    return gate
+    return try await repo.claimForDownloadIfUncached(episodeID)
   }
 
   @discardableResult
@@ -503,15 +459,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       methodName: "updateDownloading",
       parameters: (episodeID: episodeID, downloading: downloading)
     )
-    if !downloading,
-      let injected = updateDownloadingFalseError({ error in
-        let captured = error
-        error = nil
-        return captured
-      })
-    {
-      throw injected
-    }
     let result = try await repo.updateDownloading(episodeID, downloading: downloading)
     if !downloading, pendingDownloadingFalseSuspend() {
       pendingDownloadingFalseSuspend(false)
@@ -529,11 +476,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       methodName: "updateCachedFilename",
       parameters: (episodeID: episodeID, cachedFilename: cachedFilename)
     )
-    if cachedFilename == nil, let gate = nextCachedFilenameClearGate {
-      nextCachedFilenameClearGate = nil
-      gate.reached.open()
-      try await gate.release.wait()
-    }
     return try await repo.updateCachedFilename(episodeID, cachedFilename: cachedFilename)
   }
 
