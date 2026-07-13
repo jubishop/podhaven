@@ -79,6 +79,7 @@ private final class TranscriptionWorkStream: Sendable {
 struct TranscriptionQueue: Sendable {
   private static let log = Log.as(LogSubsystem.Transcription.queue)
 
+  private let consumerLock = ThreadLock()
   private let mutationLock = ThreadSafe(())
   private let workStream = TranscriptionWorkStream()
 
@@ -95,16 +96,25 @@ struct TranscriptionQueue: Sendable {
 
   fileprivate init() {}
 
-  func makeStream() -> AsyncStream<Episode.ID> {
-    mutationLock { _ in
+  // Keeps exclusive stream ownership and cleanup inside the queue so callers
+  // cannot finish another consumer's subscription.
+  func withWorkStream(
+    _ operation: @Sendable (AsyncStream<Episode.ID>) async throws -> Void
+  ) async throws {
+    await consumerLock.waitForClaim()
+    try Task.checkCancellation()
+    defer { consumerLock.release() }
+
+    let stream = mutationLock { _ in
       workStream.start(with: episodeIDs.first)
     }
-  }
-
-  func finishStream() {
-    mutationLock { _ in
-      workStream.finish()
+    defer {
+      mutationLock { _ in
+        workStream.finish()
+      }
     }
+
+    try await operation(stream)
   }
 
   // MARK: - Mutations

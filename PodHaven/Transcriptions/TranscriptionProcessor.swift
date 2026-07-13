@@ -34,7 +34,6 @@ struct TranscriptionProcessor: Sendable {
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).transcription"
 
   private let backgroundTaskScheduler: BackgroundTaskScheduler
-  private let drainLock = ThreadLock()
   private let processingTask = ThreadSafe<Task<Void, Never>?>(nil)
 
   private enum DrainMode {
@@ -112,31 +111,25 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  // The queue yields one claimed head at a time. Foreground and background
-  // lifecycle paths share this loop and serialize on drainLock; foreground
-  // waits for future work while a background grant returns when the backlog
-  // empties.
+  // The queue yields one claimed head at a time and owns exclusive consumer
+  // access. Foreground waits for future work while a background grant returns
+  // when the backlog empties.
   private func drain(_ mode: DrainMode) async throws {
-    await drainLock.waitForClaim()
-    try Task.checkCancellation()
-    defer { drainLock.release() }
-
-    if case .background = mode, transcriptionQueue.episodeIDs.isEmpty {
-      return
-    }
-
-    let stream = transcriptionQueue.makeStream()
-    defer { transcriptionQueue.finishStream() }
-
-    for await episodeID in stream {
-      try Task.checkCancellation()
-      try await processHead(episodeID)
+    try await transcriptionQueue.withWorkStream { stream in
       if case .background = mode, transcriptionQueue.episodeIDs.isEmpty {
         return
       }
-    }
 
-    try Task.checkCancellation()
+      for await episodeID in stream {
+        try Task.checkCancellation()
+        try await processHead(episodeID)
+        if case .background = mode, transcriptionQueue.episodeIDs.isEmpty {
+          return
+        }
+      }
+
+      try Task.checkCancellation()
+    }
   }
 
   // Processes one episode; rethrows CancellationError so callers can stop, and
@@ -156,10 +149,12 @@ struct TranscriptionProcessor: Sendable {
   private func process(_ episodeID: Episode.ID) async throws {
     guard let episode = try await repo.episode(episodeID) else {
       transcriptionQueue.remove(episodeID)
+      Self.log.warning("Removed missing \(episodeID) from transcription queue")
       return
     }
     guard !episode.hasTranscript else {
       transcriptionQueue.remove(episodeID)
+      Self.log.debug("Removed already-transcribed \(episodeID) from transcription queue")
       return
     }
 

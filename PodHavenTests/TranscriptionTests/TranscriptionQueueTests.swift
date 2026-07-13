@@ -31,28 +31,31 @@ struct TranscriptionQueueTests {
   }
 
   @Test("stream yields one queue head at a time")
-  func streamYieldsOneHeadAtATime() async {
-    var iterator = queue.makeStream().makeAsyncIterator()
-    defer { queue.finishStream() }
-    queue.enqueue(id(1))
-    queue.enqueue(id(2))
+  func streamYieldsOneHeadAtATime() async throws {
+    try await queue.withWorkStream { stream in
+      var iterator = stream.makeAsyncIterator()
+      queue.enqueue(id(1))
+      queue.enqueue(id(2))
 
-    #expect(await iterator.next() == id(1))
+      #expect(await iterator.next() == id(1))
 
-    queue.remove(id(1))
-    #expect(await iterator.next() == id(2))
+      queue.remove(id(1))
+      #expect(await iterator.next() == id(2))
+    }
   }
 
   @Test("a new stream replays an interrupted head")
-  func newStreamReplaysInterruptedHead() async {
+  func newStreamReplaysInterruptedHead() async throws {
     queue.enqueue(id(1))
-    var firstIterator = queue.makeStream().makeAsyncIterator()
-    #expect(await firstIterator.next() == id(1))
-    queue.finishStream()
+    try await queue.withWorkStream { stream in
+      var iterator = stream.makeAsyncIterator()
+      #expect(await iterator.next() == id(1))
+    }
 
-    var resumedIterator = queue.makeStream().makeAsyncIterator()
-    defer { queue.finishStream() }
-    #expect(await resumedIterator.next() == id(1))
+    try await queue.withWorkStream { stream in
+      var iterator = stream.makeAsyncIterator()
+      #expect(await iterator.next() == id(1))
+    }
   }
 
   @Test("status prefers transcribed, then transcribing, then queued, then failed")
