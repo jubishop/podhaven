@@ -76,6 +76,29 @@ struct TranscriptionProcessorTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
+  @Test("an unsupported locale fails before requesting uncached audio")
+  func unsupportedLocaleFailsBeforeRequestingAudio() async throws {
+    TranscriptionHelpers.stubSpeech(
+      modelManager: FakeSpeechModelManager(supportedIdentifiers: [], installedIdentifiers: [])
+    )
+    let session = try #require(
+      Container.shared.cacheManagerSession() as? FakeDataFetchable
+    )
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    queue.enqueue(podcastEpisode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer { processor.handleScenePhaseChange(to: .background) }
+
+    try await Wait.until(
+      { queue.failed.contains(podcastEpisode.id) },
+      { "unsupported transcription did not fail: \(queue.episodeIDs)" }
+    )
+    #expect(await session.downloadTasks().isEmpty)
+  }
+
   @Test("a stranded downloading flag restarts the download before transcribing")
   func strandedDownloadingFlagRestartsDownloadBeforeTranscribing() async throws {
     TranscriptionHelpers.stubSpeech(

@@ -19,6 +19,16 @@ struct TranscriptionQueueTests {
     #expect(queue.episodeIDs == [id(1), id(2)])
   }
 
+  @Test("persisted work survives factory recreation in order")
+  func persistedWorkSurvivesFactoryRecreation() {
+    queue.enqueue(id(1))
+    queue.enqueue(id(2))
+
+    Container.shared.transcriptionQueue.reset(.scope)
+
+    #expect(Container.shared.transcriptionQueue().episodeIDs == [id(1), id(2)])
+  }
+
   @Test("remove drops the episode and clears its progress")
   func removeDropsEpisode() {
     for episodeID in [id(1), id(2)] {

@@ -42,10 +42,12 @@ struct TranscriptionProcessor: Sendable {
   }
 
   fileprivate init() {
+    let queue = Container.shared.transcriptionQueue()
     backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
       cadence: .minutes(1),
-      taskType: .processing(requiresNetworkConnectivity: false)
+      taskType: .processing(requiresNetworkConnectivity: false),
+      schedulingMode: .onDemand { !queue.episodeIDs.isEmpty }
     )
   }
 
@@ -59,6 +61,7 @@ struct TranscriptionProcessor: Sendable {
       Self.log.info("Starting transcription background task")
       do {
         try await drain(.background)
+        backgroundTaskScheduler.scheduleNext()
         Self.log.info("Transcription background task completed")
         complete(true)
       } catch is CancellationError {
@@ -144,6 +147,10 @@ struct TranscriptionProcessor: Sendable {
       Self.log.caughtError("Transcription failed for \(episodeID)", error)
       transcriptionQueue.fail(episodeID)
     }
+
+    if transcriptionQueue.episodeIDs.isEmpty {
+      backgroundTaskScheduler.scheduleNext()
+    }
   }
 
   private func process(_ episodeID: Episode.ID) async throws {
@@ -156,6 +163,10 @@ struct TranscriptionProcessor: Sendable {
       transcriptionQueue.remove(episodeID)
       Self.log.debug("Removed already-transcribed \(episodeID) from transcription queue")
       return
+    }
+
+    guard await transcriber.supports(Self.locale) else {
+      throw TranscriptionError.localeNotSupported(Self.locale)
     }
 
     transcriptionQueue.setProgress(0, for: episodeID)

@@ -51,6 +51,11 @@ struct Transcriber: Sendable {
 
   fileprivate init() {}
 
+  func supports(_ locale: Locale) async -> Bool {
+    let target = locale.identifier(.bcp47)
+    return await speechModelManager.supportedLocaleIdentifiers().contains(target)
+  }
+
   func transcribe(
     fileURL: URL,
     locale: Locale,
@@ -113,11 +118,9 @@ struct Transcriber: Sendable {
   }
 
   private func ensureModelInstalled(for locale: Locale) async throws {
+    guard await supports(locale) else { throw TranscriptionError.localeNotSupported(locale) }
+
     let target = locale.identifier(.bcp47)
-
-    guard await speechModelManager.supportedLocaleIdentifiers().contains(target)
-    else { throw TranscriptionError.localeNotSupported(locale) }
-
     guard !(await speechModelManager.installedLocaleIdentifiers().contains(target))
     else { return }
 

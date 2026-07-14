@@ -22,6 +22,11 @@ enum BackgroundTaskType: Sendable {
   }
 }
 
+enum BackgroundTaskSchedulingMode: Sendable {
+  case periodic
+  case onDemand(hasWork: @Sendable () -> Bool)
+}
+
 struct BackgroundTaskScheduler: Sendable {
   typealias Completion = @Sendable (Bool) -> Void
 
@@ -32,6 +37,14 @@ struct BackgroundTaskScheduler: Sendable {
   private let identifier: String
   private let cadence: Duration
   private let taskType: BackgroundTaskType
+  private let schedulingMode: BackgroundTaskSchedulingMode
+
+  private var shouldSchedule: Bool {
+    switch schedulingMode {
+    case .periodic: true
+    case .onDemand(let hasWork): hasWork()
+    }
+  }
 
   // MARK: - Helpers
 
@@ -58,11 +71,13 @@ struct BackgroundTaskScheduler: Sendable {
   init(
     identifier: String,
     cadence: Duration,
-    taskType: BackgroundTaskType
+    taskType: BackgroundTaskType,
+    schedulingMode: BackgroundTaskSchedulingMode = .periodic
   ) {
     self.identifier = identifier
     self.cadence = cadence
     self.taskType = taskType
+    self.schedulingMode = schedulingMode
 
     Self.log.debug("BackgroundTaskScheduler with identifier: \(identifier)")
   }
@@ -106,7 +121,18 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func scheduleNext() {
+    guard shouldSchedule else {
+      bgTaskScheduler.cancel(taskRequestWithIdentifier: identifier)
+      Self.log.debug("scheduleNext: no work for \(identifier), cancelled pending request")
+      return
+    }
+
     bgTaskScheduler.getPendingTaskRequests { requests in
+      guard shouldSchedule else {
+        bgTaskScheduler.cancel(taskRequestWithIdentifier: identifier)
+        Self.log.debug("scheduleNext: work cleared for \(identifier), cancelled pending request")
+        return
+      }
       if requests.contains(where: { $0.identifier == identifier }) {
         Self.log.debug("scheduleNext: task already pending for \(identifier), skipping")
         return
@@ -121,6 +147,14 @@ struct BackgroundTaskScheduler: Sendable {
         Self.log.caughtError(
           "scheduleNext: failed to submit background task '\(identifier)'",
           error
+        )
+        return
+      }
+
+      if !shouldSchedule {
+        bgTaskScheduler.cancel(taskRequestWithIdentifier: identifier)
+        Self.log.debug(
+          "scheduleNext: work cleared while submitting \(identifier), cancelled request"
         )
         return
       }

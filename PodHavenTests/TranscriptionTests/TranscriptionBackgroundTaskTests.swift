@@ -9,6 +9,16 @@ import Testing
 
 @Suite("of TranscriptionProcessor background task", .container)
 struct TranscriptionBackgroundTaskTests {
+  @Test("registering with no queued work does not schedule a background task")
+  func emptyQueueDoesNotSchedule() throws {
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+
+    processor.register()
+
+    #expect(scheduler.submissions.isEmpty)
+  }
+
   @Test("the iOS-granted background task drains the queue and completes")
   func backgroundTaskDrainsQueue() async throws {
     TranscriptionHelpers.stubSpeech(
@@ -27,8 +37,10 @@ struct TranscriptionBackgroundTaskTests {
     queue.enqueue(episode.id)
 
     processor.register()
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
+    #expect(scheduler.pendingIdentifiers.contains(identifier))
     let task = try #require(
-      scheduler.launchTask(withIdentifier: "\(AppInfo.bundleIdentifier).transcription")
+      scheduler.launchTask(withIdentifier: identifier)
     )
 
     try await Wait.until(
@@ -43,6 +55,36 @@ struct TranscriptionBackgroundTaskTests {
       { task.completionResults == [true] },
       { "background task did not complete successfully: \(task.completionResults)" }
     )
+    #expect(!scheduler.pendingIdentifiers.contains(identifier))
+  }
+
+  @Test("a foreground drain cancels its pending background request")
+  func foregroundDrainCancelsPendingRequest() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0)]
+    )
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Foreground",
+      cachedFilename: "foreground.mp3",
+      dataSize: 1
+    )
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
+
+    queue.enqueue(episode.id)
+    processor.register()
+    #expect(scheduler.pendingIdentifiers.contains(identifier))
+
+    processor.handleScenePhaseChange(to: .active)
+    defer { processor.handleScenePhaseChange(to: .background) }
+
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "foreground task did not drain the queue: \(queue.episodeIDs)" }
+    )
+    #expect(!scheduler.pendingIdentifiers.contains(identifier))
   }
 
   @Test("foreground and background consumers never analyze the same head concurrently")

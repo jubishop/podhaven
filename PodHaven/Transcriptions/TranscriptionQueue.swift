@@ -102,8 +102,8 @@ struct TranscriptionQueue: Sendable {
     _ operation: @Sendable (AsyncStream<Episode.ID>) async throws -> Void
   ) async throws {
     await consumerLock.waitForClaim()
-    try Task.checkCancellation()
     defer { consumerLock.release() }
+    try Task.checkCancellation()
 
     let stream = mutationLock { _ in
       workStream.start(with: episodeIDs.first)
