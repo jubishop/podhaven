@@ -4,6 +4,7 @@ import BackgroundTasks
 import FactoryKit
 import FactoryTesting
 import Foundation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -19,12 +20,14 @@ struct BackgroundTaskSchedulerTests {
   private func makeScheduler(
     identifier: String = Self.testIdentifier,
     cadence: Duration = .hours(1),
-    taskType: BackgroundTaskType = .appRefresh
+    taskType: BackgroundTaskType = .appRefresh,
+    schedulingMode: BackgroundTaskSchedulingMode = .periodic
   ) -> BackgroundTaskScheduler {
     BackgroundTaskScheduler(
       identifier: identifier,
       cadence: cadence,
-      taskType: taskType
+      taskType: taskType,
+      schedulingMode: schedulingMode
     )
   }
 
@@ -203,6 +206,41 @@ struct BackgroundTaskSchedulerTests {
     scheduler.scheduleNext()
 
     #expect(fake.submissions.count == 1)
+  }
+
+  @Test("on-demand scheduling submits and cancels with work availability")
+  func onDemandSchedulingTracksWorkAvailability() {
+    let hasWork = ThreadSafe(false)
+    let scheduler = makeScheduler(schedulingMode: .onDemand { hasWork() })
+
+    scheduler.register { complete in complete(true) }
+    #expect(fake.submissions.isEmpty)
+
+    hasWork(true)
+    scheduler.scheduleNext()
+    #expect(fake.pendingIdentifiers.contains(Self.testIdentifier))
+
+    hasWork(false)
+    scheduler.scheduleNext()
+    #expect(!fake.pendingIdentifiers.contains(Self.testIdentifier))
+  }
+
+  @Test("on-demand scheduling rechecks work after the pending-request lookup")
+  func onDemandSchedulingRechecksAfterPendingLookup() async throws {
+    let hasWork = ThreadSafe(true)
+    let deliveryGate = AsyncSemaphore(value: 0)
+    let scheduler = makeScheduler(schedulingMode: .onDemand { hasWork() })
+    fake.setPendingRequestDeliveryGate(deliveryGate)
+
+    scheduler.scheduleNext()
+    hasWork(false)
+    deliveryGate.signal()
+
+    try await Wait.until(
+      { fake.cancelledIdentifiers.contains(Self.testIdentifier) },
+      { "Expected on-demand scheduling to cancel after work cleared" }
+    )
+    #expect(fake.submissions.isEmpty)
   }
 
   // MARK: - Task Type

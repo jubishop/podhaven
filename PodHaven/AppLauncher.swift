@@ -18,6 +18,7 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
+  @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -78,6 +79,7 @@ struct AppLauncher: Sendable {
     refreshScheduler.register()
     cachePurger.register()
     embeddingProcessor.register()
+    transcriptionProcessor.register()
 
     // Subscribe before audio session config so a mediaservicesd respawn during
     // launch isn't missed (Apple guidance for mediaServicesWereResetNotification).

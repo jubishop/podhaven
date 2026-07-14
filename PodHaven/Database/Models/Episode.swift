@@ -31,6 +31,60 @@ struct MediaGUID: Codable, CustomStringConvertible, Equatable, Hashable {
   }
 }
 
+private struct StoredTranscript: Codable, Hashable, Sendable {
+  private enum Cache: Sendable {
+    case undecoded
+    case decoded(Transcript)
+    case failed
+  }
+
+  private let json: String
+  private let cache: ThreadSafe<Cache>
+
+  init(_ json: String) {
+    self.json = json
+    cache = ThreadSafe(.undecoded)
+  }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    self.init(try container.decode(String.self))
+  }
+
+  func encode(to encoder: any Encoder) throws {
+    var container = encoder.singleValueContainer()
+    try container.encode(json)
+  }
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.json == rhs.json
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine(json)
+  }
+
+  func decoded() throws -> Transcript? {
+    try cache { cache in
+      switch cache {
+      case .undecoded:
+        do {
+          let transcript = try Transcript(decoding: json)
+          cache = .decoded(transcript)
+          return transcript
+        } catch {
+          cache = .failed
+          throw error
+        }
+      case .decoded(let transcript):
+        return transcript
+      case .failed:
+        return nil
+      }
+    }
+  }
+}
+
 struct UnsavedEpisode:
   EpisodeFoundational,
   Identifiable,
@@ -71,6 +125,7 @@ struct UnsavedEpisode:
   let saveInCache: Bool
   let rating: EpisodeRating?
   let ratingDate: Date?
+  private let transcript: StoredTranscript?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -91,7 +146,8 @@ struct UnsavedEpisode:
     downloading: Bool = false,
     saveInCache: Bool = false,
     rating: EpisodeRating? = nil,
-    ratingDate: Date? = nil
+    ratingDate: Date? = nil,
+    transcript: String? = nil
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
@@ -139,6 +195,11 @@ struct UnsavedEpisode:
     self.saveInCache = saveInCache
     self.rating = rating
     self.ratingDate = ratingDate
+    if let transcript {
+      self.transcript = StoredTranscript(transcript)
+    } else {
+      self.transcript = nil
+    }
   }
 
   // MARK: - EpisodeFoundational
@@ -165,6 +226,21 @@ struct UnsavedEpisode:
     else { return nil }
 
     return CacheManager.resolveCachedFilepath(for: cachedFilename)
+  }
+
+  // MARK: - Transcript
+
+  var hasTranscript: Bool { transcript != nil }
+
+  var decodedTranscript: Transcript? {
+    guard let transcript else { return nil }
+
+    do {
+      return try transcript.decoded()
+    } catch {
+      Self.log.caughtError("Failed to decode transcript for '\(title)'", error)
+      return nil
+    }
   }
 
   // MARK: - RSSUpdatable
@@ -261,6 +337,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     EpisodeEmbedding
     .select(EpisodeEmbedding.Columns.episodeId)
     .contains(Columns.id)
+
   // Each word must match, but a word may land in either the episode's own text
   // or its parent podcast's text — so "tech daily" finds the "Daily" episode of
   // the "Tech" podcast. AND across words, OR across the two FTS mirrors per word.
@@ -303,6 +380,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     static let contentUpdatedAt = Column("contentUpdatedAt")
     static let playbackCoverage = Column("playbackCoverage")
     static let lastPlayedDate = Column("lastPlayedDate")
+    static let transcript = Column("transcript")
   }
 
   // MARK: - RSSUpdatable
@@ -334,6 +412,8 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
 
   // MARK: - Derived Passthroughs
   var cachedURL: CachedURL? { unsaved.cachedURL }
+  var hasTranscript: Bool { unsaved.hasTranscript }
+  var decodedTranscript: Transcript? { unsaved.decodedTranscript }
 
   // MARK: - Reset
 

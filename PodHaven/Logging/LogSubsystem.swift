@@ -83,6 +83,12 @@ enum LogSubsystem {
     }
   }
 
+  enum Transcription: String, LogCategorizable {
+    case processor
+    case queue
+    case transcriber
+  }
+
   enum NotificationService: String, LogCategorizable {
     case main
   }
