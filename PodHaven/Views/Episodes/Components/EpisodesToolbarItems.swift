@@ -100,12 +100,6 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingE
             }
           }
 
-          if viewModel.anySelectedCanTranscribe {
-            AppIcon.transcribeEpisode.labelButton {
-              viewModel.transcribeSelectedEpisodes()
-            }
-          }
-
           if viewModel.selectionHasTagData {
             TagMenu(
               intersection: viewModel.selectedEpisodesTagIntersection,
