@@ -576,7 +576,9 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
         for episode in episodes {
           episodeIDs.append(try await getOrCreatePodcastEpisode(episode).id)
         }
-        transcriptionQueue.enqueue(episodeIDs)
+        for episodeID in episodeIDs {
+          transcriptionQueue.enqueue(episodeID)
+        }
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("transcribeSelectedEpisodes: failed", error)

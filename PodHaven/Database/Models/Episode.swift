@@ -31,6 +31,60 @@ struct MediaGUID: Codable, CustomStringConvertible, Equatable, Hashable {
   }
 }
 
+private struct StoredTranscript: Codable, Hashable, Sendable {
+  private enum Cache: Sendable {
+    case undecoded
+    case decoded(Transcript)
+    case failed
+  }
+
+  private let json: String
+  private let cache: ThreadSafe<Cache>
+
+  init(_ json: String) {
+    self.json = json
+    cache = ThreadSafe(.undecoded)
+  }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    self.init(try container.decode(String.self))
+  }
+
+  func encode(to encoder: any Encoder) throws {
+    var container = encoder.singleValueContainer()
+    try container.encode(json)
+  }
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.json == rhs.json
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine(json)
+  }
+
+  func decoded() throws -> Transcript? {
+    try cache { cache in
+      switch cache {
+      case .undecoded:
+        do {
+          let transcript = try Transcript(decoding: json)
+          cache = .decoded(transcript)
+          return transcript
+        } catch {
+          cache = .failed
+          throw error
+        }
+      case .decoded(let transcript):
+        return transcript
+      case .failed:
+        return nil
+      }
+    }
+  }
+}
+
 struct UnsavedEpisode:
   EpisodeFoundational,
   Identifiable,
@@ -71,7 +125,7 @@ struct UnsavedEpisode:
   let saveInCache: Bool
   let rating: EpisodeRating?
   let ratingDate: Date?
-  private let transcript: String?
+  private let transcript: StoredTranscript?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -141,7 +195,11 @@ struct UnsavedEpisode:
     self.saveInCache = saveInCache
     self.rating = rating
     self.ratingDate = ratingDate
-    self.transcript = transcript
+    if let transcript {
+      self.transcript = StoredTranscript(transcript)
+    } else {
+      self.transcript = nil
+    }
   }
 
   // MARK: - EpisodeFoundational
@@ -178,7 +236,7 @@ struct UnsavedEpisode:
     guard let transcript else { return nil }
 
     do {
-      return try Transcript(decoding: transcript)
+      return try transcript.decoded()
     } catch {
       Self.log.caughtError("Failed to decode transcript for '\(title)'", error)
       return nil

@@ -19,6 +19,8 @@ protocol BGTaskScheduling: Sendable {
 
   func submit(_ taskRequest: BGTaskRequest) throws
 
+  func cancel(taskRequestWithIdentifier identifier: String)
+
   func getPendingTaskRequests(
     completionHandler: @escaping @Sendable ([BGTaskRequest]) -> Void
   )
@@ -59,6 +61,10 @@ struct SystemBGTaskScheduler: BGTaskScheduling {
 
   func submit(_ taskRequest: BGTaskRequest) throws {
     try BGTaskScheduler.shared.submit(taskRequest)
+  }
+
+  func cancel(taskRequestWithIdentifier identifier: String) {
+    BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: identifier)
   }
 
   func getPendingTaskRequests(

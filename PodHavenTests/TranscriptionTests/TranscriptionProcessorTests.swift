@@ -27,7 +27,9 @@ struct TranscriptionProcessorTests {
       dataSize: 1
     )
 
-    queue.enqueue([ep1.id, ep2.id])
+    for episodeID in [ep1.id, ep2.id] {
+      queue.enqueue(episodeID)
+    }
     processor.handleScenePhaseChange(to: .active)
 
     try await Wait.until(
@@ -72,6 +74,29 @@ struct TranscriptionProcessorTests {
     #expect(segments?.first?.text == "hello")
 
     processor.handleScenePhaseChange(to: .background)
+  }
+
+  @Test("an unsupported locale fails before requesting uncached audio")
+  func unsupportedLocaleFailsBeforeRequestingAudio() async throws {
+    TranscriptionHelpers.stubSpeech(
+      modelManager: FakeSpeechModelManager(supportedIdentifiers: [], installedIdentifiers: [])
+    )
+    let session = try #require(
+      Container.shared.cacheManagerSession() as? FakeDataFetchable
+    )
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    queue.enqueue(podcastEpisode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer { processor.handleScenePhaseChange(to: .background) }
+
+    try await Wait.until(
+      { queue.failed.contains(podcastEpisode.id) },
+      { "unsupported transcription did not fail: \(queue.episodeIDs)" }
+    )
+    #expect(await session.downloadTasks().isEmpty)
   }
 
   @Test("a stranded downloading flag restarts the download before transcribing")

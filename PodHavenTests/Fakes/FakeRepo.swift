@@ -10,6 +10,7 @@ import Tagged
 actor FakeRepo: Databasing, Sendable, FakeCallable {
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
+  nonisolated let refreshEpisodeRowsRead = ThreadSafe<Int>(0)
 
   // One-shot error to throw from `updateSaveInCache(_ episodeIDs:saveInCache:)`.
   // Cleared on use so subsequent calls reach the real repo.
@@ -29,6 +30,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let suspendedEpisodeFetchCount = ThreadSafe<Int>(0)
   nonisolated let completedEpisodeFetchCount = ThreadSafe<Int>(0)
   private var episodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
+
+  private var podcastEpisodeFetchBarrierRemaining = 0
+  private var podcastEpisodeFetchBarrierContinuations: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingDownloadingFalseSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedDownloadingFalseCount = ThreadSafe<Int>(0)
+  private var downloadingFalseSuspensions: [CheckedContinuation<Void, Never>] = []
 
   // Same shape as pendingEpisodeFetchSuspend, but for updateLastUpdates so
   // tests can park the batched flush inside RefreshManager.performRefresh.
@@ -52,21 +59,24 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     try await repo.allPodcasts(filter)
   }
 
-  func allPodcastSeries(
+  func allPodcasts(
     _ filter: SQLExpression,
-    order: SQLOrdering = Podcast.Columns.id.desc,
-    limit: Int = Int.max
-  ) async throws
-    -> [PodcastSeries]
-  {
+    order: SQLOrdering,
+    limit: Int
+  ) async throws -> [Podcast] {
     recordCall(
-      methodName: "allPodcastSeries",
+      methodName: "allPodcasts",
       parameters: (filter: filter, order: order, limit: limit)
     )
-    return try await repo.allPodcastSeries(filter, order: order, limit: limit)
+    return try await repo.allPodcasts(filter, order: order, limit: limit)
   }
 
   // MARK: - Series Readers
+
+  func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
+    recordCall(methodName: "podcast", parameters: podcastID)
+    return try await repo.podcast(podcastID)
+  }
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
     recordCall(methodName: "podcastSeries", parameters: podcastID)
@@ -152,6 +162,25 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     )
   }
 
+  func resumeAllDownloadingFalseSuspensions() {
+    let toResume = downloadingFalseSuspensions
+    downloadingFalseSuspensions.removeAll()
+    suspendedDownloadingFalseCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForDownloadingFalseSuspended(count: Int = 1) async throws {
+    try await Wait.until(
+      { self.suspendedDownloadingFalseCount() >= count },
+      {
+        """
+        Expected at least \(count) suspended downloading=false writes, \
+        got \(self.suspendedDownloadingFalseCount())
+        """
+      }
+    )
+  }
+
   func episodesMatching(
     podcastID: Podcast.ID,
     guids: [GUID],
@@ -164,9 +193,47 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.episodesMatching(podcastID: podcastID, guids: guids, mediaURLs: mediaURLs)
   }
 
+  func feedMergeEpisodes(
+    podcastID: Podcast.ID,
+    matching mediaGUIDs: [MediaGUID]
+  ) async throws -> [FeedMergeEpisode] {
+    recordCall(
+      methodName: "feedMergeEpisodes",
+      parameters: (podcastID: podcastID, mediaGUIDs: mediaGUIDs)
+    )
+    let episodes = try await repo.feedMergeEpisodes(
+      podcastID: podcastID,
+      matching: mediaGUIDs
+    )
+    refreshEpisodeRowsRead { $0 += episodes.count }
+    return episodes
+  }
+
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     recordCall(methodName: "podcastEpisode", parameters: episodeID)
-    return try await repo.podcastEpisode(episodeID)
+    let result = try await repo.podcastEpisode(episodeID)
+    guard podcastEpisodeFetchBarrierRemaining > 0 else { return result }
+
+    podcastEpisodeFetchBarrierRemaining -= 1
+    if podcastEpisodeFetchBarrierRemaining == 0 {
+      let continuations = podcastEpisodeFetchBarrierContinuations
+      podcastEpisodeFetchBarrierContinuations.removeAll()
+      for continuation in continuations { continuation.resume() }
+    } else {
+      await withCheckedContinuation { continuation in
+        podcastEpisodeFetchBarrierContinuations.append(continuation)
+      }
+    }
+    return result
+  }
+
+  func barrierNextPodcastEpisodeFetches(count: Int) {
+    Assert.precondition(count > 1, "Podcast episode fetch barrier requires multiple callers")
+    Assert.precondition(
+      podcastEpisodeFetchBarrierRemaining == 0,
+      "Podcast episode fetch barrier is already active"
+    )
+    podcastEpisodeFetchBarrierRemaining = count
   }
 
   func podcastEpisodes(_ episodeIDs: [Episode.ID]) async throws -> [PodcastEpisode] {
@@ -211,23 +278,23 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   func updateSeriesFromFeed(
-    podcastSeries: PodcastSeries,
-    podcast: Podcast?,
+    podcast: Podcast,
+    updatedPodcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
-    existingEpisodes: [Episode]
+    existingEpisodes: [FeedMergeEpisode]
   ) async throws -> [Episode] {
     recordCall(
       methodName: "updateSeriesFromFeed",
       parameters: (
-        podcastSeries: podcastSeries,
         podcast: podcast,
+        updatedPodcast: updatedPodcast,
         unsavedEpisodes: unsavedEpisodes,
         existingEpisodes: existingEpisodes
       )
     )
     return try await repo.updateSeriesFromFeed(
-      podcastSeries: podcastSeries,
       podcast: podcast,
+      updatedPodcast: updatedPodcast,
       unsavedEpisodes: unsavedEpisodes,
       existingEpisodes: existingEpisodes
     )
@@ -380,13 +447,26 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     )
   }
 
+  func claimForDownloadIfUncached(_ episodeID: Episode.ID) async throws -> Bool {
+    recordCall(methodName: "claimForDownloadIfUncached", parameters: episodeID)
+    return try await repo.claimForDownloadIfUncached(episodeID)
+  }
+
   @discardableResult
   func updateDownloading(_ episodeID: Episode.ID, downloading: Bool) async throws -> Bool {
     recordCall(
       methodName: "updateDownloading",
       parameters: (episodeID: episodeID, downloading: downloading)
     )
-    return try await repo.updateDownloading(episodeID, downloading: downloading)
+    let result = try await repo.updateDownloading(episodeID, downloading: downloading)
+    if !downloading, pendingDownloadingFalseSuspend() {
+      pendingDownloadingFalseSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        downloadingFalseSuspensions.append(continuation)
+        suspendedDownloadingFalseCount(downloadingFalseSuspensions.count)
+      }
+    }
+    return result
   }
 
   @discardableResult

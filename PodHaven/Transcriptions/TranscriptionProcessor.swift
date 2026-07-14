@@ -36,11 +36,18 @@ struct TranscriptionProcessor: Sendable {
   private let backgroundTaskScheduler: BackgroundTaskScheduler
   private let processingTask = ThreadSafe<Task<Void, Never>?>(nil)
 
+  private enum DrainMode {
+    case foreground
+    case background
+  }
+
   fileprivate init() {
+    let queue = Container.shared.transcriptionQueue()
     backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
       cadence: .minutes(1),
-      taskType: .processing(requiresNetworkConnectivity: false)
+      taskType: .processing(requiresNetworkConnectivity: false),
+      schedulingMode: .onDemand { !queue.episodeIDs.isEmpty }
     )
   }
 
@@ -53,7 +60,8 @@ struct TranscriptionProcessor: Sendable {
     backgroundTaskScheduler.register { complete in
       Self.log.info("Starting transcription background task")
       do {
-        try await drainUntilEmpty()
+        try await drain(.background)
+        backgroundTaskScheduler.scheduleNext()
         Self.log.info("Transcription background task completed")
         complete(true)
       } catch is CancellationError {
@@ -88,7 +96,13 @@ struct TranscriptionProcessor: Sendable {
     processingTask { task in
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
-        await drain()
+        do {
+          try await drain(.foreground)
+        } catch is CancellationError {
+          return
+        } catch {
+          Self.log.caughtError("Foreground transcription drain failed", error)
+        }
       }
     }
   }
@@ -100,27 +114,24 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  // Foreground drain: every queue change wakes a drain of the head down to
-  // empty. The stream replays the current queue on subscription and ends on
-  // task cancellation, so a backgrounded processor falls out of the loop
-  // cleanly and the persisted queue resumes on the next activation.
-  private func drain() async {
-    for await _ in transcriptionQueue.$episodeIDs.stream() {
-      do {
-        try await drainUntilEmpty()
-      } catch {
-        return  // Cancelled — the queue resumes on the next activation.
+  // The queue yields one claimed head at a time and owns exclusive consumer
+  // access. Foreground waits for future work while a background grant returns
+  // when the backlog empties.
+  private func drain(_ mode: DrainMode) async throws {
+    try await transcriptionQueue.withWorkStream { stream in
+      if case .background = mode, transcriptionQueue.episodeIDs.isEmpty {
+        return
       }
-    }
-  }
 
-  // Process the head episode until the queue empties, or until expiry surfaces
-  // as cancellation (rethrown so callers stop). Shared by the foreground drain
-  // and the background task.
-  private func drainUntilEmpty() async throws {
-    while let episodeID = transcriptionQueue.episodeIDs.first {
+      for await episodeID in stream {
+        try Task.checkCancellation()
+        try await processHead(episodeID)
+        if case .background = mode, transcriptionQueue.episodeIDs.isEmpty {
+          return
+        }
+      }
+
       try Task.checkCancellation()
-      try await processHead(episodeID)
     }
   }
 
@@ -136,16 +147,26 @@ struct TranscriptionProcessor: Sendable {
       Self.log.caughtError("Transcription failed for \(episodeID)", error)
       transcriptionQueue.fail(episodeID)
     }
+
+    if transcriptionQueue.episodeIDs.isEmpty {
+      backgroundTaskScheduler.scheduleNext()
+    }
   }
 
   private func process(_ episodeID: Episode.ID) async throws {
     guard let episode = try await repo.episode(episodeID) else {
       transcriptionQueue.remove(episodeID)
+      Self.log.warning("Removed missing \(episodeID) from transcription queue")
       return
     }
     guard !episode.hasTranscript else {
       transcriptionQueue.remove(episodeID)
+      Self.log.debug("Removed already-transcribed \(episodeID) from transcription queue")
       return
+    }
+
+    guard await transcriber.supports(Self.locale) else {
+      throw TranscriptionError.localeNotSupported(Self.locale)
     }
 
     transcriptionQueue.setProgress(0, for: episodeID)
@@ -168,7 +189,6 @@ struct TranscriptionProcessor: Sendable {
     )
     try await repo.updateTranscript(episodeID, transcript: transcript.jsonString())
 
-    transcriptionQueue.clearProgress(for: episodeID)
     transcriptionQueue.remove(episodeID)
     Self.log.info("Transcribed \(episodeID): \(segments.count) segments")
   }

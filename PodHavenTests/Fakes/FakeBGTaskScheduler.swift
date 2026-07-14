@@ -2,6 +2,7 @@
 
 import BackgroundTasks
 import Foundation
+import Semaphore
 
 @testable import PodHaven
 
@@ -82,10 +83,12 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
   private let _pendingRequests = ThreadSafe<[String: RecordedBGTaskRequest]>([:])
   private let _launchHandlers = ThreadSafe<[String: @Sendable (any BGTaskHandling) -> Void]>([:])
   private let _pendingTaskRequestsCallCount = ThreadSafe<Int>(0)
+  private let _cancelledIdentifiers = ThreadSafe<[String]>([])
 
   private let _registerResult = ThreadSafe<Bool>(true)
   private let _submitError = ThreadSafe<(any Error)?>(nil)
   private let _deliverPendingRequestsAsynchronously = ThreadSafe<Bool>(false)
+  private let _pendingRequestDeliveryGate = ThreadSafe<AsyncSemaphore?>(nil)
 
   // MARK: - Protocol Methods
 
@@ -119,12 +122,24 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
     _pendingRequests { $0[recordedRequest.identifier] = recordedRequest }
   }
 
+  func cancel(taskRequestWithIdentifier identifier: String) {
+    _cancelledIdentifiers { $0.append(identifier) }
+    _pendingRequests { $0.removeValue(forKey: identifier) }
+  }
+
   func getPendingTaskRequests(
     completionHandler: @escaping @Sendable ([BGTaskRequest]) -> Void
   ) {
     _pendingTaskRequestsCallCount { $0 += 1 }
 
     let pendingRequests = Array(_pendingRequests().values)
+    if let gate = _pendingRequestDeliveryGate() {
+      Task {
+        await gate.wait()
+        completionHandler(pendingRequests.map { $0.makeRequest() })
+      }
+      return
+    }
     if _deliverPendingRequestsAsynchronously() {
       Task {
         completionHandler(pendingRequests.map { $0.makeRequest() })
@@ -141,6 +156,7 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
   var submissions: [RecordedBGTaskRequest] { _submissions() }
   var pendingIdentifiers: Set<String> { Set(_pendingRequests().keys) }
   var pendingTaskRequestsCallCount: Int { _pendingTaskRequestsCallCount() }
+  var cancelledIdentifiers: [String] { _cancelledIdentifiers() }
 
   // MARK: - Setters
 
@@ -182,6 +198,10 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
     _deliverPendingRequestsAsynchronously(asyncDelivery)
   }
 
+  func setPendingRequestDeliveryGate(_ gate: AsyncSemaphore?) {
+    _pendingRequestDeliveryGate(gate)
+  }
+
   // MARK: - Test Helpers
 
   func launchTask(withIdentifier identifier: String) -> FakeBGTask? {
@@ -200,8 +220,10 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
     _pendingRequests { $0.removeAll() }
     _launchHandlers { $0.removeAll() }
     _pendingTaskRequestsCallCount(0)
+    _cancelledIdentifiers { $0.removeAll() }
     _registerResult(true)
     _submitError { $0 = nil }
     _deliverPendingRequestsAsynchronously(false)
+    _pendingRequestDeliveryGate(nil)
   }
 }

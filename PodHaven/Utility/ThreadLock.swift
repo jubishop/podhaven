@@ -23,12 +23,7 @@ struct ThreadLock {
   }
 
   func waitForClaim() async {
-    if claim() {
-      if Task.isCancelled {
-        release()
-      }
-      return
-    }
+    if claim() { return }
 
     await withCheckedContinuation { continuation in
       var shouldResumeImmediately = false
@@ -45,10 +40,6 @@ struct ThreadLock {
       if shouldResumeImmediately {
         continuation.resume()
       }
-    }
-
-    if Task.isCancelled {
-      release()
     }
   }
 

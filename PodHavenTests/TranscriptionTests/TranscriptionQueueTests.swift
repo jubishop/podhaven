@@ -19,13 +19,53 @@ struct TranscriptionQueueTests {
     #expect(queue.episodeIDs == [id(1), id(2)])
   }
 
+  @Test("persisted work survives factory recreation in order")
+  func persistedWorkSurvivesFactoryRecreation() {
+    queue.enqueue(id(1))
+    queue.enqueue(id(2))
+
+    Container.shared.transcriptionQueue.reset(.scope)
+
+    #expect(Container.shared.transcriptionQueue().episodeIDs == [id(1), id(2)])
+  }
+
   @Test("remove drops the episode and clears its progress")
   func removeDropsEpisode() {
-    queue.enqueue([id(1), id(2)])
+    for episodeID in [id(1), id(2)] {
+      queue.enqueue(episodeID)
+    }
     queue.setProgress(0.5, for: id(1))
     queue.remove(id(1))
     #expect(queue.episodeIDs == [id(2)])
     #expect(queue.progress[id(1)] == nil)
+  }
+
+  @Test("stream yields one queue head at a time")
+  func streamYieldsOneHeadAtATime() async throws {
+    try await queue.withWorkStream { stream in
+      var iterator = stream.makeAsyncIterator()
+      queue.enqueue(id(1))
+      queue.enqueue(id(2))
+
+      #expect(await iterator.next() == id(1))
+
+      queue.remove(id(1))
+      #expect(await iterator.next() == id(2))
+    }
+  }
+
+  @Test("a new stream replays an interrupted head")
+  func newStreamReplaysInterruptedHead() async throws {
+    queue.enqueue(id(1))
+    try await queue.withWorkStream { stream in
+      var iterator = stream.makeAsyncIterator()
+      #expect(await iterator.next() == id(1))
+    }
+
+    try await queue.withWorkStream { stream in
+      var iterator = stream.makeAsyncIterator()
+      #expect(await iterator.next() == id(1))
+    }
   }
 
   @Test("status prefers transcribed, then transcribing, then queued, then failed")
