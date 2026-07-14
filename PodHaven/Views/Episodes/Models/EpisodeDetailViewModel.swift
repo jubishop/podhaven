@@ -61,15 +61,6 @@ enum EpisodeDetailDisplayedScore: Sendable {
   case pending
 }
 
-// What the detail view renders inside the `.transcribed` status: the loaded
-// transcript text, an empty-result notice, or a loading placeholder while a
-// known-transcribed row is still hydrating its transcript off a list snapshot.
-enum EpisodeTranscriptDisplay: Equatable, Sendable {
-  case loading
-  case empty
-  case text(String)
-}
-
 @Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
@@ -81,7 +72,6 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
   @ObservationIgnored @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
-  @ObservationIgnored @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
@@ -90,35 +80,8 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
   private let originTab: Navigation.Tab
   var tags: IdentifiedArrayOf<Tag> = []
   private var score: EpisodeDetailDisplayedScore?
-  // Decoding the transcript JSON isn't free, and `episode` rebuilds on every
-  // read; memoize the decode per episode so it happens once, not per body pass.
-  @ObservationIgnored private var transcriptCache: (episodeID: Episode.ID, transcript: Transcript)?
 
   var episode: EpisodeDetailContent { state.detailContent }
-
-  // MARK: - Transcript Rendering
-
-  var decodedTranscript: Transcript? {
-    let content = episode
-    guard content.hasTranscript, let episodeID = content.episodeID else { return nil }
-    if let transcriptCache, transcriptCache.episodeID == episodeID {
-      return transcriptCache.transcript
-    }
-    guard let transcript = content.loaded?.decodedTranscript else { return nil }
-    transcriptCache = (episodeID, transcript)
-    return transcript
-  }
-
-  var transcriptDisplay: EpisodeTranscriptDisplay {
-    guard let transcript = decodedTranscript else {
-      // The view consults this only for `.transcribed`, so the transcript
-      // exists; a nil decode means a list-row seed hasn't hydrated its loaded
-      // episode yet — a loading state, not "no speech".
-      return episode.loaded == nil ? .loading : .empty
-    }
-    guard !transcript.segments.isEmpty else { return .empty }
-    return .text(transcript.segments.map(\.text).joined(separator: "\n"))
-  }
 
   // MARK: - Description Rendering
 
@@ -164,11 +127,6 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
 
   var canClearCache: Bool {
     episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
-  }
-
-  var transcriptionStatus: TranscriptionStatus {
-    guard let episodeID = episode.episodeID else { return .none }
-    return transcriptionQueue.status(for: episodeID, hasTranscript: episode.hasTranscript)
   }
 
   // Hide the score once the user has rated or finished the episode: a
@@ -414,16 +372,6 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.updateRating(podcastEpisode.id, rating: rating)
-    }
-  }
-
-  func transcribe() {
-    guard transcriptionStatus.canTranscribe else { return }
-
-    lifecycle.runTask("transcribe: \(state.toString)") { [weak self] in
-      guard let self else { return }
-      let podcastEpisode = try await getOrCreatePodcastEpisode()
-      transcriptionQueue.enqueue(podcastEpisode.id)
     }
   }
 
