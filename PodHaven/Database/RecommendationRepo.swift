@@ -423,9 +423,16 @@ struct RecommendationRepo: Recommending {
     }
   }
 
-  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID] {
+  func episodesNeedingEmbeddings(
+    revision: Int,
+    includeCurrent: Bool = false
+  ) async throws -> [Episode.ID] {
     try await reader.read { db in
-      try Self.episodesNeedingEmbeddings(db, revision: revision)
+      try Self.episodesNeedingEmbeddings(
+        db,
+        revision: revision,
+        includeCurrent: includeCurrent
+      )
     }
   }
 
@@ -433,23 +440,24 @@ struct RecommendationRepo: Recommending {
   // run inside that function's reader transaction.
   static func episodesNeedingEmbeddings(
     _ db: Database,
-    revision: Int
+    revision: Int,
+    includeCurrent: Bool = false
   ) throws -> [Episode.ID] {
     let embeddingAlias = TableAlias()
     let podcastAlias = TableAlias()
+    let needsRefresh =
+      embeddingAlias[EpisodeEmbedding.Columns.id] == nil
+      || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
+      || Episode.Columns.contentUpdatedAt
+        > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
+      || podcastAlias[Podcast.Columns.contentUpdatedAt]
+        > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
 
     return
       try Episode
       .joining(required: Episode.podcast.aliased(podcastAlias))
       .joining(optional: Episode.embedding.aliased(embeddingAlias))
-      .filter(
-        embeddingAlias[EpisodeEmbedding.Columns.id] == nil
-          || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
-          || Episode.Columns.contentUpdatedAt
-            > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
-          || podcastAlias[Podcast.Columns.contentUpdatedAt]
-            > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
-      )
+      .filter(includeCurrent ? AppDB.noOp : needsRefresh)
       .order(Episode.Columns.pubDate.desc)
       .select(Episode.Columns.id, as: Episode.ID.self)
       .fetchAll(db)

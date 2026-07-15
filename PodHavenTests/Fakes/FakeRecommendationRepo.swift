@@ -287,8 +287,17 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     return try await recommendationRepo.episodes(for: episodeIDs)
   }
 
-  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID] {
-    recordCall(methodName: "episodesNeedingEmbeddings", parameters: revision)
-    return try await recommendationRepo.episodesNeedingEmbeddings(revision: revision)
+  func episodesNeedingEmbeddings(
+    revision: Int,
+    includeCurrent: Bool = false
+  ) async throws -> [Episode.ID] {
+    recordCall(
+      methodName: "episodesNeedingEmbeddings",
+      parameters: (revision, includeCurrent)
+    )
+    return try await recommendationRepo.episodesNeedingEmbeddings(
+      revision: revision,
+      includeCurrent: includeCurrent
+    )
   }
 }
