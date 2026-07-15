@@ -35,9 +35,11 @@ struct TagsSettingsView: View {
           }
           .buttonStyle(.plain)
           .swipeActions(edge: .trailing) {
-            AppIcon.delete.imageButton {
-              viewModel.deleteTag(tag.id)
-            }
+            AppIcon.delete
+              .imageButton {
+                viewModel.deleteTag(tag.id)
+              }
+              .accessibilityLabel("Delete Tag")
           }
         }
       }

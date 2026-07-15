@@ -101,7 +101,8 @@ struct PodcastDetailView: View {
             }
           },
           label: {
-            viewModel.podcast.subscribed ? AppIcon.unsubscribe.image : AppIcon.subscribe.image
+            (viewModel.podcast.subscribed ? AppIcon.unsubscribe : AppIcon.subscribe).label
+              .labelStyle(.iconOnly)
           }
         )
       }
@@ -166,6 +167,7 @@ struct PodcastDetailView: View {
           label: {
             HStack(spacing: 6) {
               (viewModel.displayingAboutSection ? AppIcon.episodes : AppIcon.aboutInfo).image
+                .accessibilityHidden(true)
               Text(viewModel.displayingAboutSection ? "Show Episodes" : "Show Details")
             }
             .font(.subheadline)
@@ -282,6 +284,7 @@ struct PodcastDetailView: View {
               HStack(spacing: 16) {
                 AppIcon.website.label
                 AppIcon.externalLink.image
+                  .accessibilityHidden(true)
               }
             }
           }
@@ -351,6 +354,7 @@ struct PodcastDetailView: View {
             AppIcon.noImage.image
               .font(.largeTitle)
               .foregroundColor(.secondary)
+              .accessibilityHidden(true)
 
             Text("Image unavailable")
               .font(.title)

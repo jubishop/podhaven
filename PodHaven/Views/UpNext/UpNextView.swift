@@ -77,11 +77,15 @@ struct UpNextView: View {
       HStack(spacing: 4) {
         AppIcon.duration.image
           .font(.system(size: 12))
+          .accessibilityHidden(true)
         Text(viewModel.totalQueueTime.shortDescription)
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize()
       }
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("Queue Duration")
+      .accessibilityValue(Text(viewModel.totalQueueTime.shortDescription))
     }
     .sharedBackgroundVisibility(.hidden)
 
@@ -94,7 +98,10 @@ struct UpNextView: View {
             }
           }
         },
-        label: { AppIcon.sort.image }
+        label: {
+          AppIcon.sort.label
+            .labelStyle(.iconOnly)
+        }
       )
     }
 

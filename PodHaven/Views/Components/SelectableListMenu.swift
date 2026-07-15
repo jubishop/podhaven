@@ -28,7 +28,8 @@ import SwiftUI
           }
         },
         label: {
-          AppIcon.editFinished.image
+          AppIcon.editFinished.label
+            .labelStyle(.iconOnly)
         }
       )
     } else {

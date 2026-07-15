@@ -143,7 +143,8 @@ struct EpisodeDetailView: View {
           }
         }
       } label: {
-        viewModel.isPlaying ? AppIcon.pauseButton.image : AppIcon.playButton.image
+        (viewModel.isPlaying ? AppIcon.pauseButton : AppIcon.playButton).label
+          .labelStyle(.iconOnly)
       }
     }
 
@@ -155,8 +156,14 @@ struct EpisodeDetailView: View {
       Menu {
         ratingMenuButtons(showClear: viewModel.episode.rating != nil, rate: viewModel.rate)
       } label: {
-        AppIcon.rating(for: viewModel.episode.rating).image
+        AppIcon.rating(for: viewModel.episode.rating)
+          .label("Rate Episode")
+          .labelStyle(.iconOnly)
       }
+      .accessibilityValue(
+        viewModel.episode.rating == nil
+          ? "Not Rated" : AppIcon.rating(for: viewModel.episode.rating).text
+      )
     }
   }
 
@@ -346,6 +353,7 @@ struct EpisodeDetailView: View {
             AppIcon.noImage.image
               .font(.largeTitle)
               .foregroundColor(.secondary)
+              .accessibilityHidden(true)
 
             Text("Image unavailable")
               .font(.title)

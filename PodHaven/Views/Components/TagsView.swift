@@ -41,8 +41,10 @@ struct TagsView: View {
           .accessibilityHidden(true)
         Text(tag.name)
         AppIcon.removeTag.image
+          .accessibilityHidden(true)
       }
     }
+    .accessibilityLabel("Remove \(tag.name)")
     .tint(.accentColor)
     .tagCapsule(color: AppIcon.tag.color(for: colorScheme))
   }
