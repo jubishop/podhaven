@@ -70,6 +70,11 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
   case text(String)
 }
 
+enum EpisodeDetailTextTab: Equatable, Sendable {
+  case description
+  case transcript
+}
+
 @Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
@@ -90,9 +95,7 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
   private let originTab: Navigation.Tab
   var tags: IdentifiedArrayOf<Tag> = []
   private var score: EpisodeDetailDisplayedScore?
-  // Decoding the transcript JSON isn't free, and `episode` rebuilds on every
-  // read; memoize the decode per episode so it happens once, not per body pass.
-  @ObservationIgnored private var transcriptCache: (episodeID: Episode.ID, transcript: Transcript)?
+  private(set) var selectedTextTab = EpisodeDetailTextTab.description
 
   var episode: EpisodeDetailContent { state.detailContent }
 
@@ -100,13 +103,8 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
 
   var decodedTranscript: Transcript? {
     let content = episode
-    guard content.hasTranscript, let episodeID = content.episodeID else { return nil }
-    if let transcriptCache, transcriptCache.episodeID == episodeID {
-      return transcriptCache.transcript
-    }
-    guard let transcript = content.loaded?.decodedTranscript else { return nil }
-    transcriptCache = (episodeID, transcript)
-    return transcript
+    guard content.hasTranscript else { return nil }
+    return content.loaded?.decodedTranscript
   }
 
   var transcriptDisplay: EpisodeTranscriptDisplay {
@@ -118,6 +116,10 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
     }
     guard !transcript.segments.isEmpty else { return .empty }
     return .text(transcript.segments.map(\.text).joined(separator: "\n"))
+  }
+
+  func selectTextTab(_ tab: EpisodeDetailTextTab) {
+    selectedTextTab = tab
   }
 
   // MARK: - Description Rendering

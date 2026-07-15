@@ -51,11 +51,7 @@ struct EpisodeDetailView: View {
           Divider()
         }
 
-        descriptionView
-
-        Divider()
-
-        transcriptionView
+        textContentView
       }
       .padding()
     }
@@ -301,7 +297,48 @@ struct EpisodeDetailView: View {
     .dynamicTypeSize(.small ... .xxxLarge)
   }
 
-  // MARK: - Description
+  // MARK: - Description and Transcription
+
+  private var textContentView: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      HStack(spacing: 12) {
+        textTabButton("Description", tab: .description)
+        textTabButton("Transcription", tab: .transcript)
+      }
+
+      switch viewModel.selectedTextTab {
+      case .description:
+        descriptionView
+      case .transcript:
+        transcriptionView
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  @ViewBuilder
+  private func textTabButton(_ title: String, tab: EpisodeDetailTextTab) -> some View {
+    if viewModel.selectedTextTab == tab {
+      Button {
+        viewModel.selectTextTab(tab)
+      } label: {
+        Text(title)
+          .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.borderedProminent)
+      .buttonBorderShape(.capsule)
+      .accessibilityAddTraits(.isSelected)
+    } else {
+      Button {
+        viewModel.selectTextTab(tab)
+      } label: {
+        Text(title)
+          .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.bordered)
+      .buttonBorderShape(.capsule)
+    }
+  }
 
   var descriptionView: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -309,12 +346,7 @@ struct EpisodeDetailView: View {
         let description = viewModel.episode.description,
         !description.isEmpty
       {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Description")
-            .font(.headline)
-
-          descriptionText
-        }
+        descriptionText
       }
     }
     .task(id: viewModel.episode.description) {
@@ -344,14 +376,9 @@ struct EpisodeDetailView: View {
     }
   }
 
-  // MARK: - Transcription
-
   @ViewBuilder
   private var transcriptionView: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text("Transcript")
-        .font(.headline)
-
       switch viewModel.transcriptionStatus {
       case .none:
         AppIcon.transcribeEpisode
