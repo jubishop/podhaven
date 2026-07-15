@@ -102,6 +102,12 @@ struct EpisodeContextMenuViewModifier<ViewModel: ManagingEpisodes>: ViewModifier
           }
         }
 
+        if viewModel.canTranscribe(episode) {
+          AppIcon.transcribeEpisode.labelButton {
+            viewModel.transcribeEpisode(episode)
+          }
+        }
+
         if let tagIDs = viewModel.tagIDs(for: episode) {
           TagMenu(
             tagIDs: tagIDs,
