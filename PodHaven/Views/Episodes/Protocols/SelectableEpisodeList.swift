@@ -565,21 +565,31 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
 
   func transcribeSelectedEpisodes() {
     let episodes = selectedEpisodes.filter { canTranscribe($0) }
-    guard !episodes.isEmpty else { return }
+    guard !episodes.isEmpty else {
+      Self.log.notice("transcribeSelectedEpisodes: no eligible episodes selected")
+      return
+    }
+    let mediaGUIDs = Set(episodes.map(\.mediaGUID))
+
+    Self.log.debug("transcribeSelectedEpisodes: resolving \(episodes.count) episodes")
 
     Task { [weak self] in
       guard let self else { return }
 
       do {
-        var episodeIDs: [Episode.ID] = []
-        episodeIDs.reserveCapacity(episodes.count)
-        for episode in episodes {
-          episodeIDs.append(try await getOrCreatePodcastEpisode(episode).id)
+        let podcastEpisodes = try await selectedPodcastEpisodes.filter {
+          mediaGUIDs.contains($0.mediaGUID)
         }
-        for episodeID in episodeIDs {
-          transcriptionQueue.enqueue(episodeID)
+        guard !podcastEpisodes.isEmpty else {
+          Self.log.notice("transcribeSelectedEpisodes: no selected episodes resolved")
+          return
         }
-        didPerformBulkAction(on: episodes)
+
+        for podcastEpisode in podcastEpisodes {
+          transcriptionQueue.enqueue(podcastEpisode.id)
+        }
+        let resolvedMediaGUIDs = Set(podcastEpisodes.map(\.mediaGUID))
+        didPerformBulkAction(on: episodes.filter { resolvedMediaGUIDs.contains($0.mediaGUID) })
       } catch {
         Self.log.caughtError("transcribeSelectedEpisodes: failed", error)
       }

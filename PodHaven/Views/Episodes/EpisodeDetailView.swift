@@ -155,14 +155,11 @@ struct EpisodeDetailView: View {
       Button {
         viewModel.transcribe()
       } label: {
-        switch viewModel.transcriptionStatus {
-        case .transcribing:
-          ProgressView()
-        default:
-          AppIcon.transcribeEpisode.image
-        }
+        AppIcon.transcribeEpisode.image
+          .symbolEffect(.pulse, isActive: isTranscribing)
       }
       .disabled(!viewModel.transcriptionStatus.canTranscribe)
+      .accessibilityLabel(isTranscribing ? "Transcribing" : AppIcon.transcribeEpisode.text)
     }
 
     ToolbarItem(placement: .primaryAction) {
@@ -172,6 +169,11 @@ struct EpisodeDetailView: View {
         AppIcon.rating(for: viewModel.episode.rating).image
       }
     }
+  }
+
+  private var isTranscribing: Bool {
+    guard case .transcribing = viewModel.transcriptionStatus else { return false }
+    return true
   }
 
   // MARK: - Header
@@ -301,10 +303,18 @@ struct EpisodeDetailView: View {
 
   private var textContentView: some View {
     VStack(alignment: .leading, spacing: 16) {
-      HStack(spacing: 12) {
-        textTabButton("Description", tab: .description)
-        textTabButton("Transcription", tab: .transcript)
+      Picker(
+        "Episode text",
+        selection: Binding(
+          get: { viewModel.selectedTextTab },
+          set: { viewModel.selectTextTab($0) }
+        )
+      ) {
+        Text("Description").tag(EpisodeDetailTextTab.description)
+        Text("Transcription").tag(EpisodeDetailTextTab.transcript)
       }
+      .pickerStyle(.segmented)
+      .frame(maxWidth: .infinity)
 
       switch viewModel.selectedTextTab {
       case .description:
@@ -314,30 +324,6 @@ struct EpisodeDetailView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  @ViewBuilder
-  private func textTabButton(_ title: String, tab: EpisodeDetailTextTab) -> some View {
-    if viewModel.selectedTextTab == tab {
-      Button {
-        viewModel.selectTextTab(tab)
-      } label: {
-        Text(title)
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.borderedProminent)
-      .buttonBorderShape(.capsule)
-      .accessibilityAddTraits(.isSelected)
-    } else {
-      Button {
-        viewModel.selectTextTab(tab)
-      } label: {
-        Text(title)
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.bordered)
-      .buttonBorderShape(.capsule)
-    }
   }
 
   var descriptionView: some View {
@@ -386,8 +372,8 @@ struct EpisodeDetailView: View {
         } else {
           transcribeButton
         }
-      case .queued:
-        Text("Queued for transcription")
+      case .queued(let position, let total):
+        Text("Queued for transcription — position \(position) of \(total)")
           .foregroundStyle(.secondary)
       case .transcribing(let progress):
         if progress > 0 {

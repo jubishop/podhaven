@@ -135,9 +135,11 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
       }
 
     case .transcribe:
-      AppIcon.transcribeEpisode.imageButton {
-        viewModel.transcribeEpisode(episode)
-      }
+      AppIcon.transcribeEpisode
+        .imageButton {
+          viewModel.transcribeEpisode(episode)
+        }
+        .accessibilityLabel(AppIcon.transcribeEpisode.text)
     }
   }
 

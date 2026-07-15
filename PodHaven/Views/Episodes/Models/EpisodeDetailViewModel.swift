@@ -69,7 +69,7 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
   case text(String)
 }
 
-enum EpisodeDetailTextTab: Equatable, Sendable {
+enum EpisodeDetailTextTab: Hashable, Sendable {
   case description
   case transcript
 }
@@ -164,12 +164,9 @@ enum EpisodeDetailTextTab: Equatable, Sendable {
 
   var transcriptionStatus: TranscriptionStatus {
     guard let episodeID = episode.episodeID else { return .none }
-    switch transcriptDisplay {
-    case .loading, .empty, .text:
-      return transcriptionQueue.status(for: episodeID, hasTranscript: true)
-    case .notTranscribed, .decodeFailed:
-      return transcriptionQueue.status(for: episodeID, hasTranscript: false)
-    }
+    let hasReadableTranscript =
+      episode.hasTranscript && (episode.loaded == nil || decodedTranscript != nil)
+    return transcriptionQueue.status(for: episodeID, hasTranscript: hasReadableTranscript)
   }
 
   // Hide the score once the user has rated or finished the episode: a

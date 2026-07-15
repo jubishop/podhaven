@@ -68,19 +68,30 @@ struct TranscriptionQueueTests {
     }
   }
 
-  @Test("status prefers transcribed, then transcribing, then queued, then failed")
+  @Test("status prefers transcribed and reports live queue position")
   func statusDerivation() {
     #expect(queue.status(for: id(9), hasTranscript: false) == .none)
 
     queue.enqueue(id(1))
+    queue.enqueue(id(2))
     #expect(queue.status(for: id(1), hasTranscript: true) == .transcribed)
-    #expect(queue.status(for: id(1), hasTranscript: false) == .queued)
+    #expect(
+      queue.status(for: id(1), hasTranscript: false) == .queued(position: 1, total: 2)
+    )
+    #expect(
+      queue.status(for: id(2), hasTranscript: false) == .queued(position: 2, total: 2)
+    )
 
     queue.setProgress(0.25, for: id(1))
     #expect(queue.status(for: id(1), hasTranscript: false) == .transcribing(0.25))
 
-    queue.fail(id(2))
-    #expect(queue.status(for: id(2), hasTranscript: false) == .failed)
+    queue.remove(id(1))
+    #expect(
+      queue.status(for: id(2), hasTranscript: false) == .queued(position: 1, total: 1)
+    )
+
+    queue.fail(id(3))
+    #expect(queue.status(for: id(3), hasTranscript: false) == .failed)
   }
 
   @Test("enqueue clears a prior failure for the same episode")
