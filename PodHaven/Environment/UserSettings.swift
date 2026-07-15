@@ -120,6 +120,7 @@ struct UserSettings: Sendable {
     case cache = "Cache"
     case saveInCache = "Save in Cache"
     case tag = "Tag"
+    case transcribe = "Transcribe"
 
     var id: String { rawValue }
     var title: String { rawValue }

@@ -68,6 +68,7 @@ struct EpisodeSwipeSettingsView: View {
     case .cache: .cacheEpisode
     case .saveInCache: .saveEpisodeInCache
     case .tag: .tag
+    case .transcribe: .transcribeEpisode
     }
   }
 

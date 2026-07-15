@@ -133,6 +133,11 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
       AppIcon.tag.imageButton {
         activeDialog = .tag
       }
+
+    case .transcribe:
+      AppIcon.transcribeEpisode.imageButton {
+        viewModel.transcribeEpisode(episode)
+      }
     }
   }
 
@@ -188,6 +193,8 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
       true
     case .markFinished:
       !episode.finished
+    case .transcribe:
+      viewModel.canTranscribe(episode)
     case .cache:
       switch episode.cacheStatus {
       case .uncached: true
