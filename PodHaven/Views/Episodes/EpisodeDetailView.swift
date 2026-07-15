@@ -381,11 +381,11 @@ struct EpisodeDetailView: View {
     VStack(alignment: .leading, spacing: 8) {
       switch viewModel.transcriptionStatus {
       case .none:
-        AppIcon.transcribeEpisode
-          .labelButton {
-            viewModel.transcribe()
-          }
-          .buttonStyle(.borderedProminent)
+        if viewModel.transcriptDisplay == .decodeFailed {
+          transcriptDecodeFailureView
+        } else {
+          transcribeButton
+        }
       case .queued:
         Text("Queued for transcription")
           .foregroundStyle(.secondary)
@@ -407,12 +407,16 @@ struct EpisodeDetailView: View {
         }
       case .transcribed:
         switch viewModel.transcriptDisplay {
+        case .notTranscribed:
+          transcribeButton
         case .loading:
           HStack(spacing: 8) {
             ProgressView()
             Text("Loading transcript…")
               .foregroundStyle(.secondary)
           }
+        case .decodeFailed:
+          transcriptDecodeFailureView
         case .empty:
           Text("No speech detected")
             .foregroundStyle(.secondary)
@@ -433,6 +437,28 @@ struct EpisodeDetailView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var transcribeButton: some View {
+    AppIcon.transcribeEpisode
+      .labelButton {
+        viewModel.transcribe()
+      }
+      .buttonStyle(.borderedProminent)
+  }
+
+  private var transcriptDecodeFailureView: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Transcript couldn't be read")
+        .foregroundStyle(.red)
+      Text("Transcribe again to replace the unreadable transcript.")
+        .foregroundStyle(.secondary)
+      AppIcon.transcribeEpisode
+        .labelButton("Transcribe Again") {
+          viewModel.transcribe()
+        }
+        .buttonStyle(.bordered)
+    }
   }
 
   // MARK: - Full Screen Image Overlay

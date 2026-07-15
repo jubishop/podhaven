@@ -61,11 +61,10 @@ enum EpisodeDetailDisplayedScore: Sendable {
   case pending
 }
 
-// What the detail view renders inside the `.transcribed` status: the loaded
-// transcript text, an empty-result notice, or a loading placeholder while a
-// known-transcribed row is still hydrating its transcript off a list snapshot.
 enum EpisodeTranscriptDisplay: Equatable, Sendable {
+  case notTranscribed
   case loading
+  case decodeFailed
   case empty
   case text(String)
 }
@@ -102,18 +101,13 @@ enum EpisodeDetailTextTab: Equatable, Sendable {
   // MARK: - Transcript Rendering
 
   var decodedTranscript: Transcript? {
-    let content = episode
-    guard content.hasTranscript else { return nil }
-    return content.loaded?.decodedTranscript
+    episode.loaded?.decodedTranscript
   }
 
   var transcriptDisplay: EpisodeTranscriptDisplay {
-    guard let transcript = decodedTranscript else {
-      // The view consults this only for `.transcribed`, so the transcript
-      // exists; a nil decode means a list-row seed hasn't hydrated its loaded
-      // episode yet — a loading state, not "no speech".
-      return episode.loaded == nil ? .loading : .empty
-    }
+    guard episode.hasTranscript else { return .notTranscribed }
+    guard episode.loaded != nil else { return .loading }
+    guard let transcript = decodedTranscript else { return .decodeFailed }
     guard !transcript.segments.isEmpty else { return .empty }
     return .text(transcript.segments.map(\.text).joined(separator: "\n"))
   }
@@ -170,7 +164,12 @@ enum EpisodeDetailTextTab: Equatable, Sendable {
 
   var transcriptionStatus: TranscriptionStatus {
     guard let episodeID = episode.episodeID else { return .none }
-    return transcriptionQueue.status(for: episodeID, hasTranscript: episode.hasTranscript)
+    switch transcriptDisplay {
+    case .loading, .empty, .text:
+      return transcriptionQueue.status(for: episodeID, hasTranscript: true)
+    case .notTranscribed, .decodeFailed:
+      return transcriptionQueue.status(for: episodeID, hasTranscript: false)
+    }
   }
 
   // Hide the score once the user has rated or finished the episode: a
@@ -425,6 +424,9 @@ enum EpisodeDetailTextTab: Equatable, Sendable {
     lifecycle.runTask("transcribe: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
+      if transcriptDisplay == .decodeFailed {
+        try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
+      }
       transcriptionQueue.enqueue(podcastEpisode.id)
     }
   }

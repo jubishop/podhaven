@@ -11,6 +11,7 @@ import Testing
 @MainActor struct EpisodeDetailTranscriptTests {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
 
   private var fakeObservatory: FakeObservatory {
     observatory as! FakeObservatory
@@ -99,6 +100,28 @@ import Testing
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
 
     #expect(viewModel.transcriptDisplay == .empty)
+    #expect(viewModel.transcriptionStatus == .transcribed)
+  }
+
+  @Test("malformed transcript is retryable and cleared before enqueue")
+  func malformedTranscriptCanRetry() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await repo.updateTranscript(podcastEpisode.id, transcript: "not-json")
+
+    let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+
+    #expect(viewModel.transcriptDisplay == .decodeFailed)
+    #expect(viewModel.transcriptionStatus.canTranscribe)
+
+    viewModel.transcribe()
+
+    try await Wait.until(
+      { @MainActor in transcriptionQueue.episodeIDs.contains(podcastEpisode.id) },
+      { @MainActor in "Expected malformed transcript to be re-enqueued" }
+    )
+    let cleared = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(!cleared.hasTranscript)
   }
 
   @Test("decodedTranscript follows observed updates for the same episode")
