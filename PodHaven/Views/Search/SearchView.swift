@@ -108,6 +108,7 @@ struct SearchView: View {
         HStack(spacing: 6) {
           section.icon.image
             .font(.callout)
+            .accessibilityHidden(true)
           Text(section.title)
             .font(.subheadline.weight(isSelected ? .bold : .regular))
         }
@@ -278,6 +279,7 @@ struct SearchView: View {
         AppIcon.navigateInto.image
           .font(.subheadline.weight(.semibold))
           .foregroundColor(.accentColor)
+          .accessibilityHidden(true)
       }
     }
     .padding(.horizontal)
@@ -325,6 +327,7 @@ struct SearchView: View {
       VStack(spacing: 16) {
         icon.image
           .font(.system(size: 48))
+          .accessibilityHidden(true)
         Text(title)
           .font(.headline)
         Text(message)

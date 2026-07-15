@@ -10,19 +10,25 @@ struct PodcastSwipeViewModifier<ViewModel: ManagingPodcasts>: ViewModifier {
   func body(content: Content) -> some View {
     content
       .swipeActions(edge: .leading) {
-        AppIcon.queueAtTop.imageButton {
-          viewModel.queueLatestEpisodeToTop(podcast)
-        }
+        AppIcon.queueAtTop
+          .imageButton {
+            viewModel.queueLatestEpisodeToTop(podcast)
+          }
+          .accessibilityLabel("Queue Latest Episode at Top")
 
-        AppIcon.queueAtBottom.imageButton {
-          viewModel.queueLatestEpisodeToBottom(podcast)
-        }
+        AppIcon.queueAtBottom
+          .imageButton {
+            viewModel.queueLatestEpisodeToBottom(podcast)
+          }
+          .accessibilityLabel("Queue Latest Episode at Bottom")
       }
       .swipeActions(edge: .trailing) {
         if podcast.isSaved {
-          AppIcon.delete.imageButton {
-            viewModel.deletePodcast(podcast)
-          }
+          AppIcon.delete
+            .imageButton {
+              viewModel.deletePodcast(podcast)
+            }
+            .accessibilityLabel("Delete Podcast")
         }
 
         if podcast.subscribed {

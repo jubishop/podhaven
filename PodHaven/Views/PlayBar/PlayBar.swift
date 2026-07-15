@@ -41,6 +41,7 @@ struct PlayBar: View {
       ProgressView()
         .progressViewStyle(CircularProgressViewStyle(tint: .primary))
         .scaleEffect(0.8)
+        .accessibilityHidden(true)
 
       Text("Loading \(viewModel.loadingEpisodeTitle)")
         .foregroundColor(.primary)
@@ -86,9 +87,11 @@ struct PlayBar: View {
 
       Spacer()
 
-      AppIcon.expandUp.imageButton {
-        PlayBar.showPlayBarSheet(viewModel: viewModel)
-      }
+      AppIcon.expandUp
+        .imageButton {
+          PlayBar.showPlayBarSheet(viewModel: viewModel)
+        }
+        .accessibilityLabel("Open Now Playing")
     }
     .padding(.horizontal, spacing * 2)
   }

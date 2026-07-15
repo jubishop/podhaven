@@ -42,6 +42,11 @@ struct OPMLImportSheet: View {
         ]
       )
       .frame(maxWidth: .infinity)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("Import Progress")
+      .accessibilityValue(
+        "\(opmlFile.finished.count) of \(opmlFile.totalCount) Complete"
+      )
     }
     .padding([.horizontal])
 

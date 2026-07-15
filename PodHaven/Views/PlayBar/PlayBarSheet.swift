@@ -79,6 +79,7 @@ struct PlayBarSheet: View {
             AppIcon.audioPlaceholder.image
               .font(.system(size: spacing * 12))
               .padding(.top, spacing * 4)
+              .accessibilityHidden(true)
           }
       }
     }
@@ -89,15 +90,19 @@ struct PlayBarSheet: View {
     let icon: AppIcon =
       sharedState.stopAfterCurrentEpisode ? .stopAfterEpisodeOn : .stopAfterEpisode
     return icon.imageButton { viewModel.toggleStopAfterCurrentEpisode() }
+      .accessibilityValue(sharedState.stopAfterCurrentEpisode ? "On" : "Off")
   }
 
   @ViewBuilder
   private func ratingMenu(rating: EpisodeRating?) -> some View {
+    let ratingIcon = AppIcon.rating(for: rating)
     Menu {
       ratingMenuButtons(showClear: rating != nil, rate: viewModel.rate)
     } label: {
-      AppIcon.rating(for: rating).image
+      ratingIcon.label("Rate Episode")
+        .labelStyle(.iconOnly)
     }
+    .accessibilityValue(rating == nil ? "Not Rated" : ratingIcon.text)
   }
 
   private func topBarButtonStyle<V: View>(_ content: V) -> some View {

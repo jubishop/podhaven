@@ -21,15 +21,20 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
       if sharedState.isOnDeck(episode) {
         switch sharedState.playbackStatus {
         case .playing, .waiting:
-          AppIcon.episodePlaying.image
+          AppIcon.episodePlaying.label
+            .labelStyle(.iconOnly)
         case .paused, .loading, .stopped:
-          AppIcon.episodePaused.image
+          AppIcon.episodePaused.label
+            .labelStyle(.iconOnly)
         }
       } else if episode.queueOrder == 0 {
-        AppIcon.episodeQueuedAtTop.image
+        AppIcon.episodeQueuedAtTop.label
+          .labelStyle(.iconOnly)
       } else {
-        AppIcon.episodeQueued.image
+        AppIcon.episodeQueued.label
+          .labelStyle(.iconOnly)
           .opacity(episode.queued ? 1 : 0)
+          .accessibilityHidden(!episode.queued)
       }
 
       if episode.cacheStatus == .caching,
@@ -45,14 +50,23 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
             innerRadius: .ratio(0.4)
           )
           .frame(width: iconSize, height: iconSize)
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel(
+            episode.saveInCache ? Text("Save Progress") : Text("Download Progress")
+          )
+          .accessibilityValue(Text(progress, format: .percent.precision(.fractionLength(0))))
         } else {
-          AppIcon.waiting.image
+          AppIcon.waiting.label
+            .labelStyle(.iconOnly)
         }
       } else {
         (episode.saveInCache
-          ? AppIcon.episodeSavedInCache.image
-          : AppIcon.episodeCached.image)
+          ? AppIcon.episodeSavedInCache
+          : AppIcon.episodeCached)
+          .label
+          .labelStyle(.iconOnly)
           .opacity(episode.cacheStatus == .cached ? 1 : 0)
+          .accessibilityHidden(episode.cacheStatus != .cached)
       }
 
       if episode.currentTime.safe.seconds > 0, episode.duration.safe.seconds > 0 {
@@ -62,9 +76,14 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
           innerRadius: .ratio(0.4)
         )
         .frame(width: iconSize, height: iconSize)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Playback Progress")
+        .accessibilityValue(Text(progress, format: .percent.precision(.fractionLength(0))))
       } else {
-        AppIcon.episodeFinished.image
+        AppIcon.episodeFinished.label
+          .labelStyle(.iconOnly)
           .opacity(episode.finished && !sharedState.isOnDeck(episode) ? 1 : 0)
+          .accessibilityHidden(!episode.finished || sharedState.isOnDeck(episode))
       }
     }
     .font(.system(size: iconSize))

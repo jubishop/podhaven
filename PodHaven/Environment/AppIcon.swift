@@ -597,12 +597,12 @@ import SwiftUI
       return Data(text: "Play", systemImageName: .playButton, color: .green)
     case .seekBackward(let interval):
       return Data(
-        text: "Seek Backward",
+        text: "Seek Backward \(interval) Seconds",
         systemImageName: SystemImageName(rawValue: "gobackward.\(interval)")
       )
     case .seekForward(let interval):
       return Data(
-        text: "Seek Forward",
+        text: "Seek Forward \(interval) Seconds",
         systemImageName: SystemImageName(rawValue: "goforward.\(interval)")
       )
     case .finishEpisode:
