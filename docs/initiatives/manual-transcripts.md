@@ -8,7 +8,7 @@ User-initiated, on-device transcription of individual episodes, rendered read-on
 
 ## Status
 
-The backend transcription runtime from #461 and episode projection support from #507 are merged into `main`. The remaining view integration is in #514 and is building clean, lint-clean, and unit-tested. The on-device `Transcriber` (real speech model) and the `BGProcessingTask` runtime behaviour are integration/device-tested, not in CI; both sit behind protocols/fakes so everything around them is unit-tested. The transcript renders read-only — **interactive playback (tap-to-seek, active-segment highlight, auto-scroll) is deferred to v2**; the per-segment timestamps are already stored, so v2 is purely a UI layer. Also deferred and tracked in [Episode Transcripts](transcripts.md): speaker diarization, RSS `<podcast:transcript>` import, transcript search, autonomous transcription.
+Implementation is split across two stacked changes: `worktree-manualTranscripts` contains the schema, engine, queue/processor, and background drain; a follow-up branch contains the UI integration. Both are building clean, lint-clean, and unit-tested. The on-device `Transcriber` (real speech model) and the `BGProcessingTask` runtime behaviour are integration/device-tested, not in CI; both sit behind protocols/fakes so everything around them is unit-tested. Not yet merged. The transcript renders read-only — **interactive playback (tap-to-seek, active-segment highlight, auto-scroll) is deferred to v2**; the per-segment timestamps are already stored, so v2 is purely a UI layer. Also deferred and tracked in [Episode Transcripts](transcripts.md): speaker diarization, RSS `<podcast:transcript>` import, transcript search, autonomous transcription.
 
 ## Why
 
