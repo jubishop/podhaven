@@ -576,23 +576,25 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
     Task { [weak self] in
       guard let self else { return }
 
+      let podcastEpisodes: [PodcastEpisode]
       do {
-        let podcastEpisodes = try await selectedPodcastEpisodes.filter {
+        podcastEpisodes = try await selectedPodcastEpisodes.filter {
           mediaGUIDs.contains($0.mediaGUID)
         }
-        guard !podcastEpisodes.isEmpty else {
-          Self.log.notice("transcribeSelectedEpisodes: no selected episodes resolved")
-          return
-        }
-
-        for podcastEpisode in podcastEpisodes {
-          transcriptionQueue.enqueue(podcastEpisode.id)
-        }
-        let resolvedMediaGUIDs = Set(podcastEpisodes.map(\.mediaGUID))
-        didPerformBulkAction(on: episodes.filter { resolvedMediaGUIDs.contains($0.mediaGUID) })
       } catch {
         Self.log.caughtError("transcribeSelectedEpisodes: failed", error)
+        return
       }
+      guard !podcastEpisodes.isEmpty else {
+        Self.log.notice("transcribeSelectedEpisodes: no selected episodes resolved")
+        return
+      }
+
+      for podcastEpisode in podcastEpisodes {
+        transcriptionQueue.enqueue(podcastEpisode.id)
+      }
+      let resolvedMediaGUIDs = Set(podcastEpisodes.map(\.mediaGUID))
+      didPerformBulkAction(on: episodes.filter { resolvedMediaGUIDs.contains($0.mediaGUID) })
     }
   }
 
