@@ -6,8 +6,14 @@ import NukeUI
 import SwiftUI
 
 struct EpisodeDetailView: View {
+  private enum ArtworkAccessibilityFocus: Hashable {
+    case trigger
+    case overlay
+  }
+
   @DynamicInjected(\.alert) private var alert
 
+  @AccessibilityFocusState private var artworkAccessibilityFocus: ArtworkAccessibilityFocus?
   @State private var showingImageOverlay = false
   @State private var viewModel: EpisodeDetailViewModel
 
@@ -59,10 +65,14 @@ struct EpisodeDetailView: View {
     .toolbarRole(.editor)
     .onAppear { viewModel.appear() }
     .onDisappear { viewModel.disappear() }
+    .accessibilityHidden(showingImageOverlay)
     .overlay {
       if showingImageOverlay {
         fullScreenImageOverlay
       }
+    }
+    .onChange(of: showingImageOverlay) { _, isShowing in
+      artworkAccessibilityFocus = isShowing ? .overlay : .trigger
     }
   }
 
@@ -191,6 +201,7 @@ struct EpisodeDetailView: View {
           .accessibilityAction {
             showingImageOverlay = true
           }
+          .accessibilityFocused($artworkAccessibilityFocus, equals: .trigger)
         }
         .aspectRatio(1, contentMode: .fit)
 
@@ -362,6 +373,7 @@ struct EpisodeDetailView: View {
             .accessibilityAction {
               showingImageOverlay = false
             }
+            .accessibilityFocused($artworkAccessibilityFocus, equals: .overlay)
         } else {
           VStack(spacing: 16) {
             AppIcon.noImage.image
@@ -384,6 +396,7 @@ struct EpisodeDetailView: View {
           .accessibilityAction {
             showingImageOverlay = false
           }
+          .accessibilityFocused($artworkAccessibilityFocus, equals: .overlay)
         }
       }
     }

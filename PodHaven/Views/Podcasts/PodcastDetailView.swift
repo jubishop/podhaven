@@ -7,9 +7,15 @@ import SwiftUI
 import Tagged
 
 struct PodcastDetailView: View {
+  private enum ArtworkAccessibilityFocus: Hashable {
+    case trigger
+    case overlay
+  }
+
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
 
+  @AccessibilityFocusState private var artworkAccessibilityFocus: ArtworkAccessibilityFocus?
   @State private var showingImageOverlay = false
   @State private var viewModel: PodcastDetailViewModel
 
@@ -44,10 +50,14 @@ struct PodcastDetailView: View {
         Self.log.debug("PodcastDetailView disappear")
         viewModel.disappear()
       }
+      .accessibilityHidden(showingImageOverlay)
       .overlay {
         if showingImageOverlay {
           fullScreenImageOverlay
         }
+      }
+      .onChange(of: showingImageOverlay) { _, isShowing in
+        artworkAccessibilityFocus = isShowing ? .overlay : .trigger
       }
   }
 
@@ -156,6 +166,7 @@ struct PodcastDetailView: View {
       .accessibilityAction {
         showingImageOverlay = true
       }
+      .accessibilityFocused($artworkAccessibilityFocus, equals: .trigger)
 
       VStack(alignment: .leading) {
         Text(viewModel.podcast.title)
@@ -363,6 +374,7 @@ struct PodcastDetailView: View {
             .accessibilityAction {
               showingImageOverlay = false
             }
+            .accessibilityFocused($artworkAccessibilityFocus, equals: .overlay)
         } else {
           VStack(spacing: 16) {
             AppIcon.noImage.image
@@ -385,6 +397,7 @@ struct PodcastDetailView: View {
           .accessibilityAction {
             showingImageOverlay = false
           }
+          .accessibilityFocused($artworkAccessibilityFocus, equals: .overlay)
         }
       }
     }
