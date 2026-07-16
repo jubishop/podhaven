@@ -12,6 +12,12 @@ import Testing
     #expect(AppIcon.seekForward(45).text == "Seek Forward 45 Seconds")
   }
 
+  @Test("selection controls describe the action they perform")
+  func selectionControlsDescribeTheirAction() {
+    #expect(AppIcon.selectionEmpty.text == "Select")
+    #expect(AppIcon.selectionFilled.text == "Deselect")
+  }
+
   @Test("transcription toolbar distinguishes actions and states")
   func transcriptionToolbarDistinguishesActionsAndStates() {
     #expect(TranscriptionStatus.none.toolbarAccessibilityLabel == "Transcribe")
