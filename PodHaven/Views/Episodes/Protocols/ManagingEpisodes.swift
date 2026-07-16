@@ -43,6 +43,9 @@ extension ManagingEpisodes {
   private var queue: any Queueing { Container.shared.queue() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
+  private var transcriptionAvailability: TranscriptionAvailability {
+    Container.shared.transcriptionAvailability()
+  }
   private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
 
   private var alert: Alert { Container.shared.alert() }
@@ -67,6 +70,7 @@ extension ManagingEpisodes {
   }
 
   func canTranscribe(_ episode: EpisodeType) -> Bool {
+    guard transcriptionAvailability.isAvailable else { return false }
     guard let episodeID = episode.episodeID else { return !episode.hasTranscript }
     return
       transcriptionQueue
@@ -277,6 +281,8 @@ extension ManagingEpisodes {
   }
 
   func transcribeEpisode(_ episode: EpisodeType) {
+    guard canTranscribe(episode) else { return }
+
     Task { [weak self] in
       guard let self else { return }
 

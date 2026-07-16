@@ -29,7 +29,6 @@ struct TranscriptionProcessor: Sendable {
   @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
 
   private static let log = Log.as(LogSubsystem.Transcription.processor)
-  private static let locale = Locale(identifier: "en-US")
 
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).transcription"
 
@@ -165,8 +164,9 @@ struct TranscriptionProcessor: Sendable {
       return
     }
 
-    guard await transcriber.supports(Self.locale) else {
-      throw TranscriptionError.localeNotSupported(Self.locale)
+    let locale = TranscriptionAvailability.locale
+    guard await transcriber.supports(locale) else {
+      throw TranscriptionError.localeNotSupported(locale)
     }
 
     transcriptionQueue.setProgress(0, for: episodeID)
@@ -178,12 +178,12 @@ struct TranscriptionProcessor: Sendable {
     let queue = transcriptionQueue
     let segments = try await transcriber.transcribe(
       fileURL: cachedURL.rawValue,
-      locale: Self.locale,
+      locale: locale,
       onProgress: { queue.setProgress($0, for: episodeID) }
     )
     let transcript = Transcript(
       segments: segments,
-      locale: Self.locale.identifier(.bcp47),
+      locale: locale.identifier(.bcp47),
       createdAt: Date(),
       modelRevision: Transcriber.recipeVersion
     )

@@ -187,6 +187,7 @@ import Testing
 
   @Test("bulk transcription survives canonical feed resolution")
   func bulkTranscriptionSurvivesCanonicalFeedResolution() async throws {
+    await TranscriptionHelpers.prepareAvailability()
     let aliasFeed = FeedURL(URL(string: "https://example.com/transcription-alias.rss")!)
     let canonicalFeed = FeedURL(
       URL(string: "https://example.com/transcription-canonical.rss")!

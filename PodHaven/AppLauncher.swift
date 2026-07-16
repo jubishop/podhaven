@@ -24,6 +24,7 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.transcriptionAvailability) private var transcriptionAvailability
   @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
 
   private var alert: Alert { get async { await Container.shared.alert() } }
@@ -129,6 +130,11 @@ struct AppLauncher: Sendable {
       await Self.applySentryEnvironment()
       guard AppInfo.environment != .testing else { return }
       guard !Task.isCancelled else { return }
+
+      let transcriptionAvailability = self.transcriptionAvailability
+      Task(priority: self.taskPriority(.utility)) {
+        await transcriptionAvailability.prepare()
+      }
 
       await self.userNotificationManager.initialize()
       guard !Task.isCancelled else { return }

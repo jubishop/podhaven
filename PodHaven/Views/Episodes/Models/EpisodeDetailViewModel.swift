@@ -85,6 +85,8 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
   @ObservationIgnored @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.transcriptionAvailability)
+  private var transcriptionAvailability
   @ObservationIgnored @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
@@ -113,6 +115,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
   }
 
   func selectTextTab(_ tab: EpisodeDetailTextTab) {
+    guard tab == .description || isTranscriptionAvailable else { return }
     selectedTextTab = tab
   }
 
@@ -160,6 +163,10 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
 
   var canClearCache: Bool {
     episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
+  }
+
+  var isTranscriptionAvailable: Bool {
+    transcriptionAvailability.isAvailable
   }
 
   var transcriptionStatus: TranscriptionStatus {
@@ -416,7 +423,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
   }
 
   func transcribe() {
-    guard transcriptionStatus.canTranscribe else { return }
+    guard isTranscriptionAvailable, transcriptionStatus.canTranscribe else { return }
 
     lifecycle.runTask("transcribe: \(state.toString)") { [weak self] in
       guard let self else { return }

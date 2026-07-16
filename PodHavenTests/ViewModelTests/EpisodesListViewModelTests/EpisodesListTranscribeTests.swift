@@ -24,9 +24,12 @@ struct EpisodesListTranscribeTests {
 
   // Four episodes ordered transcribed / queued / transcribing / none, returned
   // as the VM's loaded list-row snapshots so `hasTranscript` is current.
-  private func makeLoadedViewModel() async throws -> (
+  private func makeLoadedViewModel(transcriptionAvailable: Bool = true) async throws -> (
     EpisodesListViewModel, [ListablePodcastEpisode]
   ) {
+    if transcriptionAvailable {
+      await TranscriptionHelpers.prepareAvailability()
+    }
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
@@ -52,6 +55,22 @@ struct EpisodesListTranscribeTests {
     let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Transcribe")
     try await EpisodesListTestHelpers.loadEntries(into: viewModel, episodes: listables)
     return (viewModel, listables)
+  }
+
+  @Test("transcription actions stay hidden and inert while support is unknown")
+  func transcriptionHiddenWhileSupportUnknown() async throws {
+    let (viewModel, listables) = try await makeLoadedViewModel(transcriptionAvailable: false)
+    let eligible = listables[3]
+
+    EpisodesListTestHelpers.select(viewModel, ids: [eligible.id])
+
+    #expect(!viewModel.canTranscribe(eligible))
+    #expect(!viewModel.anySelectedCanTranscribe)
+
+    viewModel.transcribeEpisode(eligible)
+    viewModel.transcribeSelectedEpisodes()
+
+    #expect(!transcriptionQueue.episodeIDs.contains(eligible.id))
   }
 
   @Test("canTranscribe allows only untranscribed, non-in-flight episodes")
@@ -102,6 +121,7 @@ struct EpisodesListTranscribeTests {
 
   @Test("transcribeSelectedEpisodes distinguishes identical media across podcasts")
   func transcribeSelectedEpisodesScopesEligibilityToPodcast() async throws {
+    await TranscriptionHelpers.prepareAvailability()
     let sharedGUID = GUID("shared-guid")
     let sharedMediaURL = MediaURL(URL.valid())
     let transcribedSeries = try await repo.insertSeries(

@@ -151,15 +151,17 @@ struct EpisodeDetailView: View {
       ShareEpisodeButton(episode: viewModel.episode)
     }
 
-    ToolbarItem(placement: .primaryAction) {
-      Button {
-        viewModel.transcribe()
-      } label: {
-        AppIcon.transcribeEpisode.image
-          .symbolEffect(.pulse, isActive: isTranscribing)
+    if viewModel.isTranscriptionAvailable {
+      ToolbarItem(placement: .primaryAction) {
+        Button {
+          viewModel.transcribe()
+        } label: {
+          AppIcon.transcribeEpisode.image
+            .symbolEffect(.pulse, isActive: isTranscribing)
+        }
+        .disabled(!viewModel.transcriptionStatus.canTranscribe)
+        .accessibilityLabel(isTranscribing ? "Transcribing" : AppIcon.transcribeEpisode.text)
       }
-      .disabled(!viewModel.transcriptionStatus.canTranscribe)
-      .accessibilityLabel(isTranscribing ? "Transcribing" : AppIcon.transcribeEpisode.text)
     }
 
     ToolbarItem(placement: .primaryAction) {
@@ -303,24 +305,28 @@ struct EpisodeDetailView: View {
 
   private var textContentView: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Picker(
-        "Episode text",
-        selection: Binding(
-          get: { viewModel.selectedTextTab },
-          set: { viewModel.selectTextTab($0) }
-        )
-      ) {
-        Text("Description").tag(EpisodeDetailTextTab.description)
-        Text("Transcription").tag(EpisodeDetailTextTab.transcript)
-      }
-      .pickerStyle(.segmented)
-      .frame(maxWidth: .infinity)
+      if viewModel.isTranscriptionAvailable {
+        Picker(
+          "Episode text",
+          selection: Binding(
+            get: { viewModel.selectedTextTab },
+            set: { viewModel.selectTextTab($0) }
+          )
+        ) {
+          Text("Description").tag(EpisodeDetailTextTab.description)
+          Text("Transcription").tag(EpisodeDetailTextTab.transcript)
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: .infinity)
 
-      switch viewModel.selectedTextTab {
-      case .description:
+        switch viewModel.selectedTextTab {
+        case .description:
+          descriptionView
+        case .transcript:
+          transcriptionView
+        }
+      } else {
         descriptionView
-      case .transcript:
-        transcriptionView
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)

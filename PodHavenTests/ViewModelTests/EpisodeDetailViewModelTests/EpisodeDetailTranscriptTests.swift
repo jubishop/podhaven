@@ -105,6 +105,7 @@ import Testing
 
   @Test("malformed transcript is retryable and cleared before enqueue")
   func malformedTranscriptCanRetry() async throws {
+    await TranscriptionHelpers.prepareAvailability()
     let podcastEpisode = try await Create.podcastEpisode()
     try await repo.updateTranscript(podcastEpisode.id, transcript: "not-json")
 
@@ -168,6 +169,7 @@ import Testing
 
   @Test("detail text defaults to description and switches to transcript")
   func detailTextSelection() async throws {
+    await TranscriptionHelpers.prepareAvailability()
     let podcastEpisode = try await Create.podcastEpisode()
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
@@ -176,5 +178,19 @@ import Testing
     viewModel.selectTextTab(.transcript)
 
     #expect(viewModel.selectedTextTab == .transcript)
+  }
+
+  @Test("detail transcription stays hidden and inert while support is unknown")
+  func detailTranscriptionHiddenWhileSupportUnknown() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    #expect(!viewModel.isTranscriptionAvailable)
+
+    viewModel.selectTextTab(.transcript)
+    viewModel.transcribe()
+
+    #expect(viewModel.selectedTextTab == .description)
+    #expect(!transcriptionQueue.episodeIDs.contains(podcastEpisode.id))
   }
 }

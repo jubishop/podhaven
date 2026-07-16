@@ -13,6 +13,7 @@ import Testing
 
   @Test("bulk transcription resolves a saved selection with one batch fetch")
   func bulkTranscriptionResolvesSavedSelectionOnce() async throws {
+    await TranscriptionHelpers.prepareAvailability()
     let savedSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(title: "Saved Transcription"),
