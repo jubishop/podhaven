@@ -58,7 +58,8 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
           )
           .accessibilityValue(Text(progress, format: .percent.precision(.fractionLength(0))))
         } else {
-          AppIcon.waiting.label
+          AppIcon.waiting
+            .label("Waiting to Download")
             .labelStyle(.iconOnly)
         }
       } else {

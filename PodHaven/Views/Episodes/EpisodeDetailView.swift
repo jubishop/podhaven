@@ -143,7 +143,8 @@ struct EpisodeDetailView: View {
           }
         }
       } label: {
-        (viewModel.isPlaying ? AppIcon.pauseButton : AppIcon.playButton).label
+        (viewModel.isPlaying ? AppIcon.pauseButton : AppIcon.playButton)
+          .label("Episode Actions")
           .labelStyle(.iconOnly)
       }
     }
@@ -181,6 +182,13 @@ struct EpisodeDetailView: View {
             size: geometry.size.width
           )
           .onTapGesture {
+            showingImageOverlay = true
+          }
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel("Show Episode Artwork")
+          .accessibilityHint("Shows the artwork full screen")
+          .accessibilityAddTraits(.isButton)
+          .accessibilityAction {
             showingImageOverlay = true
           }
         }
@@ -348,6 +356,12 @@ struct EpisodeDetailView: View {
             .aspectRatio(contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .padding(4)
+            .accessibilityLabel("Episode Artwork")
+            .accessibilityHint("Closes the full-screen artwork")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+              showingImageOverlay = false
+            }
         } else {
           VStack(spacing: 16) {
             AppIcon.noImage.image
@@ -362,6 +376,13 @@ struct EpisodeDetailView: View {
             Text("Tap to close")
               .font(.headline)
               .foregroundColor(.secondary)
+          }
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel("Image unavailable")
+          .accessibilityHint("Closes the full-screen artwork")
+          .accessibilityAddTraits(.isButton)
+          .accessibilityAction {
+            showingImageOverlay = false
           }
         }
       }

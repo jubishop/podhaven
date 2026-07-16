@@ -80,6 +80,7 @@ struct PlayBar: View {
         action: PlayBar.showOnDeckEpisodeDetail,
         label: { episodeThumbnail }
       )
+      .accessibilityLabel("Show Episode Details")
 
       Spacer()
 
