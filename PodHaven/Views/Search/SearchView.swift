@@ -118,7 +118,8 @@ struct SearchView: View {
     )
     .buttonStyle(.glass)
     .disabled(isSelected)
-    .accessibilityLabel("Select trending section: \(section.title)")
+    .accessibilityLabel(Text(section.title))
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 
   // MARK: - Result Views

@@ -61,7 +61,8 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
         CompactMetadataItem(appIcon: .publishDate, value: episode.pubDate.usShort)
         Spacer()
         if let middleIcon {
-          middleIcon.image
+          middleIcon.label
+            .labelStyle(.iconOnly)
           Spacer()
         }
         CompactMetadataItem(appIcon: .duration, value: durationText)
