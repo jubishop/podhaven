@@ -152,8 +152,6 @@ struct EmbeddingProcessor: Sendable {
     foregroundTask { task in
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
-        await contextualEmbedding.requestAndLoadAssetsIfNeeded()
-
         var retryDelay: Duration = .seconds(1)
         var hasReceivedEmission = false
         while !Task.isCancelled {
@@ -165,6 +163,8 @@ struct EmbeddingProcessor: Sendable {
                 workBecameAvailable()
               } else {
                 hasReceivedEmission = true
+                await contextualEmbedding.requestAndLoadAssetsIfNeeded()
+                guard !Task.isCancelled else { return }
                 scheduleDrain()
               }
             }
@@ -230,9 +230,11 @@ struct EmbeddingProcessor: Sendable {
       includeCurrent: initialSnapshot.requiresFullRefresh
     )
     var batchResult = EmbeddingBatchResult(failedEpisodeCount: 0)
+    var clearingSnapshot = initialSnapshot
 
     if !ids.isEmpty {
       Container.shared.embeddingWorkDemand().ensureAvailable()
+      clearingSnapshot = Container.shared.embeddingWorkDemand().snapshot()
       Self.log.info("Processing \(ids.count) episodes for embeddings")
       batchResult = try await EmbeddingService.upsertEpisodeEmbeddings(
         forIDs: ids,
@@ -247,7 +249,6 @@ struct EmbeddingProcessor: Sendable {
       return .pending(processedCount: ids.count)
     }
 
-    let clearingSnapshot = Container.shared.embeddingWorkDemand().snapshot()
     let remaining = try await episodeIDsNeedingWork(includeCurrent: false)
     guard remaining.isEmpty else {
       Container.shared.embeddingWorkDemand().ensureAvailable()

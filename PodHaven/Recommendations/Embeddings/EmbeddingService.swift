@@ -56,8 +56,13 @@ enum EmbeddingService {
       try Task.checkCancellation()
       let end = min(start + hydrationChunkSize, episodeIDs.count)
       let chunk = Array(episodeIDs[start..<end])
+      let verificationDate = Date()
       let episodes = try await recommendationRepo.episodes(for: chunk)
-      let result = try await upsertEpisodeEmbeddings(for: episodes, embedding: embedding)
+      let result = try await upsertEpisodeEmbeddings(
+        for: episodes,
+        embedding: embedding,
+        verificationDate: verificationDate
+      )
       failedEpisodeCount += result.failedEpisodeCount
     }
     return EmbeddingBatchResult(failedEpisodeCount: failedEpisodeCount)
@@ -66,6 +71,18 @@ enum EmbeddingService {
   @discardableResult static func upsertEpisodeEmbeddings(
     for episodes: [Episode],
     embedding: ContextualEmbedding
+  ) async throws -> EmbeddingBatchResult {
+    try await upsertEpisodeEmbeddings(
+      for: episodes,
+      embedding: embedding,
+      verificationDate: Date()
+    )
+  }
+
+  private static func upsertEpisodeEmbeddings(
+    for episodes: [Episode],
+    embedding: ContextualEmbedding,
+    verificationDate: Date
   ) async throws -> EmbeddingBatchResult {
     guard !episodes.isEmpty else { return EmbeddingBatchResult(failedEpisodeCount: 0) }
 
@@ -89,7 +106,6 @@ enum EmbeddingService {
     // Touching the date stops episodesNeedingEmbeddings from re-yielding them
     // without paying for a no-op vector recompute.
     var verifiedOnlyEpisodeIDs = [Episode.ID](capacity: episodes.count)
-    let chunkStart = Date()
 
     var caughtCancellation: CancellationError?
     var failedEpisodeCount = 0
@@ -140,7 +156,7 @@ enum EmbeddingService {
           hash: hash,
           embedding: embedding,
           podcastVector: podcastVector,
-          verificationDate: chunkStart
+          verificationDate: verificationDate
         )
         pendingEpisodeEmbeddings.append(unsavedEpisode)
       } catch let error as CancellationError {
@@ -162,7 +178,7 @@ enum EmbeddingService {
     try await recommendationRepo.upsertEmbeddings(pendingEpisodeEmbeddings)
     try await recommendationRepo.touchEmbeddingVerification(
       forEpisodeIDs: verifiedOnlyEpisodeIDs,
-      at: chunkStart
+      at: verificationDate
     )
 
     if let caughtCancellation { throw caughtCancellation }

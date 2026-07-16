@@ -118,6 +118,47 @@ class EmbeddingProcessorTests {
     await fakeSleeper.advanceTime(by: .seconds(10))
   }
 
+  @Test("foreground observation starts before loading available assets")
+  func foregroundObservationStartsBeforeLoadingAvailableAssets() async throws {
+    let fakeObservatory = try #require(observatory as? FakeObservatory)
+    let eventOrder = ThreadSafe<[String]>([])
+    let dbReader = Container.shared.appDB().unsafeTestDB
+    fakeObservatory.embeddingWorkSignalScript([
+      {
+        ValueObservation.tracking { db in
+          _ = try Episode.fetchCount(db)
+          eventOrder { $0.append("observation") }
+          return (
+            latestEpisodeContentUpdate: nil,
+            latestPodcastContentUpdate: nil
+          )
+        }
+        .values(in: dbReader)
+      }
+    ])
+
+    let orderedEmbedding = ContextualEmbedding(
+      embedding: AssetLoadOrderingEmbeddable {
+        eventOrder { $0.append("load") }
+      }
+    )
+    Container.shared.contextualEmbedding.reset()
+      .register { orderedEmbedding }
+      .scope(.cached)
+    Container.shared.embeddingWorkDemand.reset()
+
+    let processor = EmbeddingProcessor()
+    processor.handleScenePhaseChange(to: .active)
+
+    try await Wait.until(
+      { eventOrder().count >= 2 },
+      { "Foreground startup did not both observe embedding work and load assets" }
+    )
+    #expect(Array(eventOrder().prefix(2)) == ["observation", "load"])
+
+    processor.handleScenePhaseChange(to: .background)
+  }
+
   @Test("background expiration preserves demand and its successor request")
   func backgroundExpirationPreservesDemand() async throws {
     let fakeBGTaskScheduler = self.fakeBGTaskScheduler
@@ -158,6 +199,80 @@ class EmbeddingProcessorTests {
     )
     #expect(workDemand.hasWork)
     #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
+  }
+
+  @Test("an episode edited during embedding remains eligible for a fresh pass")
+  func concurrentEpisodeEditRemainsEligible() async throws {
+    let fakeBGTaskScheduler = self.fakeBGTaskScheduler
+    let fakeRecommendationRepo = try #require(
+      recommendationRepo as? FakeRecommendationRepo
+    )
+    let workDemand = embeddingWorkDemand
+    let processor = EmbeddingProcessor()
+    processor.register()
+    try await waitForNoPendingBackgroundRequest()
+
+    let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Concurrent Edit"
+    )
+    let episode = try #require(episodes.first)
+    fakeRecommendationRepo.armEmbeddingsGate(matching: [episode.id])
+    defer { fakeRecommendationRepo.releaseEmbeddingsGate() }
+
+    processor.workBecameAvailable()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers.count == 1 },
+      { "Embedding work did not schedule its background request" }
+    )
+    let identifier = try #require(fakeBGTaskScheduler.pendingIdentifiers.first)
+    let firstTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { fakeRecommendationRepo.isEmbeddingsGateSuspended },
+      { "Embedding background task did not suspend after episode hydration" }
+    )
+
+    let updateNotBefore = Date.now.addingTimeInterval(0.01)
+    try await Wait.until(
+      { Date.now >= updateNotBefore },
+      { "Clock did not advance far enough to order the concurrent edit" }
+    )
+    _ = try await Container.shared.appDB().unsafeTestDB
+      .write { db in
+        try Episode
+          .withID(episode.id)
+          .updateAll(db, Episode.Columns.title.set(to: "Updated During Embedding"))
+      }
+    processor.workBecameAvailable()
+    fakeRecommendationRepo.releaseEmbeddingsGate()
+
+    try await Wait.until(
+      { firstTask.completionResults == [true] },
+      { "The first embedding grant did not complete" }
+    )
+    let staleAfterFirstPass = try await recommendationRepo.episodesNeedingEmbeddings(
+      revision: contextualEmbedding.revision
+    )
+    #expect(staleAfterFirstPass.contains(episode.id))
+    #expect(workDemand.hasWork)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
+
+    let secondTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { secondTask.completionResults == [true] },
+      { "The fresh embedding pass did not complete" }
+    )
+    #expect(!workDemand.hasWork)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
+    #expect(
+      try await recommendationRepo.episodesNeedingEmbeddings(
+        revision: contextualEmbedding.revision
+      ) == []
+    )
   }
 
   @Test("failed forced refresh preserves demand and its successor request")
@@ -406,6 +521,22 @@ private struct PendingAssetEmbeddable: Embeddable {
   let revision = 1
 
   func load() throws { throw EmbeddingError.modelUnavailable }
+
+  func requestAssets(completion _: @escaping @Sendable ((any Error)?) -> Void) {}
+
+  func embeddingResult(for _: String) throws -> any EmbeddableResult {
+    throw EmbeddingError.modelUnavailable
+  }
+}
+
+private struct AssetLoadOrderingEmbeddable: Embeddable {
+  let hasAvailableAssets = true
+  let revision = 1
+  let recordLoad: @Sendable () -> Void
+
+  func load() throws {
+    recordLoad()
+  }
 
   func requestAssets(completion _: @escaping @Sendable ((any Error)?) -> Void) {}
 
