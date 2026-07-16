@@ -6,9 +6,9 @@ import IdentifiedCollections
 import Logging
 import OrderedCollections
 
-private struct TranscriptionEpisodeKey: Hashable {
-  let feedURL: FeedURL
-  let mediaGUID: MediaGUID
+struct ResolvedPodcastEpisode<Source> {
+  let source: Source
+  let podcastEpisode: PodcastEpisode
 }
 
 @MainActor protocol SelectableEpisodeList: SelectableList, AnyObject where Item == EpisodeType {
@@ -20,7 +20,11 @@ private struct TranscriptionEpisodeKey: Hashable {
   var selectedSavedEpisodeIDs: [Episode.ID] { get }
   var selectedPodcastEpisodeIDs: [Episode.ID] { get async throws }
 
-  // Must Implement: Saves new PodcastEpisodes as needed
+  // Must Implement: Saves new PodcastEpisodes as needed while preserving the
+  // source row for every successfully resolved episode.
+  func resolvedPodcastEpisodes(for episodes: [EpisodeType]) async throws
+    -> [ResolvedPodcastEpisode<EpisodeType>]
+
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
 
   var anySelectedQueued: Bool { get }
@@ -83,6 +87,11 @@ extension SelectableEpisodeList {
   var selectedEpisodes: [EpisodeType] { selectedEntries.elements }
   var selectedSavedEpisodeIDs: [Episode.ID] {
     selectedEpisodes.compactMap(\.episodeID)
+  }
+  var selectedPodcastEpisodes: [PodcastEpisode] {
+    get async throws {
+      try await resolvedPodcastEpisodes(for: selectedEpisodes).map(\.podcastEpisode)
+    }
   }
   var selectedPodcastEpisodeIDs: [Episode.ID] {
     get async throws {
@@ -574,48 +583,27 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
       Self.log.notice("transcribeSelectedEpisodes: no eligible episodes selected")
       return
     }
-    let episodeKeys = Set(
-      episodes.map {
-        TranscriptionEpisodeKey(feedURL: $0.feedURL, mediaGUID: $0.mediaGUID)
-      }
-    )
-
     Self.log.debug("transcribeSelectedEpisodes: resolving \(episodes.count) episodes")
 
     Task { [weak self] in
       guard let self else { return }
 
-      let podcastEpisodes: [PodcastEpisode]
+      let resolvedEpisodes: [ResolvedPodcastEpisode<EpisodeType>]
       do {
-        podcastEpisodes = try await selectedPodcastEpisodes.filter {
-          episodeKeys.contains(
-            TranscriptionEpisodeKey(feedURL: $0.feedURL, mediaGUID: $0.mediaGUID)
-          )
-        }
+        resolvedEpisodes = try await resolvedPodcastEpisodes(for: episodes)
       } catch {
         Self.log.caughtError("transcribeSelectedEpisodes: failed", error)
         return
       }
-      guard !podcastEpisodes.isEmpty else {
+      guard !resolvedEpisodes.isEmpty else {
         Self.log.notice("transcribeSelectedEpisodes: no selected episodes resolved")
         return
       }
 
-      for podcastEpisode in podcastEpisodes {
-        transcriptionQueue.enqueue(podcastEpisode.id)
+      for resolvedEpisode in resolvedEpisodes {
+        transcriptionQueue.enqueue(resolvedEpisode.podcastEpisode.id)
       }
-      let resolvedEpisodeKeys = Set(
-        podcastEpisodes.map {
-          TranscriptionEpisodeKey(feedURL: $0.feedURL, mediaGUID: $0.mediaGUID)
-        }
-      )
-      didPerformBulkAction(
-        on: episodes.filter {
-          resolvedEpisodeKeys.contains(
-            TranscriptionEpisodeKey(feedURL: $0.feedURL, mediaGUID: $0.mediaGUID)
-          )
-        }
-      )
+      didPerformBulkAction(on: resolvedEpisodes.map(\.source))
     }
   }
 
@@ -649,13 +637,29 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
 }
 
 extension SelectableEpisodeList where EpisodeType == PodcastEpisode {
-  var selectedPodcastEpisodes: [PodcastEpisode] { get async throws { selectedEpisodes } }
+  func resolvedPodcastEpisodes(for episodes: [PodcastEpisode]) async throws
+    -> [ResolvedPodcastEpisode<PodcastEpisode>]
+  {
+    episodes.map { ResolvedPodcastEpisode(source: $0, podcastEpisode: $0) }
+  }
 }
 
 extension SelectableEpisodeList where EpisodeType == ListablePodcastEpisode {
-  var selectedPodcastEpisodes: [PodcastEpisode] {
-    get async throws {
-      try await Container.shared.repo().podcastEpisodes(selectedEpisodes.compactMap(\.episodeID))
+  func resolvedPodcastEpisodes(for episodes: [ListablePodcastEpisode]) async throws
+    -> [ResolvedPodcastEpisode<ListablePodcastEpisode>]
+  {
+    let podcastEpisodes = try await Container.shared.repo()
+      .podcastEpisodes(
+        episodes.compactMap(\.episodeID)
+      )
+    let podcastEpisodesByID = Dictionary(
+      uniqueKeysWithValues: podcastEpisodes.map { ($0.id, $0) }
+    )
+    return episodes.compactMap { episode in
+      guard let episodeID = episode.episodeID,
+        let podcastEpisode = podcastEpisodesByID[episodeID]
+      else { return nil }
+      return ResolvedPodcastEpisode(source: episode, podcastEpisode: podcastEpisode)
     }
   }
 }

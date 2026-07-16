@@ -214,15 +214,20 @@ final class SearchDiscoveryListViewModel:
 
   // MARK: - SelectableEpisodeList
 
-  var selectedPodcastEpisodes: [PodcastEpisode] {
-    get async throws {
-      let episodes = selectedEpisodes
-      var podcastEpisodes = [PodcastEpisode](capacity: episodes.count)
-      for episode in episodes {
-        podcastEpisodes.append(try await episode.getOrCreatePodcastEpisode())
-      }
-      return podcastEpisodes
+  func resolvedPodcastEpisodes(for episodes: [ListedEpisode]) async throws
+    -> [ResolvedPodcastEpisode<ListedEpisode>]
+  {
+    var resolvedEpisodes: [ResolvedPodcastEpisode<ListedEpisode>] = []
+    resolvedEpisodes.reserveCapacity(episodes.count)
+    for episode in episodes {
+      resolvedEpisodes.append(
+        ResolvedPodcastEpisode(
+          source: episode,
+          podcastEpisode: try await episode.getOrCreatePodcastEpisode()
+        )
+      )
     }
+    return resolvedEpisodes
   }
 
   func didPerformBulkAction(on episodes: [ListedEpisode]) {

@@ -13,6 +13,7 @@ import Testing
   private typealias H = SearchRecommendationCollectorTestHelpers
 
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
 
   // MARK: - Fixtures
 
@@ -182,6 +183,46 @@ import Testing
       let swapped = try #require(viewModel.episodeList.filteredEntries[id: pick.id])
       #expect(swapped.feedURL == parsedFeed)
     }
+  }
+
+  @Test("bulk transcription survives canonical feed resolution")
+  func bulkTranscriptionSurvivesCanonicalFeedResolution() async throws {
+    let aliasFeed = FeedURL(URL(string: "https://example.com/transcription-alias.rss")!)
+    let canonicalFeed = FeedURL(
+      URL(string: "https://example.com/transcription-canonical.rss")!
+    )
+    let iTunesID = ITunesPodcastID(7402)
+    let viewModel = try await makeViewModelWithPicks(
+      feeds: [(feedURL: aliasFeed, iTunesID: iTunesID, episodes: 1)]
+    )
+    viewModel.syncEntries(for: viewModel.discoveryListState)
+
+    let pick = try #require(viewModel.collector.picks(for: viewModel.source).first)
+    let entry = try #require(viewModel.episodeList.filteredEntries[id: pick.id])
+    viewModel.episodeList.isSelected[entry.id] = true
+    #expect(viewModel.anySelectedCanTranscribe)
+
+    let canonicalSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: canonicalFeed,
+          iTunesID: iTunesID,
+          title: "Canonical Transcription"
+        ),
+        unsavedEpisodes: [pick.episode.unsavedEpisode]
+      )
+    )
+    let canonicalEpisode = try #require(canonicalSeries.episodes.first)
+
+    viewModel.transcribeSelectedEpisodes()
+
+    try await Wait.until(
+      { @MainActor in self.transcriptionQueue.episodeIDs.contains(canonicalEpisode.id) },
+      { @MainActor in
+        "Expected canonical episode to be queued; queue=\(self.transcriptionQueue.episodeIDs)"
+      }
+    )
+    #expect(transcriptionQueue.episodeIDs == [canonicalEpisode.id])
   }
 
   // MARK: - Test: Cross-Feed Disambiguation
