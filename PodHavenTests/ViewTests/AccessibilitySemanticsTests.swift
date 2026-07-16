@@ -11,4 +11,9 @@ import Testing
     #expect(AppIcon.seekBackward(30).text == "Seek Backward 30 Seconds")
     #expect(AppIcon.seekForward(45).text == "Seek Forward 45 Seconds")
   }
+  @Test("selection controls describe the action they perform")
+  func selectionControlsDescribeTheirAction() {
+    #expect(AppIcon.selectionEmpty.text == "Select")
+    #expect(AppIcon.selectionFilled.text == "Deselect")
+  }
 }

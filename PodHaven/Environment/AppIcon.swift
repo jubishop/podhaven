@@ -643,7 +643,7 @@ import SwiftUI
     case .selectionEmpty:
       return Data(text: "Select", systemImageName: .selectionEmpty)
     case .selectionFilled:
-      return Data(text: "Selected", systemImageName: .selectionFilled)
+      return Data(text: "Deselect", systemImageName: .selectionFilled)
     case .waiting:
       return Data(text: "Waiting", systemImageName: .waiting, color: .green)
     case .website:
