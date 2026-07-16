@@ -236,6 +236,19 @@ struct PlayBarSheet: View {
         tickMarks: viewModel.chapterPositions,
         maxPlaybackTime: viewModel.canJumpToMaxPlayback ? viewModel.maxPlaybackTime : nil
       )
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("Playback Position")
+      .accessibilityValue(Text(viewModel.sliderValue.playbackTimeFormat))
+      .accessibilityAdjustableAction { direction in
+        switch direction {
+        case .increment:
+          viewModel.seekForward()
+        case .decrement:
+          viewModel.seekBackward()
+        @unknown default:
+          break
+        }
+      }
 
       HStack {
         Text(viewModel.sliderValue.playbackTimeFormat)

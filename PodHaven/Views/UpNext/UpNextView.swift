@@ -47,15 +47,17 @@ struct UpNextView: View {
       }
       .safeAreaInset(edge: .top, spacing: 12) {
         if userSettings.showNowPlayingInUpNext, let onDeck = sharedState.onDeck {
-          EpisodeListView(
-            episode: onDeck,
-            alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageForOnDeck
-          )
-          .padding()
-          .glassEffect(in: RoundedRectangle(cornerRadius: 12))
-          .padding(.horizontal)
-          .contentShape(Rectangle())
-          .onTapGesture { PlayBar.showOnDeckEpisodeDetail() }
+          Button(action: PlayBar.showOnDeckEpisodeDetail) {
+            EpisodeListView(
+              episode: onDeck,
+              alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageForOnDeck
+            )
+            .padding()
+            .glassEffect(in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
           .episodeContextMenu(viewModel: onDeckViewModel, episode: onDeck)
         }
       }
