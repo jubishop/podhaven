@@ -208,7 +208,7 @@ final class SearchDiscoveryListViewModel:
   // MARK: - ManagingEpisodes
 
   func didPerformAction(_ episode: ListedEpisode) {
-    guard let pick = backingPickByMediaGUID[episode.mediaGUID] else { return }
+    guard let pick = backingPick(for: episode) else { return }
     collector.removePick(mediaGUID: episode.mediaGUID, feedURL: pick.feedURL)
   }
 
@@ -232,8 +232,15 @@ final class SearchDiscoveryListViewModel:
 
   func didPerformBulkAction(on episodes: [ListedEpisode]) {
     for episode in episodes {
-      guard let pick = backingPickByMediaGUID[episode.mediaGUID] else { continue }
+      guard let pick = backingPick(for: episode) else { continue }
       collector.removePick(mediaGUID: episode.mediaGUID, feedURL: pick.feedURL)
     }
+  }
+
+  private func backingPick(for episode: ListedEpisode) -> ScoredEpisode? {
+    guard let pick = backingPickByMediaGUID[episode.mediaGUID],
+      episode.feedURL == pick.feedURL || episode.feedURL == pick.episode.feedURL
+    else { return nil }
+    return pick
   }
 }

@@ -600,10 +600,18 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
         return
       }
 
-      for resolvedEpisode in resolvedEpisodes {
+      let eligibleEpisodes = resolvedEpisodes.filter {
+        canTranscribeResolvedEpisode($0.podcastEpisode)
+      }
+      guard !eligibleEpisodes.isEmpty else {
+        Self.log.notice("transcribeSelectedEpisodes: no resolved episodes remain eligible")
+        return
+      }
+
+      for resolvedEpisode in eligibleEpisodes {
         transcriptionQueue.enqueue(resolvedEpisode.podcastEpisode.id)
       }
-      didPerformBulkAction(on: resolvedEpisodes.map(\.source))
+      didPerformBulkAction(on: eligibleEpisodes.map(\.source))
     }
   }
 

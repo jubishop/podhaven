@@ -78,6 +78,14 @@ extension ManagingEpisodes {
       .canTranscribe
   }
 
+  func canTranscribeResolvedEpisode(_ episode: PodcastEpisode) -> Bool {
+    guard transcriptionAvailability.isAvailable else { return false }
+    return
+      transcriptionQueue
+      .status(for: episode.id, hasTranscript: episode.hasTranscript)
+      .canTranscribe
+  }
+
   // MARK: - Actions
 
   func playEpisode(_ episode: EpisodeType) {
@@ -287,8 +295,9 @@ extension ManagingEpisodes {
       guard let self else { return }
 
       do {
-        let episodeID = try await getOrCreateEpisodeID(episode)
-        transcriptionQueue.enqueue(episodeID)
+        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
+        guard canTranscribeResolvedEpisode(podcastEpisode) else { return }
+        transcriptionQueue.enqueue(podcastEpisode.id)
         didPerformAction(episode)
       } catch {
         Self.log.caughtError("transcribeEpisode: failed for \(episode.title)", error)
