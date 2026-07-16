@@ -275,6 +275,68 @@ class EmbeddingProcessorTests {
     )
   }
 
+  @Test("concurrent demand after a forced refresh uses an incremental successor")
+  func concurrentDemandAfterForcedRefreshUsesIncrementalSuccessor() async throws {
+    let fakeBGTaskScheduler = self.fakeBGTaskScheduler
+    let fakeRecommendationRepo = try #require(
+      recommendationRepo as? FakeRecommendationRepo
+    )
+    let workDemand = embeddingWorkDemand
+    let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Concurrent Forced Refresh"
+    )
+    let episode = try #require(episodes.first)
+    fakeRecommendationRepo.armEmbeddingsGate(matching: [episode.id])
+    defer { fakeRecommendationRepo.releaseEmbeddingsGate() }
+
+    #expect(workDemand.snapshot().requiresFullRefresh)
+
+    let processor = EmbeddingProcessor()
+    processor.register()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers.count == 1 },
+      { "Forced refresh did not schedule its background request" }
+    )
+    let identifier = try #require(fakeBGTaskScheduler.pendingIdentifiers.first)
+    let firstTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { fakeRecommendationRepo.isEmbeddingsGateSuspended },
+      { "Forced refresh did not reach its suspended write" }
+    )
+
+    processor.workBecameAvailable()
+    fakeRecommendationRepo.releaseEmbeddingsGate()
+
+    try await Wait.until(
+      { firstTask.completionResults == [true] },
+      { "Forced refresh did not complete after concurrent demand arrived" }
+    )
+    #expect(workDemand.hasWork)
+    #expect(!workDemand.snapshot().requiresFullRefresh)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
+
+    fakeRecommendationRepo.clearAllCalls()
+    let secondTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { secondTask.completionResults == [true] },
+      { "Incremental successor did not complete" }
+    )
+
+    let workQueries =
+      fakeRecommendationRepo
+      .calls(of: MethodCall<(Int, Bool)>.self)
+      .filter { $0.methodName == "episodesNeedingEmbeddings" }
+    let firstWorkQuery = try #require(workQueries.first)
+    #expect(!firstWorkQuery.parameters.1)
+    #expect(!workDemand.hasWork)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
+  }
+
   @Test("failed forced refresh preserves demand and its successor request")
   func failedForcedRefreshPreservesDemand() async throws {
     let failureMarker = "Forced Refresh Failure"

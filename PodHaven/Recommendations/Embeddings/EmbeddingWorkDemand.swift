@@ -92,6 +92,14 @@ struct EmbeddingWorkDemand: Sendable {
     }
   }
 
+  func markPipelineRefreshCompleted() {
+    state { state in
+      guard state.completedPipelineVersion != pipelineVersion else { return }
+      state.completedPipelineVersion = pipelineVersion
+      state.store(to: store, forKey: Self.key)
+    }
+  }
+
   @discardableResult
   func clear(ifUnchanged snapshot: Snapshot) -> Bool {
     state { state in

@@ -249,6 +249,10 @@ struct EmbeddingProcessor: Sendable {
       return .pending(processedCount: ids.count)
     }
 
+    if initialSnapshot.requiresFullRefresh {
+      Container.shared.embeddingWorkDemand().markPipelineRefreshCompleted()
+    }
+
     let remaining = try await episodeIDsNeedingWork(includeCurrent: false)
     guard remaining.isEmpty else {
       Container.shared.embeddingWorkDemand().ensureAvailable()
