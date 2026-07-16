@@ -34,12 +34,26 @@ struct EmbeddingProcessor: Sendable {
 
   private let backgroundTaskScheduler: BackgroundTaskScheduler
   private let foregroundTask = ThreadSafe<Task<Void, Never>?>(nil)
+  private let registrationReconciliationOnce = Once()
+
+  private enum ProcessingMode: Sendable {
+    case foreground
+    case background
+  }
+
+  private enum DrainResult {
+    case empty(processedCount: Int)
+    case pending(processedCount: Int)
+  }
+
+  private let processingMode = ThreadSafe(ProcessingMode.background)
 
   init() {
     backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
-      cadence: .hours(1),
-      taskType: .processing(requiresNetworkConnectivity: false)
+      cadence: .minutes(1),
+      taskType: .processing(requiresNetworkConnectivity: false),
+      schedulingMode: .onDemand { Container.shared.embeddingWorkDemand().hasWork }
     )
   }
 
@@ -57,30 +71,17 @@ struct EmbeddingProcessor: Sendable {
       }
 
       do {
-        // IDs only — full Episode rows are hydrated in chunks during
-        // processing so a BG-expiry doesn't waste a multi-second hydration
-        // pass. Newest episodes (by pubDate) are ordered first.
-        let queryStart = continuousClockNow()
-        let idsToProcess = try await recommendationRepo.episodesNeedingEmbeddings(
-          revision: contextualEmbedding.revision
-        )
-        let queryDuration = continuousClockNow() - queryStart
-        Self.log.debug("episodesNeedingEmbeddings query took \(queryDuration)")
-
-        if idsToProcess.isEmpty {
-          Self.log.info("No episodes need embedding updates")
-          complete(true)
-          return
+        let result = try await drainAvailableWork()
+        switch result {
+        case .empty(let processedCount):
+          Self.log.info(
+            "Embedding background task drained \(processedCount) episodes"
+          )
+        case .pending(let processedCount):
+          Self.log.info(
+            "Embedding background task processed \(processedCount) episodes with work remaining"
+          )
         }
-
-        Self.log.info("Processing \(idsToProcess.count) episodes for embeddings")
-
-        try await EmbeddingService.upsertEpisodeEmbeddings(
-          forIDs: idsToProcess,
-          embedding: contextualEmbedding
-        )
-
-        Self.log.info("Embedding background task completed successfully")
         complete(true)
       } catch is CancellationError {
         Self.log.info("Embedding background task cancelled (expired)")
@@ -88,6 +89,12 @@ struct EmbeddingProcessor: Sendable {
       } catch {
         Self.log.caughtError("Embedding background task failed", error)
         complete(false)
+      }
+    }
+
+    registrationReconciliationOnce.run {
+      Task(priority: taskPriority(.background)) {
+        await reconcilePersistedDemand()
       }
     }
   }
@@ -99,14 +106,30 @@ struct EmbeddingProcessor: Sendable {
     case .active:
       Self.log.debug("activated")
 
+      processingMode(.foreground)
       startForegroundObservation()
+      if Container.shared.embeddingWorkDemand().hasWork {
+        scheduleDrain()
+      }
     case .background:
       Self.log.debug("backgrounded")
 
+      processingMode(.background)
       stopForegroundObservation()
       backgroundTaskScheduler.scheduleNext()
     default:
       break
+    }
+  }
+
+  func workBecameAvailable() {
+    Container.shared.embeddingWorkDemand().markAvailable()
+
+    switch processingMode() {
+    case .foreground:
+      scheduleDrain()
+    case .background:
+      backgroundTaskScheduler.scheduleNext()
     }
   }
 
@@ -129,25 +152,21 @@ struct EmbeddingProcessor: Sendable {
     foregroundTask { task in
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
-        await contextualEmbedding.requestAndLoadAssetsIfNeeded()
-        do {
-          try await contextualEmbedding.assetsLoaded.wait()
-        } catch {
-          Self.log.caughtError(
-            "Foreground embedding observation cancelled before assets loaded",
-            error
-          )
-          return
-        }
-        guard !Task.isCancelled else { return }
-
         var retryDelay: Duration = .seconds(1)
+        var hasReceivedEmission = false
         while !Task.isCancelled {
           do {
             for try await _ in observatory.embeddingWorkSignal() {
               guard !Task.isCancelled else { return }
               retryDelay = .seconds(1)
-              scheduleDrain()
+              if hasReceivedEmission {
+                workBecameAvailable()
+              } else {
+                hasReceivedEmission = true
+                await contextualEmbedding.requestAndLoadAssetsIfNeeded()
+                guard !Task.isCancelled else { return }
+                scheduleDrain()
+              }
             }
           } catch is CancellationError {
             return
@@ -164,14 +183,8 @@ struct EmbeddingProcessor: Sendable {
   private func scheduleDrain() {
     drainDebounce {
       do {
-        let ids = try await recommendationRepo.episodesNeedingEmbeddings(
-          revision: contextualEmbedding.revision
-        )
-        guard !ids.isEmpty else { return }
-        try await EmbeddingService.upsertEpisodeEmbeddings(
-          forIDs: ids,
-          embedding: contextualEmbedding
-        )
+        try await contextualEmbedding.assetsLoaded.wait()
+        try await drainAvailableWork()
       } catch is CancellationError {
         // Superseded by a newer trigger or backgrounded mid-drain; the next
         // foreground pass re-queries any remaining work.
@@ -190,5 +203,79 @@ struct EmbeddingProcessor: Sendable {
       task = nil
     }
     drainDebounce.cancel()
+  }
+
+  private func reconcilePersistedDemand() async {
+    let snapshot = Container.shared.embeddingWorkDemand().snapshot()
+    do {
+      let ids = try await episodeIDsNeedingWork(
+        includeCurrent: snapshot.requiresFullRefresh
+      )
+      if ids.isEmpty {
+        Container.shared.embeddingWorkDemand().clear(ifUnchanged: snapshot)
+      } else {
+        Container.shared.embeddingWorkDemand().ensureAvailable()
+      }
+    } catch {
+      Container.shared.embeddingWorkDemand().ensureAvailable()
+      Self.log.caughtError("Failed to reconcile persisted embedding demand", error)
+    }
+    backgroundTaskScheduler.scheduleNext()
+  }
+
+  @discardableResult
+  private func drainAvailableWork() async throws -> DrainResult {
+    let initialSnapshot = Container.shared.embeddingWorkDemand().snapshot()
+    let ids = try await episodeIDsNeedingWork(
+      includeCurrent: initialSnapshot.requiresFullRefresh
+    )
+    var batchResult = EmbeddingBatchResult(failedEpisodeCount: 0)
+    var clearingSnapshot = initialSnapshot
+
+    if !ids.isEmpty {
+      Container.shared.embeddingWorkDemand().ensureAvailable()
+      clearingSnapshot = Container.shared.embeddingWorkDemand().snapshot()
+      Self.log.info("Processing \(ids.count) episodes for embeddings")
+      batchResult = try await EmbeddingService.upsertEpisodeEmbeddings(
+        forIDs: ids,
+        embedding: contextualEmbedding
+      )
+    }
+
+    try Task.checkCancellation()
+
+    guard batchResult.failedEpisodeCount == 0 else {
+      Container.shared.embeddingWorkDemand().ensureAvailable()
+      return .pending(processedCount: ids.count)
+    }
+
+    if initialSnapshot.requiresFullRefresh {
+      Container.shared.embeddingWorkDemand().markPipelineRefreshCompleted()
+    }
+
+    let remaining = try await episodeIDsNeedingWork(includeCurrent: false)
+    guard remaining.isEmpty else {
+      Container.shared.embeddingWorkDemand().ensureAvailable()
+      return .pending(processedCount: ids.count)
+    }
+    guard Container.shared.embeddingWorkDemand().clear(ifUnchanged: clearingSnapshot) else {
+      return .pending(processedCount: ids.count)
+    }
+
+    backgroundTaskScheduler.scheduleNext()
+    return .empty(processedCount: ids.count)
+  }
+
+  private func episodeIDsNeedingWork(includeCurrent: Bool) async throws -> [Episode.ID] {
+    let queryStart = continuousClockNow()
+    let ids = try await recommendationRepo.episodesNeedingEmbeddings(
+      revision: contextualEmbedding.revision,
+      includeCurrent: includeCurrent
+    )
+    let queryDuration = continuousClockNow() - queryStart
+    Self.log.debug(
+      "episodesNeedingEmbeddings query took \(queryDuration); found \(ids.count)"
+    )
+    return ids
   }
 }
