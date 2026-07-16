@@ -33,7 +33,6 @@ struct EmbeddingProcessor: Sendable {
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).embeddingComputation"
 
   private let backgroundTaskScheduler: BackgroundTaskScheduler
-  private let workDemand: EmbeddingWorkDemand
   private let foregroundTask = ThreadSafe<Task<Void, Never>?>(nil)
   private let registrationReconciliationOnce = Once()
 
@@ -50,13 +49,11 @@ struct EmbeddingProcessor: Sendable {
   private let processingMode = ThreadSafe(ProcessingMode.background)
 
   init() {
-    let workDemand = Container.shared.embeddingWorkDemand()
-    self.workDemand = workDemand
     backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
       cadence: .minutes(1),
       taskType: .processing(requiresNetworkConnectivity: false),
-      schedulingMode: .onDemand { workDemand.hasWork }
+      schedulingMode: .onDemand { Container.shared.embeddingWorkDemand().hasWork }
     )
   }
 
@@ -111,7 +108,7 @@ struct EmbeddingProcessor: Sendable {
 
       processingMode(.foreground)
       startForegroundObservation()
-      if workDemand.hasWork {
+      if Container.shared.embeddingWorkDemand().hasWork {
         scheduleDrain()
       }
     case .background:
@@ -126,7 +123,7 @@ struct EmbeddingProcessor: Sendable {
   }
 
   func workBecameAvailable() {
-    workDemand.markAvailable()
+    Container.shared.embeddingWorkDemand().markAvailable()
 
     switch processingMode() {
     case .foreground:
@@ -197,7 +194,7 @@ struct EmbeddingProcessor: Sendable {
     drainDebounce {
       do {
         try await contextualEmbedding.assetsLoaded.wait()
-        _ = try await drainAvailableWork()
+        try await drainAvailableWork()
       } catch is CancellationError {
         // Superseded by a newer trigger or backgrounded mid-drain; the next
         // foreground pass re-queries any remaining work.
@@ -219,31 +216,32 @@ struct EmbeddingProcessor: Sendable {
   }
 
   private func reconcilePersistedDemand() async {
-    let snapshot = workDemand.snapshot()
+    let snapshot = Container.shared.embeddingWorkDemand().snapshot()
     do {
       let ids = try await episodeIDsNeedingWork(
         includeCurrent: snapshot.requiresFullRefresh
       )
       if ids.isEmpty {
-        _ = workDemand.clear(ifUnchanged: snapshot)
+        Container.shared.embeddingWorkDemand().clear(ifUnchanged: snapshot)
       } else {
-        workDemand.ensureAvailable()
+        Container.shared.embeddingWorkDemand().ensureAvailable()
       }
     } catch {
-      workDemand.ensureAvailable()
+      Container.shared.embeddingWorkDemand().ensureAvailable()
       Self.log.caughtError("Failed to reconcile persisted embedding demand", error)
     }
     backgroundTaskScheduler.scheduleNext()
   }
 
+  @discardableResult
   private func drainAvailableWork() async throws -> DrainResult {
-    let initialSnapshot = workDemand.snapshot()
+    let initialSnapshot = Container.shared.embeddingWorkDemand().snapshot()
     let ids = try await episodeIDsNeedingWork(
       includeCurrent: initialSnapshot.requiresFullRefresh
     )
 
     if !ids.isEmpty {
-      workDemand.ensureAvailable()
+      Container.shared.embeddingWorkDemand().ensureAvailable()
       Self.log.info("Processing \(ids.count) episodes for embeddings")
       try await EmbeddingService.upsertEpisodeEmbeddings(
         forIDs: ids,
@@ -253,13 +251,13 @@ struct EmbeddingProcessor: Sendable {
 
     try Task.checkCancellation()
 
-    let clearingSnapshot = workDemand.snapshot()
+    let clearingSnapshot = Container.shared.embeddingWorkDemand().snapshot()
     let remaining = try await episodeIDsNeedingWork(includeCurrent: false)
     guard remaining.isEmpty else {
-      workDemand.ensureAvailable()
+      Container.shared.embeddingWorkDemand().ensureAvailable()
       return .pending(processedCount: ids.count)
     }
-    guard workDemand.clear(ifUnchanged: clearingSnapshot) else {
+    guard Container.shared.embeddingWorkDemand().clear(ifUnchanged: clearingSnapshot) else {
       return .pending(processedCount: ids.count)
     }
 
