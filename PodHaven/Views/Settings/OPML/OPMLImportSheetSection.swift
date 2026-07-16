@@ -45,7 +45,8 @@ struct OPMLImportSheetSection: View {
               AppIcon.waiting.label
                 .labelStyle(.iconOnly)
             case .downloading:
-              AppIcon.downloadEpisode.label
+              AppIcon.downloadEpisode
+                .label("Downloading")
                 .labelStyle(.iconOnly)
             case .finished:
               AppIcon.episodeFinished.label

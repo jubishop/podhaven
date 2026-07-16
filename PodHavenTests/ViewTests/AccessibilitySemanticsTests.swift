@@ -16,4 +16,13 @@ import Testing
     #expect(AppIcon.selectionEmpty.text == "Select")
     #expect(AppIcon.selectionFilled.text == "Deselect")
   }
+
+  @Test("playback status icons announce their actual state")
+  func playbackStatusIconsAnnounceTheirActualState() {
+    #expect(PlaybackStatus.playing.statusIconAccessibilityLabel == "Playing")
+    #expect(PlaybackStatus.waiting.statusIconAccessibilityLabel == "Waiting to Play")
+    #expect(PlaybackStatus.paused.statusIconAccessibilityLabel == "Paused")
+    #expect(PlaybackStatus.loading("Episode").statusIconAccessibilityLabel == "Loading")
+    #expect(PlaybackStatus.stopped.statusIconAccessibilityLabel == "Stopped")
+  }
 }

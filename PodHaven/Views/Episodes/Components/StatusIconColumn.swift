@@ -21,10 +21,12 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
       if sharedState.isOnDeck(episode) {
         switch sharedState.playbackStatus {
         case .playing, .waiting:
-          AppIcon.episodePlaying.label
+          AppIcon.episodePlaying
+            .label(sharedState.playbackStatus.statusIconAccessibilityLabel)
             .labelStyle(.iconOnly)
         case .paused, .loading, .stopped:
-          AppIcon.episodePaused.label
+          AppIcon.episodePaused
+            .label(sharedState.playbackStatus.statusIconAccessibilityLabel)
             .labelStyle(.iconOnly)
         }
       } else if episode.queueOrder == 0 {
@@ -87,5 +89,17 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
       }
     }
     .font(.system(size: iconSize))
+  }
+}
+
+extension PlaybackStatus {
+  var statusIconAccessibilityLabel: String {
+    switch self {
+    case .loading: "Loading"
+    case .paused: "Paused"
+    case .playing: "Playing"
+    case .stopped: "Stopped"
+    case .waiting: "Waiting to Play"
+    }
   }
 }
