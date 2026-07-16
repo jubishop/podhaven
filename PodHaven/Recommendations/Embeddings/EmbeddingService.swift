@@ -7,6 +7,10 @@ import Logging
 
 // MARK: - EmbeddingService
 
+struct EmbeddingBatchResult: Equatable, Sendable {
+  let failedEpisodeCount: Int
+}
+
 enum EmbeddingService {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
@@ -40,27 +44,30 @@ enum EmbeddingService {
 
   // MARK: - Upsert Episode Embeddings
 
-  static func upsertEpisodeEmbeddings(
+  @discardableResult static func upsertEpisodeEmbeddings(
     forIDs episodeIDs: [Episode.ID],
     embedding: ContextualEmbedding
-  ) async throws {
-    guard !episodeIDs.isEmpty else { return }
+  ) async throws -> EmbeddingBatchResult {
+    guard !episodeIDs.isEmpty else { return EmbeddingBatchResult(failedEpisodeCount: 0) }
     let recommendationRepo = Container.shared.recommendationRepo()
+    var failedEpisodeCount = 0
 
     for start in stride(from: 0, to: episodeIDs.count, by: hydrationChunkSize) {
       try Task.checkCancellation()
       let end = min(start + hydrationChunkSize, episodeIDs.count)
       let chunk = Array(episodeIDs[start..<end])
       let episodes = try await recommendationRepo.episodes(for: chunk)
-      try await upsertEpisodeEmbeddings(for: episodes, embedding: embedding)
+      let result = try await upsertEpisodeEmbeddings(for: episodes, embedding: embedding)
+      failedEpisodeCount += result.failedEpisodeCount
     }
+    return EmbeddingBatchResult(failedEpisodeCount: failedEpisodeCount)
   }
 
-  static func upsertEpisodeEmbeddings(
+  @discardableResult static func upsertEpisodeEmbeddings(
     for episodes: [Episode],
     embedding: ContextualEmbedding
-  ) async throws {
-    guard !episodes.isEmpty else { return }
+  ) async throws -> EmbeddingBatchResult {
+    guard !episodes.isEmpty else { return EmbeddingBatchResult(failedEpisodeCount: 0) }
 
     let recommendationRepo = Container.shared.recommendationRepo()
 
@@ -85,6 +92,7 @@ enum EmbeddingService {
     let chunkStart = Date()
 
     var caughtCancellation: CancellationError?
+    var failedEpisodeCount = 0
     for episode in episodes {
       do {
         try Task.checkCancellation()
@@ -139,6 +147,7 @@ enum EmbeddingService {
         caughtCancellation = error
         break
       } catch {
+        failedEpisodeCount += 1
         Self.log.caughtError(
           "Failed to embed episode \(episode.toString); continuing batch",
           error,
@@ -157,6 +166,7 @@ enum EmbeddingService {
     )
 
     if let caughtCancellation { throw caughtCancellation }
+    return EmbeddingBatchResult(failedEpisodeCount: failedEpisodeCount)
   }
 
   // MARK: - Unsaved Embedding

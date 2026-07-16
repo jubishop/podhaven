@@ -151,6 +151,15 @@ struct AppDB {
         .removeDuplicates()
         .values(in: appDB.db)
     }
+
+    func observe<Value: Sendable>(
+      _ block: @escaping @Sendable (Database) throws -> Value,
+      removeDuplicatesBy predicate: @escaping @Sendable (Value, Value) -> Bool
+    ) -> AsyncValueObservation<Value> {
+      ValueObservation.tracking(block)
+        .removeDuplicates(by: predicate)
+        .values(in: appDB.db)
+    }
   }
 
   struct Writer: Sendable {

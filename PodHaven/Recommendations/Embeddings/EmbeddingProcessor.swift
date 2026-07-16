@@ -153,16 +153,6 @@ struct EmbeddingProcessor: Sendable {
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
         await contextualEmbedding.requestAndLoadAssetsIfNeeded()
-        do {
-          try await contextualEmbedding.assetsLoaded.wait()
-        } catch {
-          Self.log.caughtError(
-            "Foreground embedding observation cancelled before assets loaded",
-            error
-          )
-          return
-        }
-        guard !Task.isCancelled else { return }
 
         var retryDelay: Duration = .seconds(1)
         var hasReceivedEmission = false
@@ -239,17 +229,23 @@ struct EmbeddingProcessor: Sendable {
     let ids = try await episodeIDsNeedingWork(
       includeCurrent: initialSnapshot.requiresFullRefresh
     )
+    var batchResult = EmbeddingBatchResult(failedEpisodeCount: 0)
 
     if !ids.isEmpty {
       Container.shared.embeddingWorkDemand().ensureAvailable()
       Self.log.info("Processing \(ids.count) episodes for embeddings")
-      try await EmbeddingService.upsertEpisodeEmbeddings(
+      batchResult = try await EmbeddingService.upsertEpisodeEmbeddings(
         forIDs: ids,
         embedding: contextualEmbedding
       )
     }
 
     try Task.checkCancellation()
+
+    guard batchResult.failedEpisodeCount == 0 else {
+      Container.shared.embeddingWorkDemand().ensureAvailable()
+      return .pending(processedCount: ids.count)
+    }
 
     let clearingSnapshot = Container.shared.embeddingWorkDemand().snapshot()
     let remaining = try await episodeIDsNeedingWork(includeCurrent: false)

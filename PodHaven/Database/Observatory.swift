@@ -308,25 +308,32 @@ struct Observatory: Observing {
     }
   }
 
-  // Region is just `episode.contentUpdatedAt` + `podcast.contentUpdatedAt`, so
-  // playback-path writes (`updatePlayback`) never wake it. `EmbeddingProcessor`
-  // debounces each emission and runs the expensive `episodesNeedingEmbeddings`
-  // scan once per burst, off the database writer.
-  func embeddingWorkSignal() -> AsyncValueObservation<EmbeddingWorkSignal> {
-    reader.observe { db in
-      let latestEpisode =
-        try Episode
-        .select(max(Episode.Columns.contentUpdatedAt), as: Date.self)
-        .fetchOne(db)
-      let latestPodcast =
-        try Podcast
-        .select(max(Podcast.Columns.contentUpdatedAt), as: Date.self)
-        .fetchOne(db)
-      return EmbeddingWorkSignal(
-        latestEpisodeContentUpdate: latestEpisode,
-        latestPodcastContentUpdate: latestPodcast
-      )
-    }
+  // The tuple is only a deduplicated change token; consumers ignore its values
+  // and re-query work. Tracking just the two content maxima keeps playback-path
+  // writes from waking the expensive embedding scan.
+  func embeddingWorkSignal() -> AsyncValueObservation<
+    (
+      latestEpisodeContentUpdate: Date?,
+      latestPodcastContentUpdate: Date?
+    )
+  > {
+    reader.observe(
+      { db in
+        let latestEpisode =
+          try Episode
+          .select(max(Episode.Columns.contentUpdatedAt), as: Date.self)
+          .fetchOne(db)
+        let latestPodcast =
+          try Podcast
+          .select(max(Podcast.Columns.contentUpdatedAt), as: Date.self)
+          .fetchOne(db)
+        return (
+          latestEpisodeContentUpdate: latestEpisode,
+          latestPodcastContentUpdate: latestPodcast
+        )
+      },
+      removeDuplicatesBy: { $0 == $1 }
+    )
   }
 
   // MARK: - Private Helpers

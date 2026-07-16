@@ -37,7 +37,12 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
   >([])
 
   let embeddingWorkSignalScript = ThreadSafe<
-    [@Sendable () -> AsyncValueObservation<EmbeddingWorkSignal>]
+    [@Sendable () -> AsyncValueObservation<
+      (
+        latestEpisodeContentUpdate: Date?,
+        latestPodcastContentUpdate: Date?
+      )
+    >]
   >([])
 
   private struct HeldDeliveryQueueState: Sendable {
@@ -279,7 +284,12 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.scoringContextInputsWithoutPartialSignals()
   }
 
-  func embeddingWorkSignal() -> AsyncValueObservation<EmbeddingWorkSignal> {
+  func embeddingWorkSignal() -> AsyncValueObservation<
+    (
+      latestEpisodeContentUpdate: Date?,
+      latestPodcastContentUpdate: Date?
+    )
+  > {
     recordCall(methodName: "embeddingWorkSignal", parameters: ())
     var script = embeddingWorkSignalScript()
     if let next = script.first {
