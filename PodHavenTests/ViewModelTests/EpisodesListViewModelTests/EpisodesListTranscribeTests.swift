@@ -99,4 +99,49 @@ struct EpisodesListTranscribeTests {
 
     #expect(transcriptionQueue.episodeIDs == [queuedID, eligibleID])
   }
+
+  @Test("transcribeSelectedEpisodes distinguishes identical media across podcasts")
+  func transcribeSelectedEpisodesScopesEligibilityToPodcast() async throws {
+    let sharedGUID = GUID("shared-guid")
+    let sharedMediaURL = MediaURL(URL.valid())
+    let transcribedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Transcribed Podcast"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: sharedGUID, mediaURL: sharedMediaURL)
+        ]
+      )
+    )
+    let eligibleSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Eligible Podcast"),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: sharedGUID, mediaURL: sharedMediaURL)
+        ]
+      )
+    )
+    let transcribedID = transcribedSeries.episodes[0].id
+    let eligibleID = eligibleSeries.episodes[0].id
+    try await repo.updateTranscript(transcribedID, transcript: transcriptJSON())
+
+    let listables = try await repo.db.read { db in
+      try ListablePodcastEpisode
+        .request(filter: AppDB.noOp, order: Episode.Columns.id.asc)
+        .fetchAll(db)
+    }
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Transcribe")
+    try await EpisodesListTestHelpers.loadEntries(into: viewModel, episodes: listables)
+    EpisodesListTestHelpers.select(viewModel, ids: listables.map(\.id))
+
+    viewModel.transcribeSelectedEpisodes()
+
+    try await Wait.until(
+      { @MainActor in transcriptionQueue.episodeIDs.contains(eligibleID) },
+      { @MainActor in
+        "eligible episode was not queued: \(transcriptionQueue.episodeIDs)"
+      }
+    )
+
+    #expect(transcriptionQueue.episodeIDs == [eligibleID])
+  }
 }

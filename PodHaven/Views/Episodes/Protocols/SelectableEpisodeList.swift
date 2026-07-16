@@ -6,6 +6,11 @@ import IdentifiedCollections
 import Logging
 import OrderedCollections
 
+private struct TranscriptionEpisodeKey: Hashable {
+  let feedURL: FeedURL
+  let mediaGUID: MediaGUID
+}
+
 @MainActor protocol SelectableEpisodeList: SelectableList, AnyObject where Item == EpisodeType {
   associatedtype EpisodeType: EpisodeListable & Searchable
 
@@ -569,7 +574,11 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
       Self.log.notice("transcribeSelectedEpisodes: no eligible episodes selected")
       return
     }
-    let mediaGUIDs = Set(episodes.map(\.mediaGUID))
+    let episodeKeys = Set(
+      episodes.map {
+        TranscriptionEpisodeKey(feedURL: $0.feedURL, mediaGUID: $0.mediaGUID)
+      }
+    )
 
     Self.log.debug("transcribeSelectedEpisodes: resolving \(episodes.count) episodes")
 
@@ -579,7 +588,9 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
       let podcastEpisodes: [PodcastEpisode]
       do {
         podcastEpisodes = try await selectedPodcastEpisodes.filter {
-          mediaGUIDs.contains($0.mediaGUID)
+          episodeKeys.contains(
+            TranscriptionEpisodeKey(feedURL: $0.feedURL, mediaGUID: $0.mediaGUID)
+          )
         }
       } catch {
         Self.log.caughtError("transcribeSelectedEpisodes: failed", error)
@@ -593,8 +604,18 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
       for podcastEpisode in podcastEpisodes {
         transcriptionQueue.enqueue(podcastEpisode.id)
       }
-      let resolvedMediaGUIDs = Set(podcastEpisodes.map(\.mediaGUID))
-      didPerformBulkAction(on: episodes.filter { resolvedMediaGUIDs.contains($0.mediaGUID) })
+      let resolvedEpisodeKeys = Set(
+        podcastEpisodes.map {
+          TranscriptionEpisodeKey(feedURL: $0.feedURL, mediaGUID: $0.mediaGUID)
+        }
+      )
+      didPerformBulkAction(
+        on: episodes.filter {
+          resolvedEpisodeKeys.contains(
+            TranscriptionEpisodeKey(feedURL: $0.feedURL, mediaGUID: $0.mediaGUID)
+          )
+        }
+      )
     }
   }
 
