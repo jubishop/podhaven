@@ -28,7 +28,8 @@ import SwiftUI
           }
         },
         label: {
-          AppIcon.editFinished.label
+          AppIcon.editFinished
+            .label("Selection Actions")
             .labelStyle(.iconOnly)
         }
       )

@@ -101,7 +101,8 @@ struct PodcastDetailView: View {
             }
           },
           label: {
-            (viewModel.podcast.subscribed ? AppIcon.unsubscribe : AppIcon.subscribe).label
+            (viewModel.podcast.subscribed ? AppIcon.unsubscribe : AppIcon.subscribe)
+              .label("Podcast Actions")
               .labelStyle(.iconOnly)
           }
         )
@@ -146,6 +147,13 @@ struct PodcastDetailView: View {
         size: 128
       )
       .onTapGesture {
+        showingImageOverlay = true
+      }
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("Show Podcast Artwork")
+      .accessibilityHint("Shows the artwork full screen")
+      .accessibilityAddTraits(.isButton)
+      .accessibilityAction {
         showingImageOverlay = true
       }
 
@@ -349,6 +357,12 @@ struct PodcastDetailView: View {
             .aspectRatio(contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .padding(4)
+            .accessibilityLabel("Podcast Artwork")
+            .accessibilityHint("Closes the full-screen artwork")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+              showingImageOverlay = false
+            }
         } else {
           VStack(spacing: 16) {
             AppIcon.noImage.image
@@ -363,6 +377,13 @@ struct PodcastDetailView: View {
             Text("Tap to close")
               .font(.headline)
               .foregroundColor(.secondary)
+          }
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel("Image unavailable")
+          .accessibilityHint("Closes the full-screen artwork")
+          .accessibilityAddTraits(.isButton)
+          .accessibilityAction {
+            showingImageOverlay = false
           }
         }
       }

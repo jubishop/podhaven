@@ -73,6 +73,7 @@ struct PlayBarSheet: View {
           .frame(width: geometry.size.width, height: geometry.size.height)
           .clipped()
           .overlay((colorScheme == .dark ? Color.black : Color.white).opacity(0.5))
+          .accessibilityHidden(true)
       } else {
         (colorScheme == .dark ? Color.black : Color.white)
           .overlay(alignment: .top) {
