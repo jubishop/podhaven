@@ -14,6 +14,7 @@ extension Container {
 
 struct RefreshManager {
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
@@ -226,6 +227,7 @@ struct RefreshManager {
     )
     var unsavedEpisodes: [UnsavedEpisode] = []
     var updatedEpisodes: [FeedMergeEpisode] = []
+    var embeddingWorkCreated = false
 
     for unsavedEpisode in podcastFeed.toUnsavedEpisodes(merging: existingEpisodes) {
       if let existingEpisode = episodesByMediaURL[unsavedEpisode.mediaURL]
@@ -237,9 +239,15 @@ struct RefreshManager {
         )
 
         if !existingEpisode.rssEquals(updatedEpisode) {
+          if existingEpisode.title != updatedEpisode.title
+            || existingEpisode.description != updatedEpisode.description
+          {
+            embeddingWorkCreated = true
+          }
           updatedEpisodes.append(updatedEpisode)
         }
       } else {
+        embeddingWorkCreated = true
         unsavedEpisodes.append(unsavedEpisode)
       }
     }
@@ -257,6 +265,12 @@ struct RefreshManager {
 
     let now = Date()
     let podcastToUpdate = podcast.rssEquals(newPodcast) ? nil : newPodcast
+    if let podcastToUpdate,
+      podcast.title != podcastToUpdate.title
+        || podcast.description != podcastToUpdate.description
+    {
+      embeddingWorkCreated = true
+    }
     let hasChanges =
       podcastToUpdate != nil || !unsavedEpisodes.isEmpty || !updatedEpisodes.isEmpty
 
@@ -290,6 +304,10 @@ struct RefreshManager {
         error
       )
       return nil
+    }
+
+    if embeddingWorkCreated {
+      embeddingProcessor.workBecameAvailable()
     }
 
     if podcast.notifyNewEpisodes {

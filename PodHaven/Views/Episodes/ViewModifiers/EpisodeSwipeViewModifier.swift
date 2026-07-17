@@ -96,6 +96,10 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
         .imageButton {
           activeDialog = .rate
         }
+        .accessibilityLabel("Rate Episode")
+        .accessibilityValue(
+          episode.rating == nil ? "Not Rated" : AppIcon.rating(for: episode.rating).text
+        )
 
     case .markFinished:
       AppIcon.markEpisodeFinished.imageButton {

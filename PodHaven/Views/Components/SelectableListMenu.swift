@@ -28,7 +28,9 @@ import SwiftUI
           }
         },
         label: {
-          AppIcon.editFinished.image
+          AppIcon.editFinished
+            .label("Selection Actions")
+            .labelStyle(.iconOnly)
         }
       )
     } else {

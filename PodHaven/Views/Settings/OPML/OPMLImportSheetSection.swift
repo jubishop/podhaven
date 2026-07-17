@@ -39,13 +39,18 @@ struct OPMLImportSheetSection: View {
             Spacer()
             switch status {
             case .failed:
-              AppIcon.failed.image
+              AppIcon.failed.label
+                .labelStyle(.iconOnly)
             case .waiting:
-              AppIcon.waiting.image
+              AppIcon.waiting.label
+                .labelStyle(.iconOnly)
             case .downloading:
-              AppIcon.downloadEpisode.image
+              AppIcon.downloadEpisode
+                .label("Downloading")
+                .labelStyle(.iconOnly)
             case .finished:
-              AppIcon.episodeFinished.image
+              AppIcon.episodeFinished.label
+                .labelStyle(.iconOnly)
             }
           }
         }

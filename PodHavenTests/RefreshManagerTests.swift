@@ -12,6 +12,8 @@ import Testing
 
 @Suite("of RefreshManager tests", .container)
 actor RefreshManagerTests {
+  @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
+  @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
@@ -20,9 +22,78 @@ actor RefreshManagerTests {
   @DynamicInjected(\.userNotificationCenter) private var userNotificationCenter
 
   var session: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
+  var fakeBGTaskScheduler: FakeBGTaskScheduler {
+    bgTaskScheduler as! FakeBGTaskScheduler
+  }
   var fakeRepo: FakeRepo { repo as! FakeRepo }
   var fakeUserNotificationCenter: FakeUserNotificationCenter {
     userNotificationCenter as! FakeUserNotificationCenter
+  }
+
+  @Test("performRefresh schedules embedding processing when a feed creates work")
+  func performRefreshSchedulesEmbeddingWork() async throws {
+    let fakeBGTaskScheduler = self.fakeBGTaskScheduler
+    embeddingProcessor.register()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers.isEmpty },
+      { "Initial embedding-demand reconciliation did not finish" }
+    )
+
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let feedURL = FeedURL(URL(string: "https://example.com/embedding-work.rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: feedURL)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try podcastFeed.toUnsavedPodcast(),
+        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
+      )
+    )
+    let updatedData = PreviewBundle.loadAsset(
+      named: "hardfork_short_updated",
+      in: .FeedRSS
+    )
+    await session.respond(to: series.podcast.feedURL.rawValue, data: updatedData)
+
+    let before = Date.now
+    try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+    let after = Date.now
+
+    #expect(fakeBGTaskScheduler.pendingIdentifiers.count == 1)
+    let request = try #require(fakeBGTaskScheduler.submissions.last)
+    #expect(request.isProcessing)
+    if let earliestBeginDate = request.earliestBeginDate {
+      #expect(earliestBeginDate >= before.addingTimeInterval(60))
+      #expect(earliestBeginDate <= after.addingTimeInterval(60))
+    } else {
+      Issue.record("Embedding request should have an earliest begin date")
+    }
+  }
+
+  @Test("performRefresh does not schedule embedding processing for an unchanged feed")
+  func performRefreshWithoutEmbeddingWorkDoesNotSchedule() async throws {
+    let fakeBGTaskScheduler = self.fakeBGTaskScheduler
+    embeddingProcessor.register()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers.isEmpty },
+      { "Initial embedding-demand reconciliation did not finish" }
+    )
+
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let feedURL = FeedURL(URL(string: "https://example.com/no-embedding-work.rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: feedURL)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try podcastFeed.toUnsavedPodcast(),
+        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
+      )
+    )
+    await session.respond(to: series.podcast.feedURL.rawValue, data: data)
+    let submissionCount = fakeBGTaskScheduler.submissions.count
+
+    try await refreshManager.performRefresh(stalenessThreshold: .minutes(30))
+
+    #expect(fakeBGTaskScheduler.submissions.count == submissionCount)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
   }
 
   @Test("that refreshSeries works")

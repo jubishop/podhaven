@@ -509,11 +509,12 @@ class EmbeddingServiceTests {
       FailOnMarkerEmbeddable(failIfInputContains: "Bad")
     )
 
-    try await EmbeddingService.upsertEpisodeEmbeddings(
+    let result = try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [bad, good],
       embedding: embedding
     )
 
+    #expect(result.failedEpisodeCount == 1)
     #expect(try await recommendationRepo.embedding(for: bad.id) == nil)
     #expect(try await recommendationRepo.embedding(for: good.id) != nil)
   }

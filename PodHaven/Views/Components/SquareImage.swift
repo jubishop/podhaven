@@ -115,7 +115,8 @@ struct SquareImage: View {
             },
             label: {
               (isSelected.wrappedValue ? AppIcon.selectionFilled : AppIcon.selectionEmpty)
-                .image
+                .label
+                .labelStyle(.iconOnly)
                 .font(.system(size: buttonSize))
                 .foregroundColor(isSelected.wrappedValue ? .blue : .white)
                 .background(

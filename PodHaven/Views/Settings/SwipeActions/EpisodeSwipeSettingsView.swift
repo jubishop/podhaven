@@ -112,6 +112,7 @@ struct EpisodeSwipeSettingsView: View {
       let icon = EpisodeSwipeSettingsView.icon(for: action)
       return VStack(spacing: 4) {
         icon.rawImage
+          .accessibilityHidden(true)
         Text(action.title)
           .font(.caption2)
           .lineLimit(1)

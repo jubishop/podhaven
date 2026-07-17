@@ -41,7 +41,10 @@ func selectablePodcastsToolbarItems<ViewModel: SelectablePodcastList>(viewModel:
             }
           }
         },
-        label: { AppIcon.moreActions.image }
+        label: {
+          AppIcon.moreActions.label
+            .labelStyle(.iconOnly)
+        }
       )
     }
   }
@@ -60,8 +63,13 @@ func sortablePodcastsToolbarItems<ViewModel: SortablePodcastList>(viewModel: Vie
   ToolbarItem(placement: .primaryAction) {
     Menu(
       content: { sortablePodcastsToolbarMenuItems(viewModel: viewModel) },
-      label: { viewModel.currentSortMethod.appIcon.image }
+      label: {
+        viewModel.currentSortMethod.appIcon
+          .label("Sort")
+          .labelStyle(.iconOnly)
+      }
     )
+    .accessibilityValue(viewModel.currentSortMethod.appIcon.text)
   }
 }
 

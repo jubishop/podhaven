@@ -83,6 +83,7 @@ struct AppIconImageButton: View {
     Button(action: action) {
       AppIconImage(icon: icon)
     }
+    .accessibilityLabel(Text(icon.textKey))
     .tint(icon.color(for: colorScheme))
     .opacity(isEnabled ? 1 : 0.4)
   }

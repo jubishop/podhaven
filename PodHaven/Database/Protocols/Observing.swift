@@ -85,7 +85,12 @@ protocol Observing: Sendable {
 
   func embeddedCandidateEpisodes(filter: SQLExpression) -> AsyncValueObservation<[CandidateEpisode]>
   func scoringContextInputsWithoutPartialSignals() -> AsyncValueObservation<ScoringContextInputs>
-  func embeddingWorkSignal() -> AsyncValueObservation<EmbeddingWorkSignal>
+  func embeddingWorkSignal() -> AsyncValueObservation<
+    (
+      latestEpisodeContentUpdate: Date?,
+      latestPodcastContentUpdate: Date?
+    )
+  >
 }
 
 // MARK: - Defaulted Convenience Overloads

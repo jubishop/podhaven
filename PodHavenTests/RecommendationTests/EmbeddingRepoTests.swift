@@ -274,6 +274,19 @@ class EmbeddingRepoTests {
     #expect(!result.contains(pe.episode.id))
   }
 
+  @Test("pipeline refresh includes otherwise-current embeddings")
+  func pipelineRefreshIncludesCurrentEmbeddings() async throws {
+    let pe = try await createPodcastEpisode(rating: .liked)
+    try await insertEmbedding(for: pe.episode.id, revision: 1)
+
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(
+      revision: 1,
+      includeCurrent: true
+    )
+
+    #expect(result.contains(pe.episode.id))
+  }
+
   @Test("includes episodes with wrong embedding revision")
   func wrongRevisionIncluded() async throws {
     let pe = try await createPodcastEpisode(rating: .liked)
@@ -371,6 +384,31 @@ class EmbeddingRepoTests {
           title: pe.podcast.title,
           image: pe.podcast.image,
           description: "Changed podcast desc",
+          link: pe.podcast.link
+        ),
+        unsavedEpisode: try pe.episode.toOriginalUnsavedEpisode()
+      )
+    ])
+
+    let result = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
+    #expect(result.contains(pe.episode.id))
+  }
+
+  @Test("podcast title changes invalidate embeddings")
+  func podcastTitleChangeIncluded() async throws {
+    let pe = try await createPodcastEpisode(
+      podcastDescription: "Stable podcast desc",
+      rating: .liked
+    )
+    try await insertEmbedding(for: pe.episode.id, revision: 1, backdated: true)
+
+    _ = try await repo.upsertPodcastEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: pe.podcast.feedURL,
+          title: "Updated Podcast Title",
+          image: pe.podcast.image,
+          description: pe.podcast.description,
           link: pe.podcast.link
         ),
         unsavedEpisode: try pe.episode.toOriginalUnsavedEpisode()

@@ -36,5 +36,14 @@ protocol Recommending: Sendable {
     -> IdentifiedArray<Podcast.ID, PodcastEmbedding>
   func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast>
   func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode]
-  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID]
+  func episodesNeedingEmbeddings(
+    revision: Int,
+    includeCurrent: Bool
+  ) async throws -> [Episode.ID]
+}
+
+extension Recommending {
+  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID] {
+    try await episodesNeedingEmbeddings(revision: revision, includeCurrent: false)
+  }
 }

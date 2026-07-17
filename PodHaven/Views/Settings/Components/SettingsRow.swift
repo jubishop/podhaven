@@ -17,6 +17,7 @@ struct SettingsRow<Content: View>: View {
           .imageButton {
             showPopover.toggle()
           }
+          .accessibilityLabel("More Info")
           .buttonStyle(.plain)  // Necessary to keep hit target from bleeding out of row
           .popover(isPresented: $showPopover) {
             Text(infoText)
