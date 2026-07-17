@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -90,6 +91,44 @@ struct TranscriberTests {
 
     await #expect(throws: FakeSpeechError.self) {
       try await Container.shared.transcriber().transcribe(fileURL: fileURL, locale: locale)
+    }
+  }
+
+  @Test("cancelling transcription explicitly finishes the analyzer")
+  func cancellationFinishesAnalyzer() async throws {
+    TranscriptionHelpers.stubSpeech()
+    let analyzerStarted = AsyncSemaphore(value: 0)
+    let neverSignals = AsyncSemaphore(value: 0)
+    let analyzerCancelled = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer(
+          analyzeAudio: {
+            analyzerStarted.signal()
+            try await neverSignals.waitUnlessCancelled()
+            return .zero
+          },
+          cancelAudio: {
+            analyzerCancelled { $0 += 1 }
+          }
+        )
+      }
+    }
+
+    let task = Task {
+      try await Container.shared.transcriber().transcribe(fileURL: fileURL, locale: locale)
+    }
+    await analyzerStarted.wait()
+    task.cancel()
+
+    try await Wait.until(
+      maxAttempts: 100,
+      delay: .milliseconds(5),
+      { analyzerCancelled() == 1 },
+      { "cancelled transcription did not finish its analyzer" }
+    )
+    await #expect(throws: CancellationError.self) {
+      try await task.value
     }
   }
 

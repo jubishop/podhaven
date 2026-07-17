@@ -66,27 +66,32 @@ struct Transcriber: Sendable {
 
     let transcriber = speechTranscriber(locale)
     let analyzer = speechAnalyzer(transcriber)
-    let durationSeconds = try await analyzer.duration(ofAudioFileAt: fileURL)
+    return try await withTaskCancellationHandler {
+      let durationSeconds = try await analyzer.duration(ofAudioFileAt: fileURL)
+      try Task.checkCancellation()
 
-    // Consume results concurrently while the analyzer feeds the file through.
-    async let collected = Self.collectSegments(
-      from: transcriber.resultStream,
-      durationSeconds: durationSeconds,
-      onProgress: onProgress
-    )
+      // Consume results concurrently while the analyzer feeds the file through.
+      async let collected = Self.collectSegments(
+        from: transcriber.resultStream,
+        durationSeconds: durationSeconds,
+        onProgress: onProgress
+      )
 
-    // A nil last sample means the file decoded to no audio at all — a failed
-    // transcription (retryable), distinct from audio that contained no
-    // recognizable speech, which finalizes to an empty, terminal transcript.
-    guard let lastSample = try await analyzer.analyze(audioFileAt: fileURL) else {
-      await analyzer.cancel()
-      throw TranscriptionError.noDecodableAudio(fileURL)
+      // A nil last sample means the file decoded to no audio at all — a failed
+      // transcription (retryable), distinct from audio that contained no
+      // recognizable speech, which finalizes to an empty, terminal transcript.
+      guard let lastSample = try await analyzer.analyze(audioFileAt: fileURL) else {
+        await analyzer.cancel()
+        throw TranscriptionError.noDecodableAudio(fileURL)
+      }
+      try await analyzer.finalize(through: lastSample)
+
+      let segments = try await collected
+      Self.log.debug("Transcribed \(segments.count) segments from \(fileURL.lastPathComponent)")
+      return segments
+    } onCancel: {
+      Task { await analyzer.cancel() }
     }
-    try await analyzer.finalize(through: lastSample)
-
-    let segments = try await collected
-    Self.log.debug("Transcribed \(segments.count) segments from \(fileURL.lastPathComponent)")
-    return segments
   }
 
   private static func collectSegments(
