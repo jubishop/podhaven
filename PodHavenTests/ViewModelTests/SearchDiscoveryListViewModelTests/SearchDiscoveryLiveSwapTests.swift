@@ -13,6 +13,7 @@ import Testing
   private typealias H = SearchRecommendationCollectorTestHelpers
 
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
 
   // MARK: - Fixtures
 
@@ -184,6 +185,112 @@ import Testing
     }
   }
 
+  @Test("bulk transcription survives canonical feed resolution")
+  func bulkTranscriptionSurvivesCanonicalFeedResolution() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let aliasFeed = FeedURL(URL(string: "https://example.com/transcription-alias.rss")!)
+    let canonicalFeed = FeedURL(
+      URL(string: "https://example.com/transcription-canonical.rss")!
+    )
+    let iTunesID = ITunesPodcastID(7402)
+    let viewModel = try await makeViewModelWithPicks(
+      feeds: [(feedURL: aliasFeed, iTunesID: iTunesID, episodes: 1)]
+    )
+    viewModel.syncEntries(for: viewModel.discoveryListState)
+
+    let pick = try #require(viewModel.collector.picks(for: viewModel.source).first)
+    let entry = try #require(viewModel.episodeList.filteredEntries[id: pick.id])
+    viewModel.episodeList.isSelected[entry.id] = true
+    #expect(viewModel.anySelectedCanTranscribe)
+
+    let canonicalSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: canonicalFeed,
+          iTunesID: iTunesID,
+          title: "Canonical Transcription"
+        ),
+        unsavedEpisodes: [pick.episode.unsavedEpisode]
+      )
+    )
+    let canonicalEpisode = try #require(canonicalSeries.episodes.first)
+
+    viewModel.transcribeSelectedEpisodes()
+
+    try await Wait.until(
+      { @MainActor in self.transcriptionQueue.episodeIDs.contains(canonicalEpisode.id) },
+      { @MainActor in
+        "Expected canonical episode to be queued; queue=\(self.transcriptionQueue.episodeIDs)"
+      }
+    )
+    #expect(transcriptionQueue.episodeIDs == [canonicalEpisode.id])
+  }
+
+  @Test("bulk transcription revalidates canonical transcript state")
+  func bulkTranscriptionRevalidatesCanonicalTranscriptState() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let aliasFeed = FeedURL(URL(string: "https://example.com/stale-transcription-alias.rss")!)
+    let canonicalFeed = FeedURL(
+      URL(string: "https://example.com/stale-transcription-canonical.rss")!
+    )
+    let iTunesID = ITunesPodcastID(7403)
+    let viewModel = try await makeViewModelWithPicks(
+      feeds: [(feedURL: aliasFeed, iTunesID: iTunesID, episodes: 2)]
+    )
+    viewModel.syncEntries(for: viewModel.discoveryListState)
+
+    let picks = viewModel.collector.picks(for: viewModel.source)
+    let transcribedPick = try #require(picks.first)
+    let eligiblePick = try #require(picks.last)
+    for pick in picks {
+      let entry = try #require(viewModel.episodeList.filteredEntries[id: pick.id])
+      viewModel.episodeList.isSelected[entry.id] = true
+    }
+    #expect(viewModel.anySelectedCanTranscribe)
+
+    let canonicalSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: canonicalFeed,
+          iTunesID: iTunesID,
+          title: "Canonical Stale Transcription"
+        ),
+        unsavedEpisodes: picks.map { $0.episode.unsavedEpisode }
+      )
+    )
+    let transcribedEpisode = try #require(
+      canonicalSeries.episodes.first { $0.mediaGUID == transcribedPick.id }
+    )
+    let eligibleEpisode = try #require(
+      canonicalSeries.episodes.first { $0.mediaGUID == eligiblePick.id }
+    )
+    try await repo.updateTranscript(
+      transcribedEpisode.id,
+      transcript: try Transcript(
+        segments: [TranscriptSegment(start: 0, text: "Already transcribed")],
+        locale: "en-US",
+        createdAt: Date(timeIntervalSince1970: 0),
+        modelRevision: Transcriber.recipeVersion
+      )
+      .jsonString()
+    )
+
+    viewModel.transcribeSelectedEpisodes()
+
+    try await Wait.until(
+      {
+        @MainActor in
+        self.transcriptionQueue.episodeIDs.contains(eligibleEpisode.id)
+          && viewModel.collector.picks(for: viewModel.source).count < picks.count
+      },
+      { @MainActor in
+        "Expected eligible work and callback completion; queue=\(self.transcriptionQueue.episodeIDs), picks=\(viewModel.collector.picks(for: viewModel.source).map(\.id))"
+      }
+    )
+    #expect(transcriptionQueue.episodeIDs == [eligibleEpisode.id])
+    #expect(viewModel.collector.picks(for: viewModel.source).map(\.id) == [transcribedPick.id])
+  }
+
   // MARK: - Test: Cross-Feed Disambiguation
 
   // Episode uniqueness is per podcast, so the same (guid, mediaURL) can exist
@@ -328,6 +435,9 @@ import Testing
             "Expected unsaved second owner row, got \(String(describing: entry?.feedURL)), id=\(String(describing: entry?.episodeID))"
         }
       )
+
+      viewModel.didPerformBulkAction(on: [ListedEpisode(firstPick.episode)])
+      #expect(collector.picks(for: source).first?.feedURL == secondFeed)
     }
   }
 

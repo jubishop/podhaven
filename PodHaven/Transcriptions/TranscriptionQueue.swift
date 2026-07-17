@@ -16,7 +16,7 @@ extension Container {
 
 enum TranscriptionStatus: Hashable, Sendable {
   case none
-  case queued
+  case queued(position: Int, total: Int)
   case transcribing(Double)
   case transcribed
   case failed
@@ -183,7 +183,10 @@ struct TranscriptionQueue: Sendable {
   func status(for episodeID: Episode.ID, hasTranscript: Bool) -> TranscriptionStatus {
     if hasTranscript { return .transcribed }
     if let value = progress[episodeID] { return .transcribing(value) }
-    if episodeIDs.contains(episodeID) { return .queued }
+    let queuedEpisodeIDs = episodeIDs
+    if let index = queuedEpisodeIDs.firstIndex(of: episodeID) {
+      return .queued(position: index + 1, total: queuedEpisodeIDs.count)
+    }
     if failed.contains(episodeID) { return .failed }
     return .none
   }

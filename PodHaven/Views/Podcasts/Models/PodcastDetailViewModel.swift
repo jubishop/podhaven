@@ -205,56 +205,60 @@ class PodcastDetailViewModel:
     episodeList: episodeList
   )
 
-  var selectedPodcastEpisodes: [PodcastEpisode] {
-    get async throws {
-      let selectedEpisodes = self.selectedEpisodes
-      guard !selectedEpisodes.isEmpty else { return [] }
+  func resolvedPodcastEpisodes(for episodes: [ListedEpisode]) async throws
+    -> [ResolvedPodcastEpisode<ListedEpisode>]
+  {
+    guard !episodes.isEmpty else { return [] }
 
-      Self.log.debug("selectedPodcastEpisodes: \(selectedEpisodes.count) episodes selected")
+    Self.log.debug("resolvedPodcastEpisodes: resolving \(episodes.count) episodes")
 
-      let savedEpisodeIDs = selectedEpisodes.compactMap(\.episodeID)
-      // Saving any unsaved episode persists the whole series, so upsert the full
-      // in-memory list (not just the selection) to keep the detail from
-      // collapsing to the acted-on rows once observation transitions to .saved.
-      let unsavedPodcastEpisodes: [UnsavedPodcastEpisode]
-      if case .unsaved = state {
-        unsavedPodcastEpisodes = episodeList.allEntries.compactMap(\.unsaved)
-      } else {
-        unsavedPodcastEpisodes = selectedEpisodes.compactMap(\.unsaved)
-      }
-      let savedByID = Dictionary(
-        uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs).map { ($0.id, $0) }
-      )
-      let upsertedByMediaGUID = Dictionary(
-        uniqueKeysWithValues: try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
-          .map { ($0.mediaGUID, $0) }
-      )
-      // Walk `selectedEpisodes` (PowerList visible order) to interleave
-      // saved + just-upserted rows in user-visible order.
-      let podcastEpisodes: [PodcastEpisode] = selectedEpisodes.compactMap { episode in
-        if let episodeID = episode.episodeID { return savedByID[episodeID] }
-        return upsertedByMediaGUID[episode.mediaGUID]
-      }
-
-      // No matches with non-empty selection means rows vanished under the user
-      // (e.g. cascade delete) — surface a no-op instead of crashing.
-      guard let firstEpisode = podcastEpisodes.first else {
-        Self.log.error(
-          """
-          selectedPodcastEpisodes: \(selectedEpisodes.count) selected but no \
-          matching rows (saved hits: \(savedByID.count), upsert hits: \
-          \(upsertedByMediaGUID.count))
-          """
-        )
-        alert("These episodes are no longer available.")
-        return []
-      }
-      if lifecycle.isOnScreen {
-        startObservation(firstEpisode.podcast.id)
-      }
-
-      return podcastEpisodes
+    let savedEpisodeIDs = episodes.compactMap(\.episodeID)
+    // Saving any unsaved episode persists the whole series, so upsert the full
+    // in-memory list (not just the selection) to keep the detail from
+    // collapsing to the acted-on rows once observation transitions to .saved.
+    let unsavedPodcastEpisodes: [UnsavedPodcastEpisode]
+    if case .unsaved = state {
+      unsavedPodcastEpisodes = episodeList.allEntries.compactMap(\.unsaved)
+    } else {
+      unsavedPodcastEpisodes = episodes.compactMap(\.unsaved)
     }
+    let savedByID = Dictionary(
+      uniqueKeysWithValues: try await repo.podcastEpisodes(savedEpisodeIDs).map { ($0.id, $0) }
+    )
+    let upsertedByMediaGUID = Dictionary(
+      uniqueKeysWithValues: try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
+        .map { ($0.mediaGUID, $0) }
+    )
+    // Walk the source rows in user-visible order to interleave saved and
+    // just-upserted episodes while retaining their original identity.
+    let resolvedEpisodes: [ResolvedPodcastEpisode<ListedEpisode>] = episodes.compactMap { episode in
+      let podcastEpisode: PodcastEpisode?
+      if let episodeID = episode.episodeID {
+        podcastEpisode = savedByID[episodeID]
+      } else {
+        podcastEpisode = upsertedByMediaGUID[episode.mediaGUID]
+      }
+      guard let podcastEpisode else { return nil }
+      return ResolvedPodcastEpisode(source: episode, podcastEpisode: podcastEpisode)
+    }
+
+    // No matches with non-empty selection means rows vanished under the user
+    // (e.g. cascade delete) — surface a no-op instead of crashing.
+    guard let firstEpisode = resolvedEpisodes.first?.podcastEpisode else {
+      Self.log.error(
+        """
+        resolvedPodcastEpisodes: \(episodes.count) requested but no matching rows \
+        (saved hits: \(savedByID.count), upsert hits: \(upsertedByMediaGUID.count))
+        """
+      )
+      alert("These episodes are no longer available.")
+      return []
+    }
+    if lifecycle.isOnScreen {
+      startObservation(firstEpisode.podcast.id)
+    }
+
+    return resolvedEpisodes
   }
 
   // MARK: - Recommendations

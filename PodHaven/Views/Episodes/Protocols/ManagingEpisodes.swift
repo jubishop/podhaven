@@ -22,6 +22,7 @@ import Logging
   func unsaveEpisodeFromCache(_ episode: EpisodeType)
   func rateEpisode(_ episode: EpisodeType, rating: EpisodeRating?)
   func markEpisodeFinished(_ episode: EpisodeType)
+  func transcribeEpisode(_ episode: EpisodeType)
   func addTag(_ tagID: Tag.ID, to episode: EpisodeType)
   func removeTag(_ tagID: Tag.ID, from episode: EpisodeType)
 
@@ -42,6 +43,10 @@ extension ManagingEpisodes {
   private var queue: any Queueing { Container.shared.queue() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
+  private var transcriptionAvailability: TranscriptionAvailability {
+    Container.shared.transcriptionAvailability()
+  }
+  private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
 
   private var alert: Alert { Container.shared.alert() }
 
@@ -62,6 +67,23 @@ extension ManagingEpisodes {
 
   func canClearCache(_ episode: EpisodeType) -> Bool {
     episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
+  }
+
+  func canTranscribe(_ episode: EpisodeType) -> Bool {
+    guard transcriptionAvailability.isAvailable else { return false }
+    guard let episodeID = episode.episodeID else { return !episode.hasTranscript }
+    return
+      transcriptionQueue
+      .status(for: episodeID, hasTranscript: episode.hasTranscript)
+      .canTranscribe
+  }
+
+  func canTranscribeResolvedEpisode(_ episode: PodcastEpisode) -> Bool {
+    guard transcriptionAvailability.isAvailable else { return false }
+    return
+      transcriptionQueue
+      .status(for: episode.id, hasTranscript: episode.hasTranscript)
+      .canTranscribe
   }
 
   // MARK: - Actions
@@ -260,6 +282,25 @@ extension ManagingEpisodes {
         didPerformAction(episode)
       } catch {
         Self.log.caughtError("markEpisodeFinished: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func transcribeEpisode(_ episode: EpisodeType) {
+    guard canTranscribe(episode) else { return }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
+        guard canTranscribeResolvedEpisode(podcastEpisode) else { return }
+        transcriptionQueue.enqueue(podcastEpisode.id)
+        didPerformAction(episode)
+      } catch {
+        Self.log.caughtError("transcribeEpisode: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

@@ -168,4 +168,55 @@ import Testing
 
     #expect(viewModel.addableActions.contains(.tag))
   }
+
+  @Test("transcription stays hidden while device support is unknown")
+  func transcriptionHiddenWhileSupportUnknown() {
+    Container.shared.userSettings().$episodeSwipeActions.new([.playPause, .transcribe])
+    let viewModel = EpisodeSwipeSettingsViewModel()
+
+    #expect(viewModel.actions == [.playPause])
+    #expect(viewModel.previewActions == [.playPause])
+    #expect(!viewModel.addableActions.contains(.transcribe))
+
+    viewModel.add(.transcribe)
+
+    #expect(!viewModel.actions.contains(.transcribe))
+  }
+
+  @Test("transcription appears once device support is confirmed")
+  func transcriptionAppearsOnceSupportConfirmed() async throws {
+    let viewModel = EpisodeSwipeSettingsViewModel()
+    let notified = ThreadSafe(false)
+    withObservationTracking {
+      _ = viewModel.addableActions
+    } onChange: {
+      notified(true)
+    }
+
+    await TranscriptionHelpers.prepareAvailability()
+
+    try await Wait.until(
+      { @MainActor in notified() },
+      { @MainActor in "Expected availability to notify the swipe settings view model" }
+    )
+    #expect(viewModel.addableActions.contains(.transcribe))
+
+    viewModel.add(.transcribe)
+
+    #expect(viewModel.actions == [.playPause, .rate, .transcribe])
+  }
+
+  @Test("transcription stays hidden when device support is unavailable")
+  func transcriptionHiddenWhenSupportUnavailable() async {
+    Container.shared.userSettings().$episodeSwipeActions.new([.transcribe])
+    let viewModel = EpisodeSwipeSettingsViewModel()
+
+    await TranscriptionHelpers.prepareAvailability(
+      modelManager: FakeSpeechModelManager(supportedIdentifiers: [])
+    )
+
+    #expect(viewModel.actions == [.playPause])
+    #expect(viewModel.previewActions == [.playPause])
+    #expect(!viewModel.addableActions.contains(.transcribe))
+  }
 }

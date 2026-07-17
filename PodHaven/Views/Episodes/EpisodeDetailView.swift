@@ -57,7 +57,7 @@ struct EpisodeDetailView: View {
           Divider()
         }
 
-        descriptionView
+        textContentView
       }
       .padding()
     }
@@ -163,6 +163,24 @@ struct EpisodeDetailView: View {
       ShareEpisodeButton(episode: viewModel.episode)
     }
 
+    if viewModel.isTranscriptionAvailable {
+      ToolbarItem(placement: .primaryAction) {
+        Button {
+          viewModel.transcribe()
+        } label: {
+          AppIcon.transcribeEpisode.image
+            .symbolEffect(.pulse, isActive: isTranscribing)
+        }
+        .accessibilityLabel(
+          Text(LocalizedStringKey(viewModel.transcriptionStatus.toolbarAccessibilityLabel))
+        )
+        .accessibilityValue(
+          Text(LocalizedStringKey(viewModel.transcriptionStatus.toolbarAccessibilityValue))
+        )
+        .disabled(!viewModel.transcriptionStatus.canTranscribe)
+      }
+    }
+
     ToolbarItem(placement: .primaryAction) {
       Menu {
         ratingMenuButtons(showClear: viewModel.episode.rating != nil, rate: viewModel.rate)
@@ -176,6 +194,11 @@ struct EpisodeDetailView: View {
           ? "Not Rated" : AppIcon.rating(for: viewModel.episode.rating).text
       )
     }
+  }
+
+  private var isTranscribing: Bool {
+    guard case .transcribing = viewModel.transcriptionStatus else { return false }
+    return true
   }
 
   // MARK: - Header
@@ -309,7 +332,36 @@ struct EpisodeDetailView: View {
     .dynamicTypeSize(.small ... .xxxLarge)
   }
 
-  // MARK: - Description
+  // MARK: - Description and Transcription
+
+  private var textContentView: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      if viewModel.isTranscriptionAvailable {
+        Picker(
+          "Episode text",
+          selection: Binding(
+            get: { viewModel.selectedTextTab },
+            set: { viewModel.selectTextTab($0) }
+          )
+        ) {
+          Text("Description").tag(EpisodeDetailTextTab.description)
+          Text("Transcription").tag(EpisodeDetailTextTab.transcript)
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: .infinity)
+
+        switch viewModel.selectedTextTab {
+        case .description:
+          descriptionView
+        case .transcript:
+          transcriptionView
+        }
+      } else {
+        descriptionView
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
 
   var descriptionView: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -317,12 +369,7 @@ struct EpisodeDetailView: View {
         let description = viewModel.episode.description,
         !description.isEmpty
       {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Description")
-            .font(.headline)
-
-          descriptionText
-        }
+        descriptionText
       }
     }
     .task(id: viewModel.episode.description) {
@@ -349,6 +396,93 @@ struct EpisodeDetailView: View {
             return .handled
           }
         )
+    }
+  }
+
+  @ViewBuilder
+  private var transcriptionView: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      switch viewModel.transcriptionStatus {
+      case .none:
+        if viewModel.transcriptDisplay == .decodeFailed {
+          transcriptDecodeFailureView
+        } else {
+          transcribeButton
+        }
+      case .queued(let position, let total):
+        Text("Queued for transcription — position \(position) of \(total)")
+          .foregroundStyle(.secondary)
+      case .transcribing(let progress):
+        if progress > 0 {
+          ProgressView(value: progress) {
+            Text("Transcribing…")
+              .foregroundStyle(.secondary)
+          } currentValueLabel: {
+            Text(progress, format: .percent.precision(.fractionLength(0)))
+              .foregroundStyle(.secondary)
+          }
+        } else {
+          HStack(spacing: 8) {
+            ProgressView()
+              .accessibilityHidden(true)
+            Text("Transcribing…")
+              .foregroundStyle(.secondary)
+          }
+        }
+      case .transcribed:
+        switch viewModel.transcriptDisplay {
+        case .notTranscribed:
+          transcribeButton
+        case .loading:
+          HStack(spacing: 8) {
+            ProgressView()
+              .accessibilityHidden(true)
+            Text("Loading transcript…")
+              .foregroundStyle(.secondary)
+          }
+        case .decodeFailed:
+          transcriptDecodeFailureView
+        case .empty:
+          Text("No speech detected")
+            .foregroundStyle(.secondary)
+        case .text(let text):
+          Text(text)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+      case .failed:
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Transcription failed")
+            .foregroundStyle(.red)
+          AppIcon.transcribeEpisode
+            .labelButton("Retry") {
+              viewModel.transcribe()
+            }
+            .buttonStyle(.bordered)
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var transcribeButton: some View {
+    AppIcon.transcribeEpisode
+      .labelButton {
+        viewModel.transcribe()
+      }
+      .buttonStyle(.borderedProminent)
+  }
+
+  private var transcriptDecodeFailureView: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Transcript couldn't be read")
+        .foregroundStyle(.red)
+      Text("Transcribe again to replace the unreadable transcript.")
+        .foregroundStyle(.secondary)
+      AppIcon.transcribeEpisode
+        .labelButton("Transcribe Again") {
+          viewModel.transcribe()
+        }
+        .buttonStyle(.bordered)
     }
   }
 
@@ -402,6 +536,26 @@ struct EpisodeDetailView: View {
     }
     .onTapGesture {
       showingImageOverlay = false
+    }
+  }
+}
+
+extension TranscriptionStatus {
+  var toolbarAccessibilityLabel: String {
+    switch self {
+    case .none: "Transcribe"
+    case .failed: "Retry Transcription"
+    case .queued, .transcribing, .transcribed: "Transcription"
+    }
+  }
+
+  var toolbarAccessibilityValue: String {
+    switch self {
+    case .none: ""
+    case .queued: "Queued"
+    case .transcribing: "Transcribing"
+    case .transcribed: "Complete"
+    case .failed: "Failed"
     }
   }
 }

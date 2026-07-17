@@ -29,4 +29,11 @@ enum TranscriptionHelpers {
     Container.shared.speechAnalyzer.register { { _ in FakeSpeechAnalyzer() } }
     Container.shared.speechModelManager.register { FakeSpeechModelManager() }
   }
+
+  static func prepareAvailability(
+    modelManager: FakeSpeechModelManager = FakeSpeechModelManager()
+  ) async {
+    Container.shared.speechModelManager.register { modelManager }
+    await Container.shared.transcriptionAvailability().prepare()
+  }
 }

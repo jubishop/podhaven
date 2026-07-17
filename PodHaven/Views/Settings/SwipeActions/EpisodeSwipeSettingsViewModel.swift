@@ -6,15 +6,22 @@ import SwiftUI
 
 @Observable @MainActor final class EpisodeSwipeSettingsViewModel {
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.transcriptionAvailability)
+  private var transcriptionAvailability
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
 
   static let maxActions = 3
 
-  // Pass-through to the persisted setting the List edits directly. Broadcast
-  // notifies main-actor writes synchronously, so reorder/delete edits land
-  // within the same gesture transaction instead of a runloop turn later.
+  // View-facing projection of the persisted setting. Broadcast notifies
+  // main-actor writes synchronously, so reorder/delete edits land within the
+  // same gesture transaction instead of a runloop turn later.
   private(set) var actions: [UserSettings.EpisodeSwipeAction] {
-    get { userSettings.episodeSwipeActions }
+    get {
+      let actions = userSettings.episodeSwipeActions
+      guard !transcriptionAvailability.isAvailable else { return actions }
+      let visibleActions = actions.filter { $0 != .transcribe }
+      return visibleActions.isEmpty ? [.playPause] : visibleActions
+    }
     set { userSettings.$episodeSwipeActions.new(newValue) }
   }
 
@@ -38,6 +45,7 @@ import SwiftUI
     return UserSettings.EpisodeSwipeAction.allCases.filter { action in
       guard !selected.contains(action) else { return false }
       if action == .tag { return !sharedState.tags.isEmpty }
+      if action == .transcribe { return transcriptionAvailability.isAvailable }
       return true
     }
   }
@@ -45,6 +53,7 @@ import SwiftUI
   func add(_ action: UserSettings.EpisodeSwipeAction) {
     guard actions.count < Self.maxActions, !actions.contains(action) else { return }
     if action == .tag, sharedState.tags.isEmpty { return }
+    if action == .transcribe, !transcriptionAvailability.isAvailable { return }
     actions.append(action)
   }
 

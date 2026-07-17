@@ -61,6 +61,19 @@ enum EpisodeDetailDisplayedScore: Sendable {
   case pending
 }
 
+enum EpisodeTranscriptDisplay: Equatable, Sendable {
+  case notTranscribed
+  case loading
+  case decodeFailed
+  case empty
+  case text(String)
+}
+
+enum EpisodeDetailTextTab: Hashable, Sendable {
+  case description
+  case transcript
+}
+
 @Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.contextualEmbedding) private var contextualEmbedding
@@ -72,6 +85,9 @@ enum EpisodeDetailDisplayedScore: Sendable {
   @ObservationIgnored @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.transcriptionAvailability)
+  private var transcriptionAvailability
+  @ObservationIgnored @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
@@ -80,8 +96,28 @@ enum EpisodeDetailDisplayedScore: Sendable {
   private let originTab: Navigation.Tab
   var tags: IdentifiedArrayOf<Tag> = []
   private var score: EpisodeDetailDisplayedScore?
+  private(set) var selectedTextTab = EpisodeDetailTextTab.description
 
   var episode: EpisodeDetailContent { state.detailContent }
+
+  // MARK: - Transcript Rendering
+
+  var decodedTranscript: Transcript? {
+    episode.loaded?.decodedTranscript
+  }
+
+  var transcriptDisplay: EpisodeTranscriptDisplay {
+    guard episode.hasTranscript else { return .notTranscribed }
+    guard episode.loaded != nil else { return .loading }
+    guard let transcript = decodedTranscript else { return .decodeFailed }
+    guard !transcript.segments.isEmpty else { return .empty }
+    return .text(transcript.segments.map(\.text).joined(separator: "\n"))
+  }
+
+  func selectTextTab(_ tab: EpisodeDetailTextTab) {
+    guard tab == .description || isTranscriptionAvailable else { return }
+    selectedTextTab = tab
+  }
 
   // MARK: - Description Rendering
 
@@ -127,6 +163,17 @@ enum EpisodeDetailDisplayedScore: Sendable {
 
   var canClearCache: Bool {
     episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
+  }
+
+  var isTranscriptionAvailable: Bool {
+    transcriptionAvailability.isAvailable
+  }
+
+  var transcriptionStatus: TranscriptionStatus {
+    guard let episodeID = episode.episodeID else { return .none }
+    let hasReadableTranscript =
+      episode.hasTranscript && (episode.loaded == nil || decodedTranscript != nil)
+    return transcriptionQueue.status(for: episodeID, hasTranscript: hasReadableTranscript)
   }
 
   // Hide the score once the user has rated or finished the episode: a
@@ -372,6 +419,19 @@ enum EpisodeDetailDisplayedScore: Sendable {
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
       try await repo.updateRating(podcastEpisode.id, rating: rating)
+    }
+  }
+
+  func transcribe() {
+    guard isTranscriptionAvailable, transcriptionStatus.canTranscribe else { return }
+
+    lifecycle.runTask("transcribe: \(state.toString)") { [weak self] in
+      guard let self else { return }
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      if transcriptDisplay == .decodeFailed {
+        try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
+      }
+      transcriptionQueue.enqueue(podcastEpisode.id)
     }
   }
 

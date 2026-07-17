@@ -208,27 +208,39 @@ final class SearchDiscoveryListViewModel:
   // MARK: - ManagingEpisodes
 
   func didPerformAction(_ episode: ListedEpisode) {
-    guard let pick = backingPickByMediaGUID[episode.mediaGUID] else { return }
+    guard let pick = backingPick(for: episode) else { return }
     collector.removePick(mediaGUID: episode.mediaGUID, feedURL: pick.feedURL)
   }
 
   // MARK: - SelectableEpisodeList
 
-  var selectedPodcastEpisodes: [PodcastEpisode] {
-    get async throws {
-      let episodes = selectedEpisodes
-      var podcastEpisodes = [PodcastEpisode](capacity: episodes.count)
-      for episode in episodes {
-        podcastEpisodes.append(try await episode.getOrCreatePodcastEpisode())
-      }
-      return podcastEpisodes
+  func resolvedPodcastEpisodes(for episodes: [ListedEpisode]) async throws
+    -> [ResolvedPodcastEpisode<ListedEpisode>]
+  {
+    var resolvedEpisodes: [ResolvedPodcastEpisode<ListedEpisode>] = []
+    resolvedEpisodes.reserveCapacity(episodes.count)
+    for episode in episodes {
+      resolvedEpisodes.append(
+        ResolvedPodcastEpisode(
+          source: episode,
+          podcastEpisode: try await episode.getOrCreatePodcastEpisode()
+        )
+      )
     }
+    return resolvedEpisodes
   }
 
   func didPerformBulkAction(on episodes: [ListedEpisode]) {
     for episode in episodes {
-      guard let pick = backingPickByMediaGUID[episode.mediaGUID] else { continue }
+      guard let pick = backingPick(for: episode) else { continue }
       collector.removePick(mediaGUID: episode.mediaGUID, feedURL: pick.feedURL)
     }
+  }
+
+  private func backingPick(for episode: ListedEpisode) -> ScoredEpisode? {
+    guard let pick = backingPickByMediaGUID[episode.mediaGUID],
+      episode.feedURL == pick.feedURL || episode.feedURL == pick.episode.feedURL
+    else { return nil }
+    return pick
   }
 }

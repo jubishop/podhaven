@@ -182,4 +182,19 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     #expect(PlaybackStatus.loading("Episode").statusIconAccessibilityLabel == "Loading")
     #expect(PlaybackStatus.stopped.statusIconAccessibilityLabel == "Stopped")
   }
+
+  @Test("transcription toolbar distinguishes actions and states")
+  func transcriptionToolbarDistinguishesActionsAndStates() {
+    #expect(TranscriptionStatus.none.toolbarAccessibilityLabel == "Transcribe")
+    #expect(TranscriptionStatus.none.toolbarAccessibilityValue == "")
+    let queued = TranscriptionStatus.queued(position: 1, total: 2)
+    #expect(queued.toolbarAccessibilityLabel == "Transcription")
+    #expect(queued.toolbarAccessibilityValue == "Queued")
+    #expect(TranscriptionStatus.transcribing(0.5).toolbarAccessibilityLabel == "Transcription")
+    #expect(TranscriptionStatus.transcribing(0.5).toolbarAccessibilityValue == "Transcribing")
+    #expect(TranscriptionStatus.transcribed.toolbarAccessibilityLabel == "Transcription")
+    #expect(TranscriptionStatus.transcribed.toolbarAccessibilityValue == "Complete")
+    #expect(TranscriptionStatus.failed.toolbarAccessibilityLabel == "Retry Transcription")
+    #expect(TranscriptionStatus.failed.toolbarAccessibilityValue == "Failed")
+  }
 }
