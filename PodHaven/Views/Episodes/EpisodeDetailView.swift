@@ -469,7 +469,7 @@ struct EpisodeDetailView: View {
       .labelButton {
         viewModel.transcribe()
       }
-      .buttonStyle(.borderedProminent)
+      .buttonStyle(.bordered)
   }
 
   private var transcriptDecodeFailureView: some View {
