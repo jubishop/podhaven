@@ -6,11 +6,6 @@ import IdentifiedCollections
 import Logging
 import OrderedCollections
 
-struct ResolvedPodcastEpisode<Source> {
-  let source: Source
-  let podcastEpisode: PodcastEpisode
-}
-
 @MainActor protocol SelectableEpisodeList: SelectableList, AnyObject where Item == EpisodeType {
   associatedtype EpisodeType: EpisodeListable & Searchable
 

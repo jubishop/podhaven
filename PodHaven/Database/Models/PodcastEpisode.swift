@@ -57,3 +57,8 @@ struct PodcastEpisode:
     )
   }
 }
+
+struct ResolvedPodcastEpisode<Source> {
+  let source: Source
+  let podcastEpisode: PodcastEpisode
+}
