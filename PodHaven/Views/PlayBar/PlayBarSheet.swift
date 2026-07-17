@@ -73,12 +73,14 @@ struct PlayBarSheet: View {
           .frame(width: geometry.size.width, height: geometry.size.height)
           .clipped()
           .overlay((colorScheme == .dark ? Color.black : Color.white).opacity(0.5))
+          .accessibilityHidden(true)
       } else {
         (colorScheme == .dark ? Color.black : Color.white)
           .overlay(alignment: .top) {
             AppIcon.audioPlaceholder.image
               .font(.system(size: spacing * 12))
               .padding(.top, spacing * 4)
+              .accessibilityHidden(true)
           }
       }
     }
@@ -89,15 +91,19 @@ struct PlayBarSheet: View {
     let icon: AppIcon =
       sharedState.stopAfterCurrentEpisode ? .stopAfterEpisodeOn : .stopAfterEpisode
     return icon.imageButton { viewModel.toggleStopAfterCurrentEpisode() }
+      .accessibilityValue(sharedState.stopAfterCurrentEpisode ? "On" : "Off")
   }
 
   @ViewBuilder
   private func ratingMenu(rating: EpisodeRating?) -> some View {
+    let ratingIcon = AppIcon.rating(for: rating)
     Menu {
       ratingMenuButtons(showClear: rating != nil, rate: viewModel.rate)
     } label: {
-      AppIcon.rating(for: rating).image
+      ratingIcon.label("Rate Episode")
+        .labelStyle(.iconOnly)
     }
+    .accessibilityValue(rating == nil ? "Not Rated" : ratingIcon.text)
   }
 
   private func topBarButtonStyle<V: View>(_ content: V) -> some View {
@@ -230,6 +236,19 @@ struct PlayBarSheet: View {
         tickMarks: viewModel.chapterPositions,
         maxPlaybackTime: viewModel.canJumpToMaxPlayback ? viewModel.maxPlaybackTime : nil
       )
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("Playback Position")
+      .accessibilityValue(Text(viewModel.sliderValue.playbackTimeFormat))
+      .accessibilityAdjustableAction { direction in
+        switch direction {
+        case .increment:
+          viewModel.seekForward()
+        case .decrement:
+          viewModel.seekBackward()
+        @unknown default:
+          break
+        }
+      }
 
       HStack {
         Text(viewModel.sliderValue.playbackTimeFormat)

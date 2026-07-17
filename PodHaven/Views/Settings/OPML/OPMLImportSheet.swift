@@ -42,6 +42,14 @@ struct OPMLImportSheet: View {
         ]
       )
       .frame(maxWidth: .infinity)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("Import Progress")
+      .accessibilityValue(
+        """
+        \(opmlFile.finished.count) completed, \(opmlFile.downloading.count) downloading, \
+        \(opmlFile.waiting.count) waiting, \(opmlFile.failed.count) failed
+        """
+      )
     }
     .padding([.horizontal])
 

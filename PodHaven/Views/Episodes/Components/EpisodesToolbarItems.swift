@@ -109,7 +109,10 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingE
             )
           }
         },
-        label: { AppIcon.moreActions.image }
+        label: {
+          AppIcon.moreActions.label
+            .labelStyle(.iconOnly)
+        }
       )
     }
   }
@@ -136,7 +139,12 @@ func sortableEpisodesToolbarItems<ViewModel: SortableEpisodeList>(viewModel: Vie
             .disabled(viewModel.currentSortMethod == sortMethod)
         }
       },
-      label: { viewModel.currentSortMethod.appIcon.image }
+      label: {
+        viewModel.currentSortMethod.appIcon
+          .label("Sort")
+          .labelStyle(.iconOnly)
+      }
     )
+    .accessibilityValue(viewModel.currentSortMethod.appIcon.text)
   }
 }

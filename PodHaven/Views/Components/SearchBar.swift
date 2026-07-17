@@ -15,6 +15,7 @@ struct SearchBar: View {
     HStack {
       HStack {
         searchIcon.image
+          .accessibilityHidden(true)
 
         TextField(prompt, text: $text)
           .focused($isFocused)
