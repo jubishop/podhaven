@@ -188,8 +188,9 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   func transcriptionToolbarDistinguishesActionsAndStates() {
     #expect(TranscriptionStatus.none.toolbarAccessibilityLabel == "Transcribe")
     #expect(TranscriptionStatus.none.toolbarAccessibilityValue == "")
-    #expect(TranscriptionStatus.queued.toolbarAccessibilityLabel == "Transcription")
-    #expect(TranscriptionStatus.queued.toolbarAccessibilityValue == "Queued")
+    let queued = TranscriptionStatus.queued(position: 1, total: 2)
+    #expect(queued.toolbarAccessibilityLabel == "Transcription")
+    #expect(queued.toolbarAccessibilityValue == "Queued")
     #expect(TranscriptionStatus.transcribing(0.5).toolbarAccessibilityLabel == "Transcription")
     #expect(TranscriptionStatus.transcribing(0.5).toolbarAccessibilityValue == "Transcribing")
     #expect(TranscriptionStatus.transcribed.toolbarAccessibilityLabel == "Transcription")
