@@ -171,8 +171,13 @@ struct EpisodeDetailView: View {
           AppIcon.transcribeEpisode.image
             .symbolEffect(.pulse, isActive: isTranscribing)
         }
+        .accessibilityLabel(
+          Text(LocalizedStringKey(viewModel.transcriptionStatus.toolbarAccessibilityLabel))
+        )
+        .accessibilityValue(
+          Text(LocalizedStringKey(viewModel.transcriptionStatus.toolbarAccessibilityValue))
+        )
         .disabled(!viewModel.transcriptionStatus.canTranscribe)
-        .accessibilityLabel(isTranscribing ? "Transcribing" : AppIcon.transcribeEpisode.text)
       }
     }
 
@@ -419,6 +424,7 @@ struct EpisodeDetailView: View {
         } else {
           HStack(spacing: 8) {
             ProgressView()
+              .accessibilityHidden(true)
             Text("Transcribing…")
               .foregroundStyle(.secondary)
           }
@@ -430,6 +436,7 @@ struct EpisodeDetailView: View {
         case .loading:
           HStack(spacing: 8) {
             ProgressView()
+              .accessibilityHidden(true)
             Text("Loading transcript…")
               .foregroundStyle(.secondary)
           }
@@ -529,6 +536,26 @@ struct EpisodeDetailView: View {
     }
     .onTapGesture {
       showingImageOverlay = false
+    }
+  }
+}
+
+extension TranscriptionStatus {
+  var toolbarAccessibilityLabel: String {
+    switch self {
+    case .none: "Transcribe"
+    case .failed: "Retry Transcription"
+    case .queued, .transcribing, .transcribed: "Transcription"
+    }
+  }
+
+  var toolbarAccessibilityValue: String {
+    switch self {
+    case .none: ""
+    case .queued: "Queued"
+    case .transcribing: "Transcribing"
+    case .transcribed: "Complete"
+    case .failed: "Failed"
     }
   }
 }
