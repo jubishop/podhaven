@@ -460,6 +460,14 @@ struct EpisodeDetailView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.bottom, transcriptionBottomPadding)
+  }
+
+  private var transcriptionBottomPadding: CGFloat {
+    switch viewModel.transcriptDisplay {
+    case .notTranscribed, .loading, .decodeFailed, .empty: 8
+    case .text: 0
+    }
   }
 
   private var transcribeButton: some View {
