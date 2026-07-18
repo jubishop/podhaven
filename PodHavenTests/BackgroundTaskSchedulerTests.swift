@@ -116,14 +116,16 @@ struct BackgroundTaskSchedulerTests {
   func expirationCancelsRunningWorkAndCompletesOnce() async throws {
     let scheduler = makeScheduler(cadence: .seconds(0))
     let executionStarted = ActorContainer<Bool>()
-    let executionCancelled = ActorContainer<Bool>()
+    let cancellationStarted = AsyncSemaphore(value: 0)
+    let cancellationRelease = AsyncSemaphore(value: 0)
 
     scheduler.register { _ in
       await executionStarted.set(true)
       while !Task.isCancelled {
         await Task.yield()
       }
-      await executionCancelled.set(true)
+      cancellationStarted.signal()
+      await cancellationRelease.wait()
     }
 
     let task = try #require(fake.launchTask(withIdentifier: Self.testIdentifier))
@@ -133,7 +135,10 @@ struct BackgroundTaskSchedulerTests {
     task.expire()
     task.expire()
 
-    try await executionCancelled.waitForEqual(to: true)
+    await cancellationStarted.wait()
+    #expect(task.completionResults.isEmpty)
+
+    cancellationRelease.signal()
     try await Wait.until(
       { task.completionResults == [false] },
       { "Expected expiration to complete once with failure, got \(task.completionResults)" }

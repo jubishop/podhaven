@@ -192,6 +192,7 @@ class EmbeddingProcessorTests {
     )
 
     task.expire()
+    fakeRecommendationRepo.releaseEmbeddingsGate()
 
     try await Wait.until(
       { task.completionResults == [false] },

@@ -94,21 +94,27 @@ struct TranscriberTests {
     }
   }
 
-  @Test("cancelling transcription explicitly finishes the analyzer")
-  func cancellationFinishesAnalyzer() async throws {
+  @Test("cancelling transcription waits for the analyzer to finish")
+  func cancellationWaitsForAnalyzer() async throws {
     TranscriptionHelpers.stubSpeech()
     let analyzerStarted = AsyncSemaphore(value: 0)
-    let neverSignals = AsyncSemaphore(value: 0)
+    let analyzerRelease = AsyncSemaphore(value: 0)
+    let cancellationStarted = AsyncSemaphore(value: 0)
+    let cancellationRelease = AsyncSemaphore(value: 0)
     let analyzerCancelled = ThreadSafe(0)
+    let transcriptionFinished = ThreadSafe(false)
     Container.shared.speechAnalyzer.register {
       { _ in
         FakeSpeechAnalyzer(
           analyzeAudio: {
             analyzerStarted.signal()
-            try await neverSignals.waitUnlessCancelled()
-            return .zero
+            await analyzerRelease.wait()
+            throw FakeSpeechError.failed
           },
           cancelAudio: {
+            cancellationStarted.signal()
+            analyzerRelease.signal()
+            await cancellationRelease.wait()
             analyzerCancelled { $0 += 1 }
           }
         )
@@ -116,20 +122,30 @@ struct TranscriberTests {
     }
 
     let task = Task {
-      try await Container.shared.transcriber().transcribe(fileURL: fileURL, locale: locale)
+      defer { transcriptionFinished(true) }
+      _ = try await Container.shared.transcriber().transcribe(fileURL: fileURL, locale: locale)
     }
     await analyzerStarted.wait()
     task.cancel()
+    await cancellationStarted.wait()
 
-    try await Wait.until(
-      maxAttempts: 100,
-      delay: .milliseconds(5),
-      { analyzerCancelled() == 1 },
-      { "cancelled transcription did not finish its analyzer" }
-    )
+    do {
+      try await Wait.until(
+        maxAttempts: 50,
+        delay: .milliseconds(5),
+        { transcriptionFinished() },
+        { "cancelled transcription returned before analyzer cleanup finished" }
+      )
+    } catch {
+      // The timeout is expected while analyzer cleanup is held at the gate.
+    }
+    #expect(!transcriptionFinished())
+
+    cancellationRelease.signal()
     await #expect(throws: CancellationError.self) {
       try await task.value
     }
+    #expect(analyzerCancelled() == 1)
   }
 
   @Test("throws when the audio file decodes to no audio")

@@ -81,10 +81,18 @@ struct TranscriptionBackgroundTaskTests {
     defer { processor.handleScenePhaseChange(to: .background) }
 
     try await Wait.until(
-      { queue.episodeIDs.isEmpty },
-      { "foreground task did not drain the queue: \(queue.episodeIDs)" }
+      {
+        queue.episodeIDs.isEmpty
+          && !scheduler.pendingIdentifiers.contains(identifier)
+      },
+      {
+        """
+        foreground task did not drain the queue and cancel its request:
+          queue: \(queue.episodeIDs)
+          pending: \(scheduler.pendingIdentifiers)
+        """
+      }
     )
-    #expect(!scheduler.pendingIdentifiers.contains(identifier))
   }
 
   @Test("foreground and background consumers never analyze the same head concurrently")

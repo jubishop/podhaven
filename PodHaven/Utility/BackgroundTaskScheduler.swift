@@ -30,6 +30,12 @@ enum BackgroundTaskSchedulingMode: Sendable {
 struct BackgroundTaskScheduler: Sendable {
   typealias Completion = @Sendable (Bool) -> Void
 
+  private enum ExecutionState: Sendable {
+    case waiting
+    case running(Task<Void, Never>)
+    case expired
+  }
+
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
 
   private static let log = Log.as("BackgroundTaskScheduler")
@@ -98,16 +104,62 @@ struct BackgroundTaskScheduler: Sendable {
           task.setTaskCompleted(success: success)
         }
 
-        let bgTask = ThreadSafe<Task<Void, Never>?>(nil)
-        task.setExpirationHandler { [complete] in
+        let executionState = ThreadSafe(ExecutionState.waiting)
+        task.setExpirationHandler {
           Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
 
-          bgTask()?.cancel()
-          complete(false)
+          let runningTask: Task<Void, Never>? = executionState { state in
+            switch state {
+            case .waiting:
+              state = .expired
+              return nil
+            case .running(let task):
+              state = .expired
+              return task
+            case .expired:
+              return nil
+            }
+          }
+          if let runningTask {
+            runningTask.cancel()
+          }
         }
 
         scheduleNext()
-        bgTask(Task { await executionTask(complete) })
+        let startLatch = AsyncLatch<Void>()
+        let runningTask = Task {
+          do {
+            try Task.checkCancellation()
+            try await startLatch.wait()
+            try Task.checkCancellation()
+            await executionTask(complete)
+          } catch is CancellationError {
+            complete(false)
+            return
+          } catch {
+            Self.log.caughtError("Failed to start background task \(identifier)", error)
+            complete(false)
+            return
+          }
+          if Task.isCancelled {
+            complete(false)
+          }
+        }
+        let installedState = executionState { state in
+          switch state {
+          case .waiting:
+            state = .running(runningTask)
+          case .expired:
+            break
+          case .running:
+            Assert.fatal("Background task \(identifier) installed its execution task twice")
+          }
+          return state
+        }
+        if case .expired = installedState {
+          runningTask.cancel()
+        }
+        startLatch.open()
       }
 
       guard success else {
