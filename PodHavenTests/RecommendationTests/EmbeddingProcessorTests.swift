@@ -425,6 +425,16 @@ class EmbeddingProcessorTests {
     )
     let failedEpisode = try #require(episodes.first)
     let healthyEpisode = try #require(episodes.last)
+    try await recommendationRepo.upsertEmbeddings([
+      UnsavedEpisodeEmbedding(
+        episodeId: failedEpisode.id,
+        vector: UnsavedEpisodeEmbedding.vectorData(from: [1, 0, 0]),
+        sourceHash: "embedding-before-deterministic-failure",
+        embeddingRevision: failingEmbedding.revision,
+        dimension: 3,
+        verificationDate: Date.now
+      )
+    ])
 
     let processor = EmbeddingProcessor()
     processor.register()

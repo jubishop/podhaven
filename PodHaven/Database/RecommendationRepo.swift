@@ -404,7 +404,7 @@ struct RecommendationRepo: Recommending {
         uniqueKeysWithValues: existingFailures.map { ($0.episodeId, $0) }
       )
 
-      var newlyQuarantinedCount = 0
+      var newlyQuarantinedEpisodeIDs: [Episode.ID] = []
       for context in contexts {
         let existing = existingByEpisodeID[context.episodeId]
         let matchesCurrentInput =
@@ -425,10 +425,16 @@ struct RecommendationRepo: Recommending {
         .upsert(db)
 
         if attemptCount == Self.maximumEmbeddingFailureAttempts {
-          newlyQuarantinedCount += 1
+          newlyQuarantinedEpisodeIDs.append(context.episodeId)
         }
       }
-      return newlyQuarantinedCount
+      if !newlyQuarantinedEpisodeIDs.isEmpty {
+        _ =
+          try EpisodeEmbedding
+          .filter(newlyQuarantinedEpisodeIDs.contains(EpisodeEmbedding.Columns.episodeId))
+          .deleteAll(db)
+      }
+      return newlyQuarantinedEpisodeIDs.count
     }
   }
 
