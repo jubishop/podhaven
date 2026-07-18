@@ -102,10 +102,10 @@ struct UpNextView: View {
           }
         },
         label: {
-          AppIcon.sort.label
-            .labelStyle(.iconOnly)
+          AppIcon.sort.image
         }
       )
+      .accessibilityLabel("Sort")
     }
 
     selectableEpisodesToolbarItems(viewModel: viewModel)
