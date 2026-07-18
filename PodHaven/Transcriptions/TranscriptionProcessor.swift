@@ -266,16 +266,6 @@ struct TranscriptionProcessor: Sendable {
     }
     try Task.checkCancellation()
 
-    guard let cachedURL = try await cacheManager.cachedURL(downloadingIfNeeded: episodeID) else {
-      throw TranscriptionError.audioUnavailable(episodeID)
-    }
-    Self.log.debug(
-      """
-      transcriptionTelemetry event=audioReady \(logContext.fields) \
-      file=\(cachedURL.rawValue.lastPathComponent)
-      """
-    )
-
     let checkpoint: TranscriptionCheckpoint?
     do {
       checkpoint = try await repo.transcriptionCheckpoint(episodeID)
@@ -303,6 +293,16 @@ struct TranscriptionProcessor: Sendable {
       checkpointState=\(checkpointState) progress=\(initialProgress) \
       committedAudioSeconds=\(checkpoint?.audioTime ?? 0) \
       checkpointSegments=\(checkpoint?.segments.count ?? 0)
+      """
+    )
+
+    guard let cachedURL = try await cacheManager.cachedURL(downloadingIfNeeded: episodeID) else {
+      throw TranscriptionError.audioUnavailable(episodeID)
+    }
+    Self.log.debug(
+      """
+      transcriptionTelemetry event=audioReady \(logContext.fields) \
+      file=\(cachedURL.rawValue.lastPathComponent)
       """
     )
 

@@ -6,9 +6,6 @@ import Foundation
 @testable import PodHaven
 
 struct FakeSpeechAnalyzer: SpeechAnalyzing {
-  // Non-nil so Transcriber takes the finalize path; the URL is ignored, so
-  // transcription tests need no real audio file on disk.
-  var lastSampleTime: CMTime? = .zero
   var durationSeconds: Double = 60
   var analyzeAudio:
     (@Sendable (_ startTime: TimeInterval, _ endTime: TimeInterval) async throws -> CMTime?)?
@@ -20,8 +17,10 @@ struct FakeSpeechAnalyzer: SpeechAnalyzing {
     from startTime: TimeInterval,
     to endTime: TimeInterval
   ) async throws -> CMTime? {
-    guard let analyzeAudio else { return lastSampleTime }
-    return try await analyzeAudio(startTime, endTime)
+    if let analyzeAudio {
+      return try await analyzeAudio(startTime, endTime)
+    }
+    return CMTime(seconds: endTime, preferredTimescale: 600)
   }
   func finalize(through time: CMTime) async throws {}
   func cancel() async {

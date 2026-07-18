@@ -124,7 +124,7 @@ struct TranscriptionBackgroundTaskTests {
     let maximumActiveAnalyzers = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer { _, _ in
+        FakeSpeechAnalyzer { _, endTime in
           let active = activeAnalyzers {
             $0 += 1
             return $0
@@ -133,7 +133,7 @@ struct TranscriptionBackgroundTaskTests {
           analyzerStarted.signal()
           defer { activeAnalyzers { $0 -= 1 } }
           try await analyzerRelease.waitUnlessCancelled()
-          return .zero
+          return CMTime(seconds: endTime, preferredTimescale: 600)
         }
       }
     }
@@ -200,11 +200,11 @@ struct TranscriptionBackgroundTaskTests {
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer(durationSeconds: 100) { _, _ in
+        FakeSpeechAnalyzer(durationSeconds: 100) { _, endTime in
           analyzeCount { $0 += 1 }
           analyzerStarted.signal()
           try await analyzerRelease.waitUnlessCancelled()
-          return .zero
+          return CMTime(seconds: endTime, preferredTimescale: 600)
         }
       }
     }
@@ -265,15 +265,17 @@ struct TranscriptionBackgroundTaskTests {
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer { _, _ in
+        FakeSpeechAnalyzer { _, endTime in
           let count = analyzeCount {
             $0 += 1
             return $0
           }
-          guard count == 1 else { return .zero }
+          guard count == 1 else {
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          }
           firstAnalyzerStarted.signal()
           try await firstAnalyzerRelease.waitUnlessCancelled()
-          return .zero
+          return CMTime(seconds: endTime, preferredTimescale: 600)
         }
       }
     }
@@ -440,15 +442,17 @@ struct TranscriptionBackgroundTaskTests {
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer { _, _ in
+        FakeSpeechAnalyzer { _, endTime in
           let count = analyzeCount {
             $0 += 1
             return $0
           }
-          guard count == 1 else { return .zero }
+          guard count == 1 else {
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          }
           analyzerStarted.signal()
           try await neverSignals.waitUnlessCancelled()
-          return .zero
+          return CMTime(seconds: endTime, preferredTimescale: 600)
         }
       }
     }
@@ -599,7 +603,7 @@ struct TranscriptionBackgroundTaskTests {
     await resumedAnalysisStarted.wait()
 
     let range = try #require(resumedRange())
-    #expect(range.start == 110)
+    #expect(range.start == 0)
     #expect(range.end == durationSeconds)
 
     resumedAnalysisRelease.signal()

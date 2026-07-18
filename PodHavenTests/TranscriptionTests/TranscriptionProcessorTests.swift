@@ -76,6 +76,36 @@ struct TranscriptionProcessorTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
+  @Test("backgrounding during an audio download preserves the foreground drain")
+  func backgroundingDuringDownloadPreservesForegroundDrain() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+    )
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    queue.enqueue(podcastEpisode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer { processor.handleScenePhaseChange(to: .background) }
+
+    let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
+    try await CacheHelpers.waitForResumed(taskID)
+    #expect(queue.progress[podcastEpisode.id] == 0)
+
+    processor.handleScenePhaseChange(to: .background)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "foreground drain did not resume after the download: \(queue.episodeIDs)" }
+    )
+    #expect(
+      try await repo.episode(podcastEpisode.id)?.decodedTranscript?.segments.first?.text == "hello"
+    )
+  }
+
   @Test("an unsupported locale fails before requesting uncached audio")
   func unsupportedLocaleFailsBeforeRequestingAudio() async throws {
     TranscriptionHelpers.stubSpeech(

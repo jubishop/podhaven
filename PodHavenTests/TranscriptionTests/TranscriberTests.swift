@@ -161,7 +161,7 @@ struct TranscriberTests {
       phrases: [
         FakeSpeechTranscriptionResult(
           phrase: "replacement boundary",
-          startSeconds: 110,
+          startSeconds: 100,
           endSeconds: 125
         ),
         FakeSpeechTranscriptionResult(
@@ -202,10 +202,77 @@ struct TranscriberTests {
         onCheckpoint: { savedCheckpoint($0) }
       )
 
-    #expect(analyzedRange()?.start == 110)
+    #expect(analyzedRange()?.start == 100)
     #expect(analyzedRange()?.end == durationSeconds)
     #expect(segments.map(\.text) == ["early", "replacement boundary", "later"])
     #expect(savedCheckpoint()?.audioTime == durationSeconds)
+  }
+
+  @Test("a partial analysis does not advance the checkpoint")
+  func partialAnalysisDoesNotAdvanceCheckpoint() async throws {
+    let durationSeconds = 120.0
+    TranscriptionHelpers.stubSpeech(durationSeconds: durationSeconds)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer(durationSeconds: durationSeconds) { _, _ in
+          CMTime(seconds: 60, preferredTimescale: 600)
+        }
+      }
+    }
+    let savedCheckpoint = ThreadSafe<TranscriptionCheckpoint?>(nil)
+
+    await #expect(throws: TranscriptionError.self) {
+      try await Container.shared.transcriber()
+        .transcribe(
+          fileURL: fileURL,
+          locale: locale,
+          logContext: logContext,
+          onCheckpoint: { savedCheckpoint($0) }
+        )
+    }
+
+    #expect(savedCheckpoint() == nil)
+  }
+
+  @Test("cancellation returning partial coverage does not advance the checkpoint")
+  func cancelledPartialAnalysisDoesNotAdvanceCheckpoint() async throws {
+    let durationSeconds = 120.0
+    TranscriptionHelpers.stubSpeech(durationSeconds: durationSeconds)
+    let analyzerStarted = AsyncSemaphore(value: 0)
+    let analyzerRelease = AsyncSemaphore(value: 0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer(
+          durationSeconds: durationSeconds,
+          analyzeAudio: { _, _ in
+            analyzerStarted.signal()
+            await analyzerRelease.wait()
+            return CMTime(seconds: 60, preferredTimescale: 600)
+          },
+          cancelAudio: {
+            analyzerRelease.signal()
+          }
+        )
+      }
+    }
+    let savedCheckpoint = ThreadSafe<TranscriptionCheckpoint?>(nil)
+    let task = Task {
+      try await Container.shared.transcriber()
+        .transcribe(
+          fileURL: fileURL,
+          locale: locale,
+          logContext: logContext,
+          onCheckpoint: { savedCheckpoint($0) }
+        )
+    }
+    await analyzerStarted.wait()
+
+    task.cancel()
+
+    await #expect(throws: CancellationError.self) {
+      try await task.value
+    }
+    #expect(savedCheckpoint() == nil)
   }
 
   @Test("an incompatible checkpoint restarts from zero")
@@ -314,7 +381,9 @@ struct TranscriberTests {
     TranscriptionHelpers.stubSpeech(phrases: [
       FakeSpeechTranscriptionResult(phrase: "ignored", startSeconds: 0)
     ])
-    Container.shared.speechAnalyzer.register { { _ in FakeSpeechAnalyzer(lastSampleTime: nil) } }
+    Container.shared.speechAnalyzer.register {
+      { _ in FakeSpeechAnalyzer(analyzeAudio: { _, _ in nil }) }
+    }
 
     await #expect(throws: TranscriptionError.self) {
       try await Container.shared.transcriber()
@@ -331,7 +400,7 @@ struct TranscriberTests {
     Container.shared.speechAnalyzer.register {
       { _ in
         FakeSpeechAnalyzer(
-          lastSampleTime: nil,
+          analyzeAudio: { _, _ in nil },
           cancelAudio: {
             let invocation = cancellationCount { count in
               count += 1

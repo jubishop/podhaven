@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import CoreMedia
 import FactoryKit
 import Foundation
 import Logging
@@ -18,6 +19,7 @@ enum TranscriptionError: LocalizedError {
   case localeNotSupported(Locale)
   case audioUnavailable(Episode.ID)
   case noDecodableAudio(URL)
+  case incompleteAudioRange(expectedEndTime: TimeInterval, actualEndTime: TimeInterval)
 
   var errorDescription: String? {
     switch self {
@@ -27,6 +29,11 @@ enum TranscriptionError: LocalizedError {
       "Audio for episode \(episodeID) could not be downloaded for transcription"
     case .noDecodableAudio(let url):
       "No audio could be decoded from \(url.lastPathComponent) for transcription"
+    case .incompleteAudioRange(let expectedEndTime, let actualEndTime):
+      """
+      Audio analysis stopped at \(actualEndTime) seconds before the requested \
+      \(expectedEndTime)-second boundary
+      """
     }
   }
 }
@@ -71,6 +78,7 @@ struct Transcriber: Sendable {
 
   private static let chunkDuration: TimeInterval = 120
   private static let chunkOverlap: TimeInterval = 10
+  private static let analysisCoverageTolerance: TimeInterval = 0.01
 
   private static let log = Log.as(LogSubsystem.Transcription.transcriber)
 
@@ -153,7 +161,18 @@ struct Transcriber: Sendable {
         durationSeconds,
         workingCheckpoint.audioTime + Self.chunkDuration
       )
-      let startTime = max(0, workingCheckpoint.audioTime - Self.chunkOverlap)
+      let nominalStartTime = max(0, workingCheckpoint.audioTime - Self.chunkOverlap)
+      var startTime = nominalStartTime
+      for segment in workingCheckpoint.segments {
+        guard
+          segment.start < nominalStartTime,
+          let segmentEnd = segment.end,
+          segmentEnd > nominalStartTime
+        else {
+          continue
+        }
+        startTime = min(startTime, segment.start)
+      }
       let transcriber: any SpeechTranscribing
       let analyzer: any SpeechAnalyzing
       if let pair = firstPair {
@@ -177,6 +196,7 @@ struct Transcriber: Sendable {
         logContext: logContext,
         onProgress: onProgress
       )
+      try Task.checkCancellation()
       workingCheckpoint = workingCheckpoint.merging(
         segments,
         from: startTime,
@@ -255,9 +275,23 @@ struct Transcriber: Sendable {
           await cancelAnalyzer().value
           throw TranscriptionError.noDecodableAudio(fileURL)
         }
+        try Task.checkCancellation()
+        let analyzedThrough = lastSample.isNumeric ? lastSample.seconds : .nan
+        guard
+          analyzedThrough.isFinite,
+          analyzedThrough + Self.analysisCoverageTolerance >= endTime
+        else {
+          await cancelAnalyzer().value
+          throw TranscriptionError.incompleteAudioRange(
+            expectedEndTime: endTime,
+            actualEndTime: analyzedThrough
+          )
+        }
         try await analyzer.finalize(through: lastSample)
+        try Task.checkCancellation()
 
         let segments = try await collected
+        try Task.checkCancellation()
         let wallSeconds = (continuousClockNow() - chunkStartedAt).asTimeInterval
         let audioToWallRatio: String
         if wallSeconds > 0 {
@@ -292,14 +326,14 @@ struct Transcriber: Sendable {
         )
         throw CancellationError()
       }
-      Self.log.info(
+      Self.log.caughtError(
         """
         transcriptionTelemetry event=chunkFailed \(logContext.fields) \
         chunkStartSeconds=\(startTime) chunkEndSeconds=\(endTime) \
         overlapSeconds=\(overlapSeconds) newAudioSeconds=\(newAudioSeconds) \
-        analyzedAudioSeconds=\(analyzedAudioSeconds) wallSeconds=\(wallSeconds) \
-        errorType=\(String(reflecting: type(of: error)))
-        """
+        analyzedAudioSeconds=\(analyzedAudioSeconds) wallSeconds=\(wallSeconds)
+        """,
+        error
       )
       throw error
     }
