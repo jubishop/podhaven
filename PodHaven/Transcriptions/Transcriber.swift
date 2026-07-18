@@ -67,7 +67,9 @@ struct Transcriber: Sendable {
     let transcriber = speechTranscriber(locale)
     let analyzer = speechAnalyzer(transcriber)
     let cancellationTask = ThreadSafe<Task<Void, Never>?>(nil)
-    let cancelAnalyzer: @Sendable () -> Task<Void, Never> = {
+    @discardableResult
+    @Sendable
+    func cancelAnalyzer() -> Task<Void, Never> {
       cancellationTask { task in
         if let task { return task }
         let createdTask = Task { await analyzer.cancel() }
@@ -92,7 +94,7 @@ struct Transcriber: Sendable {
         // transcription (retryable), distinct from audio that contained no
         // recognizable speech, which finalizes to an empty, terminal transcript.
         guard let lastSample = try await analyzer.analyze(audioFileAt: fileURL) else {
-          await analyzer.cancel()
+          await cancelAnalyzer().value
           throw TranscriptionError.noDecodableAudio(fileURL)
         }
         try await analyzer.finalize(through: lastSample)
@@ -101,7 +103,7 @@ struct Transcriber: Sendable {
         Self.log.debug("Transcribed \(segments.count) segments from \(fileURL.lastPathComponent)")
         return segments
       } onCancel: {
-        _ = cancelAnalyzer()
+        cancelAnalyzer()
       }
     } catch {
       guard error is CancellationError || Task.isCancelled else { throw error }

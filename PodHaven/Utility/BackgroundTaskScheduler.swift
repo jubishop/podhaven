@@ -34,6 +34,7 @@ struct BackgroundTaskScheduler: Sendable {
     case waiting
     case running(Task<Void, Never>)
     case expired
+    case completed(Bool)
   }
 
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
@@ -98,13 +99,25 @@ struct BackgroundTaskScheduler: Sendable {
       ) { task in
         Self.log.debug("iOS is executing the background task: \(identifier)")
 
-        let didComplete = ThreadLock()
-        let complete: Completion = { [didComplete, task] success in
-          guard didComplete.claim() else { return }
-          task.setTaskCompleted(success: success)
+        let executionState = ThreadSafe(ExecutionState.waiting)
+        let complete: Completion = { [executionState, task] success in
+          let completionResult: Bool? = executionState { state in
+            switch state {
+            case .waiting, .running:
+              state = .completed(success)
+              return success
+            case .expired:
+              state = .completed(false)
+              return false
+            case .completed:
+              return nil
+            }
+          }
+          if let completionResult {
+            task.setTaskCompleted(success: completionResult)
+          }
         }
 
-        let executionState = ThreadSafe(ExecutionState.waiting)
         task.setExpirationHandler {
           Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
 
@@ -116,7 +129,7 @@ struct BackgroundTaskScheduler: Sendable {
             case .running(let task):
               state = .expired
               return task
-            case .expired:
+            case .expired, .completed:
               return nil
             }
           }
@@ -153,6 +166,8 @@ struct BackgroundTaskScheduler: Sendable {
             break
           case .running:
             Assert.fatal("Background task \(identifier) installed its execution task twice")
+          case .completed:
+            Assert.fatal("Background task \(identifier) completed before execution was installed")
           }
           return state
         }

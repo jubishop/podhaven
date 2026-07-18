@@ -120,12 +120,12 @@ struct BackgroundTaskSchedulerTests {
     let cancellationRelease = AsyncSemaphore(value: 0)
 
     scheduler.register { _ in
-      await executionStarted.set(true)
-      while !Task.isCancelled {
-        await Task.yield()
+      await withTaskCancellationHandler {
+        await executionStarted.set(true)
+        await cancellationRelease.wait()
+      } onCancel: {
+        cancellationStarted.signal()
       }
-      cancellationStarted.signal()
-      await cancellationRelease.wait()
     }
 
     let task = try #require(fake.launchTask(withIdentifier: Self.testIdentifier))
@@ -142,6 +142,39 @@ struct BackgroundTaskSchedulerTests {
     try await Wait.until(
       { task.completionResults == [false] },
       { "Expected expiration to complete once with failure, got \(task.completionResults)" }
+    )
+
+    #expect(task.completionCount == 1)
+  }
+
+  @Test("expiration overrides success reported during cancellation cleanup")
+  func expirationOverridesSuccessDuringCancellationCleanup() async throws {
+    let scheduler = makeScheduler(cadence: .seconds(0))
+    let executionStarted = ActorContainer<Bool>()
+    let cancellationStarted = AsyncSemaphore(value: 0)
+    let cancellationRelease = AsyncSemaphore(value: 0)
+
+    scheduler.register { complete in
+      await executionStarted.set(true)
+      await withTaskCancellationHandler {
+        await cancellationRelease.wait()
+        complete(true)
+      } onCancel: {
+        cancellationStarted.signal()
+      }
+    }
+
+    let task = try #require(fake.launchTask(withIdentifier: Self.testIdentifier))
+    try await executionStarted.waitForEqual(to: true)
+
+    task.expire()
+    await cancellationStarted.wait()
+    #expect(task.completionResults.isEmpty)
+
+    cancellationRelease.signal()
+    try await Wait.until(
+      { task.completionResults == [false] },
+      { "Expected expiration to override cleanup success, got \(task.completionResults)" }
     )
 
     #expect(task.completionCount == 1)

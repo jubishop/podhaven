@@ -160,6 +160,44 @@ struct TranscriberTests {
     }
   }
 
+  @Test("cancelling no-audio cleanup cancels the analyzer once")
+  func cancellingNoAudioCleanupCancelsAnalyzerOnce() async throws {
+    TranscriptionHelpers.stubSpeech()
+    let cancellationStarted = AsyncSemaphore(value: 0)
+    let cancellationRelease = AsyncSemaphore(value: 0)
+    let cancellationCount = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer(
+          lastSampleTime: nil,
+          cancelAudio: {
+            let invocation = cancellationCount { count in
+              count += 1
+              return count
+            }
+            if invocation == 1 {
+              cancellationStarted.signal()
+              await cancellationRelease.wait()
+            }
+          }
+        )
+      }
+    }
+
+    let task = Task {
+      try await Container.shared.transcriber().transcribe(fileURL: fileURL, locale: locale)
+    }
+    await cancellationStarted.wait()
+
+    task.cancel()
+    cancellationRelease.signal()
+
+    await #expect(throws: CancellationError.self) {
+      try await task.value
+    }
+    #expect(cancellationCount() == 1)
+  }
+
   @Test("returns no segments when audio has no recognizable speech")
   func returnsNoSegmentsForSpeechlessAudio() async throws {
     TranscriptionHelpers.stubSpeech(phrases: [])
