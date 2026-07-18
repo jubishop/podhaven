@@ -296,6 +296,61 @@ class EmbeddingRepoTests {
     #expect(result.contains(pe.episode.id))
   }
 
+  @Test("recipe refresh failure retries until quarantine and resets for new input")
+  func recipeRefreshFailureRetriesUntilQuarantineAndResets() async throws {
+    let pe = try await createPodcastEpisode(rating: .liked)
+    try await insertEmbedding(for: pe.episode.id, revision: 1)
+    let pipelineVersion = EmbeddingPipelineVersion(
+      embeddingRevision: 1,
+      recipeVersion: EmbeddingService.recipeVersion + 1
+    )
+
+    for attempt in 1...3 {
+      let quarantinedCount = try await recommendationRepo.updateEmbeddingFailureState(
+        failedEpisodeIDs: [pe.episode.id],
+        succeededEpisodeIDs: [],
+        pipelineVersion: pipelineVersion
+      )
+      let pending = try await recommendationRepo.episodesNeedingEmbeddings(
+        pipelineVersion: pipelineVersion,
+        includeCurrent: false
+      )
+
+      if attempt < 3 {
+        #expect(quarantinedCount == 0)
+        #expect(pending.contains(pe.episode.id))
+      } else {
+        #expect(quarantinedCount == 1)
+        #expect(!pending.contains(pe.episode.id))
+      }
+    }
+
+    let revisedPipeline = EmbeddingPipelineVersion(
+      embeddingRevision: pipelineVersion.embeddingRevision,
+      recipeVersion: pipelineVersion.recipeVersion + 1
+    )
+    #expect(
+      try await recommendationRepo.episodesNeedingEmbeddings(
+        pipelineVersion: revisedPipeline,
+        includeCurrent: false
+      )
+      .contains(pe.episode.id)
+    )
+
+    _ = try await appDB.unsafeTestDB.write { db in
+      try Episode
+        .withID(pe.episode.id)
+        .updateAll(db, Episode.Columns.title.set(to: "Changed after quarantine"))
+    }
+    #expect(
+      try await recommendationRepo.episodesNeedingEmbeddings(
+        pipelineVersion: pipelineVersion,
+        includeCurrent: false
+      )
+      .contains(pe.episode.id)
+    )
+  }
+
   @Test("includes episodes whose content updated after embedding creation")
   func staleContentIncluded() async throws {
     let pe = try await createPodcastEpisode(

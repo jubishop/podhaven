@@ -399,6 +399,232 @@ class EmbeddingProcessorTests {
     #expect(try await recommendationRepo.embedding(for: episode.id)?.sourceHash == staleSourceHash)
   }
 
+  @Test("persistent episode failure quiesces and retries after content changes")
+  func persistentEpisodeFailureQuiescesAndRetriesAfterContentChange() async throws {
+    let failureMarker = "Persistent Episode Failure"
+    let failingEmbedding = ContextualEmbedding(
+      embedding: ScriptedEmbeddable(
+        errorFor: { text in
+          text.contains(failureMarker) ? TestError.simulatedFailure : nil
+        },
+        vectorFor: { _ in [1, 0, 0] }
+      )
+    )
+    Container.shared.contextualEmbedding.reset()
+      .register { failingEmbedding }
+      .scope(.cached)
+    Container.shared.embeddingWorkDemand.reset()
+
+    let fakeBGTaskScheduler = self.fakeBGTaskScheduler
+    let recommendationRepo = self.recommendationRepo
+    let workDemand = Container.shared.embeddingWorkDemand()
+    let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Bounded Retry",
+      episodeDescriptions: [failureMarker, "Healthy episode"]
+    )
+    let failedEpisode = try #require(episodes.first)
+    let healthyEpisode = try #require(episodes.last)
+
+    let processor = EmbeddingProcessor()
+    processor.register()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers.count == 1 },
+      { "Initial embedding demand did not schedule a background request" }
+    )
+    let identifier = try #require(fakeBGTaskScheduler.pendingIdentifiers.first)
+
+    for grant in 1...3 {
+      let task = try #require(
+        fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+      )
+      try await Wait.until(
+        { task.completionResults == [true] },
+        { "Embedding background grant \(grant) did not complete" }
+      )
+      if grant < 3 {
+        #expect(workDemand.hasWork)
+        #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
+      }
+    }
+
+    #expect(try await recommendationRepo.embedding(for: failedEpisode.id) == nil)
+    #expect(try await recommendationRepo.embedding(for: healthyEpisode.id) != nil)
+    let failure = try await Container.shared.appDB().unsafeTestDB
+      .read { db in
+        try EpisodeEmbeddingFailure
+          .filter(EpisodeEmbeddingFailure.Columns.episodeId == failedEpisode.id)
+          .fetchOne(db)
+      }
+    #expect(failure?.attemptCount == 3)
+    let failureMatchesCurrentInput = try await Container.shared.appDB().unsafeTestDB
+      .read { db in
+        try Bool.fetchOne(
+          db,
+          sql: """
+            SELECT
+              episodeEmbeddingFailure.episodeContentUpdatedAt = episode.contentUpdatedAt
+              AND episodeEmbeddingFailure.podcastContentUpdatedAt = podcast.contentUpdatedAt
+            FROM episodeEmbeddingFailure
+            JOIN episode ON episode.id = episodeEmbeddingFailure.episodeId
+            JOIN podcast ON podcast.id = episode.podcastId
+            WHERE episode.id = ?
+            """,
+          arguments: [failedEpisode.id]
+        )
+      }
+    #expect(failureMatchesCurrentInput == true)
+    #expect(!workDemand.hasWork)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
+
+    _ = try await Container.shared.appDB().unsafeTestDB
+      .write { db in
+        try Episode
+          .withID(failedEpisode.id)
+          .updateAll(db, Episode.Columns.description.set(to: "Recovered content"))
+      }
+    processor.workBecameAvailable()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers == [identifier] },
+      { "Changed episode content did not schedule a recovery attempt" }
+    )
+    let recoveryTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { recoveryTask.completionResults == [true] },
+      { "Changed episode content did not complete its recovery attempt" }
+    )
+
+    #expect(try await recommendationRepo.embedding(for: failedEpisode.id) != nil)
+    #expect(!workDemand.hasWork)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
+  }
+
+  @Test("pipeline version change retries a quarantined episode after launch")
+  func pipelineVersionChangeRetriesQuarantinedEpisodeAfterLaunch() async throws {
+    let recommendationRepo = self.recommendationRepo
+    let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Pipeline Recovery"
+    )
+    let episode = try #require(episodes.first)
+    let initialPipelineVersion = EmbeddingPipelineVersion(
+      embeddingRevision: contextualEmbedding.revision,
+      recipeVersion: EmbeddingService.recipeVersion
+    )
+    for _ in 1...3 {
+      _ = try await recommendationRepo.updateEmbeddingFailureState(
+        failedEpisodeIDs: [episode.id],
+        succeededEpisodeIDs: [],
+        pipelineVersion: initialPipelineVersion
+      )
+    }
+    let initialDemand = embeddingWorkDemand
+    #expect(initialDemand.clear(ifUnchanged: initialDemand.snapshot()))
+    #expect(
+      try await recommendationRepo.episodesNeedingEmbeddings(
+        pipelineVersion: initialPipelineVersion,
+        includeCurrent: true
+      ) == []
+    )
+
+    let revisedEmbedding = ContextualEmbedding(
+      embedding: ScriptedEmbeddable(
+        revision: initialPipelineVersion.embeddingRevision + 1,
+        vectorFor: { _ in [1, 0, 0] }
+      )
+    )
+    Container.shared.contextualEmbedding.reset()
+      .register { revisedEmbedding }
+      .scope(.cached)
+    Container.shared.embeddingWorkDemand.reset()
+
+    let fakeBGTaskScheduler = self.fakeBGTaskScheduler
+    let revisedDemand = Container.shared.embeddingWorkDemand()
+    let processor = EmbeddingProcessor()
+    processor.register()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers.count == 1 },
+      { "A pipeline version change did not restore embedding demand after launch" }
+    )
+    let identifier = try #require(fakeBGTaskScheduler.pendingIdentifiers.first)
+    let task = try #require(fakeBGTaskScheduler.launchTask(withIdentifier: identifier))
+    try await Wait.until(
+      { task.completionResults == [true] },
+      { "The revised embedding pipeline did not complete its recovery attempt" }
+    )
+
+    #expect(
+      try await recommendationRepo.embedding(for: episode.id)?.embeddingRevision
+        == revisedEmbedding.revision
+    )
+    #expect(!revisedDemand.hasWork)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
+  }
+
+  @Test("transient episode failure retries on the next background grant")
+  func transientEpisodeFailureRetriesOnNextBackgroundGrant() async throws {
+    let failureMarker = "Transient Episode Failure"
+    let remainingFailures = ThreadSafe(1)
+    let transientEmbedding = ContextualEmbedding(
+      embedding: ScriptedEmbeddable(
+        errorFor: { text in
+          guard text.contains(failureMarker) else { return nil }
+          let shouldFail = remainingFailures { count in
+            guard count > 0 else { return false }
+            count -= 1
+            return true
+          }
+          return shouldFail ? TestError.simulatedFailure : nil
+        },
+        vectorFor: { _ in [1, 0, 0] }
+      )
+    )
+    Container.shared.contextualEmbedding.reset()
+      .register { transientEmbedding }
+      .scope(.cached)
+    Container.shared.embeddingWorkDemand.reset()
+
+    let fakeBGTaskScheduler = self.fakeBGTaskScheduler
+    let recommendationRepo = self.recommendationRepo
+    let workDemand = Container.shared.embeddingWorkDemand()
+    let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Transient Retry",
+      episodeDescriptions: [failureMarker]
+    )
+    let episode = try #require(episodes.first)
+    let processor = EmbeddingProcessor()
+    processor.register()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers.count == 1 },
+      { "Initial transient embedding work did not schedule" }
+    )
+    let identifier = try #require(fakeBGTaskScheduler.pendingIdentifiers.first)
+
+    let firstTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { firstTask.completionResults == [true] },
+      { "The transient failure grant did not complete" }
+    )
+    #expect(workDemand.hasWork)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
+
+    let retryTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { retryTask.completionResults == [true] },
+      { "The transient failure retry did not complete" }
+    )
+    #expect(try await recommendationRepo.embedding(for: episode.id) != nil)
+    #expect(!workDemand.hasWork)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
+  }
+
   @Test("persisted demand rejects a stale clear after new work arrives")
   func persistedDemandRejectsStaleClear() throws {
     let demand = embeddingWorkDemand

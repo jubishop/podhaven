@@ -229,25 +229,19 @@ struct EmbeddingProcessor: Sendable {
     let ids = try await episodeIDsNeedingWork(
       includeCurrent: initialSnapshot.requiresFullRefresh
     )
-    var batchResult = EmbeddingBatchResult(failedEpisodeCount: 0)
     var clearingSnapshot = initialSnapshot
 
     if !ids.isEmpty {
       Container.shared.embeddingWorkDemand().ensureAvailable()
       clearingSnapshot = Container.shared.embeddingWorkDemand().snapshot()
       Self.log.info("Processing \(ids.count) episodes for embeddings")
-      batchResult = try await EmbeddingService.upsertEpisodeEmbeddings(
+      try await EmbeddingService.upsertEpisodeEmbeddings(
         forIDs: ids,
         embedding: contextualEmbedding
       )
     }
 
     try Task.checkCancellation()
-
-    guard batchResult.failedEpisodeCount == 0 else {
-      Container.shared.embeddingWorkDemand().ensureAvailable()
-      return .pending(processedCount: ids.count)
-    }
 
     if initialSnapshot.requiresFullRefresh {
       Container.shared.embeddingWorkDemand().markPipelineRefreshCompleted()
@@ -269,7 +263,10 @@ struct EmbeddingProcessor: Sendable {
   private func episodeIDsNeedingWork(includeCurrent: Bool) async throws -> [Episode.ID] {
     let queryStart = continuousClockNow()
     let ids = try await recommendationRepo.episodesNeedingEmbeddings(
-      revision: contextualEmbedding.revision,
+      pipelineVersion: EmbeddingPipelineVersion(
+        embeddingRevision: contextualEmbedding.revision,
+        recipeVersion: EmbeddingService.recipeVersion
+      ),
       includeCurrent: includeCurrent
     )
     let queryDuration = continuousClockNow() - queryStart

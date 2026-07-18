@@ -560,6 +560,55 @@ class EmbeddingServiceTests {
     #expect(try await recommendationRepo.embedding(for: second.id) == nil)
   }
 
+  @Test("cancellation after an episode failure persists its retry attempt")
+  func cancellationAfterFailurePersistsRetryAttempt() async throws {
+    let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 2,
+      podcastTitle: "Cancellation Retry State",
+      episodeDescriptions: ["FailFirst", "CancelSecond"]
+    )
+    let failed = try #require(episodes.first)
+    let cancelled = try #require(episodes.last)
+    let embedding = await makeContextualEmbedding(
+      ScriptedEmbeddable(
+        errorFor: { text in
+          if text.contains("FailFirst") {
+            return TestError.simulatedFailure
+          }
+          if text.contains("CancelSecond") {
+            return CancellationError()
+          }
+          return nil
+        },
+        vectorFor: { _ in [1, 0, 0] }
+      )
+    )
+
+    await #expect(throws: CancellationError.self) {
+      try await EmbeddingService.upsertEpisodeEmbeddings(
+        for: [failed, cancelled],
+        embedding: embedding
+      )
+    }
+
+    for _ in 1...2 {
+      let result = try await EmbeddingService.upsertEpisodeEmbeddings(
+        for: [failed],
+        embedding: embedding
+      )
+      #expect(result.failedEpisodeCount == 1)
+    }
+
+    let pending = try await recommendationRepo.episodesNeedingEmbeddings(
+      pipelineVersion: EmbeddingPipelineVersion(
+        embeddingRevision: embedding.revision,
+        recipeVersion: EmbeddingService.recipeVersion
+      ),
+      includeCurrent: true
+    )
+    #expect(!pending.contains(failed.id))
+  }
+
   // MARK: - Blend Discrimination
 
   @Test("within-show episodes remain distinct after podcast blending")
