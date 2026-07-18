@@ -3,9 +3,14 @@
 import Foundation
 
 struct ThreadLock {
+  private struct Waiter: Sendable {
+    let id: UUID
+    let continuation: CheckedContinuation<Void, any Error>
+  }
+
   private struct State: Sendable {
     var isClaimed = false
-    var waiters: [CheckedContinuation<Void, Never>] = []
+    var waiters: [Waiter] = []
   }
 
   private let state = ThreadSafe(State())
@@ -22,29 +27,46 @@ struct ThreadLock {
     }
   }
 
-  func waitForClaim() async {
+  func waitForClaim() async throws {
+    try Task.checkCancellation()
     if claim() { return }
 
-    await withCheckedContinuation { continuation in
-      var shouldResumeImmediately = false
-
-      state { value in
-        if value.isClaimed == false {
-          value.isClaimed = true
-          shouldResumeImmediately = true
-        } else {
-          value.waiters.append(continuation)
+    let id = UUID()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, any Error>) in
+        let acquiredImmediately: Bool? = state { value in
+          if value.isClaimed == false {
+            value.isClaimed = true
+            return true
+          }
+          if Task.isCancelled {
+            return false
+          }
+          value.waiters.append(Waiter(id: id, continuation: continuation))
+          return nil
+        }
+        if let acquiredImmediately {
+          if acquiredImmediately {
+            continuation.resume()
+          } else {
+            continuation.resume(throwing: CancellationError())
+          }
         }
       }
-
-      if shouldResumeImmediately {
-        continuation.resume()
+    } onCancel: {
+      let continuation: CheckedContinuation<Void, any Error>? = state { value in
+        guard let index = value.waiters.firstIndex(where: { $0.id == id }) else {
+          return nil
+        }
+        return value.waiters.remove(at: index).continuation
       }
+      continuation?.resume(throwing: CancellationError())
     }
   }
 
   func release() {
-    var nextWaiter: CheckedContinuation<Void, Never>?
+    var nextWaiter: CheckedContinuation<Void, any Error>?
 
     state { value in
       guard value.isClaimed else { return }
@@ -52,10 +74,10 @@ struct ThreadLock {
       if value.waiters.isEmpty {
         value.isClaimed = false
       } else {
-        nextWaiter = value.waiters.removeFirst()
+        nextWaiter = value.waiters.removeFirst().continuation
       }
     }
 
-    nextWaiter?.resume()
+    nextWaiter?.resume(returning: ())
   }
 }

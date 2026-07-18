@@ -53,7 +53,8 @@ struct TranscriptionProcessor: Sendable {
       identifier: Self.backgroundTaskIdentifier,
       cadence: .minutes(1),
       taskType: .processing(requiresNetworkConnectivity: false),
-      schedulingMode: .onDemand { !queue.episodeIDs.isEmpty }
+      schedulingMode: .onDemand { !queue.episodeIDs.isEmpty },
+      expirationBehavior: .awaitCancellation
     )
   }
 

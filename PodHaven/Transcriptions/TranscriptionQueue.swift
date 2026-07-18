@@ -101,7 +101,7 @@ struct TranscriptionQueue: Sendable {
   func withWorkStream(
     _ operation: @Sendable (AsyncStream<Episode.ID>) async throws -> Void
   ) async throws {
-    await consumerLock.waitForClaim()
+    try await consumerLock.waitForClaim()
     defer { consumerLock.release() }
     try Task.checkCancellation()
 

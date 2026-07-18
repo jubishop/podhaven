@@ -27,6 +27,11 @@ enum BackgroundTaskSchedulingMode: Sendable {
   case onDemand(hasWork: @Sendable () -> Bool)
 }
 
+enum BackgroundTaskExpirationBehavior: Sendable {
+  case completeImmediately
+  case awaitCancellation
+}
+
 struct BackgroundTaskScheduler: Sendable {
   typealias Completion = @Sendable (Bool) -> Void
 
@@ -45,6 +50,7 @@ struct BackgroundTaskScheduler: Sendable {
   private let cadence: Duration
   private let taskType: BackgroundTaskType
   private let schedulingMode: BackgroundTaskSchedulingMode
+  private let expirationBehavior: BackgroundTaskExpirationBehavior
 
   private var shouldSchedule: Bool {
     switch schedulingMode {
@@ -79,12 +85,14 @@ struct BackgroundTaskScheduler: Sendable {
     identifier: String,
     cadence: Duration,
     taskType: BackgroundTaskType,
-    schedulingMode: BackgroundTaskSchedulingMode = .periodic
+    schedulingMode: BackgroundTaskSchedulingMode = .periodic,
+    expirationBehavior: BackgroundTaskExpirationBehavior = .completeImmediately
   ) {
     self.identifier = identifier
     self.cadence = cadence
     self.taskType = taskType
     self.schedulingMode = schedulingMode
+    self.expirationBehavior = expirationBehavior
 
     Self.log.debug("BackgroundTaskScheduler with identifier: \(identifier)")
   }
@@ -121,20 +129,36 @@ struct BackgroundTaskScheduler: Sendable {
         task.setExpirationHandler {
           Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
 
-          let runningTask: Task<Void, Never>? = executionState { state in
-            switch state {
-            case .waiting:
-              state = .expired
-              return nil
-            case .running(let task):
-              state = .expired
-              return task
-            case .expired, .completed:
-              return nil
+          let expirationAction: (runningTask: Task<Void, Never>?, completesImmediately: Bool) =
+            executionState { state in
+              switch state {
+              case .waiting:
+                switch expirationBehavior {
+                case .completeImmediately:
+                  state = .completed(false)
+                  return (nil, true)
+                case .awaitCancellation:
+                  state = .expired
+                  return (nil, false)
+                }
+              case .running(let task):
+                switch expirationBehavior {
+                case .completeImmediately:
+                  state = .completed(false)
+                  return (task, true)
+                case .awaitCancellation:
+                  state = .expired
+                  return (task, false)
+                }
+              case .expired, .completed:
+                return (nil, false)
+              }
             }
-          }
-          if let runningTask {
+          if let runningTask = expirationAction.runningTask {
             runningTask.cancel()
+          }
+          if expirationAction.completesImmediately {
+            task.setTaskCompleted(success: false)
           }
         }
 
@@ -158,20 +182,20 @@ struct BackgroundTaskScheduler: Sendable {
             complete(false)
           }
         }
-        let installedState = executionState { state in
+        let shouldCancelBeforeStart = executionState { state in
           switch state {
           case .waiting:
             state = .running(runningTask)
-          case .expired:
-            break
+            return false
+          case .expired, .completed(false):
+            return true
           case .running:
             Assert.fatal("Background task \(identifier) installed its execution task twice")
-          case .completed:
+          case .completed(true):
             Assert.fatal("Background task \(identifier) completed before execution was installed")
           }
-          return state
         }
-        if case .expired = installedState {
+        if shouldCancelBeforeStart {
           runningTask.cancel()
         }
         startLatch.open()

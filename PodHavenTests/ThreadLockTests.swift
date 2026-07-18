@@ -7,21 +7,28 @@ import Testing
 
 @Suite("of ThreadLock")
 struct ThreadLockTests {
-  @Test("waitForClaim returns with ownership when the caller is cancelled")
-  func cancelledWaiterReturnsWithOwnership() async {
+  @Test("waitForClaim throws without ownership when the caller is already cancelled")
+  func cancelledWaiterDoesNotClaim() async {
     let lock = ThreadLock()
     let start = AsyncSemaphore(value: 0)
     let waiter = Task {
       await start.wait()
-      await lock.waitForClaim()
-      let ownsClaim = lock.isClaimed
-      lock.release()
-      return ownsClaim
+      do {
+        try await lock.waitForClaim()
+        lock.release()
+        return false
+      } catch is CancellationError {
+        return true
+      } catch {
+        Issue.record("Unexpected lock error: \(error)")
+        return false
+      }
     }
 
     waiter.cancel()
     start.signal()
 
     #expect(await waiter.value)
+    #expect(!lock.isClaimed)
   }
 }
