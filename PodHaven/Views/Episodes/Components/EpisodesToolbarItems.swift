@@ -116,10 +116,10 @@ func selectableEpisodesToolbarItems<ViewModel: SelectableEpisodeList & ManagingE
           }
         },
         label: {
-          AppIcon.moreActions.label
-            .labelStyle(.iconOnly)
+          AppIcon.moreActions.image
         }
       )
+      .accessibilityLabel("More Actions")
     }
   }
 
@@ -146,11 +146,10 @@ func sortableEpisodesToolbarItems<ViewModel: SortableEpisodeList>(viewModel: Vie
         }
       },
       label: {
-        viewModel.currentSortMethod.appIcon
-          .label("Sort")
-          .labelStyle(.iconOnly)
+        viewModel.currentSortMethod.appIcon.image
       }
     )
+    .accessibilityLabel("Sort")
     .accessibilityValue(viewModel.currentSortMethod.appIcon.text)
   }
 }

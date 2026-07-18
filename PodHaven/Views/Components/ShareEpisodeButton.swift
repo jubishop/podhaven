@@ -58,9 +58,9 @@ struct ShareEpisodeButton<E: EpisodeListable>: View {
       shareMenu(baseURL: shareURL, currentTime: currentTime)
     } else {
       ShareLink(item: shareURL, preview: sharePreview) {
-        AppIcon.shareEpisode.label
-          .labelStyle(.iconOnly)
+        AppIcon.shareEpisode.image
       }
+      .accessibilityLabel("Share Episode")
     }
   }
 
@@ -77,8 +77,8 @@ struct ShareEpisodeButton<E: EpisodeListable>: View {
         AppIcon.shareEpisode.rawLabel("Share from \(currentTime.description)")
       }
     } label: {
-      AppIcon.shareEpisode.label
-        .labelStyle(.iconOnly)
+      AppIcon.shareEpisode.image
     }
+    .accessibilityLabel("Share Episode")
   }
 }

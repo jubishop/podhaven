@@ -28,11 +28,10 @@ import SwiftUI
           }
         },
         label: {
-          AppIcon.editFinished
-            .label("Selection Actions")
-            .labelStyle(.iconOnly)
+          AppIcon.editFinished.image
         }
       )
+      .accessibilityLabel("Selection Actions")
     } else {
       AppIcon.editItems.labelButton {
         list.setSelecting(true)

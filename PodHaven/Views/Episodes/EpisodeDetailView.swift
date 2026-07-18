@@ -153,10 +153,9 @@ struct EpisodeDetailView: View {
           }
         }
       } label: {
-        (viewModel.isPlaying ? AppIcon.pauseButton : AppIcon.playButton)
-          .label("Episode Actions")
-          .labelStyle(.iconOnly)
+        (viewModel.isPlaying ? AppIcon.pauseButton : AppIcon.playButton).image
       }
+      .accessibilityLabel("Episode Actions")
     }
 
     ToolbarItem(placement: .primaryAction) {
@@ -185,10 +184,9 @@ struct EpisodeDetailView: View {
       Menu {
         ratingMenuButtons(showClear: viewModel.episode.rating != nil, rate: viewModel.rate)
       } label: {
-        AppIcon.rating(for: viewModel.episode.rating)
-          .label("Rate Episode")
-          .labelStyle(.iconOnly)
+        AppIcon.rating(for: viewModel.episode.rating).image
       }
+      .accessibilityLabel("Rate Episode")
       .accessibilityValue(
         viewModel.episode.rating == nil
           ? "Not Rated" : AppIcon.rating(for: viewModel.episode.rating).text

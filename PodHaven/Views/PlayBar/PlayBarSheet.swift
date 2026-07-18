@@ -100,9 +100,9 @@ struct PlayBarSheet: View {
     Menu {
       ratingMenuButtons(showClear: rating != nil, rate: viewModel.rate)
     } label: {
-      ratingIcon.label("Rate Episode")
-        .labelStyle(.iconOnly)
+      ratingIcon.image
     }
+    .accessibilityLabel("Rate Episode")
     .accessibilityValue(rating == nil ? "Not Rated" : ratingIcon.text)
   }
 
