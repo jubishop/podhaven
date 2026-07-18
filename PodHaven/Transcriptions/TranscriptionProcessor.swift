@@ -72,6 +72,9 @@ struct TranscriptionProcessor: Sendable {
         Self.log.info("Transcription background task completed")
         complete(true)
       } catch is CancellationError {
+        if case .background = foregroundState(), let foregroundTask = stop() {
+          await foregroundTask.value
+        }
         Self.log.info("Transcription background task cancelled (expired)")
         complete(false)
       } catch {
@@ -119,9 +122,11 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  private func stop() {
-    processingTask { task in
+  @discardableResult
+  private func stop() -> Task<Void, Never>? {
+    processingTask { task -> Task<Void, Never>? in
       task?.cancel()
+      return task
     }
   }
 

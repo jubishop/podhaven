@@ -300,6 +300,105 @@ struct TranscriptionBackgroundTaskTests {
     #expect(try await repo.episode(secondEpisode.id)?.hasTranscript == true)
   }
 
+  @Test("expiration cancels a preserved foreground analyzer before completing")
+  func expirationCancelsPreservedForegroundAnalyzer() async throws {
+    try await LogCapture.withSink { sink in
+      TranscriptionHelpers.stubSpeech(
+        phrases: [FakeSpeechTranscriptionResult(phrase: "retained", startSeconds: 0)]
+      )
+      let analyzerStarted = AsyncSemaphore(value: 0)
+      let analyzerRelease = AsyncSemaphore(value: 0)
+      let cancellationStarted = ThreadSafe(false)
+      let cancellationRelease = AsyncSemaphore(value: 0)
+      let cancellationCount = ThreadSafe(0)
+      Container.shared.speechAnalyzer.register {
+        { _ in
+          FakeSpeechAnalyzer(
+            analyzeAudio: {
+              analyzerStarted.signal()
+              await analyzerRelease.wait()
+              throw FakeSpeechError.failed
+            },
+            cancelAudio: {
+              cancellationStarted(true)
+              analyzerRelease.signal()
+              await cancellationRelease.wait()
+              cancellationCount { $0 += 1 }
+            }
+          )
+        }
+      }
+
+      let queue = Container.shared.transcriptionQueue()
+      let processor = Container.shared.transcriptionProcessor()
+      let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+      let episode = try await CacheHelpers.createCachedEpisode(
+        title: "Foreground expiration",
+        cachedFilename: "foreground-expiration.mp3",
+        dataSize: 1
+      )
+      let identifier = "\(AppInfo.bundleIdentifier).transcription"
+      queue.enqueue(episode.id)
+
+      processor.register()
+      processor.handleScenePhaseChange(to: .active)
+      await analyzerStarted.wait()
+      #expect(queue.progress[episode.id] != nil)
+
+      processor.handleScenePhaseChange(to: .background)
+      do {
+        let task = try #require(scheduler.launchTask(withIdentifier: identifier))
+        try await Wait.until(
+          {
+            sink.captured()
+              .contains {
+                $0.message == "Starting transcription background task"
+              }
+          },
+          { "background grant did not begin" }
+        )
+
+        task.expire()
+        try await Wait.until(
+          maxAttempts: 50,
+          delay: .milliseconds(5),
+          { cancellationStarted() },
+          { "expiration did not cancel the preserved foreground analyzer" }
+        )
+
+        #expect(task.completionResults.isEmpty)
+        #expect(queue.episodeIDs == [episode.id])
+
+        cancellationRelease.signal()
+        try await Wait.until(
+          {
+            task.completionResults == [false]
+              && queue.progress[episode.id] == nil
+          },
+          {
+            """
+            expired grant completed before analyzer cleanup:
+              completions: \(task.completionResults)
+              progress: \(queue.progress)
+            """
+          }
+        )
+        #expect(cancellationCount() == 1)
+        #expect(queue.episodeIDs == [episode.id])
+      } catch {
+        analyzerRelease.signal()
+        cancellationRelease.signal()
+        try await Wait.until(
+          maxAttempts: 100,
+          delay: .milliseconds(5),
+          { queue.progress[episode.id] == nil },
+          { "foreground analyzer did not finish after test cleanup" }
+        )
+        throw error
+      }
+    }
+  }
+
   @Test("expiration retains the head for the next foreground drain")
   func expirationRetainsHeadForForeground() async throws {
     TranscriptionHelpers.stubSpeech(
