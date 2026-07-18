@@ -17,6 +17,7 @@ struct TranscriberTests {
     episodeID: Episode.ID(rawValue: -1)
   )
   private let locale = Locale(identifier: "en-US")
+  private let audioSHA256 = FakeAudioFileHasher.defaultSHA256
 
   @Test("maps phrases to segments, trimming whitespace and dropping empties")
   func mapsPhrasesToSegments() async throws {
@@ -189,7 +190,8 @@ struct TranscriberTests {
       audioTime: 120,
       duration: durationSeconds,
       locale: locale.identifier(.bcp47),
-      modelRevision: Transcriber.recipeVersion
+      modelRevision: Transcriber.recipeVersion,
+      audioSHA256: audioSHA256
     )
     let savedCheckpoint = ThreadSafe<TranscriptionCheckpoint?>(nil)
 
@@ -206,6 +208,7 @@ struct TranscriberTests {
     #expect(analyzedRange()?.end == durationSeconds)
     #expect(segments.map(\.text) == ["early", "replacement boundary", "later"])
     #expect(savedCheckpoint()?.audioTime == durationSeconds)
+    #expect(savedCheckpoint()?.audioSHA256 == audioSHA256)
   }
 
   @Test("a partial analysis does not advance the checkpoint")
@@ -302,7 +305,8 @@ struct TranscriberTests {
       audioTime: 120,
       duration: 240,
       locale: locale.identifier(.bcp47),
-      modelRevision: Transcriber.recipeVersion
+      modelRevision: Transcriber.recipeVersion,
+      audioSHA256: audioSHA256
     )
     let reportedProgress = ThreadSafe<[Double]>([])
 
@@ -319,6 +323,54 @@ struct TranscriberTests {
     #expect(analyzedRange()?.end == durationSeconds)
     #expect(segments.map(\.text) == ["fresh"])
     #expect(reportedProgress() == [0, 0.5])
+  }
+
+  @Test("a same-duration checkpoint for different audio restarts from zero")
+  func changedAudioRestartsFromZero() async throws {
+    let durationSeconds = 60.0
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(
+          phrase: "fresh",
+          startSeconds: 0,
+          endSeconds: durationSeconds
+        )
+      ],
+      durationSeconds: durationSeconds
+    )
+    let analyzedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer(durationSeconds: durationSeconds) { startTime, endTime in
+          analyzedRange((start: startTime, end: endTime))
+          return CMTime(seconds: endTime, preferredTimescale: 600)
+        }
+      }
+    }
+    let staleCheckpoint = try TranscriptionCheckpoint(
+      decoding: """
+        {
+          "segments": [{"start": 0, "end": 20, "text": "stale"}],
+          "audioTime": 30,
+          "duration": 60,
+          "locale": "en-US",
+          "modelRevision": \(Transcriber.recipeVersion),
+          "audioSHA256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+        """
+    )
+
+    let segments = try await Container.shared.transcriber()
+      .transcribe(
+        fileURL: fileURL,
+        locale: locale,
+        logContext: logContext,
+        checkpoint: staleCheckpoint
+      )
+
+    #expect(analyzedRange()?.start == 0)
+    #expect(analyzedRange()?.end == durationSeconds)
+    #expect(segments.map(\.text) == ["fresh"])
   }
 
   @Test("cancelling transcription waits for the analyzer to finish")

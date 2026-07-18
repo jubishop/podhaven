@@ -545,13 +545,14 @@ struct TranscriptionBackgroundTaskTests {
     }
     Container.shared.speechModelManager.register { FakeSpeechModelManager() }
 
-    let expiringAnalysisStarted = AsyncSemaphore(value: 0)
+    let expiringAnalysisStarted = ThreadSafe(false)
     let neverSignals = AsyncSemaphore(value: 0)
+    defer { neverSignals.signal() }
     Container.shared.speechAnalyzer.register {
       { _ in
         FakeSpeechAnalyzer(durationSeconds: durationSeconds) { startTime, endTime in
           if endTime == durationSeconds {
-            expiringAnalysisStarted.signal()
+            expiringAnalysisStarted(true)
             try await neverSignals.waitUnlessCancelled()
           }
           return CMTime(seconds: endTime, preferredTimescale: 600)
@@ -573,7 +574,10 @@ struct TranscriptionBackgroundTaskTests {
     processor.register()
 
     let firstTask = try #require(scheduler.launchTask(withIdentifier: identifier))
-    await expiringAnalysisStarted.wait()
+    try await Wait.until(
+      { expiringAnalysisStarted() },
+      { "first background grant did not begin analysis" }
+    )
     firstTask.expire()
     try await Wait.until(
       { firstTask.completionResults == [false] },
@@ -586,13 +590,14 @@ struct TranscriptionBackgroundTaskTests {
     #expect(persistedCheckpoint.segments.map(\.text) == ["first"])
 
     let resumedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
-    let resumedAnalysisStarted = AsyncSemaphore(value: 0)
+    let resumedAnalysisStarted = ThreadSafe(false)
     let resumedAnalysisRelease = AsyncSemaphore(value: 0)
+    defer { resumedAnalysisRelease.signal() }
     Container.shared.speechAnalyzer.register {
       { _ in
         FakeSpeechAnalyzer(durationSeconds: durationSeconds) { startTime, endTime in
           resumedRange((start: startTime, end: endTime))
-          resumedAnalysisStarted.signal()
+          resumedAnalysisStarted(true)
           try await resumedAnalysisRelease.waitUnlessCancelled()
           return CMTime(seconds: endTime, preferredTimescale: 600)
         }
@@ -600,13 +605,18 @@ struct TranscriptionBackgroundTaskTests {
     }
 
     let secondTask = try #require(scheduler.launchTask(withIdentifier: identifier))
-    await resumedAnalysisStarted.wait()
+    try await Wait.until(
+      { resumedAnalysisStarted() },
+      { "second background grant did not begin analysis" }
+    )
 
-    let range = try #require(resumedRange())
+    let capturedRange = resumedRange()
+    resumedAnalysisRelease.signal()
+
+    let range = try #require(capturedRange)
     #expect(range.start == 0)
     #expect(range.end == durationSeconds)
 
-    resumedAnalysisRelease.signal()
     try await Wait.until(
       { queue.episodeIDs.isEmpty },
       { "second background grant did not finish: \(queue.episodeIDs)" }

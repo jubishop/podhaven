@@ -48,7 +48,7 @@ struct V70MigrationTests {
             episodeId, checkpointJSON
           ) VALUES (
             901,
-            '{"segments":[{"start":0,"text":"First"}],"audioTime":120,"duration":7200,"locale":"en-US","modelRevision":2}'
+            '{"segments":[{"start":0,"text":"First"}],"audioTime":120,"duration":7200,"locale":"en-US","modelRevision":2,"audioSHA256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
           )
           """
       )
@@ -83,6 +83,11 @@ struct V70MigrationTests {
       )
       let checkpointJSON: String = row["checkpointJSON"]
       #expect(checkpointJSON.contains("\"audioTime\":120"))
+      #expect(
+        checkpointJSON.contains(
+          "\"audioSHA256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+        )
+      )
     }
   }
 
@@ -99,7 +104,7 @@ struct V70MigrationTests {
               episodeId, checkpointJSON
             ) VALUES (
               901,
-              '{"segments":[],"duration":7200,"locale":"en-US","modelRevision":2}'
+              '{"segments":[],"audioTime":120,"duration":7200,"locale":"en-US","modelRevision":2}'
             )
             """
         )

@@ -45,6 +45,7 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
   let duration: TimeInterval
   let locale: String
   let modelRevision: Int
+  let audioSHA256: String
 
   var progress: Double {
     guard duration > 0 else { return 0 }
@@ -56,13 +57,15 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
     audioTime: TimeInterval,
     duration: TimeInterval,
     locale: String,
-    modelRevision: Int
+    modelRevision: Int,
+    audioSHA256: String
   ) {
     self.segments = segments
     self.audioTime = audioTime
     self.duration = duration
     self.locale = locale
     self.modelRevision = modelRevision
+    self.audioSHA256 = audioSHA256
   }
 
   init(decoding json: String) throws {
@@ -73,7 +76,12 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
     String(decoding: try JSONEncoder().encode(self), as: UTF8.self)
   }
 
-  func isCompatible(duration: TimeInterval, locale: Locale, modelRevision: Int) -> Bool {
+  func isCompatible(
+    duration: TimeInterval,
+    locale: Locale,
+    modelRevision: Int,
+    audioSHA256: String
+  ) -> Bool {
     let timeTolerance = 0.01
     guard
       duration > 0
@@ -82,6 +90,7 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
         && abs(self.duration - duration) <= timeTolerance
         && self.locale == locale.identifier(.bcp47)
         && self.modelRevision == modelRevision
+        && self.audioSHA256 == audioSHA256
     else {
       return false
     }
@@ -115,7 +124,8 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
       audioTime: endTime,
       duration: duration,
       locale: locale,
-      modelRevision: modelRevision
+      modelRevision: modelRevision,
+      audioSHA256: audioSHA256
     )
   }
 }

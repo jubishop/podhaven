@@ -22,6 +22,9 @@ extension Schema {
             )
             AND json_type(checkpointJSON, '$.locale') IS 'text'
             AND json_type(checkpointJSON, '$.modelRevision') IS 'integer'
+            AND json_type(checkpointJSON, '$.audioSHA256') IS 'text'
+            AND length(json_extract(checkpointJSON, '$.audioSHA256')) IS 64
+            AND json_extract(checkpointJSON, '$.audioSHA256') NOT GLOB '*[^0-9a-f]*'
             """
         )
     }

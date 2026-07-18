@@ -67,6 +67,7 @@ struct Transcriber: Sendable {
     case restartedIncompatible
   }
 
+  @DynamicInjected(\.audioFileHasher) private var audioFileHasher
   @DynamicInjected(\.continuousClockNow) private var continuousClockNow
   @DynamicInjected(\.speechAnalyzer) private var speechAnalyzer
   @DynamicInjected(\.speechModelManager) private var speechModelManager
@@ -106,6 +107,8 @@ struct Transcriber: Sendable {
     )
     try Task.checkCancellation()
     try await ensureModelInstalled(for: locale, logContext: logContext)
+    let audioSHA256 = try audioFileHasher.sha256(of: fileURL)
+    try Task.checkCancellation()
 
     let firstTranscriber = speechTranscriber(locale)
     let firstAnalyzer = speechAnalyzer(firstTranscriber)
@@ -121,7 +124,8 @@ struct Transcriber: Sendable {
       checkpoint.isCompatible(
         duration: durationSeconds,
         locale: locale,
-        modelRevision: Self.recipeVersion
+        modelRevision: Self.recipeVersion,
+        audioSHA256: audioSHA256
       )
     {
       workingCheckpoint = checkpoint
@@ -132,7 +136,8 @@ struct Transcriber: Sendable {
         audioTime: 0,
         duration: durationSeconds,
         locale: locale.identifier(.bcp47),
-        modelRevision: Self.recipeVersion
+        modelRevision: Self.recipeVersion,
+        audioSHA256: audioSHA256
       )
       checkpointDisposition = checkpoint == nil ? .new : .restartedIncompatible
     }
