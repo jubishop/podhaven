@@ -109,6 +109,8 @@ enum EmbeddingService {
 
     var caughtCancellation: CancellationError?
     var failedEpisodeCount = 0
+    var failedEpisodeIDs: [Episode.ID] = []
+    var succeededEpisodeIDs: [Episode.ID] = []
     for episode in episodes {
       do {
         try Task.checkCancellation()
@@ -128,12 +130,12 @@ enum EmbeddingService {
 
       guard needsRecompute else {
         verifiedOnlyEpisodeIDs.append(episode.id)
+        succeededEpisodeIDs.append(episode.id)
         continue
       }
 
-      // One bad episode mustn't abort the BG pass — it would re-enter
-      // episodesNeedingEmbeddings forever. Cancellation breaks out of the
-      // loop so the post-loop flush still runs.
+      // One bad episode mustn't abort the BG pass. Cancellation breaks out of
+      // the loop so the post-loop flush still runs.
       do {
         let podcastVector: [Float]?
         if let cached = podcastVectorCache[episode.podcastID] {
@@ -159,11 +161,13 @@ enum EmbeddingService {
           verificationDate: verificationDate
         )
         pendingEpisodeEmbeddings.append(unsavedEpisode)
+        succeededEpisodeIDs.append(episode.id)
       } catch let error as CancellationError {
         caughtCancellation = error
         break
       } catch {
         failedEpisodeCount += 1
+        failedEpisodeIDs.append(episode.id)
         Self.log.caughtError(
           "Failed to embed episode \(episode.toString); continuing batch",
           error,
@@ -180,6 +184,19 @@ enum EmbeddingService {
       forEpisodeIDs: verifiedOnlyEpisodeIDs,
       at: verificationDate
     )
+    let newlyQuarantinedCount = try await recommendationRepo.updateEmbeddingFailureState(
+      failedEpisodeIDs: failedEpisodeIDs,
+      succeededEpisodeIDs: succeededEpisodeIDs,
+      pipelineVersion: EmbeddingPipelineVersion(
+        embeddingRevision: embedding.revision,
+        recipeVersion: recipeVersion
+      )
+    )
+    if newlyQuarantinedCount > 0 {
+      Self.log.notice(
+        "Quarantined \(newlyQuarantinedCount) episode embedding failures after repeated attempts"
+      )
+    }
 
     if let caughtCancellation { throw caughtCancellation }
     return EmbeddingBatchResult(failedEpisodeCount: failedEpisodeCount)

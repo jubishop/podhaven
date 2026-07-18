@@ -16,6 +16,13 @@ extension Container {
 
 struct RecommendationRepo: Recommending {
   private static let log = Log.as(LogSubsystem.Database.recommendationRepo)
+  private static let maximumEmbeddingFailureAttempts = 3
+
+  private struct EmbeddingFailureContext: Decodable, FetchableRecord {
+    let episodeId: Episode.ID
+    let episodeContentUpdatedAt: String
+    let podcastContentUpdatedAt: String
+  }
 
   // MARK: - Initialization
 
@@ -359,6 +366,78 @@ struct RecommendationRepo: Recommending {
     }
   }
 
+  func updateEmbeddingFailureState(
+    failedEpisodeIDs: [Episode.ID],
+    succeededEpisodeIDs: [Episode.ID],
+    pipelineVersion: EmbeddingPipelineVersion
+  ) async throws -> Int {
+    guard !failedEpisodeIDs.isEmpty || !succeededEpisodeIDs.isEmpty else { return 0 }
+
+    return try await writer.write { db in
+      if !succeededEpisodeIDs.isEmpty {
+        _ =
+          try EpisodeEmbeddingFailure
+          .filter(succeededEpisodeIDs.contains(EpisodeEmbeddingFailure.Columns.episodeId))
+          .deleteAll(db)
+      }
+
+      guard !failedEpisodeIDs.isEmpty else { return 0 }
+
+      let podcastAlias = TableAlias()
+      let contexts =
+        try Episode
+        .joining(required: Episode.podcast.aliased(podcastAlias))
+        .filter(failedEpisodeIDs.contains(Episode.Columns.id))
+        .select(
+          Episode.Columns.id.forKey("episodeId"),
+          Episode.Columns.contentUpdatedAt.forKey("episodeContentUpdatedAt"),
+          podcastAlias[Podcast.Columns.contentUpdatedAt].forKey("podcastContentUpdatedAt")
+        )
+        .asRequest(of: EmbeddingFailureContext.self)
+        .fetchAll(db)
+
+      let existingFailures =
+        try EpisodeEmbeddingFailure
+        .filter(failedEpisodeIDs.contains(EpisodeEmbeddingFailure.Columns.episodeId))
+        .fetchAll(db)
+      let existingByEpisodeID = Dictionary(
+        uniqueKeysWithValues: existingFailures.map { ($0.episodeId, $0) }
+      )
+
+      var newlyQuarantinedEpisodeIDs: [Episode.ID] = []
+      for context in contexts {
+        let existing = existingByEpisodeID[context.episodeId]
+        let matchesCurrentInput =
+          existing?.episodeContentUpdatedAt == context.episodeContentUpdatedAt
+          && existing?.podcastContentUpdatedAt == context.podcastContentUpdatedAt
+          && existing?.embeddingRevision == pipelineVersion.embeddingRevision
+          && existing?.recipeVersion == pipelineVersion.recipeVersion
+        let attemptCount = matchesCurrentInput ? (existing?.attemptCount ?? 0) + 1 : 1
+
+        try EpisodeEmbeddingFailure(
+          episodeId: context.episodeId,
+          episodeContentUpdatedAt: context.episodeContentUpdatedAt,
+          podcastContentUpdatedAt: context.podcastContentUpdatedAt,
+          embeddingRevision: pipelineVersion.embeddingRevision,
+          recipeVersion: pipelineVersion.recipeVersion,
+          attemptCount: attemptCount
+        )
+        .upsert(db)
+
+        if attemptCount == Self.maximumEmbeddingFailureAttempts {
+          newlyQuarantinedEpisodeIDs.append(context.episodeId)
+        }
+      }
+      if !newlyQuarantinedEpisodeIDs.isEmpty {
+        _ =
+          try EpisodeEmbedding
+          .filter(newlyQuarantinedEpisodeIDs.contains(EpisodeEmbedding.Columns.episodeId))
+          .deleteAll(db)
+      }
+      return newlyQuarantinedEpisodeIDs.count
+    }
+  }
+
   // MARK: - Embedding Readers
 
   func hasEmbeddings() async throws -> Bool {
@@ -424,40 +503,59 @@ struct RecommendationRepo: Recommending {
   }
 
   func episodesNeedingEmbeddings(
-    revision: Int,
+    pipelineVersion: EmbeddingPipelineVersion,
     includeCurrent: Bool = false
   ) async throws -> [Episode.ID] {
     try await reader.read { db in
       try Self.episodesNeedingEmbeddings(
         db,
-        revision: revision,
+        pipelineVersion: pipelineVersion,
         includeCurrent: includeCurrent
       )
     }
   }
 
-  // Query builder behind the async `episodesNeedingEmbeddings(revision:)`,
+  // Query builder behind the async `episodesNeedingEmbeddings(pipelineVersion:)`,
   // run inside that function's reader transaction.
   static func episodesNeedingEmbeddings(
     _ db: Database,
-    revision: Int,
+    pipelineVersion: EmbeddingPipelineVersion,
     includeCurrent: Bool = false
   ) throws -> [Episode.ID] {
     let embeddingAlias = TableAlias()
+    let failureAlias = TableAlias()
     let podcastAlias = TableAlias()
     let needsRefresh =
       embeddingAlias[EpisodeEmbedding.Columns.id] == nil
-      || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
+      || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision]
+        != pipelineVersion.embeddingRevision
       || Episode.Columns.contentUpdatedAt
         > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
       || podcastAlias[Podcast.Columns.contentUpdatedAt]
         > embeddingAlias[EpisodeEmbedding.Columns.verificationDate]
+    let failureMatchesCurrentInput =
+      failureAlias[EpisodeEmbeddingFailure.Columns.episodeId] != nil
+      && failureAlias[EpisodeEmbeddingFailure.Columns.episodeContentUpdatedAt]
+        == Episode.Columns.contentUpdatedAt
+      && failureAlias[EpisodeEmbeddingFailure.Columns.podcastContentUpdatedAt]
+        == podcastAlias[Podcast.Columns.contentUpdatedAt]
+      && failureAlias[EpisodeEmbeddingFailure.Columns.embeddingRevision]
+        == pipelineVersion.embeddingRevision
+      && failureAlias[EpisodeEmbeddingFailure.Columns.recipeVersion]
+        == pipelineVersion.recipeVersion
+    let isQuarantined =
+      failureMatchesCurrentInput
+      && failureAlias[EpisodeEmbeddingFailure.Columns.attemptCount]
+        >= maximumEmbeddingFailureAttempts
+    let hasFailure = failureAlias[EpisodeEmbeddingFailure.Columns.episodeId] != nil
 
     return
       try Episode
       .joining(required: Episode.podcast.aliased(podcastAlias))
       .joining(optional: Episode.embedding.aliased(embeddingAlias))
-      .filter(includeCurrent ? AppDB.noOp : needsRefresh)
+      .joining(optional: Episode.embeddingFailure.aliased(failureAlias))
+      .filter(!isQuarantined)
+      .filter(includeCurrent ? AppDB.noOp : needsRefresh || hasFailure)
       .order(Episode.Columns.pubDate.desc)
       .select(Episode.Columns.id, as: Episode.ID.self)
       .fetchAll(db)

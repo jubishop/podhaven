@@ -10,7 +10,7 @@ import Foundation
 // makes similarity-based behavior untestable.
 struct ScriptedEmbeddable: Embeddable {
   var hasAvailableAssets = true
-  let revision: Int = 1
+  let revision: Int
 
   let vectorFor: @Sendable (String) -> [Double]
 
@@ -18,10 +18,12 @@ struct ScriptedEmbeddable: Embeddable {
   let errorFor: @Sendable (String) -> (any Error)?
 
   init(
+    revision: Int = 1,
     defaultVector: [Double] = [1, 0, 0],
     errorFor: @escaping @Sendable (String) -> (any Error)? = { _ in nil },
     vectorFor: @escaping @Sendable (String) -> [Double]
   ) {
+    self.revision = revision
     self.errorFor = errorFor
     self.vectorFor = { text in
       let vector = vectorFor(text)

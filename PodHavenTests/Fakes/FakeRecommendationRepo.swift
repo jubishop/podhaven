@@ -211,6 +211,19 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     )
   }
 
+  func updateEmbeddingFailureState(
+    failedEpisodeIDs: [Episode.ID],
+    succeededEpisodeIDs: [Episode.ID],
+    pipelineVersion: EmbeddingPipelineVersion
+  ) async throws -> Int {
+    recordCall(methodName: "updateEmbeddingFailureState", parameters: failedEpisodeIDs.count)
+    return try await recommendationRepo.updateEmbeddingFailureState(
+      failedEpisodeIDs: failedEpisodeIDs,
+      succeededEpisodeIDs: succeededEpisodeIDs,
+      pipelineVersion: pipelineVersion
+    )
+  }
+
   // MARK: - Embedding Readers
 
   func hasEmbeddings() async throws -> Bool {
@@ -288,15 +301,15 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   }
 
   func episodesNeedingEmbeddings(
-    revision: Int,
+    pipelineVersion: EmbeddingPipelineVersion,
     includeCurrent: Bool = false
   ) async throws -> [Episode.ID] {
     recordCall(
       methodName: "episodesNeedingEmbeddings",
-      parameters: (revision, includeCurrent)
+      parameters: (pipelineVersion.embeddingRevision, includeCurrent)
     )
     return try await recommendationRepo.episodesNeedingEmbeddings(
-      revision: revision,
+      pipelineVersion: pipelineVersion,
       includeCurrent: includeCurrent
     )
   }

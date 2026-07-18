@@ -24,6 +24,11 @@ protocol Recommending: Sendable {
     forEpisodeIDs episodeIDs: [Episode.ID],
     at date: Date
   ) async throws
+  func updateEmbeddingFailureState(
+    failedEpisodeIDs: [Episode.ID],
+    succeededEpisodeIDs: [Episode.ID],
+    pipelineVersion: EmbeddingPipelineVersion
+  ) async throws -> Int
 
   // MARK: - Embedding Readers
 
@@ -37,13 +42,22 @@ protocol Recommending: Sendable {
   func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast>
   func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode]
   func episodesNeedingEmbeddings(
-    revision: Int,
+    pipelineVersion: EmbeddingPipelineVersion,
     includeCurrent: Bool
   ) async throws -> [Episode.ID]
 }
 
 extension Recommending {
-  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode.ID] {
-    try await episodesNeedingEmbeddings(revision: revision, includeCurrent: false)
+  func episodesNeedingEmbeddings(
+    revision: Int,
+    includeCurrent: Bool = false
+  ) async throws -> [Episode.ID] {
+    try await episodesNeedingEmbeddings(
+      pipelineVersion: EmbeddingPipelineVersion(
+        embeddingRevision: revision,
+        recipeVersion: EmbeddingService.recipeVersion
+      ),
+      includeCurrent: includeCurrent
+    )
   }
 }
