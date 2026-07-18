@@ -111,7 +111,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
     guard episode.loaded != nil else { return .loading }
     guard let transcript = decodedTranscript else { return .decodeFailed }
     guard !transcript.segments.isEmpty else { return .empty }
-    return .text(transcript.segments.map(\.text).joined(separator: "\n"))
+    return .text(transcript.segments.map(\.text).joined(separator: "\n\n"))
   }
 
   func selectTextTab(_ tab: EpisodeDetailTextTab) {
