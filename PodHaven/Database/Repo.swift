@@ -129,6 +129,22 @@ struct Repo: Databasing {
     }
   }
 
+  func transcriptionCheckpoint(_ episodeID: Episode.ID) async throws
+    -> TranscriptionCheckpoint?
+  {
+    try await reader.read { db in
+      guard
+        let stored =
+          try EpisodeTranscriptionCheckpoint
+          .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
+          .fetchOne(db)
+      else {
+        return nil
+      }
+      return try stored.checkpoint()
+    }
+  }
+
   func episodesMatching(
     podcastID: Podcast.ID,
     guids: [GUID],
@@ -805,10 +821,36 @@ struct Repo: Databasing {
     Self.log.debug("updateTranscript: \(episodeID) to \(transcript?.count ?? 0) chars")
 
     return try await writer.write { db in
-      try Episode
+      let updated =
+        try Episode
         .withID(episodeID)
         .updateAll(db, Episode.Columns.transcript.set(to: transcript))
-    } > 0
+      try EpisodeTranscriptionCheckpoint
+        .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
+        .deleteAll(db)
+      return updated > 0
+    }
+  }
+
+  func saveTranscriptionCheckpoint(
+    _ checkpoint: TranscriptionCheckpoint,
+    for episodeID: Episode.ID
+  ) async throws {
+    let stored = try EpisodeTranscriptionCheckpoint(
+      episodeId: episodeID,
+      checkpoint: checkpoint
+    )
+    try await writer.write { db in
+      try stored.save(db)
+    }
+  }
+
+  func deleteTranscriptionCheckpoint(for episodeID: Episode.ID) async throws {
+    try await writer.write { db in
+      try EpisodeTranscriptionCheckpoint
+        .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
+        .deleteAll(db)
+    }
   }
 
   @discardableResult

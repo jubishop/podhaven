@@ -29,6 +29,8 @@ protocol Databasing: Sendable {
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode?
+  func transcriptionCheckpoint(_ episodeID: Episode.ID) async throws
+    -> TranscriptionCheckpoint?
   func episodesMatching(
     podcastID: Podcast.ID,
     guids: [GUID],
@@ -134,6 +136,13 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func updateTranscript(_ episodeID: Episode.ID, transcript: String?) async throws -> Bool
+
+  func saveTranscriptionCheckpoint(
+    _ checkpoint: TranscriptionCheckpoint,
+    for episodeID: Episode.ID
+  ) async throws
+
+  func deleteTranscriptionCheckpoint(for episodeID: Episode.ID) async throws
 
   @discardableResult
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool

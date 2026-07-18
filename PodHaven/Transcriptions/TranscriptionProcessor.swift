@@ -23,6 +23,7 @@ extension Container {
 // the persisted queue retains its head for retry after cancellation or expiry.
 struct TranscriptionProcessor: Sendable {
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.continuousClockNow) private var continuousClockNow
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.taskPriority) private var taskPriority
   @DynamicInjected(\.transcriber) private var transcriber
@@ -34,11 +35,6 @@ struct TranscriptionProcessor: Sendable {
 
   private let backgroundTaskScheduler: BackgroundTaskScheduler
   private let processingTask = ThreadSafe<Task<Void, Never>?>(nil)
-
-  private enum DrainMode {
-    case foreground
-    case background
-  }
 
   private enum ForegroundState {
     case active
@@ -65,20 +61,46 @@ struct TranscriptionProcessor: Sendable {
   // the retained head.
   func register() {
     backgroundTaskScheduler.register { complete in
-      Self.log.info("Starting transcription background task")
+      let runID = UUID().uuidString
+      let startedAt = continuousClockNow()
+      Self.log.info(
+        """
+        transcriptionTelemetry event=backgroundRunStarted runID=\(runID) \
+        queuedEpisodes=\(transcriptionQueue.episodeIDs.count)
+        """
+      )
       do {
-        try await drain(.background)
+        try await drain(.background, runID: runID)
         backgroundTaskScheduler.scheduleNext()
-        Self.log.info("Transcription background task completed")
+        Self.log.info(
+          """
+          transcriptionTelemetry event=backgroundRunCompleted runID=\(runID) \
+          wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
+          remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
+          """
+        )
         complete(true)
       } catch is CancellationError {
         if case .background = foregroundState(), let foregroundTask = stop() {
           await foregroundTask.value
         }
-        Self.log.info("Transcription background task cancelled (expired)")
+        Self.log.info(
+          """
+          transcriptionTelemetry event=backgroundRunExpired runID=\(runID) \
+          wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
+          remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
+          """
+        )
         complete(false)
       } catch {
-        Self.log.caughtError("Transcription background task failed", error)
+        Self.log.caughtError(
+          """
+          transcriptionTelemetry event=backgroundRunFailed runID=\(runID) \
+          wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
+          remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
+          """,
+          error
+        )
         complete(false)
       }
     }
@@ -112,7 +134,7 @@ struct TranscriptionProcessor: Sendable {
       task = Task(priority: taskPriority(.background)) {
         defer { foregroundTaskFinished() }
         do {
-          try await drain(.foreground)
+          try await drain(.foreground, runID: UUID().uuidString)
         } catch is CancellationError {
           return
         } catch {
@@ -140,7 +162,7 @@ struct TranscriptionProcessor: Sendable {
   // The queue yields one claimed head at a time and owns exclusive consumer
   // access. Foreground waits for future work while a background grant returns
   // when the backlog empties.
-  private func drain(_ mode: DrainMode) async throws {
+  private func drain(_ mode: TranscriptionLogContext.Mode, runID: String) async throws {
     try await transcriptionQueue.withWorkStream { stream in
       if case .background = mode, transcriptionQueue.episodeIDs.isEmpty {
         return
@@ -151,7 +173,14 @@ struct TranscriptionProcessor: Sendable {
         if case .foreground = mode, case .background = foregroundState() {
           return
         }
-        try await processHead(episodeID)
+        try await processHead(
+          episodeID,
+          logContext: TranscriptionLogContext(
+            runID: runID,
+            mode: mode,
+            episodeID: episodeID
+          )
+        )
         if case .foreground = mode, case .background = foregroundState() {
           return
         }
@@ -166,14 +195,47 @@ struct TranscriptionProcessor: Sendable {
 
   // Processes one episode; rethrows CancellationError so callers can stop, and
   // records any other failure so the queue moves past a bad episode.
-  private func processHead(_ episodeID: Episode.ID) async throws {
+  private func processHead(
+    _ episodeID: Episode.ID,
+    logContext: TranscriptionLogContext
+  ) async throws {
+    let startedAt = continuousClockNow()
+    Self.log.info(
+      """
+      transcriptionTelemetry event=episodeStarted \(logContext.fields) \
+      queuedEpisodes=\(transcriptionQueue.episodeIDs.count)
+      """
+    )
     do {
-      try await process(episodeID)
+      try await process(episodeID, logContext: logContext)
+      Self.log.info(
+        """
+        transcriptionTelemetry event=episodeFinished \(logContext.fields) \
+        wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
+        remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
+        """
+      )
     } catch is CancellationError {
+      let liveProgress = transcriptionQueue.progress[episodeID] ?? 0
+      Self.log.info(
+        """
+        transcriptionTelemetry event=episodeCancelled \(logContext.fields) \
+        wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
+        liveProgress=\(liveProgress)
+        """
+      )
       transcriptionQueue.clearProgress(for: episodeID)
       throw CancellationError()
     } catch {
-      Self.log.caughtError("Transcription failed for \(episodeID)", error)
+      let liveProgress = transcriptionQueue.progress[episodeID] ?? 0
+      Self.log.caughtError(
+        """
+        transcriptionTelemetry event=episodeFailed \(logContext.fields) \
+        wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
+        liveProgress=\(liveProgress)
+        """,
+        error
+      )
       transcriptionQueue.fail(episodeID)
     }
 
@@ -182,13 +244,17 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  private func process(_ episodeID: Episode.ID) async throws {
+  private func process(
+    _ episodeID: Episode.ID,
+    logContext: TranscriptionLogContext
+  ) async throws {
     guard let episode = try await repo.episode(episodeID) else {
       transcriptionQueue.remove(episodeID)
       Self.log.warning("Removed missing \(episodeID) from transcription queue")
       return
     }
     guard !episode.hasTranscript else {
+      try await repo.deleteTranscriptionCheckpoint(for: episodeID)
       transcriptionQueue.remove(episodeID)
       Self.log.debug("Removed already-transcribed \(episodeID) from transcription queue")
       return
@@ -198,28 +264,86 @@ struct TranscriptionProcessor: Sendable {
     guard await transcriber.supports(locale) else {
       throw TranscriptionError.localeNotSupported(locale)
     }
-
-    transcriptionQueue.setProgress(0, for: episodeID)
-    Self.log.info("Transcribing \(episodeID)")
+    try Task.checkCancellation()
 
     guard let cachedURL = try await cacheManager.cachedURL(downloadingIfNeeded: episodeID) else {
       throw TranscriptionError.audioUnavailable(episodeID)
     }
+    Self.log.debug(
+      """
+      transcriptionTelemetry event=audioReady \(logContext.fields) \
+      file=\(cachedURL.rawValue.lastPathComponent)
+      """
+    )
+
+    let checkpoint: TranscriptionCheckpoint?
+    do {
+      checkpoint = try await repo.transcriptionCheckpoint(episodeID)
+    } catch {
+      Self.log.caughtError("Discarding unreadable transcription checkpoint for \(episodeID)", error)
+      try await repo.deleteTranscriptionCheckpoint(for: episodeID)
+      checkpoint = nil
+    }
+
+    let localeIdentifier = locale.identifier(.bcp47)
+    let initialProgress: Double
+    if let checkpoint,
+      checkpoint.locale == localeIdentifier,
+      checkpoint.modelRevision == Transcriber.recipeVersion
+    {
+      initialProgress = checkpoint.progress
+    } else {
+      initialProgress = 0
+    }
+    transcriptionQueue.setProgress(initialProgress, for: episodeID)
+    let checkpointState = checkpoint == nil ? "absent" : "present"
+    Self.log.info(
+      """
+      transcriptionTelemetry event=checkpointLoaded \(logContext.fields) \
+      checkpointState=\(checkpointState) progress=\(initialProgress) \
+      committedAudioSeconds=\(checkpoint?.audioTime ?? 0) \
+      checkpointSegments=\(checkpoint?.segments.count ?? 0)
+      """
+    )
+
     let queue = transcriptionQueue
+    let repo = repo
+    let clockNow = continuousClockNow
     let segments = try await transcriber.transcribe(
       fileURL: cachedURL.rawValue,
       locale: locale,
-      onProgress: { queue.setProgress($0, for: episodeID) }
+      logContext: logContext,
+      checkpoint: checkpoint,
+      onProgress: { queue.setProgress($0, for: episodeID) },
+      onCheckpoint: { checkpoint in
+        let writeStartedAt = clockNow()
+        try await repo.saveTranscriptionCheckpoint(checkpoint, for: episodeID)
+        queue.setProgress(checkpoint.progress, for: episodeID)
+        Self.log.debug(
+          """
+          transcriptionTelemetry event=checkpointPersisted \(logContext.fields) \
+          committedAudioSeconds=\(checkpoint.audioTime) \
+          durationSeconds=\(checkpoint.duration) progress=\(checkpoint.progress) \
+          segments=\(checkpoint.segments.count) \
+          writeWallSeconds=\((clockNow() - writeStartedAt).asTimeInterval)
+          """
+        )
+      }
     )
     let transcript = Transcript(
       segments: segments,
-      locale: locale.identifier(.bcp47),
+      locale: localeIdentifier,
       createdAt: Date(),
       modelRevision: Transcriber.recipeVersion
     )
     try await repo.updateTranscript(episodeID, transcript: transcript.jsonString())
 
     transcriptionQueue.remove(episodeID)
-    Self.log.info("Transcribed \(episodeID): \(segments.count) segments")
+    Self.log.info(
+      """
+      transcriptionTelemetry event=transcriptStored \(logContext.fields) \
+      segments=\(segments.count)
+      """
+    )
   }
 }

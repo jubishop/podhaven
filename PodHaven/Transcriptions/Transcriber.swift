@@ -31,6 +31,21 @@ enum TranscriptionError: LocalizedError {
   }
 }
 
+struct TranscriptionLogContext: Sendable {
+  enum Mode: String, Sendable {
+    case foreground
+    case background
+  }
+
+  let runID: String
+  let mode: Mode
+  let episodeID: Episode.ID
+
+  var fields: String {
+    "runID=\(runID) mode=\(mode.rawValue) episodeID=\(episodeID)"
+  }
+}
+
 // MARK: - Transcriber
 
 // Orchestrates an on-device transcription: ensure the locale's model is
@@ -39,13 +54,23 @@ enum TranscriptionError: LocalizedError {
 // orchestration is testable; SpeechAnalyzer/SpeechTranscriber conform in
 // extensions.
 struct Transcriber: Sendable {
+  private enum CheckpointDisposition: String {
+    case new
+    case resumed
+    case restartedIncompatible
+  }
+
+  @DynamicInjected(\.continuousClockNow) private var continuousClockNow
   @DynamicInjected(\.speechAnalyzer) private var speechAnalyzer
   @DynamicInjected(\.speechModelManager) private var speechModelManager
   @DynamicInjected(\.speechTranscriber) private var speechTranscriber
 
   // Bump when the transcription recipe changes so stored transcripts can be
   // invalidated and regenerated, mirroring EmbeddingService.recipeVersion.
-  static let recipeVersion = 1
+  static let recipeVersion = 2
+
+  private static let chunkDuration: TimeInterval = 120
+  private static let chunkOverlap: TimeInterval = 10
 
   private static let log = Log.as(LogSubsystem.Transcription.transcriber)
 
@@ -59,13 +84,143 @@ struct Transcriber: Sendable {
   func transcribe(
     fileURL: URL,
     locale: Locale,
-    onProgress: @Sendable (Double) -> Void = { _ in }
+    logContext: TranscriptionLogContext,
+    checkpoint: TranscriptionCheckpoint? = nil,
+    onProgress: @Sendable (Double) -> Void = { _ in },
+    onCheckpoint: @Sendable (TranscriptionCheckpoint) async throws -> Void = { _ in }
   ) async throws -> [TranscriptSegment] {
+    let sessionStartedAt = continuousClockNow()
+    Self.log.info(
+      """
+      transcriptionTelemetry event=sessionPreparing \(logContext.fields) \
+      file=\(fileURL.lastPathComponent)
+      """
+    )
     try Task.checkCancellation()
-    try await ensureModelInstalled(for: locale)
+    try await ensureModelInstalled(for: locale, logContext: logContext)
 
-    let transcriber = speechTranscriber(locale)
-    let analyzer = speechAnalyzer(transcriber)
+    let firstTranscriber = speechTranscriber(locale)
+    let firstAnalyzer = speechAnalyzer(firstTranscriber)
+    let durationSeconds = try await firstAnalyzer.duration(ofAudioFileAt: fileURL)
+    guard durationSeconds > 0 else {
+      throw TranscriptionError.noDecodableAudio(fileURL)
+    }
+    try Task.checkCancellation()
+
+    var workingCheckpoint: TranscriptionCheckpoint
+    let checkpointDisposition: CheckpointDisposition
+    if let checkpoint,
+      checkpoint.isCompatible(
+        duration: durationSeconds,
+        locale: locale,
+        modelRevision: Self.recipeVersion
+      )
+    {
+      workingCheckpoint = checkpoint
+      checkpointDisposition = .resumed
+    } else {
+      workingCheckpoint = TranscriptionCheckpoint(
+        segments: [],
+        audioTime: 0,
+        duration: durationSeconds,
+        locale: locale.identifier(.bcp47),
+        modelRevision: Self.recipeVersion
+      )
+      checkpointDisposition = checkpoint == nil ? .new : .restartedIncompatible
+    }
+    if checkpoint != nil {
+      onProgress(workingCheckpoint.progress)
+    }
+    Self.log.info(
+      """
+      transcriptionTelemetry event=sessionStarted \(logContext.fields) \
+      file=\(fileURL.lastPathComponent) durationSeconds=\(durationSeconds) \
+      checkpointDisposition=\(checkpointDisposition.rawValue) \
+      committedAudioSeconds=\(workingCheckpoint.audioTime) \
+      remainingAudioSeconds=\(durationSeconds - workingCheckpoint.audioTime) \
+      checkpointSegments=\(workingCheckpoint.segments.count)
+      """
+    )
+
+    var firstPair: (any SpeechTranscribing, any SpeechAnalyzing)? = (
+      firstTranscriber,
+      firstAnalyzer
+    )
+    while workingCheckpoint.audioTime < durationSeconds {
+      try Task.checkCancellation()
+
+      let endTime = min(
+        durationSeconds,
+        workingCheckpoint.audioTime + Self.chunkDuration
+      )
+      let startTime = max(0, workingCheckpoint.audioTime - Self.chunkOverlap)
+      let transcriber: any SpeechTranscribing
+      let analyzer: any SpeechAnalyzing
+      if let pair = firstPair {
+        transcriber = pair.0
+        analyzer = pair.1
+        firstPair = nil
+      } else {
+        transcriber = speechTranscriber(locale)
+        analyzer = speechAnalyzer(transcriber)
+      }
+
+      let segments = try await transcribeChunk(
+        fileURL: fileURL,
+        transcriber: transcriber,
+        analyzer: analyzer,
+        durationSeconds: durationSeconds,
+        committedAudioTime: workingCheckpoint.audioTime,
+        startTime: startTime,
+        endTime: endTime,
+        initialProgress: workingCheckpoint.progress,
+        logContext: logContext,
+        onProgress: onProgress
+      )
+      workingCheckpoint = workingCheckpoint.merging(
+        segments,
+        from: startTime,
+        through: endTime
+      )
+      try await onCheckpoint(workingCheckpoint)
+    }
+
+    Self.log.info(
+      """
+      transcriptionTelemetry event=sessionCompleted \(logContext.fields) \
+      file=\(fileURL.lastPathComponent) durationSeconds=\(durationSeconds) \
+      wallSeconds=\((continuousClockNow() - sessionStartedAt).asTimeInterval) \
+      segments=\(workingCheckpoint.segments.count)
+      """
+    )
+    return workingCheckpoint.segments
+  }
+
+  private func transcribeChunk(
+    fileURL: URL,
+    transcriber: any SpeechTranscribing,
+    analyzer: any SpeechAnalyzing,
+    durationSeconds: TimeInterval,
+    committedAudioTime: TimeInterval,
+    startTime: TimeInterval,
+    endTime: TimeInterval,
+    initialProgress: Double,
+    logContext: TranscriptionLogContext,
+    onProgress: @Sendable (Double) -> Void
+  ) async throws -> [TranscriptSegment] {
+    let chunkStartedAt = continuousClockNow()
+    let analyzedAudioSeconds = endTime - startTime
+    let newAudioSeconds = endTime - committedAudioTime
+    let overlapSeconds = committedAudioTime - startTime
+    Self.log.debug(
+      """
+      transcriptionTelemetry event=chunkStarted \(logContext.fields) \
+      chunkStartSeconds=\(startTime) chunkEndSeconds=\(endTime) \
+      committedAudioSeconds=\(committedAudioTime) \
+      overlapSeconds=\(overlapSeconds) newAudioSeconds=\(newAudioSeconds) \
+      analyzedAudioSeconds=\(analyzedAudioSeconds)
+      """
+    )
     let cancellationTask = ThreadSafe<Task<Void, Never>?>(nil)
     @discardableResult
     @Sendable
@@ -80,45 +235,85 @@ struct Transcriber: Sendable {
 
     do {
       return try await withTaskCancellationHandler {
-        let durationSeconds = try await analyzer.duration(ofAudioFileAt: fileURL)
         try Task.checkCancellation()
 
-        // Consume results concurrently while the analyzer feeds the file through.
         async let collected = Self.collectSegments(
           from: transcriber.resultStream,
           durationSeconds: durationSeconds,
+          fallbackStartTime: startTime,
+          initialProgress: initialProgress,
           onProgress: onProgress
         )
 
-        // A nil last sample means the file decoded to no audio at all — a failed
-        // transcription (retryable), distinct from audio that contained no
-        // recognizable speech, which finalizes to an empty, terminal transcript.
-        guard let lastSample = try await analyzer.analyze(audioFileAt: fileURL) else {
+        guard
+          let lastSample = try await analyzer.analyze(
+            audioFileAt: fileURL,
+            from: startTime,
+            to: endTime
+          )
+        else {
           await cancelAnalyzer().value
           throw TranscriptionError.noDecodableAudio(fileURL)
         }
         try await analyzer.finalize(through: lastSample)
 
         let segments = try await collected
-        Self.log.debug("Transcribed \(segments.count) segments from \(fileURL.lastPathComponent)")
+        let wallSeconds = (continuousClockNow() - chunkStartedAt).asTimeInterval
+        let audioToWallRatio: String
+        if wallSeconds > 0 {
+          audioToWallRatio = String(analyzedAudioSeconds / wallSeconds)
+        } else {
+          audioToWallRatio = "unavailable"
+        }
+        Self.log.debug(
+          """
+          transcriptionTelemetry event=chunkCompleted \(logContext.fields) \
+          chunkStartSeconds=\(startTime) chunkEndSeconds=\(endTime) \
+          overlapSeconds=\(overlapSeconds) newAudioSeconds=\(newAudioSeconds) \
+          analyzedAudioSeconds=\(analyzedAudioSeconds) wallSeconds=\(wallSeconds) \
+          audioToWallRatio=\(audioToWallRatio) segments=\(segments.count)
+          """
+        )
         return segments
       } onCancel: {
         cancelAnalyzer()
       }
     } catch {
-      guard error is CancellationError || Task.isCancelled else { throw error }
-      await cancelAnalyzer().value
-      throw CancellationError()
+      let wallSeconds = (continuousClockNow() - chunkStartedAt).asTimeInterval
+      if error is CancellationError || Task.isCancelled {
+        await cancelAnalyzer().value
+        Self.log.info(
+          """
+          transcriptionTelemetry event=chunkCancelled \(logContext.fields) \
+          chunkStartSeconds=\(startTime) chunkEndSeconds=\(endTime) \
+          overlapSeconds=\(overlapSeconds) newAudioSeconds=\(newAudioSeconds) \
+          analyzedAudioSeconds=\(analyzedAudioSeconds) wallSeconds=\(wallSeconds)
+          """
+        )
+        throw CancellationError()
+      }
+      Self.log.info(
+        """
+        transcriptionTelemetry event=chunkFailed \(logContext.fields) \
+        chunkStartSeconds=\(startTime) chunkEndSeconds=\(endTime) \
+        overlapSeconds=\(overlapSeconds) newAudioSeconds=\(newAudioSeconds) \
+        analyzedAudioSeconds=\(analyzedAudioSeconds) wallSeconds=\(wallSeconds) \
+        errorType=\(String(reflecting: type(of: error)))
+        """
+      )
+      throw error
     }
   }
 
   private static func collectSegments(
     from results: AsyncThrowingStream<any SpeechTranscriptionResult, any Error>,
     durationSeconds: Double,
+    fallbackStartTime: TimeInterval,
+    initialProgress: Double,
     onProgress: @Sendable (Double) -> Void
   ) async throws -> [TranscriptSegment] {
     var segments: [TranscriptSegment] = []
-    var lastProgress = 0.0
+    var lastProgress = initialProgress
     for try await result in results {
       try Task.checkCancellation()
 
@@ -135,19 +330,40 @@ struct Transcriber: Sendable {
       let text = result.phrase.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !text.isEmpty else { continue }
 
-      segments.append(TranscriptSegment(start: result.startSeconds ?? 0, text: text))
+      segments.append(
+        TranscriptSegment(
+          start: result.startSeconds ?? fallbackStartTime,
+          end: result.endSeconds,
+          text: text
+        )
+      )
     }
     return segments
   }
 
-  private func ensureModelInstalled(for locale: Locale) async throws {
+  private func ensureModelInstalled(
+    for locale: Locale,
+    logContext: TranscriptionLogContext
+  ) async throws {
     guard await supports(locale) else { throw TranscriptionError.localeNotSupported(locale) }
 
     let target = locale.identifier(.bcp47)
     guard !(await speechModelManager.installedLocaleIdentifiers().contains(target))
     else { return }
 
-    Self.log.info("Downloading transcription model for \(target)")
+    let startedAt = continuousClockNow()
+    Self.log.info(
+      """
+      transcriptionTelemetry event=modelDownloadStarted \(logContext.fields) \
+      locale=\(target)
+      """
+    )
     try await speechModelManager.installModel(for: locale)
+    Self.log.info(
+      """
+      transcriptionTelemetry event=modelDownloadCompleted \(logContext.fields) \
+      locale=\(target) wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval)
+      """
+    )
   }
 }

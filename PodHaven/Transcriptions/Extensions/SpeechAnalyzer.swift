@@ -5,6 +5,28 @@ import FactoryKit
 import Foundation
 import Speech
 
+// MARK: - Errors
+
+private enum SpeechAnalyzerInputError: LocalizedError {
+  case incompatibleAudioFormat
+  case failedToCreateBuffer
+  case failedToCreateConverter
+  case conversionFailed(NSError?)
+
+  var errorDescription: String? {
+    switch self {
+    case .incompatibleAudioFormat:
+      "No audio format is compatible with the speech analyzer"
+    case .failedToCreateBuffer:
+      "An audio buffer could not be created"
+    case .failedToCreateConverter:
+      "An audio converter could not be created"
+    case .conversionFailed(let error):
+      "Audio conversion failed: \(error?.localizedDescription ?? "unknown error")"
+    }
+  }
+}
+
 // MARK: - Container
 
 extension Container {
@@ -34,8 +56,27 @@ extension SpeechAnalyzer: SpeechAnalyzing {
     return Double(file.length) / file.processingFormat.sampleRate
   }
 
-  func analyze(audioFileAt url: URL) async throws -> CMTime? {
-    try await analyzeSequence(from: AVAudioFile(forReading: url))
+  func analyze(
+    audioFileAt url: URL,
+    from startTime: TimeInterval,
+    to endTime: TimeInterval
+  ) async throws -> CMTime? {
+    let file = try AVAudioFile(forReading: url)
+    guard
+      let outputFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
+        compatibleWith: modules,
+        considering: file.processingFormat
+      )
+    else {
+      throw SpeechAnalyzerInputError.incompatibleAudioFormat
+    }
+    let inputSequence = RangedAudioInputSequence(
+      file: file,
+      outputFormat: outputFormat,
+      startTime: startTime,
+      endTime: endTime
+    )
+    return try await analyzeSequence(inputSequence)
   }
 
   func finalize(through time: CMTime) async throws {
@@ -44,5 +85,174 @@ extension SpeechAnalyzer: SpeechAnalyzing {
 
   func cancel() async {
     await cancelAndFinishNow()
+  }
+}
+
+// MARK: - Ranged Audio Input
+
+private struct RangedAudioInputSequence: AsyncSequence, Sendable {
+  typealias Element = AnalyzerInput
+
+  struct AsyncIterator: AsyncIteratorProtocol {
+    let state: State
+
+    mutating func next() async throws -> AnalyzerInput? {
+      try await state.next()
+    }
+  }
+
+  private let state: State
+
+  init(
+    file: AVAudioFile,
+    outputFormat: AVAudioFormat,
+    startTime: TimeInterval,
+    endTime: TimeInterval
+  ) {
+    state = State(
+      file: file,
+      outputFormat: outputFormat,
+      startTime: startTime,
+      endTime: endTime
+    )
+  }
+
+  func makeAsyncIterator() -> AsyncIterator {
+    AsyncIterator(state: state)
+  }
+
+  actor State {
+    private static let readBufferFrameCapacity: AVAudioFrameCount = 8_192
+
+    private let file: AVAudioFile
+    private let outputFormat: AVAudioFormat
+    private let endFrame: AVAudioFramePosition
+    private let startSampleTime: CMTime
+    private var converter = AudioBufferConverter()
+    private var isFirstBuffer = true
+
+    init(
+      file: AVAudioFile,
+      outputFormat: AVAudioFormat,
+      startTime: TimeInterval,
+      endTime: TimeInterval
+    ) {
+      self.file = file
+      self.outputFormat = outputFormat
+
+      let sampleRate = file.processingFormat.sampleRate
+      let startFrame = Swift.max(
+        0,
+        Swift.min(
+          file.length,
+          AVAudioFramePosition((startTime * sampleRate).rounded(.down))
+        )
+      )
+      endFrame = Swift.max(
+        startFrame,
+        Swift.min(
+          file.length,
+          AVAudioFramePosition((endTime * sampleRate).rounded(.up))
+        )
+      )
+      startSampleTime = CMTime(
+        seconds: Double(startFrame) / sampleRate,
+        preferredTimescale: 1_000_000_000
+      )
+      file.framePosition = startFrame
+    }
+
+    func next() throws -> AnalyzerInput? {
+      try Task.checkCancellation()
+
+      let remainingFrames = endFrame - file.framePosition
+      guard remainingFrames > 0 else { return nil }
+
+      let frameCapacity = AVAudioFrameCount(
+        Swift.min(
+          AVAudioFramePosition(Self.readBufferFrameCapacity),
+          remainingFrames
+        )
+      )
+      guard
+        let sourceBuffer = AVAudioPCMBuffer(
+          pcmFormat: file.processingFormat,
+          frameCapacity: frameCapacity
+        )
+      else {
+        throw SpeechAnalyzerInputError.failedToCreateBuffer
+      }
+      try file.read(into: sourceBuffer, frameCount: frameCapacity)
+      guard sourceBuffer.frameLength > 0 else { return nil }
+
+      let convertedBuffer = try converter.convert(sourceBuffer, to: outputFormat)
+      let bufferStartTime: CMTime?
+      if isFirstBuffer {
+        bufferStartTime = startSampleTime
+        isFirstBuffer = false
+      } else {
+        bufferStartTime = nil
+      }
+      return AnalyzerInput(buffer: convertedBuffer, bufferStartTime: bufferStartTime)
+    }
+  }
+}
+
+private struct AudioBufferConverter {
+  private var converter: AVAudioConverter?
+
+  mutating func convert(
+    _ buffer: AVAudioPCMBuffer,
+    to outputFormat: AVAudioFormat
+  ) throws -> AVAudioPCMBuffer {
+    let inputFormat = buffer.format
+    guard inputFormat != outputFormat else { return buffer }
+
+    if let converter {
+      if converter.inputFormat != inputFormat || converter.outputFormat != outputFormat {
+        self.converter = nil
+      }
+    }
+    if converter == nil {
+      converter = AVAudioConverter(from: inputFormat, to: outputFormat)
+      converter?.primeMethod = .none
+    }
+    guard let converter else {
+      throw SpeechAnalyzerInputError.failedToCreateConverter
+    }
+
+    let sampleRateRatio = converter.outputFormat.sampleRate / converter.inputFormat.sampleRate
+    let scaledFrameLength = Double(buffer.frameLength) * sampleRateRatio
+    let frameCapacity = AVAudioFrameCount(scaledFrameLength.rounded(.up))
+    guard
+      let conversionBuffer = AVAudioPCMBuffer(
+        pcmFormat: converter.outputFormat,
+        frameCapacity: frameCapacity
+      )
+    else {
+      throw SpeechAnalyzerInputError.failedToCreateBuffer
+    }
+
+    // AVAudioConverter invokes this callback synchronously during convert.
+    nonisolated(unsafe) let inputBuffer = buffer
+    let bufferWasProvided = ThreadSafe(false)
+    var conversionError: NSError?
+    let status = unsafe converter.convert(to: conversionBuffer, error: &conversionError) {
+      _,
+      inputStatus in
+      let shouldProvideBuffer = bufferWasProvided { wasProvided in
+        if wasProvided {
+          return false
+        }
+        wasProvided = true
+        return true
+      }
+      unsafe inputStatus.pointee = shouldProvideBuffer ? .haveData : .noDataNow
+      return unsafe shouldProvideBuffer ? inputBuffer : nil
+    }
+    guard status != .error else {
+      throw SpeechAnalyzerInputError.conversionFailed(conversionError)
+    }
+    return conversionBuffer
   }
 }

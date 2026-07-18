@@ -131,6 +131,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return result
   }
 
+  func transcriptionCheckpoint(_ episodeID: Episode.ID) async throws
+    -> TranscriptionCheckpoint?
+  {
+    recordCall(methodName: "transcriptionCheckpoint", parameters: episodeID)
+    return try await repo.transcriptionCheckpoint(episodeID)
+  }
+
   func resumeAllEpisodeFetchSuspensions() {
     let toResume = episodeFetchSuspensions
     episodeFetchSuspensions.removeAll()
@@ -485,6 +492,22 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       parameters: (episodeID: episodeID, transcript: transcript)
     )
     return try await repo.updateTranscript(episodeID, transcript: transcript)
+  }
+
+  func saveTranscriptionCheckpoint(
+    _ checkpoint: TranscriptionCheckpoint,
+    for episodeID: Episode.ID
+  ) async throws {
+    recordCall(
+      methodName: "saveTranscriptionCheckpoint",
+      parameters: (checkpoint: checkpoint, episodeID: episodeID)
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: episodeID)
+  }
+
+  func deleteTranscriptionCheckpoint(for episodeID: Episode.ID) async throws {
+    recordCall(methodName: "deleteTranscriptionCheckpoint", parameters: episodeID)
+    try await repo.deleteTranscriptionCheckpoint(for: episodeID)
   }
 
   @discardableResult
