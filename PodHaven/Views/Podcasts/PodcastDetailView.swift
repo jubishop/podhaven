@@ -111,11 +111,10 @@ struct PodcastDetailView: View {
             }
           },
           label: {
-            (viewModel.podcast.subscribed ? AppIcon.unsubscribe : AppIcon.subscribe)
-              .label("Podcast Actions")
-              .labelStyle(.iconOnly)
+            (viewModel.podcast.subscribed ? AppIcon.unsubscribe : AppIcon.subscribe).image
           }
         )
+        .accessibilityLabel("Podcast Actions")
       }
 
       if viewModel.saved {
@@ -135,8 +134,9 @@ struct PodcastDetailView: View {
           ShareLink(
             item: shareURL,
             preview: viewModel.sharePreview,
-            label: { AppIcon.sharePodcast.label }
+            label: { AppIcon.sharePodcast.image }
           )
+          .accessibilityLabel("Share Podcast")
         }
       }
     }
