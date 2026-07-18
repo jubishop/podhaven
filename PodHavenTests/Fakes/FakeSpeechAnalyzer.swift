@@ -12,6 +12,7 @@ struct FakeSpeechAnalyzer: SpeechAnalyzing {
   // Canned file duration; a non-positive value disables progress reporting in collectSegments.
   var durationSeconds: Double = 0
   var analyzeAudio: (@Sendable () async throws -> CMTime?)?
+  var cancelAudio: (@Sendable () async -> Void)?
 
   func duration(ofAudioFileAt url: URL) async throws -> Double { durationSeconds }
   func analyze(audioFileAt url: URL) async throws -> CMTime? {
@@ -19,5 +20,7 @@ struct FakeSpeechAnalyzer: SpeechAnalyzing {
     return try await analyzeAudio()
   }
   func finalize(through time: CMTime) async throws {}
-  func cancel() async {}
+  func cancel() async {
+    if let cancelAudio { await cancelAudio() }
+  }
 }

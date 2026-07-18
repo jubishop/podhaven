@@ -19,8 +19,8 @@ extension Container {
 // Drains the persisted TranscriptionQueue one episode at a time off the main
 // actor while the app is foregrounded, and registers a discretionary
 // BGProcessingTask (mirroring EmbeddingProcessor) so iOS can drain it in the
-// background too. Either path is resumable: the persisted queue survives
-// cancellation/expiry, and the next activation or grant picks up the head.
+// background too. Ordinary backgrounding preserves in-flight foreground work;
+// the persisted queue retains its head for retry after cancellation or expiry.
 struct TranscriptionProcessor: Sendable {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.repo) private var repo
@@ -40,21 +40,29 @@ struct TranscriptionProcessor: Sendable {
     case background
   }
 
+  private enum ForegroundState {
+    case active
+    case background
+  }
+
+  private let foregroundState = ThreadSafe(ForegroundState.background)
+
   fileprivate init() {
     let queue = Container.shared.transcriptionQueue()
     backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
       cadence: .minutes(1),
       taskType: .processing(requiresNetworkConnectivity: false),
-      schedulingMode: .onDemand { !queue.episodeIDs.isEmpty }
+      schedulingMode: .onDemand { !queue.episodeIDs.isEmpty },
+      expirationBehavior: .awaitCancellation
     )
   }
 
   // MARK: - Background Task
 
-  // iOS-granted background drain, mirroring EmbeddingProcessor: discretionary
-  // and resumable. The persisted queue survives expiry, so the next grant or
-  // foreground activation continues from wherever this left off.
+  // iOS-granted background drain, mirroring EmbeddingProcessor. The persisted
+  // queue survives expiry, so the next grant or foreground activation retries
+  // the retained head.
   func register() {
     backgroundTaskScheduler.register { complete in
       Self.log.info("Starting transcription background task")
@@ -64,6 +72,9 @@ struct TranscriptionProcessor: Sendable {
         Self.log.info("Transcription background task completed")
         complete(true)
       } catch is CancellationError {
+        if case .background = foregroundState(), let foregroundTask = stop() {
+          await foregroundTask.value
+        }
         Self.log.info("Transcription background task cancelled (expired)")
         complete(false)
       } catch {
@@ -79,10 +90,14 @@ struct TranscriptionProcessor: Sendable {
     switch scenePhase {
     case .active:
       Self.log.debug("activated")
+      foregroundState(.active)
       start()
     case .background:
       Self.log.debug("backgrounded")
-      stop()
+      foregroundState(.background)
+      if transcriptionQueue.progress.isEmpty {
+        stop()
+      }
       backgroundTaskScheduler.scheduleNext()
     default:
       break
@@ -95,6 +110,7 @@ struct TranscriptionProcessor: Sendable {
     processingTask { task in
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
+        defer { foregroundTaskFinished() }
         do {
           try await drain(.foreground)
         } catch is CancellationError {
@@ -106,10 +122,18 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  private func stop() {
-    processingTask { task in
+  @discardableResult
+  private func stop() -> Task<Void, Never>? {
+    processingTask { task -> Task<Void, Never>? in
       task?.cancel()
-      task = nil
+      return task
+    }
+  }
+
+  private func foregroundTaskFinished() {
+    processingTask(nil)
+    if case .active = foregroundState() {
+      start()
     }
   }
 
@@ -124,7 +148,13 @@ struct TranscriptionProcessor: Sendable {
 
       for await episodeID in stream {
         try Task.checkCancellation()
+        if case .foreground = mode, case .background = foregroundState() {
+          return
+        }
         try await processHead(episodeID)
+        if case .foreground = mode, case .background = foregroundState() {
+          return
+        }
         if case .background = mode, transcriptionQueue.episodeIDs.isEmpty {
           return
         }

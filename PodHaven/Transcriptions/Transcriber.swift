@@ -66,27 +66,50 @@ struct Transcriber: Sendable {
 
     let transcriber = speechTranscriber(locale)
     let analyzer = speechAnalyzer(transcriber)
-    let durationSeconds = try await analyzer.duration(ofAudioFileAt: fileURL)
-
-    // Consume results concurrently while the analyzer feeds the file through.
-    async let collected = Self.collectSegments(
-      from: transcriber.resultStream,
-      durationSeconds: durationSeconds,
-      onProgress: onProgress
-    )
-
-    // A nil last sample means the file decoded to no audio at all — a failed
-    // transcription (retryable), distinct from audio that contained no
-    // recognizable speech, which finalizes to an empty, terminal transcript.
-    guard let lastSample = try await analyzer.analyze(audioFileAt: fileURL) else {
-      await analyzer.cancel()
-      throw TranscriptionError.noDecodableAudio(fileURL)
+    let cancellationTask = ThreadSafe<Task<Void, Never>?>(nil)
+    @discardableResult
+    @Sendable
+    func cancelAnalyzer() -> Task<Void, Never> {
+      cancellationTask { task in
+        if let task { return task }
+        let createdTask = Task { await analyzer.cancel() }
+        task = createdTask
+        return createdTask
+      }
     }
-    try await analyzer.finalize(through: lastSample)
 
-    let segments = try await collected
-    Self.log.debug("Transcribed \(segments.count) segments from \(fileURL.lastPathComponent)")
-    return segments
+    do {
+      return try await withTaskCancellationHandler {
+        let durationSeconds = try await analyzer.duration(ofAudioFileAt: fileURL)
+        try Task.checkCancellation()
+
+        // Consume results concurrently while the analyzer feeds the file through.
+        async let collected = Self.collectSegments(
+          from: transcriber.resultStream,
+          durationSeconds: durationSeconds,
+          onProgress: onProgress
+        )
+
+        // A nil last sample means the file decoded to no audio at all — a failed
+        // transcription (retryable), distinct from audio that contained no
+        // recognizable speech, which finalizes to an empty, terminal transcript.
+        guard let lastSample = try await analyzer.analyze(audioFileAt: fileURL) else {
+          await cancelAnalyzer().value
+          throw TranscriptionError.noDecodableAudio(fileURL)
+        }
+        try await analyzer.finalize(through: lastSample)
+
+        let segments = try await collected
+        Self.log.debug("Transcribed \(segments.count) segments from \(fileURL.lastPathComponent)")
+        return segments
+      } onCancel: {
+        cancelAnalyzer()
+      }
+    } catch {
+      guard error is CancellationError || Task.isCancelled else { throw error }
+      await cancelAnalyzer().value
+      throw CancellationError()
+    }
   }
 
   private static func collectSegments(

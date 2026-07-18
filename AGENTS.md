@@ -83,6 +83,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 
 ## Coding Standards
 - Keep every Swift file under 1000 lines.
+- Mark functions `@discardableResult` when callers intentionally ignore their result; never discard with `_ =`.
 
 ### Production Only
 - Use `[weak self]` in closures/Tasks that capture `self` unless a strong reference is required. Unwrap with `guard let self else { return }`; use `self.x`, not `self?.x`.

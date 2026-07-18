@@ -194,11 +194,16 @@ import Testing
       data: (true, .seconds(10))
     )
 
-    Task { try await playManager.load(podcastEpisode) }
+    let loadTask = Task { try await playManager.load(podcastEpisode) }
+    defer {
+      loadTask.cancel()
+      loadingSemaphore.signal()
+    }
     try await PlayHelpers.waitFor(.loading(podcastEpisode.episode.title))
 
     loadingSemaphore.signal()
-    try await PlayHelpers.waitFor(.paused)
+    #expect(try await loadTask.value == true)
+    #expect(sharedState.playbackStatus == .paused)
   }
 
   @Test("loading an episode seeks to its stored time")
@@ -459,13 +464,24 @@ import Testing
       to: incomingEpisode.episode.mediaURL,
       data: (true, CMTime.seconds(60))
     )
-    async let _ = playManager.load(originalEpisode)
+    let originalLoad = Task { try await playManager.load(originalEpisode) }
+    defer {
+      originalLoad.cancel()
+      originalSemaphore.signal()
+    }
     try await PlayHelpers.waitFor(.loading(originalEpisode.episode.title))
-    async let incomingLoad = playManager.load(incomingEpisode)
+    let incomingLoad = Task { try await playManager.load(incomingEpisode) }
+    defer {
+      incomingLoad.cancel()
+      incomingSemaphore.signal()
+    }
     originalSemaphore.signal()
     try await PlayHelpers.waitFor(.stopped)
+    await #expect(throws: (any Error).self) {
+      try await originalLoad.value
+    }
     incomingSemaphore.signal()
-    _ = try await incomingLoad
+    #expect(try await incomingLoad.value == true)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
     await playManager.play()
     try await PlayHelpers.waitFor(.playing)

@@ -21,13 +21,15 @@ struct BackgroundTaskSchedulerTests {
     identifier: String = Self.testIdentifier,
     cadence: Duration = .hours(1),
     taskType: BackgroundTaskType = .appRefresh,
-    schedulingMode: BackgroundTaskSchedulingMode = .periodic
+    schedulingMode: BackgroundTaskSchedulingMode = .periodic,
+    expirationBehavior: BackgroundTaskExpirationBehavior = .completeImmediately
   ) -> BackgroundTaskScheduler {
     BackgroundTaskScheduler(
       identifier: identifier,
       cadence: cadence,
       taskType: taskType,
-      schedulingMode: schedulingMode
+      schedulingMode: schedulingMode,
+      expirationBehavior: expirationBehavior
     )
   }
 
@@ -112,18 +114,20 @@ struct BackgroundTaskSchedulerTests {
     #expect(fake.pendingIdentifiers.contains(Self.testIdentifier))
   }
 
-  @Test("expiration cancels running work and completes the task once")
-  func expirationCancelsRunningWorkAndCompletesOnce() async throws {
+  @Test("expiration completes immediately while cancelled work cleans up")
+  func expirationCompletesImmediatelyWhileCancelledWorkCleansUp() async throws {
     let scheduler = makeScheduler(cadence: .seconds(0))
     let executionStarted = ActorContainer<Bool>()
-    let executionCancelled = ActorContainer<Bool>()
+    let cancellationStarted = AsyncSemaphore(value: 0)
+    let cancellationRelease = AsyncSemaphore(value: 0)
 
     scheduler.register { _ in
-      await executionStarted.set(true)
-      while !Task.isCancelled {
-        await Task.yield()
+      await withTaskCancellationHandler {
+        await executionStarted.set(true)
+        await cancellationRelease.wait()
+      } onCancel: {
+        cancellationStarted.signal()
       }
-      await executionCancelled.set(true)
     }
 
     let task = try #require(fake.launchTask(withIdentifier: Self.testIdentifier))
@@ -133,10 +137,102 @@ struct BackgroundTaskSchedulerTests {
     task.expire()
     task.expire()
 
-    try await executionCancelled.waitForEqual(to: true)
+    await cancellationStarted.wait()
+    do {
+      try await Wait.until(
+        { task.completionResults == [false] },
+        { "Expected expiration to complete before cleanup, got \(task.completionResults)" }
+      )
+    } catch {
+      cancellationRelease.signal()
+      try await Wait.until(
+        { task.completionResults == [false] },
+        { "Expected released cleanup to complete, got \(task.completionResults)" }
+      )
+      throw error
+    }
+
+    #expect(task.completionCount == 1)
+    cancellationRelease.signal()
+  }
+
+  @Test("expiration completes while execution waits for a claimed lock")
+  func expirationCompletesWhileExecutionWaitsForClaimedLock() async throws {
+    let scheduler = makeScheduler(
+      cadence: .seconds(0),
+      expirationBehavior: .awaitCancellation
+    )
+    let lock = ThreadLock()
+    let executionStarted = AsyncSemaphore(value: 0)
+    #expect(lock.claim())
+
+    scheduler.register { complete in
+      executionStarted.signal()
+      do {
+        try await lock.waitForClaim()
+        lock.release()
+        complete(true)
+      } catch is CancellationError {
+        complete(false)
+      } catch {
+        Issue.record("Unexpected lock error: \(error)")
+        complete(false)
+      }
+    }
+
+    let task = try #require(fake.launchTask(withIdentifier: Self.testIdentifier))
+    await executionStarted.wait()
+    task.expire()
+
+    do {
+      try await Wait.until(
+        { task.completionResults == [false] },
+        { "Expected the cancelled lock waiter to complete, got \(task.completionResults)" }
+      )
+    } catch {
+      lock.release()
+      try await Wait.until(
+        { task.completionResults == [false] },
+        { "Expected released lock waiter to complete, got \(task.completionResults)" }
+      )
+      throw error
+    }
+
+    #expect(lock.isClaimed)
+    lock.release()
+  }
+
+  @Test("expiration overrides success reported during cancellation cleanup")
+  func expirationOverridesSuccessDuringCancellationCleanup() async throws {
+    let scheduler = makeScheduler(
+      cadence: .seconds(0),
+      expirationBehavior: .awaitCancellation
+    )
+    let executionStarted = ActorContainer<Bool>()
+    let cancellationStarted = AsyncSemaphore(value: 0)
+    let cancellationRelease = AsyncSemaphore(value: 0)
+
+    scheduler.register { complete in
+      await executionStarted.set(true)
+      await withTaskCancellationHandler {
+        await cancellationRelease.wait()
+        complete(true)
+      } onCancel: {
+        cancellationStarted.signal()
+      }
+    }
+
+    let task = try #require(fake.launchTask(withIdentifier: Self.testIdentifier))
+    try await executionStarted.waitForEqual(to: true)
+
+    task.expire()
+    await cancellationStarted.wait()
+    #expect(task.completionResults.isEmpty)
+
+    cancellationRelease.signal()
     try await Wait.until(
       { task.completionResults == [false] },
-      { "Expected expiration to complete once with failure, got \(task.completionResults)" }
+      { "Expected expiration to override cleanup success, got \(task.completionResults)" }
     )
 
     #expect(task.completionCount == 1)
