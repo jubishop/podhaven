@@ -200,7 +200,7 @@ struct TranscriptionBackgroundTaskTests {
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer(durationSeconds: 100) { _, endTime in
+        FakeSpeechAnalyzer { _, endTime in
           analyzeCount { $0 += 1 }
           analyzerStarted.signal()
           try await analyzerRelease.waitUnlessCancelled()
@@ -506,6 +506,7 @@ struct TranscriptionBackgroundTaskTests {
   @Test("expiration resumes the next background grant after durable progress")
   func expirationResumesNextBackgroundGrantAfterDurableProgress() async throws {
     let durationSeconds = 240.0
+    Container.shared.fakeAudioFileProvider().setDuration(durationSeconds)
     let transcriberCount = ThreadSafe(0)
     Container.shared.speechTranscriber.register {
       { _ in
@@ -554,7 +555,7 @@ struct TranscriptionBackgroundTaskTests {
     defer { neverSignals.signal() }
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer(durationSeconds: durationSeconds) { startTime, endTime in
+        FakeSpeechAnalyzer { startTime, endTime in
           if endTime == durationSeconds {
             expiringAnalysisStarted(true)
             try await neverSignals.waitUnlessCancelled()
@@ -599,7 +600,7 @@ struct TranscriptionBackgroundTaskTests {
     defer { resumedAnalysisRelease.signal() }
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer(durationSeconds: durationSeconds) { startTime, endTime in
+        FakeSpeechAnalyzer { startTime, endTime in
           resumedRange((start: startTime, end: endTime))
           resumedAnalysisStarted(true)
           try await resumedAnalysisRelease.waitUnlessCancelled()

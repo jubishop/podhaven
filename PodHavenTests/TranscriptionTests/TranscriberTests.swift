@@ -92,7 +92,7 @@ struct TranscriberTests {
       clock.freeze()
       Container.shared.speechAnalyzer.register {
         { _ in
-          FakeSpeechAnalyzer(durationSeconds: durationSeconds) { _, endTime in
+          FakeSpeechAnalyzer { _, endTime in
             clock.advance(by: .seconds(30))
             return CMTime(seconds: endTime, preferredTimescale: 600)
           }
@@ -188,7 +188,7 @@ struct TranscriberTests {
     let analyzedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer(durationSeconds: durationSeconds) { startTime, endTime in
+        FakeSpeechAnalyzer { startTime, endTime in
           analyzedRange((start: startTime, end: endTime))
           return CMTime(seconds: endTime, preferredTimescale: 600)
         }
@@ -222,13 +222,68 @@ struct TranscriberTests {
     #expect(savedCheckpoint()?.audioSHA256 == audioSHA256)
   }
 
+  @Test("keeps a replacement whose start rounds to the preceding audio frame")
+  func resumeKeepsFrameRoundedReplacement() async throws {
+    let durationSeconds = 240.0
+    let sampleRate = 44_100.0
+    let requestedStart = 100.0000625
+    let suppliedStart = floor(requestedStart * sampleRate) / sampleRate
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(
+          phrase: "replacement boundary",
+          startSeconds: suppliedStart,
+          endSeconds: 125
+        ),
+        FakeSpeechTranscriptionResult(
+          phrase: "later",
+          startSeconds: 125,
+          endSeconds: durationSeconds
+        ),
+      ],
+      durationSeconds: durationSeconds
+    )
+    let analyzedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer { startTime, endTime in
+          analyzedRange((start: startTime, end: endTime))
+          return CMTime(seconds: endTime, preferredTimescale: 600)
+        }
+      }
+    }
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [
+        TranscriptSegment(start: 0, end: requestedStart, text: "early"),
+        TranscriptSegment(start: requestedStart, end: 120, text: "old boundary"),
+      ],
+      audioTime: 120,
+      duration: durationSeconds,
+      locale: locale.identifier(.bcp47),
+      audioSHA256: audioSHA256
+    )
+
+    let segments = try await Container.shared.transcriber()
+      .transcribe(
+        fileURL: fileURL,
+        locale: locale,
+        logContext: logContext,
+        checkpoint: checkpoint
+      )
+
+    let observedRange = try #require(analyzedRange())
+    #expect(abs(observedRange.start - suppliedStart) <= 0.000_001)
+    #expect(suppliedStart < requestedStart)
+    #expect(segments.map(\.text) == ["early", "replacement boundary", "later"])
+  }
+
   @Test("a partial analysis does not advance the checkpoint")
   func partialAnalysisDoesNotAdvanceCheckpoint() async throws {
     let durationSeconds = 120.0
     TranscriptionHelpers.stubSpeech(durationSeconds: durationSeconds)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer(durationSeconds: durationSeconds) { _, _ in
+        FakeSpeechAnalyzer { _, _ in
           CMTime(seconds: 60, preferredTimescale: 600)
         }
       }
@@ -257,7 +312,6 @@ struct TranscriberTests {
     Container.shared.speechAnalyzer.register {
       { _ in
         FakeSpeechAnalyzer(
-          durationSeconds: durationSeconds,
           analyzeAudio: { _, _ in
             analyzerStarted.signal()
             await analyzerRelease.wait()
@@ -305,7 +359,7 @@ struct TranscriberTests {
     let analyzedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer(durationSeconds: durationSeconds) { startTime, endTime in
+        FakeSpeechAnalyzer { startTime, endTime in
           analyzedRange((start: startTime, end: endTime))
           return CMTime(seconds: endTime, preferredTimescale: 600)
         }
@@ -351,7 +405,7 @@ struct TranscriberTests {
     let analyzedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer(durationSeconds: durationSeconds) { startTime, endTime in
+        FakeSpeechAnalyzer { startTime, endTime in
           analyzedRange((start: startTime, end: endTime))
           return CMTime(seconds: endTime, preferredTimescale: 600)
         }

@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import AVFoundation
 import CoreMedia
 import FactoryKit
 import Foundation
@@ -70,6 +71,7 @@ struct Transcriber: Sendable {
     case restartedIncompatible
   }
 
+  @DynamicInjected(\.audioFileProvider) private var audioFileProvider
   @DynamicInjected(\.audioFileHasher) private var audioFileHasher
   @DynamicInjected(\.continuousClockNow) private var continuousClockNow
   @DynamicInjected(\.speechAnalyzer) private var speechAnalyzer
@@ -111,7 +113,8 @@ struct Transcriber: Sendable {
 
     let firstTranscriber = speechTranscriber(locale)
     let firstAnalyzer = speechAnalyzer(firstTranscriber)
-    let durationSeconds = try await firstAnalyzer.duration(ofAudioFileAt: fileURL)
+    let audioFile = try audioFileProvider.audioFile(forReading: fileURL)
+    let durationSeconds = Double(audioFile.length) / audioFile.processingFormat.sampleRate
     guard durationSeconds > 0 else {
       throw TranscriptionError.noDecodableAudio(fileURL)
     }
@@ -266,12 +269,21 @@ struct Transcriber: Sendable {
           onProgress: onProgress
         )
 
+        let audioFile = try audioFileProvider.audioFile(forReading: fileURL)
         guard
-          let lastSample = try await analyzer.analyze(
-            audioFileAt: fileURL,
-            from: startTime,
-            to: endTime
+          let outputFormat = await analyzer.bestAvailableAudioFormat(
+            considering: audioFile.processingFormat
           )
+        else {
+          throw SpeechAnalyzerInputError.incompatibleAudioFormat
+        }
+        let inputSequence = RangedAudioInputSequence(
+          file: audioFile,
+          outputFormat: outputFormat,
+          startTime: startTime,
+          endTime: endTime
+        )
+        guard let lastSample = try await analyzer.analyze(inputSequence)
         else {
           await cancelAnalyzer().value
           throw TranscriptionError.noDecodableAudio(fileURL)

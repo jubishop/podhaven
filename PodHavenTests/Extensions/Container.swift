@@ -103,6 +103,8 @@ extension Container: @retroactive AutoRegistering {
 
     bgTaskScheduler.context(.test) { FakeBGTaskScheduler() }.scope(.cached)
 
+    audioFileProvider.context(.test) { self.fakeAudioFileProvider() }.scope(.cached)
+
     audioFileHasher.context(.test) { FakeAudioFileHasher() }.scope(.cached)
 
     // nil = inherit from parent, avoiding priority-based starvation in tests.

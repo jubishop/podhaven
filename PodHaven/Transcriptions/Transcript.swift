@@ -32,6 +32,8 @@ struct Transcript: Codable, Hashable, Sendable {
 }
 
 struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
+  private static let timeTolerance: TimeInterval = 0.01
+
   let segments: [TranscriptSegment]
   let audioTime: TimeInterval
   let duration: TimeInterval
@@ -70,22 +72,21 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
     locale: Locale,
     audioSHA256: String
   ) -> Bool {
-    let timeTolerance = 0.01
     guard
       duration > 0
         && audioTime >= 0
         && audioTime <= duration
-        && abs(self.duration - duration) <= timeTolerance
+        && abs(self.duration - duration) <= Self.timeTolerance
         && self.locale == locale.identifier(.bcp47)
         && self.audioSHA256 == audioSHA256
     else {
       return false
     }
     return segments.allSatisfy { segment in
-      guard segment.start >= 0 && segment.start <= audioTime + timeTolerance else {
+      guard segment.start >= 0 && segment.start <= audioTime + Self.timeTolerance else {
         return false
       }
-      return segment.end >= segment.start && segment.end <= audioTime + timeTolerance
+      return segment.end >= segment.start && segment.end <= audioTime + Self.timeTolerance
     }
   }
 
@@ -97,8 +98,11 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
     let retainedSegments = segments.filter { segment in
       segment.end <= startTime
     }
+    let earliestReplacementStart = max(0, startTime - Self.timeTolerance)
     let replacementSegments = newSegments.filter {
-      $0.start >= startTime && $0.start < endTime
+      $0.start >= earliestReplacementStart
+        && $0.start < endTime
+        && $0.end > startTime
     }
     return Self(
       segments: retainedSegments + replacementSegments,
