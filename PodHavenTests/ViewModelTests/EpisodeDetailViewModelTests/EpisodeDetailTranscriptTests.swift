@@ -65,8 +65,8 @@ import Testing
     #expect(viewModel.transcriptDisplay == .loading)
   }
 
-  @Test("transcriptDisplay separates segment paragraphs once the episode is hydrated")
-  func transcriptDisplayRendersParagraphsWhenHydrated() async throws {
+  @Test("transcriptDisplay preserves segments once the episode is hydrated")
+  func transcriptDisplayPreservesSegmentsWhenHydrated() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
     let transcript = Transcript(
       segments: [
@@ -82,7 +82,7 @@ import Testing
     let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
 
-    #expect(viewModel.transcriptDisplay == .text("hello\n\nworld"))
+    #expect(viewModel.transcriptDisplay == .text(transcript.segments))
   }
 
   @Test("transcriptDisplay is empty when a hydrated transcript has no segments")
