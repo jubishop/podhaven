@@ -6,10 +6,15 @@ import SwiftUI
 struct FeedbackFormView: View {
   @Environment(\.dismiss) private var dismiss
   @State private var viewModel = FeedbackFormViewModel()
-  @State private var selectedPhoto: PhotosPickerItem?
+  @State private var selectedPhotos: [PhotosPickerItem] = []
 
   var body: some View {
-    let hasScreenshot = viewModel.screenshotData.current != nil
+    let photos = viewModel.photoData.current
+    let hasSelectedPhotos = !selectedPhotos.isEmpty
+    let photoPickerLabel = AppIconLabel(
+      icon: .attachPhotos,
+      textKey: hasSelectedPhotos ? "Edit Photos" : "Attach Photos"
+    )
 
     Form {
       Section {
@@ -20,28 +25,41 @@ struct FeedbackFormView: View {
       }
 
       Section {
-        if let data = viewModel.screenshotData.current, let uiImage = UIImage(data: data) {
-          Image(uiImage: uiImage)
-            .resizable()
-            .scaledToFit()
-            .frame(maxHeight: 200)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-          Button("Remove Screenshot", role: .destructive) {
-            selectedPhoto = nil
-            viewModel.removeScreenshot()
+        ForEach(Array(photos.enumerated()), id: \.offset) { index, data in
+          if let uiImage = UIImage(data: data) {
+            Image(uiImage: uiImage)
+              .resizable()
+              .scaledToFit()
+              .frame(maxHeight: 200)
+              .clipShape(RoundedRectangle(cornerRadius: 8))
+              .accessibilityLabel("Attached photo \(index + 1)")
+              .accessibilityValue("\(index + 1) of \(photos.count)")
           }
         }
 
+        if viewModel.isPreparingPhotos {
+          ProgressView("Preparing Photos")
+        }
+
         PhotosPicker(
-          selection: $selectedPhoto,
+          selection: $selectedPhotos,
+          maxSelectionCount: FeedbackFormViewModel.maximumPhotoCount,
+          selectionBehavior: .ordered,
           matching: .images
         ) {
-          Label(
-            hasScreenshot ? "Replace Screenshot" : "Attach Screenshot",
-            systemImage: "photo"
-          )
+          photoPickerLabel
         }
+
+        if hasSelectedPhotos {
+          Button("Remove All Photos", role: .destructive) {
+            selectedPhotos = []
+            viewModel.removePhotos()
+          }
+        }
+      } header: {
+        Text("Photos")
+      } footer: {
+        Text("You can attach up to \(FeedbackFormViewModel.maximumPhotoCount) photos.")
       }
 
       Section {
@@ -53,8 +71,8 @@ struct FeedbackFormView: View {
           .textInputAutocapitalization(.never)
       }
     }
-    .onChange(of: selectedPhoto) { _, newItem in
-      viewModel.selectedPhotoChanged(newItem)
+    .onChange(of: selectedPhotos) { _, newItems in
+      viewModel.selectedPhotosChanged(newItems)
     }
     .navigationTitle("Send Feedback")
     .navigationBarTitleDisplayMode(.inline)

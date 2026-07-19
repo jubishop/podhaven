@@ -2,10 +2,12 @@
 
 import FactoryKit
 import Foundation
+import ImageIO
+import Logging
 import PhotosUI
 import Sentry
 import SwiftUI
-import UIKit
+import UniformTypeIdentifiers
 
 extension Container {
   var captureSentryFeedback: Factory<(SentryFeedback) -> Void> {
@@ -21,34 +23,64 @@ extension Container {
 @Observable @MainActor class FeedbackFormViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.captureSentryFeedback) private var captureSentryFeedback
+  @ObservationIgnored private var photoLoadingTask: Task<Void, Never>?
 
   var message = ""
   var name = ""
   var email = ""
-  let screenshotData = Broadcast<Data?>(nil)
+  let photoData = Broadcast<[Data]>([])
+  var isPreparingPhotos = false
 
   nonisolated private static let log = Log.as(LogSubsystem.SettingsView.feedback)
+  nonisolated static let maximumPhotoCount = 5
+  nonisolated private static let maximumPhotoPixelDimension = 3072
+  nonisolated private static let photoCompressionQuality = 0.9
 
   var canSend: Bool {
     !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !isPreparingPhotos
   }
 
-  func selectedPhotoChanged(_ newItem: PhotosPickerItem?) {
-    Task { [weak self, newItem] in
+  func selectedPhotosChanged(_ newItems: [PhotosPickerItem]) {
+    photoLoadingTask?.cancel()
+    let items = Array(newItems.prefix(Self.maximumPhotoCount))
+    guard !items.isEmpty else {
+      photoData.new([])
+      isPreparingPhotos = false
+      return
+    }
+
+    isPreparingPhotos = true
+    photoLoadingTask = Task { [weak self, items] in
       guard let self else { return }
-      do {
-        guard let data = try await newItem?.loadTransferable(type: Data.self) else {
-          return
+      var preparedPhotos: [Data] = []
+      for item in items {
+        guard !Task.isCancelled else { return }
+        do {
+          guard let sourceData = try await item.loadTransferable(type: Data.self) else {
+            Self.log.error("Selected photo did not provide image data")
+            continue
+          }
+          guard let preparedData = await Self.preparePhotoData(sourceData) else {
+            Self.log.error("Failed to prepare selected photo")
+            continue
+          }
+          preparedPhotos.append(preparedData)
+        } catch {
+          guard !Task.isCancelled else { return }
+          Self.log.caughtError("Failed to load selected photo", error)
         }
-        self.screenshotData.new(data)
-      } catch {
-        Self.log.caughtError("Failed to load selected photo", error)
       }
+      guard !Task.isCancelled else { return }
+      self.photoData.new(preparedPhotos)
+      self.isPreparingPhotos = false
     }
   }
 
-  func removeScreenshot() {
-    screenshotData.new(nil)
+  func removePhotos() {
+    photoLoadingTask?.cancel()
+    photoData.new([])
+    isPreparingPhotos = false
   }
 
   func sendFeedback() {
@@ -56,11 +88,11 @@ extension Container {
       Attachment(path: AppInfo.logFileURL.path, filename: "log.ndjson"),
       Attachment(path: WidgetInfo.logFileURL.path, filename: "widget-log.ndjson"),
     ]
-    if let data = screenshotData.value,
-      let pngData = UIImage(data: data)?.pngData()
-    {
+
+    for (index, data) in photoData.value.prefix(Self.maximumPhotoCount).enumerated() {
+      let filename = index == 0 ? "screenshot.jpg" : "screenshot-\(index + 1).jpg"
       attachments.append(
-        Attachment(data: pngData, filename: "screenshot.png", contentType: "image/png")
+        Attachment(data: data, filename: filename, contentType: "image/jpeg")
       )
     }
 
@@ -74,5 +106,45 @@ extension Container {
       )
     )
     alert(title: "Feedback Sent", "Thanks for sending feedback.")
+  }
+
+  @concurrent private static func preparePhotoData(_ data: Data) async -> Data? {
+    guard
+      let source = CGImageSourceCreateWithData(
+        data as CFData,
+        [kCGImageSourceShouldCache: false] as CFDictionary
+      ),
+      let image = CGImageSourceCreateThumbnailAtIndex(
+        source,
+        0,
+        [
+          kCGImageSourceCreateThumbnailFromImageAlways: true,
+          kCGImageSourceCreateThumbnailWithTransform: true,
+          kCGImageSourceShouldCacheImmediately: true,
+          kCGImageSourceThumbnailMaxPixelSize: maximumPhotoPixelDimension,
+        ] as CFDictionary
+      )
+    else {
+      return nil
+    }
+
+    let output = NSMutableData()
+    guard
+      let destination = CGImageDestinationCreateWithData(
+        output,
+        UTType.jpeg.identifier as CFString,
+        1,
+        nil
+      )
+    else {
+      return nil
+    }
+    CGImageDestinationAddImage(
+      destination,
+      image,
+      [kCGImageDestinationLossyCompressionQuality: photoCompressionQuality] as CFDictionary
+    )
+    guard CGImageDestinationFinalize(destination) else { return nil }
+    return output as Data
   }
 }

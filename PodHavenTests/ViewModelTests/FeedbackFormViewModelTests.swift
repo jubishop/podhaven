@@ -12,14 +12,15 @@ import UIKit
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.fakeSentryFeedbackCapture) private var fakeSentryFeedbackCapture
 
-  @Test("sendFeedback sends report and presents confirmation alert")
+  @Test("sendFeedback sends report, multiple photos, and confirmation")
   func sendFeedbackSendsReportAndPresentsConfirmationAlert() throws {
     let viewModel = FeedbackFormViewModel()
-    let screenshotData = try #require(Self.screenshotData())
+    let firstPhotoData = try #require(Self.photoData(color: .red))
+    let secondPhotoData = try #require(Self.photoData(color: .blue))
     viewModel.message = "Please add folders."
     viewModel.name = "Justin"
     viewModel.email = "justin@example.com"
-    viewModel.screenshotData.new(screenshotData)
+    viewModel.photoData.new([firstPhotoData, secondPhotoData])
 
     viewModel.sendFeedback()
 
@@ -31,20 +32,29 @@ import UIKit
     #expect(feedback.source == "custom")
 
     let attachments = feedback.attachments
-    #expect(attachments.map(\.filename) == ["log.ndjson", "widget-log.ndjson", "screenshot.png"])
+    #expect(
+      attachments.map(\.filename) == [
+        "log.ndjson",
+        "widget-log.ndjson",
+        "screenshot.jpg",
+        "screenshot-2.jpg",
+      ]
+    )
     #expect(attachments[0].path == AppInfo.logFileURL.path)
     #expect(attachments[1].path == WidgetInfo.logFileURL.path)
-    #expect(attachments[2].contentType == "image/png")
-    #expect(attachments[2].data == UIImage(data: screenshotData)?.pngData())
+    #expect(attachments[2].contentType == "image/jpeg")
+    #expect(attachments[2].data == firstPhotoData)
+    #expect(attachments[3].contentType == "image/jpeg")
+    #expect(attachments[3].data == secondPhotoData)
     #expect(alert.config?.title == "Feedback Sent")
   }
 
-  private static func screenshotData() -> Data? {
+  private static func photoData(color: UIColor) -> Data? {
     UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1))
       .image { context in
-        UIColor.red.setFill()
+        color.setFill()
         context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
       }
-      .pngData()
+      .jpegData(compressionQuality: 0.9)
   }
 }

@@ -83,6 +83,7 @@ import SwiftUI
   case removeTag
 
   // General Actions
+  case attachPhotos
   case exportOPML
   case shareEpisode
   case shareEpisodeFromStart
@@ -388,6 +389,8 @@ import SwiftUI
       return Data(text: "Remove Tag", systemImageName: .removeTag, color: .red)
 
     // General Actions
+    case .attachPhotos:
+      return Data(text: "Attach Photos", systemImageName: .attachPhotos)
     case .exportOPML:
       return Data(text: "Export OPML", systemImageName: .share)
     case .shareEpisode:
