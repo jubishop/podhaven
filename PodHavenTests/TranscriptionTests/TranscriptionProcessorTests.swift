@@ -10,7 +10,7 @@ struct TranscriptionProcessorTests {
   @Test("drains queued episodes one at a time, writing transcripts")
   func drainsQueueWritingTranscripts() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0, endSeconds: 60)]
     )
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()
@@ -48,7 +48,7 @@ struct TranscriptionProcessorTests {
   @Test("an uncached episode is downloaded, awaited, then transcribed")
   func downloadsUncachedEpisodeBeforeTranscribing() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0, endSeconds: 60)]
     )
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()
@@ -79,7 +79,7 @@ struct TranscriptionProcessorTests {
   @Test("backgrounding during an audio download preserves the foreground drain")
   func backgroundingDuringDownloadPreservesForegroundDrain() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0, endSeconds: 60)]
     )
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()
@@ -132,7 +132,7 @@ struct TranscriptionProcessorTests {
   @Test("a stranded downloading flag restarts the download before transcribing")
   func strandedDownloadingFlagRestartsDownloadBeforeTranscribing() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0, endSeconds: 60)]
     )
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()

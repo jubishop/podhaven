@@ -278,8 +278,7 @@ struct TranscriptionProcessor: Sendable {
     let localeIdentifier = locale.identifier(.bcp47)
     let initialProgress: Double
     if let checkpoint,
-      checkpoint.locale == localeIdentifier,
-      checkpoint.modelRevision == Transcriber.recipeVersion
+      checkpoint.locale == localeIdentifier
     {
       initialProgress = checkpoint.progress
     } else {
@@ -333,8 +332,7 @@ struct TranscriptionProcessor: Sendable {
     let transcript = Transcript(
       segments: segments,
       locale: localeIdentifier,
-      createdAt: Date(),
-      modelRevision: Transcriber.recipeVersion
+      createdAt: Date()
     )
     try await repo.updateTranscript(episodeID, transcript: transcript.jsonString())
 

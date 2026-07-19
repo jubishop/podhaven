@@ -43,9 +43,9 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 ## Data model
 
 - **Migration v67** (`PodHaven/Database/Migrations/Migration_v67.swift`, registered `"v67"` in `Schema.makeMigrator()`): `ALTER TABLE episode ADD COLUMN transcript TEXT` — nullable, default NULL, no backfill. Does not trip the `episode_content_updated` trigger (which fires only on title/description change). Migration test `v67Tests.swift` migrates through `"v66"` before asserting the new column.
-- **Migration v70** (`PodHaven/Database/Migrations/Migration_v70.swift`, registered `"v70"`): adds `episodeTranscriptionCheckpoint`, keyed to `episode.id` with cascade deletion. Its validated JSON holds completed segments, the committed audio time, total duration, locale, and transcription recipe revision.
+- **Migration v70** (`PodHaven/Database/Migrations/Migration_v70.swift`, registered `"v70"`): clears the pre-release finished transcripts that lack required segment end times, then adds `episodeTranscriptionCheckpoint`, keyed to `episode.id` with cascade deletion. Its validated JSON holds completed segments, the committed audio time, total duration, locale, and audio fingerprint.
 - **Model:** add `transcript: String?` to `UnsavedEpisode` and `Column("transcript")` to `Episode.Columns`, with a computed `decodedTranscript: Transcript?` that lazily caches its decoded value in memory while persisting only the original JSON.
-- **Codable payload:** `TranscriptSegment` stores start/end timing plus text; `Transcript` carries the finished segments, locale, creation date, and model revision. `TranscriptionCheckpoint` carries the accumulated segments plus resume compatibility fields. Segment end times let overlap replacement remove a segment that crosses the checkpoint boundary without duplicating its text.
+- **Codable payload:** `TranscriptSegment` requires start/end timing plus text; `Transcript` carries the finished segments, locale, and creation date. `TranscriptionCheckpoint` carries the accumulated segments plus resume compatibility fields. Segment end times let overlap replacement remove a segment that crosses the checkpoint boundary without duplicating its text. Future persisted-payload changes require an explicit database migration that rewrites or clears existing JSON.
 - **Repo:** checkpoint read/save/delete operations use GRDB records. `updateTranscript(_ id:transcript:)` writes the finished transcript and deletes its checkpoint in one database transaction.
 
 ## Transcription engine — `PodHaven/Transcriptions/`
@@ -102,7 +102,7 @@ Phases 1–3 are independently shippable; 4 makes it usable; 5 completes it. (In
 - Migration test (`v67Tests.swift`) — raw SQL, migrate `upTo: "v66"` then `"v67"`, assert the column.
 - Queue persistence: enqueue → simulated relaunch (re-read defaults) → order preserved.
 - Processor loop: speech/cache fakes drive one-at-a-time ordering, foreground/background exclusivity, progress, dequeue, failure, unsupported-device preflight before audio acquisition, stale-download recovery, and on-demand background scheduling. A two-grant regression proves that the first grant commits a chunk, expires during the next, and the second resumes from the overlap before producing one deduplicated final transcript.
-- Migration v70 tests verify checkpoint shape constraints and episode cascade deletion.
+- Migration v70 tests verify destructive legacy-transcript cleanup, checkpoint shape constraints, and episode cascade deletion.
 - Status derivation: each `TranscriptionStatus` branch.
 - `Transcriber` against the real model is integration-only; production stays behind the protocol so units use the fake.
 

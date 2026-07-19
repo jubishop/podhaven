@@ -14,10 +14,9 @@ struct EpisodesListTranscribeTests {
 
   private func transcriptJSON() throws -> String {
     try Transcript(
-      segments: [TranscriptSegment(start: 0, text: "hi")],
+      segments: [TranscriptSegment(start: 0, end: 1, text: "hi")],
       locale: "en-US",
-      createdAt: Date(timeIntervalSince1970: 0),
-      modelRevision: Transcriber.recipeVersion
+      createdAt: Date(timeIntervalSince1970: 0)
     )
     .jsonString()
   }

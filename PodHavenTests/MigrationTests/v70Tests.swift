@@ -48,11 +48,37 @@ struct V70MigrationTests {
             episodeId, checkpointJSON
           ) VALUES (
             901,
-            '{"segments":[{"start":0,"text":"First"}],"audioTime":120,"duration":7200,"locale":"en-US","modelRevision":2,"audioSHA256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+            '{"segments":[{"start":0,"end":10,"text":"First"}],"audioTime":120,"duration":7200,"locale":"en-US","audioSHA256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
           )
           """
       )
     }
+  }
+
+  @Test("v70 deletes transcripts stored without required end times")
+  func deletesExistingTranscripts() async throws {
+    try await prepareFixture()
+    try await appDB.unsafeTestDB.write { db in
+      try db.execute(
+        sql: """
+          UPDATE episode
+          SET transcript =
+            '{"segments":[{"start":0,"text":"Legacy"}],"locale":"en-US","createdAt":760000000,"modelRevision":1}'
+          WHERE id = 901
+          """
+      )
+    }
+    let transcriptBeforeMigration = try await appDB.unsafeTestDB.read { db in
+      try String.fetchOne(db, sql: "SELECT transcript FROM episode WHERE id = 901")
+    }
+    #expect(transcriptBeforeMigration != nil)
+
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v70")
+
+    let transcriptAfterMigration = try await appDB.unsafeTestDB.read { db in
+      try String.fetchOne(db, sql: "SELECT transcript FROM episode WHERE id = 901")
+    }
+    #expect(transcriptAfterMigration == nil)
   }
 
   @Test("v70 creates durable per-episode transcription checkpoints")
@@ -104,7 +130,7 @@ struct V70MigrationTests {
               episodeId, checkpointJSON
             ) VALUES (
               901,
-              '{"segments":[],"audioTime":120,"duration":7200,"locale":"en-US","modelRevision":2}'
+              '{"segments":[],"audioTime":120,"duration":7200,"locale":"en-US"}'
             )
             """
         )

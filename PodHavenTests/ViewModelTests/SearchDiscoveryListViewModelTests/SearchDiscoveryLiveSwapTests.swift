@@ -267,10 +267,9 @@ import Testing
     try await repo.updateTranscript(
       transcribedEpisode.id,
       transcript: try Transcript(
-        segments: [TranscriptSegment(start: 0, text: "Already transcribed")],
+        segments: [TranscriptSegment(start: 0, end: 1, text: "Already transcribed")],
         locale: "en-US",
-        createdAt: Date(timeIntervalSince1970: 0),
-        modelRevision: Transcriber.recipeVersion
+        createdAt: Date(timeIntervalSince1970: 0)
       )
       .jsonString()
     )

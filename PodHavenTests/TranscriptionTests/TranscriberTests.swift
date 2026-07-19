@@ -22,9 +22,9 @@ struct TranscriberTests {
   @Test("maps phrases to segments, trimming whitespace and dropping empties")
   func mapsPhrasesToSegments() async throws {
     TranscriptionHelpers.stubSpeech(phrases: [
-      FakeSpeechTranscriptionResult(phrase: "  hello  ", startSeconds: 1.5),
-      FakeSpeechTranscriptionResult(phrase: "   ", startSeconds: 2),
-      FakeSpeechTranscriptionResult(phrase: "world", startSeconds: nil),
+      FakeSpeechTranscriptionResult(phrase: "  hello  ", startSeconds: 1.5, endSeconds: 2),
+      FakeSpeechTranscriptionResult(phrase: "   ", startSeconds: 2, endSeconds: 2.5),
+      FakeSpeechTranscriptionResult(phrase: "world", startSeconds: nil, endSeconds: 3),
     ])
 
     let segments = try await Container.shared.transcriber()
@@ -39,6 +39,18 @@ struct TranscriberTests {
     #expect(segments.first?.start == 1.5)
     #expect(segments.last?.text == "world")
     #expect(segments.last?.start == 0)
+  }
+
+  @Test("rejects a phrase without an audio end time")
+  func rejectsPhraseWithoutEndTime() async throws {
+    TranscriptionHelpers.stubSpeech(phrases: [
+      FakeSpeechTranscriptionResult(phrase: "untimed", startSeconds: 0, endSeconds: nil)
+    ])
+
+    await #expect(throws: TranscriptionError.self) {
+      try await Container.shared.transcriber()
+        .transcribe(fileURL: fileURL, locale: locale, logContext: logContext)
+    }
   }
 
   @Test("reports monotonic progress from each result's audio end over the duration")
@@ -127,7 +139,7 @@ struct TranscriberTests {
   @Test("installs the model when supported but not yet installed")
   func installsWhenNotInstalled() async throws {
     let modelManager = TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0)],
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0, endSeconds: 60)],
       modelManager: FakeSpeechModelManager(
         supportedIdentifiers: ["en-US"],
         installedIdentifiers: []
@@ -190,7 +202,6 @@ struct TranscriberTests {
       audioTime: 120,
       duration: durationSeconds,
       locale: locale.identifier(.bcp47),
-      modelRevision: Transcriber.recipeVersion,
       audioSHA256: audioSHA256
     )
     let savedCheckpoint = ThreadSafe<TranscriptionCheckpoint?>(nil)
@@ -305,7 +316,6 @@ struct TranscriberTests {
       audioTime: 120,
       duration: 240,
       locale: locale.identifier(.bcp47),
-      modelRevision: Transcriber.recipeVersion,
       audioSHA256: audioSHA256
     )
     let reportedProgress = ThreadSafe<[Double]>([])
@@ -354,7 +364,6 @@ struct TranscriberTests {
           "audioTime": 30,
           "duration": 60,
           "locale": "en-US",
-          "modelRevision": \(Transcriber.recipeVersion),
           "audioSHA256": "0000000000000000000000000000000000000000000000000000000000000000"
         }
         """
@@ -431,7 +440,7 @@ struct TranscriberTests {
   @Test("throws when the audio file decodes to no audio")
   func throwsWhenNoDecodableAudio() async throws {
     TranscriptionHelpers.stubSpeech(phrases: [
-      FakeSpeechTranscriptionResult(phrase: "ignored", startSeconds: 0)
+      FakeSpeechTranscriptionResult(phrase: "ignored", startSeconds: 0, endSeconds: 60)
     ])
     Container.shared.speechAnalyzer.register {
       { _ in FakeSpeechAnalyzer(analyzeAudio: { _, _ in nil }) }

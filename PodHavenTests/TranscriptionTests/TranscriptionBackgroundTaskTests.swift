@@ -23,7 +23,7 @@ struct TranscriptionBackgroundTaskTests {
   func backgroundTaskDrainsQueue() async throws {
     try await LogCapture.withSink { sink in
       TranscriptionHelpers.stubSpeech(
-        phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0)]
+        phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0, endSeconds: 60)]
       )
       let repo = Container.shared.repo()
       let queue = Container.shared.transcriptionQueue()
@@ -79,7 +79,7 @@ struct TranscriptionBackgroundTaskTests {
   @Test("a foreground drain cancels its pending background request")
   func foregroundDrainCancelsPendingRequest() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0, endSeconds: 60)]
     )
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
@@ -116,7 +116,7 @@ struct TranscriptionBackgroundTaskTests {
   @Test("foreground and background consumers never analyze the same head concurrently")
   func foregroundAndBackgroundDoNotOverlap() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0, endSeconds: 60)]
     )
     let analyzerStarted = AsyncSemaphore(value: 0)
     let analyzerRelease = AsyncSemaphore(value: 0)
@@ -258,7 +258,7 @@ struct TranscriptionBackgroundTaskTests {
   @Test("a background grant takes the remaining queue after the foreground head finishes")
   func backgroundGrantTakesRemainingQueueAfterForegroundHead() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0, endSeconds: 60)]
     )
     let firstAnalyzerStarted = AsyncSemaphore(value: 0)
     let firstAnalyzerRelease = AsyncSemaphore(value: 0)
@@ -324,7 +324,9 @@ struct TranscriptionBackgroundTaskTests {
   func expirationCancelsPreservedForegroundAnalyzer() async throws {
     try await LogCapture.withSink { sink in
       TranscriptionHelpers.stubSpeech(
-        phrases: [FakeSpeechTranscriptionResult(phrase: "retained", startSeconds: 0)]
+        phrases: [
+          FakeSpeechTranscriptionResult(phrase: "retained", startSeconds: 0, endSeconds: 60)
+        ]
       )
       let analyzerStarted = AsyncSemaphore(value: 0)
       let analyzerRelease = AsyncSemaphore(value: 0)
@@ -435,7 +437,9 @@ struct TranscriptionBackgroundTaskTests {
   @Test("expiration retains the head for the next foreground drain")
   func expirationRetainsHeadForForeground() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "resumed", startSeconds: 0)]
+      phrases: [
+        FakeSpeechTranscriptionResult(phrase: "resumed", startSeconds: 0, endSeconds: 60)
+      ]
     )
     let analyzerStarted = AsyncSemaphore(value: 0)
     let neverSignals = AsyncSemaphore(value: 0)

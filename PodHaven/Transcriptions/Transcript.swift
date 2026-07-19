@@ -2,32 +2,24 @@
 
 import Foundation
 
+// Persisted payload changes require a database migration that rewrites or
+// clears stored JSON.
 struct TranscriptSegment: Codable, Hashable, Sendable {
   // Seconds from the start of the episode audio.
   let start: TimeInterval
-  let end: TimeInterval?
+  let end: TimeInterval
   let text: String
-
-  init(start: TimeInterval, end: TimeInterval? = nil, text: String) {
-    self.start = start
-    self.end = end
-    self.text = text
-  }
 }
 
 struct Transcript: Codable, Hashable, Sendable {
   let segments: [TranscriptSegment]
   let locale: String
   let createdAt: Date
-  // Bumping the transcriber's model revision invalidates older transcripts,
-  // the same way EmbeddingService.recipeVersion invalidates cached vectors.
-  let modelRevision: Int
 
-  init(segments: [TranscriptSegment], locale: String, createdAt: Date, modelRevision: Int) {
+  init(segments: [TranscriptSegment], locale: String, createdAt: Date) {
     self.segments = segments
     self.locale = locale
     self.createdAt = createdAt
-    self.modelRevision = modelRevision
   }
 
   init(decoding json: String) throws {
@@ -44,7 +36,6 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
   let audioTime: TimeInterval
   let duration: TimeInterval
   let locale: String
-  let modelRevision: Int
   let audioSHA256: String
 
   var progress: Double {
@@ -57,14 +48,12 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
     audioTime: TimeInterval,
     duration: TimeInterval,
     locale: String,
-    modelRevision: Int,
     audioSHA256: String
   ) {
     self.segments = segments
     self.audioTime = audioTime
     self.duration = duration
     self.locale = locale
-    self.modelRevision = modelRevision
     self.audioSHA256 = audioSHA256
   }
 
@@ -79,7 +68,6 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
   func isCompatible(
     duration: TimeInterval,
     locale: Locale,
-    modelRevision: Int,
     audioSHA256: String
   ) -> Bool {
     let timeTolerance = 0.01
@@ -89,7 +77,6 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
         && audioTime <= duration
         && abs(self.duration - duration) <= timeTolerance
         && self.locale == locale.identifier(.bcp47)
-        && self.modelRevision == modelRevision
         && self.audioSHA256 == audioSHA256
     else {
       return false
@@ -98,10 +85,7 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
       guard segment.start >= 0 && segment.start <= audioTime + timeTolerance else {
         return false
       }
-      if let end = segment.end {
-        return end >= segment.start && end <= audioTime + timeTolerance
-      }
-      return true
+      return segment.end >= segment.start && segment.end <= audioTime + timeTolerance
     }
   }
 
@@ -111,10 +95,7 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
     through endTime: TimeInterval
   ) -> Self {
     let retainedSegments = segments.filter { segment in
-      if let end = segment.end {
-        return end <= startTime
-      }
-      return segment.start < startTime
+      segment.end <= startTime
     }
     let replacementSegments = newSegments.filter {
       $0.start >= startTime && $0.start < endTime
@@ -124,7 +105,6 @@ struct TranscriptionCheckpoint: Codable, Hashable, Sendable {
       audioTime: endTime,
       duration: duration,
       locale: locale,
-      modelRevision: modelRevision,
       audioSHA256: audioSHA256
     )
   }

@@ -20,6 +20,7 @@ enum TranscriptionError: LocalizedError {
   case audioUnavailable(Episode.ID)
   case noDecodableAudio(URL)
   case incompleteAudioRange(expectedEndTime: TimeInterval, actualEndTime: TimeInterval)
+  case missingAudioEndTime
 
   var errorDescription: String? {
     switch self {
@@ -34,6 +35,8 @@ enum TranscriptionError: LocalizedError {
       Audio analysis stopped at \(actualEndTime) seconds before the requested \
       \(expectedEndTime)-second boundary
       """
+    case .missingAudioEndTime:
+      "A transcription result did not include its audio end time"
     }
   }
 }
@@ -72,10 +75,6 @@ struct Transcriber: Sendable {
   @DynamicInjected(\.speechAnalyzer) private var speechAnalyzer
   @DynamicInjected(\.speechModelManager) private var speechModelManager
   @DynamicInjected(\.speechTranscriber) private var speechTranscriber
-
-  // Bump when the transcription recipe changes so stored transcripts can be
-  // invalidated and regenerated, mirroring EmbeddingService.recipeVersion.
-  static let recipeVersion = 2
 
   private static let chunkDuration: TimeInterval = 120
   private static let chunkOverlap: TimeInterval = 10
@@ -124,7 +123,6 @@ struct Transcriber: Sendable {
       checkpoint.isCompatible(
         duration: durationSeconds,
         locale: locale,
-        modelRevision: Self.recipeVersion,
         audioSHA256: audioSHA256
       )
     {
@@ -136,7 +134,6 @@ struct Transcriber: Sendable {
         audioTime: 0,
         duration: durationSeconds,
         locale: locale.identifier(.bcp47),
-        modelRevision: Self.recipeVersion,
         audioSHA256: audioSHA256
       )
       checkpointDisposition = checkpoint == nil ? .new : .restartedIncompatible
@@ -171,8 +168,7 @@ struct Transcriber: Sendable {
       for segment in workingCheckpoint.segments {
         guard
           segment.start < nominalStartTime,
-          let segmentEnd = segment.end,
-          segmentEnd > nominalStartTime
+          segment.end > nominalStartTime
         else {
           continue
         }
@@ -356,9 +352,15 @@ struct Transcriber: Sendable {
     for try await result in results {
       try Task.checkCancellation()
 
+      let text = result.phrase.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !text.isEmpty else { continue }
+      guard let end = result.endSeconds else {
+        throw TranscriptionError.missingAudioEndTime
+      }
+
       // Report the latest audio time covered as a fraction of the duration,
       // clamped and monotonic so the bar never jumps backward.
-      if durationSeconds > 0, let end = result.endSeconds {
+      if durationSeconds > 0 {
         let progress = min(1, end / durationSeconds)
         if progress > lastProgress {
           lastProgress = progress
@@ -366,13 +368,10 @@ struct Transcriber: Sendable {
         }
       }
 
-      let text = result.phrase.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !text.isEmpty else { continue }
-
       segments.append(
         TranscriptSegment(
           start: result.startSeconds ?? fallbackStartTime,
-          end: result.endSeconds,
+          end: end,
           text: text
         )
       )
