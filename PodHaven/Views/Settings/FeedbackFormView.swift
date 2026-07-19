@@ -11,6 +11,7 @@ struct FeedbackFormView: View {
   var body: some View {
     let photos = viewModel.photoData.current
     let hasSelectedPhotos = !selectedPhotos.isEmpty
+    let photoPreparationFailureCount = viewModel.photoPreparationFailureCount
     let photoPickerLabel = AppIconLabel(
       icon: .attachPhotos,
       textKey: hasSelectedPhotos ? "Edit Photos" : "Attach Photos"
@@ -39,6 +40,17 @@ struct FeedbackFormView: View {
 
         if viewModel.isPreparingPhotos {
           ProgressView("Preparing Photos")
+        }
+
+        if photoPreparationFailureCount > 0 {
+          AppIcon.error.label(
+            photoPreparationFailureCount == 1
+              ? "1 selected photo couldn't be attached. Edit Photos to try again."
+              : """
+              \(photoPreparationFailureCount) selected photos couldn't be attached. \
+              Edit Photos to try again.
+              """
+          )
         }
 
         PhotosPicker(

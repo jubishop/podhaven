@@ -9,6 +9,22 @@ import Sentry
 import SwiftUI
 import UniformTypeIdentifiers
 
+protocol FeedbackPhotoLoading: Sendable {
+  func loadFeedbackPhotoData() async throws -> Data?
+}
+
+extension PhotosPickerItem: FeedbackPhotoLoading {
+  func loadFeedbackPhotoData() async throws -> Data? {
+    try await loadTransferable(type: Data.self)
+  }
+}
+
+private enum FeedbackPhotoPreparationState: Equatable, Sendable {
+  case empty
+  case preparing
+  case prepared(failedCount: Int)
+}
+
 extension Container {
   var captureSentryFeedback: Factory<(SentryFeedback) -> Void> {
     Factory(self) {
@@ -29,58 +45,85 @@ extension Container {
   var name = ""
   var email = ""
   let photoData = Broadcast<[Data]>([])
-  var isPreparingPhotos = false
+  private var photoPreparationState = FeedbackPhotoPreparationState.empty
 
   nonisolated private static let log = Log.as(LogSubsystem.SettingsView.feedback)
   nonisolated static let maximumPhotoCount = 5
-  nonisolated private static let maximumPhotoPixelDimension = 3072
-  nonisolated private static let photoCompressionQuality = 0.9
+  nonisolated private static let maximumTotalPhotoBytes = 8_000_000
+
+  var isPreparingPhotos: Bool {
+    photoPreparationState == .preparing
+  }
+
+  var photoPreparationFailureCount: Int {
+    guard case .prepared(let failedCount) = photoPreparationState else { return 0 }
+    return failedCount
+  }
 
   var canSend: Bool {
     !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       && !isPreparingPhotos
   }
 
-  func selectedPhotosChanged(_ newItems: [PhotosPickerItem]) {
+  func selectedPhotosChanged<Photo: FeedbackPhotoLoading>(_ newItems: [Photo]) {
     photoLoadingTask?.cancel()
     let items = Array(newItems.prefix(Self.maximumPhotoCount))
     guard !items.isEmpty else {
+      photoLoadingTask = nil
       photoData.new([])
-      isPreparingPhotos = false
+      photoPreparationState = .empty
       return
     }
 
-    isPreparingPhotos = true
+    photoPreparationState = .preparing
     photoLoadingTask = Task { [weak self, items] in
       guard let self else { return }
       var preparedPhotos: [Data] = []
-      for item in items {
+      var failedCount = 0
+      var remainingPhotoBytes = Self.maximumTotalPhotoBytes
+      for (index, item) in items.enumerated() {
         guard !Task.isCancelled else { return }
         do {
-          guard let sourceData = try await item.loadTransferable(type: Data.self) else {
+          guard let sourceData = try await item.loadFeedbackPhotoData() else {
             Self.log.error("Selected photo did not provide image data")
+            failedCount += 1
             continue
           }
-          guard let preparedData = await Self.preparePhotoData(sourceData) else {
-            Self.log.error("Failed to prepare selected photo")
+          guard !Task.isCancelled else { return }
+          let remainingPhotoCount = items.count - index
+          let maximumByteCount = remainingPhotoBytes / remainingPhotoCount
+          let preparedData = await Self.preparePhotoData(
+            sourceData,
+            maximumByteCount: maximumByteCount
+          )
+          guard !Task.isCancelled else { return }
+          guard let preparedData else {
+            Self.log.error(
+              "Failed to prepare selected photo within \(maximumByteCount) byte budget"
+            )
+            failedCount += 1
             continue
           }
           preparedPhotos.append(preparedData)
+          remainingPhotoBytes -= preparedData.count
         } catch {
           guard !Task.isCancelled else { return }
           Self.log.caughtError("Failed to load selected photo", error)
+          failedCount += 1
         }
       }
       guard !Task.isCancelled else { return }
       self.photoData.new(preparedPhotos)
-      self.isPreparingPhotos = false
+      self.photoPreparationState = .prepared(failedCount: failedCount)
+      self.photoLoadingTask = nil
     }
   }
 
   func removePhotos() {
     photoLoadingTask?.cancel()
+    photoLoadingTask = nil
     photoData.new([])
-    isPreparingPhotos = false
+    photoPreparationState = .empty
   }
 
   func sendFeedback() {
@@ -108,43 +151,66 @@ extension Container {
     alert(title: "Feedback Sent", "Thanks for sending feedback.")
   }
 
-  @concurrent private static func preparePhotoData(_ data: Data) async -> Data? {
+  @concurrent private static func preparePhotoData(
+    _ data: Data,
+    maximumByteCount: Int
+  ) async -> Data? {
     guard
       let source = CGImageSourceCreateWithData(
         data as CFData,
         [kCGImageSourceShouldCache: false] as CFDictionary
-      ),
-      let image = CGImageSourceCreateThumbnailAtIndex(
-        source,
-        0,
-        [
-          kCGImageSourceCreateThumbnailFromImageAlways: true,
-          kCGImageSourceCreateThumbnailWithTransform: true,
-          kCGImageSourceShouldCacheImmediately: true,
-          kCGImageSourceThumbnailMaxPixelSize: maximumPhotoPixelDimension,
-        ] as CFDictionary
       )
     else {
       return nil
     }
 
-    let output = NSMutableData()
-    guard
-      let destination = CGImageDestinationCreateWithData(
-        output,
-        UTType.jpeg.identifier as CFString,
-        1,
-        nil
+    let encodingCandidates = [
+      (maximumPixelDimension: 3072, compressionQuality: 0.9),
+      (maximumPixelDimension: 2560, compressionQuality: 0.82),
+      (maximumPixelDimension: 2048, compressionQuality: 0.75),
+      (maximumPixelDimension: 1600, compressionQuality: 0.68),
+      (maximumPixelDimension: 1280, compressionQuality: 0.6),
+      (maximumPixelDimension: 1024, compressionQuality: 0.5),
+    ]
+    for candidate in encodingCandidates {
+      guard !Task.isCancelled else { return nil }
+      guard
+        let image = CGImageSourceCreateThumbnailAtIndex(
+          source,
+          0,
+          [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: candidate.maximumPixelDimension,
+          ] as CFDictionary
+        )
+      else {
+        return nil
+      }
+
+      let output = NSMutableData()
+      guard
+        let destination = CGImageDestinationCreateWithData(
+          output,
+          UTType.jpeg.identifier as CFString,
+          1,
+          nil
+        )
+      else {
+        return nil
+      }
+      CGImageDestinationAddImage(
+        destination,
+        image,
+        [
+          kCGImageDestinationLossyCompressionQuality: candidate.compressionQuality
+        ] as CFDictionary
       )
-    else {
-      return nil
+      guard CGImageDestinationFinalize(destination) else { return nil }
+      let preparedData = output as Data
+      if preparedData.count <= maximumByteCount { return preparedData }
     }
-    CGImageDestinationAddImage(
-      destination,
-      image,
-      [kCGImageDestinationLossyCompressionQuality: photoCompressionQuality] as CFDictionary
-    )
-    guard CGImageDestinationFinalize(destination) else { return nil }
-    return output as Data
+    return nil
   }
 }
