@@ -71,15 +71,6 @@ struct TranscriptionProcessor: Sendable {
       )
       do {
         try await drain(.background, runID: runID)
-        backgroundTaskScheduler.scheduleNext()
-        Self.log.info(
-          """
-          transcriptionTelemetry event=backgroundRunCompleted runID=\(runID) \
-          wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
-          remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
-          """
-        )
-        complete(true)
       } catch is CancellationError {
         if case .background = foregroundState(), let foregroundTask = stop() {
           await foregroundTask.value
@@ -92,6 +83,7 @@ struct TranscriptionProcessor: Sendable {
           """
         )
         complete(false)
+        return
       } catch {
         Self.log.caughtError(
           """
@@ -102,7 +94,17 @@ struct TranscriptionProcessor: Sendable {
           error
         )
         complete(false)
+        return
       }
+      backgroundTaskScheduler.scheduleNext()
+      Self.log.info(
+        """
+        transcriptionTelemetry event=backgroundRunCompleted runID=\(runID) \
+        wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
+        remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
+        """
+      )
+      complete(true)
     }
   }
 
@@ -208,13 +210,6 @@ struct TranscriptionProcessor: Sendable {
     )
     do {
       try await process(episodeID, logContext: logContext)
-      Self.log.info(
-        """
-        transcriptionTelemetry event=episodeFinished \(logContext.fields) \
-        wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
-        remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
-        """
-      )
     } catch is CancellationError {
       let liveProgress = transcriptionQueue.progress[episodeID] ?? 0
       Self.log.info(
@@ -237,8 +232,19 @@ struct TranscriptionProcessor: Sendable {
         error
       )
       transcriptionQueue.fail(episodeID)
+      if transcriptionQueue.episodeIDs.isEmpty {
+        backgroundTaskScheduler.scheduleNext()
+      }
+      return
     }
 
+    Self.log.info(
+      """
+      transcriptionTelemetry event=episodeFinished \(logContext.fields) \
+      wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
+      remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
+      """
+    )
     if transcriptionQueue.episodeIDs.isEmpty {
       backgroundTaskScheduler.scheduleNext()
     }
