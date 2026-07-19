@@ -129,6 +129,8 @@ private struct RangedAudioInputSequence: AsyncSequence, Sendable {
     private let endFrame: AVAudioFramePosition
     private let startSampleTime: CMTime
     private var converter = AudioBufferConverter()
+    private var pendingBuffers: [AVAudioPCMBuffer] = []
+    private var inputFinished = false
     private var isFirstBuffer = true
 
     init(
@@ -165,48 +167,66 @@ private struct RangedAudioInputSequence: AsyncSequence, Sendable {
     func next() throws -> AnalyzerInput? {
       try Task.checkCancellation()
 
-      let remainingFrames = endFrame - file.framePosition
-      guard remainingFrames > 0 else { return nil }
+      while true {
+        if !pendingBuffers.isEmpty {
+          let convertedBuffer = pendingBuffers.removeFirst()
+          let bufferStartTime: CMTime?
+          if isFirstBuffer {
+            bufferStartTime = startSampleTime
+            isFirstBuffer = false
+          } else {
+            bufferStartTime = nil
+          }
+          return AnalyzerInput(buffer: convertedBuffer, bufferStartTime: bufferStartTime)
+        }
 
-      let frameCapacity = AVAudioFrameCount(
-        Swift.min(
-          AVAudioFramePosition(Self.readBufferFrameCapacity),
-          remainingFrames
-        )
-      )
-      guard
-        let sourceBuffer = AVAudioPCMBuffer(
-          pcmFormat: file.processingFormat,
-          frameCapacity: frameCapacity
-        )
-      else {
-        throw SpeechAnalyzerInputError.failedToCreateBuffer
-      }
-      try file.read(into: sourceBuffer, frameCount: frameCapacity)
-      guard sourceBuffer.frameLength > 0 else { return nil }
+        guard !inputFinished else { return nil }
 
-      let convertedBuffer = try converter.convert(sourceBuffer, to: outputFormat)
-      let bufferStartTime: CMTime?
-      if isFirstBuffer {
-        bufferStartTime = startSampleTime
-        isFirstBuffer = false
-      } else {
-        bufferStartTime = nil
+        let remainingFrames = endFrame - file.framePosition
+        guard remainingFrames > 0 else {
+          inputFinished = true
+          pendingBuffers = try converter.finish()
+          continue
+        }
+
+        let frameCapacity = AVAudioFrameCount(
+          Swift.min(
+            AVAudioFramePosition(Self.readBufferFrameCapacity),
+            remainingFrames
+          )
+        )
+        guard
+          let sourceBuffer = AVAudioPCMBuffer(
+            pcmFormat: file.processingFormat,
+            frameCapacity: frameCapacity
+          )
+        else {
+          throw SpeechAnalyzerInputError.failedToCreateBuffer
+        }
+        try file.read(into: sourceBuffer, frameCount: frameCapacity)
+        guard sourceBuffer.frameLength > 0 else {
+          inputFinished = true
+          pendingBuffers = try converter.finish()
+          continue
+        }
+
+        pendingBuffers = try converter.convert(sourceBuffer, to: outputFormat)
       }
-      return AnalyzerInput(buffer: convertedBuffer, bufferStartTime: bufferStartTime)
     }
   }
 }
 
-private struct AudioBufferConverter {
+struct AudioBufferConverter {
+  private static let outputBufferFrameCapacity: AVAudioFrameCount = 8_192
+
   private var converter: AVAudioConverter?
 
   mutating func convert(
     _ buffer: AVAudioPCMBuffer,
     to outputFormat: AVAudioFormat
-  ) throws -> AVAudioPCMBuffer {
+  ) throws -> [AVAudioPCMBuffer] {
     let inputFormat = buffer.format
-    guard inputFormat != outputFormat else { return buffer }
+    guard inputFormat != outputFormat else { return [buffer] }
 
     if let converter {
       if converter.inputFormat != inputFormat || converter.outputFormat != outputFormat {
@@ -221,38 +241,88 @@ private struct AudioBufferConverter {
       throw SpeechAnalyzerInputError.failedToCreateConverter
     }
 
-    let sampleRateRatio = converter.outputFormat.sampleRate / converter.inputFormat.sampleRate
-    let scaledFrameLength = Double(buffer.frameLength) * sampleRateRatio
-    let frameCapacity = AVAudioFrameCount(scaledFrameLength.rounded(.up))
+    // AVAudioConverter invokes this callback synchronously during convert.
+    nonisolated(unsafe) let inputBuffer = buffer
+    let bufferWasProvided = ThreadSafe(false)
+    var convertedBuffers: [AVAudioPCMBuffer] = []
+
+    while true {
+      let conversionBuffer = try makeOutputBuffer(for: converter)
+      var conversionError: NSError?
+      let status = unsafe converter.convert(to: conversionBuffer, error: &conversionError) {
+        _,
+        inputStatus in
+        let shouldProvideBuffer = bufferWasProvided { wasProvided in
+          if wasProvided {
+            return false
+          }
+          wasProvided = true
+          return true
+        }
+        unsafe inputStatus.pointee = shouldProvideBuffer ? .haveData : .noDataNow
+        return unsafe shouldProvideBuffer ? inputBuffer : nil
+      }
+      if conversionBuffer.frameLength > 0 {
+        convertedBuffers.append(conversionBuffer)
+      }
+
+      switch status {
+      case .haveData:
+        continue
+      case .inputRanDry, .endOfStream:
+        return convertedBuffers
+      case .error:
+        throw SpeechAnalyzerInputError.conversionFailed(conversionError)
+      @unknown default:
+        throw SpeechAnalyzerInputError.conversionFailed(conversionError)
+      }
+    }
+  }
+
+  mutating func finish() throws -> [AVAudioPCMBuffer] {
+    guard let converter else { return [] }
+    defer { self.converter = nil }
+
+    var convertedBuffers: [AVAudioPCMBuffer] = []
+    while true {
+      let conversionBuffer = try makeOutputBuffer(for: converter)
+      var conversionError: NSError?
+      let status = unsafe converter.convert(to: conversionBuffer, error: &conversionError) {
+        _,
+        inputStatus in
+        unsafe inputStatus.pointee = .endOfStream
+        return nil
+      }
+      if conversionBuffer.frameLength > 0 {
+        convertedBuffers.append(conversionBuffer)
+      }
+
+      switch status {
+      case .haveData:
+        continue
+      case .inputRanDry:
+        guard conversionBuffer.frameLength > 0 else { return convertedBuffers }
+      case .endOfStream:
+        return convertedBuffers
+      case .error:
+        throw SpeechAnalyzerInputError.conversionFailed(conversionError)
+      @unknown default:
+        throw SpeechAnalyzerInputError.conversionFailed(conversionError)
+      }
+    }
+  }
+
+  private func makeOutputBuffer(
+    for converter: AVAudioConverter
+  ) throws -> AVAudioPCMBuffer {
     guard
-      let conversionBuffer = AVAudioPCMBuffer(
+      let buffer = AVAudioPCMBuffer(
         pcmFormat: converter.outputFormat,
-        frameCapacity: frameCapacity
+        frameCapacity: Self.outputBufferFrameCapacity
       )
     else {
       throw SpeechAnalyzerInputError.failedToCreateBuffer
     }
-
-    // AVAudioConverter invokes this callback synchronously during convert.
-    nonisolated(unsafe) let inputBuffer = buffer
-    let bufferWasProvided = ThreadSafe(false)
-    var conversionError: NSError?
-    let status = unsafe converter.convert(to: conversionBuffer, error: &conversionError) {
-      _,
-      inputStatus in
-      let shouldProvideBuffer = bufferWasProvided { wasProvided in
-        if wasProvided {
-          return false
-        }
-        wasProvided = true
-        return true
-      }
-      unsafe inputStatus.pointee = shouldProvideBuffer ? .haveData : .noDataNow
-      return unsafe shouldProvideBuffer ? inputBuffer : nil
-    }
-    guard status != .error else {
-      throw SpeechAnalyzerInputError.conversionFailed(conversionError)
-    }
-    return conversionBuffer
+    return buffer
   }
 }
