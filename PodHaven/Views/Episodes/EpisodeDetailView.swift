@@ -14,6 +14,7 @@ struct EpisodeDetailView: View {
   @DynamicInjected(\.alert) private var alert
 
   @AccessibilityFocusState private var artworkAccessibilityFocus: ArtworkAccessibilityFocus?
+  @ScaledMetric(relativeTo: .body) private var transcriptParagraphSpacing: CGFloat = 16
   @State private var showingImageOverlay = false
   @State private var viewModel: EpisodeDetailViewModel
 
@@ -443,9 +444,13 @@ struct EpisodeDetailView: View {
         case .empty:
           Text("No speech detected")
             .foregroundStyle(.secondary)
-        case .text(let text):
-          Text(text)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        case .text(let segments):
+          LazyVStack(alignment: .leading, spacing: transcriptParagraphSpacing) {
+            ForEach(segments.indices, id: \.self) { index in
+              Text(segments[index].text)
+            }
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
         }
       case .failed:
         VStack(alignment: .leading, spacing: 8) {

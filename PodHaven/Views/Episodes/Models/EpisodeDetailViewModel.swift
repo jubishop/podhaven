@@ -66,7 +66,7 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
   case loading
   case decodeFailed
   case empty
-  case text(String)
+  case text([TranscriptSegment])
 }
 
 enum EpisodeDetailTextTab: Hashable, Sendable {
@@ -111,7 +111,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
     guard episode.loaded != nil else { return .loading }
     guard let transcript = decodedTranscript else { return .decodeFailed }
     guard !transcript.segments.isEmpty else { return .empty }
-    return .text(transcript.segments.map(\.text).joined(separator: "\n\n"))
+    return .text(transcript.segments)
   }
 
   func selectTextTab(_ tab: EpisodeDetailTextTab) {
