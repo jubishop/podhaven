@@ -17,6 +17,7 @@ import Testing
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
   @DynamicInjected(\.uiApplication) private var uiApplication
 
   private var fileManager: FakeFileManager {
@@ -527,6 +528,26 @@ import Testing
     try await cacheManager.clearCache(for: podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
+  }
+
+  @Test("clearCache protects only actively transcribing episodes")
+  func clearCacheProtectsOnlyActivelyTranscribingEpisodes() async throws {
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Transcribing Episode",
+      cachedFilename: "transcribing-episode.mp3"
+    )
+    let cachedURL = try #require(episode.cachedURL)
+    transcriptionQueue.enqueue(episode.id)
+    transcriptionQueue.setProgress(0, for: episode.id)
+
+    #expect(try await cacheManager.clearCache(for: episode.id) == nil)
+    #expect(fileManager.fileExists(at: cachedURL.rawValue))
+
+    transcriptionQueue.clearProgress(for: episode.id)
+
+    #expect(try await cacheManager.clearCache(for: episode.id) == cachedURL)
+    #expect(!fileManager.fileExists(at: cachedURL.rawValue))
+    #expect(try await repo.episode(episode.id)?.cacheStatus == .uncached)
   }
 
   @Test("clearCache preserves the cached row when file removal fails")
