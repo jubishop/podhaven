@@ -11,14 +11,15 @@ enum TranscriptionHelpers {
   @discardableResult
   static func stubSpeech(
     phrases: [FakeSpeechTranscriptionResult] = [],
-    durationSeconds: Double = 0,
+    durationSeconds: Double = 60,
     modelManager: FakeSpeechModelManager = FakeSpeechModelManager()
   ) -> FakeSpeechModelManager {
+    Container.shared.fakeAudioFileProvider().setDuration(durationSeconds)
     Container.shared.speechTranscriber.register {
       { _ in FakeSpeechTranscriber(behavior: .succeed(phrases)) }
     }
     Container.shared.speechAnalyzer.register {
-      { _ in FakeSpeechAnalyzer(durationSeconds: durationSeconds) }
+      { _ in FakeSpeechAnalyzer() }
     }
     Container.shared.speechModelManager.register { modelManager }
     return modelManager

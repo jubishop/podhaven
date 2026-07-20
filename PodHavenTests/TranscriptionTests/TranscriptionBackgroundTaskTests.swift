@@ -21,47 +21,65 @@ struct TranscriptionBackgroundTaskTests {
 
   @Test("the iOS-granted background task drains the queue and completes")
   func backgroundTaskDrainsQueue() async throws {
-    TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0)]
-    )
-    let repo = Container.shared.repo()
-    let queue = Container.shared.transcriptionQueue()
-    let processor = Container.shared.transcriptionProcessor()
-    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    try await LogCapture.withSink { sink in
+      TranscriptionHelpers.stubSpeech(
+        phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0, endSeconds: 60)]
+      )
+      let repo = Container.shared.repo()
+      let queue = Container.shared.transcriptionQueue()
+      let processor = Container.shared.transcriptionProcessor()
+      let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
 
-    let episode = try await CacheHelpers.createCachedEpisode(
-      title: "Background",
-      cachedFilename: "ep.mp3",
-      dataSize: 1
-    )
-    queue.enqueue(episode.id)
+      let episode = try await CacheHelpers.createCachedEpisode(
+        title: "Background",
+        cachedFilename: "ep.mp3",
+        dataSize: 1
+      )
+      queue.enqueue(episode.id)
 
-    processor.register()
-    let identifier = "\(AppInfo.bundleIdentifier).transcription"
-    #expect(scheduler.pendingIdentifiers.contains(identifier))
-    let task = try #require(
-      scheduler.launchTask(withIdentifier: identifier)
-    )
+      processor.register()
+      let identifier = "\(AppInfo.bundleIdentifier).transcription"
+      #expect(scheduler.pendingIdentifiers.contains(identifier))
+      let task = try #require(
+        scheduler.launchTask(withIdentifier: identifier)
+      )
 
-    try await Wait.until(
-      { queue.episodeIDs.isEmpty },
-      { "background task did not drain the queue: \(queue.episodeIDs)" }
-    )
+      try await Wait.until(
+        { queue.episodeIDs.isEmpty },
+        { "background task did not drain the queue: \(queue.episodeIDs)" }
+      )
 
-    let hasTranscript = try await repo.episode(episode.id)?.hasTranscript
-    #expect(hasTranscript == true)
+      let hasTranscript = try await repo.episode(episode.id)?.hasTranscript
+      #expect(hasTranscript == true)
 
-    try await Wait.until(
-      { task.completionResults == [true] },
-      { "background task did not complete successfully: \(task.completionResults)" }
-    )
-    #expect(!scheduler.pendingIdentifiers.contains(identifier))
+      try await Wait.until(
+        { task.completionResults == [true] },
+        { "background task did not complete successfully: \(task.completionResults)" }
+      )
+      #expect(!scheduler.pendingIdentifiers.contains(identifier))
+
+      let messages = sink.captured().map(\.message)
+      #expect(
+        messages.contains {
+          $0.contains("event=checkpointPersisted")
+            && $0.contains("mode=background")
+            && $0.contains("episodeID=\(episode.id)")
+            && $0.contains("committedAudioSeconds=60.0")
+        }
+      )
+      #expect(
+        messages.contains {
+          $0.contains("event=backgroundRunCompleted")
+            && $0.contains("remainingEpisodes=0")
+        }
+      )
+    }
   }
 
   @Test("a foreground drain cancels its pending background request")
   func foregroundDrainCancelsPendingRequest() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0, endSeconds: 60)]
     )
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
@@ -98,7 +116,7 @@ struct TranscriptionBackgroundTaskTests {
   @Test("foreground and background consumers never analyze the same head concurrently")
   func foregroundAndBackgroundDoNotOverlap() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hi", startSeconds: 0, endSeconds: 60)]
     )
     let analyzerStarted = AsyncSemaphore(value: 0)
     let analyzerRelease = AsyncSemaphore(value: 0)
@@ -106,7 +124,7 @@ struct TranscriptionBackgroundTaskTests {
     let maximumActiveAnalyzers = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer {
+        FakeSpeechAnalyzer { _, endTime in
           let active = activeAnalyzers {
             $0 += 1
             return $0
@@ -115,7 +133,7 @@ struct TranscriptionBackgroundTaskTests {
           analyzerStarted.signal()
           defer { activeAnalyzers { $0 -= 1 } }
           try await analyzerRelease.waitUnlessCancelled()
-          return .zero
+          return CMTime(seconds: endTime, preferredTimescale: 600)
         }
       }
     }
@@ -182,11 +200,11 @@ struct TranscriptionBackgroundTaskTests {
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer(durationSeconds: 100) {
+        FakeSpeechAnalyzer { _, endTime in
           analyzeCount { $0 += 1 }
           analyzerStarted.signal()
           try await analyzerRelease.waitUnlessCancelled()
-          return .zero
+          return CMTime(seconds: endTime, preferredTimescale: 600)
         }
       }
     }
@@ -240,22 +258,24 @@ struct TranscriptionBackgroundTaskTests {
   @Test("a background grant takes the remaining queue after the foreground head finishes")
   func backgroundGrantTakesRemainingQueueAfterForegroundHead() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0, endSeconds: 60)]
     )
     let firstAnalyzerStarted = AsyncSemaphore(value: 0)
     let firstAnalyzerRelease = AsyncSemaphore(value: 0)
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer {
+        FakeSpeechAnalyzer { _, endTime in
           let count = analyzeCount {
             $0 += 1
             return $0
           }
-          guard count == 1 else { return .zero }
+          guard count == 1 else {
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          }
           firstAnalyzerStarted.signal()
           try await firstAnalyzerRelease.waitUnlessCancelled()
-          return .zero
+          return CMTime(seconds: endTime, preferredTimescale: 600)
         }
       }
     }
@@ -304,7 +324,9 @@ struct TranscriptionBackgroundTaskTests {
   func expirationCancelsPreservedForegroundAnalyzer() async throws {
     try await LogCapture.withSink { sink in
       TranscriptionHelpers.stubSpeech(
-        phrases: [FakeSpeechTranscriptionResult(phrase: "retained", startSeconds: 0)]
+        phrases: [
+          FakeSpeechTranscriptionResult(phrase: "retained", startSeconds: 0, endSeconds: 60)
+        ]
       )
       let analyzerStarted = AsyncSemaphore(value: 0)
       let analyzerRelease = AsyncSemaphore(value: 0)
@@ -314,7 +336,7 @@ struct TranscriptionBackgroundTaskTests {
       Container.shared.speechAnalyzer.register {
         { _ in
           FakeSpeechAnalyzer(
-            analyzeAudio: {
+            analyzeAudio: { _, _ in
               analyzerStarted.signal()
               await analyzerRelease.wait()
               throw FakeSpeechError.failed
@@ -352,7 +374,7 @@ struct TranscriptionBackgroundTaskTests {
           {
             sink.captured()
               .contains {
-                $0.message == "Starting transcription background task"
+                $0.message.contains("event=backgroundRunStarted")
               }
           },
           { "background grant did not begin" }
@@ -385,6 +407,19 @@ struct TranscriptionBackgroundTaskTests {
         )
         #expect(cancellationCount() == 1)
         #expect(queue.episodeIDs == [episode.id])
+        let messages = sink.captured().map(\.message)
+        #expect(
+          messages.contains {
+            $0.contains("event=episodeCancelled")
+              && $0.contains("episodeID=\(episode.id)")
+          }
+        )
+        #expect(
+          messages.contains {
+            $0.contains("event=backgroundRunExpired")
+              && $0.contains("remainingEpisodes=1")
+          }
+        )
       } catch {
         analyzerRelease.signal()
         cancellationRelease.signal()
@@ -402,22 +437,26 @@ struct TranscriptionBackgroundTaskTests {
   @Test("expiration retains the head for the next foreground drain")
   func expirationRetainsHeadForForeground() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "resumed", startSeconds: 0)]
+      phrases: [
+        FakeSpeechTranscriptionResult(phrase: "resumed", startSeconds: 0, endSeconds: 60)
+      ]
     )
     let analyzerStarted = AsyncSemaphore(value: 0)
     let neverSignals = AsyncSemaphore(value: 0)
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
       { _ in
-        FakeSpeechAnalyzer {
+        FakeSpeechAnalyzer { _, endTime in
           let count = analyzeCount {
             $0 += 1
             return $0
           }
-          guard count == 1 else { return .zero }
+          guard count == 1 else {
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          }
           analyzerStarted.signal()
           try await neverSignals.waitUnlessCancelled()
-          return .zero
+          return CMTime(seconds: endTime, preferredTimescale: 600)
         }
       }
     }
@@ -462,5 +501,138 @@ struct TranscriptionBackgroundTaskTests {
     )
 
     processor.handleScenePhaseChange(to: .background)
+  }
+
+  @Test("expiration resumes the next background grant after durable progress")
+  func expirationResumesNextBackgroundGrantAfterDurableProgress() async throws {
+    let durationSeconds = 240.0
+    Container.shared.fakeAudioFileProvider().setDuration(durationSeconds)
+    let transcriberCount = ThreadSafe(0)
+    Container.shared.speechTranscriber.register {
+      { _ in
+        let invocation = transcriberCount {
+          $0 += 1
+          return $0
+        }
+        let results =
+          if invocation == 1 {
+            [
+              FakeSpeechTranscriptionResult(
+                phrase: "first",
+                startSeconds: 0,
+                endSeconds: 120
+              )
+            ]
+          } else if invocation == 2 {
+            [
+              FakeSpeechTranscriptionResult(
+                phrase: "second",
+                startSeconds: 120,
+                endSeconds: durationSeconds
+              )
+            ]
+          } else {
+            [
+              FakeSpeechTranscriptionResult(
+                phrase: "first",
+                startSeconds: 110,
+                endSeconds: 120
+              ),
+              FakeSpeechTranscriptionResult(
+                phrase: "second",
+                startSeconds: 120,
+                endSeconds: durationSeconds
+              ),
+            ]
+          }
+        return FakeSpeechTranscriber(behavior: .succeed(results))
+      }
+    }
+    Container.shared.speechModelManager.register { FakeSpeechModelManager() }
+
+    let expiringAnalysisStarted = ThreadSafe(false)
+    let neverSignals = AsyncSemaphore(value: 0)
+    defer { neverSignals.signal() }
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer { startTime, endTime in
+          if endTime == durationSeconds {
+            expiringAnalysisStarted(true)
+            try await neverSignals.waitUnlessCancelled()
+          }
+          return CMTime(seconds: endTime, preferredTimescale: 600)
+        }
+      }
+    }
+
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Durable background progress",
+      cachedFilename: "durable-progress.mp3",
+      dataSize: 1
+    )
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
+    queue.enqueue(episode.id)
+    processor.register()
+
+    let firstTask = try #require(scheduler.launchTask(withIdentifier: identifier))
+    try await Wait.until(
+      { expiringAnalysisStarted() },
+      { "first background grant did not begin analysis" }
+    )
+    firstTask.expire()
+    try await Wait.until(
+      { firstTask.completionResults == [false] },
+      { "first background grant did not expire: \(firstTask.completionResults)" }
+    )
+    let persistedCheckpoint = try #require(
+      try await repo.transcriptionCheckpoint(episode.id)
+    )
+    #expect(persistedCheckpoint.audioTime == 120)
+    #expect(persistedCheckpoint.segments.map(\.text) == ["first"])
+
+    let resumedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
+    let resumedAnalysisStarted = ThreadSafe(false)
+    let resumedAnalysisRelease = AsyncSemaphore(value: 0)
+    defer { resumedAnalysisRelease.signal() }
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer { startTime, endTime in
+          resumedRange((start: startTime, end: endTime))
+          resumedAnalysisStarted(true)
+          try await resumedAnalysisRelease.waitUnlessCancelled()
+          return CMTime(seconds: endTime, preferredTimescale: 600)
+        }
+      }
+    }
+
+    let secondTask = try #require(scheduler.launchTask(withIdentifier: identifier))
+    try await Wait.until(
+      { resumedAnalysisStarted() },
+      { "second background grant did not begin analysis" }
+    )
+
+    let capturedRange = resumedRange()
+    resumedAnalysisRelease.signal()
+
+    let range = try #require(capturedRange)
+    #expect(range.start == 0)
+    #expect(range.end == durationSeconds)
+
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "second background grant did not finish: \(queue.episodeIDs)" }
+    )
+    try await Wait.until(
+      { secondTask.completionResults == [true] },
+      { "second background grant did not complete: \(secondTask.completionResults)" }
+    )
+
+    let transcript = try #require(try await repo.episode(episode.id)?.decodedTranscript)
+    #expect(transcript.segments.map(\.text) == ["first", "second"])
+    #expect(try await repo.transcriptionCheckpoint(episode.id) == nil)
   }
 }

@@ -1,8 +1,6 @@
 // Copyright Justin Bishop, 2026
 
-import AVFoundation
 import FactoryKit
-import Foundation
 import Speech
 
 // MARK: - Container
@@ -27,15 +25,17 @@ extension Container {
 // MARK: - SpeechAnalyzer Conformance
 
 extension SpeechAnalyzer: SpeechAnalyzing {
-  // Opening the file lives here, behind the seam, so transcription tests drive
-  // a FakeSpeechAnalyzer without a real audio file on disk.
-  func duration(ofAudioFileAt url: URL) async throws -> Double {
-    let file = try AVAudioFile(forReading: url)
-    return Double(file.length) / file.processingFormat.sampleRate
+  func bestAvailableAudioFormat(
+    considering inputFormat: AVAudioFormat
+  ) async -> AVAudioFormat? {
+    await SpeechAnalyzer.bestAvailableAudioFormat(
+      compatibleWith: modules,
+      considering: inputFormat
+    )
   }
 
-  func analyze(audioFileAt url: URL) async throws -> CMTime? {
-    try await analyzeSequence(from: AVAudioFile(forReading: url))
+  func analyze(_ inputSequence: RangedAudioInputSequence) async throws -> CMTime? {
+    try await analyzeSequence(SpeechAnalyzerInputSequence(inputSequence: inputSequence))
   }
 
   func finalize(through time: CMTime) async throws {
@@ -44,5 +44,27 @@ extension SpeechAnalyzer: SpeechAnalyzing {
 
   func cancel() async {
     await cancelAndFinishNow()
+  }
+}
+
+private struct SpeechAnalyzerInputSequence: AsyncSequence, Sendable {
+  typealias Element = AnalyzerInput
+
+  struct AsyncIterator: AsyncIteratorProtocol {
+    var iterator: RangedAudioInputSequence.AsyncIterator
+
+    mutating func next() async throws -> AnalyzerInput? {
+      guard let input = try await iterator.next() else { return nil }
+      return AnalyzerInput(
+        buffer: input.buffer,
+        bufferStartTime: input.bufferStartTime
+      )
+    }
+  }
+
+  let inputSequence: RangedAudioInputSequence
+
+  func makeAsyncIterator() -> AsyncIterator {
+    AsyncIterator(iterator: inputSequence.makeAsyncIterator())
   }
 }

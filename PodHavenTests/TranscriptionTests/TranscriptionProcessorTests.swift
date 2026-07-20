@@ -10,7 +10,7 @@ struct TranscriptionProcessorTests {
   @Test("drains queued episodes one at a time, writing transcripts")
   func drainsQueueWritingTranscripts() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0, endSeconds: 60)]
     )
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()
@@ -48,7 +48,7 @@ struct TranscriptionProcessorTests {
   @Test("an uncached episode is downloaded, awaited, then transcribed")
   func downloadsUncachedEpisodeBeforeTranscribing() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0, endSeconds: 60)]
     )
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()
@@ -74,6 +74,36 @@ struct TranscriptionProcessorTests {
     #expect(segments?.first?.text == "hello")
 
     processor.handleScenePhaseChange(to: .background)
+  }
+
+  @Test("backgrounding during an audio download preserves the foreground drain")
+  func backgroundingDuringDownloadPreservesForegroundDrain() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0, endSeconds: 60)]
+    )
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    queue.enqueue(podcastEpisode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer { processor.handleScenePhaseChange(to: .background) }
+
+    let taskID = try await CacheHelpers.waitForDownloadTask(podcastEpisode.id)
+    try await CacheHelpers.waitForResumed(taskID)
+    #expect(queue.progress[podcastEpisode.id] == 0)
+
+    processor.handleScenePhaseChange(to: .background)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "foreground drain did not resume after the download: \(queue.episodeIDs)" }
+    )
+    #expect(
+      try await repo.episode(podcastEpisode.id)?.decodedTranscript?.segments.first?.text == "hello"
+    )
   }
 
   @Test("an unsupported locale fails before requesting uncached audio")
@@ -102,7 +132,7 @@ struct TranscriptionProcessorTests {
   @Test("a stranded downloading flag restarts the download before transcribing")
   func strandedDownloadingFlagRestartsDownloadBeforeTranscribing() async throws {
     TranscriptionHelpers.stubSpeech(
-      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0)]
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0, endSeconds: 60)]
     )
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()

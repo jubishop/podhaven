@@ -22,12 +22,11 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     let transcript = Transcript(
       segments: [
-        TranscriptSegment(start: 0, text: "hello"),
-        TranscriptSegment(start: 1, text: "world"),
+        TranscriptSegment(start: 0, end: 1, text: "hello"),
+        TranscriptSegment(start: 1, end: 2, text: "world"),
       ],
       locale: "en-US",
-      createdAt: Date(timeIntervalSince1970: 0),
-      modelRevision: Transcriber.recipeVersion
+      createdAt: Date(timeIntervalSince1970: 0)
     )
     try await repo.updateTranscript(podcastEpisode.id, transcript: transcript.jsonString())
 
@@ -42,10 +41,9 @@ import Testing
   func listedInitialStatePreservesTranscriptStatus() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
     let transcript = Transcript(
-      segments: [TranscriptSegment(start: 0, text: "hello")],
+      segments: [TranscriptSegment(start: 0, end: 1, text: "hello")],
       locale: "en-US",
-      createdAt: Date(timeIntervalSince1970: 0),
-      modelRevision: Transcriber.recipeVersion
+      createdAt: Date(timeIntervalSince1970: 0)
     )
     try await repo.updateTranscript(podcastEpisode.id, transcript: transcript.jsonString())
 
@@ -70,12 +68,11 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     let transcript = Transcript(
       segments: [
-        TranscriptSegment(start: 0, text: "hello"),
-        TranscriptSegment(start: 1, text: "world"),
+        TranscriptSegment(start: 0, end: 1, text: "hello"),
+        TranscriptSegment(start: 1, end: 2, text: "world"),
       ],
       locale: "en-US",
-      createdAt: Date(timeIntervalSince1970: 0),
-      modelRevision: Transcriber.recipeVersion
+      createdAt: Date(timeIntervalSince1970: 0)
     )
     try await repo.updateTranscript(podcastEpisode.id, transcript: transcript.jsonString())
 
@@ -91,8 +88,7 @@ import Testing
     let transcript = Transcript(
       segments: [],
       locale: "en-US",
-      createdAt: Date(timeIntervalSince1970: 0),
-      modelRevision: Transcriber.recipeVersion
+      createdAt: Date(timeIntervalSince1970: 0)
     )
     try await repo.updateTranscript(podcastEpisode.id, transcript: transcript.jsonString())
 
@@ -129,10 +125,9 @@ import Testing
   func decodedTranscriptFollowsObservedUpdates() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
     let original = Transcript(
-      segments: [TranscriptSegment(start: 0, text: "original")],
+      segments: [TranscriptSegment(start: 0, end: 1, text: "original")],
       locale: "en-US",
-      createdAt: Date(timeIntervalSince1970: 0),
-      modelRevision: Transcriber.recipeVersion
+      createdAt: Date(timeIntervalSince1970: 0)
     )
     try await repo.updateTranscript(podcastEpisode.id, transcript: original.jsonString())
 
@@ -150,10 +145,9 @@ import Testing
     )
 
     let replacement = Transcript(
-      segments: [TranscriptSegment(start: 0, text: "replacement")],
+      segments: [TranscriptSegment(start: 0, end: 1, text: "replacement")],
       locale: "en-US",
-      createdAt: Date(timeIntervalSince1970: 1),
-      modelRevision: Transcriber.recipeVersion
+      createdAt: Date(timeIntervalSince1970: 1)
     )
     try await repo.updateTranscript(podcastEpisode.id, transcript: replacement.jsonString())
 
