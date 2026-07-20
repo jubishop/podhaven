@@ -45,10 +45,13 @@ struct FeedbackFormView: View {
         if photoPreparationFailureCount > 0 {
           AppIcon.error.label(
             photoPreparationFailureCount == 1
-              ? "1 selected photo couldn't be attached. Edit Photos to try again."
+              ? """
+              1 selected photo couldn't be attached. Use Remove All Photos, then reattach it to \
+              try again.
+              """
               : """
               \(photoPreparationFailureCount) selected photos couldn't be attached. \
-              Edit Photos to try again.
+              Use Remove All Photos, then reattach them to try again.
               """
           )
         }
