@@ -121,6 +121,21 @@ import Testing
     #expect(!cleared.hasTranscript)
   }
 
+  @Test("detail cancellation removes a queued transcription")
+  func detailCancellationRemovesQueuedTranscription() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let podcastEpisode = try await Create.podcastEpisode()
+    transcriptionQueue.enqueue(podcastEpisode.id)
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    #expect(viewModel.transcriptionStatus.canCancel)
+
+    viewModel.cancelTranscription()
+
+    #expect(!transcriptionQueue.episodeIDs.contains(podcastEpisode.id))
+    #expect(viewModel.transcriptionStatus == .none)
+  }
+
   @Test("decodedTranscript follows observed updates for the same episode")
   func decodedTranscriptFollowsObservedUpdates() async throws {
     let podcastEpisode = try await Create.podcastEpisode()

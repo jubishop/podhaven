@@ -1,6 +1,8 @@
 // Copyright Justin Bishop, 2026
 
+import AVFoundation
 import FactoryKit
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -43,6 +45,169 @@ struct TranscriptionProcessorTests {
     #expect(segments2?.first?.text == "hello")
 
     processor.handleScenePhaseChange(to: .background)
+  }
+
+  @Test("user cancellation stops the active episode and advances once")
+  func userCancellationStopsActiveEpisode() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0, endSeconds: 60)]
+    )
+    let firstAnalysisStarted = AsyncSemaphore(value: 0)
+    let firstAnalysisRelease = AsyncSemaphore(value: 0)
+    let cancellationStarted = AsyncSemaphore(value: 0)
+    let cancellationRelease = AsyncSemaphore(value: 0)
+    let secondAnalysisStarted = AsyncSemaphore(value: 0)
+    let secondAnalysisRelease = AsyncSemaphore(value: 0)
+    let analyzeCount = ThreadSafe(0)
+    let cancellationCount = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer(
+          analyzeAudio: { _, endTime in
+            let invocation = analyzeCount {
+              $0 += 1
+              return $0
+            }
+            if invocation == 1 {
+              firstAnalysisStarted.signal()
+              try await firstAnalysisRelease.waitUnlessCancelled()
+            } else if invocation == 2 {
+              secondAnalysisStarted.signal()
+              try await secondAnalysisRelease.waitUnlessCancelled()
+            }
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          },
+          cancelAudio: {
+            cancellationCount { $0 += 1 }
+            cancellationStarted.signal()
+            await cancellationRelease.wait()
+          }
+        )
+      }
+    }
+
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let firstEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Cancelled",
+      cachedFilename: "cancelled.mp3",
+      dataSize: 1
+    )
+    let secondEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Next",
+      cachedFilename: "next.mp3",
+      dataSize: 1
+    )
+    queue.enqueue(firstEpisode.id)
+    queue.enqueue(secondEpisode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      firstAnalysisRelease.signal()
+      cancellationRelease.signal()
+      secondAnalysisRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await firstAnalysisStarted.wait()
+    try await Wait.until(
+      { queue.progress[firstEpisode.id] != nil },
+      { "active transcription did not publish progress" }
+    )
+
+    processor.cancel(firstEpisode.id)
+    await cancellationStarted.wait()
+
+    #expect(queue.status(for: firstEpisode.id, hasTranscript: false) == .cancelling)
+    #expect(queue.episodeIDs == [secondEpisode.id])
+    #expect(analyzeCount() == 1)
+    #expect(
+      [Episode.ID]
+        .load(
+          from: Container.shared.standardDefaults(),
+          forKey: "transcriptionQueue"
+        ) == [secondEpisode.id]
+    )
+
+    cancellationRelease.signal()
+    await secondAnalysisStarted.wait()
+
+    #expect(queue.episodeIDs == [secondEpisode.id])
+    #expect(queue.progress[firstEpisode.id] == nil)
+    #expect(cancellationCount() == 1)
+    #expect(analyzeCount() == 2)
+    #expect(try await repo.episode(firstEpisode.id)?.hasTranscript == false)
+
+    secondAnalysisRelease.signal()
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "next episode did not finish after cancellation: \(queue.episodeIDs)" }
+    )
+    #expect(try await repo.episode(secondEpisode.id)?.hasTranscript == true)
+    #expect(analyzeCount() == 2)
+  }
+
+  @Test("late cancellation cannot affect the next active episode")
+  func lateCancellationDoesNotAffectNextEpisode() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0, endSeconds: 60)]
+    )
+    let secondAnalysisStarted = AsyncSemaphore(value: 0)
+    let secondAnalysisRelease = AsyncSemaphore(value: 0)
+    let analyzeCount = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer { _, endTime in
+          let invocation = analyzeCount {
+            $0 += 1
+            return $0
+          }
+          if invocation == 2 {
+            secondAnalysisStarted.signal()
+            try await secondAnalysisRelease.waitUnlessCancelled()
+          }
+          return CMTime(seconds: endTime, preferredTimescale: 600)
+        }
+      }
+    }
+
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let firstEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Completed",
+      cachedFilename: "completed.mp3",
+      dataSize: 1
+    )
+    let secondEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Still active",
+      cachedFilename: "still-active.mp3",
+      dataSize: 1
+    )
+    queue.enqueue(firstEpisode.id)
+    queue.enqueue(secondEpisode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      secondAnalysisRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await secondAnalysisStarted.wait()
+    #expect(queue.episodeIDs == [secondEpisode.id])
+
+    processor.cancel(firstEpisode.id)
+
+    #expect(queue.episodeIDs == [secondEpisode.id])
+    #expect(queue.progress[secondEpisode.id] != nil)
+    secondAnalysisRelease.signal()
+
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "next episode did not complete: \(queue.episodeIDs)" }
+    )
+    #expect(try await repo.episode(firstEpisode.id)?.hasTranscript == true)
+    #expect(try await repo.episode(secondEpisode.id)?.hasTranscript == true)
+    #expect(analyzeCount() == 2)
   }
 
   @Test("an uncached episode is downloaded, awaited, then transcribed")

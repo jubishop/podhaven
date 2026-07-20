@@ -320,6 +320,86 @@ struct TranscriptionBackgroundTaskTests {
     #expect(try await repo.episode(secondEpisode.id)?.hasTranscript == true)
   }
 
+  @Test("cancelling the foreground head hands remaining work to a background grant")
+  func cancellationHandsRemainingWorkToBackground() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0, endSeconds: 60)]
+    )
+    let firstAnalysisStarted = AsyncSemaphore(value: 0)
+    let firstAnalysisRelease = AsyncSemaphore(value: 0)
+    let secondAnalysisStarted = AsyncSemaphore(value: 0)
+    let secondAnalysisRelease = AsyncSemaphore(value: 0)
+    let analyzeCount = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer { _, endTime in
+          let invocation = analyzeCount {
+            $0 += 1
+            return $0
+          }
+          if invocation == 1 {
+            firstAnalysisStarted.signal()
+            try await firstAnalysisRelease.waitUnlessCancelled()
+          } else if invocation == 2 {
+            secondAnalysisStarted.signal()
+            try await secondAnalysisRelease.waitUnlessCancelled()
+          }
+          return CMTime(seconds: endTime, preferredTimescale: 600)
+        }
+      }
+    }
+
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    let firstEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Cancelled foreground",
+      cachedFilename: "cancelled-foreground.mp3",
+      dataSize: 1
+    )
+    let secondEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Background continuation",
+      cachedFilename: "background-continuation.mp3",
+      dataSize: 1
+    )
+    queue.enqueue(firstEpisode.id)
+    queue.enqueue(secondEpisode.id)
+    processor.register()
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      firstAnalysisRelease.signal()
+      secondAnalysisRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await firstAnalysisStarted.wait()
+    processor.handleScenePhaseChange(to: .background)
+    let task = try #require(
+      scheduler.launchTask(withIdentifier: "\(AppInfo.bundleIdentifier).transcription")
+    )
+
+    processor.cancel(firstEpisode.id)
+    await secondAnalysisStarted.wait()
+
+    #expect(queue.episodeIDs == [secondEpisode.id])
+    #expect(queue.progress[firstEpisode.id] == nil)
+    #expect(try await repo.episode(firstEpisode.id)?.hasTranscript == false)
+    #expect(analyzeCount() == 2)
+
+    secondAnalysisRelease.signal()
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "background grant did not finish remaining work: \(queue.episodeIDs)" }
+    )
+    try await Wait.until(
+      { task.completionResults == [true] },
+      { "background grant did not complete: \(task.completionResults)" }
+    )
+    #expect(try await repo.episode(secondEpisode.id)?.hasTranscript == true)
+    #expect(analyzeCount() == 2)
+  }
+
   @Test("expiration cancels a preserved foreground analyzer before completing")
   func expirationCancelsPreservedForegroundAnalyzer() async throws {
     try await LogCapture.withSink { sink in

@@ -118,6 +118,33 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
+    "queued transcription exposes a cancel button",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func queuedTranscriptionExposesCancelButton() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let episode = try await Create.podcastEpisode()
+    Container.shared.transcriptionQueue().enqueue(episode.id)
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(episode))
+
+    let window = try Self.makeWindow(
+      NavigationStack {
+        EpisodeDetailView(viewModel: viewModel)
+      }
+    )
+    defer { window.isHidden = true }
+
+    let cancelButton = try #require(
+      Self.accessibilityElements(in: window)
+        .first { $0.accessibilityLabel == "Cancel Transcription" }
+    )
+    #expect(cancelButton.accessibilityTraits.contains(.button))
+  }
+
+  @Test(
     "artwork overlays hide covered detail content",
     .enabled(
       if: supportsHostedAccessibilityInspection,
@@ -211,10 +238,14 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     #expect(TranscriptionStatus.none.toolbarAccessibilityLabel == "Transcribe")
     #expect(TranscriptionStatus.none.toolbarAccessibilityValue == "")
     let queued = TranscriptionStatus.queued(position: 1, total: 2)
-    #expect(queued.toolbarAccessibilityLabel == "Transcription")
+    #expect(queued.toolbarAccessibilityLabel == "Cancel Transcription")
     #expect(queued.toolbarAccessibilityValue == "Queued")
-    #expect(TranscriptionStatus.transcribing(0.5).toolbarAccessibilityLabel == "Transcription")
+    #expect(
+      TranscriptionStatus.transcribing(0.5).toolbarAccessibilityLabel == "Cancel Transcription"
+    )
     #expect(TranscriptionStatus.transcribing(0.5).toolbarAccessibilityValue == "Transcribing")
+    #expect(TranscriptionStatus.cancelling.toolbarAccessibilityLabel == "Transcription")
+    #expect(TranscriptionStatus.cancelling.toolbarAccessibilityValue == "Cancelling")
     #expect(TranscriptionStatus.transcribed.toolbarAccessibilityLabel == "Transcription")
     #expect(TranscriptionStatus.transcribed.toolbarAccessibilityValue == "Complete")
     #expect(TranscriptionStatus.failed.toolbarAccessibilityLabel == "Retry Transcription")

@@ -40,6 +40,24 @@ struct TranscriptionQueueTests {
     #expect(queue.progress[id(1)] == nil)
   }
 
+  @Test("cancelling waiting work removes it and persists the new positions")
+  func cancelWaitingWork() {
+    let processor = Container.shared.transcriptionProcessor()
+    for episodeID in [id(1), id(2), id(3)] {
+      queue.enqueue(episodeID)
+    }
+
+    processor.cancel(id(2))
+
+    #expect(queue.episodeIDs == [id(1), id(3)])
+    #expect(
+      queue.status(for: id(3), hasTranscript: false) == .queued(position: 2, total: 2)
+    )
+
+    Container.shared.transcriptionQueue.reset(.scope)
+    #expect(Container.shared.transcriptionQueue().episodeIDs == [id(1), id(3)])
+  }
+
   @Test("stream yields one queue head at a time")
   func streamYieldsOneHeadAtATime() async throws {
     try await queue.withWorkStream { stream in
@@ -84,6 +102,11 @@ struct TranscriptionQueueTests {
 
     queue.setProgress(0.25, for: id(1))
     #expect(queue.status(for: id(1), hasTranscript: false) == .transcribing(0.25))
+    #expect(queue.status(for: id(1), hasTranscript: false).canCancel)
+
+    #expect(queue.beginCancellation(of: id(1)))
+    #expect(queue.status(for: id(1), hasTranscript: false) == .cancelling)
+    #expect(!queue.status(for: id(1), hasTranscript: false).canCancel)
 
     queue.remove(id(1))
     #expect(
