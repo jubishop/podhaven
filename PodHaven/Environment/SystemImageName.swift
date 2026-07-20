@@ -35,6 +35,7 @@ struct SystemImageName:
   // Actions
   static let addSmartList = SystemImageName("plus.circle")
   static let addTag = SystemImageName("plus.circle.fill")
+  static let attachPhotos = SystemImageName("photo.badge.plus")
   static let removeSmartListCondition = SystemImageName("minus.circle.fill")
   static let removeSmartListGroup = SystemImageName("minus.circle.fill")
   static let removeTag = SystemImageName("xmark.circle.fill")

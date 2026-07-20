@@ -95,6 +95,29 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
+    "feedback photo picker is an announced button",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func feedbackPhotoPickerIsAnAnnouncedButton() throws {
+    let window = try Self.makeWindow(
+      NavigationStack {
+        FeedbackFormView()
+      }
+    )
+    defer { window.isHidden = true }
+
+    let photoPicker = Self.accessibilityElements(in: window)
+      .first {
+        $0.accessibilityLabel == "Attach Photos"
+      }
+
+    #expect(photoPicker?.accessibilityTraits.contains(.button) == true)
+  }
+
+  @Test(
     "artwork overlays hide covered detail content",
     .enabled(
       if: supportsHostedAccessibilityInspection,
