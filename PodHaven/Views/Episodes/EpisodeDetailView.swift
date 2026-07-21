@@ -166,10 +166,20 @@ struct EpisodeDetailView: View {
     if viewModel.isTranscriptionAvailable {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          viewModel.transcribe()
+          if viewModel.transcriptionStatus.canCancel {
+            viewModel.cancelTranscription()
+          } else {
+            viewModel.transcribe()
+          }
         } label: {
-          AppIcon.transcribeEpisode.image
-            .symbolEffect(.pulse, isActive: isTranscribing)
+          if viewModel.transcriptionStatus.canCancel
+            || viewModel.transcriptionStatus == .cancelling
+          {
+            AppIcon.cancelTranscription.image
+              .symbolEffect(.pulse, isActive: isTranscribing)
+          } else {
+            AppIcon.transcribeEpisode.image
+          }
         }
         .accessibilityLabel(
           Text(LocalizedStringKey(viewModel.transcriptionStatus.toolbarAccessibilityLabel))
@@ -177,7 +187,10 @@ struct EpisodeDetailView: View {
         .accessibilityValue(
           Text(LocalizedStringKey(viewModel.transcriptionStatus.toolbarAccessibilityValue))
         )
-        .disabled(!viewModel.transcriptionStatus.canTranscribe)
+        .disabled(
+          !viewModel.transcriptionStatus.canTranscribe
+            && !viewModel.transcriptionStatus.canCancel
+        )
       }
     }
 
@@ -409,24 +422,37 @@ struct EpisodeDetailView: View {
           transcribeButton
         }
       case .queued(let position, let total):
-        Text("Queued for transcription — position \(position) of \(total)")
-          .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Queued for transcription — position \(position) of \(total)")
+            .foregroundStyle(.secondary)
+          cancelTranscriptionButton
+        }
       case .transcribing(let progress):
-        if progress > 0 {
-          ProgressView(value: progress) {
-            Text("Transcribing…")
-              .foregroundStyle(.secondary)
-          } currentValueLabel: {
-            Text(progress, format: .percent.precision(.fractionLength(0)))
-              .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+          if progress > 0 {
+            ProgressView(value: progress) {
+              Text("Transcribing…")
+                .foregroundStyle(.secondary)
+            } currentValueLabel: {
+              Text(progress, format: .percent.precision(.fractionLength(0)))
+                .foregroundStyle(.secondary)
+            }
+          } else {
+            HStack(spacing: 8) {
+              ProgressView()
+                .accessibilityHidden(true)
+              Text("Transcribing…")
+                .foregroundStyle(.secondary)
+            }
           }
-        } else {
-          HStack(spacing: 8) {
-            ProgressView()
-              .accessibilityHidden(true)
-            Text("Transcribing…")
-              .foregroundStyle(.secondary)
-          }
+          cancelTranscriptionButton
+        }
+      case .cancelling:
+        HStack(spacing: 8) {
+          ProgressView()
+            .accessibilityHidden(true)
+          Text("Cancelling transcription…")
+            .foregroundStyle(.secondary)
         }
       case .transcribed:
         switch viewModel.transcriptDisplay {
@@ -479,6 +505,14 @@ struct EpisodeDetailView: View {
     AppIcon.transcribeEpisode
       .labelButton {
         viewModel.transcribe()
+      }
+      .buttonStyle(.bordered)
+  }
+
+  private var cancelTranscriptionButton: some View {
+    AppIcon.cancelTranscription
+      .labelButton {
+        viewModel.cancelTranscription()
       }
       .buttonStyle(.bordered)
   }
@@ -556,7 +590,8 @@ extension TranscriptionStatus {
     switch self {
     case .none: "Transcribe"
     case .failed: "Retry Transcription"
-    case .queued, .transcribing, .transcribed: "Transcription"
+    case .queued, .transcribing: "Cancel Transcription"
+    case .cancelling, .transcribed: "Transcription"
     }
   }
 
@@ -565,6 +600,7 @@ extension TranscriptionStatus {
     case .none: ""
     case .queued: "Queued"
     case .transcribing: "Transcribing"
+    case .cancelling: "Cancelling"
     case .transcribed: "Complete"
     case .failed: "Failed"
     }

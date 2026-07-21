@@ -12,6 +12,7 @@ import SwiftUI
   case saveEpisodeInCache
   case unsaveEpisodeFromCache
   case cancelEpisodeDownload
+  case cancelTranscription
   case uncacheEpisode
   case moveToTop
   case moveToBottom
@@ -234,6 +235,12 @@ import SwiftUI
     case .cancelEpisodeDownload:
       return Data(
         text: "Cancel Download",
+        systemImageName: .episodeDownloadCancel,
+        color: .orange
+      )
+    case .cancelTranscription:
+      return Data(
+        text: "Cancel Transcription",
         systemImageName: .episodeDownloadCancel,
         color: .orange
       )
