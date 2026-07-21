@@ -209,7 +209,7 @@ struct EmbeddingProcessor: Sendable {
     let snapshot = Container.shared.embeddingWorkDemand().snapshot()
     do {
       let ids = try await episodeIDsNeedingWork(
-        includeCurrent: snapshot.requiresFullRefresh
+        verifiedBefore: snapshot.fullRefreshStartedAt
       )
       if ids.isEmpty {
         Container.shared.embeddingWorkDemand().clear(ifUnchanged: snapshot)
@@ -227,7 +227,7 @@ struct EmbeddingProcessor: Sendable {
   private func drainAvailableWork() async throws -> DrainResult {
     let initialSnapshot = Container.shared.embeddingWorkDemand().snapshot()
     let ids = try await episodeIDsNeedingWork(
-      includeCurrent: initialSnapshot.requiresFullRefresh
+      verifiedBefore: initialSnapshot.fullRefreshStartedAt
     )
     var clearingSnapshot = initialSnapshot
 
@@ -247,7 +247,7 @@ struct EmbeddingProcessor: Sendable {
       Container.shared.embeddingWorkDemand().markPipelineRefreshCompleted()
     }
 
-    let remaining = try await episodeIDsNeedingWork(includeCurrent: false)
+    let remaining = try await episodeIDsNeedingWork(verifiedBefore: nil)
     guard remaining.isEmpty else {
       Container.shared.embeddingWorkDemand().ensureAvailable()
       return .pending(processedCount: ids.count)
@@ -260,14 +260,14 @@ struct EmbeddingProcessor: Sendable {
     return .empty(processedCount: ids.count)
   }
 
-  private func episodeIDsNeedingWork(includeCurrent: Bool) async throws -> [Episode.ID] {
+  private func episodeIDsNeedingWork(verifiedBefore: Date?) async throws -> [Episode.ID] {
     let queryStart = continuousClockNow()
     let ids = try await recommendationRepo.episodesNeedingEmbeddings(
       pipelineVersion: EmbeddingPipelineVersion(
         embeddingRevision: contextualEmbedding.revision,
         recipeVersion: EmbeddingService.recipeVersion
       ),
-      includeCurrent: includeCurrent
+      verifiedBefore: verifiedBefore
     )
     let queryDuration = continuousClockNow() - queryStart
     Self.log.debug(

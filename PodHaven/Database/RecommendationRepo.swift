@@ -504,13 +504,13 @@ struct RecommendationRepo: Recommending {
 
   func episodesNeedingEmbeddings(
     pipelineVersion: EmbeddingPipelineVersion,
-    includeCurrent: Bool = false
+    verifiedBefore: Date? = nil
   ) async throws -> [Episode.ID] {
     try await reader.read { db in
       try Self.episodesNeedingEmbeddings(
         db,
         pipelineVersion: pipelineVersion,
-        includeCurrent: includeCurrent
+        verifiedBefore: verifiedBefore
       )
     }
   }
@@ -520,7 +520,7 @@ struct RecommendationRepo: Recommending {
   static func episodesNeedingEmbeddings(
     _ db: Database,
     pipelineVersion: EmbeddingPipelineVersion,
-    includeCurrent: Bool = false
+    verifiedBefore: Date? = nil
   ) throws -> [Episode.ID] {
     let embeddingAlias = TableAlias()
     let failureAlias = TableAlias()
@@ -548,6 +548,12 @@ struct RecommendationRepo: Recommending {
       && failureAlias[EpisodeEmbeddingFailure.Columns.attemptCount]
         >= maximumEmbeddingFailureAttempts
     let hasFailure = failureAlias[EpisodeEmbeddingFailure.Columns.episodeId] != nil
+    var requiresEmbedding = needsRefresh || hasFailure
+    if let verifiedBefore {
+      requiresEmbedding =
+        requiresEmbedding
+        || embeddingAlias[EpisodeEmbedding.Columns.verificationDate] < verifiedBefore
+    }
 
     return
       try Episode
@@ -555,7 +561,7 @@ struct RecommendationRepo: Recommending {
       .joining(optional: Episode.embedding.aliased(embeddingAlias))
       .joining(optional: Episode.embeddingFailure.aliased(failureAlias))
       .filter(!isQuarantined)
-      .filter(includeCurrent ? AppDB.noOp : needsRefresh || hasFailure)
+      .filter(requiresEmbedding)
       .order(Episode.Columns.pubDate.desc)
       .select(Episode.Columns.id, as: Episode.ID.self)
       .fetchAll(db)

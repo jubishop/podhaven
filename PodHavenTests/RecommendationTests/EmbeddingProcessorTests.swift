@@ -202,6 +202,86 @@ class EmbeddingProcessorTests {
     #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
   }
 
+  @Test("expired forced refresh resumes after completed chunks")
+  func expiredForcedRefreshResumesAfterCompletedChunks() async throws {
+    let fakeBGTaskScheduler = self.fakeBGTaskScheduler
+    let fakeRecommendationRepo = try #require(
+      recommendationRepo as? FakeRecommendationRepo
+    )
+    let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 65,
+      podcastTitle: "Resumable Forced Refresh"
+    )
+    try await RecommendationHelpers.embedEpisodes(episodes)
+    let refreshNotBefore = Date.now.addingTimeInterval(0.01)
+    try await Wait.until(
+      { Date.now >= refreshNotBefore },
+      { "Clock did not advance far enough to start the forced refresh" }
+    )
+
+    let workDemand = embeddingWorkDemand
+    let refreshStartedAt = try #require(workDemand.snapshot().fullRefreshStartedAt)
+    let orderedIDs = try await recommendationRepo.episodesNeedingEmbeddings(
+      revision: contextualEmbedding.revision,
+      verifiedBefore: refreshStartedAt
+    )
+    #expect(orderedIDs.count == episodes.count)
+    let finalChunk = Set(orderedIDs.suffix(1))
+    fakeRecommendationRepo.clearAllCalls()
+    fakeRecommendationRepo.armEmbeddingsGate(matching: finalChunk)
+
+    let processor = EmbeddingProcessor()
+    processor.register()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers.count == 1 },
+      { "Forced refresh did not schedule its background request" }
+    )
+    let identifier = try #require(fakeBGTaskScheduler.pendingIdentifiers.first)
+    let firstTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { fakeRecommendationRepo.isEmbeddingsGateSuspended },
+      { "Forced refresh did not reach its final chunk" }
+    )
+
+    firstTask.expire()
+    fakeRecommendationRepo.releaseEmbeddingsGate()
+    try await Wait.until(
+      { firstTask.completionResults == [false] },
+      { "Expired forced refresh did not complete unsuccessfully" }
+    )
+    #expect(workDemand.hasWork)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
+
+    Container.shared.embeddingWorkDemand.reset()
+    let resumedDemand = Container.shared.embeddingWorkDemand()
+    #expect(resumedDemand.snapshot().fullRefreshStartedAt == refreshStartedAt)
+    fakeRecommendationRepo.clearAllCalls()
+    fakeRecommendationRepo.armEmbeddingsGate(matching: finalChunk)
+    let retryTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { fakeRecommendationRepo.isEmbeddingsGateSuspended },
+      { "Forced refresh retry did not reach the unfinished chunk" }
+    )
+    let embeddingCalls =
+      fakeRecommendationRepo
+      .calls(of: MethodCall<[Episode.ID]>.self)
+      .filter { $0.methodName == "embeddings" }
+    let firstRetryCall = try #require(embeddingCalls.first)
+
+    retryTask.expire()
+    fakeRecommendationRepo.releaseEmbeddingsGate()
+    try await Wait.until(
+      { retryTask.completionResults == [false] },
+      { "Expired forced refresh retry did not complete unsuccessfully" }
+    )
+
+    #expect(Set(firstRetryCall.parameters) == finalChunk)
+  }
+
   @Test("an episode edited during embedding remains eligible for a fresh pass")
   func concurrentEpisodeEditRemainsEligible() async throws {
     let fakeBGTaskScheduler = self.fakeBGTaskScheduler
@@ -330,10 +410,10 @@ class EmbeddingProcessorTests {
 
     let workQueries =
       fakeRecommendationRepo
-      .calls(of: MethodCall<(Int, Bool)>.self)
+      .calls(of: MethodCall<(Int, Date?)>.self)
       .filter { $0.methodName == "episodesNeedingEmbeddings" }
     let firstWorkQuery = try #require(workQueries.first)
-    #expect(!firstWorkQuery.parameters.1)
+    #expect(firstWorkQuery.parameters.1 == nil)
     #expect(!workDemand.hasWork)
     #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
   }
@@ -356,7 +436,6 @@ class EmbeddingProcessorTests {
 
     let fakeBGTaskScheduler = self.fakeBGTaskScheduler
     let recommendationRepo = self.recommendationRepo
-    let workDemand = Container.shared.embeddingWorkDemand()
     let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 1,
       podcastTitle: failureMarker
@@ -370,9 +449,15 @@ class EmbeddingProcessorTests {
         sourceHash: staleSourceHash,
         embeddingRevision: failingEmbedding.revision,
         dimension: 3,
-        verificationDate: Date.now.addingTimeInterval(60)
+        verificationDate: Date.now
       )
     ])
+    let refreshNotBefore = Date.now.addingTimeInterval(0.01)
+    try await Wait.until(
+      { Date.now >= refreshNotBefore },
+      { "Clock did not advance far enough to start the forced refresh" }
+    )
+    let workDemand = Container.shared.embeddingWorkDemand()
 
     #expect(workDemand.snapshot().requiresFullRefresh)
     #expect(
@@ -418,7 +503,6 @@ class EmbeddingProcessorTests {
 
     let fakeBGTaskScheduler = self.fakeBGTaskScheduler
     let recommendationRepo = self.recommendationRepo
-    let workDemand = Container.shared.embeddingWorkDemand()
     let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 2,
       podcastTitle: "Bounded Retry",
@@ -436,6 +520,12 @@ class EmbeddingProcessorTests {
         verificationDate: Date.now
       )
     ])
+    let refreshNotBefore = Date.now.addingTimeInterval(0.01)
+    try await Wait.until(
+      { Date.now >= refreshNotBefore },
+      { "Clock did not advance far enough to start the forced refresh" }
+    )
+    let workDemand = Container.shared.embeddingWorkDemand()
 
     let processor = EmbeddingProcessor()
     processor.register()
@@ -536,7 +626,7 @@ class EmbeddingProcessorTests {
     #expect(
       try await recommendationRepo.episodesNeedingEmbeddings(
         pipelineVersion: initialPipelineVersion,
-        includeCurrent: true
+        verifiedBefore: Date.now.addingTimeInterval(60)
       ) == []
     )
 

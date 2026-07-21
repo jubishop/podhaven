@@ -281,7 +281,7 @@ class EmbeddingRepoTests {
 
     let result = try await recommendationRepo.episodesNeedingEmbeddings(
       revision: 1,
-      includeCurrent: true
+      verifiedBefore: Date.now.addingTimeInterval(60)
     )
 
     #expect(result.contains(pe.episode.id))
@@ -313,7 +313,7 @@ class EmbeddingRepoTests {
       )
       let pending = try await recommendationRepo.episodesNeedingEmbeddings(
         pipelineVersion: pipelineVersion,
-        includeCurrent: false
+        verifiedBefore: nil
       )
 
       if attempt < 3 {
@@ -332,7 +332,7 @@ class EmbeddingRepoTests {
     #expect(
       try await recommendationRepo.episodesNeedingEmbeddings(
         pipelineVersion: revisedPipeline,
-        includeCurrent: false
+        verifiedBefore: nil
       )
       .contains(pe.episode.id)
     )
@@ -345,7 +345,7 @@ class EmbeddingRepoTests {
     #expect(
       try await recommendationRepo.episodesNeedingEmbeddings(
         pipelineVersion: pipelineVersion,
-        includeCurrent: false
+        verifiedBefore: nil
       )
       .contains(pe.episode.id)
     )
