@@ -52,6 +52,18 @@ import Testing
     #expect(navigation.settings.path == [.settingsSection(.tags)])
   }
 
+  @Test("showFeedback dismisses sheet, sets tab, and sets settings path")
+  func showFeedback() {
+    presentSheet()
+    #expect(sheet.config != nil)
+
+    navigation.showFeedback()
+
+    #expect(sheet.config == nil)
+    #expect(navigation.currentTab == .settings)
+    #expect(navigation.settings.path == [.settingsSection(.feedback)])
+  }
+
   // MARK: - Search Navigation
 
   @Test("showSharedUnsavedPodcastSeries dismisses sheet, sets tab, and sets search path")

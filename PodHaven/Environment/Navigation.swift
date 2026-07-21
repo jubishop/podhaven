@@ -322,6 +322,14 @@ extension Container {
     currentTab = .settings
   }
 
+  func showFeedback() {
+    Self.log.debug("Showing feedback")
+
+    sheet.dismiss()
+    settings.path = [.settingsSection(.feedback)]
+    currentTab = .settings
+  }
+
   // MARK: - Search
 
   var search = PathManager()

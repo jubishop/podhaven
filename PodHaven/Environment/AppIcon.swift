@@ -86,6 +86,7 @@ import SwiftUI
   // General Actions
   case attachPhotos
   case exportOPML
+  case sendFeedback
   case shareEpisode
   case shareEpisodeFromStart
   case sharePodcast
@@ -400,6 +401,8 @@ import SwiftUI
       return Data(text: "Attach Photos", systemImageName: .attachPhotos)
     case .exportOPML:
       return Data(text: "Export OPML", systemImageName: .share)
+    case .sendFeedback:
+      return Data(text: "Send Feedback", systemImageName: .sendFeedback)
     case .shareEpisode:
       return Data(text: "Share Episode", systemImageName: .share)
     case .shareEpisodeFromStart:
