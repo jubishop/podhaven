@@ -109,7 +109,7 @@ Phases 1–3 are independently shippable; 4 makes it usable; 5 completes it. (In
 
 ## Known follow-ups
 
-- **Audio retention (decided):** transcription downloads the audio if absent via `CacheManager.cachedURL(downloadingIfNeeded:)` and leaves the episode's existing cache/purge policy unchanged — the original lean, no keep-then-restore.
+- **Audio retention (decided):** transcription downloads audio if absent via `CacheManager.cachedURL(downloadingIfNeeded:)`. Manual and automatic cache removal protect only the actively transcribing episode; waiting queue entries remain eligible and download again when processing reaches them.
 - **Failure surfacing (UI follow-up, with a gap):** the Transcription tab shows an inline "Transcription failed" + Retry; `failed` is transient (cleared on retry or relaunch). Open gap: there is no explicit dismiss affordance, so a user who won't retry can't clear the failed state from the UI.
 - **Background-grant timing & thermals (open):** `BGProcessingTask` grants are discretionary and can be delayed; the on-demand request's `.minutes(1)` earliest begin date and `requiresExternalPower = false` are tunable once device-tested (transcription is ~5× realtime, so thermal-gating to charging is a possible future knob). Foreground and background drains share exclusive ownership, and durable chunk checkpoints make repeated grants cumulative, but iOS still controls when those grants occur.
 

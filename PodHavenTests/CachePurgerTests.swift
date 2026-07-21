@@ -16,6 +16,7 @@ import Testing
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
   @DynamicInjected(\.userSettings) private var userSettings
 
   private var fakeBGTaskScheduler: FakeBGTaskScheduler {
@@ -268,6 +269,33 @@ import Testing
     // Unqueued episode should be deleted
     let updatedUnqueued = try await repo.episode(unqueuedOldPlayed.id)
     #expect(updatedUnqueued?.cacheStatus == .uncached)
+  }
+
+  @Test("executePurge protects active transcription but can remove waiting transcription")
+  func executePurgeProtectsActiveTranscriptionButCanRemoveWaitingTranscription() async throws {
+    let fiveDaysAgo = Date.now.addingTimeInterval(-5 * 24 * 60 * 60)
+    let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
+
+    let activeEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Active Transcription",
+      cachedFilename: "active-transcription.mp3",
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
+      finishDate: fiveDaysAgo
+    )
+    let waitingEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Waiting Transcription",
+      cachedFilename: "waiting-transcription.mp3",
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
+      finishDate: fourDaysAgo
+    )
+    transcriptionQueue.enqueue(activeEpisode.id)
+    transcriptionQueue.enqueue(waitingEpisode.id)
+    transcriptionQueue.setProgress(0, for: activeEpisode.id)
+
+    try await cachePurger.executePurge()
+
+    #expect(try await repo.episode(activeEpisode.id)?.cacheStatus == .cached)
+    #expect(try await repo.episode(waitingEpisode.id)?.cacheStatus == .uncached)
   }
 
   @Test("executePurge stops deleting when cache size is below limit")

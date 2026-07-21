@@ -19,6 +19,7 @@ struct CachePurger: Sendable {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var repo: any Databasing { Container.shared.repo() }
+  private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
   private var userSettings: UserSettings { Container.shared.userSettings() }
 
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).cachePurge"
@@ -248,8 +249,10 @@ struct CachePurger: Sendable {
 
   private func getCachedEpisodesInDeletionOrder(cachedEpisodes: [Episode]) -> [Episode] {
     let currentEpisodeID = Container.shared.sharedState().$currentEpisodeID.value
+    let transcribingEpisodeIDs = Set(transcriptionQueue.progress.keys)
     let unqueuedEpisodes = cachedEpisodes.filter {
       !$0.queued && !$0.saveInCache && $0.id != currentEpisodeID
+        && !transcribingEpisodeIDs.contains($0.id)
     }
     var (unfinishedEpisodes, finishedEpisodes) = unqueuedEpisodes.partitioned(by: \.finished)
     finishedEpisodes.sort { lhs, rhs in
