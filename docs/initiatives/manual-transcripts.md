@@ -70,12 +70,13 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 
   derived like `Episode.CacheStatus.from(...)`:
   - `.transcribed` ⟸ the caller reports a usable stored transcript (presence on rows; successful decode in detail)
+  - `.cancelling` ⟸ `cancelling.contains(id)` while cooperative cleanup finishes
   - `.transcribing(p)` ⟸ id is the active item (`transcriptionProgress[id]`)
   - `.queued(position:total:)` ⟸ the id's one-based index and current depth in the ordered queue
   - `.failed` ⟸ `failed.contains(id)`
   - else `.none`
 
-  A `transcriptionStatus(for:)` accessor drives detail presentation and action eligibility on every surface. Queue/progress are `Broadcast`s, so both stay live without adding transcription indicators to episode rows.
+  A `transcriptionStatus(for:)` accessor drives detail presentation and action eligibility on every surface. Queue, progress, and cancellation state are `Broadcast`s, so all stay live without adding transcription indicators to episode rows.
 
 ## UI integration (stacked follow-up)
 
