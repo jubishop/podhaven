@@ -11,6 +11,7 @@ extension Container {
           embeddingRevision: self.contextualEmbedding().revision,
           recipeVersion: EmbeddingService.recipeVersion
         ),
+        now: self.dateProvider().now,
         store: self.standardDefaults()
       )
     }
@@ -26,7 +27,11 @@ struct EmbeddingPipelineVersion: Codable, Equatable, Sendable {
 struct EmbeddingWorkDemand: Sendable {
   struct Snapshot: Sendable {
     let generation: Int
-    let requiresFullRefresh: Bool
+    let fullRefreshStartedAt: Date?
+
+    var requiresFullRefresh: Bool {
+      fullRefreshStartedAt != nil
+    }
   }
 
   private enum Status: String, Codable, Sendable {
@@ -34,10 +39,16 @@ struct EmbeddingWorkDemand: Sendable {
     case pending
   }
 
+  private struct FullRefresh: Codable, Equatable, Sendable {
+    let pipelineVersion: EmbeddingPipelineVersion
+    let startedAt: Date
+  }
+
   private struct State: Codable, DefaultsStorable {
     var generation = 0
     var status = Status.idle
     var completedPipelineVersion: EmbeddingPipelineVersion?
+    var fullRefresh: FullRefresh?
   }
 
   private static let key = "embeddingWorkDemand"
@@ -48,6 +59,7 @@ struct EmbeddingWorkDemand: Sendable {
 
   fileprivate init(
     pipelineVersion: EmbeddingPipelineVersion,
+    now: Date,
     store: any KeyValueStore
   ) {
     self.pipelineVersion = pipelineVersion
@@ -55,8 +67,17 @@ struct EmbeddingWorkDemand: Sendable {
 
     var persisted = State.load(from: store, forKey: Self.key) ?? State()
     if persisted.completedPipelineVersion != pipelineVersion {
+      if persisted.fullRefresh?.pipelineVersion != pipelineVersion {
+        persisted.fullRefresh = FullRefresh(
+          pipelineVersion: pipelineVersion,
+          startedAt: now
+        )
+      }
       persisted.generation += 1
       persisted.status = .pending
+      persisted.store(to: store, forKey: Self.key)
+    } else if persisted.fullRefresh != nil {
+      persisted.fullRefresh = nil
       persisted.store(to: store, forKey: Self.key)
     }
     state = ThreadSafe(persisted)
@@ -70,7 +91,7 @@ struct EmbeddingWorkDemand: Sendable {
     state { state in
       Snapshot(
         generation: state.generation,
-        requiresFullRefresh: state.completedPipelineVersion != pipelineVersion
+        fullRefreshStartedAt: state.fullRefresh?.startedAt
       )
     }
   }
@@ -94,8 +115,11 @@ struct EmbeddingWorkDemand: Sendable {
 
   func markPipelineRefreshCompleted() {
     state { state in
-      guard state.completedPipelineVersion != pipelineVersion else { return }
+      guard
+        state.completedPipelineVersion != pipelineVersion || state.fullRefresh != nil
+      else { return }
       state.completedPipelineVersion = pipelineVersion
+      state.fullRefresh = nil
       state.store(to: store, forKey: Self.key)
     }
   }
@@ -106,6 +130,7 @@ struct EmbeddingWorkDemand: Sendable {
       guard state.generation == snapshot.generation else { return false }
       state.status = .idle
       state.completedPipelineVersion = pipelineVersion
+      state.fullRefresh = nil
       state.store(to: store, forKey: Self.key)
       return true
     }

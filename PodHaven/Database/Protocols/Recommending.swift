@@ -43,21 +43,21 @@ protocol Recommending: Sendable {
   func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode]
   func episodesNeedingEmbeddings(
     pipelineVersion: EmbeddingPipelineVersion,
-    includeCurrent: Bool
+    verifiedBefore: Date?
   ) async throws -> [Episode.ID]
 }
 
 extension Recommending {
   func episodesNeedingEmbeddings(
     revision: Int,
-    includeCurrent: Bool = false
+    verifiedBefore: Date? = nil
   ) async throws -> [Episode.ID] {
     try await episodesNeedingEmbeddings(
       pipelineVersion: EmbeddingPipelineVersion(
         embeddingRevision: revision,
         recipeVersion: EmbeddingService.recipeVersion
       ),
-      includeCurrent: includeCurrent
+      verifiedBefore: verifiedBefore
     )
   }
 }

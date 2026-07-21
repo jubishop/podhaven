@@ -604,7 +604,7 @@ class EmbeddingServiceTests {
         embeddingRevision: embedding.revision,
         recipeVersion: EmbeddingService.recipeVersion
       ),
-      includeCurrent: true
+      verifiedBefore: Date.now.addingTimeInterval(60)
     )
     #expect(!pending.contains(failed.id))
   }
