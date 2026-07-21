@@ -558,8 +558,9 @@ struct SettingsView: View {
               }
             }
           } label: {
-            Image(systemName: "ellipsis.circle")
+            AppIcon.moreActions.image
           }
+          .accessibilityLabel("More Actions")
         }
       }
     }
