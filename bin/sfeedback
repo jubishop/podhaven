@@ -1,0 +1,213 @@
+#!/usr/bin/env fish
+
+function __sfeedback_usage
+    echo "Usage: sfeedback [feedback-url|feedback-slug|feedback-id]"
+end
+
+function __sfeedback_parse_reference --argument-names reference
+    set -l slug
+
+    if string match -qr '^[0-9]+$' -- "$reference"
+        set slug "podhaven:$reference"
+    else if string match -qr '^(?i:podhaven):[0-9]+$' -- "$reference"
+        set slug (string lower -- "$reference")
+    else if string match -qr '^(?i:https?)://([^/]+\.)?sentry\.io(?:/|$)' -- "$reference"
+        set -l slug_match (string match -r '(?i)[?&]feedbackSlug=([^&#]+)' -- "$reference")
+        if test (count $slug_match) -ge 2
+            set slug (string unescape --style=url -- "$slug_match[2]")
+            set slug (string lower -- "$slug")
+        end
+    end
+
+    if not string match -qr '^podhaven:[0-9]+$' -- "$slug"
+        return 1
+    end
+
+    echo "$slug"
+end
+
+function __sfeedback_pick
+    set -g __sfeedback_selected_slug
+
+    if not type -q sentry
+        echo "Error: sentry is required to list Sentry feedback"
+        return 1
+    end
+    if not type -q jq
+        echo "Error: jq is required to list Sentry feedback"
+        return 1
+    end
+
+    set -l issue_json (sentry issue list artisanal-software/podhaven \
+        --query 'issue.category:feedback is:unresolved' \
+        --period 365d \
+        --limit 1000 \
+        --fresh \
+        --json \
+        --fields id,shortId,metadata,permalink)
+    set -l list_status $status
+    if test $list_status -ne 0
+        echo "Error: could not fetch unresolved PodHaven feedback from Sentry"
+        return $list_status
+    end
+
+    set -l has_more (printf '%s\n' $issue_json | jq -r '
+        if type == "array" then false else (.hasMore // false) end')
+    set -l pagination_status $status
+    if test $pagination_status -ne 0
+        echo "Error: sentry returned invalid feedback data"
+        return $pagination_status
+    end
+    if test "$has_more" = true
+        echo "Error: Sentry has more than 1000 unresolved feedback items; refusing to show a partial list"
+        return 1
+    end
+
+    set -l raw_rows (printf '%s\n' $issue_json | jq -r '
+        def oneline:
+            tostring
+            | gsub("[[:cntrl:]]+"; " ")
+            | gsub("  +"; " ")
+            | sub("^ +"; "")
+            | sub(" +$"; "");
+        (if type == "array" then . else (.data // []) end)
+        | sort_by(.id | tonumber)
+        | reverse
+        | .[]
+        | [
+            .id,
+            ((.shortId // "PODHAVEN-?") | oneline),
+            (
+                (.metadata.message // .title // "(no message)")
+                | oneline
+                | if length > 140 then .[:137] + "..." else . end
+            ),
+            ((.metadata.contact_email // "anonymous") | oneline)
+        ]
+        | @tsv')
+    set -l parse_status $status
+    if test $parse_status -ne 0
+        echo "Error: sentry returned invalid feedback data"
+        return $parse_status
+    end
+
+    if test (count $raw_rows) -eq 0
+        echo "No unresolved Sentry feedback found."
+        return 1
+    end
+
+    set -l repo_root (git rev-parse --show-toplevel 2>/dev/null)
+    set -l cyan (set_color --bold cyan)
+    set -l magenta (set_color magenta)
+    set -l yellow (set_color yellow)
+    set -l dim (set_color brblack)
+    set -l normal (set_color normal)
+    set -l feedback_rows
+
+    for raw_row in $raw_rows
+        set -l parts (string split \t -- "$raw_row")
+        if test (count $parts) -ne 4; or not string match -qr '^[0-9]+$' -- "$parts[1]"
+            echo "Error: sentry returned an invalid feedback row"
+            return 1
+        end
+
+        set -l id "$parts[1]"
+        set -l short_id "$parts[2]"
+        set -l message "$parts[3]"
+        set -l contact "$parts[4]"
+        set -l slug "podhaven:$id"
+        set -l prior no
+        set -l prior_color "$dim"
+        if test -n "$repo_root"; and test -f "$repo_root/memory/sentry_feedback/podhaven-$id.md"
+            set prior yes
+            set prior_color "$yellow"
+        end
+
+        set -l display "$cyan$short_id$normal  $magenta$slug$normal — \"$message\"  $dim($contact; prior analysis: $prior_color$prior$dim)$normal"
+        set -a feedback_rows (string join \t -- "$slug" "$display")
+    end
+
+    set -l selection
+    if type -q fzf
+        set selection (printf '%s\n' $feedback_rows | fzf \
+            --ansi \
+            --delimiter=\t \
+            --with-nth=2.. \
+            --height=80% \
+            --layout=reverse \
+            --border \
+            --prompt='Feedback> ' \
+            --header='Newest first | prior analysis = existing feedback ledger')
+        set -l picker_status $status
+        if test $picker_status -ne 0
+            echo "No feedback selected."
+            return 1
+        end
+    else
+        echo "Select unresolved Sentry feedback:"
+        for index in (seq (count $feedback_rows))
+            set -l row_parts (string split -m 1 \t -- "$feedback_rows[$index]")
+            printf '%d. %s\n' $index "$row_parts[2]"
+        end
+
+        read -P "Enter a number: " selection_index
+        or return 1
+
+        if not string match -qr '^[0-9]+$' -- "$selection_index"
+            echo "Error: '$selection_index' is not a valid selection"
+            return 1
+        end
+        if test $selection_index -lt 1; or test $selection_index -gt (count $feedback_rows)
+            echo "Error: selection must be between 1 and "(count $feedback_rows)
+            return 1
+        end
+
+        set selection "$feedback_rows[$selection_index]"
+    end
+
+    set -l selection_parts (string split -m 1 \t -- "$selection")
+    set -g __sfeedback_selected_slug "$selection_parts[1]"
+end
+
+function __sfeedback_main
+    if test (count $argv) -gt 1
+        __sfeedback_usage
+        return 1
+    end
+
+    if not git rev-parse --is-inside-work-tree >/dev/null 2>&1
+        echo "Error: not in a git repository"
+        return 1
+    end
+
+    set -l slug
+    if test (count $argv) -eq 0
+        __sfeedback_pick
+        or return 1
+        set slug "$__sfeedback_selected_slug"
+    else
+        set slug (__sfeedback_parse_reference "$argv[1]")
+        if test -z "$slug"
+            echo "Error: '$argv[1]' is not a PodHaven feedback slug, ID, or Sentry feedback URL"
+            return 1
+        end
+    end
+
+    if not type -q ghcw
+        echo "Error: ghcw is required to create the feedback worktree"
+        return 1
+    end
+    if not type -q codex
+        echo "Error: codex is required to analyze Sentry feedback"
+        return 1
+    end
+
+    set -l worktree_name (string replace ':' '-' -- "$slug")
+    ghcw "$worktree_name"
+    or return 1
+
+    codex --dangerously-bypass-approvals-and-sandbox "\$analyze-sentry-feedback $slug"
+end
+
+__sfeedback_main $argv
+exit $status

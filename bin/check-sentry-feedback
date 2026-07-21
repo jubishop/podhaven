@@ -1,0 +1,160 @@
+#!/bin/bash
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=.agents/scripts/sentry-cli/lib.sh
+source "$ROOT/.agents/scripts/sentry-cli/lib.sh"
+
+GH_REPO="${GH_REPO:-jubishop/podhaven}"
+DRY_RUN="${DRY_RUN:-false}"
+
+case "$DRY_RUN" in
+  true | false) ;;
+  *)
+    echo "Error: DRY_RUN must be true or false" >&2
+    exit 1
+    ;;
+esac
+
+for command_name in gh jq; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "Error: required command not found: $command_name" >&2
+    exit 1
+  fi
+done
+
+require_sentry_auth
+
+TEMP_BASE="${RUNNER_TEMP:-/tmp}"
+WORK_DIR="$(mktemp -d "$TEMP_BASE/podhaven-sentry-feedback.XXXXXX")"
+trap 'rm -rf "$WORK_DIR"' EXIT
+
+FEEDBACK_JSON="$WORK_DIR/feedback.json"
+ALL_ISSUES_JSON="$WORK_DIR/all-issues.json"
+ISSUES_JSON="$WORK_DIR/issues.json"
+
+sentry_cmd issue list "$SENTRY_TARGET" \
+  --query 'issue.category:feedback is:unresolved' \
+  --period 365d \
+  --limit 1000 \
+  --sort new \
+  --fresh \
+  --json \
+  --fields id,shortId,permalink \
+  > "$FEEDBACK_JSON"
+
+if ! jq -e '
+  .data | type == "array" and all(.[];
+    (.id | type == "string" and test("^[0-9]+$"))
+    and (.shortId | type == "string" and test("^[A-Z0-9-]+$"))
+    and (.permalink | type == "string" and test("^https://[^/]+\\.sentry\\.io/"))
+  )
+' "$FEEDBACK_JSON" >/dev/null; then
+  echo "Error: Sentry returned an unexpected feedback response" >&2
+  exit 1
+fi
+
+gh api --paginate --slurp \
+  "repos/$GH_REPO/issues?state=all&per_page=100" \
+  > "$ALL_ISSUES_JSON"
+jq '[.[][] | select(has("pull_request") | not) | {number, body}]' \
+  "$ALL_ISSUES_JSON" \
+  > "$ISSUES_JSON"
+
+TOTAL="$(jq '.data | length' "$FEEDBACK_JSON")"
+CREATED=0
+TRACKED=0
+COMMENTS_ADDED=0
+
+write_instruction_comment() {
+  local issue_reference="$1"
+  local slug="$2"
+  local permalink="$3"
+  local comment_path="$WORK_DIR/comment.md"
+
+  {
+    printf '<!-- analyze-sentry-feedback:%s -->\n' "$slug"
+    printf "Any agent taking this issue must first use the repository's "
+    printf "\`%s\` skill with [%s](%s) and follow that workflow end to end before investigating or changing code.\n" \
+      "analyze-sentry-feedback" "$slug" "$permalink"
+  } > "$comment_path"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "Would add agent instructions to $issue_reference"
+    return
+  fi
+
+  gh issue comment "$issue_reference" \
+    --repo "$GH_REPO" \
+    --body-file "$comment_path" \
+    >/dev/null
+  COMMENTS_ADDED=$((COMMENTS_ADDED + 1))
+}
+
+while IFS= read -r feedback; do
+  ID="$(jq -r '.id' <<< "$feedback")"
+  SHORT_ID="$(jq -r '.shortId' <<< "$feedback")"
+  PERMALINK="$(jq -r '.permalink' <<< "$feedback")"
+  SLUG="podhaven:$ID"
+  ISSUE_MARKER="<!-- sentry-feedback:$SLUG -->"
+  COMMENT_MARKER="<!-- analyze-sentry-feedback:$SLUG -->"
+
+  EXISTING_NUMBER="$(jq -r \
+    --arg marker "$ISSUE_MARKER" \
+    --arg permalink "$PERMALINK" \
+    'first(.[] | select(
+      ((.body // "") | contains($marker))
+      or ((.body // "") | contains($permalink))
+    ) | .number) // empty' \
+    "$ISSUES_JSON")"
+
+  if [[ -n "$EXISTING_NUMBER" ]]; then
+    TRACKED=$((TRACKED + 1))
+    COMMENTS_JSON="$WORK_DIR/comments-$EXISTING_NUMBER.json"
+    gh api --paginate --slurp \
+      "repos/$GH_REPO/issues/$EXISTING_NUMBER/comments?per_page=100" \
+      > "$COMMENTS_JSON"
+    if ! jq -e --arg marker "$COMMENT_MARKER" \
+      'any(.[][]; (.body // "") | contains($marker))' \
+      "$COMMENTS_JSON" >/dev/null; then
+      write_instruction_comment "$EXISTING_NUMBER" "$SLUG" "$PERMALINK"
+    fi
+    echo "Already tracked: $SLUG in issue #$EXISTING_NUMBER"
+    continue
+  fi
+
+  BODY_PATH="$WORK_DIR/issue-body.md"
+  {
+    printf '%s\n' "$ISSUE_MARKER"
+    printf 'An unresolved Sentry user feedback item needs triage.\n\n'
+    printf -- '- **Feedback:** [%s](%s)\n' "$SLUG" "$PERMALINK"
+    printf -- "- **Sentry reference:** \`%s\`\n\n" "$SHORT_ID"
+    printf 'The feedback text and reporter details remain in Sentry because this repository is public.\n'
+  } > "$BODY_PATH"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "Would create issue: Triage Sentry feedback $SHORT_ID ($SLUG)"
+    write_instruction_comment "the new issue for $SLUG" "$SLUG" "$PERMALINK"
+    continue
+  fi
+
+  ISSUE_URL="$(gh issue create \
+    --repo "$GH_REPO" \
+    --title "Triage Sentry feedback $SHORT_ID" \
+    --body-file "$BODY_PATH")"
+  CREATED=$((CREATED + 1))
+  write_instruction_comment "$ISSUE_URL" "$SLUG" "$PERMALINK"
+  echo "Created: $ISSUE_URL"
+done < <(jq -c '.data | sort_by(.id | tonumber)[]' "$FEEDBACK_JSON")
+
+SUMMARY="Found $TOTAL unresolved feedback item(s): created $CREATED issue(s), found $TRACKED already tracked, added $COMMENTS_ADDED instruction comment(s)."
+echo "$SUMMARY"
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  {
+    echo "## Sentry feedback check"
+    echo ""
+    echo "$SUMMARY"
+  } >> "$GITHUB_STEP_SUMMARY"
+fi

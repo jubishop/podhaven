@@ -1,0 +1,37 @@
+name: Sentry Feedback
+
+on:
+  schedule:
+    # 14:00 UTC is ~6am PDT / ~7am PST. GitHub cron is UTC-only.
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sentry-feedback
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check unresolved feedback
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install Sentry CLI
+        run: npm install --global sentry@0.38.0
+
+      - name: Create issues for new feedback
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: bin/check-sentry-feedback
