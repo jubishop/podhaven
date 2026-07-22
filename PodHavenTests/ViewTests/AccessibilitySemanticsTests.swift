@@ -118,6 +118,25 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
+    "Settings overflow menu announces More Actions",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func settingsOverflowMenuAnnouncesMoreActions() throws {
+    let window = try Self.makeWindow(SettingsView())
+    defer { window.isHidden = true }
+
+    let menu = Self.accessibilityElements(in: window)
+      .first {
+        $0.accessibilityLabel == "More Actions"
+      }
+
+    #expect(menu?.accessibilityTraits.contains(.button) == true)
+  }
+
+  @Test(
     "queued transcription exposes a cancel button",
     .enabled(
       if: supportsHostedAccessibilityInspection,

@@ -534,6 +534,14 @@ struct SettingsView: View {
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Menu {
+            if AppInfo.environment.isRelease {
+              Button {
+                navigation.showFeedback()
+              } label: {
+                AppIcon.sendFeedback.rawLabel
+              }
+              Divider()
+            }
             if let url = Self.githubURL {
               Link(destination: url) {
                 AppIcon.github.rawLabel
@@ -550,8 +558,9 @@ struct SettingsView: View {
               }
             }
           } label: {
-            Image(systemName: "ellipsis.circle")
+            AppIcon.moreActions.image
           }
+          .accessibilityLabel("More Actions")
         }
       }
     }
