@@ -95,15 +95,38 @@ struct EpisodeFeed: Sendable, Equatable {
   }
 }
 
-// MARK: - FeedParseError
+// MARK: - PodcastFeedError
 
-enum FeedParseError: Error, LocalizedError {
+enum PodcastFeedError: Error, LocalizedError, CustomNSError, Sendable {
   case notXML
+  case unavailable(HTTPStatusError)
 
   var errorDescription: String? {
     switch self {
     case .notXML:
       return "Response is not valid XML"
+    case .unavailable:
+      return "This podcast's feed is no longer available."
+    }
+  }
+
+  static var errorDomain: String { "PodcastFeedError" }
+
+  var errorCode: Int {
+    switch self {
+    case .notXML:
+      return 1
+    case .unavailable(let error):
+      return error.statusCode
+    }
+  }
+
+  var errorUserInfo: [String: Any] {
+    switch self {
+    case .notXML:
+      return [:]
+    case .unavailable(let error):
+      return [NSUnderlyingErrorKey: error]
     }
   }
 }
@@ -116,7 +139,12 @@ struct PodcastFeed: Sendable, Stringable {
   // MARK: - Static Parsing Methods
 
   static func parse(_ url: FeedURL) async throws -> PodcastFeed {
-    let data = try await Container.shared.podcastFeedSession().validatedData(from: url.rawValue)
+    let data: Data
+    do {
+      data = try await Container.shared.podcastFeedSession().validatedData(from: url.rawValue)
+    } catch let error as HTTPStatusError where error.statusCode == 404 || error.statusCode == 410 {
+      throw PodcastFeedError.unavailable(error)
+    }
     return try await parse(data, from: url)
   }
 
@@ -127,7 +155,7 @@ struct PodcastFeed: Sendable, Stringable {
   @concurrent static func parse(_ data: Data, from: FeedURL) async throws -> PodcastFeed {
     log.trace("Parsing data of size \(data.count) from \(from)")
     guard XMLParser(data: data).parse() else {
-      throw FeedParseError.notXML
+      throw PodcastFeedError.notXML
     }
     let rssPodcast = try await PodcastRSS.parse(data)
     return try PodcastFeed(rssPodcast: rssPodcast, from: from)
