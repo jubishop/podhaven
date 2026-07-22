@@ -10,7 +10,10 @@ import Testing
 
 @Suite("of PodcastFeed tests", .container)
 struct PodcastFeedTests {
+  @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.repo) private var repo
+
+  private var feedSession: FakeDataFetchable { podcastFeedSession as! FakeDataFetchable }
 
   @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async throws {
@@ -159,6 +162,33 @@ struct PodcastFeedTests {
 
     await #expect(throws: (any Error).self) {
       try await PodcastFeed.parse(FeedURL(url))
+    }
+  }
+
+  @Test("unavailable HTTP feeds explain the failure")
+  func unavailableHTTPFeedsExplainFailure() async throws {
+    for statusCode in [404, 410] {
+      let url = URL.valid()
+      await feedSession.respond(to: url) { url in
+        (Data(), URL.response(url, statusCode: statusCode))
+      }
+
+      await #expect {
+        try await PodcastFeed.parse(FeedURL(url))
+      } throws: { error in
+        #expect(ErrorKit.message(for: error) == "This podcast's feed is no longer available.")
+
+        guard let feedError = error as? PodcastFeedError,
+          case .unavailable(let statusError) = feedError
+        else { return false }
+
+        #expect(statusError.statusCode == statusCode)
+        #expect(statusError.responseURL == url)
+        let loggableMessage = String(describing: ErrorKit.loggableMessage(for: error))
+        #expect(loggableMessage.contains("HTTP \(statusCode)"))
+        #expect(loggableMessage.contains(url.absoluteString))
+        return true
+      }
     }
   }
 
