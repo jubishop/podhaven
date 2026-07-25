@@ -13,9 +13,16 @@ import Testing
 @MainActor class WidgetSnapshotWriterTests {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.userSettings) private var userSettings
   @DynamicInjected(\.widgetSnapshotWriter) private var writer
 
+  nonisolated private var fileManager: FakeFileManager {
+    Container.shared.fileManager() as! FakeFileManager
+  }
+  nonisolated private var widgetCenter: FakeWidgetCenter {
+    Container.shared.widgetCenter() as! FakeWidgetCenter
+  }
   nonisolated private var widgetState: WidgetState { Container.shared.widgetState() }
 
   private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
@@ -24,6 +31,24 @@ import Testing
         .request(filter: Episode.Columns.id == episodeID)
         .fetchOne(db)!
     }
+  }
+
+  private func writeNowPlayingSnapshot(for episode: PodcastEpisode) async throws -> Data {
+    let snapshot = NowPlayingSnapshot(
+      schemaVersion: NowPlayingSnapshot.currentSchemaVersion,
+      nowPlaying: NowPlayingSnapshot.NowPlaying(
+        episodeID: episode.id.rawValue,
+        episodeTitle: episode.title,
+        podcastTitle: episode.podcastTitle,
+        pubDateTimestamp: episode.pubDate.timeIntervalSince1970,
+        durationSeconds: episode.duration.seconds,
+        artworkBase64: nil
+      ),
+      updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let data = try JSONEncoder().encode(snapshot)
+    try await fileManager.writeData(data, to: WidgetInfo.nowPlayingSnapshotURL)
+    return data
   }
 
   @Test("writes valid queue JSON when queue is empty")
@@ -58,27 +83,37 @@ import Testing
     let episode = try await Create.podcastEpisode()
     sharedState.currentEpisodeID = episode.id
 
-    let snapshot = NowPlayingSnapshot(
-      schemaVersion: NowPlayingSnapshot.currentSchemaVersion,
-      nowPlaying: NowPlayingSnapshot.NowPlaying(
-        episodeID: episode.id.rawValue,
-        episodeTitle: episode.title,
-        podcastTitle: episode.podcastTitle,
-        pubDateTimestamp: episode.pubDate.timeIntervalSince1970,
-        durationSeconds: episode.duration.seconds,
-        artworkBase64: nil
-      ),
-      updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
-    )
-    let snapshotData = try JSONEncoder().encode(snapshot)
-    let fileManager = Container.shared.fileManager() as! FakeFileManager
-    try await fileManager.writeData(snapshotData, to: WidgetInfo.nowPlayingSnapshotURL)
+    let snapshotData = try await writeNowPlayingSnapshot(for: episode)
 
     writer.start()
     try await WidgetHelpers.waitForQueueSnapshot()
 
     let preservedData = try await fileManager.readData(from: WidgetInfo.nowPlayingSnapshotURL)
     #expect(preservedData == snapshotData)
+  }
+
+  @Test("invalidates preserved snapshot when persisted episode is cleared")
+  func invalidatesPreservedSnapshotWhenPersistedEpisodeIsCleared() async throws {
+    let episode = try await Create.podcastEpisode()
+    sharedState.currentEpisodeID = episode.id
+    let snapshotData = try await writeNowPlayingSnapshot(for: episode)
+
+    writer.start()
+    try await WidgetHelpers.waitForQueueSnapshot()
+
+    stateManager.clearOnDeck()
+
+    let invalidated = try await WidgetHelpers.waitForNowPlayingSnapshot {
+      $0.nowPlaying == nil
+    }
+    let invalidatedData = try await fileManager.readData(from: WidgetInfo.nowPlayingSnapshotURL)
+
+    #expect(invalidated.nowPlaying == nil)
+    #expect(invalidatedData != snapshotData)
+    try await Wait.until(
+      { self.widgetCenter.reloadCount(ofKind: WidgetInfo.nowPlayingKind) > 0 },
+      { "Now-playing widgets were not reloaded after persisted episode invalidation" }
+    )
   }
 
   @Test("writes playback status to WidgetInfo")

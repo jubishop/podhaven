@@ -308,8 +308,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
     lifecycle.runTask("playNow: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
-      try await playManager.load(podcastEpisode)
-      await playManager.play()
+      try await playManager.play(podcastEpisode)
     }
   }
 

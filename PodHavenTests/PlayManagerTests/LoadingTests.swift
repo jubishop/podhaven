@@ -477,6 +477,57 @@ import Testing
     try await PlayHelpers.waitForQueue([])
   }
 
+  @Test("episode intent recovers its selected target after activation failure")
+  func episodeIntentRecoversSelectedTargetAfterActivationFailure() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    let result = try await PlayEpisodeIntent(episodeID: podcastEpisode.id.rawValue).perform()
+    withExtendedLifetime(result) {}
+
+    #expect(sharedState.currentEpisodeID == nil)
+    #expect(sharedState.onDeck == nil)
+
+    audioSession.activationError { $0 = nil }
+    await playManager.restorePersistedEpisodeForForeground()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+  }
+
+  @Test("episode intent recovers its selected target instead of the prior episode")
+  func episodeIntentRecoversSelectedTargetInsteadOfPriorEpisode() async throws {
+    let (priorEpisode, selectedEpisode) = try await Create.twoPodcastEpisodes()
+    sharedState.currentEpisodeID = priorEpisode.id
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    let result = try await PlayEpisodeIntent(episodeID: selectedEpisode.id.rawValue).perform()
+    withExtendedLifetime(result) {}
+
+    #expect(sharedState.currentEpisodeID == priorEpisode.id)
+    #expect(sharedState.onDeck == nil)
+
+    audioSession.activationError { $0 = nil }
+    await playManager.restorePersistedEpisodeForForeground()
+
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(sharedState.currentEpisodeID == selectedEpisode.id)
+  }
+
   @Test("audio session recovers on next load attempt after prior failure")
   func audioSessionRecoversOnNextLoadAttemptAfterPriorFailure() async throws {
     await playManager.start()

@@ -190,7 +190,44 @@ final class PlayManager {
     }
   }
 
+  private func restorePendingPlaybackRequestIfNeeded() async {
+    guard case .play(let episodeID) = pendingPlaybackRequest else { return }
+    guard sharedState.onDeck?.id != episodeID else { return }
+
+    Self.log.info("Loading episode \(episodeID) for pending playback")
+    do {
+      let podcastEpisode = try await repo.podcastEpisode(episodeID)
+      guard case .play(let pendingEpisodeID) = pendingPlaybackRequest,
+        pendingEpisodeID == episodeID
+      else { return }
+      guard let podcastEpisode else {
+        Self.log.warning("Pending episode \(episodeID) not found in database")
+        pendingPlaybackRequest = .none
+        if sharedState.onDeck == nil && sharedState.currentEpisodeID == episodeID {
+          stateManager.clearOnDeck()
+        }
+        return
+      }
+      try await load(podcastEpisode)
+    } catch {
+      Self.log.caughtError(
+        "restorePendingPlaybackRequestIfNeeded: failed to load episode \(episodeID)",
+        error
+      )
+    }
+  }
+
   func restorePersistedEpisodeForForeground() async {
+    await restorePendingPlaybackRequestIfNeeded()
+    if case .play(let episodeID) = pendingPlaybackRequest {
+      guard sharedState.onDeck?.id == episodeID else {
+        Self.log.info("Pending playback for episode \(episodeID) remains deferred")
+        return
+      }
+      await fulfillPendingPlaybackRequest()
+      return
+    }
+
     await restorePersistedEpisodeIfNeeded()
     await fulfillPendingPlaybackRequest()
   }
@@ -417,6 +454,17 @@ final class PlayManager {
   }
 
   // MARK: - Playback Controls
+
+  func play(_ podcastEpisode: PodcastEpisode) async throws {
+    pendingPlaybackRequest = .play(podcastEpisode.id)
+    try await load(podcastEpisode)
+
+    guard case .play(let pendingEpisodeID) = pendingPlaybackRequest,
+      pendingEpisodeID == podcastEpisode.id,
+      sharedState.onDeck?.id == podcastEpisode.id
+    else { return }
+    await fulfillPendingPlaybackRequest()
+  }
 
   func play() async {
     guard let episodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID else {
