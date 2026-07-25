@@ -53,6 +53,34 @@ import Testing
     #expect(snapshot.nowPlaying?.podcastTitle == episode.podcastTitle)
   }
 
+  @Test("preserves snapshot while persisted episode awaits restoration")
+  func preservesSnapshotWhilePersistedEpisodeAwaitsRestoration() async throws {
+    let episode = try await Create.podcastEpisode()
+    sharedState.currentEpisodeID = episode.id
+
+    let snapshot = NowPlayingSnapshot(
+      schemaVersion: NowPlayingSnapshot.currentSchemaVersion,
+      nowPlaying: NowPlayingSnapshot.NowPlaying(
+        episodeID: episode.id.rawValue,
+        episodeTitle: episode.title,
+        podcastTitle: episode.podcastTitle,
+        pubDateTimestamp: episode.pubDate.timeIntervalSince1970,
+        durationSeconds: episode.duration.seconds,
+        artworkBase64: nil
+      ),
+      updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let snapshotData = try JSONEncoder().encode(snapshot)
+    let fileManager = Container.shared.fileManager() as! FakeFileManager
+    try await fileManager.writeData(snapshotData, to: WidgetInfo.nowPlayingSnapshotURL)
+
+    writer.start()
+    try await WidgetHelpers.waitForQueueSnapshot()
+
+    let preservedData = try await fileManager.readData(from: WidgetInfo.nowPlayingSnapshotURL)
+    #expect(preservedData == snapshotData)
+  }
+
   @Test("writes playback status to WidgetInfo")
   func writesPlaybackStatusToWidgetInfo() async throws {
     writer.start()

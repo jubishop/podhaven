@@ -423,6 +423,60 @@ import Testing
     )
   }
 
+  @Test("activation failure preserves persisted episode and recovers on retry")
+  func activationFailurePreservesPersistedEpisodeAndRecoversOnRetry() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    sharedState.currentEpisodeID = podcastEpisode.id
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    await playManager.start()
+
+    try #require(sharedState.currentEpisodeID == podcastEpisode.id)
+    #expect(sharedState.onDeck == nil)
+    try await PlayHelpers.waitForQueue([])
+
+    audioSession.activationError { $0 = nil }
+    await playManager.play()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    try await PlayHelpers.waitForQueue([])
+  }
+
+  @Test("foreground restoration resumes a deferred play request")
+  func foregroundRestorationResumesDeferredPlayRequest() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    sharedState.currentEpisodeID = podcastEpisode.id
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    await playManager.start()
+    await playManager.play()
+
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    #expect(sharedState.onDeck == nil)
+
+    audioSession.activationError { $0 = nil }
+    await playManager.restorePersistedEpisodeForForeground()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    try await PlayHelpers.waitForQueue([])
+  }
+
   @Test("audio session recovers on next load attempt after prior failure")
   func audioSessionRecoversOnNextLoadAttemptAfterPriorFailure() async throws {
     await playManager.start()

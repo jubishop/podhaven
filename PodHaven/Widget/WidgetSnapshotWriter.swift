@@ -53,9 +53,10 @@ final class WidgetSnapshotWriter: Sendable {
       Task(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
 
-        // PlayManager has already restored onDeck by the time we start.
-        // If nothing is playing, clear any stale snapshot from a prior session.
-        if sharedState.$onDeck.value == nil {
+        // A background audio-session activation can be deferred until the app
+        // foregrounds. Preserve the last snapshot while that episode is still
+        // persisted so the widget does not fall back to a loading state.
+        if sharedState.$onDeck.value == nil && sharedState.currentEpisodeID == nil {
           do {
             try fileManager.removeItem(at: WidgetInfo.nowPlayingSnapshotURL)
           } catch {

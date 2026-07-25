@@ -98,6 +98,11 @@ actor PlayActor {
 
 @PlayActor
 final class PlayManager {
+  private enum PendingPlaybackRequest {
+    case none
+    case play(Episode.ID)
+  }
+
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenterStream) var commandCenterStream
   @DynamicInjected(\.fileManager) var fileManager
@@ -139,6 +144,7 @@ final class PlayManager {
   private var lastLoggedTime = Date.distantPast
   private var lastNowPlayingElapsedWrite: CMTime?
   private var lastBackgroundSnapshot: Date?
+  private var pendingPlaybackRequest = PendingPlaybackRequest.none
   private var postPauseObservationTask: Task<Void, Never>?
 
   // MARK: - Initialization
@@ -160,11 +166,11 @@ final class PlayManager {
       Self.log.debug("start: executing")
 
       self.startStreamConsumers()
-      await self.loadPersistedEpisodeIfNeeded()
+      await self.restorePersistedEpisodeIfNeeded()
     }
   }
 
-  private func loadPersistedEpisodeIfNeeded() async {
+  private func restorePersistedEpisodeIfNeeded() async {
     guard sharedState.onDeck == nil else { return }
     guard let currentEpisodeID = sharedState.currentEpisodeID else { return }
 
@@ -172,15 +178,21 @@ final class PlayManager {
     do {
       guard let podcastEpisode = try await repo.podcastEpisode(currentEpisodeID) else {
         Self.log.warning("Persisted episode \(currentEpisodeID) not found in database")
+        stateManager.clearOnDeck()
         return
       }
       try await load(podcastEpisode)
     } catch {
       Self.log.caughtError(
-        "loadPersistedEpisodeIfNeeded: failed to load persisted episode \(currentEpisodeID)",
+        "restorePersistedEpisodeIfNeeded: failed to load persisted episode \(currentEpisodeID)",
         error
       )
     }
+  }
+
+  func restorePersistedEpisodeForForeground() async {
+    await restorePersistedEpisodeIfNeeded()
+    await fulfillPendingPlaybackRequest()
   }
 
   // MARK: - Loading
@@ -199,12 +211,6 @@ final class PlayManager {
       return false
     }
 
-    // Manually starting a different episode cancels a pending sleep stop.
-    if sharedState.stopAfterCurrentEpisode {
-      Self.log.debug("performLoad: new episode starting, clearing stopAfterCurrentEpisode")
-      sharedState.setStopAfterCurrentEpisode(false)
-    }
-
     let task = Task<Bool, any Error> { [weak self] in
       guard let self else { return false }
       let loadStart = Date()
@@ -218,6 +224,32 @@ final class PlayManager {
       )
 
       var phaseStart = Date()
+      Self.log.debug("performLoad: configuring audio session")
+      let audioSessionConfigured = await Container.shared.configureAudioSession()()
+      Self.log.debug(
+        """
+        performLoad: configured audio session result=\(audioSessionConfigured) \
+        in \(Date().timeIntervalSince(phaseStart)) seconds
+        """
+      )
+      guard audioSessionConfigured else { return false }
+      try Task.checkCancellation()
+
+      phaseStart = Date()
+      Self.log.debug("performLoad: activating audio session")
+      try Container.shared.setAudioSessionActive()(true)
+      Self.log.debug(
+        "performLoad: activated audio session in \(Date().timeIntervalSince(phaseStart)) seconds"
+      )
+
+      // Do not mutate playback state until the audio session is ready. A
+      // background activation can be rejected while another app is playing.
+      if sharedState.stopAfterCurrentEpisode {
+        Self.log.debug("performLoad: new episode starting, clearing stopAfterCurrentEpisode")
+        sharedState.setStopAfterCurrentEpisode(false)
+      }
+
+      phaseStart = Date()
       Self.log.debug("performLoad: removing player observers")
       await podAVPlayer.removeObservers()
       Self.log.debug(
@@ -260,28 +292,7 @@ final class PlayManager {
         Self.log.debug("performLoad: no outgoing episode to restore")
       }
 
-      phaseStart = Date()
-      Self.log.debug("performLoad: configuring audio session")
-      let audioSessionConfigured = await Container.shared.configureAudioSession()()
-      Self.log.debug(
-        """
-        performLoad: configured audio session result=\(audioSessionConfigured) \
-        in \(Date().timeIntervalSince(phaseStart)) seconds
-        """
-      )
-      guard audioSessionConfigured else {
-        await cleanUpAfterLoadFailure(outgoing, incoming)
-        return false
-      }
-
       do {
-        phaseStart = Date()
-        Self.log.debug("performLoad: activating audio session")
-        try Container.shared.setAudioSessionActive()(true)
-        Self.log.debug(
-          "performLoad: activated audio session in \(Date().timeIntervalSince(phaseStart)) seconds"
-        )
-
         phaseStart = Date()
         Self.log.debug("performLoad: setting playback rate")
         await podAVPlayer.setRate(
@@ -408,21 +419,47 @@ final class PlayManager {
   // MARK: - Playback Controls
 
   func play() async {
-    await loadPersistedEpisodeIfNeeded()
-
-    guard sharedState.onDeck != nil else {
+    guard let episodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID else {
+      pendingPlaybackRequest = .none
       Self.log.warning("play: nothing to play")
       return
     }
+    pendingPlaybackRequest = .play(episodeID)
 
+    await restorePersistedEpisodeIfNeeded()
+    await fulfillPendingPlaybackRequest()
+  }
+
+  private func fulfillPendingPlaybackRequest() async {
+    guard case .play(let episodeID) = pendingPlaybackRequest else { return }
+    guard let onDeck = sharedState.onDeck else {
+      if sharedState.currentEpisodeID == episodeID {
+        Self.log.info("play: deferring episode \(episodeID) until persisted playback is restored")
+      } else {
+        pendingPlaybackRequest = .none
+        Self.log.warning("play: nothing to play")
+      }
+      return
+    }
+    guard onDeck.id == episodeID else {
+      pendingPlaybackRequest = .none
+      Self.log.warning(
+        "play: dropping stale request for episode \(episodeID); on-deck episode is \(onDeck.id)"
+      )
+      return
+    }
+
+    pendingPlaybackRequest = .none
     await podAVPlayer.play()
   }
 
   func pause() async {
+    pendingPlaybackRequest = .none
     await podAVPlayer.pause()
   }
 
   func stop() async {
+    pendingPlaybackRequest = .none
     await clearOnDeck()
     setStatus(.stopped)
   }

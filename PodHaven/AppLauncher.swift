@@ -154,6 +154,10 @@ struct AppLauncher: Sendable {
 
       self.startSystemMonitoring()
     }
+
+    guard AppInfo.environment != .testing else { return }
+    guard !Task.isCancelled else { return }
+    await playManager.restorePersistedEpisodeForForeground()
   }
 
   // MARK: - System Monitoring
