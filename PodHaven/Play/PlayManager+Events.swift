@@ -11,7 +11,7 @@ extension PlayManager {
     case awaitingUserAction
     case configurationFailed
     case noEpisode
-    case noInterruption
+    case queueStateUnknown
   }
 
   @MainActor private static func resetAVPlayerScope() {
@@ -229,7 +229,7 @@ extension PlayManager {
     } else if resumeEpisode == nil {
       outcome = .noEpisode
     } else if interruptedEpisodeID == nil, previousPlaybackStatus.stopped {
-      outcome = .noInterruption
+      outcome = .queueStateUnknown
     } else {
       outcome = .awaitingUserAction
     }

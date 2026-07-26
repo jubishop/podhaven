@@ -227,7 +227,7 @@ import Testing
           sink.captured()
             .contains {
               $0.message.contains("event=mediaServicesResetHandled")
-                && $0.message.contains("outcome=noInterruption")
+                && $0.message.contains("outcome=queueStateUnknown")
             }
         },
         { "Expected idle media-services reset telemetry" }
@@ -241,6 +241,69 @@ import Testing
           == initialLoadCount
       )
       #expect(await audioSession.activeCalls.filter(\.self).isEmpty)
+    }
+  }
+
+  @Test("media services reset marks a prior item failure as ambiguous queue state")
+  func mediaServicesResetMarksPriorItemFailureAsAmbiguousQueueState() async throws {
+    try await LogCapture.withSink { sink in
+      PlayHelpers.setupCommandHandling()
+      await playManager.start()
+      let podcastEpisode = try await Create.podcastEpisode()
+
+      try await PlayHelpers.load(podcastEpisode)
+      try await PlayHelpers.pause()
+      let initialAVPlayer = avPlayer
+      let initialLoadCount = await episodeAssetLoader.responseCount(
+        for: podcastEpisode.episode.mediaURL
+      )
+      let initialActivationCount = await audioSession.activeCalls.filter(\.self).count
+      let currentItem = try #require(initialAVPlayer.current as? FakeAVPlayerItem)
+
+      currentItem.setStatus(.failed)
+      try await PlayHelpers.waitForOnDeck(nil)
+      try await PlayHelpers.waitFor(.stopped)
+      try await PlayHelpers.waitForQueue([podcastEpisode])
+
+      let initialConfigureCallCount = await audioSession.configureCallCount
+      notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+        .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+      try await PlayHelpers.waitForConfigureCallCount(
+        callCount: initialConfigureCallCount + 1
+      )
+      try await Wait.until(
+        { await avPlayer != initialAVPlayer },
+        { "Expected new AVPlayer to be created" }
+      )
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("event=mediaServicesResetHandled")
+            }
+        },
+        { "Expected media-services reset telemetry" }
+      )
+      let telemetry = sink.captured()
+        .filter {
+          $0.level == .warning
+            && $0.message.contains("event=mediaServicesResetHandled")
+            && $0.message.contains("outcome=queueStateUnknown")
+            && $0.message.contains("interruptedEpisodeID=nil")
+            && $0.message.contains("resumeEpisodeID=\(podcastEpisode.id)")
+        }
+      #expect(telemetry.count == 1)
+
+      try await PlayHelpers.waitForQueue([podcastEpisode])
+      #expect(sharedState.onDeck == nil)
+      #expect(sharedState.playbackStatus == .stopped)
+      #expect(alert.config == nil)
+      #expect(
+        await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
+          == initialLoadCount
+      )
+      #expect(await audioSession.activeCalls.filter(\.self).count == initialActivationCount)
     }
   }
 
