@@ -199,39 +199,49 @@ import Testing
     }
   }
 
-  @Test("media services reset leaves an existing queue untouched until user action")
-  func mediaServicesResetLeavesExistingQueueUntouchedUntilUserAction() async throws {
-    PlayHelpers.setupCommandHandling()
-    await playManager.start()
-    let podcastEpisode = try await Create.podcastEpisode()
-    let initialAVPlayer = avPlayer
-    let initialCallCount = await audioSession.configureCallCount
-    let initialLoadCount = await episodeAssetLoader.responseCount(
-      for: podcastEpisode.episode.mediaURL
-    )
+  @Test("media services reset does not prompt when only a queued episode exists")
+  func mediaServicesResetDoesNotPromptWhenOnlyQueuedEpisodeExists() async throws {
+    try await LogCapture.withSink { sink in
+      PlayHelpers.setupCommandHandling()
+      await playManager.start()
+      let podcastEpisode = try await Create.podcastEpisode()
+      let initialAVPlayer = avPlayer
+      let initialCallCount = await audioSession.configureCallCount
+      let initialLoadCount = await episodeAssetLoader.responseCount(
+        for: podcastEpisode.episode.mediaURL
+      )
 
-    try await queue.unshift(podcastEpisode.id)
-    #expect(sharedState.onDeck == nil)
+      try await queue.unshift(podcastEpisode.id)
+      #expect(sharedState.onDeck == nil)
 
-    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
-      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
-    try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
-    try await Wait.until(
-      { await avPlayer != initialAVPlayer },
-      { "Expected new AVPlayer to be created" }
-    )
-    try await PlayHelpers.waitForQueue([podcastEpisode])
-    #expect(sharedState.onDeck == nil)
-    #expect(sharedState.playbackStatus == .stopped)
-    try await Wait.until(
-      { @MainActor in alert.config?.title == "Audio Services Restarted" },
-      { @MainActor in "Expected an audio-services reset explanation" }
-    )
-    #expect(
-      await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
-        == initialLoadCount
-    )
-    #expect(await audioSession.activeCalls.filter(\.self).isEmpty)
+      notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+        .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+      try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
+      try await Wait.until(
+        { await avPlayer != initialAVPlayer },
+        { "Expected new AVPlayer to be created" }
+      )
+      try await PlayHelpers.waitForQueue([podcastEpisode])
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("event=mediaServicesResetHandled")
+                && $0.message.contains("outcome=noInterruption")
+            }
+        },
+        { "Expected idle media-services reset telemetry" }
+      )
+
+      #expect(sharedState.onDeck == nil)
+      #expect(sharedState.playbackStatus == .stopped)
+      #expect(alert.config == nil)
+      #expect(
+        await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
+          == initialLoadCount
+      )
+      #expect(await audioSession.activeCalls.filter(\.self).isEmpty)
+    }
   }
 
   @Test("media services reset treats an old load failure as debug context")

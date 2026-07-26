@@ -11,6 +11,7 @@ extension PlayManager {
     case awaitingUserAction
     case configurationFailed
     case noEpisode
+    case noInterruption
   }
 
   @MainActor private static func resetAVPlayerScope() {
@@ -225,10 +226,12 @@ extension PlayManager {
     let outcome: MediaServicesResetOutcome
     if !audioSessionConfigured {
       outcome = .configurationFailed
-    } else if resumeEpisode != nil {
-      outcome = .awaitingUserAction
-    } else {
+    } else if resumeEpisode == nil {
       outcome = .noEpisode
+    } else if interruptedEpisodeID == nil, previousPlaybackStatus.stopped {
+      outcome = .noInterruption
+    } else {
+      outcome = .awaitingUserAction
     }
 
     let interruptedEpisodeIDDescription: String
@@ -252,13 +255,13 @@ extension PlayManager {
       """
     )
 
-    guard audioSessionConfigured, let resumeEpisode else { return }
+    guard case .awaitingUserAction = outcome, let resumeEpisode else { return }
 
     await alert(
       title: "Audio Services Restarted",
       """
       Your device restarted its audio services. “\(resumeEpisode.episode.title)” is at the top of \
-      Up Next. Tap it to resume playback.
+      Up Next. Play it when you’re ready to resume.
       """
     )
   }
