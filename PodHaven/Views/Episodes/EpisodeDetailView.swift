@@ -15,6 +15,7 @@ struct EpisodeDetailView: View {
 
   @AccessibilityFocusState private var artworkAccessibilityFocus: ArtworkAccessibilityFocus?
   @ScaledMetric(relativeTo: .body) private var transcriptParagraphSpacing: CGFloat = 16
+  @State private var showingDiscardProgressConfirmation = false
   @State private var showingImageOverlay = false
   @State private var viewModel: EpisodeDetailViewModel
 
@@ -74,6 +75,23 @@ struct EpisodeDetailView: View {
     }
     .onChange(of: showingImageOverlay) { _, isShowing in
       artworkAccessibilityFocus = isShowing ? .overlay : .trigger
+    }
+    .confirmationDialog(
+      "Discard Transcription Progress?",
+      isPresented: $showingDiscardProgressConfirmation,
+      titleVisibility: .visible
+    ) {
+      Button("Discard Progress", role: .destructive) {
+        viewModel.discardTranscriptionProgress()
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text(
+        """
+        This permanently deletes all saved progress and stops the transcription if it is running. \
+        The next transcription will start from the beginning.
+        """
+      )
     }
   }
 
@@ -166,18 +184,21 @@ struct EpisodeDetailView: View {
     if viewModel.isTranscriptionAvailable {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          if viewModel.transcriptionStatus.canCancel {
-            viewModel.cancelTranscription()
+          if viewModel.transcriptionStatus.canPause {
+            viewModel.pauseTranscription()
           } else {
             viewModel.transcribe()
           }
         } label: {
-          if viewModel.transcriptionStatus.canCancel
-            || viewModel.transcriptionStatus == .cancelling
-          {
-            AppIcon.cancelTranscription.image
+          switch viewModel.transcriptionStatus {
+          case .queued, .transcribing, .pausing:
+            AppIcon.pauseTranscription.image
               .symbolEffect(.pulse, isActive: isTranscribing)
-          } else {
+          case .discarding:
+            AppIcon.discardTranscriptionProgress.image
+          case .paused:
+            AppIcon.resumeTranscription.image
+          case .none, .transcribed, .failed:
             AppIcon.transcribeEpisode.image
           }
         }
@@ -189,7 +210,7 @@ struct EpisodeDetailView: View {
         )
         .disabled(
           !viewModel.transcriptionStatus.canTranscribe
-            && !viewModel.transcriptionStatus.canCancel
+            && !viewModel.transcriptionStatus.canPause
         )
       }
     }
@@ -425,7 +446,10 @@ struct EpisodeDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
           Text("Queued for transcription — position \(position) of \(total)")
             .foregroundStyle(.secondary)
-          cancelTranscriptionButton
+          pauseTranscriptionButton
+          if viewModel.canDiscardTranscriptionProgress {
+            discardTranscriptionProgressButton
+          }
         }
       case .transcribing(let progress):
         VStack(alignment: .leading, spacing: 8) {
@@ -445,13 +469,33 @@ struct EpisodeDetailView: View {
                 .foregroundStyle(.secondary)
             }
           }
-          cancelTranscriptionButton
+          pauseTranscriptionButton
+          discardTranscriptionProgressButton
         }
-      case .cancelling:
+      case .paused(let progress):
+        VStack(alignment: .leading, spacing: 8) {
+          ProgressView(value: progress) {
+            Text("Transcription paused")
+              .foregroundStyle(.secondary)
+          } currentValueLabel: {
+            Text(progress, format: .percent.precision(.fractionLength(0)))
+              .foregroundStyle(.secondary)
+          }
+          resumeTranscriptionButton
+          discardTranscriptionProgressButton
+        }
+      case .pausing:
         HStack(spacing: 8) {
           ProgressView()
             .accessibilityHidden(true)
-          Text("Cancelling transcription…")
+          Text("Pausing transcription…")
+            .foregroundStyle(.secondary)
+        }
+      case .discarding:
+        HStack(spacing: 8) {
+          ProgressView()
+            .accessibilityHidden(true)
+          Text("Discarding transcription progress…")
             .foregroundStyle(.secondary)
         }
       case .transcribed:
@@ -487,6 +531,9 @@ struct EpisodeDetailView: View {
               viewModel.transcribe()
             }
             .buttonStyle(.bordered)
+          if viewModel.canDiscardTranscriptionProgress {
+            discardTranscriptionProgressButton
+          }
         }
       }
     }
@@ -509,12 +556,29 @@ struct EpisodeDetailView: View {
       .buttonStyle(.bordered)
   }
 
-  private var cancelTranscriptionButton: some View {
-    AppIcon.cancelTranscription
+  private var pauseTranscriptionButton: some View {
+    AppIcon.pauseTranscription
       .labelButton {
-        viewModel.cancelTranscription()
+        viewModel.pauseTranscription()
       }
       .buttonStyle(.bordered)
+  }
+
+  private var resumeTranscriptionButton: some View {
+    AppIcon.resumeTranscription
+      .labelButton {
+        viewModel.transcribe()
+      }
+      .buttonStyle(.bordered)
+  }
+
+  private var discardTranscriptionProgressButton: some View {
+    AppIcon.discardTranscriptionProgress
+      .labelButton {
+        showingDiscardProgressConfirmation = true
+      }
+      .buttonStyle(.bordered)
+      .tint(.red)
   }
 
   private var transcriptDecodeFailureView: some View {
@@ -589,9 +653,10 @@ extension TranscriptionStatus {
   var toolbarAccessibilityLabel: String {
     switch self {
     case .none: "Transcribe"
+    case .paused: "Resume Transcription"
     case .failed: "Retry Transcription"
-    case .queued, .transcribing: "Cancel Transcription"
-    case .cancelling, .transcribed: "Transcription"
+    case .queued, .transcribing: "Pause Transcription"
+    case .pausing, .discarding, .transcribed: "Transcription"
     }
   }
 
@@ -600,7 +665,9 @@ extension TranscriptionStatus {
     case .none: ""
     case .queued: "Queued"
     case .transcribing: "Transcribing"
-    case .cancelling: "Cancelling"
+    case .paused: "Paused"
+    case .pausing: "Pausing"
+    case .discarding: "Discarding Progress"
     case .transcribed: "Complete"
     case .failed: "Failed"
     }

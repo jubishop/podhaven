@@ -107,6 +107,8 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
     episode.loaded?.decodedTranscript
   }
 
+  private(set) var transcriptionCheckpointProgress: Double?
+
   var transcriptDisplay: EpisodeTranscriptDisplay {
     guard episode.hasTranscript else { return .notTranscribed }
     guard episode.loaded != nil else { return .loading }
@@ -174,7 +176,22 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
     guard let episodeID = episode.episodeID else { return .none }
     let hasReadableTranscript =
       episode.hasTranscript && (episode.loaded == nil || decodedTranscript != nil)
-    return transcriptionQueue.status(for: episodeID, hasTranscript: hasReadableTranscript)
+    return transcriptionQueue.status(
+      for: episodeID,
+      hasTranscript: hasReadableTranscript,
+      checkpointProgress: transcriptionCheckpointProgress
+    )
+  }
+
+  var canDiscardTranscriptionProgress: Bool {
+    switch transcriptionStatus {
+    case .transcribing, .paused:
+      return true
+    case .queued, .failed:
+      return transcriptionCheckpointProgress != nil
+    case .none, .pausing, .discarding, .transcribed:
+      return false
+    }
   }
 
   // Hide the score once the user has rated or finished the episode: a
@@ -436,12 +453,20 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
     }
   }
 
-  func cancelTranscription() {
+  func pauseTranscription() {
     guard
       let episodeID = episode.episodeID,
-      transcriptionStatus.canCancel
+      transcriptionStatus.canPause
     else { return }
-    transcriptionProcessor.cancel(episodeID)
+    transcriptionProcessor.pause(episodeID)
+  }
+
+  func discardTranscriptionProgress() {
+    guard
+      let episodeID = episode.episodeID,
+      canDiscardTranscriptionProgress
+    else { return }
+    transcriptionProcessor.discardProgress(for: episodeID)
   }
 
   func showPodcast() {
@@ -480,6 +505,11 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
 
   // MARK: - Observation Management
 
+  private enum ObservationCompletion: Sendable {
+    case podcastEpisode
+    case transcriptionCheckpoint
+  }
+
   private func startObservation(_ podcastEpisode: PodcastEpisode) {
     guard lifecycle.isOnScreen else {
       Self.log.debug("startObservation: skipped off-screen")
@@ -488,7 +518,27 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
 
     let started = lifecycle.startObservation { [weak self] in
       guard let self else { return }
-      await observePodcastEpisode(podcastEpisode)
+      await withTaskGroup(of: ObservationCompletion.self) { group in
+        group.addTask { [weak self] in
+          guard let self else { return .podcastEpisode }
+          await observePodcastEpisode(podcastEpisode)
+          return .podcastEpisode
+        }
+        group.addTask { [weak self] in
+          guard let self else { return .transcriptionCheckpoint }
+          await observeTranscriptionCheckpoint(podcastEpisode.id)
+          return .transcriptionCheckpoint
+        }
+        while let completion = await group.next() {
+          switch completion {
+          case .podcastEpisode:
+            group.cancelAll()
+            return
+          case .transcriptionCheckpoint:
+            continue
+          }
+        }
+      }
     }
 
     if !started {
@@ -552,6 +602,31 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
     } catch {
       Self.log.caughtError(
         "observePodcastEpisode: observation failed for \(podcastEpisode.toString)",
+        error
+      )
+    }
+  }
+
+  private func observeTranscriptionCheckpoint(_ episodeID: Episode.ID) async {
+    do {
+      for try await checkpoint in observatory.transcriptionCheckpoint(episodeID) {
+        try Task.checkCancellation()
+        guard
+          lifecycle.isOnScreen,
+          state.savedPodcastEpisode?.id == episodeID
+        else {
+          return
+        }
+        transcriptionCheckpointProgress = checkpoint?.progress
+      }
+    } catch {
+      if lifecycle.isOnScreen,
+        state.savedPodcastEpisode?.id == episodeID
+      {
+        transcriptionCheckpointProgress = nil
+      }
+      Self.log.caughtError(
+        "observeTranscriptionCheckpoint: observation failed for \(episodeID)",
         error
       )
     }
@@ -693,6 +768,9 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
   private func transition(to newState: EpisodeDetailState) {
     guard newState != state else { return }
     Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
+    if newState.savedPodcastEpisode?.id != state.savedPodcastEpisode?.id {
+      transcriptionCheckpointProgress = nil
+    }
     state = newState
     guard lifecycle.isOnScreen else { return }
     recommendationCoordinator.refresh()

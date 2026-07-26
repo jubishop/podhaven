@@ -40,22 +40,21 @@ struct TranscriptionQueueTests {
     #expect(queue.progress[id(1)] == nil)
   }
 
-  @Test("cancelling waiting work removes it and persists the new positions")
-  func cancelWaitingWork() {
+  @Test("pausing waiting work removes it and updates remaining positions")
+  func pauseWaitingWork() {
     let processor = Container.shared.transcriptionProcessor()
+    let waitingID = id(2)
     for episodeID in [id(1), id(2), id(3)] {
       queue.enqueue(episodeID)
     }
 
-    processor.cancel(id(2))
+    processor.pause(waitingID)
 
     #expect(queue.episodeIDs == [id(1), id(3)])
     #expect(
       queue.status(for: id(3), hasTranscript: false) == .queued(position: 2, total: 2)
     )
-
-    Container.shared.transcriptionQueue.reset(.scope)
-    #expect(Container.shared.transcriptionQueue().episodeIDs == [id(1), id(3)])
+    #expect(queue.interruptions[waitingID] == nil)
   }
 
   @Test("stream yields one queue head at a time")
@@ -102,11 +101,11 @@ struct TranscriptionQueueTests {
 
     queue.setProgress(0.25, for: id(1))
     #expect(queue.status(for: id(1), hasTranscript: false) == .transcribing(0.25))
-    #expect(queue.status(for: id(1), hasTranscript: false).canCancel)
+    #expect(queue.status(for: id(1), hasTranscript: false).canPause)
 
-    #expect(queue.beginCancellation(of: id(1)))
-    #expect(queue.status(for: id(1), hasTranscript: false) == .cancelling)
-    #expect(!queue.status(for: id(1), hasTranscript: false).canCancel)
+    #expect(queue.beginPausing(id(1)))
+    #expect(queue.status(for: id(1), hasTranscript: false) == .pausing)
+    #expect(!queue.status(for: id(1), hasTranscript: false).canPause)
 
     queue.remove(id(1))
     #expect(
@@ -115,6 +114,10 @@ struct TranscriptionQueueTests {
 
     queue.fail(id(3))
     #expect(queue.status(for: id(3), hasTranscript: false) == .failed)
+    #expect(
+      queue.status(for: id(4), hasTranscript: false, checkpointProgress: 0.4)
+        == .paused(0.4)
+    )
   }
 
   @Test("enqueue clears a prior failure for the same episode")
@@ -125,5 +128,16 @@ struct TranscriptionQueueTests {
     queue.enqueue(id(1))
     #expect(!queue.failed.contains(id(1)))
     #expect(queue.episodeIDs == [id(1)])
+  }
+
+  @Test("finishing discard clears a prior failure for the same episode")
+  func finishDiscardingClearsFailure() {
+    queue.fail(id(1))
+    queue.beginDiscarding(id(1))
+
+    queue.finishDiscarding(id(1))
+
+    #expect(!queue.failed.contains(id(1)))
+    #expect(queue.status(for: id(1), hasTranscript: false) == .none)
   }
 }
