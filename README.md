@@ -58,23 +58,23 @@ For more advanced users, here are the commands to build and test from the comman
 
 ### Build for Testing
 ```sh
-xcodebuild build-for-testing -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+xcodebuild build-for-testing -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
 ### Run All Tests
 Use `Cmd+U` in Xcode, or run the following command in your terminal:
 ```sh
-xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -testPlan PodHaven -parallel-testing-enabled YES
+xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -testPlan PodHaven -parallel-testing-enabled YES
 ```
 
 ### Run a Specific Test Class
 ```sh
-xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeTestClass
+xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeTestClass
 ```
 
 ### Run an Individual Test Method
 ```sh
-xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeTestClass/testMethod
+xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeTestClass/testMethod
 ```
 </details>
 
