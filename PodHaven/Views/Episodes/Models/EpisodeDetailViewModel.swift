@@ -620,6 +620,11 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
         transcriptionCheckpointProgress = checkpoint?.progress
       }
     } catch {
+      if lifecycle.isOnScreen,
+        state.savedPodcastEpisode?.id == episodeID
+      {
+        transcriptionCheckpointProgress = nil
+      }
       Self.log.caughtError(
         "observeTranscriptionCheckpoint: observation failed for \(episodeID)",
         error

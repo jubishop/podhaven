@@ -250,23 +250,46 @@ import Testing
     )
   }
 
-  @Test("checkpoint observation failure does not stop episode updates")
-  func checkpointObservationFailureDoesNotStopEpisodeUpdates() async throws {
+  @Test("checkpoint observation failure clears progress without stopping episode updates")
+  func checkpointObservationFailureClearsProgressWithoutStoppingEpisodeUpdates() async throws {
     try await LogCapture.withSink { sink in
       let podcastEpisode = try await Create.podcastEpisode()
-      let dbReader = appDB.unsafeTestDB
-      fakeObservatory.transcriptionCheckpointScript([
-        { _ in
-          ValueObservation
-            .tracking { _ -> TranscriptionCheckpoint? in
-              throw TestError.simulatedFailure
-            }
-            .values(in: dbReader)
-        }
-      ])
+      let checkpoint = TranscriptionCheckpoint(
+        segments: [TranscriptSegment(start: 0, end: 30, text: "partial")],
+        audioTime: 30,
+        duration: 60,
+        locale: "en-US",
+        audioSHA256: FakeAudioFileHasher.defaultSHA256
+      )
+      try await repo.saveTranscriptionCheckpoint(checkpoint, for: podcastEpisode.id)
       let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
       viewModel.appear()
       defer { viewModel.disappear() }
+
+      try await Wait.until(
+        { @MainActor in viewModel.transcriptionStatus == .paused(0.5) },
+        { @MainActor in "Expected saved progress to appear as paused" }
+      )
+
+      let unreadableCheckpoint = """
+        {
+          "segments": [null],
+          "audioTime": 30,
+          "duration": 60,
+          "locale": "en-US",
+          "audioSHA256": "\(FakeAudioFileHasher.defaultSHA256)"
+        }
+        """
+      try await appDB.unsafeTestDB.write { db in
+        try db.execute(
+          sql: """
+            UPDATE episodeTranscriptionCheckpoint
+            SET checkpointJSON = ?
+            WHERE episodeId = ?
+            """,
+          arguments: [unreadableCheckpoint, podcastEpisode.id]
+        )
+      }
 
       try await Wait.until(
         {
@@ -278,6 +301,8 @@ import Testing
         { "Expected the checkpoint observation to fail" }
       )
       try await yieldForSpuriousAsyncWork()
+      #expect(viewModel.transcriptionCheckpointProgress == nil)
+      #expect(viewModel.transcriptionStatus == .none)
 
       let transcript = Transcript(
         segments: [TranscriptSegment(start: 0, end: 1, text: "still observed")],
