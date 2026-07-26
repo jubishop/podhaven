@@ -234,6 +234,41 @@ import Testing
     #expect(await audioSession.activeCalls.filter(\.self).isEmpty)
   }
 
+  @Test("media services reset treats an old load failure as debug context")
+  func mediaServicesResetTreatsOldLoadFailureAsDebugContext() async throws {
+    try await LogCapture.withSink { sink in
+      PlayHelpers.setupCommandHandling()
+      await playManager.start()
+      let podcastEpisode = try await Create.podcastEpisode()
+
+      await episodeAssetLoader.respond(
+        to: podcastEpisode.episode.mediaURL,
+        error: TestError.assetLoadFailure(podcastEpisode)
+      )
+      await #expect(throws: (any Error).self) {
+        try await playManager.load(podcastEpisode)
+      }
+
+      notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+        .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("event=mediaServicesResetHandled")
+            }
+        },
+        { "Expected media-services reset telemetry" }
+      )
+      let settledLoadLogs = sink.captured()
+        .filter {
+          $0.message.contains("cancelLoadForMediaServicesReset: load task settled")
+        }
+      #expect(settledLoadLogs.map(\.level) == [.debug])
+    }
+  }
+
   @Test("media services reset cancels an in-flight load before rebuilding")
   func mediaServicesResetCancelsInFlightLoadBeforeRebuilding() async throws {
     PlayHelpers.setupCommandHandling()

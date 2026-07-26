@@ -201,7 +201,11 @@ final class PlayManager {
         "cancelLoadForMediaServicesReset: load had already completed, loaded: \(loaded)"
       )
     case .failure(let error):
-      Self.log.caughtError("cancelLoadForMediaServicesReset: load task settled", error)
+      Self.log.caughtError(
+        "cancelLoadForMediaServicesReset: load task settled",
+        error,
+        level: .debug
+      )
     }
   }
 
