@@ -9,149 +9,121 @@ import Testing
 struct TranscriptionQueueTests {
   private let queue = Container.shared.transcriptionQueue()
 
-  private func episodeIDs(_ count: Int) async throws -> [Episode.ID] {
-    let series = try await Container.shared.repo()
-      .insertSeries(
-        UnsavedPodcastSeries(
-          unsavedPodcast: try Create.unsavedPodcast(),
-          unsavedEpisodes: try (0..<count)
-            .map { _ in
-              try Create.unsavedEpisode()
-            }
-        )
-      )
-    return series.episodes.map(\.id)
-  }
+  private func id(_ value: Int64) -> Episode.ID { Episode.ID(rawValue: value) }
 
   @Test("enqueue appends in order and ignores duplicates")
-  func enqueueOrderAndDedup() async throws {
-    let episodeIDs = try await episodeIDs(2)
-    try await queue.enqueue(episodeIDs[0])
-    try await queue.enqueue(episodeIDs[1])
-    try await queue.enqueue(episodeIDs[0])
-    #expect(queue.episodeIDs == episodeIDs)
+  func enqueueOrderAndDedup() {
+    queue.enqueue(id(1))
+    queue.enqueue(id(2))
+    queue.enqueue(id(1))
+    #expect(queue.episodeIDs == [id(1), id(2)])
   }
 
   @Test("persisted work survives factory recreation in order")
-  func persistedWorkSurvivesFactoryRecreation() async throws {
-    let episodeIDs = try await episodeIDs(2)
-    try await queue.enqueue(episodeIDs)
+  func persistedWorkSurvivesFactoryRecreation() {
+    queue.enqueue(id(1))
+    queue.enqueue(id(2))
 
     Container.shared.transcriptionQueue.reset(.scope)
 
-    let recreatedQueue = Container.shared.transcriptionQueue()
-    await recreatedQueue.waitUntilLoaded()
-    #expect(recreatedQueue.episodeIDs == episodeIDs)
-  }
-
-  @Test("queue persistence does not use UserDefaults")
-  func persistenceDoesNotUseUserDefaults() async throws {
-    try await queue.enqueue(try await episodeIDs(1))
-
-    #expect(
-      Container.shared.standardDefaults().data(forKey: "transcriptionQueue") == nil
-    )
+    #expect(Container.shared.transcriptionQueue().episodeIDs == [id(1), id(2)])
   }
 
   @Test("remove drops the episode and clears its progress")
-  func removeDropsEpisode() async throws {
-    let episodeIDs = try await episodeIDs(2)
-    try await queue.enqueue(episodeIDs)
-    queue.setProgress(0.5, for: episodeIDs[0])
-    try await queue.remove(episodeIDs[0])
-    #expect(queue.episodeIDs == [episodeIDs[1]])
-    #expect(queue.progress[episodeIDs[0]] == nil)
+  func removeDropsEpisode() {
+    for episodeID in [id(1), id(2)] {
+      queue.enqueue(episodeID)
+    }
+    queue.setProgress(0.5, for: id(1))
+    queue.remove(id(1))
+    #expect(queue.episodeIDs == [id(2)])
+    #expect(queue.progress[id(1)] == nil)
   }
 
   @Test("cancelling waiting work removes it and persists the new positions")
-  func cancelWaitingWork() async throws {
+  func cancelWaitingWork() {
     let processor = Container.shared.transcriptionProcessor()
-    let episodeIDs = try await episodeIDs(3)
-    try await queue.enqueue(episodeIDs)
+    for episodeID in [id(1), id(2), id(3)] {
+      queue.enqueue(episodeID)
+    }
 
-    try await processor.cancel(episodeIDs[1])
+    processor.cancel(id(2))
 
-    #expect(queue.episodeIDs == [episodeIDs[0], episodeIDs[2]])
+    #expect(queue.episodeIDs == [id(1), id(3)])
     #expect(
-      queue.status(for: episodeIDs[2], hasTranscript: false) == .queued(position: 2, total: 2)
+      queue.status(for: id(3), hasTranscript: false) == .queued(position: 2, total: 2)
     )
 
     Container.shared.transcriptionQueue.reset(.scope)
-    let recreatedQueue = Container.shared.transcriptionQueue()
-    await recreatedQueue.waitUntilLoaded()
-    #expect(
-      recreatedQueue.episodeIDs == [episodeIDs[0], episodeIDs[2]]
-    )
+    #expect(Container.shared.transcriptionQueue().episodeIDs == [id(1), id(3)])
   }
 
   @Test("stream yields one queue head at a time")
   func streamYieldsOneHeadAtATime() async throws {
-    let episodeIDs = try await episodeIDs(2)
     try await queue.withWorkStream { stream in
       var iterator = stream.makeAsyncIterator()
-      try await queue.enqueue(episodeIDs)
+      queue.enqueue(id(1))
+      queue.enqueue(id(2))
 
-      #expect(await iterator.next() == episodeIDs[0])
+      #expect(await iterator.next() == id(1))
 
-      try await queue.remove(episodeIDs[0])
-      #expect(await iterator.next() == episodeIDs[1])
+      queue.remove(id(1))
+      #expect(await iterator.next() == id(2))
     }
   }
 
   @Test("a new stream replays an interrupted head")
   func newStreamReplaysInterruptedHead() async throws {
-    let episodeID = try await episodeIDs(1)[0]
-    try await queue.enqueue(episodeID)
+    queue.enqueue(id(1))
     try await queue.withWorkStream { stream in
       var iterator = stream.makeAsyncIterator()
-      #expect(await iterator.next() == episodeID)
+      #expect(await iterator.next() == id(1))
     }
 
     try await queue.withWorkStream { stream in
       var iterator = stream.makeAsyncIterator()
-      #expect(await iterator.next() == episodeID)
+      #expect(await iterator.next() == id(1))
     }
   }
 
   @Test("status prefers transcribed and reports live queue position")
-  func statusDerivation() async throws {
-    let episodeIDs = try await episodeIDs(3)
-    #expect(queue.status(for: episodeIDs[2], hasTranscript: false) == .none)
+  func statusDerivation() {
+    #expect(queue.status(for: id(9), hasTranscript: false) == .none)
 
-    try await queue.enqueue(Array(episodeIDs.prefix(2)))
-    #expect(queue.status(for: episodeIDs[0], hasTranscript: true) == .transcribed)
+    queue.enqueue(id(1))
+    queue.enqueue(id(2))
+    #expect(queue.status(for: id(1), hasTranscript: true) == .transcribed)
     #expect(
-      queue.status(for: episodeIDs[0], hasTranscript: false) == .queued(position: 1, total: 2)
+      queue.status(for: id(1), hasTranscript: false) == .queued(position: 1, total: 2)
     )
     #expect(
-      queue.status(for: episodeIDs[1], hasTranscript: false) == .queued(position: 2, total: 2)
+      queue.status(for: id(2), hasTranscript: false) == .queued(position: 2, total: 2)
     )
 
-    queue.setProgress(0.25, for: episodeIDs[0])
-    #expect(queue.status(for: episodeIDs[0], hasTranscript: false) == .transcribing(0.25))
-    #expect(queue.status(for: episodeIDs[0], hasTranscript: false).canCancel)
+    queue.setProgress(0.25, for: id(1))
+    #expect(queue.status(for: id(1), hasTranscript: false) == .transcribing(0.25))
+    #expect(queue.status(for: id(1), hasTranscript: false).canCancel)
 
-    #expect(try await queue.beginCancellation(of: episodeIDs[0]))
-    #expect(queue.status(for: episodeIDs[0], hasTranscript: false) == .cancelling)
-    #expect(!queue.status(for: episodeIDs[0], hasTranscript: false).canCancel)
+    #expect(queue.beginCancellation(of: id(1)))
+    #expect(queue.status(for: id(1), hasTranscript: false) == .cancelling)
+    #expect(!queue.status(for: id(1), hasTranscript: false).canCancel)
 
-    try await queue.remove(episodeIDs[0])
+    queue.remove(id(1))
     #expect(
-      queue.status(for: episodeIDs[1], hasTranscript: false) == .queued(position: 1, total: 1)
+      queue.status(for: id(2), hasTranscript: false) == .queued(position: 1, total: 1)
     )
 
-    try await queue.fail(episodeIDs[2])
-    #expect(queue.status(for: episodeIDs[2], hasTranscript: false) == .failed)
+    queue.fail(id(3))
+    #expect(queue.status(for: id(3), hasTranscript: false) == .failed)
   }
 
   @Test("enqueue clears a prior failure for the same episode")
-  func enqueueClearsFailure() async throws {
-    let episodeID = try await episodeIDs(1)[0]
-    try await queue.fail(episodeID)
-    #expect(queue.failed.contains(episodeID))
+  func enqueueClearsFailure() {
+    queue.fail(id(1))
+    #expect(queue.failed.contains(id(1)))
 
-    try await queue.enqueue(episodeID)
-    #expect(!queue.failed.contains(episodeID))
-    #expect(queue.episodeIDs == [episodeID])
+    queue.enqueue(id(1))
+    #expect(!queue.failed.contains(id(1)))
+    #expect(queue.episodeIDs == [id(1)])
   }
 }

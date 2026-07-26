@@ -6,18 +6,21 @@ status: shipped
 
 ## Conclusion
 
-PodHaven's remaining defaults use is appropriate and small. A representative
-development install used a 2,507-byte standard-domain binary plist and a
-134-byte app-group plist. The standard domain was 3,961 bytes when expanded to
-XML. Other installed build profiles measured 256–1,242 bytes in the standard
-domain and 42–76 bytes in the app-group domain.
+PodHaven's settings and small operational defaults are appropriate and small.
+A representative development install used a 2,507-byte standard-domain binary
+plist and a 134-byte app-group plist. The standard domain was 3,961 bytes when
+expanded to XML. Other installed build profiles measured 256–1,242 bytes in
+the standard domain and 42–76 bytes in the app-group domain.
 
-The transcription queue was the exception. It was an ordered, relational work
-queue stored as one JSON array and rewritten after every enqueue or removal.
-The former value is now imported into an ordered GRDB table by migration v71
-and removed from defaults by migration v72. All ongoing defaults access now
-uses `@PersistedBroadcast` or `@PersistedThreadSafe`; direct store access is
-limited to persistence infrastructure and immutable or forward migrations.
+The transcription queue is the exception. It remains an unbounded, ordered
+work queue stored as one JSON array and rewritten after every enqueue or
+removal. Moving it to GRDB together with a configurable hard limit and an
+explicit queue-full error is tracked in
+[issue #549](https://github.com/jubishop/podhaven/issues/549).
+
+All ongoing defaults access uses `@PersistedBroadcast` or
+`@PersistedThreadSafe`; direct store access is limited to persistence
+infrastructure and immutable or forward migrations.
 
 [Apple describes `UserDefaults`](https://developer.apple.com/documentation/foundation/userdefaults)
 as a persistent settings store whose in-memory representation changes
@@ -74,8 +77,8 @@ deduplicated by `Broadcast`.
 | `showTimeRemainingInEpisodeLists` | episode-list duration presentation | `Bool`, 4–5 B | App-update preference; safe default on loss, staleness desired | Keep |
 | `autoPlayTopRecommendationWhenQueueEmpty` | `PlayManager`; queue-empty behavior | `Bool`, 4–5 B | App-update preference; safe default on loss, staleness desired | Keep |
 | `enableWriteProbe` | debug Settings and `WriteProbe`; diagnostics | `Bool`, 4–5 B | App-update debug preference; loss is acceptable | Keep |
-| `appearanceMode` | app color scheme | raw-value enum, 6–8 B | App-update preference; system default is safe, staleness desired | Keep; v72 normalizes legacy native strings |
-| `nextTrackBehavior` | playback, Command Center, Now Playing | raw-value enum, 14–15 B | App-update preference; safe default on loss, staleness desired | Keep; v72 normalizes legacy native strings |
+| `appearanceMode` | app color scheme | raw-value enum, 6–8 B | App-update preference; system default is safe, staleness desired | Keep; v71 normalizes legacy native strings |
+| `nextTrackBehavior` | playback, Command Center, Now Playing | raw-value enum, 14–15 B | App-update preference; safe default on loss, staleness desired | Keep; v71 normalizes legacy native strings |
 | `commandCenterLikeAction` | Command Center feedback action | enum, about 11–64 B including an optional 64-bit tag ID | App-update preference; a deleted tag safely becomes no action | Keep |
 | `commandCenterDislikeAction` | Command Center feedback action | enum, about 14–64 B including an optional 64-bit tag ID | App-update preference; a deleted tag safely becomes no action | Keep |
 | `episodeSwipeActions` | episode-list swipe configuration | enum array, 21 B default and 80 B with every action | App-update preference; unavailable actions are filtered at use time | Keep |
@@ -86,8 +89,8 @@ deduplicated by `Broadcast`.
 
 | Key | Owner, readers, and writers | Type / size and cadence | Lifetime and stale/loss behavior | Decision |
 | --- | --- | --- | --- | --- |
-| `PodcastsList-displayMode` | `PodcastsListViewModel`; UI reads and toggle writes | raw-value enum, 6 B; one write per toggle | App-update preference; grid fallback is safe | Keep with `@PersistedBroadcast`; v72 normalizes legacy native strings |
-| `PodcastsList-sortMethod-<title>` | One `PodcastsListViewModel` per fixed or tag-titled list; sort menu writes | raw-value enum, 9–26 B; one write per selection | App-update preference; obsolete renamed-tag keys are harmless and measured domain size is tiny | Keep with `@PersistedBroadcast`; v72 normalizes all legacy native-string values |
+| `PodcastsList-displayMode` | `PodcastsListViewModel`; UI reads and toggle writes | raw-value enum, 6 B; one write per toggle | App-update preference; grid fallback is safe | Keep with `@PersistedBroadcast`; v71 normalizes legacy native strings |
+| `PodcastsList-sortMethod-<title>` | One `PodcastsListViewModel` per fixed or tag-titled list; sort menu writes | raw-value enum, 9–26 B; one write per selection | App-update preference; obsolete renamed-tag keys are harmless and measured domain size is tiny | Keep with `@PersistedBroadcast`; v71 normalizes all legacy native-string values |
 
 The sort-key family can grow by one small key when a tag name changes, and two
 equal tag names share a presentation preference. That is acceptable for a
@@ -122,17 +125,17 @@ app-group domain is the correct lifetime. All use `@PersistedThreadSafe` with
 | `playbackStatus` | app snapshot writer and widget play/pause intents | enum, 13–14 B in settled states; loading adds roughly the UTF-8 title plus 28 B | Playback state transitions; same-value writes are suppressed | Loss falls back to stopped; scheduled widget fallback entries decay stale active states | Keep |
 
 The largest measured app-group domain was 134 bytes. There is no launch or
-app/widget synchronization concern at this volume, and migration v72 does not
+app/widget synchronization concern at this volume, and migration v71 does not
 touch this domain.
 
-## Values not kept in defaults
+## Deferred storage change
 
 ### Transcription queue
 
-The old `transcriptionQueue` value was a JSON `[Episode.ID]` rewritten as a
-whole after every mutation. It requires ordering, uniqueness, foreign-key
-lifetime, atomic batch insertion, and row deletion, which are relational
-semantics.
+The `transcriptionQueue` value is a JSON `[Episode.ID]` rewritten as a whole
+after every mutation. It requires ordering, uniqueness, a bounded backlog, and
+explicit capacity failure semantics. Its eventual database representation also
+needs transactional batch insertion and episode-lifetime handling.
 
 In the measured database:
 
@@ -143,26 +146,21 @@ In the measured database:
 
 Draining that worst-case shrinking array one element at a time would perform
 roughly 30 GiB of cumulative JSON encoding before any operating-system write
-coalescing. The new `episodeTranscriptionQueue` table stores one ordered row per
-episode. Enqueue is a single database transaction, duplicate inserts are
-ignored, episode deletion cascades, and removing the head deletes one row.
-`TranscriptionQueue` retains `@Broadcasted` in-memory observation while
-`TranscriptionQueueStore` owns durability. Initial hydration is asynchronous,
-so resolving the cached service never performs a synchronous database read
-while the dependency container is constructing it; consumers and mutations
-await hydration before using the projection.
+coalescing. This remains the audit's only material size and churn concern.
 
-Migration v71 creates the table and imports valid, existing IDs in first-seen
-order. It deliberately leaves the old key until the database migration
-commits. Migration v72 then deletes the old key, making an interrupted upgrade
-retry-safe.
+Issue #549 tracks the combined product and storage fix: add a separate bounded
+transcription-queue setting, reject work at capacity with a typed error that
+every UI enqueue path surfaces in an alert, and move ordered durability to
+GRDB. The migration must preserve first-seen order and be retry-safe; batch,
+settings-decrease, and oversized legacy-queue behavior must be explicit and
+must not silently discard requested work.
 
 ### Session-only state
 
 Static inventory confirms that transient control state remains in memory:
 download and transcription progress, scene phase, the hydrated on-deck model,
 in-process playback status, stop-after-current, live play rate, tag and smart
-list mirrors, the hydrated queue projection, transcription cancellation, and
+list mirrors, the in-memory queue projection, transcription cancellation, and
 failed-attempt presentation. None survives relaunch merely because it may
 survive suspension.
 
@@ -183,12 +181,11 @@ direct access is intentional:
 | v40 and v57 | Immutable historical setting-key copies/renames |
 | v54 and v55 | Immutable historical episode-list sort migration into GRDB |
 | v63 | Immutable historical Search display-key cleanup |
-| v71 | Retry-safe import of the old transcription queue into GRDB |
-| v72 | Old queue/navigation cleanup and legacy raw-string normalization |
+| v71 | Obsolete navigation cleanup and legacy raw-string normalization |
 
 The audit found two obsolete navigation keys left after navigation restoration
 was removed: `navigationEpisodesTopDestination` and
-`navigationPodcastsTopDestination`. Migration v72 deletes both. It also closes
+`navigationPodcastsTopDestination`. Migration v71 deletes both. It also closes
 a compatibility gap left by v29: older raw-value enums were stored as native
 strings, while current wrappers expect JSON `Data`. Valid values for
 `appearanceMode`, `nextTrackBehavior`, `PodcastsList-displayMode`, and every
@@ -197,15 +194,11 @@ removed so current defaults apply.
 
 ## Verification
 
-Focused migration tests cover ordered import, duplicates/missing episodes,
-malformed legacy data, retry-safe cleanup, obsolete-key removal, valid native
-string conversion, invalid value removal, and existing JSON preservation.
-Queue tests prove persistence through factory recreation without a
-`transcriptionQueue` defaults blob. Wrapper tests prove same-value assignment
-and no-op atomic updates do not write. Existing processor, background-task,
-cache, view-model, and accessibility tests exercise the asynchronous database
-queue integration, including concurrent queue resolution and database writes.
+Focused migration tests cover obsolete-key removal, valid native-string
+conversion, invalid value removal, and existing JSON preservation. Wrapper
+tests prove same-value assignment and no-op atomic updates do not write.
+Existing cache tests exercise the standardized persistence seam.
 
-No additional migration issue is warranted: the only material size/churn
-problem is resolved here, and the remaining domains are bounded to a few
-kilobytes with event-driven writes.
+The remaining settings and small operational domains measure only a few
+kilobytes and use event-driven writes. Issue #549 carries the transcription
+queue's distinct capacity, error-handling, and relational-storage work.

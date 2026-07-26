@@ -297,7 +297,7 @@ extension ManagingEpisodes {
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
         guard canTranscribeResolvedEpisode(podcastEpisode) else { return }
-        try await transcriptionQueue.enqueue(podcastEpisode.id)
+        transcriptionQueue.enqueue(podcastEpisode.id)
         didPerformAction(episode)
       } catch {
         Self.log.caughtError("transcribeEpisode: failed for \(episode.title)", error)

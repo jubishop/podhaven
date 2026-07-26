@@ -29,7 +29,9 @@ struct TranscriptionProcessorTests {
       dataSize: 1
     )
 
-    try await queue.enqueue([ep1.id, ep2.id])
+    for episodeID in [ep1.id, ep2.id] {
+      queue.enqueue(episodeID)
+    }
     processor.handleScenePhaseChange(to: .active)
 
     try await Wait.until(
@@ -97,7 +99,8 @@ struct TranscriptionProcessorTests {
       cachedFilename: "next.mp3",
       dataSize: 1
     )
-    try await queue.enqueue([firstEpisode.id, secondEpisode.id])
+    queue.enqueue(firstEpisode.id)
+    queue.enqueue(secondEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer {
       firstAnalysisRelease.signal()
@@ -112,14 +115,18 @@ struct TranscriptionProcessorTests {
       { "active transcription did not publish progress" }
     )
 
-    try await processor.cancel(firstEpisode.id)
+    processor.cancel(firstEpisode.id)
     await cancellationStarted.wait()
 
     #expect(queue.status(for: firstEpisode.id, hasTranscript: false) == .cancelling)
     #expect(queue.episodeIDs == [secondEpisode.id])
     #expect(analyzeCount() == 1)
     #expect(
-      Container.shared.standardDefaults().data(forKey: "transcriptionQueue") == nil
+      [Episode.ID]
+        .load(
+          from: Container.shared.standardDefaults(),
+          forKey: "transcriptionQueue"
+        ) == [secondEpisode.id]
     )
 
     cancellationRelease.signal()
@@ -177,7 +184,8 @@ struct TranscriptionProcessorTests {
       cachedFilename: "still-active.mp3",
       dataSize: 1
     )
-    try await queue.enqueue([firstEpisode.id, secondEpisode.id])
+    queue.enqueue(firstEpisode.id)
+    queue.enqueue(secondEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer {
       secondAnalysisRelease.signal()
@@ -187,7 +195,7 @@ struct TranscriptionProcessorTests {
     await secondAnalysisStarted.wait()
     #expect(queue.episodeIDs == [secondEpisode.id])
 
-    try await processor.cancel(firstEpisode.id)
+    processor.cancel(firstEpisode.id)
 
     #expect(queue.episodeIDs == [secondEpisode.id])
     #expect(queue.progress[secondEpisode.id] != nil)
@@ -213,7 +221,7 @@ struct TranscriptionProcessorTests {
 
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await queue.enqueue(podcastEpisode.id)
+    queue.enqueue(podcastEpisode.id)
     processor.handleScenePhaseChange(to: .active)
 
     // The processor starts the download and suspends until it completes;
@@ -243,7 +251,7 @@ struct TranscriptionProcessorTests {
     let processor = Container.shared.transcriptionProcessor()
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await queue.enqueue(podcastEpisode.id)
+    queue.enqueue(podcastEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer { processor.handleScenePhaseChange(to: .background) }
 
@@ -275,7 +283,7 @@ struct TranscriptionProcessorTests {
     let processor = Container.shared.transcriptionProcessor()
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await queue.enqueue(podcastEpisode.id)
+    queue.enqueue(podcastEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer { processor.handleScenePhaseChange(to: .background) }
 
@@ -298,7 +306,7 @@ struct TranscriptionProcessorTests {
     let podcastEpisode = try await Create.podcastEpisode()
     try await repo.updateDownloading(podcastEpisode.id, downloading: true)
 
-    try await queue.enqueue(podcastEpisode.id)
+    queue.enqueue(podcastEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer { processor.handleScenePhaseChange(to: .background) }
 
@@ -328,7 +336,7 @@ struct TranscriptionProcessorTests {
       dataSize: 1
     )
 
-    try await queue.enqueue(ep.id)
+    queue.enqueue(ep.id)
     processor.handleScenePhaseChange(to: .active)
 
     try await Wait.until(
@@ -356,7 +364,7 @@ struct TranscriptionProcessorTests {
       dataSize: 1
     )
 
-    try await queue.enqueue(ep.id)
+    queue.enqueue(ep.id)
     processor.handleScenePhaseChange(to: .active)
 
     try await Wait.until(

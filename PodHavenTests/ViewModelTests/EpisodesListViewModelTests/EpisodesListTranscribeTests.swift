@@ -43,7 +43,7 @@ struct EpisodesListTranscribeTests {
     let episodes = series.episodes
 
     try await repo.updateTranscript(episodes[0].id, transcript: transcriptJSON())
-    try await transcriptionQueue.enqueue(episodes[1].id)
+    transcriptionQueue.enqueue(episodes[1].id)
     transcriptionQueue.setProgress(0.5, for: episodes[2].id)
 
     let listables = try await repo.db.read { db in

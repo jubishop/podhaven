@@ -24,7 +24,7 @@ status: planning | in-progress | shipped | blocked | abandoned
 
 ## Research
 
-- [UserDefaults Storage Audit](research/userdefaults-storage-audit.md): key-by-key standard/app-group inventory, measured size and cadence, wrapper policy, and transcription-queue migration
+- [UserDefaults Storage Audit](research/userdefaults-storage-audit.md): key-by-key standard/app-group inventory, measured size and cadence, wrapper policy, and deferred transcription-queue follow-up
 - [Embedding Model Alternatives](research/embedding-model-alternatives.md): on-device replacements for `NLContextualEmbedding`
 - [SQLite Smart List Optimizer Maintenance](research/sqlite-smart-list-optimizer-maintenance.md): SQLite `PRAGMA optimize`, planner stats, and GRDB connection behavior behind Smart List performance maintenance
 - [Swift Backtrace API for Telemetry](research/swift-backtrace-telemetry.md): SE-0419 `Backtrace` for logs
