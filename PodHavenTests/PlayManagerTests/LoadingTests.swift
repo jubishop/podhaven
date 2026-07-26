@@ -457,6 +457,65 @@ import Testing
     )
   }
 
+  @Test("failed playback recovery preflight returns episode to queue")
+  func failedPlaybackRecoveryPreflightReturnsEpisodeToQueue() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitFor(.playing)
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+    await playManager.handlePlaybackFailure()
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForQueue([podcastEpisode])
+    #expect(sharedState.onDeck == nil)
+  }
+
+  @Test("cannot interrupt others defers activation without error telemetry")
+  func cannotInterruptOthersDefersActivationWithoutErrorTelemetry() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    let (loaded, captured) = try await LogCapture.withSink { sink in
+      let loaded = try await playManager.load(podcastEpisode)
+      return (loaded, sink.captured())
+    }
+
+    #expect(loaded == false)
+    let activationLogs = captured.filter {
+      $0.label == "Play/manager" && $0.message.contains("audio session activation deferred")
+    }
+    #expect(activationLogs.count == 1)
+    #expect(activationLogs.allSatisfy { $0.level == .info })
+    #expect(
+      captured
+        .filter { $0.label == "Play/manager" }
+        .allSatisfy { $0.level != .error && $0.level != .critical }
+    )
+  }
+
+  @Test("unexpected audio session activation failure still throws")
+  func unexpectedAudioSessionActivationFailureStillThrows() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    audioSession.activationError { $0 = TestError.simulatedFailure }
+
+    await #expect(throws: TestError.self) {
+      try await playManager.load(podcastEpisode)
+    }
+  }
+
   @Test("activation failure preserves persisted episode and recovers on retry")
   func activationFailurePreservesPersistedEpisodeAndRecoversOnRetry() async throws {
     let podcastEpisode = try await Create.podcastEpisode()

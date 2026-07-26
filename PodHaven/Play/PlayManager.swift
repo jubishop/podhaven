@@ -300,7 +300,7 @@ final class PlayManager {
 
       phaseStart = Date()
       Self.log.debug("performLoad: activating audio session")
-      try Container.shared.setAudioSessionActive()(true)
+      guard try activateAudioSessionForLoad() else { return false }
       Self.log.debug(
         "performLoad: activated audio session in \(Date().timeIntervalSince(phaseStart)) seconds"
       )
