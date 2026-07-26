@@ -564,6 +564,36 @@ import Testing
     try await PlayHelpers.waitForQueue([priorEpisode])
   }
 
+  @Test("play pause intent rolls back widget status when activation is deferred")
+  func playPauseIntentRollsBackWidgetStatusWhenActivationIsDeferred() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let widgetState = Container.shared.widgetState()
+    sharedState.currentEpisodeID = podcastEpisode.id
+    widgetState.playbackStatus = .stopped
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    let result = try await PlayPauseIntent(playing: true).perform()
+    withExtendedLifetime(result) {}
+
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    #expect(sharedState.onDeck == nil)
+    #expect(sharedState.playbackStatus == .stopped)
+    #expect(widgetState.playbackStatus == .stopped)
+
+    audioSession.activationError { $0 = nil }
+    await playManager.restorePersistedEpisodeForForeground()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+  }
+
   @Test("audio session recovers on next load attempt after prior failure")
   func audioSessionRecoversOnNextLoadAttemptAfterPriorFailure() async throws {
     await playManager.start()

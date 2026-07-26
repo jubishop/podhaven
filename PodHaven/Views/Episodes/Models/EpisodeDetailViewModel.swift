@@ -699,6 +699,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
 
   private func loadAndPlay(_ podcastEpisode: PodcastEpisode, seekTo seconds: Int) async throws {
     try await playManager.load(podcastEpisode)
+    guard sharedState.onDeck?.id == podcastEpisode.id else { return }
     await playManager.seek(to: CMTime.seconds(Double(seconds)))
     await playManager.play()
   }
