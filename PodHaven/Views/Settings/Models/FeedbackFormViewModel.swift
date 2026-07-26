@@ -25,11 +25,46 @@ private enum FeedbackPhotoPreparationState: Equatable, Sendable {
   case prepared(failedCount: Int)
 }
 
+enum FeedbackSubmissionResult: Equatable, Sendable {
+  case queued
+  case unavailable
+
+  var alertTitle: String {
+    switch self {
+    case .queued:
+      "Feedback Queued"
+    case .unavailable:
+      "Feedback Unavailable"
+    }
+  }
+
+  var alertMessage: String {
+    switch self {
+    case .queued:
+      "Thanks. PodHaven will send your feedback when a connection is available."
+    case .unavailable:
+      "PodHaven couldn't queue your feedback. Your draft is still here. Please try again."
+    }
+  }
+
+  var dismissesForm: Bool {
+    self == .queued
+  }
+}
+
+private enum FeedbackSubmissionState: Equatable, Sendable {
+  case ready
+  case submitting
+  case queued
+}
+
 extension Container {
-  var captureSentryFeedback: Factory<(SentryFeedback) -> Void> {
+  var submitSentryFeedback: Factory<(SentryFeedback) -> FeedbackSubmissionResult> {
     Factory(self) {
       { feedback in
+        guard SentrySDK.isEnabled else { return .unavailable }
         SentrySDK.capture(feedback: feedback)
+        return .queued
       }
     }
     .scope(.cached)
@@ -38,7 +73,7 @@ extension Container {
 
 @Observable @MainActor class FeedbackFormViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
-  @ObservationIgnored @DynamicInjected(\.captureSentryFeedback) private var captureSentryFeedback
+  @ObservationIgnored @DynamicInjected(\.submitSentryFeedback) private var submitSentryFeedback
   @ObservationIgnored private var photoLoadingTask: Task<Void, Never>?
 
   var message = ""
@@ -46,6 +81,7 @@ extension Container {
   var email = ""
   let photoData = Broadcast<[Data]>([])
   private var photoPreparationState = FeedbackPhotoPreparationState.empty
+  private var submissionState = FeedbackSubmissionState.ready
 
   nonisolated private static let log = Log.as(LogSubsystem.SettingsView.feedback)
   nonisolated static let maximumPhotoCount = 5
@@ -63,6 +99,7 @@ extension Container {
   var canSend: Bool {
     !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       && !isPreparingPhotos
+      && submissionState == .ready
   }
 
   func selectedPhotosChanged<Photo: FeedbackPhotoLoading>(_ newItems: [Photo]) {
@@ -126,7 +163,10 @@ extension Container {
     photoPreparationState = .empty
   }
 
-  func sendFeedback() {
+  func sendFeedback() -> FeedbackSubmissionResult? {
+    guard submissionState == .ready else { return nil }
+    submissionState = .submitting
+
     var attachments: [Attachment] = [
       Attachment(path: AppInfo.logFileURL.path, filename: "log.ndjson"),
       Attachment(path: WidgetInfo.logFileURL.path, filename: "widget-log.ndjson"),
@@ -139,7 +179,7 @@ extension Container {
       )
     }
 
-    captureSentryFeedback(
+    let result = submitSentryFeedback(
       SentryFeedback(
         message: message,
         name: name.isEmpty ? nil : name,
@@ -148,7 +188,15 @@ extension Container {
         attachments: attachments
       )
     )
-    alert(title: "Feedback Sent", "Thanks for sending feedback.")
+    switch result {
+    case .queued:
+      submissionState = .queued
+    case .unavailable:
+      submissionState = .ready
+      Self.log.error("Feedback submission unavailable because the Sentry SDK is disabled")
+    }
+    alert(title: result.alertTitle, result.alertMessage)
+    return result
   }
 
   @concurrent private static func preparePhotoData(

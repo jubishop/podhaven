@@ -5,6 +5,7 @@ import Foundation
 protocol KeyValueStore: Sendable {
   var allKeys: [String] { get }
   func data(forKey defaultName: String) -> Data?
+  func string(forKey defaultName: String) -> String?
   func set(_ value: Any?, forKey defaultName: String)
   func removeObject(forKey defaultName: String)
 }

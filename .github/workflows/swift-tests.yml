@@ -28,6 +28,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild test \
+            -hideShellScriptEnvironment \
             -scheme PodHaven \
             -testPlan PodHaven \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \

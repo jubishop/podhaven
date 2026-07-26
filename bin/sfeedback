@@ -169,6 +169,106 @@ function __sfeedback_pick
     set -g __sfeedback_selected_slug "$selection_parts[1]"
 end
 
+function __sfeedback_feedback_title --argument-names slug
+    if not type -q sentry
+        echo "Error: sentry is required to fetch Sentry feedback" >&2
+        return 1
+    end
+    if not type -q jq
+        echo "Error: jq is required to read Sentry feedback" >&2
+        return 1
+    end
+
+    set -l id (string replace 'podhaven:' '' -- "$slug")
+    set -l issue_json (sentry issue view "$id" \
+        --fresh \
+        --json \
+        --fields id,title,metadata)
+    set -l view_status $status
+    if test $view_status -ne 0
+        echo "Error: could not fetch $slug from Sentry" >&2
+        return $view_status
+    end
+
+    set -l feedback_title (printf '%s\n' $issue_json | jq -er --arg id "$id" '
+        def oneline:
+            tostring
+            | gsub("[[:cntrl:]]+"; " ")
+            | gsub("  +"; " ")
+            | sub("^ +"; "")
+            | sub(" +$"; "");
+        if type != "object" or .id != $id then
+            error("unexpected feedback response")
+        else
+            [.metadata.summary, .title]
+            | map(select(type == "string") | oneline | select(length > 0))
+            | .[0]
+        end')
+    set -l parse_status $status
+    if test $parse_status -ne 0; or test -z "$feedback_title"
+        echo "Error: Sentry returned no usable title for $slug" >&2
+        return 1
+    end
+
+    echo "$feedback_title"
+end
+
+function __sfeedback_worktree_name --argument-names feedback_title
+    if not type -q llm
+        echo "Error: llm is required to generate a worktree name from the Sentry feedback title" >&2
+        return 1
+    end
+
+    set -l worktree_name_prompt 'Name a git worktree directory for triaging Sentry user feedback from its title.
+
+Return exactly one descriptive lowerCamelCase name and nothing else.
+Limit the name to 24 characters maximum.
+Use only ASCII letters and numbers.'
+
+    set -l raw_name (printf '%s\n' "$feedback_title" | llm -m openrouter/anthropic/claude-haiku-4.5 --no-stream -s "$worktree_name_prompt" 2>/dev/null | string trim | string collect)
+    set -l generation_status $pipestatus[2]
+    if test $generation_status -ne 0
+        echo "Error: could not generate a worktree name for the Sentry feedback" >&2
+        return $generation_status
+    end
+
+    set -l name (string replace -ar '[^A-Za-z0-9]' '' -- "$raw_name")
+    set -l first_char (string lower (string sub -l 1 -- "$name"))
+    set -l rest (string sub -s 2 -- "$name")
+    set name "$first_char$rest"
+
+    if test (string length -- "$name") -gt 24
+        set -l name_tokens (string replace -ar '([a-z0-9])([A-Z])' '$1 $2' -- "$name" | string split ' ')
+        if test (count $name_tokens) -gt 1
+            set -l last_token $name_tokens[-1]
+            set -l shortened_prefix $name_tokens[1]
+            set -l shortened_name "$name_tokens[1]$last_token"
+
+            if test (count $name_tokens) -gt 2
+                for token_index in (seq 2 (math (count $name_tokens) - 1))
+                    set -l token $name_tokens[$token_index]
+                    set -l candidate "$shortened_prefix$token$last_token"
+                    if test (string length -- "$candidate") -le 24
+                        set shortened_prefix "$shortened_prefix$token"
+                        set shortened_name $candidate
+                    else
+                        break
+                    end
+                end
+            end
+
+            set name $shortened_name
+        end
+    end
+
+    if not string match -qr '^[a-z][A-Za-z0-9]{3,23}$' -- "$name"
+        echo "Error: llm returned invalid worktree name: $raw_name" >&2
+        return 1
+    end
+
+    echo "$name"
+end
+
 function __sfeedback_main
     if test (count $argv) -gt 1
         __sfeedback_usage
@@ -202,7 +302,11 @@ function __sfeedback_main
         return 1
     end
 
-    set -l worktree_name (string replace ':' '-' -- "$slug")
+    set -l feedback_title (__sfeedback_feedback_title "$slug")
+    or return 1
+    set -l worktree_name (__sfeedback_worktree_name "$feedback_title")
+    or return 1
+
     ghcw "$worktree_name"
     or return 1
 

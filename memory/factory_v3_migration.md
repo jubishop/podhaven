@@ -32,5 +32,4 @@ The `@MainActor` on the var (not on the closure body) inherits into the closure 
 
 ## Related
 
-- [[flaky-test-observation-restarts]] — same family of Task/priority inheritance gotchas in the test target, surfaced by `Wait.until`'s `.background` default starving a spawned observation task.
 - [[observation-broadcast-viewmodel]] — when `@DynamicInjected` resolves a `@Broadcasted` value through an `@Observable` computed property, observation can silently miss conditional views.

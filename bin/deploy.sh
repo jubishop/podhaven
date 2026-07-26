@@ -17,7 +17,7 @@ SCHEME="PodHaven"
 EXPORT_OPTIONS="$PROJECT_DIR/ExportOptions.plist"
 
 # Resolve the first available iPhone simulator for this scheme
-SIM_DESTINATION=$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null \
+SIM_DESTINATION=$(xcodebuild -hideShellScriptEnvironment -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null \
   | grep 'platform:iOS Simulator.*OS:.*name:iPhone' \
   | head -1 \
   | sed 's/.*name://' | sed 's/ *}$//')
@@ -120,7 +120,7 @@ last_build=$(git -C "$PROJECT_DIR" tag -l "v*b*" \
   | tail -1)
 build=$(( ${last_build:-0} + 1 ))
 commit=$(git -C "$PROJECT_DIR" rev-parse --short HEAD)
-version=$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" \
+version=$(xcodebuild -hideShellScriptEnvironment -project "$PROJECT" -scheme "$SCHEME" \
   -showBuildSettings 2>/dev/null \
   | grep '^\s*MARKETING_VERSION' \
   | head -1 \
@@ -249,7 +249,7 @@ run_xcodebuild() {
   # Suspend errexit so PIPESTATUS survives for inspection. `|| true` would reset it,
   # because PIPESTATUS reflects the *most recently executed* pipeline (i.e. `true`).
   set +e
-  xcodebuild "$@" 2>&1 | tee "$log" | xcbeautify
+  xcodebuild -hideShellScriptEnvironment "$@" 2>&1 | tee "$log" | xcbeautify
   local status=${PIPESTATUS[0]}
   set -e
   if (( status != 0 )); then

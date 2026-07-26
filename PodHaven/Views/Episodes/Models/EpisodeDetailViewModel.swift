@@ -505,6 +505,11 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
 
   // MARK: - Observation Management
 
+  private enum ObservationCompletion: Sendable {
+    case podcastEpisode
+    case transcriptionCheckpoint
+  }
+
   private func startObservation(_ podcastEpisode: PodcastEpisode) {
     guard lifecycle.isOnScreen else {
       Self.log.debug("startObservation: skipped off-screen")
@@ -513,17 +518,26 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
 
     let started = lifecycle.startObservation { [weak self] in
       guard let self else { return }
-      await withTaskGroup(of: Void.self) { group in
+      await withTaskGroup(of: ObservationCompletion.self) { group in
         group.addTask { [weak self] in
-          guard let self else { return }
+          guard let self else { return .podcastEpisode }
           await observePodcastEpisode(podcastEpisode)
+          return .podcastEpisode
         }
         group.addTask { [weak self] in
-          guard let self else { return }
+          guard let self else { return .transcriptionCheckpoint }
           await observeTranscriptionCheckpoint(podcastEpisode.id)
+          return .transcriptionCheckpoint
         }
-        await group.next()
-        group.cancelAll()
+        while let completion = await group.next() {
+          switch completion {
+          case .podcastEpisode:
+            group.cancelAll()
+            return
+          case .transcriptionCheckpoint:
+            continue
+          }
+        }
       }
     }
 
@@ -606,6 +620,11 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
         transcriptionCheckpointProgress = checkpoint?.progress
       }
     } catch {
+      if lifecycle.isOnScreen,
+        state.savedPodcastEpisode?.id == episodeID
+      {
+        transcriptionCheckpointProgress = nil
+      }
       Self.log.caughtError(
         "observeTranscriptionCheckpoint: observation failed for \(episodeID)",
         error

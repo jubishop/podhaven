@@ -80,7 +80,7 @@ extension Container: @retroactive AutoRegistering {
 
     fileManager.context(.test) { FakeFileManager() }.scope(.cached)
 
-    captureSentryFeedback.context(.test) { self.fakeSentryFeedbackCapture().capture }
+    submitSentryFeedback.context(.test) { self.fakeSentryFeedbackCapture().submit }
       .scope(.cached)
 
     controlCenter.context(.test) { FakeControlCenter() }.scope(.cached)

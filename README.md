@@ -1,6 +1,7 @@
 # PodHaven - Your Personal Podcast Hub
 
-[![Tests](https://github.com/jubishop/podhaven/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/jubishop/podhaven/actions/workflows/tests.yml?query=branch%3Amain)
+[![Swift Tests](https://github.com/jubishop/podhaven/actions/workflows/swift-tests.yml/badge.svg?branch=main)](https://github.com/jubishop/podhaven/actions/workflows/swift-tests.yml?query=branch%3Amain)
+[![Python Tests](https://github.com/jubishop/podhaven/actions/workflows/python-tests.yml/badge.svg?branch=main)](https://github.com/jubishop/podhaven/actions/workflows/python-tests.yml?query=branch%3Amain)
 [![Swift Version](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
 [![Xcode Version](https://img.shields.io/badge/Xcode-26-blue.svg)](https://developer.apple.com/xcode/)
 [![Platform](https://img.shields.io/badge/iOS-26-lightblue.svg)](https://developer.apple.com/ios/)
@@ -58,23 +59,20 @@ For more advanced users, here are the commands to build and test from the comman
 
 ### Build for Testing
 ```sh
-xcodebuild build-for-testing -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+xcodebuild build-for-testing -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
 ### Run All Tests
 Use `Cmd+U` in Xcode, or run the following command in your terminal:
 ```sh
-xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -testPlan PodHaven -parallel-testing-enabled YES
+xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -testPlan PodHaven -parallel-testing-enabled YES
 ```
 
-### Run a Specific Test Class
+### Run a Specific Test Suite
+Swift Testing filters must stay at suite level; method-level filters can report success while
+running zero tests.
 ```sh
-xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeTestClass
-```
-
-### Run an Individual Test Method
-```sh
-xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeTestClass/testMethod
+xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeSuite
 ```
 </details>
 

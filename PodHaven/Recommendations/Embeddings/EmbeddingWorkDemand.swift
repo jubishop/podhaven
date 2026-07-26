@@ -54,8 +54,7 @@ struct EmbeddingWorkDemand: Sendable {
   private static let key = "embeddingWorkDemand"
 
   private let pipelineVersion: EmbeddingPipelineVersion
-  private let state: ThreadSafe<State>
-  private let store: any KeyValueStore
+  @PersistedThreadSafe private var state: State
 
   fileprivate init(
     pipelineVersion: EmbeddingPipelineVersion,
@@ -63,75 +62,72 @@ struct EmbeddingWorkDemand: Sendable {
     store: any KeyValueStore
   ) {
     self.pipelineVersion = pipelineVersion
-    self.store = store
+    _state = PersistedThreadSafe(
+      wrappedValue: State(),
+      Self.key,
+      store: store
+    )
 
-    var persisted = State.load(from: store, forKey: Self.key) ?? State()
-    if persisted.completedPipelineVersion != pipelineVersion {
-      if persisted.fullRefresh?.pipelineVersion != pipelineVersion {
-        persisted.fullRefresh = FullRefresh(
-          pipelineVersion: pipelineVersion,
-          startedAt: now
-        )
+    $state.update { state in
+      if state.completedPipelineVersion != pipelineVersion {
+        if state.fullRefresh?.pipelineVersion != pipelineVersion {
+          state.fullRefresh = FullRefresh(
+            pipelineVersion: pipelineVersion,
+            startedAt: now
+          )
+        }
+        state.generation += 1
+        state.status = .pending
+      } else if state.fullRefresh != nil {
+        state.fullRefresh = nil
       }
-      persisted.generation += 1
-      persisted.status = .pending
-      persisted.store(to: store, forKey: Self.key)
-    } else if persisted.fullRefresh != nil {
-      persisted.fullRefresh = nil
-      persisted.store(to: store, forKey: Self.key)
     }
-    state = ThreadSafe(persisted)
   }
 
   var hasWork: Bool {
-    state().status == .pending
+    state.status == .pending
   }
 
   func snapshot() -> Snapshot {
-    state { state in
-      Snapshot(
-        generation: state.generation,
-        fullRefreshStartedAt: state.fullRefresh?.startedAt
-      )
-    }
+    let currentState = state
+    return Snapshot(
+      generation: currentState.generation,
+      fullRefreshStartedAt: currentState.fullRefresh?.startedAt
+    )
   }
 
   func markAvailable() {
-    state { state in
+    $state.update { state in
       state.generation += 1
       state.status = .pending
-      state.store(to: store, forKey: Self.key)
     }
   }
 
   func ensureAvailable() {
-    state { state in
+    $state.update { state in
       guard state.status == .idle else { return }
       state.generation += 1
       state.status = .pending
-      state.store(to: store, forKey: Self.key)
     }
   }
 
   func markPipelineRefreshCompleted() {
-    state { state in
+    $state.update { state in
       guard
         state.completedPipelineVersion != pipelineVersion || state.fullRefresh != nil
       else { return }
       state.completedPipelineVersion = pipelineVersion
       state.fullRefresh = nil
-      state.store(to: store, forKey: Self.key)
     }
   }
 
   @discardableResult
   func clear(ifUnchanged snapshot: Snapshot) -> Bool {
-    state { state in
+    $state.update { state in
       guard state.generation == snapshot.generation else { return false }
       state.status = .idle
       state.completedPipelineVersion = pipelineVersion
       state.fullRefresh = nil
-      state.store(to: store, forKey: Self.key)
       return true
     }
   }
