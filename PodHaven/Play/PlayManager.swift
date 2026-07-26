@@ -330,7 +330,7 @@ final class PlayManager {
 
       // Restore the outgoing episode to the top of the queue immediately so
       // it stays visible for the entire load attempt. Without this, a long
-      // network load (or a timeout, ~12s in the field) leaves the
+      // network load or timeout leaves the
       // previously-current episode in limbo — neither represented by playback
       // state nor in the queue — until cleanUpAfterLoad{Success,Failure} runs.
       if let outgoingEpisodeID {

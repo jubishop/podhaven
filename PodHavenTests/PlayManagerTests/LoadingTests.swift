@@ -612,6 +612,7 @@ import Testing
       incomingLoad.cancel()
       incomingSemaphore.signal()
     }
+    try await PlayHelpers.waitFor(.loading(incomingEpisode.episode.title))
     originalSemaphore.signal()
     await #expect(throws: (any Error).self) {
       try await originalLoad.value
