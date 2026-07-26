@@ -9,6 +9,7 @@ import Testing
 
 @Suite("of EpisodeDetailViewModel transcript", .container)
 @MainActor struct EpisodeDetailTranscriptTests {
+  @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
@@ -247,6 +248,56 @@ import Testing
         "Expected replacement transcript, got \(String(describing: viewModel.decodedTranscript))"
       }
     )
+  }
+
+  @Test("checkpoint observation failure does not stop episode updates")
+  func checkpointObservationFailureDoesNotStopEpisodeUpdates() async throws {
+    try await LogCapture.withSink { sink in
+      let podcastEpisode = try await Create.podcastEpisode()
+      let dbReader = appDB.unsafeTestDB
+      fakeObservatory.transcriptionCheckpointScript([
+        { _ in
+          ValueObservation
+            .tracking { _ -> TranscriptionCheckpoint? in
+              throw TestError.simulatedFailure
+            }
+            .values(in: dbReader)
+        }
+      ])
+      let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+      viewModel.appear()
+      defer { viewModel.disappear() }
+
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("observeTranscriptionCheckpoint: observation failed")
+            }
+        },
+        { "Expected the checkpoint observation to fail" }
+      )
+      try await yieldForSpuriousAsyncWork()
+
+      let transcript = Transcript(
+        segments: [TranscriptSegment(start: 0, end: 1, text: "still observed")],
+        locale: "en-US",
+        createdAt: Date(timeIntervalSince1970: 0)
+      )
+      try await repo.updateTranscript(podcastEpisode.id, transcript: transcript.jsonString())
+
+      try await Wait.until(
+        { @MainActor in
+          viewModel.decodedTranscript?.segments.map(\.text) == ["still observed"]
+        },
+        { @MainActor in
+          """
+          Expected episode updates after the checkpoint observation failed, got \
+          \(String(describing: viewModel.decodedTranscript))
+          """
+        }
+      )
+    }
   }
 
   @Test("detail text defaults to description and switches to transcript")

@@ -27,6 +27,10 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     [@Sendable (Episode.ID) -> AsyncValueObservation<PodcastEpisodeWithTags?>]
   >([])
 
+  let transcriptionCheckpointScript = ThreadSafe<
+    [@Sendable (Episode.ID) -> AsyncValueObservation<TranscriptionCheckpoint?>]
+  >([])
+
   // Same shape as `scoringContextInputsScript` but for podcastSeriesDetail.
   let podcastSeriesDetailScript = ThreadSafe<
     [@Sendable (Podcast.ID) -> AsyncValueObservation<PodcastSeriesDetail?>]
@@ -261,6 +265,12 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     -> AsyncValueObservation<TranscriptionCheckpoint?>
   {
     recordCall(methodName: "transcriptionCheckpoint", parameters: episodeID)
+    var script = transcriptionCheckpointScript()
+    if let next = script.first {
+      script.removeFirst()
+      transcriptionCheckpointScript(script)
+      return next(episodeID)
+    }
     return observatory.transcriptionCheckpoint(episodeID)
   }
 
