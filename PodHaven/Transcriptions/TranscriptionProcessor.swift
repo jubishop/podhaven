@@ -50,7 +50,7 @@ struct TranscriptionProcessor: Sendable {
   }
 
   private enum CancellationAction: Sendable {
-    case cancelActive(Task<Void, any Error>)
+    case cancelActive(UUID)
     case removedWaiting
     case none
   }
@@ -127,6 +127,10 @@ struct TranscriptionProcessor: Sendable {
       )
       complete(true)
     }
+    Task { [backgroundTaskScheduler, transcriptionQueue] in
+      await transcriptionQueue.waitUntilLoaded()
+      backgroundTaskScheduler.scheduleNext()
+    }
   }
 
   // MARK: - Scene Phase
@@ -151,29 +155,55 @@ struct TranscriptionProcessor: Sendable {
 
   // MARK: - User Cancellation
 
-  func cancel(_ episodeID: Episode.ID) {
+  func cancel(_ episodeID: Episode.ID) async throws {
+    await transcriptionQueue.waitUntilLoaded()
     let action = activeTranscription { active in
       if var current = active, current.episodeID == episodeID {
-        guard transcriptionQueue.beginCancellation(of: episodeID) else {
-          return CancellationAction.none
-        }
         current.cancellationState = .userRequested
         active = current
-        return .cancelActive(current.task)
+        return CancellationAction.cancelActive(current.token)
       }
 
       guard transcriptionQueue.episodeIDs.contains(episodeID) else {
         return CancellationAction.none
       }
-      transcriptionQueue.remove(episodeID)
-      return .removedWaiting
+      return CancellationAction.removedWaiting
     }
 
     switch action {
-    case .cancelActive(let task):
+    case .cancelActive(let token):
+      let beganCancellation: Bool
+      do {
+        beganCancellation = try await transcriptionQueue.beginCancellation(of: episodeID)
+      } catch {
+        activeTranscription { active in
+          guard var current = active, current.token == token else { return }
+          current.cancellationState = .none
+          active = current
+        }
+        throw error
+      }
+      guard beganCancellation else {
+        activeTranscription { active in
+          guard var current = active, current.token == token else { return }
+          current.cancellationState = .none
+          active = current
+        }
+        return
+      }
+
+      let task = activeTranscription { active -> Task<Void, any Error>? in
+        guard let current = active, current.token == token else { return nil }
+        return current.task
+      }
+      guard let task else {
+        transcriptionQueue.finishCancellation(of: episodeID)
+        return
+      }
       Self.log.info("Requested cancellation of active transcription \(episodeID)")
       task.cancel()
     case .removedWaiting:
+      try await transcriptionQueue.remove(episodeID)
       Self.log.info(
         """
         Cancelled waiting transcription \(episodeID); \
@@ -323,19 +353,20 @@ struct TranscriptionProcessor: Sendable {
         let executionCancelled = errorIsCancellation || Task.isCancelled
         let liveProgress = transcriptionQueue.progress[episodeID] ?? 0
         let userCancellationRequested = current.cancellationState == .userRequested
-        if userCancellationRequested {
-          transcriptionQueue.finishCancellation(of: episodeID)
-        } else if executionCancelled {
-          transcriptionQueue.clearProgress(for: episodeID)
-        } else {
-          transcriptionQueue.fail(episodeID)
-        }
         active = nil
         return (
           userCancellationRequested: userCancellationRequested,
           executionCancelled: executionCancelled,
           liveProgress: liveProgress
         )
+      }
+
+      if result.userCancellationRequested {
+        transcriptionQueue.finishCancellation(of: episodeID)
+      } else if result.executionCancelled {
+        transcriptionQueue.clearProgress(for: episodeID)
+      } else {
+        try await transcriptionQueue.fail(episodeID)
       }
 
       if result.userCancellationRequested || result.executionCancelled {
@@ -394,13 +425,13 @@ struct TranscriptionProcessor: Sendable {
     logContext: TranscriptionLogContext
   ) async throws {
     guard let episode = try await repo.episode(episodeID) else {
-      transcriptionQueue.remove(episodeID)
+      try await transcriptionQueue.remove(episodeID)
       Self.log.warning("Removed missing \(episodeID) from transcription queue")
       return
     }
     guard !episode.hasTranscript else {
       try await repo.deleteTranscriptionCheckpoint(for: episodeID)
-      transcriptionQueue.remove(episodeID)
+      try await transcriptionQueue.remove(episodeID)
       Self.log.debug("Removed already-transcribed \(episodeID) from transcription queue")
       return
     }
@@ -482,7 +513,7 @@ struct TranscriptionProcessor: Sendable {
     try Task.checkCancellation()
     try await repo.updateTranscript(episodeID, transcript: transcript.jsonString())
 
-    transcriptionQueue.remove(episodeID)
+    try await transcriptionQueue.remove(episodeID)
     Self.log.info(
       """
       transcriptionTelemetry event=transcriptStored \(logContext.fields) \

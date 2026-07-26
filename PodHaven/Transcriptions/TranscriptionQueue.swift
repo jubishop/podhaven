@@ -87,13 +87,16 @@ private final class TranscriptionWorkStream: Sendable {
 struct TranscriptionQueue: Sendable {
   private static let log = Log.as(LogSubsystem.Transcription.queue)
 
-  private let consumerLock = ThreadLock()
-  private let mutationLock = ThreadSafe(())
-  private let workStream = TranscriptionWorkStream()
+  private let consumerLock: ThreadLock
+  private let persistenceLock: ThreadLock
+  private let mutationLock: ThreadSafe<Void>
+  private let store: TranscriptionQueueStore
+  private let workStream: TranscriptionWorkStream
+  private let initialLoad: Task<Void, Never>
 
-  // Persisted ordered work-list in UserDefaults (not SQLite): survives
-  // termination so TranscriptionProcessor can resume the head on next launch.
-  @PersistedBroadcast("transcriptionQueue") var episodeIDs: [Episode.ID] = []
+  // Durable ordered work survives termination so TranscriptionProcessor can
+  // resume the head on next launch.
+  @Broadcasted var episodeIDs: [Episode.ID]
 
   // The in-flight episode's progress (0...1). At most one entry, mirroring
   // SharedState.downloadProgress.
@@ -105,13 +108,45 @@ struct TranscriptionQueue: Sendable {
   // Episodes whose last attempt failed, surfaced until retried or dismissed.
   @Broadcasted var failed: Set<Episode.ID> = []
 
-  fileprivate init() {}
+  fileprivate init() {
+    let store = Container.shared.transcriptionQueueStore()
+    let consumerLock = ThreadLock()
+    let persistenceLock = ThreadLock()
+    let mutationLock = ThreadSafe(())
+    let workStream = TranscriptionWorkStream()
+    let episodeIDs = Broadcasted(wrappedValue: [Episode.ID]())
+
+    self.store = store
+    self.consumerLock = consumerLock
+    self.persistenceLock = persistenceLock
+    self.mutationLock = mutationLock
+    self.workStream = workStream
+    _episodeIDs = episodeIDs
+    initialLoad = Task {
+      do {
+        let persistedEpisodeIDs = try await store.fetchAll()
+        mutationLock { _ in
+          episodeIDs.projectedValue.new(persistedEpisodeIDs)
+          workStream.update(to: persistedEpisodeIDs.first)
+        }
+      } catch {
+        Assert.fatal(
+          "Failed to load transcription queue: \(ErrorKit.message(for: error))"
+        )
+      }
+    }
+  }
+
+  func waitUntilLoaded() async {
+    await initialLoad.value
+  }
 
   // Keeps exclusive stream ownership and cleanup inside the queue so callers
   // cannot finish another consumer's subscription.
   func withWorkStream(
     _ operation: @Sendable (AsyncStream<Episode.ID>) async throws -> Void
   ) async throws {
+    await waitUntilLoaded()
     try await consumerLock.waitForClaim()
     defer { consumerLock.release() }
     try Task.checkCancellation()
@@ -130,46 +165,77 @@ struct TranscriptionQueue: Sendable {
 
   // MARK: - Mutations
 
-  func enqueue(_ episodeID: Episode.ID) {
+  func enqueue(_ episodeID: Episode.ID) async throws {
+    try await enqueue([episodeID])
+  }
+
+  func enqueue(_ episodeIDs: [Episode.ID]) async throws {
+    guard !episodeIDs.isEmpty else { return }
+    await waitUntilLoaded()
+    try await persistenceLock.waitForClaim()
+    defer { persistenceLock.release() }
+
+    let persistedEpisodeIDs = try await store.enqueue(episodeIDs)
     let depth = mutationLock { _ in
-      let previousHead = episodeIDs.first
-      $cancelling.update { $0.remove(episodeID) }
-      $failed.update { _ = $0.remove(episodeID) }
-      $episodeIDs.update { ids in
-        guard !ids.contains(episodeID) else { return }
-        ids.append(episodeID)
+      let previousHead = self.episodeIDs.first
+      $cancelling.update { $0.subtract(episodeIDs) }
+      $failed.update { $0.subtract(episodeIDs) }
+      $episodeIDs.new(persistedEpisodeIDs)
+      if self.episodeIDs.first != previousHead {
+        workStream.update(to: self.episodeIDs.first)
       }
+      return self.episodeIDs.count
+    }
+    Self.log.debug("enqueued \(episodeIDs.count) episodes; depth \(depth)")
+  }
+
+  func remove(_ episodeID: Episode.ID) async throws {
+    await waitUntilLoaded()
+    try await persistenceLock.waitForClaim()
+    defer { persistenceLock.release() }
+
+    let persistedEpisodeIDs = try await store.remove(episodeID)
+    mutationLock { _ in
+      let previousHead = episodeIDs.first
+      $episodeIDs.new(persistedEpisodeIDs)
+      $progress.update { $0.removeValue(forKey: episodeID) }
+      $cancelling.update { $0.remove(episodeID) }
       if episodeIDs.first != previousHead {
         workStream.update(to: episodeIDs.first)
       }
-      return episodeIDs.count
-    }
-    Self.log.debug("enqueued \(episodeID); depth \(depth)")
-  }
-
-  func remove(_ episodeID: Episode.ID) {
-    mutationLock { _ in
-      let previousHead = episodeIDs.first
-      $episodeIDs.update { $0.removeAll { $0 == episodeID } }
-      $progress.update { _ = $0.removeValue(forKey: episodeID) }
-      $cancelling.update { $0.remove(episodeID) }
-      if episodeIDs.first != previousHead {
-        workStream.update(to: episodeIDs.first)
-      }
     }
   }
 
-  func beginCancellation(of episodeID: Episode.ID) -> Bool {
-    mutationLock { _ in
+  func beginCancellation(of episodeID: Episode.ID) async throws -> Bool {
+    await waitUntilLoaded()
+    try await persistenceLock.waitForClaim()
+    defer { persistenceLock.release() }
+
+    let isQueued = mutationLock { _ in
       guard episodeIDs.contains(episodeID) else { return false }
-      let previousHead = episodeIDs.first
       $cancelling.update { $0.insert(episodeID) }
-      $episodeIDs.update { $0.removeAll { $0 == episodeID } }
-      if episodeIDs.first != previousHead {
-        workStream.update(to: episodeIDs.first)
-      }
       return true
     }
+    guard isQueued else { return false }
+
+    let persistedEpisodeIDs: [Episode.ID]
+    do {
+      persistedEpisodeIDs = try await store.remove(episodeID)
+    } catch {
+      mutationLock { _ in
+        $cancelling.update { $0.remove(episodeID) }
+      }
+      throw error
+    }
+
+    mutationLock { _ in
+      let previousHead = episodeIDs.first
+      $episodeIDs.new(persistedEpisodeIDs)
+      if episodeIDs.first != previousHead {
+        workStream.update(to: episodeIDs.first)
+      }
+    }
+    return true
   }
 
   func finishCancellation(of episodeID: Episode.ID) {
@@ -190,18 +256,23 @@ struct TranscriptionQueue: Sendable {
   }
 
   func clearProgress(for episodeID: Episode.ID) {
-    $progress.update { _ = $0.removeValue(forKey: episodeID) }
+    $progress.update { $0.removeValue(forKey: episodeID) }
   }
 
   // MARK: - Failure
 
-  func fail(_ episodeID: Episode.ID) {
+  func fail(_ episodeID: Episode.ID) async throws {
+    await waitUntilLoaded()
+    try await persistenceLock.waitForClaim()
+    defer { persistenceLock.release() }
+
+    let persistedEpisodeIDs = try await store.remove(episodeID)
     mutationLock { _ in
       let previousHead = episodeIDs.first
-      $episodeIDs.update { $0.removeAll { $0 == episodeID } }
-      $progress.update { _ = $0.removeValue(forKey: episodeID) }
+      $episodeIDs.new(persistedEpisodeIDs)
+      $progress.update { $0.removeValue(forKey: episodeID) }
       $cancelling.update { $0.remove(episodeID) }
-      $failed.update { _ = $0.insert(episodeID) }
+      $failed.update { $0.insert(episodeID) }
       if episodeIDs.first != previousHead {
         workStream.update(to: episodeIDs.first)
       }
@@ -209,7 +280,7 @@ struct TranscriptionQueue: Sendable {
   }
 
   func clearFailed(_ episodeID: Episode.ID) {
-    $failed.update { _ = $0.remove(episodeID) }
+    $failed.update { $0.remove(episodeID) }
   }
 
   // MARK: - Status

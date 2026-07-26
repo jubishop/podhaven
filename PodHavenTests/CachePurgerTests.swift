@@ -288,8 +288,7 @@ import Testing
       dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
       finishDate: fourDaysAgo
     )
-    transcriptionQueue.enqueue(activeEpisode.id)
-    transcriptionQueue.enqueue(waitingEpisode.id)
+    try await transcriptionQueue.enqueue([activeEpisode.id, waitingEpisode.id])
     transcriptionQueue.setProgress(0, for: activeEpisode.id)
 
     try await cachePurger.executePurge()

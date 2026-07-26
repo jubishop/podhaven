@@ -603,8 +603,16 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
         return
       }
 
-      for resolvedEpisode in eligibleEpisodes {
-        transcriptionQueue.enqueue(resolvedEpisode.podcastEpisode.id)
+      do {
+        try await transcriptionQueue.enqueue(
+          eligibleEpisodes.map(\.podcastEpisode.id)
+        )
+      } catch {
+        Self.log.caughtError(
+          "transcribeSelectedEpisodes: failed to persist \(eligibleEpisodes.count) episodes",
+          error
+        )
+        return
       }
       didPerformBulkAction(on: eligibleEpisodes.map(\.source))
     }

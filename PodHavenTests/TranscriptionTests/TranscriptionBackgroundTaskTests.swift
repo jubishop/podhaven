@@ -35,7 +35,7 @@ struct TranscriptionBackgroundTaskTests {
         cachedFilename: "ep.mp3",
         dataSize: 1
       )
-      queue.enqueue(episode.id)
+      try await queue.enqueue(episode.id)
 
       processor.register()
       let identifier = "\(AppInfo.bundleIdentifier).transcription"
@@ -91,7 +91,7 @@ struct TranscriptionBackgroundTaskTests {
     )
     let identifier = "\(AppInfo.bundleIdentifier).transcription"
 
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
     processor.register()
     #expect(scheduler.pendingIdentifiers.contains(identifier))
 
@@ -147,7 +147,7 @@ struct TranscriptionBackgroundTaskTests {
       dataSize: 1
     )
 
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
     processor.register()
     let task = try #require(
       scheduler.launchTask(withIdentifier: "\(AppInfo.bundleIdentifier).transcription")
@@ -217,7 +217,7 @@ struct TranscriptionBackgroundTaskTests {
       cachedFilename: "foreground-lifecycle.mp3",
       dataSize: 1
     )
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
 
     processor.handleScenePhaseChange(to: .active)
     await analyzerStarted.wait()
@@ -294,8 +294,7 @@ struct TranscriptionBackgroundTaskTests {
       cachedFilename: "background-remainder.mp3",
       dataSize: 1
     )
-    queue.enqueue(firstEpisode.id)
-    queue.enqueue(secondEpisode.id)
+    try await queue.enqueue([firstEpisode.id, secondEpisode.id])
 
     processor.register()
     processor.handleScenePhaseChange(to: .active)
@@ -363,8 +362,7 @@ struct TranscriptionBackgroundTaskTests {
       cachedFilename: "background-continuation.mp3",
       dataSize: 1
     )
-    queue.enqueue(firstEpisode.id)
-    queue.enqueue(secondEpisode.id)
+    try await queue.enqueue([firstEpisode.id, secondEpisode.id])
     processor.register()
     processor.handleScenePhaseChange(to: .active)
     defer {
@@ -379,7 +377,7 @@ struct TranscriptionBackgroundTaskTests {
       scheduler.launchTask(withIdentifier: "\(AppInfo.bundleIdentifier).transcription")
     )
 
-    processor.cancel(firstEpisode.id)
+    try await processor.cancel(firstEpisode.id)
     await secondAnalysisStarted.wait()
 
     #expect(queue.episodeIDs == [secondEpisode.id])
@@ -440,7 +438,7 @@ struct TranscriptionBackgroundTaskTests {
         dataSize: 1
       )
       let identifier = "\(AppInfo.bundleIdentifier).transcription"
-      queue.enqueue(episode.id)
+      try await queue.enqueue(episode.id)
 
       processor.register()
       processor.handleScenePhaseChange(to: .active)
@@ -550,7 +548,7 @@ struct TranscriptionBackgroundTaskTests {
       cachedFilename: "expiry.mp3",
       dataSize: 1
     )
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
 
     processor.register()
     let task = try #require(
@@ -655,7 +653,7 @@ struct TranscriptionBackgroundTaskTests {
       dataSize: 1
     )
     let identifier = "\(AppInfo.bundleIdentifier).transcription"
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
     processor.register()
 
     let firstTask = try #require(scheduler.launchTask(withIdentifier: identifier))

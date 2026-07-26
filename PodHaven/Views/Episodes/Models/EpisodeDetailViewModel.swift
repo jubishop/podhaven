@@ -432,7 +432,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
       if transcriptDisplay == .decodeFailed {
         try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
       }
-      transcriptionQueue.enqueue(podcastEpisode.id)
+      try await transcriptionQueue.enqueue(podcastEpisode.id)
     }
   }
 
@@ -441,7 +441,10 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
       let episodeID = episode.episodeID,
       transcriptionStatus.canCancel
     else { return }
-    transcriptionProcessor.cancel(episodeID)
+    lifecycle.runTask("cancelTranscription: \(state.toString)") { [weak self] in
+      guard let self else { return }
+      try await transcriptionProcessor.cancel(episodeID)
+    }
   }
 
   func showPodcast() {

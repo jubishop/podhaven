@@ -125,13 +125,17 @@ import Testing
   func detailCancellationRemovesQueuedTranscription() async throws {
     await TranscriptionHelpers.prepareAvailability()
     let podcastEpisode = try await Create.podcastEpisode()
-    transcriptionQueue.enqueue(podcastEpisode.id)
+    try await transcriptionQueue.enqueue(podcastEpisode.id)
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
     #expect(viewModel.transcriptionStatus.canCancel)
 
     viewModel.cancelTranscription()
 
+    try await Wait.until(
+      { @MainActor in !transcriptionQueue.episodeIDs.contains(podcastEpisode.id) },
+      { @MainActor in "Queued transcription was not cancelled" }
+    )
     #expect(!transcriptionQueue.episodeIDs.contains(podcastEpisode.id))
     #expect(viewModel.transcriptionStatus == .none)
   }

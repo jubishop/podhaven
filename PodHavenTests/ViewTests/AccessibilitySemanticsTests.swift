@@ -146,7 +146,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   func queuedTranscriptionExposesCancelButton() async throws {
     await TranscriptionHelpers.prepareAvailability()
     let episode = try await Create.podcastEpisode()
-    Container.shared.transcriptionQueue().enqueue(episode.id)
+    try await Container.shared.transcriptionQueue().enqueue(episode.id)
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(episode))
 
     let window = try Self.makeWindow(

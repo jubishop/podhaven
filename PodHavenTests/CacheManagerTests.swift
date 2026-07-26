@@ -537,7 +537,7 @@ import Testing
       cachedFilename: "transcribing-episode.mp3"
     )
     let cachedURL = try #require(episode.cachedURL)
-    transcriptionQueue.enqueue(episode.id)
+    try await transcriptionQueue.enqueue(episode.id)
     transcriptionQueue.setProgress(0, for: episode.id)
 
     #expect(try await cacheManager.clearCache(for: episode.id) == nil)
