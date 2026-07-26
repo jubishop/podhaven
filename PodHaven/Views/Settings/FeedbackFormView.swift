@@ -94,8 +94,9 @@ struct FeedbackFormView: View {
     .toolbar {
       ToolbarItem(placement: .confirmationAction) {
         Button("Send") {
-          viewModel.sendFeedback()
-          dismiss()
+          if viewModel.sendFeedback()?.dismissesForm == true {
+            dismiss()
+          }
         }
         .disabled(!viewModel.canSend)
       }

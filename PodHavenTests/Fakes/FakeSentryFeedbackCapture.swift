@@ -14,12 +14,15 @@ extension Container {
 
 final class FakeSentryFeedbackCapture {
   private let capturedFeedbacks = ThreadSafe<[CapturedSentryFeedback]>([])
+  private let submissionResult = ThreadSafe<FeedbackSubmissionResult>(.queued)
 
   var feedbacks: [CapturedSentryFeedback] {
     capturedFeedbacks()
   }
 
-  func capture(_ feedback: SentryFeedback) {
+  func submit(_ feedback: SentryFeedback) -> FeedbackSubmissionResult {
+    let result = submissionResult()
+    guard result == .queued else { return result }
     let serialized = feedback.serialize()
     let capturedFeedback = CapturedSentryFeedback(
       message: serialized["message"] as? String,
@@ -37,6 +40,11 @@ final class FakeSentryFeedbackCapture {
         }
     )
     capturedFeedbacks { $0.append(capturedFeedback) }
+    return result
+  }
+
+  func setSubmissionResult(_ result: FeedbackSubmissionResult) {
+    submissionResult(result)
   }
 }
 
