@@ -231,11 +231,13 @@ import SwiftUI
   }
 
   private func load(_ episodeIDs: [Episode.ID]) async {
+    guard transcriptionQueue.episodeIDs == episodeIDs else { return }
     do {
       async let loadedEpisodes = repo.podcastEpisodes(episodeIDs)
       async let loadedProgress = loadCheckpointProgress(for: episodeIDs)
       let (episodes, checkpointProgress) = try await (loadedEpisodes, loadedProgress)
       guard !Task.isCancelled else { return }
+      guard transcriptionQueue.episodeIDs == episodeIDs else { return }
 
       self.episodes = episodes
       self.checkpointProgress = checkpointProgress
@@ -244,6 +246,7 @@ import SwiftUI
       loadingState = .loaded
     } catch {
       guard !Task.isCancelled else { return }
+      guard transcriptionQueue.episodeIDs == episodeIDs else { return }
       Self.log.caughtError(
         "Failed to load \(episodeIDs.count) transcription queue episodes",
         error
@@ -257,8 +260,18 @@ import SwiftUI
   ) async throws -> [Episode.ID: Double] {
     var loaded: [Episode.ID: Double] = [:]
     for episodeID in episodeIDs {
-      if let checkpoint = try await repo.transcriptionCheckpoint(episodeID) {
-        loaded[episodeID] = checkpoint.progress
+      try Task.checkCancellation()
+      do {
+        if let checkpoint = try await repo.transcriptionCheckpoint(episodeID) {
+          loaded[episodeID] = checkpoint.progress
+        }
+      } catch is CancellationError {
+        throw CancellationError()
+      } catch {
+        Self.log.caughtError(
+          "Failed to load transcription checkpoint progress for episode \(episodeID)",
+          error
+        )
       }
     }
     return loaded

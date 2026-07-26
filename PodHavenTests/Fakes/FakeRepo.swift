@@ -33,6 +33,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   private var podcastEpisodeFetchBarrierRemaining = 0
   private var podcastEpisodeFetchBarrierContinuations: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingPodcastEpisodesFetchSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedPodcastEpisodesFetchCount = ThreadSafe<Int>(0)
+  private var podcastEpisodesFetchSuspensions: [CheckedContinuation<Void, Never>] = []
   nonisolated let pendingDownloadingFalseSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedDownloadingFalseCount = ThreadSafe<Int>(0)
   private var downloadingFalseSuspensions: [CheckedContinuation<Void, Never>] = []
@@ -245,7 +248,34 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func podcastEpisodes(_ episodeIDs: [Episode.ID]) async throws -> [PodcastEpisode] {
     recordCall(methodName: "podcastEpisodes", parameters: episodeIDs)
-    return try await repo.podcastEpisodes(episodeIDs)
+    let result = try await repo.podcastEpisodes(episodeIDs)
+    if pendingPodcastEpisodesFetchSuspend() {
+      pendingPodcastEpisodesFetchSuspend(false)
+      await withCheckedContinuation { continuation in
+        podcastEpisodesFetchSuspensions.append(continuation)
+        suspendedPodcastEpisodesFetchCount(podcastEpisodesFetchSuspensions.count)
+      }
+    }
+    return result
+  }
+
+  func resumeAllPodcastEpisodesFetchSuspensions() {
+    let toResume = podcastEpisodesFetchSuspensions
+    podcastEpisodesFetchSuspensions.removeAll()
+    suspendedPodcastEpisodesFetchCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForPodcastEpisodesFetchSuspended(count: Int = 1) async throws {
+    try await Wait.until(
+      { self.suspendedPodcastEpisodesFetchCount() >= count },
+      {
+        """
+        Expected at least \(count) suspended podcast episode fetches, \
+        got \(self.suspendedPodcastEpisodesFetchCount())
+        """
+      }
+    )
   }
 
   func podcastEpisode(

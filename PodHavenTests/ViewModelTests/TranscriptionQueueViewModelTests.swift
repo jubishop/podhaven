@@ -2,12 +2,14 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
 
 @Suite("of TranscriptionQueueViewModel tests", .container)
 @MainActor final class TranscriptionQueueViewModelTests {
+  @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
 
@@ -44,6 +46,100 @@ import Testing
     #expect(!viewModel.entries[1].isActive)
     #expect(viewModel.entries[1].progress == 0.25)
     #expect(viewModel.entries[2].progress == 0)
+  }
+
+  @Test("an unreadable checkpoint does not fail queue loading")
+  func unreadableCheckpointDoesNotFailQueueLoading() async throws {
+    let episodes = try await makeEpisodes()
+    let firstCheckpoint = TranscriptionCheckpoint(
+      segments: [],
+      audioTime: 15,
+      duration: 60,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    let thirdCheckpoint = TranscriptionCheckpoint(
+      segments: [],
+      audioTime: 45,
+      duration: 60,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    try await repo.saveTranscriptionCheckpoint(firstCheckpoint, for: episodes[0].id)
+    try await repo.saveTranscriptionCheckpoint(firstCheckpoint, for: episodes[1].id)
+    try await repo.saveTranscriptionCheckpoint(thirdCheckpoint, for: episodes[2].id)
+
+    let unreadableCheckpoint = """
+      {
+        "segments": [null],
+        "audioTime": 30,
+        "duration": 60,
+        "locale": "en-US",
+        "audioSHA256": "\(FakeAudioFileHasher.defaultSHA256)"
+      }
+      """
+    try await appDB.unsafeTestDB.write { db in
+      try db.execute(
+        sql: """
+          UPDATE episodeTranscriptionCheckpoint
+          SET checkpointJSON = ?
+          WHERE episodeId = ?
+          """,
+        arguments: [unreadableCheckpoint, episodes[1].id]
+      )
+    }
+    for episode in episodes {
+      transcriptionQueue.enqueue(episode.id)
+    }
+
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.loadingState != .loading },
+      { @MainActor in "Expected queue loading to finish" }
+    )
+
+    #expect(viewModel.loadingState == .loaded)
+    #expect(viewModel.entries.map(\.id) == episodes.map(\.id))
+    #expect(viewModel.entries.map(\.progress) == [0.25, 0, 0.75])
+  }
+
+  @Test("stale hydration cannot overwrite a newer queue order")
+  func staleHydrationCannotOverwriteNewerQueueOrder() async throws {
+    let episodes = try await makeEpisodes()
+    for episode in episodes {
+      transcriptionQueue.enqueue(episode.id)
+    }
+    let episodeIDs = episodes.map(\.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer {
+      executeTask.cancel()
+      Task { await fakeRepo.resumeAllPodcastEpisodesFetchSuspensions() }
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial order, got \(viewModel.entries.map(\.id))" }
+    )
+
+    fakeRepo.pendingPodcastEpisodesFetchSuspend(true)
+    viewModel.moveToBottom(episodes[0].id)
+    try await fakeRepo.waitForPodcastEpisodesFetchSuspended()
+
+    viewModel.moveToTop(episodes[0].id)
+    #expect(transcriptionQueue.episodeIDs == episodeIDs)
+    #expect(viewModel.entries.map(\.id) == episodeIDs)
+
+    fakeRepo.pendingPodcastEpisodesFetchSuspend(true)
+    await fakeRepo.resumeAllPodcastEpisodesFetchSuspensions()
+    try await fakeRepo.waitForPodcastEpisodesFetchSuspended()
+
+    #expect(viewModel.entries.map(\.id) == episodeIDs)
+    await fakeRepo.resumeAllPodcastEpisodesFetchSuspensions()
   }
 
   @Test("moves a multi-selection while preserving its queue order")
