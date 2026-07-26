@@ -179,6 +179,13 @@ extension PlayManager {
     let previousPlaybackStatus = sharedState.playbackStatus
     let interruptedEpisode = sharedState.onDeck
 
+    await cancelLoadForMediaServicesReset()
+
+    // Clean up the old AVPlayer before resetting, since @DynamicInjected re-resolves
+    // on each access — after reset, avPlayer points to the new instance and the old
+    // one's observers and player item would be leaked.
+    await podAVPlayer.clear()
+
     if let interruptedEpisode {
       do {
         try await queue.unshift(interruptedEpisode.id)
@@ -192,11 +199,6 @@ extension PlayManager {
         )
       }
     }
-
-    // Clean up the old AVPlayer before resetting, since @DynamicInjected re-resolves
-    // on each access — after reset, avPlayer points to the new instance and the old
-    // one's observers and player item would be leaked.
-    await podAVPlayer.clear()
 
     await Self.resetAVPlayerScope()
     Self.log.debug("handleMediaServicesReset: reset AVPlayer scope")

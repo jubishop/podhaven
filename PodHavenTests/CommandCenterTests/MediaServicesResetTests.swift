@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -231,5 +232,96 @@ import Testing
         == initialLoadCount
     )
     #expect(await audioSession.activeCalls.filter(\.self).isEmpty)
+  }
+
+  @Test("media services reset cancels an in-flight load before rebuilding")
+  func mediaServicesResetCancelsInFlightLoadBeforeRebuilding() async throws {
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let loadStarted = AsyncSemaphore(value: 0)
+    let finishLoading = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.respond(to: podcastEpisode.episode.mediaURL) { _ in
+      loadStarted.signal()
+      try await finishLoading.waitUnlessCancelled()
+      return (true, .seconds(60))
+    }
+
+    let loadAndPlayTask = Task {
+      try await playManager.load(podcastEpisode)
+      await playManager.play()
+    }
+    defer {
+      loadAndPlayTask.cancel()
+      finishLoading.signal()
+    }
+
+    await loadStarted.wait()
+    let initialAVPlayer = avPlayer
+    let configureCallCount = await audioSession.configureCallCount
+
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+    try await Wait.until(
+      { await avPlayer != initialAVPlayer },
+      { "Expected new AVPlayer to be created" }
+    )
+    try await PlayHelpers.waitForConfigureCallCount(atLeast: configureCallCount + 1)
+    finishLoading.signal()
+
+    await #expect(throws: CancellationError.self) {
+      try await loadAndPlayTask.value
+    }
+    try await PlayHelpers.waitForOnDeck(nil)
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForQueue([podcastEpisode])
+    try await PlayHelpers.waitForNoCurrentItem()
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Audio Services Restarted" },
+      { @MainActor in "Expected an audio-services reset explanation" }
+    )
+  }
+
+  @Test("media services reset disposes invalid player before restoring queue")
+  func mediaServicesResetDisposesInvalidPlayerBeforeRestoringQueue() async throws {
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+    let resumeTime = CMTime.seconds(123)
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(currentTime: resumeTime)
+    )
+
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.waitFor(resumeTime)
+    try await PlayHelpers.pause()
+    let initialAVPlayer = avPlayer
+    let fakeQueue = try #require(queue as? FakeQueue)
+    let unshiftStarted = AsyncSemaphore(value: 0)
+    let finishUnshift = AsyncSemaphore(value: 0)
+    fakeQueue.beforeUnshiftEpisode { episodeID in
+      #expect(episodeID == podcastEpisode.id)
+      unshiftStarted.signal()
+      await finishUnshift.wait()
+    }
+    defer { finishUnshift.signal() }
+
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+    await unshiftStarted.wait()
+    #expect(initialAVPlayer.current == nil)
+    #expect(initialAVPlayer.timeObservers.isEmpty)
+
+    finishUnshift.signal()
+    try await Wait.until(
+      { await avPlayer != initialAVPlayer },
+      { "Expected new AVPlayer to be created" }
+    )
+    try await PlayHelpers.waitForQueue([podcastEpisode])
+    try await PlayHelpers.waitForOnDeck(nil)
+    try await PlayHelpers.waitFor(.stopped)
+    let preservedEpisode = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    #expect(preservedEpisode.currentTime == resumeTime)
   }
 }

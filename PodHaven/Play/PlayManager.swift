@@ -191,6 +191,20 @@ final class PlayManager {
     return try await performLoad(podcastEpisode)
   }
 
+  func cancelLoadForMediaServicesReset() async {
+    guard let loadTask else { return }
+
+    loadTask.cancel()
+    switch await loadTask.result {
+    case .success(let loaded):
+      Self.log.debug(
+        "cancelLoadForMediaServicesReset: load had already completed, loaded: \(loaded)"
+      )
+    case .failure(let error):
+      Self.log.caughtError("cancelLoadForMediaServicesReset: load task settled", error)
+    }
+  }
+
   private func performLoad(_ incoming: PodcastEpisode) async throws -> Bool {
     let outgoing = sharedState.onDeck
 
@@ -275,6 +289,8 @@ final class PlayManager {
       }
 
       do {
+        try Task.checkCancellation()
+
         phaseStart = Date()
         Self.log.debug("performLoad: activating audio session")
         try Container.shared.setAudioSessionActive()(true)
@@ -291,6 +307,8 @@ final class PlayManager {
           "performLoad: set playback rate in \(Date().timeIntervalSince(phaseStart)) seconds"
         )
 
+        try Task.checkCancellation()
+
         phaseStart = Date()
         Self.log.debug("performLoad: loading player item")
         let loaded = try await podAVPlayer.load(incoming)
@@ -300,6 +318,8 @@ final class PlayManager {
             loaded: \(loaded.toString)
           """
         )
+
+        try Task.checkCancellation()
 
         phaseStart = Date()
         Self.log.debug("performLoad: setting onDeck")
