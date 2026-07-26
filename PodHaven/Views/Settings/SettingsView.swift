@@ -7,6 +7,7 @@ struct SettingsView: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.queue) private var queue
+  @DynamicInjected(\.transcriptionAvailability) private var transcriptionAvailability
   @DynamicInjected(\.userSettings) private var userSettings
 
   private static let log = Log.as(LogSubsystem.SettingsView.main)
@@ -70,6 +71,15 @@ struct SettingsView: View {
             value: Navigation.Destination.settingsSection(.tags),
             label: { Text("Tags") }
           )
+        }
+
+        if transcriptionAvailability.isAvailable {
+          Section("Transcription") {
+            NavigationLink(
+              value: Navigation.Destination.settingsSection(.transcriptionQueue),
+              label: { Text("Transcription Queue") }
+            )
+          }
         }
 
         Section("Gestures") {
