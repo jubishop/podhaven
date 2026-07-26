@@ -203,6 +203,7 @@ struct TranscriptionQueue: Sendable {
       guard interruptions[episodeID] == .discarding else { return }
       $progress.update { _ = $0.removeValue(forKey: episodeID) }
       $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
+      $failed.update { _ = $0.remove(episodeID) }
     }
   }
 

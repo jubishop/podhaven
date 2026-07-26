@@ -129,4 +129,15 @@ struct TranscriptionQueueTests {
     #expect(!queue.failed.contains(id(1)))
     #expect(queue.episodeIDs == [id(1)])
   }
+
+  @Test("finishing discard clears a prior failure for the same episode")
+  func finishDiscardingClearsFailure() {
+    queue.fail(id(1))
+    queue.beginDiscarding(id(1))
+
+    queue.finishDiscarding(id(1))
+
+    #expect(!queue.failed.contains(id(1)))
+    #expect(queue.status(for: id(1), hasTranscript: false) == .none)
+  }
 }

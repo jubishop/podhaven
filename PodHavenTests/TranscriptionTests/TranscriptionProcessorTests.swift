@@ -221,8 +221,8 @@ struct TranscriptionProcessorTests {
     #expect(queue.episodeIDs.isEmpty)
   }
 
-  @Test("late cancellation cannot affect the next active episode")
-  func lateCancellationDoesNotAffectNextEpisode() async throws {
+  @Test("a late pause cannot affect the next active episode")
+  func latePauseDoesNotAffectNextEpisode() async throws {
     TranscriptionHelpers.stubSpeech(
       phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0, endSeconds: 60)]
     )

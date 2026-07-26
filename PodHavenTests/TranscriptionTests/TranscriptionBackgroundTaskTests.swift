@@ -320,8 +320,8 @@ struct TranscriptionBackgroundTaskTests {
     #expect(try await repo.episode(secondEpisode.id)?.hasTranscript == true)
   }
 
-  @Test("cancelling the foreground head hands remaining work to a background grant")
-  func cancellationHandsRemainingWorkToBackground() async throws {
+  @Test("pausing the foreground head hands remaining work to a background grant")
+  func pauseHandsRemainingWorkToBackground() async throws {
     TranscriptionHelpers.stubSpeech(
       phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0, endSeconds: 60)]
     )
