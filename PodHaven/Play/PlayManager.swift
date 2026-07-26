@@ -135,6 +135,7 @@ final class PlayManager {
 
   var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
   private var imageFetchTask: Task<Void, Never>?
+  private var activeLoadID: UUID?
   private var loadTask: Task<Bool, any Error>?
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
@@ -236,11 +237,18 @@ final class PlayManager {
 
   @discardableResult
   func load(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
+    let loadID = UUID()
+    activeLoadID = loadID
     loadTask?.cancel()
-    return try await performLoad(podcastEpisode)
+    defer {
+      if activeLoadID == loadID {
+        activeLoadID = nil
+      }
+    }
+    return try await performLoad(podcastEpisode, loadID: loadID)
   }
 
-  private func performLoad(_ incoming: PodcastEpisode) async throws -> Bool {
+  private func performLoad(_ incoming: PodcastEpisode, loadID: UUID) async throws -> Bool {
     let outgoing = sharedState.onDeck
 
     if let outgoing, outgoing.id == incoming.id {
@@ -375,7 +383,7 @@ final class PlayManager {
         await Task { [weak self, outgoing, incoming] in  // Task to execute even inside cancellation
           guard let self else { return }
 
-          await cleanUpAfterLoadFailure(outgoing, incoming)
+          await cleanUpAfterLoadFailure(outgoing, incoming, loadID: loadID)
         }
         .value
 
@@ -428,7 +436,11 @@ final class PlayManager {
     }
   }
 
-  private func cleanUpAfterLoadFailure(_ outgoing: OnDeck?, _ incoming: PodcastEpisode) async {
+  private func cleanUpAfterLoadFailure(
+    _ outgoing: OnDeck?,
+    _ incoming: PodcastEpisode,
+    loadID: UUID
+  ) async {
     let nowOnDeck = sharedState.onDeck
 
     Self.log.debug(
@@ -466,8 +478,12 @@ final class PlayManager {
           Loaded instead: \(nowOnDeck.toString)
         """
       )
-    } else {
+    } else if activeLoadID == loadID {
       await stop()
+    } else {
+      Self.log.debug(
+        "cleanUpAfterLoadFailure: no stopping because a newer load owns playback state"
+      )
     }
   }
 

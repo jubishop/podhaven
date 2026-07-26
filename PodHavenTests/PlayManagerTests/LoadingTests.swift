@@ -403,6 +403,40 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
+  @Test("new play survives cancellation cleanup from prior load")
+  func newPlaySurvivesCancellationCleanupFromPriorLoad() async throws {
+    await playManager.start()
+    let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+
+    let originalSemaphore = await episodeAssetLoader.waitRespond(
+      to: originalEpisode.episode.mediaURL
+    )
+    let incomingSemaphore = await episodeAssetLoader.waitRespond(
+      to: incomingEpisode.episode.mediaURL
+    )
+    let originalPlay = Task { try await playManager.play(originalEpisode) }
+    defer {
+      originalPlay.cancel()
+      originalSemaphore.signal()
+    }
+    try await PlayHelpers.waitFor(.loading(originalEpisode.episode.title))
+
+    let incomingPlay = Task { try await playManager.play(incomingEpisode) }
+    defer {
+      incomingPlay.cancel()
+      incomingSemaphore.signal()
+    }
+    try await PlayHelpers.waitFor(.loading(incomingEpisode.episode.title))
+    await #expect(throws: (any Error).self) {
+      try await originalPlay.value
+    }
+
+    incomingSemaphore.signal()
+    try await incomingPlay.value
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
+    try await PlayHelpers.waitFor(.playing)
+  }
+
   @Test("audio session failure during load clears state and surfaces alert")
   func audioSessionFailureDuringLoadClearsStateAndSurfacesAlert() async throws {
     await playManager.start()
@@ -554,12 +588,8 @@ import Testing
     #expect(try await playManager.load(podcastEpisode) == false)
   }
 
-  @Test(
-    "loading race condition with success after failure does not result in stopped playbackStatus"
-  )
-  func loadingRaceConditionWithSuccessAfterFailureDoesNotResultInStoppedPlaybackStatus()
-    async throws
-  {
+  @Test("earlier load failure does not stop newer load")
+  func earlierLoadFailureDoesNotStopNewerLoad() async throws {
     await playManager.start()
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
@@ -583,10 +613,10 @@ import Testing
       incomingSemaphore.signal()
     }
     originalSemaphore.signal()
-    try await PlayHelpers.waitFor(.stopped)
     await #expect(throws: (any Error).self) {
       try await originalLoad.value
     }
+    #expect(sharedState.playbackStatus == .loading(incomingEpisode.episode.title))
     incomingSemaphore.signal()
     #expect(try await incomingLoad.value == true)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
