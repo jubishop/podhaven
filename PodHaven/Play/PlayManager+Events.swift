@@ -7,6 +7,12 @@ import MediaPlayer
 
 extension PlayManager {
 
+  private enum MediaServicesResetOutcome: String {
+    case awaitingUserAction
+    case configurationFailed
+    case noEpisode
+  }
+
   @MainActor private static func resetAVPlayerScope() {
     Container.shared.avPlayer.reset(.scope)
   }
@@ -168,13 +174,24 @@ extension PlayManager {
   }
 
   private func handleMediaServicesReset() async {
-    Self.log.info("handleMediaServicesReset: beginning recovery process")
+    Self.log.info("handleMediaServicesReset: rebuilding audio objects")
 
-    guard await Container.shared.configureAudioSession()() else {
-      await stop()
-      return
+    let previousPlaybackStatus = sharedState.playbackStatus
+    let interruptedEpisode = sharedState.onDeck
+
+    if let interruptedEpisode {
+      do {
+        try await queue.unshift(interruptedEpisode.id)
+      } catch {
+        Self.log.caughtError(
+          """
+          handleMediaServicesReset: failed to return interrupted episode to Up Next \
+          \(interruptedEpisode.toString)
+          """,
+          error
+        )
+      }
     }
-    Self.log.debug("handleMediaServicesReset: audio session configured")
 
     // Clean up the old AVPlayer before resetting, since @DynamicInjected re-resolves
     // on each access — after reset, avPlayer points to the new instance and the old
@@ -188,41 +205,60 @@ extension PlayManager {
     CommandCenter.registerRemoteCommandHandlers()
     Self.log.debug("handleMediaServicesReset: remote command handlers re-registered")
 
-    let currentOnDeck = sharedState.onDeck
-    await clearOnDeck()
-    Self.log.debug("handleMediaServicesReset: cleared existing playback state")
+    await stop()
+    Self.log.debug("handleMediaServicesReset: stopped invalidated playback")
 
+    let audioSessionConfigured = await Container.shared.configureAudioSession()()
+    let resumeEpisode: PodcastEpisode?
     do {
-      let episodeToLoad: PodcastEpisode?
-      if let currentOnDeck {
-        Self.log.debug("handleMediaServicesReset: recovering on-deck episode \(currentOnDeck.id)")
-        episodeToLoad = try await repo.podcastEpisode(currentOnDeck.id)
-      } else if let nextEpisode = try await queue.nextEpisode {
-        Self.log.debug(
-          """
-          handleMediaServicesReset: no on-deck episode, \
-          falling back to top of queue: \(nextEpisode.toString)
-          """
-        )
-        episodeToLoad = nextEpisode
-      } else {
-        episodeToLoad = nil
-      }
-
-      guard let episodeToLoad else {
-        Self.log.debug("handleMediaServicesReset: no episode to recover")
-        return
-      }
-
-      Self.log.info("handleMediaServicesReset: reloading \(episodeToLoad.toString)")
-      try await load(episodeToLoad)
-      Self.log.info("handleMediaServicesReset: recovery finished successfully")
+      resumeEpisode = try await queue.nextEpisode
     } catch {
       Self.log.caughtError(
-        "handleMediaServicesReset: failed to recover playback",
+        "handleMediaServicesReset: failed to read the rebuilt Up Next queue",
         error
       )
+      resumeEpisode = nil
     }
+
+    let outcome: MediaServicesResetOutcome
+    if !audioSessionConfigured {
+      outcome = .configurationFailed
+    } else if resumeEpisode != nil {
+      outcome = .awaitingUserAction
+    } else {
+      outcome = .noEpisode
+    }
+
+    let interruptedEpisodeID: String
+    if let interruptedEpisode {
+      interruptedEpisodeID = String(describing: interruptedEpisode.id)
+    } else {
+      interruptedEpisodeID = "nil"
+    }
+    let resumeEpisodeID: String
+    if let resumeEpisode {
+      resumeEpisodeID = String(describing: resumeEpisode.id)
+    } else {
+      resumeEpisodeID = "nil"
+    }
+
+    Self.log.warning(
+      """
+      event=mediaServicesResetHandled outcome=\(outcome.rawValue) \
+      previousPlaybackStatus=\(previousPlaybackStatus) \
+      interruptedEpisodeID=\(interruptedEpisodeID) resumeEpisodeID=\(resumeEpisodeID)
+      """
+    )
+
+    guard audioSessionConfigured, let resumeEpisode else { return }
+
+    await alert(
+      title: "Audio Services Restarted",
+      """
+      Your device restarted its audio services. “\(resumeEpisode.episode.title)” is at the top of \
+      Up Next. Tap it to resume playback.
+      """
+    )
   }
 
   // MARK: - Notification Tracking
