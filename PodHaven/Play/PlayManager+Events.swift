@@ -177,7 +177,7 @@ extension PlayManager {
     Self.log.info("handleMediaServicesReset: rebuilding audio objects")
 
     let previousPlaybackStatus = sharedState.playbackStatus
-    let interruptedEpisode = sharedState.onDeck
+    let interruptedEpisodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID
 
     await cancelLoadForMediaServicesReset()
 
@@ -186,14 +186,14 @@ extension PlayManager {
     // one's observers and player item would be leaked.
     await podAVPlayer.clear()
 
-    if let interruptedEpisode {
+    if let interruptedEpisodeID {
       do {
-        try await queue.unshift(interruptedEpisode.id)
+        try await queue.unshift(interruptedEpisodeID)
       } catch {
         Self.log.caughtError(
           """
           handleMediaServicesReset: failed to return interrupted episode to Up Next \
-          \(interruptedEpisode.toString)
+          \(interruptedEpisodeID)
           """,
           error
         )
@@ -231,11 +231,11 @@ extension PlayManager {
       outcome = .noEpisode
     }
 
-    let interruptedEpisodeID: String
-    if let interruptedEpisode {
-      interruptedEpisodeID = String(describing: interruptedEpisode.id)
+    let interruptedEpisodeIDDescription: String
+    if let interruptedEpisodeID {
+      interruptedEpisodeIDDescription = String(describing: interruptedEpisodeID)
     } else {
-      interruptedEpisodeID = "nil"
+      interruptedEpisodeIDDescription = "nil"
     }
     let resumeEpisodeID: String
     if let resumeEpisode {
@@ -248,7 +248,7 @@ extension PlayManager {
       """
       event=mediaServicesResetHandled outcome=\(outcome.rawValue) \
       previousPlaybackStatus=\(previousPlaybackStatus) \
-      interruptedEpisodeID=\(interruptedEpisodeID) resumeEpisodeID=\(resumeEpisodeID)
+      interruptedEpisodeID=\(interruptedEpisodeIDDescription) resumeEpisodeID=\(resumeEpisodeID)
       """
     )
 
