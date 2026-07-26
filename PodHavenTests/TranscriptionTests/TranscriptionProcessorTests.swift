@@ -47,8 +47,8 @@ struct TranscriptionProcessorTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
-  @Test("user cancellation stops the active episode and advances once")
-  func userCancellationStopsActiveEpisode() async throws {
+  @Test("user pause stops the active episode, retains progress, and advances once")
+  func userPauseStopsActiveEpisode() async throws {
     TranscriptionHelpers.stubSpeech(
       phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0, endSeconds: 60)]
     )
@@ -99,6 +99,14 @@ struct TranscriptionProcessorTests {
       cachedFilename: "next.mp3",
       dataSize: 1
     )
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [TranscriptSegment(start: 0, end: 20, text: "partial")],
+      audioTime: 30,
+      duration: 60,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: firstEpisode.id)
     queue.enqueue(firstEpisode.id)
     queue.enqueue(secondEpisode.id)
     processor.handleScenePhaseChange(to: .active)
@@ -115,10 +123,10 @@ struct TranscriptionProcessorTests {
       { "active transcription did not publish progress" }
     )
 
-    processor.cancel(firstEpisode.id)
+    processor.pause(firstEpisode.id)
     await cancellationStarted.wait()
 
-    #expect(queue.status(for: firstEpisode.id, hasTranscript: false) == .cancelling)
+    #expect(queue.status(for: firstEpisode.id, hasTranscript: false) == .pausing)
     #expect(queue.episodeIDs == [secondEpisode.id])
     #expect(analyzeCount() == 1)
     #expect(
@@ -137,6 +145,7 @@ struct TranscriptionProcessorTests {
     #expect(cancellationCount() == 1)
     #expect(analyzeCount() == 2)
     #expect(try await repo.episode(firstEpisode.id)?.hasTranscript == false)
+    #expect(try await repo.transcriptionCheckpoint(firstEpisode.id) == checkpoint)
 
     secondAnalysisRelease.signal()
     try await Wait.until(
@@ -145,6 +154,71 @@ struct TranscriptionProcessorTests {
     )
     #expect(try await repo.episode(secondEpisode.id)?.hasTranscript == true)
     #expect(analyzeCount() == 2)
+  }
+
+  @Test("explicit discard stops active work and deletes its checkpoint")
+  func explicitDiscardStopsActiveWorkAndDeletesCheckpoint() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0, endSeconds: 60)]
+    )
+    let analysisStarted = AsyncSemaphore(value: 0)
+    let analysisRelease = AsyncSemaphore(value: 0)
+    let cancellationStarted = AsyncSemaphore(value: 0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer(
+          analyzeAudio: { _, endTime in
+            analysisStarted.signal()
+            try await analysisRelease.waitUnlessCancelled()
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          },
+          cancelAudio: {
+            cancellationStarted.signal()
+          }
+        )
+      }
+    }
+
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Discarded",
+      cachedFilename: "discarded.mp3",
+      dataSize: 1
+    )
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [TranscriptSegment(start: 0, end: 20, text: "partial")],
+      audioTime: 30,
+      duration: 60,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: episode.id)
+    queue.enqueue(episode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      analysisRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await analysisStarted.wait()
+    try await Wait.until(
+      { queue.progress[episode.id] != nil },
+      { "Active transcription did not publish progress" }
+    )
+
+    processor.discardProgress(for: episode.id)
+
+    #expect(queue.status(for: episode.id, hasTranscript: false) == .discarding)
+    await cancellationStarted.wait()
+    try await Wait.until(
+      { queue.interruptions[episode.id] == nil },
+      { "Explicit discard did not finish" }
+    )
+    #expect(try await repo.transcriptionCheckpoint(episode.id) == nil)
+    #expect(try await repo.episode(episode.id)?.hasTranscript == false)
+    #expect(queue.episodeIDs.isEmpty)
   }
 
   @Test("late cancellation cannot affect the next active episode")
@@ -195,7 +269,7 @@ struct TranscriptionProcessorTests {
     await secondAnalysisStarted.wait()
     #expect(queue.episodeIDs == [secondEpisode.id])
 
-    processor.cancel(firstEpisode.id)
+    processor.pause(firstEpisode.id)
 
     #expect(queue.episodeIDs == [secondEpisode.id])
     #expect(queue.progress[secondEpisode.id] != nil)
