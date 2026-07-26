@@ -67,14 +67,11 @@ Use `Cmd+U` in Xcode, or run the following command in your terminal:
 xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -testPlan PodHaven -parallel-testing-enabled YES
 ```
 
-### Run a Specific Test Class
+### Run a Specific Test Suite
+Swift Testing filters must stay at suite level; method-level filters can report success while
+running zero tests.
 ```sh
-xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeTestClass
-```
-
-### Run an Individual Test Method
-```sh
-xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeTestClass/testMethod
+xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeSuite
 ```
 </details>
 
