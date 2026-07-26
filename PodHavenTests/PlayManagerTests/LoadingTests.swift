@@ -519,6 +519,7 @@ import Testing
 
     #expect(sharedState.currentEpisodeID == priorEpisode.id)
     #expect(sharedState.onDeck == nil)
+    try await PlayHelpers.waitForQueue([])
 
     audioSession.activationError { $0 = nil }
     await playManager.restorePersistedEpisodeForForeground()
@@ -526,6 +527,7 @@ import Testing
     try await PlayHelpers.waitForOnDeck(selectedEpisode)
     try await PlayHelpers.waitFor(.playing)
     #expect(sharedState.currentEpisodeID == selectedEpisode.id)
+    try await PlayHelpers.waitForQueue([priorEpisode])
   }
 
   @Test("audio session recovers on next load attempt after prior failure")

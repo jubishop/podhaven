@@ -248,10 +248,28 @@ final class PlayManager {
       return false
     }
 
+    let outgoingEpisodeID: Episode.ID? =
+      if let outgoing {
+        outgoing.id
+      } else if let currentEpisodeID = sharedState.currentEpisodeID,
+        currentEpisodeID != incoming.id
+      {
+        currentEpisodeID
+      } else {
+        nil
+      }
+
     let task = Task<Bool, any Error> { [weak self] in
       guard let self else { return false }
       let loadStart = Date()
-      let outgoingDescription = String(describing: outgoing?.toString)
+      let outgoingDescription =
+        if let outgoing {
+          outgoing.toString
+        } else if let outgoingEpisodeID {
+          "persisted episode \(outgoingEpisodeID)"
+        } else {
+          "nil"
+        }
       Self.log.info(
         """
         performLoad: starting
@@ -305,23 +323,23 @@ final class PlayManager {
       // Restore the outgoing episode to the top of the queue immediately so
       // it stays visible for the entire load attempt. Without this, a long
       // network load (or a timeout, ~12s in the field) leaves the
-      // previously-OnDeck episode in limbo — neither OnDeck nor in the
-      // queue — until cleanUpAfterLoad{Success,Failure} runs at the end.
-      if let outgoing {
+      // previously-current episode in limbo — neither represented by playback
+      // state nor in the queue — until cleanUpAfterLoad{Success,Failure} runs.
+      if let outgoingEpisodeID {
         phaseStart = Date()
-        Self.log.debug("performLoad: restoring outgoing episode to queue: \(outgoing.toString)")
+        Self.log.debug("performLoad: restoring outgoing episode to queue: \(outgoingDescription)")
         do {
-          try await queue.unshift(outgoing.id)
+          try await queue.unshift(outgoingEpisodeID)
           Self.log.debug(
             """
             performLoad: restored outgoing episode to queue \
             in \(Date().timeIntervalSince(phaseStart)) seconds
-              outgoing: \(outgoing.toString)
+              outgoing: \(outgoingDescription)
             """
           )
         } catch {
           Self.log.caughtError(
-            "performLoad: failed to unshift outgoing episode \(outgoing.toString)",
+            "performLoad: failed to unshift outgoing episode \(outgoingDescription)",
             error
           )
         }
