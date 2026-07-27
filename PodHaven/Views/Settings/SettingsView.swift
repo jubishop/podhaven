@@ -19,8 +19,6 @@ struct SettingsView: View {
   @State private var tempMaxRecommendedEpisodes: Double
   @State private var tempMaxTranscriptionQueueLength: Double
 
-  private let viewModel = SettingsViewModel()
-
   init() {
     let userSettings = Container.shared.userSettings()
     self._tempMaxQueueLength = State(

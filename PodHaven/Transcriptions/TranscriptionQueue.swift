@@ -209,7 +209,7 @@ struct TranscriptionQueue: Sendable {
       orderedEpisodeIDs.count == currentEpisodeIDs.count,
       Set(orderedEpisodeIDs) == Set(currentEpisodeIDs)
     else {
-      Self.log.error(
+      Self.log.notice(
         """
         rejected reorder of \(orderedEpisodeIDs.count) ids; \
         current depth \(currentEpisodeIDs.count)

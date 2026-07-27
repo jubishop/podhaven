@@ -10,13 +10,16 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
   }
 
   private let state: ThreadSafe<State>
+  private let beforeFetch: @Sendable () async throws -> Void
   private let beforeRemove: @Sendable (Episode.ID) async throws -> Void
 
   init(
     episodeIDs: [Episode.ID] = [],
+    beforeFetch: @escaping @Sendable () async throws -> Void = {},
     beforeRemove: @escaping @Sendable (Episode.ID) async throws -> Void = { _ in }
   ) {
     state = ThreadSafe(State(episodeIDs: episodeIDs))
+    self.beforeFetch = beforeFetch
     self.beforeRemove = beforeRemove
   }
 
@@ -29,7 +32,8 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
   }
 
   func fetchAll() async throws -> [Episode.ID] {
-    state { state in
+    try await beforeFetch()
+    return state { state in
       state.fetchCount += 1
       return state.episodeIDs
     }

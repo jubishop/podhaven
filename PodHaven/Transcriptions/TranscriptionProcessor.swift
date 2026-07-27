@@ -143,6 +143,13 @@ struct TranscriptionProcessor: Sendable {
       )
       complete(true)
     }
+
+    let queue = transcriptionQueue
+    let scheduler = backgroundTaskScheduler
+    Task {
+      await queue.waitUntilLoaded()
+      scheduler.scheduleNext()
+    }
   }
 
   // MARK: - Scene Phase

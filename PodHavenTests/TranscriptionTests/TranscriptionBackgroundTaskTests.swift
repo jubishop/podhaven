@@ -15,13 +15,58 @@ struct TranscriptionBackgroundTaskTests {
   }
 
   @Test("registering with no queued work does not schedule a background task")
-  func emptyQueueDoesNotSchedule() throws {
+  func emptyQueueDoesNotSchedule() async throws {
+    let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
     let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
 
     processor.register()
+    await queue.waitUntilLoaded()
 
+    try await Wait.until(
+      {
+        scheduler.cancelledIdentifiers.filter { $0 == identifier }.count >= 2
+      },
+      { "Post-hydration schedule reconciliation did not finish" }
+    )
     #expect(scheduler.submissions.isEmpty)
+  }
+
+  @Test("persisted work schedules after delayed queue hydration")
+  func persistedWorkSchedulesAfterDelayedHydration() async throws {
+    let episodeID = Episode.ID(rawValue: 1)
+    let fetchStarted = AsyncSemaphore(value: 0)
+    let fetchRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [episodeID],
+      beforeFetch: {
+        fetchStarted.signal()
+        await fetchRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
+    defer { fetchRelease.signal() }
+
+    await fetchStarted.wait()
+    processor.register()
+    #expect(!scheduler.pendingIdentifiers.contains(identifier))
+
+    fetchRelease.signal()
+    await queue.waitUntilLoaded()
+
+    try await Wait.until(
+      { scheduler.pendingIdentifiers.contains(identifier) },
+      { "Persisted transcription work did not schedule after queue hydration" }
+    )
+    #expect(queue.episodeIDs == [episodeID])
   }
 
   @Test("the iOS-granted background task drains the queue and completes")
