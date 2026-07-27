@@ -58,6 +58,21 @@ struct TranscriptionProcessor: Sendable {
     case background
   }
 
+  private enum QueueRemovalOperation: String, Sendable {
+    case missingEpisode
+    case alreadyTranscribed
+    case completedTranscription
+  }
+
+  private struct QueueMutationFailure: Error, LocalizedError {
+    let operation: QueueRemovalOperation
+    let message: String
+
+    var errorDescription: String? {
+      "\(operation.rawValue): \(message)"
+    }
+  }
+
   private let foregroundState = ThreadSafe(ForegroundState.background)
 
   fileprivate init() {
@@ -412,6 +427,20 @@ struct TranscriptionProcessor: Sendable {
         )
       }
 
+      if let queueMutationFailure = error as? QueueMutationFailure {
+        Self.log.caughtError(
+          """
+          transcriptionTelemetry event=queueMutationFailed \(logContext.fields) \
+          operation=\(queueMutationFailure.operation.rawValue) \
+          remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
+          """,
+          queueMutationFailure
+        )
+        transcriptionQueue.clearProgress(for: episodeID)
+        backgroundTaskScheduler.scheduleNext()
+        return
+      }
+
       if result.interruption == .none, !result.executionCancelled {
         Self.log.caughtError(
           """
@@ -421,7 +450,19 @@ struct TranscriptionProcessor: Sendable {
           """,
           error
         )
-        try await transcriptionQueue.fail(episodeID)
+        do {
+          try await transcriptionQueue.fail(episodeID)
+        } catch is CancellationError {
+          throw CancellationError()
+        } catch {
+          Self.log.caughtError(
+            "Failed to persist failed transcription \(episodeID); retained queued work",
+            error
+          )
+          transcriptionQueue.clearProgress(for: episodeID)
+          backgroundTaskScheduler.scheduleNext()
+          return
+        }
         if transcriptionQueue.episodeIDs.isEmpty {
           backgroundTaskScheduler.scheduleNext()
         }
@@ -499,13 +540,19 @@ struct TranscriptionProcessor: Sendable {
     logContext: TranscriptionLogContext
   ) async throws {
     guard let episode = try await repo.episode(episodeID) else {
-      try await transcriptionQueue.remove(episodeID)
+      try await removeQueuedEpisode(
+        episodeID,
+        operation: .missingEpisode
+      )
       Self.log.warning("Removed missing \(episodeID) from transcription queue")
       return
     }
     guard !episode.hasTranscript else {
       try await repo.deleteTranscriptionCheckpoint(for: episodeID)
-      try await transcriptionQueue.remove(episodeID)
+      try await removeQueuedEpisode(
+        episodeID,
+        operation: .alreadyTranscribed
+      )
       Self.log.debug("Removed already-transcribed \(episodeID) from transcription queue")
       return
     }
@@ -587,12 +634,31 @@ struct TranscriptionProcessor: Sendable {
     try Task.checkCancellation()
     try await repo.updateTranscript(episodeID, transcript: transcript.jsonString())
 
-    try await transcriptionQueue.remove(episodeID)
+    try await removeQueuedEpisode(
+      episodeID,
+      operation: .completedTranscription
+    )
     Self.log.info(
       """
       transcriptionTelemetry event=transcriptStored \(logContext.fields) \
       segments=\(segments.count)
       """
     )
+  }
+
+  private func removeQueuedEpisode(
+    _ episodeID: Episode.ID,
+    operation: QueueRemovalOperation
+  ) async throws {
+    do {
+      try await transcriptionQueue.remove(episodeID)
+    } catch is CancellationError {
+      throw CancellationError()
+    } catch {
+      throw QueueMutationFailure(
+        operation: operation,
+        message: ErrorKit.message(for: error)
+      )
+    }
   }
 }

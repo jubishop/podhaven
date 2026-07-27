@@ -636,6 +636,108 @@ struct TranscriptionProcessorTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
+  @Test("queue removal failure preserves completed work without retrying")
+  func queueRemovalFailurePreservesCompletedWork() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0, endSeconds: 60)]
+    )
+    let repo = Container.shared.repo()
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Retained",
+      cachedFilename: "retained.mp3",
+      dataSize: 1
+    )
+    let removalAttempts = ThreadSafe(0)
+    let laterRemovalRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [episode.id],
+      beforeRemove: { _ in
+        let attempt = removalAttempts {
+          $0 += 1
+          return $0
+        }
+        if attempt == 1 { throw TestError.simulatedFailure }
+        await laterRemovalRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    await queue.waitUntilLoaded()
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      laterRemovalRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    try await Wait.until(
+      { removalAttempts() >= 1 },
+      { "Completed transcription did not attempt durable queue removal" }
+    )
+    try await Wait.until(
+      maxAttempts: 100,
+      { queue.progress[episode.id] == nil },
+      { "Queue removal failure left active progress or entered a retry loop" }
+    )
+
+    #expect(removalAttempts() == 1)
+    #expect(queue.episodeIDs == [episode.id])
+    #expect(!queue.failed.contains(episode.id))
+    #expect(try await repo.episode(episode.id)?.hasTranscript == true)
+  }
+
+  @Test("failed-state removal failure preserves work without retrying")
+  func failedStateRemovalFailurePreservesWork() async throws {
+    TranscriptionHelpers.stubSpeechFailure()
+    let repo = Container.shared.repo()
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Retained Failure",
+      cachedFilename: "retained-failure.mp3",
+      dataSize: 1
+    )
+    let removalAttempts = ThreadSafe(0)
+    let laterRemovalRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [episode.id],
+      beforeRemove: { _ in
+        let attempt = removalAttempts {
+          $0 += 1
+          return $0
+        }
+        if attempt == 1 { throw TestError.simulatedFailure }
+        await laterRemovalRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    await queue.waitUntilLoaded()
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      laterRemovalRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    try await Wait.until(
+      { removalAttempts() >= 1 },
+      { "Failed transcription did not attempt durable queue removal" }
+    )
+    try await Wait.until(
+      maxAttempts: 100,
+      { queue.progress[episode.id] == nil },
+      { "Failed-state removal failure left active progress or entered a retry loop" }
+    )
+
+    #expect(removalAttempts() == 1)
+    #expect(queue.episodeIDs == [episode.id])
+    #expect(!queue.failed.contains(episode.id))
+    #expect(try await repo.episode(episode.id)?.hasTranscript == false)
+  }
+
   @Test("an episode with no recognizable speech stores an empty transcript and isn't failed")
   func noSpeechStoresEmptyTranscript() async throws {
     TranscriptionHelpers.stubSpeech(phrases: [])
