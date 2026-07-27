@@ -101,9 +101,8 @@ enum PodAVPlayerError: Error, LocalizedError {
   func load(_ podcastEpisode: PodcastEpisode) async throws -> PodcastEpisode {
     Self.log.debug("load: \(podcastEpisode.toString)")
 
-    episodeID = nil
-    lastDatabaseUpdateTime = nil
     let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
+    try Task.checkCancellation()
     episodeID = podcastEpisode.id
     lastDatabaseUpdateTime = podcastEpisode.currentTime
     avPlayer.replaceCurrent(with: playableItem)

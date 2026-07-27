@@ -12,92 +12,29 @@ import SwiftUI
 import Tagged
 
 extension Container {
-  // Retries because mediaservicesd is sometimes dead at launch (e.g., right
-  // after a TestFlight install/update) and typically respawns within seconds.
-  var configureAudioSession: Factory<@Sendable () async -> Bool> {
-    Factory(self) {
-      {
-        PlayManager.log.info("configureAudioSession: executing")
-
-        let maxAttempts = 5
-        let maxDelay: Duration = .seconds(2)
-        var retryDelay: Duration = .milliseconds(250)
-
-        for attempt in 1...maxAttempts {
-          do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
-            try session.setMode(.spokenAudio)
-            PlayManager.log.info(
-              """
-              configureAudioSession: configured (attempt \(attempt)/\(maxAttempts))
-                category: \(session.category.rawValue)
-                mode: \(session.mode.rawValue)
-                routeSharingPolicy: \(session.routeSharingPolicy.rawValue)
-              """
-            )
-            return true
-          } catch {
-            if attempt == maxAttempts {
-              PlayManager.log.caughtError(
-                "configureAudioSession: failed after \(maxAttempts) attempts",
-                error
-              )
-              await Container.shared.alert()(
-                title: "Couldn't start audio playback",
-                ErrorKit.message(for: error)
-              )
-              return false
-            }
-            PlayManager.log.debug(
-              """
-              configureAudioSession: attempt \(attempt)/\(maxAttempts) failed, \
-              retrying in \(retryDelay)
-                error: \(ErrorKit.message(for: error))
-              """
-            )
-            do {
-              try await Container.shared.sleeper().sleep(for: retryDelay)
-            } catch {
-              PlayManager.log.caughtError(
-                """
-                configureAudioSession: cancelled during retry backoff \
-                (attempt \(attempt)/\(maxAttempts))
-                """,
-                error
-              )
-              return false
-            }
-            retryDelay = min(retryDelay * 2, maxDelay)
-          }
-        }
-        return false
-      }
-    }
-    .scope(.cached)
-  }
-
-  var setAudioSessionActive: Factory<(Bool) throws -> Void> {
-    Factory(self) {
-      { active in
-        let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setActive(active)
-      }
-    }
-  }
-
   var playManager: Factory<PlayManager> {
     Factory(self) { PlayManager() }.scope(.cached)
   }
 }
 
-@globalActor
-actor PlayActor {
-  static let shared = PlayActor()
-}
-
 @PlayActor
 final class PlayManager {
+  private enum LoadTransitionOutcome {
+    case didNotLoad
+    case succeeded
+  }
+
+  private enum LoadTransitionState {
+    case preservingPlayback
+    case ownsAudioSession
+    case ownsPlaybackState
+  }
+
+  private struct LoadTransition {
+    let id: UUID
+    var state: LoadTransitionState
+  }
+
   private enum PendingPlaybackRequest {
     case none
     case play(Episode.ID)
@@ -135,7 +72,7 @@ final class PlayManager {
 
   var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
   private var imageFetchTask: Task<Void, Never>?
-  private var activeLoadID: UUID?
+  private var loadTransition: LoadTransition?
   private(set) var loadTask: Task<Bool, any Error>?
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
@@ -233,25 +170,40 @@ final class PlayManager {
     await fulfillPendingPlaybackRequest()
   }
 
-  // MARK: - Loading
-
   @discardableResult
   func load(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
     let loadID = UUID()
-    activeLoadID = loadID
+    let inheritedState = loadTransition?.state ?? .preservingPlayback
+    loadTransition = LoadTransition(id: loadID, state: inheritedState)
     loadTask?.cancel()
-    defer {
-      if activeLoadID == loadID {
-        activeLoadID = nil
+
+    let task = Task<Bool, any Error> { [weak self] in
+      guard let self else { return false }
+      do {
+        let loaded = try await performLoad(podcastEpisode, loadID: loadID)
+        let outcome: LoadTransitionOutcome = loaded ? .succeeded : .didNotLoad
+        await finishLoadTransition(loadID, outcome: outcome)
+        return loaded
+      } catch {
+        await Task { [weak self] in
+          guard let self else { return }
+          await finishLoadTransition(loadID, outcome: .didNotLoad)
+        }
+        .value
+        throw error
       }
     }
-    return try await performLoad(podcastEpisode, loadID: loadID)
+
+    loadTask = task
+    return try await task.value
   }
 
   private func performLoad(_ incoming: PodcastEpisode, loadID: UUID) async throws -> Bool {
     let outgoing = sharedState.onDeck
 
     if let outgoing, outgoing.id == incoming.id {
+      try requireLoadTransitionOwnership(loadID)
+      loadTransition?.state = .preservingPlayback
       Self.log.debug("performLoad: ignoring \(incoming.toString), already loaded")
       return false
     }
@@ -267,63 +219,66 @@ final class PlayManager {
         nil
       }
 
-    let task = Task<Bool, any Error> { [weak self] in
-      guard let self else { return false }
-      let loadStart = Date()
-      let outgoingDescription =
-        if let outgoing {
-          outgoing.toString
-        } else if let outgoingEpisodeID {
-          "persisted episode \(outgoingEpisodeID)"
-        } else {
-          "nil"
-        }
-      Self.log.info(
-        """
-        performLoad: starting
-          incoming: \(incoming.toString)
-          outgoing: \(outgoingDescription)
-        """
-      )
+    let loadStart = Date()
+    let outgoingDescription =
+      if let outgoing {
+        outgoing.toString
+      } else if let outgoingEpisodeID {
+        "persisted episode \(outgoingEpisodeID)"
+      } else {
+        "nil"
+      }
+    Self.log.info(
+      """
+      performLoad: starting
+        incoming: \(incoming.toString)
+        outgoing: \(outgoingDescription)
+      """
+    )
 
-      var phaseStart = Date()
-      Self.log.debug("performLoad: configuring audio session")
-      let audioSessionConfigured = await Container.shared.configureAudioSession()()
-      Self.log.debug(
-        """
-        performLoad: configured audio session result=\(audioSessionConfigured) \
-        in \(Date().timeIntervalSince(phaseStart)) seconds
-        """
-      )
-      guard audioSessionConfigured else { return false }
-      try Task.checkCancellation()
+    var phaseStart = Date()
+    Self.log.debug("performLoad: configuring audio session")
+    let audioSessionConfigured = await Container.shared.configureAudioSession()()
+    Self.log.debug(
+      """
+      performLoad: configured audio session result=\(audioSessionConfigured) \
+      in \(Date().timeIntervalSince(phaseStart)) seconds
+      """
+    )
+    guard audioSessionConfigured else { return false }
+    try requireLoadTransitionOwnership(loadID)
 
-      phaseStart = Date()
-      Self.log.debug("performLoad: activating audio session")
-      guard try activateAudioSessionForLoad() else { return false }
-      Self.log.debug(
-        "performLoad: activated audio session in \(Date().timeIntervalSince(phaseStart)) seconds"
-      )
+    phaseStart = Date()
+    Self.log.debug("performLoad: activating audio session")
+    guard try activateAudioSessionForLoad() else { return false }
+    try markAudioSessionOwned(by: loadID)
+    Self.log.debug(
+      "performLoad: activated audio session in \(Date().timeIntervalSince(phaseStart)) seconds"
+    )
 
+    try requireLoadTransitionOwnership(loadID)
+    loadTransition?.state = .ownsPlaybackState
+    do {
       // Do not mutate playback state until the audio session is ready. A
       // background activation can be rejected while another app is playing.
+      phaseStart = Date()
+      Self.log.debug("performLoad: removing player observers")
+      await podAVPlayer.removeObservers()
+      try requireLoadTransitionOwnership(loadID)
+      Self.log.debug(
+        "performLoad: removed player observers in \(Date().timeIntervalSince(phaseStart)) seconds"
+      )
+
       if sharedState.stopAfterCurrentEpisode {
         Self.log.debug("performLoad: new episode starting, clearing stopAfterCurrentEpisode")
         sharedState.setStopAfterCurrentEpisode(false)
       }
 
-      phaseStart = Date()
-      Self.log.debug("performLoad: removing player observers")
-      await podAVPlayer.removeObservers()
-      Self.log.debug(
-        "performLoad: removed player observers in \(Date().timeIntervalSince(phaseStart)) seconds"
-      )
-
       setStatus(.loading(incoming.episode.title))
 
       phaseStart = Date()
       Self.log.debug("performLoad: clearing onDeck")
-      await clearOnDeck()
+      try await clearOnDeck(ownedBy: loadID)
       Self.log.debug(
         "performLoad: cleared onDeck in \(Date().timeIntervalSince(phaseStart)) seconds"
       )
@@ -355,50 +310,39 @@ final class PlayManager {
         Self.log.debug("performLoad: no outgoing episode to restore")
       }
 
-      do {
-        try Task.checkCancellation()
+      try requireLoadTransitionOwnership(loadID)
 
-        phaseStart = Date()
-        Self.log.debug("performLoad: setting playback rate")
-        await podAVPlayer.setRate(
-          Float(incoming.podcast.defaultPlaybackRate ?? userSettings.defaultPlaybackRate)
-        )
-        Self.log.debug(
-          "performLoad: set playback rate in \(Date().timeIntervalSince(phaseStart)) seconds"
-        )
+      phaseStart = Date()
+      Self.log.debug("performLoad: setting playback rate")
+      await podAVPlayer.setRate(
+        Float(incoming.podcast.defaultPlaybackRate ?? userSettings.defaultPlaybackRate)
+      )
+      try requireLoadTransitionOwnership(loadID)
+      Self.log.debug(
+        "performLoad: set playback rate in \(Date().timeIntervalSince(phaseStart)) seconds"
+      )
 
-        try Task.checkCancellation()
+      phaseStart = Date()
+      Self.log.debug("performLoad: loading player item")
+      let loaded = try await podAVPlayer.load(incoming)
+      try requireLoadTransitionOwnership(loadID)
+      Self.log.debug(
+        """
+        performLoad: loaded player item in \(Date().timeIntervalSince(phaseStart)) seconds
+          loaded: \(loaded.toString)
+        """
+      )
 
-        phaseStart = Date()
-        Self.log.debug("performLoad: loading player item")
-        let loaded = try await podAVPlayer.load(incoming)
-        Self.log.debug(
-          """
-          performLoad: loaded player item in \(Date().timeIntervalSince(phaseStart)) seconds
-            loaded: \(loaded.toString)
-          """
-        )
-
-        try Task.checkCancellation()
-
-        phaseStart = Date()
-        Self.log.debug("performLoad: setting onDeck")
-        try await setOnDeck(loaded)
-        Self.log.debug("performLoad: set onDeck in \(Date().timeIntervalSince(phaseStart)) seconds")
-      } catch {
-        await Task { [weak self, outgoing, incoming] in  // Task to execute even inside cancellation
-          guard let self else { return }
-
-          await cleanUpAfterLoadFailure(outgoing, incoming, loadID: loadID)
-        }
-        .value
-
-        throw error
-      }
+      phaseStart = Date()
+      Self.log.debug("performLoad: setting onDeck")
+      try await setOnDeck(loaded)
+      guard try shouldFinishEstablishedLoad(loadID) else { return true }
+      Self.log.debug("performLoad: set onDeck in \(Date().timeIntervalSince(phaseStart)) seconds")
 
       phaseStart = Date()
       Self.log.debug("performLoad: cleaning up after load success")
       await cleanUpAfterLoadSuccess(outgoing, incoming)
+      guard try shouldFinishEstablishedLoad(loadID) else { return true }
       Self.log.debug(
         """
         performLoad: cleaned up after load success in \
@@ -409,6 +353,8 @@ final class PlayManager {
       phaseStart = Date()
       Self.log.debug("performLoad: adding player observers")
       await podAVPlayer.addObservers()
+      guard try shouldFinishEstablishedLoad(loadID) else { return true }
+      loadTransition?.state = .preservingPlayback
       Self.log.debug(
         """
         performLoad: completed in \(Date().timeIntervalSince(loadStart)) seconds
@@ -416,10 +362,16 @@ final class PlayManager {
         """
       )
       return true
-    }
+    } catch {
+      await Task { [weak self, outgoing, incoming] in
+        guard let self else { return }
 
-    loadTask = task
-    return try await task.value
+        await cleanUpAfterLoadFailure(outgoing, incoming)
+      }
+      .value
+
+      throw error
+    }
   }
 
   private func cleanUpAfterLoadSuccess(_ outgoing: OnDeck?, _ incoming: PodcastEpisode) async {
@@ -444,8 +396,7 @@ final class PlayManager {
 
   private func cleanUpAfterLoadFailure(
     _ outgoing: OnDeck?,
-    _ incoming: PodcastEpisode,
-    loadID: UUID
+    _ incoming: PodcastEpisode
   ) async {
     let nowOnDeck = sharedState.onDeck
 
@@ -474,26 +425,70 @@ final class PlayManager {
         )
       }
     }
+  }
 
-    if let nowOnDeck {
-      Self.log.debug(
-        """
-        cleanUpAfterLoadFailure: no stopping after load failure because new podcast seems \
-        to have loaded
-          Failed to load: \(String(describing: incoming.toString)) \
-          Loaded instead: \(nowOnDeck.toString)
-        """
-      )
-    } else if activeLoadID == loadID {
-      await stop()
-    } else {
-      Self.log.debug(
-        "cleanUpAfterLoadFailure: no stopping because a newer load owns playback state"
-      )
+  private func requireLoadTransitionOwnership(_ loadID: UUID) throws {
+    try Task.checkCancellation()
+    guard loadTransition?.id == loadID else { throw CancellationError() }
+  }
+
+  private func shouldFinishEstablishedLoad(_ loadID: UUID) throws -> Bool {
+    guard loadTransition?.id == loadID else { return false }
+    try Task.checkCancellation()
+    return true
+  }
+
+  private func markAudioSessionOwned(by loadID: UUID) throws {
+    try requireLoadTransitionOwnership(loadID)
+    guard loadTransition?.state == .preservingPlayback else { return }
+    loadTransition?.state = .ownsAudioSession
+  }
+
+  private func finishLoadTransition(
+    _ loadID: UUID,
+    outcome: LoadTransitionOutcome
+  ) async {
+    guard let transition = loadTransition, transition.id == loadID else { return }
+
+    switch outcome {
+    case .succeeded:
+      loadTransition = nil
+    case .didNotLoad:
+      switch transition.state {
+      case .preservingPlayback:
+        loadTransition = nil
+      case .ownsAudioSession:
+        if sharedState.onDeck == nil {
+          setStatus(.stopped)
+        }
+        loadTransition = nil
+      case .ownsPlaybackState:
+        do {
+          try await clearOnDeck(ownedBy: loadID)
+          try requireLoadTransitionOwnership(loadID)
+        } catch is CancellationError {
+          return
+        } catch {
+          Self.log.caughtError("finishLoadTransition: failed to clear playback state", error)
+          return
+        }
+        setStatus(.stopped)
+        loadTransition = nil
+      }
     }
   }
 
-  // MARK: - Playback Controls
+  private func clearOnDeck(ownedBy loadID: UUID) async throws {
+    try requireLoadTransitionOwnership(loadID)
+    Self.log.debug("clearOnDeck: executing for owned load transition")
+    imageFetchTask?.cancel()
+    await podAVPlayer.clear()
+    try requireLoadTransitionOwnership(loadID)
+    NowPlayingInfo.clear()
+    stateManager.clearOnDeck()
+    onDeckBecameCurrentAt = nil
+    CommandCenter.updateNextTrack()
+  }
 
   func play(_ podcastEpisode: PodcastEpisode) async throws {
     pendingPlaybackRequest = .play(podcastEpisode.id)
