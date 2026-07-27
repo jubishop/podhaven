@@ -18,6 +18,14 @@ import Testing
     observatory as! FakeObservatory
   }
 
+  private func waitForQueuedEpisode(_ episodeID: Episode.ID) async -> [Episode.ID] {
+    for await episodeIDs in transcriptionQueue.$episodeIDs.stream()
+    where episodeIDs.contains(episodeID) {
+      return episodeIDs
+    }
+    return transcriptionQueue.episodeIDs
+  }
+
   private func makeTargetBeyondCapacity() async throws -> PodcastEpisode {
     Container.shared.userSettings().$maxTranscriptionQueueLength.new(10)
     let series = try await repo.insertSeries(
@@ -224,13 +232,9 @@ import Testing
     #expect(viewModel.canDiscardTranscriptionProgress)
 
     viewModel.transcribe()
-    try await Wait.until(
-      { @MainActor in
-        guard case .queued = viewModel.transcriptionStatus else { return false }
-        return true
-      },
-      { @MainActor in "Expected paused transcription to resume into the queue" }
-    )
+    let resumedEpisodeIDs = await waitForQueuedEpisode(podcastEpisode.id)
+    #expect(resumedEpisodeIDs.contains(podcastEpisode.id))
+    #expect(viewModel.transcriptionStatus.canPause)
 
     viewModel.pauseTranscription()
     try await Wait.until(
