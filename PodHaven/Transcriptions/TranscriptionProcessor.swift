@@ -42,6 +42,7 @@ struct TranscriptionProcessor: Sendable {
       case none
       case pause
       case discard
+      case requeue
     }
 
     let token: UUID
@@ -223,6 +224,33 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
+  // MARK: - User Reordering
+
+  @discardableResult
+  func reorder(_ orderedEpisodeIDs: [Episode.ID]) -> Bool {
+    let result = activeTranscription { active in
+      guard transcriptionQueue.reorder(orderedEpisodeIDs) else {
+        return (accepted: false, task: Optional<Task<Void, any Error>>.none)
+      }
+      guard
+        var current = active,
+        current.interruption == .none,
+        orderedEpisodeIDs.first != current.episodeID
+      else {
+        return (accepted: true, task: Optional<Task<Void, any Error>>.none)
+      }
+      current.interruption = .requeue
+      active = current
+      return (accepted: true, task: Optional(current.task))
+    }
+
+    if let task = result.task {
+      Self.log.info("Pausing active transcription after queue reorder")
+      task.cancel()
+    }
+    return result.accepted
+  }
+
   private static func deleteCheckpoint(
     for episodeID: Episode.ID,
     using repo: any Databasing
@@ -376,6 +404,8 @@ struct TranscriptionProcessor: Sendable {
           transcriptionQueue.finishPausing(episodeID)
         case .discard:
           transcriptionQueue.clearProgress(for: episodeID)
+        case .requeue:
+          transcriptionQueue.clearProgress(for: episodeID)
         case .none:
           if executionCancelled {
             transcriptionQueue.clearProgress(for: episodeID)
@@ -396,6 +426,7 @@ struct TranscriptionProcessor: Sendable {
           switch result.interruption {
           case .pause: "pause"
           case .discard: "discard"
+          case .requeue: "requeue"
           case .none: "execution"
           }
         Self.log.info(
@@ -445,6 +476,8 @@ struct TranscriptionProcessor: Sendable {
       transcriptionQueue.finishPausing(episodeID)
     case .discard:
       transcriptionQueue.finishDiscarding(episodeID)
+    case .requeue:
+      transcriptionQueue.clearProgress(for: episodeID)
     case .none:
       break
     }

@@ -67,6 +67,7 @@ enum LogSubsystem {
     case main
     case opml
     case tags
+    case transcriptionQueue
   }
 
   enum Recommendations: String, LogCategorizable {

@@ -19,6 +19,21 @@ struct TranscriptionQueueTests {
     #expect(queue.episodeIDs == [id(1), id(2)])
   }
 
+  @Test("reorder persists a permutation and rejects mismatched membership")
+  func reorderPersistsPermutation() {
+    for episodeID in [id(1), id(2), id(3)] {
+      queue.enqueue(episodeID)
+    }
+
+    #expect(queue.reorder([id(3), id(1), id(2)]))
+    #expect(queue.episodeIDs == [id(3), id(1), id(2)])
+    #expect(!queue.reorder([id(1), id(2)]))
+    #expect(queue.episodeIDs == [id(3), id(1), id(2)])
+
+    Container.shared.transcriptionQueue.reset(.scope)
+    #expect(Container.shared.transcriptionQueue().episodeIDs == [id(3), id(1), id(2)])
+  }
+
   @Test("persisted work survives factory recreation in order")
   func persistedWorkSurvivesFactoryRecreation() {
     queue.enqueue(id(1))
@@ -67,6 +82,21 @@ struct TranscriptionQueueTests {
       #expect(await iterator.next() == id(1))
 
       queue.remove(id(1))
+      #expect(await iterator.next() == id(2))
+    }
+  }
+
+  @Test("reordering the head advances the active work stream")
+  func reorderAdvancesWorkStream() async throws {
+    for episodeID in [id(1), id(2), id(3)] {
+      queue.enqueue(episodeID)
+    }
+
+    try await queue.withWorkStream { stream in
+      var iterator = stream.makeAsyncIterator()
+      #expect(await iterator.next() == id(1))
+
+      #expect(queue.reorder([id(2), id(1), id(3)]))
       #expect(await iterator.next() == id(2))
     }
   }

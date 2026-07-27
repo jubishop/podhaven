@@ -221,6 +221,102 @@ struct TranscriptionProcessorTests {
     #expect(queue.episodeIDs.isEmpty)
   }
 
+  @Test("reordering the active episode retains its checkpoint and resumes it later")
+  func reorderActiveEpisodeRetainsCheckpointAndResumes() async throws {
+    let durationSeconds = 60.0
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(phrase: "overlap", startSeconds: 20, endSeconds: 30),
+        FakeSpeechTranscriptionResult(phrase: "resumed", startSeconds: 30, endSeconds: 60),
+      ],
+      durationSeconds: durationSeconds
+    )
+    let firstAnalysisStarted = AsyncSemaphore(value: 0)
+    let firstAnalysisRelease = AsyncSemaphore(value: 0)
+    let secondAnalysisStarted = AsyncSemaphore(value: 0)
+    let secondAnalysisRelease = AsyncSemaphore(value: 0)
+    let resumedFirstAnalysisStarted = AsyncSemaphore(value: 0)
+    let analyzeCount = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer { _, endTime in
+          let invocation = analyzeCount {
+            $0 += 1
+            return $0
+          }
+          switch invocation {
+          case 1:
+            firstAnalysisStarted.signal()
+            try await firstAnalysisRelease.waitUnlessCancelled()
+          case 2:
+            secondAnalysisStarted.signal()
+            try await secondAnalysisRelease.waitUnlessCancelled()
+          case 3:
+            resumedFirstAnalysisStarted.signal()
+          default:
+            break
+          }
+          return CMTime(seconds: endTime, preferredTimescale: 600)
+        }
+      }
+    }
+
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let firstEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Partially transcribed",
+      cachedFilename: "partial.mp3",
+      dataSize: 1
+    )
+    let secondEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Next in line",
+      cachedFilename: "next-in-line.mp3",
+      dataSize: 1
+    )
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [TranscriptSegment(start: 0, end: 20, text: "partial")],
+      audioTime: 30,
+      duration: durationSeconds,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: firstEpisode.id)
+    queue.enqueue(firstEpisode.id)
+    queue.enqueue(secondEpisode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      firstAnalysisRelease.signal()
+      secondAnalysisRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await firstAnalysisStarted.wait()
+    try await Wait.until(
+      { queue.progress[firstEpisode.id] != nil },
+      { "Expected active episode to publish checkpoint progress" }
+    )
+
+    #expect(processor.reorder([secondEpisode.id, firstEpisode.id]))
+    await secondAnalysisStarted.wait()
+
+    #expect(queue.episodeIDs == [secondEpisode.id, firstEpisode.id])
+    #expect(queue.progress[firstEpisode.id] == nil)
+    #expect(try await repo.transcriptionCheckpoint(firstEpisode.id) == checkpoint)
+
+    secondAnalysisRelease.signal()
+    await resumedFirstAnalysisStarted.wait()
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "Reordered transcription queue did not finish: \(queue.episodeIDs)" }
+    )
+
+    let transcript = try #require(try await repo.episode(firstEpisode.id)?.decodedTranscript)
+    #expect(transcript.segments.map(\.text) == ["partial", "overlap", "resumed"])
+    #expect(try await repo.transcriptionCheckpoint(firstEpisode.id) == nil)
+    #expect(analyzeCount() == 3)
+  }
+
   @Test("a late pause cannot affect the next active episode")
   func latePauseDoesNotAffectNextEpisode() async throws {
     TranscriptionHelpers.stubSpeech(

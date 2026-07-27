@@ -89,6 +89,7 @@ extension Container {
     case opml
     case tags
     case swipeActions
+    case transcriptionQueue
     case feedback
   }
 
@@ -134,6 +135,8 @@ extension Container {
         TagsSettingsView().id("tags")
       case .swipeActions:
         EpisodeSwipeSettingsView().id("swipeActions")
+      case .transcriptionQueue:
+        TranscriptionQueueView().id("transcriptionQueue")
       case .feedback:
         FeedbackFormView().id("feedback")
       }

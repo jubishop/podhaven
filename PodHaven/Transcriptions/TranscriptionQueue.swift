@@ -154,6 +154,37 @@ struct TranscriptionQueue: Sendable {
     Self.log.debug("enqueued \(episodeID); depth \(depth)")
   }
 
+  @discardableResult
+  func reorder(_ orderedEpisodeIDs: [Episode.ID]) -> Bool {
+    let accepted = mutationLock { _ in
+      let currentEpisodeIDs = episodeIDs
+      guard
+        orderedEpisodeIDs.count == currentEpisodeIDs.count,
+        Set(orderedEpisodeIDs) == Set(currentEpisodeIDs)
+      else {
+        return false
+      }
+
+      let previousHead = currentEpisodeIDs.first
+      $episodeIDs.new(orderedEpisodeIDs)
+      if orderedEpisodeIDs.first != previousHead {
+        workStream.update(to: orderedEpisodeIDs.first)
+      }
+      return true
+    }
+    guard accepted else {
+      Self.log.error(
+        """
+        rejected reorder of \(orderedEpisodeIDs.count) ids; \
+        current depth \(episodeIDs.count)
+        """
+      )
+      return false
+    }
+    Self.log.debug("reordered \(orderedEpisodeIDs.count) queued episodes")
+    return true
+  }
+
   func remove(_ episodeID: Episode.ID) {
     mutationLock { _ in
       let previousHead = episodeIDs.first
