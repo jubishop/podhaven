@@ -50,7 +50,9 @@ struct EpisodesView: View {
       ForEach(viewModel.smartLists) { smartList in
         NavigationLink(value: Navigation.Destination.smartList(smartList.id)) {
           LabeledContent {
-            UnreadBadge(count: viewModel.unreadCounts[smartList.id, default: 0])
+            if smartList.showUnreadBadge {
+              UnreadBadge(count: viewModel.unreadCounts[smartList.id, default: 0])
+            }
           } label: {
             LucideLabel(icon: smartList.icon, title: smartList.title)
           }
@@ -64,6 +66,7 @@ struct EpisodesView: View {
                     mode: .edit(smartList.id),
                     title: smartList.title,
                     filter: smartList.filter,
+                    showUnreadBadge: smartList.showUnreadBadge,
                     alwaysShowPodcastImage: smartList.alwaysShowPodcastImage,
                     icon: smartList.icon
                   )

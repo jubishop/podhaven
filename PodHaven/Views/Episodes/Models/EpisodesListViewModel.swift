@@ -94,6 +94,7 @@ class EpisodesListViewModel:
   let smartListID: SmartList.ID
   private(set) var title: String
   private(set) var smartListFilter: SmartListFilter
+  private(set) var showUnreadBadge: Bool
   private(set) var alwaysShowPodcastImage: Bool
   private(set) var icon: LucideIcon
   private(set) var loadingState: LoadingState = .neverLoaded
@@ -123,6 +124,7 @@ class EpisodesListViewModel:
     self.smartListID = smartList.id
     self.title = smartList.title
     self.smartListFilter = smartList.filter
+    self.showUnreadBadge = smartList.showUnreadBadge
     self.alwaysShowPodcastImage = smartList.alwaysShowPodcastImage
     self.icon = smartList.icon
     self.rowSortMethod = smartList.sortMethod
@@ -145,6 +147,9 @@ class EpisodesListViewModel:
         }
         if title != smartList.title { title = smartList.title }
         if smartListFilter != smartList.filter { smartListFilter = smartList.filter }
+        if showUnreadBadge != smartList.showUnreadBadge {
+          showUnreadBadge = smartList.showUnreadBadge
+        }
         if alwaysShowPodcastImage != smartList.alwaysShowPodcastImage {
           alwaysShowPodcastImage = smartList.alwaysShowPodcastImage
         }

@@ -36,6 +36,16 @@ struct SmartListEditorView: View {
         }
 
         Section {
+          Toggle("Show Unread Badge", isOn: $viewModel.showUnreadBadge)
+        } footer: {
+          Text(
+            """
+            Shows the number of newly added matching episodes since you last viewed this list.
+            """
+          )
+        }
+
+        Section {
           Toggle("Always Show Podcast Art", isOn: $viewModel.alwaysShowPodcastImage)
         } footer: {
           Text(
