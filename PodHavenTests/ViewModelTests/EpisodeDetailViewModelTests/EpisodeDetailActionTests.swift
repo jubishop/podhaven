@@ -9,10 +9,44 @@ import Testing
 
 @Suite("of EpisodeDetailViewModel action tests", .container)
 @MainActor final class EpisodeDetailActionTests {
+  @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.fakeAudioSession) private var audioSession
+  @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.stateManager) private var stateManager
 
+  private var avPlayer: FakeAVPlayer { Container.shared.avPlayer() as! FakeAVPlayer }
   private var fakeQueue: FakeQueue { queue as! FakeQueue }
+
+  @Test("timestamp playback leaves the prior episode untouched when the target load fails")
+  func timestampPlaybackLeavesPriorEpisodeUntouchedWhenTargetLoadFails() async throws {
+    stateManager.start()
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+
+    let (priorEpisode, requestedEpisode) = try await Create.twoPodcastEpisodes()
+    try await playManager.load(priorEpisode)
+    try await PlayHelpers.waitForOnDeck(priorEpisode)
+    try await PlayHelpers.waitFor(.paused)
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(requestedEpisode))
+    viewModel.playAt(timestamp: "0:10")
+
+    try await Wait.until(
+      { @MainActor in self.alert.config != nil },
+      { @MainActor in "Expected alert after target audio-session configuration failure" }
+    )
+    try await yieldForSpuriousAsyncWork()
+
+    #expect(sharedState.onDeck?.id == priorEpisode.id)
+    #expect(sharedState.playbackStatus == .paused)
+    #expect(avPlayer.currentTimeValue == .zero)
+    #expect(avPlayer.timeControlStatus == .paused)
+  }
 
   @Test("unsaveEpisodeFromCache clears the saved flag but keeps the cached file")
   func unsaveEpisodeFromCacheKeepsCachedFile() async throws {

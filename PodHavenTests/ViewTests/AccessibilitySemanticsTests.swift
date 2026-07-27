@@ -137,13 +137,13 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
-    "queued transcription exposes a cancel button",
+    "queued transcription exposes a pause button",
     .enabled(
       if: supportsHostedAccessibilityInspection,
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
     )
   )
-  func queuedTranscriptionExposesCancelButton() async throws {
+  func queuedTranscriptionExposesPauseButton() async throws {
     await TranscriptionHelpers.prepareAvailability()
     let episode = try await Create.podcastEpisode()
     Container.shared.transcriptionQueue().enqueue(episode.id)
@@ -156,11 +156,11 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     )
     defer { window.isHidden = true }
 
-    let cancelButton = try #require(
+    let pauseButton = try #require(
       Self.accessibilityElements(in: window)
-        .first { $0.accessibilityLabel == "Cancel Transcription" }
+        .first { $0.accessibilityLabel == "Pause Transcription" }
     )
-    #expect(cancelButton.accessibilityTraits.contains(.button))
+    #expect(pauseButton.accessibilityTraits.contains(.button))
   }
 
   @Test(
@@ -254,17 +254,24 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
 
   @Test("transcription toolbar distinguishes actions and states")
   func transcriptionToolbarDistinguishesActionsAndStates() {
+    #expect(AppIcon.pauseTranscription.text == "Pause Transcription")
+    #expect(AppIcon.resumeTranscription.text == "Resume Transcription")
+    #expect(AppIcon.discardTranscriptionProgress.text == "Discard Progress")
     #expect(TranscriptionStatus.none.toolbarAccessibilityLabel == "Transcribe")
     #expect(TranscriptionStatus.none.toolbarAccessibilityValue == "")
     let queued = TranscriptionStatus.queued(position: 1, total: 2)
-    #expect(queued.toolbarAccessibilityLabel == "Cancel Transcription")
+    #expect(queued.toolbarAccessibilityLabel == "Pause Transcription")
     #expect(queued.toolbarAccessibilityValue == "Queued")
     #expect(
-      TranscriptionStatus.transcribing(0.5).toolbarAccessibilityLabel == "Cancel Transcription"
+      TranscriptionStatus.transcribing(0.5).toolbarAccessibilityLabel == "Pause Transcription"
     )
     #expect(TranscriptionStatus.transcribing(0.5).toolbarAccessibilityValue == "Transcribing")
-    #expect(TranscriptionStatus.cancelling.toolbarAccessibilityLabel == "Transcription")
-    #expect(TranscriptionStatus.cancelling.toolbarAccessibilityValue == "Cancelling")
+    #expect(TranscriptionStatus.paused(0.5).toolbarAccessibilityLabel == "Resume Transcription")
+    #expect(TranscriptionStatus.paused(0.5).toolbarAccessibilityValue == "Paused")
+    #expect(TranscriptionStatus.pausing.toolbarAccessibilityLabel == "Transcription")
+    #expect(TranscriptionStatus.pausing.toolbarAccessibilityValue == "Pausing")
+    #expect(TranscriptionStatus.discarding.toolbarAccessibilityLabel == "Transcription")
+    #expect(TranscriptionStatus.discarding.toolbarAccessibilityValue == "Discarding Progress")
     #expect(TranscriptionStatus.transcribed.toolbarAccessibilityLabel == "Transcription")
     #expect(TranscriptionStatus.transcribed.toolbarAccessibilityValue == "Complete")
     #expect(TranscriptionStatus.failed.toolbarAccessibilityLabel == "Retry Transcription")

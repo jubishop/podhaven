@@ -21,7 +21,8 @@ actor FakeAudioSession {
 
   private(set) var activeCalls: [Bool] = []
   private(set) var active: Bool = false
-  func setActive(_ active: Bool) throws {
+  nonisolated let activationError = ThreadSafe<(any Error & Sendable)?>(nil)
+  func setActive(_ active: Bool) {
     activeCalls.append(active)
     self.active = active
   }

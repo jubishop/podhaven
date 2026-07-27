@@ -94,8 +94,7 @@ extension ManagingEpisodes {
 
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
-        try await playManager.load(podcastEpisode)
-        await playManager.play()
+        try await playManager.play(podcastEpisode)
         didPerformAction(episode)
       } catch {
         Self.log.caughtError("playEpisode: failed for \(episode.title)", error)

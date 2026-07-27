@@ -80,6 +80,8 @@ protocol Observing: Sendable {
     -> AsyncValueObservation<PodcastSeriesDetail?>
   func podcastEpisodeWithTags(_ episodeID: Episode.ID)
     -> AsyncValueObservation<PodcastEpisodeWithTags?>
+  func transcriptionCheckpoint(_ episodeID: Episode.ID)
+    -> AsyncValueObservation<TranscriptionCheckpoint?>
 
   // MARK: - Recommendations
 

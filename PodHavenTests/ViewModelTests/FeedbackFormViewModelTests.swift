@@ -14,8 +14,8 @@ import UniformTypeIdentifiers
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.fakeSentryFeedbackCapture) private var fakeSentryFeedbackCapture
 
-  @Test("sendFeedback sends report, multiple photos, and confirmation")
-  func sendFeedbackSendsReportAndPresentsConfirmationAlert() throws {
+  @Test("sendFeedback queues report once and presents queued acknowledgement")
+  func sendFeedbackQueuesReportOnceAndPresentsQueuedAcknowledgement() throws {
     let viewModel = FeedbackFormViewModel()
     let firstPhotoData = try #require(Self.photoData(color: .red))
     let secondPhotoData = try #require(Self.photoData(color: .blue))
@@ -24,8 +24,15 @@ import UniformTypeIdentifiers
     viewModel.email = "justin@example.com"
     viewModel.photoData.new([firstPhotoData, secondPhotoData])
 
-    viewModel.sendFeedback()
+    let result = viewModel.sendFeedback()
 
+    #expect(result == .queued)
+    #expect(result?.dismissesForm == true)
+    #expect(result?.alertTitle == "Feedback Queued")
+    #expect(
+      result?.alertMessage
+        == "Thanks. PodHaven will send your feedback when a connection is available."
+    )
     #expect(fakeSentryFeedbackCapture.feedbacks.count == 1)
     let feedback = try #require(fakeSentryFeedbackCapture.feedbacks.first)
     #expect(feedback.message == "Please add folders.")
@@ -48,7 +55,56 @@ import UniformTypeIdentifiers
     #expect(attachments[2].data == firstPhotoData)
     #expect(attachments[3].contentType == "image/jpeg")
     #expect(attachments[3].data == secondPhotoData)
-    #expect(alert.config?.title == "Feedback Sent")
+    #expect(alert.config?.title == "Feedback Queued")
+    #expect(viewModel.canSend == false)
+    #expect(viewModel.sendFeedback() == nil)
+    #expect(fakeSentryFeedbackCapture.feedbacks.count == 1)
+  }
+
+  @Test("sendFeedback preserves the draft and presents retry error when unavailable")
+  func sendFeedbackPreservesDraftAndPresentsRetryErrorWhenUnavailable() throws {
+    fakeSentryFeedbackCapture.setSubmissionResult(.unavailable)
+    let viewModel = FeedbackFormViewModel()
+    let photoData = Data([0x01, 0x02, 0x03])
+    viewModel.message = "Please keep this draft."
+    viewModel.name = "Justin"
+    viewModel.email = "justin@example.com"
+    viewModel.photoData.new([photoData])
+
+    let result = LogCapture.withSink { sink in
+      let result = viewModel.sendFeedback()
+      #expect(
+        sink.captured()
+          .contains {
+            $0.level == .error
+              && $0.message == "Feedback submission unavailable because the Sentry SDK is disabled"
+          }
+      )
+      return result
+    }
+
+    #expect(result == .unavailable)
+    #expect(result?.dismissesForm == false)
+    #expect(result?.alertTitle == "Feedback Unavailable")
+    #expect(
+      result?.alertMessage
+        == "PodHaven couldn't queue your feedback. Your draft is still here. Please try again."
+    )
+    #expect(fakeSentryFeedbackCapture.feedbacks.isEmpty)
+    #expect(viewModel.message == "Please keep this draft.")
+    #expect(viewModel.name == "Justin")
+    #expect(viewModel.email == "justin@example.com")
+    #expect(viewModel.photoData.value == [photoData])
+    #expect(alert.config?.title == "Feedback Unavailable")
+    #expect(viewModel.canSend)
+
+    fakeSentryFeedbackCapture.setSubmissionResult(.queued)
+    #expect(viewModel.sendFeedback() == .queued)
+    let feedback = try #require(fakeSentryFeedbackCapture.feedbacks.first)
+    #expect(feedback.message == "Please keep this draft.")
+    #expect(feedback.name == "Justin")
+    #expect(feedback.email == "justin@example.com")
+    #expect(feedback.attachments.last?.data == photoData)
   }
 
   @Test("photo preparation reports selected items that fail to load")

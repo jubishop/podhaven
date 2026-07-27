@@ -9,6 +9,7 @@ import Testing
 
 @Suite("of EpisodeDetailViewModel transcript", .container)
 @MainActor struct EpisodeDetailTranscriptTests {
+  @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
@@ -121,19 +122,92 @@ import Testing
     #expect(!cleared.hasTranscript)
   }
 
-  @Test("detail cancellation removes a queued transcription")
-  func detailCancellationRemovesQueuedTranscription() async throws {
+  @Test("detail pause removes a queued transcription")
+  func detailPauseRemovesQueuedTranscription() async throws {
     await TranscriptionHelpers.prepareAvailability()
     let podcastEpisode = try await Create.podcastEpisode()
     transcriptionQueue.enqueue(podcastEpisode.id)
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
-    #expect(viewModel.transcriptionStatus.canCancel)
+    #expect(viewModel.transcriptionStatus.canPause)
 
-    viewModel.cancelTranscription()
+    viewModel.pauseTranscription()
 
     #expect(!transcriptionQueue.episodeIDs.contains(podcastEpisode.id))
-    #expect(viewModel.transcriptionStatus == .none)
+    try await Wait.until(
+      { @MainActor in viewModel.transcriptionStatus == .none },
+      { @MainActor in "Expected queued pause to finish" }
+    )
+  }
+
+  @Test("detail pause retains partial transcription progress")
+  func detailPauseRetainsPartialProgress() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [TranscriptSegment(start: 0, end: 30, text: "partial")],
+      audioTime: 30,
+      duration: 60,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: podcastEpisode.id)
+    transcriptionQueue.enqueue(podcastEpisode.id)
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    viewModel.pauseTranscription()
+
+    #expect(transcriptionQueue.interruptions[podcastEpisode.id] == nil)
+    #expect(try await repo.transcriptionCheckpoint(podcastEpisode.id) == checkpoint)
+  }
+
+  @Test("detail resumes retained progress and discards it only on explicit request")
+  func detailResumesAndExplicitlyDiscardsProgress() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [TranscriptSegment(start: 0, end: 30, text: "partial")],
+      audioTime: 30,
+      duration: 60,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: podcastEpisode.id)
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    viewModel.appear()
+    defer { viewModel.disappear() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.transcriptionStatus == .paused(0.5) },
+      { @MainActor in "Expected saved progress to appear as paused" }
+    )
+    #expect(viewModel.transcriptionStatus.canTranscribe)
+    #expect(viewModel.canDiscardTranscriptionProgress)
+
+    viewModel.transcribe()
+    try await Wait.until(
+      { @MainActor in
+        guard case .queued = viewModel.transcriptionStatus else { return false }
+        return true
+      },
+      { @MainActor in "Expected paused transcription to resume into the queue" }
+    )
+
+    viewModel.pauseTranscription()
+    #expect(viewModel.transcriptionStatus == .paused(0.5))
+
+    viewModel.discardTranscriptionProgress()
+    #expect(viewModel.transcriptionStatus == .discarding)
+    try await Wait.until(
+      {
+        try await self.repo.transcriptionCheckpoint(podcastEpisode.id) == nil
+      },
+      { "Expected explicit discard to delete saved progress" }
+    )
+    try await Wait.until(
+      { @MainActor in viewModel.transcriptionStatus == .none },
+      { @MainActor in "Expected detail to return to an untranscribed state" }
+    )
   }
 
   @Test("decodedTranscript follows observed updates for the same episode")
@@ -174,6 +248,81 @@ import Testing
         "Expected replacement transcript, got \(String(describing: viewModel.decodedTranscript))"
       }
     )
+  }
+
+  @Test("checkpoint observation failure clears progress without stopping episode updates")
+  func checkpointObservationFailureClearsProgressWithoutStoppingEpisodeUpdates() async throws {
+    try await LogCapture.withSink { sink in
+      let podcastEpisode = try await Create.podcastEpisode()
+      let checkpoint = TranscriptionCheckpoint(
+        segments: [TranscriptSegment(start: 0, end: 30, text: "partial")],
+        audioTime: 30,
+        duration: 60,
+        locale: "en-US",
+        audioSHA256: FakeAudioFileHasher.defaultSHA256
+      )
+      try await repo.saveTranscriptionCheckpoint(checkpoint, for: podcastEpisode.id)
+      let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+      viewModel.appear()
+      defer { viewModel.disappear() }
+
+      try await Wait.until(
+        { @MainActor in viewModel.transcriptionStatus == .paused(0.5) },
+        { @MainActor in "Expected saved progress to appear as paused" }
+      )
+
+      let unreadableCheckpoint = """
+        {
+          "segments": [null],
+          "audioTime": 30,
+          "duration": 60,
+          "locale": "en-US",
+          "audioSHA256": "\(FakeAudioFileHasher.defaultSHA256)"
+        }
+        """
+      try await appDB.unsafeTestDB.write { db in
+        try db.execute(
+          sql: """
+            UPDATE episodeTranscriptionCheckpoint
+            SET checkpointJSON = ?
+            WHERE episodeId = ?
+            """,
+          arguments: [unreadableCheckpoint, podcastEpisode.id]
+        )
+      }
+
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("observeTranscriptionCheckpoint: observation failed")
+            }
+        },
+        { "Expected the checkpoint observation to fail" }
+      )
+      try await yieldForSpuriousAsyncWork()
+      #expect(viewModel.transcriptionCheckpointProgress == nil)
+      #expect(viewModel.transcriptionStatus == .none)
+
+      let transcript = Transcript(
+        segments: [TranscriptSegment(start: 0, end: 1, text: "still observed")],
+        locale: "en-US",
+        createdAt: Date(timeIntervalSince1970: 0)
+      )
+      try await repo.updateTranscript(podcastEpisode.id, transcript: transcript.jsonString())
+
+      try await Wait.until(
+        { @MainActor in
+          viewModel.decodedTranscript?.segments.map(\.text) == ["still observed"]
+        },
+        { @MainActor in
+          """
+          Expected episode updates after the checkpoint observation failed, got \
+          \(String(describing: viewModel.decodedTranscript))
+          """
+        }
+      )
+    }
   }
 
   @Test("detail text defaults to description and switches to transcript")

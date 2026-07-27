@@ -124,12 +124,27 @@ struct PersistedThreadSafe<T: DefaultsStorable>: Sendable {
   var wrappedValue: T {
     get { storage() }
     nonmutating set {
-      storage(newValue)
-      newValue.store(to: store, forKey: key)
+      storage { currentValue in
+        guard currentValue != newValue else { return }
+        currentValue = newValue
+        newValue.store(to: store, forKey: key)
+      }
     }
   }
 
   var projectedValue: PersistedThreadSafe<T> { self }
+
+  @discardableResult
+  func update<Result>(_ operation: (inout T) -> Result) -> Result {
+    storage { value in
+      let previousValue = value
+      let result = operation(&value)
+      if value != previousValue {
+        value.store(to: store, forKey: key)
+      }
+      return result
+    }
+  }
 
   // Use when another process may have written to the same store.
   func refresh() {

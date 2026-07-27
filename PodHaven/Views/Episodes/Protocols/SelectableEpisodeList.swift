@@ -230,8 +230,7 @@ extension SelectableEpisodeList {
         let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
         try await queue.unshift(allExceptFirstPodcastEpisode.map(\.id))
         if let firstPodcastEpisode {
-          try await playManager.load(firstPodcastEpisode)
-          await playManager.play()
+          try await playManager.play(firstPodcastEpisode)
         }
         didPerformBulkAction(on: episodes)
       } catch {

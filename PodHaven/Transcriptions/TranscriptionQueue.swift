@@ -18,23 +18,30 @@ enum TranscriptionStatus: Hashable, Sendable {
   case none
   case queued(position: Int, total: Int)
   case transcribing(Double)
-  case cancelling
+  case paused(Double)
+  case pausing
+  case discarding
   case transcribed
   case failed
 
   var canTranscribe: Bool {
     switch self {
-    case .none, .failed: return true
-    case .queued, .transcribing, .cancelling, .transcribed: return false
+    case .none, .paused, .failed: return true
+    case .queued, .transcribing, .pausing, .discarding, .transcribed: return false
     }
   }
 
-  var canCancel: Bool {
+  var canPause: Bool {
     switch self {
     case .queued, .transcribing: return true
-    case .none, .cancelling, .transcribed, .failed: return false
+    case .none, .paused, .pausing, .discarding, .transcribed, .failed: return false
     }
   }
+}
+
+enum TranscriptionInterruption: Hashable, Sendable {
+  case pausing
+  case discarding
 }
 
 // MARK: - TranscriptionWorkStream
@@ -99,8 +106,8 @@ struct TranscriptionQueue: Sendable {
   // SharedState.downloadProgress.
   @Broadcasted var progress: [Episode.ID: Double] = [:]
 
-  // Active user cancellations remain visible while cooperative cleanup runs.
-  @Broadcasted var cancelling: Set<Episode.ID> = []
+  // User interruptions remain visible while cooperative cleanup runs.
+  @Broadcasted var interruptions: [Episode.ID: TranscriptionInterruption] = [:]
 
   // Episodes whose last attempt failed, surfaced until retried or dismissed.
   @Broadcasted var failed: Set<Episode.ID> = []
@@ -133,7 +140,7 @@ struct TranscriptionQueue: Sendable {
   func enqueue(_ episodeID: Episode.ID) {
     let depth = mutationLock { _ in
       let previousHead = episodeIDs.first
-      $cancelling.update { $0.remove(episodeID) }
+      $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
       $failed.update { _ = $0.remove(episodeID) }
       $episodeIDs.update { ids in
         guard !ids.contains(episodeID) else { return }
@@ -152,18 +159,18 @@ struct TranscriptionQueue: Sendable {
       let previousHead = episodeIDs.first
       $episodeIDs.update { $0.removeAll { $0 == episodeID } }
       $progress.update { _ = $0.removeValue(forKey: episodeID) }
-      $cancelling.update { $0.remove(episodeID) }
+      $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
       if episodeIDs.first != previousHead {
         workStream.update(to: episodeIDs.first)
       }
     }
   }
 
-  func beginCancellation(of episodeID: Episode.ID) -> Bool {
+  func beginPausing(_ episodeID: Episode.ID) -> Bool {
     mutationLock { _ in
       guard episodeIDs.contains(episodeID) else { return false }
       let previousHead = episodeIDs.first
-      $cancelling.update { $0.insert(episodeID) }
+      $interruptions.update { $0[episodeID] = .pausing }
       $episodeIDs.update { $0.removeAll { $0 == episodeID } }
       if episodeIDs.first != previousHead {
         workStream.update(to: episodeIDs.first)
@@ -172,10 +179,31 @@ struct TranscriptionQueue: Sendable {
     }
   }
 
-  func finishCancellation(of episodeID: Episode.ID) {
+  func finishPausing(_ episodeID: Episode.ID) {
     mutationLock { _ in
-      $progress.update { $0.removeValue(forKey: episodeID) }
-      $cancelling.update { $0.remove(episodeID) }
+      guard interruptions[episodeID] == .pausing else { return }
+      $progress.update { _ = $0.removeValue(forKey: episodeID) }
+      $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
+    }
+  }
+
+  func beginDiscarding(_ episodeID: Episode.ID) {
+    mutationLock { _ in
+      let previousHead = episodeIDs.first
+      $interruptions.update { $0[episodeID] = .discarding }
+      $episodeIDs.update { $0.removeAll { $0 == episodeID } }
+      if episodeIDs.first != previousHead {
+        workStream.update(to: episodeIDs.first)
+      }
+    }
+  }
+
+  func finishDiscarding(_ episodeID: Episode.ID) {
+    mutationLock { _ in
+      guard interruptions[episodeID] == .discarding else { return }
+      $progress.update { _ = $0.removeValue(forKey: episodeID) }
+      $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
+      $failed.update { _ = $0.remove(episodeID) }
     }
   }
 
@@ -200,7 +228,7 @@ struct TranscriptionQueue: Sendable {
       let previousHead = episodeIDs.first
       $episodeIDs.update { $0.removeAll { $0 == episodeID } }
       $progress.update { _ = $0.removeValue(forKey: episodeID) }
-      $cancelling.update { $0.remove(episodeID) }
+      $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
       $failed.update { _ = $0.insert(episodeID) }
       if episodeIDs.first != previousHead {
         workStream.update(to: episodeIDs.first)
@@ -214,15 +242,25 @@ struct TranscriptionQueue: Sendable {
 
   // MARK: - Status
 
-  func status(for episodeID: Episode.ID, hasTranscript: Bool) -> TranscriptionStatus {
+  func status(
+    for episodeID: Episode.ID,
+    hasTranscript: Bool,
+    checkpointProgress: Double? = nil
+  ) -> TranscriptionStatus {
     if hasTranscript { return .transcribed }
-    if cancelling.contains(episodeID) { return .cancelling }
+    if let interruption = interruptions[episodeID] {
+      switch interruption {
+      case .pausing: return .pausing
+      case .discarding: return .discarding
+      }
+    }
     if let value = progress[episodeID] { return .transcribing(value) }
     let queuedEpisodeIDs = episodeIDs
     if let index = queuedEpisodeIDs.firstIndex(of: episodeID) {
       return .queued(position: index + 1, total: queuedEpisodeIDs.count)
     }
     if failed.contains(episodeID) { return .failed }
+    if let checkpointProgress { return .paused(checkpointProgress) }
     return .none
   }
 }

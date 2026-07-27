@@ -275,6 +275,22 @@ struct Observatory: Observing {
     }
   }
 
+  func transcriptionCheckpoint(_ episodeID: Episode.ID)
+    -> AsyncValueObservation<TranscriptionCheckpoint?>
+  {
+    reader.observe { db in
+      guard
+        let stored =
+          try EpisodeTranscriptionCheckpoint
+          .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
+          .fetchOne(db)
+      else {
+        return nil
+      }
+      return try stored.checkpoint()
+    }
+  }
+
   // MARK: - Recommendations
 
   // Tracked region: the caller's filter + the embedding join over the slim

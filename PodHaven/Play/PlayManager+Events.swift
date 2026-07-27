@@ -174,6 +174,24 @@ extension PlayManager {
     CommandCenter.updateScrubbing()
   }
 
+  private func cancelLoadForMediaServicesReset() async {
+    guard let loadTask else { return }
+
+    loadTask.cancel()
+    switch await loadTask.result {
+    case .success(let loaded):
+      Self.log.debug(
+        "cancelLoadForMediaServicesReset: load had already completed, loaded: \(loaded)"
+      )
+    case .failure(let error):
+      Self.log.caughtError(
+        "cancelLoadForMediaServicesReset: load task settled",
+        error,
+        level: .debug
+      )
+    }
+  }
+
   private func handleMediaServicesReset() async {
     Self.log.info("handleMediaServicesReset: rebuilding audio objects")
 

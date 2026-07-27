@@ -12,7 +12,9 @@ import SwiftUI
   case saveEpisodeInCache
   case unsaveEpisodeFromCache
   case cancelEpisodeDownload
-  case cancelTranscription
+  case pauseTranscription
+  case resumeTranscription
+  case discardTranscriptionProgress
   case uncacheEpisode
   case moveToTop
   case moveToBottom
@@ -239,12 +241,16 @@ import SwiftUI
         systemImageName: .episodeDownloadCancel,
         color: .orange
       )
-    case .cancelTranscription:
+    case .pauseTranscription:
       return Data(
-        text: "Cancel Transcription",
-        systemImageName: .episodeDownloadCancel,
+        text: "Pause Transcription",
+        systemImageName: .episodePaused,
         color: .orange
       )
+    case .resumeTranscription:
+      return Data(text: "Resume Transcription", systemImageName: .transcribe, color: .teal)
+    case .discardTranscriptionProgress:
+      return Data(text: "Discard Progress", systemImageName: .delete, color: .red)
     case .uncacheEpisode:
       return Data(text: "Remove Download", systemImageName: .episodeUncached, color: .red)
     case .moveToTop:
