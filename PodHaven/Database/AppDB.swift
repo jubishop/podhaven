@@ -123,7 +123,7 @@ struct AppDB {
   }
 
   var reader: Reader { Reader(self) }
-  fileprivate var writer: Writer { Writer(self) }
+  var writer: Writer { Writer(self) }
 
   struct Reader: Sendable {
     private let appDB: AppDB

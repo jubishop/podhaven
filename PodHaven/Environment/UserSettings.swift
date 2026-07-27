@@ -12,6 +12,8 @@ extension Container {
 }
 
 struct UserSettings: Sendable {
+  static let transcriptionQueueLengthRange = 10...100
+
   @PersistedBroadcast("shrinkPlayBarOnScroll") var shrinkPlayBarOnScroll: Bool = true
   @PersistedBroadcast("cacheSizeLimitGB") var cacheSizeLimitGB: Double = 1.0
   @PersistedBroadcast("defaultPlaybackRate") var defaultPlaybackRate: Double = 1.0
@@ -21,6 +23,7 @@ struct UserSettings: Sendable {
   @PersistedBroadcast("commandCenterScrubbingEnabled") var commandCenterScrubbingEnabled: Bool =
     true
   @PersistedBroadcast("maxQueueLength") var maxQueueLength: Int = 50
+  @PersistedBroadcast("maxTranscriptionQueueLength") var maxTranscriptionQueueLength: Int = 50
   @PersistedBroadcast("maxRecommendedEpisodesInUpNext") var maxRecommendedEpisodesInUpNext: Int = 5
   @PersistedBroadcast("showNowPlayingInUpNext") var showNowPlayingInUpNext: Bool = false
   @PersistedBroadcast("alwaysShowPodcastImageInUpNext") var alwaysShowPodcastImageInUpNext: Bool =
@@ -148,6 +151,10 @@ struct UserSettings: Sendable {
   // term always takes the remainder (1.0 − this). 0.0 = pure content
   // similarity; 0.5 = equal split.
   @PersistedBroadcast("podcastAffinityWeight") var podcastAffinityWeight: Double = 0.1
+
+  var boundedMaxTranscriptionQueueLength: Int {
+    maxTranscriptionQueueLength.clamped(to: Self.transcriptionQueueLengthRange)
+  }
 
   private static let log = Log.as("UserSettings")
 

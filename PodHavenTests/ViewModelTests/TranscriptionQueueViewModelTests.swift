@@ -25,7 +25,7 @@ import Testing
     )
     try await repo.saveTranscriptionCheckpoint(checkpoint, for: episodes[1].id)
     for episode in episodes {
-      transcriptionQueue.enqueue(episode.id)
+      try await transcriptionQueue.enqueue(episode.id)
     }
     transcriptionQueue.setProgress(0.42, for: episodes[0].id)
 
@@ -102,7 +102,7 @@ import Testing
       )
     }
     for episode in episodes {
-      transcriptionQueue.enqueue(episode.id)
+      try await transcriptionQueue.enqueue(episode.id)
     }
 
     let viewModel = TranscriptionQueueViewModel()
@@ -123,7 +123,7 @@ import Testing
   func staleHydrationCannotOverwriteNewerQueueMembership() async throws {
     let episodes = try await makeEpisodes()
     for episode in episodes {
-      transcriptionQueue.enqueue(episode.id)
+      try await transcriptionQueue.enqueue(episode.id)
     }
     let episodeIDs = episodes.map(\.id)
     let fakeRepo = try #require(repo as? FakeRepo)
@@ -140,10 +140,10 @@ import Testing
     )
 
     fakeRepo.pendingPodcastEpisodesFetchSuspend(true)
-    transcriptionQueue.remove(episodes[2].id)
+    try await transcriptionQueue.remove(episodes[2].id)
     try await fakeRepo.waitForPodcastEpisodesFetchSuspended()
 
-    transcriptionQueue.remove(episodes[1].id)
+    try await transcriptionQueue.remove(episodes[1].id)
     #expect(transcriptionQueue.episodeIDs == [episodes[0].id])
     #expect(viewModel.entries.map(\.id) == episodeIDs)
 
@@ -172,7 +172,7 @@ import Testing
     )
     try await repo.saveTranscriptionCheckpoint(checkpoint, for: episodes[1].id)
     for episode in episodes {
-      transcriptionQueue.enqueue(episode.id)
+      try await transcriptionQueue.enqueue(episode.id)
     }
     transcriptionQueue.setProgress(0.42, for: episodes[0].id)
 
@@ -192,7 +192,7 @@ import Testing
 
     fakeRepo.pendingPodcastEpisodesFetchSuspend(true)
     let reorderedEpisodeIDs = [episodes[2].id, episodes[0].id, episodes[1].id]
-    #expect(transcriptionQueue.reorder(reorderedEpisodeIDs))
+    #expect(try await transcriptionQueue.reorder(reorderedEpisodeIDs))
 
     try await Wait.until(
       { @MainActor in viewModel.entries.map(\.id) == reorderedEpisodeIDs },
@@ -207,7 +207,7 @@ import Testing
   func staleDragDoesNotMoveDifferentEpisode() async throws {
     let episodes = try await makeEpisodes()
     for episode in episodes {
-      transcriptionQueue.enqueue(episode.id)
+      try await transcriptionQueue.enqueue(episode.id)
     }
     let replacement = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Replacement")
@@ -223,8 +223,8 @@ import Testing
       { @MainActor in "Expected initial queue order" }
     )
 
-    transcriptionQueue.remove(episodes[0].id)
-    transcriptionQueue.enqueue(replacement.id)
+    try await transcriptionQueue.remove(episodes[0].id)
+    try await transcriptionQueue.enqueue(replacement.id)
     let liveEpisodeIDs = [episodes[1].id, episodes[2].id, replacement.id]
     #expect(transcriptionQueue.episodeIDs == liveEpisodeIDs)
     #expect(viewModel.entries.map(\.id) == initialEpisodeIDs)
@@ -238,22 +238,24 @@ import Testing
   func movesMultiSelectionInQueueOrder() async throws {
     let episodes = try await makeEpisodes()
     for episode in episodes {
-      transcriptionQueue.enqueue(episode.id)
+      try await transcriptionQueue.enqueue(episode.id)
     }
 
     let viewModel = TranscriptionQueueViewModel()
     viewModel.selectedEpisodeIDs = [episodes[2].id]
     viewModel.moveSelectedToTop()
-    #expect(
-      transcriptionQueue.episodeIDs
-        == [episodes[2].id, episodes[0].id, episodes[1].id]
+    let topOrder = [episodes[2].id, episodes[0].id, episodes[1].id]
+    try await Wait.until(
+      { @MainActor in self.transcriptionQueue.episodeIDs == topOrder },
+      { @MainActor in "Expected selected episodes to move to the top" }
     )
 
     viewModel.selectedEpisodeIDs = [episodes[2].id, episodes[0].id]
     viewModel.moveSelectedToBottom()
-    #expect(
-      transcriptionQueue.episodeIDs
-        == [episodes[1].id, episodes[2].id, episodes[0].id]
+    let bottomOrder = [episodes[1].id, episodes[2].id, episodes[0].id]
+    try await Wait.until(
+      { @MainActor in self.transcriptionQueue.episodeIDs == bottomOrder },
+      { @MainActor in "Expected selected episodes to move to the bottom" }
     )
   }
 
@@ -269,16 +271,21 @@ import Testing
     )
     for episode in episodes {
       try await repo.saveTranscriptionCheckpoint(checkpoint, for: episode.id)
-      transcriptionQueue.enqueue(episode.id)
+      try await transcriptionQueue.enqueue(episode.id)
     }
 
     let viewModel = TranscriptionQueueViewModel()
     viewModel.selectedEpisodeIDs = [episodes[0].id, episodes[2].id]
     viewModel.removeSelected()
 
-    #expect(transcriptionQueue.episodeIDs == [episodes[1].id])
+    try await Wait.until(
+      { @MainActor in
+        self.transcriptionQueue.episodeIDs == [episodes[1].id]
+          && self.transcriptionQueue.interruptions.isEmpty
+      },
+      { @MainActor in "Expected selected episodes to finish pausing" }
+    )
     #expect(viewModel.selectedEpisodeIDs.isEmpty)
-    #expect(transcriptionQueue.interruptions.isEmpty)
     #expect(try await repo.transcriptionCheckpoint(episodes[0].id) == checkpoint)
     #expect(try await repo.transcriptionCheckpoint(episodes[1].id) == checkpoint)
     #expect(try await repo.transcriptionCheckpoint(episodes[2].id) == checkpoint)

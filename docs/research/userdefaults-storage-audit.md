@@ -12,11 +12,11 @@ plist and a 134-byte app-group plist. The standard domain was 3,961 bytes when
 expanded to XML. Other installed build profiles measured 256–1,242 bytes in
 the standard domain and 42–76 bytes in the app-group domain.
 
-The transcription queue is the exception. It remains an unbounded, ordered
-work queue stored as one JSON array and rewritten after every enqueue or
-removal. Moving it to GRDB together with a configurable hard limit and an
-explicit queue-full error is tracked in
-[issue #549](https://github.com/jubishop/podhaven/issues/549).
+The former exception, the unbounded `transcriptionQueue` JSON array, now lives
+in GRDB. New queue growth is bounded by the separate
+`maxTranscriptionQueueLength` preference, while an existing or imported
+over-limit backlog is preserved until it drains. Normal queue operation no
+longer reads or writes the legacy defaults key.
 
 All ongoing defaults access uses `@PersistedBroadcast` or
 `@PersistedThreadSafe`; direct store access is limited to persistence
@@ -69,6 +69,7 @@ deduplicated by `Broadcast`.
 | `enableUndoSeek` | `PlayBarViewModel`; seek undo | `Bool`, 4–5 B | App-update preference; safe default on loss, staleness desired | Keep |
 | `commandCenterScrubbingEnabled` | `CommandCenter`; remote scrubbing | `Bool`, 4–5 B | App-update preference; safe default on loss, staleness desired | Keep |
 | `maxQueueLength` | queue insertion/enforcement | `Int`, 1–3 B with the UI/migration cap | App-update preference; safe bounded default on loss, staleness desired | Keep |
+| `maxTranscriptionQueueLength` | transcription-queue admission | `Int`, 2–3 B within the 10–100 UI bound | App-update preference; loss restores the safe 50-item default, staleness desired | Keep |
 | `maxRecommendedEpisodesInUpNext` | `UpNextViewModel`; visible recommendation limit | `Int`, normally 1–2 B | App-update preference; safe default on loss, staleness desired | Keep |
 | `showNowPlayingInUpNext` | `UpNextView`; presentation | `Bool`, 4–5 B | App-update preference; safe default on loss, staleness desired | Keep |
 | `alwaysShowPodcastImageInUpNext` | Up Next and widget snapshot presentation | `Bool`, 4–5 B | App-update preference; safe default on loss, staleness desired | Keep |
@@ -128,14 +129,13 @@ The largest measured app-group domain was 134 bytes. There is no launch or
 app/widget synchronization concern at this volume, and migration v71 does not
 touch this domain.
 
-## Deferred storage change
+## Resolved storage change
 
 ### Transcription queue
 
-The `transcriptionQueue` value is a JSON `[Episode.ID]` rewritten as a whole
-after every mutation. It requires ordering, uniqueness, a bounded backlog, and
-explicit capacity failure semantics. Its eventual database representation also
-needs transactional batch insertion and episode-lifetime handling.
+The legacy `transcriptionQueue` value was a JSON `[Episode.ID]` rewritten as a
+whole after every mutation. It required ordering, uniqueness, a bounded
+backlog, transactional batch insertion, and episode-lifetime handling.
 
 In the measured database:
 
@@ -144,16 +144,24 @@ In the measured database:
 - 10,000 IDs encoded to about 64 KB; and
 - all 103,751 episode IDs encoded to 615,165 bytes.
 
-Draining that worst-case shrinking array one element at a time would perform
-roughly 30 GiB of cumulative JSON encoding before any operating-system write
-coalescing. This remains the audit's only material size and churn concern.
+Draining that worst-case shrinking array one element at a time would have
+performed roughly 30 GiB of cumulative JSON encoding before any
+operating-system write coalescing.
 
-Issue #549 tracks the combined product and storage fix: add a separate bounded
-transcription-queue setting, reject work at capacity with a typed error that
-every UI enqueue path surfaces in an alert, and move ordered durability to
-GRDB. The migration must preserve first-seen order and be retry-safe; batch,
-settings-decrease, and oversized legacy-queue behavior must be explicit and
-must not silently discard requested work.
+The queue now uses `episodeTranscriptionQueue`, ordered by an auto-incrementing
+position with a unique episode ID and cascade deletion. Enqueue admits all new
+unique IDs or none in one transaction. The configurable maximum defaults to 50
+and ranges from 10 through 100; lowering it does not delete existing work, and
+an oversized legacy import is likewise preserved. New work is rejected with a
+typed capacity error until the complete request fits. The observable
+in-memory projection loads once and updates incrementally, so each routine
+removal deletes only its row rather than rereading or republishing the
+remaining table.
+
+Migration v72 imports first-seen valid legacy IDs, filters duplicates and
+missing episodes, and tolerates malformed data. Migration v73 removes the
+legacy defaults key only after v72's transaction has committed, so a failed
+import remains retryable. Normal queue operation never accesses that key.
 
 ### Session-only state
 
@@ -182,6 +190,7 @@ direct access is intentional:
 | v54 and v55 | Immutable historical episode-list sort migration into GRDB |
 | v63 | Immutable historical Search display-key cleanup |
 | v71 | Obsolete navigation cleanup and legacy raw-string normalization |
+| v72 and v73 | Immutable transcription-queue import followed by post-commit legacy-key cleanup |
 
 The audit found two obsolete navigation keys left after navigation restoration
 was removed: `navigationEpisodesTopDestination` and
@@ -195,10 +204,13 @@ removed so current defaults apply.
 ## Verification
 
 Focused migration tests cover obsolete-key removal, valid native-string
-conversion, invalid value removal, and existing JSON preservation. Wrapper
-tests prove same-value assignment and no-op atomic updates do not write.
-Existing cache tests exercise the standardized persistence seam.
+conversion, invalid value removal, existing JSON preservation, and the
+transcription queue's ordered import, filtering, malformed and oversized
+input, cascade deletion, and retry-safe cleanup. Queue tests cover
+transactional capacity enforcement, settings decrease, recreation, and
+large-backlog removal without a full refetch. Wrapper tests prove same-value
+assignment and no-op atomic updates do not write. Existing cache tests exercise
+the standardized persistence seam.
 
 The remaining settings and small operational domains measure only a few
-kilobytes and use event-driven writes. Issue #549 carries the transcription
-queue's distinct capacity, error-handling, and relational-storage work.
+kilobytes and use event-driven writes.

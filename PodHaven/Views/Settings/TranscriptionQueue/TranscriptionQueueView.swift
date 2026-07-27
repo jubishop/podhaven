@@ -232,7 +232,7 @@ private struct TranscriptionQueueRow: View {
           )
           try await repo.saveTranscriptionCheckpoint(checkpoint, for: episode.id)
         }
-        queue.enqueue(episode.id)
+        try await queue.enqueue(episode.id)
       }
 
       if let activeEpisode = series.episodes.first {

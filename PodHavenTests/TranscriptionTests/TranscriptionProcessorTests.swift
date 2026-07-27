@@ -30,7 +30,7 @@ struct TranscriptionProcessorTests {
     )
 
     for episodeID in [ep1.id, ep2.id] {
-      queue.enqueue(episodeID)
+      try await queue.enqueue(episodeID)
     }
     processor.handleScenePhaseChange(to: .active)
 
@@ -47,8 +47,8 @@ struct TranscriptionProcessorTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
-  @Test("user pause stops the active episode, retains progress, and advances once")
-  func userPauseStopsActiveEpisode() async throws {
+  @Test("overlapping pauses cancel active work once and clear after cleanup")
+  func overlappingPausesStopActiveEpisodeOnce() async throws {
     TranscriptionHelpers.stubSpeech(
       phrases: [FakeSpeechTranscriptionResult(phrase: "done", startSeconds: 0, endSeconds: 60)]
     )
@@ -107,8 +107,8 @@ struct TranscriptionProcessorTests {
       audioSHA256: FakeAudioFileHasher.defaultSHA256
     )
     try await repo.saveTranscriptionCheckpoint(checkpoint, for: firstEpisode.id)
-    queue.enqueue(firstEpisode.id)
-    queue.enqueue(secondEpisode.id)
+    try await queue.enqueue(firstEpisode.id)
+    try await queue.enqueue(secondEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer {
       firstAnalysisRelease.signal()
@@ -124,17 +124,16 @@ struct TranscriptionProcessorTests {
     )
 
     processor.pause(firstEpisode.id)
+    processor.pause(firstEpisode.id)
     await cancellationStarted.wait()
 
     #expect(queue.status(for: firstEpisode.id, hasTranscript: false) == .pausing)
     #expect(queue.episodeIDs == [secondEpisode.id])
     #expect(analyzeCount() == 1)
+    #expect(cancellationCount() == 1)
     #expect(
-      [Episode.ID]
-        .load(
-          from: Container.shared.standardDefaults(),
-          forKey: "transcriptionQueue"
-        ) == [secondEpisode.id]
+      try await Container.shared.transcriptionQueueStore().fetchAll()
+        == [secondEpisode.id]
     )
 
     cancellationRelease.signal()
@@ -142,6 +141,7 @@ struct TranscriptionProcessorTests {
 
     #expect(queue.episodeIDs == [secondEpisode.id])
     #expect(queue.progress[firstEpisode.id] == nil)
+    #expect(queue.interruptions[firstEpisode.id] == nil)
     #expect(cancellationCount() == 1)
     #expect(analyzeCount() == 2)
     #expect(try await repo.episode(firstEpisode.id)?.hasTranscript == false)
@@ -164,6 +164,7 @@ struct TranscriptionProcessorTests {
     let analysisStarted = AsyncSemaphore(value: 0)
     let analysisRelease = AsyncSemaphore(value: 0)
     let cancellationStarted = AsyncSemaphore(value: 0)
+    let cancellationRelease = AsyncSemaphore(value: 0)
     Container.shared.speechAnalyzer.register {
       { _ in
         FakeSpeechAnalyzer(
@@ -174,6 +175,7 @@ struct TranscriptionProcessorTests {
           },
           cancelAudio: {
             cancellationStarted.signal()
+            await cancellationRelease.wait()
           }
         )
       }
@@ -195,10 +197,11 @@ struct TranscriptionProcessorTests {
       audioSHA256: FakeAudioFileHasher.defaultSHA256
     )
     try await repo.saveTranscriptionCheckpoint(checkpoint, for: episode.id)
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
     processor.handleScenePhaseChange(to: .active)
     defer {
       analysisRelease.signal()
+      cancellationRelease.signal()
       processor.handleScenePhaseChange(to: .background)
     }
 
@@ -210,8 +213,9 @@ struct TranscriptionProcessorTests {
 
     processor.discardProgress(for: episode.id)
 
-    #expect(queue.status(for: episode.id, hasTranscript: false) == .discarding)
     await cancellationStarted.wait()
+    #expect(queue.status(for: episode.id, hasTranscript: false) == .discarding)
+    cancellationRelease.signal()
     try await Wait.until(
       { queue.interruptions[episode.id] == nil },
       { "Explicit discard did not finish" }
@@ -282,8 +286,8 @@ struct TranscriptionProcessorTests {
       audioSHA256: FakeAudioFileHasher.defaultSHA256
     )
     try await repo.saveTranscriptionCheckpoint(checkpoint, for: firstEpisode.id)
-    queue.enqueue(firstEpisode.id)
-    queue.enqueue(secondEpisode.id)
+    try await queue.enqueue(firstEpisode.id)
+    try await queue.enqueue(secondEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer {
       firstAnalysisRelease.signal()
@@ -297,7 +301,7 @@ struct TranscriptionProcessorTests {
       { "Expected active episode to publish checkpoint progress" }
     )
 
-    #expect(processor.reorder([secondEpisode.id, firstEpisode.id]))
+    #expect(try await processor.reorder([secondEpisode.id, firstEpisode.id]))
     await secondAnalysisStarted.wait()
 
     #expect(queue.episodeIDs == [secondEpisode.id, firstEpisode.id])
@@ -354,8 +358,8 @@ struct TranscriptionProcessorTests {
       cachedFilename: "still-active.mp3",
       dataSize: 1
     )
-    queue.enqueue(firstEpisode.id)
-    queue.enqueue(secondEpisode.id)
+    try await queue.enqueue(firstEpisode.id)
+    try await queue.enqueue(secondEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer {
       secondAnalysisRelease.signal()
@@ -380,6 +384,117 @@ struct TranscriptionProcessorTests {
     #expect(analyzeCount() == 2)
   }
 
+  @Test("pausing waiting work revalidates it after promotion to active")
+  func pauseRevalidatesWaitingWorkAfterPromotion() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(
+          phrase: "done",
+          startSeconds: 0,
+          endSeconds: 60
+        )
+      ]
+    )
+    let firstRemovalStarted = AsyncSemaphore(value: 0)
+    let firstRemovalRelease = AsyncSemaphore(value: 0)
+    let secondRemovalStarted = AsyncSemaphore(value: 0)
+    let secondRemovalRelease = AsyncSemaphore(value: 0)
+    let secondAnalysisStarted = AsyncSemaphore(value: 0)
+    let secondAnalysisRelease = AsyncSemaphore(value: 0)
+    let cancellationStarted = AsyncSemaphore(value: 0)
+    let cancellationRelease = AsyncSemaphore(value: 0)
+    let analyzeCount = ThreadSafe(0)
+    let cancellationCount = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer(
+          analyzeAudio: { _, endTime in
+            let invocation = analyzeCount {
+              $0 += 1
+              return $0
+            }
+            if invocation == 2 {
+              secondAnalysisStarted.signal()
+              try await secondAnalysisRelease.waitUnlessCancelled()
+            }
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          },
+          cancelAudio: {
+            cancellationCount { $0 += 1 }
+            cancellationStarted.signal()
+            await cancellationRelease.wait()
+          }
+        )
+      }
+    }
+
+    let repo = Container.shared.repo()
+    let firstEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Finishing",
+      cachedFilename: "finishing.mp3",
+      dataSize: 1
+    )
+    let secondEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Promoting",
+      cachedFilename: "promoting.mp3",
+      dataSize: 1
+    )
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [firstEpisode.id, secondEpisode.id],
+      beforeRemove: { episodeID in
+        if episodeID == firstEpisode.id {
+          firstRemovalStarted.signal()
+          await firstRemovalRelease.wait()
+        } else if episodeID == secondEpisode.id {
+          secondRemovalStarted.signal()
+          await secondRemovalRelease.wait()
+        }
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    await queue.waitUntilLoaded()
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      firstRemovalRelease.signal()
+      secondRemovalRelease.signal()
+      secondAnalysisRelease.signal()
+      cancellationRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await firstRemovalStarted.wait()
+    processor.pause(secondEpisode.id)
+    try await Wait.until(
+      { queue.interruptions[secondEpisode.id] == .pausing },
+      { "Waiting episode never entered the pausing state" }
+    )
+
+    firstRemovalRelease.signal()
+    await secondRemovalStarted.wait()
+    await secondAnalysisStarted.wait()
+    #expect(queue.episodeIDs == [secondEpisode.id])
+    #expect(queue.status(for: secondEpisode.id, hasTranscript: false) == .pausing)
+
+    secondRemovalRelease.signal()
+    await cancellationStarted.wait()
+    #expect(queue.episodeIDs.isEmpty)
+    #expect(queue.interruptions[secondEpisode.id] == .pausing)
+
+    cancellationRelease.signal()
+    try await Wait.until(
+      { queue.interruptions[secondEpisode.id] == nil },
+      { "Promoted episode did not finish pausing" }
+    )
+    #expect(cancellationCount() == 1)
+    #expect(analyzeCount() == 2)
+    #expect(try await repo.episode(firstEpisode.id)?.hasTranscript == true)
+    #expect(try await repo.episode(secondEpisode.id)?.hasTranscript == false)
+  }
+
   @Test("an uncached episode is downloaded, awaited, then transcribed")
   func downloadsUncachedEpisodeBeforeTranscribing() async throws {
     TranscriptionHelpers.stubSpeech(
@@ -391,7 +506,7 @@ struct TranscriptionProcessorTests {
 
     let podcastEpisode = try await Create.podcastEpisode()
 
-    queue.enqueue(podcastEpisode.id)
+    try await queue.enqueue(podcastEpisode.id)
     processor.handleScenePhaseChange(to: .active)
 
     // The processor starts the download and suspends until it completes;
@@ -421,7 +536,7 @@ struct TranscriptionProcessorTests {
     let processor = Container.shared.transcriptionProcessor()
     let podcastEpisode = try await Create.podcastEpisode()
 
-    queue.enqueue(podcastEpisode.id)
+    try await queue.enqueue(podcastEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer { processor.handleScenePhaseChange(to: .background) }
 
@@ -453,7 +568,7 @@ struct TranscriptionProcessorTests {
     let processor = Container.shared.transcriptionProcessor()
     let podcastEpisode = try await Create.podcastEpisode()
 
-    queue.enqueue(podcastEpisode.id)
+    try await queue.enqueue(podcastEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer { processor.handleScenePhaseChange(to: .background) }
 
@@ -476,7 +591,7 @@ struct TranscriptionProcessorTests {
     let podcastEpisode = try await Create.podcastEpisode()
     try await repo.updateDownloading(podcastEpisode.id, downloading: true)
 
-    queue.enqueue(podcastEpisode.id)
+    try await queue.enqueue(podcastEpisode.id)
     processor.handleScenePhaseChange(to: .active)
     defer { processor.handleScenePhaseChange(to: .background) }
 
@@ -506,7 +621,7 @@ struct TranscriptionProcessorTests {
       dataSize: 1
     )
 
-    queue.enqueue(ep.id)
+    try await queue.enqueue(ep.id)
     processor.handleScenePhaseChange(to: .active)
 
     try await Wait.until(
@@ -534,7 +649,7 @@ struct TranscriptionProcessorTests {
       dataSize: 1
     )
 
-    queue.enqueue(ep.id)
+    try await queue.enqueue(ep.id)
     processor.handleScenePhaseChange(to: .active)
 
     try await Wait.until(

@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
@@ -19,6 +20,39 @@ struct EpisodesListTranscribeTests {
       createdAt: Date(timeIntervalSince1970: 0)
     )
     .jsonString()
+  }
+
+  private func makeCapacityViewModel() async throws -> (
+    EpisodesListViewModel, [ListablePodcastEpisode]
+  ) {
+    await TranscriptionHelpers.prepareAvailability()
+    Container.shared.userSettings().$maxTranscriptionQueueLength.new(10)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: try (0..<12)
+          .map {
+            try Create.unsavedEpisode(guid: GUID("list-capacity-\($0)"))
+          }
+      )
+    )
+    try await transcriptionQueue.enqueue(series.episodes.prefix(10).map(\.id))
+    let listables = try await repo.db.read { db in
+      try ListablePodcastEpisode
+        .request(
+          filter: Episode.Columns.podcastId == series.podcast.id,
+          order: Episode.Columns.id.asc
+        )
+        .fetchAll(db)
+    }
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
+      title: "Capacity"
+    )
+    try await EpisodesListTestHelpers.loadEntries(
+      into: viewModel,
+      episodes: listables
+    )
+    return (viewModel, listables)
   }
 
   // Four episodes ordered transcribed / queued / transcribing / none, returned
@@ -43,7 +77,7 @@ struct EpisodesListTranscribeTests {
     let episodes = series.episodes
 
     try await repo.updateTranscript(episodes[0].id, transcript: transcriptJSON())
-    transcriptionQueue.enqueue(episodes[1].id)
+    try await transcriptionQueue.enqueue(episodes[1].id)
     transcriptionQueue.setProgress(0.5, for: episodes[2].id)
 
     let listables = try await repo.db.read { db in
@@ -116,6 +150,43 @@ struct EpisodesListTranscribeTests {
     )
 
     #expect(transcriptionQueue.episodeIDs == [queuedID, eligibleID])
+  }
+
+  @Test("list, swipe, and context transcription show the queue-full alert")
+  func singleTranscriptionShowsCapacityAlert() async throws {
+    let (viewModel, listables) = try await makeCapacityViewModel()
+    let target = listables[10]
+    let alert = Container.shared.alert()
+
+    viewModel.transcribeEpisode(target)
+
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Transcription Queue Full" },
+      { @MainActor in "Expected the shared single-episode queue-full alert" }
+    )
+    #expect(transcriptionQueue.episodeIDs.count == 10)
+    #expect(!transcriptionQueue.episodeIDs.contains(target.id))
+  }
+
+  @Test("bulk transcription rejects the whole batch with a queue-full alert")
+  func bulkTranscriptionShowsCapacityAlertAtomically() async throws {
+    let (viewModel, listables) = try await makeCapacityViewModel()
+    let targets = Array(listables.suffix(2))
+    let alert = Container.shared.alert()
+    EpisodesListTestHelpers.select(viewModel, ids: targets.map(\.id))
+
+    viewModel.transcribeSelectedEpisodes()
+
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Transcription Queue Full" },
+      { @MainActor in "Expected the bulk queue-full alert" }
+    )
+    #expect(transcriptionQueue.episodeIDs.count == 10)
+    #expect(
+      targets.allSatisfy {
+        !transcriptionQueue.episodeIDs.contains($0.id)
+      }
+    )
   }
 
   @Test("transcribeSelectedEpisodes distinguishes identical media across podcasts")

@@ -18,6 +18,21 @@ import Testing
     observatory as! FakeObservatory
   }
 
+  private func makeTargetBeyondCapacity() async throws -> PodcastEpisode {
+    Container.shared.userSettings().$maxTranscriptionQueueLength.new(10)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: try (0..<11)
+          .map {
+            try Create.unsavedEpisode(guid: GUID("detail-capacity-\($0)"))
+          }
+      )
+    )
+    try await transcriptionQueue.enqueue(series.episodes.prefix(10).map(\.id))
+    return try #require(try await repo.podcastEpisode(series.episodes[10].id))
+  }
+
   @Test("decodedTranscript returns the stored transcript for a transcribed episode")
   func decodedTranscriptReturnsStoredTranscript() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
@@ -122,22 +137,39 @@ import Testing
     #expect(!cleared.hasTranscript)
   }
 
+  @Test("detail transcription shows the queue-full alert at capacity")
+  func detailTranscriptionShowsCapacityAlert() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let target = try await makeTargetBeyondCapacity()
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(target))
+    let alert = Container.shared.alert()
+
+    viewModel.transcribe()
+
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Transcription Queue Full" },
+      { @MainActor in "Expected the detail queue-full alert" }
+    )
+    #expect(transcriptionQueue.episodeIDs.count == 10)
+    #expect(!transcriptionQueue.episodeIDs.contains(target.id))
+  }
+
   @Test("detail pause removes a queued transcription")
   func detailPauseRemovesQueuedTranscription() async throws {
     await TranscriptionHelpers.prepareAvailability()
     let podcastEpisode = try await Create.podcastEpisode()
-    transcriptionQueue.enqueue(podcastEpisode.id)
+    try await transcriptionQueue.enqueue(podcastEpisode.id)
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
     #expect(viewModel.transcriptionStatus.canPause)
 
     viewModel.pauseTranscription()
 
-    #expect(!transcriptionQueue.episodeIDs.contains(podcastEpisode.id))
     try await Wait.until(
       { @MainActor in viewModel.transcriptionStatus == .none },
       { @MainActor in "Expected queued pause to finish" }
     )
+    #expect(!transcriptionQueue.episodeIDs.contains(podcastEpisode.id))
   }
 
   @Test("detail pause retains partial transcription progress")
@@ -152,11 +184,18 @@ import Testing
       audioSHA256: FakeAudioFileHasher.defaultSHA256
     )
     try await repo.saveTranscriptionCheckpoint(checkpoint, for: podcastEpisode.id)
-    transcriptionQueue.enqueue(podcastEpisode.id)
+    try await transcriptionQueue.enqueue(podcastEpisode.id)
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
 
     viewModel.pauseTranscription()
 
+    try await Wait.until(
+      { @MainActor in
+        !self.transcriptionQueue.episodeIDs.contains(podcastEpisode.id)
+          && self.transcriptionQueue.interruptions[podcastEpisode.id] == nil
+      },
+      { @MainActor in "Expected queued progress to finish pausing" }
+    )
     #expect(transcriptionQueue.interruptions[podcastEpisode.id] == nil)
     #expect(try await repo.transcriptionCheckpoint(podcastEpisode.id) == checkpoint)
   }
@@ -194,10 +233,16 @@ import Testing
     )
 
     viewModel.pauseTranscription()
-    #expect(viewModel.transcriptionStatus == .paused(0.5))
+    try await Wait.until(
+      { @MainActor in viewModel.transcriptionStatus == .paused(0.5) },
+      { @MainActor in "Expected resumed work to finish pausing" }
+    )
 
     viewModel.discardTranscriptionProgress()
-    #expect(viewModel.transcriptionStatus == .discarding)
+    try await Wait.until(
+      { @MainActor in viewModel.transcriptionStatus == .discarding },
+      { @MainActor in "Expected progress discard to begin" }
+    )
     try await Wait.until(
       {
         try await self.repo.transcriptionCheckpoint(podcastEpisode.id) == nil

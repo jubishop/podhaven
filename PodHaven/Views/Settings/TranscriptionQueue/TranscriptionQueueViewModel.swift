@@ -6,6 +6,7 @@ import Logging
 import SwiftUI
 
 @Observable @MainActor final class TranscriptionQueueViewModel {
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
   @ObservationIgnored @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
@@ -292,13 +293,25 @@ import SwiftUI
   private func applyOrder(_ orderedEpisodeIDs: [Episode.ID]) {
     let current = transcriptionQueue.episodeIDs
     guard current != orderedEpisodeIDs else { return }
-    guard transcriptionProcessor.reorder(orderedEpisodeIDs) else {
-      Self.log.error("Transcription processor rejected queue reorder")
-      return
-    }
 
-    let episodesByID = Dictionary(uniqueKeysWithValues: episodes.map { ($0.id, $0) })
-    episodes = orderedEpisodeIDs.compactMap { episodesByID[$0] }
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        guard try await transcriptionProcessor.reorder(orderedEpisodeIDs) else {
+          Self.log.error("Transcription processor rejected queue reorder")
+          return
+        }
+        guard transcriptionQueue.episodeIDs == orderedEpisodeIDs else { return }
+        let episodesByID = Dictionary(
+          uniqueKeysWithValues: episodes.map { ($0.id, $0) }
+        )
+        episodes = orderedEpisodeIDs.compactMap { episodesByID[$0] }
+      } catch {
+        Self.log.caughtError("Failed to reorder transcription queue", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
   }
 
   private func orderedSelectionFirst(in episodeIDs: [Episode.ID]) -> [Episode.ID] {

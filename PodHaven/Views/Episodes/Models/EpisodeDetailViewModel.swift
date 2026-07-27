@@ -442,13 +442,26 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
   func transcribe() {
     guard isTranscriptionAvailable, transcriptionStatus.canTranscribe else { return }
 
-    lifecycle.runTask("transcribe: \(state.toString)") { [weak self] in
+    Task { [weak self] in
       guard let self else { return }
-      let podcastEpisode = try await getOrCreatePodcastEpisode()
-      if transcriptDisplay == .decodeFailed {
-        try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        if transcriptDisplay == .decodeFailed {
+          try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
+        }
+        try await transcriptionQueue.enqueue(podcastEpisode.id)
+      } catch {
+        Self.log.caughtError("transcribe: \(state.toString) failed", error)
+        if let queueError = error as? TranscriptionQueueError {
+          alert(
+            title: queueError.alertTitle,
+            ErrorKit.message(for: queueError)
+          )
+          return
+        }
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
-      transcriptionQueue.enqueue(podcastEpisode.id)
     }
   }
 

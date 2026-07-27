@@ -83,6 +83,8 @@ enum Schema {
     migrator.registerMigration("v69", migrate: migrateV69)
     migrator.registerMigration("v70", migrate: migrateV70)
     migrator.registerMigration("v71", migrate: migrateV71)
+    migrator.registerMigration("v72", migrate: migrateV72)
+    migrator.registerMigration("v73", migrate: migrateV73)
     return migrator
   }
 }
