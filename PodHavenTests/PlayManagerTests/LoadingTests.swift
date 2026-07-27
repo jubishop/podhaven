@@ -403,6 +403,40 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
+  @Test("new play survives cancellation cleanup from prior load")
+  func newPlaySurvivesCancellationCleanupFromPriorLoad() async throws {
+    await playManager.start()
+    let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+
+    let originalSemaphore = await episodeAssetLoader.waitRespond(
+      to: originalEpisode.episode.mediaURL
+    )
+    let incomingSemaphore = await episodeAssetLoader.waitRespond(
+      to: incomingEpisode.episode.mediaURL
+    )
+    let originalPlay = Task { try await playManager.play(originalEpisode) }
+    defer {
+      originalPlay.cancel()
+      originalSemaphore.signal()
+    }
+    try await PlayHelpers.waitFor(.loading(originalEpisode.episode.title))
+
+    let incomingPlay = Task { try await playManager.play(incomingEpisode) }
+    defer {
+      incomingPlay.cancel()
+      incomingSemaphore.signal()
+    }
+    try await PlayHelpers.waitFor(.loading(incomingEpisode.episode.title))
+    await #expect(throws: (any Error).self) {
+      try await originalPlay.value
+    }
+
+    incomingSemaphore.signal()
+    try await incomingPlay.value
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
+    try await PlayHelpers.waitFor(.playing)
+  }
+
   @Test("audio session failure during load clears state and surfaces alert")
   func audioSessionFailureDuringLoadClearsStateAndSurfacesAlert() async throws {
     await playManager.start()
@@ -421,6 +455,202 @@ import Testing
       { @MainActor in alert.config != nil },
       { @MainActor in "Expected alert after audio session configuration failure" }
     )
+  }
+
+  @Test("failed playback recovery preflight returns episode to queue")
+  func failedPlaybackRecoveryPreflightReturnsEpisodeToQueue() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitFor(.playing)
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+    await playManager.handlePlaybackFailure()
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForQueue([podcastEpisode])
+    #expect(sharedState.onDeck == nil)
+  }
+
+  @Test("cannot interrupt others defers activation without error telemetry")
+  func cannotInterruptOthersDefersActivationWithoutErrorTelemetry() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    let (loaded, captured) = try await LogCapture.withSink { sink in
+      let loaded = try await playManager.load(podcastEpisode)
+      return (loaded, sink.captured())
+    }
+
+    #expect(loaded == false)
+    let activationLogs = captured.filter {
+      $0.label == "Play/manager" && $0.message.contains("audio session activation deferred")
+    }
+    #expect(activationLogs.count == 1)
+    #expect(activationLogs.allSatisfy { $0.level == .info })
+    #expect(
+      captured
+        .filter { $0.label == "Play/manager" }
+        .allSatisfy { $0.level != .error && $0.level != .critical }
+    )
+  }
+
+  @Test("unexpected audio session activation failure still throws")
+  func unexpectedAudioSessionActivationFailureStillThrows() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    audioSession.activationError { $0 = TestError.simulatedFailure }
+
+    await #expect(throws: TestError.self) {
+      try await playManager.load(podcastEpisode)
+    }
+  }
+
+  @Test("activation failure preserves persisted episode and recovers on retry")
+  func activationFailurePreservesPersistedEpisodeAndRecoversOnRetry() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    sharedState.currentEpisodeID = podcastEpisode.id
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    await playManager.start()
+
+    try #require(sharedState.currentEpisodeID == podcastEpisode.id)
+    #expect(sharedState.onDeck == nil)
+    try await PlayHelpers.waitForQueue([])
+
+    audioSession.activationError { $0 = nil }
+    await playManager.play()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    try await PlayHelpers.waitForQueue([])
+  }
+
+  @Test("foreground restoration resumes a deferred play request")
+  func foregroundRestorationResumesDeferredPlayRequest() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    sharedState.currentEpisodeID = podcastEpisode.id
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    await playManager.start()
+    await playManager.play()
+
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    #expect(sharedState.onDeck == nil)
+
+    audioSession.activationError { $0 = nil }
+    await playManager.restorePersistedEpisodeForForeground()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    try await PlayHelpers.waitForQueue([])
+  }
+
+  @Test("episode intent recovers its selected target after activation failure")
+  func episodeIntentRecoversSelectedTargetAfterActivationFailure() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    let result = try await PlayEpisodeIntent(episodeID: podcastEpisode.id.rawValue).perform()
+    withExtendedLifetime(result) {}
+
+    #expect(sharedState.currentEpisodeID == nil)
+    #expect(sharedState.onDeck == nil)
+
+    audioSession.activationError { $0 = nil }
+    await playManager.restorePersistedEpisodeForForeground()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+  }
+
+  @Test("episode intent recovers its selected target instead of the prior episode")
+  func episodeIntentRecoversSelectedTargetInsteadOfPriorEpisode() async throws {
+    let (priorEpisode, selectedEpisode) = try await Create.twoPodcastEpisodes()
+    sharedState.currentEpisodeID = priorEpisode.id
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    let result = try await PlayEpisodeIntent(episodeID: selectedEpisode.id.rawValue).perform()
+    withExtendedLifetime(result) {}
+
+    #expect(sharedState.currentEpisodeID == priorEpisode.id)
+    #expect(sharedState.onDeck == nil)
+    try await PlayHelpers.waitForQueue([])
+
+    audioSession.activationError { $0 = nil }
+    await playManager.restorePersistedEpisodeForForeground()
+
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(sharedState.currentEpisodeID == selectedEpisode.id)
+    try await PlayHelpers.waitForQueue([priorEpisode])
+  }
+
+  @Test("play pause intent rolls back widget status when activation is deferred")
+  func playPauseIntentRollsBackWidgetStatusWhenActivationIsDeferred() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let widgetState = Container.shared.widgetState()
+    sharedState.currentEpisodeID = podcastEpisode.id
+    widgetState.playbackStatus = .stopped
+
+    audioSession.activationError {
+      $0 = NSError(
+        domain: NSOSStatusErrorDomain,
+        code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      )
+    }
+
+    let result = try await PlayPauseIntent(playing: true).perform()
+    withExtendedLifetime(result) {}
+
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    #expect(sharedState.onDeck == nil)
+    #expect(sharedState.playbackStatus == .stopped)
+    #expect(widgetState.playbackStatus == .stopped)
+
+    audioSession.activationError { $0 = nil }
+    await playManager.restorePersistedEpisodeForForeground()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
   }
 
   @Test("audio session recovers on next load attempt after prior failure")
@@ -447,12 +677,8 @@ import Testing
     #expect(try await playManager.load(podcastEpisode) == false)
   }
 
-  @Test(
-    "loading race condition with success after failure does not result in stopped playbackStatus"
-  )
-  func loadingRaceConditionWithSuccessAfterFailureDoesNotResultInStoppedPlaybackStatus()
-    async throws
-  {
+  @Test("earlier load failure does not stop newer load")
+  func earlierLoadFailureDoesNotStopNewerLoad() async throws {
     await playManager.start()
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
@@ -475,11 +701,12 @@ import Testing
       incomingLoad.cancel()
       incomingSemaphore.signal()
     }
+    try await PlayHelpers.waitFor(.loading(incomingEpisode.episode.title))
     originalSemaphore.signal()
-    try await PlayHelpers.waitFor(.stopped)
     await #expect(throws: (any Error).self) {
       try await originalLoad.value
     }
+    #expect(sharedState.playbackStatus == .loading(incomingEpisode.episode.title))
     incomingSemaphore.signal()
     #expect(try await incomingLoad.value == true)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)

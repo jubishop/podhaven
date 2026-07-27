@@ -63,7 +63,9 @@ extension Container: @retroactive AutoRegistering {
     .scope(.cached)
     setAudioSessionActive.context(.test) {
       { active in
-        Task { try await self.fakeAudioSession().setActive(active) }
+        let audioSession = self.fakeAudioSession()
+        if active, let error = audioSession.activationError() { throw error }
+        Task { await audioSession.setActive(active) }
       }
     }
 
