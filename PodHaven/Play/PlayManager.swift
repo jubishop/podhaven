@@ -578,8 +578,10 @@ final class PlayManager {
     do {
       if let nextEpisode = try await queue.nextEpisode {
         Self.log.debug("next episode exists to automatically load: \(nextEpisode.toString)")
-
-        try await load(nextEpisode)
+        guard try await load(nextEpisode) else {
+          setStatus(.stopped)
+          return
+        }
         await play()
       } else if let recommended = try await nextAutoplayRecommendation() {
         Self.log.debug(
@@ -588,8 +590,10 @@ final class PlayManager {
           (autoPlayTopRecommendationWhenQueueEmpty enabled)
           """
         )
-
-        try await load(recommended)
+        guard try await load(recommended) else {
+          setStatus(.stopped)
+          return
+        }
         await play()
       } else {
         Self.log.debug(

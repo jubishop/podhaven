@@ -11,6 +11,7 @@ import Testing
 @Suite("of Episode finishing tests", .container)
 @MainActor struct EpisodeFinishingTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.fakeAudioSession) private var audioSession
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.sharedState) private var sharedState
@@ -162,6 +163,26 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
     try await PlayHelpers.waitForCurrentItem(nextEpisode.episode.mediaURL)
     try await PlayHelpers.waitForFinished(currentEpisode)
+  }
+
+  @Test("next episode preflight failure stops playback and preserves the queue")
+  func nextEpisodePreflightFailureStopsPlaybackAndPreservesQueue() async throws {
+    await playManager.start()
+    let (currentEpisode, nextEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await queue.unshift(nextEpisode.id)
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+    try await PlayHelpers.waitForAudioActive(true)
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+    await playManager.finishEpisode(currentEpisode.id)
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForAudioActive(false)
+    try await PlayHelpers.waitForOnDeck(nil)
+    try await PlayHelpers.waitForNoCurrentItem()
+    try await PlayHelpers.waitForQueue([nextEpisode])
   }
 
   @Test("finishEpisode stops playback if no next episode exists")

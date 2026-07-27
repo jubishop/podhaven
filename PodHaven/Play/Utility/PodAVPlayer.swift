@@ -151,7 +151,10 @@ enum PodAVPlayerError: Error, LocalizedError {
     do {
       Self.log.debug("performLoadAsset: loading from cache: \(cachedURL)")
       return try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
+    } catch is CancellationError {
+      throw CancellationError()
     } catch {
+      try Task.checkCancellation()
       Self.log.caughtError(
         "performLoadAsset: cache load failed, clearing cached filename and falling back to remote",
         error,
@@ -223,6 +226,7 @@ enum PodAVPlayerError: Error, LocalizedError {
       )
       return false
     }
+    guard self.episodeID == episodeID else { return false }
 
     guard podcastEpisode.episode.cachedURL != nil else { return false }
 
@@ -236,6 +240,7 @@ enum PodAVPlayerError: Error, LocalizedError {
       )
       return false
     }
+    guard self.episodeID == episodeID else { return false }
 
     avPlayer.replaceCurrent(with: playableItem)
     Self.log.info("swapToCached: swapped to cached version")
@@ -286,21 +291,27 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   func seek(to time: CMTime) async {
     Self.log.debug("seek: \(time)")
+    guard let seekingEpisodeID = episodeID else {
+      Self.log.debug("seek: ignored with no episode")
+      return
+    }
 
     await swapToCached()
+    guard episodeID == seekingEpisodeID else { return }
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
 
-    avPlayer.seek(to: time) { [weak self] completed in
+    avPlayer.seek(to: time) { [weak self, seekingEpisodeID] completed in
       guard let self else { return }
 
       if completed {
         Self.log.debug("seek: to \(time) completed")
-        Task { [weak self] in
-          guard let self else { return }
-          await saveCurrentTime(time)
-          await addPeriodicTimeObserver()
+        Task { @MainActor [weak self, seekingEpisodeID] in
+          guard let self, self.episodeID == seekingEpisodeID else { return }
+          await self.saveCurrentTime(time)
+          guard self.episodeID == seekingEpisodeID else { return }
+          self.addPeriodicTimeObserver()
         }
       } else {
         Self.log.debug("seek: to \(time) interrupted")
@@ -316,6 +327,7 @@ enum PodAVPlayerError: Error, LocalizedError {
 
     do {
       try await repo.updateCurrentTime(episodeID, currentTime: currentTime)
+      guard self.episodeID == episodeID else { return }
       lastDatabaseUpdateTime = currentTime
       Self.log.trace("saveCurrentTime: saved \(currentTime) for \(episodeID)")
     } catch {
