@@ -48,14 +48,6 @@ import Testing
     return SearchDiscoveryListViewModel(collector: collector, source: source)
   }
 
-  private func waitForQueuedEpisode(_ episodeID: Episode.ID) async -> [Episode.ID] {
-    for await episodeIDs in transcriptionQueue.$episodeIDs.stream()
-    where episodeIDs.contains(episodeID) {
-      return episodeIDs
-    }
-    return transcriptionQueue.episodeIDs
-  }
-
   // Saves a one-episode series whose episode carries the given mediaGUID, so
   // the DB row either matches a pick exactly (same feed) or collides with it
   // across feeds (same guid+mediaURL under a different podcast).
@@ -225,7 +217,10 @@ import Testing
 
     viewModel.transcribeSelectedEpisodes()
 
-    let queuedEpisodeIDs = await waitForQueuedEpisode(canonicalEpisode.id)
+    let queuedEpisodeIDs = await TranscriptionHelpers.waitForQueuedEpisode(
+      canonicalEpisode.id,
+      in: transcriptionQueue
+    )
     #expect(queuedEpisodeIDs == [canonicalEpisode.id])
   }
 
@@ -279,7 +274,10 @@ import Testing
 
     viewModel.transcribeSelectedEpisodes()
 
-    let queuedEpisodeIDs = await waitForQueuedEpisode(eligibleEpisode.id)
+    let queuedEpisodeIDs = await TranscriptionHelpers.waitForQueuedEpisode(
+      eligibleEpisode.id,
+      in: transcriptionQueue
+    )
     #expect(queuedEpisodeIDs == [eligibleEpisode.id])
     #expect(viewModel.collector.picks(for: viewModel.source).map(\.id) == [transcribedPick.id])
   }

@@ -9,6 +9,11 @@ import Testing
 
 @Suite("of TranscriptionProcessor background task", .container)
 struct TranscriptionBackgroundTaskTests {
+  enum RemovalFailureScenario: CaseIterable, Sendable {
+    case completedTranscription
+    case failedTranscription
+  }
+
   @Test("registering with no queued work does not schedule a background task")
   func emptyQueueDoesNotSchedule() throws {
     let processor = Container.shared.transcriptionProcessor()
@@ -74,6 +79,75 @@ struct TranscriptionBackgroundTaskTests {
         }
       )
     }
+  }
+
+  @Test(
+    "a queue removal failure ends the background grant and retains work",
+    arguments: RemovalFailureScenario.allCases
+  )
+  func queueRemovalFailureEndsBackgroundGrant(
+    _ scenario: RemovalFailureScenario
+  ) async throws {
+    switch scenario {
+    case .completedTranscription:
+      TranscriptionHelpers.stubSpeech(
+        phrases: [
+          FakeSpeechTranscriptionResult(
+            phrase: "retained",
+            startSeconds: 0,
+            endSeconds: 60
+          )
+        ]
+      )
+    case .failedTranscription:
+      TranscriptionHelpers.stubSpeechFailure()
+    }
+
+    let repo = Container.shared.repo()
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Retained background work",
+      cachedFilename: "retained-background.mp3",
+      dataSize: 1
+    )
+    let removalAttempts = ThreadSafe(0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [episode.id],
+      beforeRemove: { _ in
+        removalAttempts { $0 += 1 }
+        throw TestError.simulatedFailure
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    await queue.waitUntilLoaded()
+
+    processor.register()
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
+    let task = try #require(scheduler.launchTask(withIdentifier: identifier))
+    defer { task.expire() }
+
+    try await Wait.until(
+      { removalAttempts() == 1 },
+      { "Background transcription did not attempt durable queue removal" }
+    )
+    try await Wait.until(
+      maxAttempts: 100,
+      { task.completionResults == [true] },
+      { "Background grant remained active after retaining queued work" }
+    )
+
+    #expect(removalAttempts() == 1)
+    #expect(queue.episodeIDs == [episode.id])
+    #expect(!queue.failed.contains(episode.id))
+    #expect(scheduler.pendingIdentifiers.contains(identifier))
+    #expect(
+      try await repo.episode(episode.id)?.hasTranscript
+        == (scenario == .completedTranscription)
+    )
   }
 
   @Test("a foreground drain cancels its pending background request")

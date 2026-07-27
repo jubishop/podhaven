@@ -64,6 +64,11 @@ struct TranscriptionProcessor: Sendable {
     case completedTranscription
   }
 
+  private enum HeadProcessingOutcome {
+    case advanced
+    case retained
+  }
+
   private struct QueueMutationFailure: Error, LocalizedError {
     let operation: QueueRemovalOperation
     let message: String
@@ -332,7 +337,7 @@ struct TranscriptionProcessor: Sendable {
         if case .foreground = mode, case .background = foregroundState() {
           return
         }
-        try await processHead(
+        let outcome = try await processHead(
           episodeID,
           logContext: TranscriptionLogContext(
             runID: runID,
@@ -340,6 +345,9 @@ struct TranscriptionProcessor: Sendable {
             episodeID: episodeID
           )
         )
+        if case .background = mode, case .retained = outcome {
+          return
+        }
         if case .foreground = mode, case .background = foregroundState() {
           return
         }
@@ -352,12 +360,12 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  // Processes one episode. Execution cancellation retains the head, a user
-  // pause retains its checkpoint, and any other failure advances with failed state.
+  // Execution cancellation and durable queue failures retain the head. A user
+  // pause retains its checkpoint; other failures advance with failed state.
   private func processHead(
     _ episodeID: Episode.ID,
     logContext: TranscriptionLogContext
-  ) async throws {
+  ) async throws -> HeadProcessingOutcome {
     let startedAt = continuousClockNow()
     let startLatch = AsyncLatch<Void>()
     let task = Task {
@@ -389,12 +397,12 @@ struct TranscriptionProcessor: Sendable {
         try await task.value
       } catch is CancellationError {
         try Task.checkCancellation()
-        return
+        return .advanced
       } catch {
         Self.log.caughtError("Discarded stale transcription task for \(episodeID)", error)
-        return
+        return .advanced
       }
-      return
+      return .advanced
     }
 
     Self.log.info(
@@ -438,7 +446,7 @@ struct TranscriptionProcessor: Sendable {
         )
         transcriptionQueue.clearProgress(for: episodeID)
         backgroundTaskScheduler.scheduleNext()
-        return
+        return .retained
       }
 
       if result.interruption == .none, !result.executionCancelled {
@@ -461,12 +469,12 @@ struct TranscriptionProcessor: Sendable {
           )
           transcriptionQueue.clearProgress(for: episodeID)
           backgroundTaskScheduler.scheduleNext()
-          return
+          return .retained
         }
         if transcriptionQueue.episodeIDs.isEmpty {
           backgroundTaskScheduler.scheduleNext()
         }
-        return
+        return .advanced
       }
 
       switch result.interruption {
@@ -502,7 +510,7 @@ struct TranscriptionProcessor: Sendable {
         if Task.isCancelled || result.interruption == .none {
           throw CancellationError()
         }
-        return
+        return .advanced
       }
     }
 
@@ -533,6 +541,7 @@ struct TranscriptionProcessor: Sendable {
     if transcriptionQueue.episodeIDs.isEmpty {
       backgroundTaskScheduler.scheduleNext()
     }
+    return .advanced
   }
 
   private func process(
