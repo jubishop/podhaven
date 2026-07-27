@@ -118,9 +118,13 @@ import SwiftUI
 
   func move(fromOffsets: IndexSet, toOffset: Int) {
     let current = transcriptionQueue.episodeIDs
-    guard current.count == episodes.count else {
+    let loadedEpisodeIDs = episodes.map(\.id)
+    guard current == loadedEpisodeIDs else {
       Self.log.error(
-        "Cannot drag \(episodes.count) loaded rows across \(current.count) queued episodes"
+        """
+        Cannot drag stale transcription queue rows; \
+        loadedEpisodes=\(loadedEpisodeIDs.count) queuedEpisodes=\(current.count)
+        """
       )
       return
     }
