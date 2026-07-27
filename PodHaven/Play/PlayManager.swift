@@ -21,6 +21,7 @@ extension Container {
 final class PlayManager {
   private enum LoadTransitionOutcome {
     case didNotLoad
+    case failed(Episode.ID)
     case succeeded
   }
 
@@ -188,7 +189,7 @@ final class PlayManager {
       } catch {
         await Task { [weak self] in
           guard let self else { return }
-          await finishLoadTransition(loadID, outcome: .didNotLoad)
+          await finishLoadTransition(loadID, outcome: .failed(podcastEpisode.id))
         }
         .value
         throw error
@@ -286,23 +287,27 @@ final class PlayManager {
       // Restore the outgoing episode immediately so a slow load does not leave
       // it represented by neither playback nor queue state until cleanup.
       if let outgoingEpisodeID {
-        phaseStart = Date()
+        let restoreStart = Date()
         Self.log.debug("performLoad: restoring outgoing episode to queue: \(outgoingDescription)")
-        do {
-          try await queue.unshift(outgoingEpisodeID)
-          Self.log.debug(
-            """
-            performLoad: restored outgoing episode to queue \
-            in \(Date().timeIntervalSince(phaseStart)) seconds
-              outgoing: \(outgoingDescription)
-            """
-          )
-        } catch {
-          Self.log.caughtError(
-            "performLoad: failed to unshift outgoing episode \(outgoingDescription)",
-            error
-          )
+        await Task { [weak self] in
+          guard let self else { return }
+          do {
+            try await self.queue.unshift(outgoingEpisodeID)
+            Self.log.debug(
+              """
+              performLoad: restored outgoing episode to queue \
+              in \(Date().timeIntervalSince(restoreStart)) seconds
+                outgoing: \(outgoingDescription)
+              """
+            )
+          } catch {
+            Self.log.caughtError(
+              "performLoad: failed to unshift outgoing episode \(outgoingDescription)",
+              error
+            )
+          }
         }
+        .value
       } else {
         Self.log.debug("performLoad: no outgoing episode to restore")
       }
@@ -439,10 +444,17 @@ final class PlayManager {
   ) async {
     guard let transition = loadTransition, transition.id == loadID else { return }
 
+    if case .failed(let episodeID) = outcome,
+      case .play(let pendingEpisodeID) = pendingPlaybackRequest,
+      pendingEpisodeID == episodeID
+    {
+      pendingPlaybackRequest = .none
+    }
+
     switch outcome {
     case .succeeded:
       loadTransition = nil
-    case .didNotLoad:
+    case .didNotLoad, .failed:
       switch transition.state {
       case .preservingPlayback:
         loadTransition = nil
@@ -743,13 +755,7 @@ final class PlayManager {
 
   // MARK: - Remote Scrub Suppression
 
-  // After an AirPods-triggered pause, fire snapshots every 5s for 45s so the
-  // dict state across the ~30s window before iOS's system-generated stale
-  // scrub is captured. If any snapshot shows ElapsedPlaybackTime drifting
-  // from what the pause handler wrote, iOS is rewriting the dict during that
-  // window. If the dict stays put but the scrub still arrives with a
-  // different value, iOS is sourcing the position from somewhere else
-  // entirely (mediaserverd theory). See memory/project_nowplaying_desync_bug.md.
+  // Snapshot Now Playing state after a pause to diagnose delayed system scrub commands.
   func startPostPauseObservation() {
     postPauseObservationTask?.cancel()
     postPauseObservationTask = Task { [weak self] in
@@ -936,24 +942,13 @@ final class PlayManager {
     }
     stateManager.setCurrentTime(currentTime)
 
-    // Periodically anchor iOS's lock-screen extrapolation. Apple's docs say
-    // explicit periodic updates are unnecessary, but incidents 1–5 in
-    // memory/project_nowplaying_desync_bug.md show iOS's extrapolation drifts
-    // backward during long background sessions. Writing every 3 seconds of
-    // playback-time delta caps worst-case dict staleness at ~3s. Event-driven
-    // writes (seek, play/pause, rate change) also flow through
-    // `NowPlayingInfo.setCurrentTime` directly and are unaffected by this gate.
+    // Periodically anchor lock-screen elapsed time because system extrapolation can drift.
     if abs(currentTime.seconds - (lastNowPlayingElapsedWrite ?? .zero).seconds) >= 3.0 {
       lastNowPlayingElapsedWrite = currentTime
       NowPlayingInfo.setCurrentTime(currentTime)
     }
 
-    // Every 30s wall-clock, snapshot both our AVPlayer view and iOS's dict
-    // view so the next stale-scrub incident has a trail of checkpoints
-    // covering the whole session. Tight post-pause resolution comes from
-    // `startPostPauseObservation` at 5s; during normal playback 30s keeps
-    // the daily log budget around ~250KB so 24h of retention stays within
-    // the 3MB log rotation. See memory/project_nowplaying_desync_bug.md.
+    // Snapshot player and lock-screen state periodically for background diagnostics.
     if let last = lastBackgroundSnapshot {
       let snapshotDelta = now.timeIntervalSince(last)
       if snapshotDelta >= 30 {

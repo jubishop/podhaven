@@ -409,10 +409,12 @@ import Testing
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     let originalSemaphore = await episodeAssetLoader.waitRespond(
-      to: originalEpisode.episode.mediaURL
+      to: originalEpisode.episode.mediaURL,
+      data: (true, .seconds(60))
     )
     let incomingSemaphore = await episodeAssetLoader.waitRespond(
-      to: incomingEpisode.episode.mediaURL
+      to: incomingEpisode.episode.mediaURL,
+      data: (true, .seconds(60))
     )
     let originalPlay = Task { try await playManager.play(originalEpisode) }
     defer {
@@ -687,6 +689,31 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
     #expect(sharedState.currentEpisodeID == podcastEpisode.id)
     try await PlayHelpers.waitForQueue([])
+  }
+
+  @Test("foreground restoration does not retry a terminal play failure")
+  func foregroundRestorationDoesNotRetryTerminalPlayFailure() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(podcastEpisode)
+    )
+    await #expect(throws: (any Error).self) {
+      try await playManager.play(podcastEpisode)
+    }
+    #expect(
+      await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL) == 1
+    )
+
+    await episodeAssetLoader.clearCustomHandler(for: podcastEpisode.episode)
+    await playManager.restorePersistedEpisodeForForeground()
+
+    #expect(
+      await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL) == 1
+    )
+    #expect(sharedState.onDeck == nil)
   }
 
   @Test("episode intent recovers its selected target after activation failure")

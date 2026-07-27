@@ -340,12 +340,8 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   // Seek and pause stay on `saveCurrentTime` — they don't represent content
   // the user actually heard, so the bitmap and `lastPlayedDate` shouldn't grow.
-  private func savePlaybackTick(_ currentTime: CMTime) async {
-    guard let episodeID else {
-      Self.log.debug("Saving tick on nil player item with CMTime: \(currentTime)")
-      return
-    }
-
+  private func savePlaybackTick(_ currentTime: CMTime, episodeID: Episode.ID) async {
+    guard self.episodeID == episodeID else { return }
     let playedFrom = lastDatabaseUpdateTime ?? currentTime
     do {
       try await repo.updatePlayback(
@@ -354,6 +350,7 @@ enum PodAVPlayerError: Error, LocalizedError {
         playedFrom: playedFrom,
         now: Date()
       )
+      guard self.episodeID == episodeID else { return }
       lastDatabaseUpdateTime = currentTime
       Self.log.trace(
         "savePlaybackTick: saved \(currentTime) (from \(playedFrom)) for \(episodeID)"
@@ -368,18 +365,16 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   // MARK: - Change Handlers
 
-  private func handleCurrentTimeChange(_ currentTime: CMTime) async {
-    guard let episodeID else {
-      Self.log.debug("Setting current time on nil player item with CMTime: \(currentTime)")
-      return
-    }
+  private func handleCurrentTimeChange(_ currentTime: CMTime, episodeID: Episode.ID) async {
+    guard self.episodeID == episodeID else { return }
 
     // `abs` guards against any future path that moves time backward without
     // routing through `seek(to:)` (which resets `lastDatabaseUpdateTime`).
     if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds)
       >= Double(Self.playbackTickSeconds)
     {
-      await savePlaybackTick(currentTime)
+      await savePlaybackTick(currentTime, episodeID: episodeID)
+      guard self.episodeID == episodeID else { return }
     }
 
     // Always yield to the stream for UI updates (250ms)
@@ -438,16 +433,17 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   private func addPeriodicTimeObserver() {
     guard periodicTimeObservation == nil else { return }
+    guard let episodeID else { return }
 
     Self.log.debug("addPeriodicTimeObserver: registering using player's internal queue")
     let observer = avPlayer.addPeriodicTimeObserver(
       forInterval: .milliseconds(250),
       queue: nil
-    ) { [weak self] currentTime in
+    ) { [weak self, episodeID] currentTime in
       guard let self else { return }
-      Task { [weak self, currentTime] in
+      Task { [weak self, currentTime, episodeID] in
         guard let self else { return }
-        await self.handleCurrentTimeChange(currentTime)
+        await self.handleCurrentTimeChange(currentTime, episodeID: episodeID)
       }
     }
     periodicTimeObservation = (observer, avPlayer)
