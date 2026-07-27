@@ -136,7 +136,7 @@ final class PlayManager {
   var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
   private var imageFetchTask: Task<Void, Never>?
   private var activeLoadID: UUID?
-  private var loadTask: Task<Bool, any Error>?
+  private(set) var loadTask: Task<Bool, any Error>?
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
@@ -356,6 +356,8 @@ final class PlayManager {
       }
 
       do {
+        try Task.checkCancellation()
+
         phaseStart = Date()
         Self.log.debug("performLoad: setting playback rate")
         await podAVPlayer.setRate(
@@ -364,6 +366,8 @@ final class PlayManager {
         Self.log.debug(
           "performLoad: set playback rate in \(Date().timeIntervalSince(phaseStart)) seconds"
         )
+
+        try Task.checkCancellation()
 
         phaseStart = Date()
         Self.log.debug("performLoad: loading player item")
@@ -374,6 +378,8 @@ final class PlayManager {
             loaded: \(loaded.toString)
           """
         )
+
+        try Task.checkCancellation()
 
         phaseStart = Date()
         Self.log.debug("performLoad: setting onDeck")

@@ -9,8 +9,11 @@ import Tagged
 
 // TODO: Make this a struct to avoid Task {
 struct FakeQueue: Sendable, FakeCallable, Queueing {
+  typealias BeforeUnshiftEpisode = @Sendable (Episode.ID) async throws -> Void
+
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
+  private let beforeUnshiftEpisodeHandler = ThreadSafe<BeforeUnshiftEpisode?>(nil)
 
   private let queue: any Queueing
 
@@ -72,6 +75,9 @@ struct FakeQueue: Sendable, FakeCallable, Queueing {
 
   func unshift(_ episodeID: Episode.ID) async throws {
     recordCall(methodName: "unshift", parameters: episodeID)
+    if let beforeUnshiftEpisode = beforeUnshiftEpisodeHandler() {
+      try await beforeUnshiftEpisode(episodeID)
+    }
     try await queue.unshift(episodeID)
   }
 
@@ -111,5 +117,11 @@ struct FakeQueue: Sendable, FakeCallable, Queueing {
       parameters: (podcastID: podcastID, incoming: incoming, limit: limit)
     )
     return try queue.limitPodcast(db, podcastID: podcastID, incoming: incoming, to: limit)
+  }
+
+  // MARK: - Test Control
+
+  func beforeUnshiftEpisode(_ handler: @escaping BeforeUnshiftEpisode) {
+    beforeUnshiftEpisodeHandler(handler)
   }
 }
