@@ -48,6 +48,14 @@ import Testing
     return SearchDiscoveryListViewModel(collector: collector, source: source)
   }
 
+  private func waitForQueuedEpisode(_ episodeID: Episode.ID) async -> [Episode.ID] {
+    for await episodeIDs in transcriptionQueue.$episodeIDs.stream()
+    where episodeIDs.contains(episodeID) {
+      return episodeIDs
+    }
+    return transcriptionQueue.episodeIDs
+  }
+
   // Saves a one-episode series whose episode carries the given mediaGUID, so
   // the DB row either matches a pick exactly (same feed) or collides with it
   // across feeds (same guid+mediaURL under a different podcast).
@@ -217,13 +225,8 @@ import Testing
 
     viewModel.transcribeSelectedEpisodes()
 
-    try await Wait.until(
-      { @MainActor in self.transcriptionQueue.episodeIDs.contains(canonicalEpisode.id) },
-      { @MainActor in
-        "Expected canonical episode to be queued; queue=\(self.transcriptionQueue.episodeIDs)"
-      }
-    )
-    #expect(transcriptionQueue.episodeIDs == [canonicalEpisode.id])
+    let queuedEpisodeIDs = await waitForQueuedEpisode(canonicalEpisode.id)
+    #expect(queuedEpisodeIDs == [canonicalEpisode.id])
   }
 
   @Test("bulk transcription revalidates canonical transcript state")
@@ -276,17 +279,8 @@ import Testing
 
     viewModel.transcribeSelectedEpisodes()
 
-    try await Wait.until(
-      {
-        @MainActor in
-        self.transcriptionQueue.episodeIDs.contains(eligibleEpisode.id)
-          && viewModel.collector.picks(for: viewModel.source).count < picks.count
-      },
-      { @MainActor in
-        "Expected eligible work and callback completion; queue=\(self.transcriptionQueue.episodeIDs), picks=\(viewModel.collector.picks(for: viewModel.source).map(\.id))"
-      }
-    )
-    #expect(transcriptionQueue.episodeIDs == [eligibleEpisode.id])
+    let queuedEpisodeIDs = await waitForQueuedEpisode(eligibleEpisode.id)
+    #expect(queuedEpisodeIDs == [eligibleEpisode.id])
     #expect(viewModel.collector.picks(for: viewModel.source).map(\.id) == [transcribedPick.id])
   }
 

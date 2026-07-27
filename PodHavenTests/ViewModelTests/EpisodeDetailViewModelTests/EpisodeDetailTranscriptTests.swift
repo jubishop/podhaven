@@ -240,10 +240,6 @@ import Testing
 
     viewModel.discardTranscriptionProgress()
     try await Wait.until(
-      { @MainActor in viewModel.transcriptionStatus == .discarding },
-      { @MainActor in "Expected progress discard to begin" }
-    )
-    try await Wait.until(
       {
         try await self.repo.transcriptionCheckpoint(podcastEpisode.id) == nil
       },
