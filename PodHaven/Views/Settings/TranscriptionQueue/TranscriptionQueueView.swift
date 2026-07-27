@@ -56,25 +56,38 @@ struct TranscriptionQueueView: View {
         queueRow(entry)
           .tag(entry.id)
           .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            if viewModel.canMoveToTop(entry.id) {
-              AppIcon.moveToTop.imageButton {
-                viewModel.moveToTop(entry.id)
-              }
-            }
-            if viewModel.canMoveToBottom(entry.id) {
-              AppIcon.moveToBottom.imageButton {
-                viewModel.moveToBottom(entry.id)
-              }
-            }
+            moveActions(for: entry.id)
           }
           .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            AppIcon.removeFromQueue.imageButton {
-              viewModel.remove(entry.id)
-            }
+            removeAction(for: entry.id)
+          }
+          .accessibilityActions {
+            moveActions(for: entry.id)
+            removeAction(for: entry.id)
           }
       }
       .onMove(perform: viewModel.move)
       .onDelete(perform: viewModel.remove)
+    }
+  }
+
+  @ViewBuilder
+  private func moveActions(for episodeID: Episode.ID) -> some View {
+    if viewModel.canMoveToTop(episodeID) {
+      AppIcon.moveToTop.labelButton {
+        viewModel.moveToTop(episodeID)
+      }
+    }
+    if viewModel.canMoveToBottom(episodeID) {
+      AppIcon.moveToBottom.labelButton {
+        viewModel.moveToBottom(episodeID)
+      }
+    }
+  }
+
+  private func removeAction(for episodeID: Episode.ID) -> some View {
+    AppIcon.removeFromQueue.labelButton {
+      viewModel.remove(episodeID)
     }
   }
 

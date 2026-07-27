@@ -48,6 +48,19 @@ import Testing
     #expect(viewModel.entries[2].progress == 0)
   }
 
+  @Test("queued checkpoint progress is announced as waiting")
+  func queuedCheckpointProgressIsAnnouncedAsWaiting() async throws {
+    let episode = try await Create.podcastEpisode()
+    let entry = TranscriptionQueueViewModel.Entry(
+      episode: episode,
+      progress: 0.25,
+      isActive: false
+    )
+
+    #expect(entry.statusText == "Waiting · 25%")
+    #expect(entry.accessibilityValue == "Waiting, 25 percent complete")
+  }
+
   @Test("an unreadable checkpoint does not fail queue loading")
   func unreadableCheckpointDoesNotFailQueueLoading() async throws {
     let episodes = try await makeEpisodes()

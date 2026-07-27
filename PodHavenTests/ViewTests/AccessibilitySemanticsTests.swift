@@ -202,6 +202,46 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
+    "transcription queue exposes row actions",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func transcriptionQueueExposesRowActions() async throws {
+    let titles = ["First Queue Action", "Middle Queue Action", "Last Queue Action"]
+    let queue = Container.shared.transcriptionQueue()
+    for title in titles {
+      let episode = try await Create.podcastEpisode(try Create.unsavedEpisode(title: title))
+      queue.enqueue(episode.id)
+    }
+
+    let window = try Self.makeWindow(
+      NavigationStack {
+        TranscriptionQueueView()
+      }
+    )
+    defer { window.isHidden = true }
+
+    try await Wait.until(
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains { $0.accessibilityLabel?.contains(titles[1]) == true }
+      },
+      { @MainActor in "Middle transcription queue row did not enter the accessibility tree" }
+    )
+
+    let row = try #require(
+      Self.accessibilityElements(in: window)
+        .first { $0.accessibilityLabel?.contains(titles[1]) == true }
+    )
+    let actions = Set(row.accessibilityCustomActions?.map(\.name) ?? [])
+    #expect(actions == ["Move to Top", "Move to Bottom", "Remove from Queue"])
+  }
+
+  @Test(
     "artwork overlays hide covered detail content",
     .enabled(
       if: supportsHostedAccessibilityInspection,

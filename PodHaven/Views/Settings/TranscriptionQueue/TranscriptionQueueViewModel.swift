@@ -33,20 +33,14 @@ import SwiftUI
       if isActive {
         return "Transcribing · \(percentage)%"
       }
-      if progress > 0 {
-        return "Paused · \(percentage)%"
-      }
-      return "Waiting · 0%"
+      return "Waiting · \(percentage)%"
     }
 
     var accessibilityValue: String {
       if isActive {
         return "Transcribing, \(percentage) percent"
       }
-      if progress > 0 {
-        return "Paused, \(percentage) percent complete"
-      }
-      return "Waiting, 0 percent complete"
+      return "Waiting, \(percentage) percent complete"
     }
   }
 
