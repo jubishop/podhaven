@@ -20,6 +20,7 @@ struct UnsavedSmartList: Identifiable, Savable {
   var filter: SmartListFilter
   var displayOrder: Int
   var sortMethod: SmartListSortMethod
+  var showUnreadBadge: Bool
   // When true the list always shows podcast artwork; when false it shows the
   // episode-specific artwork when one exists. Mirrors the per-Queue setting.
   var alwaysShowPodcastImage: Bool
@@ -35,6 +36,7 @@ struct UnsavedSmartList: Identifiable, Savable {
     filter: SmartListFilter,
     displayOrder: Int,
     sortMethod: SmartListSortMethod = .newestFirst,
+    showUnreadBadge: Bool = true,
     alwaysShowPodcastImage: Bool = false,
     icon: LucideIcon = .listMusic,
     lastSeenEpisodeId: Episode.ID = 0
@@ -47,6 +49,7 @@ struct UnsavedSmartList: Identifiable, Savable {
     self.filter = filter
     self.displayOrder = displayOrder
     self.sortMethod = sortMethod
+    self.showUnreadBadge = showUnreadBadge
     self.alwaysShowPodcastImage = alwaysShowPodcastImage
     self.icon = icon
     self.lastSeenEpisodeId = lastSeenEpisodeId
@@ -68,6 +71,7 @@ struct SmartList: Saved {
     static let filter = Column("filter")
     static let displayOrder = Column("displayOrder")
     static let sortMethod = Column("sortMethod")
+    static let showUnreadBadge = Column("showUnreadBadge")
     static let alwaysShowPodcastImage = Column("alwaysShowPodcastImage")
     static let icon = Column("icon")
     static let lastSeenEpisodeId = Column("lastSeenEpisodeId")
@@ -80,6 +84,7 @@ struct SmartList: Saved {
   var filter: SmartListFilter { unsaved.filter }
   var displayOrder: Int { unsaved.displayOrder }
   var sortMethod: SmartListSortMethod { unsaved.sortMethod }
+  var showUnreadBadge: Bool { unsaved.showUnreadBadge }
   var alwaysShowPodcastImage: Bool { unsaved.alwaysShowPodcastImage }
   var icon: LucideIcon { unsaved.icon }
   var lastSeenEpisodeId: Episode.ID { unsaved.lastSeenEpisodeId }

@@ -47,6 +47,7 @@ import Testing
         viewModel.smartListID,
         title: "Live Filter",
         filter: lovedOnly,
+        showUnreadBadge: true,
         alwaysShowPodcastImage: false,
         icon: .listMusic
       )
@@ -126,6 +127,7 @@ import Testing
         viewModel.smartListID,
         title: "After",
         filter: SmartListFilter(),
+        showUnreadBadge: true,
         alwaysShowPodcastImage: false,
         icon: .listMusic
       )
@@ -139,24 +141,30 @@ import Testing
     }
   }
 
-  @Test("an alwaysShowPodcastImage edit on the row updates the open list live")
-  func artworkEditPropagatesToOpenList() async throws {
-    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Artwork")
+  @Test("display preference edits on the row update the open list live")
+  func displayPreferenceEditsPropagateToOpenList() async throws {
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Display Preferences")
+    #expect(viewModel.showUnreadBadge)
     #expect(!viewModel.alwaysShowPodcastImage)
 
     try await withRunningObservationLoop(viewModel) {
       try await smartListRepo.update(
         viewModel.smartListID,
-        title: "Artwork",
+        title: "Display Preferences",
         filter: SmartListFilter(),
+        showUnreadBadge: false,
         alwaysShowPodcastImage: true,
         icon: .listMusic
       )
 
       try await Wait.until(
-        { @MainActor in viewModel.alwaysShowPodcastImage },
+        { @MainActor in !viewModel.showUnreadBadge && viewModel.alwaysShowPodcastImage },
         { @MainActor in
-          "Expected the row observation to deliver the artwork preference; got \(viewModel.alwaysShowPodcastImage)"
+          """
+          Expected the row observation to deliver both display preferences; got \
+          showUnreadBadge=\(viewModel.showUnreadBadge), \
+          alwaysShowPodcastImage=\(viewModel.alwaysShowPodcastImage)
+          """
         }
       )
     }

@@ -22,6 +22,7 @@ class SmartListEditorViewModel {
   var title: String
   var topGroup: EditableGroup
   var groups: [EditableGroup]
+  var showUnreadBadge: Bool
   var alwaysShowPodcastImage: Bool
   var icon: LucideIcon
 
@@ -29,6 +30,7 @@ class SmartListEditorViewModel {
     mode: Mode = .create,
     title: String = "",
     filter: SmartListFilter = SmartListFilter(),
+    showUnreadBadge: Bool = true,
     alwaysShowPodcastImage: Bool = false,
     icon: LucideIcon = .listMusic
   ) {
@@ -39,6 +41,7 @@ class SmartListEditorViewModel {
       conditions: filter.conditions.map(EditableCondition.init)
     )
     self.groups = filter.groups.map(EditableGroup.init)
+    self.showUnreadBadge = showUnreadBadge
     self.alwaysShowPodcastImage = alwaysShowPodcastImage
     self.icon = icon
   }
@@ -143,6 +146,7 @@ class SmartListEditorViewModel {
               title: trimmedTitle,
               filter: filter,
               displayOrder: (maxDisplayOrder ?? -1) + 1,
+              showUnreadBadge: showUnreadBadge,
               alwaysShowPodcastImage: alwaysShowPodcastImage,
               icon: icon
             )
@@ -152,6 +156,7 @@ class SmartListEditorViewModel {
             id,
             title: trimmedTitle,
             filter: filter,
+            showUnreadBadge: showUnreadBadge,
             alwaysShowPodcastImage: alwaysShowPodcastImage,
             icon: icon
           )

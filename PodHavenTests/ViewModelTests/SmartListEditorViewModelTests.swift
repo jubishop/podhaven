@@ -123,37 +123,43 @@ import Testing
     #expect(saved.filter.conditions == [.state(.isCached)])
   }
 
-  @Test("the artwork preference is persisted on create and edited onto the row")
-  func artworkPreferencePersists() async throws {
-    let createVM = SmartListEditorViewModel(mode: .create, title: "Podcast Art")
+  @Test("display preferences are persisted on create and edited onto the row")
+  func displayPreferencesPersist() async throws {
+    let createVM = SmartListEditorViewModel(mode: .create, title: "Display Preferences")
+    createVM.showUnreadBadge = false
     createVM.alwaysShowPodcastImage = true
     createVM.save()
 
     try await Wait.until(
-      { @MainActor in try await self.smartListRepo.fetchAll().contains { $0.title == "Podcast Art" }
+      {
+        @MainActor in
+        try await self.smartListRepo.fetchAll().contains { $0.title == "Display Preferences" }
       },
       { "Expected save to insert the new list" }
     )
     let created = try #require(
-      try await smartListRepo.fetchAll().first { $0.title == "Podcast Art" }
+      try await smartListRepo.fetchAll().first { $0.title == "Display Preferences" }
     )
+    #expect(!created.showUnreadBadge)
     #expect(created.alwaysShowPodcastImage)
 
     let editVM = SmartListEditorViewModel(
       mode: .edit(created.id),
       title: created.title,
       filter: created.filter,
+      showUnreadBadge: created.showUnreadBadge,
       alwaysShowPodcastImage: created.alwaysShowPodcastImage
     )
+    editVM.showUnreadBadge = true
     editVM.alwaysShowPodcastImage = false
     editVM.save()
 
     try await Wait.until(
       { @MainActor in
-        try await self.smartListRepo.fetchOne(created.id)?.alwaysShowPodcastImage
-          == false
+        guard let row = try await self.smartListRepo.fetchOne(created.id) else { return false }
+        return row.showUnreadBadge && !row.alwaysShowPodcastImage
       },
-      { "Expected the edit to clear the artwork preference" }
+      { "Expected the edit to update both display preferences" }
     )
   }
 

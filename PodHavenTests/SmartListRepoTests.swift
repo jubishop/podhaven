@@ -55,6 +55,7 @@ class SmartListRepoTests {
     let seeded = try await smartListRepo.fetchAll()
     #expect(seeded.map(\.title) == expected.map(\.title))
     #expect(seeded.map(\.filter) == expected.map(\.filter))
+    #expect(seeded.map(\.showUnreadBadge) == Array(repeating: true, count: seeded.count))
   }
 
   // MARK: - CRUD
@@ -70,6 +71,7 @@ class SmartListRepoTests {
     #expect(inserted.title == "Loved")
     #expect(inserted.filter == filter)
     #expect(inserted.sortMethod == .newestFirst)
+    #expect(inserted.showUnreadBadge)
 
     #expect(try await smartListRepo.fetchAll().map(\.id) == [inserted.id])
     #expect(try await smartListRepo.fetchOne(inserted.id)?.filter == filter)
@@ -83,6 +85,7 @@ class SmartListRepoTests {
         inserted.id,
         title: "Favorites",
         filter: newFilter,
+        showUnreadBadge: false,
         alwaysShowPodcastImage: true,
         icon: .star
       )
@@ -93,6 +96,7 @@ class SmartListRepoTests {
     #expect(updated.title == "Favorites")
     #expect(updated.filter == newFilter)
     #expect(updated.sortMethod == .longest)
+    #expect(!updated.showUnreadBadge)
     #expect(updated.alwaysShowPodcastImage)
     #expect(updated.icon == .star)
 
@@ -119,6 +123,7 @@ class SmartListRepoTests {
         list.id,
         title: "   ",
         filter: SmartListFilter(),
+        showUnreadBadge: true,
         alwaysShowPodcastImage: false,
         icon: .listMusic
       )
@@ -130,6 +135,7 @@ class SmartListRepoTests {
         list.id,
         title: "  Renamed  ",
         filter: SmartListFilter(),
+        showUnreadBadge: true,
         alwaysShowPodcastImage: false,
         icon: .listMusic
       )
@@ -187,6 +193,7 @@ class SmartListRepoTests {
       list.id,
       title: "B",
       filter: SmartListFilter(),
+      showUnreadBadge: true,
       alwaysShowPodcastImage: false,
       icon: .listMusic
     )
@@ -206,6 +213,7 @@ class SmartListRepoTests {
       list.id,
       title: "B",
       filter: SmartListFilter(),
+      showUnreadBadge: true,
       alwaysShowPodcastImage: false,
       icon: .listMusic
     )
@@ -365,12 +373,13 @@ class SmartListRepoTests {
     let movedMax = try await currentMaxEpisodeID()
     #expect(movedMax != initial)
 
-    // Same filter (title/artwork-only edit) keeps the watermark.
+    // Same filter (display-only edit) keeps the watermark.
     #expect(
       try await smartListRepo.update(
         list.id,
         title: "Renamed",
         filter: lovedFilter,
+        showUnreadBadge: false,
         alwaysShowPodcastImage: true,
         icon: .listMusic
       )
@@ -383,6 +392,7 @@ class SmartListRepoTests {
         list.id,
         title: "Renamed",
         filter: SmartListFilter(combinator: .all, conditions: [.state(.isLiked)]),
+        showUnreadBadge: false,
         alwaysShowPodcastImage: true,
         icon: .listMusic
       )
