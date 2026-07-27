@@ -24,10 +24,11 @@ final class PlayManager {
     case succeeded
   }
 
-  private enum LoadTransitionState {
+  private enum LoadTransitionState: Equatable {
     case preservingPlayback
     case ownsAudioSession
     case ownsPlaybackState
+    case establishedPlayback(Episode.ID)
   }
 
   private struct LoadTransition {
@@ -203,7 +204,6 @@ final class PlayManager {
 
     if let outgoing, outgoing.id == incoming.id {
       try requireLoadTransitionOwnership(loadID)
-      loadTransition?.state = .preservingPlayback
       Self.log.debug("performLoad: ignoring \(incoming.toString), already loaded")
       return false
     }
@@ -335,13 +335,13 @@ final class PlayManager {
 
       phaseStart = Date()
       Self.log.debug("performLoad: setting onDeck")
-      try await setOnDeck(loaded)
+      try await setOnDeck(loaded, loadID: loadID)
       guard try shouldFinishEstablishedLoad(loadID) else { return true }
       Self.log.debug("performLoad: set onDeck in \(Date().timeIntervalSince(phaseStart)) seconds")
 
       phaseStart = Date()
       Self.log.debug("performLoad: cleaning up after load success")
-      await cleanUpAfterLoadSuccess(outgoing, incoming)
+      await cleanUpAfterLoadSuccess(incoming.id)
       guard try shouldFinishEstablishedLoad(loadID) else { return true }
       Self.log.debug(
         """
@@ -374,21 +374,13 @@ final class PlayManager {
     }
   }
 
-  private func cleanUpAfterLoadSuccess(_ outgoing: OnDeck?, _ incoming: PodcastEpisode) async {
-    Self.log.debug(
-      """
-      cleanUpAfterLoadSuccess
-        outgoing: \(String(describing: outgoing?.toString))
-        incoming: \(incoming.toString)
-      """
-    )
-
-    Self.log.debug("cleanUpAfterLoadSuccess: dequeueing incoming episode: \(incoming.toString)")
+  private func cleanUpAfterLoadSuccess(_ episodeID: Episode.ID) async {
+    Self.log.debug("cleanUpAfterLoadSuccess: dequeueing episode \(episodeID)")
     do {
-      try await queue.dequeue(incoming.id)
+      try await queue.dequeue(episodeID)
     } catch {
       Self.log.caughtError(
-        "cleanUpAfterLoadSuccess: failed to dequeue incoming episode \(incoming.toString)",
+        "cleanUpAfterLoadSuccess: failed to dequeue episode \(episodeID)",
         error
       )
     }
@@ -473,6 +465,12 @@ final class PlayManager {
           return
         }
         setStatus(.stopped)
+        loadTransition = nil
+      case .establishedPlayback(let episodeID):
+        await cleanUpAfterLoadSuccess(episodeID)
+        guard loadTransition?.id == loadID else { return }
+        await podAVPlayer.addObservers()
+        guard loadTransition?.id == loadID else { return }
         loadTransition = nil
       }
     }
@@ -858,11 +856,13 @@ final class PlayManager {
 
   // MARK: - State Management
 
-  private func setOnDeck(_ podcastEpisode: PodcastEpisode) async throws {
+  private func setOnDeck(_ podcastEpisode: PodcastEpisode, loadID: UUID) async throws {
+    try requireLoadTransitionOwnership(loadID)
     Self.log.debug("setOnDeck: \(podcastEpisode.toString)")
 
     NowPlayingInfo.setOnDeck(podcastEpisode)
     stateManager.setOnDeck(podcastEpisode)
+    loadTransition?.state = .establishedPlayback(podcastEpisode.id)
     onDeckBecameCurrentAt = Date()
     CommandCenter.updateNextTrack()
     fetchImage(for: podcastEpisode)

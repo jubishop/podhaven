@@ -476,6 +476,67 @@ import Testing
     try await PlayHelpers.waitForQueue([originalEpisode])
   }
 
+  @Test("same episode handoff finishes established load observers")
+  func sameEpisodeHandoffFinishesEstablishedLoadObservers() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let fakeQueue = try #require(queue as? FakeQueue)
+    let dequeueStarted = AsyncSemaphore(value: 0)
+    let finishDequeue = AsyncSemaphore(value: 0)
+    fakeQueue.beforeNextDequeueEpisode { episodeID in
+      #expect(episodeID == podcastEpisode.id)
+      dequeueStarted.signal()
+      await finishDequeue.wait()
+    }
+
+    let originalPlay = Task { try await playManager.play(podcastEpisode) }
+    defer {
+      originalPlay.cancel()
+      finishDequeue.signal()
+    }
+    await dequeueStarted.wait()
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+
+    try await playManager.play(podcastEpisode)
+    finishDequeue.signal()
+    try await originalPlay.value
+
+    try await PlayHelpers.waitFor(.playing)
+  }
+
+  @Test("failed preflight preserves playback established by prior load")
+  func failedPreflightPreservesPlaybackEstablishedByPriorLoad() async throws {
+    await playManager.start()
+    let (establishedEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+    let fakeQueue = try #require(queue as? FakeQueue)
+    let dequeueStarted = AsyncSemaphore(value: 0)
+    let finishDequeue = AsyncSemaphore(value: 0)
+    fakeQueue.beforeNextDequeueEpisode { episodeID in
+      #expect(episodeID == establishedEpisode.id)
+      dequeueStarted.signal()
+      await finishDequeue.wait()
+    }
+
+    let establishedLoad = Task { try await playManager.load(establishedEpisode) }
+    defer {
+      establishedLoad.cancel()
+      finishDequeue.signal()
+    }
+    await dequeueStarted.wait()
+    try await PlayHelpers.waitForOnDeck(establishedEpisode)
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+    #expect(try await playManager.load(incomingEpisode) == false)
+    finishDequeue.signal()
+    #expect(try await establishedLoad.value == true)
+
+    try await PlayHelpers.waitForOnDeck(establishedEpisode)
+    try await PlayHelpers.waitForCurrentItem(establishedEpisode.episode.mediaURL)
+    try await PlayHelpers.waitFor(.paused)
+    try await PlayHelpers.waitForAudioActive(true)
+    try await PlayHelpers.waitForQueue([])
+  }
+
   @Test("audio session failure during load clears state and surfaces alert")
   func audioSessionFailureDuringLoadClearsStateAndSurfacesAlert() async throws {
     await playManager.start()
