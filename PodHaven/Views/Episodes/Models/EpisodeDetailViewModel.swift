@@ -325,8 +325,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
     lifecycle.runTask("playNow: \(state.toString)") { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
-      try await playManager.load(podcastEpisode)
-      await playManager.play()
+      try await playManager.play(podcastEpisode)
     }
   }
 
@@ -778,6 +777,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
 
   private func loadAndPlay(_ podcastEpisode: PodcastEpisode, seekTo seconds: Int) async throws {
     try await playManager.load(podcastEpisode)
+    guard sharedState.onDeck?.id == podcastEpisode.id else { return }
     await playManager.seek(to: CMTime.seconds(Double(seconds)))
     await playManager.play()
   }

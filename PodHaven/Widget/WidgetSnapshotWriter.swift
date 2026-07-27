@@ -50,12 +50,15 @@ final class WidgetSnapshotWriter: Sendable {
 
   func start() {
     startOnce.run {
+      let currentEpisodeIDChanges = sharedState.$currentEpisodeID.stream().dropFirst()
+
       Task(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
 
-        // PlayManager has already restored onDeck by the time we start.
-        // If nothing is playing, clear any stale snapshot from a prior session.
-        if sharedState.$onDeck.value == nil {
+        // A background audio-session activation can be deferred until the app
+        // foregrounds. Preserve the last snapshot while that episode is still
+        // persisted so the widget does not fall back to a loading state.
+        if sharedState.$onDeck.value == nil && sharedState.currentEpisodeID == nil {
           do {
             try fileManager.removeItem(at: WidgetInfo.nowPlayingSnapshotURL)
           } catch {
@@ -86,16 +89,17 @@ final class WidgetSnapshotWriter: Sendable {
             return !onDeck.widgetEquals(last)
           }
           if changed {
-            nowPlayingDebounce { [weak self] in
-              guard let self else { return }
-              await writeNowPlayingSnapshot()
-              reloadWidgets(kinds: [
-                WidgetInfo.nowPlayingKind,
-                WidgetInfo.lockScreenNowPlayingKind,
-                WidgetInfo.nowPlayingQueueKind,
-              ])
-            }
+            scheduleNowPlayingSnapshotWrite()
           }
+        }
+      }
+
+      Task(priority: taskPriority(.utility)) { [weak self] in
+        guard let self else { return }
+
+        for await currentEpisodeID in currentEpisodeIDChanges
+        where currentEpisodeID == nil && sharedState.onDeck == nil {
+          scheduleNowPlayingSnapshotWrite()
         }
       }
 
@@ -185,6 +189,18 @@ final class WidgetSnapshotWriter: Sendable {
 
   // Now-playing artwork: largest view is 80pt (systemMedium) at 3x = 240px.
   private let maxNowPlayingArtworkPixels: CGFloat = 240
+
+  private func scheduleNowPlayingSnapshotWrite() {
+    nowPlayingDebounce { [weak self] in
+      guard let self else { return }
+      await writeNowPlayingSnapshot()
+      reloadWidgets(kinds: [
+        WidgetInfo.nowPlayingKind,
+        WidgetInfo.lockScreenNowPlayingKind,
+        WidgetInfo.nowPlayingQueueKind,
+      ])
+    }
+  }
 
   private func writeNowPlayingSnapshot() async {
     let nowPlaying: NowPlayingSnapshot.NowPlaying? =

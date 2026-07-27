@@ -34,8 +34,7 @@ struct PlayEpisodeIntent: AudioPlaybackIntent {
         Self.log.warning("perform: episode \(id) not found")
         return .result()
       }
-      try await playManager.load(podcastEpisode)
-      await playManager.play()
+      try await playManager.play(podcastEpisode)
     } catch {
       Self.log.caughtError("perform: failed for episode \(id)", error)
     }

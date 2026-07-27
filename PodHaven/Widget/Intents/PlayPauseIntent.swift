@@ -23,10 +23,14 @@ struct PlayPauseIntent: SetValueIntent, AudioPlaybackIntent {
     await appLauncher.prepareForPlayback()
 
     let playManager = Container.shared.playManager()
+    let sharedState = Container.shared.sharedState()
     let widgetState = Container.shared.widgetState()
     if value {
       widgetState.playbackStatus = .playing
       await playManager.play()
+      if sharedState.onDeck == nil {
+        widgetState.playbackStatus = sharedState.playbackStatus
+      }
     } else {
       widgetState.playbackStatus = .paused
       await playManager.pause()

@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import FactoryKit
 import Logging
 import Tagged
 
@@ -42,10 +43,12 @@ extension PlayManager {
         Self.log.info(
           "handlePlaybackFailure: attempting auto-recovery for \(podcastEpisode.toString)"
         )
-        try await load(podcastEpisode)
-        await play()
-        Self.log.info("handlePlaybackFailure: auto-recovery succeeded")
-        return
+        if try await load(podcastEpisode) {
+          await play()
+          Self.log.info("handlePlaybackFailure: auto-recovery succeeded")
+          return
+        }
+        Self.log.warning("handlePlaybackFailure: auto-recovery load remained deferred")
       } catch {
         Self.log.caughtError(
           "handlePlaybackFailure: auto-recovery failed",
@@ -70,6 +73,25 @@ extension PlayManager {
     }
 
     await alert("Playback failed unexpectedly. The episode has been returned to your queue.")
+  }
+
+  func activateAudioSessionForLoad() throws -> Bool {
+    do {
+      try Container.shared.setAudioSessionActive()(true)
+      return true
+    } catch {
+      let nsError = error as NSError
+      guard nsError.domain == NSOSStatusErrorDomain,
+        nsError.code == AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue
+      else {
+        throw error
+      }
+
+      Self.log.info(
+        "performLoad: audio session activation deferred because another session owns audio"
+      )
+      return false
+    }
   }
 
   private func logFailureDiagnostics(_ episodeID: Episode.ID) async {
