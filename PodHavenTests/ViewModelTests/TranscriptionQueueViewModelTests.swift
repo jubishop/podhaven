@@ -119,8 +119,8 @@ import Testing
     #expect(viewModel.entries.map(\.progress) == [0.25, 0, 0.75])
   }
 
-  @Test("stale hydration cannot overwrite a newer queue order")
-  func staleHydrationCannotOverwriteNewerQueueOrder() async throws {
+  @Test("stale hydration cannot overwrite newer queue membership")
+  func staleHydrationCannotOverwriteNewerQueueMembership() async throws {
     let episodes = try await makeEpisodes()
     for episode in episodes {
       transcriptionQueue.enqueue(episode.id)
@@ -140,11 +140,11 @@ import Testing
     )
 
     fakeRepo.pendingPodcastEpisodesFetchSuspend(true)
-    viewModel.moveToBottom(episodes[0].id)
+    transcriptionQueue.remove(episodes[2].id)
     try await fakeRepo.waitForPodcastEpisodesFetchSuspended()
 
-    viewModel.moveToTop(episodes[0].id)
-    #expect(transcriptionQueue.episodeIDs == episodeIDs)
+    transcriptionQueue.remove(episodes[1].id)
+    #expect(transcriptionQueue.episodeIDs == [episodes[0].id])
     #expect(viewModel.entries.map(\.id) == episodeIDs)
 
     fakeRepo.pendingPodcastEpisodesFetchSuspend(true)
@@ -153,6 +153,54 @@ import Testing
 
     #expect(viewModel.entries.map(\.id) == episodeIDs)
     await fakeRepo.resumeAllPodcastEpisodesFetchSuspensions()
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == [episodes[0].id] },
+      { @MainActor in "Expected latest queue membership" }
+    )
+  }
+
+  @Test("order-only queue changes reuse loaded rows without another fetch")
+  func orderOnlyQueueChangesReuseLoadedRows() async throws {
+    let episodes = try await makeEpisodes()
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [],
+      audioTime: 900,
+      duration: 3600,
+      locale: TranscriptionAvailability.locale.identifier(.bcp47),
+      audioSHA256: String(repeating: "c", count: 64)
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: episodes[1].id)
+    for episode in episodes {
+      transcriptionQueue.enqueue(episode.id)
+    }
+    transcriptionQueue.setProgress(0.42, for: episodes[0].id)
+
+    let fakeRepo = try #require(repo as? FakeRepo)
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer {
+      fakeRepo.pendingPodcastEpisodesFetchSuspend(false)
+      executeTask.cancel()
+      Task { await fakeRepo.resumeAllPodcastEpisodesFetchSuspensions() }
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodes.map(\.id) },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    fakeRepo.pendingPodcastEpisodesFetchSuspend(true)
+    let reorderedEpisodeIDs = [episodes[2].id, episodes[0].id, episodes[1].id]
+    #expect(transcriptionQueue.reorder(reorderedEpisodeIDs))
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == reorderedEpisodeIDs },
+      { @MainActor in "Order-only queue change started another episode fetch" }
+    )
+
+    #expect(fakeRepo.suspendedPodcastEpisodesFetchCount() == 0)
+    #expect(viewModel.entries.map(\.progress) == [0, 0.42, 0.25])
   }
 
   @Test("moves a multi-selection while preserving its queue order")

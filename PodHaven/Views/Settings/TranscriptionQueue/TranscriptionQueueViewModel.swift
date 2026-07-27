@@ -191,6 +191,20 @@ import SwiftUI
   private func observeEpisodeIDs() async {
     for await episodeIDs in transcriptionQueue.$episodeIDs.stream() {
       guard !Task.isCancelled else { return }
+      if loadingState == .loaded {
+        let loadedEpisodeIDs = episodes.map(\.id)
+        if loadedEpisodeIDs == episodeIDs {
+          continue
+        }
+
+        let episodesByID = Dictionary(uniqueKeysWithValues: episodes.map { ($0.id, $0) })
+        if episodesByID.count == episodeIDs.count,
+          episodeIDs.allSatisfy({ episodesByID[$0] != nil })
+        {
+          episodes = episodeIDs.compactMap { episodesByID[$0] }
+          continue
+        }
+      }
       await load(episodeIDs)
     }
   }
