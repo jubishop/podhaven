@@ -16,43 +16,42 @@ struct V73MigrationTests {
     try #require(Container.shared.standardDefaults() as? FakeKeyValueStore)
   }
 
-  @Test("v73 removes the legacy key only after the queue import commits")
-  func removesLegacyKeyAfterImport() async throws {
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v71")
+  private func prepareFixture(episodeCount: Int = 3) async throws {
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v72")
     try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
           INSERT INTO podcast (
             id, feedURL, title, image, description
           ) VALUES (
-            900, 'https://example.com/v73.xml', 'Queue Cleanup',
+            900, 'https://example.com/v73.xml', 'Queue Migration',
             'https://example.com/v73.jpg', 'Description'
           )
           """
       )
-      try db.execute(
-        sql: """
-          INSERT INTO episode (
-            id, podcastId, guid, mediaURL, title, pubDate
-          ) VALUES (
-            1000, 900, 'v73', 'https://example.com/v73.mp3',
-            'Episode', '2026-01-01 00:00:00'
-          )
-          """
-      )
+      for index in 0..<episodeCount {
+        let episodeID = 1_000 + index
+        try db.execute(
+          sql: """
+            INSERT INTO episode (
+              id, podcastId, guid, mediaURL, title, pubDate
+            ) VALUES (
+              ?, 900, ?, ?, ?, '2026-01-01 00:00:00'
+            )
+            """,
+          arguments: [
+            episodeID,
+            "v73-\(index)",
+            "https://example.com/v73-\(index).mp3",
+            "Episode \(index)",
+          ]
+        )
+      }
     }
-    let defaults = try defaults()
-    defaults.set(
-      try JSONEncoder().encode([Int64(1_000)]),
-      forKey: "transcriptionQueue"
-    )
+  }
 
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v72")
-    #expect(defaults.data(forKey: "transcriptionQueue") != nil)
-
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v73")
-    #expect(defaults.data(forKey: "transcriptionQueue") == nil)
-    let queuedEpisodeIDs = try await appDB.unsafeTestDB.read { db in
+  private func queuedEpisodeIDs() async throws -> [Int64] {
+    try await appDB.unsafeTestDB.read { db in
       try Int64.fetchAll(
         db,
         sql: """
@@ -62,19 +61,64 @@ struct V73MigrationTests {
           """
       )
     }
-    #expect(queuedEpisodeIDs == [1_000])
   }
 
-  @Test("v73 cleans up malformed legacy data after v72 safely commits")
-  func removesMalformedLegacyKey() throws {
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v71")
+  @Test("v73 imports first-seen valid IDs while preserving the legacy key")
+  func importsQueueInFirstSeenOrder() async throws {
+    try await prepareFixture()
+    let defaults = try defaults()
+    defaults.set(
+      try JSONEncoder().encode([Int64(1_002), 1_000, 1_002, 9_999, 1_001]),
+      forKey: "transcriptionQueue"
+    )
+
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v73")
+
+    #expect(try await queuedEpisodeIDs() == [1_002, 1_000, 1_001])
+    #expect(defaults.data(forKey: "transcriptionQueue") != nil)
+  }
+
+  @Test("v73 tolerates malformed legacy data")
+  func toleratesMalformedQueueData() async throws {
+    try await prepareFixture()
     let defaults = try defaults()
     defaults.set(Data("not-json".utf8), forKey: "transcriptionQueue")
 
-    try migrator.migrate(appDB.unsafeTestDB, upTo: "v72")
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v73")
+
+    #expect(try await queuedEpisodeIDs().isEmpty)
     #expect(defaults.data(forKey: "transcriptionQueue") != nil)
+  }
+
+  @Test("v73 preserves oversized legacy queues")
+  func preservesOversizedQueue() async throws {
+    try await prepareFixture(episodeCount: 101)
+    let defaults = try defaults()
+    let episodeIDs = (0..<101).map { Int64(1_000 + $0) }
+    defaults.set(
+      try JSONEncoder().encode(episodeIDs),
+      forKey: "transcriptionQueue"
+    )
 
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v73")
-    #expect(defaults.data(forKey: "transcriptionQueue") == nil)
+
+    #expect(try await queuedEpisodeIDs() == episodeIDs)
+  }
+
+  @Test("v73 queue rows cascade when episodes are deleted")
+  func queueRowsCascade() async throws {
+    try await prepareFixture()
+    let defaults = try defaults()
+    defaults.set(
+      try JSONEncoder().encode([Int64(1_000), 1_001]),
+      forKey: "transcriptionQueue"
+    )
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v73")
+
+    try await appDB.unsafeTestDB.write { db in
+      try db.execute(sql: "DELETE FROM episode WHERE id = 1000")
+    }
+
+    #expect(try await queuedEpisodeIDs() == [1_001])
   }
 }

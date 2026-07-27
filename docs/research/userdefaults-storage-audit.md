@@ -158,9 +158,9 @@ in-memory projection loads once and updates incrementally, so each routine
 removal deletes only its row rather than rereading or republishing the
 remaining table.
 
-Migration v72 imports first-seen valid legacy IDs, filters duplicates and
-missing episodes, and tolerates malformed data. Migration v73 removes the
-legacy defaults key only after v72's transaction has committed, so a failed
+Migration v73 imports first-seen valid legacy IDs, filters duplicates and
+missing episodes, and tolerates malformed data. Migration v74 removes the
+legacy defaults key only after v73's transaction has committed, so a failed
 import remains retryable. Normal queue operation never accesses that key.
 
 ### Session-only state
@@ -190,7 +190,7 @@ direct access is intentional:
 | v54 and v55 | Immutable historical episode-list sort migration into GRDB |
 | v63 | Immutable historical Search display-key cleanup |
 | v71 | Obsolete navigation cleanup and legacy raw-string normalization |
-| v72 and v73 | Immutable transcription-queue import followed by post-commit legacy-key cleanup |
+| v73 and v74 | Immutable transcription-queue import followed by post-commit legacy-key cleanup |
 
 The audit found two obsolete navigation keys left after navigation restoration
 was removed: `navigationEpisodesTopDestination` and

@@ -65,13 +65,14 @@ struct SmartListRepo: Sendable {
     }
   }
 
-  // Title, filter, and artwork preference land in one transaction so a save
+  // Title, filter, and display preferences land in one transaction so a save
   // can't half-apply.
   @discardableResult
   func update(
     _ id: SmartList.ID,
     title: String,
     filter: SmartListFilter,
+    showUnreadBadge: Bool,
     alwaysShowPodcastImage: Bool,
     icon: LucideIcon
   ) async throws -> Bool {
@@ -88,8 +89,8 @@ struct SmartListRepo: Sendable {
 
     return try await writer.write { db in
       // A changed filter redefines membership, so its badge starts over: stamp
-      // the watermark to "now" alongside the edit. Title/artwork-only edits keep
-      // the existing watermark so the badge survives a rename.
+      // the watermark to "now" alongside the edit. Display-only edits keep the
+      // existing watermark so re-enabling a badge preserves its unread count.
       let existingFilter =
         try SmartList
         .withID(id)
@@ -99,6 +100,7 @@ struct SmartListRepo: Sendable {
       var assignments: [ColumnAssignment] = [
         SmartList.Columns.title.set(to: trimmed),
         SmartList.Columns.filter.set(to: filter.databaseValue),
+        SmartList.Columns.showUnreadBadge.set(to: showUnreadBadge),
         SmartList.Columns.alwaysShowPodcastImage.set(to: alwaysShowPodcastImage),
         SmartList.Columns.icon.set(to: icon.databaseValue),
       ]
