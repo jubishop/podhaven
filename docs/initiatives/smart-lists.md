@@ -195,6 +195,7 @@ struct UnsavedSmartList: Identifiable, Savable {
   var filter: SmartListFilter
   var displayOrder: Int
   var sortMethod: SmartListSortMethod
+  var showUnreadBadge: Bool = true
 
   var toString: String { title }
   var searchableString: String { title }
@@ -208,6 +209,7 @@ struct SmartList: Saved {
     static let filter = Column("filter")
     static let displayOrder = Column("displayOrder")
     static let sortMethod = Column("sortMethod")
+    static let showUnreadBadge = Column("showUnreadBadge")
     static let creationDate = Column("creationDate")
   }
 
@@ -216,6 +218,7 @@ struct SmartList: Saved {
   var filter: SmartListFilter { unsaved.filter }
   var displayOrder: Int { unsaved.displayOrder }
   var sortMethod: SmartListSortMethod { unsaved.sortMethod }
+  var showUnreadBadge: Bool { unsaved.showUnreadBadge }
 }
 ```
 
