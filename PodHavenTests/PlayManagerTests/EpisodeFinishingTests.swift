@@ -185,6 +185,26 @@ import Testing
     try await PlayHelpers.waitForQueue([nextEpisode])
   }
 
+  @Test("next episode activation error stops playback and preserves the queue")
+  func nextEpisodeActivationErrorStopsPlaybackAndPreservesQueue() async throws {
+    await playManager.start()
+    let (currentEpisode, nextEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await queue.unshift(nextEpisode.id)
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+    try await PlayHelpers.waitForAudioActive(true)
+
+    audioSession.activationError { $0 = TestError.simulatedFailure }
+    await playManager.finishEpisode(currentEpisode.id)
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForAudioActive(false)
+    try await PlayHelpers.waitForOnDeck(nil)
+    try await PlayHelpers.waitForNoCurrentItem()
+    try await PlayHelpers.waitForQueue([nextEpisode])
+  }
+
   @Test("finishEpisode stops playback if no next episode exists")
   func finishEpisodeStopsPlaybackIfNoNextEpisodeExists() async throws {
     await playManager.start()
