@@ -573,6 +573,7 @@ final class PlayManager {
     let finalizationID =
       episodeID == onDeckID && loadTransition == nil ? claimLoadTransition() : nil
     loadTransition?.finishedIDs.insert(episodeID)
+    if episodeID == onDeckID { loadTransition?.state = .ownsPlaybackState }
     do {
       try await repo.markFinished(episodeID)
     } catch {
@@ -586,7 +587,6 @@ final class PlayManager {
     do {
       try requireLoadTransitionOwnership(finalizationID)
       suppressRemoteScrubCommands()
-      loadTransition?.state = .ownsPlaybackState
       try await clearOnDeck(ownedBy: finalizationID)
       if sharedState.stopAfterCurrentEpisode {
         Self.log.debug("finishEpisode: stopAfterCurrentEpisode set, stopping instead of advancing")

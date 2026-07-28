@@ -240,6 +240,42 @@ import Testing
     #expect(try await queue.nextEpisode == nil)
   }
 
+  @Test("failed newer preflight clears finished outgoing episode")
+  func failedNewerPreflightClearsFinishedOutgoingEpisode() async throws {
+    await playManager.start()
+    let (currentEpisode, selectedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    let configurationStarted = AsyncSemaphore(value: 0)
+    let finishConfiguration = AsyncSemaphore(value: 0)
+    Container.shared.configureAudioSession.context(.test) {
+      {
+        configurationStarted.signal()
+        await finishConfiguration.wait()
+        return false
+      }
+    }
+    Container.shared.configureAudioSession.reset(.scope)
+
+    let selectedPlay = Task { try await playManager.play(selectedEpisode) }
+    defer {
+      selectedPlay.cancel()
+      finishConfiguration.signal()
+    }
+    await configurationStarted.wait()
+
+    await playManager.finishEpisode(currentEpisode.id)
+    finishConfiguration.signal()
+    try await selectedPlay.value
+
+    #expect(sharedState.onDeck == nil)
+    #expect(sharedState.currentEpisodeID == nil)
+    #expect(sharedState.playbackStatus == .stopped)
+    #expect(try await queue.nextEpisode == nil)
+  }
+
   @Test("finalization during outgoing restoration leaves finished episode out of queue")
   func finalizationDuringOutgoingRestorationLeavesFinishedEpisodeOutOfQueue() async throws {
     await playManager.start()
