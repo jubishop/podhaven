@@ -246,8 +246,9 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
   // Swap to cached version if available. Returns whether a swap occurred.
   // Note: We don't bother throwing here, just return false for any failure.
   @discardableResult
-  private func swapToCached() async -> Bool {
-    guard !playingFromCache, let episodeID else { return false }
+  private func swapToCached(from source: PodAVPlayerEventSource) async -> Bool {
+    guard isCurrent(source), !playingFromCache else { return false }
+    let episodeID = source.episodeID
 
     let podcastEpisode: PodcastEpisode
     do {
@@ -260,7 +261,10 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
       )
       return false
     }
-    guard self.episodeID == episodeID else { return false }
+    guard isCurrent(source) else {
+      Self.log.debug("swapToCached: source retired while fetching episode \(episodeID)")
+      return false
+    }
 
     guard podcastEpisode.episode.cachedURL != nil else { return false }
 
@@ -274,7 +278,10 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
       )
       return false
     }
-    guard self.episodeID == episodeID else { return false }
+    guard isCurrent(source) else {
+      Self.log.debug("swapToCached: source retired while loading cached item for \(episodeID)")
+      return false
+    }
 
     removeObservers()
     bind(playableItem, to: episodeID)
@@ -332,7 +339,8 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
       return
     }
 
-    await swapToCached()
+    guard let seekingSource = eventSource else { return }
+    await swapToCached(from: seekingSource)
     guard episodeID == seekingEpisodeID else { return }
     guard let eventSource else { return }
 
@@ -515,7 +523,7 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
             """
           )
           let currentTime = avPlayer.currentTime()
-          if await swapToCached() {
+          if await swapToCached(from: eventSource) {
             avPlayer.seek(to: currentTime)
           }
         }

@@ -168,6 +168,92 @@ import Testing
     #expect(sharedState.onDeck?.id == incomingEpisode.id)
   }
 
+  @Test("newer seek owns overlapping same-episode cache swap")
+  func newerSeekOwnsOverlappingSameEpisodeCacheSwap() async throws {
+    try await LogCapture.withSink { sink in
+      await playManager.start()
+      let podcastEpisode = try await Create.podcastEpisode()
+      let originalTime = CMTime.seconds(20)
+      let soughtTime = CMTime.seconds(50)
+
+      try await playManager.load(podcastEpisode)
+      try await PlayHelpers.play()
+      avPlayer.advanceTime(to: originalTime)
+      try await PlayHelpers.waitFor(originalTime)
+      try await repo.updateCachedFilename(
+        podcastEpisode.id,
+        cachedFilename: "cached-overlapping-swap.mp3"
+      )
+      let updatedEpisode = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+      let cachedURL = try #require(updatedEpisode.episode.cachedURL)
+
+      let cachedLoadCount = ThreadSafe(0)
+      let firstLoadStarted = AsyncSemaphore(value: 0)
+      let secondLoadStarted = AsyncSemaphore(value: 0)
+      let finishFirstLoad = AsyncSemaphore(value: 0)
+      let finishSecondLoad = AsyncSemaphore(value: 0)
+      await episodeAssetLoader.respond(to: cachedURL) { _ in
+        let loadNumber = cachedLoadCount { count in
+          count += 1
+          return count
+        }
+        if loadNumber == 1 {
+          firstLoadStarted.signal()
+          await finishFirstLoad.wait()
+        } else {
+          secondLoadStarted.signal()
+          await finishSecondLoad.wait()
+        }
+        return (true, .seconds(60))
+      }
+
+      let seekTimes = ThreadSafe<[CMTime]>([])
+      avPlayer.seekHandler = { time in
+        seekTimes { $0.append(time) }
+        return true
+      }
+
+      avPlayer.waitingToPlay()
+      await firstLoadStarted.wait()
+      let seekTask = Task { await playManager.seek(to: soughtTime) }
+      defer {
+        seekTask.cancel()
+        finishFirstLoad.signal()
+        finishSecondLoad.signal()
+      }
+      await secondLoadStarted.wait()
+
+      finishSecondLoad.signal()
+      await seekTask.value
+      try await Wait.until(
+        { @MainActor in avPlayer.currentTimeValue == soughtTime },
+        { @MainActor in
+          "Expected newer seek at \(soughtTime), got \(avPlayer.currentTimeValue)"
+        }
+      )
+      let soughtItem = try #require(avPlayer.current as? FakeAVPlayerItem)
+
+      finishFirstLoad.signal()
+      try await Wait.until(
+        {
+          let swapLogs = sink.captured()
+            .filter {
+              $0.label == "Play/avPlayer" && $0.message.contains("swapToCached:")
+            }
+          let staleSourceRejected = swapLogs.contains {
+            $0.message.contains("source retired")
+          }
+          return swapLogs.count >= 2 && (staleSourceRejected || seekTimes().count >= 2)
+        },
+        { "Expected both overlapping swaps to finish" }
+      )
+
+      #expect((avPlayer.current as? FakeAVPlayerItem) === soughtItem)
+      #expect(avPlayer.currentTimeValue == soughtTime)
+      #expect(seekTimes() == [soughtTime])
+    }
+  }
+
   @Test("seek completion cannot save time to a newer episode")
   func seekCompletionCannotSaveTimeToNewerEpisode() async throws {
     await playManager.start()
