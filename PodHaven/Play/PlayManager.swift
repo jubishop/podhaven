@@ -32,9 +32,11 @@ final class PlayManager {
     case establishedPlayback(Episode.ID)
   }
 
-  private struct LoadTransition {
-    let id: UUID
-    var state: LoadTransitionState
+  private final class LoadTransition {
+    var id: UUID
+    var state = LoadTransitionState.preservingPlayback
+    var finishedIDs: Set<Episode.ID> = []
+    init(id: UUID) { self.id = id }
   }
 
   private enum PendingPlaybackRequest {
@@ -56,6 +58,7 @@ final class PlayManager {
 
   var alert: Alert { get async { await Container.shared.alert() } }
   var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
+  private var settledOnDeckID: Episode.ID? { loadTransition == nil ? sharedState.onDeck?.id : nil }
 
   nonisolated static let log = Log.as(LogSubsystem.Play.manager)
 
@@ -199,13 +202,14 @@ final class PlayManager {
 
   private func claimLoadTransition() -> UUID {
     let loadID = UUID()
-    let inheritedState = loadTransition?.state ?? .preservingPlayback
-    loadTransition = LoadTransition(id: loadID, state: inheritedState)
+    loadTransition = loadTransition ?? .init(id: loadID)
+    loadTransition?.id = loadID
     loadTask?.cancel()
     return loadID
   }
 
   private func performLoad(_ incoming: PodcastEpisode, loadID: UUID) async throws -> Bool {
+    let transition = loadTransition
     let outgoing = sharedState.onDeck
 
     if let outgoing, outgoing.id == incoming.id {
@@ -289,21 +293,19 @@ final class PlayManager {
         "performLoad: cleared onDeck in \(Date().timeIntervalSince(phaseStart)) seconds"
       )
 
-      // Restore the outgoing episode immediately so a slow load does not leave
-      // it represented by neither playback nor queue state until cleanup.
-      if let outgoingEpisodeID {
+      if let outgoingEpisodeID, transition?.finishedIDs.contains(outgoingEpisodeID) != true {
         let restoreStart = Date()
         Self.log.debug("performLoad: restoring outgoing episode to queue: \(outgoingDescription)")
-        await Task { [weak self] in
+        await Task { [weak self, transition] in
           guard let self else { return }
           do {
             try await self.queue.unshift(outgoingEpisodeID)
+            if transition?.finishedIDs.contains(outgoingEpisodeID) == true {
+              await self.cleanUpAfterLoadSuccess(outgoingEpisodeID)
+              return
+            }
             Self.log.debug(
-              """
-              performLoad: restored outgoing episode to queue \
-              in \(Date().timeIntervalSince(restoreStart)) seconds
-                outgoing: \(outgoingDescription)
-              """
+              "performLoad: restored outgoing episode in \(Date().timeIntervalSince(restoreStart)) seconds: \(outgoingDescription)"
             )
           } catch {
             Self.log.caughtError(
@@ -314,7 +316,7 @@ final class PlayManager {
         }
         .value
       } else {
-        Self.log.debug("performLoad: no outgoing episode to restore")
+        Self.log.debug("performLoad: no unfinished outgoing episode to restore")
       }
 
       try requireLoadTransitionOwnership(loadID)
@@ -568,15 +570,19 @@ final class PlayManager {
     let episodeID = episodeID ?? onDeckID
     guard let episodeID else { return }
     Self.log.debug("finishEpisode: \(episodeID) (onDeckID: \(String(describing: onDeckID)))")
-    let finalizationID = episodeID == onDeckID ? claimLoadTransition() : nil
-
+    let finalizationID =
+      episodeID == onDeckID && loadTransition == nil ? claimLoadTransition() : nil
+    loadTransition?.finishedIDs.insert(episodeID)
     do {
       try await repo.markFinished(episodeID)
     } catch {
       Self.log.caughtError("finishEpisode: failed to mark episode \(episodeID) finished", error)
     }
 
-    guard let finalizationID else { return }
+    guard let finalizationID else {
+      await cleanUpAfterLoadSuccess(episodeID)
+      return
+    }
     do {
       try requireLoadTransitionOwnership(finalizationID)
       suppressRemoteScrubCommands()
@@ -594,10 +600,7 @@ final class PlayManager {
       try requireLoadTransitionOwnership(finalizationID)
       if let nextEpisode {
         Self.log.debug("next episode exists to automatically load: \(nextEpisode.toString)")
-        guard try await load(nextEpisode) else {
-          setStatus(.stopped)
-          return
-        }
+        guard try await load(nextEpisode), settledOnDeckID == nextEpisode.id else { return }
         await play()
         return
       }
@@ -606,10 +609,7 @@ final class PlayManager {
       try requireLoadTransitionOwnership(finalizationID)
       if let recommended {
         Self.log.debug("autoloading queue-empty recommendation: \(recommended.toString)")
-        guard try await load(recommended) else {
-          setStatus(.stopped)
-          return
-        }
+        guard try await load(recommended), settledOnDeckID == recommended.id else { return }
         await play()
         return
       }

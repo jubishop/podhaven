@@ -200,6 +200,97 @@ import Testing
 
     try await PlayHelpers.waitForOnDeck(selectedEpisode)
     try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
+    #expect(try await queue.nextEpisode == nil)
+  }
+
+  @Test("finalization yields to a newer load already in preflight")
+  func finalizationYieldsToNewerLoadAlreadyInPreflight() async throws {
+    await playManager.start()
+    let (currentEpisode, selectedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    let configurationStarted = AsyncSemaphore(value: 0)
+    let finishConfiguration = AsyncSemaphore(value: 0)
+    Container.shared.configureAudioSession.context(.test) {
+      {
+        configurationStarted.signal()
+        await finishConfiguration.wait()
+        return true
+      }
+    }
+    Container.shared.configureAudioSession.reset(.scope)
+
+    let selectedPlay = Task { try await playManager.play(selectedEpisode) }
+    defer {
+      selectedPlay.cancel()
+      finishConfiguration.signal()
+    }
+    await configurationStarted.wait()
+    try await PlayHelpers.waitForOnDeck(currentEpisode)
+
+    await playManager.finishEpisode(currentEpisode.id)
+    finishConfiguration.signal()
+    try await selectedPlay.value
+
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(try await queue.nextEpisode == nil)
+  }
+
+  @Test("finalization during outgoing restoration leaves finished episode out of queue")
+  func finalizationDuringOutgoingRestorationLeavesFinishedEpisodeOutOfQueue() async throws {
+    await playManager.start()
+    let (currentEpisode, selectedEpisode) = try await Create.twoPodcastEpisodes()
+    let fakeQueue = try #require(queue as? FakeQueue)
+
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    let restorationStarted = AsyncSemaphore(value: 0)
+    let finishRestoration = AsyncSemaphore(value: 0)
+    fakeQueue.beforeUnshiftEpisode { episodeID in
+      guard episodeID == currentEpisode.id else { return }
+      restorationStarted.signal()
+      await finishRestoration.wait()
+    }
+
+    let selectedPlay = Task { try await playManager.play(selectedEpisode) }
+    defer {
+      selectedPlay.cancel()
+      finishRestoration.signal()
+    }
+    await restorationStarted.wait()
+    #expect(sharedState.onDeck == nil)
+
+    await playManager.finishEpisode(currentEpisode.id)
+    finishRestoration.signal()
+    try await selectedPlay.value
+
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(try await queue.nextEpisode == nil)
+  }
+
+  @Test("stale finalization after a newer load removes the finished outgoing episode")
+  func staleFinalizationAfterNewerLoadRemovesFinishedOutgoingEpisode() async throws {
+    await playManager.start()
+    let (currentEpisode, selectedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+    try await playManager.play(selectedEpisode)
+    #expect(try await queue.nextEpisode?.id == currentEpisode.id)
+
+    await playManager.finishEpisode(currentEpisode.id)
+
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(try await queue.nextEpisode == nil)
   }
 
   @Test("newer load during next episode resolution survives stale finalization")
@@ -237,6 +328,61 @@ import Testing
 
     try await PlayHelpers.waitForOnDeck(selectedEpisode)
     try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
+  }
+
+  @Test("newer play during automatic load cleanup survives stale autoplay")
+  func newerPlayDuringAutomaticLoadCleanupSurvivesStaleAutoplay() async throws {
+    await playManager.start()
+    let (currentEpisode, automaticEpisode, selectedEpisode) =
+      try await Create.threePodcastEpisodes()
+    let fakeQueue = try #require(queue as? FakeQueue)
+
+    try await queue.unshift(automaticEpisode.id)
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    let automaticCleanupStarted = AsyncSemaphore(value: 0)
+    let finishAutomaticCleanup = AsyncSemaphore(value: 0)
+    fakeQueue.beforeNextDequeueEpisode { episodeID in
+      #expect(episodeID == automaticEpisode.id)
+      automaticCleanupStarted.signal()
+      await finishAutomaticCleanup.wait()
+    }
+
+    let finalization = Task { await playManager.finishEpisode(currentEpisode.id) }
+    defer {
+      finalization.cancel()
+      finishAutomaticCleanup.signal()
+    }
+    await automaticCleanupStarted.wait()
+    try await PlayHelpers.waitForOnDeck(automaticEpisode)
+
+    let selectedConfigurationStarted = AsyncSemaphore(value: 0)
+    let finishSelectedConfiguration = AsyncSemaphore(value: 0)
+    Container.shared.configureAudioSession.context(.test) {
+      {
+        selectedConfigurationStarted.signal()
+        await finishSelectedConfiguration.wait()
+        return true
+      }
+    }
+    Container.shared.configureAudioSession.reset(.scope)
+
+    let selectedPlay = Task { try await playManager.play(selectedEpisode) }
+    defer {
+      selectedPlay.cancel()
+      finishSelectedConfiguration.signal()
+    }
+    await selectedConfigurationStarted.wait()
+
+    finishAutomaticCleanup.signal()
+    await finalization.value
+    finishSelectedConfiguration.signal()
+    try await selectedPlay.value
+
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
+    try await PlayHelpers.waitFor(.playing)
   }
 
   @Test("next episode preflight failure stops playback and preserves the queue")
