@@ -152,41 +152,59 @@ struct EpisodesListTranscribeTests {
     #expect(transcriptionQueue.episodeIDs == [queuedID, eligibleID])
   }
 
-  @Test("list, swipe, and context transcription show the queue-full alert")
+  @Test("single transcription shows the queue-full alert without error telemetry")
   func singleTranscriptionShowsCapacityAlert() async throws {
-    let (viewModel, listables) = try await makeCapacityViewModel()
-    let target = listables[10]
-    let alert = Container.shared.alert()
+    try await LogCapture.withSink { sink in
+      let (viewModel, listables) = try await makeCapacityViewModel()
+      let target = listables[10]
+      let alert = Container.shared.alert()
 
-    viewModel.transcribeEpisode(target)
+      viewModel.transcribeEpisode(target)
 
-    try await Wait.until(
-      { @MainActor in alert.config?.title == "Transcription Queue Full" },
-      { @MainActor in "Expected the shared single-episode queue-full alert" }
-    )
-    #expect(transcriptionQueue.episodeIDs.count == 10)
-    #expect(!transcriptionQueue.episodeIDs.contains(target.id))
+      try await Wait.until(
+        { @MainActor in alert.config?.title == "Transcription Queue Full" },
+        { @MainActor in "Expected the shared single-episode queue-full alert" }
+      )
+      #expect(transcriptionQueue.episodeIDs.count == 10)
+      #expect(!transcriptionQueue.episodeIDs.contains(target.id))
+      let rejectionLog = try #require(
+        sink.captured()
+          .first {
+            $0.message.contains("transcribeEpisode: rejected")
+          }
+      )
+      #expect(rejectionLog.level == .notice)
+    }
   }
 
-  @Test("bulk transcription rejects the whole batch with a queue-full alert")
+  @Test("bulk transcription shows the queue-full alert without error telemetry")
   func bulkTranscriptionShowsCapacityAlertAtomically() async throws {
-    let (viewModel, listables) = try await makeCapacityViewModel()
-    let targets = Array(listables.suffix(2))
-    let alert = Container.shared.alert()
-    EpisodesListTestHelpers.select(viewModel, ids: targets.map(\.id))
+    try await LogCapture.withSink { sink in
+      let (viewModel, listables) = try await makeCapacityViewModel()
+      let targets = Array(listables.suffix(2))
+      let alert = Container.shared.alert()
+      EpisodesListTestHelpers.select(viewModel, ids: targets.map(\.id))
 
-    viewModel.transcribeSelectedEpisodes()
+      viewModel.transcribeSelectedEpisodes()
 
-    try await Wait.until(
-      { @MainActor in alert.config?.title == "Transcription Queue Full" },
-      { @MainActor in "Expected the bulk queue-full alert" }
-    )
-    #expect(transcriptionQueue.episodeIDs.count == 10)
-    #expect(
-      targets.allSatisfy {
-        !transcriptionQueue.episodeIDs.contains($0.id)
-      }
-    )
+      try await Wait.until(
+        { @MainActor in alert.config?.title == "Transcription Queue Full" },
+        { @MainActor in "Expected the bulk queue-full alert" }
+      )
+      #expect(transcriptionQueue.episodeIDs.count == 10)
+      #expect(
+        targets.allSatisfy {
+          !transcriptionQueue.episodeIDs.contains($0.id)
+        }
+      )
+      let rejectionLog = try #require(
+        sink.captured()
+          .first {
+            $0.message.contains("transcribeSelectedEpisodes: rejected")
+          }
+      )
+      #expect(rejectionLog.level == .notice)
+    }
   }
 
   @Test("transcribeSelectedEpisodes distinguishes identical media across podcasts")

@@ -205,33 +205,42 @@ import Testing
 
   @Test("a drag is rejected when displayed rows no longer match the live queue")
   func staleDragDoesNotMoveDifferentEpisode() async throws {
-    let episodes = try await makeEpisodes()
-    for episode in episodes {
-      try await transcriptionQueue.enqueue(episode.id)
+    try await LogCapture.withSink { sink in
+      let episodes = try await makeEpisodes()
+      for episode in episodes {
+        try await transcriptionQueue.enqueue(episode.id)
+      }
+      let replacement = try await Create.podcastEpisode(
+        try Create.unsavedEpisode(title: "Replacement")
+      )
+      let initialEpisodeIDs = episodes.map(\.id)
+
+      let viewModel = TranscriptionQueueViewModel()
+      let executeTask = Task { await viewModel.execute() }
+      defer { executeTask.cancel() }
+
+      try await Wait.until(
+        { @MainActor in viewModel.entries.map(\.id) == initialEpisodeIDs },
+        { @MainActor in "Expected initial queue order" }
+      )
+
+      try await transcriptionQueue.remove(episodes[0].id)
+      try await transcriptionQueue.enqueue(replacement.id)
+      let liveEpisodeIDs = [episodes[1].id, episodes[2].id, replacement.id]
+      #expect(transcriptionQueue.episodeIDs == liveEpisodeIDs)
+      #expect(viewModel.entries.map(\.id) == initialEpisodeIDs)
+
+      viewModel.move(fromOffsets: IndexSet(integer: 0), toOffset: 3)
+
+      #expect(transcriptionQueue.episodeIDs == liveEpisodeIDs)
+      let rejectionLog = try #require(
+        sink.captured()
+          .first {
+            $0.message.contains("Cannot drag stale transcription queue rows")
+          }
+      )
+      #expect(rejectionLog.level == .notice)
     }
-    let replacement = try await Create.podcastEpisode(
-      try Create.unsavedEpisode(title: "Replacement")
-    )
-    let initialEpisodeIDs = episodes.map(\.id)
-
-    let viewModel = TranscriptionQueueViewModel()
-    let executeTask = Task { await viewModel.execute() }
-    defer { executeTask.cancel() }
-
-    try await Wait.until(
-      { @MainActor in viewModel.entries.map(\.id) == initialEpisodeIDs },
-      { @MainActor in "Expected initial queue order" }
-    )
-
-    try await transcriptionQueue.remove(episodes[0].id)
-    try await transcriptionQueue.enqueue(replacement.id)
-    let liveEpisodeIDs = [episodes[1].id, episodes[2].id, replacement.id]
-    #expect(transcriptionQueue.episodeIDs == liveEpisodeIDs)
-    #expect(viewModel.entries.map(\.id) == initialEpisodeIDs)
-
-    viewModel.move(fromOffsets: IndexSet(integer: 0), toOffset: 3)
-
-    #expect(transcriptionQueue.episodeIDs == liveEpisodeIDs)
   }
 
   @Test("moves a multi-selection while preserving its queue order")

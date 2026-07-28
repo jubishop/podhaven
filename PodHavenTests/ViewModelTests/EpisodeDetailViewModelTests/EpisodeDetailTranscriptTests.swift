@@ -137,21 +137,30 @@ import Testing
     #expect(!cleared.hasTranscript)
   }
 
-  @Test("detail transcription shows the queue-full alert at capacity")
+  @Test("detail transcription shows the queue-full alert without error telemetry")
   func detailTranscriptionShowsCapacityAlert() async throws {
-    await TranscriptionHelpers.prepareAvailability()
-    let target = try await makeTargetBeyondCapacity()
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(target))
-    let alert = Container.shared.alert()
+    try await LogCapture.withSink { sink in
+      await TranscriptionHelpers.prepareAvailability()
+      let target = try await makeTargetBeyondCapacity()
+      let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(target))
+      let alert = Container.shared.alert()
 
-    viewModel.transcribe()
+      viewModel.transcribe()
 
-    try await Wait.until(
-      { @MainActor in alert.config?.title == "Transcription Queue Full" },
-      { @MainActor in "Expected the detail queue-full alert" }
-    )
-    #expect(transcriptionQueue.episodeIDs.count == 10)
-    #expect(!transcriptionQueue.episodeIDs.contains(target.id))
+      try await Wait.until(
+        { @MainActor in alert.config?.title == "Transcription Queue Full" },
+        { @MainActor in "Expected the detail queue-full alert" }
+      )
+      #expect(transcriptionQueue.episodeIDs.count == 10)
+      #expect(!transcriptionQueue.episodeIDs.contains(target.id))
+      let rejectionLog = try #require(
+        sink.captured()
+          .first {
+            $0.message.contains("transcribe:") && $0.message.contains("rejected")
+          }
+      )
+      #expect(rejectionLog.level == .notice)
+    }
   }
 
   @Test("detail pause removes a queued transcription")

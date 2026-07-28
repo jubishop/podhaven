@@ -121,7 +121,7 @@ import SwiftUI
     let current = transcriptionQueue.episodeIDs
     let loadedEpisodeIDs = episodes.map(\.id)
     guard current == loadedEpisodeIDs else {
-      Self.log.error(
+      Self.log.notice(
         """
         Cannot drag stale transcription queue rows; \
         loadedEpisodes=\(loadedEpisodeIDs.count) queuedEpisodes=\(current.count)
@@ -298,7 +298,7 @@ import SwiftUI
       guard let self else { return }
       do {
         guard try await transcriptionProcessor.reorder(orderedEpisodeIDs) else {
-          Self.log.error("Transcription processor rejected queue reorder")
+          Self.log.notice("Transcription processor rejected queue reorder")
           return
         }
         guard transcriptionQueue.episodeIDs == orderedEpisodeIDs else { return }

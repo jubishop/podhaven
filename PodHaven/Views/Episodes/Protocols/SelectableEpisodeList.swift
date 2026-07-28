@@ -607,18 +607,22 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
         try await transcriptionQueue.enqueue(
           eligibleEpisodes.map(\.podcastEpisode.id)
         )
+      } catch let error as TranscriptionQueueError {
+        Self.log.caughtError(
+          "transcribeSelectedEpisodes: rejected \(eligibleEpisodes.count) episodes",
+          error,
+          level: .notice
+        )
+        alert(
+          title: error.alertTitle,
+          ErrorKit.message(for: error)
+        )
+        return
       } catch {
         Self.log.caughtError(
           "transcribeSelectedEpisodes: failed to enqueue \(eligibleEpisodes.count) episodes",
           error
         )
-        if let queueError = error as? TranscriptionQueueError {
-          alert(
-            title: queueError.alertTitle,
-            ErrorKit.message(for: queueError)
-          )
-          return
-        }
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
         return

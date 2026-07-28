@@ -298,15 +298,18 @@ extension ManagingEpisodes {
         guard canTranscribeResolvedEpisode(podcastEpisode) else { return }
         try await transcriptionQueue.enqueue(podcastEpisode.id)
         didPerformAction(episode)
+      } catch let error as TranscriptionQueueError {
+        Self.log.caughtError(
+          "transcribeEpisode: rejected for \(episode.title)",
+          error,
+          level: .notice
+        )
+        alert(
+          title: error.alertTitle,
+          ErrorKit.message(for: error)
+        )
       } catch {
         Self.log.caughtError("transcribeEpisode: failed for \(episode.title)", error)
-        if let queueError = error as? TranscriptionQueueError {
-          alert(
-            title: queueError.alertTitle,
-            ErrorKit.message(for: queueError)
-          )
-          return
-        }
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

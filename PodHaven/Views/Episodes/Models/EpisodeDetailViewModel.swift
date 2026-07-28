@@ -450,15 +450,18 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
           try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
         }
         try await transcriptionQueue.enqueue(podcastEpisode.id)
+      } catch let error as TranscriptionQueueError {
+        Self.log.caughtError(
+          "transcribe: \(state.toString) rejected",
+          error,
+          level: .notice
+        )
+        alert(
+          title: error.alertTitle,
+          ErrorKit.message(for: error)
+        )
       } catch {
         Self.log.caughtError("transcribe: \(state.toString) failed", error)
-        if let queueError = error as? TranscriptionQueueError {
-          alert(
-            title: queueError.alertTitle,
-            ErrorKit.message(for: queueError)
-          )
-          return
-        }
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
