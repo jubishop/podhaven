@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import GRDB
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -243,6 +244,113 @@ import Testing
     }
   }
 
+  @Test("queue edits project immediately and serialize overlapping reorders")
+  func queueEditsProjectImmediatelyAndSerializeOverlappingReorders() async throws {
+    let episodes = try await makeEpisodes()
+    let episodeIDs = episodes.map(\.id)
+    let firstReorderStarted = AsyncSemaphore(value: 0)
+    let firstReorderRelease = AsyncSemaphore(value: 0)
+    let reorderCount = ThreadSafe(0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeReorder: { _ in
+        let callCount = reorderCount { count in
+          count += 1
+          return count
+        }
+        if callCount == 1 {
+          firstReorderStarted.signal()
+          await firstReorderRelease.wait()
+        }
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer {
+      firstReorderRelease.signal()
+      executeTask.cancel()
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    let firstOrder = [episodes[1].id, episodes[2].id, episodes[0].id]
+    viewModel.move(fromOffsets: IndexSet(integer: 0), toOffset: 3)
+    #expect(viewModel.entries.map(\.id) == firstOrder)
+    await firstReorderStarted.wait()
+
+    let secondOrder = [episodes[2].id, episodes[1].id, episodes[0].id]
+    viewModel.move(fromOffsets: IndexSet(integer: 1), toOffset: 0)
+    #expect(viewModel.entries.map(\.id) == secondOrder)
+    #expect(store.reorderCalls == [firstOrder])
+
+    firstReorderRelease.signal()
+    try await Wait.until(
+      { @MainActor in queue.episodeIDs == secondOrder },
+      { @MainActor in "Expected overlapping reorders to finish in gesture order" }
+    )
+    #expect(viewModel.entries.map(\.id) == secondOrder)
+    #expect(store.reorderCalls == [firstOrder, secondOrder])
+  }
+
+  @Test("failed edit deletion restores its row and selection")
+  func failedEditDeletionRestoresRowAndSelection() async throws {
+    let episodes = try await makeEpisodes()
+    let episodeIDs = episodes.map(\.id)
+    let removalStarted = AsyncSemaphore(value: 0)
+    let removalRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeRemove: { _ in
+        removalStarted.signal()
+        await removalRelease.wait()
+        throw TestError.simulatedFailure
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer {
+      removalRelease.signal()
+      executeTask.cancel()
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial queue order" }
+    )
+    viewModel.selectedEpisodeIDs = [episodes[1].id]
+
+    viewModel.remove(at: IndexSet(integer: 1))
+
+    #expect(viewModel.entries.map(\.id) == [episodes[0].id, episodes[2].id])
+    #expect(viewModel.selectedEpisodeIDs.isEmpty)
+    await removalStarted.wait()
+    removalRelease.signal()
+
+    let alert = Container.shared.alert()
+    try await Wait.until(
+      { @MainActor in
+        alert.config != nil
+          && viewModel.entries.map(\.id) == episodeIDs
+          && viewModel.selectedEpisodeIDs == [episodes[1].id]
+      },
+      { @MainActor in "Expected failed deletion to restore its row and selection" }
+    )
+    #expect(queue.episodeIDs == episodeIDs)
+  }
+
   @Test("moves a multi-selection while preserving its queue order")
   func movesMultiSelectionInQueueOrder() async throws {
     let episodes = try await makeEpisodes()
@@ -251,6 +359,12 @@ import Testing
     }
 
     let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodes.map(\.id) },
+      { @MainActor in "Expected initial queue order" }
+    )
     viewModel.selectedEpisodeIDs = [episodes[2].id]
     viewModel.moveSelectedToTop()
     let topOrder = [episodes[2].id, episodes[0].id, episodes[1].id]
@@ -284,6 +398,12 @@ import Testing
     }
 
     let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodes.map(\.id) },
+      { @MainActor in "Expected initial queue order" }
+    )
     viewModel.selectedEpisodeIDs = [episodes[0].id, episodes[2].id]
     viewModel.removeSelected()
 
@@ -314,6 +434,12 @@ import Testing
     let queue = Container.shared.transcriptionQueue()
     await queue.waitUntilLoaded()
     let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial queue order" }
+    )
     viewModel.selectedEpisodeIDs = [episodes[0].id, episodes[2].id]
     let alert = Container.shared.alert()
 

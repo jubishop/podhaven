@@ -270,7 +270,7 @@ struct TranscriptionQueue: Sendable {
     let rollbackInterruption = {
       mutationLock { _ in
         guard interruptions[episodeID] == .pausing else { return }
-        $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
+        $interruptions.update { $0.removeValue(forKey: episodeID) }
       }
     }
     do {
@@ -318,7 +318,7 @@ struct TranscriptionQueue: Sendable {
     let rollbackInterruption = {
       mutationLock { _ in
         guard interruptions[episodeID] == .discarding else { return }
-        $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
+        $interruptions.update { $0.removeValue(forKey: episodeID) }
       }
     }
     do {

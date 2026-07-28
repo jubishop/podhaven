@@ -7,23 +7,27 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
     var episodeIDs: [Episode.ID]
     var fetchCount = 0
     var removeCalls: [Episode.ID] = []
+    var reorderCalls: [[Episode.ID]] = []
   }
 
   private let state: ThreadSafe<State>
   private let beforeFetch: @Sendable () async throws -> Void
   private let beforeEnqueue: @Sendable ([Episode.ID]) async throws -> Void
   private let beforeRemove: @Sendable (Episode.ID) async throws -> Void
+  private let beforeReorder: @Sendable ([Episode.ID]) async throws -> Void
 
   init(
     episodeIDs: [Episode.ID] = [],
     beforeFetch: @escaping @Sendable () async throws -> Void = {},
     beforeEnqueue: @escaping @Sendable ([Episode.ID]) async throws -> Void = { _ in },
-    beforeRemove: @escaping @Sendable (Episode.ID) async throws -> Void = { _ in }
+    beforeRemove: @escaping @Sendable (Episode.ID) async throws -> Void = { _ in },
+    beforeReorder: @escaping @Sendable ([Episode.ID]) async throws -> Void = { _ in }
   ) {
     state = ThreadSafe(State(episodeIDs: episodeIDs))
     self.beforeFetch = beforeFetch
     self.beforeEnqueue = beforeEnqueue
     self.beforeRemove = beforeRemove
+    self.beforeReorder = beforeReorder
   }
 
   var fetchCount: Int {
@@ -32,6 +36,10 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
 
   var removeCalls: [Episode.ID] {
     state { $0.removeCalls }
+  }
+
+  var reorderCalls: [[Episode.ID]] {
+    state { $0.reorderCalls }
   }
 
   func fetchAll() async throws -> [Episode.ID] {
@@ -74,7 +82,9 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
   }
 
   func reorder(_ orderedEpisodeIDs: [Episode.ID]) async throws -> Bool {
-    state { state in
+    state { $0.reorderCalls.append(orderedEpisodeIDs) }
+    try await beforeReorder(orderedEpisodeIDs)
+    return state { state in
       guard
         orderedEpisodeIDs.count == state.episodeIDs.count,
         Set(orderedEpisodeIDs) == Set(state.episodeIDs)
