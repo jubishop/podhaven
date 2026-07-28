@@ -10,11 +10,13 @@ import Tagged
 // TODO: Make this a struct to avoid Task {
 struct FakeQueue: Sendable, FakeCallable, Queueing {
   typealias BeforeDequeueEpisode = @Sendable (Episode.ID) async throws -> Void
+  typealias BeforeNextEpisode = @Sendable () async throws -> Void
   typealias BeforeUnshiftEpisode = @Sendable (Episode.ID) async throws -> Void
 
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
   private let beforeDequeueEpisodeHandler = ThreadSafe<BeforeDequeueEpisode?>(nil)
+  private let beforeNextEpisodeHandler = ThreadSafe<BeforeNextEpisode?>(nil)
   private let beforeUnshiftEpisodeHandler = ThreadSafe<BeforeUnshiftEpisode?>(nil)
 
   private let queue: any Queueing
@@ -28,6 +30,14 @@ struct FakeQueue: Sendable, FakeCallable, Queueing {
   var nextEpisode: PodcastEpisode? {
     get async throws {
       recordCall(methodName: "nextEpisode", parameters: ())
+      let beforeNextEpisode = beforeNextEpisodeHandler { handler in
+        let current = handler
+        handler = nil
+        return current
+      }
+      if let beforeNextEpisode {
+        try await beforeNextEpisode()
+      }
       return try await queue.nextEpisode
     }
   }
@@ -133,6 +143,10 @@ struct FakeQueue: Sendable, FakeCallable, Queueing {
 
   func beforeNextDequeueEpisode(_ handler: @escaping BeforeDequeueEpisode) {
     beforeDequeueEpisodeHandler(handler)
+  }
+
+  func beforeNextEpisode(_ handler: @escaping BeforeNextEpisode) {
+    beforeNextEpisodeHandler(handler)
   }
 
   func beforeUnshiftEpisode(_ handler: @escaping BeforeUnshiftEpisode) {

@@ -8,9 +8,12 @@ import Tagged
 @testable import PodHaven
 
 actor FakeRepo: Databasing, Sendable, FakeCallable {
+  typealias AfterMarkFinished = @Sendable (Episode.ID) async -> Void
+
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
   nonisolated let refreshEpisodeRowsRead = ThreadSafe<Int>(0)
+  private var afterMarkFinishedHandler: AfterMarkFinished?
 
   // One-shot error to throw from `updateSaveInCache(_ episodeIDs:saveInCache:)`.
   // Cleared on use so subsequent calls reach the real repo.
@@ -592,7 +595,17 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   @discardableResult
   func markFinished(_ episodeID: Episode.ID) async throws -> Bool {
     recordCall(methodName: "markFinished", parameters: episodeID)
-    return try await markFinished([episodeID]) > 0
+    let marked = try await markFinished([episodeID]) > 0
+    let afterMarkFinished = afterMarkFinishedHandler
+    afterMarkFinishedHandler = nil
+    if let afterMarkFinished {
+      await afterMarkFinished(episodeID)
+    }
+    return marked
+  }
+
+  func afterNextMarkFinished(_ handler: @escaping AfterMarkFinished) {
+    afterMarkFinishedHandler = handler
   }
 
   @discardableResult
