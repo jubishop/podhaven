@@ -59,7 +59,10 @@ final class PlayManager {
 
   var alert: Alert { get async { await Container.shared.alert() } }
   var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
-  private var settledOnDeckID: Episode.ID? { loadTransition == nil ? sharedState.onDeck?.id : nil }
+  private var settledOnDeckID: Episode.ID? {
+    guard loadTransition == nil, case .none = pendingPlaybackRequest else { return nil }
+    return sharedState.onDeck?.id
+  }
 
   nonisolated static let log = Log.as(LogSubsystem.Play.manager)
 

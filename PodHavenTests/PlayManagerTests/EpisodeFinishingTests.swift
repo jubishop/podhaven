@@ -458,6 +458,46 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
+  @Test("retryable newer play remains pending after stale automatic load settles")
+  func retryableNewerPlayRemainsPendingAfterStaleAutomaticLoadSettles() async throws {
+    await playManager.start()
+    let (currentEpisode, automaticEpisode, selectedEpisode) =
+      try await Create.threePodcastEpisodes()
+    let fakeQueue = try #require(queue as? FakeQueue)
+
+    try await queue.unshift(automaticEpisode.id)
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    let automaticCleanupStarted = AsyncSemaphore(value: 0)
+    let finishAutomaticCleanup = AsyncSemaphore(value: 0)
+    fakeQueue.beforeNextDequeueEpisode { episodeID in
+      #expect(episodeID == automaticEpisode.id)
+      automaticCleanupStarted.signal()
+      await finishAutomaticCleanup.wait()
+    }
+
+    let finalization = Task { await playManager.finishEpisode(currentEpisode.id) }
+    defer {
+      finalization.cancel()
+      finishAutomaticCleanup.signal()
+    }
+    await automaticCleanupStarted.wait()
+    try await PlayHelpers.waitForOnDeck(automaticEpisode)
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+    try await playManager.play(selectedEpisode)
+    audioSession.configureError { $0 = nil }
+
+    finishAutomaticCleanup.signal()
+    await finalization.value
+    await playManager.restorePersistedEpisodeForForeground()
+
+    try #require(sharedState.onDeck?.id == selectedEpisode.id)
+    try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
+    try await PlayHelpers.waitFor(.playing)
+  }
+
   @Test("next episode preflight failure stops playback and preserves the queue")
   func nextEpisodePreflightFailureStopsPlaybackAndPreservesQueue() async throws {
     await playManager.start()
