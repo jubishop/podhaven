@@ -3,6 +3,8 @@
 import FactoryKit
 import Foundation
 import GRDB
+import Observation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -231,6 +233,99 @@ struct TranscriptionQueueTests {
         == .queued(position: 2, total: 2)
     )
     #expect(queue.interruptions[episodes[1].id] == nil)
+  }
+
+  @Test(
+    "interruption removal projects before a waiting enqueue reaches storage",
+    arguments: [TranscriptionInterruption.pausing, .discarding]
+  )
+  @MainActor
+  func interruptionRemovalProjectsBeforeWaitingEnqueue(
+    _ interruption: TranscriptionInterruption
+  ) async throws {
+    let importedBacklogCount = 1_000_000
+    let episodeIDs = (1...importedBacklogCount)
+      .map {
+        Episode.ID(rawValue: Int64($0))
+      }
+    let episodeID = episodeIDs[importedBacklogCount / 2]
+    let removalStarted = AsyncSemaphore(value: 0)
+    let removalRelease = AsyncSemaphore(value: 0)
+    let enqueueReady = AsyncSemaphore(value: 0)
+    let enqueueStarted = AsyncSemaphore(value: 0)
+    let projectionObserved = ThreadSafe(false)
+    let projectionObservedAtEnqueue = ThreadSafe<Bool?>(nil)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeEnqueue: { _ in
+        projectionObservedAtEnqueue(projectionObserved())
+        enqueueStarted.signal()
+        throw TestError.simulatedFailure
+      },
+      beforeRemove: { _ in
+        removalStarted.signal()
+        await removalRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    defer { removalRelease.signal() }
+
+    withObservationTracking {
+      _ = queue.episodeIDs
+    } onChange: {
+      projectionObserved(true)
+    }
+
+    let enqueueCoordinator = Task {
+      await Self.coordinateWaitingEnqueue(
+        episodeID,
+        in: queue,
+        removalStarted: removalStarted,
+        removalRelease: removalRelease,
+        enqueueReady: enqueueReady,
+        enqueueStarted: enqueueStarted
+      )
+    }
+
+    switch interruption {
+    case .pausing:
+      #expect(try await queue.beginPausing(episodeID))
+    case .discarding:
+      #expect(try await queue.beginDiscarding(episodeID))
+    }
+    await enqueueCoordinator.value
+
+    #expect(projectionObservedAtEnqueue() == true)
+  }
+
+  @concurrent
+  private static func coordinateWaitingEnqueue(
+    _ episodeID: Episode.ID,
+    in queue: TranscriptionQueue,
+    removalStarted: AsyncSemaphore,
+    removalRelease: AsyncSemaphore,
+    enqueueReady: AsyncSemaphore,
+    enqueueStarted: AsyncSemaphore
+  ) async {
+    await removalStarted.wait()
+    let enqueueTask = Task(priority: .high) {
+      enqueueReady.signal()
+      do {
+        try await queue.enqueue(episodeID)
+        Issue.record("Expected the enqueue seam to stop the operation")
+      } catch TestError.simulatedFailure {
+      } catch {
+        Issue.record("Unexpected enqueue error: \(error)")
+      }
+    }
+    await enqueueReady.wait()
+    await Task.yield()
+    removalRelease.signal()
+    await enqueueStarted.wait()
+    await enqueueTask.value
   }
 
   @Test("stream yields one queue head at a time")

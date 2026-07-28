@@ -267,15 +267,24 @@ struct TranscriptionQueue: Sendable {
     }
     guard shouldPause else { return false }
 
-    do {
-      try await persistenceLock.waitForClaim()
-      defer { persistenceLock.release() }
-      try await store.remove(episodeID)
-    } catch {
+    let rollbackInterruption = {
       mutationLock { _ in
         guard interruptions[episodeID] == .pausing else { return }
         $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
       }
+    }
+    do {
+      try await persistenceLock.waitForClaim()
+    } catch {
+      rollbackInterruption()
+      throw error
+    }
+    defer { persistenceLock.release() }
+
+    do {
+      try await store.remove(episodeID)
+    } catch {
+      rollbackInterruption()
       throw error
     }
 
@@ -306,15 +315,24 @@ struct TranscriptionQueue: Sendable {
     }
     guard shouldDiscard else { return false }
 
-    do {
-      try await persistenceLock.waitForClaim()
-      defer { persistenceLock.release() }
-      try await store.remove(episodeID)
-    } catch {
+    let rollbackInterruption = {
       mutationLock { _ in
         guard interruptions[episodeID] == .discarding else { return }
         $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
       }
+    }
+    do {
+      try await persistenceLock.waitForClaim()
+    } catch {
+      rollbackInterruption()
+      throw error
+    }
+    defer { persistenceLock.release() }
+
+    do {
+      try await store.remove(episodeID)
+    } catch {
+      rollbackInterruption()
       throw error
     }
 

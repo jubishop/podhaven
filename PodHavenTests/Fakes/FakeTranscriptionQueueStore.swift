@@ -11,15 +11,18 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
 
   private let state: ThreadSafe<State>
   private let beforeFetch: @Sendable () async throws -> Void
+  private let beforeEnqueue: @Sendable ([Episode.ID]) async throws -> Void
   private let beforeRemove: @Sendable (Episode.ID) async throws -> Void
 
   init(
     episodeIDs: [Episode.ID] = [],
     beforeFetch: @escaping @Sendable () async throws -> Void = {},
+    beforeEnqueue: @escaping @Sendable ([Episode.ID]) async throws -> Void = { _ in },
     beforeRemove: @escaping @Sendable (Episode.ID) async throws -> Void = { _ in }
   ) {
     state = ThreadSafe(State(episodeIDs: episodeIDs))
     self.beforeFetch = beforeFetch
+    self.beforeEnqueue = beforeEnqueue
     self.beforeRemove = beforeRemove
   }
 
@@ -43,7 +46,8 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
     _ episodeIDs: [Episode.ID],
     maximumCount: Int
   ) async throws -> [Episode.ID] {
-    try state { state in
+    try await beforeEnqueue(episodeIDs)
+    return try state { state in
       var seen = Set<Episode.ID>()
       let newEpisodeIDs = episodeIDs.filter {
         seen.insert($0).inserted && !state.episodeIDs.contains($0)
