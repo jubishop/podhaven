@@ -123,8 +123,8 @@ struct TranscriptionProcessorTests {
       { "active transcription did not publish progress" }
     )
 
-    processor.pause(firstEpisode.id)
-    processor.pause(firstEpisode.id)
+    try await processor.pause(firstEpisode.id)
+    try await processor.pause(firstEpisode.id)
     await cancellationStarted.wait()
 
     #expect(queue.status(for: firstEpisode.id, hasTranscript: false) == .pausing)
@@ -211,7 +211,7 @@ struct TranscriptionProcessorTests {
       { "Active transcription did not publish progress" }
     )
 
-    processor.discardProgress(for: episode.id)
+    try await processor.discardProgress(for: episode.id)
 
     await cancellationStarted.wait()
     #expect(queue.status(for: episode.id, hasTranscript: false) == .discarding)
@@ -369,7 +369,7 @@ struct TranscriptionProcessorTests {
     await secondAnalysisStarted.wait()
     #expect(queue.episodeIDs == [secondEpisode.id])
 
-    processor.pause(firstEpisode.id)
+    try await processor.pause(firstEpisode.id)
 
     #expect(queue.episodeIDs == [secondEpisode.id])
     #expect(queue.progress[secondEpisode.id] != nil)
@@ -467,7 +467,10 @@ struct TranscriptionProcessorTests {
     }
 
     await firstRemovalStarted.wait()
-    processor.pause(secondEpisode.id)
+    let pauseTask = Task {
+      try await processor.pause(secondEpisode.id)
+    }
+    defer { pauseTask.cancel() }
     try await Wait.until(
       { queue.interruptions[secondEpisode.id] == .pausing },
       { "Waiting episode never entered the pausing state" }
@@ -480,6 +483,7 @@ struct TranscriptionProcessorTests {
     #expect(queue.status(for: secondEpisode.id, hasTranscript: false) == .pausing)
 
     secondRemovalRelease.signal()
+    try await pauseTask.value
     await cancellationStarted.wait()
     #expect(queue.episodeIDs.isEmpty)
     #expect(queue.interruptions[secondEpisode.id] == .pausing)

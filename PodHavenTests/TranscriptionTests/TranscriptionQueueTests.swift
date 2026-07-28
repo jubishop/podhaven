@@ -222,7 +222,7 @@ struct TranscriptionQueueTests {
     let episodes = try await makeEpisodes(3)
     try await queue.enqueue(episodes.map(\.id))
 
-    Container.shared.transcriptionProcessor().pause(episodes[1].id)
+    try await Container.shared.transcriptionProcessor().pause(episodes[1].id)
 
     try await Wait.until(
       { self.queue.episodeIDs == [episodes[0].id, episodes[2].id] },

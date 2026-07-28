@@ -473,7 +473,10 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
       let episodeID = episode.episodeID,
       transcriptionStatus.canPause
     else { return }
-    transcriptionProcessor.pause(episodeID)
+    lifecycle.runTask("pauseTranscription: \(state.toString)") { [weak self] in
+      guard let self else { return }
+      try await transcriptionProcessor.pause(episodeID)
+    }
   }
 
   func discardTranscriptionProgress() {
@@ -481,7 +484,10 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
       let episodeID = episode.episodeID,
       canDiscardTranscriptionProgress
     else { return }
-    transcriptionProcessor.discardProgress(for: episodeID)
+    lifecycle.runTask("discardTranscriptionProgress: \(state.toString)") { [weak self] in
+      guard let self else { return }
+      try await transcriptionProcessor.discardProgress(for: episodeID)
+    }
   }
 
   func showPodcast() {

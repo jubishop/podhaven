@@ -185,84 +185,64 @@ struct TranscriptionProcessor: Sendable {
 
   // MARK: - User Interruption
 
-  func pause(_ episodeID: Episode.ID) {
-    Task {
-      do {
-        guard try await transcriptionQueue.beginPausing(episodeID) else { return }
-      } catch {
-        Self.log.caughtError(
-          "Failed to persist pause of transcription \(episodeID)",
-          error
-        )
-        return
-      }
+  func pause(_ episodeID: Episode.ID) async throws {
+    guard try await transcriptionQueue.beginPausing(episodeID) else { return }
 
-      let activeTask = activeTranscription { active -> Task<Void, any Error>? in
-        guard var current = active, current.episodeID == episodeID else {
-          return nil
-        }
-        guard current.interruption == .none else { return nil }
-        current.interruption = .pause
-        active = current
-        return current.task
+    let activeTask = activeTranscription { active -> Task<Void, any Error>? in
+      guard var current = active, current.episodeID == episodeID else {
+        return nil
       }
+      guard current.interruption == .none else { return nil }
+      current.interruption = .pause
+      active = current
+      return current.task
+    }
 
-      if let activeTask {
-        Self.log.info("Requested pause of active transcription \(episodeID)")
-        activeTask.cancel()
-      } else {
-        transcriptionQueue.finishPausing(episodeID)
-        Self.log.info(
-          """
-          Removed waiting transcription \(episodeID); \
-          remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
-          """
-        )
-      }
+    if let activeTask {
+      Self.log.info("Requested pause of active transcription \(episodeID)")
+      activeTask.cancel()
+    } else {
+      transcriptionQueue.finishPausing(episodeID)
+      Self.log.info(
+        """
+        Removed waiting transcription \(episodeID); \
+        remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
+        """
+      )
+    }
 
-      if transcriptionQueue.episodeIDs.isEmpty {
-        backgroundTaskScheduler.scheduleNext()
-      }
+    if transcriptionQueue.episodeIDs.isEmpty {
+      backgroundTaskScheduler.scheduleNext()
     }
   }
 
-  func discardProgress(for episodeID: Episode.ID) {
-    Task {
-      do {
-        guard try await transcriptionQueue.beginDiscarding(episodeID) else {
-          return
-        }
-      } catch {
-        Self.log.caughtError(
-          "Failed to persist progress discard for transcription \(episodeID)",
-          error
-        )
-        return
-      }
+  func discardProgress(for episodeID: Episode.ID) async throws {
+    guard try await transcriptionQueue.beginDiscarding(episodeID) else {
+      return
+    }
 
-      let activeTask = activeTranscription { active -> Task<Void, any Error>? in
-        guard var current = active, current.episodeID == episodeID else {
-          return nil
-        }
-        current.interruption = .discard
-        active = current
-        return current.task
+    let activeTask = activeTranscription { active -> Task<Void, any Error>? in
+      guard var current = active, current.episodeID == episodeID else {
+        return nil
       }
+      current.interruption = .discard
+      active = current
+      return current.task
+    }
 
-      if let activeTask {
-        Self.log.info(
-          "Requested progress discard for active transcription \(episodeID)"
-        )
-        activeTask.cancel()
-      } else {
-        Self.log.info("Requested saved transcription progress discard \(episodeID)")
-        await Self.deleteCheckpoint(for: episodeID, using: repo)
-        transcriptionQueue.finishDiscarding(episodeID)
-      }
+    if let activeTask {
+      Self.log.info(
+        "Requested progress discard for active transcription \(episodeID)"
+      )
+      activeTask.cancel()
+    } else {
+      Self.log.info("Requested saved transcription progress discard \(episodeID)")
+      await Self.deleteCheckpoint(for: episodeID, using: repo)
+      transcriptionQueue.finishDiscarding(episodeID)
+    }
 
-      if transcriptionQueue.episodeIDs.isEmpty {
-        backgroundTaskScheduler.scheduleNext()
-      }
+    if transcriptionQueue.episodeIDs.isEmpty {
+      backgroundTaskScheduler.scheduleNext()
     }
   }
 

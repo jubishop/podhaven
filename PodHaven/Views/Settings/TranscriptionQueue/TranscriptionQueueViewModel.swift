@@ -166,23 +166,17 @@ import SwiftUI
   }
 
   func remove(_ episodeID: Episode.ID) {
-    selectedEpisodeIDs.remove(episodeID)
-    transcriptionProcessor.pause(episodeID)
+    remove([episodeID])
   }
 
   func remove(at offsets: IndexSet) {
     let removedEpisodeIDs = offsets.compactMap { entries[safe: $0]?.id }
-    for episodeID in removedEpisodeIDs {
-      remove(episodeID)
-    }
+    remove(removedEpisodeIDs)
   }
 
   func removeSelected() {
     let removedEpisodeIDs = transcriptionQueue.episodeIDs.filter(selectedEpisodeIDs.contains)
-    selectedEpisodeIDs.removeAll()
-    for episodeID in removedEpisodeIDs {
-      transcriptionProcessor.pause(episodeID)
-    }
+    remove(removedEpisodeIDs)
   }
 
   func canMoveToTop(_ episodeID: Episode.ID) -> Bool {
@@ -310,6 +304,31 @@ import SwiftUI
         Self.log.caughtError("Failed to reorder transcription queue", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  private func remove(_ episodeIDs: [Episode.ID]) {
+    guard !episodeIDs.isEmpty else { return }
+    Task { [weak self] in
+      guard let self else { return }
+      var firstRemarkableError: (any Error)?
+      for episodeID in episodeIDs {
+        do {
+          try await transcriptionProcessor.pause(episodeID)
+          selectedEpisodeIDs.remove(episodeID)
+        } catch {
+          Self.log.caughtError(
+            "Failed to remove transcription \(episodeID) from the queue",
+            error
+          )
+          if firstRemarkableError == nil, ErrorKit.isRemarkable(error) {
+            firstRemarkableError = error
+          }
+        }
+      }
+      if let firstRemarkableError {
+        alert(ErrorKit.message(for: firstRemarkableError))
       }
     }
   }

@@ -543,7 +543,7 @@ struct TranscriptionBackgroundTaskTests {
       scheduler.launchTask(withIdentifier: "\(AppInfo.bundleIdentifier).transcription")
     )
 
-    processor.pause(firstEpisode.id)
+    try await processor.pause(firstEpisode.id)
     await secondAnalysisStarted.wait()
 
     #expect(queue.episodeIDs == [secondEpisode.id])

@@ -300,6 +300,34 @@ import Testing
     #expect(try await repo.transcriptionCheckpoint(episodes[2].id) == checkpoint)
   }
 
+  @Test("failed multi-selection removal alerts and remains selected")
+  func failedMultiSelectionRemovalAlertsAndRemainsSelected() async throws {
+    let episodes = try await makeEpisodes()
+    let episodeIDs = episodes.map(\.id)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeRemove: { _ in throw TestError.simulatedFailure }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let viewModel = TranscriptionQueueViewModel()
+    viewModel.selectedEpisodeIDs = [episodes[0].id, episodes[2].id]
+    let alert = Container.shared.alert()
+
+    viewModel.removeSelected()
+
+    try await Wait.until(
+      { @MainActor in alert.config != nil },
+      { @MainActor in "Expected queue-removal persistence failure to alert" }
+    )
+    #expect(queue.episodeIDs == episodeIDs)
+    #expect(queue.interruptions.isEmpty)
+    #expect(viewModel.selectedEpisodeIDs == [episodes[0].id, episodes[2].id])
+  }
+
   private func makeEpisodes() async throws -> [Episode] {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(

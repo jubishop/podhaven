@@ -181,6 +181,60 @@ import Testing
     #expect(!transcriptionQueue.episodeIDs.contains(podcastEpisode.id))
   }
 
+  @Test("detail pause reports a durable queue-removal failure")
+  func detailPauseReportsQueueRemovalFailure() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [podcastEpisode.id],
+      beforeRemove: { _ in throw TestError.simulatedFailure }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    let alert = Container.shared.alert()
+
+    viewModel.pauseTranscription()
+
+    try await Wait.until(
+      { @MainActor in alert.config != nil },
+      { @MainActor in "Expected pause persistence failure to alert" }
+    )
+    #expect(queue.episodeIDs == [podcastEpisode.id])
+    #expect(queue.interruptions.isEmpty)
+  }
+
+  @Test("detail discard reports a durable queue-removal failure")
+  func detailDiscardReportsQueueRemovalFailure() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [podcastEpisode.id],
+      beforeRemove: { _ in throw TestError.simulatedFailure }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    queue.setProgress(0.5, for: podcastEpisode.id)
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+    let alert = Container.shared.alert()
+
+    viewModel.discardTranscriptionProgress()
+
+    try await Wait.until(
+      { @MainActor in alert.config != nil },
+      { @MainActor in "Expected discard persistence failure to alert" }
+    )
+    #expect(queue.episodeIDs == [podcastEpisode.id])
+    #expect(queue.progress[podcastEpisode.id] == 0.5)
+    #expect(queue.interruptions.isEmpty)
+  }
+
   @Test("detail pause retains partial transcription progress")
   func detailPauseRetainsPartialProgress() async throws {
     await TranscriptionHelpers.prepareAvailability()
