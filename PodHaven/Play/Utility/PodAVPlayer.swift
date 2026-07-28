@@ -69,6 +69,7 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
   private var episodeID: Episode.ID?
   private var eventSource: PodAVPlayerEventSource?
   private var lastDatabaseUpdateTime: CMTime?
+  private var latestSeekID: UUID?
 
   private var playingFromCache: Bool {
     guard let urlAsset = avPlayer.current?.asset as? AVURLAsset
@@ -217,6 +218,7 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
     episodeID = nil
     eventSource = nil
     lastDatabaseUpdateTime = nil
+    latestSeekID = nil
     avPlayer.replaceCurrent(with: nil)
   }
 
@@ -340,22 +342,24 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
     }
 
     guard let seekingSource = eventSource else { return }
+    let seekID = UUID()
+    latestSeekID = seekID
     await swapToCached(from: seekingSource)
-    guard episodeID == seekingEpisodeID else { return }
+    guard latestSeekID == seekID, episodeID == seekingEpisodeID else { return }
     guard let eventSource else { return }
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(PodAVPlayerEvent(source: eventSource, value: time))
 
-    avPlayer.seek(to: time) { [weak self, eventSource] completed in
+    avPlayer.seek(to: time) { [weak self, eventSource, seekID] completed in
       guard let self else { return }
 
       if completed {
         Self.log.debug("seek: to \(time) completed")
-        Task { @MainActor [weak self, eventSource] in
-          guard let self, self.isCurrent(eventSource) else { return }
+        Task { @MainActor [weak self, eventSource, seekID] in
+          guard let self, self.latestSeekID == seekID, self.isCurrent(eventSource) else { return }
           await self.saveCurrentTime(time)
-          guard self.isCurrent(eventSource) else { return }
+          guard self.latestSeekID == seekID, self.isCurrent(eventSource) else { return }
           self.addPeriodicTimeObserver()
         }
       } else {

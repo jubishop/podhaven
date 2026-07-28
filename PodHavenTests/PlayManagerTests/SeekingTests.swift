@@ -254,6 +254,62 @@ import Testing
     }
   }
 
+  @Test("newer seek owns overlapping same-episode requests")
+  func newerSeekOwnsOverlappingSameEpisodeRequests() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let olderTime = CMTime.seconds(20)
+    let newerTime = CMTime.seconds(50)
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+    try await repo.updateCachedFilename(
+      podcastEpisode.id,
+      cachedFilename: "cached-overlapping-seeks.mp3"
+    )
+    let updatedEpisode = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let cachedURL = try #require(updatedEpisode.episode.cachedURL)
+
+    let cachedLoadCount = ThreadSafe(0)
+    let olderLoadStarted = AsyncSemaphore(value: 0)
+    let newerLoadStarted = AsyncSemaphore(value: 0)
+    let finishOlderLoad = AsyncSemaphore(value: 0)
+    let finishNewerLoad = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.respond(to: cachedURL) { _ in
+      let loadNumber = cachedLoadCount { count in
+        count += 1
+        return count
+      }
+      if loadNumber == 1 {
+        olderLoadStarted.signal()
+        await finishOlderLoad.wait()
+      } else {
+        newerLoadStarted.signal()
+        await finishNewerLoad.wait()
+      }
+      return (true, .seconds(60))
+    }
+
+    let olderSeek = Task { await playManager.seek(to: olderTime) }
+    defer {
+      olderSeek.cancel()
+      finishOlderLoad.signal()
+      finishNewerLoad.signal()
+    }
+    await olderLoadStarted.wait()
+
+    let newerSeek = Task { await playManager.seek(to: newerTime) }
+    defer { newerSeek.cancel() }
+    await newerLoadStarted.wait()
+
+    finishNewerLoad.signal()
+    await newerSeek.value
+    finishOlderLoad.signal()
+    await olderSeek.value
+
+    #expect(avPlayer.seekRequests == [newerTime])
+  }
+
   @Test("seek completion cannot save time to a newer episode")
   func seekCompletionCannotSaveTimeToNewerEpisode() async throws {
     await playManager.start()
