@@ -69,6 +69,51 @@ struct TranscriptionBackgroundTaskTests {
     #expect(queue.episodeIDs == [episodeID])
   }
 
+  @Test("enqueue finishing after backgrounding schedules a background task")
+  func enqueueAfterBackgroundTransitionSchedules() async throws {
+    let episodeID = Episode.ID(rawValue: 1)
+    let enqueueStarted = AsyncSemaphore(value: 0)
+    let enqueueRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      beforeEnqueue: { _ in
+        enqueueStarted.signal()
+        await enqueueRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
+    defer { enqueueRelease.signal() }
+
+    await queue.waitUntilLoaded()
+    processor.register()
+    try await Wait.until(
+      {
+        scheduler.cancelledIdentifiers.filter { $0 == identifier }.count >= 2
+      },
+      { "Empty-queue scheduling reconciliation did not finish" }
+    )
+
+    let enqueueTask = Task {
+      try await processor.enqueue(episodeID)
+    }
+    await enqueueStarted.wait()
+
+    processor.handleScenePhaseChange(to: .background)
+    #expect(!scheduler.pendingIdentifiers.contains(identifier))
+
+    enqueueRelease.signal()
+    try await enqueueTask.value
+
+    #expect(queue.episodeIDs == [episodeID])
+    #expect(scheduler.pendingIdentifiers.contains(identifier))
+  }
+
   @Test("the iOS-granted background task drains the queue and completes")
   func backgroundTaskDrainsQueue() async throws {
     try await LogCapture.withSink { sink in

@@ -172,6 +172,17 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
+  // MARK: - Queue Mutations
+
+  func enqueue(_ episodeID: Episode.ID) async throws {
+    try await enqueue([episodeID])
+  }
+
+  func enqueue(_ episodeIDs: [Episode.ID]) async throws {
+    try await transcriptionQueue.enqueue(episodeIDs)
+    backgroundTaskScheduler.scheduleNext()
+  }
+
   // MARK: - User Interruption
 
   func pause(_ episodeID: Episode.ID) {

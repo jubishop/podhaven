@@ -46,6 +46,9 @@ extension ManagingEpisodes {
   private var transcriptionAvailability: TranscriptionAvailability {
     Container.shared.transcriptionAvailability()
   }
+  private var transcriptionProcessor: TranscriptionProcessor {
+    Container.shared.transcriptionProcessor()
+  }
   private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
 
   private var alert: Alert { Container.shared.alert() }
@@ -296,7 +299,7 @@ extension ManagingEpisodes {
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
         guard canTranscribeResolvedEpisode(podcastEpisode) else { return }
-        try await transcriptionQueue.enqueue(podcastEpisode.id)
+        try await transcriptionProcessor.enqueue(podcastEpisode.id)
         didPerformAction(episode)
       } catch let error as TranscriptionQueueError {
         Self.log.caughtError(

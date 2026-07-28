@@ -449,7 +449,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
         if transcriptDisplay == .decodeFailed {
           try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
         }
-        try await transcriptionQueue.enqueue(podcastEpisode.id)
+        try await transcriptionProcessor.enqueue(podcastEpisode.id)
       } catch let error as TranscriptionQueueError {
         Self.log.caughtError(
           "transcribe: \(state.toString) rejected",

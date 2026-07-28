@@ -61,6 +61,9 @@ extension SelectableEpisodeList {
   private var queue: any Queueing { Container.shared.queue() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
+  private var transcriptionProcessor: TranscriptionProcessor {
+    Container.shared.transcriptionProcessor()
+  }
   private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
   private var alert: Alert { Container.shared.alert() }
 
@@ -604,7 +607,7 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
       }
 
       do {
-        try await transcriptionQueue.enqueue(
+        try await transcriptionProcessor.enqueue(
           eligibleEpisodes.map(\.podcastEpisode.id)
         )
       } catch let error as TranscriptionQueueError {
