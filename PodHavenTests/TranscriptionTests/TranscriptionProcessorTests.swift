@@ -692,6 +692,67 @@ struct TranscriptionProcessorTests {
     #expect(try await repo.episode(episode.id)?.hasTranscript == true)
   }
 
+  @Test("pause racing a queue removal failure clears interruption state")
+  func pauseAfterQueueRemovalFailureClearsInterruption() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [FakeSpeechTranscriptionResult(phrase: "hello", startSeconds: 0, endSeconds: 60)]
+    )
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Retained then paused",
+      cachedFilename: "retained-then-paused.mp3",
+      dataSize: 1
+    )
+    let firstRemovalStarted = AsyncSemaphore(value: 0)
+    let firstRemovalRelease = AsyncSemaphore(value: 0)
+    let removalAttempts = ThreadSafe(0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [episode.id],
+      beforeRemove: { _ in
+        let attempt = removalAttempts {
+          $0 += 1
+          return $0
+        }
+        if attempt == 1 {
+          firstRemovalStarted.signal()
+          await firstRemovalRelease.wait()
+          throw TestError.simulatedFailure
+        }
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    await queue.waitUntilLoaded()
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      firstRemovalRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await firstRemovalStarted.wait()
+    let pauseTask = Task(priority: .high) {
+      try await processor.pause(episode.id)
+    }
+    defer { pauseTask.cancel() }
+    try await Wait.until(
+      { queue.interruptions[episode.id] == .pausing },
+      { "Episode never entered the pausing state" }
+    )
+
+    firstRemovalRelease.signal()
+    try await pauseTask.value
+    try await Wait.until(
+      { queue.progress[episode.id] == nil },
+      { "Failed removal did not finish processor cleanup" }
+    )
+
+    #expect(removalAttempts() == 2)
+    #expect(queue.episodeIDs.isEmpty)
+    #expect(queue.interruptions[episode.id] == nil)
+  }
+
   @Test("failed-state removal failure preserves work without retrying")
   func failedStateRemovalFailurePreservesWork() async throws {
     TranscriptionHelpers.stubSpeechFailure()

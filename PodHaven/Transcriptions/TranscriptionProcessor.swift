@@ -442,9 +442,11 @@ struct TranscriptionProcessor: Sendable {
           """,
           queueMutationFailure
         )
-        transcriptionQueue.clearProgress(for: episodeID)
-        backgroundTaskScheduler.scheduleNext()
-        return .retained
+        if result.interruption == .none {
+          transcriptionQueue.clearProgress(for: episodeID)
+          backgroundTaskScheduler.scheduleNext()
+          return .retained
+        }
       }
 
       if result.interruption == .none, !result.executionCancelled {
