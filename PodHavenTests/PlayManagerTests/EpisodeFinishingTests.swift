@@ -167,6 +167,43 @@ import Testing
     try await PlayHelpers.waitForFinished(currentEpisode)
   }
 
+  @Test("finishing playback established by an active load revokes its pending play")
+  func finishingPlaybackEstablishedByActiveLoadRevokesPendingPlay() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let fakeQueue = try #require(queue as? FakeQueue)
+    let cleanupStarted = AsyncSemaphore(value: 0)
+    let finishCleanup = AsyncSemaphore(value: 0)
+    fakeQueue.beforeNextDequeueEpisode { episodeID in
+      #expect(episodeID == podcastEpisode.id)
+      cleanupStarted.signal()
+      await finishCleanup.wait()
+    }
+
+    let pendingPlay = Task { try await playManager.play(podcastEpisode) }
+    defer {
+      pendingPlay.cancel()
+      finishCleanup.signal()
+    }
+    await cleanupStarted.wait()
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+
+    await playManager.finishEpisode(podcastEpisode.id)
+
+    #expect(sharedState.onDeck == nil)
+    #expect(sharedState.playbackStatus == .stopped)
+    finishCleanup.signal()
+    try await pendingPlay.value
+
+    await playManager.restorePersistedEpisodeForForeground()
+
+    #expect(sharedState.onDeck == nil)
+    #expect(sharedState.currentEpisodeID == nil)
+    #expect(sharedState.playbackStatus == .stopped)
+    #expect(try await queue.nextEpisode == nil)
+    try await PlayHelpers.waitForNoCurrentItem()
+  }
+
   @Test("newer load during markFinished survives stale finalization")
   func newerLoadDuringMarkFinishedSurvivesStaleFinalization() async throws {
     await playManager.start()
