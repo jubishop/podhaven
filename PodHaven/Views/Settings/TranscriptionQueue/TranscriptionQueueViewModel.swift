@@ -366,11 +366,10 @@ import SwiftUI
     let mutationID = UUID()
     latestMutationID = mutationID
     presentationRevision = mutationID
-    mutationTask = Task { [weak self, previousTask] in
+    mutationTask = Task { [self, previousTask] in
       if let previousTask {
         await previousTask.value
       }
-      guard let self else { return }
       await self.performMutation(mutation)
       await self.finishMutation(mutationID)
     }

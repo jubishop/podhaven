@@ -300,6 +300,69 @@ import Testing
     #expect(store.reorderCalls == [firstOrder, secondOrder])
   }
 
+  @Test("queued edits finish after the queue manager releases its view model")
+  func queuedEditsFinishAfterViewModelRelease() async throws {
+    let episodes = try await makeEpisodes()
+    let episodeIDs = episodes.map(\.id)
+    let firstReorderStarted = AsyncSemaphore(value: 0)
+    let firstReorderRelease = AsyncSemaphore(value: 0)
+    let reorderCount = ThreadSafe(0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeReorder: { _ in
+        let callCount = reorderCount { count in
+          count += 1
+          return count
+        }
+        if callCount == 1 {
+          firstReorderStarted.signal()
+          await firstReorderRelease.wait()
+        }
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    var viewModel: TranscriptionQueueViewModel? = TranscriptionQueueViewModel()
+    weak let releasedViewModel = viewModel
+    let executeTask = Task { [weak viewModel] in await viewModel?.execute() }
+    defer {
+      firstReorderRelease.signal()
+      executeTask.cancel()
+    }
+
+    try await Wait.until(
+      { @MainActor in releasedViewModel?.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    let firstOrder = [episodes[1].id, episodes[2].id, episodes[0].id]
+    viewModel?.move(fromOffsets: IndexSet(integer: 0), toOffset: 3)
+    await firstReorderStarted.wait()
+
+    let secondOrder = [episodes[2].id, episodes[1].id, episodes[0].id]
+    viewModel?.move(fromOffsets: IndexSet(integer: 1), toOffset: 0)
+    #expect(store.reorderCalls == [firstOrder])
+
+    executeTask.cancel()
+    await executeTask.value
+    viewModel = nil
+    firstReorderRelease.signal()
+
+    try await Wait.until(
+      { @MainActor in queue.episodeIDs == secondOrder || releasedViewModel == nil },
+      { @MainActor in "Expected the queued reorder to finish or release its owner" }
+    )
+    #expect(store.reorderCalls == [firstOrder, secondOrder])
+    #expect(queue.episodeIDs == secondOrder)
+    try await Wait.until(
+      { @MainActor in releasedViewModel == nil },
+      { @MainActor in "Expected the completed mutation chain to release its view model" }
+    )
+  }
+
   @Test("failed edit deletion restores its row and selection")
   func failedEditDeletionRestoresRowAndSelection() async throws {
     let episodes = try await makeEpisodes()
