@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import Accessibility
 import FactoryKit
 import Foundation
 import SwiftUI
@@ -49,6 +50,12 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     }
 
     return collect(from: root)
+  }
+
+  private static func accessibilityCustomContent(in object: NSObject) -> [AXCustomContent] {
+    let selector = NSSelectorFromString("accessibilityCustomContent")
+    guard object.responds(to: selector) else { return [] }
+    return object.value(forKey: "accessibilityCustomContent") as? [AXCustomContent] ?? []
   }
 
   @Test(
@@ -260,6 +267,83 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     )
     let actions = Set(row.accessibilityCustomActions?.map(\.name) ?? [])
     #expect(actions == ["Move to Top", "Move to Bottom", "Remove from Queue"])
+  }
+
+  @Test(
+    "Smart List rows announce episodes added during the open session as new",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func smartListRowsAnnounceNewEpisodes() async throws {
+    let repo = Container.shared.repo()
+    let pubDate = Date(timeIntervalSince1970: 1_700_000_000)
+    let oldTitle = "Already Seen Episode"
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: oldTitle, pubDate: pubDate)]
+      )
+    )
+    let smartList = try await Container.shared.smartListRepo()
+      .insert(
+        try UnsavedSmartList(
+          title: "Accessible New Episodes",
+          filter: SmartListFilter(),
+          displayOrder: 0
+        )
+      )
+    let window = try Self.makeWindow(
+      NavigationStack {
+        EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
+      }
+    )
+    defer { window.isHidden = true }
+
+    try await Wait.until(
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains { $0.accessibilityLabel?.contains(oldTitle) == true }
+      },
+      { @MainActor in "Already-seen episode did not enter the accessibility tree" }
+    )
+
+    let newTitle = "Arrived While Viewing"
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: newTitle, pubDate: pubDate)]
+      )
+    )
+
+    try await Wait.until(
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains { $0.accessibilityLabel?.contains(newTitle) == true }
+      },
+      { @MainActor in "New episode did not enter the accessibility tree" }
+    )
+
+    let rows = Self.accessibilityElements(in: window)
+    let oldRow = try #require(rows.first { $0.accessibilityLabel?.contains(oldTitle) == true })
+    let newRow = try #require(rows.first { $0.accessibilityLabel?.contains(newTitle) == true })
+    let oldValue = try #require(oldRow.accessibilityValue)
+    let newValue = try #require(newRow.accessibilityValue)
+    #expect(newValue == oldValue)
+
+    let oldStatuses = Self.accessibilityCustomContent(in: oldRow)
+      .filter { $0.label == "Status" }
+    let newStatuses = Self.accessibilityCustomContent(in: newRow)
+      .filter { $0.label == "Status" }
+    #expect(oldStatuses.isEmpty)
+    let newStatus = try #require(newStatuses.first)
+    #expect(newStatus.value == "New")
+    #expect(newStatus.importance == .high)
   }
 
   @Test(

@@ -83,12 +83,14 @@ struct EpisodesListView: View {
 
   private var listView: some View {
     List(viewModel.episodeList.filteredEntries) { podcastEpisode in
+      let highlight = podcastEpisode.id > viewModel.lastSeenEpisodeId
       NavigationLink(
         value: Navigation.Destination.listedEpisode(ListedEpisode(podcastEpisode)),
         label: {
           EpisodeListView(
             episode: podcastEpisode,
             alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage,
+            highlight: highlight,
             isSelecting: viewModel.episodeList.isSelecting,
             isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
           )
@@ -96,6 +98,11 @@ struct EpisodesListView: View {
         }
       )
       .listRow()
+      .accessibilityCustomContent(
+        AccessibilityCustomContentKey("Status"),
+        highlight ? Text("New") : nil,
+        importance: .high
+      )
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
     }

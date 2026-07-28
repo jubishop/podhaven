@@ -33,6 +33,7 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
   // MARK: - State Management
 
   var seekHandler: (CMTime) async -> Bool = { _ in (true) }
+  private(set) var seekRequests: [CMTime] = []
   var rateObservations: [ObservationHandler<Float>] = []
   var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
   var timeObservers: [UUID: TimeObserver] = [:]
@@ -92,6 +93,7 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
   }
 
   func seek(to time: CMTime, completionHandler: @escaping @Sendable (Bool) -> Void) {
+    seekRequests.append(time)
     Task { [weak self] in
       guard let self else { return }
       let success = await seekHandler(time)

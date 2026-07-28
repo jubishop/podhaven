@@ -39,6 +39,17 @@ enum PodAVPlayerError: Error, LocalizedError {
   }
 }
 
+struct PodAVPlayerEventSource: Equatable, Sendable {
+  let episodeID: Episode.ID
+  let itemIdentity: ObjectIdentifier
+  let generation: UUID
+}
+
+struct PodAVPlayerEvent<Value: Sendable>: Sendable {
+  let source: PodAVPlayerEventSource
+  let value: Value
+}
+
 @MainActor class PodAVPlayer {
   @DynamicInjected(\.avPlayer) private var avPlayer
   @DynamicInjected(\.cacheManager) private var cacheManager
@@ -56,7 +67,9 @@ enum PodAVPlayerError: Error, LocalizedError {
   // MARK: - State Management
 
   private var episodeID: Episode.ID?
+  private var eventSource: PodAVPlayerEventSource?
   private var lastDatabaseUpdateTime: CMTime?
+  private var latestSeekID: UUID?
 
   private var playingFromCache: Bool {
     guard let urlAsset = avPlayer.current?.asset as? AVURLAsset
@@ -64,17 +77,18 @@ enum PodAVPlayerError: Error, LocalizedError {
     return urlAsset.url.isFileURL
   }
 
-  let currentTimeStream: AsyncStream<CMTime>
-  let itemStatusStream: AsyncStream<(AVPlayerItem.Status, Episode.ID)>
-  let controlStatusStream: AsyncStream<PlaybackStatus>
-  let rateStream: AsyncStream<Float>
-  let didPlayToEndStream: AsyncStream<Episode.ID>
+  let currentTimeStream: AsyncStream<PodAVPlayerEvent<CMTime>>
+  let itemStatusStream: AsyncStream<PodAVPlayerEvent<AVPlayerItem.Status>>
+  let controlStatusStream: AsyncStream<PodAVPlayerEvent<PlaybackStatus>>
+  let rateStream: AsyncStream<PodAVPlayerEvent<Float>>
+  let didPlayToEndStream: AsyncStream<PodAVPlayerEventSource>
 
-  private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
-  private let itemStatusContinuation: AsyncStream<(AVPlayerItem.Status, Episode.ID)>.Continuation
-  private let controlStatusContinuation: AsyncStream<PlaybackStatus>.Continuation
-  private let rateContinuation: AsyncStream<Float>.Continuation
-  private let didPlayToEndContinuation: AsyncStream<Episode.ID>.Continuation
+  private let currentTimeContinuation: AsyncStream<PodAVPlayerEvent<CMTime>>.Continuation
+  private let itemStatusContinuation:
+    AsyncStream<PodAVPlayerEvent<AVPlayerItem.Status>>.Continuation
+  private let controlStatusContinuation: AsyncStream<PodAVPlayerEvent<PlaybackStatus>>.Continuation
+  private let rateContinuation: AsyncStream<PodAVPlayerEvent<Float>>.Continuation
+  private let didPlayToEndContinuation: AsyncStream<PodAVPlayerEventSource>.Continuation
 
   private var periodicTimeObservation: (observer: Any, player: any AVPlayable)?
   private var itemStatusObserver: NSKeyValueObservation?
@@ -85,15 +99,21 @@ enum PodAVPlayerError: Error, LocalizedError {
   // MARK: - Initialization
 
   fileprivate init() {
-    (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(of: CMTime.self)
+    (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(
+      of: PodAVPlayerEvent<CMTime>.self
+    )
     (itemStatusStream, itemStatusContinuation) = AsyncStream.makeStream(
-      of: (AVPlayerItem.Status, Episode.ID).self
+      of: PodAVPlayerEvent<AVPlayerItem.Status>.self
     )
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
-      of: PlaybackStatus.self
+      of: PodAVPlayerEvent<PlaybackStatus>.self
     )
-    (rateStream, rateContinuation) = AsyncStream.makeStream(of: Float.self)
-    (didPlayToEndStream, didPlayToEndContinuation) = AsyncStream.makeStream(of: Episode.ID.self)
+    (rateStream, rateContinuation) = AsyncStream.makeStream(
+      of: PodAVPlayerEvent<Float>.self
+    )
+    (didPlayToEndStream, didPlayToEndContinuation) = AsyncStream.makeStream(
+      of: PodAVPlayerEventSource.self
+    )
   }
 
   // MARK: - Loading
@@ -101,14 +121,22 @@ enum PodAVPlayerError: Error, LocalizedError {
   func load(_ podcastEpisode: PodcastEpisode) async throws -> PodcastEpisode {
     Self.log.debug("load: \(podcastEpisode.toString)")
 
-    episodeID = nil
-    lastDatabaseUpdateTime = nil
     let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
-    episodeID = podcastEpisode.id
+    try Task.checkCancellation()
     lastDatabaseUpdateTime = podcastEpisode.currentTime
-    avPlayer.replaceCurrent(with: playableItem)
+    bind(playableItem, to: podcastEpisode.id)
 
     return podcastEpisode
+  }
+
+  private func bind(_ playableItem: any AVPlayableItem, to episodeID: Episode.ID) {
+    self.episodeID = episodeID
+    eventSource = PodAVPlayerEventSource(
+      episodeID: episodeID,
+      itemIdentity: ObjectIdentifier(playableItem),
+      generation: UUID()
+    )
+    avPlayer.replaceCurrent(with: playableItem)
   }
 
   private func loadAsset(for podcastEpisode: PodcastEpisode) async throws
@@ -152,7 +180,10 @@ enum PodAVPlayerError: Error, LocalizedError {
     do {
       Self.log.debug("performLoadAsset: loading from cache: \(cachedURL)")
       return try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
+    } catch is CancellationError {
+      throw CancellationError()
     } catch {
+      try Task.checkCancellation()
       Self.log.caughtError(
         "performLoadAsset: cache load failed, clearing cached filename and falling back to remote",
         error,
@@ -185,7 +216,9 @@ enum PodAVPlayerError: Error, LocalizedError {
     Self.log.debug("clear: executing")
     removeObservers()
     episodeID = nil
+    eventSource = nil
     lastDatabaseUpdateTime = nil
+    latestSeekID = nil
     avPlayer.replaceCurrent(with: nil)
   }
 
@@ -207,11 +240,17 @@ enum PodAVPlayerError: Error, LocalizedError {
     return item === current
   }
 
+  func isCurrent(_ source: PodAVPlayerEventSource) -> Bool {
+    guard eventSource == source, let currentItem = avPlayer.current else { return false }
+    return ObjectIdentifier(currentItem) == source.itemIdentity
+  }
+
   // Swap to cached version if available. Returns whether a swap occurred.
   // Note: We don't bother throwing here, just return false for any failure.
   @discardableResult
-  private func swapToCached() async -> Bool {
-    guard !playingFromCache, let episodeID else { return false }
+  private func swapToCached(from source: PodAVPlayerEventSource) async -> Bool {
+    guard isCurrent(source), !playingFromCache else { return false }
+    let episodeID = source.episodeID
 
     let podcastEpisode: PodcastEpisode
     do {
@@ -222,6 +261,10 @@ enum PodAVPlayerError: Error, LocalizedError {
         "swapToCached: failed to fetch episode \(episodeID)",
         error
       )
+      return false
+    }
+    guard isCurrent(source) else {
+      Self.log.debug("swapToCached: source retired while fetching episode \(episodeID)")
       return false
     }
 
@@ -237,8 +280,14 @@ enum PodAVPlayerError: Error, LocalizedError {
       )
       return false
     }
+    guard isCurrent(source) else {
+      Self.log.debug("swapToCached: source retired while loading cached item for \(episodeID)")
+      return false
+    }
 
-    avPlayer.replaceCurrent(with: playableItem)
+    removeObservers()
+    bind(playableItem, to: episodeID)
+    addObservers()
     Self.log.info("swapToCached: swapped to cached version")
     return true
   }
@@ -287,21 +336,31 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   func seek(to time: CMTime) async {
     Self.log.debug("seek: \(time)")
+    guard let seekingEpisodeID = episodeID else {
+      Self.log.debug("seek: ignored with no episode")
+      return
+    }
 
-    await swapToCached()
+    guard let seekingSource = eventSource else { return }
+    let seekID = UUID()
+    latestSeekID = seekID
+    await swapToCached(from: seekingSource)
+    guard latestSeekID == seekID, episodeID == seekingEpisodeID else { return }
+    guard let eventSource else { return }
 
     removePeriodicTimeObserver()
-    currentTimeContinuation.yield(time)
+    currentTimeContinuation.yield(PodAVPlayerEvent(source: eventSource, value: time))
 
-    avPlayer.seek(to: time) { [weak self] completed in
+    avPlayer.seek(to: time) { [weak self, eventSource, seekID] completed in
       guard let self else { return }
 
       if completed {
         Self.log.debug("seek: to \(time) completed")
-        Task { [weak self] in
-          guard let self else { return }
-          await saveCurrentTime(time)
-          await addPeriodicTimeObserver()
+        Task { @MainActor [weak self, eventSource, seekID] in
+          guard let self, self.latestSeekID == seekID, self.isCurrent(eventSource) else { return }
+          await self.saveCurrentTime(time)
+          guard self.latestSeekID == seekID, self.isCurrent(eventSource) else { return }
+          self.addPeriodicTimeObserver()
         }
       } else {
         Self.log.debug("seek: to \(time) interrupted")
@@ -317,6 +376,7 @@ enum PodAVPlayerError: Error, LocalizedError {
 
     do {
       try await repo.updateCurrentTime(episodeID, currentTime: currentTime)
+      guard self.episodeID == episodeID else { return }
       lastDatabaseUpdateTime = currentTime
       Self.log.trace("saveCurrentTime: saved \(currentTime) for \(episodeID)")
     } catch {
@@ -329,12 +389,8 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   // Seek and pause stay on `saveCurrentTime` — they don't represent content
   // the user actually heard, so the bitmap and `lastPlayedDate` shouldn't grow.
-  private func savePlaybackTick(_ currentTime: CMTime) async {
-    guard let episodeID else {
-      Self.log.debug("Saving tick on nil player item with CMTime: \(currentTime)")
-      return
-    }
-
+  private func savePlaybackTick(_ currentTime: CMTime, episodeID: Episode.ID) async {
+    guard self.episodeID == episodeID else { return }
     let playedFrom = lastDatabaseUpdateTime ?? currentTime
     do {
       try await repo.updatePlayback(
@@ -343,6 +399,7 @@ enum PodAVPlayerError: Error, LocalizedError {
         playedFrom: playedFrom,
         now: Date()
       )
+      guard self.episodeID == episodeID else { return }
       lastDatabaseUpdateTime = currentTime
       Self.log.trace(
         "savePlaybackTick: saved \(currentTime) (from \(playedFrom)) for \(episodeID)"
@@ -357,23 +414,24 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   // MARK: - Change Handlers
 
-  private func handleCurrentTimeChange(_ currentTime: CMTime) async {
-    guard let episodeID else {
-      Self.log.debug("Setting current time on nil player item with CMTime: \(currentTime)")
-      return
-    }
+  private func handleCurrentTimeChange(
+    _ currentTime: CMTime,
+    source: PodAVPlayerEventSource
+  ) async {
+    guard isCurrent(source) else { return }
 
     // `abs` guards against any future path that moves time backward without
     // routing through `seek(to:)` (which resets `lastDatabaseUpdateTime`).
     if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds)
       >= Double(Self.playbackTickSeconds)
     {
-      await savePlaybackTick(currentTime)
+      await savePlaybackTick(currentTime, episodeID: source.episodeID)
+      guard isCurrent(source) else { return }
     }
 
     // Always yield to the stream for UI updates (250ms)
-    Self.log.trace("handleCurrentTimeChange to: \(currentTime) for \(episodeID)")
-    currentTimeContinuation.yield(currentTime)
+    Self.log.trace("handleCurrentTimeChange to: \(currentTime) for \(source.episodeID)")
+    currentTimeContinuation.yield(PodAVPlayerEvent(source: source, value: currentTime))
   }
 
   // MARK: - Transient State Tracking
@@ -397,46 +455,52 @@ enum PodAVPlayerError: Error, LocalizedError {
   private func addItemStatusObserver() {
     guard itemStatusObserver == nil else { return }
 
-    guard let currentItem = avPlayer.current, let episodeID else { return }
+    guard let currentItem = avPlayer.current, let eventSource else { return }
     let avPlayerItem = currentItem as? AVPlayerItem
     itemStatusObserver = currentItem.observeStatus(options: [.initial, .new]) {
-      [weak self, avPlayerItem] status in
+      [weak self, avPlayerItem, eventSource] status in
       guard let self else { return }
 
       switch status {
       case .unknown:
-        Self.log.debug("AVPlayerItem status: unknown for episode \(episodeID)")
+        Self.log.debug("AVPlayerItem status: unknown for episode \(eventSource.episodeID)")
       case .readyToPlay:
-        Self.log.debug("AVPlayerItem status: readyToPlay for episode \(episodeID)")
+        Self.log.debug("AVPlayerItem status: readyToPlay for episode \(eventSource.episodeID)")
       case .failed:
         if let error = avPlayerItem?.error {
           Self.log.caughtError(
-            "AVPlayerItem status: failed for episode \(episodeID)",
+            "AVPlayerItem status: failed for episode \(eventSource.episodeID)",
             error
           )
         } else {
-          Self.log.error("AVPlayerItem status: failed for episode \(episodeID) (no error details)")
+          Self.log.error(
+            """
+            AVPlayerItem status: failed for episode \(eventSource.episodeID) \
+            (no error details)
+            """
+          )
         }
       @unknown default:
         Self.log.warning("AVPlayerItem status: unknown value (\(status.rawValue))")
       }
 
-      itemStatusContinuation.yield((status, episodeID))
+      itemStatusContinuation.yield(PodAVPlayerEvent(source: eventSource, value: status))
     }
   }
 
   private func addPeriodicTimeObserver() {
     guard periodicTimeObservation == nil else { return }
+    guard let eventSource else { return }
 
     Self.log.debug("addPeriodicTimeObserver: registering using player's internal queue")
     let observer = avPlayer.addPeriodicTimeObserver(
       forInterval: .milliseconds(250),
       queue: nil
-    ) { [weak self] currentTime in
+    ) { [weak self, eventSource] currentTime in
       guard let self else { return }
-      Task { [weak self, currentTime] in
+      Task { [weak self, currentTime, eventSource] in
         guard let self else { return }
-        await self.handleCurrentTimeChange(currentTime)
+        await self.handleCurrentTimeChange(currentTime, source: eventSource)
       }
     }
     periodicTimeObservation = (observer, avPlayer)
@@ -444,15 +508,18 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   private func addTimeControlStatusObserver() {
     guard timeControlStatusObserver == nil else { return }
+    guard let eventSource else { return }
 
     timeControlStatusObserver = avPlayer.observeTimeControlStatus(options: [.initial, .new]) {
-      [weak self] status in
+      [weak self, eventSource] status in
       guard let self else { return }
-      controlStatusContinuation.yield(PlaybackStatus(status))
+      controlStatusContinuation.yield(
+        PodAVPlayerEvent(source: eventSource, value: PlaybackStatus(status))
+      )
 
       if status != .playing {
-        Task { @MainActor [weak self] in
-          guard let self else { return }
+        Task { @MainActor [weak self, eventSource] in
+          guard let self, self.isCurrent(eventSource) else { return }
           Self.log.debug(
             """
             timeControlStatus: \(PlaybackStatus(status)), \
@@ -460,7 +527,7 @@ enum PodAVPlayerError: Error, LocalizedError {
             """
           )
           let currentTime = avPlayer.currentTime()
-          if await swapToCached() {
+          if await swapToCached(from: eventSource) {
             avPlayer.seek(to: currentTime)
           }
         }
@@ -470,11 +537,13 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   private func addRateObserver() {
     guard rateObserver == nil else { return }
+    guard let eventSource else { return }
 
-    rateObserver = avPlayer.observeRate(options: [.initial, .new]) { [weak self] rate in
+    rateObserver = avPlayer.observeRate(options: [.initial, .new]) {
+      [weak self, eventSource] rate in
       guard let self else { return }
       Self.log.debug("rate changed: \(rate)")
-      rateContinuation.yield(rate)
+      rateContinuation.yield(PodAVPlayerEvent(source: eventSource, value: rate))
     }
   }
 
@@ -506,13 +575,26 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   private func addDidPlayToEndObserver() {
     guard didPlayToEndTask == nil else { return }
+    guard let eventSource else { return }
 
-    didPlayToEndTask = Task { [weak self] in
+    didPlayToEndTask = Task { [weak self, eventSource] in
       guard let self else { return }
-      for await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
+      for await notification in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
         guard !Task.isCancelled else { return }
-        guard let episodeID else { return }
-        didPlayToEndContinuation.yield(episodeID)
+        guard let item = notification.object as? any AVPlayableItem else {
+          Self.log.warning("Ignoring didPlayToEndTimeNotification without a player item")
+          continue
+        }
+        guard ObjectIdentifier(item) == eventSource.itemIdentity else {
+          Self.log.debug(
+            """
+            Ignoring didPlayToEndTimeNotification from non-current item for episode \
+            \(eventSource.episodeID)
+            """
+          )
+          continue
+        }
+        didPlayToEndContinuation.yield(eventSource)
       }
     }
   }
