@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -14,6 +15,7 @@ import Testing
   @DynamicInjected(\.fakeAudioSession) private var audioSession
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.queue) private var queue
+  @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.userSettings) private var userSettings
@@ -163,6 +165,78 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
     try await PlayHelpers.waitForCurrentItem(nextEpisode.episode.mediaURL)
     try await PlayHelpers.waitForFinished(currentEpisode)
+  }
+
+  @Test("newer load during markFinished survives stale finalization")
+  func newerLoadDuringMarkFinishedSurvivesStaleFinalization() async throws {
+    await playManager.start()
+    let (currentEpisode, selectedEpisode) = try await Create.twoPodcastEpisodes()
+    let fakeRepo = try #require(repo as? FakeRepo)
+
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    let markingStarted = AsyncSemaphore(value: 0)
+    let finishMarking = AsyncSemaphore(value: 0)
+    await fakeRepo.afterNextMarkFinished { episodeID in
+      guard episodeID == currentEpisode.id else { return }
+      markingStarted.signal()
+      await finishMarking.wait()
+    }
+
+    let finalization = Task { await playManager.finishEpisode(currentEpisode.id) }
+    defer {
+      finalization.cancel()
+      finishMarking.signal()
+    }
+    await markingStarted.wait()
+
+    try await playManager.load(selectedEpisode)
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
+
+    finishMarking.signal()
+    await finalization.value
+
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
+  }
+
+  @Test("newer load during next episode resolution survives stale finalization")
+  func newerLoadDuringNextEpisodeResolutionSurvivesStaleFinalization() async throws {
+    await playManager.start()
+    let (currentEpisode, queuedEpisode, selectedEpisode) =
+      try await Create.threePodcastEpisodes()
+    let fakeQueue = try #require(queue as? FakeQueue)
+
+    try await queue.unshift(queuedEpisode.id)
+    try await playManager.load(currentEpisode)
+    try await PlayHelpers.play()
+
+    let resolutionStarted = AsyncSemaphore(value: 0)
+    let finishResolution = AsyncSemaphore(value: 0)
+    fakeQueue.beforeNextEpisode {
+      resolutionStarted.signal()
+      await finishResolution.wait()
+    }
+
+    let finalization = Task { await playManager.finishEpisode(currentEpisode.id) }
+    defer {
+      finalization.cancel()
+      finishResolution.signal()
+    }
+    await resolutionStarted.wait()
+    #expect(sharedState.onDeck == nil)
+
+    try await playManager.load(selectedEpisode)
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
+
+    finishResolution.signal()
+    await finalization.value
+
+    try await PlayHelpers.waitForOnDeck(selectedEpisode)
+    try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
   }
 
   @Test("next episode preflight failure stops playback and preserves the queue")

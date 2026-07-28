@@ -174,10 +174,7 @@ final class PlayManager {
 
   @discardableResult
   func load(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
-    let loadID = UUID()
-    let inheritedState = loadTransition?.state ?? .preservingPlayback
-    loadTransition = LoadTransition(id: loadID, state: inheritedState)
-    loadTask?.cancel()
+    let loadID = claimLoadTransition()
 
     let task = Task<Bool, any Error> { [weak self] in
       guard let self else { return false }
@@ -198,6 +195,14 @@ final class PlayManager {
 
     loadTask = task
     return try await task.value
+  }
+
+  private func claimLoadTransition() -> UUID {
+    let loadID = UUID()
+    let inheritedState = loadTransition?.state ?? .preservingPlayback
+    loadTransition = LoadTransition(id: loadID, state: inheritedState)
+    loadTask?.cancel()
+    return loadID
   }
 
   private func performLoad(_ incoming: PodcastEpisode, loadID: UUID) async throws -> Bool {
@@ -563,6 +568,7 @@ final class PlayManager {
     let episodeID = episodeID ?? onDeckID
     guard let episodeID else { return }
     Self.log.debug("finishEpisode: \(episodeID) (onDeckID: \(String(describing: onDeckID)))")
+    let finalizationID = episodeID == onDeckID ? claimLoadTransition() : nil
 
     do {
       try await repo.markFinished(episodeID)
@@ -570,65 +576,65 @@ final class PlayManager {
       Self.log.caughtError("finishEpisode: failed to mark episode \(episodeID) finished", error)
     }
 
-    guard episodeID == onDeckID
-    else { return }
-
-    suppressRemoteScrubCommands()
-
-    await clearOnDeck()
-
-    if sharedState.stopAfterCurrentEpisode {
-      Self.log.debug("finishEpisode: stopAfterCurrentEpisode set, stopping instead of advancing")
-      sharedState.setStopAfterCurrentEpisode(false)
-      setStatus(.stopped)
-      return
-    }
-
+    guard let finalizationID else { return }
     do {
-      if let nextEpisode = try await queue.nextEpisode {
+      try requireLoadTransitionOwnership(finalizationID)
+      suppressRemoteScrubCommands()
+      loadTransition?.state = .ownsPlaybackState
+      try await clearOnDeck(ownedBy: finalizationID)
+      if sharedState.stopAfterCurrentEpisode {
+        Self.log.debug("finishEpisode: stopAfterCurrentEpisode set, stopping instead of advancing")
+        sharedState.setStopAfterCurrentEpisode(false)
+        setStatus(.stopped)
+        loadTransition = nil
+        return
+      }
+
+      let nextEpisode = try await queue.nextEpisode
+      try requireLoadTransitionOwnership(finalizationID)
+      if let nextEpisode {
         Self.log.debug("next episode exists to automatically load: \(nextEpisode.toString)")
         guard try await load(nextEpisode) else {
           setStatus(.stopped)
           return
         }
         await play()
-      } else if let recommended = try await nextAutoplayRecommendation() {
-        Self.log.debug(
-          """
-          queue empty, autoloading top recommendation: \(recommended.toString) \
-          (autoPlayTopRecommendationWhenQueueEmpty enabled)
-          """
-        )
+        return
+      }
+
+      let recommended = try await nextAutoplayRecommendation()
+      try requireLoadTransitionOwnership(finalizationID)
+      if let recommended {
+        Self.log.debug("autoloading queue-empty recommendation: \(recommended.toString)")
         guard try await load(recommended) else {
           setStatus(.stopped)
           return
         }
         await play()
-      } else {
-        Self.log.debug(
-          """
-          no next episode, stopping \
-          (autoPlayTopRecommendationWhenQueueEmpty: \
-          \(userSettings.autoPlayTopRecommendationWhenQueueEmpty), \
-          recommendedPoolCount: \(sharedState.recommendedEpisodePool.count))
-          """
-        )
-        setStatus(.stopped)
+        return
       }
+      Self.log.debug("no automatic replacement episode, stopping")
+      setStatus(.stopped)
+      loadTransition = nil
+    } catch is CancellationError {
+      if loadTransition?.id == finalizationID {
+        if sharedState.onDeck == nil { setStatus(.stopped) }
+        loadTransition = nil
+      }
+      return
     } catch {
       Self.log.caughtError("finishEpisode: failed to load next episode after \(episodeID)", error)
-      if sharedState.onDeck == nil, loadTransition == nil {
+      if loadTransition?.id == finalizationID {
+        setStatus(.stopped)
+        loadTransition = nil
+      } else if sharedState.onDeck == nil, loadTransition == nil {
         setStatus(.stopped)
       }
       await alert(ErrorKit.message(for: error))
     }
   }
 
-  // Returns the first pool entry that's still candidate-eligible. The pool
-  // is published as IDs only, so anything that's been queued / rated /
-  // finished / started since the last engine rebuild has to be filtered out
-  // here. The just-finished episode is automatically excluded — `finishDate`
-  // is set before this runs, so `isCandidate` rejects it.
+  // Filters published IDs by current state; `finishDate` excludes the finished episode.
   private func nextAutoplayRecommendation() async throws -> PodcastEpisode? {
     guard userSettings.autoPlayTopRecommendationWhenQueueEmpty else { return nil }
     for episodeID in sharedState.recommendedEpisodePool {
