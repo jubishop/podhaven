@@ -130,4 +130,82 @@ import Testing
       toBe: seekTime
     )
   }
+
+  @Test("seek cache swap cannot replace a newer episode")
+  func seekCacheSwapCannotReplaceNewerEpisode() async throws {
+    await playManager.start()
+    let (seekingEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await playManager.load(seekingEpisode)
+    try await repo.updateCachedFilename(
+      seekingEpisode.id,
+      cachedFilename: "cached-seeking-episode.mp3"
+    )
+    let updatedSeekingEpisode = try #require(
+      try await repo.podcastEpisode(seekingEpisode.id)
+    )
+    let cachedURL = try #require(updatedSeekingEpisode.episode.cachedURL)
+    let swapStarted = AsyncSemaphore(value: 0)
+    let finishSwap = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.respond(to: cachedURL) { _ in
+      swapStarted.signal()
+      await finishSwap.wait()
+      return (true, .seconds(60))
+    }
+
+    let staleSeek = Task { await playManager.seek(to: .seconds(20)) }
+    defer {
+      staleSeek.cancel()
+      finishSwap.signal()
+    }
+    await swapStarted.wait()
+
+    try await playManager.load(incomingEpisode)
+    finishSwap.signal()
+    await staleSeek.value
+
+    #expect(PlayHelpers.currentAssetURL == incomingEpisode.episode.mediaURL.rawValue)
+    #expect(sharedState.onDeck?.id == incomingEpisode.id)
+  }
+
+  @Test("seek completion cannot save time to a newer episode")
+  func seekCompletionCannotSaveTimeToNewerEpisode() async throws {
+    await playManager.start()
+    let (seekingEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+    let fakeRepo = try #require(repo as? FakeRepo)
+
+    try await playManager.load(seekingEpisode)
+    let seekStarted = AsyncSemaphore(value: 0)
+    let finishSeek = AsyncSemaphore(value: 0)
+    let seekApplied = AsyncSemaphore(value: 0)
+    avPlayer.seekHandler = { _ in
+      seekStarted.signal()
+      await finishSeek.wait()
+      return true
+    }
+    let observer = avPlayer.addPeriodicTimeObserver(
+      forInterval: .milliseconds(250),
+      queue: nil
+    ) { _ in
+      seekApplied.signal()
+    }
+    defer {
+      avPlayer.removeTimeObserver(observer)
+      finishSeek.signal()
+    }
+
+    await playManager.seek(to: .seconds(1))
+    await seekStarted.wait()
+    try await playManager.load(incomingEpisode)
+    fakeRepo.clearAllCalls()
+
+    finishSeek.signal()
+    await seekApplied.wait()
+    await Task.yield()
+    _ = try await repo.episode(incomingEpisode.id)
+
+    try fakeRepo.expectNoCall(methodName: "updateCurrentTime")
+    let storedIncomingEpisode = try #require(try await repo.episode(incomingEpisode.id))
+    #expect(storedIncomingEpisode.currentTime == .zero)
+  }
 }

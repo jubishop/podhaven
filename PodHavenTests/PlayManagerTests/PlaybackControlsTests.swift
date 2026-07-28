@@ -14,6 +14,7 @@ import Testing
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.notifier) private var notifier
   @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.stateManager) private var stateManager
 
@@ -384,6 +385,27 @@ import Testing
     let advancedTime = CMTime.seconds(10)
     avPlayer.advanceTime(to: advancedTime)
     try await PlayHelpers.waitFor(advancedTime)
+  }
+
+  @Test("retired time observer cannot update a replacement episode")
+  func retiredTimeObserverCannotUpdateReplacementEpisode() async throws {
+    await playManager.start()
+    let (retiredEpisode, replacementEpisode) = try await Create.twoPodcastEpisodes()
+    let fakeRepo = try #require(repo as? FakeRepo)
+
+    try await playManager.load(retiredEpisode)
+    let retiredObserver = try #require(avPlayer.timeObservers.values.first)
+    try await playManager.load(replacementEpisode)
+    fakeRepo.clearAllCalls()
+
+    retiredObserver.block(.seconds(30))
+    await Task.yield()
+    _ = try await repo.episode(replacementEpisode.id)
+
+    try fakeRepo.expectNoCall(methodName: "updatePlayback")
+    let storedReplacement = try #require(try await repo.episode(replacementEpisode.id))
+    #expect(storedReplacement.currentTime == .zero)
+    #expect(sharedState.onDeck?.currentTime == .zero)
   }
 
   @Test("time updates throttle database writes to every 3 seconds")

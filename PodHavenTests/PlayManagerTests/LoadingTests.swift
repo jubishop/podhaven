@@ -409,10 +409,12 @@ import Testing
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     let originalSemaphore = await episodeAssetLoader.waitRespond(
-      to: originalEpisode.episode.mediaURL
+      to: originalEpisode.episode.mediaURL,
+      data: (true, .seconds(60))
     )
     let incomingSemaphore = await episodeAssetLoader.waitRespond(
-      to: incomingEpisode.episode.mediaURL
+      to: incomingEpisode.episode.mediaURL,
+      data: (true, .seconds(60))
     )
     let originalPlay = Task { try await playManager.play(originalEpisode) }
     defer {
@@ -437,6 +439,106 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
+  @Test("failed newer preflight terminates inherited load transition")
+  func failedNewerPreflightTerminatesInheritedLoadTransition() async throws {
+    await playManager.start()
+    let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+
+    let originalRelease = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.respond(to: originalEpisode.episode.mediaURL) { _ in
+      await originalRelease.wait()
+      return (true, .seconds(60))
+    }
+    let originalPlay = Task { try await playManager.play(originalEpisode) }
+    defer {
+      originalPlay.cancel()
+      originalRelease.signal()
+    }
+    try await PlayHelpers.waitFor(.loading(originalEpisode.episode.title))
+    try await PlayHelpers.waitForAudioActive(true)
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+    try await playManager.play(incomingEpisode)
+    originalRelease.signal()
+    await #expect(throws: (any Error).self) {
+      try await originalPlay.value
+    }
+
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForAudioActive(false)
+    #expect(sharedState.onDeck == nil)
+    try await PlayHelpers.waitForNoCurrentItem()
+
+    audioSession.configureError { $0 = nil }
+    await playManager.restorePersistedEpisodeForForeground()
+
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForAudioActive(true)
+    try await PlayHelpers.waitForQueue([originalEpisode])
+  }
+
+  @Test("same episode handoff finishes established load observers")
+  func sameEpisodeHandoffFinishesEstablishedLoadObservers() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let fakeQueue = try #require(queue as? FakeQueue)
+    let dequeueStarted = AsyncSemaphore(value: 0)
+    let finishDequeue = AsyncSemaphore(value: 0)
+    fakeQueue.beforeNextDequeueEpisode { episodeID in
+      #expect(episodeID == podcastEpisode.id)
+      dequeueStarted.signal()
+      await finishDequeue.wait()
+    }
+
+    let originalPlay = Task { try await playManager.play(podcastEpisode) }
+    defer {
+      originalPlay.cancel()
+      finishDequeue.signal()
+    }
+    await dequeueStarted.wait()
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+
+    try await playManager.play(podcastEpisode)
+    finishDequeue.signal()
+    try await originalPlay.value
+
+    try await PlayHelpers.waitFor(.playing)
+  }
+
+  @Test("failed preflight preserves playback established by prior load")
+  func failedPreflightPreservesPlaybackEstablishedByPriorLoad() async throws {
+    await playManager.start()
+    let (establishedEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+    let fakeQueue = try #require(queue as? FakeQueue)
+    let dequeueStarted = AsyncSemaphore(value: 0)
+    let finishDequeue = AsyncSemaphore(value: 0)
+    fakeQueue.beforeNextDequeueEpisode { episodeID in
+      #expect(episodeID == establishedEpisode.id)
+      dequeueStarted.signal()
+      await finishDequeue.wait()
+    }
+
+    let establishedLoad = Task { try await playManager.load(establishedEpisode) }
+    defer {
+      establishedLoad.cancel()
+      finishDequeue.signal()
+    }
+    await dequeueStarted.wait()
+    try await PlayHelpers.waitForOnDeck(establishedEpisode)
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+    #expect(try await playManager.load(incomingEpisode) == false)
+    finishDequeue.signal()
+    #expect(try await establishedLoad.value == true)
+
+    try await PlayHelpers.waitForOnDeck(establishedEpisode)
+    try await PlayHelpers.waitForCurrentItem(establishedEpisode.episode.mediaURL)
+    try await PlayHelpers.waitFor(.paused)
+    try await PlayHelpers.waitForAudioActive(true)
+    try await PlayHelpers.waitForQueue([])
+  }
+
   @Test("audio session failure during load clears state and surfaces alert")
   func audioSessionFailureDuringLoadClearsStateAndSurfacesAlert() async throws {
     await playManager.start()
@@ -455,6 +557,25 @@ import Testing
       { @MainActor in alert.config != nil },
       { @MainActor in "Expected alert after audio session configuration failure" }
     )
+  }
+
+  @Test("preflight failure preserves an existing episode")
+  func preflightFailurePreservesExistingEpisode() async throws {
+    await playManager.start()
+    let (playingEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await playManager.load(playingEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitFor(.playing)
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+    #expect(try await playManager.load(incomingEpisode) == false)
+
+    #expect(sharedState.onDeck?.id == playingEpisode.id)
+    #expect(sharedState.playbackStatus == .playing)
+    try await PlayHelpers.waitForCurrentItem(playingEpisode.episode.mediaURL)
+    try await PlayHelpers.waitForAudioActive(true)
+    try await PlayHelpers.waitForQueue([])
   }
 
   @Test("failed playback recovery preflight returns episode to queue")
@@ -568,6 +689,31 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
     #expect(sharedState.currentEpisodeID == podcastEpisode.id)
     try await PlayHelpers.waitForQueue([])
+  }
+
+  @Test("foreground restoration does not retry a terminal play failure")
+  func foregroundRestorationDoesNotRetryTerminalPlayFailure() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(podcastEpisode)
+    )
+    await #expect(throws: (any Error).self) {
+      try await playManager.play(podcastEpisode)
+    }
+    #expect(
+      await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL) == 1
+    )
+
+    await episodeAssetLoader.clearCustomHandler(for: podcastEpisode.episode)
+    await playManager.restorePersistedEpisodeForForeground()
+
+    #expect(
+      await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL) == 1
+    )
+    #expect(sharedState.onDeck == nil)
   }
 
   @Test("episode intent recovers its selected target after activation failure")

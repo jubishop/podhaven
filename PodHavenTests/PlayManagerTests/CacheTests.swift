@@ -13,6 +13,7 @@ import Testing
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.stateManager) private var stateManager
 
@@ -76,6 +77,26 @@ import Testing
     // Verify the asset was loaded with the original media URL
     let currentItem = avPlayer.current! as! FakeAVPlayerItem
     #expect(currentItem.url == podcastEpisode.episode.mediaURL.rawValue)
+  }
+
+  @Test("cached asset cancellation preserves its cache")
+  func cachedAssetCancellationPreservesItsCache() async throws {
+    await playManager.start()
+    let cachedFilename = "cached-cancelled-load.mp3"
+    let cachedEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(cachedFilename: cachedFilename)
+    )
+    let cachedURL = try #require(cachedEpisode.episode.cachedURL)
+    await episodeAssetLoader.respond(to: cachedURL, error: CancellationError())
+
+    await #expect(throws: CancellationError.self) {
+      try await playManager.load(cachedEpisode)
+    }
+
+    let storedCachedEpisode = try #require(try await repo.episode(cachedEpisode.id))
+    #expect(storedCachedEpisode.cachedURL == cachedURL)
+    #expect(storedCachedEpisode.cacheStatus == .cached)
+    #expect(!storedCachedEpisode.downloading)
   }
 
   @Test("episode cache is not cleared when loading")

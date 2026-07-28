@@ -9,10 +9,12 @@ import Tagged
 
 // TODO: Make this a struct to avoid Task {
 struct FakeQueue: Sendable, FakeCallable, Queueing {
+  typealias BeforeDequeueEpisode = @Sendable (Episode.ID) async throws -> Void
   typealias BeforeUnshiftEpisode = @Sendable (Episode.ID) async throws -> Void
 
   let callOrder = ThreadSafe<Int>(0)
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
+  private let beforeDequeueEpisodeHandler = ThreadSafe<BeforeDequeueEpisode?>(nil)
   private let beforeUnshiftEpisodeHandler = ThreadSafe<BeforeUnshiftEpisode?>(nil)
 
   private let queue: any Queueing
@@ -52,6 +54,14 @@ struct FakeQueue: Sendable, FakeCallable, Queueing {
 
   func dequeue(_ episodeID: Episode.ID) async throws {
     recordCall(methodName: "dequeue", parameters: episodeID)
+    let beforeDequeueEpisode = beforeDequeueEpisodeHandler { handler in
+      let current = handler
+      handler = nil
+      return current
+    }
+    if let beforeDequeueEpisode {
+      try await beforeDequeueEpisode(episodeID)
+    }
     try await queue.dequeue(episodeID)
   }
 
@@ -120,6 +130,10 @@ struct FakeQueue: Sendable, FakeCallable, Queueing {
   }
 
   // MARK: - Test Control
+
+  func beforeNextDequeueEpisode(_ handler: @escaping BeforeDequeueEpisode) {
+    beforeDequeueEpisodeHandler(handler)
+  }
 
   func beforeUnshiftEpisode(_ handler: @escaping BeforeUnshiftEpisode) {
     beforeUnshiftEpisodeHandler(handler)

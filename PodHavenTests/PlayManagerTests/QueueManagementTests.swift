@@ -96,6 +96,52 @@ import Testing
     try await PlayHelpers.waitForNoCurrentItem()
   }
 
+  @Test("superseding a blocked outgoing restore preserves the prior episode")
+  func supersedingBlockedOutgoingRestorePreservesPriorEpisode() async throws {
+    await playManager.start()
+    let (playingEpisode, interruptedEpisode, replacementEpisode) =
+      try await Create.threePodcastEpisodes()
+    let fakeQueue = try #require(queue as? FakeQueue)
+
+    try await playManager.load(playingEpisode)
+    let restoreStarted = AsyncSemaphore(value: 0)
+    let finishRestore = AsyncSemaphore(value: 0)
+    fakeQueue.beforeUnshiftEpisode { episodeID in
+      guard episodeID == playingEpisode.id else { return }
+      restoreStarted.signal()
+      await finishRestore.wait()
+      try Task.checkCancellation()
+    }
+
+    let interruptedLoad = Task { try await playManager.load(interruptedEpisode) }
+    defer {
+      interruptedLoad.cancel()
+      finishRestore.signal()
+    }
+    await restoreStarted.wait()
+
+    let replacementRelease = await episodeAssetLoader.waitRespond(
+      to: replacementEpisode.episode.mediaURL,
+      data: (true, .seconds(60))
+    )
+    let replacementLoad = Task { try await playManager.load(replacementEpisode) }
+    defer {
+      replacementLoad.cancel()
+      replacementRelease.signal()
+    }
+    try await PlayHelpers.waitFor(.loading(replacementEpisode.episode.title))
+
+    finishRestore.signal()
+    await #expect(throws: (any Error).self) {
+      try await interruptedLoad.value
+    }
+    replacementRelease.signal()
+    #expect(try await replacementLoad.value == true)
+
+    try await PlayHelpers.waitForOnDeck(replacementEpisode)
+    try await PlayHelpers.waitForQueue([interruptedEpisode, playingEpisode])
+  }
+
   @Test("loading same episode during load does not unshift onto queue")
   func loadingSameEpisodeDuringLoadDoesNotUnshiftOntoQueue() async throws {
     await playManager.start()
