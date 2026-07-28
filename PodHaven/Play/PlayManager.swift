@@ -356,6 +356,9 @@ final class PlayManager {
       Self.log.debug("performLoad: adding player observers")
       await podAVPlayer.addObservers()
       guard try shouldFinishEstablishedLoad(loadID) else { return true }
+      let playbackStatus = await podAVPlayer.playbackStatus()
+      guard try shouldFinishEstablishedLoad(loadID) else { return true }
+      setStatus(playbackStatus)
       loadTransition?.state = .preservingPlayback
       Self.log.debug(
         """

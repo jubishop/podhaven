@@ -20,6 +20,18 @@ extension PlayManager {
 
   // MARK: - Change Handlers
 
+  private func isCurrentPlayerEvent(_ source: PodAVPlayerEventSource) async -> Bool {
+    guard await podAVPlayer.isCurrent(source) else {
+      Self.log.debug("Ignoring stale player event for episode \(source.episodeID)")
+      return false
+    }
+    guard sharedState.onDeck?.id == source.episodeID else {
+      Self.log.debug("Ignoring player event without matching on-deck episode \(source.episodeID)")
+      return false
+    }
+    return true
+  }
+
   private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID) async {
     Self.log.debug("handleItemStatusChange: \(status) for episode \(episodeID)")
 
@@ -581,28 +593,36 @@ extension PlayManager {
 
     Task { @PlayActor [weak self] in
       guard let self else { return }
-      for await (status, episodeID) in await podAVPlayer.itemStatusStream {
-        await handleItemStatusChange(status: status, episodeID: episodeID)
+      for await event in await podAVPlayer.itemStatusStream
+      where await isCurrentPlayerEvent(event.source) {
+        await handleItemStatusChange(
+          status: event.value,
+          episodeID: event.source.episodeID
+        )
       }
     }
 
     Task { @PlayActor [weak self] in
       guard let self else { return }
-      for await currentTime in await podAVPlayer.currentTimeStream {
-        setCurrentTime(currentTime)
+      for await event in await podAVPlayer.currentTimeStream
+      where await isCurrentPlayerEvent(event.source) {
+        setCurrentTime(event.value)
       }
     }
 
     Task { @PlayActor [weak self] in
       guard let self else { return }
-      for await rate in await podAVPlayer.rateStream {
-        setPlaybackRate(rate)
+      for await event in await podAVPlayer.rateStream where await isCurrentPlayerEvent(event.source)
+      {
+        setPlaybackRate(event.value)
       }
     }
 
     Task { @PlayActor [weak self] in
       guard let self else { return }
-      for await controlStatus in await podAVPlayer.controlStatusStream {
+      for await event in await podAVPlayer.controlStatusStream
+      where await isCurrentPlayerEvent(event.source) {
+        let controlStatus = event.value
         Self.log.debug("AVPlayer timeControlStatus changed to: \(controlStatus)")
         switch controlStatus {
         case .paused:
@@ -619,8 +639,9 @@ extension PlayManager {
 
     Task { @PlayActor [weak self] in
       guard let self else { return }
-      for await episodeID in await podAVPlayer.didPlayToEndStream {
-        await handleDidPlayToEnd(episodeID)
+      for await source in await podAVPlayer.didPlayToEndStream
+      where await isCurrentPlayerEvent(source) {
+        await handleDidPlayToEnd(source.episodeID)
       }
     }
 

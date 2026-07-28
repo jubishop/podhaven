@@ -3,7 +3,7 @@
 import AVFoundation
 import Foundation
 
-@MainActor protocol AVPlayableItem: CustomStringConvertible {
+@MainActor protocol AVPlayableItem: AnyObject, CustomStringConvertible {
   var asset: AVAsset { get }
 
   func observeStatus(
