@@ -97,6 +97,7 @@ class EpisodesListViewModel:
   private(set) var showUnreadBadge: Bool
   private(set) var alwaysShowPodcastImage: Bool
   private(set) var icon: LucideIcon
+  private(set) var lastSeenEpisodeId: Episode.ID
   private(set) var loadingState: LoadingState = .neverLoaded
 
   private var filter: SQLExpression {
@@ -127,6 +128,7 @@ class EpisodesListViewModel:
     self.showUnreadBadge = smartList.showUnreadBadge
     self.alwaysShowPodcastImage = smartList.alwaysShowPodcastImage
     self.icon = smartList.icon
+    self.lastSeenEpisodeId = smartList.lastSeenEpisodeId
     self.rowSortMethod = smartList.sortMethod
   }
 
@@ -154,6 +156,9 @@ class EpisodesListViewModel:
           alwaysShowPodcastImage = smartList.alwaysShowPodcastImage
         }
         if icon != smartList.icon { icon = smartList.icon }
+        if lastSeenEpisodeId != smartList.lastSeenEpisodeId {
+          lastSeenEpisodeId = smartList.lastSeenEpisodeId
+        }
         if rowSortMethod != smartList.sortMethod { rowSortMethod = smartList.sortMethod }
       }
     } catch is CancellationError {
