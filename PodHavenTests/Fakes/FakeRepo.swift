@@ -23,8 +23,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // subsequent calls reach the real repo.
   nonisolated let episodeFetchError = ThreadSafe<(any Error & Sendable)?>(nil)
 
-  nonisolated let updateDownloadingFalseError = ThreadSafe<(any Error & Sendable)?>(nil)
-
   // When true, the next `episode(_:Episode.ID)` call parks until
   // `resumeAllEpisodeFetchSuspensions()` fires; cleared on use. Counts are
   // nonisolated so tests poll without contending for the actor (same pattern
@@ -333,11 +331,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.cachedEpisodes()
   }
 
-  func cachedFilenameIsReferenced(_ cachedFilename: String) async throws -> Bool {
-    recordCall(methodName: "cachedFilenameIsReferenced", parameters: cachedFilename)
-    return try await repo.cachedFilenameIsReferenced(cachedFilename)
-  }
-
   func downloadingEpisodeIDs() async throws -> [Episode.ID] {
     recordCall(methodName: "downloadingEpisodeIDs")
     return try await repo.downloadingEpisodeIDs()
@@ -564,15 +557,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       methodName: "updateDownloading",
       parameters: (episodeID: episodeID, downloading: downloading)
     )
-    if !downloading,
-      let injected = updateDownloadingFalseError({ error in
-        let captured = error
-        error = nil
-        return captured
-      })
-    {
-      throw injected
-    }
     let result = try await repo.updateDownloading(episodeID, downloading: downloading)
     if !downloading, pendingDownloadingFalseSuspend() {
       pendingDownloadingFalseSuspend(false)

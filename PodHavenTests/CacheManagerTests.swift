@@ -358,7 +358,8 @@ import Testing
     )
     let survivingEpisode = try #require(survivingSeries.episodes.first)
     let survivingTaskID = try await CacheHelpers.downloadToCache(survivingEpisode.id)
-    try await CacheHelpers.simulateBackgroundFinish(survivingTaskID)
+    let originalData = Data("original shared finalization".utf8)
+    try await CacheHelpers.simulateBackgroundFinish(survivingTaskID, data: originalData)
     let sharedCachedURL = try await CacheHelpers.waitForCached(survivingEpisode.id)
 
     let targetSeries = try await repo.insertSeries(
@@ -396,7 +397,7 @@ import Testing
     let sharedFileExists = fileManager.fileExists(at: sharedCachedURL.rawValue)
     #expect(sharedFileExists)
     if sharedFileExists {
-      #expect(try await CacheHelpers.cachedFileData(for: sharedCachedURL) == replacementData)
+      #expect(try await CacheHelpers.cachedFileData(for: sharedCachedURL) == originalData)
     }
     #expect(!fileManager.fileExists(at: temporaryURL))
   }
@@ -693,6 +694,111 @@ import Testing
     try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
   }
 
+  @Test("clearCache releases only the target reference to a shared file")
+  func clearCacheReleasesOnlyTargetSharedReference() async throws {
+    let cachedFilename = "shared-manual-clear.mp3"
+    let target = try await CacheHelpers.createCachedEpisode(
+      title: "Clear Target",
+      cachedFilename: cachedFilename
+    )
+    let survivor = try await CacheHelpers.createCachedEpisode(
+      title: "Shared Survivor",
+      cachedFilename: cachedFilename,
+      saveInCache: true
+    )
+    let cachedURL = try #require(target.cachedURL)
+    let cachedData = Data("shared cache".utf8)
+    try await fileManager.writeData(cachedData, to: cachedURL.rawValue)
+
+    let disposition = try await cacheManager.clearCache(for: target.id)
+
+    #expect(disposition == .retained(cachedURL))
+    #expect(try await repo.episode(target.id)?.cacheStatus == .uncached)
+    #expect(try await repo.episode(survivor.id)?.cachedURL == cachedURL)
+    #expect(try await fileManager.readData(from: cachedURL.rawValue) == cachedData)
+  }
+
+  @Test("clearCache preserves the file when releasing metadata fails")
+  func clearCachePreservesFileWhenMetadataReleaseFails() async throws {
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Failed Metadata Release",
+      cachedFilename: "failed-metadata-release.mp3"
+    )
+    let cachedURL = try #require(episode.cachedURL)
+    let cachedData = Data("retained after database failure".utf8)
+    try await fileManager.writeData(cachedData, to: cachedURL.rawValue)
+    try await Container.shared.appDB().unsafeTestDB
+      .write { db in
+        try db.execute(
+          sql: """
+            CREATE TEMP TRIGGER fail_cache_reference_release
+            BEFORE UPDATE OF cachedFilename ON episode
+            WHEN OLD.id = \(episode.id.rawValue) AND NEW.cachedFilename IS NULL
+            BEGIN
+              SELECT RAISE(ABORT, 'simulated cache reference release failure');
+            END
+            """
+        )
+      }
+
+    await #expect(throws: DatabaseError.self) {
+      try await cacheManager.clearCache(for: episode.id)
+    }
+
+    #expect(try await repo.episode(episode.id)?.cachedURL == cachedURL)
+    #expect(try await fileManager.readData(from: cachedURL.rawValue) == cachedData)
+  }
+
+  @Test("clearCache observes a shared reference committed during its episode fetch")
+  func clearCacheObservesConcurrentSharedReference() async throws {
+    let cachedFilename = "concurrent-shared-reference.mp3"
+    let target = try await CacheHelpers.createCachedEpisode(
+      title: "Concurrent Clear Target",
+      cachedFilename: cachedFilename
+    )
+    let survivor = try await Create.podcastEpisode()
+    let cachedURL = try #require(target.cachedURL)
+    let cachedData = Data("concurrently retained cache".utf8)
+    try await fileManager.writeData(cachedData, to: cachedURL.rawValue)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+    let clear = Task {
+      try await cacheManager.clearCache(for: target.id)
+    }
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+
+    try await repo.updateCachedFilename(survivor.id, cachedFilename: cachedFilename)
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    _ = try await clear.value
+
+    #expect(try await repo.episode(target.id)?.cacheStatus == .uncached)
+    #expect(try await repo.episode(survivor.id)?.cachedURL == cachedURL)
+    #expect(try await fileManager.readData(from: cachedURL.rawValue) == cachedData)
+  }
+
+  @Test("concurrent final reference releases remove the shared file once")
+  func concurrentFinalReferenceReleasesRemoveFileOnce() async throws {
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Concurrent Final Owner",
+      cachedFilename: "concurrent-final-owner.mp3"
+    )
+    let cachedURL = try #require(episode.cachedURL)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+    let firstClear = Task {
+      try await cacheManager.clearCache(for: episode.id)
+    }
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+
+    _ = try await cacheManager.clearCache(for: episode.id)
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    _ = try await firstClear.value
+
+    #expect(fileManager.removeItemCallCount(for: cachedURL.rawValue) == 1)
+    #expect(try await repo.episode(episode.id)?.cacheStatus == .uncached)
+    #expect(!fileManager.fileExists(at: cachedURL.rawValue))
+  }
+
   @Test("clearCache protects only actively transcribing episodes")
   func clearCacheProtectsOnlyActivelyTranscribingEpisodes() async throws {
     let episode = try await CacheHelpers.createCachedEpisode(
@@ -708,7 +814,7 @@ import Testing
 
     transcriptionQueue.clearProgress(for: episode.id)
 
-    #expect(try await cacheManager.clearCache(for: episode.id) == cachedURL)
+    #expect(try await cacheManager.clearCache(for: episode.id) == .removed(cachedURL))
     #expect(!fileManager.fileExists(at: cachedURL.rawValue))
     #expect(try await repo.episode(episode.id)?.cacheStatus == .uncached)
   }
@@ -742,7 +848,7 @@ import Testing
 
     let cleared = try await cacheManager.clearCache(for: podcastEpisode.id)
 
-    #expect(cleared == cachedURL)
+    #expect(cleared == .alreadyMissing(cachedURL))
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
   }
 
@@ -861,6 +967,97 @@ import Testing
     #expect(withExtURL.pathExtension == "wav")
   }
 
+  @Test("extensionless download uses mp3 staging suffix for validation")
+  func extensionlessDownloadUsesMP3StagingSuffix() async throws {
+    let mediaURL = MediaURL(try #require(URL(string: "https://example.com/download")))
+    let podcastEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(mediaURL: mediaURL)
+    )
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+    await episodeAssetLoader.setDefaultHandler { url in
+      guard url.pathExtension == "mp3" else { throw TestError.simulatedFailure }
+      return (true, CMTime.seconds(30))
+    }
+
+    let urlSession = URLSession(configuration: .ephemeral)
+    defer { urlSession.invalidateAndCancel() }
+    let downloadTask = urlSession.downloadTask(with: mediaURL.rawValue)
+    downloadTask.taskDescription = String(podcastEpisode.id.rawValue)
+    let temporaryURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try await fileManager.writeData(Data.random(), to: temporaryURL)
+
+    let downloadDelegate: any URLSessionDownloadDelegate = cacheBackgroundDelegate
+    downloadDelegate.urlSession(
+      urlSession,
+      downloadTask: downloadTask,
+      didFinishDownloadingTo: temporaryURL
+    )
+
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForFileRemoved(temporaryURL)
+    #expect(cachedURL.pathExtension == "mp3")
+  }
+
+  @Test("download finalization reuses a cache file owned by another episode")
+  func downloadFinalizationReusesSharedCacheFile() async throws {
+    let mediaURL = MediaURL(try #require(URL(string: "https://example.com/shared-download.mp3")))
+    let (first, second) = try await Create.twoPodcastEpisodes(
+      try Create.unsavedEpisode(mediaURL: mediaURL),
+      try Create.unsavedEpisode(mediaURL: mediaURL)
+    )
+    let firstTaskID = try await CacheHelpers.downloadToCache(first.id)
+    let originalData = Data("original shared download".utf8)
+    let firstTempFile = try await CacheHelpers.simulateBackgroundFinish(
+      firstTaskID,
+      data: originalData
+    )
+    let sharedURL = try await CacheHelpers.waitForCached(first.id)
+    try await CacheHelpers.waitForFileRemoved(firstTempFile)
+
+    let secondTaskID = try await CacheHelpers.downloadToCache(second.id)
+    let secondTempFile = try await CacheHelpers.simulateBackgroundFinish(
+      secondTaskID,
+      data: Data("replacement download".utf8)
+    )
+    try await CacheHelpers.waitForFileRemoved(secondTempFile)
+
+    #expect(try await repo.episode(first.id)?.cachedURL == sharedURL)
+    #expect(try await repo.episode(second.id)?.cachedURL == sharedURL)
+    #expect(try await fileManager.readData(from: sharedURL.rawValue) == originalData)
+  }
+
+  @Test("superseded finalization preserves a replacement download claim")
+  func supersededFinalizationPreservesReplacementDownloadClaim() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let task = FakeURLSessionDownloadTask(
+      taskDescription: String(podcastEpisode.id.rawValue),
+      originalRequest: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
+    )
+    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try await fileManager.writeData(Data.random(), to: tempFile)
+    let replacementClaimed = ThreadSafe(false)
+    fileManager.runBeforeRemovingItem(at: tempFile) {
+      let claimed = try Container.shared.appDB().unsafeTestDB
+        .write { db in
+          try Episode
+            .withID(podcastEpisode.id)
+            .filter(Episode.Columns.cachedFilename == nil)
+            .filter(Episode.Columns.downloading == false)
+            .updateAll(db, Episode.Columns.downloading.set(to: true))
+        }
+      replacementClaimed(claimed > 0)
+    }
+
+    await cacheBackgroundDelegate.urlSession(
+      session,
+      downloadTask: task,
+      didFinishDownloadingTo: tempFile
+    )
+
+    #expect(replacementClaimed())
+    #expect(try await repo.episode(podcastEpisode.id)?.downloading == true)
+  }
+
   // MARK: - Cross-Contamination Regression
 
   // Regression for "AI Daily Brief plays Braid": URLSession taskIdentifiers
@@ -873,6 +1070,7 @@ import Testing
   @Test("download attribution uses taskDescription, not taskIdentifier")
   func downloadAttributionUsesTaskDescription() async throws {
     let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
+    try await repo.updateDownloading(podcastEpisode2.id, downloading: true)
 
     // Synthesize a finished download whose taskID does not match anything
     // the DB knows about, but whose taskDescription pins it to #2.

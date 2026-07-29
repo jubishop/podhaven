@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
@@ -40,8 +41,19 @@ struct CacheDownloadOwnershipTests {
   func downloadingStateWriteFailureDoesNotLogCacheSuccess() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
     let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
-    let fakeRepo = try #require(repo as? FakeRepo)
-    fakeRepo.updateDownloadingFalseError(InjectedDownloadStateError())
+    try await Container.shared.appDB().unsafeTestDB
+      .write { db in
+        try db.execute(
+          sql: """
+            CREATE TEMP TRIGGER fail_download_completion
+            BEFORE UPDATE OF downloading ON episode
+            WHEN OLD.id = \(podcastEpisode.id.rawValue) AND NEW.downloading = 0
+            BEGIN
+              SELECT RAISE(ABORT, 'simulated download completion failure');
+            END
+            """
+        )
+      }
 
     let captured = try await LogCapture.withSink { sink in
       try await CacheHelpers.simulateBackgroundFinish(taskID)
@@ -52,13 +64,11 @@ struct CacheDownloadOwnershipTests {
       $0.label == "Cache/backgroundDelegate"
         && $0.message.contains(String(podcastEpisode.id.rawValue))
     }
-    #expect(finalizationLogs.contains { $0.message.contains("failed to clear downloading flag") })
+    #expect(finalizationLogs.contains { $0.message.contains("failed to store downloaded file") })
     #expect(!finalizationLogs.contains { $0.message.contains("Cached episode") })
 
     let episode = try #require(try await repo.episode(podcastEpisode.id))
     #expect(episode.downloading)
-    #expect(episode.cachedURL != nil)
+    #expect(episode.cachedURL == nil)
   }
 }
-
-private struct InjectedDownloadStateError: Error, Sendable {}

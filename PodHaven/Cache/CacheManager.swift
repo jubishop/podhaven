@@ -57,6 +57,7 @@ struct CacheManager {
   @DynamicInjected(\.sharedState) private var sharedState
 
   private var alert: Alert { get async { await Container.shared.alert() } }
+  private var cacheFileStore: CacheFileStore { Container.shared.cacheFileStore() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
     Container.shared.taskPriority()
@@ -278,7 +279,7 @@ struct CacheManager {
   }
 
   @discardableResult
-  func clearCache(for episodeID: Episode.ID) async throws -> CachedURL? {
+  func clearCache(for episodeID: Episode.ID) async throws -> CacheFileDisposition? {
     Self.log.debug("clearCache: \(episodeID)")
 
     let episode = try await repo.episode(episodeID)
@@ -309,26 +310,35 @@ struct CacheManager {
       return nil
     }
 
+    let disposition: CacheFileDisposition?
     do {
-      try fileManager.removeItem(at: cachedURL.rawValue)
-    } catch {
-      guard ErrorKit.isMissingFile(error) else {
-        Self.log.caughtError(
-          "clearCache: failed to remove cached file for \(episode.toString)",
-          error
-        )
-        throw error
-      }
-      Self.log.caughtError(
-        "clearCache: cached file already missing for \(episode.toString)",
-        error,
-        level: .debug
+      disposition = try await cacheFileStore.releaseReference(
+        for: episode.id,
+        cachedFilename: cachedURL.lastPathComponent
       )
+    } catch {
+      Self.log.caughtError(
+        "clearCache: failed to release cached file for \(episode.toString)",
+        error
+      )
+      throw error
     }
-    try await repo.updateCachedFilename(episode.id, cachedFilename: nil)
 
-    Self.log.debug("cache cleared for: \(episode.toString)")
-    return cachedURL
+    guard let disposition else {
+      Self.log.debug("clearCache: cache reference changed for \(episode.toString)")
+      return nil
+    }
+
+    switch disposition {
+    case .retained:
+      Self.log.debug("cache reference released; shared file retained for: \(episode.toString)")
+    case .removed:
+      Self.log.debug("cache cleared for: \(episode.toString)")
+    case .alreadyMissing:
+      Self.log.debug("clearCache: cached file already missing for \(episode.toString)")
+    }
+
+    return disposition
   }
 
   // MARK: - Private Helpers

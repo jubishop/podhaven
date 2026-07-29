@@ -52,6 +52,7 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
 
 @MainActor class PodAVPlayer {
   @DynamicInjected(\.avPlayer) private var avPlayer
+  @DynamicInjected(\.cacheFileStore) private var cacheFileStore
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.loadEpisodeAsset) private var loadEpisodeAsset
   @DynamicInjected(\.notifications) private var notifications
@@ -185,15 +186,18 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
     } catch {
       try Task.checkCancellation()
       Self.log.caughtError(
-        "performLoadAsset: cache load failed, clearing cached filename and falling back to remote",
+        "performLoadAsset: cache load failed, discarding invalid cache and falling back to remote",
         error,
         level: .warning
       )
       do {
-        try await repo.updateCachedFilename(podcastEpisode.id, cachedFilename: nil)
+        try await cacheFileStore.discardInvalidFile(
+          for: podcastEpisode.id,
+          cachedFilename: cachedURL.lastPathComponent
+        )
       } catch {
         Self.log.caughtError(
-          "performLoadAsset: failed to clear cached filename for \(podcastEpisode.toString)",
+          "performLoadAsset: failed to discard invalid cache for \(podcastEpisode.toString)",
           error
         )
       }
