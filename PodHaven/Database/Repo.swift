@@ -17,6 +17,7 @@ extension Container {
 struct Repo: Databasing {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
 
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var sharedState: SharedState { Container.shared.sharedState() }
@@ -345,40 +346,60 @@ struct Repo: Databasing {
 
   @discardableResult
   func deletePodcast(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    let deletion = try await writer.write { db in
-      let episodesToDelete = try Episode.all()
-        .filter { podcastIDs.contains($0.podcastId) }
-        .fetchAll(db)
+    let fileManager = fileManager
+    let playManager = playManager
+    let queue = queue
+    let reader = reader
+    let sharedState = sharedState
+    let writer = writer
+    let deletion = try await transcriptionProcessor.reconcileDeletion(
+      resolvingEpisodeIDs: {
+        Set(
+          try await reader.read { db in
+            try Episode.all()
+              .filter { podcastIDs.contains($0.podcastId) }
+              .selectID()
+              .fetchAll(db)
+          }
+        )
+      },
+      perform: {
+        try await writer.write { db in
+          let episodesToDelete = try Episode.all()
+            .filter { podcastIDs.contains($0.podcastId) }
+            .fetchAll(db)
 
-      let queuedEpisodeIDs =
-        try Episode.all()
-        .queued()
-        .filter { podcastIDs.contains($0.podcastId) }
-        .selectID()
-        .fetchAll(db)
-      try queue.dequeue(db, queuedEpisodeIDs)
+          let queuedEpisodeIDs =
+            try Episode.all()
+            .queued()
+            .filter { podcastIDs.contains($0.podcastId) }
+            .selectID()
+            .fetchAll(db)
+          try queue.dequeue(db, queuedEpisodeIDs)
 
-      // Cascades to episodes via FK ON DELETE CASCADE.
-      let deletedCount = try Podcast.withIDs(podcastIDs).deleteAll(db)
-      let candidateCachedFilenames = Set(
-        episodesToDelete.compactMap { $0.cachedURL?.lastPathComponent }
-      )
-      let retainedCachedFilenames = Set(
-        try Episode
-          .filter(candidateCachedFilenames.contains(Episode.Columns.cachedFilename))
-          .select(Episode.Columns.cachedFilename, as: String.self)
-          .fetchAll(db)
-      )
-      let cachedEpisodesToDelete = episodesToDelete.filter { episode in
-        guard let cachedFilename = episode.cachedURL?.lastPathComponent else { return false }
-        return !retainedCachedFilenames.contains(cachedFilename)
+          // Cascades to episodes via FK ON DELETE CASCADE.
+          let deletedCount = try Podcast.withIDs(podcastIDs).deleteAll(db)
+          let candidateCachedFilenames = Set(
+            episodesToDelete.compactMap { $0.cachedURL?.lastPathComponent }
+          )
+          let retainedCachedFilenames = Set(
+            try Episode
+              .filter(candidateCachedFilenames.contains(Episode.Columns.cachedFilename))
+              .select(Episode.Columns.cachedFilename, as: String.self)
+              .fetchAll(db)
+          )
+          let cachedEpisodesToDelete = episodesToDelete.filter { episode in
+            guard let cachedFilename = episode.cachedURL?.lastPathComponent else { return false }
+            return !retainedCachedFilenames.contains(cachedFilename)
+          }
+          return (
+            deletedCount: deletedCount,
+            episodes: episodesToDelete,
+            cachedEpisodes: cachedEpisodesToDelete
+          )
+        }
       }
-      return (
-        deletedCount: deletedCount,
-        episodes: episodesToDelete,
-        cachedEpisodes: cachedEpisodesToDelete
-      )
-    }
+    )
 
     if let currentEpisodeID = sharedState.currentEpisodeID,
       let currentEpisode = deletion.episodes.first(where: { $0.id == currentEpisodeID }),

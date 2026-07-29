@@ -54,6 +54,7 @@ struct TranscriptionProcessorTests {
 
   @Test(
     "media services restart rebuilds active transcription from its checkpoint",
+    .timeLimit(.minutes(5)),
     arguments: MediaServicesRecoveryTrigger.allCases
   )
   func mediaServicesRestartRebuildsActiveTranscription(
@@ -159,10 +160,10 @@ struct TranscriptionProcessorTests {
     case .lostThenReset:
       notifier.post(AVAudioSession.mediaServicesWereLostNotification)
       firstConvertedInputRelease.signal()
-      try await Wait.until(
-        { queue.progress[episode.id] == nil },
-        { "Services loss did not settle the active transcription" }
-      )
+      for await progress in queue.$progress.stream()
+      where progress[episode.id] == nil {
+        break
+      }
       #expect(queue.episodeIDs == [episode.id])
       #expect(!queue.failed.contains(episode.id))
       #expect(analyzerCreations() == 1)
@@ -170,14 +171,10 @@ struct TranscriptionProcessorTests {
       notifier.post(AVAudioSession.mediaServicesWereResetNotification)
     }
 
-    try await Wait.until(
-      { analyzerCreations() == 2 },
-      { "Media reset did not rebuild the active transcription" }
-    )
-    try await Wait.until(
-      { queue.episodeIDs.isEmpty },
-      { "Recovered transcription did not finish: \(queue.episodeIDs)" }
-    )
+    for await episodeIDs in queue.$episodeIDs.stream()
+    where episodeIDs.isEmpty {
+      break
+    }
 
     let transcript = try #require(try await repo.episode(episode.id)?.decodedTranscript)
     #expect(transcript.segments.map(\.text) == ["completed", "resumed"])

@@ -257,6 +257,70 @@ struct TranscriptionQueue: Sendable {
     }
   }
 
+  func reconcileDeletion<Result: Sendable>(
+    resolvingEpisodeIDs: () async throws -> Set<Episode.ID>,
+    prepare: @Sendable (Set<Episode.ID>) async -> Void,
+    perform deletion: () async throws -> Result
+  ) async throws -> Result {
+    await waitUntilLoaded()
+    try await persistenceLock.waitForClaim()
+    defer { persistenceLock.release() }
+
+    let deletingEpisodeIDs = try await resolvingEpisodeIDs()
+    let originalEpisodeIDs = mutationLock { _ in
+      let originalEpisodeIDs = episodeIDs
+      let previousHead = originalEpisodeIDs.first
+      $episodeIDs.update {
+        $0.removeAll { deletingEpisodeIDs.contains($0) }
+      }
+      if episodeIDs.first != previousHead {
+        workStream.update(to: episodeIDs.first)
+      }
+      return originalEpisodeIDs
+    }
+
+    await prepare(deletingEpisodeIDs)
+
+    do {
+      let result = try await deletion()
+      let depth = mutationLock { _ in
+        $progress.update { progress in
+          for episodeID in deletingEpisodeIDs {
+            progress.removeValue(forKey: episodeID)
+          }
+        }
+        $interruptions.update { interruptions in
+          for episodeID in deletingEpisodeIDs {
+            interruptions.removeValue(forKey: episodeID)
+          }
+        }
+        $failed.update { $0.subtract(deletingEpisodeIDs) }
+        return episodeIDs.count
+      }
+      Self.log.debug(
+        """
+        reconciled deletion of \(originalEpisodeIDs.count - depth) queued episodes; \
+        depth \(depth)
+        """
+      )
+      return result
+    } catch {
+      mutationLock { _ in
+        let previousHead = episodeIDs.first
+        $episodeIDs.new(originalEpisodeIDs)
+        $progress.update { progress in
+          for episodeID in deletingEpisodeIDs {
+            progress.removeValue(forKey: episodeID)
+          }
+        }
+        if episodeIDs.first != previousHead {
+          workStream.update(to: episodeIDs.first)
+        }
+      }
+      throw error
+    }
+  }
+
   func beginPausing(_ episodeID: Episode.ID) async throws -> Bool {
     await waitUntilLoaded()
     let shouldPause = mutationLock { _ in
