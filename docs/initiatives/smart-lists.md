@@ -226,7 +226,7 @@ The `filter` column is `TEXT` (JSON). Conformance is via a `DatabaseValueConvert
 
 Migration v72 adds the non-null Boolean `showUnreadBadge` column with an enabled default, preserving the previously unconditional badge for existing Smart Lists. New lists also default to enabled. The editor persists the preference with the list's other configuration, and `EpisodesView` renders the unread count only when it is enabled. Changing this display preference does not reset `lastSeenEpisodeId`; the existing watermark continues to advance when the user leaves the list.
 
-An open `EpisodesListView` uses that same watermark to highlight every matching episode whose id is greater than `lastSeenEpisodeId`. New episode arrivals do not advance the watermark, and `markSeen` runs when the user leaves, so episodes arriving during an uninterrupted open session are highlighted too. `EpisodeListView` renders the state as a subtle accent-tinted background, and the navigation row exposes high-priority `Status: New` accessibility content without replacing its existing metadata value.
+An open `EpisodesListView` uses that same watermark to highlight every matching episode whose id is greater than `lastSeenEpisodeId`. New episode arrivals do not advance the watermark, and `markSeen` runs when the user leaves, so episodes arriving during an uninterrupted open session are highlighted too. The navigation row renders the state as a full-width accent-tinted background with narrow vertical gaps between rows, and exposes high-priority `Status: New` accessibility content without replacing its existing metadata value.
 
 ### 4a. SmartListSortMethod — `PodHaven/Database/Models/SmartListSortMethod.swift`
 

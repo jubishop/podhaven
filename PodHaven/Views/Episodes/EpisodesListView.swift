@@ -90,12 +90,16 @@ struct EpisodesListView: View {
           EpisodeListView(
             episode: podcastEpisode,
             alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage,
-            highlight: highlight,
             isSelecting: viewModel.episodeList.isSelecting,
             isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
           )
           .listRowSeparator()
         }
+      )
+      .listRowBackground(
+        Color.accentColor
+          .opacity(highlight ? 0.15 : 0)
+          .padding(.vertical, 2)
       )
       .listRow()
       .accessibilityCustomContent(
