@@ -415,7 +415,7 @@ struct Repo: Databasing {
           let disposition = try await cacheFileStore.removeFileIfUnreferenced(url)
           switch disposition {
           case .retained:
-            Self.log.debug("Preserved newly referenced cached file at: \(url)")
+            Self.log.debug("Preserved referenced cached file at: \(url)")
           case .removed:
             Self.log.debug("Removed cached file at: \(url)")
           case .alreadyMissing:

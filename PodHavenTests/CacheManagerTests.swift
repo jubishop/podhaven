@@ -831,6 +831,7 @@ import Testing
     )
 
     let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForFileRemoved(temporaryURL)
     #expect(cachedURL.pathExtension == "mp3")
   }
 
@@ -843,14 +844,19 @@ import Testing
     )
     let firstTaskID = try await CacheHelpers.downloadToCache(first.id)
     let originalData = Data("original shared download".utf8)
-    try await CacheHelpers.simulateBackgroundFinish(firstTaskID, data: originalData)
+    let firstTempFile = try await CacheHelpers.simulateBackgroundFinish(
+      firstTaskID,
+      data: originalData
+    )
     let sharedURL = try await CacheHelpers.waitForCached(first.id)
+    try await CacheHelpers.waitForFileRemoved(firstTempFile)
 
     let secondTaskID = try await CacheHelpers.downloadToCache(second.id)
-    try await CacheHelpers.simulateBackgroundFinish(
+    let secondTempFile = try await CacheHelpers.simulateBackgroundFinish(
       secondTaskID,
       data: Data("replacement download".utf8)
     )
+    try await CacheHelpers.waitForFileRemoved(secondTempFile)
 
     #expect(try await repo.episode(first.id)?.cachedURL == sharedURL)
     #expect(try await repo.episode(second.id)?.cachedURL == sharedURL)
