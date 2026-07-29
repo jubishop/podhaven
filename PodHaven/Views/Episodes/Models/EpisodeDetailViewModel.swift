@@ -442,13 +442,29 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
   func transcribe() {
     guard isTranscriptionAvailable, transcriptionStatus.canTranscribe else { return }
 
-    lifecycle.runTask("transcribe: \(state.toString)") { [weak self] in
+    Task { [weak self] in
       guard let self else { return }
-      let podcastEpisode = try await getOrCreatePodcastEpisode()
-      if transcriptDisplay == .decodeFailed {
-        try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        if transcriptDisplay == .decodeFailed {
+          try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
+        }
+        try await transcriptionProcessor.enqueue(podcastEpisode.id)
+      } catch let error as TranscriptionQueueError {
+        Self.log.caughtError(
+          "transcribe: \(state.toString) rejected",
+          error,
+          level: .notice
+        )
+        alert(
+          title: error.alertTitle,
+          ErrorKit.message(for: error)
+        )
+      } catch {
+        Self.log.caughtError("transcribe: \(state.toString) failed", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
-      transcriptionQueue.enqueue(podcastEpisode.id)
     }
   }
 
@@ -457,7 +473,10 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
       let episodeID = episode.episodeID,
       transcriptionStatus.canPause
     else { return }
-    transcriptionProcessor.pause(episodeID)
+    lifecycle.runTask("pauseTranscription: \(state.toString)") { [weak self] in
+      guard let self else { return }
+      try await transcriptionProcessor.pause(episodeID)
+    }
   }
 
   func discardTranscriptionProgress() {
@@ -465,7 +484,10 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
       let episodeID = episode.episodeID,
       canDiscardTranscriptionProgress
     else { return }
-    transcriptionProcessor.discardProgress(for: episodeID)
+    lifecycle.runTask("discardTranscriptionProgress: \(state.toString)") { [weak self] in
+      guard let self else { return }
+      try await transcriptionProcessor.discardProgress(for: episodeID)
+    }
   }
 
   func showPodcast() {

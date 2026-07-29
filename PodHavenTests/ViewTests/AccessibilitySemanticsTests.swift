@@ -144,6 +144,27 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
+    "transcription queue capacity is adjustable and announces its value",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func transcriptionQueueCapacityIsAdjustable() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let window = try Self.makeWindow(SettingsView())
+    defer { window.isHidden = true }
+
+    let slider = Self.accessibilityElements(in: window)
+      .first {
+        $0.accessibilityLabel == "Maximum Transcription Queue Length"
+      }
+
+    #expect(slider?.accessibilityTraits.contains(.adjustable) == true)
+    #expect(slider?.accessibilityValue == "50 episodes")
+  }
+
+  @Test(
     "queued transcription exposes a pause button",
     .enabled(
       if: supportsHostedAccessibilityInspection,
@@ -153,7 +174,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   func queuedTranscriptionExposesPauseButton() async throws {
     await TranscriptionHelpers.prepareAvailability()
     let episode = try await Create.podcastEpisode()
-    Container.shared.transcriptionQueue().enqueue(episode.id)
+    try await Container.shared.transcriptionQueue().enqueue(episode.id)
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(episode))
 
     let window = try Self.makeWindow(
@@ -181,7 +202,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     let title = "Accessible Transcription"
     let episode = try await Create.podcastEpisode(try Create.unsavedEpisode(title: title))
     let queue = Container.shared.transcriptionQueue()
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
     queue.setProgress(0.42, for: episode.id)
 
     let window = try Self.makeWindow(
@@ -220,7 +241,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     let queue = Container.shared.transcriptionQueue()
     for title in titles {
       let episode = try await Create.podcastEpisode(try Create.unsavedEpisode(title: title))
-      queue.enqueue(episode.id)
+      try await queue.enqueue(episode.id)
     }
 
     let window = try Self.makeWindow(

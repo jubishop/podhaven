@@ -9,14 +9,109 @@ import Testing
 
 @Suite("of TranscriptionProcessor background task", .container)
 struct TranscriptionBackgroundTaskTests {
+  enum RemovalFailureScenario: CaseIterable, Sendable {
+    case completedTranscription
+    case failedTranscription
+  }
+
   @Test("registering with no queued work does not schedule a background task")
-  func emptyQueueDoesNotSchedule() throws {
+  func emptyQueueDoesNotSchedule() async throws {
+    let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
     let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
 
     processor.register()
+    await queue.waitUntilLoaded()
 
+    try await Wait.until(
+      {
+        scheduler.cancelledIdentifiers.filter { $0 == identifier }.count >= 2
+      },
+      { "Post-hydration schedule reconciliation did not finish" }
+    )
     #expect(scheduler.submissions.isEmpty)
+  }
+
+  @Test("persisted work schedules after delayed queue hydration")
+  func persistedWorkSchedulesAfterDelayedHydration() async throws {
+    let episodeID = Episode.ID(rawValue: 1)
+    let fetchStarted = AsyncSemaphore(value: 0)
+    let fetchRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [episodeID],
+      beforeFetch: {
+        fetchStarted.signal()
+        await fetchRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
+    defer { fetchRelease.signal() }
+
+    await fetchStarted.wait()
+    processor.register()
+    #expect(!scheduler.pendingIdentifiers.contains(identifier))
+
+    fetchRelease.signal()
+    await queue.waitUntilLoaded()
+
+    try await Wait.until(
+      { scheduler.pendingIdentifiers.contains(identifier) },
+      { "Persisted transcription work did not schedule after queue hydration" }
+    )
+    #expect(queue.episodeIDs == [episodeID])
+  }
+
+  @Test("enqueue finishing after backgrounding schedules a background task")
+  func enqueueAfterBackgroundTransitionSchedules() async throws {
+    let episodeID = Episode.ID(rawValue: 1)
+    let enqueueStarted = AsyncSemaphore(value: 0)
+    let enqueueRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      beforeEnqueue: { _ in
+        enqueueStarted.signal()
+        await enqueueRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
+    defer { enqueueRelease.signal() }
+
+    await queue.waitUntilLoaded()
+    processor.register()
+    try await Wait.until(
+      {
+        scheduler.cancelledIdentifiers.filter { $0 == identifier }.count >= 2
+      },
+      { "Empty-queue scheduling reconciliation did not finish" }
+    )
+
+    let enqueueTask = Task {
+      try await processor.enqueue(episodeID)
+    }
+    await enqueueStarted.wait()
+
+    processor.handleScenePhaseChange(to: .background)
+    #expect(!scheduler.pendingIdentifiers.contains(identifier))
+
+    enqueueRelease.signal()
+    try await enqueueTask.value
+
+    #expect(queue.episodeIDs == [episodeID])
+    #expect(scheduler.pendingIdentifiers.contains(identifier))
   }
 
   @Test("the iOS-granted background task drains the queue and completes")
@@ -35,7 +130,7 @@ struct TranscriptionBackgroundTaskTests {
         cachedFilename: "ep.mp3",
         dataSize: 1
       )
-      queue.enqueue(episode.id)
+      try await queue.enqueue(episode.id)
 
       processor.register()
       let identifier = "\(AppInfo.bundleIdentifier).transcription"
@@ -76,6 +171,75 @@ struct TranscriptionBackgroundTaskTests {
     }
   }
 
+  @Test(
+    "a queue removal failure ends the background grant and retains work",
+    arguments: RemovalFailureScenario.allCases
+  )
+  func queueRemovalFailureEndsBackgroundGrant(
+    _ scenario: RemovalFailureScenario
+  ) async throws {
+    switch scenario {
+    case .completedTranscription:
+      TranscriptionHelpers.stubSpeech(
+        phrases: [
+          FakeSpeechTranscriptionResult(
+            phrase: "retained",
+            startSeconds: 0,
+            endSeconds: 60
+          )
+        ]
+      )
+    case .failedTranscription:
+      TranscriptionHelpers.stubSpeechFailure()
+    }
+
+    let repo = Container.shared.repo()
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Retained background work",
+      cachedFilename: "retained-background.mp3",
+      dataSize: 1
+    )
+    let removalAttempts = ThreadSafe(0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [episode.id],
+      beforeRemove: { _ in
+        removalAttempts { $0 += 1 }
+        throw TestError.simulatedFailure
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    await queue.waitUntilLoaded()
+
+    processor.register()
+    let identifier = "\(AppInfo.bundleIdentifier).transcription"
+    let task = try #require(scheduler.launchTask(withIdentifier: identifier))
+    defer { task.expire() }
+
+    try await Wait.until(
+      { removalAttempts() == 1 },
+      { "Background transcription did not attempt durable queue removal" }
+    )
+    try await Wait.until(
+      maxAttempts: 100,
+      { task.completionResults == [true] },
+      { "Background grant remained active after retaining queued work" }
+    )
+
+    #expect(removalAttempts() == 1)
+    #expect(queue.episodeIDs == [episode.id])
+    #expect(!queue.failed.contains(episode.id))
+    #expect(scheduler.pendingIdentifiers.contains(identifier))
+    #expect(
+      try await repo.episode(episode.id)?.hasTranscript
+        == (scenario == .completedTranscription)
+    )
+  }
+
   @Test("a foreground drain cancels its pending background request")
   func foregroundDrainCancelsPendingRequest() async throws {
     TranscriptionHelpers.stubSpeech(
@@ -91,7 +255,7 @@ struct TranscriptionBackgroundTaskTests {
     )
     let identifier = "\(AppInfo.bundleIdentifier).transcription"
 
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
     processor.register()
     #expect(scheduler.pendingIdentifiers.contains(identifier))
 
@@ -147,7 +311,7 @@ struct TranscriptionBackgroundTaskTests {
       dataSize: 1
     )
 
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
     processor.register()
     let task = try #require(
       scheduler.launchTask(withIdentifier: "\(AppInfo.bundleIdentifier).transcription")
@@ -217,7 +381,7 @@ struct TranscriptionBackgroundTaskTests {
       cachedFilename: "foreground-lifecycle.mp3",
       dataSize: 1
     )
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
 
     processor.handleScenePhaseChange(to: .active)
     await analyzerStarted.wait()
@@ -294,8 +458,8 @@ struct TranscriptionBackgroundTaskTests {
       cachedFilename: "background-remainder.mp3",
       dataSize: 1
     )
-    queue.enqueue(firstEpisode.id)
-    queue.enqueue(secondEpisode.id)
+    try await queue.enqueue(firstEpisode.id)
+    try await queue.enqueue(secondEpisode.id)
 
     processor.register()
     processor.handleScenePhaseChange(to: .active)
@@ -363,8 +527,8 @@ struct TranscriptionBackgroundTaskTests {
       cachedFilename: "background-continuation.mp3",
       dataSize: 1
     )
-    queue.enqueue(firstEpisode.id)
-    queue.enqueue(secondEpisode.id)
+    try await queue.enqueue(firstEpisode.id)
+    try await queue.enqueue(secondEpisode.id)
     processor.register()
     processor.handleScenePhaseChange(to: .active)
     defer {
@@ -379,7 +543,7 @@ struct TranscriptionBackgroundTaskTests {
       scheduler.launchTask(withIdentifier: "\(AppInfo.bundleIdentifier).transcription")
     )
 
-    processor.pause(firstEpisode.id)
+    try await processor.pause(firstEpisode.id)
     await secondAnalysisStarted.wait()
 
     #expect(queue.episodeIDs == [secondEpisode.id])
@@ -440,7 +604,7 @@ struct TranscriptionBackgroundTaskTests {
         dataSize: 1
       )
       let identifier = "\(AppInfo.bundleIdentifier).transcription"
-      queue.enqueue(episode.id)
+      try await queue.enqueue(episode.id)
 
       processor.register()
       processor.handleScenePhaseChange(to: .active)
@@ -550,7 +714,7 @@ struct TranscriptionBackgroundTaskTests {
       cachedFilename: "expiry.mp3",
       dataSize: 1
     )
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
 
     processor.register()
     let task = try #require(
@@ -655,7 +819,7 @@ struct TranscriptionBackgroundTaskTests {
       dataSize: 1
     )
     let identifier = "\(AppInfo.bundleIdentifier).transcription"
-    queue.enqueue(episode.id)
+    try await queue.enqueue(episode.id)
     processor.register()
 
     let firstTask = try #require(scheduler.launchTask(withIdentifier: identifier))

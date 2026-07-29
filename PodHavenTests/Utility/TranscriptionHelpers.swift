@@ -5,6 +5,18 @@ import FactoryKit
 @testable import PodHaven
 
 enum TranscriptionHelpers {
+  @MainActor
+  static func waitForQueuedEpisode(
+    _ episodeID: Episode.ID,
+    in queue: TranscriptionQueue
+  ) async -> [Episode.ID] {
+    for await episodeIDs in queue.$episodeIDs.stream()
+    where episodeIDs.contains(episodeID) {
+      return episodeIDs
+    }
+    return queue.episodeIDs
+  }
+
   // Registers the on-device speech seam so transcription proceeds in tests: a
   // no-op analyzer, a supported+installed locale, and a transcriber emitting the
   // given phrases. Returns the model manager so callers can assert on installs.

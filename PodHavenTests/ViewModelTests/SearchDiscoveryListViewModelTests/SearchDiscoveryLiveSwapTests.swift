@@ -217,13 +217,11 @@ import Testing
 
     viewModel.transcribeSelectedEpisodes()
 
-    try await Wait.until(
-      { @MainActor in self.transcriptionQueue.episodeIDs.contains(canonicalEpisode.id) },
-      { @MainActor in
-        "Expected canonical episode to be queued; queue=\(self.transcriptionQueue.episodeIDs)"
-      }
+    let queuedEpisodeIDs = await TranscriptionHelpers.waitForQueuedEpisode(
+      canonicalEpisode.id,
+      in: transcriptionQueue
     )
-    #expect(transcriptionQueue.episodeIDs == [canonicalEpisode.id])
+    #expect(queuedEpisodeIDs == [canonicalEpisode.id])
   }
 
   @Test("bulk transcription revalidates canonical transcript state")
@@ -276,17 +274,11 @@ import Testing
 
     viewModel.transcribeSelectedEpisodes()
 
-    try await Wait.until(
-      {
-        @MainActor in
-        self.transcriptionQueue.episodeIDs.contains(eligibleEpisode.id)
-          && viewModel.collector.picks(for: viewModel.source).count < picks.count
-      },
-      { @MainActor in
-        "Expected eligible work and callback completion; queue=\(self.transcriptionQueue.episodeIDs), picks=\(viewModel.collector.picks(for: viewModel.source).map(\.id))"
-      }
+    let queuedEpisodeIDs = await TranscriptionHelpers.waitForQueuedEpisode(
+      eligibleEpisode.id,
+      in: transcriptionQueue
     )
-    #expect(transcriptionQueue.episodeIDs == [eligibleEpisode.id])
+    #expect(queuedEpisodeIDs == [eligibleEpisode.id])
     #expect(viewModel.collector.picks(for: viewModel.source).map(\.id) == [transcribedPick.id])
   }
 

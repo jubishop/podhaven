@@ -51,22 +51,31 @@ struct TranscriptionProcessor: Sendable {
     var interruption = Interruption.none
   }
 
-  private enum PauseAction: Sendable {
-    case pauseActive(Task<Void, any Error>)
-    case pauseWaiting
-    case none
-  }
-
-  private enum DiscardAction: Sendable {
-    case discardActive(Task<Void, any Error>)
-    case discardStored
-  }
-
   private let activeTranscription = ThreadSafe<ActiveTranscription?>(nil)
 
   private enum ForegroundState {
     case active
     case background
+  }
+
+  private enum QueueRemovalOperation: String, Sendable {
+    case missingEpisode
+    case alreadyTranscribed
+    case completedTranscription
+  }
+
+  private enum HeadProcessingOutcome {
+    case advanced
+    case retained
+  }
+
+  private struct QueueMutationFailure: Error, LocalizedError {
+    let operation: QueueRemovalOperation
+    let message: String
+
+    var errorDescription: String? {
+      "\(operation.rawValue): \(message)"
+    }
   }
 
   private let foregroundState = ThreadSafe(ForegroundState.background)
@@ -134,6 +143,13 @@ struct TranscriptionProcessor: Sendable {
       )
       complete(true)
     }
+
+    let queue = transcriptionQueue
+    let scheduler = backgroundTaskScheduler
+    Task {
+      await queue.waitUntilLoaded()
+      scheduler.scheduleNext()
+    }
   }
 
   // MARK: - Scene Phase
@@ -156,99 +172,106 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
+  // MARK: - Queue Mutations
+
+  func enqueue(_ episodeID: Episode.ID) async throws {
+    try await enqueue([episodeID])
+  }
+
+  func enqueue(_ episodeIDs: [Episode.ID]) async throws {
+    try await transcriptionQueue.enqueue(episodeIDs)
+    backgroundTaskScheduler.scheduleNext()
+  }
+
   // MARK: - User Interruption
 
-  func pause(_ episodeID: Episode.ID) {
-    let action = activeTranscription { active in
-      if var current = active, current.episodeID == episodeID {
-        guard transcriptionQueue.beginPausing(episodeID) else {
-          return PauseAction.none
-        }
-        current.interruption = .pause
-        active = current
-        return .pauseActive(current.task)
-      }
+  func pause(_ episodeID: Episode.ID) async throws {
+    guard try await transcriptionQueue.beginPausing(episodeID) else { return }
 
-      guard transcriptionQueue.episodeIDs.contains(episodeID) else {
-        return PauseAction.none
+    let activeTask = activeTranscription { active -> Task<Void, any Error>? in
+      guard var current = active, current.episodeID == episodeID else {
+        return nil
       }
-      transcriptionQueue.remove(episodeID)
-      return .pauseWaiting
+      guard current.interruption == .none else { return nil }
+      current.interruption = .pause
+      active = current
+      return current.task
     }
 
-    switch action {
-    case .pauseActive(let task):
+    if let activeTask {
       Self.log.info("Requested pause of active transcription \(episodeID)")
-      task.cancel()
-    case .pauseWaiting:
+      activeTask.cancel()
+    } else {
+      transcriptionQueue.finishPausing(episodeID)
       Self.log.info(
         """
         Removed waiting transcription \(episodeID); \
         remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
         """
       )
-      if transcriptionQueue.episodeIDs.isEmpty {
-        backgroundTaskScheduler.scheduleNext()
-      }
-    case .none:
-      break
+    }
+
+    if transcriptionQueue.episodeIDs.isEmpty {
+      backgroundTaskScheduler.scheduleNext()
     }
   }
 
-  func discardProgress(for episodeID: Episode.ID) {
-    let action = activeTranscription { active in
-      transcriptionQueue.beginDiscarding(episodeID)
-      if var current = active, current.episodeID == episodeID {
-        current.interruption = .discard
-        active = current
-        return DiscardAction.discardActive(current.task)
-      }
-      return .discardStored
+  func discardProgress(for episodeID: Episode.ID) async throws {
+    guard try await transcriptionQueue.beginDiscarding(episodeID) else {
+      return
     }
 
-    switch action {
-    case .discardActive(let task):
-      Self.log.info("Requested progress discard for active transcription \(episodeID)")
-      task.cancel()
-    case .discardStored:
+    let activeTask = activeTranscription { active -> Task<Void, any Error>? in
+      guard var current = active, current.episodeID == episodeID else {
+        return nil
+      }
+      current.interruption = .discard
+      active = current
+      return current.task
+    }
+
+    if let activeTask {
+      Self.log.info(
+        "Requested progress discard for active transcription \(episodeID)"
+      )
+      activeTask.cancel()
+    } else {
       Self.log.info("Requested saved transcription progress discard \(episodeID)")
-      let queue = transcriptionQueue
-      let repo = repo
-      Task {
-        await Self.deleteCheckpoint(for: episodeID, using: repo)
-        queue.finishDiscarding(episodeID)
-      }
-      if transcriptionQueue.episodeIDs.isEmpty {
-        backgroundTaskScheduler.scheduleNext()
-      }
+      await Self.deleteCheckpoint(for: episodeID, using: repo)
+      transcriptionQueue.finishDiscarding(episodeID)
+    }
+
+    if transcriptionQueue.episodeIDs.isEmpty {
+      backgroundTaskScheduler.scheduleNext()
     }
   }
 
   // MARK: - User Reordering
 
   @discardableResult
-  func reorder(_ orderedEpisodeIDs: [Episode.ID]) -> Bool {
-    let result = activeTranscription { active in
-      guard transcriptionQueue.reorder(orderedEpisodeIDs) else {
-        return (accepted: false, task: Optional<Task<Void, any Error>>.none)
-      }
+  func reorder(_ orderedEpisodeIDs: [Episode.ID]) async throws -> Bool {
+    guard try await transcriptionQueue.reorder(orderedEpisodeIDs) else {
+      return false
+    }
+
+    let activeTask = activeTranscription { active -> Task<Void, any Error>? in
       guard
         var current = active,
         current.interruption == .none,
         orderedEpisodeIDs.first != current.episodeID
       else {
-        return (accepted: true, task: Optional<Task<Void, any Error>>.none)
+        return nil
       }
       current.interruption = .requeue
       active = current
-      return (accepted: true, task: Optional(current.task))
+      return current.task
     }
 
-    if let task = result.task {
+    if let activeTask {
       Self.log.info("Pausing active transcription after queue reorder")
-      task.cancel()
+      activeTask.cancel()
     }
-    return result.accepted
+    return true
   }
 
   private static func deleteCheckpoint(
@@ -312,7 +335,7 @@ struct TranscriptionProcessor: Sendable {
         if case .foreground = mode, case .background = foregroundState() {
           return
         }
-        try await processHead(
+        let outcome = try await processHead(
           episodeID,
           logContext: TranscriptionLogContext(
             runID: runID,
@@ -320,6 +343,9 @@ struct TranscriptionProcessor: Sendable {
             episodeID: episodeID
           )
         )
+        if case .background = mode, case .retained = outcome {
+          return
+        }
         if case .foreground = mode, case .background = foregroundState() {
           return
         }
@@ -332,12 +358,12 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  // Processes one episode. Execution cancellation retains the head, a user
-  // pause retains its checkpoint, and any other failure advances with failed state.
+  // Execution cancellation and durable queue failures retain the head. A user
+  // pause retains its checkpoint; other failures advance with failed state.
   private func processHead(
     _ episodeID: Episode.ID,
     logContext: TranscriptionLogContext
-  ) async throws {
+  ) async throws -> HeadProcessingOutcome {
     let startedAt = continuousClockNow()
     let startLatch = AsyncLatch<Void>()
     let task = Task {
@@ -369,12 +395,12 @@ struct TranscriptionProcessor: Sendable {
         try await task.value
       } catch is CancellationError {
         try Task.checkCancellation()
-        return
+        return .advanced
       } catch {
         Self.log.caughtError("Discarded stale transcription task for \(episodeID)", error)
-        return
+        return .advanced
       }
-      return
+      return .advanced
     }
 
     Self.log.info(
@@ -399,26 +425,63 @@ struct TranscriptionProcessor: Sendable {
         }
         let executionCancelled = errorIsCancellation || Task.isCancelled
         let liveProgress = transcriptionQueue.progress[episodeID] ?? 0
-        switch current.interruption {
-        case .pause:
-          transcriptionQueue.finishPausing(episodeID)
-        case .discard:
-          transcriptionQueue.clearProgress(for: episodeID)
-        case .requeue:
-          transcriptionQueue.clearProgress(for: episodeID)
-        case .none:
-          if executionCancelled {
-            transcriptionQueue.clearProgress(for: episodeID)
-          } else {
-            transcriptionQueue.fail(episodeID)
-          }
-        }
         active = nil
         return (
           interruption: current.interruption,
           executionCancelled: executionCancelled,
           liveProgress: liveProgress
         )
+      }
+
+      if let queueMutationFailure = error as? QueueMutationFailure {
+        Self.log.caughtError(
+          """
+          transcriptionTelemetry event=queueMutationFailed \(logContext.fields) \
+          operation=\(queueMutationFailure.operation.rawValue) \
+          remainingEpisodes=\(transcriptionQueue.episodeIDs.count)
+          """,
+          queueMutationFailure
+        )
+        if result.interruption == .none {
+          transcriptionQueue.clearProgress(for: episodeID)
+          backgroundTaskScheduler.scheduleNext()
+          return .retained
+        }
+      }
+
+      if result.interruption == .none, !result.executionCancelled {
+        Self.log.caughtError(
+          """
+          transcriptionTelemetry event=episodeFailed \(logContext.fields) \
+          wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
+          liveProgress=\(result.liveProgress)
+          """,
+          error
+        )
+        do {
+          try await transcriptionQueue.fail(episodeID)
+        } catch is CancellationError {
+          throw CancellationError()
+        } catch {
+          Self.log.caughtError(
+            "Failed to persist failed transcription \(episodeID); retained queued work",
+            error
+          )
+          transcriptionQueue.clearProgress(for: episodeID)
+          backgroundTaskScheduler.scheduleNext()
+          return .retained
+        }
+        if transcriptionQueue.episodeIDs.isEmpty {
+          backgroundTaskScheduler.scheduleNext()
+        }
+        return .advanced
+      }
+
+      switch result.interruption {
+      case .pause:
+        transcriptionQueue.finishPausing(episodeID)
+      case .discard, .requeue, .none:
+        transcriptionQueue.clearProgress(for: episodeID)
       }
 
       if result.interruption != .none || result.executionCancelled {
@@ -447,21 +510,8 @@ struct TranscriptionProcessor: Sendable {
         if Task.isCancelled || result.interruption == .none {
           throw CancellationError()
         }
-        return
+        return .advanced
       }
-
-      Self.log.caughtError(
-        """
-        transcriptionTelemetry event=episodeFailed \(logContext.fields) \
-        wallSeconds=\((continuousClockNow() - startedAt).asTimeInterval) \
-        liveProgress=\(result.liveProgress)
-        """,
-        error
-      )
-      if transcriptionQueue.episodeIDs.isEmpty {
-        backgroundTaskScheduler.scheduleNext()
-      }
-      return
     }
 
     let completionInterruption = activeTranscription { active in
@@ -491,6 +541,7 @@ struct TranscriptionProcessor: Sendable {
     if transcriptionQueue.episodeIDs.isEmpty {
       backgroundTaskScheduler.scheduleNext()
     }
+    return .advanced
   }
 
   private func process(
@@ -498,13 +549,19 @@ struct TranscriptionProcessor: Sendable {
     logContext: TranscriptionLogContext
   ) async throws {
     guard let episode = try await repo.episode(episodeID) else {
-      transcriptionQueue.remove(episodeID)
+      try await removeQueuedEpisode(
+        episodeID,
+        operation: .missingEpisode
+      )
       Self.log.warning("Removed missing \(episodeID) from transcription queue")
       return
     }
     guard !episode.hasTranscript else {
       try await repo.deleteTranscriptionCheckpoint(for: episodeID)
-      transcriptionQueue.remove(episodeID)
+      try await removeQueuedEpisode(
+        episodeID,
+        operation: .alreadyTranscribed
+      )
       Self.log.debug("Removed already-transcribed \(episodeID) from transcription queue")
       return
     }
@@ -586,12 +643,31 @@ struct TranscriptionProcessor: Sendable {
     try Task.checkCancellation()
     try await repo.updateTranscript(episodeID, transcript: transcript.jsonString())
 
-    transcriptionQueue.remove(episodeID)
+    try await removeQueuedEpisode(
+      episodeID,
+      operation: .completedTranscription
+    )
     Self.log.info(
       """
       transcriptionTelemetry event=transcriptStored \(logContext.fields) \
       segments=\(segments.count)
       """
     )
+  }
+
+  private func removeQueuedEpisode(
+    _ episodeID: Episode.ID,
+    operation: QueueRemovalOperation
+  ) async throws {
+    do {
+      try await transcriptionQueue.remove(episodeID)
+    } catch is CancellationError {
+      throw CancellationError()
+    } catch {
+      throw QueueMutationFailure(
+        operation: operation,
+        message: ErrorKit.message(for: error)
+      )
+    }
   }
 }

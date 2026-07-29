@@ -17,15 +17,18 @@ struct SettingsView: View {
 
   @State private var tempMaxQueueLength: Double
   @State private var tempMaxRecommendedEpisodes: Double
-
-  private let viewModel = SettingsViewModel()
+  @State private var tempMaxTranscriptionQueueLength: Double
 
   init() {
+    let userSettings = Container.shared.userSettings()
     self._tempMaxQueueLength = State(
-      initialValue: Double(Container.shared.userSettings().maxQueueLength)
+      initialValue: Double(userSettings.maxQueueLength)
     )
     self._tempMaxRecommendedEpisodes = State(
-      initialValue: Double(Container.shared.userSettings().maxRecommendedEpisodesInUpNext)
+      initialValue: Double(userSettings.maxRecommendedEpisodesInUpNext)
+    )
+    self._tempMaxTranscriptionQueueLength = State(
+      initialValue: Double(userSettings.boundedMaxTranscriptionQueueLength)
     )
   }
 
@@ -49,6 +52,10 @@ struct SettingsView: View {
   private var formattedMaxRecommendedEpisodes: String {
     let count = Int(tempMaxRecommendedEpisodes)
     return count == 0 ? "Off" : "\(count) ep"
+  }
+
+  private var formattedMaxTranscriptionQueueLength: String {
+    "\(Int(tempMaxTranscriptionQueueLength)) ep"
   }
 
   private var formattedPodcastAffinityWeight: String {
@@ -79,6 +86,42 @@ struct SettingsView: View {
               value: Navigation.Destination.settingsSection(.transcriptionQueue),
               label: { Text("Transcription Queue") }
             )
+
+            VStack(alignment: .leading, spacing: 24) {
+              SettingsRow(
+                infoText: """
+                  Maximum number of episodes in the transcription queue, including \
+                  active work. Lowering the limit preserves existing work; new episodes \
+                  can be added after the queue drains below the selected limit.
+                  """
+              ) {
+                HStack {
+                  Text("Max Queue Length")
+                  Spacer()
+                  Text(formattedMaxTranscriptionQueueLength)
+                    .foregroundStyle(.secondary)
+                }
+              }
+
+              Slider(
+                value: $tempMaxTranscriptionQueueLength,
+                in: Double(
+                  UserSettings.transcriptionQueueLengthRange.lowerBound
+                )...Double(UserSettings.transcriptionQueueLengthRange.upperBound),
+                step: 10,
+                onEditingChanged: { editing in
+                  if !editing {
+                    userSettings.$maxTranscriptionQueueLength.new(
+                      Int(tempMaxTranscriptionQueueLength)
+                    )
+                  }
+                }
+              )
+              .accessibilityLabel("Maximum Transcription Queue Length")
+              .accessibilityValue(
+                "\(Int(tempMaxTranscriptionQueueLength)) episodes"
+              )
+            }
           }
         }
 

@@ -61,7 +61,11 @@ extension SelectableEpisodeList {
   private var queue: any Queueing { Container.shared.queue() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
+  private var transcriptionProcessor: TranscriptionProcessor {
+    Container.shared.transcriptionProcessor()
+  }
   private var transcriptionQueue: TranscriptionQueue { Container.shared.transcriptionQueue() }
+  private var alert: Alert { Container.shared.alert() }
 
   nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
@@ -602,8 +606,29 @@ extension SelectableEpisodeList where Self: ManagingEpisodes {
         return
       }
 
-      for resolvedEpisode in eligibleEpisodes {
-        transcriptionQueue.enqueue(resolvedEpisode.podcastEpisode.id)
+      do {
+        try await transcriptionProcessor.enqueue(
+          eligibleEpisodes.map(\.podcastEpisode.id)
+        )
+      } catch let error as TranscriptionQueueError {
+        Self.log.caughtError(
+          "transcribeSelectedEpisodes: rejected \(eligibleEpisodes.count) episodes",
+          error,
+          level: .notice
+        )
+        alert(
+          title: error.alertTitle,
+          ErrorKit.message(for: error)
+        )
+        return
+      } catch {
+        Self.log.caughtError(
+          "transcribeSelectedEpisodes: failed to enqueue \(eligibleEpisodes.count) episodes",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+        return
       }
       didPerformBulkAction(on: eligibleEpisodes.map(\.source))
     }
