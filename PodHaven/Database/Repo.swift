@@ -18,7 +18,7 @@ struct Repo: Databasing {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.playManager) private var playManager
 
-  private var fileManager: any FileManaging { Container.shared.fileManager() }
+  private var cacheFileStore: CacheFileStore { Container.shared.cacheFileStore() }
   private var sharedState: SharedState { Container.shared.sharedState() }
 
   private static let log = Log.as(LogSubsystem.Database.repo)
@@ -392,21 +392,22 @@ struct Repo: Databasing {
     for episode in deletion.cachedEpisodes {
       if let url = episode.cachedURL {
         do {
-          try fileManager.removeItem(at: url.rawValue)
-          Self.log.debug("Removed cached file at: \(url)")
-        } catch {
-          if ErrorKit.isMissingFile(error) {
-            Self.log.caughtError(
-              "Cached file already missing at \(url) for episode \(episode.toString)",
-              error,
-              level: .debug
-            )
-          } else {
-            Self.log.caughtError(
-              "Failed to remove cached file at \(url) for episode \(episode.toString)",
-              error
+          let disposition = try await cacheFileStore.removeFileIfUnreferenced(url)
+          switch disposition {
+          case .retained:
+            Self.log.debug("Preserved newly referenced cached file at: \(url)")
+          case .removed:
+            Self.log.debug("Removed cached file at: \(url)")
+          case .alreadyMissing:
+            Self.log.debug(
+              "Cached file already missing at \(url) for episode \(episode.toString)"
             )
           }
+        } catch {
+          Self.log.caughtError(
+            "Failed to remove cached file at \(url) for episode \(episode.toString)",
+            error
+          )
         }
       }
     }
