@@ -18,9 +18,17 @@ final class FakeContinuousClock: Sendable {
   }
 
   private let mode = ThreadSafe<Mode>(.passthrough)
+  private let beforeNextNow = ThreadSafe<(@Sendable () -> Void)?>(nil)
 
   var now: ContinuousClock.Instant {
-    mode { current in
+    let operation = beforeNextNow { pending in
+      let operation = pending
+      pending = nil
+      return operation
+    }
+    operation?()
+
+    return mode { current in
       switch current {
       case .passthrough:
         return ContinuousClock.now
@@ -47,5 +55,14 @@ final class FakeContinuousClock: Sendable {
       }
       current = .manual(base.advanced(by: duration))
     }
+  }
+
+  func runBeforeNextNow(_ operation: @escaping @Sendable () -> Void) {
+    let registered = beforeNextNow { pending in
+      guard pending == nil else { return false }
+      pending = operation
+      return true
+    }
+    Assert.precondition(registered, "A clock operation is already pending")
   }
 }
