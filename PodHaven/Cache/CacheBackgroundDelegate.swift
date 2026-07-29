@@ -162,6 +162,12 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     defer {
       if let signalAttempt { cacheManager.signalDownloadComplete(for: signalAttempt) }
     }
+    if let signalAttempt,
+      !cacheManager.claimDownloadFinalization(for: signalAttempt)
+    {
+      cleanUpInvalidatedDownload(at: location, attempt: signalAttempt)
+      return
+    }
 
     let episode: Episode
     do {
@@ -202,6 +208,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
+      return
+    }
+    if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
+      cleanUpInvalidatedDownload(at: location, attempt: signalAttempt)
       return
     }
 
@@ -287,6 +297,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       await clearDownloadState(for: episode.id)
       return
     }
+    if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
+      cleanUpInvalidatedDownload(at: destURL.rawValue, attempt: signalAttempt)
+      return
+    }
 
     guard episodeAsset.isPlayable else {
       Self.log.error(
@@ -318,6 +332,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       await clearDownloadState(for: episode.id)
       return
     }
+    if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
+      cleanUpInvalidatedDownload(at: destURL.rawValue, attempt: signalAttempt)
+      return
+    }
 
     do {
       try await repo.updateCachedFilename(episode.id, cachedFilename: fileName)
@@ -332,6 +350,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       await clearDownloadState(for: episode.id)
       return
     }
+    if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
+      cleanUpInvalidatedDownload(at: destURL.rawValue, attempt: signalAttempt)
+      return
+    }
 
     // Clear downloading last, after the filename is written, so a re-reading
     // caller never sees downloading == false while still uncached.
@@ -342,6 +364,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         "didFinishDownloadingTo: failed to clear downloading flag for \(episode.toString)",
         error
       )
+    }
+    if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
+      cleanUpInvalidatedDownload(at: destURL.rawValue, attempt: signalAttempt)
+      return
     }
 
     Self.log.debug("Cached episode \(episode.id) to \(fileName)")
@@ -487,6 +513,28 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private func downloadAttempt(for task: any DownloadingTask) -> CacheDownloadAttempt? {
     guard let episodeID = episodeID(for: task) else { return nil }
     return CacheDownloadAttempt(episodeID: episodeID, taskID: task.taskID)
+  }
+
+  private func cleanUpInvalidatedDownload(at url: URL, attempt: CacheDownloadAttempt) {
+    do {
+      try fileManager.removeItem(at: url)
+      Self.log.debug(
+        "Removed invalidated download file at \(url) for episode \(attempt.episodeID)"
+      )
+    } catch {
+      if ErrorKit.isMissingFile(error) {
+        Self.log.caughtError(
+          "Invalidated download file already missing at \(url) for episode \(attempt.episodeID)",
+          error,
+          level: .debug
+        )
+      } else {
+        Self.log.caughtError(
+          "Failed to remove invalidated download file at \(url) for episode \(attempt.episodeID)",
+          error
+        )
+      }
+    }
   }
 
   // Clears progress + downloading flag; logs rather than propagates a failure.

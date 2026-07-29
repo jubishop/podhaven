@@ -46,6 +46,11 @@ struct CacheDownloadAttempt: Hashable, Sendable {
 }
 
 struct CacheManager {
+  private struct DownloadRegistry {
+    var activeAttempts: [Episode.ID: CacheDownloadAttempt] = [:]
+    var invalidatedEpisodeIDs: Set<Episode.ID> = []
+  }
+
   @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
@@ -63,7 +68,7 @@ struct CacheManager {
 
   private let startOnce = Once()
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
-  private let activeDownloadAttempts = ThreadSafe<[Episode.ID: CacheDownloadAttempt]>([:])
+  private let downloadRegistry = ThreadSafe(DownloadRegistry())
   private let downloadLatches = ThreadSafe<[CacheDownloadAttempt: AsyncLatch<Void>]>([:])
 
   // MARK: - Initialization
@@ -189,7 +194,9 @@ struct CacheManager {
       signalDownloadComplete(for: attempt)
       return cachedURL
     }
-    guard current.downloading, activeDownloadAttempts[episodeID] == attempt else {
+    guard current.downloading,
+      downloadRegistry().activeAttempts[episodeID] == attempt
+    else {
       signalDownloadComplete(for: attempt)
       return nil
     }
@@ -198,11 +205,66 @@ struct CacheManager {
   }
 
   func signalDownloadComplete(for attempt: CacheDownloadAttempt) {
-    activeDownloadAttempts { attempts in
-      guard attempts[attempt.episodeID] == attempt else { return }
-      attempts.removeValue(forKey: attempt.episodeID)
+    downloadRegistry { registry in
+      guard registry.activeAttempts[attempt.episodeID] == attempt else { return }
+      registry.activeAttempts.removeValue(forKey: attempt.episodeID)
     }
     downloadLatches { $0.removeValue(forKey: attempt) }?.open()
+  }
+
+  func claimDownloadFinalization(for attempt: CacheDownloadAttempt) -> Bool {
+    downloadRegistry { registry in
+      guard !registry.invalidatedEpisodeIDs.contains(attempt.episodeID) else {
+        return false
+      }
+      if let activeAttempt = registry.activeAttempts[attempt.episodeID] {
+        return activeAttempt == attempt
+      }
+      registry.activeAttempts[attempt.episodeID] = attempt
+      return true
+    }
+  }
+
+  func isDownloadActive(_ attempt: CacheDownloadAttempt) -> Bool {
+    let registry = downloadRegistry()
+    return !registry.invalidatedEpisodeIDs.contains(attempt.episodeID)
+      && registry.activeAttempts[attempt.episodeID] == attempt
+  }
+
+  func cancelDownloads(for episodeIDs: Set<Episode.ID>) async {
+    guard !episodeIDs.isEmpty else { return }
+
+    downloadRegistry { registry in
+      registry.invalidatedEpisodeIDs.formUnion(episodeIDs)
+      for episodeID in episodeIDs {
+        registry.activeAttempts.removeValue(forKey: episodeID)
+      }
+    }
+    let latches = downloadLatches { latches in
+      let attempts = latches.keys.filter { episodeIDs.contains($0.episodeID) }
+      var removed: [AsyncLatch<Void>] = []
+      for attempt in attempts {
+        if let latch = latches.removeValue(forKey: attempt) {
+          removed.append(latch)
+        }
+      }
+      return removed
+    }
+    for episodeID in episodeIDs {
+      sharedState.clearDownloadProgress(for: episodeID)
+    }
+    for latch in latches {
+      latch.open()
+    }
+
+    let descriptions = Set(episodeIDs.map { String($0.rawValue) })
+    let tasks = await cacheManagerSession.allCreatedTasks.filter {
+      guard let taskDescription = $0.taskDescription else { return false }
+      return descriptions.contains(taskDescription)
+    }
+    for task in tasks {
+      task.cancel()
+    }
   }
 
   @discardableResult
@@ -286,7 +348,17 @@ struct CacheManager {
       episodeID: podcastEpisode.id,
       taskID: downloadTask.taskID
     )
-    activeDownloadAttempts[podcastEpisode.id] = attempt
+    let registered = downloadRegistry { registry in
+      guard !registry.invalidatedEpisodeIDs.contains(podcastEpisode.id) else {
+        return false
+      }
+      registry.activeAttempts[podcastEpisode.id] = attempt
+      return true
+    }
+    guard registered else {
+      downloadTask.cancel()
+      return nil
+    }
     downloadTask.resume()
     return attempt
   }
@@ -299,7 +371,9 @@ struct CacheManager {
   }
 
   private func activeDownloadAttempt(for episodeID: Episode.ID) async -> CacheDownloadAttempt? {
-    if let activeAttempt = activeDownloadAttempts[episodeID] { return activeAttempt }
+    if let activeAttempt = downloadRegistry().activeAttempts[episodeID] {
+      return activeAttempt
+    }
 
     let description = String(episodeID.rawValue)
     guard
@@ -309,9 +383,12 @@ struct CacheManager {
     else { return nil }
 
     let reattachedAttempt = CacheDownloadAttempt(episodeID: episodeID, taskID: task.taskID)
-    return activeDownloadAttempts { attempts in
-      if let activeAttempt = attempts[episodeID] { return activeAttempt }
-      attempts[episodeID] = reattachedAttempt
+    return downloadRegistry { registry in
+      guard !registry.invalidatedEpisodeIDs.contains(episodeID) else { return nil }
+      if let activeAttempt = registry.activeAttempts[episodeID] {
+        return activeAttempt
+      }
+      registry.activeAttempts[episodeID] = reattachedAttempt
       return reattachedAttempt
     }
   }

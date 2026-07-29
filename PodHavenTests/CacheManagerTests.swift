@@ -301,6 +301,49 @@ import Testing
     try await CacheHelpers.waitForFileRemoved(fileURL)
   }
 
+  @Test("deletion invalidates gated finalization after the download file moves")
+  func deletionInvalidatesGatedDownloadFinalization() async throws {
+    let assetLoadStarted = AsyncSemaphore(value: 0)
+    let finishAssetLoad = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.setDefaultHandler { _ in
+      assetLoadStarted.signal()
+      await finishAssetLoad.wait()
+      return (true, CMTime.seconds(30))
+    }
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+
+    let finish = Task { try await CacheHelpers.simulateBackgroundFinish(taskID) }
+    defer {
+      finish.cancel()
+      finishAssetLoad.signal()
+    }
+    await assetLoadStarted.wait()
+    #expect(
+      try fileManager
+        .contentsOfDirectory(
+          at: CacheManager.cacheDirectory,
+          includingPropertiesForKeys: nil,
+          options: []
+        )
+        .count == 1
+    )
+
+    #expect(try await repo.deletePodcast(podcastEpisode.podcast.id))
+    finishAssetLoad.signal()
+    let temporaryURL = try await finish.value
+
+    #expect(
+      try fileManager.contentsOfDirectory(
+        at: CacheManager.cacheDirectory,
+        includingPropertiesForKeys: nil,
+        options: []
+      )
+      .isEmpty
+    )
+    #expect(!fileManager.fileExists(at: temporaryURL))
+  }
+
   // MARK: - Progress Tracking
 
   @Test("progress updates cache state and clears on finish")
