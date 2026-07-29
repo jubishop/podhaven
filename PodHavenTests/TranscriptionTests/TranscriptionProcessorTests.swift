@@ -47,6 +47,123 @@ struct TranscriptionProcessorTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
+  @Test("media services reset rebuilds active transcription from its checkpoint")
+  func mediaServicesResetRebuildsActiveTranscription() async throws {
+    let durationSeconds = 121.0
+    let completedAudioTime = 120.0
+    TranscriptionHelpers.stubSpeech(durationSeconds: durationSeconds)
+    let outputFormat = try #require(
+      AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)
+    )
+    let transcriberCreations = ThreadSafe(0)
+    Container.shared.speechTranscriber.register {
+      { _ in
+        transcriberCreations { $0 += 1 }
+        return FakeSpeechTranscriber(
+          behavior: .succeed([
+            FakeSpeechTranscriptionResult(
+              phrase: "resumed",
+              startSeconds: completedAudioTime,
+              endSeconds: durationSeconds
+            )
+          ])
+        )
+      }
+    }
+    let firstConvertedInputConsumed = AsyncSemaphore(value: 0)
+    let firstAnalyzerRelease = AsyncSemaphore(value: 0)
+    let analyzerCancellations = ThreadSafe(0)
+    let analyzerCreations = ThreadSafe(0)
+    let inputSequenceStartTimes = ThreadSafe<[TimeInterval]>([])
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        let invocation = analyzerCreations {
+          $0 += 1
+          return $0
+        }
+        let consumedFirstInput = ThreadSafe(false)
+        return FakeSpeechAnalyzer(
+          analyzeAudio: { _, _ in
+            CMTime(seconds: durationSeconds, preferredTimescale: 600)
+          },
+          cancelAudio: {
+            guard invocation == 1 else { return }
+            analyzerCancellations { $0 += 1 }
+            firstAnalyzerRelease.signal()
+          },
+          outputFormat: outputFormat,
+          consumeInput: { input in
+            let isFirstInput = consumedFirstInput { consumed in
+              guard !consumed else { return false }
+              consumed = true
+              return true
+            }
+            guard isFirstInput else { return }
+            if let startTime = input.bufferStartTime?.seconds {
+              inputSequenceStartTimes { $0.append(startTime) }
+            }
+            guard invocation == 1 else { return }
+            firstConvertedInputConsumed.signal()
+            await firstAnalyzerRelease.wait()
+          }
+        )
+      }
+    }
+
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let notifier = Container.shared.notifier()
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Reset while transcribing",
+      cachedFilename: "media-reset.mp3",
+      dataSize: 1
+    )
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [
+        TranscriptSegment(
+          start: 0,
+          end: completedAudioTime - 20,
+          text: "completed"
+        )
+      ],
+      audioTime: completedAudioTime,
+      duration: durationSeconds,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: episode.id)
+    try await queue.enqueue(episode.id)
+    processor.register()
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      firstAnalyzerRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await firstConvertedInputConsumed.wait()
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+    try await Wait.until(
+      { analyzerCreations() == 2 },
+      { "Media reset did not rebuild the active transcription" }
+    )
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "Recovered transcription did not finish: \(queue.episodeIDs)" }
+    )
+
+    let transcript = try #require(try await repo.episode(episode.id)?.decodedTranscript)
+    #expect(transcript.segments.map(\.text) == ["completed", "resumed"])
+    #expect(inputSequenceStartTimes() == [110, 110])
+    #expect(transcriberCreations() == 2)
+    #expect(analyzerCreations() == 2)
+    #expect(analyzerCancellations() == 1)
+    #expect(!queue.failed.contains(episode.id))
+    #expect(try await repo.transcriptionCheckpoint(episode.id) == nil)
+  }
+
   @Test("overlapping pauses cancel active work once and clear after cleanup")
   func overlappingPausesStopActiveEpisodeOnce() async throws {
     TranscriptionHelpers.stubSpeech(
