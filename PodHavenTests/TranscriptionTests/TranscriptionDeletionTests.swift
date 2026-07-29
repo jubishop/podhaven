@@ -164,12 +164,23 @@ struct TranscriptionDeletionTests {
     #expect(try await repo.episode(survivingEpisode.id)?.hasTranscript == true)
   }
 
-  @Test("failed podcast deletion restores the live and durable queue order")
-  func failedPodcastDeletionRestoresQueue() async throws {
+  @Test("failed podcast deletion restores the queue and preserves cached files")
+  func failedPodcastDeletionRestoresQueueAndPreservesCachedFiles() async throws {
     let doomed = try await makeSeries(episodeCount: 2, title: "Retained")
     let surviving = try await makeSeries(episodeCount: 1, title: "Unaffected")
     let doomedEpisodes = Array(doomed.episodes)
     let survivingEpisode = try #require(surviving.episodes.first)
+    let cachedFilename = "retained-after-failed-deletion.mp3"
+    let cachedData = Data([0x1])
+    try #require(
+      try await repo.updateCachedFilename(
+        doomedEpisodes[0].id,
+        cachedFilename: cachedFilename
+      )
+    )
+    let cachedURL = CacheManager.resolveCachedFilepath(for: cachedFilename)
+    let fileManager = try #require(Container.shared.fileManager() as? FakeFileManager)
+    try await fileManager.writeData(cachedData, to: cachedURL.rawValue)
     let originalOrder = [
       doomedEpisodes[0].id,
       survivingEpisode.id,
@@ -196,6 +207,7 @@ struct TranscriptionDeletionTests {
     #expect(queue.episodeIDs == originalOrder)
     #expect(try await Container.shared.transcriptionQueueStore().fetchAll() == originalOrder)
     #expect(try await repo.podcast(doomed.podcast.id) != nil)
+    #expect(try await fileManager.readData(from: cachedURL.rawValue) == cachedData)
   }
 
   private func makeSeries(episodeCount: Int, title: String) async throws -> PodcastSeries {

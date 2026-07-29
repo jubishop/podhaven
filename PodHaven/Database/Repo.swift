@@ -358,7 +358,7 @@ struct Repo: Databasing {
     let reader = reader
     let sharedState = sharedState
     let writer = writer
-    return try await transcriptionProcessor.reconcileDeletion(
+    let deletedCount = try await transcriptionProcessor.reconcileDeletion(
       resolvingEpisodeIDs: {
         Set(
           try await reader.read { db in
@@ -370,23 +370,9 @@ struct Repo: Databasing {
         )
       },
       perform: {
-        for episode in episodesToDelete {
-          if let url = episode.cachedURL {
-            do {
-              try fileManager.removeItem(at: url.rawValue)
-              Self.log.debug("Removed cached file at: \(url)")
-            } catch {
-              Self.log.caughtError(
-                "Failed to remove cached file at \(url) for episode \(episode.toString)",
-                error
-              )
-            }
-          }
-
-          if sharedState.onDeck?.id == episode.id {
-            await playManager.stop()
-            Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
-          }
+        for episode in episodesToDelete where sharedState.onDeck?.id == episode.id {
+          await playManager.stop()
+          Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
         }
 
         return try await writer.write { db in
@@ -403,6 +389,22 @@ struct Repo: Databasing {
         }
       }
     )
+
+    for episode in episodesToDelete {
+      if let url = episode.cachedURL {
+        do {
+          try fileManager.removeItem(at: url.rawValue)
+          Self.log.debug("Removed cached file at: \(url)")
+        } catch {
+          Self.log.caughtError(
+            "Failed to remove cached file at \(url) for episode \(episode.toString)",
+            error
+          )
+        }
+      }
+    }
+
+    return deletedCount
   }
 
   @discardableResult
