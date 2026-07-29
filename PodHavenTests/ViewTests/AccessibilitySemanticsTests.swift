@@ -13,6 +13,23 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
 
 @Suite("of accessibility semantics tests", .container)
 @MainActor struct AccessibilitySemanticsTests {
+  private struct PixelBuffer {
+    let width: Int
+    let height: Int
+    let bytesPerRow: Int
+    let pixels: [UInt8]
+
+    func color(atX x: Int, y: Int) -> (red: Int, green: Int, blue: Int)? {
+      guard x >= 0, x < width, y >= 0, y < height else { return nil }
+      let offset = y * bytesPerRow + x * 4
+      return (
+        red: Int(pixels[offset]),
+        green: Int(pixels[offset + 1]),
+        blue: Int(pixels[offset + 2])
+      )
+    }
+  }
+
   private static func makeWindow<V: View>(_ rootView: V) throws -> UIWindow {
     let host = UIHostingController(rootView: rootView)
     let scene = try #require(
@@ -56,6 +73,47 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     let selector = NSSelectorFromString("accessibilityCustomContent")
     guard object.responds(to: selector) else { return [] }
     return object.value(forKey: "accessibilityCustomContent") as? [AXCustomContent] ?? []
+  }
+
+  private static func render(_ view: UIView) throws -> PixelBuffer {
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.preferredRange = .standard
+    let image = UIGraphicsImageRenderer(bounds: view.bounds, format: format)
+      .image { _ in
+        view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
+      }
+    let cgImage = try #require(image.cgImage)
+    try #require(cgImage.bitsPerPixel == 32)
+    let data = try #require(cgImage.dataProvider?.data)
+    let bytes = try #require(CFDataGetBytePtr(data))
+    let pixels = Array(
+      UnsafeBufferPointer(
+        start: bytes,
+        count: CFDataGetLength(data)
+      )
+    )
+    return PixelBuffer(
+      width: cgImage.width,
+      height: cgImage.height,
+      bytesPerRow: cgImage.bytesPerRow,
+      pixels: pixels
+    )
+  }
+
+  private static func colorDistance(
+    atX x: Int,
+    between firstY: Int,
+    and secondY: Int,
+    in buffer: PixelBuffer
+  ) -> Int? {
+    guard
+      let first = buffer.color(atX: x, y: firstY),
+      let second = buffer.color(atX: x, y: secondY)
+    else { return nil }
+    return abs(first.red - second.red)
+      + abs(first.green - second.green)
+      + abs(first.blue - second.blue)
   }
 
   @Test(
@@ -270,6 +328,60 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
+    "transcription queue Edit button activates selection controls",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func transcriptionQueueEditButtonActivatesSelectionControls() async throws {
+    let episode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Editable Transcription")
+    )
+    try await Container.shared.transcriptionQueue().enqueue(episode.id)
+
+    let window = try Self.makeWindow(
+      NavigationStack {
+        TranscriptionQueueView()
+      }
+    )
+    defer { window.isHidden = true }
+
+    try await Wait.until(
+      maxAttempts: 200,
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        let labels = Set(
+          Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+        )
+        return labels.contains { $0.contains("Editable Transcription") }
+          && labels.contains("Edit")
+      },
+      { @MainActor in "Transcription queue and Edit button did not finish loading" }
+    )
+
+    let editButton = try #require(
+      Self.accessibilityElements(in: window)
+        .first { $0.accessibilityLabel == "Edit" }
+    )
+    #expect(editButton.accessibilityActivate())
+
+    try await Wait.until(
+      maxAttempts: 100,
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        let labels = Set(
+          Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+        )
+        return labels.contains("Select All") && labels.contains("0 episodes selected")
+      },
+      { @MainActor in "Edit did not expose transcription queue selection controls" }
+    )
+  }
+
+  @Test(
     "Smart List rows announce episodes added during the open session as new",
     .enabled(
       if: supportsHostedAccessibilityInspection,
@@ -344,6 +456,81 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     let newStatus = try #require(newStatuses.first)
     #expect(newStatus.value == "New")
     #expect(newStatus.importance == .high)
+
+    let layoutWindow = try Self.makeWindow(
+      NavigationStack {
+        EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
+      }
+      .transaction { transaction in
+        transaction.disablesAnimations = true
+      }
+      .environment(\.dynamicTypeSize, .xxxLarge)
+    )
+    defer { layoutWindow.isHidden = true }
+    try await Wait.until(
+      { @MainActor in
+        layoutWindow.rootViewController?.view.setNeedsLayout()
+        layoutWindow.rootViewController?.view.layoutIfNeeded()
+        let layoutRows = Self.accessibilityElements(in: layoutWindow)
+        return layoutRows.contains {
+          $0.accessibilityLabel?.contains(oldTitle) == true
+        }
+          && layoutRows.contains {
+            $0.accessibilityLabel?.contains(newTitle) == true
+          }
+      },
+      { @MainActor in "Both episode rows did not enter the static accessibility tree" }
+    )
+    let layoutRows = Self.accessibilityElements(in: layoutWindow)
+    let layoutOldRow = try #require(
+      layoutRows.first { $0.accessibilityLabel?.contains(oldTitle) == true }
+    )
+    let layoutNewRow = try #require(
+      layoutRows.first { $0.accessibilityLabel?.contains(newTitle) == true }
+    )
+    let oldFrame = layoutWindow.convert(
+      layoutOldRow.accessibilityFrame,
+      from: layoutWindow.screen.coordinateSpace
+    )
+    let newFrame = layoutWindow.convert(
+      layoutNewRow.accessibilityFrame,
+      from: layoutWindow.screen.coordinateSpace
+    )
+    let oldY = Int((oldFrame.minY + 8).rounded())
+    let newY = Int((newFrame.minY + 8).rounded())
+    let leadingX = Int(min(oldFrame.minX, newFrame.minX).rounded(.up)) + 8
+    let trailingX = Int(max(oldFrame.maxX, newFrame.maxX).rounded(.down)) - 9
+    var leadingDifference = 0
+    var trailingDifference = 0
+    try await Wait.until(
+      { @MainActor in
+        layoutWindow.rootViewController?.view.setNeedsLayout()
+        layoutWindow.rootViewController?.view.layoutIfNeeded()
+        let rendering = try Self.render(layoutWindow)
+        leadingDifference =
+          Self.colorDistance(
+            atX: leadingX,
+            between: oldY,
+            and: newY,
+            in: rendering
+          ) ?? 0
+        trailingDifference =
+          Self.colorDistance(
+            atX: trailingX,
+            between: oldY,
+            and: newY,
+            in: rendering
+          ) ?? 0
+        return leadingDifference > 12 && trailingDifference > 12
+      },
+      { @MainActor in
+        """
+        Highlight did not reach both row edges; color differences were \
+        \(leadingDifference)/\(trailingDifference), old frame \(oldFrame), new frame \(newFrame), \
+        sample x \(leadingX)/\(trailingX), y \(oldY)/\(newY)
+        """
+      }
+    )
   }
 
   @Test(

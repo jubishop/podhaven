@@ -581,6 +581,12 @@ final class PlayManager {
     setStatus(.stopped)
   }
 
+  func stop(ifCurrentEpisodeIDIs episodeID: Episode.ID) async -> Bool {
+    guard sharedState.currentEpisodeID == episodeID else { return false }
+    await stop()
+    return true
+  }
+
   func toggle() async {
     await podAVPlayer.toggle()
   }

@@ -346,19 +346,13 @@ struct Repo: Databasing {
 
   @discardableResult
   func deletePodcast(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    let episodesToDelete = try await reader.read { db in
-      try Episode.all()
-        .filter { podcastIDs.contains($0.podcastId) }
-        .fetchAll(db)
-    }
-
     let fileManager = fileManager
     let playManager = playManager
     let queue = queue
     let reader = reader
     let sharedState = sharedState
     let writer = writer
-    let deletedCount = try await transcriptionProcessor.reconcileDeletion(
+    let deletion = try await transcriptionProcessor.reconcileDeletion(
       resolvingEpisodeIDs: {
         Set(
           try await reader.read { db in
@@ -370,10 +364,11 @@ struct Repo: Databasing {
         )
       },
       perform: {
-        let onDeckEpisodeToStop = episodesToDelete.first {
-          sharedState.onDeck?.id == $0.id
-        }
-        let deletedCount = try await writer.write { db in
+        try await writer.write { db in
+          let episodesToDelete = try Episode.all()
+            .filter { podcastIDs.contains($0.podcastId) }
+            .fetchAll(db)
+
           let queuedEpisodeIDs =
             try Episode.all()
             .queued()
@@ -383,32 +378,61 @@ struct Repo: Databasing {
           try queue.dequeue(db, queuedEpisodeIDs)
 
           // Cascades to episodes via FK ON DELETE CASCADE.
-          return try Podcast.withIDs(podcastIDs).deleteAll(db)
+          let deletedCount = try Podcast.withIDs(podcastIDs).deleteAll(db)
+          let candidateCachedFilenames = Set(
+            episodesToDelete.compactMap { $0.cachedURL?.lastPathComponent }
+          )
+          let retainedCachedFilenames = Set(
+            try Episode
+              .filter(candidateCachedFilenames.contains(Episode.Columns.cachedFilename))
+              .select(Episode.Columns.cachedFilename, as: String.self)
+              .fetchAll(db)
+          )
+          let cachedEpisodesToDelete = episodesToDelete.filter { episode in
+            guard let cachedFilename = episode.cachedURL?.lastPathComponent else { return false }
+            return !retainedCachedFilenames.contains(cachedFilename)
+          }
+          return (
+            deletedCount: deletedCount,
+            episodes: episodesToDelete,
+            cachedEpisodes: cachedEpisodesToDelete
+          )
         }
-
-        if let episode = onDeckEpisodeToStop {
-          await playManager.stop()
-          Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
-        }
-        return deletedCount
       }
     )
 
-    for episode in episodesToDelete {
+    if let currentEpisodeID = sharedState.currentEpisodeID,
+      let currentEpisode = deletion.episodes.first(where: { $0.id == currentEpisodeID }),
+      await playManager.stop(ifCurrentEpisodeIDIs: currentEpisodeID)
+    {
+      Self.log.debug(
+        "Stopped playback for \(currentEpisode.toString) because it's being deleted"
+      )
+    }
+
+    for episode in deletion.cachedEpisodes {
       if let url = episode.cachedURL {
         do {
           try fileManager.removeItem(at: url.rawValue)
           Self.log.debug("Removed cached file at: \(url)")
         } catch {
-          Self.log.caughtError(
-            "Failed to remove cached file at \(url) for episode \(episode.toString)",
-            error
-          )
+          if ErrorKit.isMissingFile(error) {
+            Self.log.caughtError(
+              "Cached file already missing at \(url) for episode \(episode.toString)",
+              error,
+              level: .debug
+            )
+          } else {
+            Self.log.caughtError(
+              "Failed to remove cached file at \(url) for episode \(episode.toString)",
+              error
+            )
+          }
         }
       }
     }
 
-    return deletedCount
+    return deletion.deletedCount
   }
 
   @discardableResult

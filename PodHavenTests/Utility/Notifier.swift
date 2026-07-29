@@ -12,9 +12,12 @@ extension Container {
   }
 }
 
-final class Notifier: Sendable {
+final class Notifier: NotificationObserving, Sendable {
   private let streamAndContinuations = ThreadSafe<
     [Notification.Name: (AsyncStream<Notification>, AsyncStream<Notification>.Continuation)]
+  >([:])
+  private let observers = ThreadSafe<
+    [Notification.Name: [@Sendable () -> Void]]
   >([:])
 
   fileprivate init() {}
@@ -27,6 +30,23 @@ final class Notifier: Sendable {
   func continuation(for name: Notification.Name) -> AsyncStream<Notification>.Continuation {
     let (_, continuation) = streamAndContinuation(for: name)
     return continuation
+  }
+
+  @discardableResult
+  func observe(
+    _ name: Notification.Name,
+    using action: @escaping @Sendable () -> Void
+  ) -> any NSObjectProtocol {
+    observers { observers in
+      observers[name, default: []].append(action)
+    }
+    return NSObject()
+  }
+
+  func post(_ name: Notification.Name) {
+    for observer in observers()[name] ?? [] {
+      observer()
+    }
   }
 
   private func streamAndContinuation(for name: Notification.Name) -> (

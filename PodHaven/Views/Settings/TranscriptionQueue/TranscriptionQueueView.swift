@@ -10,8 +10,8 @@ struct TranscriptionQueueView: View {
   var body: some View {
     content
       .navigationTitle("Transcription Queue")
-      .environment(\.editMode, $viewModel.editMode)
       .toolbar { toolbar }
+      .environment(\.editMode, $viewModel.editMode)
       .toolbarRole(.editor)
       .animation(.default, value: viewModel.entries)
       .task(viewModel.execute)
@@ -74,21 +74,27 @@ struct TranscriptionQueueView: View {
   @ViewBuilder
   private func moveActions(for episodeID: Episode.ID) -> some View {
     if viewModel.canMoveToTop(episodeID) {
-      AppIcon.moveToTop.labelButton {
-        viewModel.moveToTop(episodeID)
-      }
+      AppIcon.moveToTop
+        .labelButton {
+          viewModel.moveToTop(episodeID)
+        }
+        .labelStyle(.iconOnly)
     }
     if viewModel.canMoveToBottom(episodeID) {
-      AppIcon.moveToBottom.labelButton {
-        viewModel.moveToBottom(episodeID)
-      }
+      AppIcon.moveToBottom
+        .labelButton {
+          viewModel.moveToBottom(episodeID)
+        }
+        .labelStyle(.iconOnly)
     }
   }
 
   private func removeAction(for episodeID: Episode.ID) -> some View {
-    AppIcon.removeFromQueue.labelButton {
-      viewModel.remove(episodeID)
-    }
+    AppIcon.removeFromQueue
+      .labelButton {
+        viewModel.remove(episodeID)
+      }
+      .labelStyle(.iconOnly)
   }
 
   @ViewBuilder
