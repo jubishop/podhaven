@@ -26,7 +26,7 @@ extension Container {
 struct TranscriptionProcessor: Sendable {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.continuousClockNow) private var continuousClockNow
-  @DynamicInjected(\.notifications) private var notifications
+  @DynamicInjected(\.notificationObserver) private var notificationObserver
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.taskPriority) private var taskPriority
   @DynamicInjected(\.transcriber) private var transcriber
@@ -101,27 +101,24 @@ struct TranscriptionProcessor: Sendable {
   // queue survives expiry, so the next grant or foreground activation retries
   // the retained head.
   func register() {
-    let mediaServicesResets = notifications(
-      AVAudioSession.mediaServicesWereResetNotification
-    )
     let activeTranscription = activeTranscription
-    Task {
-      for await _ in mediaServicesResets {
-        let reset = activeTranscription {
-          active -> (episodeID: Episode.ID, task: Task<Void, any Error>)? in
-          guard var current = active, current.interruption == .none else {
-            return nil
-          }
-          current.interruption = .mediaServicesReset
-          active = current
-          return (current.episodeID, current.task)
+    notificationObserver.observe(
+      AVAudioSession.mediaServicesWereResetNotification
+    ) {
+      let reset = activeTranscription {
+        active -> (episodeID: Episode.ID, task: Task<Void, any Error>)? in
+        guard var current = active, current.interruption == .none else {
+          return nil
         }
-        guard let reset else { continue }
-        Self.log.notice(
-          "Rebuilding active transcription \(reset.episodeID) after media services reset"
-        )
-        reset.task.cancel()
+        current.interruption = .mediaServicesReset
+        active = current
+        return (current.episodeID, current.task)
       }
+      guard let reset else { return }
+      Self.log.notice(
+        "Rebuilding active transcription \(reset.episodeID) after media services reset"
+      )
+      reset.task.cancel()
     }
 
     backgroundTaskScheduler.register { complete in

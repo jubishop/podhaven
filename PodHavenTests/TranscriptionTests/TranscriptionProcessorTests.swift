@@ -71,7 +71,7 @@ struct TranscriptionProcessorTests {
       }
     }
     let firstConvertedInputConsumed = AsyncSemaphore(value: 0)
-    let firstAnalyzerRelease = AsyncSemaphore(value: 0)
+    let firstConvertedInputRelease = AsyncSemaphore(value: 0)
     let analyzerCancellations = ThreadSafe(0)
     let analyzerCreations = ThreadSafe(0)
     let inputSequenceStartTimes = ThreadSafe<[TimeInterval]>([])
@@ -89,7 +89,6 @@ struct TranscriptionProcessorTests {
           cancelAudio: {
             guard invocation == 1 else { return }
             analyzerCancellations { $0 += 1 }
-            firstAnalyzerRelease.signal()
           },
           outputFormat: outputFormat,
           consumeInput: { input in
@@ -104,7 +103,8 @@ struct TranscriptionProcessorTests {
             }
             guard invocation == 1 else { return }
             firstConvertedInputConsumed.signal()
-            await firstAnalyzerRelease.wait()
+            await firstConvertedInputRelease.wait()
+            throw SpeechAnalyzerInputError.conversionFailed(nil)
           }
         )
       }
@@ -137,13 +137,13 @@ struct TranscriptionProcessorTests {
     processor.register()
     processor.handleScenePhaseChange(to: .active)
     defer {
-      firstAnalyzerRelease.signal()
+      firstConvertedInputRelease.signal()
       processor.handleScenePhaseChange(to: .background)
     }
 
     await firstConvertedInputConsumed.wait()
-    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
-      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+    notifier.post(AVAudioSession.mediaServicesWereResetNotification)
+    firstConvertedInputRelease.signal()
 
     try await Wait.until(
       { analyzerCreations() == 2 },
