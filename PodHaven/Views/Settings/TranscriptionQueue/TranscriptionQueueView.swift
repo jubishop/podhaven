@@ -10,8 +10,8 @@ struct TranscriptionQueueView: View {
   var body: some View {
     content
       .navigationTitle("Transcription Queue")
-      .environment(\.editMode, $viewModel.editMode)
       .toolbar { toolbar }
+      .environment(\.editMode, $viewModel.editMode)
       .toolbarRole(.editor)
       .animation(.default, value: viewModel.entries)
       .task(viewModel.execute)
@@ -52,43 +52,75 @@ struct TranscriptionQueueView: View {
 
   private var queueList: some View {
     List(selection: $viewModel.selectedEpisodeIDs) {
-      ForEach(viewModel.entries) { entry in
+      ForEach(viewModel.waitingEntries) { entry in
         queueRow(entry)
           .tag(entry.id)
           .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            moveActions(for: entry.id)
+            queueActions(for: entry.id)
           }
           .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            removeAction(for: entry.id)
+            transcribeNowAction(for: entry.id)
           }
           .accessibilityActions {
-            moveActions(for: entry.id)
-            removeAction(for: entry.id)
+            transcribeNowAction(for: entry.id)
+            queueActions(for: entry.id)
           }
       }
       .onMove(perform: viewModel.move)
       .onDelete(perform: viewModel.remove)
     }
+    .safeAreaInset(edge: .top, spacing: 12) {
+      if let activeEntry = viewModel.activeEntry {
+        NavigationLink(
+          value: Navigation.Destination.episode(DisplayedEpisode(activeEntry.episode))
+        ) {
+          TranscriptionQueueRow(entry: activeEntry)
+            .padding()
+            .glassEffect(in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal)
+        }
+        .buttonStyle(.plain)
+      }
+    }
   }
 
   @ViewBuilder
-  private func moveActions(for episodeID: Episode.ID) -> some View {
+  private func queueActions(for episodeID: Episode.ID) -> some View {
+    removeAction(for: episodeID)
+
     if viewModel.canMoveToTop(episodeID) {
-      AppIcon.moveToTop.labelButton {
-        viewModel.moveToTop(episodeID)
-      }
+      AppIcon.moveToTop
+        .labelButton {
+          viewModel.moveToTop(episodeID)
+        }
+        .labelStyle(.iconOnly)
     }
     if viewModel.canMoveToBottom(episodeID) {
-      AppIcon.moveToBottom.labelButton {
-        viewModel.moveToBottom(episodeID)
-      }
+      AppIcon.moveToBottom
+        .labelButton {
+          viewModel.moveToBottom(episodeID)
+        }
+        .labelStyle(.iconOnly)
+    }
+  }
+
+  @ViewBuilder
+  private func transcribeNowAction(for episodeID: Episode.ID) -> some View {
+    if viewModel.canTranscribeNow(episodeID) {
+      AppIcon.transcribeNow
+        .labelButton {
+          viewModel.transcribeNow(episodeID)
+        }
+        .labelStyle(.iconOnly)
     }
   }
 
   private func removeAction(for episodeID: Episode.ID) -> some View {
-    AppIcon.removeFromQueue.labelButton {
-      viewModel.remove(episodeID)
-    }
+    AppIcon.removeFromQueue
+      .labelButton {
+        viewModel.remove(episodeID)
+      }
+      .labelStyle(.iconOnly)
   }
 
   @ViewBuilder
@@ -104,7 +136,7 @@ struct TranscriptionQueueView: View {
 
   @ToolbarContentBuilder
   private var toolbar: some ToolbarContent {
-    if viewModel.loadingState == .loaded, !viewModel.entries.isEmpty {
+    if viewModel.loadingState == .loaded, !viewModel.waitingEntries.isEmpty {
       if viewModel.editMode.isEditing {
         ToolbarItem(placement: .topBarLeading) {
           if viewModel.allSelected {

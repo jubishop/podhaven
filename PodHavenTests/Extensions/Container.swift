@@ -27,6 +27,7 @@ extension Container: @retroactive AutoRegistering {
     notifications.context(.test) {
       { name in self.notifier().stream(for: name) }
     }
+    notificationObserver.context(.test) { self.notifier() }.scope(.cached)
 
     mpRemoteCommandCenter.context(.test) { FakeMPRemoteCommandCenter() }.scope(.cached)
     mpNowPlayingInfoCenter.context(.test) { FakeMPNowPlayingInfoCenter() }.scope(.cached)

@@ -83,19 +83,24 @@ struct EpisodesListView: View {
 
   private var listView: some View {
     List(viewModel.episodeList.filteredEntries) { podcastEpisode in
-      let highlight = podcastEpisode.id > viewModel.lastSeenEpisodeId
+      let highlight =
+        viewModel.showUnreadBadge && podcastEpisode.id > viewModel.lastSeenEpisodeId
       NavigationLink(
         value: Navigation.Destination.listedEpisode(ListedEpisode(podcastEpisode)),
         label: {
           EpisodeListView(
             episode: podcastEpisode,
             alwaysShowPodcastImage: viewModel.alwaysShowPodcastImage,
-            highlight: highlight,
             isSelecting: viewModel.episodeList.isSelecting,
             isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
           )
           .listRowSeparator()
         }
+      )
+      .listRowBackground(
+        Color.accentColor
+          .opacity(highlight ? 0.15 : 0)
+          .padding(.vertical, 2)
       )
       .listRow()
       .accessibilityCustomContent(
@@ -191,6 +196,90 @@ struct EpisodesListView: View {
       )
 
       smartList = try await Container.shared.smartListRepo().fetchAll().first
+    } catch {
+      print("Preview error: \(error)")
+    }
+  }
+}
+
+#Preview("New Episode Highlighting") {
+  @Previewable @State var smartList: SmartList?
+
+  NavigationStack {
+    if let smartList {
+      EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
+    }
+  }
+  .preview()
+  .task {
+    do {
+      let repo = Container.shared.repo()
+      let smartListRepo = Container.shared.smartListRepo()
+      let allThumbnails = PreviewBundle.loadAllThumbnails()
+      guard
+        let firstThumbnail = allThumbnails["this-american-life-episode1"],
+        let secondThumbnail = allThumbnails["pod-save-america-episode1"]
+      else { return }
+
+      let podcastTitle = "Highlight Comparison Podcast"
+      let now = Date()
+      _ = try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            title: podcastTitle,
+            image: firstThumbnail.url
+          ),
+          unsavedEpisodes: [
+            try Create.unsavedEpisode(
+              title: "Normal — Present When List Opened",
+              pubDate: now.addingTimeInterval(-2 * 3600),
+              duration: CMTime.seconds(2400),
+              image: firstThumbnail.url
+            ),
+            try Create.unsavedEpisode(
+              title: "Normal — Previously Seen",
+              pubDate: now.addingTimeInterval(-3 * 3600),
+              duration: CMTime.seconds(1800),
+              image: secondThumbnail.url
+            ),
+          ]
+        )
+      )
+
+      let comparisonList = try await smartListRepo.insert(
+        try UnsavedSmartList(
+          title: "Highlight Comparison",
+          filter: SmartListFilter(
+            conditions: [.podcastText(.title, .contains, podcastTitle)]
+          ),
+          displayOrder: 100
+        )
+      )
+
+      _ = try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(
+            title: podcastTitle,
+            image: secondThumbnail.url
+          ),
+          unsavedEpisodes: [
+            try Create.unsavedEpisode(
+              title: "Highlighted — Arrived While Viewing",
+              pubDate: now,
+              duration: CMTime.seconds(2700),
+              image: secondThumbnail.url
+            ),
+            try Create.unsavedEpisode(
+              title: "Highlighted — Another New Episode",
+              pubDate: now.addingTimeInterval(-3600),
+              duration: CMTime.seconds(2100),
+              image: firstThumbnail.url
+            ),
+          ]
+        )
+      )
+
+      smartList = comparisonList
     } catch {
       print("Preview error: \(error)")
     }
