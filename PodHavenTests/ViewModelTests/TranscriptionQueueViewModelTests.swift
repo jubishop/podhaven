@@ -47,6 +47,68 @@ import Testing
     #expect(!viewModel.entries[1].isActive)
     #expect(viewModel.entries[1].progress == 0.25)
     #expect(viewModel.entries[2].progress == 0)
+    #expect(viewModel.activeEntry?.id == episodes[0].id)
+    #expect(viewModel.waitingEntries.map(\.id) == [episodes[1].id, episodes[2].id])
+
+    viewModel.selectAll()
+    #expect(viewModel.selectedEpisodeIDs == [episodes[1].id, episodes[2].id])
+    #expect(viewModel.allSelected)
+  }
+
+  @Test("moving waiting work to the top preserves the active transcription")
+  func movingWaitingWorkToTopPreservesActiveTranscription() async throws {
+    let episodes = try await makeEpisodes()
+    for episode in episodes {
+      try await transcriptionQueue.enqueue(episode.id)
+    }
+    transcriptionQueue.setProgress(0.42, for: episodes[0].id)
+
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodes.map(\.id) },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    viewModel.moveToTop(episodes[2].id)
+
+    let expectedOrder = [episodes[0].id, episodes[2].id, episodes[1].id]
+    #expect(viewModel.entries.map(\.id) == expectedOrder)
+    try await Wait.until(
+      { @MainActor in
+        self.transcriptionQueue.episodeIDs == viewModel.entries.map(\.id)
+      },
+      { @MainActor in "Expected projected queue order to persist" }
+    )
+  }
+
+  @Test("transcribe now replaces the active head and requeues it first")
+  func transcribeNowReplacesActiveHead() async throws {
+    let episodes = try await makeEpisodes()
+    for episode in episodes {
+      try await transcriptionQueue.enqueue(episode.id)
+    }
+    transcriptionQueue.setProgress(0.42, for: episodes[0].id)
+
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer { executeTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodes.map(\.id) },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    viewModel.transcribeNow(episodes[2].id)
+
+    let expectedOrder = [episodes[2].id, episodes[0].id, episodes[1].id]
+    #expect(viewModel.entries.map(\.id) == expectedOrder)
+    try await Wait.until(
+      { @MainActor in self.transcriptionQueue.episodeIDs == expectedOrder },
+      { @MainActor in "Expected Transcribe Now order to persist" }
+    )
   }
 
   @Test("queued checkpoint progress is announced as waiting")

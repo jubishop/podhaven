@@ -20,6 +20,7 @@ import SwiftUI
   case moveToBottom
   case markEpisodeFinished
   case transcribeEpisode
+  case transcribeNow
   case playNow
   case playSelection
   case queueAtBottom
@@ -261,6 +262,8 @@ import SwiftUI
       return Data(text: "Mark Finished", systemImageName: .episodeFinished, color: .blue)
     case .transcribeEpisode:
       return Data(text: "Transcribe", systemImageName: .transcribe, color: .teal)
+    case .transcribeNow:
+      return Data(text: "Transcribe Now", systemImageName: .transcribe, color: .teal)
     case .playNow:
       return Data(text: "Play Now", systemImageName: .play, color: .green)
     case .playSelection:
