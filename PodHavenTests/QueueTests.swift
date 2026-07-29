@@ -528,6 +528,22 @@ class QueueTests {
     #expect(ep3.queueOrder == nil)
   }
 
+  @Test("append ignores missing IDs before applying queue capacity")
+  func appendIgnoresMissingIDsBeforeApplyingQueueCapacity() async throws {
+    userSettings.$maxQueueLength.new(6)
+    let missingEpisode = try await Create.podcastEpisode()
+    let validEpisode = try await fetchEpisode("unqtop")
+    #expect(try await repo.deletePodcast(missingEpisode.podcast.id))
+
+    try await queue.append([missingEpisode.id, validEpisode.id])
+
+    #expect(
+      try await fetchGUIDs()
+        == ["top", "midtop", "middle", "midbottom", "bottom", "unqtop"]
+    )
+    #expect(try await fetchOrder() == [0, 1, 2, 3, 4, 5])
+  }
+
   @Test("appending multiple episodes when queue has room for some")
   func testAppendMultiplePartialFit() async throws {
     // Set max queue length to 7

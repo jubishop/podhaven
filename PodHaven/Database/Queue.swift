@@ -277,6 +277,7 @@ struct Queue: Queueing {
       return
     }
 
+    let requestedCount = episodeIDs.count
     let existingEpisodeIDs = Set(
       try Episode
         .withIDs(episodeIDs)
@@ -284,10 +285,11 @@ struct Queue: Queueing {
         .fetchAll(db)
     )
     let episodeIDs = episodeIDs.filter { existingEpisodeIDs.contains($0) }
-    guard !episodeIDs.isEmpty else {
-      Self.log.debug("Ignoring unshift for missing episodes")
-      return
+    let droppedCount = requestedCount - episodeIDs.count
+    if droppedCount > 0 {
+      Self.log.debug("queue: unshift dropped \(droppedCount) missing episodes")
     }
+    guard !episodeIDs.isEmpty else { return }
 
     Self.log.debug("queue: unshifting \(episodeIDs)")
 
@@ -320,6 +322,20 @@ struct Queue: Queueing {
       Self.log.warning("Calling append with empty episodeIDs?")
       return
     }
+
+    let requestedCount = episodeIDs.count
+    let existingEpisodeIDs = Set(
+      try Episode
+        .withIDs(episodeIDs)
+        .select(Episode.Columns.id, as: Episode.ID.self)
+        .fetchAll(db)
+    )
+    let episodeIDs = episodeIDs.filter { existingEpisodeIDs.contains($0) }
+    let droppedCount = requestedCount - episodeIDs.count
+    if droppedCount > 0 {
+      Self.log.debug("queue: append dropped \(droppedCount) missing episodes")
+    }
+    guard !episodeIDs.isEmpty else { return }
 
     Self.log.debug("queue: appending \(episodeIDs)")
 

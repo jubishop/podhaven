@@ -272,6 +272,9 @@ struct CacheManager {
     for task in tasks {
       task.cancel()
     }
+    Self.log.debug(
+      "Invalidated \(episodeIDs.count) deleted episode downloads and cancelled \(tasks.count) live tasks"
+    )
   }
 
   @discardableResult

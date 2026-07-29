@@ -435,6 +435,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         "didFinishDownloadingTo: failed to clear downloading flag for \(episode.toString)",
         error
       )
+      return
     }
     if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
       await cleanUpInvalidatedDownload(at: .cacheDestination(destURL), attempt: signalAttempt)
