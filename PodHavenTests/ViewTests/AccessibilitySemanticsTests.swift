@@ -270,6 +270,60 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
+    "transcription queue Edit button activates selection controls",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func transcriptionQueueEditButtonActivatesSelectionControls() async throws {
+    let episode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Editable Transcription")
+    )
+    try await Container.shared.transcriptionQueue().enqueue(episode.id)
+
+    let window = try Self.makeWindow(
+      NavigationStack {
+        TranscriptionQueueView()
+      }
+    )
+    defer { window.isHidden = true }
+
+    try await Wait.until(
+      maxAttempts: 200,
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        let labels = Set(
+          Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+        )
+        return labels.contains { $0.contains("Editable Transcription") }
+          && labels.contains("Edit")
+      },
+      { @MainActor in "Transcription queue and Edit button did not finish loading" }
+    )
+
+    let editButton = try #require(
+      Self.accessibilityElements(in: window)
+        .first { $0.accessibilityLabel == "Edit" }
+    )
+    #expect(editButton.accessibilityActivate())
+
+    try await Wait.until(
+      maxAttempts: 100,
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        let labels = Set(
+          Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+        )
+        return labels.contains("Select All") && labels.contains("0 episodes selected")
+      },
+      { @MainActor in "Edit did not expose transcription queue selection controls" }
+    )
+  }
+
+  @Test(
     "Smart List rows announce episodes added during the open session as new",
     .enabled(
       if: supportsHostedAccessibilityInspection,

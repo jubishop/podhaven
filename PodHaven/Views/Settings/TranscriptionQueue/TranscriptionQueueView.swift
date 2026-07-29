@@ -10,8 +10,8 @@ struct TranscriptionQueueView: View {
   var body: some View {
     content
       .navigationTitle("Transcription Queue")
-      .environment(\.editMode, $viewModel.editMode)
       .toolbar { toolbar }
+      .environment(\.editMode, $viewModel.editMode)
       .toolbarRole(.editor)
       .animation(.default, value: viewModel.entries)
       .task(viewModel.execute)
