@@ -9,6 +9,11 @@ import Testing
 
 @Suite("of TranscriptionProcessor", .container)
 struct TranscriptionProcessorTests {
+  enum MediaServicesRecoveryTrigger: CaseIterable, Sendable {
+    case reset
+    case lostThenReset
+  }
+
   @Test("drains queued episodes one at a time, writing transcripts")
   func drainsQueueWritingTranscripts() async throws {
     TranscriptionHelpers.stubSpeech(
@@ -47,8 +52,13 @@ struct TranscriptionProcessorTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
-  @Test("media services reset rebuilds active transcription from its checkpoint")
-  func mediaServicesResetRebuildsActiveTranscription() async throws {
+  @Test(
+    "media services restart rebuilds active transcription from its checkpoint",
+    arguments: MediaServicesRecoveryTrigger.allCases
+  )
+  func mediaServicesRestartRebuildsActiveTranscription(
+    _ trigger: MediaServicesRecoveryTrigger
+  ) async throws {
     let durationSeconds = 121.0
     let completedAudioTime = 120.0
     TranscriptionHelpers.stubSpeech(durationSeconds: durationSeconds)
@@ -142,8 +152,23 @@ struct TranscriptionProcessorTests {
     }
 
     await firstConvertedInputConsumed.wait()
-    notifier.post(AVAudioSession.mediaServicesWereResetNotification)
-    firstConvertedInputRelease.signal()
+    switch trigger {
+    case .reset:
+      notifier.post(AVAudioSession.mediaServicesWereResetNotification)
+      firstConvertedInputRelease.signal()
+    case .lostThenReset:
+      notifier.post(AVAudioSession.mediaServicesWereLostNotification)
+      firstConvertedInputRelease.signal()
+      try await Wait.until(
+        { queue.progress[episode.id] == nil },
+        { "Services loss did not settle the active transcription" }
+      )
+      #expect(queue.episodeIDs == [episode.id])
+      #expect(!queue.failed.contains(episode.id))
+      #expect(analyzerCreations() == 1)
+      #expect(analyzerCancellations() == 1)
+      notifier.post(AVAudioSession.mediaServicesWereResetNotification)
+    }
 
     try await Wait.until(
       { analyzerCreations() == 2 },

@@ -54,7 +54,13 @@ struct TranscriptionProcessor: Sendable {
     var interruption = Interruption.none
   }
 
+  private enum MediaServicesState: Sendable {
+    case available
+    case lost(AsyncLatch<Void>)
+  }
+
   private let activeTranscription = ThreadSafe<ActiveTranscription?>(nil)
+  private let mediaServicesState = ThreadSafe(MediaServicesState.available)
 
   private enum ForegroundState {
     case active
@@ -102,18 +108,49 @@ struct TranscriptionProcessor: Sendable {
   // the retained head.
   func register() {
     let activeTranscription = activeTranscription
+    let mediaServicesState = mediaServicesState
+    let interruptActiveTranscription:
+      @Sendable () -> (episodeID: Episode.ID, task: Task<Void, any Error>)? =
+        {
+          activeTranscription {
+            active -> (episodeID: Episode.ID, task: Task<Void, any Error>)? in
+            guard var current = active, current.interruption == .none else {
+              return nil
+            }
+            current.interruption = .mediaServicesReset
+            active = current
+            return (current.episodeID, current.task)
+          }
+        }
+
+    notificationObserver.observe(
+      AVAudioSession.mediaServicesWereLostNotification
+    ) {
+      mediaServicesState { state in
+        guard case .available = state else { return }
+        state = .lost(AsyncLatch<Void>())
+      }
+      guard let interruption = interruptActiveTranscription() else { return }
+      Self.log.notice(
+        "Retaining active transcription \(interruption.episodeID) while media services restart"
+      )
+      interruption.task.cancel()
+    }
+
     notificationObserver.observe(
       AVAudioSession.mediaServicesWereResetNotification
     ) {
-      let reset = activeTranscription {
-        active -> (episodeID: Episode.ID, task: Task<Void, any Error>)? in
-        guard var current = active, current.interruption == .none else {
-          return nil
-        }
-        current.interruption = .mediaServicesReset
-        active = current
-        return (current.episodeID, current.task)
+      let resumeLatch = mediaServicesState { state -> AsyncLatch<Void>? in
+        guard case .lost(let latch) = state else { return nil }
+        state = .available
+        return latch
       }
+      if let resumeLatch {
+        Self.log.notice("Media services reset; resuming retained transcription work")
+        resumeLatch.open()
+      }
+
+      let reset = interruptActiveTranscription()
       guard let reset else { return }
       Self.log.notice(
         "Rebuilding active transcription \(reset.episodeID) after media services reset"
@@ -360,6 +397,13 @@ struct TranscriptionProcessor: Sendable {
           if case .foreground = mode, case .background = foregroundState() {
             return
           }
+          if case .lost(let resumeLatch) = mediaServicesState() {
+            try await resumeLatch.wait()
+            try Task.checkCancellation()
+            if case .foreground = mode, case .background = foregroundState() {
+              return
+            }
+          }
           let outcome = try await processHead(
             episodeID,
             logContext: TranscriptionLogContext(
@@ -412,6 +456,7 @@ struct TranscriptionProcessor: Sendable {
     let token = UUID()
     let shouldStart = activeTranscription { active in
       guard transcriptionQueue.episodeIDs.first == episodeID else { return false }
+      guard case .available = mediaServicesState() else { return false }
       if let active {
         Assert.fatal(
           """
@@ -433,12 +478,12 @@ struct TranscriptionProcessor: Sendable {
         try await task.value
       } catch is CancellationError {
         try Task.checkCancellation()
-        return .advanced
       } catch {
         Self.log.caughtError("Discarded stale transcription task for \(episodeID)", error)
-        return .advanced
       }
-      return .advanced
+      return transcriptionQueue.episodeIDs.first == episodeID
+        ? .restart
+        : .advanced
     }
 
     Self.log.info(
@@ -461,11 +506,19 @@ struct TranscriptionProcessor: Sendable {
         guard let current = active, current.token == token else {
           Assert.fatal("Lost ownership of active transcription \(episodeID)")
         }
+        let interruption: ActiveTranscription.Interruption
+        if current.interruption == .none,
+          case .lost = mediaServicesState()
+        {
+          interruption = .mediaServicesReset
+        } else {
+          interruption = current.interruption
+        }
         let executionCancelled = errorIsCancellation || Task.isCancelled
         let liveProgress = transcriptionQueue.progress[episodeID] ?? 0
         active = nil
         return (
-          interruption: current.interruption,
+          interruption: interruption,
           executionCancelled: executionCancelled,
           liveProgress: liveProgress
         )
