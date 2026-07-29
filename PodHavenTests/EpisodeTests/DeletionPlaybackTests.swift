@@ -10,6 +10,7 @@ import Testing
 @Suite("of Episode deletion playback ownership", .container)
 @MainActor struct EpisodeDeletionPlaybackTests {
   @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
 
@@ -27,6 +28,9 @@ import Testing
     )
     let episode = try #require(series.episodes.first)
     let podcastEpisode = PodcastEpisode(podcast: series.podcast, episode: episode)
+    let queuedEpisode = try await Create.podcastEpisode()
+    try await queue.unshift(queuedEpisode.id)
+    #expect(try await queue.nextEpisode?.id == queuedEpisode.id)
     let fakeRepo = try #require(repo as? FakeRepo)
     fakeRepo.pendingPodcastEpisodeFetchSuspend(true)
 
@@ -42,6 +46,7 @@ import Testing
       try await pendingPlay.value
     }
 
+    #expect(try await queue.nextEpisode?.id == queuedEpisode.id)
     #expect(sharedState.onDeck == nil)
     #expect(sharedState.currentEpisodeID == nil)
     #expect(sharedState.playbackStatus == .stopped)

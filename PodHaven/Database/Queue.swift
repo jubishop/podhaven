@@ -277,6 +277,18 @@ struct Queue: Queueing {
       return
     }
 
+    let existingEpisodeIDs = Set(
+      try Episode
+        .withIDs(episodeIDs)
+        .select(Episode.Columns.id, as: Episode.ID.self)
+        .fetchAll(db)
+    )
+    let episodeIDs = episodeIDs.filter { existingEpisodeIDs.contains($0) }
+    guard !episodeIDs.isEmpty else {
+      Self.log.debug("Ignoring unshift for missing episodes")
+      return
+    }
+
     Self.log.debug("queue: unshifting \(episodeIDs)")
 
     // Must update queueDate BEFORE dequeueing — _dequeue clears the rows we'd otherwise key on.
