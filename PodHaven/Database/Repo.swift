@@ -360,7 +360,24 @@ struct Repo: Databasing {
 
       // Cascades to episodes via FK ON DELETE CASCADE.
       let deletedCount = try Podcast.withIDs(podcastIDs).deleteAll(db)
-      return (deletedCount: deletedCount, episodes: episodesToDelete)
+      let candidateCachedFilenames = Set(
+        episodesToDelete.compactMap { $0.cachedURL?.lastPathComponent }
+      )
+      let retainedCachedFilenames = Set(
+        try Episode
+          .filter(candidateCachedFilenames.contains(Episode.Columns.cachedFilename))
+          .select(Episode.Columns.cachedFilename, as: String.self)
+          .fetchAll(db)
+      )
+      let cachedEpisodesToDelete = episodesToDelete.filter { episode in
+        guard let cachedFilename = episode.cachedURL?.lastPathComponent else { return false }
+        return !retainedCachedFilenames.contains(cachedFilename)
+      }
+      return (
+        deletedCount: deletedCount,
+        episodes: episodesToDelete,
+        cachedEpisodes: cachedEpisodesToDelete
+      )
     }
 
     if let currentEpisodeID = sharedState.currentEpisodeID,
@@ -372,7 +389,7 @@ struct Repo: Databasing {
       )
     }
 
-    for episode in deletion.episodes {
+    for episode in deletion.cachedEpisodes {
       if let url = episode.cachedURL {
         do {
           try fileManager.removeItem(at: url.rawValue)

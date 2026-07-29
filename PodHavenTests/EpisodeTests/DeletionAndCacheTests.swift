@@ -68,6 +68,48 @@ class EpisodeDeletionAndCacheTests {
     }
   }
 
+  @Test("that deleting one podcast preserves cache shared by a surviving episode")
+  func deletionPreservesCacheSharedBySurvivingEpisode() async throws {
+    let mediaURL = MediaURL(
+      try #require(URL(string: "https://example.com/shared-episode.mp3"))
+    )
+    let cachedFilename = "shared-episode.mp3"
+    let firstSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            mediaURL: mediaURL,
+            cachedFilename: cachedFilename
+          )
+        ]
+      )
+    )
+    let survivingSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            mediaURL: mediaURL,
+            cachedFilename: cachedFilename
+          )
+        ]
+      )
+    )
+    let deletedEpisode = try #require(firstSeries.episodes.first)
+    let survivingEpisode = try #require(survivingSeries.episodes.first)
+    let cachedURL = try #require(deletedEpisode.cachedURL)
+    #expect(survivingEpisode.cachedURL == cachedURL)
+    let cachedData = Data("shared cache".utf8)
+    try await fileManager.writeData(cachedData, to: cachedURL.rawValue)
+
+    #expect(try await repo.deletePodcast(firstSeries.podcast.id))
+
+    #expect(try await repo.episode(deletedEpisode.id) == nil)
+    #expect(try await repo.episode(survivingEpisode.id)?.cachedURL == cachedURL)
+    #expect(try await fileManager.readData(from: cachedURL.rawValue) == cachedData)
+  }
+
   @Test("that failed podcast deletion preserves cached files and metadata")
   func failedPodcastDeletionPreservesCache() async throws {
     let cachedData = Data("retained cache".utf8)
