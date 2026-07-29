@@ -804,6 +804,36 @@ import Testing
     #expect(withExtURL.pathExtension == "wav")
   }
 
+  @Test("extensionless download uses mp3 staging suffix for validation")
+  func extensionlessDownloadUsesMP3StagingSuffix() async throws {
+    let mediaURL = MediaURL(try #require(URL(string: "https://example.com/download")))
+    let podcastEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(mediaURL: mediaURL)
+    )
+    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
+    await episodeAssetLoader.setDefaultHandler { url in
+      guard url.pathExtension == "mp3" else { throw TestError.simulatedFailure }
+      return (true, CMTime.seconds(30))
+    }
+
+    let urlSession = URLSession(configuration: .ephemeral)
+    defer { urlSession.invalidateAndCancel() }
+    let downloadTask = urlSession.downloadTask(with: mediaURL.rawValue)
+    downloadTask.taskDescription = String(podcastEpisode.id.rawValue)
+    let temporaryURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try await fileManager.writeData(Data.random(), to: temporaryURL)
+
+    let downloadDelegate: any URLSessionDownloadDelegate = cacheBackgroundDelegate
+    downloadDelegate.urlSession(
+      urlSession,
+      downloadTask: downloadTask,
+      didFinishDownloadingTo: temporaryURL
+    )
+
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    #expect(cachedURL.pathExtension == "mp3")
+  }
+
   @Test("download finalization reuses a cache file owned by another episode")
   func downloadFinalizationReusesSharedCacheFile() async throws {
     let mediaURL = MediaURL(try #require(URL(string: "https://example.com/shared-download.mp3")))

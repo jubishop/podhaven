@@ -112,11 +112,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     didFinishDownloadingTo location: URL
   ) {
     var safeTempURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    if let fileExtension = downloadTask.originalRequest?.url?.pathExtension,
-      !fileExtension.isEmpty
-    {
-      safeTempURL.appendPathExtension(fileExtension)
-    }
+    safeTempURL.appendPathExtension(
+      cacheFileExtension(for: downloadTask.originalRequest?.url)
+    )
     do {
       try fileManager.moveItem(at: location, to: safeTempURL)
     } catch {
@@ -495,10 +493,12 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
   private func generateCacheFilename(for episode: Episode) -> String {
     let mediaURL = episode.mediaURL.rawValue
-    let fileExtension =
-      mediaURL.pathExtension.isEmpty == false
-      ? mediaURL.pathExtension
-      : "mp3"
+    let fileExtension = cacheFileExtension(for: mediaURL)
     return "\(mediaURL.hash(to: 12)).\(fileExtension)"
+  }
+
+  private func cacheFileExtension(for mediaURL: URL?) -> String {
+    guard let fileExtension = mediaURL?.pathExtension, !fileExtension.isEmpty else { return "mp3" }
+    return fileExtension
   }
 }
