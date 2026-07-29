@@ -17,6 +17,7 @@ extension Container {
 struct Repo: Databasing {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
 
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var sharedState: SharedState { Container.shared.sharedState() }
@@ -351,37 +352,57 @@ struct Repo: Databasing {
         .fetchAll(db)
     }
 
-    for episode in episodesToDelete {
-      if let url = episode.cachedURL {
-        do {
-          try fileManager.removeItem(at: url.rawValue)
-          Self.log.debug("Removed cached file at: \(url)")
-        } catch {
-          Self.log.caughtError(
-            "Failed to remove cached file at \(url) for episode \(episode.toString)",
-            error
-          )
+    let fileManager = fileManager
+    let playManager = playManager
+    let queue = queue
+    let reader = reader
+    let sharedState = sharedState
+    let writer = writer
+    return try await transcriptionProcessor.reconcileDeletion(
+      resolvingEpisodeIDs: {
+        Set(
+          try await reader.read { db in
+            try Episode.all()
+              .filter { podcastIDs.contains($0.podcastId) }
+              .selectID()
+              .fetchAll(db)
+          }
+        )
+      },
+      perform: {
+        for episode in episodesToDelete {
+          if let url = episode.cachedURL {
+            do {
+              try fileManager.removeItem(at: url.rawValue)
+              Self.log.debug("Removed cached file at: \(url)")
+            } catch {
+              Self.log.caughtError(
+                "Failed to remove cached file at \(url) for episode \(episode.toString)",
+                error
+              )
+            }
+          }
+
+          if sharedState.onDeck?.id == episode.id {
+            await playManager.stop()
+            Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
+          }
+        }
+
+        return try await writer.write { db in
+          let queuedEpisodeIDs =
+            try Episode.all()
+            .queued()
+            .filter { podcastIDs.contains($0.podcastId) }
+            .selectID()
+            .fetchAll(db)
+          try queue.dequeue(db, queuedEpisodeIDs)
+
+          // Cascades to episodes via FK ON DELETE CASCADE.
+          return try Podcast.withIDs(podcastIDs).deleteAll(db)
         }
       }
-
-      if sharedState.onDeck?.id == episode.id {
-        await playManager.stop()
-        Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
-      }
-    }
-
-    return try await writer.write { db in
-      let queuedEpisodeIDs =
-        try Episode.all()
-        .queued()
-        .filter { podcastIDs.contains($0.podcastId) }
-        .selectID()
-        .fetchAll(db)
-      try queue.dequeue(db, queuedEpisodeIDs)
-
-      // Cascades to episodes via FK ON DELETE CASCADE.
-      return try Podcast.withIDs(podcastIDs).deleteAll(db)
-    }
+    )
   }
 
   @discardableResult
