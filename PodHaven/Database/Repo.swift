@@ -363,21 +363,33 @@ struct Repo: Databasing {
       return (deletedCount: deletedCount, episodes: episodesToDelete)
     }
 
-    for episode in deletion.episodes {
-      if sharedState.onDeck?.id == episode.id {
-        await playManager.stop()
-        Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
-      }
+    if let currentEpisodeID = sharedState.currentEpisodeID,
+      let currentEpisode = deletion.episodes.first(where: { $0.id == currentEpisodeID }),
+      await playManager.stop(ifCurrentEpisodeIDIs: currentEpisodeID)
+    {
+      Self.log.debug(
+        "Stopped playback for \(currentEpisode.toString) because it's being deleted"
+      )
+    }
 
+    for episode in deletion.episodes {
       if let url = episode.cachedURL {
         do {
           try fileManager.removeItem(at: url.rawValue)
           Self.log.debug("Removed cached file at: \(url)")
         } catch {
-          Self.log.caughtError(
-            "Failed to remove cached file at \(url) for episode \(episode.toString)",
-            error
-          )
+          if ErrorKit.isMissingFile(error) {
+            Self.log.caughtError(
+              "Cached file already missing at \(url) for episode \(episode.toString)",
+              error,
+              level: .debug
+            )
+          } else {
+            Self.log.caughtError(
+              "Failed to remove cached file at \(url) for episode \(episode.toString)",
+              error
+            )
+          }
         }
       }
     }

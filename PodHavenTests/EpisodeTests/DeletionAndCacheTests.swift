@@ -202,24 +202,34 @@ class EpisodeDeletionAndCacheTests {
 
   @Test("that deletion succeeds when cached file is missing")
   func deletePodcastSucceedsWhenCachedFileMissing() async throws {
-    let unsavedPodcast = try Create.unsavedPodcast()
-    let episode = try Create.unsavedEpisode(cachedFilename: "missing.mp3")
-    let series = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: [episode]
+    try await LogCapture.withSink { sink in
+      let unsavedPodcast = try Create.unsavedPodcast()
+      let episode = try Create.unsavedEpisode(cachedFilename: "missing.mp3")
+      let series = try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: unsavedPodcast,
+          unsavedEpisodes: [episode]
+        )
       )
-    )
-    let podcast = series.podcast
+      let podcast = series.podcast
+      let cachedURL = try #require(series.episodes.first?.cachedURL)
 
-    // No file written to the cached location
+      // No file written to the cached location
 
-    // Delete podcast - should succeed even though cached file doesn't exist
-    let deletionSucceeded = try await repo.deletePodcast(podcast.id)
-    #expect(deletionSucceeded == true)
+      // Delete podcast - should succeed even though cached file doesn't exist
+      let deletionSucceeded = try await repo.deletePodcast(podcast.id)
+      #expect(deletionSucceeded == true)
 
-    let afterDeletion = try await repo.podcastSeries(podcast.id)
-    #expect(afterDeletion == nil)
+      let afterDeletion = try await repo.podcastSeries(podcast.id)
+      #expect(afterDeletion == nil)
+      let cleanupLogs = sink.captured()
+        .filter {
+          $0.label == "Database/repo"
+            && $0.message.contains(cachedURL.rawValue.lastPathComponent)
+        }
+      #expect(cleanupLogs.count == 1)
+      #expect(cleanupLogs.first?.level == .debug)
+    }
   }
 
   // MARK: - Cache Tests
