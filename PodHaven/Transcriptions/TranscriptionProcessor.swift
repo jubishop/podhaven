@@ -45,7 +45,13 @@ struct TranscriptionProcessor: Sendable {
       case pause
       case discard
       case requeue
+      case deletion(AsyncLatch<Void>)
       case mediaServicesReset
+
+      var isNone: Bool {
+        if case .none = self { return true }
+        return false
+      }
     }
 
     let token: UUID
@@ -60,6 +66,8 @@ struct TranscriptionProcessor: Sendable {
   }
 
   private let activeTranscription = ThreadSafe<ActiveTranscription?>(nil)
+  private let deletionBarrier = ThreadSafe<AsyncLatch<Void>?>(nil)
+  private let deletionLock = ThreadLock()
   private let mediaServicesState = ThreadSafe(MediaServicesState.available)
 
   private enum ForegroundState {
@@ -114,7 +122,7 @@ struct TranscriptionProcessor: Sendable {
         {
           activeTranscription {
             active -> (episodeID: Episode.ID, task: Task<Void, any Error>)? in
-            guard var current = active, current.interruption == .none else {
+            guard var current = active, current.interruption.isNone else {
               return nil
             }
             current.interruption = .mediaServicesReset
@@ -244,6 +252,55 @@ struct TranscriptionProcessor: Sendable {
     backgroundTaskScheduler.scheduleNext()
   }
 
+  func reconcileDeletion<Result: Sendable>(
+    resolvingEpisodeIDs: () async throws -> Set<Episode.ID>,
+    perform deletion: () async throws -> Result
+  ) async throws -> Result {
+    try await deletionLock.waitForClaim()
+    defer { deletionLock.release() }
+
+    let barrier = AsyncLatch<Void>()
+    deletionBarrier(barrier)
+    defer {
+      barrier.open()
+      deletionBarrier { current in
+        if current === barrier {
+          current = nil
+        }
+      }
+    }
+
+    let result = try await transcriptionQueue.reconcileDeletion(
+      resolvingEpisodeIDs: resolvingEpisodeIDs,
+      prepare: { deletingEpisodeIDs in
+        let activeTask = activeTranscription {
+          active -> (episodeID: Episode.ID, task: Task<Void, any Error>)? in
+          guard var current = active, deletingEpisodeIDs.contains(current.episodeID) else {
+            return nil
+          }
+          if current.interruption.isNone {
+            current.interruption = .deletion(barrier)
+            active = current
+          }
+          return (episodeID: current.episodeID, task: current.task)
+        }
+        guard let activeTask else { return }
+
+        Self.log.info("Requested deletion of active transcription \(activeTask.episodeID)")
+        activeTask.task.cancel()
+        switch await activeTask.task.result {
+        case .success, .failure:
+          break
+        }
+      },
+      perform: deletion
+    )
+    if transcriptionQueue.episodeIDs.isEmpty {
+      backgroundTaskScheduler.scheduleNext()
+    }
+    return result
+  }
+
   // MARK: - User Interruption
 
   func pause(_ episodeID: Episode.ID) async throws {
@@ -253,7 +310,7 @@ struct TranscriptionProcessor: Sendable {
       guard var current = active, current.episodeID == episodeID else {
         return nil
       }
-      guard current.interruption == .none else { return nil }
+      guard current.interruption.isNone else { return nil }
       current.interruption = .pause
       active = current
       return current.task
@@ -318,7 +375,7 @@ struct TranscriptionProcessor: Sendable {
     let activeTask = activeTranscription { active -> Task<Void, any Error>? in
       guard
         var current = active,
-        current.interruption == .none,
+        current.interruption.isNone,
         orderedEpisodeIDs.first != current.episodeID
       else {
         return nil
@@ -446,6 +503,10 @@ struct TranscriptionProcessor: Sendable {
     _ episodeID: Episode.ID,
     logContext: TranscriptionLogContext
   ) async throws -> HeadProcessingOutcome {
+    if let barrier = deletionBarrier() {
+      try await barrier.wait()
+    }
+
     let startedAt = continuousClockNow()
     let startLatch = AsyncLatch<Void>()
     let task = Task {
@@ -507,7 +568,7 @@ struct TranscriptionProcessor: Sendable {
           Assert.fatal("Lost ownership of active transcription \(episodeID)")
         }
         let interruption: ActiveTranscription.Interruption
-        if current.interruption == .none,
+        if current.interruption.isNone,
           case .lost = mediaServicesState()
         {
           interruption = .mediaServicesReset
@@ -533,14 +594,14 @@ struct TranscriptionProcessor: Sendable {
           """,
           queueMutationFailure
         )
-        if result.interruption == .none {
+        if result.interruption.isNone {
           transcriptionQueue.clearProgress(for: episodeID)
           backgroundTaskScheduler.scheduleNext()
           return .retained
         }
       }
 
-      if result.interruption == .none, !result.executionCancelled {
+      if result.interruption.isNone, !result.executionCancelled {
         Self.log.caughtError(
           """
           transcriptionTelemetry event=episodeFailed \(logContext.fields) \
@@ -573,14 +634,17 @@ struct TranscriptionProcessor: Sendable {
         transcriptionQueue.finishPausing(episodeID)
       case .discard, .requeue, .mediaServicesReset, .none:
         transcriptionQueue.clearProgress(for: episodeID)
+      case .deletion(let barrier):
+        try await barrier.wait()
       }
 
-      if result.interruption != .none || result.executionCancelled {
+      if !result.interruption.isNone || result.executionCancelled {
         let source =
           switch result.interruption {
           case .pause: "pause"
           case .discard: "discard"
           case .requeue: "requeue"
+          case .deletion: "deletion"
           case .mediaServicesReset: "mediaServicesReset"
           case .none: "execution"
           }
@@ -592,17 +656,17 @@ struct TranscriptionProcessor: Sendable {
           liveProgress=\(result.liveProgress)
           """
         )
-        if result.interruption == .discard {
+        if case .discard = result.interruption {
           await Self.deleteCheckpoint(for: episodeID, using: repo)
           transcriptionQueue.finishDiscarding(episodeID)
         }
         if transcriptionQueue.episodeIDs.isEmpty {
           backgroundTaskScheduler.scheduleNext()
         }
-        if Task.isCancelled || result.interruption == .none {
+        if Task.isCancelled || result.interruption.isNone {
           throw CancellationError()
         }
-        if result.interruption == .mediaServicesReset {
+        if case .mediaServicesReset = result.interruption {
           return .restart
         }
         return .advanced
@@ -623,6 +687,8 @@ struct TranscriptionProcessor: Sendable {
       transcriptionQueue.finishDiscarding(episodeID)
     case .requeue:
       transcriptionQueue.clearProgress(for: episodeID)
+    case .deletion(let barrier):
+      try await barrier.wait()
     case .mediaServicesReset:
       transcriptionQueue.clearProgress(for: episodeID)
     case .none:
