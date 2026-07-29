@@ -83,7 +83,8 @@ struct EpisodesListView: View {
 
   private var listView: some View {
     List(viewModel.episodeList.filteredEntries) { podcastEpisode in
-      let highlight = podcastEpisode.id > viewModel.lastSeenEpisodeId
+      let highlight =
+        viewModel.showUnreadBadge && podcastEpisode.id > viewModel.lastSeenEpisodeId
       NavigationLink(
         value: Navigation.Destination.listedEpisode(ListedEpisode(podcastEpisode)),
         label: {
