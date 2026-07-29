@@ -298,6 +298,40 @@ import Testing
     #expect(try await repo.episode(waitingEpisode.id)?.cacheStatus == .uncached)
   }
 
+  @Test("executePurge counts bytes only when a shared file is removed")
+  func executePurgeCountsOnlyRemovedSharedFileBytes() async throws {
+    let fiveDaysAgo = Date.now.addingTimeInterval(-5 * 24 * 60 * 60)
+    let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
+    let sharedFilename = "shared-purge.mp3"
+    let sharedSize = Int(Double(cachePurger.cacheSizeLimit) * 0.6)
+    let protectedOwner = try await CacheHelpers.createCachedEpisode(
+      title: "Protected Shared Owner",
+      cachedFilename: sharedFilename,
+      dataSize: sharedSize,
+      saveInCache: true
+    )
+    let eligibleDuplicate = try await CacheHelpers.createCachedEpisode(
+      title: "Eligible Shared Duplicate",
+      cachedFilename: sharedFilename,
+      dataSize: sharedSize,
+      finishDate: fiveDaysAgo
+    )
+    let independentEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Independent Purge Candidate",
+      cachedFilename: "independent-purge.mp3",
+      dataSize: sharedSize,
+      finishDate: fourDaysAgo
+    )
+    let sharedURL = try #require(protectedOwner.cachedURL)
+
+    try await cachePurger.executePurge()
+
+    #expect(try await repo.episode(eligibleDuplicate.id)?.cacheStatus == .uncached)
+    #expect(try await repo.episode(protectedOwner.id)?.cachedURL == sharedURL)
+    #expect(fileManager.fileExists(at: sharedURL.rawValue))
+    #expect(try await repo.episode(independentEpisode.id)?.cacheStatus == .uncached)
+  }
+
   @Test("executePurge stops deleting when cache size is below limit")
   func executePurgeStopsDeletingWhenCacheSizeBelowLimit() async throws {
     let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)

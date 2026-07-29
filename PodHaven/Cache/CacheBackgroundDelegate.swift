@@ -21,6 +21,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
+  private var cacheFileStore: CacheFileStore { Container.shared.cacheFileStore() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
@@ -110,7 +111,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     downloadTask: URLSessionDownloadTask,
     didFinishDownloadingTo location: URL
   ) {
-    let safeTempURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    var safeTempURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    safeTempURL.appendPathExtension(
+      cacheFileExtension(for: downloadTask.originalRequest?.url)
+    )
     do {
       try fileManager.moveItem(at: location, to: safeTempURL)
     } catch {
@@ -237,50 +241,20 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
     let fileName = generateCacheFilename(for: episode)
     let destURL = CacheManager.resolveCachedFilepath(for: fileName)
-    if fileManager.fileExists(at: destURL.rawValue) {
-      Self.log.notice("File already cached for \(episode.id) at \(destURL), removing")
-      do {
-        try fileManager.removeItem(at: destURL.rawValue)
-      } catch {
-        Self.log.caughtError(
-          """
-          didFinishDownloadingTo: failed to remove existing cached file \
-          at \(destURL) for \(episode.toString)
-          """,
-          error
-        )
-        await clearDownloadState(for: episode.id)
-        return
-      }
-    }
-
-    do {
-      try fileManager.moveItem(at: location, to: destURL.rawValue)
-    } catch {
-      Self.log.caughtError(
-        """
-        didFinishDownloadingTo: failed to move downloaded file to \(destURL) \
-        for \(episode.toString)
-        """,
-        error
-      )
-      await clearDownloadState(for: episode.id)
-      return
-    }
 
     let episodeAsset: EpisodeAsset
     do {
-      episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: destURL.rawValue))
+      episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: location))
     } catch {
       Self.log.caughtError(
-        "didFinishDownloadingTo: failed to load asset at \(destURL) for \(episode.toString)",
+        "didFinishDownloadingTo: failed to load downloaded asset for \(episode.toString)",
         error
       )
       do {
-        try fileManager.removeItem(at: destURL.rawValue)
+        try fileManager.removeItem(at: location)
       } catch {
         Self.log.caughtError(
-          "didFinishDownloadingTo: failed to clean up file at \(destURL) after asset load failure",
+          "didFinishDownloadingTo: failed to clean up \(location) after asset load failure",
           error
         )
       }
@@ -297,10 +271,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         """
       )
       do {
-        try fileManager.removeItem(at: destURL.rawValue)
+        try fileManager.removeItem(at: location)
       } catch {
         Self.log.caughtError(
-          "didFinishDownloadingTo: failed to remove unplayable file at \(destURL)",
+          "didFinishDownloadingTo: failed to remove unplayable file at \(location)",
           error
         )
       }
@@ -308,40 +282,57 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       return
     }
 
+    let storage: CacheFileStorage?
     do {
-      try await repo.updateDuration(episode.id, duration: episodeAsset.duration)
+      storage = try await cacheFileStore.storeDownloadedFile(
+        at: location,
+        for: episode.id,
+        cachedFilename: fileName,
+        duration: episodeAsset.duration
+      )
     } catch {
       Self.log.caughtError(
-        "didFinishDownloadingTo: failed to update duration for \(episode.toString)",
+        "didFinishDownloadingTo: failed to store downloaded file at \(destURL) for \(episode.toString)",
         error
       )
+      if fileManager.fileExists(at: location) {
+        do {
+          try fileManager.removeItem(at: location)
+        } catch {
+          Self.log.caughtError(
+            "didFinishDownloadingTo: failed to clean up \(location) after storage failure",
+            error
+          )
+        }
+      }
       await clearDownloadState(for: episode.id)
       return
     }
 
-    do {
-      try await repo.updateCachedFilename(episode.id, cachedFilename: fileName)
-    } catch {
-      Self.log.caughtError(
-        """
-        didFinishDownloadingTo: failed to update cached filename \
-        for \(episode.toString) to \(fileName)
-        """,
-        error
+    guard let storage else {
+      Self.log.debug(
+        "didFinishDownloadingTo: cache state changed before storing \(episode.toString)"
       )
-      await clearDownloadState(for: episode.id)
+      do {
+        try fileManager.removeItem(at: location)
+      } catch {
+        Self.log.caughtError(
+          "didFinishDownloadingTo: failed to remove superseded file at \(location)",
+          error
+        )
+      }
       return
     }
 
-    // Clear downloading last, after the filename is written, so a re-reading
-    // caller never sees downloading == false while still uncached.
-    do {
-      try await repo.updateDownloading(episode.id, downloading: false)
-    } catch {
-      Self.log.caughtError(
-        "didFinishDownloadingTo: failed to clear downloading flag for \(episode.toString)",
-        error
-      )
+    if case .reused = storage {
+      do {
+        try fileManager.removeItem(at: location)
+      } catch {
+        Self.log.caughtError(
+          "didFinishDownloadingTo: failed to remove duplicate file at \(location)",
+          error
+        )
+      }
     }
 
     Self.log.debug("Cached episode \(episode.id) to \(fileName)")
@@ -501,10 +492,12 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
   private func generateCacheFilename(for episode: Episode) -> String {
     let mediaURL = episode.mediaURL.rawValue
-    let fileExtension =
-      mediaURL.pathExtension.isEmpty == false
-      ? mediaURL.pathExtension
-      : "mp3"
+    let fileExtension = cacheFileExtension(for: mediaURL)
     return "\(mediaURL.hash(to: 12)).\(fileExtension)"
+  }
+
+  private func cacheFileExtension(for mediaURL: URL?) -> String {
+    guard let fileExtension = mediaURL?.pathExtension, !fileExtension.isEmpty else { return "mp3" }
+    return fileExtension
   }
 }

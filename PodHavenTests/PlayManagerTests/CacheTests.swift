@@ -20,6 +20,9 @@ import Testing
   private var avPlayer: FakeAVPlayer {
     Container.shared.avPlayer() as! FakeAVPlayer
   }
+  private var fileManager: FakeFileManager {
+    Container.shared.fileManager() as! FakeFileManager
+  }
 
   init() async throws {
     stateManager.start()
@@ -77,6 +80,41 @@ import Testing
     // Verify the asset was loaded with the original media URL
     let currentItem = avPlayer.current! as! FakeAVPlayerItem
     #expect(currentItem.url == podcastEpisode.episode.mediaURL.rawValue)
+  }
+
+  @Test("loading an unreadable shared cache replaces the physical file")
+  func loadingUnreadableSharedCacheReplacesPhysicalFile() async throws {
+    await playManager.start()
+    let mediaURL = MediaURL(
+      try #require(URL(string: "https://example.com/shared-cache-repair.mp3"))
+    )
+    let cachedFilename = "\(mediaURL.rawValue.hash(to: 12)).mp3"
+    let unsavedEpisode = try Create.unsavedEpisode(
+      mediaURL: mediaURL,
+      cachedFilename: cachedFilename
+    )
+    let (target, survivor) = try await Create.twoPodcastEpisodes(
+      unsavedEpisode,
+      unsavedEpisode
+    )
+    let cachedURL = try #require(target.episode.cachedURL)
+    let unreadableData = Data("unreadable shared cache".utf8)
+    let replacementData = Data("valid replacement download".utf8)
+    try await fileManager.writeData(unreadableData, to: cachedURL.rawValue)
+    await episodeAssetLoader.respond(
+      to: cachedURL,
+      error: TestError.assetLoadFailure(target)
+    )
+
+    try await playManager.load(target)
+    try await PlayHelpers.waitForCurrentItem(target.episode.mediaURL)
+    let taskID = try await CacheHelpers.waitForDownloadTask(target.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID, data: replacementData)
+    try await CacheHelpers.waitForNotDownloading(target.id)
+
+    #expect(try await repo.episode(target.id)?.cachedURL == cachedURL)
+    #expect(try await repo.episode(survivor.id)?.cachedURL == cachedURL)
+    #expect(try await fileManager.readData(from: cachedURL.rawValue) == replacementData)
   }
 
   @Test("cached asset cancellation preserves its cache")

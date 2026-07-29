@@ -16,6 +16,7 @@ extension Container {
 }
 
 struct CachePurger: Sendable {
+  private var cacheFileStore: CacheFileStore { Container.shared.cacheFileStore() }
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var repo: any Databasing { Container.shared.repo() }
@@ -81,7 +82,7 @@ struct CachePurger: Sendable {
 
     let cachedEpisodes = try await repo.cachedEpisodes()
 
-    try purgeDanglingFiles(cachedEpisodes: cachedEpisodes)
+    try await purgeDanglingFiles(cachedEpisodes: cachedEpisodes)
     await validateCachedEpisodes(cachedEpisodes: cachedEpisodes)
 
     let totalSize = try calculateCacheSize()
@@ -101,7 +102,8 @@ struct CachePurger: Sendable {
     )
 
     var freedBytes: Int64 = 0
-    var deletedCount = 0
+    var releasedCount = 0
+    var removedFileCount = 0
 
     for episode in getCachedEpisodesInDeletionOrder(cachedEpisodes: cachedEpisodes) {
       guard freedBytes < bytesToFree else { break }
@@ -128,16 +130,29 @@ struct CachePurger: Sendable {
         }
 
         do {
-          if let clearedURL = try await cacheManager.clearCache(for: episode.id) {
-            freedBytes += fileSize
-            deletedCount += 1
-            Self.log.debug(
-              """
-                deleted: \(episode.toString)
-                cached file: \(clearedURL.lastPathComponent)
-                bytes: \(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
-              """
-            )
+          if let disposition = try await cacheManager.clearCache(for: episode.id) {
+            releasedCount += 1
+            switch disposition {
+            case .retained(let cachedURL):
+              Self.log.debug(
+                """
+                  released: \(episode.toString)
+                  retained shared file: \(cachedURL.lastPathComponent)
+                """
+              )
+            case .removed(let cachedURL):
+              freedBytes += fileSize
+              removedFileCount += 1
+              Self.log.debug(
+                """
+                  released: \(episode.toString)
+                  deleted file: \(cachedURL.lastPathComponent)
+                  bytes: \(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
+                """
+              )
+            case .alreadyMissing:
+              break
+            }
           }
         } catch {
           Self.log.caughtError(
@@ -151,7 +166,8 @@ struct CachePurger: Sendable {
     Self.log.debug(
       """
       purge completed:
-        deleted: \(deletedCount) episodes
+        released: \(releasedCount) episode references
+        deleted: \(removedFileCount) files
         freed: \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
       """
     )
@@ -159,15 +175,26 @@ struct CachePurger: Sendable {
 
   // MARK: - Dangling File Purge
 
-  private func purgeDanglingFiles(cachedEpisodes: [Episode]) throws {
+  private func purgeDanglingFiles(cachedEpisodes: [Episode]) async throws {
     let cachedFiles = try fileManager.contentsOfDirectory(at: CacheManager.cacheDirectory)
     let episodeCachedFilenames = Set(cachedEpisodes.compactMap { $0.cachedURL?.lastPathComponent })
 
     for cachedFile in cachedFiles
     where !episodeCachedFilenames.contains(cachedFile.lastPathComponent) {
       do {
-        try fileManager.removeItem(at: cachedFile)
-        Self.log.notice("found and deleted dangling file: \(cachedFile.lastPathComponent)")
+        let disposition = try await cacheFileStore.removeFileIfUnreferenced(
+          CachedURL(cachedFile)
+        )
+        switch disposition {
+        case .retained:
+          Self.log.debug(
+            "retained newly referenced cache file: \(cachedFile.lastPathComponent)"
+          )
+        case .removed:
+          Self.log.notice("found and deleted dangling file: \(cachedFile.lastPathComponent)")
+        case .alreadyMissing:
+          Self.log.debug("dangling file already missing: \(cachedFile.lastPathComponent)")
+        }
       } catch {
         Self.log.caughtError(
           "purgeDanglingFiles: failed to remove dangling file \(cachedFile.lastPathComponent)",
