@@ -469,13 +469,14 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         )
         return
       }
-      Self.log.warning(
+      Self.log.caughtError(
         """
         No episode for task #\(task.taskID) \
         (description: \(task.taskDescription ?? "nil"))
-        """
+        """,
+        downloadError,
+        level: .warning
       )
-      Self.log.caughtError("Download failed for unknown task #\(task.taskID)", downloadError)
       return
     }
 
