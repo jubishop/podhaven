@@ -331,6 +331,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.cachedEpisodes()
   }
 
+  func cachedFilenameIsReferenced(_ cachedFilename: String) async throws -> Bool {
+    recordCall(methodName: "cachedFilenameIsReferenced", parameters: cachedFilename)
+    return try await repo.cachedFilenameIsReferenced(cachedFilename)
+  }
+
   func downloadingEpisodeIDs() async throws -> [Episode.ID] {
     recordCall(methodName: "downloadingEpisodeIDs")
     return try await repo.downloadingEpisodeIDs()

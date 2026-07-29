@@ -240,6 +240,14 @@ struct Repo: Databasing {
     }
   }
 
+  func cachedFilenameIsReferenced(_ cachedFilename: String) async throws -> Bool {
+    try await reader.read { db in
+      try Episode
+        .filter(Episode.Columns.cachedFilename == cachedFilename)
+        .fetchCount(db) > 0
+    }
+  }
+
   func downloadingEpisodeIDs() async throws -> [Episode.ID] {
     try await reader.read { db in
       try Episode

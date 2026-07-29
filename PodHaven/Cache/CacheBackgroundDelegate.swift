@@ -20,6 +20,11 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     var completionRequested = false
   }
 
+  private enum InvalidatedDownloadLocation {
+    case cacheDestination(CachedURL)
+    case temporary(URL)
+  }
+
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
@@ -165,7 +170,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     if let signalAttempt,
       !cacheManager.claimDownloadFinalization(for: signalAttempt)
     {
-      cleanUpInvalidatedDownload(at: location, attempt: signalAttempt)
+      await cleanUpInvalidatedDownload(at: .temporary(location), attempt: signalAttempt)
       return
     }
 
@@ -211,7 +216,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       return
     }
     if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
-      cleanUpInvalidatedDownload(at: location, attempt: signalAttempt)
+      await cleanUpInvalidatedDownload(at: .temporary(location), attempt: signalAttempt)
       return
     }
 
@@ -298,7 +303,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       return
     }
     if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
-      cleanUpInvalidatedDownload(at: destURL.rawValue, attempt: signalAttempt)
+      await cleanUpInvalidatedDownload(at: .cacheDestination(destURL), attempt: signalAttempt)
       return
     }
 
@@ -323,7 +328,18 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     }
 
     do {
-      try await repo.updateDuration(episode.id, duration: episodeAsset.duration)
+      guard try await repo.updateDuration(episode.id, duration: episodeAsset.duration) else {
+        Self.log.debug(
+          "Downloaded episode \(episode.id) disappeared before its duration update"
+        )
+        if let signalAttempt {
+          await cleanUpInvalidatedDownload(
+            at: .cacheDestination(destURL),
+            attempt: signalAttempt
+          )
+        }
+        return
+      }
     } catch {
       Self.log.caughtError(
         "didFinishDownloadingTo: failed to update duration for \(episode.toString)",
@@ -333,12 +349,23 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       return
     }
     if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
-      cleanUpInvalidatedDownload(at: destURL.rawValue, attempt: signalAttempt)
+      await cleanUpInvalidatedDownload(at: .cacheDestination(destURL), attempt: signalAttempt)
       return
     }
 
     do {
-      try await repo.updateCachedFilename(episode.id, cachedFilename: fileName)
+      guard try await repo.updateCachedFilename(episode.id, cachedFilename: fileName) else {
+        Self.log.debug(
+          "Downloaded episode \(episode.id) disappeared before its cached filename update"
+        )
+        if let signalAttempt {
+          await cleanUpInvalidatedDownload(
+            at: .cacheDestination(destURL),
+            attempt: signalAttempt
+          )
+        }
+        return
+      }
     } catch {
       Self.log.caughtError(
         """
@@ -351,14 +378,25 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       return
     }
     if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
-      cleanUpInvalidatedDownload(at: destURL.rawValue, attempt: signalAttempt)
+      await cleanUpInvalidatedDownload(at: .cacheDestination(destURL), attempt: signalAttempt)
       return
     }
 
     // Clear downloading last, after the filename is written, so a re-reading
     // caller never sees downloading == false while still uncached.
     do {
-      try await repo.updateDownloading(episode.id, downloading: false)
+      guard try await repo.updateDownloading(episode.id, downloading: false) else {
+        Self.log.debug(
+          "Downloaded episode \(episode.id) disappeared before its downloading-state update"
+        )
+        if let signalAttempt {
+          await cleanUpInvalidatedDownload(
+            at: .cacheDestination(destURL),
+            attempt: signalAttempt
+          )
+        }
+        return
+      }
     } catch {
       Self.log.caughtError(
         "didFinishDownloadingTo: failed to clear downloading flag for \(episode.toString)",
@@ -366,7 +404,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       )
     }
     if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
-      cleanUpInvalidatedDownload(at: destURL.rawValue, attempt: signalAttempt)
+      await cleanUpInvalidatedDownload(at: .cacheDestination(destURL), attempt: signalAttempt)
       return
     }
 
@@ -420,6 +458,17 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     }
 
     guard let episode else {
+      if let signalAttempt, cacheManager.isDownloadInvalidated(signalAttempt) {
+        Self.log.caughtError(
+          """
+          No episode for task #\(task.taskID) because its download was invalidated \
+          (description: \(task.taskDescription ?? "nil"))
+          """,
+          downloadError,
+          level: .debug
+        )
+        return
+      }
       Self.log.warning(
         """
         No episode for task #\(task.taskID) \
@@ -515,7 +564,32 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     return CacheDownloadAttempt(episodeID: episodeID, taskID: task.taskID)
   }
 
-  private func cleanUpInvalidatedDownload(at url: URL, attempt: CacheDownloadAttempt) {
+  private func cleanUpInvalidatedDownload(
+    at location: InvalidatedDownloadLocation,
+    attempt: CacheDownloadAttempt
+  ) async {
+    let url: URL
+    switch location {
+    case .cacheDestination(let cachedURL):
+      url = cachedURL.rawValue
+      do {
+        if try await repo.cachedFilenameIsReferenced(url.lastPathComponent) {
+          Self.log.debug(
+            "Preserved invalidated download file at \(url) referenced by a surviving episode"
+          )
+          return
+        }
+      } catch {
+        Self.log.caughtError(
+          "Failed to check cache ownership for invalidated download file at \(url)",
+          error
+        )
+        return
+      }
+    case .temporary(let temporaryURL):
+      url = temporaryURL
+    }
+
     do {
       try fileManager.removeItem(at: url)
       Self.log.debug(

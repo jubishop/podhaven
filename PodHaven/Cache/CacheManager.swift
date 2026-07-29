@@ -231,6 +231,10 @@ struct CacheManager {
       && registry.activeAttempts[attempt.episodeID] == attempt
   }
 
+  func isDownloadInvalidated(_ attempt: CacheDownloadAttempt) -> Bool {
+    downloadRegistry().invalidatedEpisodeIDs.contains(attempt.episodeID)
+  }
+
   func cancelDownloads(for episodeIDs: Set<Episode.ID>) async {
     guard !episodeIDs.isEmpty else { return }
 

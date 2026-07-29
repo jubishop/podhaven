@@ -45,6 +45,7 @@ protocol Databasing: Sendable {
   func podcastEpisode(_ mediaGUID: MediaGUID, feedURL: FeedURL) async throws -> PodcastEpisode?
   func latestEpisode(for podcastID: Podcast.ID) async throws -> Episode?
   func cachedEpisodes() async throws -> [Episode]
+  func cachedFilenameIsReferenced(_ cachedFilename: String) async throws -> Bool
   func downloadingEpisodeIDs() async throws -> [Episode.ID]
 
   // MARK: - Series Writers
