@@ -84,8 +84,8 @@ import Testing
     )
   }
 
-  @Test("transcribe now replaces the active head and requeues it first")
-  func transcribeNowReplacesActiveHead() async throws {
+  @Test("transcribe now keeps the interrupted active episode floated and requeued first")
+  func transcribeNowKeepsInterruptedActiveEpisodeFloated() async throws {
     let episodes = try await makeEpisodes()
     for episode in episodes {
       try await transcriptionQueue.enqueue(episode.id)
@@ -103,11 +103,24 @@ import Testing
 
     viewModel.transcribeNow(episodes[2].id)
 
-    let expectedOrder = [episodes[2].id, episodes[0].id, episodes[1].id]
-    #expect(viewModel.entries.map(\.id) == expectedOrder)
+    let firstExpectedOrder = [episodes[2].id, episodes[0].id, episodes[1].id]
+    #expect(viewModel.entries.map(\.id) == firstExpectedOrder)
+    #expect(viewModel.activeEntry?.id == episodes[0].id)
+    #expect(viewModel.waitingEntries.map(\.id) == [episodes[2].id, episodes[1].id])
     try await Wait.until(
-      { @MainActor in self.transcriptionQueue.episodeIDs == expectedOrder },
+      { @MainActor in self.transcriptionQueue.episodeIDs == firstExpectedOrder },
       { @MainActor in "Expected Transcribe Now order to persist" }
+    )
+
+    viewModel.transcribeNow(episodes[1].id)
+
+    let secondExpectedOrder = [episodes[1].id, episodes[0].id, episodes[2].id]
+    #expect(viewModel.entries.map(\.id) == secondExpectedOrder)
+    #expect(viewModel.activeEntry?.id == episodes[0].id)
+    #expect(viewModel.waitingEntries.map(\.id) == [episodes[1].id, episodes[2].id])
+    try await Wait.until(
+      { @MainActor in self.transcriptionQueue.episodeIDs == secondExpectedOrder },
+      { @MainActor in "Expected the latest promotion to keep interrupted work requeued first" }
     )
   }
 

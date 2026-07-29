@@ -86,17 +86,16 @@ import SwiftUI
   }
 
   var activeEntry: Entry? {
-    guard let entry = entries.first, entry.isActive else { return nil }
-    return entry
+    entries.first(where: \.isActive)
   }
 
   var waitingEntries: [Entry] {
-    guard activeEntry != nil else { return entries }
-    return Array(entries.dropFirst())
+    entries.filter { !$0.isActive }
   }
 
   var allSelected: Bool {
-    !waitingEntries.isEmpty && selectedEpisodeIDs.count == waitingEntries.count
+    let waitingEpisodeIDs = Set(waitingEntries.map(\.id))
+    return !waitingEpisodeIDs.isEmpty && selectedEpisodeIDs == waitingEpisodeIDs
   }
 
   var canMoveSelectedToTop: Bool {
@@ -186,11 +185,13 @@ import SwiftUI
   }
 
   func transcribeNow(_ episodeID: Episode.ID) {
-    let current = episodes.map(\.id)
-    guard let index = current.firstIndex(of: episodeID), index > current.startIndex else { return }
-    var reordered = current
+    var reordered = waitingEntries.map(\.id)
+    guard let index = reordered.firstIndex(of: episodeID) else { return }
     let moved = reordered.remove(at: index)
     reordered.insert(moved, at: reordered.startIndex)
+    if let activeEntry {
+      reordered.insert(activeEntry.id, at: reordered.index(after: reordered.startIndex))
+    }
     applyOrder(reordered)
   }
 
@@ -212,7 +213,7 @@ import SwiftUI
   }
 
   func removeSelected() {
-    let removedEpisodeIDs = episodes.map(\.id).filter(selectedEpisodeIDs.contains)
+    let removedEpisodeIDs = waitingEntries.map(\.id).filter(selectedEpisodeIDs.contains)
     remove(removedEpisodeIDs)
   }
 
@@ -366,11 +367,16 @@ import SwiftUI
   }
 
   private func applyWaitingOrder(_ orderedEpisodeIDs: [Episode.ID]) {
-    if let activeEntry {
-      applyOrder([activeEntry.id] + orderedEpisodeIDs)
-    } else {
+    guard
+      let activeEntry,
+      let activeIndex = episodes.firstIndex(where: { $0.id == activeEntry.id })
+    else {
       applyOrder(orderedEpisodeIDs)
+      return
     }
+    var reordered = orderedEpisodeIDs
+    reordered.insert(activeEntry.id, at: min(activeIndex, reordered.endIndex))
+    applyOrder(reordered)
   }
 
   private func remove(_ episodeIDs: [Episode.ID]) {
