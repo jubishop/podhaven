@@ -164,8 +164,8 @@ struct TranscriptionDeletionTests {
     #expect(try await repo.episode(survivingEpisode.id)?.hasTranscript == true)
   }
 
-  @Test("failed podcast deletion restores the queue and preserves cached files")
-  func failedPodcastDeletionRestoresQueueAndPreservesCachedFiles() async throws {
+  @Test("failed podcast deletion restores the queue and preserves cache and playback")
+  func failedPodcastDeletionRestoresQueueAndPreservesCacheAndPlayback() async throws {
     let doomed = try await makeSeries(episodeCount: 2, title: "Retained")
     let surviving = try await makeSeries(episodeCount: 1, title: "Unaffected")
     let doomedEpisodes = Array(doomed.episodes)
@@ -187,6 +187,12 @@ struct TranscriptionDeletionTests {
       doomedEpisodes[1].id,
     ]
     try await queue.enqueue(originalOrder)
+    let playingEpisode = PodcastEpisode(
+      podcast: doomed.podcast,
+      episode: doomedEpisodes[0]
+    )
+    try await PlayHelpers.load(playingEpisode)
+    let originalPlaybackStatus = Container.shared.sharedState().playbackStatus
     try await Container.shared.appDB().unsafeTestDB
       .write { db in
         try db.execute(
@@ -208,6 +214,8 @@ struct TranscriptionDeletionTests {
     #expect(try await Container.shared.transcriptionQueueStore().fetchAll() == originalOrder)
     #expect(try await repo.podcast(doomed.podcast.id) != nil)
     #expect(try await fileManager.readData(from: cachedURL.rawValue) == cachedData)
+    #expect(Container.shared.sharedState().onDeck?.id == playingEpisode.id)
+    #expect(Container.shared.sharedState().playbackStatus == originalPlaybackStatus)
   }
 
   private func makeSeries(episodeCount: Int, title: String) async throws -> PodcastSeries {

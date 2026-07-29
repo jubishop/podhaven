@@ -370,12 +370,10 @@ struct Repo: Databasing {
         )
       },
       perform: {
-        for episode in episodesToDelete where sharedState.onDeck?.id == episode.id {
-          await playManager.stop()
-          Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
+        let onDeckEpisodeToStop = episodesToDelete.first {
+          sharedState.onDeck?.id == $0.id
         }
-
-        return try await writer.write { db in
+        let deletedCount = try await writer.write { db in
           let queuedEpisodeIDs =
             try Episode.all()
             .queued()
@@ -387,6 +385,12 @@ struct Repo: Databasing {
           // Cascades to episodes via FK ON DELETE CASCADE.
           return try Podcast.withIDs(podcastIDs).deleteAll(db)
         }
+
+        if let episode = onDeckEpisodeToStop {
+          await playManager.stop()
+          Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
+        }
+        return deletedCount
       }
     )
 
