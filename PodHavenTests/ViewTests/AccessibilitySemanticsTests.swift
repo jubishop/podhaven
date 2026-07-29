@@ -537,6 +537,116 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
+    "Smart List rows stay unhighlighted when unread badges are hidden",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func smartListRowsStayUnhighlightedWhenUnreadBadgesAreHidden() async throws {
+    let repo = Container.shared.repo()
+    let pubDate = Date(timeIntervalSince1970: 1_700_000_000)
+    let oldTitle = "Seen Without Highlight"
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: oldTitle, pubDate: pubDate)]
+      )
+    )
+    let smartList = try await Container.shared.smartListRepo()
+      .insert(
+        try UnsavedSmartList(
+          title: "Hidden Highlights",
+          filter: SmartListFilter(),
+          displayOrder: 0,
+          showUnreadBadge: false
+        )
+      )
+    let window = try Self.makeWindow(
+      NavigationStack {
+        EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
+      }
+      .transaction { transaction in
+        transaction.disablesAnimations = true
+      }
+    )
+    defer { window.isHidden = true }
+
+    try await Wait.until(
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains { $0.accessibilityLabel?.contains(oldTitle) == true }
+      },
+      { @MainActor in "Already-seen episode did not enter the accessibility tree" }
+    )
+
+    let newTitle = "New Without Highlight"
+    _ = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(title: newTitle, pubDate: pubDate)]
+      )
+    )
+
+    try await Wait.until(
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains { $0.accessibilityLabel?.contains(newTitle) == true }
+      },
+      { @MainActor in "New episode did not enter the accessibility tree" }
+    )
+
+    let rows = Self.accessibilityElements(in: window)
+    let oldRow = try #require(rows.first { $0.accessibilityLabel?.contains(oldTitle) == true })
+    let newRow = try #require(rows.first { $0.accessibilityLabel?.contains(newTitle) == true })
+    let oldStatuses = Self.accessibilityCustomContent(in: oldRow)
+      .filter { $0.label == "Status" }
+    let newStatuses = Self.accessibilityCustomContent(in: newRow)
+      .filter { $0.label == "Status" }
+    #expect(oldStatuses.isEmpty)
+    #expect(newStatuses.isEmpty)
+
+    let oldFrame = window.convert(
+      oldRow.accessibilityFrame,
+      from: window.screen.coordinateSpace
+    )
+    let newFrame = window.convert(
+      newRow.accessibilityFrame,
+      from: window.screen.coordinateSpace
+    )
+    let oldY = Int((oldFrame.minY + 8).rounded())
+    let newY = Int((newFrame.minY + 8).rounded())
+    let leadingX = Int(min(oldFrame.minX, newFrame.minX).rounded(.up)) + 8
+    let trailingX = Int(max(oldFrame.maxX, newFrame.maxX).rounded(.down)) - 9
+    let rendering = try Self.render(window)
+    let leadingDifference =
+      Self.colorDistance(
+        atX: leadingX,
+        between: oldY,
+        and: newY,
+        in: rendering
+      ) ?? 0
+    let trailingDifference =
+      Self.colorDistance(
+        atX: trailingX,
+        between: oldY,
+        and: newY,
+        in: rendering
+      ) ?? 0
+    #expect(
+      leadingDifference <= 12 && trailingDifference <= 12,
+      """
+      Rows without unread badges should share the same background; color differences were \
+      \(leadingDifference)/\(trailingDifference)
+      """
+    )
+  }
+
+  @Test(
     "artwork overlays hide covered detail content",
     .enabled(
       if: supportsHostedAccessibilityInspection,
