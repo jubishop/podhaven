@@ -9,11 +9,13 @@ struct FakeSpeechAnalyzer: SpeechAnalyzing {
   var analyzeAudio:
     (@Sendable (_ startTime: TimeInterval, _ endTime: TimeInterval) async throws -> CMTime?)?
   var cancelAudio: (@Sendable () async -> Void)?
+  var outputFormat: AVAudioFormat?
+  var consumeInput: (@Sendable (RangedAudioInput) async throws -> Void)?
 
   func bestAvailableAudioFormat(
     considering inputFormat: AVAudioFormat
   ) async -> AVAudioFormat? {
-    inputFormat
+    outputFormat ?? inputFormat
   }
 
   func analyze(_ inputSequence: RangedAudioInputSequence) async throws -> CMTime? {
@@ -21,6 +23,9 @@ struct FakeSpeechAnalyzer: SpeechAnalyzing {
     var analyzedFrameCount: Int64 = 0
     var sampleRate: Double?
     for try await input in inputSequence {
+      if let consumeInput {
+        try await consumeInput(input)
+      }
       if let bufferStartTime = input.bufferStartTime {
         startTime = bufferStartTime
       }
