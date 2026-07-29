@@ -345,13 +345,30 @@ struct Repo: Databasing {
 
   @discardableResult
   func deletePodcast(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    let episodesToDelete = try await reader.read { db in
-      try Episode.all()
+    let deletion = try await writer.write { db in
+      let episodesToDelete = try Episode.all()
         .filter { podcastIDs.contains($0.podcastId) }
         .fetchAll(db)
+
+      let queuedEpisodeIDs =
+        try Episode.all()
+        .queued()
+        .filter { podcastIDs.contains($0.podcastId) }
+        .selectID()
+        .fetchAll(db)
+      try queue.dequeue(db, queuedEpisodeIDs)
+
+      // Cascades to episodes via FK ON DELETE CASCADE.
+      let deletedCount = try Podcast.withIDs(podcastIDs).deleteAll(db)
+      return (deletedCount: deletedCount, episodes: episodesToDelete)
     }
 
-    for episode in episodesToDelete {
+    for episode in deletion.episodes {
+      if sharedState.onDeck?.id == episode.id {
+        await playManager.stop()
+        Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
+      }
+
       if let url = episode.cachedURL {
         do {
           try fileManager.removeItem(at: url.rawValue)
@@ -363,25 +380,9 @@ struct Repo: Databasing {
           )
         }
       }
-
-      if sharedState.onDeck?.id == episode.id {
-        await playManager.stop()
-        Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
-      }
     }
 
-    return try await writer.write { db in
-      let queuedEpisodeIDs =
-        try Episode.all()
-        .queued()
-        .filter { podcastIDs.contains($0.podcastId) }
-        .selectID()
-        .fetchAll(db)
-      try queue.dequeue(db, queuedEpisodeIDs)
-
-      // Cascades to episodes via FK ON DELETE CASCADE.
-      return try Podcast.withIDs(podcastIDs).deleteAll(db)
-    }
+    return deletion.deletedCount
   }
 
   @discardableResult

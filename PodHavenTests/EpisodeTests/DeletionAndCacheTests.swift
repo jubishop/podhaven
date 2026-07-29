@@ -21,22 +21,32 @@ class EpisodeDeletionAndCacheTests {
 
   // MARK: - Deletion Tests
 
-  @Test("that deleting a podcast removes cached episode files")
-  func deletePodcastRemovesCachedFiles() async throws {
-    let unsavedPodcast = try Create.unsavedPodcast()
-    let episode1 = try Create.unsavedEpisode(cachedFilename: "episode-1.mp3")
-    let episode2 = try Create.unsavedEpisode(cachedFilename: "episode-2.mp3")
-    let series = try await repo.insertSeries(
+  @Test("that batch podcast deletion removes every cached episode file")
+  func batchPodcastDeletionRemovesCachedFiles() async throws {
+    let firstSeries = try await repo.insertSeries(
       UnsavedPodcastSeries(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisodes: [episode1, episode2, Create.unsavedEpisode()]
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(cachedFilename: "episode-1.mp3"),
+          try Create.unsavedEpisode(),
+        ]
       )
     )
-    let podcast = series.podcast
-    let episodes = Array(series.episodes.filter { $0.cacheStatus == .cached })
+    let secondSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(cachedFilename: "episode-2.mp3"),
+          try Create.unsavedEpisode(cachedFilename: "episode-3.mp3"),
+        ]
+      )
+    )
+    let podcastIDs = [firstSeries.podcast.id, secondSeries.podcast.id]
+    let episodes = Array(
+      (firstSeries.episodes + secondSeries.episodes)
+        .filter { $0.cacheStatus == .cached }
+    )
 
-    // Write files to cached locations
-    let fileManager = Container.shared.fileManager() as! FakeFileManager
     for episode in episodes {
       guard let cachedURL = episode.cachedURL else {
         Assert.fatal("Episode should have cached URL")
@@ -45,17 +55,123 @@ class EpisodeDeletionAndCacheTests {
       try await CacheHelpers.waitForCachedFile(cachedURL)
     }
 
-    // Delete podcast
-    let count = try await repo.deletePodcast([podcast.id])
-    #expect(count == 1)
-    let afterDeletion = try await repo.podcastSeries(podcast.id)
-    #expect(afterDeletion == nil)
+    let count = try await repo.deletePodcast(podcastIDs)
+    #expect(count == 2)
+    for podcastID in podcastIDs {
+      #expect(try await repo.podcastSeries(podcastID) == nil)
+    }
 
-    // Verify files are removed
     for episode in episodes {
       guard let cachedURL = episode.cachedURL
       else { Assert.fatal("Episode should have cached URL") }
       try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
+    }
+  }
+
+  @Test("that failed podcast deletion preserves cached files and metadata")
+  func failedPodcastDeletionPreservesCache() async throws {
+    let cachedData = Data("retained cache".utf8)
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(cachedFilename: "retained-after-failure.mp3")
+        ]
+      )
+    )
+    let episode = try #require(series.episodes.first)
+    let cachedURL = try #require(episode.cachedURL)
+    try await fileManager.writeData(cachedData, to: cachedURL.rawValue)
+    try await Container.shared.appDB().unsafeTestDB
+      .write { db in
+        try db.execute(
+          sql: """
+            CREATE TEMP TRIGGER fail_podcast_delete
+            BEFORE DELETE ON podcast
+            BEGIN
+              SELECT RAISE(ABORT, 'simulated podcast deletion failure');
+            END
+            """
+        )
+      }
+
+    await #expect(throws: DatabaseError.self) {
+      try await repo.deletePodcast(series.podcast.id)
+    }
+
+    let retainedEpisode = try await repo.episode(episode.id)
+    #expect(retainedEpisode?.cachedURL == cachedURL)
+    #expect(try await fileManager.readData(from: cachedURL.rawValue) == cachedData)
+  }
+
+  @Test("that deletion cleans an episode committed before its database transaction")
+  func deletionCleansEpisodeCommittedAtTransactionBoundary() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    )
+    let cachedFilename = "concurrent-refresh.mp3"
+    let cachedURL = CacheManager.resolveCachedFilepath(for: cachedFilename)
+    try await fileManager.writeData(Data("concurrent cache".utf8), to: cachedURL.rawValue)
+
+    var unsavedEpisode = try Create.unsavedEpisode(cachedFilename: cachedFilename)
+    unsavedEpisode.podcastId = series.podcast.id
+    let episodeToInsert = unsavedEpisode
+    let insertedEpisodeID = ThreadSafe<Episode.ID?>(nil)
+    let insertionFailure = ThreadSafe<String?>(nil)
+    Container.shared.fakeContinuousClock()
+      .runBeforeNextNow {
+        do {
+          try Container.shared.appDB().unsafeTestDB
+            .write { db in
+              let episode = episodeToInsert
+              let inserted = try episode.insertAndFetch(db, as: Episode.self)
+              insertedEpisodeID(inserted.id)
+            }
+        } catch {
+          insertionFailure(ErrorKit.message(for: error))
+        }
+      }
+
+    #expect(try await repo.deletePodcast(series.podcast.id))
+    try #require(insertionFailure() == nil)
+    let episodeID = try #require(insertedEpisodeID())
+    #expect(try await repo.episode(episodeID) == nil)
+    #expect(!fileManager.fileExists(at: cachedURL.rawValue))
+  }
+
+  @Test("that one cache removal failure does not stop podcast deletion or later cleanup")
+  func cacheRemovalFailureDoesNotStopDeletion() async throws {
+    try await LogCapture.withSink { sink in
+      let series = try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(),
+          unsavedEpisodes: [
+            try Create.unsavedEpisode(cachedFilename: "failing-removal.mp3"),
+            try Create.unsavedEpisode(cachedFilename: "successful-removal.mp3"),
+          ]
+        )
+      )
+      let failingEpisode = series.episodes[0]
+      let successfulEpisode = series.episodes[1]
+      let failingURL = try #require(failingEpisode.cachedURL)
+      let successfulURL = try #require(successfulEpisode.cachedURL)
+      try await fileManager.writeData(Data("retained".utf8), to: failingURL.rawValue)
+      try await fileManager.writeData(Data("removed".utf8), to: successfulURL.rawValue)
+      fileManager.setRemoveItemError(TestError.simulatedFailure, for: failingURL.rawValue)
+
+      #expect(try await repo.deletePodcast(series.podcast.id))
+
+      #expect(try await repo.podcastSeries(series.podcast.id) == nil)
+      #expect(fileManager.fileExists(at: failingURL.rawValue))
+      #expect(!fileManager.fileExists(at: successfulURL.rawValue))
+      let cleanupErrors = sink.captured()
+        .filter {
+          $0.label == "Database/repo"
+            && $0.level == .error
+            && $0.message.contains(failingURL.rawValue.lastPathComponent)
+            && $0.message.contains(String(describing: failingEpisode.id))
+        }
+      #expect(cleanupErrors.count == 1)
     }
   }
 
