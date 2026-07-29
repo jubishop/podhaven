@@ -12,20 +12,17 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
 
   private let episode: Episode
   private let alwaysShowPodcastImage: Bool
-  private let highlight: Bool
   private let isSelecting: Bool
   private let isSelected: Binding<Bool>
 
   init(
     episode: Episode,
     alwaysShowPodcastImage: Bool = false,
-    highlight: Bool = false,
     isSelecting: Bool = false,
     isSelected: Binding<Bool> = .constant(false)
   ) {
     self.episode = episode
     self.alwaysShowPodcastImage = alwaysShowPodcastImage
-    self.highlight = highlight
     self.isSelecting = isSelecting
     self.isSelected = isSelected
   }
@@ -35,10 +32,6 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
       episodeImage
       StatusIconColumn(episode: episode, iconSpacing: 10, iconSize: 12)
       episodeInfoSection
-    }
-    .background {
-      RoundedRectangle(cornerRadius: 8)
-        .fill(Color.accentColor.opacity(highlight ? 0.15 : 0))
     }
   }
 
