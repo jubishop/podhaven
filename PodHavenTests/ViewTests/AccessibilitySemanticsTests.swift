@@ -285,6 +285,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
         .first { $0.accessibilityLabel?.contains(title) == true }
     )
     #expect(row.accessibilityValue == "Transcribing, 42 percent")
+    #expect(row.accessibilityTraits.contains(.button))
   }
 
   @Test(
@@ -324,7 +325,9 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
         .first { $0.accessibilityLabel?.contains(titles[1]) == true }
     )
     let actions = Set(row.accessibilityCustomActions?.map(\.name) ?? [])
-    #expect(actions == ["Move to Top", "Move to Bottom", "Remove from Queue"])
+    #expect(
+      actions == ["Transcribe Now", "Move to Top", "Move to Bottom", "Remove from Queue"]
+    )
   }
 
   @Test(

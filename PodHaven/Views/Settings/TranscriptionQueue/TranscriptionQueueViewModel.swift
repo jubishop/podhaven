@@ -85,18 +85,27 @@ import SwiftUI
     }
   }
 
+  var activeEntry: Entry? {
+    entries.first(where: \.isActive)
+  }
+
+  var waitingEntries: [Entry] {
+    entries.filter { !$0.isActive }
+  }
+
   var allSelected: Bool {
-    !entries.isEmpty && selectedEpisodeIDs.count == entries.count
+    let waitingEpisodeIDs = Set(waitingEntries.map(\.id))
+    return !waitingEpisodeIDs.isEmpty && selectedEpisodeIDs == waitingEpisodeIDs
   }
 
   var canMoveSelectedToTop: Bool {
-    let current = episodes.map(\.id)
+    let current = waitingEntries.map(\.id)
     guard !selectedEpisodeIDs.isEmpty else { return false }
     return current != orderedSelectionFirst(in: current)
   }
 
   var canMoveSelectedToBottom: Bool {
-    let current = episodes.map(\.id)
+    let current = waitingEntries.map(\.id)
     guard !selectedEpisodeIDs.isEmpty else { return false }
     return current != orderedSelectionLast(in: current)
   }
@@ -125,7 +134,7 @@ import SwiftUI
   }
 
   func selectAll() {
-    selectedEpisodeIDs = Set(entries.map(\.id))
+    selectedEpisodeIDs = Set(waitingEntries.map(\.id))
   }
 
   func deselectAll() {
@@ -147,22 +156,22 @@ import SwiftUI
       )
       return
     }
-    var reordered = displayedEpisodeIDs
+    var reordered = waitingEntries.map(\.id)
     reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
-    applyOrder(reordered)
+    applyWaitingOrder(reordered)
   }
 
   func moveToTop(_ episodeID: Episode.ID) {
-    let current = episodes.map(\.id)
+    let current = waitingEntries.map(\.id)
     guard let index = current.firstIndex(of: episodeID), index > current.startIndex else { return }
     var reordered = current
     let moved = reordered.remove(at: index)
     reordered.insert(moved, at: reordered.startIndex)
-    applyOrder(reordered)
+    applyWaitingOrder(reordered)
   }
 
   func moveToBottom(_ episodeID: Episode.ID) {
-    let current = episodes.map(\.id)
+    let current = waitingEntries.map(\.id)
     guard
       let index = current.firstIndex(of: episodeID),
       index < current.index(before: current.endIndex)
@@ -172,15 +181,26 @@ import SwiftUI
     var reordered = current
     let moved = reordered.remove(at: index)
     reordered.append(moved)
+    applyWaitingOrder(reordered)
+  }
+
+  func transcribeNow(_ episodeID: Episode.ID) {
+    var reordered = waitingEntries.map(\.id)
+    guard let index = reordered.firstIndex(of: episodeID) else { return }
+    let moved = reordered.remove(at: index)
+    reordered.insert(moved, at: reordered.startIndex)
+    if let activeEntry {
+      reordered.insert(activeEntry.id, at: reordered.index(after: reordered.startIndex))
+    }
     applyOrder(reordered)
   }
 
   func moveSelectedToTop() {
-    applyOrder(orderedSelectionFirst(in: episodes.map(\.id)))
+    applyWaitingOrder(orderedSelectionFirst(in: waitingEntries.map(\.id)))
   }
 
   func moveSelectedToBottom() {
-    applyOrder(orderedSelectionLast(in: episodes.map(\.id)))
+    applyWaitingOrder(orderedSelectionLast(in: waitingEntries.map(\.id)))
   }
 
   func remove(_ episodeID: Episode.ID) {
@@ -188,21 +208,25 @@ import SwiftUI
   }
 
   func remove(at offsets: IndexSet) {
-    let removedEpisodeIDs = offsets.compactMap { entries[safe: $0]?.id }
+    let removedEpisodeIDs = offsets.compactMap { waitingEntries[safe: $0]?.id }
     remove(removedEpisodeIDs)
   }
 
   func removeSelected() {
-    let removedEpisodeIDs = episodes.map(\.id).filter(selectedEpisodeIDs.contains)
+    let removedEpisodeIDs = waitingEntries.map(\.id).filter(selectedEpisodeIDs.contains)
     remove(removedEpisodeIDs)
   }
 
   func canMoveToTop(_ episodeID: Episode.ID) -> Bool {
-    episodes.first?.id != episodeID
+    waitingEntries.first?.id != episodeID
   }
 
   func canMoveToBottom(_ episodeID: Episode.ID) -> Bool {
-    episodes.last?.id != episodeID
+    waitingEntries.last?.id != episodeID
+  }
+
+  func canTranscribeNow(_ episodeID: Episode.ID) -> Bool {
+    episodes.first?.id != episodeID
   }
 
   private func observeEpisodeIDs() async {
@@ -224,6 +248,7 @@ import SwiftUI
         .subtracting(activeEpisodeIDs)
         .intersection(transcriptionQueue.episodeIDs)
       liveProgress = progress
+      selectedEpisodeIDs.subtract(activeEpisodeIDs)
       previousActiveEpisodeIDs = activeEpisodeIDs
 
       guard !pausedEpisodeIDs.isEmpty else { continue }
@@ -339,6 +364,19 @@ import SwiftUI
     }
     episodes = orderedEpisodeIDs.compactMap { episodesByID[$0] }
     enqueueMutation(.reorder(orderedEpisodeIDs))
+  }
+
+  private func applyWaitingOrder(_ orderedEpisodeIDs: [Episode.ID]) {
+    guard
+      let activeEntry,
+      let activeIndex = episodes.firstIndex(where: { $0.id == activeEntry.id })
+    else {
+      applyOrder(orderedEpisodeIDs)
+      return
+    }
+    var reordered = orderedEpisodeIDs
+    reordered.insert(activeEntry.id, at: min(activeIndex, reordered.endIndex))
+    applyOrder(reordered)
   }
 
   private func remove(_ episodeIDs: [Episode.ID]) {
