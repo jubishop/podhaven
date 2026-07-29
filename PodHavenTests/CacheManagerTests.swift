@@ -857,6 +857,38 @@ import Testing
     #expect(try await fileManager.readData(from: sharedURL.rawValue) == originalData)
   }
 
+  @Test("superseded finalization preserves a replacement download claim")
+  func supersededFinalizationPreservesReplacementDownloadClaim() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let task = FakeURLSessionDownloadTask(
+      taskDescription: String(podcastEpisode.id.rawValue),
+      originalRequest: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
+    )
+    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try await fileManager.writeData(Data.random(), to: tempFile)
+    let replacementClaimed = ThreadSafe(false)
+    fileManager.runBeforeRemovingItem(at: tempFile) {
+      let claimed = try Container.shared.appDB().unsafeTestDB
+        .write { db in
+          try Episode
+            .withID(podcastEpisode.id)
+            .filter(Episode.Columns.cachedFilename == nil)
+            .filter(Episode.Columns.downloading == false)
+            .updateAll(db, Episode.Columns.downloading.set(to: true))
+        }
+      replacementClaimed(claimed > 0)
+    }
+
+    await cacheBackgroundDelegate.urlSession(
+      session,
+      downloadTask: task,
+      didFinishDownloadingTo: tempFile
+    )
+
+    #expect(replacementClaimed())
+    #expect(try await repo.episode(podcastEpisode.id)?.downloading == true)
+  }
+
   // MARK: - Cross-Contamination Regression
 
   // Regression for "AI Daily Brief plays Braid": URLSession taskIdentifiers

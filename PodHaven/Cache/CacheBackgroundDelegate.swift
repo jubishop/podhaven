@@ -321,7 +321,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
-      await clearDownloadState(for: episode.id)
       return
     }
 

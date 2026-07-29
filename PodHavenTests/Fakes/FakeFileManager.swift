@@ -8,6 +8,7 @@ final class FakeFileManager: FileManaging, Sendable {
   // MARK: - State
 
   private let inMemoryFiles = ThreadSafe<[URL: Data]>([:])
+  private let removeItemActions = ThreadSafe<[URL: @Sendable () throws -> Void]>([:])
   private let removeItemCallCounts = ThreadSafe<[URL: Int]>([:])
   private let removeItemErrors = ThreadSafe<[URL: any Error & Sendable]>([:])
   private struct FileSizeErrorRule: Sendable {
@@ -41,6 +42,9 @@ final class FakeFileManager: FileManaging, Sendable {
 
   func removeItem(at url: URL) throws {
     removeItemCallCounts { $0[url, default: 0] += 1 }
+    if let action = removeItemActions({ $0.removeValue(forKey: url) }) {
+      try action()
+    }
     if let error = removeItemErrors({ $0.removeValue(forKey: url) }) { throw error }
     // Match the real FileManager's missing-file error shape so production code
     // discriminating via ErrorKit.isMissingFile behaves the same in tests.
@@ -117,6 +121,13 @@ final class FakeFileManager: FileManaging, Sendable {
 
   func setRemoveItemError(_ error: any Error & Sendable, for url: URL) {
     removeItemErrors { $0[url] = error }
+  }
+
+  func runBeforeRemovingItem(
+    at url: URL,
+    _ action: @escaping @Sendable () throws -> Void
+  ) {
+    removeItemActions { $0[url] = action }
   }
 
   func removeItemCallCount(for url: URL) -> Int {
