@@ -64,6 +64,29 @@ struct CacheFileStore: Sendable {
     }
   }
 
+  func discardInvalidFile(
+    for episodeID: Episode.ID,
+    cachedFilename: String
+  ) async throws {
+    let cachedURL = CacheManager.resolveCachedFilepath(for: cachedFilename)
+
+    try await writer.write { db in
+      let fileManager = Container.shared.fileManager()
+      let released =
+        try Episode
+        .withID(episodeID)
+        .filter(Episode.Columns.cachedFilename == cachedFilename)
+        .updateAll(db, Episode.Columns.cachedFilename.set(to: nil))
+      guard released > 0 else { return }
+
+      do {
+        try fileManager.removeItem(at: cachedURL.rawValue)
+      } catch {
+        guard ErrorKit.isMissingFile(error) else { throw error }
+      }
+    }
+  }
+
   func removeFileIfUnreferenced(
     _ cachedURL: CachedURL
   ) async throws -> CacheFileDisposition {
