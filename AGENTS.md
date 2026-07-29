@@ -60,7 +60,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`).
 - Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.
 - `@Suite("...", .container)` isolates Factory injected state per-test; supporting full test concurrency. Do not use `.serialized`.
-- Bugfixes require a regression test proven failing before the fix; if it passes before and after, it is not a regression test and the bug may not be real.
+- Every functional change requires a regression test proven failing before the implementation and passing afterward; if it passes before and after, it does not prove the changed behavior.
 - Default local test runs to My Mac (Designed for iPhone): `-destination 'platform=macOS,name=My Mac'`.
 - Always pass `-hideShellScriptEnvironment` to `xcodebuild`; the shared scheme pre-action otherwise prints inherited environment values into raw logs.
 - Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
@@ -72,6 +72,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - To assert on swift-log output, use `LogCapture.withSink` (per-test isolation via `@TaskLocal`).
 
 ## Previews
+- Every graphical change requires adequate Xcode `#Preview` coverage. Add or update preview blocks so the changed UI and its relevant states can be inspected without running the app, and verify that the previews build.
 - Previews stub factories for in-memory SwiftUI previews; no network or DB access.
 
 ## Database
