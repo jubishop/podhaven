@@ -100,7 +100,7 @@ struct CacheManager {
 
   // Clear downloading flags stranded by a force-quit, which cancels background
   // tasks without delivering their callbacks: any downloading row absent from
-  // the recreated session's live tasks is dead.
+  // both the recreated session and terminal-work registry is dead.
   private func reconcileStaleDownloads() async {
     do {
       let downloadingIDs = try await repo.downloadingEpisodeIDs()
@@ -109,8 +109,11 @@ struct CacheManager {
       let liveDescriptions = Set(
         await cacheManagerSession.allCreatedTasks.compactMap(\.taskDescription)
       )
+      let finalizingEpisodeIDs = Set(downloadRegistry().activeAttempts.keys)
       for episodeID in downloadingIDs
-      where !liveDescriptions.contains(String(episodeID.rawValue)) {
+      where !liveDescriptions.contains(String(episodeID.rawValue))
+        && !finalizingEpisodeIDs.contains(episodeID)
+      {
         Self.log.debug("reconcileStaleDownloads: clearing stranded download for \(episodeID)")
         try await repo.updateDownloading(episodeID, downloading: false)
       }
@@ -212,7 +215,7 @@ struct CacheManager {
     downloadLatches { $0.removeValue(forKey: attempt) }?.open()
   }
 
-  func claimDownloadFinalization(for attempt: CacheDownloadAttempt) -> Bool {
+  func claimDownloadCompletion(for attempt: CacheDownloadAttempt) -> Bool {
     downloadRegistry { registry in
       guard !registry.invalidatedEpisodeIDs.contains(attempt.episodeID) else {
         return false

@@ -147,24 +147,27 @@ actor FakeDataFetchable: DataFetchable {
 
   func finishDownload(taskID: URLSessionDownloadTask.ID, didFinishDownloadingTo location: URL) async
   {
-    await downloadTasks[id: taskID]!.assertResumed()
+    let task = downloadTasks()[id: taskID]!
+    await task.assertResumed()
+    // URLSession no longer reports a terminal task as outstanding while the
+    // app's asynchronous finalization continues.
+    downloadTasks { $0.remove(id: taskID) }
     await cacheBackgroundDelegate.urlSession(
       self,
-      downloadTask: downloadTasks[id: taskID]!,
+      downloadTask: task,
       didFinishDownloadingTo: location
     )
-    // Mirror real URLSession dropping a completed task from its task list.
-    downloadTasks { $0.remove(id: taskID) }
   }
 
   func failDownload(taskID: URLSessionDownloadTask.ID, error: any Error) async {
-    await downloadTasks[id: taskID]!.assertResumed()
+    let task = downloadTasks()[id: taskID]!
+    await task.assertResumed()
+    downloadTasks { $0.remove(id: taskID) }
     await cacheBackgroundDelegate.urlSession(
       self,
-      task: downloadTasks[id: taskID]!,
+      task: task,
       didCompleteWithError: error
     )
-    downloadTasks { $0.remove(id: taskID) }
   }
 
   func progressDownload(
