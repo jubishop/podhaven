@@ -22,7 +22,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var repo: any Databasing { Container.shared.repo() }
-  private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var loadEpisodeAsset: (_ asset: AVURLAsset) async throws -> EpisodeAsset {
