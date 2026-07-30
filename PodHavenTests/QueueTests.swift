@@ -106,6 +106,20 @@ class QueueTests {
     #expect(fetchGUIDs == ["bottom", "middle", "top"])
   }
 
+  @Test("replace ignores missing IDs before assigning queue positions")
+  func replaceIgnoresMissingIDsBeforeAssigningQueuePositions() async throws {
+    let missingEpisode = try await Create.podcastEpisode()
+    let firstEpisode = try await fetchEpisode("unqtop")
+    let secondEpisode = try await fetchEpisode("unqmiddle")
+    #expect(try await repo.deletePodcast(missingEpisode.podcast.id))
+
+    try await queue.replace([missingEpisode.id, firstEpisode.id, secondEpisode.id])
+
+    #expect(try await fetchGUIDs() == ["unqtop", "unqmiddle"])
+    #expect(try await fetchOrder() == [0, 1])
+    #expect(try await queue.nextEpisode?.id == firstEpisode.id)
+  }
+
   @Test("unshifting new episodes")
   func insertingNewEpisodesAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
@@ -213,6 +227,19 @@ class QueueTests {
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
     let fetchGUIDs = try await fetchGUIDs()
     #expect(fetchGUIDs == ["top", "midtop", "middle", "midbottom", "bottom", "unqbottom"])
+  }
+
+  @Test("insert ignores a missing episode before moving queue positions")
+  func insertIgnoresMissingEpisodeBeforeMovingQueuePositions() async throws {
+    let missingEpisode = try await Create.podcastEpisode()
+    let topEpisode = try await fetchEpisode("top")
+    #expect(try await repo.deletePodcast(missingEpisode.podcast.id))
+
+    try await queue.insert(missingEpisode.id, at: 0)
+
+    #expect(try await fetchGUIDs() == ["top", "midtop", "middle", "midbottom", "bottom"])
+    #expect(try await fetchOrder() == [0, 1, 2, 3, 4])
+    #expect(try await queue.nextEpisode?.id == topEpisode.id)
   }
 
   @Test("dequeing an episode")
