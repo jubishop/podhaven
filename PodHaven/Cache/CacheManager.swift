@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import Combine
 import FactoryKit
 import Foundation
@@ -71,6 +72,7 @@ struct CacheManager {
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
   private let downloadRegistry = ThreadSafe(DownloadRegistry())
   private let downloadLatches = ThreadSafe<[CacheDownloadAttempt: AsyncLatch<Void>]>([:])
+  private let downloadStateLock = ThreadLock()
 
   // MARK: - Initialization
 
@@ -210,10 +212,48 @@ struct CacheManager {
 
   func signalDownloadComplete(for attempt: CacheDownloadAttempt) {
     downloadRegistry { registry in
-      guard registry.activeAttempts[attempt.episodeID] == attempt else { return }
+      if let current = registry.activeAttempts[attempt.episodeID] {
+        guard current == attempt else { return }
+      }
       registry.activeAttempts.removeValue(forKey: attempt.episodeID)
+      sharedState.clearDownloadProgress(for: attempt.episodeID)
     }
     downloadLatches { $0.removeValue(forKey: attempt) }?.open()
+  }
+
+  func updateDownloadProgress(_ progress: Double, for attempt: CacheDownloadAttempt) {
+    downloadRegistry { registry in
+      guard registry.activeAttempts[attempt.episodeID] == attempt else { return }
+      sharedState.updateDownloadProgress(for: attempt.episodeID, progress: progress)
+    }
+  }
+
+  @discardableResult
+  func clearDownloadIfCurrent(_ attempt: CacheDownloadAttempt) async throws -> Bool {
+    try await downloadStateLock.waitForClaim()
+    defer { downloadStateLock.release() }
+
+    guard isCurrentDownloadAttempt(attempt) else { return false }
+    return try await repo.updateDownloading(attempt.episodeID, downloading: false)
+  }
+
+  func storeDownloadedFileIfCurrent(
+    at sourceURL: URL,
+    for attempt: CacheDownloadAttempt,
+    cachedFilename: String,
+    duration: CMTime
+  ) async throws -> CacheFileStorage? {
+    try await downloadStateLock.waitForClaim()
+    defer { downloadStateLock.release() }
+
+    guard isCurrentDownloadAttempt(attempt) else { return nil }
+
+    return try await cacheFileStore.storeDownloadedFile(
+      at: sourceURL,
+      for: attempt.episodeID,
+      cachedFilename: cachedFilename,
+      duration: duration
+    )
   }
 
   func claimDownloadCompletion(for attempt: CacheDownloadAttempt) -> Bool {
@@ -282,8 +322,7 @@ struct CacheManager {
   func clearCache(for episodeID: Episode.ID) async throws -> CacheFileDisposition? {
     Self.log.debug("clearCache: \(episodeID)")
 
-    let episode = try await repo.episode(episodeID)
-    guard let episode else {
+    guard var episode = try await repo.episode(episodeID) else {
       Self.log.warning("Episode \(episodeID) not found for cache operation")
       return nil
     }
@@ -295,14 +334,12 @@ struct CacheManager {
     }
 
     if episode.downloading {
-      if let activeAttempt = await activeDownloadAttempt(for: episodeID) {
-        let liveTask = await cacheManagerSession.allCreatedTasks.first {
-          $0.taskID == activeAttempt.taskID
-        }
-        liveTask?.cancel()
+      try await stopDownload(for: episodeID)
+      guard let refreshedEpisode = try await repo.episode(episodeID) else {
+        Self.log.warning("Episode \(episodeID) disappeared while stopping its download")
+        return nil
       }
-      sharedState.clearDownloadProgress(for: episodeID)
-      try await repo.updateDownloading(episodeID, downloading: false)
+      episode = refreshedEpisode
     }
 
     guard let cachedURL = episode.cachedURL else {
@@ -343,9 +380,23 @@ struct CacheManager {
 
   // MARK: - Private Helpers
 
+  // An absent entry means no replacement has superseded this attempt.
+  private func isCurrentDownloadAttempt(_ attempt: CacheDownloadAttempt) -> Bool {
+    downloadRegistry { registry in
+      guard !registry.invalidatedEpisodeIDs.contains(attempt.episodeID) else {
+        return false
+      }
+      guard let current = registry.activeAttempts[attempt.episodeID] else { return true }
+      return current == attempt
+    }
+  }
+
   private func startDownload(for podcastEpisode: PodcastEpisode) async throws
     -> CacheDownloadAttempt?
   {
+    try await downloadStateLock.waitForClaim()
+    defer { downloadStateLock.release() }
+
     guard try await repo.claimForDownloadIfUncached(podcastEpisode.id) else {
       Self.log.trace("startDownload: episode \(podcastEpisode.id) was not uncached")
       return nil
@@ -379,8 +430,23 @@ struct CacheManager {
       downloadTask.cancel()
       return nil
     }
+    sharedState.clearDownloadProgress(for: podcastEpisode.id)
     downloadTask.resume()
     return attempt
+  }
+
+  private func stopDownload(for episodeID: Episode.ID) async throws {
+    try await downloadStateLock.waitForClaim()
+    defer { downloadStateLock.release() }
+
+    if let activeAttempt = await activeDownloadAttempt(for: episodeID) {
+      let liveTask = await cacheManagerSession.allCreatedTasks.first {
+        $0.taskID == activeAttempt.taskID
+      }
+      liveTask?.cancel()
+    }
+    sharedState.clearDownloadProgress(for: episodeID)
+    try await repo.updateDownloading(episodeID, downloading: false)
   }
 
   private func startOrJoinDownload(for podcastEpisode: PodcastEpisode) async throws
