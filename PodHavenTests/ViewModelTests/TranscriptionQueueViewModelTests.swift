@@ -72,7 +72,7 @@ import Testing
       { @MainActor in "Expected initial queue order" }
     )
 
-    viewModel.moveToTop(episodes[2].id)
+    viewModel.moveToTop(episodes[2].id, swipeAction: false)
 
     let expectedOrder = [episodes[0].id, episodes[2].id, episodes[1].id]
     #expect(viewModel.entries.map(\.id) == expectedOrder)
@@ -81,6 +81,54 @@ import Testing
         self.transcriptionQueue.episodeIDs == viewModel.entries.map(\.id)
       },
       { @MainActor in "Expected projected queue order to persist" }
+    )
+  }
+
+  @Test("swipe move hides its row until the queue reorder finishes")
+  func swipeMoveHidesRowUntilQueueReorderFinishes() async throws {
+    let episodes = try await makeEpisodes()
+    let episodeIDs = episodes.map(\.id)
+    let reorderStarted = AsyncSemaphore(value: 0)
+    let reorderRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeReorder: { _ in
+        reorderStarted.signal()
+        await reorderRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer {
+      reorderRelease.signal()
+      executeTask.cancel()
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    viewModel.moveToTop(episodes[2].id, swipeAction: true)
+
+    let visibleWhilePending = [episodes[0].id, episodes[1].id]
+    #expect(viewModel.entries.map(\.id) == visibleWhilePending)
+    await reorderStarted.wait()
+    #expect(viewModel.entries.map(\.id) == visibleWhilePending)
+
+    reorderRelease.signal()
+    let expectedOrder = [episodes[2].id, episodes[0].id, episodes[1].id]
+    try await Wait.until(
+      { @MainActor in
+        queue.episodeIDs == expectedOrder && viewModel.entries.map(\.id) == expectedOrder
+      },
+      { @MainActor in "Expected the moved row to reappear at the persisted destination" }
     )
   }
 
