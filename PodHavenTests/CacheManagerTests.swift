@@ -302,11 +302,13 @@ import Testing
     try await CacheHelpers.waitForFileRemoved(fileURL)
   }
 
-  @Test("deletion invalidates gated finalization after the download file moves")
+  @Test("deletion invalidates a gated finalization while its file is staged")
   func deletionInvalidatesGatedDownloadFinalization() async throws {
     let assetLoadStarted = AsyncSemaphore(value: 0)
     let finishAssetLoad = AsyncSemaphore(value: 0)
-    await episodeAssetLoader.setDefaultHandler { _ in
+    let stagedFileURL = ThreadSafe<URL?>(nil)
+    await episodeAssetLoader.setDefaultHandler { url in
+      stagedFileURL(url)
       assetLoadStarted.signal()
       await finishAssetLoad.wait()
       return (true, CMTime.seconds(30))
@@ -320,6 +322,8 @@ import Testing
       finishAssetLoad.signal()
     }
     await assetLoadStarted.wait()
+    let stagedURL = try #require(stagedFileURL())
+    #expect(fileManager.fileExists(at: stagedURL))
     #expect(
       try fileManager
         .contentsOfDirectory(
@@ -327,7 +331,7 @@ import Testing
           includingPropertiesForKeys: nil,
           options: []
         )
-        .count == 1
+        .isEmpty
     )
 
     #expect(try await repo.deletePodcast(podcastEpisode.podcast.id))
@@ -342,6 +346,7 @@ import Testing
       )
       .isEmpty
     )
+    #expect(!fileManager.fileExists(at: stagedURL))
     #expect(!fileManager.fileExists(at: temporaryURL))
   }
 
