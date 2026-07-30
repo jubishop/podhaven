@@ -85,6 +85,10 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       }
     let cgImage = try #require(image.cgImage)
     try #require(cgImage.bitsPerPixel == 32)
+    try #require(
+      cgImage.bitmapInfo.intersection(.byteOrderMask) == .byteOrder32Little
+        && cgImage.alphaInfo == .premultipliedFirst
+    )
     let data = try #require(cgImage.dataProvider?.data)
     let bytes = try #require(CFDataGetBytePtr(data))
     let pixels = Array(
