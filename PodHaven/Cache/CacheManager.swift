@@ -223,12 +223,7 @@ struct CacheManager {
     try await downloadStateLock.waitForClaim()
     defer { downloadStateLock.release() }
 
-    let isCurrent = activeDownloadAttempts { attempts in
-      guard let current = attempts[attempt.episodeID] else { return true }
-      return current == attempt
-    }
-
-    guard isCurrent else { return false }
+    guard isCurrentDownloadAttempt(attempt) else { return false }
     return try await repo.updateDownloading(attempt.episodeID, downloading: false)
   }
 
@@ -241,11 +236,7 @@ struct CacheManager {
     try await downloadStateLock.waitForClaim()
     defer { downloadStateLock.release() }
 
-    let isCurrent = activeDownloadAttempts { attempts in
-      guard let current = attempts[attempt.episodeID] else { return true }
-      return current == attempt
-    }
-    guard isCurrent else { return nil }
+    guard isCurrentDownloadAttempt(attempt) else { return nil }
 
     return try await cacheFileStore.storeDownloadedFile(
       at: sourceURL,
@@ -316,6 +307,14 @@ struct CacheManager {
   }
 
   // MARK: - Private Helpers
+
+  // An absent entry means no replacement has superseded this attempt.
+  private func isCurrentDownloadAttempt(_ attempt: CacheDownloadAttempt) -> Bool {
+    activeDownloadAttempts { attempts in
+      guard let current = attempts[attempt.episodeID] else { return true }
+      return current == attempt
+    }
+  }
 
   private func startDownload(for podcastEpisode: PodcastEpisode) async throws
     -> CacheDownloadAttempt?
