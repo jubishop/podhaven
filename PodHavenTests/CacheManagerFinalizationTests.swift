@@ -174,6 +174,54 @@ import Testing
     #expect(try await fileManager.readData(from: sharedURL.rawValue) == originalData)
   }
 
+  @Test("successful stale finalization cannot publish over a replacement")
+  func successfulStaleFinalizationCannotPublishOverReplacement() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let validationStarted = AsyncSemaphore(value: 0)
+    let validationRelease = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.setDefaultHandler { _ in
+      validationStarted.signal()
+      try await validationRelease.waitUnlessCancelled()
+      return (true, CMTime.seconds(30))
+    }
+
+    let staleTaskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let staleFinalization = Task {
+      try await CacheHelpers.simulateBackgroundFinish(
+        staleTaskID,
+        data: Data("stale download".utf8)
+      )
+    }
+    await validationStarted.wait()
+
+    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+    let replacementTaskID = try #require(
+      try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    )
+    try await CacheHelpers.waitForResumed(replacementTaskID)
+
+    validationRelease.signal()
+    let staleTempFile = try await staleFinalization.value
+    try await CacheHelpers.waitForFileRemoved(staleTempFile)
+
+    let claimedReplacement = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(claimedReplacement.downloading)
+    #expect(claimedReplacement.cachedURL == nil)
+
+    await episodeAssetLoader.setDefaultHandler { _ in
+      (true, CMTime.seconds(30))
+    }
+    let replacementData = Data("replacement download".utf8)
+    let replacementTempFile = try await CacheHelpers.simulateBackgroundFinish(
+      replacementTaskID,
+      data: replacementData
+    )
+    try await CacheHelpers.waitForFileRemoved(replacementTempFile)
+
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    #expect(try await fileManager.readData(from: cachedURL.rawValue) == replacementData)
+  }
+
   @Test("superseded finalization preserves a replacement download claim")
   func supersededFinalizationPreservesReplacementDownloadClaim() async throws {
     let podcastEpisode = try await Create.podcastEpisode()

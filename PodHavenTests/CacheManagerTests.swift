@@ -336,6 +336,44 @@ import Testing
     try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
   }
 
+  @Test("stale progress cannot overwrite replacement progress")
+  func staleProgressCannotOverwriteReplacementProgress() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let firstTaskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+
+    let staleProgress = Task {
+      await session.progressDownload(
+        taskID: firstTaskID,
+        totalBytesWritten: 90,
+        totalBytesExpectedToWrite: 100
+      )
+    }
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+
+    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+    let replacementTaskID = try #require(
+      try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    )
+    try await CacheHelpers.waitForResumed(replacementTaskID)
+    await session.progressDownload(
+      taskID: replacementTaskID,
+      totalBytesWritten: 10,
+      totalBytesExpectedToWrite: 100
+    )
+    try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: 0.1)
+
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    await staleProgress.value
+
+    #expect(sharedState.downloadProgress[podcastEpisode.id] == 0.1)
+
+    try await CacheHelpers.simulateBackgroundFailure(firstTaskID)
+    #expect(sharedState.downloadProgress[podcastEpisode.id] == 0.1)
+    try await CacheHelpers.simulateBackgroundFailure(replacementTaskID)
+  }
+
   // MARK: - OnDeck Observation
 
   @Test("episode set as onDeck gets cached")

@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import Combine
 import FactoryKit
 import Foundation
@@ -200,14 +201,23 @@ struct CacheManager {
   }
 
   func signalDownloadComplete(for attempt: CacheDownloadAttempt) {
-    let isCurrent = activeDownloadAttempts { attempts in
-      guard let current = attempts[attempt.episodeID] else { return true }
-      guard current == attempt else { return false }
+    activeDownloadAttempts { attempts in
+      if let current = attempts[attempt.episodeID] {
+        guard current == attempt else { return }
+      }
       attempts.removeValue(forKey: attempt.episodeID)
-      return true
+      sharedState.clearDownloadProgress(for: attempt.episodeID)
     }
-    if isCurrent { sharedState.clearDownloadProgress(for: attempt.episodeID) }
     downloadLatches { $0.removeValue(forKey: attempt) }?.open()
+  }
+
+  func updateDownloadProgress(_ progress: Double, for attempt: CacheDownloadAttempt) {
+    activeDownloadAttempts { attempts in
+      if let current = attempts[attempt.episodeID] {
+        guard current == attempt else { return }
+      }
+      sharedState.updateDownloadProgress(for: attempt.episodeID, progress: progress)
+    }
   }
 
   @discardableResult
@@ -222,6 +232,29 @@ struct CacheManager {
 
     guard isCurrent else { return false }
     return try await repo.updateDownloading(attempt.episodeID, downloading: false)
+  }
+
+  func storeDownloadedFileIfCurrent(
+    at sourceURL: URL,
+    for attempt: CacheDownloadAttempt,
+    cachedFilename: String,
+    duration: CMTime
+  ) async throws -> CacheFileStorage? {
+    try await downloadStateLock.waitForClaim()
+    defer { downloadStateLock.release() }
+
+    let isCurrent = activeDownloadAttempts { attempts in
+      guard let current = attempts[attempt.episodeID] else { return true }
+      return current == attempt
+    }
+    guard isCurrent else { return nil }
+
+    return try await cacheFileStore.storeDownloadedFile(
+      at: sourceURL,
+      for: attempt.episodeID,
+      cachedFilename: cachedFilename,
+      duration: duration
+    )
   }
 
   @discardableResult

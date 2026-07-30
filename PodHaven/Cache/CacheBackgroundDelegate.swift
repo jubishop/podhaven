@@ -21,7 +21,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
-  private var cacheFileStore: CacheFileStore { Container.shared.cacheFileStore() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
@@ -90,9 +89,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard totalBytesExpectedToWrite > 0 else { return }
     do {
       if let episode = try await self.episode(for: downloadTask) {
-        sharedState.updateDownloadProgress(
-          for: episode.id,
-          progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        cacheManager.updateDownloadProgress(
+          Double(totalBytesWritten) / Double(totalBytesExpectedToWrite),
+          for: CacheDownloadAttempt(episodeID: episode.id, taskID: downloadTask.taskID)
         )
       }
     } catch {
@@ -281,9 +280,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
     let storage: CacheFileStorage?
     do {
-      storage = try await cacheFileStore.storeDownloadedFile(
+      storage = try await cacheManager.storeDownloadedFileIfCurrent(
         at: location,
-        for: episode.id,
+        for: CacheDownloadAttempt(episodeID: episode.id, taskID: downloadTask.taskID),
         cachedFilename: fileName,
         duration: episodeAsset.duration
       )
