@@ -132,7 +132,7 @@ import Testing
 
     // selectedEpisodes follows filteredEntries (visible) order, so the
     // returned PodcastEpisodes must match — anything else means the
-    // `WHERE id IN (...)` row-order leaked into bulk Play / Replace Queue.
+    // `WHERE id IN (...)` row-order leaked into bulk queue actions.
     let podcastEpisodes = try await viewModel.selectedPodcastEpisodes
     #expect(podcastEpisodes.map(\.id) == [oldest.id, middle.id, newest.id])
   }
