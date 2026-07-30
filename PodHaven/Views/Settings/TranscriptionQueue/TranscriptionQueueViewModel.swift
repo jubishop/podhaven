@@ -200,7 +200,7 @@ import SwiftUI
     applyWaitingOrder(reordered, temporarilyHiding: swipeAction ? episodeID : nil)
   }
 
-  func transcribeNow(_ episodeID: Episode.ID) {
+  func transcribeNow(_ episodeID: Episode.ID, swipeAction: Bool) {
     var reordered = projectedWaitingEntries.map(\.id)
     guard let index = reordered.firstIndex(of: episodeID) else { return }
     let moved = reordered.remove(at: index)
@@ -208,7 +208,7 @@ import SwiftUI
     if let activeEntry {
       reordered.insert(activeEntry.id, at: reordered.index(after: reordered.startIndex))
     }
-    applyOrder(reordered)
+    applyOrder(reordered, temporarilyHiding: swipeAction ? episodeID : nil)
   }
 
   func moveSelectedToTop() {

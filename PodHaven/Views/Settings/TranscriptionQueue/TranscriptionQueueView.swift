@@ -62,10 +62,10 @@ struct TranscriptionQueueView: View {
             queueActions(for: entry.id, swipeAction: true)
           }
           .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            transcribeNowAction(for: entry.id)
+            transcribeNowAction(for: entry.id, swipeAction: true)
           }
           .accessibilityActions {
-            transcribeNowAction(for: entry.id)
+            transcribeNowAction(for: entry.id, swipeAction: false)
             queueActions(for: entry.id, swipeAction: false)
           }
       }
@@ -107,11 +107,11 @@ struct TranscriptionQueueView: View {
   }
 
   @ViewBuilder
-  private func transcribeNowAction(for episodeID: Episode.ID) -> some View {
+  private func transcribeNowAction(for episodeID: Episode.ID, swipeAction: Bool) -> some View {
     if viewModel.canTranscribeNow(episodeID) {
       AppIcon.transcribeNow
         .labelButton {
-          viewModel.transcribeNow(episodeID)
+          viewModel.transcribeNow(episodeID, swipeAction: swipeAction)
         }
         .labelStyle(.iconOnly)
     }
