@@ -385,13 +385,13 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
-    "Smart List rows announce episodes added during the open session as new",
+    "Smart List rows visibly distinguish and announce episodes added during the open session",
     .enabled(
       if: supportsHostedAccessibilityInspection,
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
     )
   )
-  func smartListRowsAnnounceNewEpisodes() async throws {
+  func smartListRowsVisiblyDistinguishAndAnnounceNewEpisodes() async throws {
     let repo = Container.shared.repo()
     let pubDate = Date(timeIntervalSince1970: 1_700_000_000)
     let oldTitle = "Already Seen Episode"
@@ -427,10 +427,14 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     )
 
     let newTitle = "Arrived While Viewing"
+    let secondNewTitle = "Latest Session Addition"
     _ = try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [try Create.unsavedEpisode(title: newTitle, pubDate: pubDate)]
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(title: newTitle, pubDate: pubDate),
+          try Create.unsavedEpisode(title: secondNewTitle, pubDate: pubDate),
+        ]
       )
     )
 
@@ -438,10 +442,11 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       { @MainActor in
         window.rootViewController?.view.setNeedsLayout()
         window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains { $0.accessibilityLabel?.contains(newTitle) == true }
+        let rows = Self.accessibilityElements(in: window)
+        return rows.contains { $0.accessibilityLabel?.contains(newTitle) == true }
+          && rows.contains { $0.accessibilityLabel?.contains(secondNewTitle) == true }
       },
-      { @MainActor in "New episode did not enter the accessibility tree" }
+      { @MainActor in "New episodes did not enter the accessibility tree" }
     )
 
     let rows = Self.accessibilityElements(in: window)
@@ -464,6 +469,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       NavigationStack {
         EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
       }
+      .preferredColorScheme(.dark)
       .transaction { transaction in
         transaction.disablesAnimations = true
       }
@@ -481,30 +487,44 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
           && layoutRows.contains {
             $0.accessibilityLabel?.contains(newTitle) == true
           }
+          && layoutRows.contains {
+            $0.accessibilityLabel?.contains(secondNewTitle) == true
+          }
       },
-      { @MainActor in "Both episode rows did not enter the static accessibility tree" }
+      { @MainActor in "All episode rows did not enter the static accessibility tree" }
     )
     let layoutRows = Self.accessibilityElements(in: layoutWindow)
     let layoutOldRow = try #require(
       layoutRows.first { $0.accessibilityLabel?.contains(oldTitle) == true }
     )
-    let layoutNewRow = try #require(
-      layoutRows.first { $0.accessibilityLabel?.contains(newTitle) == true }
-    )
+    let layoutNewRows = try [newTitle, secondNewTitle]
+      .map { title in
+        try #require(
+          layoutRows.first { $0.accessibilityLabel?.contains(title) == true }
+        )
+      }
     let oldFrame = layoutWindow.convert(
       layoutOldRow.accessibilityFrame,
       from: layoutWindow.screen.coordinateSpace
     )
-    let newFrame = layoutWindow.convert(
-      layoutNewRow.accessibilityFrame,
-      from: layoutWindow.screen.coordinateSpace
-    )
+    let newFrames =
+      layoutNewRows
+      .map {
+        layoutWindow.convert(
+          $0.accessibilityFrame,
+          from: layoutWindow.screen.coordinateSpace
+        )
+      }
+      .sorted { $0.minY < $1.minY }
+    let firstNewFrame = try #require(newFrames.first)
+    let secondNewFrame = try #require(newFrames.last)
     let oldY = Int((oldFrame.minY + 8).rounded())
-    let newY = Int((newFrame.minY + 8).rounded())
-    let leadingX = Int(min(oldFrame.minX, newFrame.minX).rounded(.up)) + 8
-    let trailingX = Int(max(oldFrame.maxX, newFrame.maxX).rounded(.down)) - 9
+    let newY = Int((firstNewFrame.minY + 8).rounded())
+    let leadingX = Int(min(oldFrame.minX, firstNewFrame.minX).rounded(.up)) + 8
+    let trailingX = Int(max(oldFrame.maxX, firstNewFrame.maxX).rounded(.down)) - 9
     var leadingDifference = 0
     var trailingDifference = 0
+    var verticalGap = 0
     try await Wait.until(
       { @MainActor in
         layoutWindow.rootViewController?.view.setNeedsLayout()
@@ -524,15 +544,53 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
             and: newY,
             in: rendering
           ) ?? 0
-        return leadingDifference > 12 && trailingDifference > 12
+        let boundaryY = Int(
+          ((firstNewFrame.maxY + secondNewFrame.minY) / 2).rounded()
+        )
+        let firstHighlightedY =
+          (Int(firstNewFrame.minY.rounded(.down))...boundaryY)
+          .last {
+            Self.colorDistance(
+              atX: leadingX,
+              between: oldY,
+              and: $0,
+              in: rendering
+            ) ?? 0 > 12
+          }
+        let secondHighlightedY =
+          (boundaryY...Int(secondNewFrame.maxY.rounded(.up)))
+          .first {
+            Self.colorDistance(
+              atX: leadingX,
+              between: oldY,
+              and: $0,
+              in: rendering
+            ) ?? 0 > 12
+          }
+        if let firstHighlightedY, let secondHighlightedY {
+          verticalGap = secondHighlightedY - firstHighlightedY - 1
+        }
+        return leadingDifference > 12 && trailingDifference > 12 && verticalGap > 0
       },
       { @MainActor in
         """
-        Highlight did not reach both row edges; color differences were \
-        \(leadingDifference)/\(trailingDifference), old frame \(oldFrame), new frame \(newFrame), \
+        Highlight rendering did not stabilize; color differences were \
+        \(leadingDifference)/\(trailingDifference), vertical gap \(verticalGap), \
+        old frame \(oldFrame), new frames \(newFrames), \
         sample x \(leadingX)/\(trailingX), y \(oldY)/\(newY)
         """
       }
+    )
+    #expect(
+      leadingDifference >= 90 && trailingDifference >= 90,
+      """
+      Highlight was too subtle at the row edges; color differences were \
+      \(leadingDifference)/\(trailingDifference)
+      """
+    )
+    #expect(
+      verticalGap >= 5,
+      "Highlighted rows should have at least five rendered pixels between them, found \(verticalGap)"
     )
   }
 
