@@ -15,12 +15,12 @@ extension Container {
 }
 
 struct Repo: Databasing {
+  @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
 
   private var cacheFileStore: CacheFileStore { Container.shared.cacheFileStore() }
-  private var sharedState: SharedState { Container.shared.sharedState() }
 
   private static let log = Log.as(LogSubsystem.Database.repo)
 
@@ -349,7 +349,6 @@ struct Repo: Databasing {
     let playManager = playManager
     let queue = queue
     let reader = reader
-    let sharedState = sharedState
     let writer = writer
     let deletion = try await transcriptionProcessor.reconcileDeletion(
       resolvingEpisodeIDs: {
@@ -400,14 +399,9 @@ struct Repo: Databasing {
       }
     )
 
-    if let currentEpisodeID = sharedState.currentEpisodeID,
-      let currentEpisode = deletion.episodes.first(where: { $0.id == currentEpisodeID }),
-      await playManager.stop(ifCurrentEpisodeIDIs: currentEpisodeID)
-    {
-      Self.log.debug(
-        "Stopped playback for \(currentEpisode.toString) because it's being deleted"
-      )
-    }
+    let deletedEpisodeIDs = Set(deletion.episodes.map(\.id))
+    await cacheManager.cancelDownloads(for: deletedEpisodeIDs)
+    await playManager.removeDeletedEpisodes(deletedEpisodeIDs)
 
     for episode in deletion.cachedEpisodes {
       if let url = episode.cachedURL {

@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
@@ -11,12 +10,16 @@ import Testing
 
 @Suite("of Episode deletion and cache tests", .container)
 class EpisodeDeletionAndCacheTests {
+  @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
   private var fileManager: FakeFileManager {
     Container.shared.fileManager() as! FakeFileManager
+  }
+  private var session: FakeDataFetchable {
+    Container.shared.cacheManagerSession() as! FakeDataFetchable
   }
 
   // MARK: - Deletion Tests
@@ -215,6 +218,137 @@ class EpisodeDeletionAndCacheTests {
         }
       #expect(cleanupErrors.count == 1)
     }
+  }
+
+  @Test("that successful deletion cancels only target downloads and resolves every waiter")
+  func successfulDeletionCancelsTargetDownloadsAndResolvesWaiters() async throws {
+    let targetSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let targetEpisode = try #require(targetSeries.episodes.first)
+    let unrelatedEpisode = try await Create.podcastEpisode()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    let cacheManager = self.cacheManager
+
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+    let firstWaiter = Task {
+      try await cacheManager.cachedURL(downloadingIfNeeded: targetEpisode.id)
+    }
+    let targetTaskID = try await CacheHelpers.waitForDownloadTask(targetEpisode.id)
+    try await CacheHelpers.waitForResumed(targetTaskID)
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+    let secondWaiter = Task {
+      try await cacheManager.cachedURL(downloadingIfNeeded: targetEpisode.id)
+    }
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 2)
+
+    let unrelatedTaskID = try await CacheHelpers.downloadToCache(unrelatedEpisode.id)
+
+    #expect(try await repo.deletePodcast(targetSeries.podcast.id))
+
+    let targetCancelled =
+      await session.downloadTasks()[id: targetTaskID]?.isCancelled() == true
+    let unrelatedCancelled =
+      await session.downloadTasks()[id: unrelatedTaskID]?.isCancelled() == true
+    #expect(targetCancelled)
+    #expect(!unrelatedCancelled)
+
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    if !targetCancelled {
+      try await CacheHelpers.simulateBackgroundFailure(targetTaskID)
+    }
+    #expect(try await firstWaiter.value == nil)
+    #expect(try await secondWaiter.value == nil)
+    if targetCancelled {
+      try await CacheHelpers.simulateBackgroundFailure(
+        targetTaskID,
+        error: URLError(.cancelled)
+      )
+    }
+
+    let unrelatedData = Data.random()
+    try await CacheHelpers.simulateBackgroundFinish(unrelatedTaskID, data: unrelatedData)
+    let unrelatedURL = try #require(
+      try await cacheManager.cachedURL(downloadingIfNeeded: unrelatedEpisode.id)
+    )
+    #expect(try await CacheHelpers.cachedFileData(for: unrelatedURL) == unrelatedData)
+  }
+
+  @Test("that deletion invalidates a target download before its task is published")
+  func deletionInvalidatesDownloadBeforeTaskPublication() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let episode = try #require(series.episodes.first)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingDownloadClaimSuspend(true)
+    let cacheManager = self.cacheManager
+    let pendingDownload = Task {
+      try await cacheManager.downloadToCache(for: episode.id)
+    }
+    defer { pendingDownload.cancel() }
+    try await fakeRepo.waitForDownloadClaimSuspended()
+
+    #expect(try await repo.deletePodcast(series.podcast.id))
+    await fakeRepo.resumeAllDownloadClaimSuspensions()
+    #expect(try await pendingDownload.value == nil)
+
+    let description = String(episode.id.rawValue)
+    let task = try #require(
+      await session.downloadTasks().first { $0.taskDescription == description }
+    )
+    let wasCancelled = await task.isCancelled()
+    let wasResumed = await task.isResumed()
+    #expect(wasCancelled)
+    #expect(!wasResumed)
+  }
+
+  @Test("that failed deletion leaves an active download usable")
+  func failedDeletionLeavesActiveDownloadUsable() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let episode = try #require(series.episodes.first)
+    let cacheManager = self.cacheManager
+    let waiter = Task {
+      try await cacheManager.cachedURL(downloadingIfNeeded: episode.id)
+    }
+    let taskID = try await CacheHelpers.waitForDownloadTask(episode.id)
+    try await CacheHelpers.waitForResumed(taskID)
+    try await Container.shared.appDB().unsafeTestDB
+      .write { db in
+        try db.execute(
+          sql: """
+            CREATE TEMP TRIGGER fail_active_download_podcast_delete
+            BEFORE DELETE ON podcast
+            BEGIN
+              SELECT RAISE(ABORT, 'simulated podcast deletion failure');
+            END
+            """
+        )
+      }
+
+    await #expect(throws: DatabaseError.self) {
+      try await repo.deletePodcast(series.podcast.id)
+    }
+
+    #expect(await session.downloadTasks()[id: taskID]?.isCancelled() == false)
+    let data = Data.random()
+    try await CacheHelpers.simulateBackgroundFinish(taskID, data: data)
+    let cachedURL = try #require(try await waiter.value)
+    #expect(try await CacheHelpers.cachedFileData(for: cachedURL) == data)
+    #expect(try await repo.episode(episode.id)?.cachedURL == cachedURL)
   }
 
   @Test("that deleting a podcast with a playing episode stops playback")

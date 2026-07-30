@@ -106,6 +106,32 @@ class QueueTests {
     #expect(fetchGUIDs == ["bottom", "middle", "top"])
   }
 
+  @Test("replace ignores missing IDs before assigning queue positions")
+  func replaceIgnoresMissingIDsBeforeAssigningQueuePositions() async throws {
+    let missingEpisode = try await Create.podcastEpisode()
+    let firstEpisode = try await fetchEpisode("unqtop")
+    let secondEpisode = try await fetchEpisode("unqmiddle")
+    #expect(try await repo.deletePodcast(missingEpisode.podcast.id))
+
+    try await queue.replace([missingEpisode.id, firstEpisode.id, secondEpisode.id])
+
+    #expect(try await fetchGUIDs() == ["unqtop", "unqmiddle"])
+    #expect(try await fetchOrder() == [0, 1])
+    #expect(try await queue.nextEpisode?.id == firstEpisode.id)
+  }
+
+  @Test("replace deduplicates IDs before assigning queue positions")
+  func replaceDeduplicatesIDsBeforeAssigningQueuePositions() async throws {
+    let firstEpisode = try await fetchEpisode("unqtop")
+    let secondEpisode = try await fetchEpisode("unqmiddle")
+
+    try await queue.replace([firstEpisode.id, firstEpisode.id, secondEpisode.id])
+
+    #expect(try await fetchGUIDs() == ["unqtop", "unqmiddle"])
+    #expect(try await fetchOrder() == [0, 1])
+    #expect(try await queue.nextEpisode?.id == firstEpisode.id)
+  }
+
   @Test("unshifting new episodes")
   func insertingNewEpisodesAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
@@ -172,6 +198,20 @@ class QueueTests {
     #expect(fetchGUIDs == ["bottom", "middle", "top", "midtop", "midbottom"])
   }
 
+  @Test("unshift deduplicates IDs before shifting queue positions")
+  func unshiftDeduplicatesIDsBeforeShiftingQueuePositions() async throws {
+    let episode = try await fetchEpisode("unqtop")
+
+    try await queue.unshift([episode.id, episode.id])
+
+    #expect(
+      try await fetchGUIDs()
+        == ["unqtop", "top", "midtop", "middle", "midbottom", "bottom"]
+    )
+    #expect(try await fetchOrder() == [0, 1, 2, 3, 4, 5])
+    #expect(try await queue.nextEpisode?.id == episode.id)
+  }
+
   @Test("inserting a new episode at top")
   func insertingNewAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
@@ -213,6 +253,19 @@ class QueueTests {
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
     let fetchGUIDs = try await fetchGUIDs()
     #expect(fetchGUIDs == ["top", "midtop", "middle", "midbottom", "bottom", "unqbottom"])
+  }
+
+  @Test("insert ignores a missing episode before moving queue positions")
+  func insertIgnoresMissingEpisodeBeforeMovingQueuePositions() async throws {
+    let missingEpisode = try await Create.podcastEpisode()
+    let topEpisode = try await fetchEpisode("top")
+    #expect(try await repo.deletePodcast(missingEpisode.podcast.id))
+
+    try await queue.insert(missingEpisode.id, at: 0)
+
+    #expect(try await fetchGUIDs() == ["top", "midtop", "middle", "midbottom", "bottom"])
+    #expect(try await fetchOrder() == [0, 1, 2, 3, 4])
+    #expect(try await queue.nextEpisode?.id == topEpisode.id)
   }
 
   @Test("dequeing an episode")
@@ -297,6 +350,19 @@ class QueueTests {
     #expect(
       fetchGUIDs == ["top", "midtop", "middle", "midbottom", "bottom", "unqtop", "unqbottom"]
     )
+  }
+
+  @Test("append deduplicates IDs before assigning queue positions")
+  func appendDeduplicatesIDsBeforeAssigningQueuePositions() async throws {
+    let episode = try await fetchEpisode("unqtop")
+
+    try await queue.append([episode.id, episode.id])
+
+    #expect(
+      try await fetchGUIDs()
+        == ["top", "midtop", "middle", "midbottom", "bottom", "unqtop"]
+    )
+    #expect(try await fetchOrder() == [0, 1, 2, 3, 4, 5])
   }
 
   @Test("appending an existing and new episode")
@@ -526,6 +592,22 @@ class QueueTests {
     #expect(ep1.queueOrder == 5)
     #expect(ep2.queueOrder == nil)
     #expect(ep3.queueOrder == nil)
+  }
+
+  @Test("append ignores missing IDs before applying queue capacity")
+  func appendIgnoresMissingIDsBeforeApplyingQueueCapacity() async throws {
+    userSettings.$maxQueueLength.new(6)
+    let missingEpisode = try await Create.podcastEpisode()
+    let validEpisode = try await fetchEpisode("unqtop")
+    #expect(try await repo.deletePodcast(missingEpisode.podcast.id))
+
+    try await queue.append([missingEpisode.id, validEpisode.id])
+
+    #expect(
+      try await fetchGUIDs()
+        == ["top", "midtop", "middle", "midbottom", "bottom", "unqtop"]
+    )
+    #expect(try await fetchOrder() == [0, 1, 2, 3, 4, 5])
   }
 
   @Test("appending multiple episodes when queue has room for some")

@@ -12,6 +12,7 @@ import UserNotifications
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
   @DynamicInjected(\.appLauncher) private var appLauncher
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
+  @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
   @DynamicInjected(\.notificationService) private var notificationService
 
   private static let log = Log.as("AppDelegate")
@@ -38,6 +39,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
       id: URLSessionConfiguration.ID(identifier),
       completion: { @MainActor in completionHandler() }
     )
+    let cacheSession = cacheManagerSession
+    Task {
+      let restoredTaskCount = await cacheSession.allCreatedTasks.count
+      Self.log.debug(
+        "Recreated background cache session \(identifier) with \(restoredTaskCount) tasks"
+      )
+    }
   }
 
   // MARK: - Scene Phase
