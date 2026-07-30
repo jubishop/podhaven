@@ -49,10 +49,10 @@ struct Queue: Queueing {
   func replace(_ episodeIDs: [Episode.ID]) async throws {
     try await writer.write { db in
       let requestedCount = episodeIDs.count
-      let episodeIDs = try _existingEpisodeIDs(db, from: episodeIDs)
+      let episodeIDs = try _uniqueExistingEpisodeIDs(db, from: episodeIDs)
       let droppedCount = requestedCount - episodeIDs.count
       if droppedCount > 0 {
-        Self.log.debug("queue: replace dropped \(droppedCount) missing episodes")
+        Self.log.debug("queue: replace dropped \(droppedCount) duplicate or missing episode IDs")
       }
 
       try _clear(db)
@@ -84,7 +84,7 @@ struct Queue: Queueing {
     Self.log.debug("queue: inserting \(episodeID) at position \(newPosition)")
 
     try await writer.write { db in
-      let existingEpisodeIDs = try _existingEpisodeIDs(db, from: [episodeID])
+      let existingEpisodeIDs = try _uniqueExistingEpisodeIDs(db, from: [episodeID])
       guard !existingEpisodeIDs.isEmpty else {
         Self.log.debug("queue: insert dropped missing episode \(episodeID)")
         return
@@ -211,11 +211,11 @@ struct Queue: Queueing {
 
   // MARK: - Private Helpers
 
-  private func _existingEpisodeIDs(
+  private func _uniqueExistingEpisodeIDs(
     _ db: Database,
     from episodeIDs: [Episode.ID]
   ) throws -> [Episode.ID] {
-    Assert.precondition(db.isInsideTransaction, "existingEpisodeIDs requires a transaction")
+    Assert.precondition(db.isInsideTransaction, "uniqueExistingEpisodeIDs requires a transaction")
 
     let existingEpisodeIDs = Set(
       try Episode
@@ -223,7 +223,11 @@ struct Queue: Queueing {
         .select(Episode.Columns.id, as: Episode.ID.self)
         .fetchAll(db)
     )
-    return episodeIDs.filter { existingEpisodeIDs.contains($0) }
+    var seenEpisodeIDs = Set<Episode.ID>()
+    return episodeIDs.filter { episodeID in
+      guard seenEpisodeIDs.insert(episodeID).inserted else { return false }
+      return existingEpisodeIDs.contains(episodeID)
+    }
   }
 
   private func _updateQueueDate(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
@@ -306,10 +310,10 @@ struct Queue: Queueing {
     }
 
     let requestedCount = episodeIDs.count
-    let episodeIDs = try _existingEpisodeIDs(db, from: episodeIDs)
+    let episodeIDs = try _uniqueExistingEpisodeIDs(db, from: episodeIDs)
     let droppedCount = requestedCount - episodeIDs.count
     if droppedCount > 0 {
-      Self.log.debug("queue: unshift dropped \(droppedCount) missing episodes")
+      Self.log.debug("queue: unshift dropped \(droppedCount) duplicate or missing episode IDs")
     }
     guard !episodeIDs.isEmpty else { return }
 
@@ -346,10 +350,10 @@ struct Queue: Queueing {
     }
 
     let requestedCount = episodeIDs.count
-    let episodeIDs = try _existingEpisodeIDs(db, from: episodeIDs)
+    let episodeIDs = try _uniqueExistingEpisodeIDs(db, from: episodeIDs)
     let droppedCount = requestedCount - episodeIDs.count
     if droppedCount > 0 {
-      Self.log.debug("queue: append dropped \(droppedCount) missing episodes")
+      Self.log.debug("queue: append dropped \(droppedCount) duplicate or missing episode IDs")
     }
     guard !episodeIDs.isEmpty else { return }
 

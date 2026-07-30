@@ -120,6 +120,18 @@ class QueueTests {
     #expect(try await queue.nextEpisode?.id == firstEpisode.id)
   }
 
+  @Test("replace deduplicates IDs before assigning queue positions")
+  func replaceDeduplicatesIDsBeforeAssigningQueuePositions() async throws {
+    let firstEpisode = try await fetchEpisode("unqtop")
+    let secondEpisode = try await fetchEpisode("unqmiddle")
+
+    try await queue.replace([firstEpisode.id, firstEpisode.id, secondEpisode.id])
+
+    #expect(try await fetchGUIDs() == ["unqtop", "unqmiddle"])
+    #expect(try await fetchOrder() == [0, 1])
+    #expect(try await queue.nextEpisode?.id == firstEpisode.id)
+  }
+
   @Test("unshifting new episodes")
   func insertingNewEpisodesAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
@@ -184,6 +196,20 @@ class QueueTests {
     #expect(fetchOrder == [0, 1, 2, 3, 4])
     let fetchGUIDs = try await fetchGUIDs()
     #expect(fetchGUIDs == ["bottom", "middle", "top", "midtop", "midbottom"])
+  }
+
+  @Test("unshift deduplicates IDs before shifting queue positions")
+  func unshiftDeduplicatesIDsBeforeShiftingQueuePositions() async throws {
+    let episode = try await fetchEpisode("unqtop")
+
+    try await queue.unshift([episode.id, episode.id])
+
+    #expect(
+      try await fetchGUIDs()
+        == ["unqtop", "top", "midtop", "middle", "midbottom", "bottom"]
+    )
+    #expect(try await fetchOrder() == [0, 1, 2, 3, 4, 5])
+    #expect(try await queue.nextEpisode?.id == episode.id)
   }
 
   @Test("inserting a new episode at top")
@@ -324,6 +350,19 @@ class QueueTests {
     #expect(
       fetchGUIDs == ["top", "midtop", "middle", "midbottom", "bottom", "unqtop", "unqbottom"]
     )
+  }
+
+  @Test("append deduplicates IDs before assigning queue positions")
+  func appendDeduplicatesIDsBeforeAssigningQueuePositions() async throws {
+    let episode = try await fetchEpisode("unqtop")
+
+    try await queue.append([episode.id, episode.id])
+
+    #expect(
+      try await fetchGUIDs()
+        == ["top", "midtop", "middle", "midbottom", "bottom", "unqtop"]
+    )
+    #expect(try await fetchOrder() == [0, 1, 2, 3, 4, 5])
   }
 
   @Test("appending an existing and new episode")
