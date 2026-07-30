@@ -55,6 +55,7 @@ import SwiftUI
   @ObservationIgnored private var mutationTask: Task<Void, Never>?
   @ObservationIgnored private var latestMutationID: UUID?
   @ObservationIgnored private var presentationRevision = UUID()
+  private var temporarilyHiddenEpisodeIDs: Set<Episode.ID> = []
 
   private(set) var loadingState: LoadingState = .loading
   private(set) var episodes: [PodcastEpisode] = []
@@ -71,7 +72,7 @@ import SwiftUI
 
   var selectedEpisodeIDs: Set<Episode.ID> = []
 
-  var entries: [Entry] {
+  private var projectedEntries: [Entry] {
     episodes.map { episode in
       let activeProgress = liveProgress[episode.id]
       return Entry(
@@ -82,27 +83,35 @@ import SwiftUI
     }
   }
 
+  var entries: [Entry] {
+    projectedEntries.filter { !temporarilyHiddenEpisodeIDs.contains($0.id) }
+  }
+
   var activeEntry: Entry? {
-    entries.first(where: \.isActive)
+    projectedEntries.first(where: \.isActive)
   }
 
   var waitingEntries: [Entry] {
     entries.filter { !$0.isActive }
   }
 
+  private var projectedWaitingEntries: [Entry] {
+    projectedEntries.filter { !$0.isActive }
+  }
+
   var allSelected: Bool {
-    let waitingEpisodeIDs = Set(waitingEntries.map(\.id))
+    let waitingEpisodeIDs = Set(projectedWaitingEntries.map(\.id))
     return !waitingEpisodeIDs.isEmpty && selectedEpisodeIDs == waitingEpisodeIDs
   }
 
   var canMoveSelectedToTop: Bool {
-    let current = waitingEntries.map(\.id)
+    let current = projectedWaitingEntries.map(\.id)
     guard !selectedEpisodeIDs.isEmpty else { return false }
     return current != orderedSelectionFirst(in: current)
   }
 
   var canMoveSelectedToBottom: Bool {
-    let current = waitingEntries.map(\.id)
+    let current = projectedWaitingEntries.map(\.id)
     guard !selectedEpisodeIDs.isEmpty else { return false }
     return current != orderedSelectionLast(in: current)
   }
@@ -131,7 +140,7 @@ import SwiftUI
   }
 
   func selectAll() {
-    selectedEpisodeIDs = Set(waitingEntries.map(\.id))
+    selectedEpisodeIDs = Set(projectedWaitingEntries.map(\.id))
   }
 
   func deselectAll() {
@@ -139,7 +148,7 @@ import SwiftUI
   }
 
   func setSelected(_ isSelected: Bool, episodeID: Episode.ID) {
-    guard waitingEntries.contains(where: { $0.id == episodeID }) else { return }
+    guard projectedWaitingEntries.contains(where: { $0.id == episodeID }) else { return }
     if isSelected {
       selectedEpisodeIDs.insert(episodeID)
     } else {
@@ -148,6 +157,7 @@ import SwiftUI
   }
 
   func move(fromOffsets: IndexSet, toOffset: Int) {
+    guard temporarilyHiddenEpisodeIDs.isEmpty else { return }
     let displayedEpisodeIDs = episodes.map(\.id)
     guard
       latestMutationID != nil
@@ -162,22 +172,22 @@ import SwiftUI
       )
       return
     }
-    var reordered = waitingEntries.map(\.id)
+    var reordered = projectedWaitingEntries.map(\.id)
     reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
     applyWaitingOrder(reordered)
   }
 
-  func moveToTop(_ episodeID: Episode.ID) {
-    let current = waitingEntries.map(\.id)
+  func moveToTop(_ episodeID: Episode.ID, swipeAction: Bool) {
+    let current = projectedWaitingEntries.map(\.id)
     guard let index = current.firstIndex(of: episodeID), index > current.startIndex else { return }
     var reordered = current
     let moved = reordered.remove(at: index)
     reordered.insert(moved, at: reordered.startIndex)
-    applyWaitingOrder(reordered)
+    applyWaitingOrder(reordered, temporarilyHiding: swipeAction ? episodeID : nil)
   }
 
-  func moveToBottom(_ episodeID: Episode.ID) {
-    let current = waitingEntries.map(\.id)
+  func moveToBottom(_ episodeID: Episode.ID, swipeAction: Bool) {
+    let current = projectedWaitingEntries.map(\.id)
     guard
       let index = current.firstIndex(of: episodeID),
       index < current.index(before: current.endIndex)
@@ -187,26 +197,26 @@ import SwiftUI
     var reordered = current
     let moved = reordered.remove(at: index)
     reordered.append(moved)
-    applyWaitingOrder(reordered)
+    applyWaitingOrder(reordered, temporarilyHiding: swipeAction ? episodeID : nil)
   }
 
-  func transcribeNow(_ episodeID: Episode.ID) {
-    var reordered = waitingEntries.map(\.id)
+  func transcribeNow(_ episodeID: Episode.ID, swipeAction: Bool) {
+    var reordered = projectedWaitingEntries.map(\.id)
     guard let index = reordered.firstIndex(of: episodeID) else { return }
     let moved = reordered.remove(at: index)
     reordered.insert(moved, at: reordered.startIndex)
     if let activeEntry {
       reordered.insert(activeEntry.id, at: reordered.index(after: reordered.startIndex))
     }
-    applyOrder(reordered)
+    applyOrder(reordered, temporarilyHiding: swipeAction ? episodeID : nil)
   }
 
   func moveSelectedToTop() {
-    applyWaitingOrder(orderedSelectionFirst(in: waitingEntries.map(\.id)))
+    applyWaitingOrder(orderedSelectionFirst(in: projectedWaitingEntries.map(\.id)))
   }
 
   func moveSelectedToBottom() {
-    applyWaitingOrder(orderedSelectionLast(in: waitingEntries.map(\.id)))
+    applyWaitingOrder(orderedSelectionLast(in: projectedWaitingEntries.map(\.id)))
   }
 
   func remove(_ episodeID: Episode.ID) {
@@ -214,16 +224,16 @@ import SwiftUI
   }
 
   func removeSelected() {
-    let removedEpisodeIDs = waitingEntries.map(\.id).filter(selectedEpisodeIDs.contains)
+    let removedEpisodeIDs = projectedWaitingEntries.map(\.id).filter(selectedEpisodeIDs.contains)
     remove(removedEpisodeIDs)
   }
 
   func canMoveToTop(_ episodeID: Episode.ID) -> Bool {
-    waitingEntries.first?.id != episodeID
+    projectedWaitingEntries.first?.id != episodeID
   }
 
   func canMoveToBottom(_ episodeID: Episode.ID) -> Bool {
-    waitingEntries.last?.id != episodeID
+    projectedWaitingEntries.last?.id != episodeID
   }
 
   func canTranscribeNow(_ episodeID: Episode.ID) -> Bool {
@@ -351,7 +361,10 @@ import SwiftUI
     return loaded
   }
 
-  private func applyOrder(_ orderedEpisodeIDs: [Episode.ID]) {
+  private func applyOrder(
+    _ orderedEpisodeIDs: [Episode.ID],
+    temporarilyHiding hiddenEpisodeID: Episode.ID? = nil
+  ) {
     let current = episodes.map(\.id)
     guard current != orderedEpisodeIDs else { return }
 
@@ -363,21 +376,30 @@ import SwiftUI
       Self.log.notice("Cannot optimistically project a stale transcription queue reorder")
       return
     }
+    if let hiddenEpisodeID {
+      temporarilyHiddenEpisodeIDs.insert(hiddenEpisodeID)
+    }
     episodes = orderedEpisodeIDs.compactMap { episodesByID[$0] }
-    enqueueMutation(.reorder(orderedEpisodeIDs))
+    enqueueMutation(
+      .reorder(orderedEpisodeIDs),
+      temporarilyHiddenEpisodeID: hiddenEpisodeID
+    )
   }
 
-  private func applyWaitingOrder(_ orderedEpisodeIDs: [Episode.ID]) {
+  private func applyWaitingOrder(
+    _ orderedEpisodeIDs: [Episode.ID],
+    temporarilyHiding hiddenEpisodeID: Episode.ID? = nil
+  ) {
     guard
       let activeEntry,
       let activeIndex = episodes.firstIndex(where: { $0.id == activeEntry.id })
     else {
-      applyOrder(orderedEpisodeIDs)
+      applyOrder(orderedEpisodeIDs, temporarilyHiding: hiddenEpisodeID)
       return
     }
     var reordered = orderedEpisodeIDs
     reordered.insert(activeEntry.id, at: min(activeIndex, reordered.endIndex))
-    applyOrder(reordered)
+    applyOrder(reordered, temporarilyHiding: hiddenEpisodeID)
   }
 
   private func remove(_ episodeIDs: [Episode.ID]) {
@@ -400,7 +422,10 @@ import SwiftUI
     )
   }
 
-  private func enqueueMutation(_ mutation: QueueMutation) {
+  private func enqueueMutation(
+    _ mutation: QueueMutation,
+    temporarilyHiddenEpisodeID: Episode.ID? = nil
+  ) {
     let previousTask = mutationTask
     let mutationID = UUID()
     latestMutationID = mutationID
@@ -410,7 +435,10 @@ import SwiftUI
         await previousTask.value
       }
       await self.performMutation(mutation)
-      await self.finishMutation(mutationID)
+      await self.finishMutation(
+        mutationID,
+        temporarilyHiddenEpisodeID: temporarilyHiddenEpisodeID
+      )
     }
   }
 
@@ -455,14 +483,25 @@ import SwiftUI
     }
   }
 
-  private func finishMutation(_ mutationID: UUID) async {
-    guard latestMutationID == mutationID else { return }
+  private func finishMutation(
+    _ mutationID: UUID,
+    temporarilyHiddenEpisodeID: Episode.ID?
+  ) async {
+    guard latestMutationID == mutationID else {
+      if let temporarilyHiddenEpisodeID {
+        temporarilyHiddenEpisodeIDs.remove(temporarilyHiddenEpisodeID)
+      }
+      return
+    }
     latestMutationID = nil
     mutationTask = nil
     await reconcileEpisodes(
       transcriptionQueue.episodeIDs,
       presentationRevision: presentationRevision
     )
+    if let temporarilyHiddenEpisodeID {
+      temporarilyHiddenEpisodeIDs.remove(temporarilyHiddenEpisodeID)
+    }
   }
 
   private func orderedSelectionFirst(in episodeIDs: [Episode.ID]) -> [Episode.ID] {

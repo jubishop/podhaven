@@ -72,7 +72,7 @@ import Testing
       { @MainActor in "Expected initial queue order" }
     )
 
-    viewModel.moveToTop(episodes[2].id)
+    viewModel.moveToTop(episodes[2].id, swipeAction: false)
 
     let expectedOrder = [episodes[0].id, episodes[2].id, episodes[1].id]
     #expect(viewModel.entries.map(\.id) == expectedOrder)
@@ -81,6 +81,256 @@ import Testing
         self.transcriptionQueue.episodeIDs == viewModel.entries.map(\.id)
       },
       { @MainActor in "Expected projected queue order to persist" }
+    )
+  }
+
+  @Test("swipe move hides its row until the queue reorder finishes")
+  func swipeMoveHidesRowUntilQueueReorderFinishes() async throws {
+    let episodes = try await makeEpisodes()
+    let episodeIDs = episodes.map(\.id)
+    let reorderStarted = AsyncSemaphore(value: 0)
+    let reorderRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeReorder: { _ in
+        reorderStarted.signal()
+        await reorderRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer {
+      reorderRelease.signal()
+      executeTask.cancel()
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    viewModel.moveToTop(episodes[2].id, swipeAction: true)
+
+    let visibleWhilePending = [episodes[0].id, episodes[1].id]
+    #expect(viewModel.entries.map(\.id) == visibleWhilePending)
+    await reorderStarted.wait()
+    #expect(viewModel.entries.map(\.id) == visibleWhilePending)
+
+    reorderRelease.signal()
+    let expectedOrder = [episodes[2].id, episodes[0].id, episodes[1].id]
+    try await Wait.until(
+      { @MainActor in
+        queue.episodeIDs == expectedOrder && viewModel.entries.map(\.id) == expectedOrder
+      },
+      { @MainActor in "Expected the moved row to reappear at the persisted destination" }
+    )
+  }
+
+  @Test("swipe move reveals its row after its own reorder while a later move is pending")
+  func swipeMoveRevealsRowBeforeLaterMoveFinishes() async throws {
+    let episodes = try await makeEpisodes()
+    let episodeIDs = episodes.map(\.id)
+    let firstReorderStarted = AsyncSemaphore(value: 0)
+    let firstReorderRelease = AsyncSemaphore(value: 0)
+    let secondReorderStarted = AsyncSemaphore(value: 0)
+    let secondReorderRelease = AsyncSemaphore(value: 0)
+    let reorderCount = ThreadSafe(0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeReorder: { _ in
+        let callCount = reorderCount { count in
+          count += 1
+          return count
+        }
+        if callCount == 1 {
+          firstReorderStarted.signal()
+          await firstReorderRelease.wait()
+        } else if callCount == 2 {
+          secondReorderStarted.signal()
+          await secondReorderRelease.wait()
+        }
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer {
+      firstReorderRelease.signal()
+      secondReorderRelease.signal()
+      executeTask.cancel()
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    viewModel.moveToTop(episodes[2].id, swipeAction: true)
+    await firstReorderStarted.wait()
+    #expect(viewModel.entries.map(\.id) == [episodes[0].id, episodes[1].id])
+
+    let finalOrder = [episodes[2].id, episodes[1].id, episodes[0].id]
+    viewModel.moveToBottom(episodes[0].id, swipeAction: false)
+    #expect(viewModel.entries.map(\.id) == [episodes[1].id, episodes[0].id])
+
+    firstReorderRelease.signal()
+    await secondReorderStarted.wait()
+
+    #expect(queue.episodeIDs == [episodes[2].id, episodes[0].id, episodes[1].id])
+    #expect(viewModel.entries.map(\.id) == finalOrder)
+
+    secondReorderRelease.signal()
+    try await Wait.until(
+      { @MainActor in
+        queue.episodeIDs == finalOrder && viewModel.entries.map(\.id) == finalOrder
+      },
+      { @MainActor in "Expected the later accessibility move to finish" }
+    )
+  }
+
+  @Test("an older reconciliation does not reveal a newer swipe row")
+  func olderReconciliationDoesNotRevealNewerSwipeRow() async throws {
+    let episodes = try await makeEpisodes()
+    let episodeIDs = episodes.map(\.id)
+    let firstRemovalStarted = AsyncSemaphore(value: 0)
+    let firstRemovalRelease = AsyncSemaphore(value: 0)
+    let newerReorderStarted = AsyncSemaphore(value: 0)
+    let newerReorderRelease = AsyncSemaphore(value: 0)
+    let removalCount = ThreadSafe(0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeRemove: { _ in
+        let callCount = removalCount { count in
+          count += 1
+          return count
+        }
+        if callCount == 1 {
+          firstRemovalStarted.signal()
+          await firstRemovalRelease.wait()
+          throw TestError.simulatedFailure
+        }
+      },
+      beforeReorder: { _ in
+        newerReorderStarted.signal()
+        await newerReorderRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let fakeRepo = try #require(repo as? FakeRepo)
+
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer {
+      firstRemovalRelease.signal()
+      newerReorderRelease.signal()
+      executeTask.cancel()
+      Task { await fakeRepo.resumeAllPodcastEpisodesFetchSuspensions() }
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    viewModel.remove(episodes[1].id)
+    await firstRemovalStarted.wait()
+    viewModel.moveToTop(episodes[2].id, swipeAction: true)
+    #expect(viewModel.entries.map(\.id) == [episodes[0].id])
+
+    fakeRepo.pendingPodcastEpisodesFetchSuspend(true)
+    firstRemovalRelease.signal()
+    try await fakeRepo.waitForPodcastEpisodesFetchSuspended()
+
+    try await queue.remove(episodes[1].id)
+    try await Wait.until(
+      { @MainActor in viewModel.canMoveToBottom(episodes[0].id) },
+      { @MainActor in "Expected the live queue removal to reconcile" }
+    )
+
+    viewModel.moveToBottom(episodes[0].id, swipeAction: true)
+    await newerReorderStarted.wait()
+    #expect(viewModel.entries.isEmpty)
+
+    await fakeRepo.resumeAllPodcastEpisodesFetchSuspensions()
+    try await Wait.until(
+      { @MainActor in viewModel.entries.contains(where: { $0.id == episodes[2].id }) },
+      { @MainActor in "Expected the older swipe row to finish reconciling" }
+    )
+    #expect(viewModel.entries.map(\.id) == [episodes[2].id])
+
+    newerReorderRelease.signal()
+    let expectedOrder = [episodes[2].id, episodes[0].id]
+    try await Wait.until(
+      { @MainActor in
+        queue.episodeIDs == expectedOrder && viewModel.entries.map(\.id) == expectedOrder
+      },
+      { @MainActor in "Expected the newer swipe row after its durable reorder" }
+    )
+  }
+
+  @Test("Transcribe Now swipe hides its row until the queue reorder finishes")
+  func transcribeNowSwipeHidesRowUntilQueueReorderFinishes() async throws {
+    let episodes = try await makeEpisodes()
+    let episodeIDs = episodes.map(\.id)
+    let reorderStarted = AsyncSemaphore(value: 0)
+    let reorderRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeReorder: { _ in
+        reorderStarted.signal()
+        await reorderRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    queue.setProgress(0.42, for: episodes[0].id)
+
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer {
+      reorderRelease.signal()
+      executeTask.cancel()
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    viewModel.transcribeNow(episodes[2].id, swipeAction: true)
+
+    let visibleWhilePending = [episodes[0].id, episodes[1].id]
+    #expect(viewModel.entries.map(\.id) == visibleWhilePending)
+    await reorderStarted.wait()
+    #expect(viewModel.entries.map(\.id) == visibleWhilePending)
+
+    reorderRelease.signal()
+    let expectedOrder = [episodes[2].id, episodes[0].id, episodes[1].id]
+    try await Wait.until(
+      { @MainActor in
+        queue.episodeIDs == expectedOrder && viewModel.entries.map(\.id) == expectedOrder
+      },
+      { @MainActor in
+        "Expected Transcribe Now to reveal the moved row at the persisted destination"
+      }
     )
   }
 
@@ -101,7 +351,7 @@ import Testing
       { @MainActor in "Expected initial queue order" }
     )
 
-    viewModel.transcribeNow(episodes[2].id)
+    viewModel.transcribeNow(episodes[2].id, swipeAction: false)
 
     let firstExpectedOrder = [episodes[2].id, episodes[0].id, episodes[1].id]
     #expect(viewModel.entries.map(\.id) == firstExpectedOrder)
@@ -112,7 +362,7 @@ import Testing
       { @MainActor in "Expected Transcribe Now order to persist" }
     )
 
-    viewModel.transcribeNow(episodes[1].id)
+    viewModel.transcribeNow(episodes[1].id, swipeAction: false)
 
     let secondExpectedOrder = [episodes[1].id, episodes[0].id, episodes[2].id]
     #expect(viewModel.entries.map(\.id) == secondExpectedOrder)

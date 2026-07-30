@@ -59,14 +59,14 @@ struct TranscriptionQueueView: View {
       ForEach(viewModel.waitingEntries) { entry in
         queueRow(entry)
           .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            queueActions(for: entry.id)
+            queueActions(for: entry.id, swipeAction: true)
           }
           .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            transcribeNowAction(for: entry.id)
+            transcribeNowAction(for: entry.id, swipeAction: true)
           }
           .accessibilityActions {
-            transcribeNowAction(for: entry.id)
-            queueActions(for: entry.id)
+            transcribeNowAction(for: entry.id, swipeAction: false)
+            queueActions(for: entry.id, swipeAction: false)
           }
       }
       .onMove(perform: viewModel.move)
@@ -87,31 +87,31 @@ struct TranscriptionQueueView: View {
   }
 
   @ViewBuilder
-  private func queueActions(for episodeID: Episode.ID) -> some View {
+  private func queueActions(for episodeID: Episode.ID, swipeAction: Bool) -> some View {
     removeAction(for: episodeID)
 
     if viewModel.canMoveToTop(episodeID) {
       AppIcon.moveToTop
         .labelButton {
-          viewModel.moveToTop(episodeID)
+          viewModel.moveToTop(episodeID, swipeAction: swipeAction)
         }
         .labelStyle(.iconOnly)
     }
     if viewModel.canMoveToBottom(episodeID) {
       AppIcon.moveToBottom
         .labelButton {
-          viewModel.moveToBottom(episodeID)
+          viewModel.moveToBottom(episodeID, swipeAction: swipeAction)
         }
         .labelStyle(.iconOnly)
     }
   }
 
   @ViewBuilder
-  private func transcribeNowAction(for episodeID: Episode.ID) -> some View {
+  private func transcribeNowAction(for episodeID: Episode.ID, swipeAction: Bool) -> some View {
     if viewModel.canTranscribeNow(episodeID) {
       AppIcon.transcribeNow
         .labelButton {
-          viewModel.transcribeNow(episodeID)
+          viewModel.transcribeNow(episodeID, swipeAction: swipeAction)
         }
         .labelStyle(.iconOnly)
     }
