@@ -23,9 +23,9 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       guard x >= 0, x < width, y >= 0, y < height else { return nil }
       let offset = y * bytesPerRow + x * 4
       return (
-        red: Int(pixels[offset]),
+        red: Int(pixels[offset + 2]),
         green: Int(pixels[offset + 1]),
-        blue: Int(pixels[offset + 2])
+        blue: Int(pixels[offset])
       )
     }
   }
@@ -114,6 +114,35 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     return abs(first.red - second.red)
       + abs(first.green - second.green)
       + abs(first.blue - second.blue)
+  }
+
+  private static func transcriptionProgressY(
+    in window: UIWindow,
+    title: String
+  ) throws -> Int {
+    let row = try #require(
+      accessibilityElements(in: window)
+        .first {
+          $0.accessibilityLabel?.contains(title) == true
+            && $0.accessibilityValue?.hasPrefix("Transcribing") == true
+        }
+    )
+    let frame = window.convert(
+      row.accessibilityFrame,
+      from: window.screen.coordinateSpace
+    )
+    let rendering = try render(window)
+    let progressX = Int((frame.minX + 80).rounded())
+    let accentPixels =
+      (Int(frame.minY.rounded(.down))...Int(frame.maxY.rounded(.up)))
+      .filter { y in
+        guard let color = rendering.color(atX: progressX, y: y) else { return false }
+        return color.blue - color.red > 80 && color.blue - color.green > 40
+      }
+    let middleIndex = try #require(
+      accentPixels.indices.dropFirst(accentPixels.count / 2).first
+    )
+    return accentPixels[middleIndex]
   }
 
   @Test(
@@ -287,6 +316,83 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     #expect(row.accessibilityValue == "Transcribing, 42 percent")
     #expect(row.accessibilityTraits.contains(.button))
     #expect(row.accessibilityFrame.height <= 64)
+  }
+
+  @Test(
+    "transcription queue reserves two title lines before live progress",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func transcriptionQueueReservesTwoTitleLinesBeforeLiveProgress() async throws {
+    let shortTitle = "Short Episode"
+    let longTitle =
+      "A deliberately long episode title that always wraps onto a second line"
+    let shortEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: shortTitle)
+    )
+    let longEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: longTitle)
+    )
+    let queue = Container.shared.transcriptionQueue()
+    try await queue.enqueue(shortEpisode.id)
+    try await queue.enqueue(longEpisode.id)
+    queue.setProgress(0.5, for: shortEpisode.id)
+
+    let window = try Self.makeWindow(
+      NavigationStack {
+        TranscriptionQueueView()
+      }
+      .transaction { transaction in
+        transaction.disablesAnimations = true
+      }
+    )
+    defer { window.isHidden = true }
+
+    try await Wait.until(
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains {
+            $0.accessibilityLabel?.contains(shortTitle) == true
+              && $0.accessibilityValue?.hasPrefix("Transcribing") == true
+          }
+      },
+      { @MainActor in "Short active transcription row did not finish loading" }
+    )
+    let shortTitleProgressY = try Self.transcriptionProgressY(
+      in: window,
+      title: shortTitle
+    )
+
+    queue.clearProgress(for: shortEpisode.id)
+    queue.setProgress(0.5, for: longEpisode.id)
+    try await Wait.until(
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains {
+            $0.accessibilityLabel?.contains(longTitle) == true
+              && $0.accessibilityValue?.hasPrefix("Transcribing") == true
+          }
+      },
+      { @MainActor in "Long active transcription row did not finish loading" }
+    )
+    let longTitleProgressY = try Self.transcriptionProgressY(
+      in: window,
+      title: longTitle
+    )
+
+    #expect(
+      abs(shortTitleProgressY - longTitleProgressY) <= 1,
+      """
+      Progress should begin after two reserved title lines; found y positions \
+      \(shortTitleProgressY) and \(longTitleProgressY)
+      """
+    )
   }
 
   @Test(

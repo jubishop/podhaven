@@ -231,7 +231,7 @@ private struct TranscriptionQueueRow: View {
       VStack(alignment: .leading, spacing: 5) {
         Text(entry.episode.title)
           .font(.body)
-          .lineLimit(2)
+          .lineLimit(2, reservesSpace: true)
           .multilineTextAlignment(.leading)
 
         HStack(spacing: 8) {
@@ -281,10 +281,18 @@ private struct TranscriptionQueueRow: View {
       let queue = Container.shared.transcriptionQueue()
       let thumbnails = Array(PreviewBundle.loadAllThumbnails().values)
       let duration: TimeInterval = 3600
-      let unsavedEpisodes = try (0..<6)
-        .map { index in
+      let titles = [
+        "Short Active Episode",
+        "A Waiting Episode With a Long Title That Wraps Across Both Reserved Lines",
+        "Short Waiting Episode",
+        "Another Waiting Episode With Enough Detail to Exercise Title Truncation",
+        "Episode Five",
+        "Episode Six",
+      ]
+      let unsavedEpisodes = try titles.enumerated()
+        .map { index, title in
           try Create.unsavedEpisode(
-            title: "Episode \(index + 1): \(String.random())",
+            title: title,
             pubDate: index.daysAgo,
             duration: .seconds(duration),
             image: thumbnails[safe: index]?.url
