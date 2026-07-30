@@ -24,6 +24,9 @@ import Testing
   private var session: FakeDataFetchable {
     Container.shared.cacheManagerSession() as! FakeDataFetchable
   }
+  private var sharedState: SharedState {
+    Container.shared.sharedState()
+  }
 
   init() async throws {
     stateManager.start()
@@ -220,6 +223,38 @@ import Testing
 
     let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
     #expect(try await fileManager.readData(from: cachedURL.rawValue) == replacementData)
+  }
+
+  @Test("replacement download resets progress published after cancellation")
+  func replacementDownloadResetsProgressPublishedAfterCancellation() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let episodeID = podcastEpisode.id
+    let cancelledTaskID = try await CacheHelpers.downloadToCache(episodeID)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+
+    let delayedProgress = Task {
+      await session.progressDownload(
+        taskID: cancelledTaskID,
+        totalBytesWritten: 90,
+        totalBytesExpectedToWrite: 100
+      )
+    }
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+    defer { Task { await fakeRepo.resumeAllEpisodeFetchSuspensions() } }
+
+    #expect(try await cacheManager.clearCache(for: episodeID) == nil)
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    await delayedProgress.value
+    #expect(sharedState.downloadProgress[episodeID] == 0.9)
+
+    let replacementTaskID = try #require(try await cacheManager.downloadToCache(for: episodeID))
+    try await CacheHelpers.waitForResumed(replacementTaskID)
+
+    #expect(sharedState.downloadProgress[episodeID] == nil)
+
+    try await CacheHelpers.simulateBackgroundFailure(cancelledTaskID)
+    try await CacheHelpers.simulateBackgroundFailure(replacementTaskID)
   }
 
   @Test("clear removes a cache published after its initial episode read")

@@ -346,6 +346,7 @@ struct CacheManager {
       taskID: downloadTask.taskID
     )
     activeDownloadAttempts[podcastEpisode.id] = attempt
+    sharedState.clearDownloadProgress(for: podcastEpisode.id)
     downloadTask.resume()
     return attempt
   }
