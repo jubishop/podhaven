@@ -204,17 +204,17 @@ private struct TranscriptionQueueRow: View {
           .lineLimit(2)
           .multilineTextAlignment(.leading)
 
-        Text(entry.episode.podcastTitle)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
+        HStack(spacing: 8) {
+          ProgressView(value: entry.progress, total: 1)
+            .tint(entry.isActive ? Color.accentColor : Color.secondary)
+            .frame(maxWidth: .infinity)
 
-        ProgressView(value: entry.progress, total: 1)
-          .tint(entry.isActive ? Color.accentColor : Color.secondary)
-
-        Text(entry.statusText)
-          .font(.caption)
-          .foregroundStyle(entry.isActive ? Color.accentColor : Color.secondary)
+          Text(entry.progressText)
+            .font(.caption)
+            .foregroundStyle(entry.isActive ? Color.accentColor : Color.secondary)
+            .monospacedDigit()
+            .fixedSize(horizontal: true, vertical: false)
+        }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }

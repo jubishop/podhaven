@@ -124,17 +124,24 @@ import Testing
     )
   }
 
-  @Test("queued checkpoint progress is announced as waiting")
-  func queuedCheckpointProgressIsAnnouncedAsWaiting() async throws {
+  @Test("queue progress shows only its percentage while announcing status")
+  func queueProgressShowsOnlyItsPercentageWhileAnnouncingStatus() async throws {
     let episode = try await Create.podcastEpisode()
-    let entry = TranscriptionQueueViewModel.Entry(
+    let waitingEntry = TranscriptionQueueViewModel.Entry(
       episode: episode,
       progress: 0.25,
       isActive: false
     )
+    let activeEntry = TranscriptionQueueViewModel.Entry(
+      episode: episode,
+      progress: 0.42,
+      isActive: true
+    )
 
-    #expect(entry.statusText == "Waiting · 25%")
-    #expect(entry.accessibilityValue == "Waiting, 25 percent complete")
+    #expect(waitingEntry.progressText == "25%")
+    #expect(waitingEntry.accessibilityValue == "Waiting, 25 percent complete")
+    #expect(activeEntry.progressText == "42%")
+    #expect(activeEntry.accessibilityValue == "Transcribing, 42 percent")
   }
 
   @Test("an unreadable checkpoint does not fail queue loading")

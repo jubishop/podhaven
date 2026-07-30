@@ -286,6 +286,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     )
     #expect(row.accessibilityValue == "Transcribing, 42 percent")
     #expect(row.accessibilityTraits.contains(.button))
+    #expect(row.accessibilityFrame.height <= 64)
   }
 
   @Test(

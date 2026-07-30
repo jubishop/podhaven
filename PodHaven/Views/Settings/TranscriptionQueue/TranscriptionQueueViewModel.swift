@@ -30,11 +30,8 @@ import SwiftUI
       Int((progress * 100).rounded())
     }
 
-    var statusText: String {
-      if isActive {
-        return "Transcribing · \(percentage)%"
-      }
-      return "Waiting · \(percentage)%"
+    var progressText: String {
+      "\(percentage)%"
     }
 
     var accessibilityValue: String {
