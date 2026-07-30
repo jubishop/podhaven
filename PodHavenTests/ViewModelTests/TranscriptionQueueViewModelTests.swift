@@ -199,6 +199,90 @@ import Testing
     )
   }
 
+  @Test("an older reconciliation does not reveal a newer swipe row")
+  func olderReconciliationDoesNotRevealNewerSwipeRow() async throws {
+    let episodes = try await makeEpisodes()
+    let episodeIDs = episodes.map(\.id)
+    let firstRemovalStarted = AsyncSemaphore(value: 0)
+    let firstRemovalRelease = AsyncSemaphore(value: 0)
+    let newerReorderStarted = AsyncSemaphore(value: 0)
+    let newerReorderRelease = AsyncSemaphore(value: 0)
+    let removalCount = ThreadSafe(0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: episodeIDs,
+      beforeRemove: { _ in
+        let callCount = removalCount { count in
+          count += 1
+          return count
+        }
+        if callCount == 1 {
+          firstRemovalStarted.signal()
+          await firstRemovalRelease.wait()
+          throw TestError.simulatedFailure
+        }
+      },
+      beforeReorder: { _ in
+        newerReorderStarted.signal()
+        await newerReorderRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let fakeRepo = try #require(repo as? FakeRepo)
+
+    let viewModel = TranscriptionQueueViewModel()
+    let executeTask = Task { await viewModel.execute() }
+    defer {
+      firstRemovalRelease.signal()
+      newerReorderRelease.signal()
+      executeTask.cancel()
+      Task { await fakeRepo.resumeAllPodcastEpisodesFetchSuspensions() }
+    }
+
+    try await Wait.until(
+      { @MainActor in viewModel.entries.map(\.id) == episodeIDs },
+      { @MainActor in "Expected initial queue order" }
+    )
+
+    viewModel.remove(episodes[1].id)
+    await firstRemovalStarted.wait()
+    viewModel.moveToTop(episodes[2].id, swipeAction: true)
+    #expect(viewModel.entries.map(\.id) == [episodes[0].id])
+
+    fakeRepo.pendingPodcastEpisodesFetchSuspend(true)
+    firstRemovalRelease.signal()
+    try await fakeRepo.waitForPodcastEpisodesFetchSuspended()
+
+    try await queue.remove(episodes[1].id)
+    try await Wait.until(
+      { @MainActor in viewModel.canMoveToBottom(episodes[0].id) },
+      { @MainActor in "Expected the live queue removal to reconcile" }
+    )
+
+    viewModel.moveToBottom(episodes[0].id, swipeAction: true)
+    await newerReorderStarted.wait()
+    #expect(viewModel.entries.isEmpty)
+
+    await fakeRepo.resumeAllPodcastEpisodesFetchSuspensions()
+    try await Wait.until(
+      { @MainActor in viewModel.entries.contains(where: { $0.id == episodes[2].id }) },
+      { @MainActor in "Expected the older swipe row to finish reconciling" }
+    )
+    #expect(viewModel.entries.map(\.id) == [episodes[2].id])
+
+    newerReorderRelease.signal()
+    let expectedOrder = [episodes[2].id, episodes[0].id]
+    try await Wait.until(
+      { @MainActor in
+        queue.episodeIDs == expectedOrder && viewModel.entries.map(\.id) == expectedOrder
+      },
+      { @MainActor in "Expected the newer swipe row after its durable reorder" }
+    )
+  }
+
   @Test("Transcribe Now swipe hides its row until the queue reorder finishes")
   func transcribeNowSwipeHidesRowUntilQueueReorderFinishes() async throws {
     let episodes = try await makeEpisodes()

@@ -499,7 +499,9 @@ import SwiftUI
       transcriptionQueue.episodeIDs,
       presentationRevision: presentationRevision
     )
-    temporarilyHiddenEpisodeIDs.removeAll()
+    if let temporarilyHiddenEpisodeID {
+      temporarilyHiddenEpisodeIDs.remove(temporarilyHiddenEpisodeID)
+    }
   }
 
   private func orderedSelectionFirst(in episodeIDs: [Episode.ID]) -> [Episode.ID] {
