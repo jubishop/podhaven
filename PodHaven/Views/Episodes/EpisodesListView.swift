@@ -99,7 +99,7 @@ struct EpisodesListView: View {
       )
       .listRowBackground(
         Color.accentColor
-          .opacity(highlight ? 0.3 : 0)
+          .opacity(highlight ? 0.25 : 0)
           .padding(.vertical, 3)
       )
       .listRow()
