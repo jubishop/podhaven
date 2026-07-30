@@ -380,7 +380,10 @@ import SwiftUI
       temporarilyHiddenEpisodeIDs.insert(hiddenEpisodeID)
     }
     episodes = orderedEpisodeIDs.compactMap { episodesByID[$0] }
-    enqueueMutation(.reorder(orderedEpisodeIDs))
+    enqueueMutation(
+      .reorder(orderedEpisodeIDs),
+      temporarilyHiddenEpisodeID: hiddenEpisodeID
+    )
   }
 
   private func applyWaitingOrder(
@@ -419,7 +422,10 @@ import SwiftUI
     )
   }
 
-  private func enqueueMutation(_ mutation: QueueMutation) {
+  private func enqueueMutation(
+    _ mutation: QueueMutation,
+    temporarilyHiddenEpisodeID: Episode.ID? = nil
+  ) {
     let previousTask = mutationTask
     let mutationID = UUID()
     latestMutationID = mutationID
@@ -429,7 +435,10 @@ import SwiftUI
         await previousTask.value
       }
       await self.performMutation(mutation)
-      await self.finishMutation(mutationID)
+      await self.finishMutation(
+        mutationID,
+        temporarilyHiddenEpisodeID: temporarilyHiddenEpisodeID
+      )
     }
   }
 
@@ -474,8 +483,16 @@ import SwiftUI
     }
   }
 
-  private func finishMutation(_ mutationID: UUID) async {
-    guard latestMutationID == mutationID else { return }
+  private func finishMutation(
+    _ mutationID: UUID,
+    temporarilyHiddenEpisodeID: Episode.ID?
+  ) async {
+    guard latestMutationID == mutationID else {
+      if let temporarilyHiddenEpisodeID {
+        temporarilyHiddenEpisodeIDs.remove(temporarilyHiddenEpisodeID)
+      }
+      return
+    }
     latestMutationID = nil
     mutationTask = nil
     await reconcileEpisodes(
