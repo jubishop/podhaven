@@ -121,8 +121,8 @@ struct CacheManagerAwaitTests {
     #expect(actualData == data)
   }
 
-  @Test("a stale callback cannot resolve a replacement download attempt")
-  func staleCallbackDoesNotResolveReplacementAttempt() async throws {
+  @Test("a replacement waiter remains isolated after stale callback cleanup")
+  func replacementWaiterRemainsIsolatedAfterStaleCallbackCleanup() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
     let episodeID = podcastEpisode.id
     let fakeRepo = try #require(repo as? FakeRepo)
@@ -137,10 +137,15 @@ struct CacheManagerAwaitTests {
     }
     try await fakeRepo.waitForDownloadingFalseSuspended()
 
+    await fakeRepo.resumeAllDownloadingFalseSuspensions()
+    try await finishFirst.value
+    #expect(try await firstPending == nil)
+
     fakeRepo.pendingEpisodeFetchSuspend(true)
     let replacement = Task {
       try await cacheManager.cachedURL(downloadingIfNeeded: episodeID)
     }
+
     let description = String(episodeID.rawValue)
     let replacementTaskID = try await Wait.forValue {
       await session.downloadTasks()
@@ -157,10 +162,6 @@ struct CacheManagerAwaitTests {
       try await cacheManager.cachedURL(downloadingIfNeeded: episodeID)
     }
     try await fakeRepo.waitForEpisodeFetchSuspended(count: 2)
-
-    await fakeRepo.resumeAllDownloadingFalseSuspensions()
-    try await finishFirst.value
-    #expect(try await firstPending == nil)
 
     cancelledPeer.cancel()
     await fakeRepo.resumeAllEpisodeFetchSuspensions()

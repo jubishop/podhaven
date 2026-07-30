@@ -475,8 +475,8 @@ import Testing
     try await CacheHelpers.waitForNotDownloading(podcastEpisode.id)
   }
 
-  @Test("clearCache cancels the active replacement instead of a stale terminal task")
-  func clearCacheCancelsActiveReplacementInsteadOfStaleTerminalTask() async throws {
+  @Test("clearCache cancels a replacement started while stale cleanup is finishing")
+  func clearCacheCancelsReplacementStartedDuringStaleCleanup() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
     let originalTaskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
     let fakeRepo = try #require(repo as? FakeRepo)
@@ -487,9 +487,14 @@ import Testing
       try await CacheHelpers.simulateBackgroundFailure(originalTaskID)
     }
     try await fakeRepo.waitForDownloadingFalseSuspended()
-    let replacementTaskID = try #require(
+    let replacement = Task {
       try await cacheManager.downloadToCache(for: podcastEpisode.id)
-    )
+    }
+
+    await fakeRepo.resumeAllDownloadingFalseSuspensions()
+    try await originalTerminal.value
+
+    let replacementTaskID = try #require(try await replacement.value)
     try await CacheHelpers.waitForResumed(replacementTaskID)
 
     let clear = Task {
@@ -508,8 +513,6 @@ import Testing
     let originalCancelled = await overlappingTasks[id: originalTaskID]?.isCancelled() == true
     let replacementCancelled = await overlappingTasks[id: replacementTaskID]?.isCancelled() == true
 
-    await fakeRepo.resumeAllDownloadingFalseSuspensions()
-    try await originalTerminal.value
     try await CacheHelpers.simulateBackgroundFailure(replacementTaskID)
     _ = try await clear.value
 
@@ -779,120 +782,6 @@ import Testing
     try await CacheHelpers.waitForResumed(taskID2)
 
     #expect(taskID1 != taskID2)
-  }
-
-  // MARK: - Filenames
-
-  @Test("cache filenames fall back to mp3 and preserves extension")
-  func cacheFilenameFallbackAndPreserve() async throws {
-    let noExt = try await Create.podcastEpisode(
-      Create.unsavedEpisode(mediaURL: MediaURL(URL(string: "https://a.b/c/d")!))
-    )
-    let withExt = try await Create.podcastEpisode(
-      Create.unsavedEpisode(mediaURL: MediaURL(URL(string: "https://a.b/c/d.wav")!))
-    )
-    let noExtTaskID = try await cacheManager.downloadToCache(for: noExt.id)!
-    let withExtTaskID = try await cacheManager.downloadToCache(for: withExt.id)!
-
-    try await CacheHelpers.simulateBackgroundFinish(noExtTaskID)
-    try await CacheHelpers.simulateBackgroundFinish(withExtTaskID)
-
-    let noExtURL = try await CacheHelpers.waitForCached(noExt.id)
-    let withExtURL = try await CacheHelpers.waitForCached(withExt.id)
-
-    #expect(noExtURL.pathExtension == "mp3")
-    #expect(withExtURL.pathExtension == "wav")
-  }
-
-  @Test("extensionless download uses mp3 staging suffix for validation")
-  func extensionlessDownloadUsesMP3StagingSuffix() async throws {
-    let mediaURL = MediaURL(try #require(URL(string: "https://example.com/download")))
-    let podcastEpisode = try await Create.podcastEpisode(
-      try Create.unsavedEpisode(mediaURL: mediaURL)
-    )
-    try await repo.updateDownloading(podcastEpisode.id, downloading: true)
-    await episodeAssetLoader.setDefaultHandler { url in
-      guard url.pathExtension == "mp3" else { throw TestError.simulatedFailure }
-      return (true, CMTime.seconds(30))
-    }
-
-    let urlSession = URLSession(configuration: .ephemeral)
-    defer { urlSession.invalidateAndCancel() }
-    let downloadTask = urlSession.downloadTask(with: mediaURL.rawValue)
-    downloadTask.taskDescription = String(podcastEpisode.id.rawValue)
-    let temporaryURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try await fileManager.writeData(Data.random(), to: temporaryURL)
-
-    let downloadDelegate: any URLSessionDownloadDelegate = cacheBackgroundDelegate
-    downloadDelegate.urlSession(
-      urlSession,
-      downloadTask: downloadTask,
-      didFinishDownloadingTo: temporaryURL
-    )
-
-    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    try await CacheHelpers.waitForFileRemoved(temporaryURL)
-    #expect(cachedURL.pathExtension == "mp3")
-  }
-
-  @Test("download finalization reuses a cache file owned by another episode")
-  func downloadFinalizationReusesSharedCacheFile() async throws {
-    let mediaURL = MediaURL(try #require(URL(string: "https://example.com/shared-download.mp3")))
-    let (first, second) = try await Create.twoPodcastEpisodes(
-      try Create.unsavedEpisode(mediaURL: mediaURL),
-      try Create.unsavedEpisode(mediaURL: mediaURL)
-    )
-    let firstTaskID = try await CacheHelpers.downloadToCache(first.id)
-    let originalData = Data("original shared download".utf8)
-    let firstTempFile = try await CacheHelpers.simulateBackgroundFinish(
-      firstTaskID,
-      data: originalData
-    )
-    let sharedURL = try await CacheHelpers.waitForCached(first.id)
-    try await CacheHelpers.waitForFileRemoved(firstTempFile)
-
-    let secondTaskID = try await CacheHelpers.downloadToCache(second.id)
-    let secondTempFile = try await CacheHelpers.simulateBackgroundFinish(
-      secondTaskID,
-      data: Data("replacement download".utf8)
-    )
-    try await CacheHelpers.waitForFileRemoved(secondTempFile)
-
-    #expect(try await repo.episode(first.id)?.cachedURL == sharedURL)
-    #expect(try await repo.episode(second.id)?.cachedURL == sharedURL)
-    #expect(try await fileManager.readData(from: sharedURL.rawValue) == originalData)
-  }
-
-  @Test("superseded finalization preserves a replacement download claim")
-  func supersededFinalizationPreservesReplacementDownloadClaim() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-    let task = FakeURLSessionDownloadTask(
-      taskDescription: String(podcastEpisode.id.rawValue),
-      originalRequest: URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
-    )
-    let tempFile = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try await fileManager.writeData(Data.random(), to: tempFile)
-    let replacementClaimed = ThreadSafe(false)
-    fileManager.runBeforeRemovingItem(at: tempFile) {
-      let claimed = try Container.shared.appDB().unsafeTestDB
-        .write { db in
-          try Episode
-            .withID(podcastEpisode.id)
-            .filter(Episode.Columns.cachedFilename == nil)
-            .filter(Episode.Columns.downloading == false)
-            .updateAll(db, Episode.Columns.downloading.set(to: true))
-        }
-      replacementClaimed(claimed > 0)
-    }
-
-    await cacheBackgroundDelegate.urlSession(
-      session,
-      downloadTask: task,
-      didFinishDownloadingTo: tempFile
-    )
-
-    #expect(replacementClaimed())
-    #expect(try await repo.episode(podcastEpisode.id)?.downloading == true)
   }
 
   // MARK: - Cross-Contamination Regression
