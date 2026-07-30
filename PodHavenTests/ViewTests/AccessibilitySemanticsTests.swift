@@ -327,9 +327,10 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     .enabled(
       if: supportsHostedAccessibilityInspection,
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
-    )
+    ),
+    arguments: [ColorScheme.light, .dark]
   )
-  func transcriptionQueueLaysOutArtworkAndProgress() async throws {
+  func transcriptionQueueLaysOutArtworkAndProgress(colorScheme: ColorScheme) async throws {
     let shortTitle = "Short Episode"
     let longTitle =
       "A deliberately long episode title that always wraps onto a second line"
@@ -348,7 +349,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       NavigationStack {
         TranscriptionQueueView()
       }
-      .preferredColorScheme(.dark)
+      .preferredColorScheme(colorScheme)
       .transaction { transaction in
         transaction.disablesAnimations = true
       }
