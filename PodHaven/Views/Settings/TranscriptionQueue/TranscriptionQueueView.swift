@@ -5,7 +5,11 @@ import FactoryKit
 import SwiftUI
 
 struct TranscriptionQueueView: View {
-  @State private var viewModel = TranscriptionQueueViewModel()
+  @State private var viewModel: TranscriptionQueueViewModel
+
+  init(viewModel: TranscriptionQueueViewModel = TranscriptionQueueViewModel()) {
+    self._viewModel = State(initialValue: viewModel)
+  }
 
   var body: some View {
     content
@@ -51,10 +55,9 @@ struct TranscriptionQueueView: View {
   }
 
   private var queueList: some View {
-    List(selection: $viewModel.selectedEpisodeIDs) {
+    List {
       ForEach(viewModel.waitingEntries) { entry in
         queueRow(entry)
-          .tag(entry.id)
           .swipeActions(edge: .leading, allowsFullSwipe: false) {
             queueActions(for: entry.id)
           }
@@ -67,7 +70,6 @@ struct TranscriptionQueueView: View {
           }
       }
       .onMove(perform: viewModel.move)
-      .onDelete(perform: viewModel.remove)
     }
     .safeAreaInset(edge: .top, spacing: 12) {
       if let activeEntry = viewModel.activeEntry {
@@ -125,11 +127,20 @@ struct TranscriptionQueueView: View {
 
   @ViewBuilder
   private func queueRow(_ entry: TranscriptionQueueViewModel.Entry) -> some View {
+    let row = TranscriptionQueueRow(
+      entry: entry,
+      isSelecting: viewModel.editMode.isEditing,
+      isSelected: Binding(
+        get: { viewModel.selectedEpisodeIDs.contains(entry.id) },
+        set: { viewModel.setSelected($0, episodeID: entry.id) }
+      )
+    )
+
     if viewModel.editMode.isEditing {
-      TranscriptionQueueRow(entry: entry)
+      row
     } else {
       NavigationLink(value: Navigation.Destination.episode(DisplayedEpisode(entry.episode))) {
-        TranscriptionQueueRow(entry: entry)
+        row
       }
     }
   }
@@ -137,51 +148,57 @@ struct TranscriptionQueueView: View {
   @ToolbarContentBuilder
   private var toolbar: some ToolbarContent {
     if viewModel.loadingState == .loaded, !viewModel.waitingEntries.isEmpty {
-      if viewModel.editMode.isEditing {
-        ToolbarItem(placement: .topBarLeading) {
-          if viewModel.allSelected {
-            AppIcon.unselectAll.labelButton {
-              viewModel.deselectAll()
+      if viewModel.editMode.isEditing, !viewModel.selectedEpisodeIDs.isEmpty {
+        ToolbarItem(placement: .primaryAction) {
+          Menu {
+            AppIcon.moveToTop
+              .labelButton {
+                viewModel.moveSelectedToTop()
+              }
+              .disabled(!viewModel.canMoveSelectedToTop)
+
+            AppIcon.moveToBottom
+              .labelButton {
+                viewModel.moveSelectedToBottom()
+              }
+              .disabled(!viewModel.canMoveSelectedToBottom)
+
+            Divider()
+
+            AppIcon.removeFromQueue.labelButton {
+              viewModel.removeSelected()
             }
-          } else {
-            AppIcon.selectAll.labelButton {
-              viewModel.selectAll()
-            }
+          } label: {
+            AppIcon.moreActions.image
           }
+          .accessibilityLabel("More Actions")
         }
       }
 
       ToolbarItem(placement: .primaryAction) {
-        EditButton()
-      }
-
-      if viewModel.editMode.isEditing {
-        ToolbarItemGroup(placement: .bottomBar) {
-          AppIcon.moveToTop
-            .imageButton {
-              viewModel.moveSelectedToTop()
+        if viewModel.editMode.isEditing {
+          Menu {
+            AppIcon.editFinished.labelButton {
+              viewModel.editMode = .inactive
             }
-            .disabled(!viewModel.canMoveSelectedToTop)
-
-          Spacer()
-
-          Text("\(viewModel.selectedEpisodeIDs.count) Selected")
-            .foregroundStyle(.secondary)
-            .accessibilityLabel("\(viewModel.selectedEpisodeIDs.count) episodes selected")
-
-          Spacer()
-
-          AppIcon.moveToBottom
-            .imageButton {
-              viewModel.moveSelectedToBottom()
+            if !viewModel.allSelected {
+              AppIcon.selectAll.labelButton {
+                viewModel.selectAll()
+              }
             }
-            .disabled(!viewModel.canMoveSelectedToBottom)
-
-          AppIcon.removeFromQueue
-            .imageButton {
-              viewModel.removeSelected()
+            if !viewModel.selectedEpisodeIDs.isEmpty {
+              AppIcon.unselectAll.labelButton {
+                viewModel.deselectAll()
+              }
             }
-            .disabled(viewModel.selectedEpisodeIDs.isEmpty)
+          } label: {
+            AppIcon.editFinished.image
+          }
+          .accessibilityLabel("Selection Actions")
+        } else {
+          AppIcon.editItems.labelButton {
+            viewModel.editMode = .active
+          }
         }
       }
     }
@@ -190,13 +207,26 @@ struct TranscriptionQueueView: View {
 
 private struct TranscriptionQueueRow: View {
   let entry: TranscriptionQueueViewModel.Entry
+  let isSelecting: Bool
+  @Binding var isSelected: Bool
 
   @ScaledMetric(relativeTo: .body) private var imageSize: CGFloat = 56
+
+  init(
+    entry: TranscriptionQueueViewModel.Entry,
+    isSelecting: Bool = false,
+    isSelected: Binding<Bool> = .constant(false)
+  ) {
+    self.entry = entry
+    self.isSelecting = isSelecting
+    self._isSelected = isSelected
+  }
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
       SquareImage(image: entry.episode.image, size: imageSize)
-        .accessibilityHidden(true)
+        .selectable(isSelecting: isSelecting, isSelected: $isSelected)
+        .accessibilityHidden(!isSelecting)
 
       VStack(alignment: .leading, spacing: 5) {
         Text(entry.episode.title)
@@ -219,19 +249,33 @@ private struct TranscriptionQueueRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .contentShape(Rectangle())
-    .accessibilityElement(children: .ignore)
+    .accessibilityElement(children: isSelecting ? .contain : .ignore)
     .accessibilityLabel("\(entry.episode.title), \(entry.episode.podcastTitle)")
     .accessibilityValue(entry.accessibilityValue)
   }
 }
 
 #if DEBUG
-#Preview("Transcription Queue") {
-  NavigationStack {
-    TranscriptionQueueView()
+@MainActor private struct TranscriptionQueuePreview: View {
+  @State private var viewModel: TranscriptionQueueViewModel
+
+  init(editing: Bool) {
+    let viewModel = TranscriptionQueueViewModel()
+    viewModel.editMode = editing ? .active : .inactive
+    self._viewModel = State(initialValue: viewModel)
   }
-  .preview()
-  .task {
+
+  var body: some View {
+    NavigationStack {
+      TranscriptionQueueView(viewModel: viewModel)
+    }
+    .preview()
+    .task {
+      await populateQueue()
+    }
+  }
+
+  private func populateQueue() async {
     do {
       let repo = Container.shared.repo()
       let queue = Container.shared.transcriptionQueue()
@@ -274,5 +318,13 @@ private struct TranscriptionQueueRow: View {
       print("Preview error: \(error)")
     }
   }
+}
+
+#Preview("Transcription Queue") {
+  TranscriptionQueuePreview(editing: false)
+}
+
+#Preview("Transcription Queue Selection") {
+  TranscriptionQueuePreview(editing: true)
 }
 #endif

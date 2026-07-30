@@ -438,8 +438,8 @@ import Testing
     )
   }
 
-  @Test("failed edit deletion restores its row and selection")
-  func failedEditDeletionRestoresRowAndSelection() async throws {
+  @Test("failed removal restores its row and selection")
+  func failedRemovalRestoresRowAndSelection() async throws {
     let episodes = try await makeEpisodes()
     let episodeIDs = episodes.map(\.id)
     let removalStarted = AsyncSemaphore(value: 0)
@@ -470,7 +470,7 @@ import Testing
     )
     viewModel.selectedEpisodeIDs = [episodes[1].id]
 
-    viewModel.remove(at: IndexSet(integer: 1))
+    viewModel.remove(episodes[1].id)
 
     #expect(viewModel.entries.map(\.id) == [episodes[0].id, episodes[2].id])
     #expect(viewModel.selectedEpisodeIDs.isEmpty)

@@ -141,6 +141,15 @@ import SwiftUI
     selectedEpisodeIDs.removeAll()
   }
 
+  func setSelected(_ isSelected: Bool, episodeID: Episode.ID) {
+    guard waitingEntries.contains(where: { $0.id == episodeID }) else { return }
+    if isSelected {
+      selectedEpisodeIDs.insert(episodeID)
+    } else {
+      selectedEpisodeIDs.remove(episodeID)
+    }
+  }
+
   func move(fromOffsets: IndexSet, toOffset: Int) {
     let displayedEpisodeIDs = episodes.map(\.id)
     guard
@@ -205,11 +214,6 @@ import SwiftUI
 
   func remove(_ episodeID: Episode.ID) {
     remove([episodeID])
-  }
-
-  func remove(at offsets: IndexSet) {
-    let removedEpisodeIDs = offsets.compactMap { waitingEntries[safe: $0]?.id }
-    remove(removedEpisodeIDs)
   }
 
   func removeSelected() {
