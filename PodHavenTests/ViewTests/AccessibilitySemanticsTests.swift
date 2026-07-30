@@ -331,13 +331,13 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
-    "transcription queue Edit button activates selection controls",
+    "transcription queue Edit button activates thumbnail selection and parity toolbar",
     .enabled(
       if: supportsHostedAccessibilityInspection,
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
     )
   )
-  func transcriptionQueueEditButtonActivatesSelectionControls() async throws {
+  func transcriptionQueueEditButtonActivatesThumbnailSelectionAndParityToolbar() async throws {
     let episode = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Editable Transcription")
     )
@@ -378,9 +378,30 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
         let labels = Set(
           Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
         )
-        return labels.contains("Select All") && labels.contains("0 episodes selected")
+        return labels.contains("Selection Actions") && labels.contains("Select")
       },
-      { @MainActor in "Edit did not expose transcription queue selection controls" }
+      { @MainActor in "Edit did not expose the thumbnail selector and selection menu" }
+    )
+
+    let selectButton = try #require(
+      Self.accessibilityElements(in: window)
+        .first {
+          $0.accessibilityLabel == "Select" && $0.accessibilityTraits.contains(.button)
+        }
+    )
+    #expect(selectButton.accessibilityActivate())
+
+    try await Wait.until(
+      maxAttempts: 100,
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        let labels = Set(
+          Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+        )
+        return labels.contains("Deselect") && labels.contains("More Actions")
+      },
+      { @MainActor in "Selecting a thumbnail did not expose the bulk actions menu" }
     )
   }
 
