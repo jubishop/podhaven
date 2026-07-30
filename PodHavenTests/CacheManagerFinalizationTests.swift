@@ -222,6 +222,31 @@ import Testing
     #expect(try await fileManager.readData(from: cachedURL.rawValue) == replacementData)
   }
 
+  @Test("clear removes a cache published after its initial episode read")
+  func clearRemovesCachePublishedAfterInitialEpisodeRead() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+    let clear = Task {
+      try await cacheManager.clearCache(for: podcastEpisode.id)
+    }
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+    defer { Task { await fakeRepo.resumeAllEpisodeFetchSuspensions() } }
+
+    let tempFile = try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForFileRemoved(tempFile)
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    let disposition = try #require(try await clear.value)
+
+    #expect(disposition == .removed(cachedURL))
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
+  }
+
   @Test("superseded finalization preserves a replacement download claim")
   func supersededFinalizationPreservesReplacementDownloadClaim() async throws {
     let podcastEpisode = try await Create.podcastEpisode()

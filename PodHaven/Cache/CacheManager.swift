@@ -261,8 +261,7 @@ struct CacheManager {
   func clearCache(for episodeID: Episode.ID) async throws -> CacheFileDisposition? {
     Self.log.debug("clearCache: \(episodeID)")
 
-    let episode = try await repo.episode(episodeID)
-    guard let episode else {
+    guard var episode = try await repo.episode(episodeID) else {
       Self.log.warning("Episode \(episodeID) not found for cache operation")
       return nil
     }
@@ -275,6 +274,11 @@ struct CacheManager {
 
     if episode.downloading {
       try await stopDownload(for: episodeID)
+      guard let refreshedEpisode = try await repo.episode(episodeID) else {
+        Self.log.warning("Episode \(episodeID) disappeared while stopping its download")
+        return nil
+      }
+      episode = refreshedEpisode
     }
 
     guard let cachedURL = episode.cachedURL else {
