@@ -31,7 +31,7 @@ import UniformTypeIdentifiers
     #expect(result?.alertTitle == "Feedback Queued")
     #expect(
       result?.alertMessage
-        == "Thanks. PodHaven will send your feedback when a connection is available."
+        == "Thanks. PodHaven accepted your feedback for delivery."
     )
     #expect(fakeSentryFeedbackCapture.feedbacks.count == 1)
     let feedback = try #require(fakeSentryFeedbackCapture.feedbacks.first)

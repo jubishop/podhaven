@@ -170,6 +170,30 @@ import Testing
     }
   }
 
+  @Test("disappearing without returning to the Episodes hub preserves the unread watermark")
+  func disappearPreservesUnreadWatermark() async throws {
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Still Visiting")
+    let initialWatermark = try #require(
+      try await smartListRepo.fetchOne(viewModel.smartListID)
+    )
+    .lastSeenEpisodeId
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let newEpisodeID = try #require(series.episodes.first).id
+    #expect(newEpisodeID > initialWatermark)
+
+    viewModel.disappear()
+    await Task.yield()
+    try await Container.shared.appDB().writer.write { _ in }
+
+    let persisted = try #require(try await smartListRepo.fetchOne(viewModel.smartListID))
+    #expect(persisted.lastSeenEpisodeId == initialWatermark)
+  }
+
   @Test("setting currentSortMethod writes through to the row and converges")
   func sortPickWritesThroughToRow() async throws {
     let viewModel = try await EpisodesListTestHelpers.makeViewModel(title: "Write Through")

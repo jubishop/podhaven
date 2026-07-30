@@ -9,6 +9,7 @@ import Testing
 @Suite("of EpisodesViewModel tests", .container)
 @MainActor final class EpisodesViewModelTests {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.smartListRepo) private var smartListRepo
 
   private func withObservingViewModel<T>(
@@ -88,6 +89,51 @@ import Testing
 
     let persisted = try await smartListRepo.fetchAll()
     #expect(persisted.map(\.displayOrder) == Array(0..<10))
+  }
+
+  @Test("only returning from a Smart List to the Episodes hub marks it seen")
+  func returningToHubMarksSmartListSeen() async throws {
+    let viewModel = EpisodesViewModel()
+    let smartList = try #require(try await smartListRepo.fetchAll().first)
+    let initialWatermark = smartList.lastSeenEpisodeId
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let newEpisodeID = try #require(series.episodes.first).id
+    #expect(newEpisodeID > initialWatermark)
+    let listedEpisode = ListedEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisode: try Create.unsavedEpisode()
+      )
+    )
+    let listPath = [Navigation.Destination.smartList(smartList.id)]
+    let detailPath = listPath + [.listedEpisode(listedEpisode)]
+
+    viewModel.navigationPathChanged(from: listPath, to: detailPath)
+    viewModel.navigationPathChanged(from: detailPath, to: listPath)
+    await Task.yield()
+    try await Container.shared.appDB().writer.write { _ in }
+    let stillUnseen = try #require(try await smartListRepo.fetchOne(smartList.id))
+    #expect(stillUnseen.lastSeenEpisodeId == initialWatermark)
+
+    viewModel.navigationPathChanged(from: listPath, to: [])
+    let smartListRepo = smartListRepo
+    try await Wait.until(
+      {
+        try await smartListRepo.fetchOne(smartList.id)?.lastSeenEpisodeId == newEpisodeID
+      },
+      {
+        let watermark = try await smartListRepo.fetchOne(smartList.id)?.lastSeenEpisodeId
+        if let watermark {
+          return "Expected watermark \(newEpisodeID) after returning to hub; got \(watermark)"
+        }
+        return "Expected watermark \(newEpisodeID) after returning to hub; row was missing"
+      }
+    )
   }
 
   @Test("deleteSmartList confirms with an alert before deleting")

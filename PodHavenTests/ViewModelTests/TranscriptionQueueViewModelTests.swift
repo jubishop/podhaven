@@ -124,17 +124,24 @@ import Testing
     )
   }
 
-  @Test("queued checkpoint progress is announced as waiting")
-  func queuedCheckpointProgressIsAnnouncedAsWaiting() async throws {
+  @Test("queue progress shows only its percentage while announcing status")
+  func queueProgressShowsOnlyItsPercentageWhileAnnouncingStatus() async throws {
     let episode = try await Create.podcastEpisode()
-    let entry = TranscriptionQueueViewModel.Entry(
+    let waitingEntry = TranscriptionQueueViewModel.Entry(
       episode: episode,
       progress: 0.25,
       isActive: false
     )
+    let activeEntry = TranscriptionQueueViewModel.Entry(
+      episode: episode,
+      progress: 0.42,
+      isActive: true
+    )
 
-    #expect(entry.statusText == "Waiting · 25%")
-    #expect(entry.accessibilityValue == "Waiting, 25 percent complete")
+    #expect(waitingEntry.progressText == "25%")
+    #expect(waitingEntry.accessibilityValue == "Waiting, 25 percent complete")
+    #expect(activeEntry.progressText == "42%")
+    #expect(activeEntry.accessibilityValue == "Transcribing, 42 percent")
   }
 
   @Test("an unreadable checkpoint does not fail queue loading")
@@ -438,8 +445,8 @@ import Testing
     )
   }
 
-  @Test("failed edit deletion restores its row and selection")
-  func failedEditDeletionRestoresRowAndSelection() async throws {
+  @Test("failed removal restores its row and selection")
+  func failedRemovalRestoresRowAndSelection() async throws {
     let episodes = try await makeEpisodes()
     let episodeIDs = episodes.map(\.id)
     let removalStarted = AsyncSemaphore(value: 0)
@@ -470,7 +477,7 @@ import Testing
     )
     viewModel.selectedEpisodeIDs = [episodes[1].id]
 
-    viewModel.remove(at: IndexSet(integer: 1))
+    viewModel.remove(episodes[1].id)
 
     #expect(viewModel.entries.map(\.id) == [episodes[0].id, episodes[2].id])
     #expect(viewModel.selectedEpisodeIDs.isEmpty)

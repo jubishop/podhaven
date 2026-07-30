@@ -52,7 +52,7 @@ struct SmartListRepo: Sendable {
   }
 
   // Advances the unread-badge watermark to the newest episode id, clearing the
-  // list's badge. Called when the user leaves the list.
+  // list's badge. Called when Episodes navigation returns from the list to the hub.
   func markSeen(_ id: SmartList.ID) async throws {
     Self.log.debug("markSeen: \(id)")
 
