@@ -41,7 +41,7 @@ enum FeedbackSubmissionResult: Equatable, Sendable {
   var alertMessage: String {
     switch self {
     case .queued:
-      "Thanks. PodHaven will send your feedback when a connection is available."
+      "Thanks. PodHaven accepted your feedback for delivery."
     case .unavailable:
       "PodHaven couldn't queue your feedback. Your draft is still here. Please try again."
     }
