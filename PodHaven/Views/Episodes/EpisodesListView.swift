@@ -99,8 +99,8 @@ struct EpisodesListView: View {
       )
       .listRowBackground(
         Color.accentColor
-          .opacity(highlight ? 0.15 : 0)
-          .padding(.vertical, 2)
+          .opacity(highlight ? 0.3 : 0)
+          .padding(.vertical, 3)
       )
       .listRow()
       .accessibilityCustomContent(
