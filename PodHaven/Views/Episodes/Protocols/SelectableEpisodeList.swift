@@ -34,7 +34,6 @@ import OrderedCollections
   var anySelectedUnfinished: Bool { get }
   var anySelectedRated: Bool { get }
 
-  func playSelectedEpisodes()
   func addSelectedEpisodesToTopOfQueue()
   func addSelectedEpisodesToBottomOfQueue()
   func replaceQueueWithSelected()
@@ -57,7 +56,6 @@ import OrderedCollections
 
 extension SelectableEpisodeList {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
-  private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
@@ -212,36 +210,6 @@ extension SelectableEpisodeList {
         didPerformBulkAction(on: episodes)
       } catch {
         Self.log.caughtError("replaceQueueWithSelected: failed", error)
-      }
-    }
-  }
-
-  func playSelectedEpisodes() {
-    let episodes = selectedEpisodes
-    guard !episodes.isEmpty else {
-      Self.log.notice("playSelectedEpisodes: requested with no episodes selected")
-      return
-    }
-
-    Self.log.debug("playSelectedEpisodes: playing \(episodes.count) episodes")
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        let podcastEpisodes = try await selectedPodcastEpisodes
-        let firstPodcastEpisode = podcastEpisodes.first
-        let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
-        try await queue.unshift(allExceptFirstPodcastEpisode.map(\.id))
-        if let firstPodcastEpisode {
-          try await playManager.play(firstPodcastEpisode)
-        }
-        didPerformBulkAction(on: episodes)
-      } catch {
-        Self.log.caughtError(
-          "playSelectedEpisodes: failed to play \(episodes.count) episodes",
-          error
-        )
       }
     }
   }

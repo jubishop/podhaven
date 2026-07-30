@@ -43,7 +43,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var cacheFileStore: CacheFileStore { Container.shared.cacheFileStore() }
   private var repo: any Databasing { Container.shared.repo() }
-  private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var loadEpisodeAsset: (_ asset: AVURLAsset) async throws -> EpisodeAsset {
@@ -110,9 +109,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard totalBytesExpectedToWrite > 0 else { return }
     do {
       if let episode = try await self.episode(for: downloadTask) {
-        sharedState.updateDownloadProgress(
-          for: episode.id,
-          progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        cacheManager.updateDownloadProgress(
+          Double(totalBytesWritten) / Double(totalBytesExpectedToWrite),
+          for: CacheDownloadAttempt(episodeID: episode.id, taskID: downloadTask.taskID)
         )
       }
     } catch {
@@ -151,7 +150,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           await self.performProtectedFinalization(for: finalizationSessionID) {
             defer { self.cacheManager.signalDownloadComplete(for: attempt) }
             guard self.cacheManager.isDownloadActive(attempt) else { return }
-            await self.clearDownloadState(for: attempt.episodeID)
+            await self.clearDownloadState(for: attempt)
           }
         }
       case .inactive(let attempt):
@@ -198,7 +197,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) async {
     // Signal on every exit so an awaiter resumes, even if the row was deleted.
     let signalAttempt = ownership.attempt
-    let signalEpisodeID = signalAttempt?.episodeID
     defer {
       if let signalAttempt { cacheManager.signalDownloadComplete(for: signalAttempt) }
     }
@@ -240,8 +238,8 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         return
       }
       // The row may still exist with downloading == true; clear it via the
-      // parsed id and drop the temp file we can't attribute.
-      if let signalEpisodeID { await clearDownloadState(for: signalEpisodeID) }
+      // parsed attempt and drop the temp file we can't attribute.
+      if let signalAttempt { await clearDownloadState(for: signalAttempt) }
       do {
         try fileManager.removeItem(at: location)
       } catch {
@@ -281,11 +279,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
-      await clearDownloadState(for: episode.id)
+      if let signalAttempt { await clearDownloadState(for: signalAttempt) }
       return
     }
-
-    sharedState.clearDownloadProgress(for: episode.id)
 
     let fileName = generateCacheFilename(for: episode)
     let destURL = CacheManager.resolveCachedFilepath(for: fileName)
@@ -306,7 +302,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
-      await clearDownloadState(for: episode.id)
+      if let signalAttempt { await clearDownloadState(for: signalAttempt) }
       return
     }
     if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
@@ -330,15 +326,15 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           error
         )
       }
-      await clearDownloadState(for: episode.id)
+      if let signalAttempt { await clearDownloadState(for: signalAttempt) }
       return
     }
 
     let storage: CacheFileStorage?
     do {
-      storage = try await cacheFileStore.storeDownloadedFile(
+      storage = try await cacheManager.storeDownloadedFileIfCurrent(
         at: location,
-        for: episode.id,
+        for: CacheDownloadAttempt(episodeID: episode.id, taskID: downloadTask.taskID),
         cachedFilename: fileName,
         duration: episodeAsset.duration
       )
@@ -357,7 +353,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
           )
         }
       }
-      await clearDownloadState(for: episode.id)
+      if let signalAttempt { await clearDownloadState(for: signalAttempt) }
       return
     }
 
@@ -446,7 +442,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) async {
     // A failure unblocks any awaiter; success is signaled by didFinishDownloadingTo.
     let signalAttempt = ownership.attempt
-    let signalEpisodeID = signalAttempt?.episodeID
     defer {
       if let signalAttempt { cacheManager.signalDownloadComplete(for: signalAttempt) }
     }
@@ -473,8 +468,8 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       )
       Self.log.caughtError("Download failed for task #\(task.taskID)", downloadError)
       // The row may still exist with downloading == true; clear it via the
-      // parsed id so the episode isn't stranded as .caching.
-      if let signalEpisodeID { await clearDownloadState(for: signalEpisodeID) }
+      // parsed attempt so the episode isn't stranded as .caching.
+      if let signalAttempt { await clearDownloadState(for: signalAttempt) }
       return
     }
     if let signalAttempt, !cacheManager.isDownloadActive(signalAttempt) {
@@ -509,7 +504,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       return
     }
 
-    await clearDownloadState(for: episode.id)
+    if let signalAttempt { await clearDownloadState(for: signalAttempt) }
 
     Self.log.caughtError("Episode \(episode.toString) download failed", downloadError)
   }
@@ -682,13 +677,12 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     }
   }
 
-  // Clears progress + downloading flag; logs rather than propagates a failure.
-  private func clearDownloadState(for episodeID: Episode.ID) async {
-    sharedState.clearDownloadProgress(for: episodeID)
+  // Clears the downloading flag; logs rather than propagates a failure.
+  private func clearDownloadState(for attempt: CacheDownloadAttempt) async {
     do {
-      try await repo.updateDownloading(episodeID, downloading: false)
+      try await cacheManager.clearDownloadIfCurrent(attempt)
     } catch {
-      Self.log.caughtError("failed to clear downloading flag for \(episodeID)", error)
+      Self.log.caughtError("failed to clear downloading flag for \(attempt.episodeID)", error)
     }
   }
 
