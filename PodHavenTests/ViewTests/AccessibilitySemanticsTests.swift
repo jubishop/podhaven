@@ -469,6 +469,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       NavigationStack {
         EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
       }
+      .preferredColorScheme(.dark)
       .transaction { transaction in
         transaction.disablesAnimations = true
       }
