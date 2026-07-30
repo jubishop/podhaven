@@ -17,6 +17,9 @@ struct EpisodesView: View {
         .task(viewModel.observeSmartLists)
         .task(viewModel.observeUnreadCounts)
     }
+    .onChange(of: navigation.episodes.path) { oldPath, newPath in
+      viewModel.navigationPathChanged(from: oldPath, to: newPath)
+    }
   }
 
   @ViewBuilder
