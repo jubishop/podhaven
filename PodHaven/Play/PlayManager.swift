@@ -35,6 +35,7 @@ final class PlayManager {
   private final class LoadTransition {
     var establishedPlayback: (episodeID: Episode.ID, ownerID: UUID)?
     var id: UUID
+    var loadingEpisodeID: Episode.ID?
     var state = LoadTransitionState.preservingPlayback
     var finishedIDs: Set<Episode.ID> = []
     init(id: UUID) { self.id = id }
@@ -181,7 +182,7 @@ final class PlayManager {
 
   @discardableResult
   func load(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
-    let loadID = claimLoadTransition()
+    let loadID = claimLoadTransition(for: podcastEpisode.id)
 
     let task = Task<Bool, any Error> { [weak self] in
       guard let self else { return false }
@@ -204,10 +205,11 @@ final class PlayManager {
     return try await task.value
   }
 
-  private func claimLoadTransition() -> UUID {
+  private func claimLoadTransition(for episodeID: Episode.ID?) -> UUID {
     let loadID = UUID()
     loadTransition = loadTransition ?? .init(id: loadID)
     loadTransition?.id = loadID
+    loadTransition?.loadingEpisodeID = episodeID
     loadTask?.cancel()
     return loadID
   }
@@ -217,12 +219,14 @@ final class PlayManager {
     onDeckID: Episode.ID?
   ) -> UUID? {
     guard episodeID == onDeckID else { return nil }
-    guard let transition = loadTransition else { return claimLoadTransition() }
+    guard let transition = loadTransition else {
+      return claimLoadTransition(for: nil)
+    }
     guard let establishedPlayback = transition.establishedPlayback,
       establishedPlayback.episodeID == episodeID,
       establishedPlayback.ownerID == transition.id
     else { return nil }
-    return claimLoadTransition()
+    return claimLoadTransition(for: nil)
   }
 
   private func performLoad(_ incoming: PodcastEpisode, loadID: UUID) async throws -> Bool {
@@ -581,10 +585,33 @@ final class PlayManager {
     setStatus(.stopped)
   }
 
-  func stop(ifCurrentEpisodeIDIs episodeID: Episode.ID) async -> Bool {
-    guard sharedState.currentEpisodeID == episodeID else { return false }
-    await stop()
-    return true
+  func removeDeletedEpisodes(_ episodeIDs: Set<Episode.ID>) async {
+    guard !episodeIDs.isEmpty else { return }
+    if case .play(let episodeID) = pendingPlaybackRequest,
+      episodeIDs.contains(episodeID)
+    {
+      pendingPlaybackRequest = .none
+    }
+
+    if let loadingEpisodeID = loadTransition?.loadingEpisodeID,
+      episodeIDs.contains(loadingEpisodeID)
+    {
+      if case .establishedPlayback(let establishedEpisodeID) = loadTransition?.state,
+        establishedEpisodeID == loadingEpisodeID
+      {
+        loadTransition?.state = .ownsPlaybackState
+      }
+      let invalidationID = claimLoadTransition(for: nil)
+      await finishLoadTransition(invalidationID, outcome: .failed(loadingEpisodeID))
+    }
+    guard loadTransition == nil else { return }
+    guard let currentEpisodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID,
+      episodeIDs.contains(currentEpisodeID)
+    else { return }
+
+    let cleanupID = claimLoadTransition(for: nil)
+    loadTransition?.state = .ownsPlaybackState
+    await finishLoadTransition(cleanupID, outcome: .didNotLoad)
   }
 
   func toggle() async {

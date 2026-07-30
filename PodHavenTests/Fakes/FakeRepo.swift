@@ -34,6 +34,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let completedEpisodeFetchCount = ThreadSafe<Int>(0)
   private var episodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
 
+  nonisolated let pendingPodcastEpisodeFetchSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedPodcastEpisodeFetchCount = ThreadSafe<Int>(0)
+  private var podcastEpisodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
   private var podcastEpisodeFetchBarrierRemaining = 0
   private var podcastEpisodeFetchBarrierContinuations: [CheckedContinuation<Void, Never>] = []
   nonisolated let pendingPodcastEpisodesFetchSuspend = ThreadSafe<Bool>(false)
@@ -42,6 +45,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let pendingDownloadingFalseSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedDownloadingFalseCount = ThreadSafe<Int>(0)
   private var downloadingFalseSuspensions: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingDownloadClaimSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedDownloadClaimCount = ThreadSafe<Int>(0)
+  private var downloadClaimSuspensions: [CheckedContinuation<Void, Never>] = []
 
   // Same shape as pendingEpisodeFetchSuspend, but for updateLastUpdates so
   // tests can park the batched flush inside RefreshManager.performRefresh.
@@ -225,6 +231,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     recordCall(methodName: "podcastEpisode", parameters: episodeID)
     let result = try await repo.podcastEpisode(episodeID)
+    if pendingPodcastEpisodeFetchSuspend() {
+      pendingPodcastEpisodeFetchSuspend(false)
+      await withCheckedContinuation { continuation in
+        podcastEpisodeFetchSuspensions.append(continuation)
+        suspendedPodcastEpisodeFetchCount(podcastEpisodeFetchSuspensions.count)
+      }
+    }
     guard podcastEpisodeFetchBarrierRemaining > 0 else { return result }
 
     podcastEpisodeFetchBarrierRemaining -= 1
@@ -238,6 +251,25 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       }
     }
     return result
+  }
+
+  func resumeAllPodcastEpisodeFetchSuspensions() {
+    let toResume = podcastEpisodeFetchSuspensions
+    podcastEpisodeFetchSuspensions.removeAll()
+    suspendedPodcastEpisodeFetchCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForPodcastEpisodeFetchSuspended(count: Int = 1) async throws {
+    try await Wait.until(
+      { self.suspendedPodcastEpisodeFetchCount() >= count },
+      {
+        """
+        Expected at least \(count) suspended podcast episode fetches, \
+        got \(self.suspendedPodcastEpisodeFetchCount())
+        """
+      }
+    )
   }
 
   func barrierNextPodcastEpisodeFetches(count: Int) {
@@ -489,7 +521,34 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func claimForDownloadIfUncached(_ episodeID: Episode.ID) async throws -> Bool {
     recordCall(methodName: "claimForDownloadIfUncached", parameters: episodeID)
-    return try await repo.claimForDownloadIfUncached(episodeID)
+    let result = try await repo.claimForDownloadIfUncached(episodeID)
+    if pendingDownloadClaimSuspend() {
+      pendingDownloadClaimSuspend(false)
+      await withCheckedContinuation { continuation in
+        downloadClaimSuspensions.append(continuation)
+        suspendedDownloadClaimCount(downloadClaimSuspensions.count)
+      }
+    }
+    return result
+  }
+
+  func resumeAllDownloadClaimSuspensions() {
+    let toResume = downloadClaimSuspensions
+    downloadClaimSuspensions.removeAll()
+    suspendedDownloadClaimCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForDownloadClaimSuspended(count: Int = 1) async throws {
+    try await Wait.until(
+      { self.suspendedDownloadClaimCount() >= count },
+      {
+        """
+        Expected at least \(count) suspended download claims, \
+        got \(self.suspendedDownloadClaimCount())
+        """
+      }
+    )
   }
 
   @discardableResult

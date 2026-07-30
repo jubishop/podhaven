@@ -302,6 +302,174 @@ import Testing
     try await CacheHelpers.waitForFileRemoved(fileURL)
   }
 
+  @Test("deletion invalidates a gated finalization while its file is staged")
+  func deletionInvalidatesGatedDownloadFinalization() async throws {
+    let assetLoadStarted = AsyncSemaphore(value: 0)
+    let finishAssetLoad = AsyncSemaphore(value: 0)
+    let stagedFileURL = ThreadSafe<URL?>(nil)
+    await episodeAssetLoader.setDefaultHandler { url in
+      stagedFileURL(url)
+      assetLoadStarted.signal()
+      await finishAssetLoad.wait()
+      return (true, CMTime.seconds(30))
+    }
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+
+    let finish = Task { try await CacheHelpers.simulateBackgroundFinish(taskID) }
+    defer {
+      finish.cancel()
+      finishAssetLoad.signal()
+    }
+    await assetLoadStarted.wait()
+    let stagedURL = try #require(stagedFileURL())
+    #expect(fileManager.fileExists(at: stagedURL))
+    #expect(
+      try fileManager
+        .contentsOfDirectory(
+          at: CacheManager.cacheDirectory,
+          includingPropertiesForKeys: nil,
+          options: []
+        )
+        .isEmpty
+    )
+
+    #expect(try await repo.deletePodcast(podcastEpisode.podcast.id))
+    finishAssetLoad.signal()
+    let temporaryURL = try await finish.value
+
+    #expect(
+      try fileManager.contentsOfDirectory(
+        at: CacheManager.cacheDirectory,
+        includingPropertiesForKeys: nil,
+        options: []
+      )
+      .isEmpty
+    )
+    #expect(!fileManager.fileExists(at: stagedURL))
+    #expect(!fileManager.fileExists(at: temporaryURL))
+  }
+
+  @Test("deletion invalidation preserves a destination referenced by a surviving episode")
+  func deletionInvalidationPreservesSharedDestination() async throws {
+    let sharedMediaURL = MediaURL(
+      try #require(URL(string: "https://example.com/shared-finalization.mp3"))
+    )
+    let survivingSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(mediaURL: sharedMediaURL)]
+      )
+    )
+    let survivingEpisode = try #require(survivingSeries.episodes.first)
+    let survivingTaskID = try await CacheHelpers.downloadToCache(survivingEpisode.id)
+    let originalData = Data("original shared finalization".utf8)
+    try await CacheHelpers.simulateBackgroundFinish(survivingTaskID, data: originalData)
+    let sharedCachedURL = try await CacheHelpers.waitForCached(survivingEpisode.id)
+
+    let targetSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(mediaURL: sharedMediaURL)]
+      )
+    )
+    let targetEpisode = try #require(targetSeries.episodes.first)
+    let targetTaskID = try await CacheHelpers.downloadToCache(targetEpisode.id)
+    let assetLoadStarted = AsyncSemaphore(value: 0)
+    let finishAssetLoad = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.setDefaultHandler { _ in
+      assetLoadStarted.signal()
+      await finishAssetLoad.wait()
+      return (true, CMTime.seconds(30))
+    }
+    let replacementData = Data.random()
+    let finish = Task {
+      try await CacheHelpers.simulateBackgroundFinish(targetTaskID, data: replacementData)
+    }
+    defer {
+      finish.cancel()
+      finishAssetLoad.signal()
+    }
+    await assetLoadStarted.wait()
+    #expect(fileManager.fileExists(at: sharedCachedURL.rawValue))
+
+    #expect(try await repo.deletePodcast(targetSeries.podcast.id))
+    finishAssetLoad.signal()
+    let temporaryURL = try await finish.value
+
+    #expect(try await repo.episode(targetEpisode.id) == nil)
+    #expect(try await repo.episode(survivingEpisode.id)?.cachedURL == sharedCachedURL)
+    let sharedFileExists = fileManager.fileExists(at: sharedCachedURL.rawValue)
+    #expect(sharedFileExists)
+    if sharedFileExists {
+      #expect(try await CacheHelpers.cachedFileData(for: sharedCachedURL) == originalData)
+    }
+    #expect(!fileManager.fileExists(at: temporaryURL))
+  }
+
+  @Test("finalization removes its destination when the episode row disappears")
+  func finalizationRemovesDestinationAfterRowDisappears() async throws {
+    let assetLoadStarted = AsyncSemaphore(value: 0)
+    let finishAssetLoad = AsyncSemaphore(value: 0)
+    await episodeAssetLoader.setDefaultHandler { _ in
+      assetLoadStarted.signal()
+      await finishAssetLoad.wait()
+      return (true, CMTime.seconds(30))
+    }
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let finish = Task { try await CacheHelpers.simulateBackgroundFinish(taskID) }
+    defer {
+      finish.cancel()
+      finishAssetLoad.signal()
+    }
+    await assetLoadStarted.wait()
+
+    try await Container.shared.appDB().unsafeTestDB
+      .write { db in
+        try db.execute(
+          sql: "DELETE FROM episode WHERE id = ?",
+          arguments: [podcastEpisode.id]
+        )
+      }
+    finishAssetLoad.signal()
+    let temporaryURL = try await finish.value
+
+    #expect(try await repo.episode(podcastEpisode.id) == nil)
+    #expect(
+      try fileManager.contentsOfDirectory(
+        at: CacheManager.cacheDirectory,
+        includingPropertiesForKeys: nil,
+        options: []
+      )
+      .isEmpty
+    )
+    #expect(!fileManager.fileExists(at: temporaryURL))
+  }
+
+  @Test("deletion cancellation logs the expected missing episode at debug")
+  func deletionCancellationLogsAtDebug() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+
+    let captured = try await LogCapture.withSink { sink in
+      #expect(try await repo.deletePodcast(podcastEpisode.podcast.id))
+      try await CacheHelpers.simulateBackgroundFailure(
+        taskID,
+        error: URLError(.cancelled)
+      )
+      return sink.captured()
+    }
+
+    let missingEpisodeLogs = captured.filter {
+      $0.label == "Cache/backgroundDelegate"
+        && $0.message.contains("No episode for task")
+        && $0.message.contains(String(podcastEpisode.id.rawValue))
+    }
+    #expect(missingEpisodeLogs.count == 1)
+    #expect(missingEpisodeLogs.first?.level == .debug)
+  }
+
   // MARK: - Progress Tracking
 
   @Test("progress updates cache state and clears on finish")
