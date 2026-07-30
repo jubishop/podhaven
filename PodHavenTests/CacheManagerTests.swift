@@ -336,6 +336,32 @@ import Testing
     try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
   }
 
+  @Test("progress delayed past terminal completion stays cleared")
+  func progressDelayedPastTerminalCompletionStaysCleared() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingEpisodeFetchSuspend(true)
+
+    let delayedProgress = Task {
+      await session.progressDownload(
+        taskID: taskID,
+        totalBytesWritten: 90,
+        totalBytesExpectedToWrite: 100
+      )
+    }
+    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+    defer { Task { await fakeRepo.resumeAllEpisodeFetchSuspensions() } }
+
+    try await CacheHelpers.simulateBackgroundFailure(taskID)
+    #expect(sharedState.downloadProgress[podcastEpisode.id] == nil)
+
+    await fakeRepo.resumeAllEpisodeFetchSuspensions()
+    await delayedProgress.value
+
+    #expect(sharedState.downloadProgress[podcastEpisode.id] == nil)
+  }
+
   @Test("stale progress cannot overwrite replacement progress")
   func staleProgressCannotOverwriteReplacementProgress() async throws {
     let podcastEpisode = try await Create.podcastEpisode()

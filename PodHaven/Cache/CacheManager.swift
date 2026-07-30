@@ -213,9 +213,7 @@ struct CacheManager {
 
   func updateDownloadProgress(_ progress: Double, for attempt: CacheDownloadAttempt) {
     activeDownloadAttempts { attempts in
-      if let current = attempts[attempt.episodeID] {
-        guard current == attempt else { return }
-      }
+      guard attempts[attempt.episodeID] == attempt else { return }
       sharedState.updateDownloadProgress(for: attempt.episodeID, progress: progress)
     }
   }
