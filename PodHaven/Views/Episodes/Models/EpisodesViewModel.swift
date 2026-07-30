@@ -60,6 +60,26 @@ class EpisodesViewModel {
     }
   }
 
+  // MARK: - Navigation
+
+  func navigationPathChanged(
+    from oldPath: [Navigation.Destination],
+    to newPath: [Navigation.Destination]
+  ) {
+    guard newPath.isEmpty,
+      let oldRoot = oldPath.first,
+      case .smartList(let smartListID) = oldRoot
+    else { return }
+
+    Task { [smartListRepo, smartListID] in
+      do {
+        try await smartListRepo.markSeen(smartListID)
+      } catch {
+        Self.log.caughtError("markSeen: failed for Smart List \(smartListID)", error)
+      }
+    }
+  }
+
   // MARK: - SwiftUI List Functions
 
   func moveSmartList(from: IndexSet, to: Int) {
