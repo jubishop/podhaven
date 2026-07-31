@@ -168,21 +168,15 @@ struct PodcastSettingsView: View {
                 "Always Transcribe New Episodes",
                 isOn: $temp.alwaysTranscribeNewEpisodes
               )
+              .toggleStyle(.stacked)
               .onChange(of: temp.alwaysTranscribeNewEpisodes) {
                 viewModel.updateSettings(temp)
               }
-              Spacer(minLength: 0)
             }
           } header: {
             Text("Transcription")
           } footer: {
-            Text(
-              """
-              Warning: Enabling this for many podcasts can fill the transcription queue. \
-              If a podcast's newly fetched episodes don't all fit, none are added for \
-              automatic transcription, and they aren't retried automatically.
-              """
-            )
+            Text("Warning: Enabling this for many podcasts can overflow the transcription queue.")
           }
         }
 

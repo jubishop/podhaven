@@ -244,15 +244,11 @@ struct SettingsView: View {
               position; the skip buttons and the progress display stay available.
               """
           ) {
-            VStack(alignment: .leading, spacing: 24) {
-              Text("Command Center Scrubbing")
-              Toggle(
-                "Command Center Scrubbing",
-                isOn: userSettings.$commandCenterScrubbingEnabled.binding
-              )
-              .labelsHidden()
-            }
-            Spacer(minLength: 0)
+            Toggle(
+              "Command Center Scrubbing",
+              isOn: userSettings.$commandCenterScrubbingEnabled.binding
+            )
+            .toggleStyle(.stacked)
           }
 
           SettingsRow(
@@ -394,19 +390,14 @@ struct SettingsView: View {
               instead of the episode-specific artwork.
               """
           ) {
-            VStack(alignment: .leading, spacing: 24) {
+            Toggle(isOn: userSettings.$alwaysShowPodcastImageInUpNext.binding) {
               VStack(alignment: .leading, spacing: 2) {
                 Text("Always Show Podcast Art")
                 Text("in Queue")
                   .foregroundStyle(.secondary)
               }
-              Toggle(
-                "Always Show Podcast Art in Queue",
-                isOn: userSettings.$alwaysShowPodcastImageInUpNext.binding
-              )
-              .labelsHidden()
             }
-            Spacer(minLength: 0)
+            .toggleStyle(.stacked)
           }
 
           SettingsRow(
@@ -416,19 +407,16 @@ struct SettingsView: View {
               instead of the episode-specific artwork.
               """
           ) {
-            VStack(alignment: .leading, spacing: 24) {
+            Toggle(
+              isOn: userSettings.$alwaysShowPodcastImageForUpNextRecommendations.binding
+            ) {
               VStack(alignment: .leading, spacing: 2) {
                 Text("Always Show Podcast Art")
                 Text("for Recommendations")
                   .foregroundStyle(.secondary)
               }
-              Toggle(
-                "Always Show Podcast Art for Recommendations",
-                isOn: userSettings.$alwaysShowPodcastImageForUpNextRecommendations.binding
-              )
-              .labelsHidden()
             }
-            Spacer(minLength: 0)
+            .toggleStyle(.stacked)
           }
 
           SettingsRow(
@@ -439,19 +427,14 @@ struct SettingsView: View {
               and at the top of the Up Next queue.
               """
           ) {
-            VStack(alignment: .leading, spacing: 24) {
+            Toggle(isOn: userSettings.$alwaysShowPodcastImageForOnDeck.binding) {
               VStack(alignment: .leading, spacing: 2) {
                 Text("Always Show Podcast Art")
                 Text("for Now Playing")
                   .foregroundStyle(.secondary)
               }
-              Toggle(
-                "Always Show Podcast Art for Now Playing",
-                isOn: userSettings.$alwaysShowPodcastImageForOnDeck.binding
-              )
-              .labelsHidden()
             }
-            Spacer(minLength: 0)
+            .toggleStyle(.stacked)
           }
 
           VStack(alignment: .leading, spacing: 24) {
@@ -532,15 +515,11 @@ struct SettingsView: View {
               an episode when nothing else is queued.
               """
           ) {
-            VStack(alignment: .leading, spacing: 24) {
-              Text("Auto-play Recommendation")
-              Toggle(
-                "Auto-play Recommendation",
-                isOn: userSettings.$autoPlayTopRecommendationWhenQueueEmpty.binding
-              )
-              .labelsHidden()
-            }
-            Spacer(minLength: 0)
+            Toggle(
+              "Auto-play Recommendation",
+              isOn: userSettings.$autoPlayTopRecommendationWhenQueueEmpty.binding
+            )
+            .toggleStyle(.stacked)
           }
         }
 
