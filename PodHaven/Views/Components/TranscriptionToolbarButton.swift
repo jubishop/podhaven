@@ -62,3 +62,46 @@ extension TranscriptionStatus {
     }
   }
 }
+
+#if DEBUG
+private struct TranscriptionToolbarButtonPreview: View {
+  private struct PreviewStatus: Identifiable {
+    let name: String
+    let status: TranscriptionStatus
+
+    var id: String { name }
+  }
+
+  private let statuses = [
+    PreviewStatus(name: "None", status: .none),
+    PreviewStatus(name: "Queued", status: .queued(position: 1, total: 2)),
+    PreviewStatus(name: "Transcribing", status: .transcribing(0.5)),
+    PreviewStatus(name: "Pausing", status: .pausing),
+    PreviewStatus(name: "Discarding", status: .discarding),
+    PreviewStatus(name: "Paused", status: .paused(0.5)),
+    PreviewStatus(name: "Transcribed", status: .transcribed),
+    PreviewStatus(name: "Failed", status: .failed),
+  ]
+
+  var body: some View {
+    VStack(spacing: 16) {
+      ForEach(statuses) { previewStatus in
+        HStack {
+          Text(previewStatus.name)
+          Spacer()
+          TranscriptionToolbarButton(
+            status: previewStatus.status,
+            transcribe: {},
+            pause: {}
+          )
+        }
+      }
+    }
+    .padding()
+  }
+}
+
+#Preview("Transcription States") {
+  TranscriptionToolbarButtonPreview()
+}
+#endif
