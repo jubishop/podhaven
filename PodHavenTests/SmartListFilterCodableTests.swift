@@ -27,10 +27,13 @@ struct SmartListFilterCodableTests {
     conditions: [
       .episodeText(.title, .contains, "AI"),
       .episodeText(.titleOrDescription, .contains, "space"),
+      .episodeTranscript(.contains, "quantum physics"),
       .podcastText(.description, .doesNotContain, "sports"),
       .podcastText(.titleOrDescription, .doesNotContain, "ads"),
       .state(.isUnrated),
       .state(.isUncached),
+      .state(.isTranscribed),
+      .state(.isNotTranscribed),
       .tag(.hasTag(Tag.ID(rawValue: 3))),
       .tag(.doesNotHaveTag(Tag.ID(rawValue: 7))),
       .duration(minSeconds: 0, maxSeconds: 3600),

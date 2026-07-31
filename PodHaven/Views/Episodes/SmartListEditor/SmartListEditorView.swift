@@ -154,4 +154,21 @@ struct SmartListEditorView: View {
   )
   .preview()
 }
+
+#Preview("Transcription Filters") {
+  SmartListEditorView(
+    viewModel: SmartListEditorViewModel(
+      mode: .create,
+      title: "Transcript Mentions",
+      filter: SmartListFilter(
+        combinator: .all,
+        conditions: [
+          .state(.isTranscribed),
+          .episodeTranscript(.contains, "quantum physics"),
+        ]
+      )
+    )
+  )
+  .preview()
+}
 #endif

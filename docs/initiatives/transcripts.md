@@ -4,7 +4,7 @@ status: abandoned
 
 # Episode Transcripts
 
-> **Superseded for v1 by [Episode Transcription](manual-transcripts.md).** The autonomous, three-tier, two-table design below was not built — v1 ships user-directed, on-device transcription through manual episode actions and a per-podcast new-episode opt-in, storing timed segments as JSON in a single `episode.transcript` column. This doc is retained as the **research record for the deferred pieces**: RSS `<podcast:transcript>` import (Tier 1), opportunistic/autonomous working-set transcription (Tier 2), speaker diarization, and transcript search/summaries. Pick those up here.
+> **Superseded for v1 by [Episode Transcription](manual-transcripts.md).** The autonomous, three-tier, two-table design below was not built — v1 ships user-directed, on-device transcription through manual episode actions and a per-podcast new-episode opt-in, storing timed segments as JSON in a single `episode.transcript` column. Smart Lists provide transcript presence and phrase filters through a flattened FTS5 index. This doc is retained as the **research record for the deferred pieces**: RSS `<podcast:transcript>` import (Tier 1), opportunistic/autonomous working-set transcription beyond the explicit opt-in (Tier 2), speaker diarization, and global transcript search/summaries. Pick those up here.
 
 On-device transcription of podcast episodes for search and (future) summary generation. Design conclusions captured 2026-05-05; RSS-format and diarization research added 2026-06-13.
 
@@ -96,7 +96,7 @@ Storage cost is small — an hour-long episode is on the order of 10–20 KB of 
 
 `modelRevision` lets us invalidate and re-transcribe when Apple ships a meaningfully better model, the same pattern `EmbeddingService.recipeVersion` uses. RSS-sourced rows are immune to this — they never re-fetch on model bumps.
 
-(v1 diverged from this two-table sketch: it stores timed segments as JSON in a single `episode.transcript` column — see [Episode Transcription](manual-transcripts.md). Migrating to the `transcript_segment` table here becomes worthwhile if cross-episode search or diarization lands.)
+(v1 diverged from this two-table sketch: it stores timed segments as JSON in a single `episode.transcript` column and flattens only the segment text into an FTS5 index for Smart List filtering — see [Episode Transcription](manual-transcripts.md). Migrating to the `transcript_segment` table here becomes worthwhile if segment-addressable global search or diarization lands.)
 
 **Implementer note — in-place transcript overwrite.** Any tier that replaces an episode's transcript in place — RSS import (Tier 1), or a model-revision re-transcribe — must do two things v1 deliberately leaves alone. (1) Skip the overwrite when an equivalent transcript already exists: v1 never re-transcribes a transcribed episode (`canTranscribe` is false at `.transcribed`; `TranscriptionProcessor.process` guards `!episode.hasTranscript`), so a needless overwrite is wasted ~5× compute, not just a UI glitch. (2) Invalidate the detail-view memo: `EpisodeDetailViewModel.decodedTranscript` caches the decoded transcript keyed by `episodeID` only, so an in-place change for an episode whose detail is open renders stale until the view is rebuilt — clear `transcriptCache` in `transition(to:)` (the sole post-init `state` writer). Left out of v1 because the overwrite is currently unreachable.
 

@@ -116,7 +116,152 @@ class SmartListFilterEngineTests {
     #expect(uncachedIDs == hardcoded)
   }
 
+  @Test("transcribed state conditions partition episodes by transcript presence")
+  func transcribedStates() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "transcribed"),
+          try Create.unsavedEpisode(guid: "not-transcribed"),
+        ]
+      )
+    )
+    let transcribed = series.episodes[0].id
+    let notTranscribed = series.episodes[1].id
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Hello")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    try await repo.updateTranscript(transcribed, transcript: transcript.jsonString())
+
+    let transcribedFilter = try JSONDecoder()
+      .decode(
+        SmartListFilter.self,
+        from: Data(
+          #"{"combinator":"all","conditions":[{"kind":"state","value":"isTranscribed"}],"groups":[]}"#
+            .utf8
+        )
+      )
+    let notTranscribedFilter = try JSONDecoder()
+      .decode(
+        SmartListFilter.self,
+        from: Data(
+          #"{"combinator":"all","conditions":[{"kind":"state","value":"isNotTranscribed"}],"groups":[]}"#
+            .utf8
+        )
+      )
+
+    #expect(try await ids(for: transcribedFilter) == [transcribed])
+    #expect(try await ids(for: notTranscribedFilter) == [notTranscribed])
+  }
+
   // MARK: - Text
+
+  @Test("episode transcription contains and exclude use transcript-only phrase matching")
+  func episodeTranscriptionText() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "transcript-hit",
+            title: "Unrelated",
+            description: "Nothing to match"
+          ),
+          try Create.unsavedEpisode(
+            guid: "title-only",
+            title: "Quantum Physics",
+            description: "Nothing to match"
+          ),
+          try Create.unsavedEpisode(
+            guid: "transcript-miss",
+            title: "Unrelated",
+            description: "Nothing to match"
+          ),
+        ]
+      )
+    )
+    let transcriptHit = series.episodes[0].id
+    let titleOnly = series.episodes[1].id
+    let transcriptMiss = series.episodes[2].id
+    let matchingTranscript = Transcript(
+      segments: [
+        TranscriptSegment(start: 0, end: 1, text: "The quantum"),
+        TranscriptSegment(start: 1, end: 2, text: "physics hour"),
+      ],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    let otherTranscript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Garden notes")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    try await repo.updateTranscript(transcriptHit, transcript: matchingTranscript.jsonString())
+    try await repo.updateTranscript(transcriptMiss, transcript: otherTranscript.jsonString())
+
+    let containsFilter = try JSONDecoder()
+      .decode(
+        SmartListFilter.self,
+        from: Data(
+          #"{"combinator":"all","conditions":[{"kind":"episodeTranscript","op":"contains","value":"quantum physics"}],"groups":[]}"#
+            .utf8
+        )
+      )
+    let excludeFilter = try JSONDecoder()
+      .decode(
+        SmartListFilter.self,
+        from: Data(
+          #"{"combinator":"all","conditions":[{"kind":"episodeTranscript","op":"doesNotContain","value":"quantum physics"}],"groups":[]}"#
+            .utf8
+        )
+      )
+
+    #expect(try await ids(for: containsFilter) == [transcriptHit])
+    #expect(try await listableIDs(for: containsFilter) == [transcriptHit])
+    #expect(try await ids(for: excludeFilter) == [titleOnly, transcriptMiss])
+  }
+
+  @Test("episode transcription filters re-emit when transcript text changes")
+  func episodeTranscriptionObservation() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "observed-transcript")]
+      )
+    )
+    let episodeID = series.episodes[0].id
+    let filter = all(.episodeTranscript(.contains, "quantum physics"))
+    let updateCount = Counter()
+    let observedIDs = ThreadSafe<[[Episode.ID]]>([])
+    let observation = observatory.listablePodcastEpisodes(
+      filter: SmartListFilterEngine.sqlExpression(for: filter)
+    )
+    let observationTask = Task {
+      for try await episodes in observation {
+        observedIDs { $0.append(episodes.map(\.id)) }
+        await updateCount.increment()
+      }
+    }
+    defer { observationTask.cancel() }
+
+    try await updateCount.wait(for: 1)
+    #expect(observedIDs() == [[]])
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Quantum physics")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    try await repo.updateTranscript(episodeID, transcript: transcript.jsonString())
+    try await updateCount.wait(for: 2)
+    #expect(observedIDs() == [[], [episodeID]])
+
+    try await repo.updateTranscript(episodeID, transcript: nil)
+    try await updateCount.wait(for: 3)
+    #expect(observedIDs() == [[], [episodeID], []])
+  }
 
   @Test("episode doesNotContain includes null-description rows")
   func doesNotContainIsNullSafe() async throws {

@@ -2,12 +2,17 @@
 
 import GRDB
 
-// External-content FTS5 mirrors of `episode` and `podcast`, kept in sync by
-// triggers created in the v48 migration. Their `rowid` equals the source row's
-// `id`, so a MATCH subquery resolves straight back to episode/podcast ids.
+// External-content title and description mirrors kept in sync with `episode`
+// and `podcast`. Their rowids equal the source ids.
 
 enum EpisodeFTS: TableRecord {
   static let databaseTableName = "episode_fts"
+}
+
+// Flattened timed-segment text kept in sync with `episode.transcript`. Its
+// rowid equals the episode id.
+enum EpisodeTranscriptFTS: TableRecord {
+  static let databaseTableName = "episode_transcript_fts"
 }
 
 enum PodcastFTS: TableRecord {

@@ -41,6 +41,8 @@ enum SmartListFilterEngine {
     switch condition {
     case .episodeText(let field, let op, let value):
       return episodeTextExpression(field, op, value)
+    case .episodeTranscript(let op, let value):
+      return episodeTranscriptExpression(op, value)
     case .podcastText(let field, let op, let value):
       return podcastTextExpression(field, op, value)
     case .state(let state):
@@ -74,6 +76,8 @@ enum SmartListFilterEngine {
     case .isRated: return Episode.rated
     case .isUnrated: return !Episode.rated
     case .wasPreviouslyQueued: return Episode.previouslyQueued
+    case .isTranscribed: return Episode.Columns.transcript != nil
+    case .isNotTranscribed: return Episode.Columns.transcript == nil
     }
   }
 
@@ -81,8 +85,8 @@ enum SmartListFilterEngine {
 
   // contains/doesNotContain match the value as a phrase: its tokens contiguous
   // and in order (whole words, no prefixes), appearing anywhere in the field,
-  // through the FTS5 mirrors (episode_fts/podcast_fts, kept in sync by triggers),
-  // scoped to the queried column so a title filter ignores description text.
+  // through the corresponding FTS5 index, scoped to the queried field so a
+  // title filter ignores description and transcript text.
   // titleOrDescription matches the whole virtual table; an FTS5 phrase never
   // spans columns, so that is exactly the phrase appearing in title or in
   // description. Each mirror's rowid is its source row's id, so the subquery
@@ -110,6 +114,28 @@ enum SmartListFilterEngine {
   ) -> SQLExpression? {
     guard let pattern = FTS5Pattern(matchingPhrase: value) else { return nil }
     return ftsRowIDs(EpisodeFTS.self, field, pattern).contains(Episode.Columns.id)
+  }
+
+  private static func episodeTranscriptExpression(
+    _ op: SmartListFilter.TextOp,
+    _ value: String
+  ) -> SQLExpression {
+    switch op {
+    case .contains:
+      return episodeTranscriptMatches(value) ?? matchNone
+    case .doesNotContain:
+      guard let matches = episodeTranscriptMatches(value) else { return AppDB.noOp }
+      return !matches
+    }
+  }
+
+  private static func episodeTranscriptMatches(_ value: String) -> SQLExpression? {
+    guard let pattern = FTS5Pattern(matchingPhrase: value) else { return nil }
+    return
+      EpisodeTranscriptFTS
+      .matching(pattern)
+      .select(Column.rowID)
+      .contains(Episode.Columns.id)
   }
 
   private static func podcastTextExpression(
