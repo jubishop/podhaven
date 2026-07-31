@@ -4,7 +4,7 @@ status: shipped
 
 # Smart Lists
 
-User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v53, condition set expanded, scrub-on-tag-delete, two-phase build); revised 2026-06-12 (multiple nested groups, v56 migration, inline group editing — see §1/§2/§3a/§10); revised 2026-06-12 (custom swipe delete on the hub list); revised 2026-06-15 (v65 unified tag filters); revised 2026-07-30 (v76 transcript state and text filters).
+User-editable filter rules replacing the hardcoded `EpisodesView` lists. Design captured 2026-05-05; revised 2026-06-04 (schema now at v53, condition set expanded, scrub-on-tag-delete, two-phase build); revised 2026-06-12 (multiple nested groups, v56 migration, inline group editing — see §1/§2/§3a/§10); revised 2026-06-12 (custom swipe delete on the hub list); revised 2026-06-15 (v65 unified tag filters); revised 2026-07-30 (v77 transcript state and text filters).
 
 ## Context
 
@@ -184,9 +184,9 @@ Sample seed JSON for "Liked":
 
 The v1 JSON stored at most one sub-group under a `nested` key (guarded by v54's CHECK as null/object). Lifting the limit moves the shape to a required `groups` **array**. SQLite cannot alter a CHECK constraint, so `Migration_v56` rebuilds `smartList`: it creates `smartList_new` with the same columns but a CHECK requiring `json_type(filter, '$.groups') IS 'array'`, copies every row with the filter converted in SQL (`nested` object → `json_array(filter -> '$.nested')` under `groups`; null/absent `nested` → `[]`; the `nested` key removed), drops the old table, renames, and recreates `smartList_on_displayOrder`. The `->` operator (not `->>`) keeps the extracted sub-group real JSON inside `json_array`. Because every row is rewritten and every production write encodes from the typed value, the decoder requires `groups` and does not tolerate the pre-v56 shape. v54's section above is historical — its CHECK and seed literals shipped with `nested` and are immutable.
 
-### 3b. Migration v76 — transcript search index
+### 3b. Migration v77 — transcript search index
 
-`Migration_v76` creates the contentful `episode_transcript_fts` FTS5 table with one row per non-null `episode.transcript`; its rowid is the episode id. The migration backfills existing rows by flattening `segments[].text` in array order, and insert/update/delete triggers keep the index synchronized with later transcript changes. Invalid stored JSON produces an empty indexed value rather than blocking migration or transcript replacement.
+`Migration_v77` creates the contentful `episode_transcript_fts` FTS5 table with one row per non-null `episode.transcript`; its rowid is the episode id. The migration backfills existing rows by flattening `segments[].text` in array order, and insert/update/delete triggers keep the index synchronized with later transcript changes. Invalid stored JSON produces an empty indexed value rather than blocking migration or transcript replacement.
 
 ### 4. SmartList model — `PodHaven/Database/Models/SmartList.swift`
 

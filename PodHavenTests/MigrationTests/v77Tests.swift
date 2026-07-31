@@ -104,6 +104,21 @@ struct V77MigrationTests {
 
     try await appDB.unsafeTestDB.write { db in
       try db.execute(
+        sql: """
+          INSERT INTO episode (
+            id, podcastId, guid, mediaURL, title, pubDate, transcript
+          ) VALUES (
+            776, 770, 'v77-6', 'https://example.com/v77-6.mp3',
+            'Inserted Transcript', '2026-01-06 00:00:00',
+            '{"segments":[{"start":0,"end":1,"text":"Inserted phrase"}]}'
+          )
+          """
+      )
+    }
+    #expect(try await matches(#""inserted phrase""#) == [776])
+
+    try await appDB.unsafeTestDB.write { db in
+      try db.execute(
         sql: "UPDATE episode SET transcript = ? WHERE id = 771",
         arguments: [#"{"segments":[{"start":0,"end":1,"text":"Ocean currents"}]}"#]
       )
