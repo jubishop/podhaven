@@ -3,6 +3,7 @@
 import AVFoundation
 import FactoryKit
 import Foundation
+import GRDB
 import Logging
 import SwiftUI
 import Tagged
@@ -14,11 +15,16 @@ enum UndoSeekDirection {
 
 @Observable @MainActor class PlayBarViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
+  @ObservationIgnored @DynamicInjected(\.transcriptionAvailability)
+  private var transcriptionAvailability
+  @ObservationIgnored @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
+  @ObservationIgnored @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
 
   private static let log = Log.as(LogSubsystem.PlayBar.main)
@@ -38,6 +44,7 @@ enum UndoSeekDirection {
   var undoSeekDirection: UndoSeekDirection?
   @ObservationIgnored private var undoCandidate: (episodeID: Episode.ID, time: Double)?
   @ObservationIgnored private var hideUndoButtonTask: Task<Void, Never>?
+  private var transcriptionCheckpoint: (episodeID: Episode.ID, progress: Double)?
 
   var episodeImage: UIImage? { sharedState.onDeck?.artwork }
   var loadingEpisodeTitle: String { sharedState.playbackStatus.loadingTitle ?? "Unknown" }
@@ -189,6 +196,100 @@ enum UndoSeekDirection {
     let enabled = !sharedState.stopAfterCurrentEpisode
     Self.log.debug("Toggling stopAfterCurrentEpisode to \(enabled)")
     sharedState.setStopAfterCurrentEpisode(enabled)
+  }
+
+  // MARK: - Transcription
+
+  var isTranscriptionAvailable: Bool {
+    transcriptionAvailability.isAvailable
+  }
+
+  var transcriptionStatus: TranscriptionStatus {
+    guard let onDeck = sharedState.onDeck else { return .none }
+    let checkpointProgress: Double?
+    if let transcriptionCheckpoint,
+      transcriptionCheckpoint.episodeID == onDeck.id
+    {
+      checkpointProgress = transcriptionCheckpoint.progress
+    } else {
+      checkpointProgress = nil
+    }
+    return transcriptionQueue.status(
+      for: onDeck.id,
+      hasTranscript: onDeck.hasTranscript,
+      checkpointProgress: checkpointProgress
+    )
+  }
+
+  func transcribe() {
+    guard
+      let onDeck = sharedState.onDeck,
+      isTranscriptionAvailable,
+      transcriptionStatus.canTranscribe
+    else { return }
+
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await transcriptionProcessor.enqueue(onDeck.id)
+      } catch let error as TranscriptionQueueError {
+        Self.log.caughtError(
+          "transcribe: rejected for \(onDeck.title)",
+          error,
+          level: .notice
+        )
+        alert(
+          title: error.alertTitle,
+          ErrorKit.message(for: error)
+        )
+      } catch {
+        Self.log.caughtError("transcribe: failed for \(onDeck.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func pauseTranscription() {
+    guard let onDeck = sharedState.onDeck, transcriptionStatus.canPause else { return }
+
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await transcriptionProcessor.pause(onDeck.id)
+      } catch {
+        Self.log.caughtError("pauseTranscription: failed for \(onDeck.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func observeTranscriptionCheckpoint() async {
+    guard let episodeID = sharedState.onDeck?.id else {
+      transcriptionCheckpoint = nil
+      return
+    }
+
+    do {
+      for try await checkpoint in observatory.transcriptionCheckpoint(episodeID) {
+        try Task.checkCancellation()
+        guard sharedState.onDeck?.id == episodeID else { return }
+        if let checkpoint {
+          transcriptionCheckpoint = (episodeID, checkpoint.progress)
+        } else {
+          transcriptionCheckpoint = nil
+        }
+      }
+    } catch {
+      if sharedState.onDeck?.id == episodeID {
+        transcriptionCheckpoint = nil
+      }
+      Self.log.caughtError(
+        "observeTranscriptionCheckpoint: failed for \(episodeID)",
+        error
+      )
+    }
   }
 
   // MARK: - Rating

@@ -12,6 +12,7 @@ import Testing
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
   @DynamicInjected(\.userSettings) private var userSettings
 
   private var viewModel = PlayBarViewModel()
@@ -115,6 +116,45 @@ import Testing
 
     #expect(viewModel.canJumpToMaxPlayback == true)
     #expect(viewModel.maxPlaybackTime == 300)
+  }
+
+  // MARK: - Transcription
+
+  @Test("transcription status resumes and pauses retained progress")
+  func transcriptionStatusResumesAndPausesRetainedProgress() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let episode = try await episodeOnDeck()
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [TranscriptSegment(start: 0, end: 30, text: "partial")],
+      audioTime: 30,
+      duration: 60,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: episode.id)
+    let observationTask = Task {
+      await viewModel.observeTranscriptionCheckpoint()
+    }
+    defer { observationTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in self.viewModel.transcriptionStatus == .paused(0.5) },
+      { @MainActor in "Expected retained progress to appear as paused in the play bar" }
+    )
+
+    viewModel.transcribe()
+    let queuedEpisodeIDs = await TranscriptionHelpers.waitForQueuedEpisode(
+      episode.id,
+      in: transcriptionQueue
+    )
+    #expect(queuedEpisodeIDs.contains(episode.id))
+    #expect(viewModel.transcriptionStatus.canPause)
+
+    viewModel.pauseTranscription()
+    try await Wait.until(
+      { @MainActor in self.viewModel.transcriptionStatus == .paused(0.5) },
+      { @MainActor in "Expected the play bar to return to retained paused progress" }
+    )
   }
 
   // MARK: - undoSeekDirection
