@@ -39,6 +39,7 @@ struct UnsavedPodcast:
   let queueAllEpisodes: QueueAllEpisodes
   let autoQueueLimit: Int?
   let cacheAllEpisodes: CacheAllEpisodes
+  let alwaysTranscribeNewEpisodes: Bool
   let notifyNewEpisodes: Bool
   let freshnessCadence: FreshnessCadence?
 
@@ -57,6 +58,7 @@ struct UnsavedPodcast:
     queueAllEpisodes: QueueAllEpisodes = .never,
     autoQueueLimit: Int? = nil,
     cacheAllEpisodes: CacheAllEpisodes = .never,
+    alwaysTranscribeNewEpisodes: Bool = false,
     notifyNewEpisodes: Bool = false,
     freshnessCadence: FreshnessCadence? = nil
   ) throws {
@@ -85,6 +87,7 @@ struct UnsavedPodcast:
     self.queueAllEpisodes = queueAllEpisodes
     self.autoQueueLimit = autoQueueLimit
     self.cacheAllEpisodes = cacheAllEpisodes
+    self.alwaysTranscribeNewEpisodes = alwaysTranscribeNewEpisodes
     self.notifyNewEpisodes = notifyNewEpisodes
     self.freshnessCadence = freshnessCadence
   }
@@ -102,6 +105,7 @@ struct UnsavedPodcast:
       queueAllEpisodes: queueAllEpisodes,
       autoQueueLimit: autoQueueLimit,
       cacheAllEpisodes: cacheAllEpisodes,
+      alwaysTranscribeNewEpisodes: alwaysTranscribeNewEpisodes,
       notifyNewEpisodes: notifyNewEpisodes,
       freshnessCadence: freshnessCadence
     )
@@ -231,6 +235,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let queueAllEpisodes = Column("queueAllEpisodes")
     static let autoQueueLimit = Column("autoQueueLimit")
     static let cacheAllEpisodes = Column("cacheAllEpisodes")
+    static let alwaysTranscribeNewEpisodes = Column("alwaysTranscribeNewEpisodes")
     static let notifyNewEpisodes = Column("notifyNewEpisodes")
     static let freshnessCadence = Column("freshnessCadence")
     static let inferredFreshnessCadence = Column("inferredFreshnessCadence")

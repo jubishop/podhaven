@@ -327,6 +327,7 @@ class PodcastTests {
       queueAllEpisodes: .onTop,
       autoQueueLimit: 4,
       cacheAllEpisodes: .save,
+      alwaysTranscribeNewEpisodes: true,
       notifyNewEpisodes: true,
       freshnessCadence: .evergreen
     )
@@ -355,6 +356,7 @@ class PodcastTests {
       queueAllEpisodes: .onTop,
       autoQueueLimit: 3,
       cacheAllEpisodes: .save,
+      alwaysTranscribeNewEpisodes: true,
       freshnessCadence: .evergreen
     )
 
@@ -366,6 +368,7 @@ class PodcastTests {
     #expect(original.defaultPlaybackRate == nil)
     #expect(original.queueAllEpisodes == .never)
     #expect(original.autoQueueLimit == nil)
+    #expect(!original.alwaysTranscribeNewEpisodes)
     #expect(original.freshnessCadence == nil)
 
     // Feed fields should be preserved
