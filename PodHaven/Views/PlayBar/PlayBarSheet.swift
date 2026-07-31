@@ -28,6 +28,15 @@ struct PlayBarSheet: View {
 
           if let onDeck = sharedState.onDeck {
             topBarButtonStyle(ShareEpisodeButton(episode: onDeck))
+            if viewModel.isTranscriptionAvailable {
+              topBarButtonStyle(
+                TranscriptionToolbarButton(
+                  status: viewModel.transcriptionStatus,
+                  transcribe: viewModel.transcribe,
+                  pause: viewModel.pauseTranscription
+                )
+              )
+            }
             topBarButtonStyle(ratingMenu(rating: onDeck.rating))
           }
         }
@@ -61,6 +70,9 @@ struct PlayBarSheet: View {
       }
     }
     .presentationDetents([.medium])
+    .task(id: sharedState.onDeck?.id) {
+      await viewModel.observeTranscriptionCheckpoint()
+    }
   }
 
   @ViewBuilder
@@ -313,6 +325,7 @@ struct PlayBarSheetPreview: View {
     PlayBarSheet(viewModel: PlayBarViewModel())
       .preview()
       .task {
+        Container.shared.transcriptionAvailability().$state.new(.available)
         sharedState.setPlaybackStatus(status)
 
         let unsavedEpisode = try! Create.unsavedEpisode(
@@ -329,7 +342,7 @@ struct PlayBarSheetPreview: View {
   }
 }
 
-#Preview("at peak — finish button") {
+#Preview("at peak — transcription + finish") {
   PlayBarSheetPreview(currentTime: 600, maxPlaybackTime: 600)
 }
 

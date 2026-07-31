@@ -183,34 +183,10 @@ struct EpisodeDetailView: View {
 
     if viewModel.isTranscriptionAvailable {
       ToolbarItem(placement: .primaryAction) {
-        Button {
-          if viewModel.transcriptionStatus.canPause {
-            viewModel.pauseTranscription()
-          } else {
-            viewModel.transcribe()
-          }
-        } label: {
-          switch viewModel.transcriptionStatus {
-          case .queued, .transcribing, .pausing:
-            AppIcon.pauseTranscription.image
-              .symbolEffect(.pulse, isActive: isTranscribing)
-          case .discarding:
-            AppIcon.discardTranscriptionProgress.image
-          case .paused:
-            AppIcon.resumeTranscription.image
-          case .none, .transcribed, .failed:
-            AppIcon.transcribeEpisode.image
-          }
-        }
-        .accessibilityLabel(
-          Text(LocalizedStringKey(viewModel.transcriptionStatus.toolbarAccessibilityLabel))
-        )
-        .accessibilityValue(
-          Text(LocalizedStringKey(viewModel.transcriptionStatus.toolbarAccessibilityValue))
-        )
-        .disabled(
-          !viewModel.transcriptionStatus.canTranscribe
-            && !viewModel.transcriptionStatus.canPause
+        TranscriptionToolbarButton(
+          status: viewModel.transcriptionStatus,
+          transcribe: viewModel.transcribe,
+          pause: viewModel.pauseTranscription
         )
       }
     }
@@ -227,11 +203,6 @@ struct EpisodeDetailView: View {
           ? "Not Rated" : AppIcon.rating(for: viewModel.episode.rating).text
       )
     }
-  }
-
-  private var isTranscribing: Bool {
-    guard case .transcribing = viewModel.transcriptionStatus else { return false }
-    return true
   }
 
   // MARK: - Header
@@ -645,31 +616,6 @@ struct EpisodeDetailView: View {
     }
     .onTapGesture {
       showingImageOverlay = false
-    }
-  }
-}
-
-extension TranscriptionStatus {
-  var toolbarAccessibilityLabel: String {
-    switch self {
-    case .none: "Transcribe"
-    case .paused: "Resume Transcription"
-    case .failed: "Retry Transcription"
-    case .queued, .transcribing: "Pause Transcription"
-    case .pausing, .discarding, .transcribed: "Transcription"
-    }
-  }
-
-  var toolbarAccessibilityValue: String {
-    switch self {
-    case .none: ""
-    case .queued: "Queued"
-    case .transcribing: "Transcribing"
-    case .paused: "Paused"
-    case .pausing: "Pausing"
-    case .discarding: "Discarding Progress"
-    case .transcribed: "Complete"
-    case .failed: "Failed"
     }
   }
 }
