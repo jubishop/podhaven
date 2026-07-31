@@ -69,6 +69,8 @@ struct SmartListFilter: Codable, Hashable, Sendable {
     case isRated
     case isUnrated
     case wasPreviouslyQueued
+    case isTranscribed
+    case isNotTranscribed
   }
 
   // Nested under the Condition's `tag` key so its own `kind` doesn't collide
@@ -130,6 +132,7 @@ struct SmartListFilter: Codable, Hashable, Sendable {
 
   enum Condition: Codable, Hashable, Sendable {
     case episodeText(TextField, TextOp, String)
+    case episodeTranscript(TextOp, String)
     case podcastText(TextField, TextOp, String)
     case state(StateCondition)
     case tag(TagCondition)
@@ -148,6 +151,7 @@ struct SmartListFilter: Codable, Hashable, Sendable {
     }
     private enum Kind: String {
       case episodeText
+      case episodeTranscript
       case podcastText
       case state
       case tag
@@ -162,6 +166,11 @@ struct SmartListFilter: Codable, Hashable, Sendable {
       case Kind.episodeText.rawValue:
         self = .episodeText(
           try container.decode(TextField.self, forKey: .field),
+          try container.decode(TextOp.self, forKey: .op),
+          try container.decode(String.self, forKey: .value)
+        )
+      case Kind.episodeTranscript.rawValue:
+        self = .episodeTranscript(
           try container.decode(TextOp.self, forKey: .op),
           try container.decode(String.self, forKey: .value)
         )
@@ -202,6 +211,10 @@ struct SmartListFilter: Codable, Hashable, Sendable {
         try container.encode(field, forKey: .field)
         try container.encode(op, forKey: .op)
         try container.encode(value, forKey: .value)
+      case .episodeTranscript(let op, let value):
+        try container.encode(Kind.episodeTranscript.rawValue, forKey: .kind)
+        try container.encode(op, forKey: .op)
+        try container.encode(value, forKey: .value)
       case .podcastText(let field, let op, let value):
         try container.encode(Kind.podcastText.rawValue, forKey: .kind)
         try container.encode(field, forKey: .field)
@@ -234,7 +247,7 @@ struct SmartListFilter: Codable, Hashable, Sendable {
         case .hasAnyTag, .hasNoTags:
           return false
         }
-      case .episodeText, .podcastText, .state, .duration, .publishDate:
+      case .episodeText, .episodeTranscript, .podcastText, .state, .duration, .publishDate:
         return false
       }
     }

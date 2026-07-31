@@ -29,6 +29,7 @@ struct EditableCondition: Identifiable, Hashable {
     case episodeTitle
     case episodeDescription
     case episodeTitleOrDescription
+    case episodeTranscript
     case podcastTitle
     case podcastDescription
     case podcastTitleOrDescription
@@ -42,6 +43,7 @@ struct EditableCondition: Identifiable, Hashable {
       case .episodeTitle: return "Episode Title"
       case .episodeDescription: return "Episode Description"
       case .episodeTitleOrDescription: return "Episode Title or Description"
+      case .episodeTranscript: return "Episode Transcription"
       case .podcastTitle: return "Podcast Title"
       case .podcastDescription: return "Podcast Description"
       case .podcastTitleOrDescription: return "Podcast Title or Description"
@@ -91,6 +93,10 @@ struct EditableCondition: Identifiable, Hashable {
       case .description: kind = .episodeDescription
       case .titleOrDescription: kind = .episodeTitleOrDescription
       }
+      textOp = op
+      text = value
+    case .episodeTranscript(let op, let value):
+      kind = .episodeTranscript
       textOp = op
       text = value
     case .podcastText(let field, let op, let value):
@@ -146,6 +152,9 @@ struct EditableCondition: Identifiable, Hashable {
     case .episodeTitleOrDescription:
       guard !trimmedText.isEmpty else { return nil }
       return .episodeText(.titleOrDescription, textOp, trimmedText)
+    case .episodeTranscript:
+      guard !trimmedText.isEmpty else { return nil }
+      return .episodeTranscript(textOp, trimmedText)
     case .podcastTitle:
       guard !trimmedText.isEmpty else { return nil }
       return .podcastText(.title, textOp, trimmedText)
@@ -175,8 +184,8 @@ struct EditableCondition: Identifiable, Hashable {
   var validationMessage: String? {
     guard condition == nil else { return nil }
     switch kind {
-    case .episodeTitle, .episodeDescription, .episodeTitleOrDescription, .podcastTitle,
-      .podcastDescription, .podcastTitleOrDescription:
+    case .episodeTitle, .episodeDescription, .episodeTitleOrDescription, .episodeTranscript,
+      .podcastTitle, .podcastDescription, .podcastTitleOrDescription:
       return "Enter text to match"
     case .state:
       return nil
