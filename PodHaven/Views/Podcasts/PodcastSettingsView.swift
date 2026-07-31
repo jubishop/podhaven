@@ -165,7 +165,7 @@ struct PodcastSettingsView: View {
                 """
             ) {
               Toggle(
-                "Always Transcribe New Episodes",
+                "Transcribe New Episodes",
                 isOn: $temp.alwaysTranscribeNewEpisodes
               )
               .toggleStyle(.stacked)
