@@ -63,6 +63,7 @@ enum Create {
     queueAllEpisodes: QueueAllEpisodes = .never,
     autoQueueLimit: Int? = nil,
     cacheAllEpisodes: CacheAllEpisodes = .never,
+    alwaysTranscribeNewEpisodes: Bool = false,
     notifyNewEpisodes: Bool = false,
     freshnessCadence: FreshnessCadence? = nil
   ) throws -> UnsavedPodcast {
@@ -79,6 +80,7 @@ enum Create {
       queueAllEpisodes: queueAllEpisodes,
       autoQueueLimit: autoQueueLimit,
       cacheAllEpisodes: cacheAllEpisodes,
+      alwaysTranscribeNewEpisodes: alwaysTranscribeNewEpisodes,
       notifyNewEpisodes: notifyNewEpisodes,
       freshnessCadence: freshnessCadence
     )
@@ -97,6 +99,7 @@ enum Create {
     queueAllEpisodes: QueueAllEpisodes = .never,
     autoQueueLimit: Int? = nil,
     cacheAllEpisodes: CacheAllEpisodes = .never,
+    alwaysTranscribeNewEpisodes: Bool = false,
     notifyNewEpisodes: Bool = false,
     freshnessCadence: FreshnessCadence? = nil
   ) async throws -> Podcast {
@@ -117,6 +120,7 @@ enum Create {
               queueAllEpisodes: queueAllEpisodes,
               autoQueueLimit: autoQueueLimit,
               cacheAllEpisodes: cacheAllEpisodes,
+              alwaysTranscribeNewEpisodes: alwaysTranscribeNewEpisodes,
               notifyNewEpisodes: notifyNewEpisodes,
               freshnessCadence: freshnessCadence
             )

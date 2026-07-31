@@ -5,6 +5,7 @@ import SwiftUI
 
 struct PodcastSettingsView: View {
   @DynamicInjected(\.userNotificationManager) private var notificationManager
+  @DynamicInjected(\.transcriptionAvailability) private var transcriptionAvailability
   @DynamicInjected(\.userSettings) private var userSettings
 
   private let viewModel: PodcastDetailViewModel
@@ -152,6 +153,36 @@ struct PodcastSettingsView: View {
             .onChange(of: temp.cacheAllEpisodes) {
               viewModel.updateSettings(temp)
             }
+          }
+        }
+
+        if transcriptionAvailability.isAvailable {
+          Section {
+            SettingsRow(
+              infoText: """
+                Automatically add episodes discovered during a refresh to the \
+                transcription queue. Existing episodes are unaffected.
+                """
+            ) {
+              Toggle(
+                "Always Transcribe New Episodes",
+                isOn: $temp.alwaysTranscribeNewEpisodes
+              )
+              .onChange(of: temp.alwaysTranscribeNewEpisodes) {
+                viewModel.updateSettings(temp)
+              }
+              Spacer(minLength: 0)
+            }
+          } header: {
+            Text("Transcription")
+          } footer: {
+            Text(
+              """
+              Warning: Enabling this for many podcasts can fill the transcription queue. \
+              If a podcast's newly fetched episodes don't all fit, none are added for \
+              automatic transcription, and they aren't retried automatically.
+              """
+            )
           }
         }
 
@@ -418,6 +449,39 @@ struct PodcastSettingsView: View {
       }
       .task {
         let podcast = try! await Create.podcast(title: "Auto Cadence Sample")
+        let displayed = DisplayedPodcast(podcast)
+        settings = displayed.settings
+        viewModel = PodcastDetailViewModel(podcast: displayed)
+        viewModel?.appear()
+      }
+    }
+  }
+
+  return PreviewWrapper().preview()
+}
+
+#Preview("Always Transcribe New Episodes") {
+  struct PreviewWrapper: View {
+    @State private var settings: PodcastSettings?
+    @State private var viewModel: PodcastDetailViewModel?
+
+    init() {
+      Container.shared.transcriptionAvailability().$state.new(.available)
+    }
+
+    var body: some View {
+      Group {
+        if let viewModel, let settings {
+          PodcastSettingsView(viewModel: viewModel, settings: settings)
+        } else {
+          ProgressView()
+        }
+      }
+      .task {
+        let podcast = try! await Create.podcast(
+          title: "Daily News",
+          alwaysTranscribeNewEpisodes: true
+        )
         let displayed = DisplayedPodcast(podcast)
         settings = displayed.settings
         viewModel = PodcastDetailViewModel(podcast: displayed)

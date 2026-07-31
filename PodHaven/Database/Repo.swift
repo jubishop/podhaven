@@ -712,6 +712,9 @@ struct Repo: Databasing {
           Podcast.Columns.queueAllEpisodes.set(to: settings.queueAllEpisodes),
           Podcast.Columns.autoQueueLimit.set(to: settings.autoQueueLimit),
           Podcast.Columns.cacheAllEpisodes.set(to: settings.cacheAllEpisodes),
+          Podcast.Columns.alwaysTranscribeNewEpisodes.set(
+            to: settings.alwaysTranscribeNewEpisodes
+          ),
           Podcast.Columns.notifyNewEpisodes.set(to: settings.notifyNewEpisodes),
           Podcast.Columns.freshnessCadence.set(to: settings.freshnessCadence)
         )
