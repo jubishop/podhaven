@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import GRDB
 import Testing
 
@@ -12,6 +13,7 @@ struct V76MigrationTests {
 
   @Test("v76 adds alwaysTranscribeNewEpisodes defaulting existing podcasts to false")
   func defaultsExistingPodcastsToFalse() async throws {
+    #expect(Container.shared.standardDefaults() is FakeKeyValueStore)
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v75")
     try await appDB.unsafeTestDB.write { db in
       try db.execute(
@@ -42,6 +44,7 @@ struct V76MigrationTests {
 
   @Test("v76 allows podcasts to opt into automatic transcription")
   func acceptsTrueValue() async throws {
+    #expect(Container.shared.standardDefaults() is FakeKeyValueStore)
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v76")
     try await appDB.unsafeTestDB.write { db in
       try db.execute(
