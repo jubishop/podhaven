@@ -2,17 +2,17 @@
 status: in-progress
 ---
 
-# Manual Episode Transcription
+# Episode Transcription
 
-User-initiated, on-device transcription of individual episodes, rendered read-only in `EpisodeDetailView`. iOS 26+. Interactive tap-to-seek is a documented v2. Supersedes — for v1 — the autonomous three-tier design in [Episode Transcripts](transcripts.md) (abandoned).
+On-device transcription of individual episodes, initiated manually or through a per-podcast new-episode opt-in and rendered read-only in `EpisodeDetailView`. iOS 26+. Interactive tap-to-seek is a documented v2. Supersedes — for v1 — the autonomous three-tier design in [Episode Transcripts](transcripts.md) (abandoned).
 
 ## Status
 
-The backend transcription runtime from #461, episode projection support from #507, and view integration from #516 are merged into `main`. The on-device `Transcriber` (real speech model) and the `BGProcessingTask` runtime behaviour are integration/device-tested, not in CI; both sit behind protocols/fakes so everything around them is unit-tested. The transcript renders read-only — **interactive playback (tap-to-seek, active-segment highlight, auto-scroll) is deferred to v2**; the per-segment timestamps are already stored, so v2 is purely a UI layer. Also deferred and tracked in [Episode Transcripts](transcripts.md): speaker diarization, RSS `<podcast:transcript>` import, transcript search, autonomous transcription.
+The backend transcription runtime from #461, episode projection support from #507, and view integration from #516 are merged into `main`. The on-device `Transcriber` (real speech model) and the `BGProcessingTask` runtime behaviour are integration/device-tested, not in CI; both sit behind protocols/fakes so everything around them is unit-tested. The transcript renders read-only — **interactive playback (tap-to-seek, active-segment highlight, auto-scroll) is deferred to v2**; the per-segment timestamps are already stored, so v2 is purely a UI layer. Also deferred and tracked in [Episode Transcripts](transcripts.md): speaker diarization, RSS `<podcast:transcript>` import, transcript search, and autonomous working-set transcription beyond the explicit per-podcast opt-in.
 
 ## Why
 
-Transcription is expensive — roughly 5× realtime of Neural-Engine compute (~12 min for an hour episode) — so it is strictly **user-initiated, one episode at a time**; nothing transcribes automatically (the cost model for a free, local-first app does not support it). The immediate value: read an episode you can't listen to now. Every segment is timestamped, so a v2 can turn the static transcript interactive — tap a line to jump playback there, with highlight + auto-scroll — without re-transcribing; the timing is already stored.
+Transcription is expensive — roughly 5× realtime of Neural-Engine compute (~12 min for an hour episode) — so requests remain explicitly user-directed: people either select episodes manually or opt individual podcasts into queueing newly discovered episodes. Work drains one episode at a time through a bounded queue; the app does not autonomously choose a broader working set. The immediate value: read an episode you can't listen to now. Every segment is timestamped, so a v2 can turn the static transcript interactive — tap a line to jump playback there, with highlight + auto-scroll — without re-transcribing; the timing is already stored.
 
 ## Scope
 
@@ -24,12 +24,13 @@ In:
 - Description and Transcription segmented tabs in `EpisodeDetailView`, with a read-only transcript render.
 - Per-episode transcription state (queued / transcribing / paused / transcribed / failed) in the detail view, with action availability kept live across the other episode surfaces.
 - A dedicated Settings → Transcription Queue manager with drag reordering, move-to-edge and removal swipe actions, multi-selection, live active progress, and durable checkpoint progress for paused work.
+- A capability-gated per-podcast opt-in that queues episodes newly discovered during refresh as one batch, with non-fitting batches dropped under the warning shown in Podcast Settings.
 
 Out (deferred — see [Episode Transcripts](transcripts.md)):
 - Interactive transcript: tap-a-line-to-seek, active-segment highlight, auto-scroll. v1 renders read-only; the per-segment timestamps are persisted, so v2 is a pure UI layer (no re-transcription).
 - Speaker diarization (no first-party API; FluidAudio is the documented v2 path).
 - RSS `<podcast:transcript>` import (a complementary future source that reuses this same segment model).
-- Autonomous / opportunistic transcription of the working set.
+- Autonomous / opportunistic transcription of a working set beyond the explicit per-podcast new-episode opt-in.
 - Cross-episode transcript search (FTS5) and on-device summaries.
 - Multi-locale: v1 is en-US only, gated on model availability.
 

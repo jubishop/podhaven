@@ -179,8 +179,8 @@ struct PodcastSettingsView: View {
             Text(
               """
               Warning: Enabling this for many podcasts can fill the transcription queue. \
-              When it is full, newly fetched episodes are dropped from automatic \
-              transcription and aren't retried automatically.
+              If a podcast's newly fetched episodes don't all fit, none are added for \
+              automatic transcription, and they aren't retried automatically.
               """
             )
           }

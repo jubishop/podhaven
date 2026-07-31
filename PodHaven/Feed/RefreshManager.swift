@@ -312,26 +312,33 @@ struct RefreshManager {
     }
 
     if podcast.alwaysTranscribeNewEpisodes, !newEpisodes.isEmpty {
-      do {
-        try await transcriptionProcessor.enqueue(newEpisodes.map(\.id))
-      } catch let error as TranscriptionQueueError {
-        Self.log.caughtError(
-          """
-          applyParsedFeed: dropped automatic transcription for \
-          \(newEpisodes.count) new episodes from podcast \(podcast.id)
-          """,
-          error,
-          level: .notice
-        )
-      } catch {
-        Self.log.caughtError(
-          """
-          applyParsedFeed: failed to enqueue automatic transcription for \
-          \(newEpisodes.count) new episodes from podcast \(podcast.id)
-          """,
-          error
-        )
+      let episodeIDs = newEpisodes.map(\.id)
+      let transcriptionProcessor = transcriptionProcessor
+      // Finish the durable queue handoff after the feed transaction commits,
+      // even if the refresh caller is cancelled.
+      await Task {
+        do {
+          try await transcriptionProcessor.enqueue(episodeIDs)
+        } catch let error as TranscriptionQueueError {
+          Self.log.caughtError(
+            """
+            applyParsedFeed: dropped automatic transcription for \
+            \(episodeIDs.count) new episodes from podcast \(podcast.id)
+            """,
+            error,
+            level: .notice
+          )
+        } catch {
+          Self.log.caughtError(
+            """
+            applyParsedFeed: failed to enqueue automatic transcription for \
+            \(episodeIDs.count) new episodes from podcast \(podcast.id)
+            """,
+            error
+          )
+        }
       }
+      .value
     }
 
     if podcast.notifyNewEpisodes {
