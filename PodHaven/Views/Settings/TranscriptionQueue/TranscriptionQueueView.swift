@@ -223,7 +223,7 @@ private struct TranscriptionQueueRow: View {
   }
 
   var body: some View {
-    HStack(alignment: .top, spacing: 12) {
+    HStack(alignment: .center, spacing: 12) {
       SquareImage(image: entry.episode.image, size: imageSize)
         .selectable(isSelecting: isSelecting, isSelected: $isSelected)
         .accessibilityHidden(!isSelecting)
@@ -282,9 +282,9 @@ private struct TranscriptionQueueRow: View {
       let thumbnails = Array(PreviewBundle.loadAllThumbnails().values)
       let duration: TimeInterval = 3600
       let titles = [
-        "Short Active Episode",
-        "A Waiting Episode With a Long Title That Wraps Across Both Reserved Lines",
+        "An Active Episode With a Long Title That Wraps Across Both Reserved Lines",
         "Short Waiting Episode",
+        "A Waiting Episode With a Long Title That Wraps Across Both Reserved Lines",
         "Another Waiting Episode With Enough Detail to Exercise Title Truncation",
         "Episode Five",
         "Episode Six",

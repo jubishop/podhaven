@@ -323,13 +323,14 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
-    "transcription queue reserves two title lines before live progress",
+    "transcription queue reserves title space and centers artwork beside progress",
     .enabled(
       if: supportsHostedAccessibilityInspection,
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
-    )
+    ),
+    arguments: [ColorScheme.light, .dark]
   )
-  func transcriptionQueueReservesTwoTitleLinesBeforeLiveProgress() async throws {
+  func transcriptionQueueLaysOutArtworkAndProgress(colorScheme: ColorScheme) async throws {
     let shortTitle = "Short Episode"
     let longTitle =
       "A deliberately long episode title that always wraps onto a second line"
@@ -348,6 +349,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       NavigationStack {
         TranscriptionQueueView()
       }
+      .preferredColorScheme(colorScheme)
       .transaction { transaction in
         transaction.disablesAnimations = true
       }
@@ -369,6 +371,39 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     let shortTitleProgressY = try Self.transcriptionProgressY(
       in: window,
       title: shortTitle
+    )
+    let shortTitleRow = try #require(
+      Self.accessibilityElements(in: window)
+        .first { $0.accessibilityLabel?.contains(shortTitle) == true }
+    )
+    let frame = window.convert(
+      shortTitleRow.accessibilityFrame,
+      from: window.screen.coordinateSpace
+    )
+    let rendering = try Self.render(window)
+    let artworkX = Int((frame.minX + 28).rounded())
+    let backgroundX = Int((frame.minX + 62).rounded())
+    let artworkPixels =
+      (Int(frame.minY.rounded(.down))...Int(frame.maxY.rounded(.up)))
+      .filter { y in
+        guard
+          let artworkColor = rendering.color(atX: artworkX, y: y),
+          let backgroundColor = rendering.color(atX: backgroundX, y: y)
+        else { return false }
+        return abs(artworkColor.red - backgroundColor.red)
+          + abs(artworkColor.green - backgroundColor.green)
+          + abs(artworkColor.blue - backgroundColor.blue) > 30
+      }
+    let artworkTop = CGFloat(try #require(artworkPixels.first))
+    let artworkBottom = CGFloat(try #require(artworkPixels.last) + 1)
+    let topInset = artworkTop - frame.minY
+    let bottomInset = frame.maxY - artworkBottom
+    #expect(
+      abs(topInset - bottomInset) <= 2,
+      """
+      Artwork should be vertically centered in the row; found top/bottom insets \
+      \(topInset) and \(bottomInset)
+      """
     )
 
     queue.clearProgress(for: shortEpisode.id)
