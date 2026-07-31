@@ -564,7 +564,9 @@ actor ObservatoryScoringContextInputsTests {
     let noisySettings = PodcastSettings(
       defaultPlaybackRate: 1.5,
       queueAllEpisodes: .onTop,
+      autoQueueLimit: nil,
       cacheAllEpisodes: .save,
+      alwaysTranscribeNewEpisodes: true,
       notifyNewEpisodes: true,
       freshnessCadence: .weekly
     )

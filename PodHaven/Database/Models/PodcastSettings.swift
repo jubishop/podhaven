@@ -7,6 +7,7 @@ struct PodcastSettings: Hashable, Sendable {
   var queueAllEpisodes: QueueAllEpisodes
   var autoQueueLimit: Int?
   var cacheAllEpisodes: CacheAllEpisodes
+  var alwaysTranscribeNewEpisodes: Bool
   var notifyNewEpisodes: Bool
   var freshnessCadence: FreshnessCadence?
 
@@ -18,6 +19,7 @@ struct PodcastSettings: Hashable, Sendable {
     queueAllEpisodes: .never,
     autoQueueLimit: nil,
     cacheAllEpisodes: .never,
+    alwaysTranscribeNewEpisodes: false,
     notifyNewEpisodes: false,
     freshnessCadence: nil
   )

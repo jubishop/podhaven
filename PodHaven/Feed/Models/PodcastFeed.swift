@@ -212,6 +212,7 @@ struct PodcastFeed: Sendable, Stringable {
       image: image,
       description: rssPodcast.description,
       link: link ?? podcast?.link,
+      alwaysTranscribeNewEpisodes: podcast?.alwaysTranscribeNewEpisodes ?? false,
       freshnessCadence: podcast?.freshnessCadence
     )
   }

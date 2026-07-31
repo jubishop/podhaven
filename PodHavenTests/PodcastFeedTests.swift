@@ -225,7 +225,7 @@ struct PodcastFeedTests {
     #expect(unsavedPodcast.freshnessCadence == nil)
   }
 
-  @Test("toUnsavedPodcast preserves the existing podcast's cadence when merging")
+  @Test("toUnsavedPodcast preserves automatic transcription and cadence when merging")
   func preservesCadenceWhenMerging() async throws {
     let data = PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
@@ -239,21 +239,26 @@ struct PodcastFeedTests {
         unsavedPodcast: try Create.unsavedPodcast(
           feedURL: fakeURL,
           title: "Pod Save America",
+          alwaysTranscribeNewEpisodes: true,
           freshnessCadence: .evergreen
         ),
         unsavedEpisodes: feed.toUnsavedEpisodes()
       )
     )
+    #expect(inserted.podcast.alwaysTranscribeNewEpisodes)
     #expect(inserted.podcast.freshnessCadence == .evergreen)
 
     let mergedEvergreen = try feed.toUnsavedPodcast(merging: inserted.podcast)
+    #expect(mergedEvergreen.alwaysTranscribeNewEpisodes)
     #expect(mergedEvergreen.freshnessCadence == .evergreen)
 
     var clearedSettings = inserted.podcast.unsaved.settings
+    clearedSettings.alwaysTranscribeNewEpisodes = false
     clearedSettings.freshnessCadence = nil
     _ = try await repo.updatePodcastSettings(inserted.podcast.id, clearedSettings)
     let refreshed = try #require(try await repo.podcastSeries(inserted.podcast.id))
     let mergedAuto = try feed.toUnsavedPodcast(merging: refreshed.podcast)
+    #expect(!mergedAuto.alwaysTranscribeNewEpisodes)
     #expect(mergedAuto.freshnessCadence == nil)
   }
 
