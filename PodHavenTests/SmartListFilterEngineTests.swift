@@ -235,17 +235,20 @@ class SmartListFilterEngineTests {
     let episodeID = series.episodes[0].id
     let filter = all(.episodeTranscript(.contains, "quantum physics"))
     let updateCount = Counter()
+    let observedIDs = ThreadSafe<[[Episode.ID]]>([])
     let observation = observatory.listablePodcastEpisodes(
       filter: SmartListFilterEngine.sqlExpression(for: filter)
     )
     let observationTask = Task {
-      for try await _ in observation {
+      for try await episodes in observation {
+        observedIDs { $0.append(episodes.map(\.id)) }
         await updateCount.increment()
       }
     }
     defer { observationTask.cancel() }
 
     try await updateCount.wait(for: 1)
+    #expect(observedIDs() == [[]])
     let transcript = Transcript(
       segments: [TranscriptSegment(start: 0, end: 1, text: "Quantum physics")],
       locale: "en-US",
@@ -253,9 +256,11 @@ class SmartListFilterEngineTests {
     )
     try await repo.updateTranscript(episodeID, transcript: transcript.jsonString())
     try await updateCount.wait(for: 2)
+    #expect(observedIDs() == [[], [episodeID]])
 
     try await repo.updateTranscript(episodeID, transcript: nil)
     try await updateCount.wait(for: 3)
+    #expect(observedIDs() == [[], [episodeID], []])
   }
 
   @Test("episode doesNotContain includes null-description rows")
