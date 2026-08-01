@@ -216,7 +216,7 @@ struct PublisherTranscriptProcessor: Sendable {
         expectedReferences: expectedReferences
       )
       Self.log.info(
-        "Publisher transcript demand resolved for episode \(episode.id) stored=\(stored)"
+        "Publisher transcript import finished for episode \(episode.id) stored=\(stored)"
       )
     case .terminalFailure:
       let removed = try await store.remove(

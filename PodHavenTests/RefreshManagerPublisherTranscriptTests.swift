@@ -400,12 +400,19 @@ struct RefreshManagerPublisherTranscriptTests {
     )
     let refreshManager = Container.shared.refreshManager()
 
-    for timestamp in [1_000.0, 2_000.0, 3_000.0, 4_000.0] {
-      Container.shared.fakeDate().freeze(at: Date(timeIntervalSince1970: timestamp))
+    let maximumAttemptCount = PublisherTranscriptImportStore.maximumAttemptCount
+    for attempt in 1...(maximumAttemptCount + 1) {
+      Container.shared.fakeDate()
+        .freeze(
+          at: Date(timeIntervalSince1970: Double(attempt) * 1_000)
+        )
       try await refreshManager.refreshSeries(podcast: series.podcast)
     }
 
-    #expect(await transcriptSession.requests.filter { $0 == transcriptURL }.count == 3)
+    #expect(
+      await transcriptSession.requests.filter { $0 == transcriptURL }.count
+        == maximumAttemptCount
+    )
     let jobCount = try await Container.shared.repo().db
       .read { db in
         try PublisherTranscriptImportJob.fetchCount(db)

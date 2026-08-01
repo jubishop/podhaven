@@ -386,14 +386,6 @@ struct RefreshManager {
       }
     }
 
-    let hasPublisherImportCandidates = newEpisodes.contains {
-      !$0.hasTranscript
-        && $0.publisherTranscriptReferences.contains(where: { $0.format != nil })
-    }
-    if hasPublisherImportCandidates {
-      await publisherTranscriptProcessor.makeForegroundProgress()
-    }
-
     return nil
   }
 }

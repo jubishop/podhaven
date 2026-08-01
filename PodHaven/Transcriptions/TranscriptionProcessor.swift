@@ -256,50 +256,16 @@ struct TranscriptionProcessor: Sendable {
   }
 
   @discardableResult
-  func importPublisherTranscript(for episodeID: Episode.ID) async -> Bool {
-    do {
-      guard
-        let episode = try await repo.episode(episodeID),
-        !episode.hasTranscript,
-        let imported = try await publisherTranscriptImporter.importTranscript(
-          from: episode.publisherTranscriptReferences
-        )
-      else {
-        return false
-      }
-      return try await storePublisherTranscript(imported, for: episodeID)
-    } catch is CancellationError {
-      return false
-    } catch {
-      Self.log.caughtError(
-        "Failed to import publisher transcript for episode \(episodeID)",
-        error,
-        level: .info
-      )
-      return false
-    }
-  }
-
-  @discardableResult
   func storePublisherTranscript(
     _ imported: PublisherTranscriptImport,
     for episodeID: Episode.ID,
-    expectedReferences: [PublisherTranscriptReference]? = nil
+    expectedReferences: [PublisherTranscriptReference]
   ) async throws -> Bool {
-    let stored: Bool
-    if let expectedReferences {
-      stored = try await repo.storePublisherTranscriptIfDemandCurrent(
-        episodeID,
-        imported: imported,
-        expectedReferences: expectedReferences
-      )
-    } else {
-      stored = try await repo.storeTranscriptIfAbsent(
-        episodeID,
-        transcript: imported.transcript,
-        publisherSource: imported.source
-      )
-    }
+    let stored = try await repo.storePublisherTranscriptIfDemandCurrent(
+      episodeID,
+      imported: imported,
+      expectedReferences: expectedReferences
+    )
     guard stored else { return false }
 
     let activeTask = activeTranscription { active -> Task<Void, any Error>? in
@@ -933,10 +899,10 @@ struct TranscriptionProcessor: Sendable {
     else {
       return false
     }
-    return try await repo.storeTranscriptIfAbsent(
+    return try await repo.storePublisherTranscriptIfReferencesCurrent(
       episode.id,
-      transcript: imported.transcript,
-      publisherSource: imported.source
+      imported: imported,
+      expectedReferences: episode.publisherTranscriptReferences
     )
   }
 

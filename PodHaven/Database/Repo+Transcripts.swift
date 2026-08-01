@@ -5,6 +5,7 @@ import Logging
 
 private enum TranscriptStoreRequirement: Sendable {
   case none
+  case publisherReferences([PublisherTranscriptReference])
   case publisherDemand([PublisherTranscriptReference])
 }
 
@@ -53,6 +54,19 @@ extension Repo {
     )
   }
 
+  func storePublisherTranscriptIfReferencesCurrent(
+    _ episodeID: Episode.ID,
+    imported: PublisherTranscriptImport,
+    expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> Bool {
+    try await storeTranscript(
+      episodeID,
+      transcript: imported.transcript,
+      publisherSource: imported.source,
+      requirement: .publisherReferences(expectedReferences)
+    )
+  }
+
   func storePublisherTranscriptIfDemandCurrent(
     _ episodeID: Episode.ID,
     imported: PublisherTranscriptImport,
@@ -76,12 +90,28 @@ extension Repo {
     let publisherSourceJSON = try PublisherTranscriptReference.jsonString(
       for: publisherSource
     )
-    Self.transcriptLog.debug(
-      "storeTranscriptIfAbsent: \(episodeID) to \(transcriptJSON.count) chars"
-    )
+    let requirementDescription =
+      switch requirement {
+      case .none:
+        "none"
+      case .publisherReferences(let references):
+        "publisherReferences(\(references.count))"
+      case .publisherDemand(let references):
+        "publisherDemand(\(references.count))"
+      }
 
-    return try await writer.write { db in
-      if case .publisherDemand(let expectedReferences) = requirement {
+    let stored = try await writer.write { db in
+      switch requirement {
+      case .none:
+        break
+      case .publisherReferences(let expectedReferences):
+        guard
+          let episode = try Episode.withID(episodeID).fetchOne(db),
+          episode.publisherTranscriptReferences == expectedReferences
+        else {
+          return false
+        }
+      case .publisherDemand(let expectedReferences):
         guard
           let episode = try Episode.withID(episodeID).fetchOne(db),
           episode.publisherTranscriptReferences == expectedReferences,
@@ -111,6 +141,13 @@ extension Repo {
         .deleteAll(db)
       return true
     }
+    Self.transcriptLog.debug(
+      """
+      storeTranscript: \(episodeID) chars=\(transcriptJSON.count) \
+      requirement=\(requirementDescription) stored=\(stored)
+      """
+    )
+    return stored
   }
 
   func saveTranscriptionCheckpoint(
