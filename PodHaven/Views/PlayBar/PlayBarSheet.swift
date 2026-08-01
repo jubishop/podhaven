@@ -166,7 +166,7 @@ struct PlayBarSheet: View {
     content
       .font(.title3)
       .padding(spacing / 2)
-      .glassEffect(.clear.interactive(), in: .capsule)
+      .glassEffect(.regular.interactive(), in: .capsule)
       .disabled(isShowingSpeedPopover)
   }
 
@@ -177,7 +177,7 @@ struct PlayBarSheet: View {
       .fontDesign(.rounded)
       .padding(.horizontal, spacing)
       .padding(.vertical, spacing / 2)
-      .glassEffect(.clear.interactive(), in: .capsule)
+      .glassEffect(.regular.interactive(), in: .capsule)
   }
 
   @ViewBuilder
@@ -248,7 +248,7 @@ struct PlayBarSheet: View {
     content
       .font(font)
       .padding(spacing / 2)
-      .glassEffect(.clear.interactive(), in: .capsule)
+      .glassEffect(.regular.interactive(), in: .capsule)
       .disabled(isShowingSpeedPopover)
       .transition(.scale.combined(with: .opacity))
   }
@@ -329,7 +329,10 @@ struct PlayBarSheet: View {
       }
     }
     .padding(spacing)
-    .glassEffect(.clear.interactive(), in: .rect(cornerRadius: viewModel.isDragging ? 12 : 8))
+    .glassEffect(
+      .regular.interactive(),
+      in: .rect(cornerRadius: viewModel.isDragging ? 12 : 8)
+    )
   }
 }
 

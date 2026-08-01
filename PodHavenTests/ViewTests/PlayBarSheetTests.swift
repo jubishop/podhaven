@@ -13,6 +13,22 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
 
 @Suite("of PlayBarSheet tests", .container)
 @MainActor struct PlayBarSheetTests {
+  private struct PixelBuffer {
+    let width: Int
+    let height: Int
+    let bytesPerRow: Int
+    let pixels: [UInt8]
+
+    func luminance(atX x: Int, y: Int) -> Double? {
+      guard x >= 0, x < width, y >= 0, y < height else { return nil }
+      let offset = y * bytesPerRow + x * 4
+      let red = Double(pixels[offset + 2]) / 255
+      let green = Double(pixels[offset + 1]) / 255
+      let blue = Double(pixels[offset]) / 255
+      return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    }
+  }
+
   private static func makeWindow<V: View>(_ rootView: V) throws -> UIWindow {
     let host = UIHostingController(rootView: rootView)
     let scene = try #require(
@@ -50,6 +66,186 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     }
 
     return collect(from: root)
+  }
+
+  private static func render(_ view: UIView) throws -> PixelBuffer {
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.preferredRange = .standard
+    let image = UIGraphicsImageRenderer(bounds: view.bounds, format: format)
+      .image { _ in
+        view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
+      }
+    let cgImage = try #require(image.cgImage)
+    try #require(cgImage.bitsPerPixel == 32)
+    try #require(
+      cgImage.bitmapInfo.intersection(.byteOrderMask) == .byteOrder32Little
+        && cgImage.alphaInfo == .premultipliedFirst
+    )
+    let data = try #require(cgImage.dataProvider?.data)
+    let bytes = try #require(CFDataGetBytePtr(data))
+    return PixelBuffer(
+      width: cgImage.width,
+      height: cgImage.height,
+      bytesPerRow: cgImage.bytesPerRow,
+      pixels: Array(
+        UnsafeBufferPointer(
+          start: bytes,
+          count: CFDataGetLength(data)
+        )
+      )
+    )
+  }
+
+  private static func progressGlassContrast(
+    for element: NSObject,
+    in window: UIWindow
+  ) throws -> Double {
+    let frame = window.convert(
+      element.accessibilityFrame,
+      from: window.screen.coordinateSpace
+    )
+    let rendering = try render(window)
+    let centerY = Int(frame.midY.rounded())
+    let glassSamples = (-3...3)
+      .compactMap { offset in
+        rendering.luminance(
+          atX: Int((frame.minX - 6).rounded()),
+          y: centerY + offset
+        )
+      }
+    let artworkSamples = (-3...3)
+      .compactMap { offset in
+        rendering.luminance(
+          atX: Int((frame.minX - 18).rounded()),
+          y: centerY + offset
+        )
+      }
+    try #require(!glassSamples.isEmpty && !artworkSamples.isEmpty)
+    let glassLuminance = glassSamples.reduce(0, +) / Double(glassSamples.count)
+    let artworkLuminance = artworkSamples.reduce(0, +) / Double(artworkSamples.count)
+    return abs(glassLuminance - artworkLuminance)
+  }
+
+  @Test(
+    "controls remain distinct from bright artwork at both detents",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func controlsRemainDistinctFromBrightArtworkAtBothDetents() async throws {
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 4, text: "Follow along")],
+      locale: "en-US",
+      createdAt: Date()
+    )
+    let episode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Stable Transcript Controls")
+    )
+    try await Container.shared.repo()
+      .updateTranscript(episode.id, transcript: transcript.jsonString())
+    let transcribedEpisode = try #require(
+      try await Container.shared.repo().podcastEpisode(episode.id)
+    )
+    var onDeck = OnDeck(from: transcribedEpisode)
+    onDeck.artwork = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
+      .image { context in
+        UIColor(red: 0.72, green: 0.75, blue: 0, alpha: 1).setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+      }
+    Container.shared.sharedState().$onDeck.new(onDeck)
+
+    let viewModel = PlayBarViewModel()
+    let transcriptObservationTask = Task {
+      await viewModel.observeTranscript()
+    }
+    defer { transcriptObservationTask.cancel() }
+    try await Wait.until(
+      maxAttempts: 400,
+      { @MainActor in viewModel.canExpandTranscript },
+      { @MainActor in "Transcribed play bar never loaded its transcript" }
+    )
+
+    let window = try Self.makeWindow(
+      PlayBarSheet(viewModel: viewModel)
+        .preferredColorScheme(.dark)
+    )
+    defer { window.isHidden = true }
+
+    try await Wait.until(
+      maxAttempts: 400,
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains { $0.accessibilityLabel == "Show Transcript" }
+      },
+      { @MainActor in
+        let labels = Self.accessibilityElements(in: window)
+          .compactMap(\.accessibilityLabel)
+        return "Play bar never exposed the Show Transcript action; labels: \(labels)"
+      }
+    )
+    let showTranscriptButton = try #require(
+      Self.accessibilityElements(in: window)
+        .first { $0.accessibilityLabel == "Show Transcript" }
+    )
+    let mediumPlaybackPosition = try #require(
+      Self.accessibilityElements(in: window)
+        .first { $0.accessibilityLabel == "Playback Position" }
+    )
+    let mediumContrast = try Self.progressGlassContrast(
+      for: mediumPlaybackPosition,
+      in: window
+    )
+
+    #expect(
+      mediumContrast >= 0.1,
+      "Medium glass differed from the surrounding artwork by only \(mediumContrast) luminance"
+    )
+
+    #expect(showTranscriptButton.accessibilityActivate())
+
+    try await Wait.until(
+      maxAttempts: 400,
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains { $0.accessibilityLabel == "Collapse Transcript" }
+      },
+      { "Play bar never expanded its transcript" }
+    )
+    try await Wait.until(
+      maxAttempts: 400,
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        guard
+          let playbackPosition = Self.accessibilityElements(in: window)
+            .first(where: { $0.accessibilityLabel == "Playback Position" })
+        else { return false }
+        return try Self.progressGlassContrast(
+          for: playbackPosition,
+          in: window
+        ) >= 0.1
+      },
+      { "Expanded glass never finished applying its contrast treatment" }
+    )
+    let expandedPlaybackPosition = try #require(
+      Self.accessibilityElements(in: window)
+        .first { $0.accessibilityLabel == "Playback Position" }
+    )
+    let expandedContrast = try Self.progressGlassContrast(
+      for: expandedPlaybackPosition,
+      in: window
+    )
+
+    #expect(
+      expandedContrast >= 0.1,
+      "Expanded glass differed from the surrounding artwork by only \(expandedContrast) luminance"
+    )
   }
 
   @Test("transcribed episodes expand to a synchronized full-height transcript")
