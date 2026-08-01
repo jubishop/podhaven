@@ -17,12 +17,8 @@ extension Container {
 
 // MARK: - TranscriptionProcessor
 
-// Drains the persisted TranscriptionQueue one episode at a time off the main
-// actor while the app is foregrounded, and registers a discretionary
-// BGProcessingTask (mirroring EmbeddingProcessor) so iOS can drain it in the
-// background too. Ordinary backgrounding preserves in-flight foreground work;
-// the persisted queue retains its head for retry after execution cancellation
-// or expiry.
+// Drains the persisted queue in foreground or discretionary background work,
+// retaining the active head and checkpoint across cancellation or expiry.
 struct TranscriptionProcessor: Sendable {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.continuousClockNow) private var continuousClockNow
@@ -49,6 +45,7 @@ struct TranscriptionProcessor: Sendable {
       case deletion(AsyncLatch<Void>)
       case mediaServicesReset
       case publisherTranscript
+      case replacementRequest
 
       var isNone: Bool {
         if case .none = self { return true }
@@ -58,6 +55,7 @@ struct TranscriptionProcessor: Sendable {
 
     let token: UUID
     let episodeID: Episode.ID
+    let workMode: TranscriptionWorkMode
     let task: Task<Void, any Error>
     var interruption = Interruption.none
   }
@@ -77,26 +75,10 @@ struct TranscriptionProcessor: Sendable {
     case background
   }
 
-  private enum QueueRemovalOperation: String, Sendable {
-    case missingEpisode
-    case alreadyTranscribed
-    case completedTranscription
-    case publisherTranscript
-  }
-
   private enum HeadProcessingOutcome {
     case advanced
     case retained
     case restart
-  }
-
-  private struct QueueMutationFailure: Error, LocalizedError {
-    let operation: QueueRemovalOperation
-    let message: String
-
-    var errorDescription: String? {
-      "\(operation.rawValue): \(message)"
-    }
   }
 
   private let foregroundState = ThreadSafe(ForegroundState.background)
@@ -255,13 +237,36 @@ struct TranscriptionProcessor: Sendable {
     backgroundTaskScheduler.scheduleNext()
   }
 
+  func enqueuePublisherReplacement(_ episodeID: Episode.ID) async throws {
+    try await transcriptionQueue.enqueueReplacement(episodeID)
+    let activeTask = activeTranscription { active -> Task<Void, any Error>? in
+      guard
+        var current = active,
+        current.episodeID == episodeID,
+        current.workMode != .onDeviceReplacement,
+        current.interruption.isNone
+      else {
+        return nil
+      }
+      current.interruption = .replacementRequest
+      active = current
+      return current.task
+    }
+    activeTask?.cancel()
+    backgroundTaskScheduler.scheduleNext()
+  }
+
   @discardableResult
   func importPublisherTranscript(for episodeID: Episode.ID) async -> Bool {
     do {
       guard
         let episode = try await repo.episode(episodeID),
         !episode.hasTranscript,
-        try await fetchAndStorePublisherTranscript(for: episode)
+        transcriptionQueue.work(for: episodeID)?.mode != .onDeviceReplacement,
+        try await publisherTranscriptImporter.importAndStoreIfAbsent(
+          for: episode,
+          in: repo
+        )
       else {
         return false
       }
@@ -568,17 +573,20 @@ struct TranscriptionProcessor: Sendable {
     if let barrier = deletionBarrier() {
       try await barrier.wait()
     }
+    guard let work = transcriptionQueue.work(for: episodeID) else {
+      return .advanced
+    }
 
     let startedAt = continuousClockNow()
     let startLatch = AsyncLatch<Void>()
     let task = Task {
       try await startLatch.wait()
       try Task.checkCancellation()
-      try await process(episodeID, logContext: logContext)
+      try await process(work, logContext: logContext)
     }
     let token = UUID()
     let shouldStart = activeTranscription { active in
-      guard transcriptionQueue.episodeIDs.first == episodeID else { return false }
+      guard transcriptionQueue.work(for: episodeID) == work else { return false }
       guard case .available = mediaServicesState() else { return false }
       if let active {
         Assert.fatal(
@@ -590,6 +598,7 @@ struct TranscriptionProcessor: Sendable {
       active = ActiveTranscription(
         token: token,
         episodeID: episodeID,
+        workMode: work.mode,
         task: task
       )
       return true
@@ -662,6 +671,10 @@ struct TranscriptionProcessor: Sendable {
           return .retained
         }
       }
+      if error is TranscriptionWorkModeChanged {
+        transcriptionQueue.clearProgress(for: episodeID)
+        return .restart
+      }
 
       if result.interruption.isNone, !result.executionCancelled {
         Self.log.caughtError(
@@ -673,7 +686,11 @@ struct TranscriptionProcessor: Sendable {
           error
         )
         do {
-          try await transcriptionQueue.fail(episodeID)
+          guard try await transcriptionQueue.fail(episodeID, ifMode: work.mode)
+          else {
+            transcriptionQueue.clearProgress(for: episodeID)
+            return .restart
+          }
         } catch is CancellationError {
           throw CancellationError()
         } catch {
@@ -694,7 +711,8 @@ struct TranscriptionProcessor: Sendable {
       switch result.interruption {
       case .pause:
         transcriptionQueue.finishPausing(episodeID)
-      case .discard, .requeue, .mediaServicesReset, .publisherTranscript, .none:
+      case .discard, .requeue, .mediaServicesReset, .publisherTranscript,
+        .replacementRequest, .none:
         transcriptionQueue.clearProgress(for: episodeID)
       case .deletion(let barrier):
         try await barrier.wait()
@@ -709,6 +727,7 @@ struct TranscriptionProcessor: Sendable {
           case .deletion: "deletion"
           case .mediaServicesReset: "mediaServicesReset"
           case .publisherTranscript: "publisherTranscript"
+          case .replacementRequest: "replacementRequest"
           case .none: "execution"
           }
         Self.log.info(
@@ -730,6 +749,9 @@ struct TranscriptionProcessor: Sendable {
           throw CancellationError()
         }
         if case .mediaServicesReset = result.interruption {
+          return .restart
+        }
+        if case .replacementRequest = result.interruption {
           return .restart
         }
         return .advanced
@@ -756,6 +778,8 @@ struct TranscriptionProcessor: Sendable {
       transcriptionQueue.clearProgress(for: episodeID)
     case .publisherTranscript:
       transcriptionQueue.clearProgress(for: episodeID)
+    case .replacementRequest:
+      transcriptionQueue.clearProgress(for: episodeID)
     case .none:
       break
     }
@@ -773,30 +797,49 @@ struct TranscriptionProcessor: Sendable {
   }
 
   private func process(
-    _ episodeID: Episode.ID,
+    _ work: TranscriptionWork,
     logContext: TranscriptionLogContext
   ) async throws {
+    let episodeID = work.episodeID
     guard let episode = try await repo.episode(episodeID) else {
       try await removeQueuedEpisode(
-        episodeID,
+        work,
         operation: .missingEpisode
       )
       Self.log.warning("Removed missing \(episodeID) from transcription queue")
       return
     }
-    guard !episode.hasTranscript else {
+
+    if work.mode == .publisherPreferred, episode.hasTranscript {
       try await repo.deleteTranscriptionCheckpoint(for: episodeID)
       try await removeQueuedEpisode(
-        episodeID,
+        work,
         operation: .alreadyTranscribed
       )
       Self.log.debug("Removed already-transcribed \(episodeID) from transcription queue")
       return
     }
-
-    if try await fetchAndStorePublisherTranscript(for: episode) {
+    if work.mode == .onDeviceReplacement,
+      episode.hasTranscript,
+      episode.publisherTranscriptSource == nil
+    {
+      try await repo.deleteTranscriptionCheckpoint(for: episodeID)
       try await removeQueuedEpisode(
-        episodeID,
+        work,
+        operation: .alreadyTranscribed
+      )
+      Self.log.debug("Removed obsolete replacement work for \(episodeID)")
+      return
+    }
+
+    if work.mode == .publisherPreferred,
+      try await publisherTranscriptImporter.importAndStoreIfAbsent(
+        for: episode,
+        in: repo
+      )
+    {
+      try await removeQueuedEpisode(
+        work,
         operation: .publisherTranscript
       )
       Self.log.info("Stored publisher transcript for queued episode \(episodeID)")
@@ -878,19 +921,47 @@ struct TranscriptionProcessor: Sendable {
       createdAt: Date()
     )
     try Task.checkCancellation()
-    let stored = try await repo.storeTranscriptIfAbsent(
-      episodeID,
-      transcript: transcript,
-      publisherSource: nil
-    )
-    if !stored {
-      try await repo.deleteTranscriptionCheckpoint(for: episodeID)
+    let stored: Bool
+    switch work.mode {
+    case .publisherPreferred:
+      stored = try await repo.storeTranscriptIfAbsent(
+        episodeID,
+        transcript: transcript,
+        publisherSource: nil
+      )
+      if !stored {
+        try await repo.deleteTranscriptionCheckpoint(for: episodeID)
+      }
+      try await removeQueuedEpisode(
+        work,
+        operation: .completedTranscription
+      )
+    case .onDeviceReplacement:
+      let replaced = try await repo.replacePublisherTranscript(
+        episodeID,
+        with: transcript
+      )
+      if replaced {
+        guard transcriptionQueue.finishPersistedRemoval(episodeID, mode: work.mode)
+        else {
+          throw TranscriptionWorkModeChanged()
+        }
+        stored = true
+      } else {
+        stored = try await repo.storeTranscriptIfAbsent(
+          episodeID,
+          transcript: transcript,
+          publisherSource: nil
+        )
+        if !stored {
+          try await repo.deleteTranscriptionCheckpoint(for: episodeID)
+        }
+        try await removeQueuedEpisode(
+          work,
+          operation: .completedTranscription
+        )
+      }
     }
-
-    try await removeQueuedEpisode(
-      episodeID,
-      operation: .completedTranscription
-    )
     Self.log.info(
       """
       transcriptionTelemetry event=transcriptStored \(logContext.fields) \
@@ -899,29 +970,23 @@ struct TranscriptionProcessor: Sendable {
     )
   }
 
-  private func fetchAndStorePublisherTranscript(for episode: Episode) async throws -> Bool {
-    guard
-      let imported = try await publisherTranscriptImporter.importTranscript(
-        from: episode.publisherTranscriptReferences
-      )
-    else {
-      return false
-    }
-    return try await repo.storeTranscriptIfAbsent(
-      episode.id,
-      transcript: imported.transcript,
-      publisherSource: imported.source
-    )
-  }
-
   private func removeQueuedEpisode(
-    _ episodeID: Episode.ID,
+    _ work: TranscriptionWork,
     operation: QueueRemovalOperation
   ) async throws {
     do {
-      try await transcriptionQueue.remove(episodeID)
+      guard
+        try await transcriptionQueue.remove(
+          work.episodeID,
+          ifMode: work.mode
+        )
+      else {
+        throw TranscriptionWorkModeChanged()
+      }
     } catch is CancellationError {
       throw CancellationError()
+    } catch is TranscriptionWorkModeChanged {
+      throw TranscriptionWorkModeChanged()
     } catch {
       throw QueueMutationFailure(
         operation: operation,

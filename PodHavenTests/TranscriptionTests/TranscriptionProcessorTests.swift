@@ -272,6 +272,7 @@ struct TranscriptionProcessorTests {
     #expect(cancellationCount() == 1)
     #expect(
       try await Container.shared.transcriptionQueueStore().fetchAll()
+        .map(\.episodeID)
         == [secondEpisode.id]
     )
 

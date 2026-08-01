@@ -36,7 +36,10 @@ struct TranscriptionDeletionTests {
 
     let reversedSurvivors = survivingEpisodes.reversed().map(\.id)
     #expect(try await queue.reorder(reversedSurvivors))
-    #expect(try await Container.shared.transcriptionQueueStore().fetchAll() == reversedSurvivors)
+    #expect(
+      try await Container.shared.transcriptionQueueStore().fetchAll().map(\.episodeID)
+        == reversedSurvivors
+    )
   }
 
   @Test("batch podcast deletion removes mixed waiting work and preserves unaffected order")
@@ -65,6 +68,7 @@ struct TranscriptionDeletionTests {
     #expect(queue.episodeIDs == survivingEpisodes.map(\.id))
     #expect(
       try await Container.shared.transcriptionQueueStore().fetchAll()
+        .map(\.episodeID)
         == survivingEpisodes.map(\.id)
     )
   }
@@ -211,7 +215,10 @@ struct TranscriptionDeletionTests {
     }
 
     #expect(queue.episodeIDs == originalOrder)
-    #expect(try await Container.shared.transcriptionQueueStore().fetchAll() == originalOrder)
+    #expect(
+      try await Container.shared.transcriptionQueueStore().fetchAll().map(\.episodeID)
+        == originalOrder
+    )
     #expect(try await repo.podcast(doomed.podcast.id) != nil)
     #expect(try await fileManager.readData(from: cachedURL.rawValue) == cachedData)
     #expect(Container.shared.sharedState().onDeck?.id == playingEpisode.id)

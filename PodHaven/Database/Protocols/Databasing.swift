@@ -143,6 +143,11 @@ protocol Databasing: Sendable {
     publisherSource: PublisherTranscriptReference?
   ) async throws -> Bool
 
+  func replacePublisherTranscript(
+    _ episodeID: Episode.ID,
+    with transcript: Transcript
+  ) async throws -> Bool
+
   func saveTranscriptionCheckpoint(
     _ checkpoint: TranscriptionCheckpoint,
     for episodeID: Episode.ID

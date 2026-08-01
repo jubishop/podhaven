@@ -606,6 +606,20 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     )
   }
 
+  func replacePublisherTranscript(
+    _ episodeID: Episode.ID,
+    with transcript: Transcript
+  ) async throws -> Bool {
+    recordCall(
+      methodName: "replacePublisherTranscript",
+      parameters: (episodeID: episodeID, transcript: transcript)
+    )
+    return try await repo.replacePublisherTranscript(
+      episodeID,
+      with: transcript
+    )
+  }
+
   func saveTranscriptionCheckpoint(
     _ checkpoint: TranscriptionCheckpoint,
     for episodeID: Episode.ID

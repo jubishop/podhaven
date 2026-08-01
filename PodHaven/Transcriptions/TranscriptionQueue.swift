@@ -102,9 +102,11 @@ struct TranscriptionQueue: Sendable {
   private let initialLoad: Task<Void, Never>
 
   @Broadcasted var episodeIDs: [Episode.ID]
+  @Broadcasted var workModes: [Episode.ID: TranscriptionWorkMode] = [:]
   @Broadcasted var progress: [Episode.ID: Double] = [:]
   @Broadcasted var interruptions: [Episode.ID: TranscriptionInterruption] = [:]
   @Broadcasted var failed: Set<Episode.ID> = []
+  @Broadcasted var failedWorkModes: [Episode.ID: TranscriptionWorkMode] = [:]
 
   fileprivate init() {
     let consumerLock = ThreadLock()
@@ -113,6 +115,9 @@ struct TranscriptionQueue: Sendable {
     let store = Container.shared.transcriptionQueueStore()
     let workStream = TranscriptionWorkStream()
     let episodeIDs = Broadcasted(wrappedValue: [Episode.ID]())
+    let workModes = Broadcasted(
+      wrappedValue: [Episode.ID: TranscriptionWorkMode]()
+    )
 
     self.consumerLock = consumerLock
     self.persistenceLock = persistenceLock
@@ -120,11 +125,20 @@ struct TranscriptionQueue: Sendable {
     self.store = store
     self.workStream = workStream
     _episodeIDs = episodeIDs
+    _workModes = workModes
     initialLoad = Task {
       do {
-        let persistedEpisodeIDs = try await store.fetchAll()
+        let persistedWork = try await store.fetchAll()
         mutationLock { _ in
+          let persistedEpisodeIDs = persistedWork.map(\.episodeID)
           episodeIDs.projectedValue.new(persistedEpisodeIDs)
+          workModes.projectedValue.new(
+            Dictionary(
+              uniqueKeysWithValues: persistedWork.map {
+                ($0.episodeID, $0.mode)
+              }
+            )
+          )
           workStream.update(to: persistedEpisodeIDs.first)
         }
       } catch {
@@ -187,6 +201,16 @@ struct TranscriptionQueue: Sendable {
         }
       }
       $failed.update { $0.subtract(insertedEpisodeIDs) }
+      $failedWorkModes.update { failedWorkModes in
+        for episodeID in insertedEpisodeIDs {
+          failedWorkModes.removeValue(forKey: episodeID)
+        }
+      }
+      $workModes.update { workModes in
+        for episodeID in insertedEpisodeIDs {
+          workModes[episodeID] = .publisherPreferred
+        }
+      }
       $episodeIDs.update { $0.append(contentsOf: insertedEpisodeIDs) }
       if self.episodeIDs.first != previousHead {
         workStream.update(to: self.episodeIDs.first)
@@ -196,6 +220,34 @@ struct TranscriptionQueue: Sendable {
     Self.log.debug(
       "enqueued \(insertedEpisodeIDs.count) episodes; depth \(depth)"
     )
+  }
+
+  func enqueueReplacement(_ episodeID: Episode.ID) async throws {
+    await waitUntilLoaded()
+    try await persistenceLock.waitForClaim()
+    defer { persistenceLock.release() }
+
+    let maximumCount =
+      Container.shared.userSettings().boundedMaxTranscriptionQueueLength
+    let inserted = try await store.enqueueReplacement(
+      episodeID,
+      maximumCount: maximumCount
+    )
+    let depth = mutationLock { _ in
+      let previousHead = episodeIDs.first
+      $interruptions.update { $0.removeValue(forKey: episodeID) }
+      $failed.update { $0.remove(episodeID) }
+      $failedWorkModes.update { $0.removeValue(forKey: episodeID) }
+      $workModes.update { $0[episodeID] = .onDeviceReplacement }
+      if inserted {
+        $episodeIDs.update { $0.append(episodeID) }
+      }
+      if episodeIDs.first != previousHead {
+        workStream.update(to: episodeIDs.first)
+      }
+      return episodeIDs.count
+    }
+    Self.log.debug("enqueued publisher replacement; depth \(depth)")
   }
 
   @discardableResult
@@ -246,14 +298,54 @@ struct TranscriptionQueue: Sendable {
     defer { persistenceLock.release() }
 
     try await store.remove(episodeID)
+    removeFromProjection(episodeID)
+  }
+
+  @discardableResult
+  func remove(
+    _ episodeID: Episode.ID,
+    ifMode mode: TranscriptionWorkMode
+  ) async throws -> Bool {
+    await waitUntilLoaded()
+    try await persistenceLock.waitForClaim()
+    defer { persistenceLock.release() }
+
+    guard try await store.remove(episodeID, ifMode: mode) else { return false }
+    return removeFromProjection(episodeID, ifMode: mode)
+  }
+
+  @discardableResult
+  func finishPersistedRemoval(
+    _ episodeID: Episode.ID,
+    mode: TranscriptionWorkMode
+  ) -> Bool {
+    removeFromProjection(episodeID, ifMode: mode)
+  }
+
+  func work(for episodeID: Episode.ID) -> TranscriptionWork? {
     mutationLock { _ in
+      guard episodeIDs.contains(episodeID), let mode = workModes[episodeID]
+      else { return nil }
+      return TranscriptionWork(episodeID: episodeID, mode: mode)
+    }
+  }
+
+  @discardableResult
+  private func removeFromProjection(
+    _ episodeID: Episode.ID,
+    ifMode mode: TranscriptionWorkMode? = nil
+  ) -> Bool {
+    mutationLock { _ in
+      if let mode, workModes[episodeID] != mode { return false }
       let previousHead = episodeIDs.first
       $episodeIDs.update { $0.removeAll { $0 == episodeID } }
+      $workModes.update { _ = $0.removeValue(forKey: episodeID) }
       $progress.update { _ = $0.removeValue(forKey: episodeID) }
       $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
       if episodeIDs.first != previousHead {
         workStream.update(to: episodeIDs.first)
       }
+      return true
     }
   }
 
@@ -267,16 +359,22 @@ struct TranscriptionQueue: Sendable {
     defer { persistenceLock.release() }
 
     let deletingEpisodeIDs = try await resolvingEpisodeIDs()
-    let originalEpisodeIDs = mutationLock { _ in
+    let originalState = mutationLock { _ in
       let originalEpisodeIDs = episodeIDs
+      let originalWorkModes = workModes
       let previousHead = originalEpisodeIDs.first
       $episodeIDs.update {
         $0.removeAll { deletingEpisodeIDs.contains($0) }
       }
+      $workModes.update { workModes in
+        for episodeID in deletingEpisodeIDs {
+          workModes.removeValue(forKey: episodeID)
+        }
+      }
       if episodeIDs.first != previousHead {
         workStream.update(to: episodeIDs.first)
       }
-      return originalEpisodeIDs
+      return (episodeIDs: originalEpisodeIDs, workModes: originalWorkModes)
     }
 
     await prepare(deletingEpisodeIDs)
@@ -295,11 +393,16 @@ struct TranscriptionQueue: Sendable {
           }
         }
         $failed.update { $0.subtract(deletingEpisodeIDs) }
+        $failedWorkModes.update { failedWorkModes in
+          for episodeID in deletingEpisodeIDs {
+            failedWorkModes.removeValue(forKey: episodeID)
+          }
+        }
         return episodeIDs.count
       }
       Self.log.debug(
         """
-        reconciled deletion of \(originalEpisodeIDs.count - depth) queued episodes; \
+        reconciled deletion of \(originalState.episodeIDs.count - depth) queued episodes; \
         depth \(depth)
         """
       )
@@ -307,7 +410,8 @@ struct TranscriptionQueue: Sendable {
     } catch {
       mutationLock { _ in
         let previousHead = episodeIDs.first
-        $episodeIDs.new(originalEpisodeIDs)
+        $episodeIDs.new(originalState.episodeIDs)
+        $workModes.new(originalState.workModes)
         $progress.update { progress in
           for episodeID in deletingEpisodeIDs {
             progress.removeValue(forKey: episodeID)
@@ -367,6 +471,7 @@ struct TranscriptionQueue: Sendable {
       guard interruptions[episodeID] == .pausing else { return }
       $progress.update { _ = $0.removeValue(forKey: episodeID) }
       $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
+      $workModes.update { _ = $0.removeValue(forKey: episodeID) }
     }
   }
 
@@ -416,6 +521,8 @@ struct TranscriptionQueue: Sendable {
       $progress.update { _ = $0.removeValue(forKey: episodeID) }
       $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
       $failed.update { _ = $0.remove(episodeID) }
+      $failedWorkModes.update { _ = $0.removeValue(forKey: episodeID) }
+      $workModes.update { _ = $0.removeValue(forKey: episodeID) }
     }
   }
 
@@ -435,26 +542,45 @@ struct TranscriptionQueue: Sendable {
 
   // MARK: - Failure
 
-  func fail(_ episodeID: Episode.ID) async throws {
+  @discardableResult
+  func fail(
+    _ episodeID: Episode.ID,
+    ifMode expectedMode: TranscriptionWorkMode? = nil
+  ) async throws -> Bool {
     await waitUntilLoaded()
     try await persistenceLock.waitForClaim()
     defer { persistenceLock.release() }
 
-    try await store.remove(episodeID)
+    let mode = mutationLock { _ in
+      workModes[episodeID] ?? .publisherPreferred
+    }
+    if let expectedMode {
+      guard try await store.remove(episodeID, ifMode: expectedMode) else {
+        return false
+      }
+    } else {
+      try await store.remove(episodeID)
+    }
     mutationLock { _ in
       let previousHead = episodeIDs.first
       $episodeIDs.update { $0.removeAll { $0 == episodeID } }
+      $workModes.update { _ = $0.removeValue(forKey: episodeID) }
       $progress.update { _ = $0.removeValue(forKey: episodeID) }
       $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
       $failed.update { _ = $0.insert(episodeID) }
+      $failedWorkModes.update { $0[episodeID] = mode }
       if episodeIDs.first != previousHead {
         workStream.update(to: episodeIDs.first)
       }
     }
+    return true
   }
 
   func clearFailed(_ episodeID: Episode.ID) {
-    $failed.update { _ = $0.remove(episodeID) }
+    mutationLock { _ in
+      $failed.update { _ = $0.remove(episodeID) }
+      $failedWorkModes.update { _ = $0.removeValue(forKey: episodeID) }
+    }
   }
 
   // MARK: - Status
@@ -464,7 +590,13 @@ struct TranscriptionQueue: Sendable {
     hasTranscript: Bool,
     checkpointProgress: Double? = nil
   ) -> TranscriptionStatus {
-    if hasTranscript { return .transcribed }
+    let queuedMode = workModes[episodeID]
+    let failedMode = failedWorkModes[episodeID]
+    let hasReplacementState =
+      queuedMode == .onDeviceReplacement
+      || failedMode == .onDeviceReplacement
+      || (hasTranscript && checkpointProgress != nil)
+    if hasTranscript && !hasReplacementState { return .transcribed }
     if let interruption = interruptions[episodeID] {
       switch interruption {
       case .pausing: return .pausing
@@ -478,6 +610,7 @@ struct TranscriptionQueue: Sendable {
     }
     if failed.contains(episodeID) { return .failed }
     if let checkpointProgress { return .paused(checkpointProgress) }
+    if hasTranscript { return .transcribed }
     return .none
   }
 }

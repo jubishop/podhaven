@@ -67,6 +67,12 @@ struct DisplayedEpisode:
     case .unsaved(let episode): return episode.decodedTranscript
     }
   }
+  var publisherTranscriptSource: PublisherTranscriptReference? {
+    switch source {
+    case .saved(let episode): return episode.episode.publisherTranscriptSource
+    case .unsaved(let episode): return episode.unsavedEpisode.publisherTranscriptSource
+    }
+  }
 
   // MARK: - EpisodeDisplayable
 

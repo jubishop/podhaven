@@ -33,9 +33,46 @@ import Testing
     return try #require(try await repo.podcastEpisode(series.episodes[10].id))
   }
 
+  private func insertForcedReplacement(_ episodeID: Episode.ID) async throws {
+    try await appDB.unsafeTestDB.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO episodeTranscriptionQueue (episodeId, workMode)
+          VALUES (?, 'onDeviceReplacement')
+          """,
+        arguments: [episodeID]
+      )
+    }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+  }
+
+  private func queuedWorkMode(_ episodeID: Episode.ID) async throws -> String? {
+    try await appDB.unsafeTestDB.read { db in
+      try String.fetchOne(
+        db,
+        sql: """
+          SELECT workMode
+          FROM episodeTranscriptionQueue
+          WHERE episodeId = ?
+          """,
+        arguments: [episodeID]
+      )
+    }
+  }
+
   @Test("decodedTranscript returns the stored transcript for a transcribed episode")
   func decodedTranscriptReturnsStoredTranscript() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
+    let advertisedSource = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/advertised.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(
+        publisherTranscriptReferences: [advertisedSource]
+      )
+    )
     let transcript = Transcript(
       segments: [
         TranscriptSegment(start: 0, end: 1, text: "hello"),
@@ -51,6 +88,8 @@ import Testing
 
     #expect(viewModel.episode.hasTranscript == true)
     #expect(viewModel.decodedTranscript?.segments.map(\.text) == ["hello", "world"])
+    #expect(viewModel.transcriptProvenance == .onDevice)
+    #expect(!viewModel.canReplacePublisherTranscript)
   }
 
   @Test("listed initial state preserves transcript status before hydration")
@@ -124,6 +163,8 @@ import Testing
 
     #expect(!viewModel.isTranscriptionAvailable)
     #expect(viewModel.transcriptDisplay == .text(transcript.segments))
+    #expect(viewModel.transcriptProvenance == .podcastFeed)
+    #expect(!viewModel.canReplacePublisherTranscript)
 
     viewModel.selectTextTab(.transcript)
 
@@ -167,6 +208,152 @@ import Testing
     )
     let cleared = try #require(try await repo.episode(podcastEpisode.id))
     #expect(!cleared.hasTranscript)
+  }
+
+  @Test("publisher replacement request durably records forced on-device work")
+  func publisherReplacementPersistsForcedMode() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Publisher words")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/durable.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    #expect(
+      try await repo.storeTranscriptIfAbsent(
+        podcastEpisode.id,
+        transcript: transcript,
+        publisherSource: source
+      )
+    )
+    let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+    #expect(viewModel.canReplacePublisherTranscript)
+
+    viewModel.transcribe()
+
+    try await Wait.until(
+      { try await self.queuedWorkMode(podcastEpisode.id) == "onDeviceReplacement" },
+      { "Expected a durable forced on-device replacement mode" }
+    )
+    let preserved = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(preserved.decodedTranscript == transcript)
+    #expect(preserved.publisherTranscriptSource == source)
+  }
+
+  @Test("unreadable publisher transcript stays canonical while recovery is queued")
+  func unreadablePublisherTranscriptQueuesPreservingCanonicalCopy() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Publisher words")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/unreadable.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    #expect(
+      try await repo.storeTranscriptIfAbsent(
+        podcastEpisode.id,
+        transcript: transcript,
+        publisherSource: source
+      )
+    )
+    try await appDB.unsafeTestDB.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET transcript = 'not-json' WHERE id = ?",
+        arguments: [podcastEpisode.id]
+      )
+    }
+    let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+    #expect(viewModel.transcriptDisplay == .decodeFailed)
+
+    viewModel.transcribe()
+
+    let queuedEpisodeIDs = await TranscriptionHelpers.waitForQueuedEpisode(
+      podcastEpisode.id,
+      in: transcriptionQueue
+    )
+    #expect(queuedEpisodeIDs.contains(podcastEpisode.id))
+    let preserved = try #require(try await repo.episode(podcastEpisode.id))
+    #expect(preserved.hasTranscript)
+    #expect(preserved.publisherTranscriptSource == source)
+  }
+
+  @Test("forced replacement status overrides the saved publisher transcript")
+  func forcedReplacementStatusOverridesPublisherTranscript() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Publisher words")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/queued.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    #expect(
+      try await repo.storeTranscriptIfAbsent(
+        podcastEpisode.id,
+        transcript: transcript,
+        publisherSource: source
+      )
+    )
+    try await insertForcedReplacement(podcastEpisode.id)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+
+    #expect(viewModel.transcriptionStatus == .queued(position: 1, total: 1))
+    #expect(viewModel.transcriptDisplay == .text(transcript.segments))
+  }
+
+  @Test("publisher replacement queue rejection preserves the canonical transcript")
+  func publisherReplacementShowsCapacityAlertPreservingTranscript() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let target = try await makeTargetBeyondCapacity()
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Publisher words")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/capacity.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    #expect(
+      try await repo.storeTranscriptIfAbsent(
+        target.id,
+        transcript: transcript,
+        publisherSource: source
+      )
+    )
+    let loaded = try #require(try await repo.podcastEpisode(target.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+    let alert = Container.shared.alert()
+
+    viewModel.transcribe()
+
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Transcription Queue Full" },
+      { @MainActor in "Expected publisher replacement queue-full alert" }
+    )
+    let preserved = try #require(try await repo.episode(target.id))
+    #expect(preserved.decodedTranscript == transcript)
+    #expect(preserved.publisherTranscriptSource == source)
+    #expect(!transcriptionQueue.episodeIDs.contains(target.id))
   }
 
   @Test("detail transcription shows the queue-full alert without error telemetry")
