@@ -57,6 +57,21 @@ struct PodcastRSS: Decodable, Sendable {
     let iTunes: ITunesNamespace
 
     struct PodcastNamespace: Decodable, Sendable {
+      private struct ElementKey: CodingKey {
+        let stringValue: String
+        let intValue: Int?
+
+        init?(stringValue: String) {
+          self.stringValue = stringValue
+          intValue = nil
+        }
+
+        init?(intValue: Int) {
+          stringValue = String(intValue)
+          self.intValue = intValue
+        }
+      }
+
       private struct DecodedTranscriptReference: Decodable {
         let value: PublisherTranscriptReference?
 
@@ -76,17 +91,20 @@ struct PodcastRSS: Decodable, Sendable {
 
       let transcripts: [PublisherTranscriptReference]
 
-      enum CodingKeys: String, CodingKey {
-        case transcripts = "podcast:transcript"
-      }
-
       init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let decoded =
-          try container.decodeIfPresent(
-            [DecodedTranscriptReference].self,
-            forKey: .transcripts
-          ) ?? []
+        let container = try decoder.container(keyedBy: ElementKey.self)
+        var decoded: [DecodedTranscriptReference] = []
+        var decodedElementNames = Set<String>()
+        for key in container.allKeys
+        where key.stringValue.split(separator: ":").last == "transcript" {
+          guard decodedElementNames.insert(key.stringValue).inserted else { continue }
+          decoded.append(
+            contentsOf: try container.decodeIfPresent(
+              [DecodedTranscriptReference].self,
+              forKey: key
+            ) ?? []
+          )
+        }
         transcripts = decoded.compactMap(\.value)
       }
     }
