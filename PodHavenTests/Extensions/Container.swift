@@ -23,6 +23,7 @@ extension Container: @retroactive AutoRegistering {
     iTunesServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     podcastFeedSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     podcastOPMLSession.context(.test) { FakeDataFetchable() }.scope(.cached)
+    publisherTranscriptSession.context(.test) { FakeDataFetchable() }.scope(.cached)
 
     notifications.context(.test) {
       { name in self.notifier().stream(for: name) }

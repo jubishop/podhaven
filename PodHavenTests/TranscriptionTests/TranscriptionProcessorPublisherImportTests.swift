@@ -43,7 +43,7 @@ struct TranscriptionProcessorPublisherImportTests {
       language: "en"
     )
     let fetchCount = ThreadSafe(0)
-    let session = Container.shared.podcastFeedSession() as! FakeDataFetchable
+    let session = Container.shared.publisherTranscriptSession() as! FakeDataFetchable
     await session.respond(to: transcriptURL) { url in
       let invocation = fetchCount {
         $0 += 1
@@ -92,5 +92,74 @@ struct TranscriptionProcessorPublisherImportTests {
     #expect(try await repo.transcriptionCheckpoint(episode.id) == nil)
     #expect(fetchCount() == 2)
     #expect(cancellationCount() == 1)
+  }
+
+  @Test("publisher preflight does not wait for feed connectivity before cached audio")
+  func publisherPreflightDoesNotBlockCachedAudio() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(
+          phrase: "offline on-device words",
+          startSeconds: 0,
+          endSeconds: 60
+        )
+      ]
+    )
+    let analysisStarted = ThreadSafe(false)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer(
+          analyzeAudio: { _, endTime in
+            analysisStarted(true)
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          }
+        )
+      }
+    }
+
+    let transcriptURL = URL(string: "https://example.com/offline.vtt")!
+    let reference = PublisherTranscriptReference(
+      url: transcriptURL,
+      mimeType: "text/vtt",
+      language: "en"
+    )
+    let feedSession = Container.shared.podcastFeedSession() as! FakeDataFetchable
+    let releaseFeedWait = await feedSession.waitRespond(
+      to: transcriptURL,
+      data: Data("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nPublisher".utf8)
+    )
+    let publisherSession = Container.shared.publisherTranscriptSession() as! FakeDataFetchable
+    await publisherSession.respond(
+      to: transcriptURL,
+      error: URLError(.notConnectedToInternet)
+    )
+
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Offline publisher preflight",
+      cachedFilename: "offline-publisher.mp3",
+      dataSize: 1,
+      publisherTranscriptReferences: [reference]
+    )
+    try await queue.enqueue(episode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      releaseFeedWait.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    try await Wait.until(
+      { analysisStarted() },
+      { "Cached on-device analysis never started" }
+    )
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "Offline transcription remained queued" }
+    )
+    let stored = try #require(try await Container.shared.repo().episode(episode.id))
+    #expect(stored.decodedTranscript?.segments.map(\.text) == ["offline on-device words"])
+    #expect(await feedSession.requests.isEmpty)
+    #expect(await publisherSession.requests == [transcriptURL])
   }
 }

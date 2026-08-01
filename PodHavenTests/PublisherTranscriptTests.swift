@@ -9,11 +9,11 @@ import Testing
 
 @Suite("of publisher transcript tests", .container)
 struct PublisherTranscriptTests {
-  @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
+  @DynamicInjected(\.publisherTranscriptSession) private var publisherTranscriptSession
   @DynamicInjected(\.publisherTranscriptImporter) private var importer
 
   private var session: FakeDataFetchable {
-    podcastFeedSession as! FakeDataFetchable
+    publisherTranscriptSession as! FakeDataFetchable
   }
 
   @Test("real Stuff You Should Know snapshot discovers every transcript reference")

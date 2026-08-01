@@ -10,6 +10,14 @@ import Testing
 
 @Suite("of RefreshManager publisher transcript tests", .container)
 struct RefreshManagerPublisherTranscriptTests {
+  private var feedSession: FakeDataFetchable {
+    Container.shared.podcastFeedSession() as! FakeDataFetchable
+  }
+
+  private var transcriptSession: FakeDataFetchable {
+    Container.shared.publisherTranscriptSession() as! FakeDataFetchable
+  }
+
   @Test("new publisher transcript imports before automatic on-device queueing")
   func importsNewPublisherTranscriptBeforeAutomaticQueueing() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/publisher-feed.rss")!)
@@ -33,12 +41,11 @@ struct RefreshManagerPublisherTranscriptTests {
         unsavedEpisodes: initialFeed.toUnsavedEpisodes()
       )
     )
-    let session = Container.shared.podcastFeedSession() as! FakeDataFetchable
-    await session.respond(
+    await feedSession.respond(
       to: feedURL.rawValue,
       data: Self.feedData(feedURL: feedURL, transcriptURL: transcriptURL)
     )
-    await session.respond(
+    await transcriptSession.respond(
       to: transcriptURL,
       data: Data(
         """
@@ -94,8 +101,7 @@ struct RefreshManagerPublisherTranscriptTests {
       feedURL: feedURL,
       alwaysTranscribeNewEpisodes: true
     )
-    let session = Container.shared.podcastFeedSession() as! FakeDataFetchable
-    await session.respond(
+    await feedSession.respond(
       to: feedURL.rawValue,
       data: Self.feedData(
         feedURL: feedURL,
@@ -105,11 +111,11 @@ struct RefreshManagerPublisherTranscriptTests {
           """
       )
     )
-    await session.respond(
+    await transcriptSession.respond(
       to: jsonURL,
       data: Data(#"{"segments":[{"body":"missing timecodes"}]}"#.utf8)
     )
-    await session.respond(to: webVTTURL, error: URLError(.cannotConnectToHost))
+    await transcriptSession.respond(to: webVTTURL, error: URLError(.cannotConnectToHost))
     let queue = Container.shared.transcriptionQueue()
     await queue.waitUntilLoaded()
     let refreshManager = Container.shared.refreshManager()
@@ -125,8 +131,8 @@ struct RefreshManagerPublisherTranscriptTests {
     )
     #expect(!episode.hasTranscript)
     #expect(queue.episodeIDs == [episode.id])
-    #expect(await session.requests.filter { $0 == jsonURL }.count == 1)
-    #expect(await session.requests.filter { $0 == webVTTURL }.count == 1)
+    #expect(await transcriptSession.requests.filter { $0 == jsonURL }.count == 1)
+    #expect(await transcriptSession.requests.filter { $0 == webVTTURL }.count == 1)
   }
 
   @Test("untimed resources are ignored and leave automatic transcription eligible")
@@ -138,8 +144,7 @@ struct RefreshManagerPublisherTranscriptTests {
       feedURL: feedURL,
       alwaysTranscribeNewEpisodes: true
     )
-    let session = Container.shared.podcastFeedSession() as! FakeDataFetchable
-    await session.respond(
+    await feedSession.respond(
       to: feedURL.rawValue,
       data: Self.feedData(
         feedURL: feedURL,
@@ -162,7 +167,7 @@ struct RefreshManagerPublisherTranscriptTests {
     )
     #expect(!episode.hasTranscript)
     #expect(queue.episodeIDs == [episode.id])
-    let requests = await session.requests
+    let requests = await transcriptSession.requests
     #expect(!requests.contains(plainURL))
     #expect(!requests.contains(htmlURL))
   }
@@ -186,8 +191,7 @@ struct RefreshManagerPublisherTranscriptTests {
       existingEpisode.id,
       transcript: existingTranscript.jsonString()
     )
-    let session = Container.shared.podcastFeedSession() as! FakeDataFetchable
-    await session.respond(
+    await feedSession.respond(
       to: feedURL.rawValue,
       data: Self.feedData(
         feedURL: feedURL,
@@ -196,7 +200,7 @@ struct RefreshManagerPublisherTranscriptTests {
           """
       )
     )
-    await session.respond(
+    await transcriptSession.respond(
       to: publisherURL,
       data: Data("WEBVTT\n\n00:00:00.000 --> 00:00:02.000\nReplace me".utf8)
     )
@@ -206,8 +210,103 @@ struct RefreshManagerPublisherTranscriptTests {
     let stored = try #require(try await repo.episode(existingEpisode.id))
     #expect(stored.decodedTranscript == existingTranscript)
     #expect(stored.publisherTranscriptSource == nil)
-    let requests = await session.requests
+    let requests = await transcriptSession.requests
     #expect(!requests.contains(publisherURL))
+  }
+
+  @Test("a new reference imports after an observed empty reference set")
+  func importsReferenceAfterKnownEmpty() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/observed-empty-feed.rss")!)
+    let transcriptURL = URL(string: "https://example.com/observed-empty.vtt")!
+    let series = try await Self.insertInitialSeries(
+      feedURL: feedURL,
+      alwaysTranscribeNewEpisodes: false
+    )
+    let existingEpisode = try #require(series.episodes.first)
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: Self.feedData(
+        feedURL: feedURL,
+        existingEpisodeTranscripts: """
+          <podcast:transcript url="\(transcriptURL.absoluteString)" type="text/vtt" language="en" />
+          """
+      )
+    )
+    await transcriptSession.respond(
+      to: transcriptURL,
+      data: Data("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nObserved empty".utf8)
+    )
+
+    try await Container.shared.refreshManager().refreshSeries(podcast: series.podcast)
+
+    let stored = try #require(
+      try await Container.shared.repo().episode(existingEpisode.id)
+    )
+    #expect(stored.decodedTranscript?.segments.map(\.text) == ["Observed empty"])
+    #expect(stored.publisherTranscriptSource?.url == transcriptURL)
+    #expect(await transcriptSession.requests == [transcriptURL])
+  }
+
+  @Test("first post-migration refresh records legacy references without importing the backlog")
+  func legacyReferenceBackfillDoesNotImportBacklog() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/legacy-reference-feed.rss")!)
+    let legacyTranscriptURL = URL(string: "https://example.com/legacy.vtt")!
+    let newTranscriptURL = URL(string: "https://example.com/new.vtt")!
+    let series = try await Self.insertInitialSeries(
+      feedURL: feedURL,
+      alwaysTranscribeNewEpisodes: false
+    )
+    let legacyEpisode = try #require(series.episodes.first)
+    try await Container.shared.appDB().writer
+      .write { db in
+        try db.execute(
+          sql: """
+            UPDATE episode
+            SET publisherTranscriptReferencesJSON = NULL
+            WHERE id = ?
+            """,
+          arguments: [legacyEpisode.id]
+        )
+      }
+
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: Self.feedData(
+        feedURL: feedURL,
+        newEpisodeTranscripts: """
+          <podcast:transcript url="\(newTranscriptURL.absoluteString)" type="text/vtt" language="en" />
+          """,
+        existingEpisodeTranscripts: """
+          <podcast:transcript url="\(legacyTranscriptURL.absoluteString)" type="text/vtt" language="en" />
+          """
+      )
+    )
+    await transcriptSession.respond(
+      to: legacyTranscriptURL,
+      data: Data("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nLegacy".utf8)
+    )
+    await transcriptSession.respond(
+      to: newTranscriptURL,
+      data: Data("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nNew".utf8)
+    )
+
+    try await Container.shared.refreshManager().refreshSeries(podcast: series.podcast)
+
+    let refreshed = try #require(
+      try await Container.shared.repo().podcastSeries(series.id)
+    )
+    let storedLegacyEpisode = try #require(
+      refreshed.episodes.first { $0.id == legacyEpisode.id }
+    )
+    let storedNewEpisode = try #require(
+      refreshed.episodes.first { $0.guid == GUID("publisher-new") }
+    )
+    #expect(!storedLegacyEpisode.hasTranscript)
+    #expect(storedLegacyEpisode.publisherTranscriptReferences.map(\.url) == [legacyTranscriptURL])
+    #expect(storedNewEpisode.decodedTranscript?.segments.map(\.text) == ["New"])
+    let requests = await transcriptSession.requests
+    #expect(!requests.contains(legacyTranscriptURL))
+    #expect(requests.filter { $0 == newTranscriptURL }.count == 1)
   }
 
   private static func feedData(feedURL: FeedURL, transcriptURL: URL?) -> Data {

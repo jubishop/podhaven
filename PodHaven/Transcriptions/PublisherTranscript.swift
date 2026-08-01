@@ -5,6 +5,18 @@ import Foundation
 import Logging
 
 extension Container {
+  var publisherTranscriptSession: Factory<any DataFetchable> {
+    Factory(self) {
+      let configuration = URLSessionConfiguration.ephemeral
+      configuration.allowsCellularAccess = true
+      configuration.waitsForConnectivity = false
+      configuration.timeoutIntervalForRequest = Double(10)
+      configuration.timeoutIntervalForResource = Double(30)
+      return URLSession(configuration: configuration)
+    }
+    .scope(.cached)
+  }
+
   var publisherTranscriptImporter: Factory<PublisherTranscriptImporter> {
     Factory(self) { PublisherTranscriptImporter() }.scope(.cached)
   }
@@ -105,7 +117,6 @@ struct PublisherTranscriptReference: Codable, Hashable, Sendable {
   }
 
   static func jsonString(for references: [Self]) throws -> String? {
-    guard !references.isEmpty else { return nil }
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     return String(decoding: try encoder.encode(references), as: UTF8.self)
@@ -136,7 +147,7 @@ struct PublisherTranscriptImport: Sendable {
 
 struct PublisherTranscriptImporter: Sendable {
   @DynamicInjected(\.dateProvider) private var dateProvider
-  @DynamicInjected(\.podcastFeedSession) private var session
+  @DynamicInjected(\.publisherTranscriptSession) private var session
 
   private static let log = Log.as(LogSubsystem.Transcription.processor)
 

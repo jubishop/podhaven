@@ -242,6 +242,7 @@ struct RefreshManager {
 
         if !existingEpisode.rssEquals(updatedEpisode) {
           if !existingEpisode.hasTranscript,
+            existingEpisode.publisherTranscriptReferencesJSON != nil,
             existingEpisode.publisherTranscriptReferencesJSON
               != updatedEpisode.publisherTranscriptReferencesJSON,
             unsavedEpisode.publisherTranscriptReferences.contains(where: { $0.format != nil })
