@@ -5,6 +5,31 @@ import FactoryKit
 import NukeUI
 import SwiftUI
 
+struct TranscriptDecodeFailureView: View {
+  let canTranscribeAgain: Bool
+  let transcribe: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Transcript couldn't be read")
+        .foregroundStyle(.red)
+      Text(
+        canTranscribeAgain
+          ? "Transcribe again to replace the unreadable transcript."
+          : "On-device transcription isn't available to replace it."
+      )
+      .foregroundStyle(.secondary)
+      if canTranscribeAgain {
+        AppIcon.transcribeEpisode
+          .labelButton("Transcribe Again") {
+            transcribe()
+          }
+          .buttonStyle(.bordered)
+      }
+    }
+  }
+}
+
 struct EpisodeDetailView: View {
   private enum ArtworkAccessibilityFocus: Hashable {
     case trigger
@@ -553,17 +578,10 @@ struct EpisodeDetailView: View {
   }
 
   private var transcriptDecodeFailureView: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Transcript couldn't be read")
-        .foregroundStyle(.red)
-      Text("Transcribe again to replace the unreadable transcript.")
-        .foregroundStyle(.secondary)
-      AppIcon.transcribeEpisode
-        .labelButton("Transcribe Again") {
-          viewModel.transcribe()
-        }
-        .buttonStyle(.bordered)
-    }
+    TranscriptDecodeFailureView(
+      canTranscribeAgain: viewModel.isTranscriptionAvailable,
+      transcribe: viewModel.transcribe
+    )
   }
 
   // MARK: - Full Screen Image Overlay
@@ -623,6 +641,11 @@ struct EpisodeDetailView: View {
 // MARK: - Preview
 
 #if DEBUG
+#Preview("Unreadable Transcript Without On-Device Support") {
+  TranscriptDecodeFailureView(canTranscribeAgain: false, transcribe: {})
+    .padding()
+}
+
 #Preview("Basic Episode") {
   NavigationStack {
     EpisodeDetailView(
