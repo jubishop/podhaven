@@ -162,6 +162,10 @@ class EpisodeRefreshTests {
       ) == expectedEpisodeColumns.union(["id", "duration"]),
       "FeedMergeEpisode must select only the fields needed to merge RSS updates"
     )
+    #expect(
+      FeedMergeEpisode.databaseSelection.count == expectedEpisodeColumns.count + 2,
+      "FeedMergeEpisode must not include extra derived selections"
+    )
 
     // RSS attributes should be updated for existing episode (excluding duration)
     #expect(updatedExistingEpisode.guid == newEpisodeGUID)

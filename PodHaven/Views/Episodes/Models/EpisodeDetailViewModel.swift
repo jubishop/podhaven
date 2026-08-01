@@ -118,7 +118,7 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
   }
 
   func selectTextTab(_ tab: EpisodeDetailTextTab) {
-    guard tab == .description || isTranscriptionAvailable else { return }
+    guard tab == .description || canShowTranscription else { return }
     selectedTextTab = tab
   }
 
@@ -170,6 +170,10 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
 
   var isTranscriptionAvailable: Bool {
     transcriptionAvailability.isAvailable
+  }
+
+  var canShowTranscription: Bool {
+    isTranscriptionAvailable || episode.hasTranscript
   }
 
   var transcriptionStatus: TranscriptionStatus {

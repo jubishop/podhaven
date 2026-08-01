@@ -98,6 +98,38 @@ import Testing
     #expect(viewModel.transcriptDisplay == .text(transcript.segments))
   }
 
+  @Test("stored publisher transcripts remain selectable without on-device support")
+  func publisherTranscriptSelectableWithoutOnDeviceSupport() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Publisher words")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/publisher.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    #expect(
+      try await repo.storeTranscriptIfAbsent(
+        podcastEpisode.id,
+        transcript: transcript,
+        publisherSource: source
+      )
+    )
+
+    let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+
+    #expect(!viewModel.isTranscriptionAvailable)
+    #expect(viewModel.transcriptDisplay == .text(transcript.segments))
+
+    viewModel.selectTextTab(.transcript)
+
+    #expect(viewModel.selectedTextTab == .transcript)
+  }
+
   @Test("transcriptDisplay is empty when a hydrated transcript has no segments")
   func transcriptDisplayEmptyForNoSegments() async throws {
     let podcastEpisode = try await Create.podcastEpisode()

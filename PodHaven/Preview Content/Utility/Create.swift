@@ -27,6 +27,7 @@ enum Create {
     saveInCache: Bool = false,
     rating: EpisodeRating? = nil,
     ratingDate: Date? = nil,
+    transcript: String? = nil,
     publisherTranscriptReferences: [PublisherTranscriptReference] = []
   ) throws -> UnsavedEpisode {
     try UnsavedEpisode(
@@ -48,6 +49,7 @@ enum Create {
       saveInCache: saveInCache,
       rating: rating,
       ratingDate: ratingDate,
+      transcript: transcript,
       publisherTranscriptReferences: publisherTranscriptReferences
     )
   }

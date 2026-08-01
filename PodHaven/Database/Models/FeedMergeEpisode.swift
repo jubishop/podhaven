@@ -18,7 +18,6 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
       Episode.Columns.link,
       Episode.Columns.image,
       Episode.Columns.publisherTranscriptReferencesJSON,
-      Episode.hasTranscriptSelectable,
     ]
   }
 
@@ -32,7 +31,6 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
   let link: URL?
   let image: URL?
   let publisherTranscriptReferencesJSON: String?
-  let hasTranscript: Bool
 
   init(id: Episode.ID, from episode: UnsavedEpisode) {
     self.id = id
@@ -45,7 +43,6 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
     self.link = episode.link
     self.image = episode.image
     self.publisherTranscriptReferencesJSON = episode.publisherTranscriptReferencesJSONValue
-    self.hasTranscript = episode.hasTranscript
   }
 
   init(row: Row) throws {
@@ -59,7 +56,6 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
     link = row[Episode.Columns.link]
     image = row[Episode.Columns.image]
     publisherTranscriptReferencesJSON = row[Episode.Columns.publisherTranscriptReferencesJSON]
-    hasTranscript = row[Episode.hasTranscriptColumnName]
   }
 
   var rssUpdatableColumns: [(any ColumnExpression, any SQLExpressible)] {
