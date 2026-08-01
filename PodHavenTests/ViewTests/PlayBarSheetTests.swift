@@ -128,6 +128,88 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
+    "highlighting a transcript word preserves the segment layout",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func transcriptHighlightPreservesSegmentLayout() async throws {
+    let transcriptText =
+      "Stable transcript highlighting should never rearrange nearby words during playback."
+    let transcript = Transcript(
+      segments: [
+        TranscriptSegment(
+          start: 0,
+          end: 8,
+          text: transcriptText,
+          words: [
+            TranscriptWord(start: 0, end: 1, text: "Stable"),
+            TranscriptWord(start: 1, end: 2, text: " transcript"),
+            TranscriptWord(start: 2, end: 3, text: " highlighting"),
+            TranscriptWord(start: 3, end: 4, text: " should"),
+            TranscriptWord(start: 4, end: 5, text: " never"),
+            TranscriptWord(start: 5, end: 6, text: " rearrange"),
+            TranscriptWord(start: 6, end: 6.5, text: " nearby"),
+            TranscriptWord(start: 6.5, end: 7, text: " words"),
+            TranscriptWord(start: 7, end: 7.5, text: " during"),
+            TranscriptWord(start: 7.5, end: 8, text: " playback."),
+          ]
+        )
+      ],
+      locale: "en-US",
+      createdAt: Date()
+    )
+
+    let width: CGFloat = 134
+    func transcriptView(at currentTime: TimeInterval) -> AnyView {
+      AnyView(
+        PlayBarTranscriptView(transcript: transcript, currentTime: currentTime)
+          .frame(width: width, height: 500)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+          .transaction { transaction in
+            transaction.disablesAnimations = true
+          }
+      )
+    }
+
+    let window = try Self.makeWindow(transcriptView(at: -1))
+    defer { window.isHidden = true }
+
+    func segmentHeight(expectedValue: String? = nil) async throws -> CGFloat {
+      try await Wait.until(
+        maxAttempts: 100,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          guard
+            let segment = Self.accessibilityElements(in: window)
+              .first(where: { $0.accessibilityLabel == transcriptText })
+          else { return false }
+          guard let expectedValue else { return true }
+          return segment.accessibilityValue == expectedValue
+        },
+        { "Transcript segment never became accessible" }
+      )
+      let segment = try #require(
+        Self.accessibilityElements(in: window)
+          .first { $0.accessibilityLabel == transcriptText }
+      )
+      return segment.accessibilityFrame.height
+    }
+
+    let inactiveHeight = try await segmentHeight()
+    let host = try #require(window.rootViewController as? UIHostingController<AnyView>)
+    host.rootView = transcriptView(at: 3.5)
+    let highlightedHeight = try await segmentHeight(expectedValue: "Current word should")
+
+    #expect(
+      highlightedHeight == inactiveHeight,
+      "Highlighting changed the segment from \(inactiveHeight) to \(highlightedHeight) points"
+    )
+  }
+
+  @Test(
     "controls remain distinct from bright artwork at both detents",
     .enabled(
       if: supportsHostedAccessibilityInspection,

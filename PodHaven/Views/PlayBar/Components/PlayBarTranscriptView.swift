@@ -75,7 +75,6 @@ private struct PlayBarTranscriptSegmentView: View {
       if index == activeWordIndex {
         text.foregroundColor = .primary
         text.backgroundColor = .accentColor.opacity(0.45)
-        text.font = .body.weight(.semibold)
       } else {
         text.foregroundColor = isActive ? .primary.opacity(0.8) : .secondary
       }
