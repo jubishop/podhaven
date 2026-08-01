@@ -20,6 +20,13 @@ extension Container {
 struct PublisherTranscriptImportStore: Sendable {
   static let maximumAttemptCount = 3
 
+  enum RetryResult: Sendable {
+    case exhausted(attemptCount: Int)
+    case resolved
+    case retained(attemptCount: Int)
+    case superseded
+  }
+
   private let reader: AppDB.Reader
   private let writer: AppDB.Writer
 
@@ -78,26 +85,82 @@ struct PublisherTranscriptImportStore: Sendable {
   }
 
   @discardableResult
+  func remove(
+    _ job: PublisherTranscriptImportJob,
+    ifReferencesMatch expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> Bool {
+    try await writer.write { db in
+      guard
+        try Self.references(
+          for: job.episodeId,
+          match: expectedReferences,
+          in: db
+        )
+      else {
+        return false
+      }
+      return try PublisherTranscriptImportJob
+        .filter(PublisherTranscriptImportJob.Columns.episodeId == job.episodeId)
+        .deleteAll(db) > 0
+    }
+  }
+
   func recordRetry(
     for job: PublisherTranscriptImportJob,
-    at date: Date
-  ) async throws -> Bool {
-    let attemptCount = job.attemptCount + 1
-    guard attemptCount < Self.maximumAttemptCount else {
-      try await remove(job.episodeId)
-      return false
-    }
+    at date: Date,
+    ifReferencesMatch expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> RetryResult {
+    try await writer.write { db in
+      guard
+        try Self.references(
+          for: job.episodeId,
+          match: expectedReferences,
+          in: db
+        )
+      else {
+        return .superseded
+      }
+      guard
+        let currentJob =
+          try PublisherTranscriptImportJob
+          .filter(PublisherTranscriptImportJob.Columns.episodeId == job.episodeId)
+          .fetchOne(db)
+      else {
+        return .resolved
+      }
 
-    let delay: Duration = attemptCount == 1 ? .minutes(1) : .minutes(5)
-    let nextAttemptAt = date.advanced(by: delay.asTimeInterval)
-    return try await writer.write { db in
-      try PublisherTranscriptImportJob
+      let attemptCount = currentJob.attemptCount + 1
+      guard attemptCount < Self.maximumAttemptCount else {
+        try PublisherTranscriptImportJob
+          .filter(PublisherTranscriptImportJob.Columns.episodeId == job.episodeId)
+          .deleteAll(db)
+        return .exhausted(attemptCount: attemptCount)
+      }
+
+      let delay: Duration = attemptCount == 1 ? .minutes(1) : .minutes(5)
+      let nextAttemptAt = date.advanced(by: delay.asTimeInterval)
+      let updated =
+        try PublisherTranscriptImportJob
         .filter(PublisherTranscriptImportJob.Columns.episodeId == job.episodeId)
         .updateAll(
           db,
           PublisherTranscriptImportJob.Columns.attemptCount.set(to: attemptCount),
           PublisherTranscriptImportJob.Columns.nextAttemptAt.set(to: nextAttemptAt)
-        ) > 0
+        )
+      return updated > 0
+        ? .retained(attemptCount: attemptCount)
+        : .resolved
     }
+  }
+
+  private static func references(
+    for episodeID: Episode.ID,
+    match expectedReferences: [PublisherTranscriptReference],
+    in db: Database
+  ) throws -> Bool {
+    guard let episode = try Episode.withID(episodeID).fetchOne(db) else {
+      return false
+    }
+    return episode.publisherTranscriptReferences == expectedReferences
   }
 }

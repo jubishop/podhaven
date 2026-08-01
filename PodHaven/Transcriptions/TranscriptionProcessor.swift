@@ -283,17 +283,24 @@ struct TranscriptionProcessor: Sendable {
   @discardableResult
   func storePublisherTranscript(
     _ imported: PublisherTranscriptImport,
-    for episodeID: Episode.ID
+    for episodeID: Episode.ID,
+    expectedReferences: [PublisherTranscriptReference]? = nil
   ) async throws -> Bool {
-    guard
-      try await repo.storeTranscriptIfAbsent(
+    let stored: Bool
+    if let expectedReferences {
+      stored = try await repo.storePublisherTranscriptIfDemandCurrent(
+        episodeID,
+        imported: imported,
+        expectedReferences: expectedReferences
+      )
+    } else {
+      stored = try await repo.storeTranscriptIfAbsent(
         episodeID,
         transcript: imported.transcript,
         publisherSource: imported.source
       )
-    else {
-      return false
     }
+    guard stored else { return false }
 
     let activeTask = activeTranscription { active -> Task<Void, any Error>? in
       guard

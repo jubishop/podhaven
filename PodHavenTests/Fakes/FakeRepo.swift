@@ -606,6 +606,26 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     )
   }
 
+  func storePublisherTranscriptIfDemandCurrent(
+    _ episodeID: Episode.ID,
+    imported: PublisherTranscriptImport,
+    expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> Bool {
+    recordCall(
+      methodName: "storePublisherTranscriptIfDemandCurrent",
+      parameters: (
+        episodeID: episodeID,
+        imported: imported,
+        expectedReferences: expectedReferences
+      )
+    )
+    return try await repo.storePublisherTranscriptIfDemandCurrent(
+      episodeID,
+      imported: imported,
+      expectedReferences: expectedReferences
+    )
+  }
+
   func saveTranscriptionCheckpoint(
     _ checkpoint: TranscriptionCheckpoint,
     for episodeID: Episode.ID

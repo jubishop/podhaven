@@ -205,28 +205,47 @@ struct PublisherTranscriptProcessor: Sendable {
       return
     }
 
+    let expectedReferences = episode.publisherTranscriptReferences
     switch try await importer.attemptImport(
-      from: episode.publisherTranscriptReferences
+      from: expectedReferences
     ) {
     case .imported(let imported):
       let stored = try await transcriptionProcessor.storePublisherTranscript(
         imported,
-        for: episode.id
+        for: episode.id,
+        expectedReferences: expectedReferences
       )
       Self.log.info(
         "Publisher transcript demand resolved for episode \(episode.id) stored=\(stored)"
       )
     case .terminalFailure:
-      try await store.remove(episode.id)
-      Self.log.info("Removed terminal publisher transcript demand for episode \(episode.id)")
-    case .retryableFailure:
-      let retained = try await store.recordRetry(for: job, at: dateProvider.now)
-      Self.log.info(
-        """
-        Publisher transcript retry recorded for episode \(episode.id) \
-        attempt=\(job.attemptCount + 1) retained=\(retained)
-        """
+      let removed = try await store.remove(
+        job,
+        ifReferencesMatch: expectedReferences
       )
+      Self.log.info(
+        "Terminal publisher transcript outcome for episode \(episode.id) removed=\(removed)"
+      )
+    case .retryableFailure:
+      let result = try await store.recordRetry(
+        for: job,
+        at: dateProvider.now,
+        ifReferencesMatch: expectedReferences
+      )
+      switch result {
+      case .exhausted(let attemptCount):
+        Self.log.info(
+          "Publisher transcript retry exhausted for episode \(episode.id) attempt=\(attemptCount)"
+        )
+      case .resolved:
+        Self.log.info("Publisher transcript retry already resolved for episode \(episode.id)")
+      case .retained(let attemptCount):
+        Self.log.info(
+          "Publisher transcript retry retained for episode \(episode.id) attempt=\(attemptCount)"
+        )
+      case .superseded:
+        Self.log.info("Publisher transcript retry superseded for episode \(episode.id)")
+      }
     }
   }
 }
