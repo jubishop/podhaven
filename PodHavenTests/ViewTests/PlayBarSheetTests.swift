@@ -97,7 +97,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     )
   }
 
-  private static func expandedProgressGlassContrast(
+  private static func progressGlassContrast(
     for element: NSObject,
     in window: UIWindow
   ) throws -> Double {
@@ -128,13 +128,13 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
-    "expanded controls remain distinct from bright artwork",
+    "medium controls retain clear styling while expanded controls remain distinct",
     .enabled(
       if: supportsHostedAccessibilityInspection,
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
     )
   )
-  func expandedControlsRemainDistinctFromBrightArtwork() async throws {
+  func mediumControlsRetainClearStylingWhenExpanded() async throws {
     let transcript = Transcript(
       segments: [TranscriptSegment(start: 0, end: 4, text: "Follow along")],
       locale: "en-US",
@@ -191,6 +191,20 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       Self.accessibilityElements(in: window)
         .first { $0.accessibilityLabel == "Show Transcript" }
     )
+    let mediumPlaybackPosition = try #require(
+      Self.accessibilityElements(in: window)
+        .first { $0.accessibilityLabel == "Playback Position" }
+    )
+    let mediumContrast = try Self.progressGlassContrast(
+      for: mediumPlaybackPosition,
+      in: window
+    )
+
+    #expect(
+      mediumContrast < 0.05,
+      "Medium glass changed the artwork luminance by \(mediumContrast)"
+    )
+
     #expect(showTranscriptButton.accessibilityActivate())
 
     try await Wait.until(
@@ -203,18 +217,34 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       },
       { "Play bar never expanded its transcript" }
     )
-    let playbackPosition = try #require(
+    try await Wait.until(
+      maxAttempts: 400,
+      { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        guard
+          let playbackPosition = Self.accessibilityElements(in: window)
+            .first(where: { $0.accessibilityLabel == "Playback Position" })
+        else { return false }
+        return try Self.progressGlassContrast(
+          for: playbackPosition,
+          in: window
+        ) >= 0.1
+      },
+      { "Expanded glass never finished applying its contrast treatment" }
+    )
+    let expandedPlaybackPosition = try #require(
       Self.accessibilityElements(in: window)
         .first { $0.accessibilityLabel == "Playback Position" }
     )
-    let contrast = try Self.expandedProgressGlassContrast(
-      for: playbackPosition,
+    let expandedContrast = try Self.progressGlassContrast(
+      for: expandedPlaybackPosition,
       in: window
     )
 
     #expect(
-      contrast >= 0.1,
-      "Expanded glass differed from the surrounding artwork by only \(contrast) luminance"
+      expandedContrast >= 0.1,
+      "Expanded glass differed from the surrounding artwork by only \(expandedContrast) luminance"
     )
   }
 

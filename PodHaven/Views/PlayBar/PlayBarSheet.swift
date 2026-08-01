@@ -109,6 +109,10 @@ struct PlayBarSheet: View {
     return [.medium]
   }
 
+  private var controlGlass: Glass {
+    selectedDetent == .large ? .regular : .clear
+  }
+
   private var transcriptDetentButton: some View {
     AppIcon.expandUp
       .imageButton {
@@ -166,7 +170,7 @@ struct PlayBarSheet: View {
     content
       .font(.title3)
       .padding(spacing / 2)
-      .glassEffect(.regular.interactive(), in: .capsule)
+      .glassEffect(controlGlass.interactive(), in: .capsule)
       .disabled(isShowingSpeedPopover)
   }
 
@@ -177,7 +181,7 @@ struct PlayBarSheet: View {
       .fontDesign(.rounded)
       .padding(.horizontal, spacing)
       .padding(.vertical, spacing / 2)
-      .glassEffect(.regular.interactive(), in: .capsule)
+      .glassEffect(controlGlass.interactive(), in: .capsule)
   }
 
   @ViewBuilder
@@ -248,7 +252,7 @@ struct PlayBarSheet: View {
     content
       .font(font)
       .padding(spacing / 2)
-      .glassEffect(.regular.interactive(), in: .capsule)
+      .glassEffect(controlGlass.interactive(), in: .capsule)
       .disabled(isShowingSpeedPopover)
       .transition(.scale.combined(with: .opacity))
   }
@@ -329,7 +333,10 @@ struct PlayBarSheet: View {
       }
     }
     .padding(spacing)
-    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: viewModel.isDragging ? 12 : 8))
+    .glassEffect(
+      controlGlass.interactive(),
+      in: .rect(cornerRadius: viewModel.isDragging ? 12 : 8)
+    )
   }
 }
 
