@@ -146,7 +146,7 @@ protocol Databasing: Sendable {
   func replacePublisherTranscript(
     _ episodeID: Episode.ID,
     with transcript: Transcript
-  ) async throws -> Bool
+  ) async throws -> PublisherTranscriptReplacementResult
 
   func saveTranscriptionCheckpoint(
     _ checkpoint: TranscriptionCheckpoint,

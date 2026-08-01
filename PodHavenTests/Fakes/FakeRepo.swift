@@ -48,6 +48,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let pendingDownloadClaimSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedDownloadClaimCount = ThreadSafe<Int>(0)
   private var downloadClaimSuspensions: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingPublisherReplacementSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedPublisherReplacementCount = ThreadSafe<Int>(0)
+  private var publisherReplacementSuspensions: [CheckedContinuation<Void, Never>] = []
 
   // Same shape as pendingEpisodeFetchSuspend, but for updateLastUpdates so
   // tests can park the batched flush inside RefreshManager.performRefresh.
@@ -609,14 +612,35 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func replacePublisherTranscript(
     _ episodeID: Episode.ID,
     with transcript: Transcript
-  ) async throws -> Bool {
+  ) async throws -> PublisherTranscriptReplacementResult {
     recordCall(
       methodName: "replacePublisherTranscript",
       parameters: (episodeID: episodeID, transcript: transcript)
     )
+    if pendingPublisherReplacementSuspend() {
+      pendingPublisherReplacementSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        publisherReplacementSuspensions.append(continuation)
+        suspendedPublisherReplacementCount(publisherReplacementSuspensions.count)
+      }
+    }
     return try await repo.replacePublisherTranscript(
       episodeID,
       with: transcript
+    )
+  }
+
+  func resumeAllPublisherReplacementSuspensions() {
+    let toResume = publisherReplacementSuspensions
+    publisherReplacementSuspensions.removeAll()
+    suspendedPublisherReplacementCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForPublisherReplacementSuspended() async throws {
+    try await Wait.until(
+      { self.suspendedPublisherReplacementCount() > 0 },
+      { "Expected final publisher replacement storage to suspend" }
     )
   }
 

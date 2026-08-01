@@ -257,6 +257,65 @@ struct TranscriptionProcessorReplacementTests {
     #expect(!queue.failed.contains(episode.id))
   }
 
+  @Test("pause during final promotion preserves replacement progress")
+  func pauseDuringFinalPromotionPreservesProgress() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(
+          phrase: "Completed replacement",
+          startSeconds: 0,
+          endSeconds: 60
+        )
+      ]
+    )
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/promotion-pause.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Paused during publisher promotion",
+      cachedFilename: "paused-during-publisher-promotion.mp3",
+      dataSize: 1
+    )
+    let originalTranscript = try await storePublisherTranscript(
+      for: episode.id,
+      source: source
+    )
+    try await insertForcedReplacement(episode.id)
+    let repo = Container.shared.repo()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingPublisherReplacementSuspend(true)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let processor = Container.shared.transcriptionProcessor()
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      Task { await fakeRepo.resumeAllPublisherReplacementSuspensions() }
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    try await fakeRepo.waitForPublisherReplacementSuspended()
+    let checkpoint = try #require(try await repo.transcriptionCheckpoint(episode.id))
+
+    #expect(try await queue.beginPausing(episode.id))
+    #expect(queue.status(for: episode.id, hasTranscript: true) == .pausing)
+    await fakeRepo.resumeAllPublisherReplacementSuspensions()
+
+    try await Wait.until(
+      {
+        queue.episodeIDs.isEmpty && queue.progress[episode.id] == nil
+      },
+      { "Replacement did not release promotion after pause took queue ownership" }
+    )
+    queue.finishPausing(episode.id)
+    let stored = try #require(try await repo.episode(episode.id))
+    #expect(stored.decodedTranscript == originalTranscript)
+    #expect(stored.publisherTranscriptSource == source)
+    #expect(try await repo.transcriptionCheckpoint(episode.id) == checkpoint)
+    #expect(!queue.failed.contains(episode.id))
+  }
+
   @Test("publisher import cleanup preserves a replacement requested during cancellation")
   func publisherImportCleanupPreservesConcurrentReplacement() async throws {
     let replacementText = "On-device replacement wins"

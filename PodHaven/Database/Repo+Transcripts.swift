@@ -64,7 +64,7 @@ extension Repo {
   func replacePublisherTranscript(
     _ episodeID: Episode.ID,
     with transcript: Transcript
-  ) async throws -> Bool {
+  ) async throws -> PublisherTranscriptReplacementResult {
     let transcriptJSON = try transcript.jsonString()
     Self.transcriptLog.debug(
       "replacePublisherTranscript: \(episodeID) to \(transcriptJSON.count) chars"
@@ -78,7 +78,7 @@ extension Repo {
           .fetchOne(db),
         queuedWork.workMode == .onDeviceReplacement
       else {
-        return false
+        return .workModeChanged
       }
 
       let updated =
@@ -91,7 +91,7 @@ extension Repo {
           Episode.Columns.transcript.set(to: transcriptJSON),
           Episode.Columns.publisherTranscriptSourceJSON.set(to: nil)
         )
-      guard updated > 0 else { return false }
+      guard updated > 0 else { return .publisherTranscriptUnavailable }
 
       try EpisodeTranscriptionCheckpoint
         .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
@@ -103,7 +103,7 @@ extension Repo {
             == TranscriptionWorkMode.onDeviceReplacement
         )
         .deleteAll(db)
-      return true
+      return .replaced
     }
   }
 

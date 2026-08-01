@@ -369,6 +369,7 @@ struct EpisodeDetailTranscriptView: View {
     source: .podcastFeed,
     supportsReplacement: true
   )
+  .preview()
 }
 
 #Preview("Publisher Transcript Unsupported Device") {
@@ -376,6 +377,7 @@ struct EpisodeDetailTranscriptView: View {
     source: .podcastFeed,
     supportsReplacement: false
   )
+  .preview()
 }
 
 #Preview("On-Device Transcript") {
@@ -383,5 +385,6 @@ struct EpisodeDetailTranscriptView: View {
     source: .onDevice,
     supportsReplacement: true
   )
+  .preview()
 }
 #endif

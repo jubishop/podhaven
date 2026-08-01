@@ -73,12 +73,6 @@ struct TranscriptionProcessor: Sendable {
     case background
   }
 
-  private enum HeadProcessingOutcome {
-    case advanced
-    case retained
-    case restart
-  }
-
   private let foregroundState = ThreadSafe(ForegroundState.background)
 
   fileprivate init() {
@@ -672,7 +666,7 @@ struct TranscriptionProcessor: Sendable {
           return .retained
         }
       }
-      if error is TranscriptionWorkModeChanged {
+      if error is TranscriptionWorkModeChanged, result.interruption.isNone {
         transcriptionQueue.clearProgress(for: episodeID)
         return .restart
       }
@@ -938,17 +932,17 @@ struct TranscriptionProcessor: Sendable {
         operation: .completedTranscription
       )
     case .onDeviceReplacement:
-      let replaced = try await repo.replacePublisherTranscript(
+      switch try await repo.replacePublisherTranscript(
         episodeID,
         with: transcript
-      )
-      if replaced {
+      ) {
+      case .replaced:
         guard transcriptionQueue.finishPersistedRemoval(episodeID, mode: work.mode)
         else {
           throw TranscriptionWorkModeChanged()
         }
         stored = true
-      } else {
+      case .publisherTranscriptUnavailable:
         stored = try await repo.storeTranscriptIfAbsent(
           episodeID,
           transcript: transcript,
@@ -961,6 +955,8 @@ struct TranscriptionProcessor: Sendable {
           work,
           operation: .completedTranscription
         )
+      case .workModeChanged:
+        throw TranscriptionWorkModeChanged()
       }
     }
     Self.log.info(

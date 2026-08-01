@@ -18,6 +18,12 @@ struct TranscriptionWork: Equatable, Hashable, Sendable {
   let mode: TranscriptionWorkMode
 }
 
+enum PublisherTranscriptReplacementResult: Sendable {
+  case replaced
+  case publisherTranscriptUnavailable
+  case workModeChanged
+}
+
 struct EpisodeTranscriptionQueueEntry:
   Codable,
   FetchableRecord,

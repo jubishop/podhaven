@@ -20,6 +20,12 @@ struct QueueMutationFailure: Error, LocalizedError {
 
 struct TranscriptionWorkModeChanged: Error {}
 
+enum HeadProcessingOutcome {
+  case advanced
+  case retained
+  case restart
+}
+
 extension PublisherTranscriptImporter {
   func importAndStoreIfAbsent(
     for episode: Episode,
