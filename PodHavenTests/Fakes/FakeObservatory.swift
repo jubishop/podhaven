@@ -261,6 +261,11 @@ struct FakeObservatory: Sendable, FakeCallable, Observing {
     return observatory.podcastEpisodeWithTags(episodeID)
   }
 
+  func transcript(_ episodeID: Episode.ID) -> AsyncValueObservation<Transcript?> {
+    recordCall(methodName: "transcript", parameters: episodeID)
+    return observatory.transcript(episodeID)
+  }
+
   func transcriptionCheckpoint(_ episodeID: Episode.ID)
     -> AsyncValueObservation<TranscriptionCheckpoint?>
   {

@@ -9,6 +9,9 @@ import Foundation
 protocol SpeechTranscriptionResult: Sendable {
   // The phrase text exactly as transcribed, before trimming or filtering.
   var phrase: String { get }
+  // Timed attributed-string runs. SpeechTranscriber supplies one run per
+  // playback-highlightable word or punctuation group.
+  var words: [TranscriptWord] { get }
   // Earliest audio start time across the phrase's runs, in seconds.
   var startSeconds: Double? { get }
   // Latest audio end time across the phrase's runs, in seconds — the high-water

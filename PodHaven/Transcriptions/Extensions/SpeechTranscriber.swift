@@ -27,6 +27,16 @@ extension Container {
 
 extension SpeechTranscriber.Result: SpeechTranscriptionResult {
   var phrase: String { String(text.characters) }
+  var words: [TranscriptWord] {
+    text.runs.compactMap { run in
+      guard let audioTimeRange = run.audioTimeRange else { return nil }
+      return TranscriptWord(
+        start: audioTimeRange.start.seconds,
+        end: audioTimeRange.end.seconds,
+        text: String(text[run.range].characters)
+      )
+    }
+  }
   var startSeconds: Double? {
     text.runs.compactMap { $0.audioTimeRange?.start.seconds }.min()
   }

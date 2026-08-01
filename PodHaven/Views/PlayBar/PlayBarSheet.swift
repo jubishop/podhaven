@@ -10,9 +10,11 @@ struct PlayBarSheet: View {
   private let spacing: CGFloat = 12
 
   @Bindable var viewModel: PlayBarViewModel
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @Environment(\.colorScheme) private var colorScheme
   @State private var containerWidth: CGFloat = 1
   @State private var isShowingSpeedPopover = false
+  @State private var selectedDetent = PresentationDetent.medium
 
   init(viewModel: PlayBarViewModel) {
     self.viewModel = viewModel
@@ -24,6 +26,10 @@ struct PlayBarSheet: View {
 
       VStack(spacing: spacing) {
         HStack(spacing: spacing) {
+          if viewModel.canExpandTranscript {
+            topBarButtonStyle(transcriptDetentButton)
+          }
+
           Spacer()
 
           if let onDeck = sharedState.onDeck {
@@ -43,7 +49,16 @@ struct PlayBarSheet: View {
         .padding(.horizontal, spacing)
         .padding(.top, spacing)
 
-        Spacer()
+        if selectedDetent == .large, let transcript = viewModel.transcript {
+          PlayBarTranscriptView(
+            transcript: transcript,
+            currentTime: viewModel.sliderValue
+          )
+          .padding(.horizontal, spacing)
+          .transition(.opacity)
+        } else {
+          Spacer()
+        }
 
         HStack {
           playbackMetaControls
@@ -68,11 +83,40 @@ struct PlayBarSheet: View {
       } action: { newWidth in
         containerWidth = newWidth
       }
+      .animation(
+        accessibilityReduceMotion ? nil : .easeInOut(duration: 0.25),
+        value: selectedDetent
+      )
     }
-    .presentationDetents([.medium])
+    .presentationDetents(availableDetents, selection: $selectedDetent)
+    .presentationDragIndicator(viewModel.canExpandTranscript ? .visible : .automatic)
     .task(id: sharedState.onDeck?.id) {
       await viewModel.observeTranscriptionCheckpoint()
     }
+    .task(id: sharedState.onDeck?.id) {
+      await viewModel.observeTranscript()
+    }
+    .onChange(of: viewModel.canExpandTranscript) { _, canExpandTranscript in
+      guard !canExpandTranscript else { return }
+      selectedDetent = .medium
+    }
+  }
+
+  private var availableDetents: Set<PresentationDetent> {
+    if viewModel.canExpandTranscript || selectedDetent == .large {
+      return [.medium, .large]
+    }
+    return [.medium]
+  }
+
+  private var transcriptDetentButton: some View {
+    AppIcon.expandUp
+      .imageButton {
+        selectedDetent = selectedDetent == .large ? .medium : .large
+      }
+      .rotationEffect(selectedDetent == .large ? .degrees(180) : .zero)
+      .accessibilityLabel(selectedDetent == .large ? "Collapse Transcript" : "Show Transcript")
+      .accessibilityValue(selectedDetent == .large ? "Expanded" : "Collapsed")
   }
 
   @ViewBuilder
@@ -301,6 +345,7 @@ struct PlayBarSheetPreview: View {
   let maxPlaybackTimeSeconds: Double
   let durationSeconds: Double
   let description: String?
+  let transcript: Transcript?
 
   init(
     _ status: PlaybackStatus = .playing,
@@ -311,7 +356,8 @@ struct PlayBarSheetPreview: View {
     currentTime: Double = 120,
     maxPlaybackTime: Double = 120,
     duration: Double = 2400,
-    description: String? = nil
+    description: String? = nil,
+    transcript: Transcript? = nil
   ) {
     self.status = status
     self.image = image
@@ -319,6 +365,7 @@ struct PlayBarSheetPreview: View {
     self.maxPlaybackTimeSeconds = maxPlaybackTime
     self.durationSeconds = duration
     self.description = description
+    self.transcript = transcript
   }
 
   var body: some View {
@@ -332,7 +379,19 @@ struct PlayBarSheetPreview: View {
           duration: CMTime.seconds(durationSeconds),
           description: description
         )
-        let podcastEpisode = try! await Create.podcastEpisode(unsavedEpisode)
+        var podcastEpisode = try! await Create.podcastEpisode(unsavedEpisode)
+        if let transcript {
+          try! await Container.shared.repo()
+            .updateTranscript(
+              podcastEpisode.id,
+              transcript: transcript.jsonString()
+            )
+          guard
+            let updatedPodcastEpisode = try! await Container.shared.repo()
+              .podcastEpisode(podcastEpisode.id)
+          else { return }
+          podcastEpisode = updatedPodcastEpisode
+        }
         var onDeck = OnDeck(from: podcastEpisode)
         onDeck.artwork = image
         onDeck.currentTime = CMTime.seconds(currentTimeSeconds)
@@ -344,6 +403,34 @@ struct PlayBarSheetPreview: View {
 
 #Preview("at peak — transcription + finish") {
   PlayBarSheetPreview(currentTime: 600, maxPlaybackTime: 600)
+}
+
+#Preview("transcript — tap expand") {
+  PlayBarSheetPreview(
+    currentTime: 3,
+    maxPlaybackTime: 3,
+    duration: 12,
+    transcript: Transcript(
+      segments: [
+        TranscriptSegment(
+          start: 0,
+          end: 6,
+          text: "The highlighted word follows the episode.",
+          words: [
+            TranscriptWord(start: 0, end: 1, text: "The"),
+            TranscriptWord(start: 1, end: 2, text: " highlighted"),
+            TranscriptWord(start: 2, end: 3.5, text: " word"),
+            TranscriptWord(start: 3.5, end: 4.5, text: " follows"),
+            TranscriptWord(start: 4.5, end: 5, text: " the"),
+            TranscriptWord(start: 5, end: 6, text: " episode."),
+          ]
+        ),
+        TranscriptSegment(start: 6, end: 12, text: "Swipe between medium and full height."),
+      ],
+      locale: "en-US",
+      createdAt: Date()
+    )
+  )
 }
 
 #Preview("peak ahead — jump button + marker") {
