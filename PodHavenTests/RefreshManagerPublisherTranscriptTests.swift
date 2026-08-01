@@ -175,8 +175,120 @@ struct RefreshManagerPublisherTranscriptTests {
     try await refreshTask.value
   }
 
-  @Test("failed timed candidates leave the episode eligible and are not retried each refresh")
-  func failedCandidatesDoNotFailOrRefetch() async throws {
+  @Test("expired background refresh leaves demand for a network publisher task")
+  func expiredBackgroundRefreshLeavesDemandForPublisherTask() async throws {
+    Container.shared.speechModelManager.register {
+      FakeSpeechModelManager(supportedIdentifiers: [])
+    }
+    let availability = Container.shared.transcriptionAvailability()
+    await availability.prepare()
+    #expect(availability.state == .unavailable)
+
+    let feedURL = FeedURL(URL(string: "https://example.com/cancelled-publisher-feed.rss")!)
+    let transcriptURL = URL(string: "https://example.com/cancelled-publisher.vtt")!
+    let series = try await Self.insertInitialSeries(
+      feedURL: feedURL,
+      alwaysTranscribeNewEpisodes: false,
+      subscriptionDate: Date(timeIntervalSince1970: 1)
+    )
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: Self.feedData(feedURL: feedURL, transcriptURL: transcriptURL)
+    )
+    let fetch = await transcriptSession.releaseWaitRespond(
+      to: transcriptURL,
+      data: Data(
+        "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nRecovered publisher words".utf8
+      )
+    )
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let scheduler = try #require(
+      Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler
+    )
+    let publisherProcessor = Container.shared.publisherTranscriptProcessor()
+    let publisherIdentifier = "\(AppInfo.bundleIdentifier).publisherTranscripts"
+    await queue.waitUntilLoaded()
+    publisherProcessor.register()
+    try await Wait.until(
+      {
+        scheduler.cancelledIdentifiers.contains(publisherIdentifier)
+          && !scheduler.pendingIdentifiers.contains(publisherIdentifier)
+      },
+      { "Initial publisher-demand reconciliation did not finish" }
+    )
+
+    let refreshScheduler = Container.shared.refreshScheduler()
+    refreshScheduler.register()
+    let feedIdentifier = "\(AppInfo.bundleIdentifier).feedRefresh"
+    let feedTask = try #require(
+      scheduler.launchTask(withIdentifier: feedIdentifier)
+    )
+    defer {
+      feedTask.expire()
+      fetch.finish.signal()
+    }
+    await fetch.started.wait()
+
+    let committedSeries = try #require(try await repo.podcastSeries(series.id))
+    let committedEpisode = try #require(
+      committedSeries.episodes.first { $0.guid == GUID("publisher-new") }
+    )
+    #expect(!committedEpisode.hasTranscript)
+    #expect(queue.episodeIDs.isEmpty)
+    let committedJobCount = try await repo.db.read { db in
+      try PublisherTranscriptImportJob
+        .filter(PublisherTranscriptImportJob.Columns.episodeId == committedEpisode.id)
+        .fetchCount(db)
+    }
+    #expect(committedJobCount == 1)
+
+    feedTask.expire()
+    try await Wait.until(
+      { feedTask.completionResults == [false] },
+      { "Expired feed background task did not complete unsuccessfully" }
+    )
+
+    await transcriptSession.respond(
+      to: transcriptURL,
+      data: Data(
+        "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nRecovered publisher words".utf8
+      )
+    )
+    fetch.finish.signal()
+
+    try await Wait.until(
+      { scheduler.pendingIdentifiers.contains(publisherIdentifier) },
+      { "Durable publisher demand did not schedule background work" }
+    )
+    let publisherRequest = try #require(
+      scheduler.submissions.last { $0.identifier == publisherIdentifier }
+    )
+    #expect(publisherRequest.isProcessing)
+    #expect(publisherRequest.requiresNetworkConnectivity)
+    let publisherTask = try #require(
+      scheduler.launchTask(withIdentifier: publisherIdentifier)
+    )
+    try await Wait.until(
+      { publisherTask.completionResults == [true] },
+      { "Publisher transcript background task did not complete successfully" }
+    )
+
+    let recovered = try #require(try await repo.episode(committedEpisode.id))
+    #expect(recovered.decodedTranscript?.segments.map(\.text) == ["Recovered publisher words"])
+    #expect(recovered.publisherTranscriptSource?.url == transcriptURL)
+    #expect(queue.episodeIDs.isEmpty)
+    #expect(await transcriptSession.requests.filter { $0 == transcriptURL }.count == 2)
+    let recoveredJobCount = try await repo.db.read { db in
+      try PublisherTranscriptImportJob
+        .filter(PublisherTranscriptImportJob.Columns.episodeId == committedEpisode.id)
+        .fetchCount(db)
+    }
+    #expect(recoveredJobCount == 0)
+  }
+
+  @Test("retryable publisher failure succeeds on a later durable attempt")
+  func retryablePublisherFailureSucceedsLater() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/failing-publisher-feed.rss")!)
     let jsonURL = URL(string: "https://example.com/malformed.json")!
     let webVTTURL = URL(string: "https://example.com/unavailable.vtt")!
@@ -202,8 +314,57 @@ struct RefreshManagerPublisherTranscriptTests {
     let queue = Container.shared.transcriptionQueue()
     await queue.waitUntilLoaded()
     let refreshManager = Container.shared.refreshManager()
+    Container.shared.fakeDate().freeze(at: Date(timeIntervalSince1970: 1_000))
 
     try await refreshManager.refreshSeries(podcast: series.podcast)
+
+    await transcriptSession.respond(
+      to: webVTTURL,
+      data: Data(
+        "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nPublisher retry succeeded".utf8
+      )
+    )
+    Container.shared.fakeDate().freeze(at: Date(timeIntervalSince1970: 2_000))
+    try await refreshManager.refreshSeries(podcast: series.podcast)
+
+    let refreshed = try #require(
+      try await Container.shared.repo().podcastSeries(series.id)
+    )
+    let episode = try #require(
+      refreshed.episodes.first { $0.guid == GUID("publisher-new") }
+    )
+    #expect(episode.decodedTranscript?.segments.map(\.text) == ["Publisher retry succeeded"])
+    #expect(queue.episodeIDs.isEmpty)
+    #expect(await transcriptSession.requests.filter { $0 == jsonURL }.count == 2)
+    #expect(await transcriptSession.requests.filter { $0 == webVTTURL }.count == 2)
+    let jobCount = try await Container.shared.repo().db
+      .read { db in
+        try PublisherTranscriptImportJob.fetchCount(db)
+      }
+    #expect(jobCount == 0)
+  }
+
+  @Test("permanently unusable publisher candidates are not retried")
+  func permanentlyUnusableCandidatesAreNotRetried() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/terminal-publisher-feed.rss")!)
+    let transcriptURL = URL(string: "https://example.com/terminal.json")!
+    let series = try await Self.insertInitialSeries(
+      feedURL: feedURL,
+      alwaysTranscribeNewEpisodes: false
+    )
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: Self.feedData(feedURL: feedURL, transcriptURL: transcriptURL)
+    )
+    await transcriptSession.respond(
+      to: transcriptURL,
+      data: Data(#"{"segments":[{"body":"missing timecodes"}]}"#.utf8)
+    )
+    let refreshManager = Container.shared.refreshManager()
+    Container.shared.fakeDate().freeze(at: Date(timeIntervalSince1970: 1_000))
+
+    try await refreshManager.refreshSeries(podcast: series.podcast)
+    Container.shared.fakeDate().freeze(at: Date(timeIntervalSince1970: 2_000))
     try await refreshManager.refreshSeries(podcast: series.podcast)
 
     let refreshed = try #require(
@@ -213,9 +374,94 @@ struct RefreshManagerPublisherTranscriptTests {
       refreshed.episodes.first { $0.guid == GUID("publisher-new") }
     )
     #expect(!episode.hasTranscript)
-    #expect(queue.episodeIDs == [episode.id])
-    #expect(await transcriptSession.requests.filter { $0 == jsonURL }.count == 1)
-    #expect(await transcriptSession.requests.filter { $0 == webVTTURL }.count == 1)
+    #expect(await transcriptSession.requests.filter { $0 == transcriptURL }.count == 1)
+    let jobCount = try await Container.shared.repo().db
+      .read { db in
+        try PublisherTranscriptImportJob.fetchCount(db)
+      }
+    #expect(jobCount == 0)
+  }
+
+  @Test("retryable publisher failures stop after the bounded attempt limit")
+  func retryableFailuresStopAfterAttemptLimit() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/bounded-publisher-feed.rss")!)
+    let transcriptURL = URL(string: "https://example.com/bounded.vtt")!
+    let series = try await Self.insertInitialSeries(
+      feedURL: feedURL,
+      alwaysTranscribeNewEpisodes: false
+    )
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: Self.feedData(feedURL: feedURL, transcriptURL: transcriptURL)
+    )
+    await transcriptSession.respond(
+      to: transcriptURL,
+      error: URLError(.notConnectedToInternet)
+    )
+    let refreshManager = Container.shared.refreshManager()
+
+    for timestamp in [1_000.0, 2_000.0, 3_000.0, 4_000.0] {
+      Container.shared.fakeDate().freeze(at: Date(timeIntervalSince1970: timestamp))
+      try await refreshManager.refreshSeries(podcast: series.podcast)
+    }
+
+    #expect(await transcriptSession.requests.filter { $0 == transcriptURL }.count == 3)
+    let jobCount = try await Container.shared.repo().db
+      .read { db in
+        try PublisherTranscriptImportJob.fetchCount(db)
+      }
+    #expect(jobCount == 0)
+  }
+
+  @Test("removing the last supported reference clears deferred publisher demand")
+  func removedReferencesClearDeferredDemand() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/obsolete-publisher-feed.rss")!)
+    let transcriptURL = URL(string: "https://example.com/obsolete.vtt")!
+    let series = try await Self.insertInitialSeries(
+      feedURL: feedURL,
+      alwaysTranscribeNewEpisodes: false
+    )
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: Self.feedData(feedURL: feedURL, transcriptURL: transcriptURL)
+    )
+    await transcriptSession.respond(
+      to: transcriptURL,
+      error: URLError(.notConnectedToInternet)
+    )
+    let refreshManager = Container.shared.refreshManager()
+    let repo = Container.shared.repo()
+    Container.shared.fakeDate().freeze(at: Date(timeIntervalSince1970: 1_000))
+
+    try await refreshManager.refreshSeries(podcast: series.podcast)
+
+    let refreshed = try #require(try await repo.podcastSeries(series.id))
+    let episode = try #require(
+      refreshed.episodes.first { $0.guid == GUID("publisher-new") }
+    )
+    let deferredJobCount = try await repo.db.read { db in
+      try PublisherTranscriptImportJob
+        .filter(PublisherTranscriptImportJob.Columns.episodeId == episode.id)
+        .fetchCount(db)
+    }
+    #expect(deferredJobCount == 1)
+
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: Self.feedData(feedURL: feedURL, newEpisodeTranscripts: "")
+    )
+    Container.shared.fakeDate().freeze(at: Date(timeIntervalSince1970: 1_010))
+    try await refreshManager.refreshSeries(podcast: series.podcast)
+
+    let updated = try #require(try await repo.episode(episode.id))
+    #expect(updated.publisherTranscriptReferences.isEmpty)
+    #expect(await transcriptSession.requests.filter { $0 == transcriptURL }.count == 1)
+    let remainingJobCount = try await repo.db.read { db in
+      try PublisherTranscriptImportJob
+        .filter(PublisherTranscriptImportJob.Columns.episodeId == episode.id)
+        .fetchCount(db)
+    }
+    #expect(remainingJobCount == 0)
   }
 
   @Test("untimed resources are ignored and leave automatic transcription eligible")
@@ -295,6 +541,58 @@ struct RefreshManagerPublisherTranscriptTests {
     #expect(stored.publisherTranscriptSource == nil)
     let requests = await transcriptSession.requests
     #expect(!requests.contains(publisherURL))
+  }
+
+  @Test("a competing transcript writer clears publisher demand without replacement")
+  func competingTranscriptWriterClearsDemand() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/competing-writer-feed.rss")!)
+    let publisherURL = URL(string: "https://example.com/competing-writer.vtt")!
+    let series = try await Self.insertInitialSeries(
+      feedURL: feedURL,
+      alwaysTranscribeNewEpisodes: false
+    )
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: Self.feedData(feedURL: feedURL, transcriptURL: publisherURL)
+    )
+    let fetch = await transcriptSession.releaseWaitRespond(
+      to: publisherURL,
+      data: Data("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nPublisher loses".utf8)
+    )
+    let repo = Container.shared.repo()
+    let refreshTask = Task {
+      try await Container.shared.refreshManager().refreshSeries(podcast: series.podcast)
+    }
+    defer {
+      refreshTask.cancel()
+      fetch.finish.signal()
+    }
+
+    await fetch.started.wait()
+    let committedSeries = try #require(try await repo.podcastSeries(series.id))
+    let episode = try #require(
+      committedSeries.episodes.first { $0.guid == GUID("publisher-new") }
+    )
+    let competingTranscript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Competing writer wins")],
+      locale: "en",
+      createdAt: Date(timeIntervalSince1970: 1)
+    )
+    try await repo.updateTranscript(
+      episode.id,
+      transcript: competingTranscript.jsonString()
+    )
+
+    fetch.finish.signal()
+    try await refreshTask.value
+
+    let stored = try #require(try await repo.episode(episode.id))
+    #expect(stored.decodedTranscript == competingTranscript)
+    #expect(stored.publisherTranscriptSource == nil)
+    let jobCount = try await repo.db.read { db in
+      try PublisherTranscriptImportJob.fetchCount(db)
+    }
+    #expect(jobCount == 0)
   }
 
   @Test("a new reference on an observed episode is persisted for deferred retrieval")
@@ -458,7 +756,8 @@ struct RefreshManagerPublisherTranscriptTests {
   private static func insertInitialSeries(
     feedURL: FeedURL,
     alwaysTranscribeNewEpisodes: Bool,
-    notifyNewEpisodes: Bool = false
+    notifyNewEpisodes: Bool = false,
+    subscriptionDate: Date? = nil
   ) async throws -> PodcastSeries {
     let feed = try await PodcastFeed.parse(
       feedData(feedURL: feedURL, transcriptURL: nil),
@@ -474,6 +773,7 @@ struct RefreshManagerPublisherTranscriptTests {
             image: podcast.image,
             description: podcast.description,
             link: podcast.link,
+            subscriptionDate: subscriptionDate,
             alwaysTranscribeNewEpisodes: alwaysTranscribeNewEpisodes,
             notifyNewEpisodes: notifyNewEpisodes
           ),

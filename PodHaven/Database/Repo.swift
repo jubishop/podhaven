@@ -16,6 +16,7 @@ extension Container {
 
 struct Repo: Databasing {
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.publisherTranscriptProcessor) private var publisherTranscriptProcessor
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
@@ -286,8 +287,10 @@ struct Repo: Databasing {
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [FeedMergeEpisode]
   ) async throws -> [Episode] {
-    try await writer.write { db in
+    let nextPublisherAttemptAt = Container.shared.dateProvider().now
+    let result = try await writer.write { db in
       var newEpisodes = [Episode](capacity: unsavedEpisodes.count)
+      var publisherTranscriptWorkCreated = false
 
       let lastUpdateAssignment = Podcast.Columns.lastUpdate.set(to: Date())
       if let updatedPodcast {
@@ -304,11 +307,32 @@ struct Repo: Databasing {
         try Episode
           .withID(existingEpisode.id)
           .updateAll(db, existingEpisode.rssColumnAssignments)
+        let publisherReferences = try PublisherTranscriptReference.decodeReferences(
+          from: existingEpisode.publisherTranscriptReferencesJSON
+        )
+        if !publisherReferences.contains(where: { $0.format != nil }) {
+          try PublisherTranscriptImportJob
+            .filter(
+              PublisherTranscriptImportJob.Columns.episodeId == existingEpisode.id
+            )
+            .deleteAll(db)
+        }
       }
 
       for var unsavedEpisode in unsavedEpisodes {
         unsavedEpisode.podcastId = podcast.id
-        newEpisodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
+        let episode = try unsavedEpisode.insertAndFetch(db, as: Episode.self)
+        newEpisodes.append(episode)
+        if !episode.hasTranscript,
+          episode.publisherTranscriptReferences.contains(where: { $0.format != nil })
+        {
+          try PublisherTranscriptImportStore.insert(
+            episode.id,
+            nextAttemptAt: nextPublisherAttemptAt,
+            in: db
+          )
+          publisherTranscriptWorkCreated = true
+        }
       }
 
       if !unsavedEpisodes.isEmpty || !existingEpisodes.isEmpty {
@@ -316,9 +340,9 @@ struct Repo: Databasing {
       }
 
       let queueMode = podcast.queueAllEpisodes
-      guard queueMode != .never, !newEpisodes.isEmpty else { return newEpisodes }
-
-      if let autoQueueLimit = podcast.autoQueueLimit {
+      if queueMode != .never, !newEpisodes.isEmpty,
+        let autoQueueLimit = podcast.autoQueueLimit
+      {
         // Keep only this podcast's `autoQueueLimit` newest episodes, evicting its
         // own oldest queued episodes to make room for the surviving incoming ones.
         let episodesToQueue = try queue.limitPodcast(
@@ -327,19 +351,27 @@ struct Repo: Databasing {
           incoming: newEpisodes,
           to: autoQueueLimit
         )
-        guard !episodesToQueue.isEmpty else { return newEpisodes }
-        if queueMode == .onTop {
-          try queue.unshift(db, episodesToQueue.map(\.id))
-        } else if queueMode == .onBottom {
-          try queue.append(db, episodesToQueue.map(\.id))
+        if !episodesToQueue.isEmpty {
+          if queueMode == .onTop {
+            try queue.unshift(db, episodesToQueue.map(\.id))
+          } else if queueMode == .onBottom {
+            try queue.append(db, episodesToQueue.map(\.id))
+          }
         }
-      } else if queueMode == .onTop {
+      } else if queueMode == .onTop, !newEpisodes.isEmpty {
         try queue.unshift(db, newEpisodes.map(\.id))
-      } else if queueMode == .onBottom {
+      } else if queueMode == .onBottom, !newEpisodes.isEmpty {
         try queue.append(db, newEpisodes.map(\.id))
       }
-      return newEpisodes
+      return (
+        newEpisodes: newEpisodes,
+        publisherTranscriptWorkCreated: publisherTranscriptWorkCreated
+      )
     }
+    if result.publisherTranscriptWorkCreated {
+      publisherTranscriptProcessor.workBecameAvailable()
+    }
+    return result.newEpisodes
   }
 
   // MARK: - Podcast Writers

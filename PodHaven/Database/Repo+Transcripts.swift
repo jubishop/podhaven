@@ -26,6 +26,11 @@ extension Repo {
       try EpisodeTranscriptionCheckpoint
         .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
         .deleteAll(db)
+      if transcript != nil {
+        try PublisherTranscriptImportJob
+          .filter(PublisherTranscriptImportJob.Columns.episodeId == episodeID)
+          .deleteAll(db)
+      }
       return updated > 0
     }
   }
@@ -53,6 +58,9 @@ extension Repo {
           Episode.Columns.transcript.set(to: transcriptJSON),
           Episode.Columns.publisherTranscriptSourceJSON.set(to: publisherSourceJSON)
         )
+      try PublisherTranscriptImportJob
+        .filter(PublisherTranscriptImportJob.Columns.episodeId == episodeID)
+        .deleteAll(db)
       guard updated > 0 else { return false }
       try EpisodeTranscriptionCheckpoint
         .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)

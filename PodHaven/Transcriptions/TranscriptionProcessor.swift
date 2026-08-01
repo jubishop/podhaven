@@ -261,47 +261,13 @@ struct TranscriptionProcessor: Sendable {
       guard
         let episode = try await repo.episode(episodeID),
         !episode.hasTranscript,
-        try await fetchAndStorePublisherTranscript(for: episode)
+        let imported = try await publisherTranscriptImporter.importTranscript(
+          from: episode.publisherTranscriptReferences
+        )
       else {
         return false
       }
-
-      let activeTask = activeTranscription { active -> Task<Void, any Error>? in
-        guard
-          var current = active,
-          current.episodeID == episodeID,
-          current.interruption.isNone
-        else {
-          return nil
-        }
-        current.interruption = .publisherTranscript
-        active = current
-        return current.task
-      }
-      if let activeTask {
-        Self.log.info("Cancelling redundant on-device transcription \(episodeID)")
-        activeTask.cancel()
-        switch await activeTask.result {
-        case .success, .failure:
-          break
-        }
-      }
-
-      try await repo.deleteTranscriptionCheckpoint(for: episodeID)
-      do {
-        try await transcriptionQueue.remove(episodeID)
-      } catch {
-        Self.log.caughtError(
-          "Failed to remove publisher-transcribed episode \(episodeID) from queue",
-          error
-        )
-        backgroundTaskScheduler.scheduleNext()
-      }
-      if transcriptionQueue.episodeIDs.isEmpty {
-        backgroundTaskScheduler.scheduleNext()
-      }
-      Self.log.info("Stored publisher transcript for episode \(episodeID)")
-      return true
+      return try await storePublisherTranscript(imported, for: episodeID)
     } catch is CancellationError {
       return false
     } catch {
@@ -312,6 +278,59 @@ struct TranscriptionProcessor: Sendable {
       )
       return false
     }
+  }
+
+  @discardableResult
+  func storePublisherTranscript(
+    _ imported: PublisherTranscriptImport,
+    for episodeID: Episode.ID
+  ) async throws -> Bool {
+    guard
+      try await repo.storeTranscriptIfAbsent(
+        episodeID,
+        transcript: imported.transcript,
+        publisherSource: imported.source
+      )
+    else {
+      return false
+    }
+
+    let activeTask = activeTranscription { active -> Task<Void, any Error>? in
+      guard
+        var current = active,
+        current.episodeID == episodeID,
+        current.interruption.isNone
+      else {
+        return nil
+      }
+      current.interruption = .publisherTranscript
+      active = current
+      return current.task
+    }
+    if let activeTask {
+      Self.log.info("Cancelling redundant on-device transcription \(episodeID)")
+      activeTask.cancel()
+      switch await activeTask.result {
+      case .success, .failure:
+        break
+      }
+    }
+
+    try await repo.deleteTranscriptionCheckpoint(for: episodeID)
+    do {
+      try await transcriptionQueue.remove(episodeID)
+    } catch {
+      Self.log.caughtError(
+        "Failed to remove publisher-transcribed episode \(episodeID) from queue",
+        error
+      )
+      backgroundTaskScheduler.scheduleNext()
+    }
+    if transcriptionQueue.episodeIDs.isEmpty {
+      backgroundTaskScheduler.scheduleNext()
+    }
+    Self.log.info("Stored publisher transcript for episode \(episodeID)")
+    return true
   }
 
   func reconcileDeletion<Result: Sendable>(
