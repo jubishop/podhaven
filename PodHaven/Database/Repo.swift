@@ -28,7 +28,7 @@ struct Repo: Databasing {
 
   var db: AppDB.Reader { reader }
   private let reader: AppDB.Reader
-  private let writer: AppDB.Writer
+  let writer: AppDB.Writer
   init(reader: AppDB.Reader, writer: AppDB.Writer) {
     self.reader = reader
     self.writer = writer
@@ -862,43 +862,6 @@ struct Repo: Databasing {
         .withID(episodeID)
         .updateAll(db, Episode.Columns.cachedFilename.set(to: cachedFilename))
     } > 0
-  }
-
-  @discardableResult
-  func updateTranscript(_ episodeID: Episode.ID, transcript: String?) async throws -> Bool {
-    Self.log.debug("updateTranscript: \(episodeID) to \(transcript?.count ?? 0) chars")
-
-    return try await writer.write { db in
-      let updated =
-        try Episode
-        .withID(episodeID)
-        .updateAll(db, Episode.Columns.transcript.set(to: transcript))
-      try EpisodeTranscriptionCheckpoint
-        .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
-        .deleteAll(db)
-      return updated > 0
-    }
-  }
-
-  func saveTranscriptionCheckpoint(
-    _ checkpoint: TranscriptionCheckpoint,
-    for episodeID: Episode.ID
-  ) async throws {
-    let stored = try EpisodeTranscriptionCheckpoint(
-      episodeId: episodeID,
-      checkpoint: checkpoint
-    )
-    try await writer.write { db in
-      try stored.save(db)
-    }
-  }
-
-  func deleteTranscriptionCheckpoint(for episodeID: Episode.ID) async throws {
-    try await writer.write { db in
-      try EpisodeTranscriptionCheckpoint
-        .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
-        .deleteAll(db)
-    }
   }
 
   @discardableResult

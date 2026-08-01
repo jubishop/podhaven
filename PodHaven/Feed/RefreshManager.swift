@@ -228,6 +228,7 @@ struct RefreshManager {
     )
     var unsavedEpisodes: [UnsavedEpisode] = []
     var updatedEpisodes: [FeedMergeEpisode] = []
+    var publisherImportEpisodeIDs: [Episode.ID] = []
     var embeddingWorkCreated = false
 
     for unsavedEpisode in podcastFeed.toUnsavedEpisodes(merging: existingEpisodes) {
@@ -240,6 +241,13 @@ struct RefreshManager {
         )
 
         if !existingEpisode.rssEquals(updatedEpisode) {
+          if !existingEpisode.hasTranscript,
+            existingEpisode.publisherTranscriptReferencesJSON
+              != updatedEpisode.publisherTranscriptReferencesJSON,
+            unsavedEpisode.publisherTranscriptReferences.contains(where: { $0.format != nil })
+          {
+            publisherImportEpisodeIDs.append(existingEpisode.id)
+          }
           if existingEpisode.title != updatedEpisode.title
             || existingEpisode.description != updatedEpisode.description
           {
@@ -311,34 +319,54 @@ struct RefreshManager {
       embeddingProcessor.workBecameAvailable()
     }
 
+    publisherImportEpisodeIDs.append(
+      contentsOf:
+        newEpisodes
+        .filter {
+          !$0.hasTranscript
+            && $0.publisherTranscriptReferences.contains(where: { $0.format != nil })
+        }
+        .map(\.id)
+    )
+    var publisherImportedEpisodeIDs = Set<Episode.ID>()
+    for episodeID in publisherImportEpisodeIDs
+    where await transcriptionProcessor.importPublisherTranscript(for: episodeID) {
+      publisherImportedEpisodeIDs.insert(episodeID)
+    }
+
     if podcast.alwaysTranscribeNewEpisodes, !newEpisodes.isEmpty {
       let episodeIDs = newEpisodes.map(\.id)
-      let transcriptionProcessor = transcriptionProcessor
-      // Finish the durable queue handoff after the feed transaction commits,
-      // even if the refresh caller is cancelled.
-      await Task {
-        do {
-          try await transcriptionProcessor.enqueue(episodeIDs)
-        } catch let error as TranscriptionQueueError {
-          Self.log.caughtError(
-            """
-            applyParsedFeed: dropped automatic transcription for \
-            \(episodeIDs.count) new episodes from podcast \(podcast.id)
-            """,
-            error,
-            level: .notice
-          )
-        } catch {
-          Self.log.caughtError(
-            """
-            applyParsedFeed: failed to enqueue automatic transcription for \
-            \(episodeIDs.count) new episodes from podcast \(podcast.id)
-            """,
-            error
-          )
+        .filter {
+          !publisherImportedEpisodeIDs.contains($0)
         }
+      if !episodeIDs.isEmpty {
+        let transcriptionProcessor = transcriptionProcessor
+        // Finish the durable queue handoff after the feed transaction commits,
+        // even if the refresh caller is cancelled.
+        await Task {
+          do {
+            try await transcriptionProcessor.enqueue(episodeIDs)
+          } catch let error as TranscriptionQueueError {
+            Self.log.caughtError(
+              """
+              applyParsedFeed: dropped automatic transcription for \
+              \(episodeIDs.count) new episodes from podcast \(podcast.id)
+              """,
+              error,
+              level: .notice
+            )
+          } catch {
+            Self.log.caughtError(
+              """
+              applyParsedFeed: failed to enqueue automatic transcription for \
+              \(episodeIDs.count) new episodes from podcast \(podcast.id)
+              """,
+              error
+            )
+          }
+        }
+        .value
       }
-      .value
     }
 
     if podcast.notifyNewEpisodes {

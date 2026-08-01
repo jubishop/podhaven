@@ -126,6 +126,8 @@ struct UnsavedEpisode:
   let rating: EpisodeRating?
   let ratingDate: Date?
   private let transcript: StoredTranscript?
+  private let publisherTranscriptReferencesJSON: String?
+  private let publisherTranscriptSourceJSON: String?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -147,7 +149,9 @@ struct UnsavedEpisode:
     saveInCache: Bool = false,
     rating: EpisodeRating? = nil,
     ratingDate: Date? = nil,
-    transcript: String? = nil
+    transcript: String? = nil,
+    publisherTranscriptReferences: [PublisherTranscriptReference] = [],
+    publisherTranscriptSource: PublisherTranscriptReference? = nil
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
@@ -200,6 +204,12 @@ struct UnsavedEpisode:
     } else {
       self.transcript = nil
     }
+    self.publisherTranscriptReferencesJSON = try PublisherTranscriptReference.jsonString(
+      for: publisherTranscriptReferences
+    )
+    self.publisherTranscriptSourceJSON = try PublisherTranscriptReference.jsonString(
+      for: publisherTranscriptSource
+    )
   }
 
   // MARK: - EpisodeFoundational
@@ -243,6 +253,38 @@ struct UnsavedEpisode:
     }
   }
 
+  var publisherTranscriptReferences: [PublisherTranscriptReference] {
+    do {
+      return try PublisherTranscriptReference.decodeReferences(
+        from: publisherTranscriptReferencesJSON
+      )
+    } catch {
+      Self.log.caughtError(
+        "Failed to decode publisher transcript references for '\(title)'",
+        error
+      )
+      return []
+    }
+  }
+
+  var publisherTranscriptSource: PublisherTranscriptReference? {
+    do {
+      return try PublisherTranscriptReference.decodeReference(
+        from: publisherTranscriptSourceJSON
+      )
+    } catch {
+      Self.log.caughtError(
+        "Failed to decode publisher transcript source for '\(title)'",
+        error
+      )
+      return nil
+    }
+  }
+
+  var publisherTranscriptReferencesJSONValue: String? {
+    publisherTranscriptReferencesJSON
+  }
+
   // MARK: - RSSUpdatable
 
   var rssUpdatableColumns: [(any ColumnExpression, any SQLExpressible)] {
@@ -254,6 +296,7 @@ struct UnsavedEpisode:
       (Episode.Columns.description, description),
       (Episode.Columns.link, link),
       (Episode.Columns.image, image),
+      (Episode.Columns.publisherTranscriptReferencesJSON, publisherTranscriptReferencesJSON),
     ]
   }
 
@@ -265,6 +308,7 @@ struct UnsavedEpisode:
       && description == other.description
       && link == other.link
       && image == other.image
+      && publisherTranscriptReferencesJSON == other.publisherTranscriptReferencesJSON
   }
 
   // MARK: - Reset
@@ -279,7 +323,8 @@ struct UnsavedEpisode:
       duration: duration,
       description: description,
       link: link,
-      image: image
+      image: image,
+      publisherTranscriptReferences: publisherTranscriptReferences
     )
   }
 }
@@ -390,6 +435,10 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     static let playbackCoverage = Column("playbackCoverage")
     static let lastPlayedDate = Column("lastPlayedDate")
     static let transcript = Column("transcript")
+    static let publisherTranscriptReferencesJSON = Column(
+      "publisherTranscriptReferencesJSON"
+    )
+    static let publisherTranscriptSourceJSON = Column("publisherTranscriptSourceJSON")
   }
 
   // MARK: - RSSUpdatable
@@ -423,6 +472,12 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   var cachedURL: CachedURL? { unsaved.cachedURL }
   var hasTranscript: Bool { unsaved.hasTranscript }
   var decodedTranscript: Transcript? { unsaved.decodedTranscript }
+  var publisherTranscriptReferences: [PublisherTranscriptReference] {
+    unsaved.publisherTranscriptReferences
+  }
+  var publisherTranscriptSource: PublisherTranscriptReference? {
+    unsaved.publisherTranscriptSource
+  }
 
   // MARK: - Reset
 

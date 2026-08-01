@@ -17,6 +17,8 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
       Episode.Columns.description,
       Episode.Columns.link,
       Episode.Columns.image,
+      Episode.Columns.publisherTranscriptReferencesJSON,
+      Episode.hasTranscriptSelectable,
     ]
   }
 
@@ -29,6 +31,8 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
   let description: String?
   let link: URL?
   let image: URL?
+  let publisherTranscriptReferencesJSON: String?
+  let hasTranscript: Bool
 
   init(id: Episode.ID, from episode: UnsavedEpisode) {
     self.id = id
@@ -40,6 +44,8 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
     self.description = episode.description
     self.link = episode.link
     self.image = episode.image
+    self.publisherTranscriptReferencesJSON = episode.publisherTranscriptReferencesJSONValue
+    self.hasTranscript = episode.hasTranscript
   }
 
   init(row: Row) throws {
@@ -52,6 +58,8 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
     description = row[Episode.Columns.description]
     link = row[Episode.Columns.link]
     image = row[Episode.Columns.image]
+    publisherTranscriptReferencesJSON = row[Episode.Columns.publisherTranscriptReferencesJSON]
+    hasTranscript = row[Episode.hasTranscriptColumnName]
   }
 
   var rssUpdatableColumns: [(any ColumnExpression, any SQLExpressible)] {
@@ -63,6 +71,7 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
       (Episode.Columns.description, description),
       (Episode.Columns.link, link),
       (Episode.Columns.image, image),
+      (Episode.Columns.publisherTranscriptReferencesJSON, publisherTranscriptReferencesJSON),
     ]
   }
 
@@ -74,5 +83,6 @@ struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, 
       && description == other.description
       && link == other.link
       && image == other.image
+      && publisherTranscriptReferencesJSON == other.publisherTranscriptReferencesJSON
   }
 }

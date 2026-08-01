@@ -137,6 +137,12 @@ protocol Databasing: Sendable {
   @discardableResult
   func updateTranscript(_ episodeID: Episode.ID, transcript: String?) async throws -> Bool
 
+  func storeTranscriptIfAbsent(
+    _ episodeID: Episode.ID,
+    transcript: Transcript,
+    publisherSource: PublisherTranscriptReference?
+  ) async throws -> Bool
+
   func saveTranscriptionCheckpoint(
     _ checkpoint: TranscriptionCheckpoint,
     for episodeID: Episode.ID

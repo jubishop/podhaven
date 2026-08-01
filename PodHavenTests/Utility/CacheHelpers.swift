@@ -171,7 +171,8 @@ enum CacheHelpers {
     dataSize: Int = 1024 * 1024,  // 1 MB default
     finishDate: Date? = nil,
     pubDate: Date? = nil,
-    saveInCache: Bool = false
+    saveInCache: Bool = false,
+    publisherTranscriptReferences: [PublisherTranscriptReference] = []
   ) async throws -> Episode {
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsavedEpisode = try Create.unsavedEpisode(
@@ -179,7 +180,8 @@ enum CacheHelpers {
       pubDate: pubDate,
       finishDate: finishDate,
       cachedFilename: cachedFilename,
-      saveInCache: saveInCache
+      saveInCache: saveInCache,
+      publisherTranscriptReferences: publisherTranscriptReferences
     )
 
     let podcastSeries = try await repo.insertSeries(

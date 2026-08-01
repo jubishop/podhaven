@@ -56,6 +56,24 @@ struct PodcastRSS: Decodable, Sendable {
     }
     let iTunes: ITunesNamespace
 
+    struct PodcastNamespace: Decodable, Sendable {
+      let transcripts: [PublisherTranscriptReference]
+
+      enum CodingKeys: String, CodingKey {
+        case transcripts = "podcast:transcript"
+      }
+
+      init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        transcripts =
+          try container.decodeIfPresent(
+            [PublisherTranscriptReference].self,
+            forKey: .transcripts
+          ) ?? []
+      }
+    }
+    let podcast: PodcastNamespace
+
     // MARK: - Convenience Getters
 
     var description: String? {
@@ -90,6 +108,7 @@ struct PodcastRSS: Decodable, Sendable {
     init(from decoder: any Decoder) throws {
       values = try TopLevelValues(from: decoder)
       iTunes = try ITunesNamespace(from: decoder)
+      podcast = try PodcastNamespace(from: decoder)
     }
   }
 
@@ -110,9 +129,10 @@ struct PodcastRSS: Decodable, Sendable {
       let link: String?  // URL?
       let episodes: [Episode]
       let atomLinks: [AtomLink]
+      let language: String?
 
       enum CodingKeys: String, CodingKey {
-        case title, description, link
+        case title, description, language, link
         case episodes = "item"
         case atomLinks = "atom:link"
         case contentEncoded = "content:encoded"

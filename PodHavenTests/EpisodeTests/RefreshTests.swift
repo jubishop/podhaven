@@ -83,6 +83,11 @@ class EpisodeRefreshTests {
     let newEpisodeDescription = "new episode description"
     let newEpisodeLink = URL.valid()
     let newEpisodeImage = URL.valid()
+    let newPublisherTranscriptReference = PublisherTranscriptReference(
+      url: URL.valid(),
+      mimeType: "text/vtt",
+      language: "en"
+    )
 
     let updatedEpisode = try Episode(
       id: originalEpisode.id,
@@ -95,7 +100,8 @@ class EpisodeRefreshTests {
         duration: newEpisodeDuration,
         description: newEpisodeDescription,
         link: newEpisodeLink,
-        image: newEpisodeImage
+        image: newEpisodeImage,
+        publisherTranscriptReferences: [newPublisherTranscriptReference]
       )
     )
 
@@ -137,6 +143,7 @@ class EpisodeRefreshTests {
     let episodeRSSColumnNames = Set(updatedEpisode.rssUpdatableColumns.map { $0.0.name })
     let expectedEpisodeColumns = Set([
       "guid", "mediaURL", "title", "pubDate", "description", "link", "image",
+      "publisherTranscriptReferencesJSON",
     ])
     #expect(
       episodeRSSColumnNames == expectedEpisodeColumns,
@@ -164,6 +171,9 @@ class EpisodeRefreshTests {
     #expect(updatedExistingEpisode.description == newEpisodeDescription)
     #expect(updatedExistingEpisode.link == newEpisodeLink)
     #expect(updatedExistingEpisode.image == newEpisodeImage)
+    #expect(
+      updatedExistingEpisode.publisherTranscriptReferences == [newPublisherTranscriptReference]
+    )
 
     // Non-RSS attributes should be preserved (not overwritten by original values)
     #expect(updatedSeries.podcast.subscribed == true)

@@ -586,6 +586,26 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.updateTranscript(episodeID, transcript: transcript)
   }
 
+  func storeTranscriptIfAbsent(
+    _ episodeID: Episode.ID,
+    transcript: Transcript,
+    publisherSource: PublisherTranscriptReference?
+  ) async throws -> Bool {
+    recordCall(
+      methodName: "storeTranscriptIfAbsent",
+      parameters: (
+        episodeID: episodeID,
+        transcript: transcript,
+        publisherSource: publisherSource
+      )
+    )
+    return try await repo.storeTranscriptIfAbsent(
+      episodeID,
+      transcript: transcript,
+      publisherSource: publisherSource
+    )
+  }
+
   func saveTranscriptionCheckpoint(
     _ checkpoint: TranscriptionCheckpoint,
     for episodeID: Episode.ID

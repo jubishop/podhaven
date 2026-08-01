@@ -27,6 +27,7 @@ struct TranscriptionProcessor: Sendable {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.continuousClockNow) private var continuousClockNow
   @DynamicInjected(\.notificationObserver) private var notificationObserver
+  @DynamicInjected(\.publisherTranscriptImporter) private var publisherTranscriptImporter
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.taskPriority) private var taskPriority
   @DynamicInjected(\.transcriber) private var transcriber
@@ -47,6 +48,7 @@ struct TranscriptionProcessor: Sendable {
       case requeue
       case deletion(AsyncLatch<Void>)
       case mediaServicesReset
+      case publisherTranscript
 
       var isNone: Bool {
         if case .none = self { return true }
@@ -79,6 +81,7 @@ struct TranscriptionProcessor: Sendable {
     case missingEpisode
     case alreadyTranscribed
     case completedTranscription
+    case publisherTranscript
   }
 
   private enum HeadProcessingOutcome {
@@ -250,6 +253,65 @@ struct TranscriptionProcessor: Sendable {
   func enqueue(_ episodeIDs: [Episode.ID]) async throws {
     try await transcriptionQueue.enqueue(episodeIDs)
     backgroundTaskScheduler.scheduleNext()
+  }
+
+  @discardableResult
+  func importPublisherTranscript(for episodeID: Episode.ID) async -> Bool {
+    do {
+      guard
+        let episode = try await repo.episode(episodeID),
+        !episode.hasTranscript,
+        try await fetchAndStorePublisherTranscript(for: episode)
+      else {
+        return false
+      }
+
+      let activeTask = activeTranscription { active -> Task<Void, any Error>? in
+        guard
+          var current = active,
+          current.episodeID == episodeID,
+          current.interruption.isNone
+        else {
+          return nil
+        }
+        current.interruption = .publisherTranscript
+        active = current
+        return current.task
+      }
+      if let activeTask {
+        Self.log.info("Cancelling redundant on-device transcription \(episodeID)")
+        activeTask.cancel()
+        switch await activeTask.result {
+        case .success, .failure:
+          break
+        }
+      }
+
+      try await repo.deleteTranscriptionCheckpoint(for: episodeID)
+      do {
+        try await transcriptionQueue.remove(episodeID)
+      } catch {
+        Self.log.caughtError(
+          "Failed to remove publisher-transcribed episode \(episodeID) from queue",
+          error
+        )
+        backgroundTaskScheduler.scheduleNext()
+      }
+      if transcriptionQueue.episodeIDs.isEmpty {
+        backgroundTaskScheduler.scheduleNext()
+      }
+      Self.log.info("Stored publisher transcript for episode \(episodeID)")
+      return true
+    } catch is CancellationError {
+      return false
+    } catch {
+      Self.log.caughtError(
+        "Failed to import publisher transcript for episode \(episodeID)",
+        error,
+        level: .info
+      )
+      return false
+    }
   }
 
   func reconcileDeletion<Result: Sendable>(
@@ -632,7 +694,7 @@ struct TranscriptionProcessor: Sendable {
       switch result.interruption {
       case .pause:
         transcriptionQueue.finishPausing(episodeID)
-      case .discard, .requeue, .mediaServicesReset, .none:
+      case .discard, .requeue, .mediaServicesReset, .publisherTranscript, .none:
         transcriptionQueue.clearProgress(for: episodeID)
       case .deletion(let barrier):
         try await barrier.wait()
@@ -646,6 +708,7 @@ struct TranscriptionProcessor: Sendable {
           case .requeue: "requeue"
           case .deletion: "deletion"
           case .mediaServicesReset: "mediaServicesReset"
+          case .publisherTranscript: "publisherTranscript"
           case .none: "execution"
           }
         Self.log.info(
@@ -691,6 +754,8 @@ struct TranscriptionProcessor: Sendable {
       try await barrier.wait()
     case .mediaServicesReset:
       transcriptionQueue.clearProgress(for: episodeID)
+    case .publisherTranscript:
+      transcriptionQueue.clearProgress(for: episodeID)
     case .none:
       break
     }
@@ -726,6 +791,15 @@ struct TranscriptionProcessor: Sendable {
         operation: .alreadyTranscribed
       )
       Self.log.debug("Removed already-transcribed \(episodeID) from transcription queue")
+      return
+    }
+
+    if try await fetchAndStorePublisherTranscript(for: episode) {
+      try await removeQueuedEpisode(
+        episodeID,
+        operation: .publisherTranscript
+      )
+      Self.log.info("Stored publisher transcript for queued episode \(episodeID)")
       return
     }
 
@@ -804,7 +878,14 @@ struct TranscriptionProcessor: Sendable {
       createdAt: Date()
     )
     try Task.checkCancellation()
-    try await repo.updateTranscript(episodeID, transcript: transcript.jsonString())
+    let stored = try await repo.storeTranscriptIfAbsent(
+      episodeID,
+      transcript: transcript,
+      publisherSource: nil
+    )
+    if !stored {
+      try await repo.deleteTranscriptionCheckpoint(for: episodeID)
+    }
 
     try await removeQueuedEpisode(
       episodeID,
@@ -813,8 +894,23 @@ struct TranscriptionProcessor: Sendable {
     Self.log.info(
       """
       transcriptionTelemetry event=transcriptStored \(logContext.fields) \
-      segments=\(segments.count)
+      segments=\(segments.count) stored=\(stored)
       """
+    )
+  }
+
+  private func fetchAndStorePublisherTranscript(for episode: Episode) async throws -> Bool {
+    guard
+      let imported = try await publisherTranscriptImporter.importTranscript(
+        from: episode.publisherTranscriptReferences
+      )
+    else {
+      return false
+    }
+    return try await repo.storeTranscriptIfAbsent(
+      episode.id,
+      transcript: imported.transcript,
+      publisherSource: imported.source
     )
   }
 

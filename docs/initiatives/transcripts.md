@@ -4,7 +4,7 @@ status: abandoned
 
 # Episode Transcripts
 
-> **Superseded for v1 by [Episode Transcription](manual-transcripts.md).** The autonomous, three-tier, two-table design below was not built — v1 ships user-directed, on-device transcription through manual episode actions and a per-podcast new-episode opt-in, storing timed segments as JSON in a single `episode.transcript` column. Smart Lists provide transcript presence and phrase filters through a flattened FTS5 index. This doc is retained as the **research record for the deferred pieces**: RSS `<podcast:transcript>` import (Tier 1), opportunistic/autonomous working-set transcription beyond the explicit opt-in (Tier 2), speaker diarization, and global transcript search/summaries. Pick those up here.
+> **Superseded for v1 by [Episode Transcription](manual-transcripts.md).** The autonomous, three-tier, two-table design below was not built — v1 ships user-directed, on-device transcription through manual episode actions and a per-podcast new-episode opt-in, storing timed segments as JSON in a single `episode.transcript` column. Smart Lists provide transcript presence and phrase filters through a flattened FTS5 index. RSS `<podcast:transcript>` import (Tier 1) now layers onto that model. This doc remains the **research record for the deferred pieces**: opportunistic/autonomous working-set transcription beyond the explicit opt-in (Tier 2), speaker diarization, and global transcript search/summaries.
 
 On-device transcription of podcast episodes for search and (future) summary generation. Design conclusions captured 2026-05-05; RSS-format and diarization research added 2026-06-13.
 
@@ -44,13 +44,13 @@ Whether the tag is useful depends entirely on its `type` — it is **not** alway
 | --- | --- | --- | --- |
 | `text/vtt` (WebVTT) | Yes — cue start/end (segment-level) | Optional, via `<v Name>` voice tags | Most common machine export; maps directly onto `TranscriptSegment`. |
 | `application/srt` / `application/x-subrip` | Yes — segment-level | Possible (inline) | Same shape as VTT. |
-| `application/json` (Podcasting 2.0) | Yes — per-segment, often word-level | **Yes** — `segments[].speaker` alongside `startTime`/`endTime`/`body` | Richest: this format alone supplies diarization for free. |
-| `text/html` | No | No | Formatted prose; store untimed (readable, no seek). |
-| `text/plain` | No | No | Raw text; untimed. |
+| `application/json` (Podcasting 2.0) | Yes — per-segment, often word-level | May include `segments[].speaker` | Import `startTime`, `endTime`, and `body`; speaker metadata is intentionally ignored. |
+| `text/html` | No | No | Ignored because it cannot populate timed segments. |
+| `text/plain` | No | No | Ignored because it cannot populate timed segments. |
 
-So a VTT/SRT/JSON `<podcast:transcript>` carries the same timing the on-device path produces and drops straight into the v1 timed-segment column model; a JSON one even supplies the speaker labels we otherwise defer. Only HTML/plain are untimed. Coverage in the wild is low and skews VTT/SRT, so treat RSS transcripts as a **bonus source** that pre-empts on-device compute when present: prefer `json > vtt > srt > html/plain`, and fetch lazily (or eagerly during caching, since the audio is already downloading).
+So a VTT/SRT/JSON `<podcast:transcript>` carries the same timing the on-device path produces and drops straight into the v1 timed-segment column model. HTML/plain are untimed and remain eligible for on-device transcription. Coverage in the wild is low and skews VTT/SRT, so RSS transcripts are a **bonus source** that pre-empts on-device compute when present: prefer `json > vtt > srt`, with fallback when a preferred resource is unavailable or malformed.
 
-`Feed/Models/PodcastRSS.swift` does not parse the `podcast:` namespace today — that, plus a small VTT/SRT/JSON → `[TranscriptSegment]` parser, is the work.
+The implementation decodes every item-level reference and persists canonical reference metadata with each episode. Feed refresh eagerly tries supported references for newly discovered episodes and episodes whose references changed; an initial bulk series insertion defers retrieval until that episode enters the transcription processor. Successful imports record the chosen reference as provenance, use the existing transcript column and FTS triggers, and atomically win only while the transcript is absent. Existing usable transcripts are never replaced. Exhausted candidates do not fail feed refresh, and unchanged references are not fetched again on later refreshes.
 
 ### Tier 2 — Opportunistic on-device via `BGProcessingTask`
 
@@ -98,7 +98,7 @@ Storage cost is small — an hour-long episode is on the order of 10–20 KB of 
 
 (v1 diverged from this two-table sketch: it stores timed segments as JSON in a single `episode.transcript` column and flattens only the segment text into an FTS5 index for Smart List filtering — see [Episode Transcription](manual-transcripts.md). Migrating to the `transcript_segment` table here becomes worthwhile if segment-addressable global search or diarization lands.)
 
-**Implementer note — in-place transcript overwrite.** Any tier that replaces an episode's transcript in place — RSS import (Tier 1), or a model-revision re-transcribe — must do two things v1 deliberately leaves alone. (1) Skip the overwrite when an equivalent transcript already exists: v1 never re-transcribes a transcribed episode (`canTranscribe` is false at `.transcribed`; `TranscriptionProcessor.process` guards `!episode.hasTranscript`), so a needless overwrite is wasted ~5× compute, not just a UI glitch. (2) Invalidate the detail-view memo: `EpisodeDetailViewModel.decodedTranscript` caches the decoded transcript keyed by `episodeID` only, so an in-place change for an episode whose detail is open renders stale until the view is rebuilt — clear `transcriptCache` in `transition(to:)` (the sole post-init `state` writer). Left out of v1 because the overwrite is currently unreachable.
+**Replacement policy.** Publisher import and on-device completion both use the same conditional database write, so the first usable transcript wins and later completion cannot overwrite it. Because publisher import never replaces an existing transcript in place, the detail-view transcript memo needs no special invalidation.
 
 ## Speaker diarization (deferred)
 
@@ -107,7 +107,7 @@ Multi-speaker labeling ("who spoke when") is **deferred past v1** but captured h
 - **No first-party API.** iOS 26 `SpeechAnalyzer`/`SpeechTranscriber` transcribe but do not diarize; `SpeechDetector` only does voice-activity detection, not speaker identity. There is no Apple on-device diarization to call.
 - **The path: FluidAudio** (open-source) — `FluidInference/FluidAudio`, a Swift package wrapping CoreML pyannote models (segmentation + speaker-embedding) plus VAD, optimized for the Neural Engine; supports iOS 17+/macOS 14+. Pipeline mirrors pyannote: powerset segmentation → embedding → VBx clustering, producing time ranges tagged with a speaker index. Models are a ~tens-of-MB CoreML download (Hugging Face `FluidInference/speaker-diarization-coreml`).
 - **How it slots in.** Run diarization as a second pass over the same cached `AVAudioFile`, producing `(timeRange, speakerIndex)` spans; map each transcript segment to the speaker whose span covers its start time, and add a `speaker` field to `TranscriptSegment`. This is the point where the single JSON column may be worth migrating to a `transcript_segment` table (per-segment speaker queries; "episodes featuring speaker X").
-- **Free alternative when present:** a publisher's `application/json` `<podcast:transcript>` already includes `segments[].speaker` — diarization with zero compute. The RSS Tier-1 importer should preserve it.
+- **Publisher metadata:** a publisher's `application/json` `<podcast:transcript>` may include `segments[].speaker`. The current importer deliberately ignores it so every source maps to the same speaker-free model; a future diarization feature would need an intentional persistence migration.
 - **Cost/UX caveats:** an added model download plus a clustering pass on top of the ~5× transcription cost; speaker counts are estimated, not named; accuracy degrades with crosstalk and music. Gate behind an explicit opt-in.
 
 References: FluidAudio (`github.com/FluidInference/FluidAudio`), Hugging Face `FluidInference/speaker-diarization-coreml`.
@@ -128,7 +128,6 @@ To resolve at implementation time, not now.
 - **`DictationTranscriber` fallback** for unsupported locales is a path if multi-locale ever matters, but defer.
 - **Search index integration.** FTS5 over `transcript_segment.text`? The recommendation engine and search infrastructure are already separate concerns — work out the search-side join shape when actually building search.
 - **Apple Intelligence summaries.** Once transcripts exist, `FoundationModels` can generate per-episode summaries on-device. Out of scope here but informs the persistence shape (don't denormalize hard).
-- **`<podcast:transcript>` SRT/VTT parsing.** Need a small parser, or pull one in. Defer the import-vs-roll-our-own decision until implementation.
 
 ## Reference: research notes
 
