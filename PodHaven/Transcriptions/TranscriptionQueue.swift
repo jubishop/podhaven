@@ -49,12 +49,12 @@ enum TranscriptionInterruption: Hashable, Sendable {
 private final class TranscriptionWorkStream: Sendable {
   private struct State: Sendable {
     var continuation: AsyncStream<Episode.ID>.Continuation?
-    var episodeID: Episode.ID?
+    var work: TranscriptionWork?
   }
 
   private let state = ThreadSafe(State())
 
-  func start(with episodeID: Episode.ID?) -> AsyncStream<Episode.ID> {
+  func start(with work: TranscriptionWork?) -> AsyncStream<Episode.ID> {
     let (stream, continuation) = AsyncStream.makeStream(
       of: Episode.ID.self,
       bufferingPolicy: .bufferingNewest(1)
@@ -62,20 +62,20 @@ private final class TranscriptionWorkStream: Sendable {
     state { state in
       state.continuation?.finish()
       state.continuation = continuation
-      state.episodeID = episodeID
-      if let episodeID {
-        continuation.yield(episodeID)
+      state.work = work
+      if let work {
+        continuation.yield(work.episodeID)
       }
     }
     return stream
   }
 
-  func update(to episodeID: Episode.ID?) {
+  func update(to work: TranscriptionWork?) {
     state { state in
-      guard state.episodeID != episodeID else { return }
-      state.episodeID = episodeID
-      if let episodeID {
-        state.continuation?.yield(episodeID)
+      guard state.work != work else { return }
+      state.work = work
+      if let work {
+        state.continuation?.yield(work.episodeID)
       }
     }
   }
@@ -84,7 +84,7 @@ private final class TranscriptionWorkStream: Sendable {
     state { state in
       state.continuation?.finish()
       state.continuation = nil
-      state.episodeID = nil
+      state.work = nil
     }
   }
 }
@@ -139,7 +139,7 @@ struct TranscriptionQueue: Sendable {
               }
             )
           )
-          workStream.update(to: persistedEpisodeIDs.first)
+          workStream.update(to: persistedWork.first)
         }
       } catch {
         Assert.fatal(
@@ -162,7 +162,7 @@ struct TranscriptionQueue: Sendable {
     try Task.checkCancellation()
 
     let stream = mutationLock { _ in
-      workStream.start(with: episodeIDs.first)
+      workStream.start(with: projectedHeadWork)
     }
     defer {
       mutationLock { _ in
@@ -213,7 +213,7 @@ struct TranscriptionQueue: Sendable {
       }
       $episodeIDs.update { $0.append(contentsOf: insertedEpisodeIDs) }
       if self.episodeIDs.first != previousHead {
-        workStream.update(to: self.episodeIDs.first)
+        workStream.update(to: projectedHeadWork)
       }
       return self.episodeIDs.count
     }
@@ -234,7 +234,7 @@ struct TranscriptionQueue: Sendable {
       maximumCount: maximumCount
     )
     let depth = mutationLock { _ in
-      let previousHead = episodeIDs.first
+      let previousHeadWork = projectedHeadWork
       $interruptions.update { $0.removeValue(forKey: episodeID) }
       $failed.update { $0.remove(episodeID) }
       $failedWorkModes.update { $0.removeValue(forKey: episodeID) }
@@ -242,8 +242,8 @@ struct TranscriptionQueue: Sendable {
       if inserted {
         $episodeIDs.update { $0.append(episodeID) }
       }
-      if episodeIDs.first != previousHead {
-        workStream.update(to: episodeIDs.first)
+      if projectedHeadWork != previousHeadWork {
+        workStream.update(to: projectedHeadWork)
       }
       return episodeIDs.count
     }
@@ -285,7 +285,7 @@ struct TranscriptionQueue: Sendable {
       let previousHead = episodeIDs.first
       $episodeIDs.new(orderedEpisodeIDs)
       if orderedEpisodeIDs.first != previousHead {
-        workStream.update(to: orderedEpisodeIDs.first)
+        workStream.update(to: projectedHeadWork)
       }
     }
     Self.log.debug("reordered \(orderedEpisodeIDs.count) queued episodes")
@@ -343,7 +343,7 @@ struct TranscriptionQueue: Sendable {
       $progress.update { _ = $0.removeValue(forKey: episodeID) }
       $interruptions.update { _ = $0.removeValue(forKey: episodeID) }
       if episodeIDs.first != previousHead {
-        workStream.update(to: episodeIDs.first)
+        workStream.update(to: projectedHeadWork)
       }
       return true
     }
@@ -372,7 +372,7 @@ struct TranscriptionQueue: Sendable {
         }
       }
       if episodeIDs.first != previousHead {
-        workStream.update(to: episodeIDs.first)
+        workStream.update(to: projectedHeadWork)
       }
       return (episodeIDs: originalEpisodeIDs, workModes: originalWorkModes)
     }
@@ -418,7 +418,7 @@ struct TranscriptionQueue: Sendable {
           }
         }
         if episodeIDs.first != previousHead {
-          workStream.update(to: episodeIDs.first)
+          workStream.update(to: projectedHeadWork)
         }
       }
       throw error
@@ -460,7 +460,7 @@ struct TranscriptionQueue: Sendable {
       let previousHead = episodeIDs.first
       $episodeIDs.update { $0.removeAll { $0 == episodeID } }
       if episodeIDs.first != previousHead {
-        workStream.update(to: episodeIDs.first)
+        workStream.update(to: projectedHeadWork)
       }
     }
     return true
@@ -509,7 +509,7 @@ struct TranscriptionQueue: Sendable {
       let previousHead = episodeIDs.first
       $episodeIDs.update { $0.removeAll { $0 == episodeID } }
       if episodeIDs.first != previousHead {
-        workStream.update(to: episodeIDs.first)
+        workStream.update(to: projectedHeadWork)
       }
     }
     return true
@@ -570,7 +570,7 @@ struct TranscriptionQueue: Sendable {
       $failed.update { _ = $0.insert(episodeID) }
       $failedWorkModes.update { $0[episodeID] = mode }
       if episodeIDs.first != previousHead {
-        workStream.update(to: episodeIDs.first)
+        workStream.update(to: projectedHeadWork)
       }
     }
     return true
@@ -581,6 +581,12 @@ struct TranscriptionQueue: Sendable {
       $failed.update { _ = $0.remove(episodeID) }
       $failedWorkModes.update { _ = $0.removeValue(forKey: episodeID) }
     }
+  }
+
+  private var projectedHeadWork: TranscriptionWork? {
+    guard let episodeID = episodeIDs.first, let mode = workModes[episodeID]
+    else { return nil }
+    return TranscriptionWork(episodeID: episodeID, mode: mode)
   }
 
   // MARK: - Status

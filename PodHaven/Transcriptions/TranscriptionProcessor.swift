@@ -17,8 +17,6 @@ extension Container {
 
 // MARK: - TranscriptionProcessor
 
-// Drains the persisted queue in foreground or discretionary background work,
-// retaining the active head and checkpoint across cancellation or expiry.
 struct TranscriptionProcessor: Sendable {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.continuousClockNow) private var continuousClockNow
@@ -96,9 +94,6 @@ struct TranscriptionProcessor: Sendable {
 
   // MARK: - Background Task
 
-  // iOS-granted background drain, mirroring EmbeddingProcessor. The persisted
-  // queue survives expiry, so the next grant or foreground activation retries
-  // the retained head.
   func register() {
     let activeTranscription = activeTranscription
     let mediaServicesState = mediaServicesState
@@ -292,12 +287,21 @@ struct TranscriptionProcessor: Sendable {
         }
       }
 
-      try await repo.deleteTranscriptionCheckpoint(for: episodeID)
       do {
-        try await transcriptionQueue.remove(episodeID)
+        let removedPublisherWork = try await transcriptionQueue.remove(
+          episodeID,
+          ifMode: .publisherPreferred
+        )
+        if removedPublisherWork {
+          try await repo.deleteTranscriptionCheckpoint(for: episodeID)
+        } else {
+          Self.log.debug(
+            "Preserved newer transcription work after publisher import \(episodeID)"
+          )
+        }
       } catch {
         Self.log.caughtError(
-          "Failed to remove publisher-transcribed episode \(episodeID) from queue",
+          "Failed to reconcile publisher-transcribed episode \(episodeID)",
           error
         )
         backgroundTaskScheduler.scheduleNext()
@@ -506,9 +510,6 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  // The queue yields one claimed head at a time and owns exclusive consumer
-  // access. Foreground waits for future work while a background grant returns
-  // when the backlog empties.
   private func drain(_ mode: TranscriptionLogContext.Mode, runID: String) async throws {
     try await transcriptionQueue.withWorkStream { stream in
       if case .background = mode, transcriptionQueue.episodeIDs.isEmpty {
@@ -563,9 +564,6 @@ struct TranscriptionProcessor: Sendable {
     }
   }
 
-  // Execution cancellation and durable queue failures retain the head. A user
-  // pause retains its checkpoint, and a media reset restarts the retained head.
-  // Other failures advance with failed state.
   private func processHead(
     _ episodeID: Episode.ID,
     logContext: TranscriptionLogContext
@@ -586,7 +584,10 @@ struct TranscriptionProcessor: Sendable {
     }
     let token = UUID()
     let shouldStart = activeTranscription { active in
-      guard transcriptionQueue.work(for: episodeID) == work else { return false }
+      guard
+        transcriptionQueue.episodeIDs.first == episodeID,
+        transcriptionQueue.work(for: episodeID) == work
+      else { return false }
       guard case .available = mediaServicesState() else { return false }
       if let active {
         Assert.fatal(

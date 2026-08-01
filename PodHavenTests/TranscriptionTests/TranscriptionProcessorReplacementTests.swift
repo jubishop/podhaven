@@ -256,4 +256,108 @@ struct TranscriptionProcessorReplacementTests {
     #expect(stored.publisherTranscriptSource == source)
     #expect(!queue.failed.contains(episode.id))
   }
+
+  @Test("publisher import cleanup preserves a replacement requested during cancellation")
+  func publisherImportCleanupPreservesConcurrentReplacement() async throws {
+    let replacementText = "On-device replacement wins"
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(
+          phrase: replacementText,
+          startSeconds: 0,
+          endSeconds: 60
+        )
+      ]
+    )
+    let firstAnalysisStarted = AsyncSemaphore(value: 0)
+    let firstAnalysisRelease = AsyncSemaphore(value: 0)
+    let cancellationStarted = AsyncSemaphore(value: 0)
+    let cancellationRelease = AsyncSemaphore(value: 0)
+    let analyzerCreations = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        let invocation = analyzerCreations {
+          $0 += 1
+          return $0
+        }
+        return FakeSpeechAnalyzer(
+          analyzeAudio: { _, endTime in
+            if invocation == 1 {
+              firstAnalysisStarted.signal()
+              try await firstAnalysisRelease.waitUnlessCancelled()
+            }
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          },
+          cancelAudio: {
+            guard invocation == 1 else { return }
+            cancellationStarted.signal()
+            await cancellationRelease.wait()
+          }
+        )
+      }
+    }
+
+    let transcriptURL = URL(string: "https://example.com/concurrent-replacement.vtt")!
+    let source = PublisherTranscriptReference(
+      url: transcriptURL,
+      mimeType: "text/vtt",
+      language: "en"
+    )
+    let fetchCount = ThreadSafe(0)
+    let publisherSession = Container.shared.publisherTranscriptSession() as! FakeDataFetchable
+    await publisherSession.respond(to: transcriptURL) { url in
+      let invocation = fetchCount {
+        $0 += 1
+        return $0
+      }
+      let data =
+        invocation == 1
+        ? Data("not WebVTT".utf8)
+        : Data(
+          "WEBVTT\n\n00:00:02.000 --> 00:00:04.000\nPublisher words".utf8
+        )
+      return (data, URL.response(url))
+    }
+
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Concurrent publisher replacement",
+      cachedFilename: "concurrent-publisher-replacement.mp3",
+      dataSize: 1,
+      publisherTranscriptReferences: [source]
+    )
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    try await queue.enqueue(episode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      firstAnalysisRelease.signal()
+      cancellationRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await firstAnalysisStarted.wait()
+    let importTask = Task {
+      await processor.importPublisherTranscript(for: episode.id)
+    }
+    defer { importTask.cancel() }
+    await cancellationStarted.wait()
+
+    try await processor.enqueuePublisherReplacement(episode.id)
+    #expect(queue.work(for: episode.id)?.mode == .onDeviceReplacement)
+    cancellationRelease.signal()
+    #expect(await importTask.value)
+
+    try await Wait.until(
+      {
+        let stored = try await Container.shared.repo().episode(episode.id)
+        return queue.episodeIDs.isEmpty
+          && stored?.publisherTranscriptSource == nil
+      },
+      { "Concurrent replacement did not become canonical" }
+    )
+    let stored = try #require(try await Container.shared.repo().episode(episode.id))
+    #expect(stored.decodedTranscript?.segments.map(\.text) == [replacementText])
+    #expect(analyzerCreations() == 2)
+    #expect(fetchCount() == 2)
+  }
 }
