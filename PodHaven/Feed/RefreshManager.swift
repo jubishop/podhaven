@@ -228,7 +228,6 @@ struct RefreshManager {
     )
     var unsavedEpisodes: [UnsavedEpisode] = []
     var updatedEpisodes: [FeedMergeEpisode] = []
-    var publisherImportEpisodeIDs: [Episode.ID] = []
     var embeddingWorkCreated = false
 
     for unsavedEpisode in podcastFeed.toUnsavedEpisodes(merging: existingEpisodes) {
@@ -241,14 +240,6 @@ struct RefreshManager {
         )
 
         if !existingEpisode.rssEquals(updatedEpisode) {
-          if !existingEpisode.hasTranscript,
-            existingEpisode.publisherTranscriptReferencesJSON != nil,
-            existingEpisode.publisherTranscriptReferencesJSON
-              != updatedEpisode.publisherTranscriptReferencesJSON,
-            unsavedEpisode.publisherTranscriptReferences.contains(where: { $0.format != nil })
-          {
-            publisherImportEpisodeIDs.append(existingEpisode.id)
-          }
           if existingEpisode.title != updatedEpisode.title
             || existingEpisode.description != updatedEpisode.description
           {
@@ -320,15 +311,13 @@ struct RefreshManager {
       embeddingProcessor.workBecameAvailable()
     }
 
-    publisherImportEpisodeIDs.append(
-      contentsOf:
-        newEpisodes
-        .filter {
-          !$0.hasTranscript
-            && $0.publisherTranscriptReferences.contains(where: { $0.format != nil })
-        }
-        .map(\.id)
-    )
+    let publisherImportEpisodeIDs =
+      newEpisodes
+      .filter {
+        !$0.hasTranscript
+          && $0.publisherTranscriptReferences.contains(where: { $0.format != nil })
+      }
+      .map(\.id)
     var publisherImportedEpisodeIDs = Set<Episode.ID>()
     for episodeID in publisherImportEpisodeIDs
     where await transcriptionProcessor.importPublisherTranscript(for: episodeID) {

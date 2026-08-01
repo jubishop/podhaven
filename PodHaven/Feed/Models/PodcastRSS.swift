@@ -57,6 +57,23 @@ struct PodcastRSS: Decodable, Sendable {
     let iTunes: ITunesNamespace
 
     struct PodcastNamespace: Decodable, Sendable {
+      private struct DecodedTranscriptReference: Decodable {
+        let value: PublisherTranscriptReference?
+
+        init(from decoder: any Decoder) throws {
+          do {
+            value = try PublisherTranscriptReference(from: decoder)
+          } catch {
+            PodcastRSS.log.caughtError(
+              "Ignoring malformed publisher transcript reference",
+              error,
+              level: .info
+            )
+            value = nil
+          }
+        }
+      }
+
       let transcripts: [PublisherTranscriptReference]
 
       enum CodingKeys: String, CodingKey {
@@ -65,11 +82,12 @@ struct PodcastRSS: Decodable, Sendable {
 
       init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        transcripts =
+        let decoded =
           try container.decodeIfPresent(
-            [PublisherTranscriptReference].self,
+            [DecodedTranscriptReference].self,
             forKey: .transcripts
           ) ?? []
+        transcripts = decoded.compactMap(\.value)
       }
     }
     let podcast: PodcastNamespace

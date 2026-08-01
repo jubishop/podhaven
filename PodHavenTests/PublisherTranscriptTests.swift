@@ -40,6 +40,48 @@ struct PublisherTranscriptTests {
     )
   }
 
+  @Test("malformed optional references do not reject an otherwise valid feed")
+  func malformedReferenceIsIgnored() async throws {
+    let validURL = URL(string: "https://example.com/valid.vtt")!
+    let data = Data(
+      """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+           xmlns:podcast="https://podcastindex.org/namespace/1.0"
+           version="2.0">
+        <channel>
+          <title>Malformed Optional Reference</title>
+          <description>Valid feed with one malformed optional extension element.</description>
+          <link>https://example.com/podcast</link>
+          <itunes:image href="https://example.com/podcast.jpg" />
+          <item>
+            <title>Episode</title>
+            <guid>malformed-reference</guid>
+            <enclosure url="https://example.com/episode.mp3" type="audio/mpeg" />
+            <podcast:transcript url="https://example.com/missing-type.vtt" />
+            <podcast:transcript url="\(validURL.absoluteString)" type="text/vtt" language="en" />
+          </item>
+        </channel>
+      </rss>
+      """
+      .utf8
+    )
+
+    let podcast = try await PodcastRSS.parse(data)
+    let episode = try #require(podcast.episodes.first)
+
+    #expect(
+      episode.podcast.transcripts
+        == [
+          PublisherTranscriptReference(
+            url: validURL,
+            mimeType: "text/vtt",
+            language: "en"
+          )
+        ]
+    )
+  }
+
   @Test("real referenced WebVTT preserves timing and strips voice tags")
   func realWebVTTParsesTimedVisibleText() throws {
     let data = PreviewBundle.loadAsset(

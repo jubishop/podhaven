@@ -214,8 +214,8 @@ struct RefreshManagerPublisherTranscriptTests {
     #expect(!requests.contains(publisherURL))
   }
 
-  @Test("a new reference imports after an observed empty reference set")
-  func importsReferenceAfterKnownEmpty() async throws {
+  @Test("a new reference on an observed episode is persisted for deferred retrieval")
+  func persistsReferenceAfterKnownEmpty() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/observed-empty-feed.rss")!)
     let transcriptURL = URL(string: "https://example.com/observed-empty.vtt")!
     let series = try await Self.insertInitialSeries(
@@ -242,9 +242,10 @@ struct RefreshManagerPublisherTranscriptTests {
     let stored = try #require(
       try await Container.shared.repo().episode(existingEpisode.id)
     )
-    #expect(stored.decodedTranscript?.segments.map(\.text) == ["Observed empty"])
-    #expect(stored.publisherTranscriptSource?.url == transcriptURL)
-    #expect(await transcriptSession.requests == [transcriptURL])
+    #expect(!stored.hasTranscript)
+    #expect(stored.publisherTranscriptReferences.map(\.url) == [transcriptURL])
+    #expect(stored.publisherTranscriptSource == nil)
+    #expect(await transcriptSession.requests.isEmpty)
   }
 
   @Test("first post-migration refresh records legacy references without importing the backlog")
