@@ -311,6 +311,36 @@ struct RefreshManager {
       embeddingProcessor.workBecameAvailable()
     }
 
+    if podcast.alwaysTranscribeNewEpisodes, !newEpisodes.isEmpty {
+      let episodeIDs = newEpisodes.map(\.id)
+      let transcriptionProcessor = transcriptionProcessor
+      // Finish the durable queue handoff after the feed transaction commits,
+      // even if the refresh caller is cancelled.
+      await Task {
+        do {
+          try await transcriptionProcessor.enqueue(episodeIDs)
+        } catch let error as TranscriptionQueueError {
+          Self.log.caughtError(
+            """
+            applyParsedFeed: dropped automatic transcription for \
+            \(episodeIDs.count) new episodes from podcast \(podcast.id)
+            """,
+            error,
+            level: .notice
+          )
+        } catch {
+          Self.log.caughtError(
+            """
+            applyParsedFeed: failed to enqueue automatic transcription for \
+            \(episodeIDs.count) new episodes from podcast \(podcast.id)
+            """,
+            error
+          )
+        }
+      }
+      .value
+    }
+
     let publisherImportEpisodeIDs =
       newEpisodes
       .filter {
@@ -318,45 +348,8 @@ struct RefreshManager {
           && $0.publisherTranscriptReferences.contains(where: { $0.format != nil })
       }
       .map(\.id)
-    var publisherImportedEpisodeIDs = Set<Episode.ID>()
-    for episodeID in publisherImportEpisodeIDs
-    where await transcriptionProcessor.importPublisherTranscript(for: episodeID) {
-      publisherImportedEpisodeIDs.insert(episodeID)
-    }
-
-    if podcast.alwaysTranscribeNewEpisodes, !newEpisodes.isEmpty {
-      let episodeIDs = newEpisodes.map(\.id)
-        .filter {
-          !publisherImportedEpisodeIDs.contains($0)
-        }
-      if !episodeIDs.isEmpty {
-        let transcriptionProcessor = transcriptionProcessor
-        // Finish the durable queue handoff after the feed transaction commits,
-        // even if the refresh caller is cancelled.
-        await Task {
-          do {
-            try await transcriptionProcessor.enqueue(episodeIDs)
-          } catch let error as TranscriptionQueueError {
-            Self.log.caughtError(
-              """
-              applyParsedFeed: dropped automatic transcription for \
-              \(episodeIDs.count) new episodes from podcast \(podcast.id)
-              """,
-              error,
-              level: .notice
-            )
-          } catch {
-            Self.log.caughtError(
-              """
-              applyParsedFeed: failed to enqueue automatic transcription for \
-              \(episodeIDs.count) new episodes from podcast \(podcast.id)
-              """,
-              error
-            )
-          }
-        }
-        .value
-      }
+    for episodeID in publisherImportEpisodeIDs {
+      await transcriptionProcessor.importPublisherTranscript(for: episodeID)
     }
 
     if podcast.notifyNewEpisodes {

@@ -4,6 +4,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import GRDB
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -18,8 +19,8 @@ struct RefreshManagerPublisherTranscriptTests {
     Container.shared.publisherTranscriptSession() as! FakeDataFetchable
   }
 
-  @Test("new publisher transcript imports before automatic on-device queueing")
-  func importsNewPublisherTranscriptBeforeAutomaticQueueing() async throws {
+  @Test("new publisher transcript removes automatic on-device queue entry")
+  func newPublisherTranscriptRemovesAutomaticQueueEntry() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/publisher-feed.rss")!)
     let transcriptURL = URL(string: "https://example.com/new-episode.vtt")!
     let initialFeed = try await PodcastFeed.parse(
@@ -90,6 +91,48 @@ struct RefreshManagerPublisherTranscriptTests {
     }
     #expect(matchingEpisodeIDs == [importedEpisode.id.rawValue])
     #expect(transcriptionQueue.episodeIDs.isEmpty)
+  }
+
+  @Test("automatic transcription queues before publisher retrieval completes")
+  func queuesAutomaticTranscriptionBeforePublisherRetrievalCompletes() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/queued-before-fetch.rss")!)
+    let transcriptURL = URL(string: "https://example.com/queued-before-fetch.vtt")!
+    let series = try await Self.insertInitialSeries(
+      feedURL: feedURL,
+      alwaysTranscribeNewEpisodes: true
+    )
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: Self.feedData(feedURL: feedURL, transcriptURL: transcriptURL)
+    )
+    let fetch = await transcriptSession.releaseWaitRespond(
+      to: transcriptURL,
+      data: Data(
+        "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nQueued before retrieval".utf8
+      )
+    )
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let repo = Container.shared.repo()
+
+    let refreshTask = Task {
+      try await Container.shared.refreshManager().refreshSeries(podcast: series.podcast)
+    }
+    defer {
+      refreshTask.cancel()
+      fetch.finish.signal()
+    }
+    await fetch.started.wait()
+
+    let refreshed = try #require(try await repo.podcastSeries(series.id))
+    let newEpisode = try #require(
+      refreshed.episodes.first { $0.guid == GUID("publisher-new") }
+    )
+    #expect(queue.episodeIDs == [newEpisode.id])
+
+    fetch.finish.signal()
+    try await refreshTask.value
+    #expect(queue.episodeIDs.isEmpty)
   }
 
   @Test("failed timed candidates leave the episode eligible and are not retried each refresh")
