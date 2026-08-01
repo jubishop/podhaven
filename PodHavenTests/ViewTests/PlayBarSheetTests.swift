@@ -128,13 +128,13 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   }
 
   @Test(
-    "medium controls retain clear styling while expanded controls remain distinct",
+    "controls remain distinct from bright artwork at both detents",
     .enabled(
       if: supportsHostedAccessibilityInspection,
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
     )
   )
-  func mediumControlsRetainClearStylingWhenExpanded() async throws {
+  func controlsRemainDistinctFromBrightArtworkAtBothDetents() async throws {
     let transcript = Transcript(
       segments: [TranscriptSegment(start: 0, end: 4, text: "Follow along")],
       locale: "en-US",
@@ -201,8 +201,8 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     )
 
     #expect(
-      mediumContrast < 0.05,
-      "Medium glass changed the artwork luminance by \(mediumContrast)"
+      mediumContrast >= 0.1,
+      "Medium glass differed from the surrounding artwork by only \(mediumContrast) luminance"
     )
 
     #expect(showTranscriptButton.accessibilityActivate())
