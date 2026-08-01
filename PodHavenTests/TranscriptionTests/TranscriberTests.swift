@@ -41,6 +41,31 @@ struct TranscriberTests {
     #expect(segments.last?.start == 0)
   }
 
+  @Test("preserves word-level timing from attributed speech runs")
+  func preservesWordTiming() async throws {
+    let words = [
+      TranscriptWord(start: 1, end: 1.5, text: "timed"),
+      TranscriptWord(start: 1.5, end: 2, text: " words"),
+    ]
+    TranscriptionHelpers.stubSpeech(phrases: [
+      FakeSpeechTranscriptionResult(
+        phrase: "timed words",
+        startSeconds: 1,
+        endSeconds: 2,
+        words: words
+      )
+    ])
+
+    let segments = try await Container.shared.transcriber()
+      .transcribe(
+        fileURL: fileURL,
+        locale: locale,
+        logContext: logContext
+      )
+
+    #expect(segments.first?.words == words)
+  }
+
   @Test("rejects a phrase without an audio end time")
   func rejectsPhraseWithoutEndTime() async throws {
     TranscriptionHelpers.stubSpeech(phrases: [

@@ -275,6 +275,22 @@ struct Observatory: Observing {
     }
   }
 
+  func transcript(_ episodeID: Episode.ID) -> AsyncValueObservation<Transcript?> {
+    reader.observe { db in
+      guard
+        let stored = try String.fetchOne(
+          db,
+          Episode
+            .withID(episodeID)
+            .select(Episode.Columns.transcript, as: String.self)
+        )
+      else {
+        return nil
+      }
+      return try Transcript(decoding: stored)
+    }
+  }
+
   func transcriptionCheckpoint(_ episodeID: Episode.ID)
     -> AsyncValueObservation<TranscriptionCheckpoint?>
   {

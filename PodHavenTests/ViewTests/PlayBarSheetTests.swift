@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import CoreMedia
 import FactoryKit
 import Foundation
 import SwiftUI
@@ -49,6 +50,85 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     }
 
     return collect(from: root)
+  }
+
+  @Test("transcribed episodes expand to a synchronized full-height transcript")
+  func transcribedEpisodeOffersFullHeightDetent() async throws {
+    let episode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Expandable Transcript")
+    )
+    let transcript = Transcript(
+      segments: [
+        TranscriptSegment(
+          start: 0,
+          end: 4,
+          text: "Follow along",
+          words: [
+            TranscriptWord(start: 0, end: 2, text: "Follow"),
+            TranscriptWord(start: 2, end: 4, text: " along"),
+          ]
+        )
+      ],
+      locale: "en-US",
+      createdAt: Date()
+    )
+    try await Container.shared.repo()
+      .updateTranscript(
+        episode.id,
+        transcript: transcript.jsonString()
+      )
+    let transcribedEpisode = try #require(
+      try await Container.shared.repo().podcastEpisode(episode.id)
+    )
+    Container.shared.stateManager().setOnDeck(transcribedEpisode)
+    Container.shared.stateManager().setCurrentTime(.seconds(3))
+
+    let viewModel = PlayBarViewModel()
+    let transcriptObservationTask = Task {
+      await viewModel.observeTranscript()
+    }
+    defer { transcriptObservationTask.cancel() }
+    try await Wait.until(
+      maxAttempts: 400,
+      { @MainActor in viewModel.canExpandTranscript },
+      { @MainActor in "Transcribed play bar never loaded its transcript" }
+    )
+
+    let window = try Self.makeWindow(PlayBarSheet(viewModel: viewModel))
+    defer {
+      window.isHidden = true
+    }
+
+    guard supportsHostedAccessibilityInspection else { return }
+    let presentedView = try #require(window.rootViewController?.view)
+    try await Wait.until(
+      maxAttempts: 400,
+      { @MainActor in
+        Self.accessibilityElements(in: presentedView)
+          .contains { $0.accessibilityLabel == "Show Transcript" }
+      },
+      { "Play bar never exposed the Show Transcript action" }
+    )
+    let showTranscriptButton = try #require(
+      Self.accessibilityElements(in: presentedView)
+        .first { $0.accessibilityLabel == "Show Transcript" }
+    )
+    #expect(showTranscriptButton.accessibilityActivate())
+    try await Wait.until(
+      maxAttempts: 400,
+      { @MainActor in
+        presentedView.setNeedsLayout()
+        presentedView.layoutIfNeeded()
+        return Self.accessibilityElements(in: presentedView)
+          .contains { $0.accessibilityLabel == "Follow along" }
+      },
+      { "Expanded play bar never exposed its transcript segment" }
+    )
+    let transcriptSegment = try #require(
+      Self.accessibilityElements(in: presentedView)
+        .first { $0.accessibilityLabel == "Follow along" }
+    )
+    #expect(transcriptSegment.accessibilityValue == "Current word along")
   }
 
   @Test(

@@ -384,7 +384,8 @@ struct Transcriber: Sendable {
         TranscriptSegment(
           start: result.startSeconds ?? fallbackStartTime,
           end: end,
-          text: text
+          text: text,
+          words: result.words
         )
       )
     }
