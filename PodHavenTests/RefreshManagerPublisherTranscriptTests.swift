@@ -19,6 +19,10 @@ struct RefreshManagerPublisherTranscriptTests {
     Container.shared.publisherTranscriptSession() as! FakeDataFetchable
   }
 
+  private var notificationCenter: FakeUserNotificationCenter {
+    Container.shared.userNotificationCenter() as! FakeUserNotificationCenter
+  }
+
   @Test("new publisher transcript removes automatic on-device queue entry")
   func newPublisherTranscriptRemovesAutomaticQueueEntry() async throws {
     let feedURL = FeedURL(URL(string: "https://example.com/publisher-feed.rss")!)
@@ -133,6 +137,42 @@ struct RefreshManagerPublisherTranscriptTests {
     fetch.finish.signal()
     try await refreshTask.value
     #expect(queue.episodeIDs.isEmpty)
+  }
+
+  @Test("new-episode notification is scheduled before publisher retrieval completes")
+  func schedulesNotificationBeforePublisherRetrievalCompletes() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/notify-before-fetch.rss")!)
+    let transcriptURL = URL(string: "https://example.com/notify-before-fetch.vtt")!
+    let series = try await Self.insertInitialSeries(
+      feedURL: feedURL,
+      alwaysTranscribeNewEpisodes: false,
+      notifyNewEpisodes: true
+    )
+    await feedSession.respond(
+      to: feedURL.rawValue,
+      data: Self.feedData(feedURL: feedURL, transcriptURL: transcriptURL)
+    )
+    let fetch = await transcriptSession.releaseWaitRespond(
+      to: transcriptURL,
+      data: Data(
+        "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nNotify before retrieval".utf8
+      )
+    )
+    notificationCenter.clearAllCalls()
+
+    let refreshTask = Task {
+      try await Container.shared.refreshManager().refreshSeries(podcast: series.podcast)
+    }
+    defer {
+      refreshTask.cancel()
+      fetch.finish.signal()
+    }
+    await fetch.started.wait()
+
+    #expect(notificationCenter.addedRequests.count == 1)
+
+    fetch.finish.signal()
+    try await refreshTask.value
   }
 
   @Test("failed timed candidates leave the episode eligible and are not retried each refresh")
@@ -417,7 +457,8 @@ struct RefreshManagerPublisherTranscriptTests {
 
   private static func insertInitialSeries(
     feedURL: FeedURL,
-    alwaysTranscribeNewEpisodes: Bool
+    alwaysTranscribeNewEpisodes: Bool,
+    notifyNewEpisodes: Bool = false
   ) async throws -> PodcastSeries {
     let feed = try await PodcastFeed.parse(
       feedData(feedURL: feedURL, transcriptURL: nil),
@@ -433,7 +474,8 @@ struct RefreshManagerPublisherTranscriptTests {
             image: podcast.image,
             description: podcast.description,
             link: podcast.link,
-            alwaysTranscribeNewEpisodes: alwaysTranscribeNewEpisodes
+            alwaysTranscribeNewEpisodes: alwaysTranscribeNewEpisodes,
+            notifyNewEpisodes: notifyNewEpisodes
           ),
           unsavedEpisodes: feed.toUnsavedEpisodes()
         )

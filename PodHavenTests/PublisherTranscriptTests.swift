@@ -190,6 +190,57 @@ struct PublisherTranscriptTests {
     #expect(await session.requests == [json.url])
   }
 
+  @Test("the podcast language is preferred before transcript format")
+  func prefersPodcastLanguageBeforeFormat() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/multilingual-feed.rss")!)
+    let spanishJSON = reference("spanish.json", type: "application/json", language: "es")
+    let englishWebVTT = reference("english.vtt", type: "text/vtt", language: "en")
+    let data = Data(
+      """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+           xmlns:podcast="https://podcastindex.org/namespace/1.0"
+           version="2.0">
+        <channel>
+          <title>Multilingual Feed</title>
+          <description>English podcast with translated transcripts.</description>
+          <language>en-US</language>
+          <link>https://example.com/podcast</link>
+          <itunes:image href="https://example.com/podcast.jpg" />
+          <item>
+            <title>Episode</title>
+            <guid>multilingual-episode</guid>
+            <enclosure url="https://example.com/episode.mp3" type="audio/mpeg" />
+            <podcast:transcript url="\(spanishJSON.url)" type="application/json" language="es" />
+            <podcast:transcript url="\(englishWebVTT.url)" type="text/vtt" language="en" />
+          </item>
+        </channel>
+      </rss>
+      """
+      .utf8
+    )
+    await session.respond(
+      to: spanishJSON.url,
+      data: Data(
+        #"{"segments":[{"startTime":0,"endTime":1,"body":"Palabras"}]}"#.utf8
+      )
+    )
+    await session.respond(
+      to: englishWebVTT.url,
+      data: Data("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nEnglish words".utf8)
+    )
+    let feed = try await PodcastFeed.parse(data, from: feedURL)
+    let episode = try #require(feed.toUnsavedEpisodes().first)
+
+    let imported = try #require(
+      try await importer.importTranscript(from: episode.publisherTranscriptReferences)
+    )
+
+    #expect(imported.source == englishWebVTT)
+    #expect(imported.transcript.segments.map(\.text) == ["English words"])
+    #expect(await session.requests == [englishWebVTT.url])
+  }
+
   @Test("WebVTT is preferred over SubRip")
   func prefersWebVTTOverSubRip() async throws {
     let subRip = reference("fallback.srt", type: "application/x-subrip")

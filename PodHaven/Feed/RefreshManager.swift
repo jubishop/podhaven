@@ -341,17 +341,6 @@ struct RefreshManager {
       .value
     }
 
-    let publisherImportEpisodeIDs =
-      newEpisodes
-      .filter {
-        !$0.hasTranscript
-          && $0.publisherTranscriptReferences.contains(where: { $0.format != nil })
-      }
-      .map(\.id)
-    for episodeID in publisherImportEpisodeIDs {
-      await transcriptionProcessor.importPublisherTranscript(for: episodeID)
-    }
-
     if podcast.notifyNewEpisodes {
       await userNotificationManager.scheduleNewEpisodeNotification(
         podcast: podcast,
@@ -393,6 +382,17 @@ struct RefreshManager {
           )
         }
       }
+    }
+
+    let publisherImportEpisodeIDs =
+      newEpisodes
+      .filter {
+        !$0.hasTranscript
+          && $0.publisherTranscriptReferences.contains(where: { $0.format != nil })
+      }
+      .map(\.id)
+    for episodeID in publisherImportEpisodeIDs {
+      await transcriptionProcessor.importPublisherTranscript(for: episodeID)
     }
 
     return nil

@@ -83,6 +83,26 @@ struct PublisherTranscriptReference: Codable, Hashable, Sendable {
     _ references: [Self],
     defaultLanguage: String?
   ) -> [Self] {
+    let preferredLanguage = defaultLanguage?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .replacingOccurrences(of: "_", with: "-")
+      .lowercased()
+    let preferredLanguageCode = preferredLanguage?
+      .split(separator: "-", maxSplits: 1)
+      .first
+    let languageRank = { (language: String?) -> Int in
+      guard let preferredLanguage, !preferredLanguage.isEmpty else { return 0 }
+      let normalizedLanguage = language?
+        .replacingOccurrences(of: "_", with: "-")
+        .lowercased()
+      if normalizedLanguage == preferredLanguage { return 0 }
+      if normalizedLanguage?.split(separator: "-", maxSplits: 1).first
+        == preferredLanguageCode
+      {
+        return 1
+      }
+      return 2
+    }
     var seen = Set<Self>()
     return
       references
@@ -101,12 +121,14 @@ struct PublisherTranscriptReference: Codable, Hashable, Sendable {
       .filter { seen.insert($0).inserted }
       .sorted { lhs, rhs in
         let lhsKey = (
+          languageRank(lhs.language),
           lhs.format?.rawValue ?? Int.max,
           lhs.url.absoluteString,
           lhs.mimeType,
           lhs.language ?? ""
         )
         let rhsKey = (
+          languageRank(rhs.language),
           rhs.format?.rawValue ?? Int.max,
           rhs.url.absoluteString,
           rhs.mimeType,
@@ -158,7 +180,7 @@ struct PublisherTranscriptImporter: Sendable {
   ) async throws -> PublisherTranscriptImport? {
     let candidates = PublisherTranscriptReference.canonicalized(
       references,
-      defaultLanguage: nil
+      defaultLanguage: references.first?.language
     )
     for reference in candidates {
       guard let format = reference.format else { continue }
