@@ -56,6 +56,60 @@ struct PodcastRSS: Decodable, Sendable {
     }
     let iTunes: ITunesNamespace
 
+    struct PodcastNamespace: Decodable, Sendable {
+      private struct ElementKey: CodingKey {
+        let stringValue: String
+        let intValue: Int?
+
+        init?(stringValue: String) {
+          self.stringValue = stringValue
+          intValue = nil
+        }
+
+        init?(intValue: Int) {
+          stringValue = String(intValue)
+          self.intValue = intValue
+        }
+      }
+
+      private struct DecodedTranscriptReference: Decodable {
+        let value: PublisherTranscriptReference?
+
+        init(from decoder: any Decoder) throws {
+          do {
+            value = try PublisherTranscriptReference(from: decoder)
+          } catch {
+            PodcastRSS.log.caughtError(
+              "Ignoring malformed publisher transcript reference",
+              error,
+              level: .info
+            )
+            value = nil
+          }
+        }
+      }
+
+      let transcripts: [PublisherTranscriptReference]
+
+      init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: ElementKey.self)
+        var decoded: [DecodedTranscriptReference] = []
+        var decodedElementNames = Set<String>()
+        for key in container.allKeys
+        where key.stringValue.split(separator: ":").last == "transcript" {
+          guard decodedElementNames.insert(key.stringValue).inserted else { continue }
+          decoded.append(
+            contentsOf: try container.decodeIfPresent(
+              [DecodedTranscriptReference].self,
+              forKey: key
+            ) ?? []
+          )
+        }
+        transcripts = decoded.compactMap(\.value)
+      }
+    }
+    let podcast: PodcastNamespace
+
     // MARK: - Convenience Getters
 
     var description: String? {
@@ -90,6 +144,7 @@ struct PodcastRSS: Decodable, Sendable {
     init(from decoder: any Decoder) throws {
       values = try TopLevelValues(from: decoder)
       iTunes = try ITunesNamespace(from: decoder)
+      podcast = try PodcastNamespace(from: decoder)
     }
   }
 
@@ -110,9 +165,10 @@ struct PodcastRSS: Decodable, Sendable {
       let link: String?  // URL?
       let episodes: [Episode]
       let atomLinks: [AtomLink]
+      let language: String?
 
       enum CodingKeys: String, CodingKey {
-        case title, description, link
+        case title, description, language, link
         case episodes = "item"
         case atomLinks = "atom:link"
         case contentEncoded = "content:encoded"

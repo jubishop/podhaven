@@ -5,6 +5,31 @@ import FactoryKit
 import NukeUI
 import SwiftUI
 
+struct TranscriptDecodeFailureView: View {
+  let canTranscribeAgain: Bool
+  let transcribe: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Transcript couldn't be read")
+        .foregroundStyle(.red)
+      Text(
+        canTranscribeAgain
+          ? "Transcribe again to replace the unreadable transcript."
+          : "On-device transcription isn't available to replace it."
+      )
+      .foregroundStyle(.secondary)
+      if canTranscribeAgain {
+        AppIcon.transcribeEpisode
+          .labelButton("Transcribe Again") {
+            transcribe()
+          }
+          .buttonStyle(.bordered)
+      }
+    }
+  }
+}
+
 struct EpisodeDetailView: View {
   private enum ArtworkAccessibilityFocus: Hashable {
     case trigger
@@ -340,7 +365,7 @@ struct EpisodeDetailView: View {
 
   private var textContentView: some View {
     VStack(alignment: .leading, spacing: 16) {
-      if viewModel.isTranscriptionAvailable {
+      if viewModel.canShowTranscription {
         Picker(
           "Episode text",
           selection: Binding(
@@ -553,17 +578,10 @@ struct EpisodeDetailView: View {
   }
 
   private var transcriptDecodeFailureView: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Transcript couldn't be read")
-        .foregroundStyle(.red)
-      Text("Transcribe again to replace the unreadable transcript.")
-        .foregroundStyle(.secondary)
-      AppIcon.transcribeEpisode
-        .labelButton("Transcribe Again") {
-          viewModel.transcribe()
-        }
-        .buttonStyle(.bordered)
-    }
+    TranscriptDecodeFailureView(
+      canTranscribeAgain: viewModel.isTranscriptionAvailable,
+      transcribe: viewModel.transcribe
+    )
   }
 
   // MARK: - Full Screen Image Overlay
@@ -623,6 +641,11 @@ struct EpisodeDetailView: View {
 // MARK: - Preview
 
 #if DEBUG
+#Preview("Unreadable Transcript Without On-Device Support") {
+  TranscriptDecodeFailureView(canTranscribeAgain: false, transcribe: {})
+    .padding()
+}
+
 #Preview("Basic Episode") {
   NavigationStack {
     EpisodeDetailView(
@@ -702,6 +725,38 @@ struct EpisodeDetailView: View {
       )
     )
     .preview()
+  }
+}
+
+#Preview("Publisher Transcript Without On-Device Support") {
+  Container.shared.transcriptionAvailability().$state.new(.unavailable)
+  let transcript = Transcript(
+    segments: [
+      TranscriptSegment(
+        start: 0,
+        end: 4,
+        text: "Publisher-supplied words remain readable on this device."
+      )
+    ],
+    locale: "en-US",
+    createdAt: Date(timeIntervalSince1970: 0)
+  )
+  let viewModel = EpisodeDetailViewModel(
+    episode: DisplayedEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try! Create.unsavedPodcast(title: "Publisher Transcript Preview"),
+        unsavedEpisode: try! Create.unsavedEpisode(
+          title: "An Episode with a Publisher Transcript",
+          description: "<p>The transcript remains available without on-device speech support.</p>",
+          transcript: try! transcript.jsonString()
+        )
+      )
+    )
+  )
+  viewModel.selectTextTab(.transcript)
+  return NavigationStack {
+    EpisodeDetailView(viewModel: viewModel)
+      .preview()
   }
 }
 

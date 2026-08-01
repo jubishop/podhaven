@@ -30,10 +30,11 @@ struct EpisodeFeed: Sendable, Equatable {
   let mediaURL: MediaURL
 
   var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
+  let publisherTranscriptReferences: [PublisherTranscriptReference]
 
   private let rssEpisode: PodcastRSS.Episode
 
-  fileprivate init?(rssEpisode: PodcastRSS.Episode) {
+  fileprivate init?(rssEpisode: PodcastRSS.Episode, podcastLanguage: String?) {
     guard let mediaURL = rssEpisode.enclosure?.url else {
       Self.log.debug("Missing enclosure for \(rssEpisode.title); skipping")
       return nil
@@ -54,6 +55,10 @@ struct EpisodeFeed: Sendable, Equatable {
     self.rssEpisode = rssEpisode
     self.guid = rssEpisode.guid ?? GUID(validatedMediaURL.absoluteString)
     self.mediaURL = validatedMediaURL
+    self.publisherTranscriptReferences = PublisherTranscriptReference.canonicalized(
+      rssEpisode.podcast.transcripts,
+      defaultLanguage: podcastLanguage
+    )
   }
 
   func toUnsavedEpisode(merging episode: FeedMergeEpisode? = nil) throws -> UnsavedEpisode {
@@ -67,7 +72,8 @@ struct EpisodeFeed: Sendable, Equatable {
       duration: duration ?? episode?.duration,
       description: rssEpisode.description ?? episode?.description,
       link: rssEpisode.link ?? episode?.link,
-      image: rssEpisode.iTunes.image?.href ?? episode?.image
+      image: rssEpisode.iTunes.image?.href ?? episode?.image,
+      publisherTranscriptReferences: publisherTranscriptReferences
     )
   }
 
@@ -177,7 +183,9 @@ struct PodcastFeed: Sendable, Stringable {
     self.feedURL = try (rssPodcast.feedURL ?? from).convertToHTTPSURL()
     self.link = rssPodcast.link
     self.image = rssPodcast.iTunes.image.href
-    self.episodeFeeds = rssPodcast.episodes.compactMap { EpisodeFeed(rssEpisode: $0) }
+    self.episodeFeeds = rssPodcast.episodes.compactMap {
+      EpisodeFeed(rssEpisode: $0, podcastLanguage: rssPodcast.language)
+    }
   }
 
   var updatedFeedURL: FeedURL {

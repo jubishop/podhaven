@@ -384,6 +384,17 @@ struct RefreshManager {
       }
     }
 
+    let publisherImportEpisodeIDs =
+      newEpisodes
+      .filter {
+        !$0.hasTranscript
+          && $0.publisherTranscriptReferences.contains(where: { $0.format != nil })
+      }
+      .map(\.id)
+    for episodeID in publisherImportEpisodeIDs {
+      await transcriptionProcessor.importPublisherTranscript(for: episodeID)
+    }
+
     return nil
   }
 }
