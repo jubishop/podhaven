@@ -63,6 +63,11 @@ private struct PlayBarTranscriptSegmentView: View {
     return text.isEmpty ? nil : text
   }
 
+  private var accessibilityValueText: String {
+    guard let activeWordText else { return "" }
+    return "Current word \(activeWordText)"
+  }
+
   private var attributedText: AttributedString {
     var result = AttributedString()
     for (index, word) in words.enumerated() {
@@ -90,9 +95,7 @@ private struct PlayBarTranscriptSegmentView: View {
         value: activeWordIndex
       )
       .accessibilityLabel(segment.text)
-      .accessibilityValue(
-        activeWordText.map { "Current word \($0)" } ?? ""
-      )
+      .accessibilityValue(accessibilityValueText)
   }
 }
 
