@@ -45,6 +45,8 @@ enum UndoSeekDirection {
   @ObservationIgnored private var undoCandidate: (episodeID: Episode.ID, time: Double)?
   @ObservationIgnored private var hideUndoButtonTask: Task<Void, Never>?
   private var transcriptionCheckpoint: (episodeID: Episode.ID, progress: Double)?
+  private var transcriptEpisodeID: Episode.ID?
+  private var storedTranscript: Transcript?
 
   var episodeImage: UIImage? { sharedState.onDeck?.artwork }
   var loadingEpisodeTitle: String { sharedState.playbackStatus.loadingTitle ?? "Unknown" }
@@ -221,6 +223,15 @@ enum UndoSeekDirection {
     )
   }
 
+  var transcript: Transcript? {
+    guard transcriptEpisodeID == sharedState.onDeck?.id else { return nil }
+    return storedTranscript
+  }
+
+  var canExpandTranscript: Bool {
+    transcript?.segments.isEmpty == false
+  }
+
   func transcribe() {
     guard
       let onDeck = sharedState.onDeck,
@@ -289,6 +300,33 @@ enum UndoSeekDirection {
         "observeTranscriptionCheckpoint: failed for \(episodeID)",
         error
       )
+    }
+  }
+
+  func observeTranscript() async {
+    guard let episodeID = sharedState.onDeck?.id else {
+      transcriptEpisodeID = nil
+      storedTranscript = nil
+      return
+    }
+
+    if transcriptEpisodeID != episodeID {
+      transcriptEpisodeID = episodeID
+      storedTranscript = nil
+    }
+    do {
+      for try await transcript in observatory.transcript(episodeID) {
+        try Task.checkCancellation()
+        guard sharedState.onDeck?.id == episodeID else { return }
+        transcriptEpisodeID = episodeID
+        storedTranscript = transcript
+      }
+    } catch {
+      if sharedState.onDeck?.id == episodeID {
+        transcriptEpisodeID = episodeID
+        storedTranscript = nil
+      }
+      Self.log.caughtError("observeTranscript: failed for \(episodeID)", error)
     }
   }
 

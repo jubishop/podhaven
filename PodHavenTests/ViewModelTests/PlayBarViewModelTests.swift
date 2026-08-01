@@ -120,6 +120,30 @@ import Testing
 
   // MARK: - Transcription
 
+  @Test("observes the on-deck transcript and enables expansion")
+  func observesTranscriptForExpansion() async throws {
+    let episode = try await Create.podcastEpisode()
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 2, text: "Follow along")],
+      locale: "en-US",
+      createdAt: Date()
+    )
+    try await repo.updateTranscript(episode.id, transcript: transcript.jsonString())
+    let transcribedEpisode = try #require(try await repo.podcastEpisode(episode.id))
+    stateManager.setOnDeck(transcribedEpisode)
+
+    let observationTask = Task {
+      await viewModel.observeTranscript()
+    }
+    defer { observationTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in self.viewModel.transcript == transcript },
+      { @MainActor in "Expected the play bar to load the on-deck transcript" }
+    )
+    #expect(viewModel.canExpandTranscript)
+  }
+
   @Test("transcription status resumes and pauses retained progress")
   func transcriptionStatusResumesAndPausesRetainedProgress() async throws {
     await TranscriptionHelpers.prepareAvailability()

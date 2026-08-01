@@ -8,6 +8,7 @@ struct FakeSpeechTranscriptionResult: SpeechTranscriptionResult {
   let phrase: String
   let startSeconds: Double?
   var endSeconds: Double? = nil
+  var words: [TranscriptWord] = []
 }
 
 enum FakeSpeechError: Error {
