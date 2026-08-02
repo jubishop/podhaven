@@ -417,11 +417,11 @@ struct PlayBarSheetPreview: View {
         TranscriptSegment(
           start: 0,
           end: 6,
-          text: "The highlighted word follows the episode.",
+          text: "The highlighted block follows the episode.",
           words: [
             TranscriptWord(start: 0, end: 1, text: "The"),
             TranscriptWord(start: 1, end: 2, text: " highlighted"),
-            TranscriptWord(start: 2, end: 3.5, text: " word"),
+            TranscriptWord(start: 2, end: 3.5, text: " block"),
             TranscriptWord(start: 3.5, end: 4.5, text: " follows"),
             TranscriptWord(start: 4.5, end: 5, text: " the"),
             TranscriptWord(start: 5, end: 6, text: " episode."),
