@@ -164,10 +164,10 @@ import Testing
 
   @Test("includes persisted queue items at startup")
   func includesPersistedQueueItemsAtStartup() async throws {
-    try await Create.podcastEpisode(
+    let firstEpisode = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Queue Ep 1", queueOrder: 0)
     )
-    try await Create.podcastEpisode(
+    let secondEpisode = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Queue Ep 2", queueOrder: 1)
     )
 
@@ -175,6 +175,9 @@ import Testing
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 2 }
 
     #expect(snapshot.queue.count == 2)
+    #expect(
+      snapshot.queue.map(\.episodeID) == [firstEpisode.id.rawValue, secondEpisode.id.rawValue]
+    )
     let titles = snapshot.queue.map(\.episodeTitle)
     #expect(titles.contains("Queue Ep 1"))
     #expect(titles.contains("Queue Ep 2"))
@@ -212,16 +215,19 @@ import Testing
 
   @Test("caps queue at 5 but reports full queueTotalCount")
   func capsQueueAt5ButReportsFullQueueTotalCount() async throws {
+    var episodeIDs: [Int64] = []
     for i in 1...10 {
-      try await Create.podcastEpisode(
+      let episode = try await Create.podcastEpisode(
         try Create.unsavedEpisode(title: "Ep \(i)", queueOrder: i - 1)
       )
+      episodeIDs.append(episode.id.rawValue)
     }
 
     writer.start()
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 10 }
 
     #expect(snapshot.queue.count == 5)
+    #expect(snapshot.queue.map(\.episodeID) == Array(episodeIDs.prefix(5)))
   }
 
   @Test("upgrade reads the persisted queue before reload-all")
