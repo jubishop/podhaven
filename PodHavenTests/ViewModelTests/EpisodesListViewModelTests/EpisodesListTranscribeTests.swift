@@ -116,6 +116,55 @@ struct EpisodesListTranscribeTests {
     #expect(viewModel.canTranscribe(listables[3]) == true)  // none
   }
 
+  @Test("failed publisher replacements stay out of ordinary list transcription")
+  func failedPublisherReplacementIsNotOrdinaryListWork() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let episode = try await Create.podcastEpisode()
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/failed-list-replacement.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Publisher words")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    #expect(
+      try await repo.storeTranscriptIfAbsent(
+        episode.id,
+        transcript: transcript,
+        publisherSource: source
+      )
+    )
+    try await transcriptionQueue.enqueueReplacement(episode.id)
+    #expect(
+      try await transcriptionQueue.fail(
+        episode.id,
+        ifMode: .onDeviceReplacement
+      )
+    )
+    let listable = try #require(
+      try await repo.db.read { db in
+        try ListablePodcastEpisode
+          .request(
+            filter: Episode.Columns.id == episode.id,
+            order: Episode.Columns.id.asc
+          )
+          .fetchOne(db)
+      }
+    )
+    let viewModel = try await EpisodesListTestHelpers.makeViewModel(
+      title: "Failed Replacement"
+    )
+    try await EpisodesListTestHelpers.loadEntries(
+      into: viewModel,
+      episodes: [listable]
+    )
+
+    #expect(!viewModel.canTranscribe(listable))
+  }
+
   @Test("anySelectedCanTranscribe is true only when a selected episode can transcribe")
   func anySelectedCanTranscribeReflectsSelection() async throws {
     let (viewModel, listables) = try await makeLoadedViewModel()

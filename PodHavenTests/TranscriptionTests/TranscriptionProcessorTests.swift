@@ -186,6 +186,89 @@ struct TranscriptionProcessorTests {
     #expect(try await repo.transcriptionCheckpoint(episode.id) == nil)
   }
 
+  @Test("media recovery starts the reordered head rather than a stale stream value")
+  func mediaRecoveryStartsReorderedHead() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(
+          phrase: "done",
+          startSeconds: 0,
+          endSeconds: 60
+        )
+      ]
+    )
+    let firstAnalysisStarted = AsyncSemaphore(value: 0)
+    let firstAnalysisRelease = AsyncSemaphore(value: 0)
+    let resumedAnalysisStarted = AsyncSemaphore(value: 0)
+    let resumedAnalysisRelease = AsyncSemaphore(value: 0)
+    let analyzerCreations = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        let invocation = analyzerCreations {
+          $0 += 1
+          return $0
+        }
+        return FakeSpeechAnalyzer { _, endTime in
+          switch invocation {
+          case 1:
+            firstAnalysisStarted.signal()
+            try await firstAnalysisRelease.waitUnlessCancelled()
+          case 2:
+            resumedAnalysisStarted.signal()
+            try await resumedAnalysisRelease.waitUnlessCancelled()
+          default:
+            break
+          }
+          return CMTime(seconds: endTime, preferredTimescale: 600)
+        }
+      }
+    }
+
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let notifier = Container.shared.notifier()
+    let firstEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Stale media-services head",
+      cachedFilename: "stale-media-services-head.mp3",
+      dataSize: 1
+    )
+    let secondEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Reordered media-services head",
+      cachedFilename: "reordered-media-services-head.mp3",
+      dataSize: 1
+    )
+    try await queue.enqueue([firstEpisode.id, secondEpisode.id])
+    processor.register()
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      firstAnalysisRelease.signal()
+      resumedAnalysisRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await firstAnalysisStarted.wait()
+    notifier.post(AVAudioSession.mediaServicesWereLostNotification)
+    try await Wait.until(
+      { queue.progress[firstEpisode.id] == nil },
+      { "Lost media services did not release the active head" }
+    )
+    #expect(try await processor.reorder([secondEpisode.id, firstEpisode.id]))
+
+    notifier.post(AVAudioSession.mediaServicesWereResetNotification)
+    await resumedAnalysisStarted.wait()
+
+    #expect(queue.progress[secondEpisode.id] != nil)
+    #expect(queue.progress[firstEpisode.id] == nil)
+    resumedAnalysisRelease.signal()
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "Reordered media-services queue did not drain: \(queue.episodeIDs)" }
+    )
+    #expect(try await repo.episode(firstEpisode.id)?.hasTranscript == true)
+    #expect(try await repo.episode(secondEpisode.id)?.hasTranscript == true)
+  }
+
   @Test("overlapping pauses cancel active work once and clear after cleanup")
   func overlappingPausesStopActiveEpisodeOnce() async throws {
     TranscriptionHelpers.stubSpeech(
@@ -272,6 +355,7 @@ struct TranscriptionProcessorTests {
     #expect(cancellationCount() == 1)
     #expect(
       try await Container.shared.transcriptionQueueStore().fetchAll()
+        .map(\.episodeID)
         == [secondEpisode.id]
     )
 

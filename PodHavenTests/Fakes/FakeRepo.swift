@@ -48,6 +48,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let pendingDownloadClaimSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedDownloadClaimCount = ThreadSafe<Int>(0)
   private var downloadClaimSuspensions: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingPublisherReplacementSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedPublisherReplacementCount = ThreadSafe<Int>(0)
+  private var publisherReplacementSuspensions: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingPublisherReplacementAfterWriteSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedPublisherReplacementAfterWriteCount = ThreadSafe<Int>(0)
+  private var publisherReplacementAfterWriteSuspensions: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingPublisherTranscriptStoreAfterWriteSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedPublisherTranscriptStoreAfterWriteCount = ThreadSafe<Int>(0)
+  private var publisherTranscriptStoreAfterWriteSuspensions: [CheckedContinuation<Void, Never>] = []
 
   // Same shape as pendingEpisodeFetchSuspend, but for updateLastUpdates so
   // tests can park the batched flush inside RefreshManager.performRefresh.
@@ -599,10 +608,100 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         publisherSource: publisherSource
       )
     )
-    return try await repo.storeTranscriptIfAbsent(
+    let stored = try await repo.storeTranscriptIfAbsent(
       episodeID,
       transcript: transcript,
       publisherSource: publisherSource
+    )
+    if publisherSource != nil {
+      await suspendPublisherTranscriptStoreAfterWriteIfNeeded(stored)
+    }
+    return stored
+  }
+
+  private func suspendPublisherTranscriptStoreAfterWriteIfNeeded(_ stored: Bool) async {
+    guard stored, pendingPublisherTranscriptStoreAfterWriteSuspend() else { return }
+    pendingPublisherTranscriptStoreAfterWriteSuspend(false)
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+      publisherTranscriptStoreAfterWriteSuspensions.append(continuation)
+      suspendedPublisherTranscriptStoreAfterWriteCount(
+        publisherTranscriptStoreAfterWriteSuspensions.count
+      )
+    }
+  }
+
+  func resumeAllPublisherTranscriptStoreAfterWriteSuspensions() {
+    let toResume = publisherTranscriptStoreAfterWriteSuspensions
+    publisherTranscriptStoreAfterWriteSuspensions.removeAll()
+    suspendedPublisherTranscriptStoreAfterWriteCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForPublisherTranscriptStoreAfterWriteSuspended() async throws {
+    try await Wait.until(
+      { self.suspendedPublisherTranscriptStoreAfterWriteCount() > 0 },
+      { "Expected publisher transcript storage to suspend after writing" }
+    )
+  }
+
+  func replacePublisherTranscript(
+    _ episodeID: Episode.ID,
+    with transcript: Transcript
+  ) async throws -> PublisherTranscriptReplacementResult {
+    recordCall(
+      methodName: "replacePublisherTranscript",
+      parameters: (episodeID: episodeID, transcript: transcript)
+    )
+    if pendingPublisherReplacementSuspend() {
+      pendingPublisherReplacementSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        publisherReplacementSuspensions.append(continuation)
+        suspendedPublisherReplacementCount(publisherReplacementSuspensions.count)
+      }
+    }
+    let result = try await repo.replacePublisherTranscript(
+      episodeID,
+      with: transcript
+    )
+    if case .replaced = result,
+      pendingPublisherReplacementAfterWriteSuspend()
+    {
+      pendingPublisherReplacementAfterWriteSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        publisherReplacementAfterWriteSuspensions.append(continuation)
+        suspendedPublisherReplacementAfterWriteCount(
+          publisherReplacementAfterWriteSuspensions.count
+        )
+      }
+    }
+    return result
+  }
+
+  func resumeAllPublisherReplacementSuspensions() {
+    let toResume = publisherReplacementSuspensions
+    publisherReplacementSuspensions.removeAll()
+    suspendedPublisherReplacementCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForPublisherReplacementSuspended() async throws {
+    try await Wait.until(
+      { self.suspendedPublisherReplacementCount() > 0 },
+      { "Expected final publisher replacement storage to suspend" }
+    )
+  }
+
+  func resumeAllPublisherReplacementAfterWriteSuspensions() {
+    let toResume = publisherReplacementAfterWriteSuspensions
+    publisherReplacementAfterWriteSuspensions.removeAll()
+    suspendedPublisherReplacementAfterWriteCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForPublisherReplacementAfterWriteSuspended() async throws {
+    try await Wait.until(
+      { self.suspendedPublisherReplacementAfterWriteCount() > 0 },
+      { "Expected final publisher replacement storage to suspend after writing" }
     )
   }
 
@@ -619,11 +718,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         expectedReferences: expectedReferences
       )
     )
-    return try await repo.storePublisherTranscriptIfReferencesCurrent(
+    let stored = try await repo.storePublisherTranscriptIfReferencesCurrent(
       episodeID,
       imported: imported,
       expectedReferences: expectedReferences
     )
+    await suspendPublisherTranscriptStoreAfterWriteIfNeeded(stored)
+    return stored
   }
 
   func storePublisherTranscriptIfDemandCurrent(
@@ -639,11 +740,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         expectedReferences: expectedReferences
       )
     )
-    return try await repo.storePublisherTranscriptIfDemandCurrent(
+    let stored = try await repo.storePublisherTranscriptIfDemandCurrent(
       episodeID,
       imported: imported,
       expectedReferences: expectedReferences
     )
+    await suspendPublisherTranscriptStoreAfterWriteIfNeeded(stored)
+    return stored
   }
 
   func saveTranscriptionCheckpoint(

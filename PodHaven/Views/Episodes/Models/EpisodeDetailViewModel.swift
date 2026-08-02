@@ -69,6 +69,18 @@ enum EpisodeTranscriptDisplay: Equatable, Sendable {
   case text([TranscriptSegment])
 }
 
+enum EpisodeTranscriptProvenance: Equatable, Sendable {
+  case podcastFeed
+  case onDevice
+
+  var accessibilityValue: String {
+    switch self {
+    case .podcastFeed: "Podcast feed"
+    case .onDevice: "On device"
+    }
+  }
+}
+
 enum EpisodeDetailTextTab: Hashable, Sendable {
   case description
   case transcript
@@ -105,6 +117,11 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
 
   var decodedTranscript: Transcript? {
     episode.loaded?.decodedTranscript
+  }
+
+  var transcriptProvenance: EpisodeTranscriptProvenance? {
+    guard episode.hasTranscript, let loaded = episode.loaded else { return nil }
+    return loaded.publisherTranscriptSource == nil ? .onDevice : .podcastFeed
   }
 
   private(set) var transcriptionCheckpointProgress: Double?
@@ -174,6 +191,16 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
 
   var canShowTranscription: Bool {
     isTranscriptionAvailable || episode.hasTranscript
+  }
+
+  var canReplacePublisherTranscript: Bool {
+    guard
+      isTranscriptionAvailable,
+      transcriptProvenance == .podcastFeed
+    else {
+      return false
+    }
+    return transcriptionStatus.canTranscribe || transcriptionStatus == .transcribed
   }
 
   var transcriptionStatus: TranscriptionStatus {
@@ -444,16 +471,29 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
   }
 
   func transcribe() {
-    guard isTranscriptionAvailable, transcriptionStatus.canTranscribe else { return }
+    let replacesPublisherTranscript = transcriptProvenance == .podcastFeed
+    guard
+      isTranscriptionAvailable,
+      transcriptionStatus.canTranscribe
+        || (replacesPublisherTranscript && transcriptionStatus == .transcribed)
+    else {
+      return
+    }
 
     Task { [weak self] in
       guard let self else { return }
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
-        if transcriptDisplay == .decodeFailed {
-          try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
+        if replacesPublisherTranscript {
+          try await transcriptionProcessor.enqueuePublisherReplacement(
+            podcastEpisode.id
+          )
+        } else {
+          if transcriptDisplay == .decodeFailed {
+            try await repo.updateTranscript(podcastEpisode.id, transcript: nil)
+          }
+          try await transcriptionProcessor.enqueue(podcastEpisode.id)
         }
-        try await transcriptionProcessor.enqueue(podcastEpisode.id)
       } catch let error as TranscriptionQueueError {
         Self.log.caughtError(
           "transcribe: \(state.toString) rejected",

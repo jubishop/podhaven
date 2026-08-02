@@ -37,12 +37,20 @@ enum TranscriptionQueueError: Error, Equatable, LocalizedError, Sendable {
 }
 
 protocol TranscriptionQueueStoring: Sendable {
-  func fetchAll() async throws -> [Episode.ID]
+  func fetchAll() async throws -> [TranscriptionWork]
   func enqueue(
     _ episodeIDs: [Episode.ID],
     maximumCount: Int
   ) async throws -> [Episode.ID]
+  func enqueueReplacement(
+    _ episodeID: Episode.ID,
+    maximumCount: Int
+  ) async throws -> Bool
   func remove(_ episodeID: Episode.ID) async throws
+  func remove(
+    _ episodeID: Episode.ID,
+    ifMode mode: TranscriptionWorkMode
+  ) async throws -> Bool
   func reorder(_ orderedEpisodeIDs: [Episode.ID]) async throws -> Bool
 }
 
@@ -55,7 +63,7 @@ struct TranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
     self.writer = writer
   }
 
-  func fetchAll() async throws -> [Episode.ID] {
+  func fetchAll() async throws -> [TranscriptionWork] {
     try await reader.read(Self.fetchAll)
   }
 
@@ -102,6 +110,45 @@ struct TranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
     }
   }
 
+  func enqueueReplacement(
+    _ episodeID: Episode.ID,
+    maximumCount: Int
+  ) async throws -> Bool {
+    try await writer.write { db in
+      if let existing =
+        try EpisodeTranscriptionQueueEntry
+        .filter(EpisodeTranscriptionQueueEntry.Columns.episodeId == episodeID)
+        .fetchOne(db)
+      {
+        guard existing.workMode != .onDeviceReplacement else { return false }
+        try EpisodeTranscriptionQueueEntry
+          .filter(EpisodeTranscriptionQueueEntry.Columns.episodeId == episodeID)
+          .updateAll(
+            db,
+            EpisodeTranscriptionQueueEntry.Columns.workMode.set(
+              to: TranscriptionWorkMode.onDeviceReplacement
+            )
+          )
+        return false
+      }
+
+      let currentCount = try EpisodeTranscriptionQueueEntry.fetchCount(db)
+      guard currentCount < maximumCount else {
+        throw TranscriptionQueueError.capacityExceeded(
+          limit: maximumCount,
+          currentCount: currentCount,
+          requestedCount: 1
+        )
+      }
+      try EpisodeTranscriptionQueueEntry(
+        episodeId: episodeID,
+        workMode: .onDeviceReplacement
+      )
+      .insert(db)
+      return true
+    }
+  }
+
   func remove(_ episodeID: Episode.ID) async throws {
     try await writer.write { db in
       try EpisodeTranscriptionQueueEntry
@@ -110,9 +157,22 @@ struct TranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
     }
   }
 
+  func remove(
+    _ episodeID: Episode.ID,
+    ifMode mode: TranscriptionWorkMode
+  ) async throws -> Bool {
+    try await writer.write { db in
+      try EpisodeTranscriptionQueueEntry
+        .filter(EpisodeTranscriptionQueueEntry.Columns.episodeId == episodeID)
+        .filter(EpisodeTranscriptionQueueEntry.Columns.workMode == mode)
+        .deleteAll(db) > 0
+    }
+  }
+
   func reorder(_ orderedEpisodeIDs: [Episode.ID]) async throws -> Bool {
     try await writer.write { db in
-      let currentEpisodeIDs = try Self.fetchAll(db)
+      let currentWork = try Self.fetchAll(db)
+      let currentEpisodeIDs = currentWork.map(\.episodeID)
       guard
         orderedEpisodeIDs.count == currentEpisodeIDs.count,
         Set(orderedEpisodeIDs) == Set(currentEpisodeIDs)
@@ -121,20 +181,27 @@ struct TranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
       }
 
       try EpisodeTranscriptionQueueEntry.deleteAll(db)
+      let modes = Dictionary(
+        uniqueKeysWithValues: currentWork.map { ($0.episodeID, $0.mode) }
+      )
       for episodeID in orderedEpisodeIDs {
-        try EpisodeTranscriptionQueueEntry(episodeId: episodeID).insert(db)
+        guard let mode = modes[episodeID] else {
+          Assert.fatal("Missing transcription work mode for \(episodeID)")
+        }
+        try EpisodeTranscriptionQueueEntry(
+          episodeId: episodeID,
+          workMode: mode
+        )
+        .insert(db)
       }
       return true
     }
   }
 
-  private static func fetchAll(_ db: Database) throws -> [Episode.ID] {
+  private static func fetchAll(_ db: Database) throws -> [TranscriptionWork] {
     try EpisodeTranscriptionQueueEntry
       .order(EpisodeTranscriptionQueueEntry.Columns.position)
-      .select(
-        EpisodeTranscriptionQueueEntry.Columns.episodeId,
-        as: Episode.ID.self
-      )
       .fetchAll(db)
+      .map(\.work)
   }
 }

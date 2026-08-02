@@ -1,0 +1,47 @@
+// Copyright Justin Bishop, 2026
+
+import Foundation
+
+enum QueueRemovalOperation: String, Sendable {
+  case missingEpisode
+  case alreadyTranscribed
+  case completedTranscription
+  case publisherTranscript
+}
+
+struct QueueMutationFailure: Error, LocalizedError {
+  let operation: QueueRemovalOperation
+  let message: String
+
+  var errorDescription: String? {
+    "\(operation.rawValue): \(message)"
+  }
+}
+
+struct TranscriptionWorkModeChanged: Error {}
+
+enum HeadProcessingOutcome {
+  case advanced
+  case retained
+  case restart
+}
+
+extension PublisherTranscriptImporter {
+  func importAndStoreIfReferencesCurrent(
+    for episode: Episode,
+    in repo: any Databasing
+  ) async throws -> Bool {
+    guard
+      let imported = try await importTranscript(
+        from: episode.publisherTranscriptReferences
+      )
+    else {
+      return false
+    }
+    return try await repo.storePublisherTranscriptIfReferencesCurrent(
+      episode.id,
+      imported: imported,
+      expectedReferences: episode.publisherTranscriptReferences
+    )
+  }
+}

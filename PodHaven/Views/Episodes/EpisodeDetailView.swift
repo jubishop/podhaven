@@ -5,31 +5,6 @@ import FactoryKit
 import NukeUI
 import SwiftUI
 
-struct TranscriptDecodeFailureView: View {
-  let canTranscribeAgain: Bool
-  let transcribe: () -> Void
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Transcript couldn't be read")
-        .foregroundStyle(.red)
-      Text(
-        canTranscribeAgain
-          ? "Transcribe again to replace the unreadable transcript."
-          : "On-device transcription isn't available to replace it."
-      )
-      .foregroundStyle(.secondary)
-      if canTranscribeAgain {
-        AppIcon.transcribeEpisode
-          .labelButton("Transcribe Again") {
-            transcribe()
-          }
-          .buttonStyle(.bordered)
-      }
-    }
-  }
-}
-
 struct EpisodeDetailView: View {
   private enum ArtworkAccessibilityFocus: Hashable {
     case trigger
@@ -39,8 +14,6 @@ struct EpisodeDetailView: View {
   @DynamicInjected(\.alert) private var alert
 
   @AccessibilityFocusState private var artworkAccessibilityFocus: ArtworkAccessibilityFocus?
-  @ScaledMetric(relativeTo: .body) private var transcriptParagraphSpacing: CGFloat = 16
-  @State private var showingDiscardProgressConfirmation = false
   @State private var showingImageOverlay = false
   @State private var viewModel: EpisodeDetailViewModel
 
@@ -100,23 +73,6 @@ struct EpisodeDetailView: View {
     }
     .onChange(of: showingImageOverlay) { _, isShowing in
       artworkAccessibilityFocus = isShowing ? .overlay : .trigger
-    }
-    .confirmationDialog(
-      "Discard Transcription Progress?",
-      isPresented: $showingDiscardProgressConfirmation,
-      titleVisibility: .visible
-    ) {
-      Button("Discard Progress", role: .destructive) {
-        viewModel.discardTranscriptionProgress()
-      }
-      Button("Cancel", role: .cancel) {}
-    } message: {
-      Text(
-        """
-        This permanently deletes all saved progress and stops the transcription if it is running. \
-        The next transcription will start from the beginning.
-        """
-      )
     }
   }
 
@@ -428,160 +384,8 @@ struct EpisodeDetailView: View {
     }
   }
 
-  @ViewBuilder
   private var transcriptionView: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      switch viewModel.transcriptionStatus {
-      case .none:
-        if viewModel.transcriptDisplay == .decodeFailed {
-          transcriptDecodeFailureView
-        } else {
-          transcribeButton
-        }
-      case .queued(let position, let total):
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Queued for transcription — position \(position) of \(total)")
-            .foregroundStyle(.secondary)
-          pauseTranscriptionButton
-          if viewModel.canDiscardTranscriptionProgress {
-            discardTranscriptionProgressButton
-          }
-        }
-      case .transcribing(let progress):
-        VStack(alignment: .leading, spacing: 8) {
-          if progress > 0 {
-            ProgressView(value: progress) {
-              Text("Transcribing…")
-                .foregroundStyle(.secondary)
-            } currentValueLabel: {
-              Text(progress, format: .percent.precision(.fractionLength(0)))
-                .foregroundStyle(.secondary)
-            }
-          } else {
-            HStack(spacing: 8) {
-              ProgressView()
-                .accessibilityHidden(true)
-              Text("Transcribing…")
-                .foregroundStyle(.secondary)
-            }
-          }
-          pauseTranscriptionButton
-          discardTranscriptionProgressButton
-        }
-      case .paused(let progress):
-        VStack(alignment: .leading, spacing: 8) {
-          ProgressView(value: progress) {
-            Text("Transcription paused")
-              .foregroundStyle(.secondary)
-          } currentValueLabel: {
-            Text(progress, format: .percent.precision(.fractionLength(0)))
-              .foregroundStyle(.secondary)
-          }
-          resumeTranscriptionButton
-          discardTranscriptionProgressButton
-        }
-      case .pausing:
-        HStack(spacing: 8) {
-          ProgressView()
-            .accessibilityHidden(true)
-          Text("Pausing transcription…")
-            .foregroundStyle(.secondary)
-        }
-      case .discarding:
-        HStack(spacing: 8) {
-          ProgressView()
-            .accessibilityHidden(true)
-          Text("Discarding transcription progress…")
-            .foregroundStyle(.secondary)
-        }
-      case .transcribed:
-        switch viewModel.transcriptDisplay {
-        case .notTranscribed:
-          transcribeButton
-        case .loading:
-          HStack(spacing: 8) {
-            ProgressView()
-              .accessibilityHidden(true)
-            Text("Loading transcript…")
-              .foregroundStyle(.secondary)
-          }
-        case .decodeFailed:
-          transcriptDecodeFailureView
-        case .empty:
-          Text("No speech detected")
-            .foregroundStyle(.secondary)
-        case .text(let segments):
-          LazyVStack(alignment: .leading, spacing: transcriptParagraphSpacing) {
-            ForEach(segments.indices, id: \.self) { index in
-              Text(segments[index].text)
-            }
-          }
-          .frame(maxWidth: .infinity, alignment: .leading)
-        }
-      case .failed:
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Transcription failed")
-            .foregroundStyle(.red)
-          AppIcon.transcribeEpisode
-            .labelButton("Retry") {
-              viewModel.transcribe()
-            }
-            .buttonStyle(.bordered)
-          if viewModel.canDiscardTranscriptionProgress {
-            discardTranscriptionProgressButton
-          }
-        }
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.bottom, transcriptionBottomPadding)
-  }
-
-  private var transcriptionBottomPadding: CGFloat {
-    switch viewModel.transcriptDisplay {
-    case .notTranscribed, .loading, .decodeFailed, .empty: 8
-    case .text: 0
-    }
-  }
-
-  private var transcribeButton: some View {
-    AppIcon.transcribeEpisode
-      .labelButton {
-        viewModel.transcribe()
-      }
-      .buttonStyle(.bordered)
-  }
-
-  private var pauseTranscriptionButton: some View {
-    AppIcon.pauseTranscription
-      .labelButton {
-        viewModel.pauseTranscription()
-      }
-      .buttonStyle(.bordered)
-  }
-
-  private var resumeTranscriptionButton: some View {
-    AppIcon.resumeTranscription
-      .labelButton {
-        viewModel.transcribe()
-      }
-      .buttonStyle(.bordered)
-  }
-
-  private var discardTranscriptionProgressButton: some View {
-    AppIcon.discardTranscriptionProgress
-      .labelButton {
-        showingDiscardProgressConfirmation = true
-      }
-      .buttonStyle(.bordered)
-      .tint(.red)
-  }
-
-  private var transcriptDecodeFailureView: some View {
-    TranscriptDecodeFailureView(
-      canTranscribeAgain: viewModel.isTranscriptionAvailable,
-      transcribe: viewModel.transcribe
-    )
+    EpisodeDetailTranscriptView(viewModel: viewModel)
   }
 
   // MARK: - Full Screen Image Overlay
@@ -725,38 +529,6 @@ struct EpisodeDetailView: View {
       )
     )
     .preview()
-  }
-}
-
-#Preview("Publisher Transcript Without On-Device Support") {
-  Container.shared.transcriptionAvailability().$state.new(.unavailable)
-  let transcript = Transcript(
-    segments: [
-      TranscriptSegment(
-        start: 0,
-        end: 4,
-        text: "Publisher-supplied words remain readable on this device."
-      )
-    ],
-    locale: "en-US",
-    createdAt: Date(timeIntervalSince1970: 0)
-  )
-  let viewModel = EpisodeDetailViewModel(
-    episode: DisplayedEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: try! Create.unsavedPodcast(title: "Publisher Transcript Preview"),
-        unsavedEpisode: try! Create.unsavedEpisode(
-          title: "An Episode with a Publisher Transcript",
-          description: "<p>The transcript remains available without on-device speech support.</p>",
-          transcript: try! transcript.jsonString()
-        )
-      )
-    )
-  )
-  viewModel.selectTextTab(.transcript)
-  return NavigationStack {
-    EpisodeDetailView(viewModel: viewModel)
-      .preview()
   }
 }
 
