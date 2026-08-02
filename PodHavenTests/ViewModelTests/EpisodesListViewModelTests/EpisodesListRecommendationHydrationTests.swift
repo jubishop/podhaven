@@ -83,9 +83,10 @@ import Testing
         }
       )
 
-      viewModel.filterDebouncer.currentValue = "Alphacand"
       let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
-      try await fakeSleeper.waitForSleepRequests(count: 1)
+      let pendingBeforeSearch = fakeSleeper.pendingCount()
+      viewModel.filterDebouncer.currentValue = "Alphacand"
+      try await fakeSleeper.waitForSleepRequests(count: pendingBeforeSearch + 1)
       await fakeSleeper.advanceTime(by: .milliseconds(500))
 
       let alphaIDs = Set(alphas.map(\.id))
