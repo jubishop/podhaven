@@ -139,7 +139,11 @@ struct EpisodeDetailTranscriptView: View {
           Text(progress, format: .percent.precision(.fractionLength(0)))
             .foregroundStyle(.secondary)
         }
-        resumeTranscriptionButton
+        if viewModel.isTranscriptionAvailable {
+          resumeTranscriptionButton
+        } else {
+          transcriptionUnavailableView
+        }
         discardTranscriptionProgressButton
       }
     case .pausing:
@@ -167,11 +171,15 @@ struct EpisodeDetailTranscriptView: View {
       VStack(alignment: .leading, spacing: 8) {
         Text("Transcription failed")
           .foregroundStyle(.red)
-        AppIcon.transcribeEpisode
-          .labelButton("Retry") {
-            viewModel.transcribe()
-          }
-          .buttonStyle(.bordered)
+        if viewModel.isTranscriptionAvailable {
+          AppIcon.transcribeEpisode
+            .labelButton("Retry") {
+              viewModel.transcribe()
+            }
+            .buttonStyle(.bordered)
+        } else {
+          transcriptionUnavailableView
+        }
         if viewModel.canDiscardTranscriptionProgress {
           discardTranscriptionProgressButton
         }
@@ -283,6 +291,11 @@ struct EpisodeDetailTranscriptView: View {
       .tint(.red)
   }
 
+  private var transcriptionUnavailableView: some View {
+    Text("On-device transcription isn't available right now.")
+      .foregroundStyle(.secondary)
+  }
+
   private var transcriptDecodeFailureView: some View {
     TranscriptDecodeFailureView(
       canTranscribeAgain: viewModel.isTranscriptionAvailable,
@@ -300,6 +313,7 @@ struct EpisodeDetailTranscriptView: View {
 
   enum WorkState: Equatable {
     case complete
+    case failedReplacement
     case queuedReplacement
   }
 
@@ -360,9 +374,20 @@ struct EpisodeDetailTranscriptView: View {
               transcript: transcript.jsonString()
             )
         }
-        if workState == .queuedReplacement {
-          try await Container.shared.transcriptionQueue()
-            .enqueueReplacement(podcastEpisode.id)
+        let transcriptionQueue = Container.shared.transcriptionQueue()
+        switch workState {
+        case .complete:
+          break
+        case .failedReplacement:
+          try await transcriptionQueue.enqueueReplacement(podcastEpisode.id)
+          guard
+            try await transcriptionQueue.fail(
+              podcastEpisode.id,
+              ifMode: .onDeviceReplacement
+            )
+          else { return }
+        case .queuedReplacement:
+          try await transcriptionQueue.enqueueReplacement(podcastEpisode.id)
         }
         guard
           let loaded = try await Container.shared.repo()
@@ -412,6 +437,15 @@ struct EpisodeDetailTranscriptView: View {
     source: .podcastFeed,
     supportsReplacement: true,
     workState: .queuedReplacement
+  )
+  .preview()
+}
+
+#Preview("Failed Publisher Replacement Unsupported Device") {
+  EpisodeDetailTranscriptPreview(
+    source: .podcastFeed,
+    supportsReplacement: false,
+    workState: .failedReplacement
   )
   .preview()
 }

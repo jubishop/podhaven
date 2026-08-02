@@ -114,6 +114,65 @@ import UIKit
   }
 
   @Test(
+    "unavailable failed publisher replacement omits its retry action",
+    .enabled(
+      if: ProcessInfo.processInfo.isiOSAppOnMac,
+      "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
+    )
+  )
+  func unavailableFailedPublisherReplacementOmitsRetry() async throws {
+    Container.shared.transcriptionAvailability().$state.new(.unavailable)
+    let repo = Container.shared.repo()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Publisher words")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/unavailable-retry.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    #expect(
+      try await repo.storeTranscriptIfAbsent(
+        podcastEpisode.id,
+        transcript: transcript,
+        publisherSource: source
+      )
+    )
+    let queue = Container.shared.transcriptionQueue()
+    try await queue.enqueueReplacement(podcastEpisode.id)
+    #expect(
+      try await queue.fail(
+        podcastEpisode.id,
+        ifMode: .onDeviceReplacement
+      )
+    )
+    let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+    #expect(viewModel.transcriptionStatus == .failed)
+    let host = UIHostingController(
+      rootView: EpisodeDetailTranscriptView(viewModel: viewModel)
+    )
+    host.loadViewIfNeeded()
+    host.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+    host.beginAppearanceTransition(true, animated: false)
+    host.endAppearanceTransition()
+    defer {
+      host.beginAppearanceTransition(false, animated: false)
+      host.endAppearanceTransition()
+    }
+    host.view.layoutIfNeeded()
+
+    let labels = Set(
+      accessibilityElements(in: host.view).compactMap(\.accessibilityLabel)
+    )
+    #expect(labels.contains("On-device transcription isn't available right now."))
+    #expect(!labels.contains("Retry"))
+  }
+
+  @Test(
     "unreadable transcript explains unavailable recovery without a dead action",
     .enabled(
       if: ProcessInfo.processInfo.isiOSAppOnMac,
