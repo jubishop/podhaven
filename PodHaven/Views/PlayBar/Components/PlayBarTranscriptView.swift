@@ -46,8 +46,6 @@ private struct PlayBarTranscriptSegmentView: View {
   let currentTime: TimeInterval
   let isActive: Bool
 
-  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
-
   private var words: [TranscriptWord] {
     segment.playbackWords
   }
@@ -88,11 +86,7 @@ private struct PlayBarTranscriptSegmentView: View {
       .font(.body)
       .lineSpacing(5)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .contentTransition(.interpolate)
-      .animation(
-        accessibilityReduceMotion ? nil : .easeInOut(duration: 0.2),
-        value: activeWordIndex
-      )
+      .contentTransition(.identity)
       .accessibilityLabel(segment.text)
       .accessibilityValue(accessibilityValueText)
   }
@@ -132,7 +126,7 @@ private let previewPlayBarTranscript = Transcript(
   createdAt: Date()
 )
 
-#Preview("synced transcript — current word") {
+#Preview("synced transcript — layout-stable word highlight") {
   ZStack {
     LinearGradient(
       colors: [.purple.opacity(0.8), .blue.opacity(0.8)],
