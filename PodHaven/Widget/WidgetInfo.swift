@@ -66,10 +66,17 @@ enum WidgetInfo {
 
   static func recordExtensionInitialization() throws -> WidgetExtensionAcknowledgment {
     try extensionAcknowledgmentWrite { _ in
+      let buildNumber = AppInfo.buildNumber
+      let latestTimelineRequestAt: Date?
+      if let existing = try readExtensionAcknowledgment(), existing.buildNumber == buildNumber {
+        latestTimelineRequestAt = existing.latestTimelineRequestAt
+      } else {
+        latestTimelineRequestAt = nil
+      }
       let acknowledgment = WidgetExtensionAcknowledgment(
-        buildNumber: AppInfo.buildNumber,
+        buildNumber: buildNumber,
         initializedAt: Container.shared.dateProvider().now,
-        latestTimelineRequestAt: nil
+        latestTimelineRequestAt: latestTimelineRequestAt
       )
       try writeExtensionAcknowledgment(acknowledgment)
       return acknowledgment

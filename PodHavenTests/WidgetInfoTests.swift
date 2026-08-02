@@ -35,4 +35,27 @@ struct WidgetInfoTests {
     #expect(persistedRequest?.latestTimelineRequestAt == requestDate)
     #expect(Container.shared.fileManager().fileExists(at: WidgetInfo.extensionAcknowledgmentURL))
   }
+
+  @Test("preserves timeline request evidence across same-build initialization")
+  func preservesTimelineRequestAcrossSameBuildInitialization() throws {
+    let initialDate = Date(timeIntervalSince1970: 1_800_000_000)
+    let requestDate = initialDate.addingTimeInterval(30)
+    let reinitializationDate = requestDate.addingTimeInterval(30)
+    let dateProvider = Container.shared.dateProvider() as! FakeDate
+
+    dateProvider.freeze(at: initialDate)
+    let initialization = try WidgetInfo.recordExtensionInitialization()
+    dateProvider.freeze(at: requestDate)
+    let request = try WidgetInfo.recordExtensionTimelineRequest()
+    dateProvider.freeze(at: reinitializationDate)
+
+    let reinitialization = try WidgetInfo.recordExtensionInitialization()
+    let persisted = try WidgetInfo.readExtensionAcknowledgment()
+
+    #expect(initialization.initializedAt == initialDate)
+    #expect(request.timelineRequestAt == requestDate)
+    #expect(reinitialization.initializedAt == reinitializationDate)
+    #expect(reinitialization.latestTimelineRequestAt == requestDate)
+    #expect(persisted == reinitialization)
+  }
 }
