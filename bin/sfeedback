@@ -37,6 +37,10 @@ function __sfeedback_pick
         echo "Error: jq is required to list Sentry feedback"
         return 1
     end
+    if not type -q gh
+        echo "Error: gh is required to find tracked Sentry feedback"
+        return 1
+    end
 
     set -l issue_json (sentry issue list artisanal-software/podhaven \
         --query 'issue.category:feedback is:unresolved' \
@@ -63,6 +67,14 @@ function __sfeedback_pick
         return 1
     end
 
+    set -l github_issues_json (gh api --paginate --slurp \
+        'repos/jubishop/podhaven/issues?state=all&per_page=100')
+    set -l github_status $status
+    if test $github_status -ne 0
+        echo "Error: could not fetch PodHaven GitHub issues"
+        return $github_status
+    end
+
     set -l raw_rows (printf '%s\n' $issue_json | jq -r '
         def oneline:
             tostring
@@ -82,7 +94,8 @@ function __sfeedback_pick
                 | oneline
                 | if length > 140 then .[:137] + "..." else . end
             ),
-            ((.metadata.contact_email // "anonymous") | oneline)
+            ((.metadata.contact_email // "anonymous") | oneline),
+            .permalink
         ]
         | @tsv')
     set -l parse_status $status
@@ -96,17 +109,15 @@ function __sfeedback_pick
         return 1
     end
 
-    set -l repo_root (git rev-parse --show-toplevel 2>/dev/null)
     set -l cyan (set_color --bold cyan)
     set -l magenta (set_color magenta)
-    set -l yellow (set_color yellow)
     set -l dim (set_color brblack)
     set -l normal (set_color normal)
     set -l feedback_rows
 
     for raw_row in $raw_rows
         set -l parts (string split \t -- "$raw_row")
-        if test (count $parts) -ne 4; or not string match -qr '^[0-9]+$' -- "$parts[1]"
+        if test (count $parts) -ne 5; or not string match -qr '^[0-9]+$' -- "$parts[1]"
             echo "Error: sentry returned an invalid feedback row"
             return 1
         end
@@ -115,15 +126,53 @@ function __sfeedback_pick
         set -l short_id "$parts[2]"
         set -l message "$parts[3]"
         set -l contact "$parts[4]"
+        set -l permalink "$parts[5]"
         set -l slug "podhaven:$id"
-        set -l prior no
-        set -l prior_color "$dim"
-        if test -n "$repo_root"; and test -f "$repo_root/memory/sentry_feedback/podhaven-$id.md"
-            set prior yes
-            set prior_color "$yellow"
+        set -l issue_marker "<!-- sentry-feedback:$slug -->"
+        set -l analysis_marker '<!-- analyze-sentry-feedback-findings:start -->'
+        set -l github_match (printf '%s\n' $github_issues_json | jq -r \
+            --arg issue_marker "$issue_marker" \
+            --arg analysis_marker "$analysis_marker" \
+            --arg permalink "$permalink" '
+                first(
+                    .[][]
+                    | select(has("pull_request") | not)
+                    | select(
+                        ((.body // "") | contains($issue_marker))
+                        or ((.body // "") | contains($permalink))
+                    )
+                    | [
+                        (.number | tostring),
+                        .state,
+                        (if ((.body // "") | contains($analysis_marker))
+                            then "analyzed"
+                            else "intake"
+                        end)
+                    ]
+                    | @tsv
+                ) // empty')
+        set -l github_match_status $status
+        if test $github_match_status -ne 0
+            echo "Error: GitHub returned invalid issue data"
+            return $github_match_status
         end
 
-        set -l display "$cyan$short_id$normal  $magenta$slug$normal — \"$message\"  $dim($contact; prior analysis: $prior_color$prior$dim)$normal"
+        set -l tracking untracked
+        if test -n "$github_match"
+            set -l github_parts (string split \t -- "$github_match")
+            if test (count $github_parts) -ne 3
+                echo "Error: GitHub returned an invalid matching issue"
+                return 1
+            end
+
+            if test "$github_parts[2]" = closed
+                set tracking "#$github_parts[1] closed"
+            else
+                set tracking "#$github_parts[1] $github_parts[3]"
+            end
+        end
+
+        set -l display "$cyan$short_id$normal  $magenta$slug$normal — \"$message\"  $dim($contact; GitHub: $tracking)$normal"
         set -a feedback_rows (string join \t -- "$slug" "$display")
     end
 
@@ -137,7 +186,7 @@ function __sfeedback_pick
             --layout=reverse \
             --border \
             --prompt='Feedback> ' \
-            --header='Newest first | prior analysis = existing feedback ledger')
+            --header='Newest first')
         set -l picker_status $status
         if test $picker_status -ne 0
             echo "No feedback selected."
@@ -169,106 +218,6 @@ function __sfeedback_pick
     set -g __sfeedback_selected_slug "$selection_parts[1]"
 end
 
-function __sfeedback_feedback_title --argument-names slug
-    if not type -q sentry
-        echo "Error: sentry is required to fetch Sentry feedback" >&2
-        return 1
-    end
-    if not type -q jq
-        echo "Error: jq is required to read Sentry feedback" >&2
-        return 1
-    end
-
-    set -l id (string replace 'podhaven:' '' -- "$slug")
-    set -l issue_json (sentry issue view "$id" \
-        --fresh \
-        --json \
-        --fields id,title,metadata)
-    set -l view_status $status
-    if test $view_status -ne 0
-        echo "Error: could not fetch $slug from Sentry" >&2
-        return $view_status
-    end
-
-    set -l feedback_title (printf '%s\n' $issue_json | jq -er --arg id "$id" '
-        def oneline:
-            tostring
-            | gsub("[[:cntrl:]]+"; " ")
-            | gsub("  +"; " ")
-            | sub("^ +"; "")
-            | sub(" +$"; "");
-        if type != "object" or .id != $id then
-            error("unexpected feedback response")
-        else
-            [.metadata.summary, .title]
-            | map(select(type == "string") | oneline | select(length > 0))
-            | .[0]
-        end')
-    set -l parse_status $status
-    if test $parse_status -ne 0; or test -z "$feedback_title"
-        echo "Error: Sentry returned no usable title for $slug" >&2
-        return 1
-    end
-
-    echo "$feedback_title"
-end
-
-function __sfeedback_worktree_name --argument-names feedback_title
-    if not type -q llm
-        echo "Error: llm is required to generate a worktree name from the Sentry feedback title" >&2
-        return 1
-    end
-
-    set -l worktree_name_prompt 'Name a git worktree directory for triaging Sentry user feedback from its title.
-
-Return exactly one descriptive lowerCamelCase name and nothing else.
-Limit the name to 24 characters maximum.
-Use only ASCII letters and numbers.'
-
-    set -l raw_name (printf '%s\n' "$feedback_title" | llm -m openrouter/anthropic/claude-haiku-4.5 --no-stream -s "$worktree_name_prompt" 2>/dev/null | string trim | string collect)
-    set -l generation_status $pipestatus[2]
-    if test $generation_status -ne 0
-        echo "Error: could not generate a worktree name for the Sentry feedback" >&2
-        return $generation_status
-    end
-
-    set -l name (string replace -ar '[^A-Za-z0-9]' '' -- "$raw_name")
-    set -l first_char (string lower (string sub -l 1 -- "$name"))
-    set -l rest (string sub -s 2 -- "$name")
-    set name "$first_char$rest"
-
-    if test (string length -- "$name") -gt 24
-        set -l name_tokens (string replace -ar '([a-z0-9])([A-Z])' '$1 $2' -- "$name" | string split ' ')
-        if test (count $name_tokens) -gt 1
-            set -l last_token $name_tokens[-1]
-            set -l shortened_prefix $name_tokens[1]
-            set -l shortened_name "$name_tokens[1]$last_token"
-
-            if test (count $name_tokens) -gt 2
-                for token_index in (seq 2 (math (count $name_tokens) - 1))
-                    set -l token $name_tokens[$token_index]
-                    set -l candidate "$shortened_prefix$token$last_token"
-                    if test (string length -- "$candidate") -le 24
-                        set shortened_prefix "$shortened_prefix$token"
-                        set shortened_name $candidate
-                    else
-                        break
-                    end
-                end
-            end
-
-            set name $shortened_name
-        end
-    end
-
-    if not string match -qr '^[a-z][A-Za-z0-9]{3,23}$' -- "$name"
-        echo "Error: llm returned invalid worktree name: $raw_name" >&2
-        return 1
-    end
-
-    echo "$name"
-end
-
 function __sfeedback_main
     if test (count $argv) -gt 1
         __sfeedback_usage
@@ -279,6 +228,8 @@ function __sfeedback_main
         echo "Error: not in a git repository"
         return 1
     end
+    set -l repo_root (git rev-parse --show-toplevel)
+    or return 1
 
     set -l slug
     if test (count $argv) -eq 0
@@ -293,21 +244,12 @@ function __sfeedback_main
         end
     end
 
-    if not type -q ghcw
-        echo "Error: ghcw is required to create the feedback worktree"
-        return 1
-    end
     if not type -q codex
         echo "Error: codex is required to analyze Sentry feedback"
         return 1
     end
 
-    set -l feedback_title (__sfeedback_feedback_title "$slug")
-    or return 1
-    set -l worktree_name (__sfeedback_worktree_name "$feedback_title")
-    or return 1
-
-    ghcw "$worktree_name"
+    cd "$repo_root"
     or return 1
 
     codex --dangerously-bypass-approvals-and-sandbox "\$analyze-sentry-feedback $slug"

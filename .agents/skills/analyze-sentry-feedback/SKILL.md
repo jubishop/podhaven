@@ -4,11 +4,13 @@ description: >-
   Triage a Sentry user feedback item end to end: fetch the feedback, download
   the reporter's NDJSON logs (app and widget) that PodHaven attaches to the
   feedback event, correlate them to the report time, and explain what likely
-  happened plus a suggested fix. Use when the user pastes a Sentry feedback
-  URL (e.g. .../issues/feedback/?feedbackSlug=podhaven:NNN...), references a
-  feedback by slug or ID, or asks to investigate a piece of user feedback
-  from Sentry. Invoked with no reference at all, it lists the feedback
-  entries still unresolved in Sentry and lets the user pick one to triage.
+  happened plus a suggested fix, then funnel sanitized findings into a GitHub
+  issue that tracks the feedback through closeout. Use when the user pastes a
+  Sentry feedback URL (e.g.
+  .../issues/feedback/?feedbackSlug=podhaven:NNN...), references a feedback by
+  slug or ID, or asks to investigate a piece of user feedback from Sentry.
+  Invoked with no reference at all, it lists the feedback entries still
+  unresolved in Sentry and lets the user pick one to triage.
 user_invocable: true
 disable-model-invocation: true
 argument: >-
@@ -29,17 +31,24 @@ Sentry. Those attachments are the *reporter's* logs and the only logs that
 correctly correspond to the report — not the developer's local iCloud Drive
 copies.
 
-The goal is one focused report: what the user complained about, what the logs
-around that time show, the most likely root cause, and how to fix it.
+The goal is one focused private report plus one deduplicated GitHub issue: what
+the user experienced, what the logs around that time show, the most likely root
+cause, how to fix or investigate it, and the originating feedback slug to
+resolve when that issue is eventually closed. Sentry remains the source of
+private reporter details; GitHub becomes the durable work tracker.
 
 ## Scope
 
-One feedback at a time. Do **not** use this skill to summarize many feedbacks
-at once or to do general Sentry log triage — for that, use
-`analyze-sentry-logs`. For a non-feedback error issue (an `issues/<id>` URL or
-short ID), use `analyze-sentry-issue`. The no-argument listing in Step 0 is the
-one exception: it only enumerates open entries so the user can pick one to
+One feedback and one tracking issue at a time. Do **not** use this skill to
+summarize many feedbacks at once or to do general Sentry log triage — for that,
+use `analyze-sentry-logs`. For a non-feedback error issue (an `issues/<id>` URL
+or short ID), use `analyze-sentry-issue`. The no-argument listing in Step 0 is
+the one exception: it only enumerates open entries so the user can pick one to
 triage.
+
+This workflow must not dirty the repository. Reporter attachments belong in
+the cache directory from Step 6, fetched bundles belong under `/tmp`, and the
+GitHub issue is the only durable record this skill creates or updates.
 
 ## Step 0: No reference given? List unresolved feedback
 
@@ -59,13 +68,16 @@ sentry issue list artisanal-software/podhaven \
    `metadata.contact_email`, and `permalink` (its `feedbackSlug=` query param
    is the slug). Feedback rows carry no timestamps in this listing; higher
    numeric IDs are newer.
-3. For each entry, check whether a prior-analysis ledger exists at
-   `memory/sentry_feedback/podhaven-<id>.md` — an unresolved entry *with* a
-   ledger has been looked at before and deliberately left open.
+3. Fetch GitHub issues in `jubishop/podhaven` once, including closed issues.
+   Match each feedback by the exact `<!-- sentry-feedback:<slug> -->` body
+   marker used by `bin/check-sentry-feedback`, with the Sentry permalink as a
+   fallback. The managed findings marker from Step 9 distinguishes analyzed
+   issues from intake placeholders.
 4. Present the entries newest first and let the user choose one (multiple-
    choice prompt if supported, otherwise a numbered list), one line each:
    `PODHAVEN-XX  podhaven:<id> — "<message, trimmed to one line>"
-   (<contact email or anonymous>; prior analysis: yes/no)`.
+   (<contact email or anonymous>; GitHub: #N intake|#N analyzed|#N
+   closed|untracked)`.
 5. If there are no unresolved entries, say so plainly and stop.
 6. When the user picks one, continue to Step 1 with `podhaven:<id>` as the
    reference, treating anything else they typed alongside the pick as triage
@@ -79,8 +91,7 @@ From the argument, extract:
    it). If only a numeric ID is provided, assume the slug is `podhaven:<id>`.
 2. **Numeric feedback ID**: the part after `:` in the slug.
 3. **Path-safe slug**: the slug with `:` replaced by `-` (e.g.
-   `podhaven-7485822944`) — names both the ledger file (Step 2) and the
-   attachment download directory (Step 6).
+   `podhaven-7485822944`) — names the attachment download directory (Step 6).
 4. **Sentry org**: `artisanal-software` (default for this repo).
 5. **Project ID**: `4508469264711681` if present in the URL, else assume the
    PodHaven project.
@@ -94,28 +105,40 @@ Tell the user the parsed slug in one short line before fetching, so they can
 catch a mis-paste early. If the user attached notes, echo them back in the
 same line so they know they were picked up (not silently dropped).
 
-## Step 2: Check for prior analysis
+Capture `git status --short` before continuing. Compare it again before the
+final response; the output must be identical because this workflow never owns
+repository changes.
 
-Every feedback this skill has worked before has a ledger at
-`memory/sentry_feedback/<path-safe-slug>.md` (e.g.
-`memory/sentry_feedback/podhaven-7485822944.md`).
+## Step 2: Find the tracking issue and prior analysis
 
-- **If the ledger exists, read it before fetching anything from Sentry.**
-  Prior sessions record what was concluded, what fixes/issues/PRs came out of
-  it, and whether the entry was deliberately left unresolved. Tell the user in
-  a line or two what prior sessions found, and carry those conclusions into
-  the synthesis. Don't redo analysis a prior session already settled unless
-  the user asks, or new evidence (a newer build, a fresh Sentry follow-up)
-  contradicts it — in that case say what changed.
-- If it doesn't exist, this is first-time triage; move on.
+Search all GitHub issues in `jubishop/podhaven`, open and closed, for the exact
+`<!-- sentry-feedback:<slug> -->` body marker. Fall back to an exact match on
+the Sentry permalink. Read the matching issue body and comments before fetching
+anything else.
 
-Either way, the session ends by creating or appending this ledger (Step 9).
+- The daily `bin/check-sentry-feedback` workflow may already have created a
+  placeholder issue. Its generic title and instruction comment mean the item
+  is tracked, not that anyone has analyzed it yet.
+- A complete managed findings block means the issue was already analyzed.
+  Summarize its findings, fixes, PR links, or disposition to the user and carry
+  them into Step 8 as the comparison baseline. Do not presume that another run
+  requires another GitHub write.
+- Do not redo settled analysis unless the user asks or current Sentry evidence
+  materially differs. Say exactly what changed when it does.
+- If multiple issues match, prefer the exact-marker issue, report the
+  duplicates, and update only the canonical issue in Step 9.
+- If no issue matches, remember that one must be created in Step 9.
+- A legacy `memory/sentry_feedback/<path-safe-slug>.md` file may be read as
+  historical evidence when it exists, but never create, edit, or delete one.
+  GitHub is the canonical record for all new analysis.
+
+Keep the canonical issue number, URL, title, body, state, and Sentry permalink
+for Step 9. Do not modify it until the evidence has been synthesized.
 
 ## Step 3: Fetch the feedback from Sentry
 
-Requires the **`sentry` CLI** and auth (`sentry auth login`). See
-`analyze-sentry-issue` prerequisites for install notes. Do not use the Sentry MCP
-server.
+Requires the **`sentry` CLI** and auth (`sentry auth login`). If the command is
+missing, report that prerequisite and stop. Do not use the Sentry MCP server.
 
 Run:
 
@@ -277,14 +300,17 @@ Fallbacks, in order, if the attachment route fails:
   - `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`
   - `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/widget-log.ndjson`
 
-## Step 7: Analyze the logs with the `analyze-logs` script
+## Step 7: Analyze the logs with the bundled summary script
 
 **Do not hand-roll log parsing.** Analyze the **downloaded** NDJSON from Step 6
-with the `analyze-logs` skill's bundled script — `scripts/log_summary.py` in
-that skill's directory. Invoke the `analyze-logs` skill to load its full
-reference (every flag, the format spec). Ad-hoc `python`/`jq` only earns its
-place for a custom aggregation the script genuinely cannot express, and only
-*after* the script's orient pass — never as the first move.
+with `.agents/skills/analyze-logs/scripts/log_summary.py`. This step contains
+the incident-specific workflow and flags needed here; do not load the full
+`analyze-logs` skill on top of it. Read
+`.agents/skills/analyze-logs/references/podhaven-log-format.md` only when exact
+field, truncation, or MetricKit payload details are necessary. Ad-hoc
+`python`/`jq` only earns its place for a custom aggregation the script genuinely
+cannot express, and only *after* the script's orient pass — never as the first
+move.
 
 The reporter's `log.ndjson` is a rolling buffer that usually spans many app
 launches; the feedback is almost always about the *last* one. Work it in this
@@ -345,16 +371,16 @@ they are usually the most important evidence in the report.
 
 ## Step 8: Synthesize
 
-Build one report. Lead with the user's words, then the evidence, then the
-verdict and suggested fix. The reader should be able to act on this without
-opening Sentry themselves.
+Build one private report. Lead with the user's words, then the evidence, then
+the verdict and suggested fix. The report may contain reporter details from
+Sentry; the public GitHub issue created from it in Step 9 may not.
 
 When forming the inferred root cause, weight signals in this rough order:
 
 1. **Triage notes from this invocation** — the user just told you what to focus
    on; respect that unless the logs flatly contradict it.
-2. **Prior-session conclusions from the ledger (Step 2)** — settled verdicts
-   and shipped fixes from earlier sessions; only new evidence overturns them.
+2. **Prior conclusions from the tracking issue (Step 2)** — settled verdicts
+   and shipped fixes from earlier work; only new evidence overturns them.
 3. **Sentry follow-ups** — later comments often reflect what the user has
    already learned or ruled out since submission. A follow-up that says "turned
    out to be X" beats anything the original message implied.
@@ -391,8 +417,8 @@ Report format:
 > <verbatim feedback message>
 
 ## Prior analysis
-(Summary of earlier sessions from the `memory/sentry_feedback/` ledger — when
-each ran, the verdict, and what actions came out of it. Omit the section on
+(Summary of earlier findings or dispositions from the tracking GitHub issue,
+plus any useful read-only legacy-ledger evidence. Omit the section on
 first-time triage.)
 
 ## Sentry follow-ups
@@ -436,61 +462,105 @@ the next investigative step instead (e.g. "add logging at X", "reproduce by Y").
 Anything the user could clarify that would sharpen the diagnosis (e.g.
 "was this on cellular?", "do you remember which screen you were on?").
 Omit this section if there are no useful follow-ups.
+
+## GitHub issue
+<created|enriched|updated|reopened|reused unchanged> <issue number and URL>.
+Sentry feedback `<slug>` remains unresolved and should be resolved when this
+issue is closed.
 ```
 
-## Step 9: Record the session and offer to resolve
+## Step 9: Funnel the findings into GitHub
 
-After delivering the report — and after any follow-up work the user directs in
-the same session (filing issues, ancestry checks, deeper log digging) — record
-what happened in the ledger at `memory/sentry_feedback/<path-safe-slug>.md`
-(create the `memory/sentry_feedback/` directory if needed).
+Before delivering the final report, ensure exactly one GitHub issue carries
+the actionable, public-safe result of the analysis. Creating, enriching, or
+materially updating this issue is automatic; do not ask for confirmation. An
+already-accurate issue is a successful no-write outcome.
 
-First-time triage creates the file:
+1. If no matching issue exists, create one in `jubishop/podhaven` with a concise
+   action-oriented title. Use `Investigate ...` when the cause is uncertain.
+2. If the canonical issue is an intake placeholder, enrich it by editing its
+   title and body directly. Do not post the findings as another comment.
+   Preserve a meaningful human-written title and leave the checker's
+   `sfeedback` instruction comment alone as history.
+3. If the issue already has a complete managed findings block, compare the new
+   synthesis to it. Update the title or managed block only for a material
+   change, such as a new Sentry follow-up or user-provided context that changes
+   the conclusion, a corrected root cause or confidence level, or a changed
+   proposed resolution or verification plan. Rewording, formatting cleanup, a
+   rerun timestamp, or repeated evidence is not material.
+4. If nothing material changed, make **no GitHub writes**: do not edit the
+   title, body, state, or comments. Report the outcome as `reused unchanged`.
+5. If a matching issue is closed but the current synthesis shows work remains,
+   reopen it rather than creating a duplicate. If its prior disposition still
+   holds and the managed findings remain accurate, leave it closed and reuse it
+   unchanged.
+6. Keep the exact marker `<!-- sentry-feedback:<slug> -->` in the body so
+   `bin/check-sentry-feedback` and later runs deduplicate it.
+7. When creating, enriching, or materially updating, add or replace only the
+   section between
+   `<!-- analyze-sentry-feedback-findings:start -->` and
+   `<!-- analyze-sentry-feedback-findings:end -->`. Preserve every human-written
+   line outside that managed block. Keep any temporary issue-body file under
+   `/tmp`, never in the repository. Use this body shape:
 
 ```markdown
----
-slug: podhaven:7485822944
-shortId: PODHAVEN-3K
-description: <one-line summary of the feedback>
-sentry-status: unresolved
----
+<!-- sentry-feedback:<slug> -->
+This issue tracks [Sentry feedback `<slug>`](<permalink>) (`<shortId>`).
+Keep the feedback unresolved in Sentry while this issue remains open.
 
-# Sentry Feedback podhaven:7485822944 — <short title>
+<!-- analyze-sentry-feedback-findings:start -->
+## Findings
 
-## Sessions
+- **User-visible symptom:** <sanitized paraphrase>
+- **Root cause:** <conclusion and confidence>
+- **Evidence:** <minimal technical evidence needed to act>
+- **Unknowns:** <material gaps, or "None">
 
-### <ISO-8601 timestamp with timezone>
+## Proposed resolution
 
-- Verdict: <root cause / conclusion, with confidence>
-- Actions: <what this session did: report delivered, issue filed, fix
-  commits ancestry-checked, "analysis only", ...>
-- Sentry: <left unresolved | marked resolved>
+<files/functions or investigative boundary, proposed behavior, and why>
+
+## Verification
+
+- <regression proof or investigative checks>
+
+## Sentry closeout
+
+When this GitHub issue is ready to close, also resolve Sentry feedback
+`<slug>`. Reporter text and identity remain in Sentry and must not be copied
+into this public issue.
+<!-- analyze-sentry-feedback-findings:end -->
 ```
 
-Later sessions insert a new `### <timestamp>` block at the **top** of
-`## Sessions` (newest first) and leave earlier entries untouched. Keep each
-session to a few bullets — enough that a future session can skip re-deriving
-the verdict, not a copy of the whole report. These ledgers are tool-managed
-(exempt from the memory page schema, like `memory/pr_reviews/`); this skill
-owns their lifecycle.
+The GitHub findings must be sufficient for the `issuefix` skill or another
+issue-based workflow to start without repeating the triage. Include relevant
+public file, function, issue, PR, and commit references. Do not include the
+reporter's verbatim text, email, user ID, replay/event/trace identifiers, raw
+log lines, or other private/device-specific data. Summarize only the technical
+evidence needed to act and link to Sentry for the protected context.
 
-Then ask the user whether to mark the feedback resolved in Sentry. If yes:
+Leave the feedback unresolved during ordinary triage. The issue's closeout
+section is the handoff for resolving it after the fix or disposition is
+complete. If the user explicitly directs immediate resolution because no work
+remains, honor that only after the issue records the disposition.
 
-```bash
-sentry issue resolve <numeric-feedback-id>
-```
-
-and set `sentry-status: resolved` in the ledger frontmatter; if no, leave
-`sentry-status: unresolved`. Either way the session entry's `Sentry:` bullet
-records the choice. Never resolve in Sentry without asking first.
+If GitHub authentication or issue creation/update fails, deliver the report
+and the exact blocker, but do not create a local ledger or any other fallback
+file. Tell the user to authenticate with `gh auth login` when that is the
+failure. Otherwise, finish by giving the issue number and URL, whether it was
+created, enriched, materially updated, reopened, or reused unchanged, and that
+repository status is unchanged from the baseline captured in Step 1.
 
 ## Rules
 
 - Convert all user-facing timestamps to Pacific Time and include the timezone.
-- Quote the user's feedback verbatim. Do not paraphrase or "clean it up".
-- Never edit application code from inside this skill — the output is analysis
-  and a fix recommendation, not a patch. If the user wants the fix shipped,
-  they can follow up with `/issuefix` or ask explicitly.
+- Quote the user's feedback verbatim in the private report. Never copy it or
+  reporter-identifying details into the public GitHub issue.
+- Never edit repository files from inside this skill, including application
+  code, docs, and `memory/sentry_feedback/`. Do not commit or push. Temporary
+  bundles under `/tmp` and reporter attachments under the user cache are fine.
+  The output is analysis plus a GitHub issue ready for `issuefix` or another
+  issue-based workflow.
 - Do not invent log lines, event IDs, or stack frames. If a piece of data is
   missing, say "not available" rather than guessing.
 - If the feedback has no linked event and the logs show nothing notable in
@@ -502,6 +572,7 @@ records the choice. Never resolve in Sentry without asking first.
   reporter's build/commit to git ancestry (Step 4) before concluding. A
   recurrence on a build that already contains the fix is an incomplete fix —
   the report must say so explicitly rather than blaming a stale build.
-- Never end a session that triaged a feedback without writing or appending its
-  ledger (Step 9), and never mark a feedback resolved in Sentry without the
-  user's explicit yes in that session.
+- Never end a successful triage without creating, enriching, materially
+  updating, reopening, or explicitly reusing its canonical GitHub issue
+  unchanged (Step 9). Never use a repo file as a fallback when an external
+  write is blocked.

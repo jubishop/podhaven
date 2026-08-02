@@ -74,10 +74,9 @@ write_instruction_comment() {
   local comment_path="$WORK_DIR/comment.md"
 
   {
-    printf '<!-- analyze-sentry-feedback:%s -->\n' "$slug"
-    printf "Any agent taking this issue must first use the repository's "
-    printf "\`%s\` skill with [%s](%s) and follow that workflow end to end before investigating or changing code.\n" \
-      "analyze-sentry-feedback" "$slug" "$permalink"
+    printf '<!-- sfeedback:%s -->\n' "$slug"
+    printf "Run \`bin/sfeedback %s\` from a PodHaven checkout to analyze [%s](%s) and update this issue with the findings before starting implementation.\n" \
+      "$slug" "$slug" "$permalink"
   } > "$comment_path"
 
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -98,7 +97,8 @@ while IFS= read -r feedback; do
   PERMALINK="$(jq -r '.permalink' <<< "$feedback")"
   SLUG="podhaven:$ID"
   ISSUE_MARKER="<!-- sentry-feedback:$SLUG -->"
-  COMMENT_MARKER="<!-- analyze-sentry-feedback:$SLUG -->"
+  COMMENT_MARKER="<!-- sfeedback:$SLUG -->"
+  ANALYSIS_MARKER="<!-- analyze-sentry-feedback-findings:start -->"
 
   EXISTING_NUMBER="$(jq -r \
     --arg marker "$ISSUE_MARKER" \
@@ -111,6 +111,15 @@ while IFS= read -r feedback; do
 
   if [[ -n "$EXISTING_NUMBER" ]]; then
     TRACKED=$((TRACKED + 1))
+    if jq -e \
+      --argjson number "$EXISTING_NUMBER" \
+      --arg marker "$ANALYSIS_MARKER" \
+      'any(.[]; .number == $number and ((.body // "") | contains($marker)))' \
+      "$ISSUES_JSON" >/dev/null; then
+      echo "Already analyzed: $SLUG in issue #$EXISTING_NUMBER"
+      continue
+    fi
+
     COMMENTS_JSON="$WORK_DIR/comments-$EXISTING_NUMBER.json"
     gh api --paginate --slurp \
       "repos/$GH_REPO/issues/$EXISTING_NUMBER/comments?per_page=100" \
