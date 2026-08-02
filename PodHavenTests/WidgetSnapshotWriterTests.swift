@@ -5,6 +5,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import GRDB
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -276,6 +277,53 @@ import Testing
     #expect(queueSnapshot.queue.first?.episodeID == queuedEpisode.id.rawValue)
     #expect(timelineKinds.allSatisfy { widgetCenter.reloadCount(ofKind: $0) == 0 })
     #expect(widgetState.lastUpgradeRecoveryBuild == AppInfo.buildNumber)
+  }
+
+  @Test("upgrade recovery does not wait for remote queue artwork")
+  func upgradeRecoveryDoesNotWaitForRemoteQueueArtwork() async throws {
+    let artworkURL = try #require(
+      URL(string: "https://example.com/upgrade-recovery-queue-artwork.png")
+    )
+    let persistedArtwork = "persisted-artwork"
+    let artworkRelease = AsyncSemaphore(value: 0)
+    defer { artworkRelease.signal() }
+
+    let dataLoader = Container.shared.fakeDataLoader()
+    dataLoader.respond(to: artworkURL) { _ in
+      try await artworkRelease.waitUnlessCancelled()
+      return Data()
+    }
+    let queuedEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(image: artworkURL),
+        unsavedEpisode: try Create.unsavedEpisode(queueOrder: 0)
+      )
+    )
+    let priorSnapshot = QueueSnapshot(
+      schemaVersion: QueueSnapshot.currentSchemaVersion,
+      queue: [],
+      queueTotalCount: 0,
+      artwork: [artworkURL.absoluteString: persistedArtwork],
+      updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    try await fileManager.writeData(
+      JSONEncoder().encode(priorSnapshot),
+      to: WidgetInfo.queueSnapshotURL
+    )
+    widgetState.lastUpgradeRecoveryBuild = "previous-build"
+    Container.shared.widgetState.reset()
+
+    writer.start()
+
+    try await Wait.until(
+      maxAttempts: 20,
+      { self.widgetCenter.reloadAllCount() == 1 },
+      { "Remote queue artwork blocked upgrade recovery" }
+    )
+    let snapshot = try await WidgetHelpers.waitForQueueSnapshot()
+    #expect(!dataLoader.loadedURLs().contains(artworkURL))
+    #expect(snapshot.queue.first?.episodeID == queuedEpisode.id.rawValue)
+    #expect(snapshot.artwork[artworkURL.absoluteString] == persistedArtwork)
   }
 
   @Test("first tracked build performs one reload-all")

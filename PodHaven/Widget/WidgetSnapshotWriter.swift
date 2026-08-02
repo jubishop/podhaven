@@ -24,6 +24,11 @@ extension Container {
 }
 
 final class WidgetSnapshotWriter: Sendable {
+  private enum QueueArtworkSource {
+    case persistedSnapshot
+    case remote
+  }
+
   private var controlCenter: any ControlReloading { Container.shared.controlCenter() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
@@ -218,7 +223,7 @@ final class WidgetSnapshotWriter: Sendable {
     } else {
       nowPlayingSnapshotReady = await writeNowPlayingSnapshot()
     }
-    let queueSnapshotReady = await writeQueueSnapshot()
+    let queueSnapshotReady = await writeQueueSnapshot(artworkSource: .persistedSnapshot)
 
     guard nowPlayingSnapshotReady && queueSnapshotReady else {
       Self.log.error(
@@ -335,7 +340,7 @@ final class WidgetSnapshotWriter: Sendable {
   private let maxQueueArtworkPixels: CGFloat = 96
 
   @discardableResult
-  private func writeQueueSnapshot() async -> Bool {
+  private func writeQueueSnapshot(artworkSource: QueueArtworkSource = .remote) async -> Bool {
     let episodes = Array(queueWidgetEpisodes().prefix(5))
     let showPodcastImage = userSettings.alwaysShowPodcastImageInUpNext
 
@@ -349,27 +354,44 @@ final class WidgetSnapshotWriter: Sendable {
     }
 
     var artworkDict = [String: String](minimumCapacity: uniqueURLs.count)
-    await withTaskGroup(of: (String, String?).self) { group in
-      for urlString in uniqueURLs {
-        group.addTask { [imagePipeline, maxQueueArtworkPixels] in
-          guard let url = URL(string: urlString) else { return (urlString, nil) }
-          do {
-            let image = try await imagePipeline.image(for: url)
-            let encoded = Self.encodeArtwork(image, maxPixels: maxQueueArtworkPixels)
-            return (urlString, encoded)
-          } catch {
-            Self.log.caughtError(
-              "writeQueueSnapshot: failed to load \(urlString)",
-              error,
-              level: .info
-            )
-            return (urlString, nil)
-          }
+    switch artworkSource {
+    case .persistedSnapshot:
+      if fileManager.fileExists(at: WidgetInfo.queueSnapshotURL) {
+        do {
+          let data = try await fileManager.readData(from: WidgetInfo.queueSnapshotURL)
+          let snapshot = try JSONDecoder().decode(QueueSnapshot.self, from: data)
+          artworkDict = snapshot.artwork.filter { uniqueURLs.contains($0.key) }
+        } catch {
+          Self.log.caughtError(
+            "writeQueueSnapshot: failed to reuse persisted artwork",
+            error,
+            level: .info
+          )
         }
       }
-      for await (urlString, base64) in group {
-        if let base64 {
-          artworkDict[urlString] = base64
+    case .remote:
+      await withTaskGroup(of: (String, String?).self) { group in
+        for urlString in uniqueURLs {
+          group.addTask { [imagePipeline, maxQueueArtworkPixels] in
+            guard let url = URL(string: urlString) else { return (urlString, nil) }
+            do {
+              let image = try await imagePipeline.image(for: url)
+              let encoded = Self.encodeArtwork(image, maxPixels: maxQueueArtworkPixels)
+              return (urlString, encoded)
+            } catch {
+              Self.log.caughtError(
+                "writeQueueSnapshot: failed to load \(urlString)",
+                error,
+                level: .info
+              )
+              return (urlString, nil)
+            }
+          }
+        }
+        for await (urlString, base64) in group {
+          if let base64 {
+            artworkDict[urlString] = base64
+          }
         }
       }
     }
