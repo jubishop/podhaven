@@ -337,6 +337,11 @@ private struct TranscriptPlaybackTestView: View {
     )
     let tolerance = stableNoise + 64
 
+    #expect(
+      finalRendering.differingByteCount(from: initialRendering) > tolerance,
+      "The highlighted transcript did not render the final word state"
+    )
+
     let renderedIntermediateState = transitionRenderings.contains { rendering in
       rendering.differingByteCount(from: initialRendering) > tolerance
         && rendering.differingByteCount(from: finalRendering) > tolerance
