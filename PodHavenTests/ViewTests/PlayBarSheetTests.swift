@@ -195,7 +195,7 @@ private struct TranscriptPlaybackTestView: View {
   }
 
   @Test(
-    "highlighting a transcript word preserves the segment layout",
+    "highlighting a transcript block preserves the segment layout",
     .enabled(
       if: supportsHostedAccessibilityInspection,
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
@@ -268,7 +268,7 @@ private struct TranscriptPlaybackTestView: View {
     let inactiveHeight = try await segmentHeight()
     let host = try #require(window.rootViewController as? UIHostingController<AnyView>)
     host.rootView = transcriptView(at: 3.5)
-    let highlightedHeight = try await segmentHeight(expectedValue: "Current word should")
+    let highlightedHeight = try await segmentHeight(expectedValue: "Current text block")
 
     #expect(
       highlightedHeight == inactiveHeight,
@@ -277,13 +277,13 @@ private struct TranscriptPlaybackTestView: View {
   }
 
   @Test(
-    "highlighting moves directly between words without interpolating transcript glyphs",
+    "highlighting stays on one transcript block as word timing advances",
     .enabled(
       if: supportsHostedAccessibilityInspection,
       "SwiftUI does not expose hosted rendering in iOS Simulator"
     )
   )
-  func transcriptHighlightDoesNotInterpolateGlyphs() async throws {
+  func transcriptHighlightStaysOnActiveBlock() async throws {
     let transcript = Transcript(
       segments: [
         TranscriptSegment(
@@ -308,7 +308,7 @@ private struct TranscriptPlaybackTestView: View {
       locale: "en-US",
       createdAt: Date()
     )
-    let playbackState = TranscriptPlaybackState(currentTime: 3.5)
+    let playbackState = TranscriptPlaybackState(currentTime: -1)
     let window = try Self.makeWindow(
       TranscriptPlaybackTestView(playbackState: playbackState, transcript: transcript),
       size: CGSize(width: 160, height: 520)
@@ -317,39 +317,37 @@ private struct TranscriptPlaybackTestView: View {
     let displayFrameWaiter = DisplayFrameWaiter()
 
     await displayFrameWaiter.wait()
-    let initialRendering = try Self.render(window)
+    let inactiveRendering = try Self.render(window)
     await displayFrameWaiter.wait()
-    let repeatedInitialRendering = try Self.render(window)
+    let repeatedInactiveRendering = try Self.render(window)
+
+    playbackState.currentTime = 3.5
+    await displayFrameWaiter.wait(forFrameCount: 30)
+    let activeBlockRendering = try Self.render(window)
+    await displayFrameWaiter.wait()
+    let repeatedActiveBlockRendering = try Self.render(window)
 
     playbackState.currentTime = 4.5
-    var transitionRenderings: [PixelBuffer] = []
-    for _ in 0..<3 {
-      await displayFrameWaiter.wait()
-      transitionRenderings.append(try Self.render(window))
-    }
     await displayFrameWaiter.wait(forFrameCount: 30)
-    let finalRendering = try Self.render(window)
+    let advancedWordRendering = try Self.render(window)
     await displayFrameWaiter.wait()
-    let repeatedFinalRendering = try Self.render(window)
+    let repeatedAdvancedWordRendering = try Self.render(window)
     let stableNoise = max(
-      initialRendering.differingByteCount(from: repeatedInitialRendering),
-      finalRendering.differingByteCount(from: repeatedFinalRendering)
+      inactiveRendering.differingByteCount(from: repeatedInactiveRendering),
+      max(
+        activeBlockRendering.differingByteCount(from: repeatedActiveBlockRendering),
+        advancedWordRendering.differingByteCount(from: repeatedAdvancedWordRendering)
+      )
     )
     let tolerance = stableNoise + 64
 
     #expect(
-      finalRendering.differingByteCount(from: initialRendering) > tolerance,
-      "The highlighted transcript did not render the final word state"
+      activeBlockRendering.differingByteCount(from: inactiveRendering) > tolerance,
+      "The active transcript block did not receive a visible highlight"
     )
-
-    let renderedIntermediateState = transitionRenderings.contains { rendering in
-      rendering.differingByteCount(from: initialRendering) > tolerance
-        && rendering.differingByteCount(from: finalRendering) > tolerance
-    }
-
     #expect(
-      !renderedIntermediateState,
-      "The highlighted transcript rendered a visible intermediate state instead of moving directly between words"
+      advancedWordRendering.differingByteCount(from: activeBlockRendering) <= tolerance,
+      "The highlighted transcript changed while playback remained in the same text block"
     )
   }
 
@@ -550,7 +548,7 @@ private struct TranscriptPlaybackTestView: View {
       Self.accessibilityElements(in: presentedView)
         .first { $0.accessibilityLabel == "Follow along" }
     )
-    #expect(transcriptSegment.accessibilityValue == "Current word along")
+    #expect(transcriptSegment.accessibilityValue == "Current text block")
   }
 
   @Test(

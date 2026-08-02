@@ -35,43 +35,6 @@ struct TranscriptSegment: Codable, Hashable, Sendable {
     text = try container.decode(String.self, forKey: .text)
     words = try container.decodeIfPresent([TranscriptWord].self, forKey: .words) ?? []
   }
-
-  var playbackWords: [TranscriptWord] {
-    var normalized = words
-    while let first = normalized.first {
-      let trimmed = String(first.text.drop(while: \.isWhitespace))
-      guard !trimmed.isEmpty else {
-        normalized.removeFirst()
-        continue
-      }
-      normalized[0] = TranscriptWord(start: first.start, end: first.end, text: trimmed)
-      break
-    }
-    while let last = normalized.last {
-      let trimmed = String(last.text.reversed().drop(while: \.isWhitespace).reversed())
-      guard !trimmed.isEmpty else {
-        normalized.removeLast()
-        continue
-      }
-      normalized[normalized.count - 1] = TranscriptWord(
-        start: last.start,
-        end: last.end,
-        text: trimmed
-      )
-      break
-    }
-    guard !normalized.isEmpty, normalized.map(\.text).joined() == text else {
-      return [TranscriptWord(start: start, end: end, text: text)]
-    }
-    return normalized
-  }
-
-  func activeWordIndex(at currentTime: TimeInterval) -> Int? {
-    guard currentTime.isFinite else { return nil }
-    return playbackWords.lastIndex { word in
-      word.start <= currentTime && currentTime < word.end
-    }
-  }
 }
 
 struct Transcript: Codable, Hashable, Sendable {
