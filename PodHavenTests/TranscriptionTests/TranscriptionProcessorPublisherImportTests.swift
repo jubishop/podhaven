@@ -61,6 +61,7 @@ struct TranscriptionProcessorPublisherImportTests {
     let repo = Container.shared.repo()
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
+    let publisherProcessor = Container.shared.publisherTranscriptProcessor()
     let episode = try await CacheHelpers.createCachedEpisode(
       title: "Publisher race",
       cachedFilename: "publisher-race.mp3",
@@ -75,6 +76,16 @@ struct TranscriptionProcessorPublisherImportTests {
       audioSHA256: FakeAudioFileHasher.defaultSHA256
     )
     try await repo.saveTranscriptionCheckpoint(checkpoint, for: episode.id)
+    let now = Date(timeIntervalSince1970: 1_000)
+    Container.shared.fakeDate().freeze(at: now)
+    try await Container.shared.appDB().writer
+      .write { db in
+        try PublisherTranscriptImportStore.insert(
+          episode.id,
+          nextAttemptAt: now,
+          in: db
+        )
+      }
     try await queue.enqueue(episode.id)
     processor.handleScenePhaseChange(to: .active)
     defer {
@@ -83,7 +94,7 @@ struct TranscriptionProcessorPublisherImportTests {
     }
 
     await analysisStarted.wait()
-    #expect(await processor.importPublisherTranscript(for: episode.id))
+    await publisherProcessor.makeForegroundProgress()
 
     let stored = try #require(try await repo.episode(episode.id))
     #expect(stored.decodedTranscript?.segments.map(\.text) == ["Publisher wins"])
@@ -92,6 +103,60 @@ struct TranscriptionProcessorPublisherImportTests {
     #expect(try await repo.transcriptionCheckpoint(episode.id) == nil)
     #expect(fetchCount() == 2)
     #expect(cancellationCount() == 1)
+  }
+
+  @Test("queued publisher preflight rejects content withdrawn while fetching")
+  func queuedPublisherPreflightRejectsWithdrawnContent() async throws {
+    Container.shared.speechModelManager.register {
+      FakeSpeechModelManager(supportedIdentifiers: [])
+    }
+    let transcriptURL = URL(string: "https://example.com/withdrawn.vtt")!
+    let reference = PublisherTranscriptReference(
+      url: transcriptURL,
+      mimeType: "text/vtt",
+      language: "en"
+    )
+    let session = Container.shared.publisherTranscriptSession() as! FakeDataFetchable
+    let fetch = await session.releaseWaitRespond(
+      to: transcriptURL,
+      data: Data(
+        "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nWithdrawn words".utf8
+      )
+    )
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Withdrawn publisher preflight",
+      cachedFilename: "withdrawn-publisher.mp3",
+      dataSize: 1,
+      publisherTranscriptReferences: [reference]
+    )
+    try await queue.enqueue(episode.id)
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      fetch.finish.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    await fetch.started.wait()
+    let podcast = try #require(try await repo.podcast(episode.podcastID))
+    try await repo.updateSeriesFromFeed(
+      podcast: podcast,
+      updatedPodcast: nil,
+      unsavedEpisodes: [],
+      existingEpisodes: [try Self.feedMergeEpisode(episode, references: [])]
+    )
+    fetch.finish.signal()
+
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "Queued publisher preflight did not finish" }
+    )
+    let stored = try #require(try await repo.episode(episode.id))
+    #expect(stored.publisherTranscriptReferences.isEmpty)
+    #expect(stored.decodedTranscript == nil)
+    #expect(stored.publisherTranscriptSource == nil)
   }
 
   @Test("publisher preflight does not wait for feed connectivity before cached audio")
@@ -161,5 +226,25 @@ struct TranscriptionProcessorPublisherImportTests {
     #expect(stored.decodedTranscript?.segments.map(\.text) == ["offline on-device words"])
     #expect(await feedSession.requests.isEmpty)
     #expect(await publisherSession.requests == [transcriptURL])
+  }
+
+  private static func feedMergeEpisode(
+    _ episode: Episode,
+    references: [PublisherTranscriptReference]
+  ) throws -> FeedMergeEpisode {
+    FeedMergeEpisode(
+      id: episode.id,
+      from: try Create.unsavedEpisode(
+        guid: episode.guid,
+        mediaURL: episode.mediaURL,
+        title: episode.title,
+        pubDate: episode.pubDate,
+        duration: episode.duration,
+        description: episode.description,
+        link: episode.link,
+        image: episode.image,
+        publisherTranscriptReferences: references
+      )
+    )
   }
 }

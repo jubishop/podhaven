@@ -15,6 +15,7 @@ extension Container {
 struct RefreshManager {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
+  @DynamicInjected(\.publisherTranscriptProcessor) private var publisherTranscriptProcessor
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
@@ -111,6 +112,7 @@ struct RefreshManager {
       .value
     }
 
+    await publisherTranscriptProcessor.makeForegroundProgress()
     Self.log.debug("performRefresh: completed")
   }
 
@@ -122,11 +124,11 @@ struct RefreshManager {
       """
     )
 
-    guard let pending = try await performRefreshCycle(podcast: podcast)
-    else { return }
-
-    defer { inFlight { $0.remove(pending.url) } }
-    try await repo.updateLastUpdates([(pending.id, pending.lastUpdate)])
+    if let pending = try await performRefreshCycle(podcast: podcast) {
+      defer { inFlight { $0.remove(pending.url) } }
+      try await repo.updateLastUpdates([(pending.id, pending.lastUpdate)])
+    }
+    await publisherTranscriptProcessor.makeForegroundProgress()
   }
 
   // MARK: - Private Helpers
@@ -382,17 +384,6 @@ struct RefreshManager {
           )
         }
       }
-    }
-
-    let publisherImportEpisodeIDs =
-      newEpisodes
-      .filter {
-        !$0.hasTranscript
-          && $0.publisherTranscriptReferences.contains(where: { $0.format != nil })
-      }
-      .map(\.id)
-    for episodeID in publisherImportEpisodeIDs {
-      await transcriptionProcessor.importPublisherTranscript(for: episodeID)
     }
 
     return nil

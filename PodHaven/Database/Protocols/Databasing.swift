@@ -143,6 +143,18 @@ protocol Databasing: Sendable {
     publisherSource: PublisherTranscriptReference?
   ) async throws -> Bool
 
+  func storePublisherTranscriptIfReferencesCurrent(
+    _ episodeID: Episode.ID,
+    imported: PublisherTranscriptImport,
+    expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> Bool
+
+  func storePublisherTranscriptIfDemandCurrent(
+    _ episodeID: Episode.ID,
+    imported: PublisherTranscriptImport,
+    expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> Bool
+
   func saveTranscriptionCheckpoint(
     _ checkpoint: TranscriptionCheckpoint,
     for episodeID: Episode.ID
