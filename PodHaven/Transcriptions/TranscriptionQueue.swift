@@ -315,11 +315,22 @@ struct TranscriptionQueue: Sendable {
   }
 
   @discardableResult
-  func finishPersistedRemoval(
-    _ episodeID: Episode.ID,
-    mode: TranscriptionWorkMode
-  ) -> Bool {
-    removeFromProjection(episodeID, ifMode: mode)
+  func reconcilePublisherReplacement(
+    _ work: TranscriptionWork
+  ) async throws -> Bool {
+    await waitUntilLoaded()
+    try await persistenceLock.waitForClaim()
+    defer { persistenceLock.release() }
+
+    let removedPersistedWork = try await store.remove(
+      work.episodeID,
+      ifMode: work.mode
+    )
+    let removedProjectedWork = removeFromProjection(
+      work.episodeID,
+      ifMode: work.mode
+    )
+    return removedPersistedWork || removedProjectedWork
   }
 
   func work(for episodeID: Episode.ID) -> TranscriptionWork? {

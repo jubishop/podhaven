@@ -264,6 +264,7 @@ struct TranscriptionProcessor: Sendable {
         guard
           var current = active,
           current.episodeID == episodeID,
+          current.workMode == .publisherPreferred,
           current.interruption.isNone
         else {
           return nil
@@ -937,7 +938,8 @@ struct TranscriptionProcessor: Sendable {
         with: transcript
       ) {
       case .replaced:
-        guard transcriptionQueue.finishPersistedRemoval(episodeID, mode: work.mode)
+        guard
+          try await transcriptionQueue.reconcilePublisherReplacement(work)
         else {
           throw TranscriptionWorkModeChanged()
         }
@@ -971,24 +973,20 @@ struct TranscriptionProcessor: Sendable {
     _ work: TranscriptionWork,
     operation: QueueRemovalOperation
   ) async throws {
+    let removed: Bool
     do {
-      guard
-        try await transcriptionQueue.remove(
-          work.episodeID,
-          ifMode: work.mode
-        )
-      else {
-        throw TranscriptionWorkModeChanged()
-      }
+      removed = try await transcriptionQueue.remove(
+        work.episodeID,
+        ifMode: work.mode
+      )
     } catch is CancellationError {
       throw CancellationError()
-    } catch is TranscriptionWorkModeChanged {
-      throw TranscriptionWorkModeChanged()
     } catch {
       throw QueueMutationFailure(
         operation: operation,
         message: ErrorKit.message(for: error)
       )
     }
+    guard removed else { throw TranscriptionWorkModeChanged() }
   }
 }

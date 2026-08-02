@@ -51,6 +51,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let pendingPublisherReplacementSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedPublisherReplacementCount = ThreadSafe<Int>(0)
   private var publisherReplacementSuspensions: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingPublisherTranscriptStoreAfterWriteSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedPublisherTranscriptStoreAfterWriteCount = ThreadSafe<Int>(0)
+  private var publisherTranscriptStoreAfterWriteSuspensions: [CheckedContinuation<Void, Never>] = []
 
   // Same shape as pendingEpisodeFetchSuspend, but for updateLastUpdates so
   // tests can park the batched flush inside RefreshManager.performRefresh.
@@ -602,10 +605,37 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         publisherSource: publisherSource
       )
     )
-    return try await repo.storeTranscriptIfAbsent(
+    let stored = try await repo.storeTranscriptIfAbsent(
       episodeID,
       transcript: transcript,
       publisherSource: publisherSource
+    )
+    if stored,
+      publisherSource != nil,
+      pendingPublisherTranscriptStoreAfterWriteSuspend()
+    {
+      pendingPublisherTranscriptStoreAfterWriteSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        publisherTranscriptStoreAfterWriteSuspensions.append(continuation)
+        suspendedPublisherTranscriptStoreAfterWriteCount(
+          publisherTranscriptStoreAfterWriteSuspensions.count
+        )
+      }
+    }
+    return stored
+  }
+
+  func resumeAllPublisherTranscriptStoreAfterWriteSuspensions() {
+    let toResume = publisherTranscriptStoreAfterWriteSuspensions
+    publisherTranscriptStoreAfterWriteSuspensions.removeAll()
+    suspendedPublisherTranscriptStoreAfterWriteCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForPublisherTranscriptStoreAfterWriteSuspended() async throws {
+    try await Wait.until(
+      { self.suspendedPublisherTranscriptStoreAfterWriteCount() > 0 },
+      { "Expected publisher transcript storage to suspend after writing" }
     )
   }
 

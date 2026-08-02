@@ -181,6 +181,12 @@ struct EpisodeDetailTranscriptView: View {
 
   private var showsCanonicalTranscriptAlongsideWork: Bool {
     guard viewModel.transcriptProvenance == .podcastFeed else { return false }
+    switch viewModel.transcriptDisplay {
+    case .empty, .text:
+      break
+    case .notTranscribed, .loading, .decodeFailed:
+      return false
+    }
     switch viewModel.transcriptionStatus {
     case .queued, .transcribing, .paused, .pausing, .discarding, .failed:
       return true
@@ -292,8 +298,14 @@ struct EpisodeDetailTranscriptView: View {
     case onDevice
   }
 
+  enum WorkState: Equatable {
+    case complete
+    case queuedReplacement
+  }
+
   let source: Source
   let supportsReplacement: Bool
+  let workState: WorkState
   @State private var viewModel: EpisodeDetailViewModel?
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
@@ -348,6 +360,10 @@ struct EpisodeDetailTranscriptView: View {
               transcript: transcript.jsonString()
             )
         }
+        if workState == .queuedReplacement {
+          try await Container.shared.transcriptionQueue()
+            .enqueueReplacement(podcastEpisode.id)
+        }
         guard
           let loaded = try await Container.shared.repo()
             .podcastEpisode(
@@ -367,7 +383,8 @@ struct EpisodeDetailTranscriptView: View {
 #Preview("Publisher Transcript Replacement") {
   EpisodeDetailTranscriptPreview(
     source: .podcastFeed,
-    supportsReplacement: true
+    supportsReplacement: true,
+    workState: .complete
   )
   .preview()
 }
@@ -375,7 +392,8 @@ struct EpisodeDetailTranscriptView: View {
 #Preview("Publisher Transcript Unsupported Device") {
   EpisodeDetailTranscriptPreview(
     source: .podcastFeed,
-    supportsReplacement: false
+    supportsReplacement: false,
+    workState: .complete
   )
   .preview()
 }
@@ -383,7 +401,17 @@ struct EpisodeDetailTranscriptView: View {
 #Preview("On-Device Transcript") {
   EpisodeDetailTranscriptPreview(
     source: .onDevice,
-    supportsReplacement: true
+    supportsReplacement: true,
+    workState: .complete
+  )
+  .preview()
+}
+
+#Preview("Queued Publisher Transcript Replacement") {
+  EpisodeDetailTranscriptPreview(
+    source: .podcastFeed,
+    supportsReplacement: true,
+    workState: .queuedReplacement
   )
   .preview()
 }

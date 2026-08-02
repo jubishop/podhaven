@@ -25,6 +25,7 @@ struct TranscriptionProcessorReplacementTests {
     Container.shared.transcriptionProcessor.reset(.scope)
   }
 
+  @discardableResult
   private func storePublisherTranscript(
     for episodeID: Episode.ID,
     source: PublisherTranscriptReference,
@@ -298,17 +299,25 @@ struct TranscriptionProcessorReplacementTests {
     try await fakeRepo.waitForPublisherReplacementSuspended()
     let checkpoint = try #require(try await repo.transcriptionCheckpoint(episode.id))
 
-    #expect(try await queue.beginPausing(episode.id))
+    let pauseTask = Task {
+      try await processor.pause(episode.id)
+    }
+    try await Wait.until(
+      { queue.status(for: episode.id, hasTranscript: true) == .pausing },
+      { "Processor did not claim final promotion for pausing" }
+    )
     #expect(queue.status(for: episode.id, hasTranscript: true) == .pausing)
     await fakeRepo.resumeAllPublisherReplacementSuspensions()
+    try await pauseTask.value
 
     try await Wait.until(
       {
-        queue.episodeIDs.isEmpty && queue.progress[episode.id] == nil
+        queue.episodeIDs.isEmpty
+          && queue.interruptions[episode.id] == nil
+          && queue.progress[episode.id] == nil
       },
       { "Replacement did not release promotion after pause took queue ownership" }
     )
-    queue.finishPausing(episode.id)
     let stored = try #require(try await repo.episode(episode.id))
     #expect(stored.decodedTranscript == originalTranscript)
     #expect(stored.publisherTranscriptSource == source)
@@ -418,5 +427,165 @@ struct TranscriptionProcessorReplacementTests {
     #expect(stored.decodedTranscript?.segments.map(\.text) == [replacementText])
     #expect(analyzerCreations() == 2)
     #expect(fetchCount() == 2)
+  }
+
+  @Test("publisher cleanup leaves an active forced replacement running")
+  func publisherCleanupLeavesActiveReplacementRunning() async throws {
+    let replacementText = "Active replacement survives cleanup"
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(
+          phrase: replacementText,
+          startSeconds: 0,
+          endSeconds: 60
+        )
+      ]
+    )
+    let analysisStarted = AsyncSemaphore(value: 0)
+    let analysisRelease = AsyncSemaphore(value: 0)
+    let cancellationCount = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer(
+          analyzeAudio: { _, endTime in
+            analysisStarted.signal()
+            try await analysisRelease.waitUnlessCancelled()
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          },
+          cancelAudio: {
+            cancellationCount { $0 += 1 }
+          }
+        )
+      }
+    }
+
+    let transcriptURL = URL(string: "https://example.com/active-replacement.vtt")!
+    let source = PublisherTranscriptReference(
+      url: transcriptURL,
+      mimeType: "text/vtt",
+      language: "en"
+    )
+    let publisherSession = Container.shared.publisherTranscriptSession() as! FakeDataFetchable
+    await publisherSession.respond(to: transcriptURL) { url in
+      (
+        Data(
+          "WEBVTT\n\n00:00:02.000 --> 00:00:04.000\nPublisher words".utf8
+        ),
+        URL.response(url)
+      )
+    }
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Active replacement during publisher cleanup",
+      cachedFilename: "active-replacement-cleanup.mp3",
+      dataSize: 1,
+      publisherTranscriptReferences: [source]
+    )
+    let repo = Container.shared.repo()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingPublisherTranscriptStoreAfterWriteSuspend(true)
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    processor.handleScenePhaseChange(to: .active)
+    let importTask = Task {
+      await processor.importPublisherTranscript(for: episode.id)
+    }
+    defer {
+      importTask.cancel()
+      Task { await fakeRepo.resumeAllPublisherTranscriptStoreAfterWriteSuspensions() }
+      analysisRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    try await fakeRepo.waitForPublisherTranscriptStoreAfterWriteSuspended()
+    try await processor.enqueuePublisherReplacement(episode.id)
+    await analysisStarted.wait()
+
+    await fakeRepo.resumeAllPublisherTranscriptStoreAfterWriteSuspensions()
+    #expect(await importTask.value)
+    #expect(cancellationCount() == 0)
+
+    analysisRelease.signal()
+    try await Wait.until(
+      {
+        let stored = try await repo.episode(episode.id)
+        return queue.episodeIDs.isEmpty
+          && stored?.decodedTranscript?.segments.map(\.text) == [replacementText]
+          && stored?.publisherTranscriptSource == nil
+      },
+      { "Publisher cleanup prevented the active replacement from finishing" }
+    )
+  }
+
+  @Test("final replacement promotion reconciles an overlapping queue reorder")
+  func finalReplacementPromotionReconcilesOverlappingReorder() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(
+          phrase: "Serialized replacement",
+          startSeconds: 0,
+          endSeconds: 60
+        )
+      ]
+    )
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/serialized-replacement.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Serialized publisher replacement",
+      cachedFilename: "serialized-publisher-replacement.mp3",
+      dataSize: 1
+    )
+    try await storePublisherTranscript(for: episode.id, source: source)
+    try await insertForcedReplacement(episode.id)
+
+    let reorderStoreEntered = ThreadSafe(false)
+    let reorderStoreRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [episode.id],
+      workModes: [episode.id: .onDeviceReplacement],
+      beforeReorder: { _ in
+        reorderStoreEntered(true)
+        await reorderStoreRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+
+    let repo = Container.shared.repo()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingPublisherReplacementSuspend(true)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let processor = Container.shared.transcriptionProcessor()
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      Task { await fakeRepo.resumeAllPublisherReplacementSuspensions() }
+      reorderStoreRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    try await fakeRepo.waitForPublisherReplacementSuspended()
+    let reorderTask = Task(priority: .high) {
+      try await processor.reorder([episode.id])
+    }
+    try await Wait.until(
+      { reorderStoreEntered() },
+      { "Queue reorder did not overlap final promotion" }
+    )
+
+    await fakeRepo.resumeAllPublisherReplacementSuspensions()
+    reorderStoreRelease.signal()
+    let reordered = try await reorderTask.value
+
+    try await Wait.until(
+      {
+        queue.episodeIDs.isEmpty && store.removeCalls == [episode.id]
+      },
+      { "Final promotion did not reconcile the overlapping reorder" }
+    )
+    #expect(reordered)
   }
 }
