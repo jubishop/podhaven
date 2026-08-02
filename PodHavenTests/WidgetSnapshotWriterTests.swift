@@ -162,17 +162,14 @@ import Testing
     #expect(widgetState.skipBackwardInterval == 10)
   }
 
-  @Test("includes queue items from shared state")
-  func includesQueueItemsFromSharedState() async throws {
-    let pe1 = try await Create.podcastEpisode(
-      try Create.unsavedEpisode(title: "Queue Ep 1")
+  @Test("includes persisted queue items at startup")
+  func includesPersistedQueueItemsAtStartup() async throws {
+    try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Queue Ep 1", queueOrder: 0)
     )
-    let pe2 = try await Create.podcastEpisode(
-      try Create.unsavedEpisode(title: "Queue Ep 2")
+    try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Queue Ep 2", queueOrder: 1)
     )
-    let ep1 = try await fetchListable(pe1.id)
-    let ep2 = try await fetchListable(pe2.id)
-    sharedState.$queuedPodcastEpisodes.new([ep1, ep2])
 
     writer.start()
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 2 }
@@ -186,10 +183,8 @@ import Testing
   @Test("skips queue snapshot write when only non-widget episode fields change")
   func skipsQueueSnapshotWriteWhenOnlyNonWidgetFieldsChange() async throws {
     let pe = try await Create.podcastEpisode(
-      try Create.unsavedEpisode(title: "Widget Ep")
+      try Create.unsavedEpisode(title: "Widget Ep", queueOrder: 0)
     )
-    let ep = try await fetchListable(pe.id)
-    sharedState.$queuedPodcastEpisodes.new([ep])
 
     writer.start()
     try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 1 }
@@ -217,19 +212,35 @@ import Testing
 
   @Test("caps queue at 5 but reports full queueTotalCount")
   func capsQueueAt5ButReportsFullQueueTotalCount() async throws {
-    var episodes: [ListablePodcastEpisode] = []
     for i in 1...10 {
-      let pe = try await Create.podcastEpisode(
-        try Create.unsavedEpisode(title: "Ep \(i)")
+      try await Create.podcastEpisode(
+        try Create.unsavedEpisode(title: "Ep \(i)", queueOrder: i - 1)
       )
-      episodes.append(try await fetchListable(pe.id))
     }
-    sharedState.$queuedPodcastEpisodes.new(episodes)
 
     writer.start()
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 10 }
 
     #expect(snapshot.queue.count == 5)
+  }
+
+  @Test("upgrade reads the persisted queue before reload-all")
+  func upgradeReadsPersistedQueueBeforeReloadAll() async throws {
+    let queuedEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Persisted Queue Episode", queueOrder: 0)
+    )
+    widgetState.lastUpgradeRecoveryBuild = "previous-build"
+    Container.shared.widgetState.reset()
+
+    writer.start()
+
+    try await Wait.until(
+      { self.widgetCenter.reloadAllCount() == 1 },
+      { "Widget timelines were not reloaded after the build transition" }
+    )
+    let queueSnapshot = try await WidgetHelpers.waitForQueueSnapshot()
+
+    #expect(queueSnapshot.queue.first?.episodeID == queuedEpisode.id.rawValue)
   }
 
   @Test("upgrade writes initial snapshots before exactly one reload-all")
@@ -238,10 +249,9 @@ import Testing
       try Create.unsavedEpisode(title: "Current Episode")
     )
     let queuedEpisode = try await Create.podcastEpisode(
-      try Create.unsavedEpisode(title: "Current Queue Episode")
+      try Create.unsavedEpisode(title: "Current Queue Episode", queueOrder: 0)
     )
     sharedState.$onDeck.new(OnDeck(from: nowPlayingEpisode))
-    sharedState.$queuedPodcastEpisodes.new([try await fetchListable(queuedEpisode.id)])
     widgetState.lastUpgradeRecoveryBuild = "previous-build"
     Container.shared.widgetState.reset()
 

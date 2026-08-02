@@ -27,6 +27,7 @@ final class WidgetSnapshotWriter: Sendable {
   private var controlCenter: any ControlReloading { Container.shared.controlCenter() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
+  private var observatory: any Observing { Container.shared.observatory() }
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
@@ -182,7 +183,13 @@ final class WidgetSnapshotWriter: Sendable {
     let previousRecoveryBuild = widgetState.lastUpgradeRecoveryBuild
     let onDeck = sharedState.onDeck
     let playbackStatus = sharedState.playbackStatus
-    let queuedEpisodes = sharedState.queuedPodcastEpisodes.map(WidgetEpisode.init)
+    let queuedEpisodes: [WidgetEpisode]
+    do {
+      queuedEpisodes = try await observatory.queuedPodcastEpisodes().get().map(WidgetEpisode.init)
+    } catch {
+      Self.log.caughtError("Failed to read the queue before widget startup", error)
+      return
+    }
 
     lastOnDeck(onDeck)
     lastPlaybackStatus(playbackStatus)
