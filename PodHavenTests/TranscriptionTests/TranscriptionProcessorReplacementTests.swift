@@ -588,4 +588,120 @@ struct TranscriptionProcessorReplacementTests {
     )
     #expect(reordered)
   }
+
+  @Test("active reorder cannot cancel committed replacement reconciliation")
+  func activeReorderCannotCancelCommittedReplacementReconciliation() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(
+          phrase: "Completed locally",
+          startSeconds: 0,
+          endSeconds: 60
+        )
+      ]
+    )
+    let waitingAnalysisStarted = AsyncSemaphore(value: 0)
+    let waitingAnalysisRelease = AsyncSemaphore(value: 0)
+    let analyzerCreations = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        let invocation = analyzerCreations {
+          $0 += 1
+          return $0
+        }
+        return FakeSpeechAnalyzer { _, endTime in
+          if invocation == 2 {
+            waitingAnalysisStarted.signal()
+            try await waitingAnalysisRelease.waitUnlessCancelled()
+          }
+          return CMTime(seconds: endTime, preferredTimescale: 600)
+        }
+      }
+    }
+
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/reordered-after-commit.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    let replacementEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Committed replacement moved from head",
+      cachedFilename: "committed-replacement-moved.mp3",
+      dataSize: 1
+    )
+    let waitingEpisode = try await CacheHelpers.createCachedEpisode(
+      title: "Promoted while replacement commits",
+      cachedFilename: "promoted-during-replacement.mp3",
+      dataSize: 1
+    )
+    try await storePublisherTranscript(
+      for: replacementEpisode.id,
+      source: source
+    )
+    try await insertForcedReplacement(replacementEpisode.id)
+    try await Container.shared.transcriptionQueue().enqueue(waitingEpisode.id)
+
+    let reorderPersisted = AsyncSemaphore(value: 0)
+    let reorderReturnRelease = AsyncSemaphore(value: 0)
+    let store = FakeTranscriptionQueueStore(
+      episodeIDs: [replacementEpisode.id, waitingEpisode.id],
+      workModes: [replacementEpisode.id: .onDeviceReplacement],
+      afterReorder: { _ in
+        reorderPersisted.signal()
+        await reorderReturnRelease.wait()
+      }
+    )
+    Container.shared.transcriptionQueueStore.register { store }
+    Container.shared.transcriptionQueue.reset(.scope)
+    Container.shared.transcriptionProcessor.reset(.scope)
+
+    let repo = Container.shared.repo()
+    let fakeRepo = try #require(repo as? FakeRepo)
+    fakeRepo.pendingPublisherReplacementSuspend(true)
+    fakeRepo.pendingPublisherReplacementAfterWriteSuspend(true)
+    let queue = Container.shared.transcriptionQueue()
+    await queue.waitUntilLoaded()
+    let processor = Container.shared.transcriptionProcessor()
+    processor.handleScenePhaseChange(to: .active)
+    defer {
+      Task {
+        await fakeRepo.resumeAllPublisherReplacementSuspensions()
+        await fakeRepo.resumeAllPublisherReplacementAfterWriteSuspensions()
+      }
+      reorderReturnRelease.signal()
+      waitingAnalysisRelease.signal()
+      processor.handleScenePhaseChange(to: .background)
+    }
+
+    try await fakeRepo.waitForPublisherReplacementSuspended()
+    let reorderTask = Task {
+      try await processor.reorder([
+        waitingEpisode.id,
+        replacementEpisode.id,
+      ])
+    }
+    await reorderPersisted.wait()
+
+    await fakeRepo.resumeAllPublisherReplacementSuspensions()
+    try await fakeRepo.waitForPublisherReplacementAfterWriteSuspended()
+    reorderReturnRelease.signal()
+    #expect(try await reorderTask.value)
+    await fakeRepo.resumeAllPublisherReplacementAfterWriteSuspensions()
+    await waitingAnalysisStarted.wait()
+
+    #expect(queue.episodeIDs == [waitingEpisode.id])
+    #expect(
+      try await store.fetchAll().map(\.episodeID) == [waitingEpisode.id]
+    )
+    let stored = try #require(
+      try await repo.episode(replacementEpisode.id)
+    )
+    #expect(stored.publisherTranscriptSource == nil)
+
+    waitingAnalysisRelease.signal()
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "Queue did not finish after replacement reconciliation" }
+    )
+  }
 }

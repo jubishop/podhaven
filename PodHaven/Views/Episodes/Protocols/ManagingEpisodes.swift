@@ -74,6 +74,7 @@ extension ManagingEpisodes {
 
   func canTranscribe(_ episode: EpisodeType) -> Bool {
     guard transcriptionAvailability.isAvailable else { return false }
+    guard !episode.hasTranscript else { return false }
     guard let episodeID = episode.episodeID else { return !episode.hasTranscript }
     return
       transcriptionQueue
@@ -83,6 +84,7 @@ extension ManagingEpisodes {
 
   func canTranscribeResolvedEpisode(_ episode: PodcastEpisode) -> Bool {
     guard transcriptionAvailability.isAvailable else { return false }
+    guard !episode.hasTranscript else { return false }
     return
       transcriptionQueue
       .status(for: episode.id, hasTranscript: episode.hasTranscript)

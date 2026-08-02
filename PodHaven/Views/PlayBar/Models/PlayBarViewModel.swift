@@ -242,7 +242,15 @@ enum UndoSeekDirection {
     Task { [weak self] in
       guard let self else { return }
       do {
-        try await transcriptionProcessor.enqueue(onDeck.id)
+        let replacesPublisherTranscript =
+          try await repo.episode(onDeck.id)?.publisherTranscriptSource != nil
+        if replacesPublisherTranscript {
+          try await transcriptionProcessor.enqueuePublisherReplacement(
+            onDeck.id
+          )
+        } else {
+          try await transcriptionProcessor.enqueue(onDeck.id)
+        }
       } catch let error as TranscriptionQueueError {
         Self.log.caughtError(
           "transcribe: rejected for \(onDeck.title)",

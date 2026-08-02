@@ -51,6 +51,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   nonisolated let pendingPublisherReplacementSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedPublisherReplacementCount = ThreadSafe<Int>(0)
   private var publisherReplacementSuspensions: [CheckedContinuation<Void, Never>] = []
+  nonisolated let pendingPublisherReplacementAfterWriteSuspend = ThreadSafe<Bool>(false)
+  nonisolated let suspendedPublisherReplacementAfterWriteCount = ThreadSafe<Int>(0)
+  private var publisherReplacementAfterWriteSuspensions: [CheckedContinuation<Void, Never>] = []
   nonisolated let pendingPublisherTranscriptStoreAfterWriteSuspend = ThreadSafe<Bool>(false)
   nonisolated let suspendedPublisherTranscriptStoreAfterWriteCount = ThreadSafe<Int>(0)
   private var publisherTranscriptStoreAfterWriteSuspensions: [CheckedContinuation<Void, Never>] = []
@@ -654,10 +657,22 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
         suspendedPublisherReplacementCount(publisherReplacementSuspensions.count)
       }
     }
-    return try await repo.replacePublisherTranscript(
+    let result = try await repo.replacePublisherTranscript(
       episodeID,
       with: transcript
     )
+    if case .replaced = result,
+      pendingPublisherReplacementAfterWriteSuspend()
+    {
+      pendingPublisherReplacementAfterWriteSuspend(false)
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        publisherReplacementAfterWriteSuspensions.append(continuation)
+        suspendedPublisherReplacementAfterWriteCount(
+          publisherReplacementAfterWriteSuspensions.count
+        )
+      }
+    }
+    return result
   }
 
   func resumeAllPublisherReplacementSuspensions() {
@@ -671,6 +686,20 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     try await Wait.until(
       { self.suspendedPublisherReplacementCount() > 0 },
       { "Expected final publisher replacement storage to suspend" }
+    )
+  }
+
+  func resumeAllPublisherReplacementAfterWriteSuspensions() {
+    let toResume = publisherReplacementAfterWriteSuspensions
+    publisherReplacementAfterWriteSuspensions.removeAll()
+    suspendedPublisherReplacementAfterWriteCount(0)
+    for continuation in toResume { continuation.resume() }
+  }
+
+  nonisolated func waitForPublisherReplacementAfterWriteSuspended() async throws {
+    try await Wait.until(
+      { self.suspendedPublisherReplacementAfterWriteCount() > 0 },
+      { "Expected final publisher replacement storage to suspend after writing" }
     )
   }
 

@@ -820,10 +820,9 @@ struct TranscriptionProcessor: Sendable {
       episode.publisherTranscriptSource == nil
     {
       try await repo.deleteTranscriptionCheckpoint(for: episodeID)
-      try await removeQueuedEpisode(
-        work,
-        operation: .alreadyTranscribed
-      )
+      guard
+        try await transcriptionQueue.reconcilePublisherReplacement(work)
+      else { throw TranscriptionWorkModeChanged() }
       Self.log.debug("Removed obsolete replacement work for \(episodeID)")
       return
     }

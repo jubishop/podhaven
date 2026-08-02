@@ -16,6 +16,7 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
   private let beforeEnqueue: @Sendable ([Episode.ID]) async throws -> Void
   private let beforeRemove: @Sendable (Episode.ID) async throws -> Void
   private let beforeReorder: @Sendable ([Episode.ID]) async throws -> Void
+  private let afterReorder: @Sendable ([Episode.ID]) async throws -> Void
 
   init(
     episodeIDs: [Episode.ID] = [],
@@ -23,7 +24,8 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
     beforeFetch: @escaping @Sendable () async throws -> Void = {},
     beforeEnqueue: @escaping @Sendable ([Episode.ID]) async throws -> Void = { _ in },
     beforeRemove: @escaping @Sendable (Episode.ID) async throws -> Void = { _ in },
-    beforeReorder: @escaping @Sendable ([Episode.ID]) async throws -> Void = { _ in }
+    beforeReorder: @escaping @Sendable ([Episode.ID]) async throws -> Void = { _ in },
+    afterReorder: @escaping @Sendable ([Episode.ID]) async throws -> Void = { _ in }
   ) {
     state = ThreadSafe(
       State(
@@ -39,6 +41,7 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
     self.beforeEnqueue = beforeEnqueue
     self.beforeRemove = beforeRemove
     self.beforeReorder = beforeReorder
+    self.afterReorder = afterReorder
   }
 
   var fetchCount: Int {
@@ -141,7 +144,7 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
   func reorder(_ orderedEpisodeIDs: [Episode.ID]) async throws -> Bool {
     state { $0.reorderCalls.append(orderedEpisodeIDs) }
     try await beforeReorder(orderedEpisodeIDs)
-    return state { state in
+    let accepted = state { state in
       guard
         orderedEpisodeIDs.count == state.episodeIDs.count,
         Set(orderedEpisodeIDs) == Set(state.episodeIDs)
@@ -151,5 +154,8 @@ struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {
       state.episodeIDs = orderedEpisodeIDs
       return true
     }
+    guard accepted else { return false }
+    try await afterReorder(orderedEpisodeIDs)
+    return true
   }
 }

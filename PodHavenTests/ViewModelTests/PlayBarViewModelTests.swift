@@ -181,6 +181,58 @@ import Testing
     )
   }
 
+  @Test("play bar resumes publisher replacement progress in forced-local mode")
+  func playBarResumesPublisherReplacementProgress() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let episode = try await Create.podcastEpisode()
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/play-bar-replacement.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Publisher words")],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    #expect(
+      try await repo.storeTranscriptIfAbsent(
+        episode.id,
+        transcript: transcript,
+        publisherSource: source
+      )
+    )
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [TranscriptSegment(start: 0, end: 30, text: "partial")],
+      audioTime: 30,
+      duration: 60,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: episode.id)
+    let loaded = try #require(try await repo.podcastEpisode(episode.id))
+    stateManager.setOnDeck(loaded)
+    let observationTask = Task {
+      await viewModel.observeTranscriptionCheckpoint()
+    }
+    defer { observationTask.cancel() }
+
+    try await Wait.until(
+      { @MainActor in self.viewModel.transcriptionStatus == .paused(0.5) },
+      { @MainActor in "Expected publisher replacement progress in the play bar" }
+    )
+
+    viewModel.transcribe()
+    let queuedEpisodeIDs = await TranscriptionHelpers.waitForQueuedEpisode(
+      episode.id,
+      in: transcriptionQueue
+    )
+
+    #expect(queuedEpisodeIDs.contains(episode.id))
+    #expect(transcriptionQueue.work(for: episode.id)?.mode == .onDeviceReplacement)
+    #expect(try await repo.transcriptionCheckpoint(episode.id) == checkpoint)
+  }
+
   // MARK: - undoSeekDirection
 
   private func scrub(from start: Double, to end: Double) async throws {

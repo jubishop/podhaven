@@ -319,7 +319,9 @@ struct TranscriptionQueue: Sendable {
     _ work: TranscriptionWork
   ) async throws -> Bool {
     await waitUntilLoaded()
-    try await persistenceLock.waitForClaim()
+    if !persistenceLock.claim() {
+      try await persistenceLock.waitForClaim()
+    }
     defer { persistenceLock.release() }
 
     let removedPersistedWork = try await store.remove(
@@ -330,7 +332,10 @@ struct TranscriptionQueue: Sendable {
       work.episodeID,
       ifMode: work.mode
     )
-    return removedPersistedWork || removedProjectedWork
+    return
+      removedPersistedWork
+      || removedProjectedWork
+      || !episodeIDs.contains(work.episodeID)
   }
 
   func work(for episodeID: Episode.ID) -> TranscriptionWork? {
