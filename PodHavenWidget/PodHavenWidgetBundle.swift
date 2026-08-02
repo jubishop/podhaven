@@ -24,11 +24,11 @@ struct PodHavenWidgetBundle: WidgetBundle {
 
   init() {
     do {
-      let acknowledgment = try WidgetInfo.recordExtensionTimelineRequest()
+      let acknowledgment = try WidgetInfo.recordExtensionInitialization()
       Self.log.info(
         """
         PodHavenWidgetBundle initialized: extensionBuild=\(acknowledgment.buildNumber), \
-        initialRequestAt=\(acknowledgment.latestTimelineRequestAt)
+        initializedAt=\(acknowledgment.initializedAt)
         """
       )
     } catch {

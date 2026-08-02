@@ -5,7 +5,13 @@ import Foundation
 
 struct WidgetExtensionAcknowledgment: Codable, Equatable, Sendable {
   let buildNumber: String
-  let latestTimelineRequestAt: Date
+  let initializedAt: Date
+  let latestTimelineRequestAt: Date?
+}
+
+struct WidgetExtensionTimelineRequestAcknowledgment: Equatable, Sendable {
+  let buildNumber: String
+  let timelineRequestAt: Date
 }
 
 enum WidgetInfo {
@@ -58,19 +64,40 @@ enum WidgetInfo {
     containerURL.appendingPathComponent("widget-extension-acknowledgment.json")
   }
 
-  static func recordExtensionTimelineRequest() throws -> WidgetExtensionAcknowledgment {
+  static func recordExtensionInitialization() throws -> WidgetExtensionAcknowledgment {
     try extensionAcknowledgmentWrite { _ in
       let acknowledgment = WidgetExtensionAcknowledgment(
         buildNumber: AppInfo.buildNumber,
-        latestTimelineRequestAt: Container.shared.dateProvider().now
+        initializedAt: Container.shared.dateProvider().now,
+        latestTimelineRequestAt: nil
       )
-      let data = try JSONEncoder().encode(acknowledgment)
-      try Container.shared.fileManager()
-        .writeDataSynchronously(
-          data,
-          to: extensionAcknowledgmentURL
-        )
+      try writeExtensionAcknowledgment(acknowledgment)
       return acknowledgment
+    }
+  }
+
+  static func recordExtensionTimelineRequest() throws
+    -> WidgetExtensionTimelineRequestAcknowledgment
+  {
+    try extensionAcknowledgmentWrite { _ in
+      let buildNumber = AppInfo.buildNumber
+      let timelineRequestAt = Container.shared.dateProvider().now
+      let initializedAt: Date
+      if let existing = try readExtensionAcknowledgment(), existing.buildNumber == buildNumber {
+        initializedAt = existing.initializedAt
+      } else {
+        initializedAt = timelineRequestAt
+      }
+      let acknowledgment = WidgetExtensionAcknowledgment(
+        buildNumber: buildNumber,
+        initializedAt: initializedAt,
+        latestTimelineRequestAt: timelineRequestAt
+      )
+      try writeExtensionAcknowledgment(acknowledgment)
+      return WidgetExtensionTimelineRequestAcknowledgment(
+        buildNumber: buildNumber,
+        timelineRequestAt: timelineRequestAt
+      )
     }
   }
 
@@ -79,5 +106,16 @@ enum WidgetInfo {
     guard fileManager.fileExists(at: extensionAcknowledgmentURL) else { return nil }
     let data = try fileManager.readDataSynchronously(from: extensionAcknowledgmentURL)
     return try JSONDecoder().decode(WidgetExtensionAcknowledgment.self, from: data)
+  }
+
+  private static func writeExtensionAcknowledgment(
+    _ acknowledgment: WidgetExtensionAcknowledgment
+  ) throws {
+    let data = try JSONEncoder().encode(acknowledgment)
+    try Container.shared.fileManager()
+      .writeDataSynchronously(
+        data,
+        to: extensionAcknowledgmentURL
+      )
   }
 }

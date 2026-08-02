@@ -23,7 +23,7 @@ struct QueueProvider: TimelineProvider {
         """
         Queue getTimeline called (family=\(context.family), \
         extensionBuild=\(acknowledgment.buildNumber), \
-        timelineRequestAt=\(acknowledgment.latestTimelineRequestAt))
+        timelineRequestAt=\(acknowledgment.timelineRequestAt))
         """
       )
     } catch {

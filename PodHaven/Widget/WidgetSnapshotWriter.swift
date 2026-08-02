@@ -234,9 +234,15 @@ final class WidgetSnapshotWriter: Sendable {
     let extensionAcknowledgment: String
     do {
       if let acknowledgment = try WidgetInfo.readExtensionAcknowledgment() {
+        let latestTimelineRequestAt: String
+        if let timestamp = acknowledgment.latestTimelineRequestAt {
+          latestTimelineRequestAt = "\(timestamp)"
+        } else {
+          latestTimelineRequestAt = "none"
+        }
         extensionAcknowledgment =
-          "build=\(acknowledgment.buildNumber), latestTimelineRequestAt="
-          + "\(acknowledgment.latestTimelineRequestAt)"
+          "build=\(acknowledgment.buildNumber), initializedAt=\(acknowledgment.initializedAt), "
+          + "latestTimelineRequestAt=\(latestTimelineRequestAt)"
       } else {
         extensionAcknowledgment = "none"
       }
