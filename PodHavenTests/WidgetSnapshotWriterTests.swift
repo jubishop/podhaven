@@ -5,6 +5,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import GRDB
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -24,6 +25,13 @@ import Testing
     Container.shared.widgetCenter() as! FakeWidgetCenter
   }
   nonisolated private var widgetState: WidgetState { Container.shared.widgetState() }
+
+  private let timelineKinds: Set<String> = [
+    WidgetInfo.nowPlayingKind,
+    WidgetInfo.queueKind,
+    WidgetInfo.nowPlayingQueueKind,
+    WidgetInfo.lockScreenNowPlayingKind,
+  ]
 
   private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
     try await repo.db.read { db in
@@ -155,22 +163,22 @@ import Testing
     #expect(widgetState.skipBackwardInterval == 10)
   }
 
-  @Test("includes queue items from shared state")
-  func includesQueueItemsFromSharedState() async throws {
-    let pe1 = try await Create.podcastEpisode(
-      try Create.unsavedEpisode(title: "Queue Ep 1")
+  @Test("includes persisted queue items at startup")
+  func includesPersistedQueueItemsAtStartup() async throws {
+    let firstEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Queue Ep 1", queueOrder: 0)
     )
-    let pe2 = try await Create.podcastEpisode(
-      try Create.unsavedEpisode(title: "Queue Ep 2")
+    let secondEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Queue Ep 2", queueOrder: 1)
     )
-    let ep1 = try await fetchListable(pe1.id)
-    let ep2 = try await fetchListable(pe2.id)
-    sharedState.$queuedPodcastEpisodes.new([ep1, ep2])
 
     writer.start()
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 2 }
 
     #expect(snapshot.queue.count == 2)
+    #expect(
+      snapshot.queue.map(\.episodeID) == [firstEpisode.id.rawValue, secondEpisode.id.rawValue]
+    )
     let titles = snapshot.queue.map(\.episodeTitle)
     #expect(titles.contains("Queue Ep 1"))
     #expect(titles.contains("Queue Ep 2"))
@@ -179,10 +187,8 @@ import Testing
   @Test("skips queue snapshot write when only non-widget episode fields change")
   func skipsQueueSnapshotWriteWhenOnlyNonWidgetFieldsChange() async throws {
     let pe = try await Create.podcastEpisode(
-      try Create.unsavedEpisode(title: "Widget Ep")
+      try Create.unsavedEpisode(title: "Widget Ep", queueOrder: 0)
     )
-    let ep = try await fetchListable(pe.id)
-    sharedState.$queuedPodcastEpisodes.new([ep])
 
     writer.start()
     try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 1 }
@@ -210,19 +216,148 @@ import Testing
 
   @Test("caps queue at 5 but reports full queueTotalCount")
   func capsQueueAt5ButReportsFullQueueTotalCount() async throws {
-    var episodes: [ListablePodcastEpisode] = []
+    var episodeIDs: [Int64] = []
     for i in 1...10 {
-      let pe = try await Create.podcastEpisode(
-        try Create.unsavedEpisode(title: "Ep \(i)")
+      let episode = try await Create.podcastEpisode(
+        try Create.unsavedEpisode(title: "Ep \(i)", queueOrder: i - 1)
       )
-      episodes.append(try await fetchListable(pe.id))
+      episodeIDs.append(episode.id.rawValue)
     }
-    sharedState.$queuedPodcastEpisodes.new(episodes)
 
     writer.start()
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 10 }
 
     #expect(snapshot.queue.count == 5)
+    #expect(snapshot.queue.map(\.episodeID) == Array(episodeIDs.prefix(5)))
+  }
+
+  @Test("upgrade reads the persisted queue before reload-all")
+  func upgradeReadsPersistedQueueBeforeReloadAll() async throws {
+    let queuedEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Persisted Queue Episode", queueOrder: 0)
+    )
+    widgetState.lastUpgradeRecoveryBuild = "previous-build"
+    Container.shared.widgetState.reset()
+
+    writer.start()
+
+    try await Wait.until(
+      { self.widgetCenter.reloadAllCount() == 1 },
+      { "Widget timelines were not reloaded after the build transition" }
+    )
+    let queueSnapshot = try await WidgetHelpers.waitForQueueSnapshot()
+
+    #expect(queueSnapshot.queue.first?.episodeID == queuedEpisode.id.rawValue)
+  }
+
+  @Test("upgrade writes initial snapshots before exactly one reload-all")
+  func upgradeWritesInitialSnapshotsBeforeReloadAll() async throws {
+    let nowPlayingEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Current Episode")
+    )
+    let queuedEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Current Queue Episode", queueOrder: 0)
+    )
+    sharedState.$onDeck.new(OnDeck(from: nowPlayingEpisode))
+    widgetState.lastUpgradeRecoveryBuild = "previous-build"
+    Container.shared.widgetState.reset()
+
+    writer.start()
+
+    try await Wait.until(
+      { self.widgetCenter.reloadAllCount() == 1 },
+      { "Widget timelines were not reloaded together after the build transition" }
+    )
+    let nowPlayingSnapshot = try await WidgetHelpers.waitForNowPlayingSnapshot()
+    let queueSnapshot = try await WidgetHelpers.waitForQueueSnapshot()
+
+    #expect(widgetCenter.reloadAllCount() == 1)
+    #expect(widgetCenter.everyReloadAllHadInitialSnapshots())
+    #expect(nowPlayingSnapshot.nowPlaying?.episodeID == nowPlayingEpisode.id.rawValue)
+    #expect(queueSnapshot.queue.first?.episodeID == queuedEpisode.id.rawValue)
+    #expect(timelineKinds.allSatisfy { widgetCenter.reloadCount(ofKind: $0) == 0 })
+    #expect(widgetState.lastUpgradeRecoveryBuild == AppInfo.buildNumber)
+  }
+
+  @Test("upgrade recovery does not wait for remote queue artwork")
+  func upgradeRecoveryDoesNotWaitForRemoteQueueArtwork() async throws {
+    let artworkURL = try #require(
+      URL(string: "https://example.com/upgrade-recovery-queue-artwork.png")
+    )
+    let persistedArtwork = "persisted-artwork"
+    let artworkRelease = AsyncSemaphore(value: 0)
+    defer { artworkRelease.signal() }
+
+    let dataLoader = Container.shared.fakeDataLoader()
+    dataLoader.respond(to: artworkURL) { _ in
+      try await artworkRelease.waitUnlessCancelled()
+      return Data()
+    }
+    let queuedEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(image: artworkURL),
+        unsavedEpisode: try Create.unsavedEpisode(queueOrder: 0)
+      )
+    )
+    let priorSnapshot = QueueSnapshot(
+      schemaVersion: QueueSnapshot.currentSchemaVersion,
+      queue: [],
+      queueTotalCount: 0,
+      artwork: [artworkURL.absoluteString: persistedArtwork],
+      updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    try await fileManager.writeData(
+      JSONEncoder().encode(priorSnapshot),
+      to: WidgetInfo.queueSnapshotURL
+    )
+    widgetState.lastUpgradeRecoveryBuild = "previous-build"
+    Container.shared.widgetState.reset()
+
+    writer.start()
+
+    try await Wait.until(
+      maxAttempts: 20,
+      { self.widgetCenter.reloadAllCount() == 1 },
+      { "Remote queue artwork blocked upgrade recovery" }
+    )
+    let snapshot = try await WidgetHelpers.waitForQueueSnapshot()
+    #expect(!dataLoader.loadedURLs().contains(artworkURL))
+    #expect(snapshot.queue.first?.episodeID == queuedEpisode.id.rawValue)
+    #expect(snapshot.artwork[artworkURL.absoluteString] == persistedArtwork)
+  }
+
+  @Test("first tracked build performs one reload-all")
+  func firstTrackedBuildPerformsReloadAll() async throws {
+    writer.start()
+
+    try await Wait.until(
+      { self.widgetCenter.reloadAllCount() == 1 },
+      { "The first build with upgrade tracking did not request reload-all" }
+    )
+
+    #expect(widgetCenter.reloadAllCount() == 1)
+    #expect(widgetCenter.everyReloadAllHadInitialSnapshots())
+    #expect(timelineKinds.allSatisfy { widgetCenter.reloadCount(ofKind: $0) == 0 })
+    #expect(widgetState.lastUpgradeRecoveryBuild == AppInfo.buildNumber)
+  }
+
+  @Test("same-build startup coalesces targeted timeline reloads")
+  func sameBuildStartupCoalescesTargetedReloads() async throws {
+    widgetState.lastUpgradeRecoveryBuild = AppInfo.buildNumber
+    Container.shared.widgetState.reset()
+
+    writer.start()
+    try await WidgetHelpers.waitForQueueSnapshot()
+    try await Wait.until(
+      { self.timelineKinds.allSatisfy { self.widgetCenter.reloadCount(ofKind: $0) >= 1 } },
+      { "Startup did not request every targeted widget timeline" }
+    )
+
+    #expect(widgetCenter.reloadAllCount() == 0)
+    #expect(widgetCenter.placedWidgetKindsRequestCount() == 1)
+    for kind in timelineKinds {
+      #expect(widgetCenter.reloadCount(ofKind: kind) == 1)
+    }
   }
 
   @Test("reloads now-playing timeline periodically while playing")
@@ -330,11 +465,22 @@ import Testing
   func reloadsNowPlayingQueueWidget() async throws {
     let kind = WidgetInfo.nowPlayingQueueKind
 
-    // Episode change reloads the combined widget (now-playing header data).
-    let episode = try await Create.podcastEpisode()
-    sharedState.$onDeck.new(OnDeck(from: episode))
+    let initialEpisode = try await Create.podcastEpisode()
+    sharedState.$onDeck.new(OnDeck(from: initialEpisode))
     writer.start()
     try await WidgetHelpers.waitForNowPlayingSnapshot { $0.nowPlaying != nil }
+    try await Wait.until(
+      { self.fakeWidgetCenter.reloadAllCount() == 1 },
+      { "Initial widget recovery did not finish" }
+    )
+
+    // A later episode change keeps the combined widget reload targeted.
+    fakeWidgetCenter.reset()
+    let replacementEpisode = try await Create.podcastEpisode()
+    sharedState.$onDeck.new(OnDeck(from: replacementEpisode))
+    try await WidgetHelpers.waitForNowPlayingSnapshot {
+      $0.nowPlaying?.episodeID == replacementEpisode.id.rawValue
+    }
     try await Wait.until(
       { self.fakeWidgetCenter.reloadCount(ofKind: kind) >= 1 },
       { "combined widget was not reloaded on now-playing change" }

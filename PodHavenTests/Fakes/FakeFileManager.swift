@@ -38,6 +38,17 @@ final class FakeFileManager: FileManaging, Sendable {
     return data
   }
 
+  func writeDataSynchronously(_ data: Data, to url: URL) throws {
+    inMemoryFiles[url] = data
+  }
+
+  func readDataSynchronously(from url: URL) throws -> Data {
+    guard let data = inMemoryFiles[url]
+    else { throw TestError.fileNotFound(url) }
+
+    return data
+  }
+
   // MARK: - File Management Operations
 
   func removeItem(at url: URL) throws {

@@ -24,7 +24,19 @@ struct NowPlayingQueueProvider: TimelineProvider {
     in context: Context,
     completion: @escaping (Timeline<NowPlayingQueueEntry>) -> Void
   ) {
-    Self.log.debug("getTimeline called (family=\(context.family))")
+    do {
+      let acknowledgment = try WidgetInfo.recordExtensionTimelineRequest()
+      Self.log.debug(
+        """
+        getTimeline called (family=\(context.family), \
+        extensionBuild=\(acknowledgment.buildNumber), \
+        timelineRequestAt=\(acknowledgment.timelineRequestAt))
+        """
+      )
+    } catch {
+      Self.log.caughtError("getTimeline: failed to persist extension acknowledgment", error)
+      Self.log.debug("getTimeline called (family=\(context.family))")
+    }
     let entry = makeEntry()
     var entries = [entry]
 
