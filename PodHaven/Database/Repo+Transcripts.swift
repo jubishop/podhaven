@@ -3,6 +3,12 @@
 import GRDB
 import Logging
 
+private enum TranscriptStoreRequirement: Sendable {
+  case none
+  case publisherReferences([PublisherTranscriptReference])
+  case publisherDemand([PublisherTranscriptReference])
+}
+
 extension Repo {
   private static var transcriptLog: Logger {
     Log.as(LogSubsystem.Database.repo)
@@ -26,6 +32,11 @@ extension Repo {
       try EpisodeTranscriptionCheckpoint
         .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
         .deleteAll(db)
+      if transcript != nil {
+        try PublisherTranscriptImportJob
+          .filter(PublisherTranscriptImportJob.Columns.episodeId == episodeID)
+          .deleteAll(db)
+      }
       return updated > 0
     }
   }
@@ -35,15 +46,83 @@ extension Repo {
     transcript: Transcript,
     publisherSource: PublisherTranscriptReference?
   ) async throws -> Bool {
+    try await storeTranscript(
+      episodeID,
+      transcript: transcript,
+      publisherSource: publisherSource,
+      requirement: .none
+    )
+  }
+
+  func storePublisherTranscriptIfReferencesCurrent(
+    _ episodeID: Episode.ID,
+    imported: PublisherTranscriptImport,
+    expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> Bool {
+    try await storeTranscript(
+      episodeID,
+      transcript: imported.transcript,
+      publisherSource: imported.source,
+      requirement: .publisherReferences(expectedReferences)
+    )
+  }
+
+  func storePublisherTranscriptIfDemandCurrent(
+    _ episodeID: Episode.ID,
+    imported: PublisherTranscriptImport,
+    expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> Bool {
+    try await storeTranscript(
+      episodeID,
+      transcript: imported.transcript,
+      publisherSource: imported.source,
+      requirement: .publisherDemand(expectedReferences)
+    )
+  }
+
+  private func storeTranscript(
+    _ episodeID: Episode.ID,
+    transcript: Transcript,
+    publisherSource: PublisherTranscriptReference?,
+    requirement: TranscriptStoreRequirement
+  ) async throws -> Bool {
     let transcriptJSON = try transcript.jsonString()
     let publisherSourceJSON = try PublisherTranscriptReference.jsonString(
       for: publisherSource
     )
-    Self.transcriptLog.debug(
-      "storeTranscriptIfAbsent: \(episodeID) to \(transcriptJSON.count) chars"
-    )
+    let requirementDescription =
+      switch requirement {
+      case .none:
+        "none"
+      case .publisherReferences(let references):
+        "publisherReferences(\(references.count))"
+      case .publisherDemand(let references):
+        "publisherDemand(\(references.count))"
+      }
 
-    return try await writer.write { db in
+    let stored = try await writer.write { db in
+      switch requirement {
+      case .none:
+        break
+      case .publisherReferences(let expectedReferences):
+        guard
+          let episode = try Episode.withID(episodeID).fetchOne(db),
+          episode.publisherTranscriptReferences == expectedReferences
+        else {
+          return false
+        }
+      case .publisherDemand(let expectedReferences):
+        guard
+          let episode = try Episode.withID(episodeID).fetchOne(db),
+          episode.publisherTranscriptReferences == expectedReferences,
+          try PublisherTranscriptImportJob
+            .filter(PublisherTranscriptImportJob.Columns.episodeId == episodeID)
+            .fetchCount(db) > 0
+        else {
+          return false
+        }
+      }
+
       let updated =
         try Episode
         .withID(episodeID)
@@ -53,12 +132,35 @@ extension Repo {
           Episode.Columns.transcript.set(to: transcriptJSON),
           Episode.Columns.publisherTranscriptSourceJSON.set(to: publisherSourceJSON)
         )
-      guard updated > 0 else { return false }
-      try EpisodeTranscriptionCheckpoint
-        .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
+      try PublisherTranscriptImportJob
+        .filter(PublisherTranscriptImportJob.Columns.episodeId == episodeID)
         .deleteAll(db)
+      guard updated > 0 else { return false }
+      switch requirement {
+      case .none:
+        try EpisodeTranscriptionCheckpoint
+          .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
+          .deleteAll(db)
+      case .publisherReferences, .publisherDemand:
+        let queuedWork =
+          try EpisodeTranscriptionQueueEntry
+          .filter(EpisodeTranscriptionQueueEntry.Columns.episodeId == episodeID)
+          .fetchOne(db)
+        if queuedWork?.workMode != .onDeviceReplacement {
+          try EpisodeTranscriptionCheckpoint
+            .filter(EpisodeTranscriptionCheckpoint.Columns.episodeId == episodeID)
+            .deleteAll(db)
+        }
+      }
       return true
     }
+    Self.transcriptLog.debug(
+      """
+      storeTranscript: \(episodeID) chars=\(transcriptJSON.count) \
+      requirement=\(requirementDescription) stored=\(stored)
+      """
+    )
+    return stored
   }
 
   func replacePublisherTranscript(

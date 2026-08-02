@@ -27,7 +27,7 @@ enum HeadProcessingOutcome {
 }
 
 extension PublisherTranscriptImporter {
-  func importAndStoreIfAbsent(
+  func importAndStoreIfReferencesCurrent(
     for episode: Episode,
     in repo: any Databasing
   ) async throws -> Bool {
@@ -38,10 +38,10 @@ extension PublisherTranscriptImporter {
     else {
       return false
     }
-    return try await repo.storeTranscriptIfAbsent(
+    return try await repo.storePublisherTranscriptIfReferencesCurrent(
       episode.id,
-      transcript: imported.transcript,
-      publisherSource: imported.source
+      imported: imported,
+      expectedReferences: episode.publisherTranscriptReferences
     )
   }
 }

@@ -10,6 +10,18 @@ import Testing
 
 @Suite("of TranscriptionProcessor publisher replacements", .container)
 struct TranscriptionProcessorReplacementTests {
+  private func insertPublisherTranscriptJob(_ episodeID: Episode.ID) async throws {
+    let nextAttemptAt = Container.shared.dateProvider().now
+    try await Container.shared.appDB().writer
+      .write { db in
+        try PublisherTranscriptImportStore.insert(
+          episodeID,
+          nextAttemptAt: nextAttemptAt,
+          in: db
+        )
+      }
+  }
+
   private func insertForcedReplacement(_ episodeID: Episode.ID) async throws {
     try await Container.shared.appDB().unsafeTestDB
       .write { db in
@@ -393,8 +405,10 @@ struct TranscriptionProcessorReplacementTests {
       dataSize: 1,
       publisherTranscriptReferences: [source]
     )
+    try await insertPublisherTranscriptJob(episode.id)
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
+    let publisherProcessor = Container.shared.publisherTranscriptProcessor()
     try await queue.enqueue(episode.id)
     processor.handleScenePhaseChange(to: .active)
     defer {
@@ -405,7 +419,7 @@ struct TranscriptionProcessorReplacementTests {
 
     await firstAnalysisStarted.wait()
     let importTask = Task {
-      await processor.importPublisherTranscript(for: episode.id)
+      await publisherProcessor.makeForegroundProgress()
     }
     defer { importTask.cancel() }
     await cancellationStarted.wait()
@@ -413,7 +427,7 @@ struct TranscriptionProcessorReplacementTests {
     try await processor.enqueuePublisherReplacement(episode.id)
     #expect(queue.work(for: episode.id)?.mode == .onDeviceReplacement)
     cancellationRelease.signal()
-    #expect(await importTask.value)
+    await importTask.value
 
     try await Wait.until(
       {
@@ -483,25 +497,37 @@ struct TranscriptionProcessorReplacementTests {
     let repo = Container.shared.repo()
     let fakeRepo = try #require(repo as? FakeRepo)
     fakeRepo.pendingPublisherTranscriptStoreAfterWriteSuspend(true)
+    try await insertPublisherTranscriptJob(episode.id)
     let queue = Container.shared.transcriptionQueue()
     let processor = Container.shared.transcriptionProcessor()
+    let publisherProcessor = Container.shared.publisherTranscriptProcessor()
+    try await processor.enqueuePublisherReplacement(episode.id)
     processor.handleScenePhaseChange(to: .active)
-    let importTask = Task {
-      await processor.importPublisherTranscript(for: episode.id)
-    }
     defer {
-      importTask.cancel()
       Task { await fakeRepo.resumeAllPublisherTranscriptStoreAfterWriteSuspensions() }
       analysisRelease.signal()
       processor.handleScenePhaseChange(to: .background)
     }
 
-    try await fakeRepo.waitForPublisherTranscriptStoreAfterWriteSuspended()
-    try await processor.enqueuePublisherReplacement(episode.id)
     await analysisStarted.wait()
+    let checkpoint = TranscriptionCheckpoint(
+      segments: [TranscriptSegment(start: 0, end: 1, text: "Partial replacement")],
+      audioTime: 1,
+      duration: 60,
+      locale: "en-US",
+      audioSHA256: FakeAudioFileHasher.defaultSHA256
+    )
+    try await repo.saveTranscriptionCheckpoint(checkpoint, for: episode.id)
+    let importTask = Task {
+      await publisherProcessor.makeForegroundProgress()
+    }
+    defer { importTask.cancel() }
+
+    try await fakeRepo.waitForPublisherTranscriptStoreAfterWriteSuspended()
+    #expect(try await repo.transcriptionCheckpoint(episode.id) == checkpoint)
 
     await fakeRepo.resumeAllPublisherTranscriptStoreAfterWriteSuspensions()
-    #expect(await importTask.value)
+    await importTask.value
     #expect(cancellationCount() == 0)
 
     analysisRelease.signal()

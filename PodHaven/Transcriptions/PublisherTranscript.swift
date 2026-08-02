@@ -167,6 +167,12 @@ struct PublisherTranscriptImport: Sendable {
   let source: PublisherTranscriptReference
 }
 
+enum PublisherTranscriptImportOutcome: Sendable {
+  case imported(PublisherTranscriptImport)
+  case retryableFailure
+  case terminalFailure
+}
+
 struct PublisherTranscriptImporter: Sendable {
   @DynamicInjected(\.dateProvider) private var dateProvider
   @DynamicInjected(\.publisherTranscriptSession) private var session
@@ -178,36 +184,79 @@ struct PublisherTranscriptImporter: Sendable {
   func importTranscript(
     from references: [PublisherTranscriptReference]
   ) async throws -> PublisherTranscriptImport? {
+    switch try await attemptImport(from: references) {
+    case .imported(let imported):
+      return imported
+    case .retryableFailure, .terminalFailure:
+      return nil
+    }
+  }
+
+  func attemptImport(
+    from references: [PublisherTranscriptReference]
+  ) async throws -> PublisherTranscriptImportOutcome {
     let candidates = PublisherTranscriptReference.canonicalized(
       references,
       defaultLanguage: references.first?.language
     )
+    var encounteredRetryableFailure = false
     for reference in candidates {
       guard let format = reference.format else { continue }
 
       do {
         let data = try await session.validatedData(from: reference.url)
         let segments = try PublisherTranscriptParser.parse(data, as: format)
-        return PublisherTranscriptImport(
-          transcript: Transcript(
-            segments: segments,
-            locale: reference.language ?? "und",
-            createdAt: dateProvider.now
-          ),
-          source: reference
+        return .imported(
+          PublisherTranscriptImport(
+            transcript: Transcript(
+              segments: segments,
+              locale: reference.language ?? "und",
+              createdAt: dateProvider.now
+            ),
+            source: reference
+          )
         )
       } catch is CancellationError {
         throw CancellationError()
       } catch {
         try Task.checkCancellation()
+        let retryable = Self.isRetryable(error)
+        encounteredRetryableFailure = encounteredRetryableFailure || retryable
         Self.log.caughtError(
-          "Publisher transcript candidate failed: \(reference.url)",
+          """
+          Publisher transcript candidate failed: \(reference.url) \
+          retryable=\(retryable)
+          """,
           error,
           level: .info
         )
       }
     }
-    return nil
+    return encounteredRetryableFailure ? .retryableFailure : .terminalFailure
+  }
+
+  private static func isRetryable(_ error: any Error) -> Bool {
+    if error is PublisherTranscriptParser.ParsingError || error is DecodingError {
+      return false
+    }
+    if let statusError = error as? HTTPStatusError {
+      return statusError.statusCode == 408
+        || statusError.statusCode == 425
+        || statusError.statusCode == 429
+        || (500...599).contains(statusError.statusCode)
+    }
+    if let urlError = error as? URLError {
+      switch urlError.code {
+      case .badURL, .unsupportedURL, .fileDoesNotExist, .noPermissionsToReadFile,
+        .resourceUnavailable, .redirectToNonExistentLocation,
+        .userAuthenticationRequired, .userCancelledAuthentication,
+        .appTransportSecurityRequiresSecureConnection:
+        return false
+      default:
+        return true
+      }
+    }
+    return true
   }
 }
 

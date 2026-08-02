@@ -613,19 +613,21 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       transcript: transcript,
       publisherSource: publisherSource
     )
-    if stored,
-      publisherSource != nil,
-      pendingPublisherTranscriptStoreAfterWriteSuspend()
-    {
-      pendingPublisherTranscriptStoreAfterWriteSuspend(false)
-      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-        publisherTranscriptStoreAfterWriteSuspensions.append(continuation)
-        suspendedPublisherTranscriptStoreAfterWriteCount(
-          publisherTranscriptStoreAfterWriteSuspensions.count
-        )
-      }
+    if publisherSource != nil {
+      await suspendPublisherTranscriptStoreAfterWriteIfNeeded(stored)
     }
     return stored
+  }
+
+  private func suspendPublisherTranscriptStoreAfterWriteIfNeeded(_ stored: Bool) async {
+    guard stored, pendingPublisherTranscriptStoreAfterWriteSuspend() else { return }
+    pendingPublisherTranscriptStoreAfterWriteSuspend(false)
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+      publisherTranscriptStoreAfterWriteSuspensions.append(continuation)
+      suspendedPublisherTranscriptStoreAfterWriteCount(
+        publisherTranscriptStoreAfterWriteSuspensions.count
+      )
+    }
   }
 
   func resumeAllPublisherTranscriptStoreAfterWriteSuspensions() {
@@ -701,6 +703,50 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       { self.suspendedPublisherReplacementAfterWriteCount() > 0 },
       { "Expected final publisher replacement storage to suspend after writing" }
     )
+  }
+
+  func storePublisherTranscriptIfReferencesCurrent(
+    _ episodeID: Episode.ID,
+    imported: PublisherTranscriptImport,
+    expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> Bool {
+    recordCall(
+      methodName: "storePublisherTranscriptIfReferencesCurrent",
+      parameters: (
+        episodeID: episodeID,
+        imported: imported,
+        expectedReferences: expectedReferences
+      )
+    )
+    let stored = try await repo.storePublisherTranscriptIfReferencesCurrent(
+      episodeID,
+      imported: imported,
+      expectedReferences: expectedReferences
+    )
+    await suspendPublisherTranscriptStoreAfterWriteIfNeeded(stored)
+    return stored
+  }
+
+  func storePublisherTranscriptIfDemandCurrent(
+    _ episodeID: Episode.ID,
+    imported: PublisherTranscriptImport,
+    expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> Bool {
+    recordCall(
+      methodName: "storePublisherTranscriptIfDemandCurrent",
+      parameters: (
+        episodeID: episodeID,
+        imported: imported,
+        expectedReferences: expectedReferences
+      )
+    )
+    let stored = try await repo.storePublisherTranscriptIfDemandCurrent(
+      episodeID,
+      imported: imported,
+      expectedReferences: expectedReferences
+    )
+    await suspendPublisherTranscriptStoreAfterWriteIfNeeded(stored)
+    return stored
   }
 
   func saveTranscriptionCheckpoint(

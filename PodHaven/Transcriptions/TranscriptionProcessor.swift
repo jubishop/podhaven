@@ -246,76 +246,62 @@ struct TranscriptionProcessor: Sendable {
   }
 
   @discardableResult
-  func importPublisherTranscript(for episodeID: Episode.ID) async -> Bool {
-    do {
+  func storePublisherTranscript(
+    _ imported: PublisherTranscriptImport,
+    for episodeID: Episode.ID,
+    expectedReferences: [PublisherTranscriptReference]
+  ) async throws -> Bool {
+    let stored = try await repo.storePublisherTranscriptIfDemandCurrent(
+      episodeID,
+      imported: imported,
+      expectedReferences: expectedReferences
+    )
+    guard stored else { return false }
+
+    let activeTask = activeTranscription { active -> Task<Void, any Error>? in
       guard
-        let episode = try await repo.episode(episodeID),
-        !episode.hasTranscript,
-        transcriptionQueue.work(for: episodeID)?.mode != .onDeviceReplacement,
-        try await publisherTranscriptImporter.importAndStoreIfAbsent(
-          for: episode,
-          in: repo
-        )
+        var current = active,
+        current.episodeID == episodeID,
+        current.workMode == .publisherPreferred,
+        current.interruption.isNone
       else {
-        return false
+        return nil
       }
+      current.interruption = .publisherTranscript
+      active = current
+      return current.task
+    }
+    if let activeTask {
+      Self.log.info("Cancelling redundant on-device transcription \(episodeID)")
+      activeTask.cancel()
+      switch await activeTask.result {
+      case .success, .failure:
+        break
+      }
+    }
 
-      let activeTask = activeTranscription { active -> Task<Void, any Error>? in
-        guard
-          var current = active,
-          current.episodeID == episodeID,
-          current.workMode == .publisherPreferred,
-          current.interruption.isNone
-        else {
-          return nil
-        }
-        current.interruption = .publisherTranscript
-        active = current
-        return current.task
-      }
-      if let activeTask {
-        Self.log.info("Cancelling redundant on-device transcription \(episodeID)")
-        activeTask.cancel()
-        switch await activeTask.result {
-        case .success, .failure:
-          break
-        }
-      }
-
-      do {
-        let removedPublisherWork = try await transcriptionQueue.remove(
-          episodeID,
-          ifMode: .publisherPreferred
+    do {
+      let removedPublisherWork = try await transcriptionQueue.remove(
+        episodeID,
+        ifMode: .publisherPreferred
+      )
+      if !removedPublisherWork {
+        Self.log.debug(
+          "Preserved newer transcription work after publisher import \(episodeID)"
         )
-        if removedPublisherWork {
-          try await repo.deleteTranscriptionCheckpoint(for: episodeID)
-        } else {
-          Self.log.debug(
-            "Preserved newer transcription work after publisher import \(episodeID)"
-          )
-        }
-      } catch {
-        Self.log.caughtError(
-          "Failed to reconcile publisher-transcribed episode \(episodeID)",
-          error
-        )
-        backgroundTaskScheduler.scheduleNext()
       }
-      if transcriptionQueue.episodeIDs.isEmpty {
-        backgroundTaskScheduler.scheduleNext()
-      }
-      Self.log.info("Stored publisher transcript for episode \(episodeID)")
-      return true
-    } catch is CancellationError {
-      return false
     } catch {
       Self.log.caughtError(
-        "Failed to import publisher transcript for episode \(episodeID)",
-        error,
-        level: .info
+        "Failed to reconcile publisher-transcribed episode \(episodeID)",
+        error
       )
-      return false
+      backgroundTaskScheduler.scheduleNext()
     }
+    if transcriptionQueue.episodeIDs.isEmpty {
+      backgroundTaskScheduler.scheduleNext()
+    }
+    Self.log.info("Stored publisher transcript for episode \(episodeID)")
+    return true
   }
 
   func reconcileDeletion<Result: Sendable>(
@@ -828,7 +814,7 @@ struct TranscriptionProcessor: Sendable {
     }
 
     if work.mode == .publisherPreferred,
-      try await publisherTranscriptImporter.importAndStoreIfAbsent(
+      try await publisherTranscriptImporter.importAndStoreIfReferencesCurrent(
         for: episode,
         in: repo
       )

@@ -10,8 +10,8 @@ struct V80MigrationTests {
   private let appDB = AppDB.inMemory(migrate: false)
   private let migrator = Schema.makeMigrator()
 
-  @Test("v80 gives queued transcription work a durable mode")
-  func addsDurableTranscriptionWorkMode() async throws {
+  @Test("v80 creates empty cascading publisher transcript work without backfill")
+  func createsEmptyCascadingWorkWithoutBackfill() async throws {
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v79")
     try await appDB.unsafeTestDB.write { db in
       try db.execute(
@@ -19,7 +19,7 @@ struct V80MigrationTests {
           INSERT INTO podcast (
             id, feedURL, title, image, description
           ) VALUES (
-            800, 'https://example.com/v80.xml', 'Replacement Mode',
+            800, 'https://example.com/v80.xml', 'Publisher Work',
             'https://example.com/v80.jpg', 'Description'
           )
           """
@@ -27,39 +27,44 @@ struct V80MigrationTests {
       try db.execute(
         sql: """
           INSERT INTO episode (
-            id, podcastId, guid, mediaURL, title, pubDate
+            id, podcastId, guid, mediaURL, title, pubDate,
+            publisherTranscriptReferencesJSON
           ) VALUES (
             801, 800, 'v80-1', 'https://example.com/v80-1.mp3',
-            'Existing Queue Entry', '2026-01-01 00:00:00'
+            'Historical Episode', '2026-01-01 00:00:00',
+            '[{"url":"https://example.com/v80.vtt","type":"text/vtt"}]'
           )
           """
       )
+    }
+
+    try migrator.migrate(appDB.unsafeTestDB, upTo: "v80")
+
+    let initialCount = try await appDB.unsafeTestDB.read { db in
+      try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM publisherTranscriptImportJob"
+      )
+    }
+    #expect(initialCount == 0)
+
+    try await appDB.unsafeTestDB.write { db in
       try db.execute(
         sql: """
-          INSERT INTO episodeTranscriptionQueue (episodeId)
-          VALUES (801)
+          INSERT INTO publisherTranscriptImportJob (
+            episodeId, attemptCount, nextAttemptAt
+          ) VALUES (801, 0, '2026-01-01 00:00:00')
           """
       )
+      try db.execute(sql: "DELETE FROM episode WHERE id = 801")
     }
 
-    try migrator.migrate(appDB.unsafeTestDB)
-
-    let columns = try await appDB.unsafeTestDB.read { db in
-      try db.columns(in: "episodeTranscriptionQueue").map(\.name)
-    }
-    #expect(columns.contains("workMode"))
-    guard columns.contains("workMode") else { return }
-
-    let workMode = try await appDB.unsafeTestDB.read { db in
-      try String.fetchOne(
+    let countAfterEpisodeDeletion = try await appDB.unsafeTestDB.read { db in
+      try Int.fetchOne(
         db,
-        sql: """
-          SELECT workMode
-          FROM episodeTranscriptionQueue
-          WHERE episodeId = 801
-          """
+        sql: "SELECT COUNT(*) FROM publisherTranscriptImportJob"
       )
     }
-    #expect(workMode == "publisherPreferred")
+    #expect(countAfterEpisodeDeletion == 0)
   }
 }
