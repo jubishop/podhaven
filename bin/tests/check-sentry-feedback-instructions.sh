@@ -26,7 +26,7 @@ chmod +x "$STUBS/sentry"
 cat > "$STUBS/gh" <<'EOF'
 #!/bin/sh
 if [ "$1" = api ] && [ "$4" = 'repos/jubishop/podhaven/issues?state=all&per_page=100' ]; then
-  printf '%s\n' '[[{"number":42,"body":"<!-- sentry-feedback:podhaven:7485822944 -->"}]]'
+  printf '%s\n' '[[{"number":99,"body":"https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A7485822944"},{"number":42,"body":"<!-- sentry-feedback:podhaven:7485822944 -->"}]]'
   exit 0
 fi
 if [ "$1" = api ] && [ "$4" = 'repos/jubishop/podhaven/issues/42/comments?per_page=100' ]; then
@@ -60,5 +60,21 @@ fi
 
 if ! grep -Fq "\`bin/sfeedback podhaven:7485822944\`" "$CAPTURE/comment"; then
   echo "check-sentry-feedback did not provide the direct sfeedback command" >&2
+  exit 1
+fi
+
+if ! grep -Fq '<!-- issuefix-prerequisite: analyze-sentry-feedback podhaven:7485822944 -->' "$CAPTURE/comment"; then
+  echo "check-sentry-feedback did not declare the issuefix analysis prerequisite" >&2
+  exit 1
+fi
+
+if ! grep -Fq "passed to \`issuefix\`" "$CAPTURE/comment"; then
+  echo "check-sentry-feedback did not explain the issuefix intake path" >&2
+  exit 1
+fi
+
+if ! grep -Fq "additional trusted marker author is \`github-actions[bot]\`" \
+  "$ROOT/.agents/skills/analyze-sentry-feedback/SKILL.md"; then
+  echo "analyze-sentry-feedback does not trust the checker comment author" >&2
   exit 1
 fi

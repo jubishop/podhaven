@@ -129,28 +129,29 @@ function __sfeedback_pick
         set -l permalink "$parts[5]"
         set -l slug "podhaven:$id"
         set -l issue_marker "<!-- sentry-feedback:$slug -->"
-        set -l analysis_marker '<!-- analyze-sentry-feedback-findings:start -->'
+        set -l analysis_start_marker '<!-- analyze-sentry-feedback-findings:start -->'
+        set -l analysis_end_marker '<!-- analyze-sentry-feedback-findings:end -->'
         set -l github_match (printf '%s\n' $github_issues_json | jq -r \
             --arg issue_marker "$issue_marker" \
-            --arg analysis_marker "$analysis_marker" \
+            --arg analysis_start_marker "$analysis_start_marker" \
+            --arg analysis_end_marker "$analysis_end_marker" \
             --arg permalink "$permalink" '
-                first(
+                def candidate_issues:
                     .[][]
-                    | select(has("pull_request") | not)
-                    | select(
-                        ((.body // "") | contains($issue_marker))
-                        or ((.body // "") | contains($permalink))
-                    )
-                    | [
-                        (.number | tostring),
-                        .state,
-                        (if ((.body // "") | contains($analysis_marker))
-                            then "analyzed"
-                            else "intake"
-                        end)
-                    ]
-                    | @tsv
-                ) // empty')
+                    | select(has("pull_request") | not);
+                (
+                    first(candidate_issues | select((.body // "") | contains($issue_marker)))
+                    // first(candidate_issues | select((.body // "") | contains($permalink)))
+                )
+                | [
+                    (.number | tostring),
+                    .state,
+                    (if (
+                        ((.body // "") | contains($analysis_start_marker))
+                        and ((.body // "") | contains($analysis_end_marker))
+                    ) then "analyzed" else "intake" end)
+                ]
+                | @tsv')
         set -l github_match_status $status
         if test $github_match_status -ne 0
             echo "Error: GitHub returned invalid issue data"

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/check-sentry-feedback-test.XXXXXX")"
+TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/check-sentry-feedback-partial.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 
 STUBS="$TEST_DIR/bin"
@@ -26,10 +26,17 @@ chmod +x "$STUBS/sentry"
 cat > "$STUBS/gh" <<'EOF'
 #!/bin/sh
 if [ "$1" = api ] && [ "$4" = 'repos/jubishop/podhaven/issues?state=all&per_page=100' ]; then
-  printf '%s\n' '[[{"number":42,"body":"<!-- sentry-feedback:podhaven:7485822944 -->\n<!-- analyze-sentry-feedback-findings:start -->\n<!-- analyze-sentry-feedback-findings:end -->"}]]'
+  printf '%s\n' '[[{"number":42,"body":"<!-- sentry-feedback:podhaven:7485822944 -->\n<!-- analyze-sentry-feedback-findings:start -->"}]]'
   exit 0
 fi
-printf '%s\n' "$*" >> "$CHECK_SENTRY_TEST_CAPTURE/forbidden"
+if [ "$1" = api ] && [ "$4" = 'repos/jubishop/podhaven/issues/42/comments?per_page=100' ]; then
+  printf '%s\n' '[[]]'
+  exit 0
+fi
+if [ "$1 $2" = 'issue comment' ]; then
+  printf '%s\n' "$*" > "$CHECK_SENTRY_TEST_CAPTURE/comment-call"
+  exit 0
+fi
 exit 97
 EOF
 chmod +x "$STUBS/gh"
@@ -41,12 +48,17 @@ PATH="$STUBS:$PATH" \
   "$ROOT/bin/check-sentry-feedback" \
   > "$CAPTURE/output"
 
-if [[ -e "$CAPTURE/forbidden" ]]; then
-  echo "check-sentry-feedback tried to add instructions to an analyzed issue" >&2
+if grep -Fq 'Already analyzed:' "$CAPTURE/output"; then
+  echo "check-sentry-feedback treated a partial findings block as analyzed" >&2
   exit 1
 fi
 
-if ! grep -Fq 'Already analyzed: podhaven:7485822944 in issue #42' "$CAPTURE/output"; then
-  echo "check-sentry-feedback did not recognize the managed findings marker" >&2
+if ! grep -Fq 'Already tracked: podhaven:7485822944 in issue #42' "$CAPTURE/output"; then
+  echo "check-sentry-feedback did not keep the partial findings block in intake" >&2
+  exit 1
+fi
+
+if [[ ! -e "$CAPTURE/comment-call" ]]; then
+  echo "check-sentry-feedback did not restore intake instructions for a partial findings block" >&2
   exit 1
 fi

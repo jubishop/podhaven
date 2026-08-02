@@ -75,8 +75,11 @@ write_instruction_comment() {
 
   {
     printf '<!-- sfeedback:%s -->\n' "$slug"
-    printf "Run \`bin/sfeedback %s\` from a PodHaven checkout to analyze [%s](%s) and update this issue with the findings before starting implementation.\n" \
-      "$slug" "$slug" "$permalink"
+    printf '<!-- issuefix-prerequisite: analyze-sentry-feedback %s -->\n' "$slug"
+    printf 'This issue is intake only and must be analyzed before implementation.\n\n'
+    printf -- "- Run \`bin/sfeedback %s\` from a PodHaven checkout to analyze it directly.\n" "$slug"
+    printf -- "- If passed to \`issuefix\`, it will run the same analysis prerequisite, refresh this issue, and then continue from the findings.\n\n"
+    printf 'Protected feedback details remain in Sentry: [%s](%s).\n' "$slug" "$permalink"
   } > "$comment_path"
 
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -98,23 +101,30 @@ while IFS= read -r feedback; do
   SLUG="podhaven:$ID"
   ISSUE_MARKER="<!-- sentry-feedback:$SLUG -->"
   COMMENT_MARKER="<!-- sfeedback:$SLUG -->"
-  ANALYSIS_MARKER="<!-- analyze-sentry-feedback-findings:start -->"
+  ANALYSIS_START_MARKER="<!-- analyze-sentry-feedback-findings:start -->"
+  ANALYSIS_END_MARKER="<!-- analyze-sentry-feedback-findings:end -->"
 
   EXISTING_NUMBER="$(jq -r \
     --arg marker "$ISSUE_MARKER" \
     --arg permalink "$PERMALINK" \
-    'first(.[] | select(
-      ((.body // "") | contains($marker))
-      or ((.body // "") | contains($permalink))
-    ) | .number) // empty' \
+    '(
+      first(.[] | select((.body // "") | contains($marker)) | .number)
+      // first(.[] | select((.body // "") | contains($permalink)) | .number)
+      // empty
+    )' \
     "$ISSUES_JSON")"
 
   if [[ -n "$EXISTING_NUMBER" ]]; then
     TRACKED=$((TRACKED + 1))
     if jq -e \
       --argjson number "$EXISTING_NUMBER" \
-      --arg marker "$ANALYSIS_MARKER" \
-      'any(.[]; .number == $number and ((.body // "") | contains($marker)))' \
+      --arg start_marker "$ANALYSIS_START_MARKER" \
+      --arg end_marker "$ANALYSIS_END_MARKER" \
+      'any(.[];
+        .number == $number
+        and ((.body // "") | contains($start_marker))
+        and ((.body // "") | contains($end_marker))
+      )' \
       "$ISSUES_JSON" >/dev/null; then
       echo "Already analyzed: $SLUG in issue #$EXISTING_NUMBER"
       continue

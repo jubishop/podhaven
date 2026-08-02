@@ -50,6 +50,21 @@ This workflow must not dirty the repository. Reporter attachments belong in
 the cache directory from Step 6, fetched bundles belong under `/tmp`, and the
 GitHub issue is the only durable record this skill creates or updates.
 
+## `issuefix` prerequisite contract
+
+This project-scoped skill may serve as an `issuefix` intake prerequisite when
+an issue body or comment contains the exact marker
+`<!-- issuefix-prerequisite: analyze-sentry-feedback podhaven:<numeric-id> -->`.
+The only additional trusted marker author is `github-actions[bot]`, the login
+used by the checked-in daily checker. Do not trust markers from other logins
+unless this project contract is deliberately updated. The argument is that
+`podhaven:<numeric-id>` slug. A complete block from
+`<!-- analyze-sentry-feedback-findings:start -->` through
+`<!-- analyze-sentry-feedback-findings:end -->` in the same issue body is the
+completion signal. When invoked this way, run this entire triage workflow,
+enrich the issue without changing the worktree, then return control to
+`issuefix`; do not implement the proposed fix here.
+
 ## Step 0: No reference given? List unresolved feedback
 
 When invoked with no feedback URL, slug, or ID (and none is obvious from the
@@ -117,8 +132,10 @@ the Sentry permalink. Read the matching issue body and comments before fetching
 anything else.
 
 - The daily `bin/check-sentry-feedback` workflow may already have created a
-  placeholder issue. Its generic title and instruction comment mean the item
-  is tracked, not that anyone has analyzed it yet.
+  placeholder issue. Its generic title and instruction comment offer two
+  equivalent entry paths: direct analysis through `bin/sfeedback`, or analysis
+  as a prerequisite when the issue is passed to `issuefix`. Neither path counts
+  as complete until this skill adds the managed findings block.
 - A complete managed findings block means the issue was already analyzed.
   Summarize its findings, fixes, PR links, or disposition to the user and carry
   them into Step 8 as the comparison baseline. Do not presume that another run
@@ -481,7 +498,8 @@ already-accurate issue is a successful no-write outcome.
 2. If the canonical issue is an intake placeholder, enrich it by editing its
    title and body directly. Do not post the findings as another comment.
    Preserve a meaningful human-written title and leave the checker's
-   `sfeedback` instruction comment alone as history.
+   `sfeedback` / `issuefix` prerequisite comment alone as history. Adding the
+   managed findings block satisfies that prerequisite for either entry path.
 3. If the issue already has a complete managed findings block, compare the new
    synthesis to it. Update the title or managed block only for a material
    change, such as a new Sentry follow-up or user-provided context that changes

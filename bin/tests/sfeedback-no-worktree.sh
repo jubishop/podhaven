@@ -64,7 +64,7 @@ chmod +x "$STUBS/sentry"
 
 printf '%s\n' \
   '#!/bin/sh' \
-  "printf '%s\\n' '[[{\"number\":42,\"state\":\"open\",\"body\":\"<!-- sentry-feedback:podhaven:7485822944 -->\\n<!-- analyze-sentry-feedback-findings:start -->\"}]]'" \
+  "printf '%s\\n' '[[{\"number\":99,\"state\":\"open\",\"body\":\"https://artisanal-software.sentry.io/issues/feedback/?feedbackSlug=podhaven%3A7485822944\\n<!-- analyze-sentry-feedback-findings:start -->\\n<!-- analyze-sentry-feedback-findings:end -->\"},{\"number\":42,\"state\":\"open\",\"body\":\"<!-- sentry-feedback:podhaven:7485822944 -->\\n<!-- analyze-sentry-feedback-findings:start -->\"}]]'" \
   > "$STUBS/gh"
 chmod +x "$STUBS/gh"
 
@@ -90,13 +90,38 @@ rm -f "$CAPTURE/args" "$CAPTURE/pwd"
     "$ROOT/bin/sfeedback"
 )
 
-if ! grep -Fq 'GitHub: #42 analyzed' "$CAPTURE/picker"; then
-  echo "sfeedback did not show the canonical GitHub analysis state" >&2
+if ! grep -Fq 'GitHub: #42 intake' "$CAPTURE/picker"; then
+  echo "sfeedback did not prefer the exact-marker issue or require a complete findings block" >&2
   exit 1
 fi
 
 if ! cmp -s "$EXPECTED_ARGS" "$CAPTURE/args"; then
   echo "sfeedback did not launch the selected feedback" >&2
+  diff -u "$EXPECTED_ARGS" "$CAPTURE/args" >&2 || true
+  exit 1
+fi
+
+printf '%s\n' \
+  '#!/bin/sh' \
+  "printf '%s\\n' '[[{\"number\":42,\"state\":\"open\",\"body\":\"<!-- sentry-feedback:podhaven:7485822944 -->\\n<!-- analyze-sentry-feedback-findings:start -->\\n<!-- analyze-sentry-feedback-findings:end -->\"}]]'" \
+  > "$STUBS/gh"
+chmod +x "$STUBS/gh"
+
+rm -f "$CAPTURE/args" "$CAPTURE/pwd" "$CAPTURE/picker"
+(
+  cd "$ROOT/PodHavenTests"
+  PATH="$STUBS:$PATH" \
+    SFEEDBACK_TEST_CAPTURE="$CAPTURE" \
+    "$ROOT/bin/sfeedback"
+)
+
+if ! grep -Fq 'GitHub: #42 analyzed' "$CAPTURE/picker"; then
+  echo "sfeedback did not recognize a complete findings block as analyzed" >&2
+  exit 1
+fi
+
+if ! cmp -s "$EXPECTED_ARGS" "$CAPTURE/args"; then
+  echo "sfeedback did not launch the fully analyzed feedback" >&2
   diff -u "$EXPECTED_ARGS" "$CAPTURE/args" >&2 || true
   exit 1
 fi
