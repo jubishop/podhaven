@@ -11,6 +11,55 @@ import UIKit
 
 private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiOSAppOnMac
 
+@MainActor
+private final class DisplayFrameWaiter: NSObject {
+  private var continuation: CheckedContinuation<Void, Never>?
+  private var displayLink: CADisplayLink?
+  private var remainingFrameCount = 0
+
+  func wait(forFrameCount frameCount: Int = 1) async {
+    await withCheckedContinuation { continuation in
+      self.continuation = continuation
+      remainingFrameCount = frameCount
+      let displayLink = CADisplayLink(target: self, selector: #selector(displayLinkDidFire))
+      self.displayLink = displayLink
+      displayLink.add(to: .main, forMode: .common)
+    }
+  }
+
+  @objc private func displayLinkDidFire() {
+    remainingFrameCount -= 1
+    guard remainingFrameCount == 0 else { return }
+    displayLink?.invalidate()
+    displayLink = nil
+    continuation?.resume()
+    continuation = nil
+  }
+}
+
+@MainActor
+private final class TranscriptPlaybackState: ObservableObject {
+  @Published var currentTime: TimeInterval
+
+  init(currentTime: TimeInterval) {
+    self.currentTime = currentTime
+  }
+}
+
+private struct TranscriptPlaybackTestView: View {
+  @ObservedObject var playbackState: TranscriptPlaybackState
+  let transcript: Transcript
+
+  var body: some View {
+    PlayBarTranscriptView(
+      transcript: transcript,
+      currentTime: playbackState.currentTime
+    )
+    .frame(width: 134, height: 500)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
 @Suite("of PlayBarSheet tests", .container)
 @MainActor struct PlayBarSheetTests {
   private struct PixelBuffer {
@@ -18,6 +67,21 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     let height: Int
     let bytesPerRow: Int
     let pixels: [UInt8]
+
+    func differingByteCount(from other: PixelBuffer) -> Int {
+      guard
+        width == other.width,
+        height == other.height,
+        bytesPerRow == other.bytesPerRow
+      else { return .max }
+
+      return zip(pixels, other.pixels)
+        .reduce(into: 0) { differenceCount, pair in
+          if abs(Int(pair.0) - Int(pair.1)) > 1 {
+            differenceCount += 1
+          }
+        }
+    }
 
     func luminance(atX x: Int, y: Int) -> Double? {
       guard x >= 0, x < width, y >= 0, y < height else { return nil }
@@ -29,13 +93,16 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     }
   }
 
-  private static func makeWindow<V: View>(_ rootView: V) throws -> UIWindow {
+  private static func makeWindow<V: View>(
+    _ rootView: V,
+    size: CGSize = CGSize(width: 390, height: 844)
+  ) throws -> UIWindow {
     let host = UIHostingController(rootView: rootView)
     let scene = try #require(
       UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
     )
     let window = UIWindow(windowScene: scene)
-    window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+    window.frame = CGRect(origin: .zero, size: size)
     window.rootViewController = host
     window.makeKeyAndVisible()
     host.view.layoutIfNeeded()
@@ -206,6 +273,83 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     #expect(
       highlightedHeight == inactiveHeight,
       "Highlighting changed the segment from \(inactiveHeight) to \(highlightedHeight) points"
+    )
+  }
+
+  @Test(
+    "highlighting moves directly between words without interpolating transcript glyphs",
+    .enabled(
+      if: supportsHostedAccessibilityInspection,
+      "SwiftUI does not expose hosted rendering in iOS Simulator"
+    )
+  )
+  func transcriptHighlightDoesNotInterpolateGlyphs() async throws {
+    let transcript = Transcript(
+      segments: [
+        TranscriptSegment(
+          start: 0,
+          end: 8,
+          text:
+            "Stable transcript highlighting should never rearrange nearby words during playback.",
+          words: [
+            TranscriptWord(start: 0, end: 1, text: "Stable"),
+            TranscriptWord(start: 1, end: 2, text: " transcript"),
+            TranscriptWord(start: 2, end: 3, text: " highlighting"),
+            TranscriptWord(start: 3, end: 4, text: " should"),
+            TranscriptWord(start: 4, end: 5, text: " never"),
+            TranscriptWord(start: 5, end: 6, text: " rearrange"),
+            TranscriptWord(start: 6, end: 6.5, text: " nearby"),
+            TranscriptWord(start: 6.5, end: 7, text: " words"),
+            TranscriptWord(start: 7, end: 7.5, text: " during"),
+            TranscriptWord(start: 7.5, end: 8, text: " playback."),
+          ]
+        )
+      ],
+      locale: "en-US",
+      createdAt: Date()
+    )
+    let playbackState = TranscriptPlaybackState(currentTime: 3.5)
+    let window = try Self.makeWindow(
+      TranscriptPlaybackTestView(playbackState: playbackState, transcript: transcript),
+      size: CGSize(width: 160, height: 520)
+    )
+    defer { window.isHidden = true }
+    let displayFrameWaiter = DisplayFrameWaiter()
+
+    await displayFrameWaiter.wait()
+    let initialRendering = try Self.render(window)
+    await displayFrameWaiter.wait()
+    let repeatedInitialRendering = try Self.render(window)
+
+    playbackState.currentTime = 4.5
+    var transitionRenderings: [PixelBuffer] = []
+    for _ in 0..<3 {
+      await displayFrameWaiter.wait()
+      transitionRenderings.append(try Self.render(window))
+    }
+    await displayFrameWaiter.wait(forFrameCount: 30)
+    let finalRendering = try Self.render(window)
+    await displayFrameWaiter.wait()
+    let repeatedFinalRendering = try Self.render(window)
+    let stableNoise = max(
+      initialRendering.differingByteCount(from: repeatedInitialRendering),
+      finalRendering.differingByteCount(from: repeatedFinalRendering)
+    )
+    let tolerance = stableNoise + 64
+
+    #expect(
+      finalRendering.differingByteCount(from: initialRendering) > tolerance,
+      "The highlighted transcript did not render the final word state"
+    )
+
+    let renderedIntermediateState = transitionRenderings.contains { rendering in
+      rendering.differingByteCount(from: initialRendering) > tolerance
+        && rendering.differingByteCount(from: finalRendering) > tolerance
+    }
+
+    #expect(
+      !renderedIntermediateState,
+      "The highlighted transcript rendered a visible intermediate state instead of moving directly between words"
     )
   }
 
