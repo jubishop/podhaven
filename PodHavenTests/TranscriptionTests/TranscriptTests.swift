@@ -7,7 +7,7 @@ import Testing
 
 @Suite("of Transcript timing tests")
 struct TranscriptTests {
-  @Test("word timings survive transcript persistence and select the current word")
+  @Test("word timings survive transcript persistence and select the current segment")
   func wordTimingRoundTrip() throws {
     let segment = TranscriptSegment(
       start: 2,
@@ -28,12 +28,10 @@ struct TranscriptTests {
 
     #expect(decoded == transcript)
     #expect(decoded.activeSegmentIndex(at: 2) == 0)
-    #expect(decoded.segments[0].activeWordIndex(at: 2.5) == 0)
-    #expect(decoded.segments[0].activeWordIndex(at: 3) == 1)
-    #expect(decoded.segments[0].activeWordIndex(at: 5) == nil)
+    #expect(decoded.activeSegmentIndex(at: 5) == nil)
   }
 
-  @Test("legacy segments decode with phrase-level playback timing")
+  @Test("legacy segments decode without word timings")
   func legacySegmentFallback() throws {
     let transcript = try Transcript(
       decoding: """
@@ -44,25 +42,6 @@ struct TranscriptTests {
     let segment = try #require(transcript.segments.first)
 
     #expect(segment.words.isEmpty)
-    #expect(
-      segment.playbackWords
-        == [TranscriptWord(start: 1, end: 3, text: "Legacy phrase")]
-    )
-    #expect(segment.activeWordIndex(at: 2) == 0)
-  }
-
-  @Test("mismatched timed runs fall back without changing displayed text")
-  func mismatchedWordsFallback() {
-    let segment = TranscriptSegment(
-      start: 0,
-      end: 2,
-      text: "Keep punctuation.",
-      words: [TranscriptWord(start: 0, end: 2, text: "Keep punctuation")]
-    )
-
-    #expect(
-      segment.playbackWords
-        == [TranscriptWord(start: 0, end: 2, text: "Keep punctuation.")]
-    )
+    #expect(transcript.activeSegmentIndex(at: 2) == 0)
   }
 }

@@ -19,7 +19,6 @@ struct PlayBarTranscriptView: View {
           ForEach(transcript.segments.indices, id: \.self) { index in
             PlayBarTranscriptSegmentView(
               segment: transcript.segments[index],
-              currentTime: currentTime,
               isActive: index == activeSegmentIndex
             )
             .id(index)
@@ -43,42 +42,15 @@ struct PlayBarTranscriptView: View {
 
 private struct PlayBarTranscriptSegmentView: View {
   let segment: TranscriptSegment
-  let currentTime: TimeInterval
   let isActive: Bool
 
-  private var words: [TranscriptWord] {
-    segment.playbackWords
-  }
-
-  private var activeWordIndex: Int? {
-    guard isActive else { return nil }
-    return segment.activeWordIndex(at: currentTime)
-  }
-
-  private var activeWordText: String? {
-    guard let activeWordIndex else { return nil }
-    let text = words[activeWordIndex].text.trimmed()
-    return text.isEmpty ? nil : text
-  }
-
-  private var accessibilityValueText: String {
-    guard let activeWordText else { return "" }
-    return "Current word \(activeWordText)"
-  }
-
   private var attributedText: AttributedString {
-    var result = AttributedString()
-    for (index, word) in words.enumerated() {
-      var text = AttributedString(word.text)
-      if index == activeWordIndex {
-        text.foregroundColor = .primary
-        text.backgroundColor = .accentColor.opacity(0.45)
-      } else {
-        text.foregroundColor = isActive ? .primary.opacity(0.8) : .secondary
-      }
-      result.append(text)
+    var text = AttributedString(segment.text)
+    text.foregroundColor = isActive ? .primary : .secondary
+    if isActive {
+      text.backgroundColor = .accentColor.opacity(0.45)
     }
-    return result
+    return text
   }
 
   var body: some View {
@@ -88,7 +60,7 @@ private struct PlayBarTranscriptSegmentView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .contentTransition(.identity)
       .accessibilityLabel(segment.text)
-      .accessibilityValue(accessibilityValueText)
+      .accessibilityValue("Current text block", isEnabled: isActive)
   }
 }
 
@@ -112,13 +84,14 @@ private let previewPlayBarTranscript = Transcript(
     TranscriptSegment(
       start: 4,
       end: 8,
-      text: "The current word follows playback.",
+      text: "The current text block follows playback.",
       words: [
-        TranscriptWord(start: 4, end: 4.7, text: "The"),
-        TranscriptWord(start: 4.7, end: 5.5, text: " current"),
-        TranscriptWord(start: 5.5, end: 6.1, text: " word"),
-        TranscriptWord(start: 6.1, end: 7, text: " follows"),
-        TranscriptWord(start: 7, end: 8, text: " playback."),
+        TranscriptWord(start: 4, end: 4.6, text: "The"),
+        TranscriptWord(start: 4.6, end: 5.2, text: " current"),
+        TranscriptWord(start: 5.2, end: 5.7, text: " text"),
+        TranscriptWord(start: 5.7, end: 6.4, text: " block"),
+        TranscriptWord(start: 6.4, end: 7.2, text: " follows"),
+        TranscriptWord(start: 7.2, end: 8, text: " playback."),
       ]
     ),
   ],
@@ -126,7 +99,7 @@ private let previewPlayBarTranscript = Transcript(
   createdAt: Date()
 )
 
-#Preview("synced transcript — layout-stable word highlight") {
+#Preview("synced transcript — current text block") {
   ZStack {
     LinearGradient(
       colors: [.purple.opacity(0.8), .blue.opacity(0.8)],
