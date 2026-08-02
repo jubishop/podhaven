@@ -23,7 +23,18 @@ struct PodHavenWidgetBundle: WidgetBundle {
   }()
 
   init() {
-    Self.log.info("PodHavenWidgetBundle initialized")
+    do {
+      let acknowledgment = try WidgetInfo.recordExtensionTimelineRequest()
+      Self.log.info(
+        """
+        PodHavenWidgetBundle initialized: extensionBuild=\(acknowledgment.buildNumber), \
+        initialRequestAt=\(acknowledgment.latestTimelineRequestAt)
+        """
+      )
+    } catch {
+      Self.log.caughtError("Failed to persist extension initialization acknowledgment", error)
+      Self.log.info("PodHavenWidgetBundle initialized without an acknowledgment")
+    }
   }
 
   var body: some Widget {

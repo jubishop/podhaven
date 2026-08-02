@@ -25,6 +25,13 @@ import Testing
   }
   nonisolated private var widgetState: WidgetState { Container.shared.widgetState() }
 
+  private let timelineKinds: Set<String> = [
+    WidgetInfo.nowPlayingKind,
+    WidgetInfo.queueKind,
+    WidgetInfo.nowPlayingQueueKind,
+    WidgetInfo.lockScreenNowPlayingKind,
+  ]
+
   private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
     try await repo.db.read { db in
       try ListablePodcastEpisode
@@ -223,6 +230,55 @@ import Testing
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 10 }
 
     #expect(snapshot.queue.count == 5)
+  }
+
+  @Test("upgrade writes initial snapshots before exactly one reload-all")
+  func upgradeWritesInitialSnapshotsBeforeReloadAll() async throws {
+    let nowPlayingEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Current Episode")
+    )
+    let queuedEpisode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Current Queue Episode")
+    )
+    sharedState.$onDeck.new(OnDeck(from: nowPlayingEpisode))
+    sharedState.$queuedPodcastEpisodes.new([try await fetchListable(queuedEpisode.id)])
+    widgetState.lastUpgradeRecoveryBuild = "previous-build"
+    Container.shared.widgetState.reset()
+
+    writer.start()
+
+    try await Wait.until(
+      { self.widgetCenter.reloadAllCount() == 1 },
+      { "Widget timelines were not reloaded together after the build transition" }
+    )
+    let nowPlayingSnapshot = try await WidgetHelpers.waitForNowPlayingSnapshot()
+    let queueSnapshot = try await WidgetHelpers.waitForQueueSnapshot()
+
+    #expect(widgetCenter.reloadAllCount() == 1)
+    #expect(widgetCenter.everyReloadAllHadInitialSnapshots())
+    #expect(nowPlayingSnapshot.nowPlaying?.episodeID == nowPlayingEpisode.id.rawValue)
+    #expect(queueSnapshot.queue.first?.episodeID == queuedEpisode.id.rawValue)
+    #expect(timelineKinds.allSatisfy { widgetCenter.reloadCount(ofKind: $0) == 0 })
+    #expect(widgetState.lastUpgradeRecoveryBuild == AppInfo.buildNumber)
+  }
+
+  @Test("same-build startup coalesces targeted timeline reloads")
+  func sameBuildStartupCoalescesTargetedReloads() async throws {
+    widgetState.lastUpgradeRecoveryBuild = AppInfo.buildNumber
+    Container.shared.widgetState.reset()
+
+    writer.start()
+    try await WidgetHelpers.waitForQueueSnapshot()
+    try await Wait.until(
+      { self.timelineKinds.allSatisfy { self.widgetCenter.reloadCount(ofKind: $0) >= 1 } },
+      { "Startup did not request every targeted widget timeline" }
+    )
+
+    #expect(widgetCenter.reloadAllCount() == 0)
+    #expect(widgetCenter.placedWidgetKindsRequestCount() == 1)
+    for kind in timelineKinds {
+      #expect(widgetCenter.reloadCount(ofKind: kind) == 1)
+    }
   }
 
   @Test("reloads now-playing timeline periodically while playing")

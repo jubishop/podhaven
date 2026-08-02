@@ -18,4 +18,7 @@ struct WidgetState: Sendable {
 
   @PersistedThreadSafe("playbackStatus", store: Container.shared.sharedDefaults())
   var playbackStatus: PlaybackStatus = .stopped
+
+  @PersistedThreadSafe("lastWidgetUpgradeRecoveryBuild", store: Container.shared.sharedDefaults())
+  var lastUpgradeRecoveryBuild: String? = nil
 }

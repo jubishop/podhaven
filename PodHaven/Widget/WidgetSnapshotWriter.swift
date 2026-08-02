@@ -50,38 +50,24 @@ final class WidgetSnapshotWriter: Sendable {
 
   func start() {
     startOnce.run {
-      let currentEpisodeIDChanges = sharedState.$currentEpisodeID.stream().dropFirst()
+      let onDeckStream = sharedState.$onDeck.stream()
+      let currentEpisodeIDStream = sharedState.$currentEpisodeID.stream()
+      let playbackStatusStream = sharedState.$playbackStatus.stream()
+      let queueStream = sharedState.$queuedPodcastEpisodes.stream()
+      let queueImageSettingStream = userSettings.$alwaysShowPodcastImageInUpNext.stream()
+      let skipForwardIntervalStream = userSettings.$skipForwardInterval.stream()
+      let skipBackwardIntervalStream = userSettings.$skipBackwardInterval.stream()
+
+      let startupTask = Task(priority: taskPriority(.utility)) { [weak self] in
+        guard let self else { return }
+        await prepareForStartup()
+      }
 
       Task(priority: taskPriority(.utility)) { [weak self] in
+        await startupTask.value
         guard let self else { return }
 
-        // A background audio-session activation can be deferred until the app
-        // foregrounds. Preserve the last snapshot while that episode is still
-        // persisted so the widget does not fall back to a loading state.
-        if sharedState.$onDeck.value == nil && sharedState.currentEpisodeID == nil {
-          do {
-            try fileManager.removeItem(at: WidgetInfo.nowPlayingSnapshotURL)
-          } catch {
-            Self.log.caughtError(
-              "start: failed to remove stale now-playing snapshot",
-              error,
-              level: { error in
-                let nsError = error as NSError
-                if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
-                  return .debug
-                }
-                return .error
-              }
-            )
-          }
-          reloadWidgets(kinds: [
-            WidgetInfo.nowPlayingKind,
-            WidgetInfo.lockScreenNowPlayingKind,
-            WidgetInfo.nowPlayingQueueKind,
-          ])
-        }
-
-        for await onDeck in sharedState.$onDeck.stream() {
+        for await onDeck in onDeckStream.dropFirst() {
           let changed: Bool = lastOnDeck { last in
             defer { last = onDeck }
             guard let onDeck else { return last != nil }
@@ -95,18 +81,20 @@ final class WidgetSnapshotWriter: Sendable {
       }
 
       Task(priority: taskPriority(.utility)) { [weak self] in
+        await startupTask.value
         guard let self else { return }
 
-        for await currentEpisodeID in currentEpisodeIDChanges
+        for await currentEpisodeID in currentEpisodeIDStream.dropFirst()
         where currentEpisodeID == nil && sharedState.onDeck == nil {
           scheduleNowPlayingSnapshotWrite()
         }
       }
 
       Task(priority: taskPriority(.utility)) { [weak self] in
+        await startupTask.value
         guard let self else { return }
 
-        for await status in sharedState.$playbackStatus.stream() {
+        for await status in playbackStatusStream.dropFirst() {
           let changed: Bool = lastPlaybackStatus { last in
             defer { last = status }
             return status != last
@@ -130,9 +118,10 @@ final class WidgetSnapshotWriter: Sendable {
       }
 
       Task(priority: taskPriority(.utility)) { [weak self] in
+        await startupTask.value
         guard let self else { return }
 
-        for await podcastEpisodes in sharedState.$queuedPodcastEpisodes.stream() {
+        for await podcastEpisodes in queueStream.dropFirst() {
           let episodes = podcastEpisodes.map(WidgetEpisode.init)
           let changed: Bool = queueWidgetEpisodes { current in
             defer { current = episodes }
@@ -148,9 +137,10 @@ final class WidgetSnapshotWriter: Sendable {
       }
 
       Task(priority: taskPriority(.utility)) { [weak self] in
+        await startupTask.value
         guard let self else { return }
 
-        for await _ in userSettings.$alwaysShowPodcastImageInUpNext.stream() {
+        for await _ in queueImageSettingStream.dropFirst() {
           queueDebounce { [weak self] in
             guard let self else { return }
             await writeQueueSnapshot()
@@ -160,9 +150,10 @@ final class WidgetSnapshotWriter: Sendable {
       }
 
       Task(priority: taskPriority(.utility)) { [weak self] in
+        await startupTask.value
         guard let self else { return }
 
-        for await interval in userSettings.$skipForwardInterval.stream() {
+        for await interval in skipForwardIntervalStream.dropFirst() {
           let intInterval = Int(interval)
           Self.log.debug("Skip forward interval changed to \(intInterval), reloading control")
           widgetState.skipForwardInterval = intInterval
@@ -172,9 +163,10 @@ final class WidgetSnapshotWriter: Sendable {
       }
 
       Task(priority: taskPriority(.utility)) { [weak self] in
+        await startupTask.value
         guard let self else { return }
 
-        for await interval in userSettings.$skipBackwardInterval.stream() {
+        for await interval in skipBackwardIntervalStream.dropFirst() {
           let intInterval = Int(interval)
           Self.log.debug("Skip backward interval changed to \(intInterval), reloading control")
           widgetState.skipBackwardInterval = intInterval
@@ -182,6 +174,95 @@ final class WidgetSnapshotWriter: Sendable {
           controlCenter.reloadControls(ofKind: WidgetInfo.skipBackwardControlKind)
         }
       }
+    }
+  }
+
+  private func prepareForStartup() async {
+    let currentBuild = AppInfo.buildNumber
+    let previousRecoveryBuild = widgetState.lastUpgradeRecoveryBuild
+    let onDeck = sharedState.onDeck
+    let playbackStatus = sharedState.playbackStatus
+    let queuedEpisodes = sharedState.queuedPodcastEpisodes.map(WidgetEpisode.init)
+
+    lastOnDeck(onDeck)
+    lastPlaybackStatus(playbackStatus)
+    queueWidgetEpisodes(queuedEpisodes)
+
+    widgetState.playbackStatus = playbackStatus
+    widgetState.skipForwardInterval = Int(userSettings.skipForwardInterval)
+    widgetState.skipBackwardInterval = Int(userSettings.skipBackwardInterval)
+
+    controlCenter.reloadControls(ofKind: WidgetInfo.playPauseControlKind)
+    controlCenter.reloadControls(ofKind: WidgetInfo.skipForwardControlKind)
+    controlCenter.reloadControls(ofKind: WidgetInfo.skipBackwardControlKind)
+
+    if playbackStatus.playing {
+      startHeartbeat()
+    } else {
+      stopHeartbeat()
+    }
+
+    let nowPlayingSnapshotReady: Bool
+    if onDeck == nil && sharedState.currentEpisodeID != nil {
+      nowPlayingSnapshotReady = fileManager.fileExists(at: WidgetInfo.nowPlayingSnapshotURL)
+      Self.log.debug(
+        "Preserving the existing now-playing snapshot while the persisted episode restores"
+      )
+    } else {
+      nowPlayingSnapshotReady = await writeNowPlayingSnapshot()
+    }
+    let queueSnapshotReady = await writeQueueSnapshot()
+
+    guard nowPlayingSnapshotReady && queueSnapshotReady else {
+      Self.log.error(
+        """
+        Widget startup snapshots incomplete for build \(currentBuild): \
+        nowPlayingReady=\(nowPlayingSnapshotReady), queueReady=\(queueSnapshotReady); \
+        skipping timeline reload
+        """
+      )
+      return
+    }
+
+    let extensionAcknowledgment: String
+    do {
+      if let acknowledgment = try WidgetInfo.readExtensionAcknowledgment() {
+        extensionAcknowledgment =
+          "build=\(acknowledgment.buildNumber), latestTimelineRequestAt="
+          + "\(acknowledgment.latestTimelineRequestAt)"
+      } else {
+        extensionAcknowledgment = "none"
+      }
+    } catch {
+      Self.log.caughtError(
+        "Failed to read the widget extension acknowledgment before startup reload",
+        error
+      )
+      extensionAcknowledgment = "unreadable"
+    }
+
+    if let previousRecoveryBuild, previousRecoveryBuild != currentBuild {
+      Self.log.info(
+        """
+        Recovering widget timelines after build transition \
+        \(previousRecoveryBuild) -> \(currentBuild): initialSnapshotsReady=true, \
+        priorExtensionAcknowledgment=\(extensionAcknowledgment); requesting reload-all
+        """
+      )
+      widgetCenter.reloadAllTimelines()
+      widgetState.lastUpgradeRecoveryBuild = currentBuild
+      Self.log.info("Widget upgrade recovery completed for build \(currentBuild)")
+    } else {
+      let previousBuild = previousRecoveryBuild ?? "none"
+      Self.log.debug(
+        """
+        Widget startup ready for build \(currentBuild): previousRecoveryBuild=\(previousBuild), \
+        priorExtensionAcknowledgment=\(extensionAcknowledgment); requesting one coalesced \
+        targeted reload for \(WidgetInfo.timelineKinds.count) timeline kinds
+        """
+      )
+      reloadWidgets(kinds: WidgetInfo.timelineKinds)
+      widgetState.lastUpgradeRecoveryBuild = currentBuild
     }
   }
 
@@ -202,7 +283,8 @@ final class WidgetSnapshotWriter: Sendable {
     }
   }
 
-  private func writeNowPlayingSnapshot() async {
+  @discardableResult
+  private func writeNowPlayingSnapshot() async -> Bool {
     let nowPlaying: NowPlayingSnapshot.NowPlaying? =
       if let onDeck = sharedState.onDeck {
         NowPlayingSnapshot.NowPlaying(
@@ -227,8 +309,10 @@ final class WidgetSnapshotWriter: Sendable {
       let data = try JSONEncoder().encode(snapshot)
       try await fileManager.writeData(data, to: WidgetInfo.nowPlayingSnapshotURL)
       Self.log.debug("Wrote now-playing snapshot (\(data.count) bytes)")
+      return true
     } catch {
       Self.log.caughtError("writeNowPlayingSnapshot: failed to encode/write", error)
+      return false
     }
   }
 
@@ -237,7 +321,8 @@ final class WidgetSnapshotWriter: Sendable {
   // Queue artwork: ~28pt thumbnails at 3x = ~96px (rounded up for safety).
   private let maxQueueArtworkPixels: CGFloat = 96
 
-  private func writeQueueSnapshot() async {
+  @discardableResult
+  private func writeQueueSnapshot() async -> Bool {
     let episodes = Array(queueWidgetEpisodes().prefix(5))
     let showPodcastImage = userSettings.alwaysShowPodcastImageInUpNext
 
@@ -276,7 +361,7 @@ final class WidgetSnapshotWriter: Sendable {
       }
     }
 
-    guard !Task.isCancelled else { return }
+    guard !Task.isCancelled else { return false }
 
     let queueItems = episodes.enumerated()
       .map { index, episode in
@@ -301,8 +386,10 @@ final class WidgetSnapshotWriter: Sendable {
       let data = try JSONEncoder().encode(snapshot)
       try await fileManager.writeData(data, to: WidgetInfo.queueSnapshotURL)
       Self.log.debug("Wrote queue snapshot (\(data.count) bytes)")
+      return true
     } catch {
       Self.log.caughtError("writeQueueSnapshot: failed to encode/write", error)
+      return false
     }
   }
 

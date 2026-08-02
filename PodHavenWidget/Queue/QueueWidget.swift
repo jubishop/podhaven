@@ -17,7 +17,19 @@ struct QueueProvider: TimelineProvider {
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<QueueEntry>) -> Void) {
-    Self.log.debug("Queue getTimeline called (family=\(context.family))")
+    do {
+      let acknowledgment = try WidgetInfo.recordExtensionTimelineRequest()
+      Self.log.debug(
+        """
+        Queue getTimeline called (family=\(context.family), \
+        extensionBuild=\(acknowledgment.buildNumber), \
+        timelineRequestAt=\(acknowledgment.latestTimelineRequestAt))
+        """
+      )
+    } catch {
+      Self.log.caughtError("Queue getTimeline: failed to persist extension acknowledgment", error)
+      Self.log.debug("Queue getTimeline called (family=\(context.family))")
+    }
     let entry = makeEntry()
     let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(3600)))
     completion(timeline)

@@ -6,6 +6,7 @@ protocol WidgetReloading: Sendable {
   func placedWidgetKinds(
     _ completion: @escaping @Sendable (Result<Set<String>, any Error>) -> Void
   )
+  func reloadAllTimelines()
   func reloadTimelines(ofKind kind: String)
 }
 
@@ -23,5 +24,9 @@ struct SystemWidgetCenter: WidgetReloading {
 
   func reloadTimelines(ofKind kind: String) {
     WidgetCenter.shared.reloadTimelines(ofKind: kind)
+  }
+
+  func reloadAllTimelines() {
+    WidgetCenter.shared.reloadAllTimelines()
   }
 }

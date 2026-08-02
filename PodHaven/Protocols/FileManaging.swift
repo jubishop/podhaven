@@ -11,6 +11,8 @@ protocol FileManaging {
 
   func writeData(_ data: Data, to url: URL) async throws
   func readData(from url: URL) async throws -> Data
+  func writeDataSynchronously(_ data: Data, to url: URL) throws
+  func readDataSynchronously(from url: URL) throws -> Data
 
   // MARK: - File Management Operations
 
@@ -46,6 +48,14 @@ protocol FileManaging {
 // MARK: - FileManaging Default Implementations
 
 extension FileManaging {
+  func writeDataSynchronously(_ data: Data, to url: URL) throws {
+    try data.write(to: url, options: .atomic)
+  }
+
+  func readDataSynchronously(from url: URL) throws -> Data {
+    try Data(contentsOf: url)
+  }
+
   func writeData(_ data: Data, to url: URL) async throws {
     try await withCheckedThrowingContinuation { continuation in
       do {
