@@ -262,6 +262,21 @@ import Testing
     #expect(widgetState.lastUpgradeRecoveryBuild == AppInfo.buildNumber)
   }
 
+  @Test("first tracked build performs one reload-all")
+  func firstTrackedBuildPerformsReloadAll() async throws {
+    writer.start()
+
+    try await Wait.until(
+      { self.widgetCenter.reloadAllCount() == 1 },
+      { "The first build with upgrade tracking did not request reload-all" }
+    )
+
+    #expect(widgetCenter.reloadAllCount() == 1)
+    #expect(widgetCenter.everyReloadAllHadInitialSnapshots())
+    #expect(timelineKinds.allSatisfy { widgetCenter.reloadCount(ofKind: $0) == 0 })
+    #expect(widgetState.lastUpgradeRecoveryBuild == AppInfo.buildNumber)
+  }
+
   @Test("same-build startup coalesces targeted timeline reloads")
   func sameBuildStartupCoalescesTargetedReloads() async throws {
     widgetState.lastUpgradeRecoveryBuild = AppInfo.buildNumber
@@ -386,11 +401,22 @@ import Testing
   func reloadsNowPlayingQueueWidget() async throws {
     let kind = WidgetInfo.nowPlayingQueueKind
 
-    // Episode change reloads the combined widget (now-playing header data).
-    let episode = try await Create.podcastEpisode()
-    sharedState.$onDeck.new(OnDeck(from: episode))
+    let initialEpisode = try await Create.podcastEpisode()
+    sharedState.$onDeck.new(OnDeck(from: initialEpisode))
     writer.start()
     try await WidgetHelpers.waitForNowPlayingSnapshot { $0.nowPlaying != nil }
+    try await Wait.until(
+      { self.fakeWidgetCenter.reloadAllCount() == 1 },
+      { "Initial widget recovery did not finish" }
+    )
+
+    // A later episode change keeps the combined widget reload targeted.
+    fakeWidgetCenter.reset()
+    let replacementEpisode = try await Create.podcastEpisode()
+    sharedState.$onDeck.new(OnDeck(from: replacementEpisode))
+    try await WidgetHelpers.waitForNowPlayingSnapshot {
+      $0.nowPlaying?.episodeID == replacementEpisode.id.rawValue
+    }
     try await Wait.until(
       { self.fakeWidgetCenter.reloadCount(ofKind: kind) >= 1 },
       { "combined widget was not reloaded on now-playing change" }

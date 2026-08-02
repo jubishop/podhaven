@@ -241,28 +241,28 @@ final class WidgetSnapshotWriter: Sendable {
       extensionAcknowledgment = "unreadable"
     }
 
-    if let previousRecoveryBuild, previousRecoveryBuild != currentBuild {
-      Self.log.info(
-        """
-        Recovering widget timelines after build transition \
-        \(previousRecoveryBuild) -> \(currentBuild): initialSnapshotsReady=true, \
-        priorExtensionAcknowledgment=\(extensionAcknowledgment); requesting reload-all
-        """
-      )
-      widgetCenter.reloadAllTimelines()
-      widgetState.lastUpgradeRecoveryBuild = currentBuild
-      Self.log.info("Widget upgrade recovery completed for build \(currentBuild)")
-    } else {
-      let previousBuild = previousRecoveryBuild ?? "none"
+    if previousRecoveryBuild == currentBuild {
       Self.log.debug(
         """
-        Widget startup ready for build \(currentBuild): previousRecoveryBuild=\(previousBuild), \
+        Widget startup ready for build \(currentBuild): previousRecoveryBuild=\(currentBuild), \
         priorExtensionAcknowledgment=\(extensionAcknowledgment); requesting one coalesced \
         targeted reload for \(WidgetInfo.timelineKinds.count) timeline kinds
         """
       )
       reloadWidgets(kinds: WidgetInfo.timelineKinds)
       widgetState.lastUpgradeRecoveryBuild = currentBuild
+    } else {
+      let previousBuild = previousRecoveryBuild ?? "none"
+      Self.log.info(
+        """
+        Recovering widget timelines after build transition \
+        \(previousBuild) -> \(currentBuild): initialSnapshotsReady=true, \
+        priorExtensionAcknowledgment=\(extensionAcknowledgment); requesting reload-all
+        """
+      )
+      widgetCenter.reloadAllTimelines()
+      widgetState.lastUpgradeRecoveryBuild = currentBuild
+      Self.log.info("Widget upgrade recovery completed for build \(currentBuild)")
     }
   }
 
