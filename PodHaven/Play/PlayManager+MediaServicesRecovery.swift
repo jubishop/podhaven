@@ -14,6 +14,14 @@ extension PlayManager {
     return episodeID
   }
 
+  func mediaServicesRecoveryEpisode(
+    whenLoading podcastEpisode: PodcastEpisode
+  ) async throws -> PodcastEpisode? {
+    guard let recoveryEpisodeID = mediaServicesRecoveryEpisodeID else { return nil }
+    guard recoveryEpisodeID != podcastEpisode.id else { return podcastEpisode }
+    return try await repo.podcastEpisode(recoveryEpisodeID)
+  }
+
   func beginMediaServicesRecovery(interruptedEpisodeID: Episode.ID?) {
     pendingPlaybackRequest = .none
     NowPlayingInfo.clear()
@@ -27,13 +35,6 @@ extension PlayManager {
       stateManager.clearOnDeck()
     }
     CommandCenter.updateNextTrack()
-  }
-
-  func supersedeMediaServicesRecoveryIfNeeded(with episodeID: Episode.ID) {
-    guard let recoveryEpisodeID = mediaServicesRecoveryEpisodeID,
-      recoveryEpisodeID != episodeID
-    else { return }
-    mediaServicesRecoveryState = .none
   }
 
   func restoreMediaServicesRecoveryPresentation(_ podcastEpisode: PodcastEpisode) {

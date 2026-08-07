@@ -184,6 +184,7 @@ final class PlayManager {
 
   @discardableResult
   func load(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
+    let recoveryEpisode = try await mediaServicesRecoveryEpisode(whenLoading: podcastEpisode)
     let loadID = claimLoadTransition(for: podcastEpisode.id)
 
     let task = Task<Bool, any Error> { [weak self] in
@@ -207,7 +208,9 @@ final class PlayManager {
     do {
       return try await task.value
     } catch {
-      restoreMediaServicesRecoveryPresentation(podcastEpisode)
+      if let recoveryEpisode {
+        restoreMediaServicesRecoveryPresentation(recoveryEpisode)
+      }
       throw error
     }
   }
@@ -297,7 +300,6 @@ final class PlayManager {
 
     try requireLoadTransitionOwnership(loadID)
     loadTransition?.state = .ownsPlaybackState
-    supersedeMediaServicesRecoveryIfNeeded(with: incoming.id)
     do {
       // Do not mutate playback state until the audio session is ready. A
       // background activation can be rejected while another app is playing.

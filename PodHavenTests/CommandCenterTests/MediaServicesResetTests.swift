@@ -194,6 +194,58 @@ import Testing
     try await PlayHelpers.waitForOnDeck(interruptedEpisode)
   }
 
+  @Test("failed replacement media load preserves interrupted recovery")
+  func failedReplacementMediaLoadPreservesInterruptedRecovery() async throws {
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+    let resumeTime = CMTime.seconds(123)
+    let (interruptedEpisode, replacementEpisode) = try await Create.twoPodcastEpisodes(
+      Create.unsavedEpisode(currentTime: resumeTime)
+    )
+
+    try await PlayHelpers.load(interruptedEpisode)
+    try await PlayHelpers.waitFor(resumeTime)
+    try await PlayHelpers.pause()
+    let initialAVPlayer = avPlayer
+    let initialLoadCount = await episodeAssetLoader.responseCount(
+      for: interruptedEpisode.episode.mediaURL
+    )
+
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+    try await Wait.until(
+      { await avPlayer != initialAVPlayer },
+      { "Expected new AVPlayer to be created" }
+    )
+    try await PlayHelpers.waitForOnDeck(interruptedEpisode)
+    try await PlayHelpers.waitFor(.stopped)
+
+    await episodeAssetLoader.respond(
+      to: replacementEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(replacementEpisode)
+    )
+    await #expect(throws: (any Error).self) {
+      try await playManager.play(replacementEpisode)
+    }
+
+    try #require(sharedState.onDeck?.id == interruptedEpisode.id)
+    #expect(sharedState.currentEpisodeID == interruptedEpisode.id)
+    try await PlayHelpers.waitFor(resumeTime)
+    try await PlayHelpers.waitFor(.stopped)
+
+    await playManager.play()
+
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForOnDeck(interruptedEpisode)
+    try await PlayHelpers.waitFor(resumeTime)
+    try await PlayHelpers.waitForQueue([replacementEpisode])
+    #expect(
+      await episodeAssetLoader.responseCount(for: interruptedEpisode.episode.mediaURL)
+        == initialLoadCount + 1
+    )
+  }
+
   @Test("failed user recovery keeps the interrupted episode OnDeck")
   func failedUserRecoveryKeepsInterruptedEpisodeOnDeck() async throws {
     PlayHelpers.setupCommandHandling()
