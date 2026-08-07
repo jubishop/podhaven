@@ -33,8 +33,8 @@ import Testing
 
   // MARK: - Media Services Reset
 
-  @Test("media services reset returns OnDeck to Up Next and waits for user")
-  func mediaServicesResetReturnsOnDeckToUpNextAndWaitsForUser() async throws {
+  @Test("media services reset preserves OnDeck and waits for user to reload")
+  func mediaServicesResetPreservesOnDeckAndWaitsForUserToReload() async throws {
     try await LogCapture.withSink { sink in
       PlayHelpers.setupCommandHandling()
       await playManager.start()
@@ -66,9 +66,10 @@ import Testing
         { await avPlayer != initialAVPlayer },
         { "Expected new AVPlayer to be created" }
       )
-      try await PlayHelpers.waitForOnDeck(nil)
+      try await PlayHelpers.waitForOnDeck(podcastEpisode)
       try await PlayHelpers.waitFor(.stopped)
       try await PlayHelpers.waitForQueue([podcastEpisode, queuedEpisode])
+      #expect(sharedState.currentEpisodeID == podcastEpisode.id)
       try await Wait.until(
         { @MainActor in alert.config?.title == "Audio Services Restarted" },
         { @MainActor in "Expected an audio-services reset explanation" }
@@ -99,15 +100,64 @@ import Testing
         }
       #expect(telemetry.count == 1)
 
-      try await PlayHelpers.load(preservedEpisode)
-      try await PlayHelpers.waitFor(.paused)
+      await playManager.play()
+      try await PlayHelpers.waitFor(.playing)
       try await PlayHelpers.waitFor(resumeTime)
       try await PlayHelpers.waitForQueue([queuedEpisode])
+      #expect(
+        await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
+          == initialLoadCount + 1
+      )
       try await Wait.until(
         { await audioSession.activeCalls.filter(\.self).count == initialActivationCount + 1 },
         { "Expected user-initiated load to reactivate the audio session" }
       )
     }
+  }
+
+  @Test("failed user recovery keeps the interrupted episode OnDeck")
+  func failedUserRecoveryKeepsInterruptedEpisodeOnDeck() async throws {
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+    let resumeTime = CMTime.seconds(123)
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(currentTime: resumeTime)
+    )
+
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.waitFor(resumeTime)
+    try await PlayHelpers.pause()
+    let initialAVPlayer = avPlayer
+    let initialLoadCount = await episodeAssetLoader.responseCount(
+      for: podcastEpisode.episode.mediaURL
+    )
+
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+    try await Wait.until(
+      { await avPlayer != initialAVPlayer },
+      { "Expected new AVPlayer to be created" }
+    )
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForQueue([podcastEpisode])
+
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(podcastEpisode)
+    )
+    await playManager.play()
+
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(resumeTime)
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForQueue([podcastEpisode])
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+    #expect(
+      await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
+        == initialLoadCount + 1
+    )
   }
 
   @Test("media services reset rebuilds without prompting when no episode exists")
@@ -168,8 +218,9 @@ import Testing
         .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
 
       try await PlayHelpers.waitFor(.stopped)
-      try await PlayHelpers.waitForOnDeck(nil)
+      try await PlayHelpers.waitForOnDeck(podcastEpisode)
       try await PlayHelpers.waitForQueue([podcastEpisode])
+      #expect(sharedState.currentEpisodeID == podcastEpisode.id)
       try await Wait.until(
         { await avPlayer != initialAVPlayer },
         { "Expected new AVPlayer to be created" }
@@ -427,8 +478,9 @@ import Testing
       { "Expected new AVPlayer to be created" }
     )
     try await PlayHelpers.waitForQueue([podcastEpisode])
-    try await PlayHelpers.waitForOnDeck(nil)
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
     try await PlayHelpers.waitFor(.stopped)
+    #expect(sharedState.currentEpisodeID == podcastEpisode.id)
     let preservedEpisode = try #require(try await repo.podcastEpisode(podcastEpisode.id))
     #expect(preservedEpisode.currentTime == resumeTime)
   }
@@ -436,8 +488,8 @@ import Testing
 
 @Suite("of cold-launch media services reset tests", .container)
 @MainActor struct MediaServicesResetColdLaunchTests {
-  @Test("media services reset returns the persisted episode to Up Next before restoration")
-  func mediaServicesResetReturnsPersistedEpisodeToUpNextBeforeRestoration() async throws {
+  @Test("media services reset preserves persisted identity before restoration")
+  func mediaServicesResetPreservesPersistedIdentityBeforeRestoration() async throws {
     try await LogCapture.withSink { sink in
       let podcastEpisode = try await Create.podcastEpisode(
         Create.unsavedEpisode(currentTime: .seconds(123))
@@ -482,7 +534,7 @@ import Testing
 
       let queuedEpisode = try await queue.nextEpisode
       #expect(queuedEpisode?.id == podcastEpisode.id)
-      #expect(sharedState.currentEpisodeID == nil)
+      #expect(sharedState.currentEpisodeID == podcastEpisode.id)
       #expect(sharedState.onDeck == nil)
       #expect(
         await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL) == 0

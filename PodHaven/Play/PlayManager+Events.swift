@@ -20,6 +20,30 @@ extension PlayManager {
 
   // MARK: - Change Handlers
 
+  func setStatus(_ status: PlaybackStatus) {
+    Self.log.debug("setStatus: \(status)")
+    sharedState.setPlaybackStatus(status)
+
+    if status == .stopped {
+      do {
+        try Container.shared.setAudioSessionActive()(false)
+      } catch {
+        Self.log.caughtError(
+          "setStatus: failed to deactivate audio session",
+          error,
+          level: .notice
+        )
+      }
+    }
+  }
+
+  // Incoming state update from the AVPlayer (in contrast to setRate(_))
+  func setPlaybackRate(_ rate: Float) {
+    Self.log.debug("setPlaybackRate: \(rate)")
+    NowPlayingInfo.setPlaybackRate(rate)
+    sharedState.setPlayRate(rate)
+  }
+
   private func isCurrentPlayerEvent(_ source: PodAVPlayerEventSource) async -> Bool {
     guard await podAVPlayer.isCurrent(source) else {
       Self.log.debug("Ignoring stale player event for episode \(source.episodeID)")
@@ -238,8 +262,8 @@ extension PlayManager {
     CommandCenter.registerRemoteCommandHandlers()
     Self.log.debug("handleMediaServicesReset: remote command handlers re-registered")
 
-    await stop()
-    Self.log.debug("handleMediaServicesReset: stopped invalidated playback")
+    beginMediaServicesRecovery(interruptedEpisodeID: interruptedEpisodeID)
+    Self.log.debug("handleMediaServicesReset: preserved interrupted playback for user action")
 
     let audioSessionConfigured = await Container.shared.configureAudioSession()()
     let resumeEpisode: PodcastEpisode?

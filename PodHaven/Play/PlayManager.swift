@@ -41,7 +41,7 @@ final class PlayManager {
     init(id: UUID) { self.id = id }
   }
 
-  private enum PendingPlaybackRequest {
+  enum PendingPlaybackRequest {
     case none
     case play(Episode.ID)
   }
@@ -55,7 +55,7 @@ final class PlayManager {
   @DynamicInjected(\.repo) var repo
   @DynamicInjected(\.sharedState) var sharedState
   @DynamicInjected(\.sleeper) private var sleeper
-  @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.stateManager) var stateManager
   @DynamicInjected(\.userSettings) var userSettings
 
   var alert: Alert { get async { await Container.shared.alert() } }
@@ -88,11 +88,12 @@ final class PlayManager {
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
   private var restartScrubCommandsTask: Task<Void, any Error>?
-  private(set) var onDeckBecameCurrentAt: Date?
+  var onDeckBecameCurrentAt: Date?
   private var lastLoggedTime = Date.distantPast
   private var lastNowPlayingElapsedWrite: CMTime?
   private var lastBackgroundSnapshot: Date?
-  private var pendingPlaybackRequest = PendingPlaybackRequest.none
+  var mediaServicesRecoveryState = MediaServicesRecoveryState.none
+  var pendingPlaybackRequest = PendingPlaybackRequest.none
   private var postPauseObservationTask: Task<Void, Never>?
 
   // MARK: - Initialization
@@ -121,6 +122,7 @@ final class PlayManager {
   private func restorePersistedEpisodeIfNeeded() async {
     guard sharedState.onDeck == nil else { return }
     guard let currentEpisodeID = sharedState.currentEpisodeID else { return }
+    guard case .none = mediaServicesRecoveryState else { return }
 
     Self.log.info("Loading persisted episode \(currentEpisodeID)")
     do {
@@ -182,6 +184,7 @@ final class PlayManager {
 
   @discardableResult
   func load(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
+    supersedeMediaServicesRecoveryIfNeeded(with: podcastEpisode.id)
     let loadID = claimLoadTransition(for: podcastEpisode.id)
 
     let task = Task<Bool, any Error> { [weak self] in
@@ -202,7 +205,12 @@ final class PlayManager {
     }
 
     loadTask = task
-    return try await task.value
+    do {
+      return try await task.value
+    } catch {
+      restoreMediaServicesRecoveryPresentation(podcastEpisode)
+      throw error
+    }
   }
 
   private func claimLoadTransition(for episodeID: Episode.ID?) -> UUID {
@@ -232,8 +240,9 @@ final class PlayManager {
   private func performLoad(_ incoming: PodcastEpisode, loadID: UUID) async throws -> Bool {
     let transition = loadTransition
     let outgoing = sharedState.onDeck
+    let isMediaServicesRecovery = mediaServicesRecoveryEpisodeID == incoming.id
 
-    if let outgoing, outgoing.id == incoming.id {
+    if let outgoing, outgoing.id == incoming.id, !isMediaServicesRecovery {
       try requireLoadTransitionOwnership(loadID)
       Self.log.debug("performLoad: ignoring \(incoming.toString), already loaded")
       return false
@@ -366,6 +375,7 @@ final class PlayManager {
       phaseStart = Date()
       Self.log.debug("performLoad: setting onDeck")
       try await setOnDeck(loaded, loadID: loadID)
+      completeMediaServicesRecovery(for: incoming.id)
       guard try shouldFinishEstablishedLoad(loadID) else { return true }
       Self.log.debug("performLoad: set onDeck in \(Date().timeIntervalSince(phaseStart)) seconds")
 
@@ -529,8 +539,13 @@ final class PlayManager {
   }
 
   func play(_ podcastEpisode: PodcastEpisode) async throws {
+    let isMediaServicesRecovery = mediaServicesRecoveryEpisodeID == podcastEpisode.id
     pendingPlaybackRequest = .play(podcastEpisode.id)
-    try await load(podcastEpisode)
+    let loaded = try await load(podcastEpisode)
+    if isMediaServicesRecovery, !loaded {
+      pendingPlaybackRequest = .none
+      return
+    }
 
     guard case .play(let pendingEpisodeID) = pendingPlaybackRequest,
       pendingEpisodeID == podcastEpisode.id,
@@ -546,6 +561,8 @@ final class PlayManager {
       return
     }
     pendingPlaybackRequest = .play(episodeID)
+
+    guard await reloadMediaServicesRecoveryIfNeeded(for: episodeID) else { return }
 
     await restorePersistedEpisodeIfNeeded()
     await fulfillPendingPlaybackRequest()
@@ -587,6 +604,7 @@ final class PlayManager {
 
   func removeDeletedEpisodes(_ episodeIDs: Set<Episode.ID>) async {
     guard !episodeIDs.isEmpty else { return }
+    clearMediaServicesRecoveryIfDeleted(episodeIDs)
     if case .play(let episodeID) = pendingPlaybackRequest,
       episodeIDs.contains(episodeID)
     {
@@ -622,6 +640,7 @@ final class PlayManager {
     let onDeckID = sharedState.onDeck?.id
     let episodeID = episodeID ?? onDeckID
     guard let episodeID else { return }
+    clearMediaServicesRecovery(for: episodeID)
     Self.log.debug("finishEpisode: \(episodeID) (onDeckID: \(String(describing: onDeckID)))")
     let finalizationID = claimFinalization(of: episodeID, onDeckID: onDeckID)
     if finalizationID != nil,
@@ -932,6 +951,7 @@ final class PlayManager {
 
   func clearOnDeck() async {
     Self.log.debug("clearOnDeck: executing")
+    clearMediaServicesRecovery()
     imageFetchTask?.cancel()
     await podAVPlayer.clear()
     NowPlayingInfo.clear()
@@ -973,27 +993,4 @@ final class PlayManager {
     }
   }
 
-  func setStatus(_ status: PlaybackStatus) {
-    Self.log.debug("setStatus: \(status)")
-    sharedState.setPlaybackStatus(status)
-
-    if status == .stopped {
-      do {
-        try Container.shared.setAudioSessionActive()(false)
-      } catch {
-        Self.log.caughtError(
-          "setStatus: failed to deactivate audio session",
-          error,
-          level: .notice
-        )
-      }
-    }
-  }
-
-  // Incoming state update from the AVPlayer (in contrast to setRate(_))
-  func setPlaybackRate(_ rate: Float) {
-    Self.log.debug("setPlaybackRate: \(rate)")
-    NowPlayingInfo.setPlaybackRate(rate)
-    sharedState.setPlayRate(rate)
-  }
 }
