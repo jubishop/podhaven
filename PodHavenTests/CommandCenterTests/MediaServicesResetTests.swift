@@ -25,6 +25,9 @@ import Testing
   private var avPlayer: FakeAVPlayer {
     Container.shared.avPlayer() as! FakeAVPlayer
   }
+  private var mpRemoteCommandCenter: FakeMPRemoteCommandCenter {
+    Container.shared.mpRemoteCommandCenter() as! FakeMPRemoteCommandCenter
+  }
 
   init() async throws {
     stateManager.start()
@@ -115,6 +118,82 @@ import Testing
     }
   }
 
+  @Test("toggle command reloads preserved episode after media services reset")
+  func toggleCommandReloadsPreservedEpisodeAfterMediaServicesReset() async throws {
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.pause()
+    let initialAVPlayer = avPlayer
+    let initialLoadCount = await episodeAssetLoader.responseCount(
+      for: podcastEpisode.episode.mediaURL
+    )
+
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+    try await Wait.until(
+      { await avPlayer != initialAVPlayer },
+      { "Expected new AVPlayer to be created" }
+    )
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.stopped)
+
+    mpRemoteCommandCenter.fireTogglePlayPause()
+
+    try await Wait.until(
+      {
+        await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
+          == initialLoadCount + 1
+      },
+      { "Expected toggle playback to reload the recovery episode" }
+    )
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+  }
+
+  @Test("failed replacement preflight preserves interrupted recovery")
+  func failedReplacementPreflightPreservesInterruptedRecovery() async throws {
+    PlayHelpers.setupCommandHandling()
+    await playManager.start()
+    let (interruptedEpisode, replacementEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await PlayHelpers.load(interruptedEpisode)
+    try await PlayHelpers.pause()
+    let initialAVPlayer = avPlayer
+    let initialLoadCount = await episodeAssetLoader.responseCount(
+      for: interruptedEpisode.episode.mediaURL
+    )
+
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+    try await Wait.until(
+      { await avPlayer != initialAVPlayer },
+      { "Expected new AVPlayer to be created" }
+    )
+    try await PlayHelpers.waitForOnDeck(interruptedEpisode)
+    try await PlayHelpers.waitFor(.stopped)
+
+    audioSession.configureError { $0 = TestError.simulatedFailure }
+    try await playManager.play(replacementEpisode)
+
+    try await PlayHelpers.waitForOnDeck(interruptedEpisode)
+    try await PlayHelpers.waitFor(.stopped)
+
+    audioSession.configureError { $0 = nil }
+    await playManager.play()
+
+    let recoveryLoadCount = await episodeAssetLoader.responseCount(
+      for: interruptedEpisode.episode.mediaURL
+    )
+    try #require(recoveryLoadCount == initialLoadCount + 1)
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForOnDeck(interruptedEpisode)
+  }
+
   @Test("failed user recovery keeps the interrupted episode OnDeck")
   func failedUserRecoveryKeepsInterruptedEpisodeOnDeck() async throws {
     PlayHelpers.setupCommandHandling()
@@ -157,6 +236,22 @@ import Testing
     #expect(
       await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
         == initialLoadCount + 1
+    )
+    try await Wait.until(
+      { @MainActor in alert.config?.title == "Error" },
+      { @MainActor in "Expected an alert after the failed recovery load" }
+    )
+
+    await episodeAssetLoader.clearCustomHandler(for: podcastEpisode.episode)
+    await playManager.play()
+
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(resumeTime)
+    try await PlayHelpers.waitForQueue([])
+    #expect(
+      await episodeAssetLoader.responseCount(for: podcastEpisode.episode.mediaURL)
+        == initialLoadCount + 2
     )
   }
 

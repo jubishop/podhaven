@@ -184,7 +184,6 @@ final class PlayManager {
 
   @discardableResult
   func load(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
-    supersedeMediaServicesRecoveryIfNeeded(with: podcastEpisode.id)
     let loadID = claimLoadTransition(for: podcastEpisode.id)
 
     let task = Task<Bool, any Error> { [weak self] in
@@ -298,6 +297,7 @@ final class PlayManager {
 
     try requireLoadTransitionOwnership(loadID)
     loadTransition?.state = .ownsPlaybackState
+    supersedeMediaServicesRecoveryIfNeeded(with: incoming.id)
     do {
       // Do not mutate playback state until the audio session is ready. A
       // background activation can be rejected while another app is playing.
@@ -375,7 +375,7 @@ final class PlayManager {
       phaseStart = Date()
       Self.log.debug("performLoad: setting onDeck")
       try await setOnDeck(loaded, loadID: loadID)
-      completeMediaServicesRecovery(for: incoming.id)
+      completeMediaServicesRecovery()
       guard try shouldFinishEstablishedLoad(loadID) else { return true }
       Self.log.debug("performLoad: set onDeck in \(Date().timeIntervalSince(phaseStart)) seconds")
 
@@ -633,6 +633,7 @@ final class PlayManager {
   }
 
   func toggle() async {
+    guard mediaServicesRecoveryEpisodeID == nil else { return await play() }
     await podAVPlayer.toggle()
   }
 

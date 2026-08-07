@@ -44,8 +44,7 @@ extension PlayManager {
     CommandCenter.updateNextTrack()
   }
 
-  func completeMediaServicesRecovery(for episodeID: Episode.ID) {
-    guard mediaServicesRecoveryEpisodeID == episodeID else { return }
+  func completeMediaServicesRecovery() {
     mediaServicesRecoveryState = .none
   }
 
