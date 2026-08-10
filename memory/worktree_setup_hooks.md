@@ -41,6 +41,14 @@ sed -i '' "s|<stale DerivedData path>/SourcePackages|$HOME/Library/Developer/Sha
 
 `xcodebuild -resolvePackageDependencies` does not fix it — resolution succeeds but never re-checks artifact paths. This can recur whenever SwiftPM re-resolves from a worktree that is later removed.
 
+After rewriting `workspace-state.json`, validate it with `jq empty`; `plutil -lint`
+was not a reliable JSON check for this file on this machine. To prove the
+repair without repeating release side effects, use a warning-free
+`xcodebuild build-for-testing` or archive-only run with
+`-hideShellScriptEnvironment`, and confirm that Xcode copies and signs the
+Sentry framework. Run the full deploy only when the release path itself must
+be exercised because it can create tag and upload side effects.
+
 Related symptom at the same time: "Provisioning profile … doesn't include signing certificate" — a stale iOS Team Provisioning Profile; one build with `xcodebuild -allowProvisioningUpdates` regenerates it.
 
 ## Failed Approaches
@@ -49,6 +57,11 @@ Related symptom at the same time: "Provisioning profile … doesn't include sign
 - **Stable symlink path** — Xcode resolves symlinks before computing DerivedData hash
 - **SourcePackages symlink into main's DerivedData** — link target vanishes whenever main's DerivedData is cleaned, so worktrees silently fall back to fresh full copies; replaced by a shared clone path outside DerivedData
 - **Background warm `xcodebuild` on worktree creation** — a second build on the same DerivedData hard-fails (`exit 65`, `build.db database is locked`), so if an agent builds within ~80s of creation its build dies, not the warm one. Couldn't be serialized without the build going through a wrapper the agent must opt into. Measured payoff was small anyway: fresh-worktree build ~73–84s, and the global content-addressed compilation cache only shaved ~11s across a new DerivedData path (absolute paths bust most cache keys). Dropped; the agent's first build is the warming pass.
+- **Review-specific DerivedData under `/tmp` for runtime tests** — a confirmed
+  PodHaven run compiled but XCTest bootstrap was blocked by
+  AppleSystemPolicy/Gatekeeper. Use standard Xcode DerivedData for runtime
+  tests unless isolation is necessary, and inspect the result for bootstrap
+  errors instead of treating compilation as proof that tests ran.
 - **WorkspaceSettings in xcshareddata** — Xcode reverts shared DerivedData/caching settings; strictly per-user
 - **`WorktreeCreate` hook** — Replaces default `git worktree` behavior (expects hook to create worktree and print path on stdout), not for running scripts alongside
 - **`PostToolUse` with `EnterWorktree`** — Doesn't fire for `claude -w` (worktree created at startup before session)
