@@ -388,13 +388,19 @@ extension PlayManager {
           notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey]
           as? AVAudioSessionRouteDescription
         let previousOutputs = previousRoute?.outputs.map(\.portType.rawValue) ?? []
+        let currentOutputs = session.currentRoute.outputs.map(\.portType.rawValue)
         Self.log.info(
           """
           Audio route changed
             reason: \(reason)
             previousOutputs: \(previousOutputs)
-            outputs: \(session.currentRoute.outputs.map(\.portType.rawValue))
+            outputs: \(currentOutputs)
           """
+        )
+        recordAudioRouteChange(
+          reason: reason,
+          previousOutputs: previousOutputs,
+          currentOutputs: currentOutputs
         )
 
         guard sharedState.onDeck != nil else { continue }
@@ -631,6 +637,7 @@ extension PlayManager {
       for await event in await podAVPlayer.currentTimeStream
       where await isCurrentPlayerEvent(event.source) {
         setCurrentTime(event.value)
+        handleWidgetRouteRecoveryProgress(event)
       }
     }
 
@@ -658,6 +665,7 @@ extension PlayManager {
         case .loading(_), .stopped:
           Assert.fatal("\(controlStatus) from PodAVPlayer?")
         }
+        await handleWidgetRouteRecoveryStatus(event)
       }
     }
 

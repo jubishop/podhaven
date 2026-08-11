@@ -50,6 +50,16 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
   let value: Value
 }
 
+struct PodAVPlayerPlaybackSnapshot {
+  let currentTime: CMTime
+  let episodeID: Episode.ID?
+  let isFromCache: Bool
+  let itemStatus: AVPlayerItem.Status?
+  let source: PodAVPlayerEventSource?
+  let status: PlaybackStatus
+  let waitingReason: String?
+}
+
 @MainActor class PodAVPlayer {
   @DynamicInjected(\.avPlayer) private var avPlayer
   @DynamicInjected(\.cacheFileStore) private var cacheFileStore
@@ -236,6 +246,18 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
 
   func reasonForWaitingToPlay() -> String? {
     avPlayer.reasonForWaitingToPlay?.rawValue
+  }
+
+  func playbackSnapshot() -> PodAVPlayerPlaybackSnapshot {
+    PodAVPlayerPlaybackSnapshot(
+      currentTime: avPlayer.currentTime(),
+      episodeID: episodeID,
+      isFromCache: playingFromCache,
+      itemStatus: avPlayer.current?.status,
+      source: eventSource,
+      status: PlaybackStatus(avPlayer.timeControlStatus),
+      waitingReason: avPlayer.reasonForWaitingToPlay?.rawValue
+    )
   }
 
   func isCurrentItem(_ item: AVPlayerItem?) -> Bool {
@@ -521,19 +543,22 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
         PodAVPlayerEvent(source: eventSource, value: PlaybackStatus(status))
       )
 
-      if status != .playing {
-        Task { @MainActor [weak self, eventSource] in
-          guard let self, self.isCurrent(eventSource) else { return }
-          Self.log.debug(
-            """
-            timeControlStatus: \(PlaybackStatus(status)), \
-            reason: \(String(describing: avPlayer.reasonForWaitingToPlay))
-            """
-          )
-          let currentTime = avPlayer.currentTime()
-          if await swapToCached(from: eventSource) {
-            avPlayer.seek(to: currentTime)
-          }
+      Task { @MainActor [weak self, eventSource] in
+        guard let self, self.isCurrent(eventSource) else { return }
+        let snapshot = playbackSnapshot()
+        Self.log.debug(
+          """
+          event=playerTimeControlStatus episodeID=\(eventSource.episodeID) \
+          playerGeneration=\(eventSource.generation) status=\(PlaybackStatus(status)) \
+          currentTime=\(snapshot.currentTime) itemStatus=\(String(describing: snapshot.itemStatus)) \
+          cached=\(snapshot.isFromCache) \
+          waitingReason=\(String(describing: snapshot.waitingReason))
+          """
+        )
+        guard status != .playing else { return }
+        let currentTime = avPlayer.currentTime()
+        if await swapToCached(from: eventSource) {
+          avPlayer.seek(to: currentTime)
         }
       }
     }

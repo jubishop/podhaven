@@ -48,13 +48,14 @@ final class PlayManager {
 
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenterStream) var commandCenterStream
+  @DynamicInjected(\.dateProvider) var dateProvider
   @DynamicInjected(\.fileManager) var fileManager
   @DynamicInjected(\.imagePipeline) private var imagePipeline
   @DynamicInjected(\.notifications) var notifications
   @DynamicInjected(\.queue) var queue
   @DynamicInjected(\.repo) var repo
   @DynamicInjected(\.sharedState) var sharedState
-  @DynamicInjected(\.sleeper) private var sleeper
+  @DynamicInjected(\.sleeper) var sleeper
   @DynamicInjected(\.stateManager) var stateManager
   @DynamicInjected(\.userSettings) var userSettings
 
@@ -70,6 +71,10 @@ final class PlayManager {
   // MARK: - Configurable Constants
 
   let recoveryDebounceInterval: TimeInterval = 5
+  let routeChangeAssociationWindow: TimeInterval = 5
+  let routeChangeProgressTolerance: TimeInterval = 0.5
+  let routeChangeRecoveryDelay: Duration = .seconds(1)
+  let routeChangeRecoveryTimeout: Duration = .seconds(10)
   private let remoteScrubSuppressionDuration: Duration = .seconds(1)
   // A remote scrub landing within this distance of the episode duration counts
   // as a scrub to the very end.
@@ -81,6 +86,7 @@ final class PlayManager {
   // MARK: - State Management
 
   var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
+  var latestAudioRouteChange: AudioRouteChange?
   private var imageFetchTask: Task<Void, Never>?
   private var loadTransition: LoadTransition?
   private(set) var loadTask: Task<Bool, any Error>?
@@ -95,6 +101,8 @@ final class PlayManager {
   var mediaServicesRecoveryState = MediaServicesRecoveryState.none
   var pendingPlaybackRequest = PendingPlaybackRequest.none
   private var postPauseObservationTask: Task<Void, Never>?
+  var widgetRouteRecovery: WidgetRouteRecovery?
+  var widgetRouteRecoveryTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -184,6 +192,7 @@ final class PlayManager {
 
   @discardableResult
   func load(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
+    cancelWidgetRouteRecovery(reason: "newLoad")
     let recoveryEpisode = try await mediaServicesRecoveryEpisode(whenLoading: podcastEpisode)
     let loadID = claimLoadTransition(for: podcastEpisode.id)
 
@@ -540,7 +549,11 @@ final class PlayManager {
     CommandCenter.updateNextTrack()
   }
 
-  func play(_ podcastEpisode: PodcastEpisode) async throws {
+  func play(
+    _ podcastEpisode: PodcastEpisode,
+    origin: PlaybackRequestOrigin = .application
+  ) async throws {
+    let requestID = UUID()
     let isMediaServicesRecovery = mediaServicesRecoveryEpisodeID == podcastEpisode.id
     pendingPlaybackRequest = .play(podcastEpisode.id)
     let loaded = try await load(podcastEpisode)
@@ -553,10 +566,18 @@ final class PlayManager {
       pendingEpisodeID == podcastEpisode.id,
       sharedState.onDeck?.id == podcastEpisode.id
     else { return }
+    await beginPlaybackRequest(
+      origin: origin,
+      requestID: requestID,
+      episodeID: podcastEpisode.id,
+      snapshot: podAVPlayer.playbackSnapshot()
+    )
     await fulfillPendingPlaybackRequest()
   }
 
-  func play() async {
+  func play(origin: PlaybackRequestOrigin = .application) async {
+    let requestID = UUID()
+    cancelWidgetRouteRecovery(reason: "newPlay")
     guard let episodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID else {
       pendingPlaybackRequest = .none
       Self.log.warning("play: nothing to play")
@@ -567,6 +588,12 @@ final class PlayManager {
     guard await reloadMediaServicesRecoveryIfNeeded(for: episodeID) else { return }
 
     await restorePersistedEpisodeIfNeeded()
+    await beginPlaybackRequest(
+      origin: origin,
+      requestID: requestID,
+      episodeID: episodeID,
+      snapshot: podAVPlayer.playbackSnapshot()
+    )
     await fulfillPendingPlaybackRequest()
   }
 
@@ -594,11 +621,13 @@ final class PlayManager {
   }
 
   func pause() async {
+    cancelWidgetRouteRecovery(reason: "userPause")
     pendingPlaybackRequest = .none
     await podAVPlayer.pause()
   }
 
   func stop() async {
+    cancelWidgetRouteRecovery(reason: "userStop")
     pendingPlaybackRequest = .none
     await clearOnDeck()
     setStatus(.stopped)
@@ -636,6 +665,7 @@ final class PlayManager {
 
   func toggle() async {
     guard mediaServicesRecoveryEpisodeID == nil else { return await play() }
+    cancelWidgetRouteRecovery(reason: "userToggle")
     await podAVPlayer.toggle()
   }
 
@@ -824,73 +854,6 @@ final class PlayManager {
     }
   }
 
-  // MARK: - Seeking
-
-  func seekForward(_ interval: TimeInterval? = nil) async {
-    let duration = interval ?? userSettings.skipForwardInterval
-    let currentTime = await podAVPlayer.currentTime()
-    await seek(to: currentTime + CMTime.seconds(duration))
-  }
-
-  func seekBackward(_ interval: TimeInterval? = nil) async {
-    let duration = interval ?? userSettings.skipBackwardInterval
-    let currentTime = await podAVPlayer.currentTime()
-    await seek(to: currentTime - CMTime.seconds(duration))
-  }
-
-  func seek(to time: CMTime) async {
-    NowPlayingInfo.setCurrentTime(time)
-    await podAVPlayer.seek(to: time)
-  }
-
-  // MARK: - Chapter Navigation
-
-  func seekToNextChapter() async {
-    guard let chapters = sharedState.onDeck?.chapters, !chapters.isEmpty else {
-      await seekForward()
-      return
-    }
-
-    let currentSeconds = (sharedState.onDeck?.currentTime ?? .zero).seconds
-    if let nextChapter = chapters.first(where: { $0.seconds > currentSeconds }) {
-      await seek(to: nextChapter)
-    } else {
-      await finishEpisode()
-    }
-  }
-
-  func seekToPreviousChapter() async {
-    guard let chapters = sharedState.onDeck?.chapters, !chapters.isEmpty else {
-      await seekBackward()
-      return
-    }
-
-    let currentSeconds = (sharedState.onDeck?.currentTime ?? .zero).seconds
-    let previousChapters = chapters.filter { $0.seconds < currentSeconds }
-
-    let targetTime: CMTime
-    if let nearestPrevious = previousChapters.last {
-      if currentSeconds - nearestPrevious.seconds < 2 {
-        targetTime =
-          previousChapters.count > 1 ? previousChapters[previousChapters.count - 2] : .zero
-      } else {
-        targetTime = nearestPrevious
-      }
-    } else {
-      targetTime = .zero
-    }
-
-    await seek(to: targetTime)
-  }
-
-  // Incoming command from user input (in contrast to setPlaybackRate(_))
-  func setRate(_ rate: Float) async {
-    Assert.precondition(rate > 0, "Setting playback rate to 0?")
-
-    sharedState.setPlayRate(rate)
-    await podAVPlayer.setRate(rate)
-  }
-
   // MARK: - State Management
 
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, loadID: UUID) async throws {
@@ -953,6 +916,7 @@ final class PlayManager {
   }
 
   func clearOnDeck() async {
+    cancelWidgetRouteRecovery(reason: "clearOnDeck")
     Self.log.debug("clearOnDeck: executing")
     clearMediaServicesRecovery()
     imageFetchTask?.cancel()
