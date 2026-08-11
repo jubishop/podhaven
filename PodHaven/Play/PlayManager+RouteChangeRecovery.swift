@@ -196,7 +196,7 @@ extension PlayManager {
       case .retryScheduled:
         skipWidgetRouteRecovery(recovery, reason: "resumedBeforeRetry")
       case .retrying:
-        succeedWidgetRouteRecovery(recovery, reason: "playing")
+        scheduleWidgetRouteRecoveryTimeout(recovery)
       case .requested, .routeChanged, .timingOut:
         break
       }
@@ -292,7 +292,7 @@ extension PlayManager {
     switch result.status {
     case .playing:
       setStatus(.playing)
-      succeedWidgetRouteRecovery(currentRecovery, reason: "playing")
+      scheduleWidgetRouteRecoveryTimeout(currentRecovery)
     case .waiting:
       setStatus(.waiting)
       scheduleWidgetRouteRecoveryTimeout(currentRecovery)
@@ -305,7 +305,10 @@ extension PlayManager {
   }
 
   private func scheduleWidgetRouteRecoveryTimeout(_ recovery: WidgetRouteRecovery) {
-    guard case .retrying = recovery.phase else { return }
+    guard case .retrying(let waitingAt, let routeChangeID) = recovery.phase else { return }
+    var recovery = recovery
+    recovery.phase = .timingOut(waitingAt: waitingAt, routeChangeID: routeChangeID)
+    widgetRouteRecovery = recovery
     widgetRouteRecoveryTask?.cancel()
     widgetRouteRecoveryTask = Task { @PlayActor [weak self] in
       guard let self else { return }
@@ -321,8 +324,8 @@ extension PlayManager {
   }
 
   private func timeOutWidgetRouteRecovery(requestID: UUID) async {
-    guard var recovery = widgetRouteRecovery, recovery.requestID == requestID,
-      case .retrying(let waitingAt, let routeChangeID) = recovery.phase
+    guard let recovery = widgetRouteRecovery, recovery.requestID == requestID,
+      case .timingOut = recovery.phase
     else { return }
     let snapshot = await podAVPlayer.playbackSnapshot()
     guard sharedState.onDeck?.id == recovery.episodeID,
@@ -331,15 +334,11 @@ extension PlayManager {
       cancelWidgetRouteRecovery(reason: "timeoutOwnershipChanged")
       return
     }
-    if snapshot.status == .playing
-      || routeRecoveryHasProgressed(snapshot.currentTime, since: recovery.requestedTime)
-    {
+    if routeRecoveryHasProgressed(snapshot.currentTime, since: recovery.requestedTime) {
       succeedWidgetRouteRecovery(recovery, reason: "timeAdvanced")
       return
     }
 
-    recovery.phase = .timingOut(waitingAt: waitingAt, routeChangeID: routeChangeID)
-    widgetRouteRecovery = recovery
     await podAVPlayer.pause()
     setStatus(.paused)
     guard widgetRouteRecovery?.requestID == requestID else { return }

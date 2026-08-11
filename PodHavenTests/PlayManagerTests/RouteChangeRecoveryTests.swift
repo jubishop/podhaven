@@ -256,6 +256,42 @@ import Testing
     }
   }
 
+  @Test("transient playing without progress still times out")
+  func transientPlayingWithoutProgressTimesOut() async throws {
+    try await LogCapture.withSink { sink in
+      avPlayer.queuePlayStatuses([.playing, .playing])
+      try await startWidgetPlayback(cached: true)
+      try await sendRouteChangeAndWaitForConsumption(sink)
+      avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
+      try await PlayHelpers.waitFor(.waiting)
+      avPlayer.pause()
+      try await PlayHelpers.waitFor(.paused)
+      try await sleeper.waitForSleepRequests(for: .seconds(1))
+
+      await sleeper.advanceTime(by: .seconds(1))
+      try await PlayHelpers.waitFor(.playing)
+      avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
+      try await PlayHelpers.waitFor(.waiting)
+
+      try #require(await playManager.widgetRouteRecovery != nil)
+      try await sleeper.waitForSleepRequests(for: .seconds(10))
+      await sleeper.advanceTime(by: .seconds(10))
+
+      try await PlayHelpers.waitFor(.paused)
+      try await waitForWidgetStatus(.paused)
+      #expect(avPlayer.playCallCount == 2)
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("event=widgetRouteRecoveryFailed reason=timeout")
+            }
+        },
+        { "Expected transient playing without progress to reach the recovery timeout" }
+      )
+    }
+  }
+
   @discardableResult
   private func startWidgetPlayback(cached: Bool) async throws -> PodcastEpisode {
     let unsavedEpisode =
