@@ -5,6 +5,7 @@ import Foundation
 
 @MainActor protocol AVPlayableItem: AnyObject, CustomStringConvertible {
   var asset: AVAsset { get }
+  var status: AVPlayerItem.Status { get }
 
   func observeStatus(
     options: NSKeyValueObservingOptions,

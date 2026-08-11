@@ -74,7 +74,20 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
 
   // MARK: - AVPlayable Playback
 
+  private(set) var playCallCount = 0
+  private var queuedPlayStatuses: [AVPlayer.TimeControlStatus] = []
+
   func play() {
+    playCallCount += 1
+    if let queuedStatus = queuedPlayStatuses.first {
+      queuedPlayStatuses.removeFirst()
+      timeControlStatus = queuedStatus
+      if queuedStatus == .playing {
+        setRate(defaultRate)
+      }
+      return
+    }
+
     if current == nil {
       timeControlStatus = .waitingToPlayAtSpecifiedRate
     } else {
@@ -217,5 +230,9 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
   func waitingToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
     reasonForWaitingToPlay = waitingReason
     timeControlStatus = .waitingToPlayAtSpecifiedRate
+  }
+
+  func queuePlayStatuses(_ statuses: [AVPlayer.TimeControlStatus]) {
+    queuedPlayStatuses = statuses
   }
 }
