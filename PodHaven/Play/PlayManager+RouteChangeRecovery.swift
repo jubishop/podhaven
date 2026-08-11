@@ -108,6 +108,7 @@ extension PlayManager {
       guard elapsed >= 0 && elapsed <= routeChangeAssociationWindow else { return }
       recovery.phase = .waiting(at: waitingAt, routeChangeID: routeChange.id)
     case .retryScheduled(let waitingAt, _):
+      guard elapsed >= 0 && elapsed <= routeChangeAssociationWindow else { return }
       recovery.phase = .retryScheduled(waitingAt: waitingAt, routeChangeID: routeChange.id)
       widgetRouteRecovery = recovery
       scheduleWidgetRouteRecovery(recovery)
