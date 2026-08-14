@@ -35,6 +35,60 @@ import Testing
     cacheManager.start()
   }
 
+  @Test("a cached widget resume recovers while buffer evaluation remains waiting")
+  func cachedWidgetResumeRecoversWhileWaiting() async throws {
+    try await LogCapture.withSink { sink in
+      try await startWidgetPlayback(cached: true)
+      try await sendRouteChangeAndWaitForConsumption(sink)
+      avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
+      try await PlayHelpers.waitFor(.waiting)
+      try await waitForWidgetStatus(.waiting)
+
+      try await sleeper.waitForSleepRequests(for: .seconds(1))
+      await sleeper.advanceTime(by: .seconds(1))
+
+      try await PlayHelpers.waitFor(.playing)
+      try await waitForWidgetStatus(.playing)
+      #expect(avPlayer.playCallCount == 2)
+      try await Wait.until(
+        {
+          sink.captured()
+            .count {
+              $0.message.contains("event=widgetRouteRecoveryAttempt")
+            } == 1
+        },
+        { "Expected one recovery attempt while AVPlayer remained waiting" }
+      )
+    }
+  }
+
+  @Test("progress before the waiting deadline cancels route recovery")
+  func progressBeforeWaitingDeadlineCancelsRecovery() async throws {
+    try await LogCapture.withSink { sink in
+      try await startWidgetPlayback(cached: true)
+      try await sendRouteChangeAndWaitForConsumption(sink)
+      avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
+      try await PlayHelpers.waitFor(.waiting)
+      try await sleeper.waitForSleepRequests(for: .seconds(1))
+
+      avPlayer.advanceTime(to: .seconds(1))
+      try await PlayHelpers.waitFor(.seconds(1))
+      await sleeper.advanceTime(by: .seconds(1))
+      await Task.yield()
+
+      #expect(avPlayer.playCallCount == 1)
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("event=widgetRouteRecoveryCancelled reason=timeAdvanced")
+            }
+        },
+        { "Expected progress to cancel the waiting recovery deadline" }
+      )
+    }
+  }
+
   @Test("a cached widget resume recovers once after a route-change stall")
   func cachedWidgetResumeRecoversOnce() async throws {
     try await LogCapture.withSink { sink in
@@ -145,11 +199,11 @@ import Testing
       try await sendRouteChangeAndWaitForConsumption(sink)
       avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
       try await PlayHelpers.waitFor(.waiting)
-      avPlayer.pause()
-      try await PlayHelpers.waitFor(.paused)
       try await sleeper.waitForSleepRequests(for: .seconds(1))
 
       await playManager.pause()
+      try await PlayHelpers.waitFor(.paused)
+      try await waitForWidgetStatus(.paused)
       await sleeper.advanceTime(by: .seconds(1))
       await Task.yield()
 
@@ -167,6 +221,33 @@ import Testing
     }
   }
 
+  @Test("a newer user play cancels waiting route recovery")
+  func newerPlayCancelsRecovery() async throws {
+    try await LogCapture.withSink { sink in
+      try await startWidgetPlayback(cached: true)
+      try await sendRouteChangeAndWaitForConsumption(sink)
+      avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
+      try await PlayHelpers.waitFor(.waiting)
+      try await sleeper.waitForSleepRequests(for: .seconds(1))
+
+      await playManager.play()
+      try await PlayHelpers.waitFor(.playing)
+      await sleeper.advanceTime(by: .seconds(1))
+      await Task.yield()
+
+      #expect(avPlayer.playCallCount == 2)
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("event=widgetRouteRecoveryCancelled reason=newPlay")
+            }
+        },
+        { "Expected the newer play to cancel route recovery" }
+      )
+    }
+  }
+
   @Test("a replacement load cancels recovery owned by the retired player")
   func replacementLoadCancelsRecovery() async throws {
     try await LogCapture.withSink { sink in
@@ -174,8 +255,6 @@ import Testing
       try await sendRouteChangeAndWaitForConsumption(sink)
       avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
       try await PlayHelpers.waitFor(.waiting)
-      avPlayer.pause()
-      try await PlayHelpers.waitFor(.paused)
       try await sleeper.waitForSleepRequests(for: .seconds(1))
 
       let replacement = try await Create.podcastEpisode()
@@ -197,30 +276,79 @@ import Testing
     }
   }
 
-  @Test("remote buffering without a route change does not recover")
-  func remoteBufferingWithoutRouteChangeDoesNotRecover() async throws {
+  @Test("a new player generation cancels recovery owned by the retired player")
+  func sameEpisodeReloadCancelsRecovery() async throws {
     try await LogCapture.withSink { sink in
-      try await startWidgetPlayback(cached: false)
+      let episode = try await startWidgetPlayback(cached: true)
+      try await sendRouteChangeAndWaitForConsumption(sink)
       avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
       try await PlayHelpers.waitFor(.waiting)
-      avPlayer.pause()
-      try await PlayHelpers.waitFor(.paused)
+      try await sleeper.waitForSleepRequests(for: .seconds(1))
 
+      let reloadedEpisode = try await Container.shared.podAVPlayer().load(episode)
+      withExtendedLifetime(reloadedEpisode) {}
+      await sleeper.advanceTime(by: .seconds(1))
+
+      #expect(sharedState.onDeck?.id == episode.id)
+      #expect(avPlayer.playCallCount == 1)
       try await Wait.until(
         {
           sink.captured()
             .contains {
-              $0.message.contains("event=widgetRouteRecoverySkipped")
-                && $0.message.contains("reason=noRouteChange")
+              $0.message.contains(
+                "event=widgetRouteRecoveryCancelled reason=retryOwnershipChanged"
+              )
             }
         },
-        { "Expected ordinary buffering to be excluded from route recovery" }
+        { "Expected the player replacement to cancel route recovery" }
+      )
+    }
+  }
+
+  @Test("cached buffering without a route change does not recover")
+  func cachedBufferingWithoutRouteChangeDoesNotRecover() async throws {
+    try await LogCapture.withSink { sink in
+      try await startWidgetPlayback(cached: true)
+      avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
+      try await PlayHelpers.waitFor(.waiting)
+      try await Wait.until(
+        { @MainActor in
+          guard let recovery = await playManager.widgetRouteRecovery else { return false }
+          switch recovery.phase {
+          case .waiting:
+            return true
+          case .retryScheduled:
+            return sleeper.pendingDurations().contains(.seconds(1))
+          case .requested, .retrying, .routeChanged, .timingOut:
+            return false
+          }
+        },
+        { "Expected the waiting recovery event to be consumed" }
       )
       await sleeper.advanceTime(by: .seconds(20))
-      await Task.yield()
+      try await Wait.until(
+        { @MainActor in
+          if sink.captured()
+            .contains(where: { $0.message.contains("event=widgetRouteRecoveryAttempt") })
+          {
+            return true
+          }
+          guard let recovery = await playManager.widgetRouteRecovery,
+            case .waiting(_, nil) = recovery.phase
+          else { return false }
+          return !sleeper.pendingDurations().contains(.seconds(1))
+        },
+        { "Expected unassociated waiting recovery to settle without a retry" }
+      )
 
       #expect(avPlayer.playCallCount == 1)
-      #expect(sharedState.playbackStatus == .paused)
+      #expect(sharedState.playbackStatus == .waiting)
+      #expect(
+        !sink.captured()
+          .contains {
+            $0.message.contains("event=widgetRouteRecoveryAttempt")
+          }
+      )
     }
   }
 

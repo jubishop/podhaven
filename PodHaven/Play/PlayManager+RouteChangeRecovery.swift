@@ -125,6 +125,7 @@ extension PlayManager {
       currentOutputs=\(currentOutputs)
       """
     )
+    scheduleWidgetRouteRecoveryFromWaiting(recovery)
   }
 
   func handleWidgetRouteRecoveryStatus(_ event: PodAVPlayerEvent<PlaybackStatus>) async {
@@ -157,6 +158,7 @@ extension PlayManager {
         }
         recovery.phase = .waiting(at: snapshot.currentTime, routeChangeID: routeChangeID)
         widgetRouteRecovery = recovery
+        scheduleWidgetRouteRecoveryFromWaiting(recovery)
       case .retryScheduled, .retrying, .timingOut:
         break
       }
@@ -234,6 +236,17 @@ extension PlayManager {
     )
   }
 
+  private func scheduleWidgetRouteRecoveryFromWaiting(_ recovery: WidgetRouteRecovery) {
+    guard recovery.isFromCache,
+      case .waiting(let waitingAt, let routeChangeID) = recovery.phase,
+      let routeChangeID
+    else { return }
+    var recovery = recovery
+    recovery.phase = .retryScheduled(waitingAt: waitingAt, routeChangeID: routeChangeID)
+    widgetRouteRecovery = recovery
+    scheduleWidgetRouteRecovery(recovery)
+  }
+
   private func scheduleWidgetRouteRecovery(_ recovery: WidgetRouteRecovery) {
     guard case .retryScheduled = recovery.phase else { return }
     widgetRouteRecoveryTask?.cancel()
@@ -265,7 +278,7 @@ extension PlayManager {
     guard sharedState.onDeck?.id == recovery.episodeID,
       snapshot.source == recovery.playerSource,
       snapshot.isFromCache,
-      snapshot.status == .paused,
+      snapshot.status == .paused || snapshot.status == .waiting,
       !routeRecoveryHasProgressed(snapshot.currentTime, since: recovery.requestedTime)
     else {
       cancelWidgetRouteRecovery(reason: "retryOwnershipChanged")
