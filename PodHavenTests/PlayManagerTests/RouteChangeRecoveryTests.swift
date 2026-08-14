@@ -305,14 +305,41 @@ import Testing
     }
   }
 
-  @Test("remote buffering without a route change does not recover")
-  func remoteBufferingWithoutRouteChangeDoesNotRecover() async throws {
+  @Test("cached buffering without a route change does not recover")
+  func cachedBufferingWithoutRouteChangeDoesNotRecover() async throws {
     try await LogCapture.withSink { sink in
-      try await startWidgetPlayback(cached: false)
+      try await startWidgetPlayback(cached: true)
       avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
       try await PlayHelpers.waitFor(.waiting)
+      try await Wait.until(
+        { @MainActor in
+          guard let recovery = await playManager.widgetRouteRecovery else { return false }
+          switch recovery.phase {
+          case .waiting:
+            return true
+          case .retryScheduled:
+            return sleeper.pendingDurations().contains(.seconds(1))
+          case .requested, .retrying, .routeChanged, .timingOut:
+            return false
+          }
+        },
+        { "Expected the waiting recovery event to be consumed" }
+      )
       await sleeper.advanceTime(by: .seconds(20))
-      await Task.yield()
+      try await Wait.until(
+        { @MainActor in
+          if sink.captured()
+            .contains(where: { $0.message.contains("event=widgetRouteRecoveryAttempt") })
+          {
+            return true
+          }
+          guard let recovery = await playManager.widgetRouteRecovery,
+            case .waiting(_, nil) = recovery.phase
+          else { return false }
+          return !sleeper.pendingDurations().contains(.seconds(1))
+        },
+        { "Expected unassociated waiting recovery to settle without a retry" }
+      )
 
       #expect(avPlayer.playCallCount == 1)
       #expect(sharedState.playbackStatus == .waiting)
