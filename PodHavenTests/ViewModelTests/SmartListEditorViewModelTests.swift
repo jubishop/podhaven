@@ -346,6 +346,12 @@ import Testing
     #expect(viewModel.groups[1].conditions.count == 1)
   }
 
+  @Test("combined title and description condition labels fit the picker")
+  func combinedTextConditionLabelsAreShort() {
+    #expect(EditableCondition.Kind.episodeTitleOrDescription.label == "Episode Title or Descr")
+    #expect(EditableCondition.Kind.podcastTitleOrDescription.label == "Podcast Title or Descr")
+  }
+
   // MARK: - EditableCondition Round-Trip
 
   @Test("every condition kind survives the EditableCondition round-trip")

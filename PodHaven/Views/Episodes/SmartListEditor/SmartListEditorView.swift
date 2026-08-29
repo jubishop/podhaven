@@ -135,7 +135,8 @@ struct SmartListEditorView: View {
       filter: SmartListFilter(
         combinator: .all,
         conditions: [
-          .podcastText(.title, .contains, "Tech"),
+          .episodeText(.titleOrDescription, .contains, "AI"),
+          .podcastText(.titleOrDescription, .contains, "Tech"),
           .duration(minSeconds: nil, maxSeconds: 1800),
           .publishDate(.withinLast, days: 7),
         ],
