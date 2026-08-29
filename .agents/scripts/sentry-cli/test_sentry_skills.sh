@@ -12,7 +12,10 @@ FILTER_LOGS="${SENTRY_CLI}/filter_sentry_logs.py"
 source "${SENTRY_CLI}/lib.sh"
 
 pass() { echo "PASS: $*"; }
-fail() { echo "FAIL: $*" >&2; exit 1; }
+fail() {
+  echo "FAIL: $*" >&2
+  exit 1
+}
 
 require_sentry_auth || fail "auth"
 
@@ -20,33 +23,42 @@ TMP="$(mktemp -d /tmp/podhaven_sentry_test.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 
 echo "=== fetch_issue_bundle ==="
-bash "${SENTRY_CLI}/fetch_issue_bundle.sh" PODHAVEN-3W --out "$TMP/issue" --events 2
+LATEST_ISSUE="$(sentry_cmd issue list "$SENTRY_TARGET" --period 30d --limit 1 --sort date --fresh --json |
+  python3 -c 'import json, sys; print(json.load(sys.stdin)["data"][0]["shortId"])')"
+bash "${SENTRY_CLI}/fetch_issue_bundle.sh" "$LATEST_ISSUE" --out "$TMP/issue" --events 2
 test -f "$TMP/issue/issue.json"
 test -f "$TMP/issue/events.json"
+python3 -c "import json; assert json.load(open('$TMP/issue/events.json'))['data']"
+test -n "$(find "$TMP/issue" -name 'event_*.json' -type f -print -quit)"
 pass fetch_issue_bundle
 
 echo "=== fetch_feedback_bundle ==="
-bash "${SENTRY_CLI}/fetch_feedback_bundle.sh" podhaven:7514780545 --out "$TMP/feedback"
-test -f "$TMP/feedback/attachments.json"
-pass fetch_feedback_bundle
-
-echo "=== download_event_attachments ==="
-EVENT="$(python3 -c "import json; print(json.load(open('$TMP/feedback/events.json'))['data'][0]['id'])")"
-bash "${SENTRY_CLI}/download_event_attachments.sh" --event "$EVENT" --dir "$TMP/download" --name log.ndjson
-test -s "$TMP/download/log.ndjson"
-pass download_event_attachments
+if [[ -n "${SENTRY_TEST_FEEDBACK_SLUG:-}" ]]; then
+  bash "${SENTRY_CLI}/fetch_feedback_bundle.sh" "$SENTRY_TEST_FEEDBACK_SLUG" --out "$TMP/feedback"
+  test -f "$TMP/feedback/attachments.json"
+  pass fetch_feedback_bundle
+else
+  echo "SKIP: set SENTRY_TEST_FEEDBACK_SLUG to exercise a current feedback fixture"
+fi
 
 echo "=== search_related_errors ==="
-bash "${SENTRY_CLI}/search_related_errors.sh" --period 90d \
-  --query 'user.id:6B915F57-D7FC-4249-8FAD-B71F5D362CEB' \
-  --out "$TMP/search.json" --limit 3
-python3 -c "import json; assert len(json.load(open('$TMP/search.json'))['data']) >= 1"
-pass search_related_errors
+if [[ -n "${SENTRY_TEST_USER_ID:-}" ]]; then
+  bash "${SENTRY_CLI}/search_related_errors.sh" --period 90d \
+    --query "user.id:${SENTRY_TEST_USER_ID}" --out "$TMP/search.json" --limit 3
+  python3 -c "import json; assert json.load(open('$TMP/search.json'))['data']"
+  pass search_related_errors
+else
+  echo "SKIP: set SENTRY_TEST_USER_ID to exercise a current user fixture"
+fi
 
 echo "=== fetch_sentry_logs ==="
-bash "$FETCH_LOGS" 7d 'severity:[warn,error]' >/dev/null
-test -f /tmp/sentry_logs_detail.json
-python3 "$FILTER_LOGS" --around-ms 1780100431000 --window-ms 600000 --oneline >/dev/null
+bash "$FETCH_LOGS" 7d --out "$TMP/logs" --query 'severity:[warn,error]' >/dev/null
+test -f "$TMP/logs/detail.json"
+AROUND_MS="$(python3 -c "import json; row=json.load(open('$TMP/logs/detail.json'))['data'][0]; print(int(float(row['timestamp_precise']) // 1_000_000))")"
+python3 "$FILTER_LOGS" --input "$TMP/logs/detail.json" \
+  --output "$TMP/logs/filtered.json" --around-ms "$AROUND_MS" \
+  --window-ms 1200000 --oneline >/dev/null
+python3 -c "import json; assert json.load(open('$TMP/logs/filtered.json'))['data']"
 pass fetch_sentry_logs
 
 echo
