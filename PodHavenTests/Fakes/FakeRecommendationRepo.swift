@@ -16,6 +16,10 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   // Cleared on use so the next call reaches the real repo.
   let embeddingFetchError = ThreadSafe<(any Error)?>(nil)
 
+  // One-shot error to throw from the next `upsertEmbeddings(_:)` call so
+  // service tests can verify batch-level failure handling after vector work.
+  let embeddingUpsertError = ThreadSafe<(any Error)?>(nil)
+
   // One-shot suspend for the next matching `embeddings(for:)` call so tests
   // can interleave state changes with an in-flight scoring pass.
   //
@@ -192,6 +196,13 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {
     recordCall(methodName: "upsertEmbeddings", parameters: unsaved.count)
+    if let error = embeddingUpsertError({ pending in
+      let captured = pending
+      pending = nil
+      return captured
+    }) {
+      throw error
+    }
     try await recommendationRepo.upsertEmbeddings(unsaved)
   }
 

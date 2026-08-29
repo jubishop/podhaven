@@ -47,7 +47,12 @@ enum EmbeddingService {
   private struct ChunkResult: Sendable {
     let failedEpisodeCount: Int
     let state: BatchState
-    let cancellation: CancellationError?
+    let outcome: ChunkOutcome
+  }
+
+  private enum ChunkOutcome: Sendable {
+    case completed
+    case failed(any Error)
   }
 
   private enum BatchOutcome: String, Sendable {
@@ -118,7 +123,7 @@ enum EmbeddingService {
         let databaseStartedAt = clockNow()
         let episodes = try await recommendationRepo.episodes(for: chunk)
         state.metrics.databaseDuration += clockNow() - databaseStartedAt
-        let result = try await upsertEpisodeEmbeddings(
+        let result = await upsertEpisodeEmbeddings(
           for: episodes,
           embedding: embedding,
           verificationDate: verificationDate,
@@ -127,8 +132,11 @@ enum EmbeddingService {
         )
         state = result.state
         failedEpisodeCount += result.failedEpisodeCount
-        if let cancellation = result.cancellation {
-          throw cancellation
+        switch result.outcome {
+        case .completed:
+          break
+        case .failed(let error):
+          throw error
         }
       }
     } catch let error as CancellationError {
@@ -172,7 +180,7 @@ enum EmbeddingService {
     var failedEpisodeCount = 0
 
     do {
-      let result = try await upsertEpisodeEmbeddings(
+      let result = await upsertEpisodeEmbeddings(
         for: episodes,
         embedding: embedding,
         verificationDate: Date(),
@@ -182,8 +190,11 @@ enum EmbeddingService {
       state = result.state
       failedEpisodeCount = result.failedEpisodeCount
       let wallDuration = clockNow() - startedAt
-      if let cancellation = result.cancellation {
-        throw cancellation
+      switch result.outcome {
+      case .completed:
+        break
+      case .failed(let error):
+        throw error
       }
       logBatchTelemetry(
         outcome: .completed,
@@ -220,12 +231,12 @@ enum EmbeddingService {
     verificationDate: Date,
     state initialState: BatchState,
     clockNow: @Sendable () -> ContinuousClock.Instant
-  ) async throws -> ChunkResult {
+  ) async -> ChunkResult {
     guard !episodes.isEmpty else {
       return ChunkResult(
         failedEpisodeCount: 0,
         state: initialState,
-        cancellation: nil
+        outcome: .completed
       )
     }
 
@@ -234,14 +245,26 @@ enum EmbeddingService {
     state.metrics.episodeCount += episodes.count
     state.metrics.podcastIDs.formUnion(episodes.map(\.podcastID))
 
-    let databaseStartedAt = clockNow()
     let episodeIDs = episodes.map(\.id)
-    let embeddingsByEpisodeID = try await recommendationRepo.embeddings(for: episodeIDs)
-
     let podcastIDs = Array(Set(episodes.map(\.podcastID)))
-    let podcastsByID = try await recommendationRepo.podcasts(for: podcastIDs)
-    let podcastEmbeddings = try await recommendationRepo.podcastEmbeddings(for: podcastIDs)
-    state.metrics.databaseDuration += clockNow() - databaseStartedAt
+    let embeddingsByEpisodeID: IdentifiedArray<Episode.ID, EpisodeEmbedding>
+    let podcastsByID: IdentifiedArrayOf<Podcast>
+    let podcastEmbeddings: IdentifiedArray<Podcast.ID, PodcastEmbedding>
+    do {
+      let databaseStartedAt = clockNow()
+      defer {
+        state.metrics.databaseDuration += clockNow() - databaseStartedAt
+      }
+      embeddingsByEpisodeID = try await recommendationRepo.embeddings(for: episodeIDs)
+      podcastsByID = try await recommendationRepo.podcasts(for: podcastIDs)
+      podcastEmbeddings = try await recommendationRepo.podcastEmbeddings(for: podcastIDs)
+    } catch {
+      return ChunkResult(
+        failedEpisodeCount: 0,
+        state: state,
+        outcome: .failed(error)
+      )
+    }
 
     // One fsync per batch instead of one per episode.
     var pendingEpisodeEmbeddings = [UnsavedEpisodeEmbedding](capacity: episodes.count)
@@ -263,6 +286,12 @@ enum EmbeddingService {
       } catch let error as CancellationError {
         caughtCancellation = error
         break
+      } catch {
+        return ChunkResult(
+          failedEpisodeCount: failedEpisodeCount,
+          state: state,
+          outcome: .failed(error)
+        )
       }
 
       let existingEmbedding = embeddingsByEpisodeID[id: episode.id]
@@ -360,32 +389,49 @@ enum EmbeddingService {
 
     // Flush on cancellation too so earlier episodes in the chunk land
     // before the error propagates.
-    let writeStartedAt = clockNow()
-    try await recommendationRepo.upsertPodcastEmbeddings(pendingPodcastEmbeddings)
-    try await recommendationRepo.upsertEmbeddings(pendingEpisodeEmbeddings)
-    try await recommendationRepo.touchEmbeddingVerification(
-      forEpisodeIDs: verifiedOnlyEpisodeIDs,
-      at: verificationDate
-    )
-    let newlyQuarantinedCount = try await recommendationRepo.updateEmbeddingFailureState(
-      failedEpisodeIDs: failedEpisodeIDs,
-      succeededEpisodeIDs: succeededEpisodeIDs,
-      pipelineVersion: EmbeddingPipelineVersion(
-        embeddingRevision: embedding.revision,
-        recipeVersion: recipeVersion
+    let newlyQuarantinedCount: Int
+    do {
+      let writeStartedAt = clockNow()
+      defer {
+        state.metrics.databaseDuration += clockNow() - writeStartedAt
+      }
+      try await recommendationRepo.upsertPodcastEmbeddings(pendingPodcastEmbeddings)
+      try await recommendationRepo.upsertEmbeddings(pendingEpisodeEmbeddings)
+      try await recommendationRepo.touchEmbeddingVerification(
+        forEpisodeIDs: verifiedOnlyEpisodeIDs,
+        at: verificationDate
       )
-    )
-    state.metrics.databaseDuration += clockNow() - writeStartedAt
+      newlyQuarantinedCount = try await recommendationRepo.updateEmbeddingFailureState(
+        failedEpisodeIDs: failedEpisodeIDs,
+        succeededEpisodeIDs: succeededEpisodeIDs,
+        pipelineVersion: EmbeddingPipelineVersion(
+          embeddingRevision: embedding.revision,
+          recipeVersion: recipeVersion
+        )
+      )
+    } catch {
+      return ChunkResult(
+        failedEpisodeCount: failedEpisodeCount,
+        state: state,
+        outcome: .failed(error)
+      )
+    }
     if newlyQuarantinedCount > 0 {
       Self.log.notice(
         "Quarantined \(newlyQuarantinedCount) episode embedding failures after repeated attempts"
       )
     }
 
+    let outcome: ChunkOutcome
+    if let caughtCancellation {
+      outcome = .failed(caughtCancellation)
+    } else {
+      outcome = .completed
+    }
     return ChunkResult(
       failedEpisodeCount: failedEpisodeCount,
       state: state,
-      cancellation: caughtCancellation
+      outcome: outcome
     )
   }
 

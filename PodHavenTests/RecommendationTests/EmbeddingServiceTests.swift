@@ -193,6 +193,36 @@ class EmbeddingServiceTests {
     #expect(telemetry.message.contains("wallSeconds=12.0"))
   }
 
+  @Test("failed embedding batches retain completed telemetry metrics")
+  func failedBatchRetainsCompletedTelemetryMetrics() async throws {
+    let podcastEpisode = try await makePodcastEpisode(
+      podcastTitle: "Failed Podcast",
+      podcastDescription: "Failed podcast description",
+      episodeTitle: "Failed Episode",
+      episodeDescription: "Failed episode description"
+    )
+    let embedding = await makeContextualEmbedding()
+    let fakeRecommendationRepo = try #require(recommendationRepo as? FakeRecommendationRepo)
+    fakeRecommendationRepo.embeddingUpsertError { $0 = TestError.simulatedFailure }
+
+    let captured = await LogCapture.withSink { sink in
+      await #expect(throws: TestError.self) {
+        try await EmbeddingService.upsertEpisodeEmbeddings(
+          for: [podcastEpisode.episode],
+          embedding: embedding
+        )
+      }
+      return sink.captured()
+    }
+
+    let telemetry = try #require(
+      captured.first { $0.message.contains("embeddingTelemetry event=batchFailed") }
+    )
+    #expect(telemetry.message.contains("episodes=1"))
+    #expect(telemetry.message.contains("uniquePodcasts=1"))
+    #expect(telemetry.message.contains("cleanInputs=4"))
+  }
+
   // MARK: - Embedding Caching
 
   @Test("upsertEpisodeEmbeddings caches results and skips already computed")
