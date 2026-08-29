@@ -224,20 +224,12 @@ enum EmbeddingService {
         recipeVersion: recipeVersion
       )
     )
-    let newlyQuarantinedCount: Int
-    if caughtCancellation == nil {
-      newlyQuarantinedCount = try await flush(
-        pendingWrites,
-        to: recommendationRepo
-      )
-    } else {
-      // A fresh task lets cancellation-aware database writers persist the
-      // completed portion before the cancellation propagates.
-      newlyQuarantinedCount = try await Task {
-        try await flush(pendingWrites, to: recommendationRepo)
-      }
-      .value
+    // A fresh task lets cancellation-aware database writers persist the
+    // completed portion even if cancellation arrives during the flush.
+    let newlyQuarantinedCount = try await Task {
+      try await flush(pendingWrites, to: recommendationRepo)
     }
+    .value
     if newlyQuarantinedCount > 0 {
       Self.log.notice(
         "Quarantined \(newlyQuarantinedCount) episode embedding failures after repeated attempts"
