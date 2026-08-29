@@ -56,10 +56,15 @@ extension PlayManager {
     return true
   }
 
-  private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID) async {
+  private func handleItemStatusChange(status: PodAVPlayerItemStatus, episodeID: Episode.ID) async {
     Self.log.debug("handleItemStatusChange: \(status) for episode \(episodeID)")
 
-    if status == .failed {
+    switch status {
+    case .failed(.mediaServicesWereReset):
+      Self.log.warning(
+        "event=mediaServicesResetItemFailure outcome=preservingPlayback episodeID=\(episodeID)"
+      )
+    case .failed(.other):
       Self.log.warning("status is failed for \(episodeID), clearing on deck and unshifting")
       await stop()
       do {
@@ -70,6 +75,8 @@ extension PlayManager {
           error
         )
       }
+    case .readyToPlay, .unknown:
+      break
     }
   }
 
@@ -230,6 +237,7 @@ extension PlayManager {
 
   private func handleMediaServicesReset() async {
     Self.log.info("handleMediaServicesReset: rebuilding audio objects")
+    lastMediaServicesResetAt = dateProvider.now
 
     let previousPlaybackStatus = sharedState.playbackStatus
     let interruptedEpisodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID
