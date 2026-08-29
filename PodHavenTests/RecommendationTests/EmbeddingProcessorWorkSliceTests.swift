@@ -168,7 +168,6 @@ class EmbeddingProcessorWorkSliceTests {
     let fakeRecommendationRepo = try #require(
       recommendationRepo as? FakeRecommendationRepo
     )
-    let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
     let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
       count: 1,
       podcastTitle: "Foreground Background Handoff"
@@ -196,9 +195,7 @@ class EmbeddingProcessorWorkSliceTests {
     fakeRecommendationRepo.clearAllCalls()
     let captured = try await LogCapture.withSink { sink in
       processor.handleScenePhaseChange(to: .active)
-      try await fakeSleeper.waitForSleepRequests(for: .seconds(5))
-      await fakeSleeper.advanceTime(by: .seconds(5))
-      try await Wait.until(
+      try await RecommendationHelpers.untilAdvancing(
         {
           sink.captured()
             .contains {
