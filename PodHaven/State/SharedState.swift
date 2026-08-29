@@ -29,6 +29,7 @@ struct SharedState: Sendable {
 
   @Broadcasted var downloadProgress: [Episode.ID: Double] = [:]
   @Broadcasted var scenePhase: ScenePhase = .active
+  @Broadcasted var thermalPressure: ThermalPressure = .nominal
   // Only StateManager should write this. Use `.notifyAlways`, not `.equatable`:
   // artwork loads as an artwork-only write that `==` can't detect, and the
   // observation task's guarded no-op writes must still wake observers.
@@ -128,6 +129,10 @@ struct SharedState: Sendable {
 
   func setSmartLists(_ smartLists: IdentifiedArrayOf<SmartList>) {
     $smartLists.new(smartLists)
+  }
+
+  func setThermalPressure(_ pressure: ThermalPressure) {
+    $thermalPressure.new(pressure)
   }
 
   // MARK: - Initialization

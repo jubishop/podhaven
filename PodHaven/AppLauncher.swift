@@ -25,6 +25,7 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.transcriptionAvailability) private var transcriptionAvailability
   @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
 
@@ -62,6 +63,8 @@ struct AppLauncher: Sendable {
 
     // Force DB initialization so schema migrations run immediately.
     Container.shared.initializeAppDB()
+
+    applyThermalPressure(ThermalPressure(ProcessInfo.processInfo.thermalState))
 
     Self.log.debug(
       """
@@ -178,23 +181,25 @@ struct AppLauncher: Sendable {
 
       Task(priority: taskPriority(.utility)) {
         for await _ in self.notifications(ProcessInfo.thermalStateDidChangeNotification) {
-          let thermalState = ProcessInfo.processInfo.thermalState
-          let state =
-            switch thermalState {
-            case .nominal: "nominal"
-            case .fair: "fair"
-            case .serious: "serious"
-            case .critical: "critical"
-            @unknown default: "unknown"
-            }
-          let message: Logging.Logger.Message = "Thermal state changed to: \(state)"
-          switch thermalState {
-          case .nominal, .fair: Self.log.debug(message)
-          default: Self.log.warning(message)
+          let pressure = ThermalPressure(ProcessInfo.processInfo.thermalState)
+          self.applyThermalPressure(pressure)
+          let message: Logging.Logger.Message =
+            "Thermal state changed to: \(pressure.rawValue)"
+          if pressure.permitsDiscretionaryWork {
+            Self.log.debug(message)
+          } else {
+            Self.log.warning(message)
           }
         }
       }
     }
+  }
+
+  private func applyThermalPressure(_ pressure: ThermalPressure) {
+    sharedState.setThermalPressure(pressure)
+    embeddingProcessor.handleThermalPressureChange(to: pressure)
+    recommendationEngine.handleThermalPressureChange(to: pressure)
+    transcriptionProcessor.handleThermalPressureChange(to: pressure)
   }
 
   // MARK: - Logging
@@ -270,6 +275,7 @@ struct AppLauncher: Sendable {
   // only be matched as a literal off the serialized event; isolated here as the
   // single source.
   private static let metricKitDiskWriteMechanism = "mx_disk_write_exception"
+  private static let metricKitHangMechanism = "mx_hang_diagnostic"
 
   private static func sentryBeforeSend(_ event: Sentry.Event) -> Sentry.Event? {
     // MetricKit disk-write diagnostics trip a fixed cumulative-bytes threshold
@@ -280,7 +286,19 @@ struct AppLauncher: Sendable {
     let isDiskWriteDiagnostic = exceptions.contains {
       $0.mechanism?.type == metricKitDiskWriteMechanism
     }
-    return isDiskWriteDiagnostic ? nil : event
+    guard !isDiskWriteDiagnostic else { return nil }
+
+    let isHang = exceptions.contains { exception in
+      exception.mechanism?.type == metricKitHangMechanism
+        || exception.mechanism?.type.localizedCaseInsensitiveContains("hang") == true
+        || exception.type?.localizedCaseInsensitiveContains("hang") == true
+    }
+    guard isHang else { return event }
+    var context = event.context ?? [:]
+    context["podcast_detail_performance"] =
+      Container.shared.podcastDetailPerformanceDiagnostics().sentryContext()
+    event.context = context
+    return event
   }
 
   private static func configureSentry() {

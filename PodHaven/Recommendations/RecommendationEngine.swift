@@ -87,58 +87,6 @@ struct RecommendationEngine: Sendable {
   private let recommendationsDebounce = Debounce(duration: .seconds(5), priority: .utility)
   private let startOnce = Once()
 
-  // Rescans triggered while backgrounded are deferred to the next foreground.
-  // `RescanGate` packs `isActive` and `pending` into one critical section so
-  // `deferOrProceed`, `enterBackground`, and `enterForeground` cannot
-  // interleave. Pending merges upward only — a queued cache rebuild absorbs
-  // incoming recommendations triggers, since the cache rebuild already re-runs
-  // the recommendations pass. `isActive` defaults to `true` because `start()`
-  // only runs after `prepareForForeground`.
-  private enum DeferredRescan: Int, Comparable {
-    case none = 0
-    case recommendations = 1
-    case cache = 2
-
-    static func < (lhs: Self, rhs: Self) -> Bool {
-      lhs.rawValue < rhs.rawValue
-    }
-  }
-  private final class RescanGate: Sendable {
-    private struct State {
-      var isActive: Bool = true
-      var pending: DeferredRescan = .none
-    }
-    enum Decision { case proceed, deferred }
-
-    private let storage = ThreadSafe<State>(State())
-
-    // Atomic check-and-defer: if active, returns `.proceed` without touching
-    // state; otherwise merges `kind` upward into `pending` and returns
-    // `.deferred`.
-    @discardableResult
-    func deferOrProceed(_ kind: DeferredRescan) -> Decision {
-      storage { state in
-        guard !state.isActive else { return .proceed }
-        state.pending = max(state.pending, kind)
-        return .deferred
-      }
-    }
-
-    func enterBackground() {
-      storage { $0.isActive = false }
-    }
-
-    // Atomic activate-and-drain: flips the flag, snapshots `pending`, and
-    // resets it to `.none` so the caller can run exactly one coalesced rescan.
-    func enterForeground() -> DeferredRescan {
-      storage { state in
-        state.isActive = true
-        let snapshot = state.pending
-        state.pending = .none
-        return snapshot
-      }
-    }
-  }
   private let rescanGate = RescanGate()
 
   // Display-rescaling anchor; only `topRecommendations` (full pool) writes it
@@ -209,6 +157,33 @@ struct RecommendationEngine: Sendable {
       }
     default:
       break
+    }
+  }
+
+  func handleThermalPressureChange(to pressure: ThermalPressure) {
+    guard !pressure.permitsDiscretionaryWork else {
+      runDeferredRescan(rescanGate.updateThermalPressure(pressure))
+      return
+    }
+
+    _ = rescanGate.updateThermalPressure(pressure)
+    Self.log.info("Suspending recommendation rescans for thermal pressure=\(pressure.rawValue)")
+    if cacheDebounce.cancel() { rescanGate.deferOrProceed(.cache) }
+    if recommendationsDebounce.cancel() {
+      rescanGate.deferOrProceed(.recommendations)
+    }
+  }
+
+  private func runDeferredRescan(_ rescan: DeferredRescan) {
+    switch rescan {
+    case .none:
+      break
+    case .recommendations:
+      Self.log.debug("Running deferred recommendations rebuild")
+      scheduleTopRecommendationsRebuild()
+    case .cache:
+      Self.log.debug("Running deferred cache rebuild")
+      scheduleCacheRebuild()
     }
   }
 
@@ -504,14 +479,13 @@ struct RecommendationEngine: Sendable {
 
   private func scheduleCacheRebuild() {
     guard rescanGate.deferOrProceed(.cache) == .proceed else {
-      Self.log.debug("Cache rebuild deferred — app backgrounded")
+      Self.log.debug("Cache rebuild deferred while discretionary work is unavailable")
       return
     }
     cacheDebounce {
-      // Re-check at fire time: a debounce armed while active can still wake
-      // after the app backgrounded mid-window.
+      // Re-check at fire time because availability can change mid-debounce.
       guard rescanGate.deferOrProceed(.cache) == .proceed else {
-        Self.log.debug("Cache rebuild deferred at fire — app backgrounded mid-debounce")
+        Self.log.debug("Cache rebuild deferred at fire because work is unavailable")
         return
       }
       do {
@@ -558,16 +532,13 @@ struct RecommendationEngine: Sendable {
 
   private func scheduleTopRecommendationsRebuild() {
     guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
-      Self.log.debug("Recommendations rebuild deferred — app backgrounded")
+      Self.log.debug("Recommendations rebuild deferred while discretionary work is unavailable")
       return
     }
     recommendationsDebounce {
-      // Re-check at fire time: a debounce armed while active can still wake
-      // after the app backgrounded mid-window.
+      // Re-check at fire time because availability can change mid-debounce.
       guard rescanGate.deferOrProceed(.recommendations) == .proceed else {
-        Self.log.debug(
-          "Recommendations rebuild deferred at fire — app backgrounded mid-debounce"
-        )
+        Self.log.debug("Recommendations rebuild deferred at fire because work is unavailable")
         return
       }
       let sharedState = Container.shared.sharedState()

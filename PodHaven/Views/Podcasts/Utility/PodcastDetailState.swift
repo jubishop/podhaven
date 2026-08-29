@@ -13,6 +13,14 @@ enum PodcastDetailState: Equatable, Sendable, Stringable {
     return series
   }
 
+  var episodeCount: Int {
+    switch self {
+    case .initial: 0
+    case .unsaved(_, let episodes): episodes.count
+    case .saved(let series): series.episodes.count
+    }
+  }
+
   var detailContent: PodcastDetailContent {
     switch self {
     case .initial(let listed): return PodcastDetailContent(initial: listed)
