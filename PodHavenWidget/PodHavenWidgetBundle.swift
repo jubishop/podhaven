@@ -17,6 +17,13 @@ struct PodHavenWidgetBundle: WidgetBundle {
           targetFileSizeBytes: 600_000,
           writeSynchronously: { $0 >= .critical }
         ),
+        FileLogHandler(
+          label: label,
+          fileURL: WidgetInfo.recentLogFileURL,
+          maxFileSizeBytes: WidgetInfo.recentLogMaxFileSizeBytes,
+          targetFileSizeBytes: WidgetInfo.recentLogTargetFileSizeBytes,
+          writeSynchronously: { $0 >= .critical }
+        ),
       ])
     }
     return Log.as(LogSubsystem.Widget.bundle)

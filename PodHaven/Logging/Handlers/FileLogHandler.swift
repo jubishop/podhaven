@@ -538,5 +538,6 @@ struct FileLogHandler: LogHandler {
 
   static func flush() {
     flush(fileURL: AppInfo.logFileURL)
+    flush(fileURL: AppInfo.recentLogFileURL)
   }
 }

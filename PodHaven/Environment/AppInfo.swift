@@ -238,6 +238,13 @@ enum AppInfo {
     documentsDirectory.appendingPathComponent("log.ndjson")
   }
 
+  static let recentLogMaxFileSizeBytes = 128 * 1024
+  static let recentLogTargetFileSizeBytes = recentLogMaxFileSizeBytes * 3 / 4
+
+  static var recentLogFileURL: URL {
+    documentsDirectory.appendingPathComponent("recent-log.ndjson")
+  }
+
   static var applicationSupportDirectory: URL {
     let baseURL = URL.applicationSupportDirectory
 

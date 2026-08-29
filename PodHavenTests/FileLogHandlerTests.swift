@@ -128,6 +128,54 @@ struct FileLogHandlerTests {
     #expect(entries.last?.message == "entry-\(String(format: "%04d", written - 1))-\(padding)")
   }
 
+  @Test("configured recent log tails stay within bounds and contain complete records")
+  func configuredRecentLogTailsStayWithinBounds() throws {
+    #expect(
+      AppInfo.recentLogMaxFileSizeBytes + WidgetInfo.recentLogMaxFileSizeBytes == 160 * 1024
+    )
+    let configurations = [
+      (
+        maxFileSizeBytes: AppInfo.recentLogMaxFileSizeBytes,
+        targetFileSizeBytes: AppInfo.recentLogTargetFileSizeBytes
+      ),
+      (
+        maxFileSizeBytes: WidgetInfo.recentLogMaxFileSizeBytes,
+        targetFileSizeBytes: WidgetInfo.recentLogTargetFileSizeBytes
+      ),
+    ]
+    var fileURLs: [URL] = []
+    defer {
+      for fileURL in fileURLs {
+        tearDownLogFile(fileURL)
+      }
+    }
+
+    for configuration in configurations {
+      let fileURL = tempFileURL()
+      fileURLs.append(fileURL)
+      let handler = makeHandler(
+        fileURL: fileURL,
+        maxFileSizeBytes: configuration.maxFileSizeBytes,
+        targetFileSizeBytes: configuration.targetFileSizeBytes
+      )
+
+      let written = 1_000
+      let padding = String(repeating: "x", count: 180)
+      for index in 0..<written {
+        log(handler, message: "entry-\(index)-\(padding)", line: UInt(index))
+      }
+
+      let data = try Data(contentsOf: fileURL)
+      #expect(data.count <= configuration.maxFileSizeBytes)
+      #expect(data.last == 0x0A)
+
+      let entries = try decodedEntries(at: fileURL)
+      let firstIndex = try #require(entries.first.map { Int($0.line) })
+      #expect(entries.map { Int($0.line) } == Array(firstIndex..<written))
+      #expect(entries.last?.line == UInt(written - 1))
+    }
+  }
+
   @Test("truncation finds the cut boundary when an entry exceeds the read window")
   func truncationFindsBoundaryWhenEntryExceedsReadWindow() throws {
     let fileURL = tempFileURL()
