@@ -117,6 +117,17 @@ import UIKit
     #expect(Self.decode("&RSQUO;") == "'")
     #expect(Self.decode("&Mdash;") == "—")
     #expect(Self.decode("&#X2019;") == "’")
+
+    // Adjacent mixed forms are decoded without dropping boundaries.
+    #expect(Self.decode("&COPY;&#169;&#x00A9;") == "©©©")
+
+    // Unknown and malformed entities remain byte-for-byte unchanged.
+    let malformed = "&unknown; &#; &#xZZ; &amp"
+    #expect(Self.decode(malformed) == malformed)
+
+    // Long plain spans preserve their content around sparse entities.
+    let plain = String(repeating: "plain text ", count: 4_096)
+    #expect(Self.decode("\(plain)&amp;\(plain)") == "\(plain)&\(plain)")
   }
 
   @Test("that entity-only strings build attributed output")

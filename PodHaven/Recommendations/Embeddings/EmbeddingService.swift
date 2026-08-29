@@ -14,6 +14,59 @@ struct EmbeddingBatchResult: Equatable, Sendable {
 enum EmbeddingService {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
+  private struct CleanedEmbeddingText: Sendable {
+    let title: String
+    let description: String
+  }
+
+  private struct BatchMetrics: Sendable {
+    var episodeCount = 0
+    var podcastIDs: Set<Podcast.ID> = []
+    var cleanInputCount = 0
+    var inputByteCount = 0
+    var maximumInputByteCount = 0
+    var cleaningDuration: Duration = .zero
+    var hashingDuration: Duration = .zero
+    var embeddingDuration: Duration = .zero
+    var databaseDuration: Duration = .zero
+
+    mutating func recordCleanInput(_ text: String) {
+      let byteCount = text.utf8.count
+      cleanInputCount += 1
+      inputByteCount += byteCount
+      maximumInputByteCount = max(maximumInputByteCount, byteCount)
+    }
+  }
+
+  private struct BatchState: Sendable {
+    var metrics = BatchMetrics()
+    var cleanedPodcasts: [Podcast.ID: CleanedEmbeddingText] = [:]
+    var podcastVectors: [Podcast.ID: [Float]?] = [:]
+  }
+
+  private struct ChunkResult: Sendable {
+    let failedEpisodeCount: Int
+    let state: BatchState
+    let cancellation: CancellationError?
+  }
+
+  private enum BatchOutcome: String, Sendable {
+    case completed
+    case cancelled
+    case failed
+
+    var event: String {
+      switch self {
+      case .completed:
+        "batchCompleted"
+      case .cancelled:
+        "batchCancelled"
+      case .failed:
+        "batchFailed"
+      }
+    }
+  }
+
   // Bump when any recipe knob below changes. Folded into source hashes so
   // cached vectors invalidate on tuning, and read by RecommendationEngine
   // as a whitening-mean cache key — recipe bumps rewrite every vector in
@@ -41,6 +94,7 @@ enum EmbeddingService {
   // lets BG-task expiry preserve work already done instead of paying a
   // multi-second hydration pass up front.
   private static let hydrationChunkSize = 64
+  private static let slowBatchThreshold: Duration = .seconds(10)
 
   // MARK: - Upsert Episode Embeddings
 
@@ -50,21 +104,60 @@ enum EmbeddingService {
   ) async throws -> EmbeddingBatchResult {
     guard !episodeIDs.isEmpty else { return EmbeddingBatchResult(failedEpisodeCount: 0) }
     let recommendationRepo = Container.shared.recommendationRepo()
+    let clockNow = Container.shared.continuousClockNow()
+    let startedAt = clockNow()
     var failedEpisodeCount = 0
+    var state = BatchState()
 
-    for start in stride(from: 0, to: episodeIDs.count, by: hydrationChunkSize) {
-      try Task.checkCancellation()
-      let end = min(start + hydrationChunkSize, episodeIDs.count)
-      let chunk = Array(episodeIDs[start..<end])
-      let verificationDate = Date()
-      let episodes = try await recommendationRepo.episodes(for: chunk)
-      let result = try await upsertEpisodeEmbeddings(
-        for: episodes,
-        embedding: embedding,
-        verificationDate: verificationDate
+    do {
+      for start in stride(from: 0, to: episodeIDs.count, by: hydrationChunkSize) {
+        try Task.checkCancellation()
+        let end = min(start + hydrationChunkSize, episodeIDs.count)
+        let chunk = Array(episodeIDs[start..<end])
+        let verificationDate = Date()
+        let databaseStartedAt = clockNow()
+        let episodes = try await recommendationRepo.episodes(for: chunk)
+        state.metrics.databaseDuration += clockNow() - databaseStartedAt
+        let result = try await upsertEpisodeEmbeddings(
+          for: episodes,
+          embedding: embedding,
+          verificationDate: verificationDate,
+          state: state,
+          clockNow: clockNow
+        )
+        state = result.state
+        failedEpisodeCount += result.failedEpisodeCount
+        if let cancellation = result.cancellation {
+          throw cancellation
+        }
+      }
+    } catch let error as CancellationError {
+      logBatchTelemetry(
+        outcome: .cancelled,
+        state: state,
+        failedEpisodeCount: failedEpisodeCount,
+        wallDuration: clockNow() - startedAt
       )
-      failedEpisodeCount += result.failedEpisodeCount
+      throw error
+    } catch {
+      Self.log.caughtError(
+        batchTelemetryMessage(
+          outcome: .failed,
+          state: state,
+          failedEpisodeCount: failedEpisodeCount,
+          wallDuration: clockNow() - startedAt
+        ),
+        error
+      )
+      throw error
     }
+
+    logBatchTelemetry(
+      outcome: .completed,
+      state: state,
+      failedEpisodeCount: failedEpisodeCount,
+      wallDuration: clockNow() - startedAt
+    )
     return EmbeddingBatchResult(failedEpisodeCount: failedEpisodeCount)
   }
 
@@ -72,30 +165,83 @@ enum EmbeddingService {
     for episodes: [Episode],
     embedding: ContextualEmbedding
   ) async throws -> EmbeddingBatchResult {
-    try await upsertEpisodeEmbeddings(
-      for: episodes,
-      embedding: embedding,
-      verificationDate: Date()
-    )
+    guard !episodes.isEmpty else { return EmbeddingBatchResult(failedEpisodeCount: 0) }
+    let clockNow = Container.shared.continuousClockNow()
+    let startedAt = clockNow()
+    var state = BatchState()
+    var failedEpisodeCount = 0
+
+    do {
+      let result = try await upsertEpisodeEmbeddings(
+        for: episodes,
+        embedding: embedding,
+        verificationDate: Date(),
+        state: state,
+        clockNow: clockNow
+      )
+      state = result.state
+      failedEpisodeCount = result.failedEpisodeCount
+      let wallDuration = clockNow() - startedAt
+      if let cancellation = result.cancellation {
+        throw cancellation
+      }
+      logBatchTelemetry(
+        outcome: .completed,
+        state: state,
+        failedEpisodeCount: failedEpisodeCount,
+        wallDuration: wallDuration
+      )
+      return EmbeddingBatchResult(failedEpisodeCount: failedEpisodeCount)
+    } catch let error as CancellationError {
+      logBatchTelemetry(
+        outcome: .cancelled,
+        state: state,
+        failedEpisodeCount: failedEpisodeCount,
+        wallDuration: clockNow() - startedAt
+      )
+      throw error
+    } catch {
+      Self.log.caughtError(
+        batchTelemetryMessage(
+          outcome: .failed,
+          state: state,
+          failedEpisodeCount: failedEpisodeCount,
+          wallDuration: clockNow() - startedAt
+        ),
+        error
+      )
+      throw error
+    }
   }
 
   private static func upsertEpisodeEmbeddings(
     for episodes: [Episode],
     embedding: ContextualEmbedding,
-    verificationDate: Date
-  ) async throws -> EmbeddingBatchResult {
-    guard !episodes.isEmpty else { return EmbeddingBatchResult(failedEpisodeCount: 0) }
+    verificationDate: Date,
+    state initialState: BatchState,
+    clockNow: @Sendable () -> ContinuousClock.Instant
+  ) async throws -> ChunkResult {
+    guard !episodes.isEmpty else {
+      return ChunkResult(
+        failedEpisodeCount: 0,
+        state: initialState,
+        cancellation: nil
+      )
+    }
 
     let recommendationRepo = Container.shared.recommendationRepo()
+    var state = initialState
+    state.metrics.episodeCount += episodes.count
+    state.metrics.podcastIDs.formUnion(episodes.map(\.podcastID))
 
+    let databaseStartedAt = clockNow()
     let episodeIDs = episodes.map(\.id)
     let embeddingsByEpisodeID = try await recommendationRepo.embeddings(for: episodeIDs)
 
     let podcastIDs = Array(Set(episodes.map(\.podcastID)))
     let podcastsByID = try await recommendationRepo.podcasts(for: podcastIDs)
     let podcastEmbeddings = try await recommendationRepo.podcastEmbeddings(for: podcastIDs)
-
-    var podcastVectorCache: [Podcast.ID: [Float]?] = [:]
+    state.metrics.databaseDuration += clockNow() - databaseStartedAt
 
     // One fsync per batch instead of one per episode.
     var pendingEpisodeEmbeddings = [UnsavedEpisodeEmbedding](capacity: episodes.count)
@@ -121,7 +267,37 @@ enum EmbeddingService {
 
       let existingEmbedding = embeddingsByEpisodeID[id: episode.id]
       let podcast = podcastsByID[id: episode.podcastID]
-      let hash = fullSourceHash(for: episode, podcast: podcast)
+      let cleaningStartedAt = clockNow()
+      let cleanedEpisode = CleanedEmbeddingText(
+        title: cleanText(episode.title),
+        description: cleanText(episode.description ?? "")
+      )
+      state.metrics.recordCleanInput(episode.title)
+      state.metrics.recordCleanInput(episode.description ?? "")
+
+      let cleanedPodcast: CleanedEmbeddingText?
+      if let cached = state.cleanedPodcasts[episode.podcastID] {
+        cleanedPodcast = cached
+      } else if let podcast {
+        let cleaned = CleanedEmbeddingText(
+          title: cleanText(podcast.title),
+          description: cleanText(podcast.description)
+        )
+        state.metrics.recordCleanInput(podcast.title)
+        state.metrics.recordCleanInput(podcast.description)
+        state.cleanedPodcasts[episode.podcastID] = cleaned
+        cleanedPodcast = cleaned
+      } else {
+        cleanedPodcast = nil
+      }
+      state.metrics.cleaningDuration += clockNow() - cleaningStartedAt
+
+      let hashingStartedAt = clockNow()
+      let hash = fullSourceHash(
+        cleanedEpisode: cleanedEpisode,
+        cleanedPodcast: cleanedPodcast
+      )
+      state.metrics.hashingDuration += clockNow() - hashingStartedAt
 
       let needsRecompute =
         existingEmbedding == nil
@@ -137,12 +313,17 @@ enum EmbeddingService {
       // One bad episode mustn't abort the BG pass. Cancellation breaks out of
       // the loop so the post-loop flush still runs.
       do {
+        let embeddingStartedAt = clockNow()
+        defer {
+          state.metrics.embeddingDuration += clockNow() - embeddingStartedAt
+        }
         let podcastVector: [Float]?
-        if let cached = podcastVectorCache[episode.podcastID] {
+        if let cached = state.podcastVectors[episode.podcastID] {
           podcastVector = cached
         } else {
           let resolved = try await resolvePodcastVector(
             podcast: podcast,
+            cleanedPodcast: cleanedPodcast,
             embedding: embedding,
             cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
           )
@@ -150,11 +331,12 @@ enum EmbeddingService {
           if let fresh = resolved.fresh {
             pendingPodcastEmbeddings.append(fresh)
           }
-          podcastVectorCache[episode.podcastID] = podcastVector
+          state.podcastVectors[episode.podcastID] = podcastVector
         }
 
         let unsavedEpisode = try await buildUnsavedEpisodeEmbedding(
           episode,
+          cleanedEpisode: cleanedEpisode,
           hash: hash,
           embedding: embedding,
           podcastVector: podcastVector,
@@ -178,6 +360,7 @@ enum EmbeddingService {
 
     // Flush on cancellation too so earlier episodes in the chunk land
     // before the error propagates.
+    let writeStartedAt = clockNow()
     try await recommendationRepo.upsertPodcastEmbeddings(pendingPodcastEmbeddings)
     try await recommendationRepo.upsertEmbeddings(pendingEpisodeEmbeddings)
     try await recommendationRepo.touchEmbeddingVerification(
@@ -192,14 +375,18 @@ enum EmbeddingService {
         recipeVersion: recipeVersion
       )
     )
+    state.metrics.databaseDuration += clockNow() - writeStartedAt
     if newlyQuarantinedCount > 0 {
       Self.log.notice(
         "Quarantined \(newlyQuarantinedCount) episode embedding failures after repeated attempts"
       )
     }
 
-    if let caughtCancellation { throw caughtCancellation }
-    return EmbeddingBatchResult(failedEpisodeCount: failedEpisodeCount)
+    return ChunkResult(
+      failedEpisodeCount: failedEpisodeCount,
+      state: state,
+      cancellation: caughtCancellation
+    )
   }
 
   // MARK: - Unsaved Embedding
@@ -243,21 +430,20 @@ enum EmbeddingService {
   // batches it with the chunk's pending writes.
   private static func resolvePodcastVector(
     podcast: Podcast?,
+    cleanedPodcast: CleanedEmbeddingText?,
     embedding: ContextualEmbedding,
     cachedEmbedding: PodcastEmbedding?
   ) async throws -> (vector: [Float]?, fresh: UnsavedPodcastEmbedding?) {
-    guard let podcast else { return (nil, nil) }
+    guard let podcast, let cleanedPodcast else { return (nil, nil) }
 
-    let cleanedTitle = cleanText(podcast.title)
-    let cleanedDescription = cleanText(podcast.description)
-    guard !cleanedTitle.isEmpty else {
+    guard !cleanedPodcast.title.isEmpty else {
       Self.log.debug("Skipping podcast vector: empty title for podcast \(podcast.id)")
       return (nil, nil)
     }
 
     let hash = podcastSourceHash(
-      cleanedTitle: cleanedTitle,
-      cleanedDescription: cleanedDescription
+      cleanedTitle: cleanedPodcast.title,
+      cleanedDescription: cleanedPodcast.description
     )
 
     if let cached = cachedEmbedding,
@@ -268,8 +454,8 @@ enum EmbeddingService {
     }
 
     let normalized = try await computePodcastVector(
-      cleanedTitle: cleanedTitle,
-      cleanedDescription: cleanedDescription,
+      cleanedTitle: cleanedPodcast.title,
+      cleanedDescription: cleanedPodcast.description,
       embedding: embedding
     )
 
@@ -303,13 +489,15 @@ enum EmbeddingService {
 
   private static func buildUnsavedEpisodeEmbedding(
     _ episode: Episode,
+    cleanedEpisode: CleanedEmbeddingText,
     hash: String,
     embedding: ContextualEmbedding,
     podcastVector: [Float]?,
     verificationDate: Date
   ) async throws -> UnsavedEpisodeEmbedding {
     let vector = try await computeEpisodeEmbedding(
-      for: episode,
+      cleanedTitle: cleanedEpisode.title,
+      cleanedDescription: cleanedEpisode.description,
       embedding: embedding,
       podcastVector: podcastVector
     )
@@ -321,19 +509,6 @@ enum EmbeddingService {
       embeddingRevision: embedding.revision,
       dimension: vector.count,
       verificationDate: verificationDate
-    )
-  }
-
-  private static func computeEpisodeEmbedding(
-    for episode: Episode,
-    embedding: ContextualEmbedding,
-    podcastVector: [Float]?
-  ) async throws -> [Float] {
-    try await computeEpisodeEmbedding(
-      cleanedTitle: cleanText(episode.title),
-      cleanedDescription: cleanText(episode.description ?? ""),
-      embedding: embedding,
-      podcastVector: podcastVector
     )
   }
 
@@ -366,24 +541,16 @@ enum EmbeddingService {
     return VectorMath.normalize(episodeVector)
   }
 
-  private static func fullSourceHash(for episode: Episode, podcast: Podcast?) -> String {
-    let cleanedTitle = cleanText(episode.title)
-    let cleanedDescription = cleanText(episode.description ?? "")
-    let cleanedPodcastTitle: String
-    let cleanedPodcastDescription: String
-    if let podcast {
-      cleanedPodcastTitle = cleanText(podcast.title)
-      cleanedPodcastDescription = cleanText(podcast.description)
-    } else {
-      cleanedPodcastTitle = ""
-      cleanedPodcastDescription = ""
-    }
+  private static func fullSourceHash(
+    cleanedEpisode: CleanedEmbeddingText,
+    cleanedPodcast: CleanedEmbeddingText?
+  ) -> String {
     let components = [
       "r\(recipeVersion)",
-      cleanedTitle,
-      cleanedDescription,
-      cleanedPodcastTitle,
-      cleanedPodcastDescription,
+      cleanedEpisode.title,
+      cleanedEpisode.description,
+      cleanedPodcast?.title ?? "",
+      cleanedPodcast?.description ?? "",
     ]
     return components.joined(separator: "\u{1F}").sha256()
   }
@@ -398,6 +565,45 @@ enum EmbeddingService {
       cleanedDescription,
     ]
     return components.joined(separator: "\u{1F}").sha256()
+  }
+
+  private static func logBatchTelemetry(
+    outcome: BatchOutcome,
+    state: BatchState,
+    failedEpisodeCount: Int,
+    wallDuration: Duration
+  ) {
+    let message = batchTelemetryMessage(
+      outcome: outcome,
+      state: state,
+      failedEpisodeCount: failedEpisodeCount,
+      wallDuration: wallDuration
+    )
+    if wallDuration >= slowBatchThreshold {
+      Self.log.warning("\(message)")
+    } else {
+      Self.log.info("\(message)")
+    }
+  }
+
+  private static func batchTelemetryMessage(
+    outcome: BatchOutcome,
+    state: BatchState,
+    failedEpisodeCount: Int,
+    wallDuration: Duration
+  ) -> String {
+    let metrics = state.metrics
+    return """
+      embeddingTelemetry event=\(outcome.event) outcome=\(outcome.rawValue) \
+      episodes=\(metrics.episodeCount) uniquePodcasts=\(metrics.podcastIDs.count) \
+      failedEpisodes=\(failedEpisodeCount) cleanInputs=\(metrics.cleanInputCount) \
+      inputBytes=\(metrics.inputByteCount) maxInputBytes=\(metrics.maximumInputByteCount) \
+      cleaningSeconds=\(metrics.cleaningDuration.asTimeInterval) \
+      hashingSeconds=\(metrics.hashingDuration.asTimeInterval) \
+      embeddingSeconds=\(metrics.embeddingDuration.asTimeInterval) \
+      databaseSeconds=\(metrics.databaseDuration.asTimeInterval) \
+      wallSeconds=\(wallDuration.asTimeInterval)
+      """
   }
 
   static func cleanText(_ text: String) -> String {

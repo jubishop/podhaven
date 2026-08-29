@@ -132,15 +132,41 @@ extension String {
   // Runs in-process with no main-thread dependency, unlike
   // NSAttributedString's HTML importer.
   func decodingHTMLEntities() -> String {
-    var result = self
-    for (entity, replacement) in Self.namedHTMLEntities {
-      result = result.replacingOccurrences(
-        of: entity,
-        with: replacement,
-        options: .caseInsensitive
-      )
+    guard contains("&") else { return self }
+
+    var output = ""
+    output.reserveCapacity(count)
+    var index = startIndex
+
+    while index < endIndex {
+      guard self[index] == "&" else {
+        output.append(self[index])
+        index = self.index(after: index)
+        continue
+      }
+
+      var cursor = self.index(after: index)
+      while cursor < endIndex, self[cursor] != ";", self[cursor] != "&" {
+        cursor = self.index(after: cursor)
+      }
+
+      guard cursor < endIndex, self[cursor] == ";" else {
+        output.append("&")
+        index = self.index(after: index)
+        continue
+      }
+
+      let entityRange = index...cursor
+      let entity = self[entityRange]
+      if let replacement = Self.htmlEntityReplacement(for: entity) {
+        output.append(contentsOf: replacement)
+      } else {
+        output.append(contentsOf: entity)
+      }
+      index = self.index(after: cursor)
     }
-    return Self.decodingNumericHTMLEntities(in: result)
+
+    return output
   }
 
   // Regex<Substring> isn't Sendable-annotated upstream, but its compiled NFA
@@ -186,73 +212,25 @@ extension String {
     "&plusmn;": "\u{00B1}",
   ]
 
-  private static func decodingNumericHTMLEntities(in text: String) -> String {
-    var index = text.startIndex
-    var output = ""
-    output.reserveCapacity(text.count)
-
-    while index < text.endIndex {
-      let character = text[index]
-
-      guard character == "&" else {
-        output.append(character)
-        index = text.index(after: index)
-        continue
-      }
-
-      let hashIndex = text.index(after: index)
-      guard hashIndex < text.endIndex, text[hashIndex] == "#" else {
-        output.append(character)
-        index = hashIndex
-        continue
-      }
-
-      var valueStart = text.index(after: hashIndex)
-      var isHex = false
-
-      if valueStart < text.endIndex, text[valueStart] == "x" || text[valueStart] == "X" {
-        isHex = true
-        valueStart = text.index(after: valueStart)
-      }
-
-      var cursor = valueStart
-      var isValid = true
-      while cursor < text.endIndex, text[cursor] != ";" {
-        let scalar = text[cursor]
-        let isValidDigit = isHex ? scalar.isHexDigit : scalar.isNumber
-        if !isValidDigit {
-          isValid = false
-          break
-        }
-        cursor = text.index(after: cursor)
-      }
-
-      guard cursor < text.endIndex, isValid else {
-        output.append("&")
-        index = hashIndex
-        continue
-      }
-
-      let entityRange = index...cursor
-      let numberString = String(text[valueStart..<cursor])
-
-      if numberString.isEmpty {
-        output.append(contentsOf: text[entityRange])
-        index = text.index(after: cursor)
-        continue
-      }
-
-      let parsedValue = isHex ? Int(numberString, radix: 16) : Int(numberString)
-
-      if let value = parsedValue, let scalar = UnicodeScalar(value) {
-        output.unicodeScalars.append(scalar)
-      } else {
-        output.append(contentsOf: text[entityRange])
-      }
-
-      index = text.index(after: cursor)
+  private static func htmlEntityReplacement(for entity: Substring) -> String? {
+    let normalized = entity.lowercased()
+    if let replacement = namedHTMLEntities[normalized] {
+      return replacement
     }
 
-    return output
+    guard normalized.hasPrefix("&#"), normalized.hasSuffix(";") else { return nil }
+    var number = normalized.dropFirst(2).dropLast()
+    let radix: Int
+    if number.first == "x" {
+      radix = 16
+      number = number.dropFirst()
+    } else {
+      radix = 10
+    }
+    guard !number.isEmpty,
+      let value = Int(number, radix: radix),
+      let scalar = UnicodeScalar(value)
+    else { return nil }
+    return String(scalar)
   }
 }
