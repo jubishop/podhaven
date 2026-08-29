@@ -8,6 +8,26 @@ import Testing
 
 @Suite("Discretionary work thermal backpressure", .container)
 struct DiscretionaryWorkThermalTests {
+  @Test("thermal monitoring applies startup, registration-window, and later changes")
+  func thermalMonitoringStartsBeforeForegroundPreparation() {
+    let readings = ThreadSafe([ThermalPressure.nominal, .critical])
+    Container.shared.currentThermalPressure.context(.test) {
+      {
+        readings { values in
+          guard values.count > 1 else { return values[0] }
+          return values.removeFirst()
+        }
+      }
+    }
+
+    Container.shared.thermalPressureMonitor().start()
+    #expect(Container.shared.sharedState().thermalPressure == .critical)
+
+    readings([.fair])
+    Container.shared.notifier().post(ProcessInfo.thermalStateDidChangeNotification)
+    #expect(Container.shared.sharedState().thermalPressure == .fair)
+  }
+
   @Test("embedding work waits through critical pressure and resumes after recovery")
   func embeddingWaitsAndResumes() async throws {
     let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(

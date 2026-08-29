@@ -25,7 +25,7 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.stateManager) private var stateManager
-  @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.thermalPressureMonitor) private var thermalPressureMonitor
   @DynamicInjected(\.transcriptionAvailability) private var transcriptionAvailability
   @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
 
@@ -64,7 +64,7 @@ struct AppLauncher: Sendable {
     // Force DB initialization so schema migrations run immediately.
     Container.shared.initializeAppDB()
 
-    applyThermalPressure(ThermalPressure(ProcessInfo.processInfo.thermalState))
+    thermalPressureMonitor.start()
 
     Self.log.debug(
       """
@@ -178,28 +178,7 @@ struct AppLauncher: Sendable {
           }
         }
       }
-
-      Task(priority: taskPriority(.utility)) {
-        for await _ in self.notifications(ProcessInfo.thermalStateDidChangeNotification) {
-          let pressure = ThermalPressure(ProcessInfo.processInfo.thermalState)
-          self.applyThermalPressure(pressure)
-          let message: Logging.Logger.Message =
-            "Thermal state changed to: \(pressure.rawValue)"
-          if pressure.permitsDiscretionaryWork {
-            Self.log.debug(message)
-          } else {
-            Self.log.warning(message)
-          }
-        }
-      }
     }
-  }
-
-  private func applyThermalPressure(_ pressure: ThermalPressure) {
-    sharedState.setThermalPressure(pressure)
-    embeddingProcessor.handleThermalPressureChange(to: pressure)
-    recommendationEngine.handleThermalPressureChange(to: pressure)
-    transcriptionProcessor.handleThermalPressureChange(to: pressure)
   }
 
   // MARK: - Logging
