@@ -39,7 +39,15 @@ import Testing
 
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
     try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
-    try await PlayHelpers.waitFor(.playing)
+    try await Wait.until(
+      { @MainActor in
+        (Container.shared.avPlayer() as! FakeAVPlayer).timeControlStatus == .playing
+      },
+      { @MainActor in
+        let status = (Container.shared.avPlayer() as! FakeAVPlayer).timeControlStatus
+        return "Player status is: \(status), Expected: playing"
+      }
+    )
   }
 
   @Test("first skip command prepares playback before seeking")
