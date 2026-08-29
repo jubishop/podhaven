@@ -8,6 +8,14 @@ import Sentry
 import SwiftUI
 import UIKit
 
+protocol SentryScopeConfiguring: AnyObject {
+  func setTag(value: String, key: String)
+  func setUser(_ user: Sentry.User?)
+  func addAttachment(_ attachment: Sentry.Attachment)
+}
+
+extension Sentry.Scope: SentryScopeConfiguring {}
+
 extension Container {
   var appLauncher: Factory<AppLauncher> {
     Factory(self) { AppLauncher() }.scope(.cached)
@@ -206,7 +214,13 @@ struct AppLauncher: Sendable {
       Self.bootstrapOSLogAndFileLog { label in
         [SentryLogHandler(label: label), CrashReportHandler(label: label)]
       }
-      Self.log.debug("configureLogging: OSLog, FileLog, CrashReport")
+      Self.log.debug(
+        """
+        configureLogging: OSLog, FileLog, CrashReport; Sentry recent log attachments configured: \
+        appLimitBytes=\(AppInfo.recentLogMaxFileSizeBytes), \
+        widgetLimitBytes=\(WidgetInfo.recentLogMaxFileSizeBytes)
+        """
+      )
     case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
       Self.log.debug("configureLogging: PrintLog")
@@ -237,6 +251,15 @@ struct AppLauncher: Sendable {
             targetFileSizeBytes: 6_000_000,
             // `.inactive` writes stay async; the `.background` transition
             // flushes the queue via AppDelegate.handleScenePhaseChange.
+            writeSynchronously: {
+              $0 >= .critical || sharedState.$scenePhase.value == .background
+            }
+          ),
+          FileLogHandler(
+            label: label,
+            fileURL: AppInfo.recentLogFileURL,
+            maxFileSizeBytes: AppInfo.recentLogMaxFileSizeBytes,
+            targetFileSizeBytes: AppInfo.recentLogTargetFileSizeBytes,
             writeSynchronously: {
               $0 >= .critical || sharedState.$scenePhase.value == .background
             }
@@ -296,10 +319,28 @@ struct AppLauncher: Sendable {
       options.beforeSendLog = sentryBeforeSendLog
       options.beforeSend = sentryBeforeSend
       options.initialScope = { scope in
-        scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
-        scope.setUser(User(userId: AppInfo.deviceIdentifier))
+        configureInitialSentryScope(scope)
         return scope
       }
     }
+  }
+
+  static func configureInitialSentryScope(_ scope: any SentryScopeConfiguring) {
+    scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
+    scope.setUser(Sentry.User(userId: AppInfo.deviceIdentifier))
+    scope.addAttachment(
+      Sentry.Attachment(
+        path: AppInfo.recentLogFileURL.path,
+        filename: "recent-log.ndjson",
+        contentType: "application/x-ndjson"
+      )
+    )
+    scope.addAttachment(
+      Sentry.Attachment(
+        path: WidgetInfo.recentLogFileURL.path,
+        filename: "recent-widget-log.ndjson",
+        contentType: "application/x-ndjson"
+      )
+    )
   }
 }
