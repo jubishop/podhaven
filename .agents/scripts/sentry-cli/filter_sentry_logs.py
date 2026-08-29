@@ -2,12 +2,12 @@
 # Filter Sentry ourlogs detail JSON to a time window around an event.
 #
 # Usage:
-#   filter_sentry_logs.py --around-ms 1780281854316 --window-ms 600000
-#   filter_sentry_logs.py --input /tmp/sentry_logs_detail.json --around-ms ... --oneline
-#   filter_sentry_logs.py --around-ms ... --in-place   # rewrite input file
+#   filter_sentry_logs.py --input detail.json --output filtered.json \
+#     --around-ms 1780281854316 --window-ms 1200000
+#   filter_sentry_logs.py --input detail.json --around-ms ... --in-place
 #
-# Reads ISO timestamps from each row. Writes filtered rows to --output (default:
-# /tmp/sentry_logs_detail_filtered.json) unless --in-place is set.
+# Reads ISO timestamps from each row. Writes filtered rows to --output unless
+# --in-place is set.
 
 from __future__ import annotations
 
@@ -66,25 +66,29 @@ def format_oneline(row: dict) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Filter Sentry ourlogs detail JSON by time window.")
+    parser = argparse.ArgumentParser(
+        description="Filter Sentry ourlogs detail JSON by time window."
+    )
     parser.add_argument(
         "--input",
-        default="/tmp/sentry_logs_detail.json",
+        required=True,
         help="Detail JSON from fetch_sentry_logs.sh",
     )
-    parser.add_argument(
+    destination = parser.add_mutually_exclusive_group(required=True)
+    destination.add_argument(
         "--output",
-        default="/tmp/sentry_logs_detail_filtered.json",
         help="Filtered detail JSON output path",
     )
-    parser.add_argument("--around-ms", type=int, required=True, help="Event time in epoch milliseconds")
+    parser.add_argument(
+        "--around-ms", type=int, required=True, help="Event time in epoch milliseconds"
+    )
     parser.add_argument(
         "--window-ms",
         type=int,
         default=600_000,
         help="Window size in ms centered on --around-ms (default: 600000 = 10 minutes)",
     )
-    parser.add_argument(
+    destination.add_argument(
         "--in-place",
         action="store_true",
         help="Rewrite --input with filtered rows instead of writing --output",
