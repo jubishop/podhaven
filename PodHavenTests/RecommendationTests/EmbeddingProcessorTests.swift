@@ -202,8 +202,8 @@ class EmbeddingProcessorTests {
     #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
   }
 
-  @Test("thermal pressure cancels the active embedding background grant")
-  func thermalPressureCancelsActiveBackgroundGrant() async throws {
+  @Test("expiration during flush preserves completed embeddings")
+  func expirationDuringFlushPreservesCompletedEmbeddings() async throws {
     let fakeBGTaskScheduler = self.fakeBGTaskScheduler
     let fakeRecommendationRepo = try #require(
       recommendationRepo as? FakeRecommendationRepo
@@ -214,11 +214,12 @@ class EmbeddingProcessorTests {
     try await waitForNoPendingBackgroundRequest()
 
     let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 2,
-      podcastTitle: "Thermal background grant"
+      count: 1,
+      podcastTitle: "Expiration During Flush"
     )
-    fakeRecommendationRepo.armEmbeddingsGate(matching: Set(episodes.map(\.id)))
-    defer { fakeRecommendationRepo.releaseEmbeddingsGate() }
+    let episode = try #require(episodes.first)
+    fakeRecommendationRepo.armEmbeddingUpsertGate()
+    defer { fakeRecommendationRepo.releaseEmbeddingUpsertGate() }
 
     processor.workBecameAvailable()
     try await Wait.until(
@@ -230,18 +231,18 @@ class EmbeddingProcessorTests {
       fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
     )
     try await Wait.until(
-      { fakeRecommendationRepo.isEmbeddingsGateSuspended },
-      { "Embedding background task did not reach its suspended write" }
+      { fakeRecommendationRepo.isEmbeddingUpsertGateSuspended },
+      { "Embedding background task did not reach its suspended upsert" }
     )
 
-    processor.handleThermalPressureChange(to: .critical)
-    fakeRecommendationRepo.releaseEmbeddingsGate()
+    task.expire()
+    fakeRecommendationRepo.releaseEmbeddingUpsertGate()
 
     try await Wait.until(
-      { !task.completionResults.isEmpty },
-      { "Thermal pressure did not finish the active embedding background grant" }
+      { task.completionResults == [false] },
+      { "Expired embedding task did not finish cancellation cleanup" }
     )
-    #expect(task.completionResults == [false])
+    #expect(try await recommendationRepo.embedding(for: episode.id) != nil)
     #expect(workDemand.hasWork)
     #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
   }
