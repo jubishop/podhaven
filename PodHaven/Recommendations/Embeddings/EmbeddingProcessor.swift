@@ -141,6 +141,7 @@ struct EmbeddingProcessor: Sendable {
     guard pressure.permitsDiscretionaryWork else {
       Self.log.info("Suspending embedding work for thermal pressure=\(pressure.rawValue)")
       stopForegroundObservation()
+      backgroundTaskScheduler.cancelRunningTasks()
       backgroundTaskScheduler.scheduleNext()
       return
     }

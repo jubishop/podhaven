@@ -747,6 +747,79 @@ struct TranscriptionBackgroundTaskTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
+  @Test("thermal pressure ends a background grant before foreground resume")
+  func thermalPressureEndsBackgroundGrantBeforeForegroundResume() async throws {
+    TranscriptionHelpers.stubSpeech(
+      phrases: [
+        FakeSpeechTranscriptionResult(phrase: "resumed", startSeconds: 0, endSeconds: 60)
+      ]
+    )
+    let analyzerStarted = AsyncSemaphore(value: 0)
+    let neverSignals = AsyncSemaphore(value: 0)
+    let analyzeCount = ThreadSafe(0)
+    Container.shared.speechAnalyzer.register {
+      { _ in
+        FakeSpeechAnalyzer { _, endTime in
+          let count = analyzeCount {
+            $0 += 1
+            return $0
+          }
+          guard count == 1 else {
+            return CMTime(seconds: endTime, preferredTimescale: 600)
+          }
+          analyzerStarted.signal()
+          try await neverSignals.waitUnlessCancelled()
+          return CMTime(seconds: endTime, preferredTimescale: 600)
+        }
+      }
+    }
+
+    let repo = Container.shared.repo()
+    let queue = Container.shared.transcriptionQueue()
+    let processor = Container.shared.transcriptionProcessor()
+    let scheduler = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
+    let episode = try await CacheHelpers.createCachedEpisode(
+      title: "Thermal background task",
+      cachedFilename: "thermal-background.mp3",
+      dataSize: 1
+    )
+    try await queue.enqueue(episode.id)
+
+    processor.register()
+    let task = try #require(
+      scheduler.launchTask(withIdentifier: "\(AppInfo.bundleIdentifier).transcription")
+    )
+    await analyzerStarted.wait()
+
+    processor.handleThermalPressureChange(to: .critical)
+    do {
+      try await Wait.until(
+        { task.completionResults == [false] },
+        { "Thermal pressure did not end the active background grant" }
+      )
+    } catch {
+      task.expire()
+      try await Wait.until(
+        { task.completionResults == [false] },
+        { "Expired cleanup did not finish the background grant" }
+      )
+      throw error
+    }
+    #expect(queue.episodeIDs == [episode.id])
+
+    processor.handleThermalPressureChange(to: .nominal)
+    processor.handleScenePhaseChange(to: .active)
+    try await Wait.until(
+      { queue.episodeIDs.isEmpty },
+      { "Foreground drain did not resume the thermally retained head" }
+    )
+    #expect(
+      try await repo.episode(episode.id)?.decodedTranscript?.segments.first?.text == "resumed"
+    )
+
+    processor.handleScenePhaseChange(to: .background)
+  }
+
   @Test("expiration resumes the next background grant after durable progress")
   func expirationResumesNextBackgroundGrantAfterDurableProgress() async throws {
     let durationSeconds = 240.0

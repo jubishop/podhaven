@@ -207,6 +207,7 @@ struct TranscriptionProcessor: Sendable {
       }
       activeTask?.cancel()
       stop()
+      backgroundTaskScheduler.cancelRunningTasks()
       backgroundTaskScheduler.scheduleNext()
       return
     }
