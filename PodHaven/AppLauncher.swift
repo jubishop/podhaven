@@ -247,8 +247,8 @@ struct AppLauncher: Sendable {
           FileLogHandler(
             label: label,
             fileURL: AppInfo.logFileURL,
-            maxFileSizeBytes: 8_000_000,
-            targetFileSizeBytes: 6_000_000,
+            maxFileSizeBytes: AppInfo.logMaxFileSizeBytes,
+            targetFileSizeBytes: AppInfo.logTargetFileSizeBytes,
             // `.inactive` writes stay async; the `.background` transition
             // flushes the queue via AppDelegate.handleScenePhaseChange.
             writeSynchronously: {

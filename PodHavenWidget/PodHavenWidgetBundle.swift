@@ -13,8 +13,8 @@ struct PodHavenWidgetBundle: WidgetBundle {
         FileLogHandler(
           label: label,
           fileURL: WidgetInfo.logFileURL,
-          maxFileSizeBytes: 800_000,
-          targetFileSizeBytes: 600_000,
+          maxFileSizeBytes: WidgetInfo.logMaxFileSizeBytes,
+          targetFileSizeBytes: WidgetInfo.logTargetFileSizeBytes,
           writeSynchronously: { $0 >= .critical }
         ),
         FileLogHandler(

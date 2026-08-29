@@ -176,6 +176,16 @@ struct FileLogHandlerTests {
     }
   }
 
+  @Test("configured full log buffers use the production size budgets")
+  func configuredFullLogBuffersUseProductionSizeBudgets() {
+    #expect(AppInfo.logMaxFileSizeBytes == 4_000_000)
+    #expect(AppInfo.logTargetFileSizeBytes == 3_000_000)
+    #expect(WidgetInfo.logMaxFileSizeBytes == 600_000)
+    #expect(WidgetInfo.logTargetFileSizeBytes == 450_000)
+    #expect(AppInfo.logTargetFileSizeBytes * 4 == AppInfo.logMaxFileSizeBytes * 3)
+    #expect(WidgetInfo.logTargetFileSizeBytes * 4 == WidgetInfo.logMaxFileSizeBytes * 3)
+  }
+
   @Test("truncation finds the cut boundary when an entry exceeds the read window")
   func truncationFindsBoundaryWhenEntryExceedsReadWindow() throws {
     let fileURL = tempFileURL()
