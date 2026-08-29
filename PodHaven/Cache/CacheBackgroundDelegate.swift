@@ -45,7 +45,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private var repo: any Databasing { Container.shared.repo() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
-  private var loadEpisodeAsset: (_ asset: AVURLAsset) async throws -> EpisodeAsset {
+  private var loadEpisodeAsset: @concurrent (_ url: URL) async throws -> EpisodeAsset {
     Container.shared.loadEpisodeAsset()
   }
 
@@ -288,7 +288,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
     let episodeAsset: EpisodeAsset
     do {
-      episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: location))
+      episodeAsset = try await loadEpisodeAsset(location)
     } catch {
       Self.log.caughtError(
         "didFinishDownloadingTo: failed to load downloaded asset for \(episode.toString)",

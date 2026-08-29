@@ -6,10 +6,10 @@ import Foundation
 extension AVPlayerItem: AVPlayableItem {
   nonisolated func observeStatus(
     options: NSKeyValueObservingOptions,
-    changeHandler: @Sendable @escaping (AVPlayerItem.Status) -> Void
+    changeHandler: @Sendable @escaping (AVPlayerItem.Status, (any Error)?) -> Void
   ) -> NSKeyValueObservation {
     observe(\.status, options: options) { playerItem, _ in
-      changeHandler(playerItem.status)
+      changeHandler(playerItem.status, playerItem.error)
     }
   }
 }

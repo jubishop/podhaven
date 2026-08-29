@@ -9,6 +9,6 @@ import Foundation
 
   func observeStatus(
     options: NSKeyValueObservingOptions,
-    changeHandler: @Sendable @escaping (AVPlayerItem.Status) -> Void
+    changeHandler: @Sendable @escaping (AVPlayerItem.Status, (any Error)?) -> Void
   ) -> NSKeyValueObservation
 }
