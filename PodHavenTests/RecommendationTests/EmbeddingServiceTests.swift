@@ -110,6 +110,7 @@ class EmbeddingServiceTests {
       ),
     ])
     let embedding = await makeContextualEmbedding()
+    Container.shared.fakeContinuousClock().freeze()
 
     let captured = try await LogCapture.withSink { sink in
       try await EmbeddingService.upsertEpisodeEmbeddings(
