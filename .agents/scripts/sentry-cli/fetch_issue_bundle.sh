@@ -2,12 +2,13 @@
 # Fetch issue metadata, representative events, and tag distribution via `sentry` CLI.
 #
 # Usage:
-#   fetch_issue_bundle.sh <issue-ref> [--out DIR] [--events N] [--event-query QUERY]
+#   fetch_issue_bundle.sh <issue-ref> --out DIR [--events N] [--event-query QUERY]
+#                         [--spans DEPTH]
 #
 # Examples:
-#   fetch_issue_bundle.sh PODHAVEN-3W
-#   fetch_issue_bundle.sh 7505772270 --events 2 --event-query 'environment:testFlight'
-#   fetch_issue_bundle.sh 'https://artisanal-software.sentry.io/issues/7505772270/'
+#   fetch_issue_bundle.sh PODHAVEN-3W --out /tmp/podhaven-issue/issue
+#   fetch_issue_bundle.sh 7505772270 --out /tmp/podhaven-issue/issue --events 2
+#   fetch_issue_bundle.sh PODHAVEN-3W --out /tmp/podhaven-issue/issue --spans all
 
 set -euo pipefail
 
@@ -16,9 +17,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
 ISSUE_REF=""
-OUT="/tmp/sentry_issue"
+OUT=""
 EVENTS=3
 EVENT_QUERY=""
+SPANS=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -32,6 +34,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --event-query)
       EVENT_QUERY="$2"
+      shift 2
+      ;;
+    --spans)
+      SPANS="$2"
       shift 2
       ;;
     -h | --help)
@@ -50,15 +56,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$ISSUE_REF" ]]; then
-  echo "Usage: fetch_issue_bundle.sh <issue-ref> [--out DIR] [--events N] [--event-query QUERY]" >&2
+if [[ -z "$ISSUE_REF" || -z "$OUT" ]]; then
+  echo "Usage: fetch_issue_bundle.sh <issue-ref> --out DIR [--events N] [--event-query QUERY] [--spans DEPTH]" >&2
+  exit 1
+fi
+
+if [[ -L "$OUT" ]]; then
+  echo "Error: output directory must not be a symbolic link: $OUT" >&2
+  exit 1
+fi
+if [[ -d "$OUT" ]] && [[ -n "$(find "$OUT" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+  echo "Error: output directory must be empty: $OUT" >&2
   exit 1
 fi
 
 require_sentry_auth
 mkdir -p "$OUT"
 
-ISSUE_ID="$(python3 - "$ISSUE_REF" <<'PY'
+ISSUE_ID="$(
+  python3 - "$ISSUE_REF" <<'PY'
 import re
 import sys
 
@@ -74,36 +90,73 @@ print(ref)
 PY
 )"
 
-sentry_cmd issue view "$ISSUE_ID" --json > "${OUT}/issue.json"
+VIEW_ARGS=(issue view "$ISSUE_ID" --fresh --json)
+if [[ -n "$SPANS" ]]; then
+  VIEW_ARGS+=(--spans "$SPANS")
+fi
+sentry_cmd "${VIEW_ARGS[@]}" >"${OUT}/issue.json"
 
-NUMERIC_ID="$(python3 -c "import json; print(json.load(open('${OUT}/issue.json'))['id'])")"
-SHORT_ID="$(python3 -c "import json; print(json.load(open('${OUT}/issue.json'))['shortId'])")"
+IFS=$'\t' read -r NUMERIC_ID SHORT_ID ISSUE_ORG ISSUE_PROJECT FIRST_SEEN < <(
+  python3 - "${OUT}/issue.json" <<'PY'
+import json
+import sys
 
-EVENT_ARGS=(issue events "$ISSUE_ID" --full --json --limit "$EVENTS")
+issue = json.load(open(sys.argv[1]))
+project = issue.get("project") or {}
+print(
+    issue.get("id", ""),
+    issue.get("shortId", ""),
+    issue.get("org", ""),
+    project.get("slug", ""),
+    issue.get("firstSeen", ""),
+    sep="\t",
+)
+PY
+)
+
+if [[ "$ISSUE_ORG" != "artisanal-software" || "$ISSUE_PROJECT" != "podhaven" ]]; then
+  echo "Error: ${SHORT_ID:-issue} is not a PodHaven issue (${ISSUE_ORG}/${ISSUE_PROJECT})." >&2
+  exit 1
+fi
+if [[ -z "$FIRST_SEEN" ]]; then
+  echo "Error: ${SHORT_ID} has no firstSeen timestamp." >&2
+  exit 1
+fi
+
+EVENT_ARGS=(issue events "$ISSUE_ID" --full --fresh --json --limit "$EVENTS" --period ">=${FIRST_SEEN}")
 if [[ -n "$EVENT_QUERY" ]]; then
   EVENT_ARGS+=(--query "$EVENT_QUERY")
 fi
-sentry_cmd "${EVENT_ARGS[@]}" > "${OUT}/events.json"
+sentry_cmd "${EVENT_ARGS[@]}" >"${OUT}/events.json"
 
 python3 - "$OUT" <<'PY'
 import json
+import re
 import sys
 from pathlib import Path
 
 out = Path(sys.argv[1])
 payload = json.loads((out / "events.json").read_text())
-for event in payload.get("data", []):
-    path = out / f"event_{event['id']}.json"
+events = payload.get("data", [])
+if not events:
+    print("Error: No representative events matched the issue and requested filters.", file=sys.stderr)
+    raise SystemExit(1)
+for event in events:
+    event_id = str(event.get("id") or "")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", event_id):
+        print(f"Error: unsafe event ID in Sentry response: {event_id!r}", file=sys.stderr)
+        raise SystemExit(1)
+    path = out / f"event_{event_id}.json"
     path.write_text(json.dumps(event, indent=2) + "\n")
 PY
 
 TAG_KEYS=(environment release device os user)
 for key in "${TAG_KEYS[@]}"; do
-  if sentry_cmd api "organizations/${SENTRY_ORG}/issues/${NUMERIC_ID}/tags/${key}/values/" --json \
-    > "${OUT}/tags_${key}.json" 2>/dev/null; then
+  if sentry_cmd api "organizations/${ISSUE_ORG}/issues/${NUMERIC_ID}/tags/${key}/values/" --json \
+    >"${OUT}/tags_${key}.json" 2>/dev/null; then
     :
   else
-    echo '[]' > "${OUT}/tags_${key}.json"
+    echo '[]' >"${OUT}/tags_${key}.json"
   fi
 done
 

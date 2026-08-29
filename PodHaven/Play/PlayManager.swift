@@ -86,6 +86,7 @@ final class PlayManager {
   // MARK: - State Management
 
   var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
+  var lastMediaServicesResetAt: Date?
   var latestAudioRouteChange: AudioRouteChange?
   private var imageFetchTask: Task<Void, Never>?
   private var loadTransition: LoadTransition?
@@ -374,7 +375,19 @@ final class PlayManager {
 
       phaseStart = Date()
       Self.log.debug("performLoad: loading player item")
-      let loaded = try await podAVPlayer.load(incoming)
+      let mediaServicesResetElapsed: TimeInterval?
+      if isMediaServicesRecovery, let lastMediaServicesResetAt {
+        mediaServicesResetElapsed = max(
+          0,
+          dateProvider.now.timeIntervalSince(lastMediaServicesResetAt)
+        )
+      } else {
+        mediaServicesResetElapsed = nil
+      }
+      let loaded = try await podAVPlayer.load(
+        incoming,
+        mediaServicesResetElapsed: mediaServicesResetElapsed
+      )
       try requireLoadTransitionOwnership(loadID)
       Self.log.debug(
         """

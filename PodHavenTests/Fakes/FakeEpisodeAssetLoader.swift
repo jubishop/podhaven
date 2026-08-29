@@ -25,16 +25,16 @@ actor FakeEpisodeAssetLoader {
 
   // MARK: - Asset Loading
 
-  func loadEpisodeAsset(_ asset: AVURLAsset) async throws -> EpisodeAsset {
-    defer { responseCounts[asset.url, default: 0] += 1 }
+  func loadEpisodeAsset(_ url: URL) async throws -> EpisodeAsset {
+    defer { responseCounts[url, default: 0] += 1 }
 
-    let handler = fakeHandlers[asset.url, default: defaultHandler]
-    let (isPlayable, duration) = try await handler(asset.url)
+    let handler = fakeHandlers[url, default: defaultHandler]
+    let (isPlayable, duration) = try await handler(url)
     try Task.checkCancellation()
     return await EpisodeAsset(
       isPlayable: isPlayable,
       duration: duration,
-      playerItemFactory: { FakeAVPlayerItem(url: asset.url) }
+      playerItemFactory: { FakeAVPlayerItem(url: url) }
     )
   }
 
