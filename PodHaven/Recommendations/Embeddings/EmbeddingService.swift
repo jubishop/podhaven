@@ -78,6 +78,16 @@ enum EmbeddingService {
     }
   }
 
+  private struct PendingEmbeddingWrites: Sendable {
+    let podcastEmbeddings: [UnsavedPodcastEmbedding]
+    let episodeEmbeddings: [UnsavedEpisodeEmbedding]
+    let verifiedOnlyEpisodeIDs: [Episode.ID]
+    let verificationDate: Date
+    let failedEpisodeIDs: [Episode.ID]
+    let succeededEpisodeIDs: [Episode.ID]
+    let pipelineVersion: EmbeddingPipelineVersion
+  }
+
   // Bump when any recipe knob below changes. Folded into source hashes so
   // cached vectors invalidate on tuning, and read by RecommendationEngine
   // as a whitening-mean cache key — recipe bumps rewrite every vector in
@@ -111,7 +121,8 @@ enum EmbeddingService {
 
   @discardableResult static func upsertEpisodeEmbeddings(
     forIDs episodeIDs: [Episode.ID],
-    embedding: ContextualEmbedding
+    embedding: ContextualEmbedding,
+    pacer: BackgroundEmbeddingPacer? = nil
   ) async throws -> EmbeddingBatchResult {
     guard !episodeIDs.isEmpty else { return EmbeddingBatchResult(failedEpisodeCount: 0) }
     let recommendationRepo = Container.shared.recommendationRepo()
@@ -134,7 +145,8 @@ enum EmbeddingService {
           embedding: embedding,
           verificationDate: verificationDate,
           state: state,
-          clockNow: clockNow
+          clockNow: clockNow,
+          pacer: pacer
         )
         state = result.state
         failedEpisodeCount += result.failedEpisodeCount
@@ -191,7 +203,8 @@ enum EmbeddingService {
         embedding: embedding,
         verificationDate: Date(),
         state: state,
-        clockNow: clockNow
+        clockNow: clockNow,
+        pacer: nil
       )
       state = result.state
       failedEpisodeCount = result.failedEpisodeCount
@@ -236,7 +249,8 @@ enum EmbeddingService {
     embedding: ContextualEmbedding,
     verificationDate: Date,
     state initialState: BatchState,
-    clockNow: @Sendable () -> ContinuousClock.Instant
+    clockNow: @Sendable () -> ContinuousClock.Instant,
+    pacer: BackgroundEmbeddingPacer?
   ) async -> ChunkResult {
     guard !episodes.isEmpty else {
       return ChunkResult(
@@ -361,6 +375,18 @@ enum EmbeddingService {
         continue
       }
 
+      let workStartedAt: ContinuousClock.Instant?
+      if let pacer {
+        do {
+          workStartedAt = try await pacer.waitBeforeNextWork()
+        } catch let error as CancellationError {
+          caughtCancellation = error
+          break
+        }
+      } else {
+        workStartedAt = nil
+      }
+
       // One bad episode mustn't abort the BG pass. Cancellation breaks out of
       // the loop so the post-loop flush still runs.
       do {
@@ -396,9 +422,15 @@ enum EmbeddingService {
         pendingEpisodeEmbeddings.append(unsavedEpisode)
         succeededEpisodeIDs.append(episode.id)
       } catch let error as CancellationError {
+        if let pacer, let workStartedAt {
+          await pacer.recordWork(since: workStartedAt)
+        }
         caughtCancellation = error
         break
       } catch {
+        if let pacer, let workStartedAt {
+          await pacer.recordWork(since: workStartedAt)
+        }
         failedEpisodeCount += 1
         failedEpisodeIDs.append(episode.id)
         Self.log.caughtError(
@@ -406,31 +438,37 @@ enum EmbeddingService {
           error,
           level: .notice
         )
+        continue
+      }
+      if let pacer, let workStartedAt {
+        await pacer.recordWork(since: workStartedAt)
       }
     }
 
-    // Flush on cancellation too so earlier episodes in the chunk land
-    // before the error propagates.
+    let pendingWrites = PendingEmbeddingWrites(
+      podcastEmbeddings: pendingPodcastEmbeddings,
+      episodeEmbeddings: pendingEpisodeEmbeddings,
+      verifiedOnlyEpisodeIDs: verifiedOnlyEpisodeIDs,
+      verificationDate: verificationDate,
+      failedEpisodeIDs: failedEpisodeIDs,
+      succeededEpisodeIDs: succeededEpisodeIDs,
+      pipelineVersion: EmbeddingPipelineVersion(
+        embeddingRevision: embedding.revision,
+        recipeVersion: recipeVersion
+      )
+    )
+    // A fresh task lets cancellation-aware database writers persist the
+    // completed portion even if cancellation arrives during the flush.
     let newlyQuarantinedCount: Int
     do {
       let writeStartedAt = clockNow()
       defer {
         state.metrics.databaseDuration += clockNow() - writeStartedAt
       }
-      try await recommendationRepo.upsertPodcastEmbeddings(pendingPodcastEmbeddings)
-      try await recommendationRepo.upsertEmbeddings(pendingEpisodeEmbeddings)
-      try await recommendationRepo.touchEmbeddingVerification(
-        forEpisodeIDs: verifiedOnlyEpisodeIDs,
-        at: verificationDate
-      )
-      newlyQuarantinedCount = try await recommendationRepo.updateEmbeddingFailureState(
-        failedEpisodeIDs: failedEpisodeIDs,
-        succeededEpisodeIDs: succeededEpisodeIDs,
-        pipelineVersion: EmbeddingPipelineVersion(
-          embeddingRevision: embedding.revision,
-          recipeVersion: recipeVersion
-        )
-      )
+      newlyQuarantinedCount = try await Task {
+        try await flush(pendingWrites, to: recommendationRepo)
+      }
+      .value
     } catch {
       return ChunkResult(
         failedEpisodeCount: failedEpisodeCount,
@@ -454,6 +492,23 @@ enum EmbeddingService {
       failedEpisodeCount: failedEpisodeCount,
       state: state,
       outcome: outcome
+    )
+  }
+
+  private static func flush(
+    _ pending: PendingEmbeddingWrites,
+    to recommendationRepo: any Recommending
+  ) async throws -> Int {
+    try await recommendationRepo.upsertPodcastEmbeddings(pending.podcastEmbeddings)
+    try await recommendationRepo.upsertEmbeddings(pending.episodeEmbeddings)
+    try await recommendationRepo.touchEmbeddingVerification(
+      forEpisodeIDs: pending.verifiedOnlyEpisodeIDs,
+      at: pending.verificationDate
+    )
+    return try await recommendationRepo.updateEmbeddingFailureState(
+      failedEpisodeIDs: pending.failedEpisodeIDs,
+      succeededEpisodeIDs: pending.succeededEpisodeIDs,
+      pipelineVersion: pending.pipelineVersion
     )
   }
 

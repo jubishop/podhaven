@@ -20,15 +20,6 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   // service tests can verify batch-level failure handling after vector work.
   let embeddingUpsertError = ThreadSafe<(any Error)?>(nil)
 
-  struct EmbeddingUpsertGateState: Sendable {
-    var armed = false
-    var pendingContinuation: CheckedContinuation<Void, Never>?
-    var didSuspend = false
-  }
-  let embeddingUpsertGateState = ThreadSafe<EmbeddingUpsertGateState>(
-    EmbeddingUpsertGateState()
-  )
-
   // One-shot suspend for the next matching `embeddings(for:)` call so tests
   // can interleave state changes with an in-flight scoring pass.
   //
@@ -46,6 +37,16 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     var didComplete: Bool = false
   }
   let embeddingsGateState = ThreadSafe<EmbeddingsGateState>(EmbeddingsGateState())
+
+  struct EmbeddingUpsertGateState: Sendable {
+    var armed = false
+    var pendingContinuation: CheckedContinuation<Void, Never>?
+    var pendingRelease = false
+    var didSuspend = false
+  }
+  let embeddingUpsertGateState = ThreadSafe<EmbeddingUpsertGateState>(
+    EmbeddingUpsertGateState()
+  )
 
   // Sibling gate for `allScoringContextInputs` so tests can suspend an
   // in-flight cache rebuild the same way the embeddings gate suspends an
@@ -67,28 +68,6 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   }
 
   // MARK: - Embeddings Gate (test-facing)
-
-  func armEmbeddingUpsertGate() {
-    embeddingUpsertGateState { state in
-      state.armed = true
-      state.didSuspend = false
-    }
-  }
-
-  func releaseEmbeddingUpsertGate() {
-    let continuation = embeddingUpsertGateState { state in
-      let pending = state.pendingContinuation
-      state.pendingContinuation = nil
-      return pending
-    }
-    continuation?.resume()
-  }
-
-  var isEmbeddingUpsertGateSuspended: Bool {
-    embeddingUpsertGateState { state in
-      state.didSuspend && state.pendingContinuation != nil
-    }
-  }
 
   func armEmbeddingsGate(matching ids: Set<Episode.ID>) {
     // Resume any continuation left over from a previous arm so a re-arm
@@ -131,6 +110,39 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   var didEmbeddingsGateComplete: Bool {
     embeddingsGateState { state in
       state.didComplete
+    }
+  }
+
+  // MARK: - Embedding Upsert Gate (test-facing)
+
+  func armEmbeddingUpsertGate() {
+    let stale = embeddingUpsertGateState { state -> CheckedContinuation<Void, Never>? in
+      let pending = state.pendingContinuation
+      state.pendingContinuation = nil
+      state.pendingRelease = false
+      state.armed = true
+      state.didSuspend = false
+      return pending
+    }
+    stale?.resume()
+  }
+
+  func releaseEmbeddingUpsertGate() {
+    let continuation = embeddingUpsertGateState {
+      state -> CheckedContinuation<Void, Never>? in
+      if let pending = state.pendingContinuation {
+        state.pendingContinuation = nil
+        return pending
+      }
+      state.pendingRelease = true
+      return nil
+    }
+    continuation?.resume()
+  }
+
+  var isEmbeddingUpsertGateSuspended: Bool {
+    embeddingUpsertGateState { state in
+      state.didSuspend && state.pendingContinuation != nil
     }
   }
 
@@ -227,18 +239,28 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {
     recordCall(methodName: "upsertEmbeddings", parameters: unsaved.count)
-    let shouldGate = embeddingUpsertGateState { state in
+    let shouldGate = embeddingUpsertGateState { state -> Bool in
       guard state.armed else { return false }
       state.armed = false
       return true
     }
     if shouldGate {
-      await withCheckedContinuation { continuation in
-        embeddingUpsertGateState { state in
+      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        let resumeImmediately = embeddingUpsertGateState { state -> Bool in
+          if state.pendingRelease {
+            state.pendingRelease = false
+            state.didSuspend = true
+            return true
+          }
           state.pendingContinuation = continuation
           state.didSuspend = true
+          return false
+        }
+        if resumeImmediately {
+          continuation.resume()
         }
       }
+      try Task.checkCancellation()
     }
     if let error = embeddingUpsertError({ pending in
       let captured = pending

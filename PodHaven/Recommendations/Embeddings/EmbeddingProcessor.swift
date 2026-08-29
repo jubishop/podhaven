@@ -53,7 +53,8 @@ struct EmbeddingProcessor: Sendable {
       identifier: Self.backgroundTaskIdentifier,
       cadence: .minutes(1),
       taskType: .processing(requiresNetworkConnectivity: false),
-      schedulingMode: .onDemand { Container.shared.embeddingWorkDemand().hasWork }
+      schedulingMode: .onDemand { Container.shared.embeddingWorkDemand().hasWork },
+      expirationBehavior: .awaitCancellation
     )
   }
 
@@ -71,7 +72,12 @@ struct EmbeddingProcessor: Sendable {
       }
 
       do {
-        let result = try await drainAvailableWork()
+        let result = try await drainAvailableWork(
+          pacer: BackgroundEmbeddingPacer(
+            clockNow: continuousClockNow,
+            sleeper: sleeper
+          )
+        )
         switch result {
         case .empty(let processedCount):
           Self.log.info(
@@ -184,7 +190,7 @@ struct EmbeddingProcessor: Sendable {
     drainDebounce {
       do {
         try await contextualEmbedding.assetsLoaded.wait()
-        try await drainAvailableWork()
+        try await drainAvailableWork(pacer: nil)
       } catch is CancellationError {
         // Superseded by a newer trigger or backgrounded mid-drain; the next
         // foreground pass re-queries any remaining work.
@@ -224,7 +230,9 @@ struct EmbeddingProcessor: Sendable {
   }
 
   @discardableResult
-  private func drainAvailableWork() async throws -> DrainResult {
+  private func drainAvailableWork(
+    pacer: BackgroundEmbeddingPacer?
+  ) async throws -> DrainResult {
     let initialSnapshot = Container.shared.embeddingWorkDemand().snapshot()
     let ids = try await episodeIDsNeedingWork(
       verifiedBefore: initialSnapshot.fullRefreshStartedAt
@@ -237,7 +245,8 @@ struct EmbeddingProcessor: Sendable {
       Self.log.info("Processing \(ids.count) episodes for embeddings")
       try await EmbeddingService.upsertEpisodeEmbeddings(
         forIDs: ids,
-        embedding: contextualEmbedding
+        embedding: contextualEmbedding,
+        pacer: pacer
       )
     }
 
