@@ -16,7 +16,9 @@ struct SmartListConditionRow: View {
           .buttonStyle(.borderless)
         Picker("Condition", selection: $condition.kind) {
           ForEach(EditableCondition.Kind.allCases, id: \.self) { kind in
-            Text(kind.label).tag(kind)
+            Text(kind.label)
+              .tag(kind)
+              .accessibilityLabel(kind.accessibilityLabel)
           }
         }
         .labelsHidden()
