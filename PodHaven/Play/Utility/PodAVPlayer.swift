@@ -11,9 +11,10 @@ extension Container {
     Factory(self) { PodAVPlayer() }.scope(.cached)
   }
 
-  var loadEpisodeAsset: Factory<(_ asset: AVURLAsset) async throws -> EpisodeAsset> {
+  var loadEpisodeAsset: Factory<(@concurrent (_ url: URL) async throws -> EpisodeAsset)> {
     Factory(self) {
-      { asset in
+      { @concurrent url in
+        let asset = AVURLAsset(url: url)
         let (isPlayable, duration) = try await asset.load(.isPlayable, .duration)
         return await EpisodeAsset(
           isPlayable: isPlayable,
@@ -50,6 +51,17 @@ struct PodAVPlayerEvent<Value: Sendable>: Sendable {
   let value: Value
 }
 
+enum PodAVPlayerItemStatus: Equatable, Sendable {
+  enum Failure: Equatable, Sendable {
+    case mediaServicesWereReset
+    case other
+  }
+
+  case failed(Failure)
+  case readyToPlay
+  case unknown
+}
+
 struct PodAVPlayerPlaybackSnapshot {
   let currentTime: CMTime
   let episodeID: Episode.ID?
@@ -61,6 +73,11 @@ struct PodAVPlayerPlaybackSnapshot {
 }
 
 @MainActor class PodAVPlayer {
+  private enum EpisodeAssetSource: String {
+    case cache
+    case remote
+  }
+
   @DynamicInjected(\.avPlayer) private var avPlayer
   @DynamicInjected(\.cacheFileStore) private var cacheFileStore
   @DynamicInjected(\.cacheManager) private var cacheManager
@@ -89,14 +106,14 @@ struct PodAVPlayerPlaybackSnapshot {
   }
 
   let currentTimeStream: AsyncStream<PodAVPlayerEvent<CMTime>>
-  let itemStatusStream: AsyncStream<PodAVPlayerEvent<AVPlayerItem.Status>>
+  let itemStatusStream: AsyncStream<PodAVPlayerEvent<PodAVPlayerItemStatus>>
   let controlStatusStream: AsyncStream<PodAVPlayerEvent<PlaybackStatus>>
   let rateStream: AsyncStream<PodAVPlayerEvent<Float>>
   let didPlayToEndStream: AsyncStream<PodAVPlayerEventSource>
 
   private let currentTimeContinuation: AsyncStream<PodAVPlayerEvent<CMTime>>.Continuation
   private let itemStatusContinuation:
-    AsyncStream<PodAVPlayerEvent<AVPlayerItem.Status>>.Continuation
+    AsyncStream<PodAVPlayerEvent<PodAVPlayerItemStatus>>.Continuation
   private let controlStatusContinuation: AsyncStream<PodAVPlayerEvent<PlaybackStatus>>.Continuation
   private let rateContinuation: AsyncStream<PodAVPlayerEvent<Float>>.Continuation
   private let didPlayToEndContinuation: AsyncStream<PodAVPlayerEventSource>.Continuation
@@ -114,7 +131,7 @@ struct PodAVPlayerPlaybackSnapshot {
       of: PodAVPlayerEvent<CMTime>.self
     )
     (itemStatusStream, itemStatusContinuation) = AsyncStream.makeStream(
-      of: PodAVPlayerEvent<AVPlayerItem.Status>.self
+      of: PodAVPlayerEvent<PodAVPlayerItemStatus>.self
     )
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: PodAVPlayerEvent<PlaybackStatus>.self
@@ -129,10 +146,16 @@ struct PodAVPlayerPlaybackSnapshot {
 
   // MARK: - Loading
 
-  func load(_ podcastEpisode: PodcastEpisode) async throws -> PodcastEpisode {
+  func load(
+    _ podcastEpisode: PodcastEpisode,
+    mediaServicesResetElapsed: TimeInterval? = nil
+  ) async throws -> PodcastEpisode {
     Self.log.debug("load: \(podcastEpisode.toString)")
 
-    let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
+    let (podcastEpisode, playableItem) = try await loadAsset(
+      for: podcastEpisode,
+      mediaServicesResetElapsed: mediaServicesResetElapsed
+    )
     try Task.checkCancellation()
     lastDatabaseUpdateTime = podcastEpisode.currentTime
     bind(playableItem, to: podcastEpisode.id)
@@ -150,12 +173,18 @@ struct PodAVPlayerPlaybackSnapshot {
     avPlayer.replaceCurrent(with: playableItem)
   }
 
-  private func loadAsset(for podcastEpisode: PodcastEpisode) async throws
+  private func loadAsset(
+    for podcastEpisode: PodcastEpisode,
+    mediaServicesResetElapsed: TimeInterval?
+  ) async throws
     -> (podcastEpisode: PodcastEpisode, playableItem: any AVPlayableItem)
   {
     Self.log.debug("loadAsset: \(podcastEpisode.toString)")
 
-    let episodeAsset: EpisodeAsset = try await performLoadAsset(for: podcastEpisode)
+    let episodeAsset: EpisodeAsset = try await performLoadAsset(
+      for: podcastEpisode,
+      mediaServicesResetElapsed: mediaServicesResetElapsed
+    )
 
     guard episodeAsset.isPlayable else {
       throw PodAVPlayerError.notPlayable(
@@ -179,18 +208,29 @@ struct PodAVPlayerPlaybackSnapshot {
 
     return (updatedPodcastEpisode, episodeAsset.playerItem())
   }
-  private func performLoadAsset(for podcastEpisode: PodcastEpisode) async throws
+  private func performLoadAsset(
+    for podcastEpisode: PodcastEpisode,
+    mediaServicesResetElapsed: TimeInterval?
+  ) async throws
     -> EpisodeAsset
   {
     guard let cachedURL = podcastEpisode.episode.cachedURL else {
       Self.log.debug("performLoadAsset: loading from remote (no cache)")
-      return try await loadEpisodeAsset(
-        AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
+      return try await performEpisodeAssetLoad(
+        from: podcastEpisode.episode.mediaURL.rawValue,
+        source: .remote,
+        episodeID: podcastEpisode.id,
+        mediaServicesResetElapsed: mediaServicesResetElapsed
       )
     }
     do {
       Self.log.debug("performLoadAsset: loading from cache: \(cachedURL)")
-      return try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
+      return try await performEpisodeAssetLoad(
+        from: cachedURL.rawValue,
+        source: .cache,
+        episodeID: podcastEpisode.id,
+        mediaServicesResetElapsed: mediaServicesResetElapsed
+      )
     } catch is CancellationError {
       throw CancellationError()
     } catch {
@@ -220,9 +260,42 @@ struct PodAVPlayerPlaybackSnapshot {
           error
         )
       }
-      return try await loadEpisodeAsset(
-        AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
+      return try await performEpisodeAssetLoad(
+        from: podcastEpisode.episode.mediaURL.rawValue,
+        source: .remote,
+        episodeID: podcastEpisode.id,
+        mediaServicesResetElapsed: mediaServicesResetElapsed
       )
+    }
+  }
+
+  private func performEpisodeAssetLoad(
+    from url: URL,
+    source: EpisodeAssetSource,
+    episodeID: Episode.ID,
+    mediaServicesResetElapsed: TimeInterval?
+  ) async throws -> EpisodeAsset {
+    guard let mediaServicesResetElapsed else {
+      return try await loadEpisodeAsset(url)
+    }
+
+    let startedAt = Date()
+    Self.log.warning(
+      "event=mediaServicesRecoveryAssetLoad phase=started episodeID=\(episodeID) source=\(source.rawValue) resetElapsedSeconds=\(mediaServicesResetElapsed)"
+    )
+    do {
+      let asset = try await loadEpisodeAsset(url)
+      Self.log.warning(
+        "event=mediaServicesRecoveryAssetLoad phase=completed outcome=succeeded episodeID=\(episodeID) source=\(source.rawValue) resetElapsedSeconds=\(mediaServicesResetElapsed) durationSeconds=\(Date().timeIntervalSince(startedAt))"
+      )
+      return asset
+    } catch {
+      Self.log.caughtError(
+        "event=mediaServicesRecoveryAssetLoad phase=completed outcome=failed episodeID=\(episodeID) source=\(source.rawValue) resetElapsedSeconds=\(mediaServicesResetElapsed) durationSeconds=\(Date().timeIntervalSince(startedAt))",
+        error,
+        level: .warning
+      )
+      throw error
     }
   }
 
@@ -298,7 +371,10 @@ struct PodAVPlayerPlaybackSnapshot {
 
     let playableItem: any AVPlayableItem
     do {
-      (_, playableItem) = try await loadAsset(for: podcastEpisode)
+      (_, playableItem) = try await loadAsset(
+        for: podcastEpisode,
+        mediaServicesResetElapsed: nil
+      )
     } catch {
       Self.log.caughtError(
         "swapToCached: failed to load cached asset for \(podcastEpisode.toString)",
@@ -482,22 +558,32 @@ struct PodAVPlayerPlaybackSnapshot {
     guard itemStatusObserver == nil else { return }
 
     guard let currentItem = avPlayer.current, let eventSource else { return }
-    let avPlayerItem = currentItem as? AVPlayerItem
     itemStatusObserver = currentItem.observeStatus(options: [.initial, .new]) {
-      [weak self, avPlayerItem, eventSource] status in
+      [weak self, eventSource] status, error in
       guard let self else { return }
 
+      let itemStatus: PodAVPlayerItemStatus
       switch status {
       case .unknown:
         Self.log.debug("AVPlayerItem status: unknown for episode \(eventSource.episodeID)")
+        itemStatus = .unknown
       case .readyToPlay:
         Self.log.debug("AVPlayerItem status: readyToPlay for episode \(eventSource.episodeID)")
+        itemStatus = .readyToPlay
       case .failed:
-        if let error = avPlayerItem?.error {
+        if let error {
           Self.log.caughtError(
             "AVPlayerItem status: failed for episode \(eventSource.episodeID)",
             error
           )
+          let nsError = error as NSError
+          if nsError.domain == AVFoundationErrorDomain,
+            nsError.code == AVError.Code.mediaServicesWereReset.rawValue
+          {
+            itemStatus = .failed(.mediaServicesWereReset)
+          } else {
+            itemStatus = .failed(.other)
+          }
         } else {
           Self.log.error(
             """
@@ -505,12 +591,14 @@ struct PodAVPlayerPlaybackSnapshot {
             (no error details)
             """
           )
+          itemStatus = .failed(.other)
         }
       @unknown default:
         Self.log.warning("AVPlayerItem status: unknown value (\(status.rawValue))")
+        itemStatus = .unknown
       }
 
-      itemStatusContinuation.yield(PodAVPlayerEvent(source: eventSource, value: status))
+      itemStatusContinuation.yield(PodAVPlayerEvent(source: eventSource, value: itemStatus))
     }
   }
 
