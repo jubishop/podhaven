@@ -70,7 +70,8 @@ struct EmbeddingProcessor: Sendable {
       identifier: Self.backgroundTaskIdentifier,
       cadence: .minutes(1),
       taskType: .processing(requiresNetworkConnectivity: false),
-      schedulingMode: .onDemand { Container.shared.embeddingWorkDemand().hasWork }
+      schedulingMode: .onDemand { Container.shared.embeddingWorkDemand().hasWork },
+      expirationBehavior: .awaitCancellation
     )
   }
 
@@ -88,7 +89,13 @@ struct EmbeddingProcessor: Sendable {
       }
 
       do {
-        let result = try await drainAvailableWork(mode: .background)
+        let result = try await drainAvailableWork(
+          mode: .background,
+          pacer: BackgroundEmbeddingPacer(
+            clockNow: continuousClockNow,
+            sleeper: sleeper
+          )
+        )
         logWorkSlice(result, mode: .background)
         complete(true)
       } catch is CancellationError {
@@ -192,7 +199,7 @@ struct EmbeddingProcessor: Sendable {
     drainDebounce {
       do {
         try await contextualEmbedding.assetsLoaded.wait()
-        let result = try await drainAvailableWork(mode: .foreground)
+        let result = try await drainAvailableWork(mode: .foreground, pacer: nil)
         logWorkSlice(result, mode: .foreground)
         if result.state == .pending, processingMode() == .foreground {
           scheduleDrain()
@@ -237,7 +244,10 @@ struct EmbeddingProcessor: Sendable {
   }
 
   @discardableResult
-  private func drainAvailableWork(mode: ProcessingMode) async throws -> DrainResult {
+  private func drainAvailableWork(
+    mode: ProcessingMode,
+    pacer: BackgroundEmbeddingPacer?
+  ) async throws -> DrainResult {
     let startedAt = continuousClockNow()
     let acquiredOwnership = drainOwnership { ownership in
       switch ownership {
@@ -293,7 +303,8 @@ struct EmbeddingProcessor: Sendable {
       Self.log.info("Processing \(ids.count) episodes for embeddings")
       let result = try await EmbeddingService.upsertEpisodeEmbeddings(
         forIDs: ids,
-        embedding: contextualEmbedding
+        embedding: contextualEmbedding,
+        pacer: pacer
       )
       failedEpisodeCount = result.failedEpisodeCount
     }

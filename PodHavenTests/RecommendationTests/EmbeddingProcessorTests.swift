@@ -202,6 +202,51 @@ class EmbeddingProcessorTests {
     #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
   }
 
+  @Test("expiration during flush preserves completed embeddings")
+  func expirationDuringFlushPreservesCompletedEmbeddings() async throws {
+    let fakeBGTaskScheduler = self.fakeBGTaskScheduler
+    let fakeRecommendationRepo = try #require(
+      recommendationRepo as? FakeRecommendationRepo
+    )
+    let workDemand = embeddingWorkDemand
+    let processor = EmbeddingProcessor()
+    processor.register()
+    try await waitForNoPendingBackgroundRequest()
+
+    let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Expiration During Flush"
+    )
+    let episode = try #require(episodes.first)
+    fakeRecommendationRepo.armEmbeddingUpsertGate()
+    defer { fakeRecommendationRepo.releaseEmbeddingUpsertGate() }
+
+    processor.workBecameAvailable()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers.count == 1 },
+      { "Embedding work did not schedule its background request" }
+    )
+    let identifier = try #require(fakeBGTaskScheduler.pendingIdentifiers.first)
+    let task = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { fakeRecommendationRepo.isEmbeddingUpsertGateSuspended },
+      { "Embedding background task did not reach its suspended upsert" }
+    )
+
+    task.expire()
+    fakeRecommendationRepo.releaseEmbeddingUpsertGate()
+
+    try await Wait.until(
+      { task.completionResults == [false] },
+      { "Expired embedding task did not finish cancellation cleanup" }
+    )
+    #expect(try await recommendationRepo.embedding(for: episode.id) != nil)
+    #expect(workDemand.hasWork)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
+  }
+
   @Test("expired forced refresh resumes after completed slices")
   func expiredForcedRefreshResumesAfterCompletedSlices() async throws {
     let fakeBGTaskScheduler = self.fakeBGTaskScheduler
