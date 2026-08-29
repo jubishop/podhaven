@@ -162,6 +162,76 @@ class EmbeddingProcessorWorkSliceTests {
     processor.handleScenePhaseChange(to: .background)
   }
 
+  @Test("foreground handoff does not overlap a running background slice")
+  func foregroundHandoffDoesNotOverlapRunningBackgroundSlice() async throws {
+    let fakeBGTaskScheduler = self.fakeBGTaskScheduler
+    let fakeRecommendationRepo = try #require(
+      recommendationRepo as? FakeRecommendationRepo
+    )
+    let fakeSleeper = try #require(Container.shared.sleeper() as? FakeSleeper)
+    let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 1,
+      podcastTitle: "Foreground Background Handoff"
+    )
+    let episode = try #require(episodes.first)
+
+    let processor = EmbeddingProcessor()
+    processor.register()
+    try await Wait.until(
+      { fakeBGTaskScheduler.pendingIdentifiers.count == 1 },
+      { "Embedding work did not schedule its background request" }
+    )
+    let identifier = try #require(fakeBGTaskScheduler.pendingIdentifiers.first)
+    fakeRecommendationRepo.armEmbeddingsGate(matching: [episode.id])
+    defer { fakeRecommendationRepo.releaseEmbeddingsGate() }
+
+    let task = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { fakeRecommendationRepo.isEmbeddingsGateSuspended },
+      { "Background slice did not reach its repository gate" }
+    )
+
+    fakeRecommendationRepo.clearAllCalls()
+    let captured = try await LogCapture.withSink { sink in
+      processor.handleScenePhaseChange(to: .active)
+      try await fakeSleeper.waitForSleepRequests(for: .seconds(5))
+      await fakeSleeper.advanceTime(by: .seconds(5))
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("event=embeddingWorkSliceCompleted")
+                && $0.message.contains("mode=foreground")
+                && $0.message.contains("state=deferred")
+            }
+        },
+        { "Foreground drain did not defer to the running background slice" }
+      )
+      return sink.captured()
+    }
+    #expect(
+      captured.contains {
+        $0.message.contains("mode=foreground")
+          && $0.message.contains("state=deferred")
+      }
+    )
+
+    let foregroundHydrationCalls =
+      fakeRecommendationRepo
+      .calls(of: MethodCall<[Episode.ID]>.self)
+      .filter { $0.methodName == "episodes" }
+    #expect(foregroundHydrationCalls.isEmpty)
+
+    fakeRecommendationRepo.releaseEmbeddingsGate()
+    try await Wait.until(
+      { task.completionResults == [true] },
+      { "Background slice did not complete after its repository gate opened" }
+    )
+    processor.handleScenePhaseChange(to: .background)
+  }
+
   private func waitForEmbeddings(of episodes: [Episode], reason: String) async throws {
     let recommendationRepo = self.recommendationRepo
     let revision = contextualEmbedding.revision

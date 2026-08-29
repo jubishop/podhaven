@@ -44,8 +44,15 @@ struct EmbeddingProcessor: Sendable {
   }
 
   private enum DrainState: String, Sendable {
+    case deferred
     case empty
     case pending
+  }
+
+  private enum DrainOwnership: Sendable {
+    case available
+    case held
+    case heldWithForegroundRetry
   }
 
   private struct DrainResult: Sendable {
@@ -56,6 +63,7 @@ struct EmbeddingProcessor: Sendable {
   }
 
   private let processingMode = ThreadSafe(ProcessingMode.background)
+  private let drainOwnership = ThreadSafe(DrainOwnership.available)
 
   init() {
     backgroundTaskScheduler = BackgroundTaskScheduler(
@@ -80,7 +88,7 @@ struct EmbeddingProcessor: Sendable {
       }
 
       do {
-        let result = try await drainAvailableWork()
+        let result = try await drainAvailableWork(mode: .background)
         logWorkSlice(result, mode: .background)
         complete(true)
       } catch is CancellationError {
@@ -184,7 +192,7 @@ struct EmbeddingProcessor: Sendable {
     drainDebounce {
       do {
         try await contextualEmbedding.assetsLoaded.wait()
-        let result = try await drainAvailableWork()
+        let result = try await drainAvailableWork(mode: .foreground)
         logWorkSlice(result, mode: .foreground)
         if result.state == .pending, processingMode() == .foreground {
           scheduleDrain()
@@ -229,8 +237,48 @@ struct EmbeddingProcessor: Sendable {
   }
 
   @discardableResult
-  private func drainAvailableWork() async throws -> DrainResult {
+  private func drainAvailableWork(mode: ProcessingMode) async throws -> DrainResult {
     let startedAt = continuousClockNow()
+    let acquiredOwnership = drainOwnership { ownership in
+      switch ownership {
+      case .available:
+        ownership = .held
+        return true
+      case .held:
+        if mode == .foreground {
+          ownership = .heldWithForegroundRetry
+        }
+        return false
+      case .heldWithForegroundRetry:
+        return false
+      }
+    }
+    guard acquiredOwnership else {
+      return DrainResult(
+        state: .deferred,
+        processedCount: 0,
+        failedEpisodeCount: 0,
+        duration: continuousClockNow() - startedAt
+      )
+    }
+    defer {
+      let needsForegroundRetry = drainOwnership { ownership in
+        switch ownership {
+        case .held:
+          ownership = .available
+          return false
+        case .heldWithForegroundRetry:
+          ownership = .available
+          return true
+        case .available:
+          Assert.fatal("Embedding drain ownership released while already available")
+        }
+      }
+      if needsForegroundRetry, processingMode() == .foreground {
+        scheduleDrain()
+      }
+    }
+
     let initialSnapshot = Container.shared.embeddingWorkDemand().snapshot()
     let ids = try await episodeIDsNeedingWork(
       verifiedBefore: initialSnapshot.fullRefreshStartedAt,
