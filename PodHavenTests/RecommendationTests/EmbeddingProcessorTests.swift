@@ -247,14 +247,14 @@ class EmbeddingProcessorTests {
     #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
   }
 
-  @Test("expired forced refresh resumes after completed chunks")
-  func expiredForcedRefreshResumesAfterCompletedChunks() async throws {
+  @Test("expired forced refresh resumes after completed slices")
+  func expiredForcedRefreshResumesAfterCompletedSlices() async throws {
     let fakeBGTaskScheduler = self.fakeBGTaskScheduler
     let fakeRecommendationRepo = try #require(
       recommendationRepo as? FakeRecommendationRepo
     )
     let (_, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
-      count: 65,
+      count: 17,
       podcastTitle: "Resumable Forced Refresh"
     )
     try await RecommendationHelpers.embedEpisodes(episodes)
@@ -271,9 +271,7 @@ class EmbeddingProcessorTests {
       verifiedBefore: refreshStartedAt
     )
     #expect(orderedIDs.count == episodes.count)
-    let finalChunk = Set(orderedIDs.suffix(1))
-    fakeRecommendationRepo.clearAllCalls()
-    fakeRecommendationRepo.armEmbeddingsGate(matching: finalChunk)
+    let finalSlice = Set(orderedIDs.suffix(1))
 
     let processor = EmbeddingProcessor()
     processor.register()
@@ -282,18 +280,30 @@ class EmbeddingProcessorTests {
       { "Forced refresh did not schedule its background request" }
     )
     let identifier = try #require(fakeBGTaskScheduler.pendingIdentifiers.first)
-    let firstTask = try #require(
+    let completedSliceTask = try #require(
+      fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
+    )
+    try await Wait.until(
+      { completedSliceTask.completionResults == [true] },
+      { "Forced refresh did not complete its first bounded slice" }
+    )
+    #expect(workDemand.snapshot().fullRefreshStartedAt == refreshStartedAt)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
+
+    fakeRecommendationRepo.clearAllCalls()
+    fakeRecommendationRepo.armEmbeddingsGate(matching: finalSlice)
+    let expiringTask = try #require(
       fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
     )
     try await Wait.until(
       { fakeRecommendationRepo.isEmbeddingsGateSuspended },
-      { "Forced refresh did not reach its final chunk" }
+      { "Forced refresh did not reach its final slice" }
     )
 
-    firstTask.expire()
+    expiringTask.expire()
     fakeRecommendationRepo.releaseEmbeddingsGate()
     try await Wait.until(
-      { firstTask.completionResults == [false] },
+      { expiringTask.completionResults == [false] },
       { "Expired forced refresh did not complete unsuccessfully" }
     )
     #expect(workDemand.hasWork)
@@ -303,7 +313,7 @@ class EmbeddingProcessorTests {
     let resumedDemand = Container.shared.embeddingWorkDemand()
     #expect(resumedDemand.snapshot().fullRefreshStartedAt == refreshStartedAt)
     fakeRecommendationRepo.clearAllCalls()
-    fakeRecommendationRepo.armEmbeddingsGate(matching: finalChunk)
+    fakeRecommendationRepo.armEmbeddingsGate(matching: finalSlice)
     let retryTask = try #require(
       fakeBGTaskScheduler.launchTask(withIdentifier: identifier)
     )
@@ -324,7 +334,7 @@ class EmbeddingProcessorTests {
       { "Expired forced refresh retry did not complete unsuccessfully" }
     )
 
-    #expect(Set(firstRetryCall.parameters) == finalChunk)
+    #expect(Set(firstRetryCall.parameters) == finalSlice)
   }
 
   @Test("an episode edited during embedding remains eligible for a fresh pass")

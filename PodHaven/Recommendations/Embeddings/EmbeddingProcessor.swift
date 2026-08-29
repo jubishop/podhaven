@@ -31,22 +31,39 @@ struct EmbeddingProcessor: Sendable {
   private static let log = Log.as(LogSubsystem.Recommendations.processor)
 
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).embeddingComputation"
+  private static let workSliceSize = 16
+  private static let slowWorkSliceThreshold: Duration = .seconds(20)
 
   private let backgroundTaskScheduler: BackgroundTaskScheduler
   private let foregroundTask = ThreadSafe<Task<Void, Never>?>(nil)
   private let registrationReconciliationOnce = Once()
 
-  private enum ProcessingMode: Sendable {
+  private enum ProcessingMode: String, Sendable {
     case foreground
     case background
   }
 
-  private enum DrainResult {
-    case empty(processedCount: Int)
-    case pending(processedCount: Int)
+  private enum DrainState: String, Sendable {
+    case deferred
+    case empty
+    case pending
+  }
+
+  private enum DrainOwnership: Sendable {
+    case available
+    case held
+    case heldWithForegroundRetry
+  }
+
+  private struct DrainResult: Sendable {
+    let state: DrainState
+    let processedCount: Int
+    let failedEpisodeCount: Int
+    let duration: Duration
   }
 
   private let processingMode = ThreadSafe(ProcessingMode.background)
+  private let drainOwnership = ThreadSafe(DrainOwnership.available)
 
   init() {
     backgroundTaskScheduler = BackgroundTaskScheduler(
@@ -73,21 +90,13 @@ struct EmbeddingProcessor: Sendable {
 
       do {
         let result = try await drainAvailableWork(
+          mode: .background,
           pacer: BackgroundEmbeddingPacer(
             clockNow: continuousClockNow,
             sleeper: sleeper
           )
         )
-        switch result {
-        case .empty(let processedCount):
-          Self.log.info(
-            "Embedding background task drained \(processedCount) episodes"
-          )
-        case .pending(let processedCount):
-          Self.log.info(
-            "Embedding background task processed \(processedCount) episodes with work remaining"
-          )
-        }
+        logWorkSlice(result, mode: .background)
         complete(true)
       } catch is CancellationError {
         Self.log.info("Embedding background task cancelled (expired)")
@@ -190,7 +199,11 @@ struct EmbeddingProcessor: Sendable {
     drainDebounce {
       do {
         try await contextualEmbedding.assetsLoaded.wait()
-        try await drainAvailableWork(pacer: nil)
+        let result = try await drainAvailableWork(mode: .foreground, pacer: nil)
+        logWorkSlice(result, mode: .foreground)
+        if result.state == .pending, processingMode() == .foreground {
+          scheduleDrain()
+        }
       } catch is CancellationError {
         // Superseded by a newer trigger or backgrounded mid-drain; the next
         // foreground pass re-queries any remaining work.
@@ -215,7 +228,8 @@ struct EmbeddingProcessor: Sendable {
     let snapshot = Container.shared.embeddingWorkDemand().snapshot()
     do {
       let ids = try await episodeIDsNeedingWork(
-        verifiedBefore: snapshot.fullRefreshStartedAt
+        verifiedBefore: snapshot.fullRefreshStartedAt,
+        limit: 1
       )
       if ids.isEmpty {
         Container.shared.embeddingWorkDemand().clear(ifUnchanged: snapshot)
@@ -231,52 +245,141 @@ struct EmbeddingProcessor: Sendable {
 
   @discardableResult
   private func drainAvailableWork(
+    mode: ProcessingMode,
     pacer: BackgroundEmbeddingPacer?
   ) async throws -> DrainResult {
+    let startedAt = continuousClockNow()
+    let acquiredOwnership = drainOwnership { ownership in
+      switch ownership {
+      case .available:
+        ownership = .held
+        return true
+      case .held:
+        if mode == .foreground {
+          ownership = .heldWithForegroundRetry
+        }
+        return false
+      case .heldWithForegroundRetry:
+        return false
+      }
+    }
+    guard acquiredOwnership else {
+      return DrainResult(
+        state: .deferred,
+        processedCount: 0,
+        failedEpisodeCount: 0,
+        duration: continuousClockNow() - startedAt
+      )
+    }
+    defer {
+      let needsForegroundRetry = drainOwnership { ownership in
+        switch ownership {
+        case .held:
+          ownership = .available
+          return false
+        case .heldWithForegroundRetry:
+          ownership = .available
+          return true
+        case .available:
+          Assert.fatal("Embedding drain ownership released while already available")
+        }
+      }
+      if needsForegroundRetry, processingMode() == .foreground {
+        scheduleDrain()
+      }
+    }
+
     let initialSnapshot = Container.shared.embeddingWorkDemand().snapshot()
     let ids = try await episodeIDsNeedingWork(
-      verifiedBefore: initialSnapshot.fullRefreshStartedAt
+      verifiedBefore: initialSnapshot.fullRefreshStartedAt,
+      limit: Self.workSliceSize
     )
     var clearingSnapshot = initialSnapshot
+    var failedEpisodeCount = 0
 
     if !ids.isEmpty {
       Container.shared.embeddingWorkDemand().ensureAvailable()
       clearingSnapshot = Container.shared.embeddingWorkDemand().snapshot()
       Self.log.info("Processing \(ids.count) episodes for embeddings")
-      try await EmbeddingService.upsertEpisodeEmbeddings(
+      let result = try await EmbeddingService.upsertEpisodeEmbeddings(
         forIDs: ids,
         embedding: contextualEmbedding,
         pacer: pacer
       )
+      failedEpisodeCount = result.failedEpisodeCount
     }
 
     try Task.checkCancellation()
 
     if initialSnapshot.requiresFullRefresh {
+      let forcedRefreshRemaining = try await episodeIDsNeedingWork(
+        verifiedBefore: initialSnapshot.fullRefreshStartedAt,
+        limit: 1
+      )
+      guard forcedRefreshRemaining.isEmpty else {
+        Container.shared.embeddingWorkDemand().ensureAvailable()
+        return DrainResult(
+          state: .pending,
+          processedCount: ids.count,
+          failedEpisodeCount: failedEpisodeCount,
+          duration: continuousClockNow() - startedAt
+        )
+      }
       Container.shared.embeddingWorkDemand().markPipelineRefreshCompleted()
     }
 
-    let remaining = try await episodeIDsNeedingWork(verifiedBefore: nil)
+    let remaining = try await episodeIDsNeedingWork(verifiedBefore: nil, limit: 1)
     guard remaining.isEmpty else {
       Container.shared.embeddingWorkDemand().ensureAvailable()
-      return .pending(processedCount: ids.count)
+      return DrainResult(
+        state: .pending,
+        processedCount: ids.count,
+        failedEpisodeCount: failedEpisodeCount,
+        duration: continuousClockNow() - startedAt
+      )
     }
     guard Container.shared.embeddingWorkDemand().clear(ifUnchanged: clearingSnapshot) else {
-      return .pending(processedCount: ids.count)
+      return DrainResult(
+        state: .pending,
+        processedCount: ids.count,
+        failedEpisodeCount: failedEpisodeCount,
+        duration: continuousClockNow() - startedAt
+      )
     }
 
     backgroundTaskScheduler.scheduleNext()
-    return .empty(processedCount: ids.count)
+    return DrainResult(
+      state: .empty,
+      processedCount: ids.count,
+      failedEpisodeCount: failedEpisodeCount,
+      duration: continuousClockNow() - startedAt
+    )
   }
 
-  private func episodeIDsNeedingWork(verifiedBefore: Date?) async throws -> [Episode.ID] {
+  private func logWorkSlice(_ result: DrainResult, mode: ProcessingMode) {
+    let message: Logger.Message = """
+      event=embeddingWorkSliceCompleted mode=\(mode.rawValue) \
+      state=\(result.state.rawValue) processedCount=\(result.processedCount) \
+      failedEpisodeCount=\(result.failedEpisodeCount) \
+      wallSeconds=\(result.duration.asTimeInterval)
+      """
+    let level: Logger.Level =
+      result.duration >= Self.slowWorkSliceThreshold ? .warning : .info
+    Self.log.log(level: level, message)
+  }
+
+  private func episodeIDsNeedingWork(
+    verifiedBefore: Date?,
+    limit: Int
+  ) async throws -> [Episode.ID] {
     let queryStart = continuousClockNow()
     let ids = try await recommendationRepo.episodesNeedingEmbeddings(
       pipelineVersion: EmbeddingPipelineVersion(
         embeddingRevision: contextualEmbedding.revision,
         recipeVersion: EmbeddingService.recipeVersion
       ),
-      verifiedBefore: verifiedBefore
+      verifiedBefore: verifiedBefore,
+      limit: limit
     )
     let queryDuration = continuousClockNow() - queryStart
     Self.log.debug(
