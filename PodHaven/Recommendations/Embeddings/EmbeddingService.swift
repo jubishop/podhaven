@@ -382,6 +382,12 @@ enum EmbeddingService {
         } catch let error as CancellationError {
           caughtCancellation = error
           break
+        } catch {
+          return ChunkResult(
+            failedEpisodeCount: failedEpisodeCount,
+            state: state,
+            outcome: .failed(error)
+          )
         }
       } else {
         workStartedAt = nil
