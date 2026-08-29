@@ -58,6 +58,8 @@ import Testing
         for: podcastEpisode.episode.mediaURL
       )
       let initialActivationCount = await audioSession.activeCalls.filter(\.self).count
+      let resetAt = Date(timeIntervalSince1970: 1_800_000_000)
+      Container.shared.fakeDate().freeze(at: resetAt)
 
       notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
         .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
@@ -103,6 +105,7 @@ import Testing
         }
       #expect(telemetry.count == 1)
 
+      Container.shared.fakeDate().freeze(at: resetAt.addingTimeInterval(2))
       await playManager.play()
       try await PlayHelpers.waitFor(.playing)
       try await PlayHelpers.waitFor(resumeTime)
@@ -114,6 +117,33 @@ import Testing
       try await Wait.until(
         { await audioSession.activeCalls.filter(\.self).count == initialActivationCount + 1 },
         { "Expected user-initiated load to reactivate the audio session" }
+      )
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("event=mediaServicesRecoveryAssetLoad")
+                && $0.message.contains("phase=completed")
+            }
+        },
+        { "Expected media-services recovery asset-load telemetry" }
+      )
+      let assetLoadTelemetry = sink.captured()
+        .filter {
+          $0.level == .warning
+            && $0.message.contains("event=mediaServicesRecoveryAssetLoad")
+            && $0.message.contains("episodeID=\(podcastEpisode.id)")
+            && $0.message.contains("source=remote")
+            && $0.message.contains("resetElapsedSeconds=2.0")
+        }
+      #expect(assetLoadTelemetry.count == 2)
+      #expect(assetLoadTelemetry.contains { $0.message.contains("phase=started") })
+      #expect(
+        assetLoadTelemetry.contains {
+          $0.message.contains("phase=completed")
+            && $0.message.contains("outcome=succeeded")
+            && $0.message.contains("durationSeconds=")
+        }
       )
     }
   }
@@ -502,6 +532,54 @@ import Testing
           == initialLoadCount
       )
       #expect(await audioSession.activeCalls.filter(\.self).count == initialActivationCount)
+    }
+  }
+
+  @Test("media services item failure preserves playback for a repeated reset")
+  func mediaServicesItemFailurePreservesPlaybackForRepeatedReset() async throws {
+    try await LogCapture.withSink { sink in
+      PlayHelpers.setupCommandHandling()
+      await playManager.start()
+      let podcastEpisode = try await Create.podcastEpisode()
+
+      try await PlayHelpers.load(podcastEpisode)
+      try await PlayHelpers.pause()
+      let initialAVPlayer = avPlayer
+      let currentItem = try #require(initialAVPlayer.current as? FakeAVPlayerItem)
+      currentItem.setStatus(
+        .failed,
+        error: NSError(
+          domain: AVFoundationErrorDomain,
+          code: AVError.Code.mediaServicesWereReset.rawValue
+        )
+      )
+
+      try await Wait.until(
+        { @MainActor in
+          sharedState.onDeck == nil
+            || sink.captured()
+              .contains {
+                $0.message.contains("event=mediaServicesResetItemFailure")
+              }
+        },
+        { @MainActor in "Expected the media-services item failure to be handled" }
+      )
+      #expect(sharedState.onDeck?.id == podcastEpisode.id)
+      #expect(sharedState.currentEpisodeID == podcastEpisode.id)
+
+      notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+        .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+
+      try await Wait.until(
+        { await avPlayer != initialAVPlayer },
+        { "Expected new AVPlayer to be created" }
+      )
+      try await PlayHelpers.waitForOnDeck(podcastEpisode)
+      try await PlayHelpers.waitForQueue([podcastEpisode])
+      try await Wait.until(
+        { @MainActor in alert.config?.title == "Audio Services Restarted" },
+        { @MainActor in "Expected an audio-services reset explanation" }
+      )
     }
   }
 
