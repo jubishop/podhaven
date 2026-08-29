@@ -302,7 +302,8 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   func episodesNeedingEmbeddings(
     pipelineVersion: EmbeddingPipelineVersion,
-    verifiedBefore: Date? = nil
+    verifiedBefore: Date? = nil,
+    limit: Int? = nil
   ) async throws -> [Episode.ID] {
     recordCall(
       methodName: "episodesNeedingEmbeddings",
@@ -310,7 +311,8 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     )
     return try await recommendationRepo.episodesNeedingEmbeddings(
       pipelineVersion: pipelineVersion,
-      verifiedBefore: verifiedBefore
+      verifiedBefore: verifiedBefore,
+      limit: limit
     )
   }
 }

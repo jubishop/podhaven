@@ -43,21 +43,35 @@ protocol Recommending: Sendable {
   func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode]
   func episodesNeedingEmbeddings(
     pipelineVersion: EmbeddingPipelineVersion,
-    verifiedBefore: Date?
+    verifiedBefore: Date?,
+    limit: Int?
   ) async throws -> [Episode.ID]
 }
 
 extension Recommending {
   func episodesNeedingEmbeddings(
+    pipelineVersion: EmbeddingPipelineVersion,
+    verifiedBefore: Date?
+  ) async throws -> [Episode.ID] {
+    try await episodesNeedingEmbeddings(
+      pipelineVersion: pipelineVersion,
+      verifiedBefore: verifiedBefore,
+      limit: nil
+    )
+  }
+
+  func episodesNeedingEmbeddings(
     revision: Int,
-    verifiedBefore: Date? = nil
+    verifiedBefore: Date? = nil,
+    limit: Int? = nil
   ) async throws -> [Episode.ID] {
     try await episodesNeedingEmbeddings(
       pipelineVersion: EmbeddingPipelineVersion(
         embeddingRevision: revision,
         recipeVersion: EmbeddingService.recipeVersion
       ),
-      verifiedBefore: verifiedBefore
+      verifiedBefore: verifiedBefore,
+      limit: limit
     )
   }
 }

@@ -504,13 +504,15 @@ struct RecommendationRepo: Recommending {
 
   func episodesNeedingEmbeddings(
     pipelineVersion: EmbeddingPipelineVersion,
-    verifiedBefore: Date? = nil
+    verifiedBefore: Date? = nil,
+    limit: Int? = nil
   ) async throws -> [Episode.ID] {
     try await reader.read { db in
       try Self.episodesNeedingEmbeddings(
         db,
         pipelineVersion: pipelineVersion,
-        verifiedBefore: verifiedBefore
+        verifiedBefore: verifiedBefore,
+        limit: limit
       )
     }
   }
@@ -520,7 +522,8 @@ struct RecommendationRepo: Recommending {
   static func episodesNeedingEmbeddings(
     _ db: Database,
     pipelineVersion: EmbeddingPipelineVersion,
-    verifiedBefore: Date? = nil
+    verifiedBefore: Date? = nil,
+    limit: Int? = nil
   ) throws -> [Episode.ID] {
     let embeddingAlias = TableAlias()
     let failureAlias = TableAlias()
@@ -555,8 +558,8 @@ struct RecommendationRepo: Recommending {
         || embeddingAlias[EpisodeEmbedding.Columns.verificationDate] < verifiedBefore
     }
 
-    return
-      try Episode
+    var request =
+      Episode
       .joining(required: Episode.podcast.aliased(podcastAlias))
       .joining(optional: Episode.embedding.aliased(embeddingAlias))
       .joining(optional: Episode.embeddingFailure.aliased(failureAlias))
@@ -564,7 +567,10 @@ struct RecommendationRepo: Recommending {
       .filter(requiresEmbedding)
       .order(Episode.Columns.pubDate.desc)
       .select(Episode.Columns.id, as: Episode.ID.self)
-      .fetchAll(db)
+    if let limit {
+      request = request.limit(limit)
+    }
+    return try request.fetchAll(db)
   }
 
   // The hash check in EmbeddingService skips embeddings whose cleaned source
