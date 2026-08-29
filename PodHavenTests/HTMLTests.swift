@@ -118,17 +118,10 @@ import UIKit
     #expect(Self.decode("&Mdash;") == "—")
     #expect(Self.decode("&#X2019;") == "’")
 
-    // Adjacent mixed forms are decoded without dropping boundaries.
     #expect(Self.decode("&COPY;&#169;&#x00A9;") == "©©©")
-
-    // Unknown and malformed entities remain byte-for-byte unchanged.
     let malformed = "&unknown; &#; &#xZZ; &#+169; &#x+41; &amp"
     #expect(Self.decode(malformed) == malformed)
-
-    // Preserve numeric decoding that is exposed after decoding an ampersand.
     #expect(Self.decode("&amp;#169; &AMP;#x41;") == "© A")
-
-    // Long plain spans preserve their content around sparse entities.
     let plain = String(repeating: "plain text ", count: 4_096)
     #expect(Self.decode("\(plain)&amp;\(plain)") == "\(plain)&\(plain)")
   }
