@@ -128,6 +128,22 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
+  @Test("episode asset loading begins away from the main thread")
+  func episodeAssetLoadingBeginsAwayFromMainThread() async throws {
+    let ranOnMainThread = ThreadSafe<Bool?>(nil)
+    Container.shared.loadEpisodeAsset.context(.test) {
+      { @concurrent asset in
+        ranOnMainThread(pthread_main_np() != 0)
+        return try await episodeAssetLoader.loadEpisodeAsset(asset)
+      }
+    }
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+
+    #expect(ranOnMainThread() == false)
+  }
+
   @Test("loading an episode sets audio session active")
   func loadingEpisodeSetsAudioSessionActive() async throws {
     await playManager.start()
