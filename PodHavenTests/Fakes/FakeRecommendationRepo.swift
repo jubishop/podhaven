@@ -20,6 +20,10 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   // service tests can verify batch-level failure handling after vector work.
   let embeddingUpsertError = ThreadSafe<(any Error)?>(nil)
 
+  // One-shot failure producer for the next episode hydration. The producer
+  // lets timing tests advance their injected clock before returning the error.
+  let episodeHydrationError = ThreadSafe<(@Sendable () -> any Error)?>(nil)
+
   // One-shot suspend for the next matching `embeddings(for:)` call so tests
   // can interleave state changes with an in-flight scoring pass.
   //
@@ -374,6 +378,13 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode] {
     recordCall(methodName: "episodes", parameters: episodeIDs)
+    if let makeError = episodeHydrationError({ pending in
+      let captured = pending
+      pending = nil
+      return captured
+    }) {
+      throw makeError()
+    }
     return try await recommendationRepo.episodes(for: episodeIDs)
   }
 

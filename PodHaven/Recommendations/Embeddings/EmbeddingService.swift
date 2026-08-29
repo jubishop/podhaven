@@ -137,9 +137,14 @@ enum EmbeddingService {
         let end = min(start + hydrationChunkSize, episodeIDs.count)
         let chunk = Array(episodeIDs[start..<end])
         let verificationDate = Date()
-        let databaseStartedAt = clockNow()
-        let episodes = try await recommendationRepo.episodes(for: chunk)
-        state.metrics.databaseDuration += clockNow() - databaseStartedAt
+        let episodes: [Episode]
+        do {
+          let databaseStartedAt = clockNow()
+          defer {
+            state.metrics.databaseDuration += clockNow() - databaseStartedAt
+          }
+          episodes = try await recommendationRepo.episodes(for: chunk)
+        }
         let result = await upsertEpisodeEmbeddings(
           for: episodes,
           embedding: embedding,
