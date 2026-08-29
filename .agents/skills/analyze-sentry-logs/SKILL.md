@@ -37,20 +37,26 @@ the event's environment unless you have confirmed that tag on log rows. Prefer
 ## Prerequisites
 
 Requires the **`sentry` CLI** ([cli.sentry.dev](https://cli.sentry.dev)) and
-`Sentry auth` (`sentry auth login`). See `analyze-sentry-issue` prerequisites
-for install notes. Do not use the Sentry MCP server.
+Sentry authentication (`sentry auth login`). If either prerequisite is missing,
+stop and report it. Do not install tools or use the Sentry MCP server.
 
 ## Step 1: Fetch logs
 
 Run `.agents/scripts/sentry-cli/fetch_sentry_logs.sh` — it uses
 `sentry log list` and `sentry explore` under the hood:
 
+Create a unique output directory under `/tmp` for the invocation and delete it
+after reporting.
+
 ```bash
-bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh <statsPeriod>
+bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh <statsPeriod> \
+  --out <temporary-output-directory>
 bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh 6h \
-  'user.id:<uuid> severity:[warn,error]'
+  --out <temporary-output-directory> \
+  --query 'user.id:<uuid> severity:[warn,error]'
 bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh 1h \
-  'trace:<trace_id> severity:[warn,error]'
+  --out <temporary-output-directory> \
+  --query 'trace:<trace_id> severity:[warn,error]'
 ```
 
 Where `<statsPeriod>` matches the user's time span (e.g., `10h`, `2d`, `1w`).
@@ -60,12 +66,16 @@ To narrow fetched rows to an incident window (used heavily by
 
 ```bash
 python3 .agents/scripts/sentry-cli/filter_sentry_logs.py \
-  --around-ms <event_epoch_ms> --window-ms 600000 --oneline
+  --input <temporary-output-directory>/detail.json \
+  --output <temporary-output-directory>/filtered.json \
+  --around-ms <event_epoch_ms> --window-ms 1200000 --oneline
 ```
 
 This outputs:
-- `/tmp/sentry_logs_detail.json` — individual log entries (up to 1000 per fetch)
-- `/tmp/sentry_logs_summary.json` — aggregated counts grouped by severity + message
+- `<temporary-output-directory>/detail.json` — individual log entries (up to
+  1000 per fetch)
+- `<temporary-output-directory>/summary.json` — aggregated counts grouped by
+  severity + message
 - A summary table printed to stdout
 
 Present the summary table to the user immediately.
@@ -74,7 +84,7 @@ If you need to inspect individual entries (e.g., timestamps, burst patterns), re
 ```bash
 python3 -c "
 import json
-with open('/tmp/sentry_logs_detail.json') as f:
+with open('<temporary-output-directory>/detail.json') as f:
     for row in json.load(f)['data']:
         print(f\"{row['timestamp']}\t{row['severity']}\t{row['message'][:120]}\")
 "

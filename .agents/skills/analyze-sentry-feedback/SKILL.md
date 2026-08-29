@@ -293,7 +293,9 @@ session.
 ```bash
 bash .agents/scripts/sentry-cli/download_event_attachments.sh \
   --event <event_id> \
-  --dir ~/Library/Caches/analyze-sentry-feedback/<feedback-slug>/
+  --issue-json /tmp/sentry_feedback/issue.json \
+  --dir ~/Library/Caches/analyze-sentry-feedback/<feedback-slug>/ \
+  --all
 ```
 
 The directory name is the path-safe slug from Step 1. Preserve original
