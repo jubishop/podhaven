@@ -159,6 +159,14 @@ extension String {
       let entityRange = index...cursor
       let entity = self[entityRange]
       if let replacement = Self.htmlEntityReplacement(for: entity) {
+        let nextIndex = self.index(after: cursor)
+        if replacement == "&",
+          let nested = Self.numericHTMLEntityReplacement(in: self, startingAt: nextIndex)
+        {
+          output.append(contentsOf: nested.replacement)
+          index = nested.endIndex
+          continue
+        }
         output.append(contentsOf: replacement)
       } else {
         output.append(contentsOf: entity)
@@ -227,10 +235,28 @@ extension String {
     } else {
       radix = 10
     }
+    let validDigits = radix == 16 ? "0123456789abcdef" : "0123456789"
     guard !number.isEmpty,
+      number.allSatisfy(validDigits.contains),
       let value = Int(number, radix: radix),
       let scalar = UnicodeScalar(value)
     else { return nil }
     return String(scalar)
+  }
+
+  private static func numericHTMLEntityReplacement(
+    in text: String,
+    startingAt index: String.Index
+  ) -> (replacement: String, endIndex: String.Index)? {
+    guard index < text.endIndex, text[index] == "#" else { return nil }
+    var cursor = text.index(after: index)
+    while cursor < text.endIndex, text[cursor] != ";", text[cursor] != "&" {
+      cursor = text.index(after: cursor)
+    }
+    guard cursor < text.endIndex, text[cursor] == ";" else { return nil }
+
+    let candidate = "&" + text[index...cursor]
+    guard let replacement = htmlEntityReplacement(for: candidate[...]) else { return nil }
+    return (replacement, text.index(after: cursor))
   }
 }

@@ -122,8 +122,11 @@ import UIKit
     #expect(Self.decode("&COPY;&#169;&#x00A9;") == "©©©")
 
     // Unknown and malformed entities remain byte-for-byte unchanged.
-    let malformed = "&unknown; &#; &#xZZ; &amp"
+    let malformed = "&unknown; &#; &#xZZ; &#+169; &#x+41; &amp"
     #expect(Self.decode(malformed) == malformed)
+
+    // Preserve numeric decoding that is exposed after decoding an ampersand.
+    #expect(Self.decode("&amp;#169; &AMP;#x41;") == "© A")
 
     // Long plain spans preserve their content around sparse entities.
     let plain = String(repeating: "plain text ", count: 4_096)

@@ -19,6 +19,12 @@ enum EmbeddingService {
     let description: String
   }
 
+  private struct PreparedPodcastText: Sendable {
+    let sourceTitle: String
+    let sourceDescription: String
+    let cleaned: CleanedEmbeddingText
+  }
+
   private struct BatchMetrics: Sendable {
     var episodeCount = 0
     var podcastIDs: Set<Podcast.ID> = []
@@ -40,7 +46,7 @@ enum EmbeddingService {
 
   private struct BatchState: Sendable {
     var metrics = BatchMetrics()
-    var cleanedPodcasts: [Podcast.ID: CleanedEmbeddingText] = [:]
+    var preparedPodcasts: [Podcast.ID: PreparedPodcastText] = [:]
     var podcastVectors: [Podcast.ID: [Float]?] = [:]
   }
 
@@ -305,8 +311,17 @@ enum EmbeddingService {
       state.metrics.recordCleanInput(episode.description ?? "")
 
       let cleanedPodcast: CleanedEmbeddingText?
-      if let cached = state.cleanedPodcasts[episode.podcastID] {
-        cleanedPodcast = cached
+      if let podcast,
+        let cached = state.preparedPodcasts[episode.podcastID],
+        cached.sourceTitle == podcast.title,
+        cached.sourceDescription == podcast.description
+      {
+        state.preparedPodcasts[episode.podcastID] = PreparedPodcastText(
+          sourceTitle: podcast.title,
+          sourceDescription: podcast.description,
+          cleaned: cached.cleaned
+        )
+        cleanedPodcast = cached.cleaned
       } else if let podcast {
         let cleaned = CleanedEmbeddingText(
           title: cleanText(podcast.title),
@@ -314,9 +329,16 @@ enum EmbeddingService {
         )
         state.metrics.recordCleanInput(podcast.title)
         state.metrics.recordCleanInput(podcast.description)
-        state.cleanedPodcasts[episode.podcastID] = cleaned
+        state.preparedPodcasts[episode.podcastID] = PreparedPodcastText(
+          sourceTitle: podcast.title,
+          sourceDescription: podcast.description,
+          cleaned: cleaned
+        )
+        state.podcastVectors.removeValue(forKey: episode.podcastID)
         cleanedPodcast = cleaned
       } else {
+        state.preparedPodcasts.removeValue(forKey: episode.podcastID)
+        state.podcastVectors.removeValue(forKey: episode.podcastID)
         cleanedPodcast = nil
       }
       state.metrics.cleaningDuration += clockNow() - cleaningStartedAt

@@ -164,6 +164,46 @@ class EmbeddingServiceTests {
     #expect(telemetry.message.contains("cleanInputs=132"))
   }
 
+  @Test("podcast preparation refreshes when content changes between hydration chunks")
+  func podcastPreparationRefreshesAcrossHydrationChunks() async throws {
+    let (podcast, episodes) = try await RecommendationHelpers.createPodcastWithEpisodes(
+      count: 65,
+      podcastTitle: "Changing Podcast",
+      podcastDescription: "Original podcast description"
+    )
+    let recorder = RecordingEmbeddable()
+    let embedding = await makeContextualEmbedding(recorder)
+    let fakeRecommendationRepo = try #require(recommendationRepo as? FakeRecommendationRepo)
+    fakeRecommendationRepo.armEmbeddingUpsertGate()
+    let embeddingTask = Task {
+      try await EmbeddingService.upsertEpisodeEmbeddings(
+        forIDs: episodes.map(\.id),
+        embedding: embedding
+      )
+    }
+    defer { fakeRecommendationRepo.releaseEmbeddingUpsertGate() }
+
+    try await Wait.until(
+      { fakeRecommendationRepo.isEmbeddingUpsertGateSuspended },
+      { "The first hydration chunk did not reach its embedding write" }
+    )
+    let updatedDescription = "Updated podcast description"
+    _ = try await repo.upsertPodcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try makeUnsavedPodcast(
+          from: podcast,
+          description: updatedDescription
+        ),
+        unsavedEpisode: try #require(episodes.first).toOriginalUnsavedEpisode()
+      )
+    )
+    fakeRecommendationRepo.releaseEmbeddingUpsertGate()
+    let result = try await embeddingTask.value
+
+    #expect(result.failedEpisodeCount == 0)
+    #expect(recorder.seenInputs().contains(updatedDescription))
+  }
+
   @Test("slow embedding batches emit warning telemetry")
   func slowBatchEmitsWarningTelemetry() async throws {
     let podcastEpisode = try await makePodcastEpisode(

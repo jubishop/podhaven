@@ -20,6 +20,15 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   // service tests can verify batch-level failure handling after vector work.
   let embeddingUpsertError = ThreadSafe<(any Error)?>(nil)
 
+  struct EmbeddingUpsertGateState: Sendable {
+    var armed = false
+    var pendingContinuation: CheckedContinuation<Void, Never>?
+    var didSuspend = false
+  }
+  let embeddingUpsertGateState = ThreadSafe<EmbeddingUpsertGateState>(
+    EmbeddingUpsertGateState()
+  )
+
   // One-shot suspend for the next matching `embeddings(for:)` call so tests
   // can interleave state changes with an in-flight scoring pass.
   //
@@ -58,6 +67,28 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   }
 
   // MARK: - Embeddings Gate (test-facing)
+
+  func armEmbeddingUpsertGate() {
+    embeddingUpsertGateState { state in
+      state.armed = true
+      state.didSuspend = false
+    }
+  }
+
+  func releaseEmbeddingUpsertGate() {
+    let continuation = embeddingUpsertGateState { state in
+      let pending = state.pendingContinuation
+      state.pendingContinuation = nil
+      return pending
+    }
+    continuation?.resume()
+  }
+
+  var isEmbeddingUpsertGateSuspended: Bool {
+    embeddingUpsertGateState { state in
+      state.didSuspend && state.pendingContinuation != nil
+    }
+  }
 
   func armEmbeddingsGate(matching ids: Set<Episode.ID>) {
     // Resume any continuation left over from a previous arm so a re-arm
@@ -196,6 +227,19 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   func upsertEmbeddings(_ unsaved: [UnsavedEpisodeEmbedding]) async throws {
     recordCall(methodName: "upsertEmbeddings", parameters: unsaved.count)
+    let shouldGate = embeddingUpsertGateState { state in
+      guard state.armed else { return false }
+      state.armed = false
+      return true
+    }
+    if shouldGate {
+      await withCheckedContinuation { continuation in
+        embeddingUpsertGateState { state in
+          state.pendingContinuation = continuation
+          state.didSuspend = true
+        }
+      }
+    }
     if let error = embeddingUpsertError({ pending in
       let captured = pending
       pending = nil
