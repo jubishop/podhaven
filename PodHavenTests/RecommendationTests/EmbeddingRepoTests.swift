@@ -217,6 +217,22 @@ class EmbeddingRepoTests {
     #expect(result.contains(pe.episode.id))
   }
 
+  @Test("limits pending embedding episodes after ordering")
+  func pendingEmbeddingEpisodesLimit() async throws {
+    _ = try await createPodcastEpisode()
+    _ = try await createPodcastEpisode()
+    _ = try await createPodcastEpisode()
+
+    let all = try await recommendationRepo.episodesNeedingEmbeddings(revision: 1)
+    let limited = try await recommendationRepo.episodesNeedingEmbeddings(
+      revision: 1,
+      limit: 2
+    )
+
+    #expect(all.count == 3)
+    #expect(limited == Array(all.prefix(2)))
+  }
+
   @Test("includes finished episodes that have no rating and no playback bitmap")
   func finishedNoBitmapIncluded() async throws {
     let pe = try await createPodcastEpisode(finishDate: Date())

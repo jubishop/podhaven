@@ -117,6 +117,13 @@ import UIKit
     #expect(Self.decode("&RSQUO;") == "'")
     #expect(Self.decode("&Mdash;") == "—")
     #expect(Self.decode("&#X2019;") == "’")
+
+    #expect(Self.decode("&COPY;&#169;&#x00A9;") == "©©©")
+    let malformed = "&unknown; &#; &#xZZ; &#+169; &#x+41; &amp"
+    #expect(Self.decode(malformed) == malformed)
+    #expect(Self.decode("&amp;#169; &AMP;#x41;") == "© A")
+    let plain = String(repeating: "plain text ", count: 4_096)
+    #expect(Self.decode("\(plain)&amp;\(plain)") == "\(plain)&\(plain)")
   }
 
   @Test("that entity-only strings build attributed output")

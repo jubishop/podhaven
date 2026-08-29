@@ -16,6 +16,14 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
   // Cleared on use so the next call reaches the real repo.
   let embeddingFetchError = ThreadSafe<(any Error)?>(nil)
 
+  // One-shot error to throw from the next `upsertEmbeddings(_:)` call so
+  // service tests can verify batch-level failure handling after vector work.
+  let embeddingUpsertError = ThreadSafe<(any Error)?>(nil)
+
+  // One-shot failure producer for the next episode hydration. The producer
+  // lets timing tests advance their injected clock before returning the error.
+  let episodeHydrationError = ThreadSafe<(@Sendable () -> any Error)?>(nil)
+
   // One-shot suspend for the next matching `embeddings(for:)` call so tests
   // can interleave state changes with an in-flight scoring pass.
   //
@@ -258,6 +266,13 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
       }
       try Task.checkCancellation()
     }
+    if let error = embeddingUpsertError({ pending in
+      let captured = pending
+      pending = nil
+      return captured
+    }) {
+      throw error
+    }
     try await recommendationRepo.upsertEmbeddings(unsaved)
   }
 
@@ -363,12 +378,20 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
 
   func episodes(for episodeIDs: [Episode.ID]) async throws -> [Episode] {
     recordCall(methodName: "episodes", parameters: episodeIDs)
+    if let makeError = episodeHydrationError({ pending in
+      let captured = pending
+      pending = nil
+      return captured
+    }) {
+      throw makeError()
+    }
     return try await recommendationRepo.episodes(for: episodeIDs)
   }
 
   func episodesNeedingEmbeddings(
     pipelineVersion: EmbeddingPipelineVersion,
-    verifiedBefore: Date? = nil
+    verifiedBefore: Date? = nil,
+    limit: Int? = nil
   ) async throws -> [Episode.ID] {
     recordCall(
       methodName: "episodesNeedingEmbeddings",
@@ -376,7 +399,8 @@ struct FakeRecommendationRepo: Sendable, FakeCallable, Recommending {
     )
     return try await recommendationRepo.episodesNeedingEmbeddings(
       pipelineVersion: pipelineVersion,
-      verifiedBefore: verifiedBefore
+      verifiedBefore: verifiedBefore,
+      limit: limit
     )
   }
 }

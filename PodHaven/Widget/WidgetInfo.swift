@@ -60,6 +60,13 @@ enum WidgetInfo {
     containerURL.appendingPathComponent("widget-log.ndjson")
   }
 
+  static let recentLogMaxFileSizeBytes = 32 * 1024
+  static let recentLogTargetFileSizeBytes = recentLogMaxFileSizeBytes * 3 / 4
+
+  static var recentLogFileURL: URL {
+    containerURL.appendingPathComponent("recent-widget-log.ndjson")
+  }
+
   static var extensionAcknowledgmentURL: URL {
     containerURL.appendingPathComponent("widget-extension-acknowledgment.json")
   }
