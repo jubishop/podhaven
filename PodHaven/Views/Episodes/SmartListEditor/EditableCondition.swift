@@ -42,15 +42,23 @@ struct EditableCondition: Identifiable, Hashable {
       switch self {
       case .episodeTitle: return "Episode Title"
       case .episodeDescription: return "Episode Description"
-      case .episodeTitleOrDescription: return "Episode Title or Description"
+      case .episodeTitleOrDescription: return "Episode Title or Descr"
       case .episodeTranscript: return "Episode Transcription"
       case .podcastTitle: return "Podcast Title"
       case .podcastDescription: return "Podcast Description"
-      case .podcastTitleOrDescription: return "Podcast Title or Description"
+      case .podcastTitleOrDescription: return "Podcast Title or Descr"
       case .state: return "State"
       case .tag: return "Tag"
       case .duration: return "Duration"
       case .publishDate: return "Publish Date"
+      }
+    }
+
+    var accessibilityLabel: String {
+      switch self {
+      case .episodeTitleOrDescription: return "Episode Title or Description"
+      case .podcastTitleOrDescription: return "Podcast Title or Description"
+      default: return label
       }
     }
   }
