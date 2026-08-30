@@ -273,22 +273,27 @@ struct AppLauncher: Sendable {
   }
 
   private static func configureSentry() {
-    let eventProcessor = Container.shared.sentryEventProcessor()
     SentrySDK.start { options in
-      options.dsn =
-        "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
-      options.environment = AppInfo.environment.rawValue
-      options.sendDefaultPii = true
-      options.enableAppHangTracking = true
-      options.enableLogs = true
-      options.enableMetricKit = true
-      options.enableMetricKitRawPayload = true
-      options.beforeSendLog = sentryBeforeSendLog
-      options.beforeSend = eventProcessor.process
-      options.initialScope = { scope in
-        configureInitialSentryScope(scope)
-        return scope
-      }
+      configureSentryOptions(options)
+    }
+  }
+
+  static func configureSentryOptions(_ options: Sentry.Options) {
+    let eventProcessor = Container.shared.sentryEventProcessor()
+    options.dsn =
+      "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
+    options.environment = AppInfo.environment.rawValue
+    options.sendDefaultPii = true
+    options.enableCaptureFailedRequests = false
+    options.enableAppHangTracking = true
+    options.enableLogs = true
+    options.enableMetricKit = true
+    options.enableMetricKitRawPayload = true
+    options.beforeSendLog = sentryBeforeSendLog
+    options.beforeSend = eventProcessor.process
+    options.initialScope = { scope in
+      configureInitialSentryScope(scope)
+      return scope
     }
   }
 
