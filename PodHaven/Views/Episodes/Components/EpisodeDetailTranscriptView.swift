@@ -41,15 +41,9 @@ struct EpisodeDetailTranscriptView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       if let provenance = viewModel.transcriptProvenance {
-        LabeledContent(
-          "Transcript source",
-          value: provenance.accessibilityValue
-        )
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Transcript source")
-        .accessibilityValue(provenance.accessibilityValue)
+        Text(provenance.label)
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
       }
 
       statusView
@@ -259,11 +253,22 @@ struct EpisodeDetailTranscriptView: View {
   }
 
   private var replacePublisherTranscriptButton: some View {
-    AppIcon.transcribeEpisode
-      .labelButton("Replace with On-Device Transcription") {
-        viewModel.transcribe()
-      }
-      .buttonStyle(.bordered)
+    ViewThatFits(in: .horizontal) {
+      AppIcon.transcribeEpisode
+        .labelButton(
+          "Replace with On-Device Transcription",
+          action: viewModel.transcribe
+        )
+        .fixedSize(horizontal: true, vertical: false)
+      AppIcon.transcribeEpisode
+        .labelButton("Replace Transcript", action: viewModel.transcribe)
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityLabel("Replace with On-Device Transcription")
+      AppIcon.transcribeEpisode
+        .imageButton(action: viewModel.transcribe)
+        .accessibilityLabel("Replace with On-Device Transcription")
+    }
+    .buttonStyle(.bordered)
   }
 
   private var pauseTranscriptionButton: some View {
@@ -412,6 +417,16 @@ struct EpisodeDetailTranscriptView: View {
     workState: .complete
   )
   .preview()
+}
+
+#Preview("Publisher Transcript Large Text") {
+  EpisodeDetailTranscriptPreview(
+    source: .podcastFeed,
+    supportsReplacement: true,
+    workState: .complete
+  )
+  .preview()
+  .environment(\.dynamicTypeSize, .accessibility2)
 }
 
 #Preview("Publisher Transcript Unsupported Device") {

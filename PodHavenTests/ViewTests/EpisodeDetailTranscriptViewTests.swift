@@ -43,7 +43,10 @@ import UIKit
     let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
     viewModel.selectTextTab(.transcript)
-    let host = UIHostingController(rootView: EpisodeDetailView(viewModel: viewModel))
+    let host = UIHostingController(
+      rootView: EpisodeDetailView(viewModel: viewModel)
+        .environment(\.dynamicTypeSize, .accessibility2)
+    )
     host.loadViewIfNeeded()
     host.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
     host.beginAppearanceTransition(true, animated: false)
@@ -55,12 +58,7 @@ import UIKit
     host.view.layoutIfNeeded()
 
     let elements = accessibilityElements(in: host.view)
-    #expect(
-      elements.contains {
-        $0.accessibilityLabel == "Transcript source"
-          && $0.accessibilityValue == "Podcast feed"
-      }
-    )
+    #expect(elements.contains { $0.accessibilityLabel == "Podcast feed transcript" })
     #expect(
       elements.contains {
         $0.accessibilityLabel == "Replace with On-Device Transcription"
@@ -100,12 +98,7 @@ import UIKit
     host.view.layoutIfNeeded()
 
     let elements = accessibilityElements(in: host.view)
-    #expect(
-      elements.contains {
-        $0.accessibilityLabel == "Transcript source"
-          && $0.accessibilityValue == "On device"
-      }
-    )
+    #expect(elements.contains { $0.accessibilityLabel == "On-device transcript" })
     #expect(
       !elements.contains {
         $0.accessibilityLabel == "Replace with On-Device Transcription"
