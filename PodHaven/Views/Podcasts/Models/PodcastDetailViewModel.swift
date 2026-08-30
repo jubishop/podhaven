@@ -601,6 +601,7 @@ class PodcastDetailViewModel:
 
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   private(set) var state: PodcastDetailState
+  @ObservationIgnored private var stateRevision = 0
 
   @ObservationIgnored private let lifecycle = DetailLifecycle()
 
@@ -692,20 +693,20 @@ class PodcastDetailViewModel:
           Self.log.warning("subscribe: no saved series for initial \(listedPodcast.toString)")
           return
         }
-        transition(to: .saved(series))
+        await transition(to: .saved(series))
         try await repo.markSubscribed(series.id)
       case .unsaved(let unsavedPodcast, let episodes):
         if let series = try await repo.podcastSeriesDetail(
           unsavedPodcast.feedURL,
           iTunesID: unsavedPodcast.iTunesID
         ) {
-          transition(to: .saved(series))
+          await transition(to: .saved(series))
           try await repo.markSubscribed(series.id)
         } else {
           let inserted = try await repo.insertSeries(
             UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast, unsavedEpisodes: episodes)
           )
-          transition(to: .saved(inserted.toDetail()))
+          await transition(to: .saved(inserted.toDetail()))
           try await repo.markSubscribed(inserted.id)
         }
       }
@@ -812,7 +813,7 @@ class PodcastDetailViewModel:
 
     try Task.checkCancellation()
 
-    transition(to: .saved(savedSeries))
+    await transition(to: .saved(savedSeries))
 
     return true
   }
@@ -873,13 +874,6 @@ class PodcastDetailViewModel:
         try Task.checkCancellation()
         Self.log.debug("Podcast was deleted")
         guard lifecycle.isOnScreen else { return }
-        // Post-deletion strategy: re-parse the RSS feed so the UI can
-        // recover to an unsaved snapshot. This diverges from
-        // `EpisodeDetailViewModel`, which converts the cached
-        // `PodcastEpisode` directly via `toOriginalUnsavedPodcastEpisode()`:
-        // podcasts have a per-feed RSS endpoint we can fall back to, but
-        // episodes don't. The trade-off is a brief loading state while
-        // the feed is re-parsed, in exchange for fresh fields.
         do {
           try await loadPresentationFromFeed()
         } catch {
@@ -893,30 +887,32 @@ class PodcastDetailViewModel:
         return
       }
 
-      guard updatedSeries != state.savedSeries
-      else {
-        Self.log.debug("New podcastSeries is the same as the current one, skipping update")
-        continue
-      }
-
-      transition(to: .saved(updatedSeries))
+      await transition(to: .saved(updatedSeries))
     }
   }
 
   // MARK: - Private Helpers
 
-  private func transition(to newState: PodcastDetailState) {
-    guard newState != state else { return }
+  private func transition(to newState: PodcastDetailState) async {
+    stateRevision += 1
+    let revision = stateRevision
+    let diagnostics = Container.shared.podcastDetailPerformanceDiagnostics()
+    guard !(await diagnostics.statesEqual(newState, state)) else { return }
+    guard revision == stateRevision else { return }
 
-    Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
-    state = newState
-    guard lifecycle.isOnScreen else { return }
-    refreshEpisodeList(from: newState)
-    loadShareArtworkIfNeeded()
-    startObservation(newState.savedSeries?.id)
-    episodeListFilter.refresh(podcastID: newState.savedSeries?.id)
-    if currentSortMethod == .recommendationScore {
-      recommendationCoordinator.refresh()
+    diagnostics.measure(.stateTransition, episodeCount: newState.episodeCount) {
+      Self.log.debug("transitioning state \(state.toString) → \(newState.toString)")
+      state = newState
+      guard lifecycle.isOnScreen else { return }
+      diagnostics.measure(.episodeProjection, episodeCount: newState.episodeCount) {
+        refreshEpisodeList(from: newState)
+      }
+      loadShareArtworkIfNeeded()
+      startObservation(newState.savedSeries?.id)
+      diagnostics.measure(.filterRefresh, episodeCount: newState.episodeCount) {
+        episodeListFilter.refresh(podcastID: newState.savedSeries?.id)
+      }
+      if currentSortMethod == .recommendationScore { recommendationCoordinator.refresh() }
     }
   }
 
@@ -968,7 +964,7 @@ class PodcastDetailViewModel:
 
     guard let savedSeries = try await savedSeriesForCurrentState() else { return nil }
 
-    transition(to: .saved(savedSeries))
+    await transition(to: .saved(savedSeries))
     return savedSeries.id
   }
 
@@ -982,7 +978,7 @@ class PodcastDetailViewModel:
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: iTunesID)
     try Task.checkCancellation()
     guard lifecycle.isOnScreen else { return }
-    transition(
+    await transition(
       to: .unsaved(
         unsavedPodcast,
         episodes: IdentifiedArrayOf(uniqueElements: podcastFeed.toUnsavedEpisodes())

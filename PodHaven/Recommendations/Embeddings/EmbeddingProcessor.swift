@@ -37,6 +37,7 @@ struct EmbeddingProcessor: Sendable {
   private let backgroundTaskScheduler: BackgroundTaskScheduler
   private let foregroundTask = ThreadSafe<Task<Void, Never>?>(nil)
   private let registrationReconciliationOnce = Once()
+  private let thermalPressure = ThreadSafe(ThermalPressure.nominal)
 
   private enum ProcessingMode: String, Sendable {
     case foreground
@@ -81,6 +82,12 @@ struct EmbeddingProcessor: Sendable {
     backgroundTaskScheduler.register { complete in
       Self.log.info("Starting embedding background task")
 
+      guard thermalPressure().permitsDiscretionaryWork else {
+        Self.log.info("Embedding background task deferred for thermal pressure")
+        complete(true)
+        return
+      }
+
       await contextualEmbedding.loadAssetsIfAvailable()
       guard contextualEmbedding.assetsLoaded.isOpen else {
         Self.log.info("Contextual embedding assets not available yet, skipping")
@@ -122,6 +129,7 @@ struct EmbeddingProcessor: Sendable {
       Self.log.debug("activated")
 
       processingMode(.foreground)
+      guard thermalPressure().permitsDiscretionaryWork else { return }
       startForegroundObservation()
       if Container.shared.embeddingWorkDemand().hasWork {
         scheduleDrain()
@@ -137,12 +145,38 @@ struct EmbeddingProcessor: Sendable {
     }
   }
 
+  func handleThermalPressureChange(to pressure: ThermalPressure) {
+    let prior = thermalPressure { current in
+      let prior = current
+      current = pressure
+      return prior
+    }
+    guard prior.permitsDiscretionaryWork != pressure.permitsDiscretionaryWork else { return }
+
+    guard pressure.permitsDiscretionaryWork else {
+      Self.log.info("Suspending embedding work for thermal pressure=\(pressure.rawValue)")
+      stopForegroundObservation()
+      backgroundTaskScheduler.cancelRunningTasks()
+      backgroundTaskScheduler.scheduleNext()
+      return
+    }
+
+    Self.log.info("Resuming embedding work after thermal recovery")
+    switch processingMode() {
+    case .foreground:
+      startForegroundObservation()
+      if Container.shared.embeddingWorkDemand().hasWork { scheduleDrain() }
+    case .background:
+      backgroundTaskScheduler.scheduleNext()
+    }
+  }
+
   func workBecameAvailable() {
     Container.shared.embeddingWorkDemand().markAvailable()
 
     switch processingMode() {
     case .foreground:
-      scheduleDrain()
+      if thermalPressure().permitsDiscretionaryWork { scheduleDrain() }
     case .background:
       backgroundTaskScheduler.scheduleNext()
     }
@@ -164,6 +198,7 @@ struct EmbeddingProcessor: Sendable {
   private let drainDebounce = Debounce(duration: .seconds(5), priority: .background)
 
   private func startForegroundObservation() {
+    guard thermalPressure().permitsDiscretionaryWork else { return }
     foregroundTask { task in
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
@@ -197,6 +232,7 @@ struct EmbeddingProcessor: Sendable {
 
   private func scheduleDrain() {
     drainDebounce {
+      guard thermalPressure().permitsDiscretionaryWork else { return }
       do {
         try await contextualEmbedding.assetsLoaded.wait()
         let result = try await drainAvailableWork(mode: .foreground, pacer: nil)
@@ -248,6 +284,9 @@ struct EmbeddingProcessor: Sendable {
     mode: ProcessingMode,
     pacer: BackgroundEmbeddingPacer?
   ) async throws -> DrainResult {
+    guard thermalPressure().permitsDiscretionaryWork else {
+      throw CancellationError()
+    }
     let startedAt = continuousClockNow()
     let acquiredOwnership = drainOwnership { ownership in
       switch ownership {

@@ -33,6 +33,7 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.thermalPressureMonitor) private var thermalPressureMonitor
   @DynamicInjected(\.transcriptionAvailability) private var transcriptionAvailability
   @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
 
@@ -70,6 +71,8 @@ struct AppLauncher: Sendable {
 
     // Force DB initialization so schema migrations run immediately.
     Container.shared.initializeAppDB()
+
+    thermalPressureMonitor.start()
 
     Self.log.debug(
       """
@@ -183,25 +186,6 @@ struct AppLauncher: Sendable {
           }
         }
       }
-
-      Task(priority: taskPriority(.utility)) {
-        for await _ in self.notifications(ProcessInfo.thermalStateDidChangeNotification) {
-          let thermalState = ProcessInfo.processInfo.thermalState
-          let state =
-            switch thermalState {
-            case .nominal: "nominal"
-            case .fair: "fair"
-            case .serious: "serious"
-            case .critical: "critical"
-            @unknown default: "unknown"
-            }
-          let message: Logging.Logger.Message = "Thermal state changed to: \(state)"
-          switch thermalState {
-          case .nominal, .fair: Self.log.debug(message)
-          default: Self.log.warning(message)
-          }
-        }
-      }
     }
   }
 
@@ -288,25 +272,8 @@ struct AppLauncher: Sendable {
     return log
   }
 
-  // Sentry's exception-mechanism type for MetricKit disk-write diagnostics. The
-  // SDK keeps this slug private rather than exposing a typed symbol, so it can
-  // only be matched as a literal off the serialized event; isolated here as the
-  // single source.
-  private static let metricKitDiskWriteMechanism = "mx_disk_write_exception"
-
-  private static func sentryBeforeSend(_ event: Sentry.Event) -> Sentry.Event? {
-    // MetricKit disk-write diagnostics trip a fixed cumulative-bytes threshold
-    // that routine media downloads cross on their own — noise, not an
-    // actionable defect. Drop them; crash, hang, and CPU diagnostics still flow,
-    // and MetricKitMonitor keeps the raw payload for offline analysis.
-    guard let exceptions = event.exceptions else { return event }
-    let isDiskWriteDiagnostic = exceptions.contains {
-      $0.mechanism?.type == metricKitDiskWriteMechanism
-    }
-    return isDiskWriteDiagnostic ? nil : event
-  }
-
   private static func configureSentry() {
+    let eventProcessor = Container.shared.sentryEventProcessor()
     SentrySDK.start { options in
       options.dsn =
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
@@ -317,7 +284,7 @@ struct AppLauncher: Sendable {
       options.enableMetricKit = true
       options.enableMetricKitRawPayload = true
       options.beforeSendLog = sentryBeforeSendLog
-      options.beforeSend = sentryBeforeSend
+      options.beforeSend = eventProcessor.process
       options.initialScope = { scope in
         configureInitialSentryScope(scope)
         return scope

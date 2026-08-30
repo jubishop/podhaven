@@ -34,46 +34,13 @@ struct TranscriptionProcessor: Sendable {
   private let backgroundTaskScheduler: BackgroundTaskScheduler
   private let processingTask = ThreadSafe<Task<Void, Never>?>(nil)
 
-  private struct ActiveTranscription: Sendable {
-    enum Interruption: Sendable {
-      case none
-      case pause
-      case discard
-      case requeue
-      case deletion(AsyncLatch<Void>)
-      case mediaServicesReset
-      case publisherTranscript
-      case replacementRequest
-
-      var isNone: Bool {
-        if case .none = self { return true }
-        return false
-      }
-    }
-
-    let token: UUID
-    let episodeID: Episode.ID
-    let workMode: TranscriptionWorkMode
-    let task: Task<Void, any Error>
-    var interruption = Interruption.none
-  }
-
-  private enum MediaServicesState: Sendable {
-    case available
-    case lost(AsyncLatch<Void>)
-  }
-
   private let activeTranscription = ThreadSafe<ActiveTranscription?>(nil)
   private let deletionBarrier = ThreadSafe<AsyncLatch<Void>?>(nil)
   private let deletionLock = ThreadLock()
   private let mediaServicesState = ThreadSafe(MediaServicesState.available)
 
-  private enum ForegroundState {
-    case active
-    case background
-  }
-
   private let foregroundState = ThreadSafe(ForegroundState.background)
+  private let thermalPressure = ThreadSafe(ThermalPressure.nominal)
 
   fileprivate init() {
     let queue = Container.shared.transcriptionQueue()
@@ -149,6 +116,13 @@ struct TranscriptionProcessor: Sendable {
         queuedEpisodes=\(transcriptionQueue.episodeIDs.count)
         """
       )
+      guard thermalPressure().permitsDiscretionaryWork else {
+        Self.log.info(
+          "transcriptionTelemetry event=backgroundRunThermallyDeferred runID=\(runID)"
+        )
+        complete(true)
+        return
+      }
       do {
         try await drain(.background, runID: runID)
       } catch is CancellationError {
@@ -202,7 +176,7 @@ struct TranscriptionProcessor: Sendable {
     case .active:
       Self.log.debug("activated")
       foregroundState(.active)
-      start()
+      if thermalPressure().permitsDiscretionaryWork { start() }
     case .background:
       Self.log.debug("backgrounded")
       foregroundState(.background)
@@ -213,6 +187,34 @@ struct TranscriptionProcessor: Sendable {
     default:
       break
     }
+  }
+
+  func handleThermalPressureChange(to pressure: ThermalPressure) {
+    let prior = thermalPressure { current in
+      let prior = current
+      current = pressure
+      return prior
+    }
+    guard prior.permitsDiscretionaryWork != pressure.permitsDiscretionaryWork else { return }
+
+    guard pressure.permitsDiscretionaryWork else {
+      Self.log.info("Suspending transcription work for thermal pressure=\(pressure.rawValue)")
+      let activeTask = activeTranscription { active -> Task<Void, any Error>? in
+        guard var current = active, current.interruption.isNone else { return nil }
+        current.interruption = .thermalPressure
+        active = current
+        return current.task
+      }
+      activeTask?.cancel()
+      stop()
+      backgroundTaskScheduler.cancelRunningTasks()
+      backgroundTaskScheduler.scheduleNext()
+      return
+    }
+
+    Self.log.info("Resuming transcription work after thermal recovery")
+    if case .active = foregroundState() { start() }
+    backgroundTaskScheduler.scheduleNext()
   }
 
   // MARK: - Queue Mutations
@@ -461,6 +463,7 @@ struct TranscriptionProcessor: Sendable {
   // MARK: - Loop
 
   private func start() {
+    guard thermalPressure().permitsDiscretionaryWork else { return }
     processingTask { task in
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
@@ -486,7 +489,7 @@ struct TranscriptionProcessor: Sendable {
 
   private func foregroundTaskFinished() {
     processingTask(nil)
-    if case .active = foregroundState() {
+    if case .active = foregroundState(), thermalPressure().permitsDiscretionaryWork {
       start()
     }
   }
@@ -500,6 +503,9 @@ struct TranscriptionProcessor: Sendable {
       for await episodeID in stream {
         processingHead: while true {
           try Task.checkCancellation()
+          guard thermalPressure().permitsDiscretionaryWork else {
+            throw CancellationError()
+          }
           if case .foreground = mode, case .background = foregroundState() {
             return
           }
@@ -694,7 +700,7 @@ struct TranscriptionProcessor: Sendable {
       case .pause:
         transcriptionQueue.finishPausing(episodeID)
       case .discard, .requeue, .mediaServicesReset, .publisherTranscript,
-        .replacementRequest, .none:
+        .replacementRequest, .thermalPressure, .none:
         transcriptionQueue.clearProgress(for: episodeID)
       case .deletion(let barrier):
         try await barrier.wait()
@@ -710,6 +716,7 @@ struct TranscriptionProcessor: Sendable {
           case .mediaServicesReset: "mediaServicesReset"
           case .publisherTranscript: "publisherTranscript"
           case .replacementRequest: "replacementRequest"
+          case .thermalPressure: "thermalPressure"
           case .none: "execution"
           }
         Self.log.info(
@@ -761,6 +768,8 @@ struct TranscriptionProcessor: Sendable {
     case .publisherTranscript:
       transcriptionQueue.clearProgress(for: episodeID)
     case .replacementRequest:
+      transcriptionQueue.clearProgress(for: episodeID)
+    case .thermalPressure:
       transcriptionQueue.clearProgress(for: episodeID)
     case .none:
       break

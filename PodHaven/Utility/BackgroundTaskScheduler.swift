@@ -51,6 +51,7 @@ struct BackgroundTaskScheduler: Sendable {
   private let taskType: BackgroundTaskType
   private let schedulingMode: BackgroundTaskSchedulingMode
   private let expirationBehavior: BackgroundTaskExpirationBehavior
+  private let activeExecutions = ThreadSafe<[UUID: Task<Void, Never>]>([:])
 
   private var shouldSchedule: Bool {
     switch schedulingMode {
@@ -164,7 +165,11 @@ struct BackgroundTaskScheduler: Sendable {
 
         scheduleNext()
         let startLatch = AsyncLatch<Void>()
+        let executionToken = UUID()
         let runningTask = Task {
+          defer {
+            activeExecutions { $0[executionToken] = nil }
+          }
           do {
             try Task.checkCancellation()
             try await startLatch.wait()
@@ -182,6 +187,7 @@ struct BackgroundTaskScheduler: Sendable {
             complete(false)
           }
         }
+        activeExecutions { $0[executionToken] = runningTask }
         let shouldCancelBeforeStart = executionState { state in
           switch state {
           case .waiting:
@@ -209,6 +215,11 @@ struct BackgroundTaskScheduler: Sendable {
       Self.log.info("Registration for BackgroundTask: \(identifier) complete")
       scheduleNext()
     }
+  }
+
+  func cancelRunningTasks() {
+    let tasks = Array(activeExecutions().values)
+    for task in tasks { task.cancel() }
   }
 
   func scheduleNext() {
