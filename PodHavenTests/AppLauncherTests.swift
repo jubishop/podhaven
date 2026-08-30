@@ -50,4 +50,12 @@ struct AppLauncherTests {
     #expect(scope.attachments.allSatisfy { $0.contentType == "application/x-ndjson" })
     #expect(scope.attachments.allSatisfy { $0.data == nil })
   }
+
+  @Test("Sentry does not capture failed requests automatically")
+  func sentryDoesNotCaptureFailedRequestsAutomatically() {
+    let options = Sentry.Options()
+    AppLauncher.configureSentryOptions(options)
+
+    #expect(!options.enableCaptureFailedRequests)
+  }
 }
