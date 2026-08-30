@@ -73,7 +73,7 @@ enum EpisodeTranscriptProvenance: Equatable, Sendable {
   case podcastFeed
   case onDevice
 
-  var label: String {
+  var label: LocalizedStringKey {
     switch self {
     case .podcastFeed: "Podcast feed transcript"
     case .onDevice: "On-device transcript"
