@@ -43,7 +43,10 @@ import UIKit
     let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
     viewModel.selectTextTab(.transcript)
-    let host = UIHostingController(rootView: EpisodeDetailView(viewModel: viewModel))
+    let host = UIHostingController(
+      rootView: EpisodeDetailView(viewModel: viewModel)
+        .environment(\.dynamicTypeSize, .accessibility2)
+    )
     host.loadViewIfNeeded()
     host.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
     host.beginAppearanceTransition(true, animated: false)
@@ -55,17 +58,53 @@ import UIKit
     host.view.layoutIfNeeded()
 
     let elements = accessibilityElements(in: host.view)
-    #expect(
-      elements.contains {
-        $0.accessibilityLabel == "Transcript source"
-          && $0.accessibilityValue == "Podcast feed"
-      }
-    )
+    #expect(elements.contains { $0.accessibilityLabel == "Podcast feed transcript" })
     #expect(
       elements.contains {
         $0.accessibilityLabel == "Replace with On-Device Transcription"
       }
     )
+  }
+
+  @Test(
+    "publisher replacement stays one line at large text sizes",
+    .enabled(
+      if: ProcessInfo.processInfo.isiOSAppOnMac,
+      "SwiftUI rendering differs outside the My Mac destination"
+    )
+  )
+  func publisherReplacementStaysOneLineAtLargeText() async throws {
+    await TranscriptionHelpers.prepareAvailability()
+    let repo = Container.shared.repo()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let transcript = Transcript(
+      segments: [],
+      locale: "en-US",
+      createdAt: Date(timeIntervalSince1970: 0)
+    )
+    let source = PublisherTranscriptReference(
+      url: URL(string: "https://example.com/large-text.vtt")!,
+      mimeType: "text/vtt",
+      language: "en-US"
+    )
+    #expect(
+      try await repo.storeTranscriptIfAbsent(
+        podcastEpisode.id,
+        transcript: transcript,
+        publisherSource: source
+      )
+    )
+    let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
+    #expect(viewModel.canReplacePublisherTranscript)
+
+    let heights = try replacementActionHeights(
+      for: viewModel,
+      narrowWidth: 390,
+      wideWidth: 800,
+      dynamicTypeSize: .accessibility3
+    )
+    #expect(abs(heights.narrow - heights.wide) < 0.5)
   }
 
   @Test(
@@ -100,12 +139,7 @@ import UIKit
     host.view.layoutIfNeeded()
 
     let elements = accessibilityElements(in: host.view)
-    #expect(
-      elements.contains {
-        $0.accessibilityLabel == "Transcript source"
-          && $0.accessibilityValue == "On device"
-      }
-    )
+    #expect(elements.contains { $0.accessibilityLabel == "On-device transcript" })
     #expect(
       !elements.contains {
         $0.accessibilityLabel == "Replace with On-Device Transcription"
@@ -296,5 +330,52 @@ import UIKit
         in: CGSize(width: 390, height: CGFloat.greatestFiniteMagnitude)
       )
       .height
+  }
+
+  private func replacementActionHeights(
+    for viewModel: EpisodeDetailViewModel,
+    narrowWidth: CGFloat,
+    wideWidth: CGFloat,
+    dynamicTypeSize: DynamicTypeSize
+  ) throws -> (narrow: CGFloat, wide: CGFloat) {
+    let host = UIHostingController(
+      rootView: EpisodeDetailTranscriptView(viewModel: viewModel)
+        .padding()
+        .environment(\.dynamicTypeSize, dynamicTypeSize)
+    )
+    let scene = try #require(
+      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+    )
+    let window = UIWindow(windowScene: scene)
+    window.frame = CGRect(x: 0, y: 0, width: narrowWidth, height: 844)
+    host.loadViewIfNeeded()
+    window.addSubview(host.view)
+    defer {
+      host.view.removeFromSuperview()
+    }
+    func actionHeight(at width: CGFloat) throws -> CGFloat {
+      window.frame = CGRect(x: 0, y: 0, width: width, height: 844)
+      host.view.frame = window.bounds
+      host.view.setNeedsLayout()
+      host.view.layoutIfNeeded()
+      let action = try #require(
+        accessibilityElements(in: window)
+          .first {
+            $0.accessibilityLabel == "Replace with On-Device Transcription"
+          }
+      )
+      return
+        window.convert(
+          action.accessibilityFrame,
+          from: window.screen.coordinateSpace
+        )
+        .height
+    }
+
+    let narrowHeight = try actionHeight(at: narrowWidth)
+    let wideHeight = try actionHeight(at: wideWidth)
+    #expect(narrowHeight > 0)
+    #expect(wideHeight > 0)
+    return (narrowHeight, wideHeight)
   }
 }
