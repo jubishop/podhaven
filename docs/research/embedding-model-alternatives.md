@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: current
 ---
 
 # Embedding Model Alternatives

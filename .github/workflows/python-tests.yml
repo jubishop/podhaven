@@ -21,6 +21,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install repository check tools
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Check repository knowledge and tooling
+        run: bin/check
+
       - name: Run unittest test files
         # The scripts under .agents/skills aren't packages (no __init__.py),
         # so `unittest discover` won't recurse. Run each test_*.py directly

@@ -145,6 +145,10 @@ anything else.
 - If multiple issues match, prefer the exact-marker issue, report the
   duplicates, and update only the canonical issue in Step 9.
 - If no issue matches, remember that one must be created in Step 9.
+- Search `git knowledge search "issue ID or symptom" -c sentry-history` during
+  triage. This collection is excluded from default searches. If QMD is unavailable,
+  use `rg` in `memory/sentry_feedback/`. Verify old hypotheses against current
+  evidence before applying them.
 - A legacy `memory/sentry_feedback/<path-safe-slug>.md` file may be read as
   historical evidence when it exists, but never create, edit, or delete one.
   GitHub is the canonical record for all new analysis.

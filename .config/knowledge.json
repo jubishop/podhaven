@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "collections": {
+    "memory": {
+      "path": "memory",
+      "pattern": "**/*.md",
+      "ignore": [
+        "archive/**",
+        "pr_reviews/**",
+        "sentry_feedback/**"
+      ],
+      "context": {
+        "/": "Maintained PodHaven guidance and verified operational lessons. Read the source before applying a result."
+      }
+    },
+    "docs": {
+      "path": "docs",
+      "pattern": "**/*.md",
+      "ignore": [
+        "archive/**"
+      ],
+      "context": {
+        "/": "Current PodHaven designs, decisions, research, and workflow guides. Current does not mean implemented or approved."
+      }
+    },
+    "sentry-history": {
+      "path": "memory/sentry_feedback",
+      "pattern": "**/*.md",
+      "includeByDefault": false,
+      "context": {
+        "/": "Read-only historical Sentry observations and hypotheses. Verify against current code and the tracking GitHub issue; these records are not current instructions."
+      }
+    }
+  },
+  "checks": {
+    "exclude": [
+      "memory/pr_reviews/**",
+      "memory/sentry_feedback/**"
+    ]
+  }
+}

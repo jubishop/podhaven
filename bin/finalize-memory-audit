@@ -183,10 +183,13 @@ elif [[ "$REVIEWED_COUNT" != "$ACTIVE_NOTE_COUNT" ]]; then
   WARNINGS+=("reviewed count ($REVIEWED_COUNT) != active note count ($ACTIVE_NOTE_COUNT)")
 fi
 
-mapfile -t CHANGED_PATHS < <(
+CHANGED_PATHS=()
+while IFS= read -r audit_path; do
+  CHANGED_PATHS+=("$audit_path")
+done < <(
   {
-    git -C "$ROOT" diff --name-only
-    git -C "$ROOT" diff --cached --name-only
+    git -C "$ROOT" diff --no-renames --name-only
+    git -C "$ROOT" diff --cached --no-renames --name-only
     git -C "$ROOT" ls-files --others --exclude-standard
   } | LC_ALL=C sort -u | grep -v '^artifacts/' || true
 )
@@ -194,7 +197,7 @@ mapfile -t CHANGED_PATHS < <(
 MEMORY_CHANGED=false
 UNEXPECTED_PATHS=()
 POLICY_VIOLATIONS=()
-for path in "${CHANGED_PATHS[@]}"; do
+for path in ${CHANGED_PATHS[@]+"${CHANGED_PATHS[@]}"}; do
   if is_allowed_memory_path "$path"; then
     MEMORY_CHANGED=true
     if [[ -L "$ROOT/$path" ]]; then
@@ -206,51 +209,60 @@ for path in "${CHANGED_PATHS[@]}"; do
 done
 
 if ((${#UNEXPECTED_PATHS[@]} > 0)); then
-  for path in "${UNEXPECTED_PATHS[@]}"; do
+  for path in ${UNEXPECTED_PATHS[@]+"${UNEXPECTED_PATHS[@]}"}; do
     WARNINGS+=("agent changed disallowed path: $path")
   done
 fi
 
-mapfile -t ADDED_PATHS < <(
+ADDED_PATHS=()
+while IFS= read -r audit_path; do
+  ADDED_PATHS+=("$audit_path")
+done < <(
   {
-    git -C "$ROOT" diff --diff-filter=A --name-only
-    git -C "$ROOT" diff --cached --diff-filter=A --name-only
+    git -C "$ROOT" diff --no-renames --diff-filter=A --name-only
+    git -C "$ROOT" diff --cached --no-renames --diff-filter=A --name-only
     git -C "$ROOT" ls-files --others --exclude-standard
   } | LC_ALL=C sort -u
 )
-for path in "${ADDED_PATHS[@]}"; do
+for path in ${ADDED_PATHS[@]+"${ADDED_PATHS[@]}"}; do
   if [[ "$path" =~ ^memory/[^/]+\.md$ ]]; then
     POLICY_VIOLATIONS+=("audit created a new active note: $path")
   fi
 done
 
-mapfile -t ARCHIVE_MUTATIONS < <(
+ARCHIVE_MUTATIONS=()
+while IFS= read -r audit_path; do
+  ARCHIVE_MUTATIONS+=("$audit_path")
+done < <(
   {
-    git -C "$ROOT" diff --diff-filter=MD --name-only -- memory/archive
-    git -C "$ROOT" diff --cached --diff-filter=MD --name-only -- memory/archive
+    git -C "$ROOT" diff --no-renames --diff-filter=MD --name-only -- memory/archive
+    git -C "$ROOT" diff --cached --no-renames --diff-filter=MD --name-only -- memory/archive
   } | LC_ALL=C sort -u
 )
-for path in "${ARCHIVE_MUTATIONS[@]}"; do
+for path in ${ARCHIVE_MUTATIONS[@]+"${ARCHIVE_MUTATIONS[@]}"}; do
   POLICY_VIOLATIONS+=("audit changed an existing archived note: $path")
 done
 
-mapfile -t DELETED_ACTIVE_NOTES < <(
+DELETED_ACTIVE_NOTES=()
+while IFS= read -r audit_path; do
+  DELETED_ACTIVE_NOTES+=("$audit_path")
+done < <(
   {
-    git -C "$ROOT" diff --diff-filter=D --name-only
-    git -C "$ROOT" diff --cached --diff-filter=D --name-only
+    git -C "$ROOT" diff --no-renames --diff-filter=D --name-only
+    git -C "$ROOT" diff --cached --no-renames --diff-filter=D --name-only
   } | LC_ALL=C sort -u
 )
-for path in "${DELETED_ACTIVE_NOTES[@]}"; do
+for path in ${DELETED_ACTIVE_NOTES[@]+"${DELETED_ACTIVE_NOTES[@]}"}; do
   if [[ "$path" =~ ^memory/[^/]+\.md$ ]]; then
     archive_path="memory/archive/${path#memory/}"
-    if ! printf '%s\n' "${CHANGED_PATHS[@]}" | grep -Fxq "$archive_path"; then
+    if ! printf '%s\n' ${CHANGED_PATHS[@]+"${CHANGED_PATHS[@]}"} | grep -Fxq "$archive_path"; then
       POLICY_VIOLATIONS+=("audit deleted rather than archived note: $path")
     fi
   fi
 done
 
 if ((${#POLICY_VIOLATIONS[@]} > 0)); then
-  for violation in "${POLICY_VIOLATIONS[@]}"; do
+  for violation in ${POLICY_VIOLATIONS[@]+"${POLICY_VIOLATIONS[@]}"}; do
     WARNINGS+=("$violation")
   done
 fi
@@ -260,6 +272,18 @@ EXPECTED_SHA="${EXPECTED_HEAD_SHA:-${GITHUB_SHA:-}}"
 if [[ -n "$EXPECTED_SHA" && "$(git -C "$ROOT" rev-parse HEAD)" != "$EXPECTED_SHA" ]]; then
   LOCAL_COMMIT=true
   WARNINGS+=("agent changed HEAD; audit changes must remain uncommitted")
+fi
+
+# Scope validation happens before the publisher is allowed to touch the index.
+# The model can never use the generated section to change README policy.
+if [[ "$PATCH_VALID" == true && "$LOCAL_COMMIT" == false && ${#UNEXPECTED_PATHS[@]} -eq 0 && ${#POLICY_VIOLATIONS[@]} -eq 0 ]]; then
+  if ! "$ROOT/bin/memory-index" || ! "$ROOT/bin/check" --documents-only; then
+    PATCH_VALID=false
+    WARNINGS+=("memory structure or local links failed validation")
+  elif ! git -C "$ROOT" diff --quiet -- memory/README.md; then
+    MEMORY_CHANGED=true
+    CHANGED_PATHS+=("memory/README.md")
+  fi
 fi
 
 STATUS="FINISHED"
@@ -404,7 +428,7 @@ echo "Report: $REPORT_PATH ($REPORT_SOURCE, valid=$REPORT_VALID)"
 echo "Notes:  active=$ACTIVE_NOTE_COUNT reviewed=${REVIEWED_COUNT:-unknown}"
 if ((${#WARNINGS[@]} > 0)); then
   echo "Warnings:"
-  printf '  - %s\n' "${WARNINGS[@]}"
+  printf '  - %s\n' ${WARNINGS[@]+"${WARNINGS[@]}"}
 fi
 echo "Meta:   $META_PATH"
 

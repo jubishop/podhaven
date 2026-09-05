@@ -5,7 +5,7 @@ Deep curation pass on `memory/`. For every active note, read the full body, extr
 ## Scope
 
 - Include: `.md` files directly in `memory/` except `README.md`.
-- Exclude from moves: `memory/archive/**`, `memory/pr_reviews/**`.
+- Exclude from moves: `memory/archive/**`, `memory/pr_reviews/**`, `memory/sentry_feedback/**`, and `memory/README.md`.
 
 ## Memory format (fix violations on files you touch)
 
@@ -19,7 +19,10 @@ status: active | resolved      # project only
 ```
 
 - `feedback` / `project`: rule first, then **Why:** and **How to apply:**.
-- Cross-links: `[[kebab-case-name]]` (frontmatter `name`, not filename).
+- The filename must match `name`: `kebab-case-slug.md`. Keep a top-level title.
+- Cross-links use relative Markdown paths: `[Title](kebab-case-slug.md)`.
+- Do not edit `memory/README.md`. After your patch passes scope checks, CI regenerates only its marked active-note list and validates metadata and links.
+- Quote descriptions when punctuation would make YAML ambiguous.
 - Do not use memory for code conventions derivable from source, git history, `docs/` planning, or open TODOs (GitHub issues).
 
 ## Repo context (before per-note analysis)
@@ -119,7 +122,7 @@ When two or more active notes overlap heavily on the same topic, **merge them yo
 1. Pick the survivor (best `name`, clearest `description`, most complete **Why** / **How to apply**).
 2. Merge non-duplicative facts, constraints, and cross-links into the survivor; tighten the rule and scope.
 3. `git mv` each superseded file to `memory/archive/`; set `status: resolved` on archived `project` notes.
-4. Fix `[[wiki-links]]` on other live notes that pointed at archived names.
+4. Fix relative Markdown links on other live notes that pointed at archived names.
 5. Record the merge in the report **Consolidated** section.
 
 Do not create a third note when two already cover the same topic.
@@ -128,7 +131,7 @@ Do not create a third note when two already cover the same topic.
 
 1. `git mv memory/<file>.md memory/archive/<file>.md` (preserve filename).
 2. Set `status: resolved` on archived `project` notes.
-3. Fix broken `[[wiki-links]]` on related live notes if needed.
+3. Fix broken relative Markdown links on related live notes if needed.
 4. Do not delete files or edit unrelated code/docs.
 
 ## Pull request

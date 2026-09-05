@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: current
 ---
 
 # Swift Backtrace API for Telemetry

@@ -3,17 +3,23 @@ Repo context lives in `memory/`, `docs/`, and GitHub issues:
 
 - `memory/`: long-lived notes; search before writing and update existing notes when possible.
   - New or updated pages must follow [`memory/README.md`](memory/README.md).
-  - Move notes that are no longer relevant to active work into `memory/archive/` with `status: resolved`.
+  - Move notes that are no longer relevant to active work into `memory/archive/`; set `status: resolved` only on project notes.
 - `docs/`: PR-reviewed design docs and research; update [`docs/README.md`](docs/README.md) when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
-Use `qmd` for topic lookup across `memory/` and `docs/`; cheapest mode that fits:
+Use the repository's QMD helper for topic lookup:
 
-- `qmd search "known term"`: first choice for names, files, APIs, issue numbers, and exact concepts.
-- `qmd query "question" --no-rerank`: default for fuzzy or open-ended topic lookup.
-- `qmd get <path>[:line] -l N`: cheap page/slice fetch.
+- `git knowledge search "known term"`: names, files, APIs, and exact concepts.
+- `git knowledge query "question" --no-rerank`: broader topic lookup.
+- `git knowledge get <path>[:line] -l N`: focused source reads.
 
-Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known paths. Hooks under `bin/hooks/` re-index after checkout, merge, commit, and rewrite. The post-checkout hook also runs `bin/prep-worktree` on first checkout of a new worktree. No manual `qmd update` or `qmd embed` is needed.
+Search before non-trivial work or writing memory. Use direct reads or `rg` for
+known paths or stale/unavailable search. Markdown remains authoritative.
+Run `bin/setup` after cloning, `bin/check` before delivering tooling or knowledge
+changes, and `bin/qmd-index` after uncommitted knowledge edits. Use `bin/doctor`
+for read-only diagnostics. Hooks use each checkout's own scripts. Read the
+[development workflow](docs/development-workflow.md) for cache cleanup and recovery.
+Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
@@ -65,7 +71,7 @@ Run a qmd lookup before non-trivial area work; use `Read`/`rg` only for known pa
 - Always pass `-hideShellScriptEnvironment` to `xcodebuild`; the shared scheme pre-action otherwise prints inherited environment values into raw logs.
 - Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
 - Async tests use `Wait.until`, `Wait.forValue`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
-- All test files belong to `PodHavenTests`.
+- All Swift test files belong to `PodHavenTests`. Repository tooling tests live in `bin/tests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete all test-only surfaces.
 - Put the test seam at the OS-integration boundary, not above our own logic. Wrap system-framework types in app-owned protocols that the real types conform to (via `extension`) and fake those, so our orchestration runs for real in tests.

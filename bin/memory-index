@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+from _memory_index import update
+
+try:
+    if sys.argv[1:] not in ([], ["--check"]):
+        raise ValueError("Usage: bin/memory-index [--check]")
+    update(Path(__file__).resolve().parents[1], check=bool(sys.argv[1:]))
+except (OSError, ValueError) as error:
+    print(error, file=sys.stderr)
+    sys.exit(1)

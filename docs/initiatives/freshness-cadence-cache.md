@@ -1,5 +1,5 @@
 ---
-status: shipped
+status: current
 ---
 
 # Freshness Cadence Cache

@@ -1,7 +1,7 @@
 ---
-name: stale-spm-artifact-paths-break-worktree-builds
-description: Shared SourcePackages workspace-state.json stores absolute artifact paths into whichever DerivedData resolved them; pruning that worktree's DerivedData breaks every build with "There is no XCFramework found" for Sentry.
-type: reference
+name: "stale-spm-artifact-paths-break-worktree-builds"
+description: "Shared SourcePackages workspace-state.json stores absolute artifact paths into whichever DerivedData resolved them; pruning that worktree's DerivedData breaks every build with \"There is no XCFramework found\" for Sentry."
+type: "reference"
 ---
 
 # Stale SwiftPM artifact paths break worktree builds

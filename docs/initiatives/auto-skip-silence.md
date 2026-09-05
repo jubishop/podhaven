@@ -1,5 +1,5 @@
 ---
-status: planning
+status: current
 ---
 
 # Auto-Skip Silence

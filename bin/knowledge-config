@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""Print portable collection settings for the keyword-only CI index."""
+import json
+import sys
+sys.dont_write_bytecode = True
+from _knowledge import config
+
+try:
+    if sys.argv[1:] != ["--ci"]:
+        raise ValueError("Usage: bin/knowledge-config --ci > <CI config directory>/index.yml")
+    print(json.dumps(config(include_local=False)[0], indent=2))
+except (OSError, ValueError, RuntimeError) as error:
+    print(error, file=sys.stderr)
+    sys.exit(1)

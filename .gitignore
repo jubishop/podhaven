@@ -51,6 +51,7 @@ worktrees
 
 # Local cache
 .cache/
+.config/qmd/
 .envrc.local
 
 # CI artifacts

@@ -1,5 +1,5 @@
 ---
-status: shipped
+status: current
 ---
 
 # SQLite Smart List Optimizer Maintenance

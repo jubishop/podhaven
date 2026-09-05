@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "source": "https://github.com/jubishop/project-starter",
+  "source_ref": "v1.0.0",
+  "tested_qmd": "2.1.0",
+  "adaptations": [
+    "Xcode cache sharing and automatic guarded cleanup",
+    "Optional environment file omitted",
+    "Explicit legacy Sentry history collection",
+    "Generated active memory index and audited publication",
+    "Tooling tests in bin/tests"
+  ]
+}

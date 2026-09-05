@@ -1,5 +1,5 @@
 ---
-status: planning
+status: current
 ---
 
 # Search Recommendations

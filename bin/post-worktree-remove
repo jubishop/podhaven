@@ -1,0 +1,4 @@
+#!/bin/sh
+# Called from the primary checkout after a successful worktree removal.
+repo_root=$(git rev-parse --show-toplevel) || exit 1
+exec "$repo_root/bin/prune-worktree-caches" --apply

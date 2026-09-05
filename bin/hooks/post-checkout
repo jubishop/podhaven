@@ -1,33 +1,3 @@
-#!/bin/bash
-# $1 = previous HEAD (null hash for new worktrees), $2 = new HEAD, $3 = branch flag
-
-# Run prep-worktree on first checkout of a new worktree.
-if [ "$1" = "0000000000000000000000000000000000000000" ]; then
-  WORKTREE_PATH="$(git rev-parse --show-toplevel)"
-  COMMON_GIT_DIR="$(git rev-parse --path-format=absolute --git-common-dir)"
-  MAIN_REPO="$(cd "$COMMON_GIT_DIR/.." && pwd)"
-  SCRIPT="$MAIN_REPO/bin/prep-worktree"
-
-  if [ ! -x "$SCRIPT" ]; then
-    SCRIPT="$WORKTREE_PATH/bin/prep-worktree"
-  fi
-
-  if [ -x "$SCRIPT" ]; then
-    "$SCRIPT" "$WORKTREE_PATH"
-  fi
-fi
-
-# Re-index qmd so local hybrid search stays fresh after a checkout.
-# Backgrounded so it doesn't block git. Silent unless invoked manually.
-# The index.yml check keeps a checkout that lacks the qmd config (e.g. an
-# old commit) from re-indexing against an ancestor directory's config.
-if command -v qmd >/dev/null 2>&1; then
-  REPO_ROOT="$(git rev-parse --show-toplevel)"
-  if [ -f "$REPO_ROOT/.config/qmd/index.yml" ]; then
-    (
-      cd "$REPO_ROOT"
-      qmd update >/dev/null 2>&1
-      qmd embed >/dev/null 2>&1
-    ) &
-  fi
-fi
+#!/bin/sh
+repo_root=$(git rev-parse --show-toplevel) || exit 1
+"$repo_root/bin/knowledge-hook" post-checkout "$@"

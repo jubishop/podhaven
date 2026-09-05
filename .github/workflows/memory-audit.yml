@@ -2,7 +2,7 @@ name: Memory Audit
 
 on:
   schedule:
-    # Saturdays 13:00 UTC (~5am PST / ~4am PDT). GitHub cron is UTC-only.
+    # Saturdays 13:00 UTC (5am PST / 6am PDT). GitHub cron is UTC-only.
     - cron: "0 13 * * 6"
   workflow_dispatch:
     inputs:
@@ -137,11 +137,7 @@ jobs:
           set -euo pipefail
           npm install --global @tobilu/qmd@2.1.0
           mkdir -p "$QMD_CONFIG_DIR" "$XDG_CACHE_HOME"
-          awk '
-            /^  home-memory:/ { skip=1; next }
-            skip && /^  [[:alnum:]_-]+:/ { skip=0 }
-            !skip { print }
-          ' .config/qmd/index.yml > "$QMD_CONFIG_DIR/index.yml"
+          bin/knowledge-config --ci > "$QMD_CONFIG_DIR/index.yml"
           qmd update
 
       - name: Run OpenRouter memory audit

@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+import sys
+sys.dont_write_bytecode = True
+from _knowledge import cli
+sys.exit(cli("index"))

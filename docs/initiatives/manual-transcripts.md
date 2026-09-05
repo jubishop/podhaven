@@ -1,14 +1,14 @@
 ---
-status: in-progress
+status: current
 ---
 
 # Episode Transcription
 
-On-device transcription of individual episodes, initiated manually or through a per-podcast new-episode opt-in. Finished transcripts render read-only in `EpisodeDetailView` and as a synchronized, expandable Now Playing transcript in `PlayBarSheet`. iOS 26+. Interactive tap-to-seek is a documented v2. Supersedes — for v1 — the autonomous three-tier design in [Episode Transcripts](transcripts.md) (abandoned).
+On-device transcription of individual episodes, initiated manually or through a per-podcast new-episode opt-in. Finished transcripts render read-only in `EpisodeDetailView` and as a synchronized, expandable Now Playing transcript in `PlayBarSheet`. iOS 26+. Interactive tap-to-seek is a documented v2. Supersedes — for v1 — the autonomous three-tier design in [archived Episode Transcripts design](../archive/transcripts.md).
 
 ## Status
 
-The backend transcription runtime from #461, episode projection support from #507, and view integration from #516 are merged into `main`. The on-device `Transcriber` (real speech model) and the `BGProcessingTask` runtime behaviour are integration/device-tested, not in CI; both sit behind protocols/fakes so everything around them is unit-tested. `EpisodeDetailView` remains read-only. When the on-deck episode has a readable transcript, `PlayBarSheet` offers medium and large detents plus an explicit expand control; the large presentation highlights the current timed segment as one text block and keeps it centered as playback advances. Newly produced transcripts still persist attributed-run timings for future interactions, while migrated legacy transcripts without those runs render through the same segment-level presentation. Tap-to-seek remains deferred to v2. Smart Lists can filter by transcript presence and phrase content through a local FTS5 index. Timed Podcasting 2.0 publisher transcripts now feed the same storage and display path. Still deferred and tracked in [Episode Transcripts](transcripts.md): speaker diarization, global transcript search outside Smart Lists and summaries, and autonomous working-set transcription beyond the explicit per-podcast opt-in.
+The backend transcription runtime from #461, episode projection support from #507, and view integration from #516 are merged into `main`. The on-device `Transcriber` (real speech model) and the `BGProcessingTask` runtime behaviour are integration/device-tested, not in CI; both sit behind protocols/fakes so everything around them is unit-tested. `EpisodeDetailView` remains read-only. When the on-deck episode has a readable transcript, `PlayBarSheet` offers medium and large detents plus an explicit expand control; the large presentation highlights the current timed segment as one text block and keeps it centered as playback advances. Newly produced transcripts still persist attributed-run timings for future interactions, while migrated legacy transcripts without those runs render through the same segment-level presentation. Tap-to-seek remains deferred to v2. Smart Lists can filter by transcript presence and phrase content through a local FTS5 index. Timed Podcasting 2.0 publisher transcripts now feed the same storage and display path. Still deferred and tracked in [Transcription futures](../research/transcription-futures.md): speaker diarization, global transcript search outside Smart Lists and summaries, and autonomous working-set transcription beyond the explicit per-podcast opt-in.
 
 ## Why
 
@@ -29,9 +29,9 @@ In:
 - A capability-gated per-podcast opt-in that queues episodes newly discovered during refresh as one batch, with non-fitting batches dropped under the warning shown in Podcast Settings.
 - Timed Podcasting 2.0 JSON, WebVTT, and SubRip imports that pre-empt redundant on-device work while ignoring speaker metadata and untimed resources.
 
-Out (deferred — see [Episode Transcripts](transcripts.md)):
+Out (deferred — see [Transcription futures](../research/transcription-futures.md)):
 - Tap-to-seek from either transcript surface. Highlight and auto-scroll are available in `PlayBarSheet`; `EpisodeDetailView` remains a read-only document.
-- Speaker diarization (no first-party API; FluidAudio is the documented v2 path).
+- Speaker diarization (candidate approaches are in the deferred research guide).
 - Autonomous / opportunistic transcription of a working set beyond the explicit per-podcast new-episode opt-in.
 - Global transcript search outside Smart Lists and on-device summaries.
 - Multi-locale: v1 is en-US only, gated on model availability.
@@ -43,7 +43,7 @@ Out (deferred — see [Episode Transcripts](transcripts.md)):
 - **Queue and checkpoints persisted in SQLite.** The ordered queue is an `episodeTranscriptionQueue` table with unique episode IDs, cascade deletion, monotonic positions, and a durable `publisherPreferred` or `onDeviceReplacement` work mode. `TranscriptionQueue` loads that order and mode once into its observable in-memory projection, then applies successful mutations incrementally; routine removals delete one row without refetching the backlog. SQLite also stores the larger correctness-critical checkpoint payload atomically so completed speech survives termination, app upgrades, and background-task expiration.
 - **Bounded admission, never destructive enforcement.** `maxTranscriptionQueueLength` defaults to 50 and is configurable from 10 through 100 in steps of 10. Capacity includes the active item and all waiting items. New unique IDs are admitted transactionally as an all-or-nothing batch; duplicates already in the queue consume no extra capacity. A rejected request throws `TranscriptionQueueError.capacityExceeded` and every episode-detail, list, context-menu, swipe, and multi-select caller presents the native **Transcription Queue Full** alert. Per-podcast automatic refresh requests instead log and drop the rejected batch because their settings UI warns that full-queue work is not retried. Lowering the setting or importing a larger legacy queue preserves all existing work and rejects new unique work until the whole request fits.
 - **Default-hidden device capability gate.** `TranscriptionAvailability` starts unknown, checks the en-US `SpeechTranscriber.supportedLocales` catalog when the app enters the foreground, and exposes on-device transcription actions only after a positive result. Unknown and unsupported states hide those actions, menus, bulk actions, and swipe-setting options; an already-stored publisher transcript remains readable in Episode Detail because displaying it does not require the speech model. The processor keeps its own support check as a defensive boundary for persisted work.
-- **Diarization deferred to v2.** No first-party Apple diarization. FluidAudio (CoreML pyannote, ANE, iOS 17+) is the path; pickup notes live in [Episode Transcripts → Speaker diarization](transcripts.md#speaker-diarization-deferred). Publisher JSON may carry speaker labels, but the current importer intentionally ignores them to preserve the speaker-free segment model.
+- **Diarization deferred to v2.** The historical research considered FluidAudio; verify current APIs and evaluate the candidate before choosing a dependency. Pickup notes live in [Transcription futures → Speaker diarization](../research/transcription-futures.md#speaker-diarization). Publisher JSON may carry speaker labels, but the current importer intentionally ignores them to preserve the speaker-free segment model.
 
 ## Data model
 

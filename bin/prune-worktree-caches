@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+from _worktrees import sweep
+from _knowledge import atomic_json, stamp
+
+parser = argparse.ArgumentParser(description="Inspect or remove verified orphan Xcode caches; busy caches retry automatically.")
+group = parser.add_mutually_exclusive_group()
+group.add_argument("--apply", action="store_true")
+group.add_argument("--dry-run", action="store_true")
+parser.add_argument("--json", action="store_true")
+parser.add_argument("--quiet", action="store_true", help="Record the latest outcome without terminal output")
+args = parser.parse_args()
+root = Path(__file__).resolve().parents[1]
+error_path = root / ".cache/worktree-cleanup/last-error.json"
+try:
+    report = sweep(root, apply=args.apply)
+    if args.apply:
+        error_path.unlink(missing_ok=True)
+    if not args.quiet:
+        print(json.dumps(report, indent=2))
+except Exception as error:
+    if args.apply:
+        atomic_json(error_path, {"at": stamp(), "error": str(error)})
+    if not args.quiet:
+        print("Cache cleanup deferred: " + str(error), file=sys.stderr)
+    sys.exit(1)
