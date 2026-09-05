@@ -28,7 +28,7 @@ if (!apiKey) {
 }
 delete process.env.OPENROUTER_API_KEY;
 
-const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash";
+const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
 const reasoningEffort = process.env.REASONING_EFFORT || "medium";
 const maxCost = Number(process.env.MAX_API_COST_USD || "0.20");
 const maxTurns = Number(process.env.MAX_AGENT_TURNS || "160");

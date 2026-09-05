@@ -150,7 +150,7 @@ jobs:
         continue-on-error: true
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          OPENROUTER_MODEL: deepseek/deepseek-v4-flash
+          OPENROUTER_MODEL: deepseek/deepseek-v4-flash-0731
           REASONING_EFFORT: medium
           MAX_API_COST_USD: "0.20"
         run: node bin/run-memory-audit.mjs
@@ -211,7 +211,7 @@ jobs:
         env:
           AUDIT_OUTCOME: ${{ needs.audit.outputs.audit_outcome }}
           GH_TOKEN: ${{ github.token }}
-          MODEL_ID: deepseek/deepseek-v4-flash
+          MODEL_ID: deepseek/deepseek-v4-flash-0731
           REASONING_EFFORT: medium
           PUBLISH_CHANGES: ${{ github.event_name == 'schedule' || inputs.publish_changes }}
         run: bin/finalize-memory-audit
@@ -236,7 +236,7 @@ jobs:
           jq -n \
             --arg runId "$GITHUB_RUN_ID" \
             --arg runUrl "$RUN_URL" \
-            --arg model "deepseek/deepseek-v4-flash" \
+            --arg model "deepseek/deepseek-v4-flash-0731" \
             --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg skipReason "$SKIP_REASON" \
             --argjson activeNoteCount "$ACTIVE_NOTE_COUNT" \
