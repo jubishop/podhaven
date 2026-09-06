@@ -54,6 +54,12 @@ Website: [artisanalsoftware.com/podhaven](https://artisanalsoftware.com/podhaven
 
 For more advanced users, here are the commands to build and test from the command line.
 
+For repository knowledge and tooling, use `bin/check --documents-only` after
+a batch of Markdown edits and `bin/check` for fast static checks. Run
+`bin/check --full` after setup or foundation changes, and before a tooling PR
+or release. CI runs the full tooling suite. These commands do not build the
+Swift app. See the [development workflow](docs/development-workflow.md).
+
 <details>
 <summary>Click to expand Build & Test Commands</summary>
 

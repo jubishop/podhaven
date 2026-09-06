@@ -25,7 +25,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
       - name: Check repository knowledge and tooling
-        run: bin/check
+        run: bin/check --full
 
       - name: Run unittest test files
         # The scripts under .agents/skills aren't packages (no __init__.py),

@@ -364,6 +364,61 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
         self.drain()
         self.assertEqual(len(self.records()), initial + 2)
 
+    def test_check_modes_run_behavior_tests_only_with_full(self):
+        self.tool("shellcheck", "import sys\nsys.exit(0)\n")
+        suite = self.repo / Path(__file__).resolve().relative_to(SOURCE)
+        # Replace only the disposable suite to observe execution without recursion.
+        for path in suite.parent.glob("test_*.py"):
+            path.unlink()
+        suite.write_text("import unittest\nclass Probe(unittest.TestCase):\n"
+                         "    def test_probe(self):\n"
+                         "        self.fail('behavior suite executed')\n")
+        fast = self.run_command("bin/check")
+        self.assertIn("Fast foundation checks passed", fast.stdout)
+        self.run_command("bin/check", "--documents-only")
+        full = self.run_command("bin/check", "--full", check=False)
+        self.assertNotEqual(full.returncode, 0)
+        self.assertIn("behavior suite executed", full.stderr)
+        suite.write_text(suite.read_text().replace("self.fail('behavior suite executed')", "pass"))
+        self.assertIn("Full repository foundation checks passed", self.run_command("bin/check", "--full").stdout)
+        suite.unlink()
+        missing = self.run_command("bin/check", "--full", check=False)
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("preserve the foundation tests", missing.stderr)
+
+    def test_fast_check_still_rejects_syntax_and_lint_errors(self):
+        self.tool("shellcheck", "import sys\nsys.exit(0)\n")
+        suite = self.repo / Path(__file__).resolve().relative_to(SOURCE)
+        for folder in (self.repo / "bin", suite.parent):
+            with self.subTest(folder=folder):
+                broken = folder / "invalid_syntax.py"
+                broken.write_text("def broken(\n")
+                self.run_command("bin/check", "--documents-only")
+                result = self.run_command("bin/check", check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("invalid_syntax.py", result.stderr)
+                broken.unlink()
+        self.tool("shellcheck", "import sys\nprint('shell lint failed', file=sys.stderr)\nsys.exit(1)\n")
+        self.run_command("bin/check", "--documents-only")
+        result = self.run_command("bin/check", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("shell lint failed", result.stderr)
+
+    def test_fast_check_still_rejects_staged_whitespace(self):
+        self.tool("shellcheck", "import sys\nsys.exit(0)\n")
+        (self.repo / "whitespace.txt").write_text("trailing space \n")
+        self.run_command("git", "add", "whitespace.txt")
+        result = self.run_command("bin/check", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("trailing whitespace", result.stdout)
+
+    def test_check_rejects_unknown_or_combined_modes(self):
+        for args in (("--unknown",), ("--full", "--documents-only")):
+            with self.subTest(args=args):
+                result = self.run_command("bin/check", *args, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Usage:", result.stderr)
+
     def test_document_schema_names_and_index_coverage(self):
         self.run_command("bin/check", "--documents-only")
         page = self.repo / "memory/example.md"

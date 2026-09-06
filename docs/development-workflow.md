@@ -15,7 +15,7 @@ Run from the repository root:
 bin/setup
 bin/install-cleanup-agent  # macOS, primary checkout only
 bin/doctor
-bin/check
+bin/check --full
 ```
 
 Setup requires Git and Python 3.9 or later. Checks also require ShellCheck,
@@ -235,19 +235,41 @@ its log. Manually replacing the database requires a forced refresh.
 
 ## Checks and project extensions
 
-`bin/check` validates the documented frontmatter subset, index coverage,
-local file links and ordinary heading anchors, Python syntax for these tools,
-shell syntax (Bash for `.envrc`, POSIX shell for the bundled hooks), and the
-copied foundation's behavior. The tests use disposable
-repositories and simulated QMD/direnv, with no model downloads or network access.
-Remote URLs are not fetched. Use `bin/check --documents-only` for focused edits.
+Choose validation by the changed files and the stage of the work:
+
+| Work | Check |
+| --- | --- |
+| Discussion, planning, or read-only inspection | No checks. |
+| A batch of Markdown edits | `bin/check --documents-only`. |
+| Tooling edits during development | Focused tooling tests and `bin/check`. |
+| Initial setup; changes to foundation tools, hooks, configuration, tests, or CI | `bin/check --full` after the edits are complete. |
+| A tooling PR or release ready for delivery | `bin/check --full` once for the final changes. |
+
+Batch related edits before checking. A conversational reply is not a release
+gate. Reuse a passing result while its relevant source, configuration, and
+dependencies are unchanged. Repeat a check when those inputs change or a
+failure needs verification. CI always runs the full check.
+
+`bin/check --documents-only` validates the documented frontmatter subset,
+index coverage, local file links, and ordinary heading anchors.
+`bin/check` adds Python syntax checks for the tools and tests, shell checks
+(Bash for `.envrc`, POSIX shell for the bundled hooks), and Git whitespace
+checks. It does not run the disposable-repository tests.
+
+`bin/check --full` adds all repository tooling tests in `bin/tests`. They use
+disposable repositories and simulated QMD/direnv, with no model downloads or
+network access. Remote URLs are not fetched by foundation checks.
+
+All modes also verify the generated active-memory index. Keep the
+existing Swift build and test requirements for application changes.
+A Markdown or tooling edit does not require building the Swift app.
 
 Keep the foundation checks when adding application tests, builds, and linters.
 For generated or externally owned docs, add deliberate patterns to
 `checks.exclude` in `.config/knowledge.json`. Avoid broad exclusions that hide
 hand-written project knowledge.
 
-The Python Tests workflow runs `bin/check` in addition to the existing skill
+The Python Tests workflow runs `bin/check --full` in addition to the existing skill
 tests. `bin/tests` covers the knowledge worker, cache ownership and artifact
 repair, and audit publication gates. `bin/smoke-knowledge --models <existing-model-directory>`
 checks real QMD retrieval and linked-worktree isolation in disposable repositories.

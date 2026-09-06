@@ -15,8 +15,14 @@ Use the repository's QMD helper for topic lookup:
 
 Search before non-trivial work or writing memory. Use direct reads or `rg` for
 known paths or stale/unavailable search. Markdown remains authoritative.
-Run `bin/setup` after cloning, `bin/check` before delivering tooling or knowledge
-changes, and `bin/qmd-index` after uncommitted knowledge edits. Use `bin/doctor`
+Run `bin/setup` after cloning. Use `bin/check --documents-only` for Markdown
+edits and `bin/check` for fast tooling checks. Run `bin/check --full` after
+setup or foundation changes, and before a tooling PR or release. Use the
+existing Swift build and test checks for application changes. Do not run checks
+for discussion or read-only work. Batch related edits before checking and
+reuse passing results while relevant inputs are unchanged.
+Run `bin/qmd-index` after uncommitted knowledge edits when current search
+results are needed. Use `bin/doctor`
 for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 [development workflow](docs/development-workflow.md) for cache cleanup and recovery.
 Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
