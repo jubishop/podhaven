@@ -1,9 +1,13 @@
 ---
+name: error-policy
 description: Audit error handling in Swift files against the project error policy
 argument-hint: [file or directory path to audit, or blank for full codebase]
+user_invocable: true
 disable-model-invocation: true
 context: fork
 ---
+
+# Error Policy
 
 Audit the specified Swift files (or the full codebase if no `$ARGUMENTS` provided) against the error handling policy below. Exclude test files (`PodHavenTests/`) and the ShareExtension target.
 
@@ -11,19 +15,19 @@ Audit the specified Swift files (or the full codebase if no `$ARGUMENTS` provide
 
 ### When to catch errors locally
 
-Catch the error **right there** and log with `caughtError(...)` if the function has **extra informative context derived entirely locally** — i.e. not just a parameter passed into the function that the caller already has, and not information already contained within the error being thrown. Then early return (`return` for void, `return nil/false/[]` etc.).
+Catch where the code can recover, present a failure, or finish an operation that cannot propagate errors. Recovery can include continuing independent work after one item fails. These responsibilities justify catching even when there is no extra local context.
 
-**Exceptions:**
-- If returning nil/false/[] would be **ambiguous with a valid non-error result** (e.g. a DB fetch where `[]` could mean "no results" vs "DB error"), log the extra context alongside the error and **rethrow** — accept potential double-logging.
-- If the calling function has **other work to do** even when the called function throws, catch and log on the spot so it can continue rather than early-exit.
+Add useful local context without hiding the failure. If a catch only adds context, preserve and rethrow the error.
+
+Never turn an error into a value that could be mistaken for success. For example, a failed database query must remain distinguishable from a successful query that found no rows. Returning `nil`, `false`, or `[]` is appropriate only when the operation's contract makes the failure or recovery unambiguous.
 
 ### When to let errors propagate
 
-If the function has **no extra local context** beyond what the caller already knows, **don't catch** — let the error propagate up the call stack until a caller that does have useful context catches and logs it.
+Otherwise, let errors propagate to a caller that owns recovery, failure presentation, or completion of the operation. Extra logging context alone is not a reason to stop propagation.
 
 ### Top of call stack
 
-By the very top of any call stack, every error **must** be logged somewhere. Errors must never silently disappear.
+Ensure errors are logged before they stop propagating, except for the silent cancellation checks and sleeps allowed below. Use `caughtError(...)` when logging a caught error. An error that is rethrown remains the responsibility of its caller unless it has already been logged.
 
 ### `try?` usage
 
@@ -59,16 +63,16 @@ Search the scoped files for:
 - `try?` — check each against the sleep/checkCancellation exemption
 - `do {` / `} catch` — check scope minimality and catch quality
 - `log.error(` — check if a caught error object is available and `caughtError` should be used instead
-- `log.caughtError(` — verify the context message adds locally-derived information
+- `log.caughtError(` — verify the message identifies the failed operation, includes the caught error, and adds useful local context when available
 - Throwing functions — verify errors don't silently disappear at call-stack tops
 
 ### Step 3 — Evaluate each site
 
 For each site, determine:
-1. Does the catch have **locally-derived context** that justifies catching here?
+1. Does this code own recovery, failure presentation, or completion of an operation that cannot propagate errors? If it only adds context, does it preserve and rethrow the error?
 2. Is the do/catch scope **minimal**?
-3. Could the error **propagate instead** because the caller has equal or better context?
-4. At the top of the call stack, is the error **always logged**?
+3. Should the error propagate to a caller that owns handling it?
+4. Is the error logged before it stops propagating, unless an explicit cancellation exception applies?
 5. Would the return value on error be **ambiguous** with a valid result?
 6. Does the function have **other work** that should continue despite the error?
 

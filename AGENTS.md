@@ -37,11 +37,11 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 - Public repo: no secrets, API keys, tokens, or credentials.
 - No commits or pushes unless explicitly asked; preserve user edits and never reset/revert unknown changes.
 - Build/test must end with zero compiler/linker/runtime/deprecation/unused-result/Sendable warnings.
-- The Lint Swift build phase fails before `SwiftCompile`: a lint-only failure says nothing about whether the code compiles. Fix formatting (`bin/lint-swift-format`), then rebuild to surface compile errors.
+- The Lint Swift build phase fails before `SwiftCompile`: a lint-only failure says nothing about whether the code compiles. Format touched files with `swift-format format --in-place --configuration .swift-format <files>`, check with `bin/lint-swift-format`, then rebuild to surface compile errors.
 
 ## Compatibility
-- No backward compatibility requirement for older iOS or library versions; use the latest.
-- DB migrations are the exception: shipped migrations are immutable. Never edit body/version; add the next migration for schema or seed changes.
+- Use modern APIs and avoid unnecessary compatibility layers. Change deployment targets or dependency versions when the requested work requires it, or when an upgrade is explicitly requested.
+- Shipped DB migrations are immutable. Never edit body/version; add the next migration for schema or seed changes.
 
 ## UI Structure
 - SwiftUI views stay declarative; forward actions to view models or shared protocols; no business logic in views.
@@ -62,7 +62,8 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## Errors and Logging
 - Log with `ErrorKit` formatting at the appropriate level; use static `Logger`s from `Log.as`.
-- Catch only to add local-only context; otherwise propagate. The top of the stack must log every error.
+- Catch where the code can recover, present a failure, or finish an operation that cannot propagate errors. Otherwise, propagate.
+- Add useful local context without hiding the failure. Never turn an error into a value that could be mistaken for success. Ensure errors are logged before they stop propagating, except for the silent cancellation checks and sleeps allowed below.
 - Keep `do`/`catch` around `try` calls only.
 - Caught object: `log.caughtError()`; no object: `log.error()`.
 - `caughtError()` auto-downgrades unremarkable errors (`CancellationError`, cancelled/timed-out `URLError`) to `.debug` via `ErrorKit.isRemarkable`.
@@ -85,7 +86,7 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## Previews
 - Every graphical change requires adequate Xcode `#Preview` coverage. Add or update preview blocks so the changed UI and its relevant states can be inspected without running the app, and verify that the previews build.
-- Previews stub factories for in-memory SwiftUI previews; no network or DB access.
+- Previews use stubbed dependencies and an isolated in-memory database when needed. Never access the network or persistent app databases.
 
 ## Database
 - Prefer pure GRDB APIs (associations, aggregates, column expressions, `joining()`, `having()`, `filter()`, etc.) over raw SQL strings.
@@ -97,10 +98,10 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## Coding Standards
 - Keep every Swift file under 1000 lines.
-- Mark functions `@discardableResult` when callers intentionally ignore their result; never discard with `_ =`.
+- Use `@discardableResult` when ignoring the result is a supported use of the API. Otherwise, preserve unused-result warnings and allow explicit `_ =` at individual call sites when discarding the result is intentional and safe. Do not add wrappers solely to avoid `_ =`.
 
 ### Production Only
-- Use `[weak self]` in closures/Tasks that capture `self` unless a strong reference is required. Unwrap with `guard let self else { return }`; use `self.x`, not `self?.x`.
+- Choose captures based on the required lifetime. Use weak captures when stored callbacks must not retain their owner. Finite tasks may retain their owner until completion. Long-lived tasks need an explicit cancellation owner and stopping point; weak capture alone does not establish either.
 - Avoid `try?`; use `do`/`catch`. Exceptions: `Task.checkCancellation()` and `sleeper.sleep()` when silent failure is intentional.
 - No force unwraps (`!`); use `Assert` or guarded error handling.
 - Never use `map`/`flatMap` to unwrap optionals; use `if let`/`guard let`. Reserve `map`/`flatMap` for collections.
