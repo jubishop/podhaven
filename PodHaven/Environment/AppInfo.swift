@@ -65,6 +65,8 @@ private struct AppInfoState: Sendable {
   #else
   let environment = Broadcast(AppInfo.detectEnvironment())
   #endif
+
+  fileprivate init() {}
 }
 
 extension Container {
