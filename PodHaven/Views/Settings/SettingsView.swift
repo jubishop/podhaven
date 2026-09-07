@@ -558,7 +558,7 @@ struct SettingsView: View {
           }
         }
 
-        if AppInfo.environment != .appStore {
+        if AppInfo.environment.allowsDiagnostics {
           DebugSection()
         }
       }
@@ -600,8 +600,27 @@ struct SettingsView: View {
 }
 
 #if DEBUG
-#Preview {
+#Preview("Development") {
   SettingsView()
     .preview()
+}
+
+#Preview("Distribution unresolved") {
+  SettingsView()
+    .preview()
+    .onAppear { AppInfo.environment = .deployed }
+}
+
+#Preview("TestFlight — Large Text") {
+  SettingsView()
+    .preview()
+    .environment(\.dynamicTypeSize, .accessibility2)
+    .onAppear { AppInfo.environment = .testFlight }
+}
+
+#Preview("App Store") {
+  SettingsView()
+    .preview()
+    .onAppear { AppInfo.environment = .appStore }
 }
 #endif

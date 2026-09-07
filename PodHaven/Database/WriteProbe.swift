@@ -5,12 +5,8 @@ import Foundation
 import GRDB
 import Logging
 
-// Debug-only diagnostic probe. Logs the rate, affected tables, and a sampled
-// backtrace of every committed write transaction, so a runaway DB-write loop
-// can be traced back to whatever is performing the writes. Registered on the
-// real on-disk database, but reports events only while the `enableWriteProbe`
-// user setting is on (off by default, toggled live in the Settings Debug
-// section); test and preview databases are never observed.
+// Observes the real database only in eligible environments with the live
+// enableWriteProbe setting on. Test and preview databases are not registered.
 final class WriteProbe: TransactionObserver, Sendable {
   private static let log = Log.as("WriteProbe")
   private static let backtraceInterval: Duration = .seconds(2)
@@ -24,19 +20,25 @@ final class WriteProbe: TransactionObserver, Sendable {
   private let accumulator = ThreadSafe<State>(State())
   private let enabled: Broadcast<Bool>
 
+  private var isEnabled: Bool {
+    AppInfo.environment.allowsDiagnostics && enabled.value
+  }
+
   init(enabled: Broadcast<Bool>) {
     self.enabled = enabled
   }
 
   // MARK: - TransactionObserver
 
-  // GRDB re-evaluates this before every statement execution, so toggling the
-  // `enableWriteProbe` setting takes effect live. While off, the probe is
-  // excluded from event tracking — `databaseDidChange` is never called — so
-  // the accumulator stays empty and the commit/rollback callbacks no-op.
-  func observes(eventsOfKind _: DatabaseEventKind) -> Bool { enabled.value }
+  // GRDB re-evaluates this before each statement, including after distribution
+  // detection finishes or the saved setting changes.
+  func observes(eventsOfKind _: DatabaseEventKind) -> Bool { isEnabled }
 
   func databaseDidChange(with event: DatabaseEvent) {
+    guard isEnabled else {
+      accumulator { $0 = State() }
+      return
+    }
     let table = event.tableName
     let instant = Container.shared.continuousClockNow()()
     accumulator { state in
@@ -47,6 +49,10 @@ final class WriteProbe: TransactionObserver, Sendable {
   }
 
   func databaseDidCommit(_: Database) {
+    guard isEnabled else {
+      accumulator { $0 = State() }
+      return
+    }
     let instant = Container.shared.continuousClockNow()()
     let snapshot = accumulator {
       state -> (tables: [String], rowEvents: Int, duration: Duration, backtrace: Bool) in
@@ -58,7 +64,12 @@ final class WriteProbe: TransactionObserver, Sendable {
       guard state.rowEvents > 0, let start = state.transactionStart else {
         return ([], 0, .zero, false)
       }
-      let backtrace = state.lastBacktrace.map { instant - $0 >= Self.backtraceInterval } ?? true
+      let backtrace: Bool
+      if let lastBacktrace = state.lastBacktrace {
+        backtrace = instant - lastBacktrace >= Self.backtraceInterval
+      } else {
+        backtrace = true
+      }
       if backtrace { state.lastBacktrace = instant }
       return (state.tables.sorted(), state.rowEvents, instant - start, backtrace)
     }
