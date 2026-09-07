@@ -10,13 +10,68 @@ import UIKit
 
 #if !WIDGET_EXTENSION && !DEBUG
 import MarketplaceKit
+#endif
+
+#if !WIDGET_EXTENSION
+
+@MainActor protocol DeviceIdentifying {
+  var identifierForVendor: UUID? { get }
+}
+
+extension UIDevice: DeviceIdentifying {}
+
+enum AppDistribution: Sendable {
+  case appStore
+  case testFlight
+  case marketplace(String)
+  case web
+  case other
+  case unknown
+}
 
 extension Container {
-  var appDistributor: Factory<@concurrent () async throws -> AppDistributor> {
-    Factory(self) { { try await AppDistributor.current } }.scope(.cached)
+  @MainActor var uiDevice: Factory<any DeviceIdentifying> {
+    Factory(self) { UIDevice.current }.scope(.cached)
+  }
+
+  var appDistributor: Factory<@concurrent () async throws -> AppDistribution> {
+    Factory(self) {
+      {
+        #if DEBUG
+        return .other
+        #else
+        switch try await AppDistributor.current {
+        case .appStore: return .appStore
+        case .testFlight: return .testFlight
+        case .marketplace(let identifier): return .marketplace(identifier)
+        case .web: return .web
+        case .other: return .other
+        @unknown default: return .unknown
+        }
+        #endif
+      }
+    }
+    .scope(.cached)
   }
 }
 #endif
+
+private struct AppInfoState: Sendable {
+  let initializeOnce = Once()
+  let finalizeOnce = AsyncOnce()
+  let deviceIdentifier = ThreadSafe<String>("Unknown")
+  #if WIDGET_EXTENSION
+  let environment = ThreadSafe<EnvironmentType>(.deployed)
+  #else
+  let environment = Broadcast(AppInfo.detectEnvironment())
+  #endif
+}
+
+extension Container {
+  fileprivate var appInfoState: Factory<AppInfoState> {
+    Factory(self) { AppInfoState() }.scope(.cached)
+  }
+}
 
 enum EnvironmentType: String {
   case appStore
@@ -36,12 +91,18 @@ enum EnvironmentType: String {
     case .iPhoneDev, .macDev, .preview, .simulator, .testing: false
     }
   }
+
+  var allowsDiagnostics: Bool {
+    switch self {
+    case .appStore, .deployed: false
+    case .iPhoneDev, .macDev, .preview, .simulator, .testFlight, .testing: true
+    }
+  }
 }
 
 enum AppInfo {
   private static let log = Log.as("AppInfo")
-  private static let initializeEnvironmentOnce = Once()
-  private static let finalizeEnvironmentOnce = AsyncOnce()
+  private static var state: AppInfoState { Container.shared.appInfoState() }
 
   // MARK: - System Settings
 
@@ -54,23 +115,30 @@ enum AppInfo {
 
   // MARK: - Environment Info
 
-  private static let _deviceIdentifier = ThreadSafe<String>("Unknown")
-  static var deviceIdentifier: String { _deviceIdentifier() }
+  static var deviceIdentifier: String { state.deviceIdentifier() }
   static var myDevice: Bool { deviceIdentifier == "6B915F57-D7FC-4249-8FAD-B71F5D362CEB" }
 
   // The widget extension never calls `initializeEnvironment`, so inside the
   // widget process `environment` stays `.deployed` forever — don't branch
   // widget behavior on this value.
-  private static let _environment = ThreadSafe<EnvironmentType>(.deployed)
+  #if WIDGET_EXTENSION
   static var environment: EnvironmentType {
-    set { _environment(newValue) }
-    get { _environment() }
+    set { state.environment(newValue) }
+    get { state.environment() }
   }
+  #else
+  static var environment: EnvironmentType {
+    set { state.environment.new(newValue) }
+    get { state.environment.current }
+  }
+  #endif
 
   #if !WIDGET_EXTENSION
   @MainActor static func initializeEnvironment() {
-    initializeEnvironmentOnce.run {
-      _deviceIdentifier(UIDevice.current.identifierForVendor?.uuidString ?? "Unknown")
+    state.initializeOnce.run {
+      state.deviceIdentifier(
+        Container.shared.uiDevice().identifierForVendor?.uuidString ?? "Unknown"
+      )
       environment = detectEnvironment()
     }
   }
@@ -78,9 +146,8 @@ enum AppInfo {
 
   #if !WIDGET_EXTENSION
   static func finalizeEnvironment() async {
-    await finalizeEnvironmentOnce.run {
+    await state.finalizeOnce.run {
       guard environment == .deployed else { return }
-      #if !DEBUG
       do {
         let refined: EnvironmentType
         switch try await Container.shared.appDistributor()() {
@@ -99,7 +166,7 @@ enum AppInfo {
         case .other:
           log.notice("AppDistributor.other; treating as App Store for debug gating")
           refined = .appStore
-        @unknown default:
+        case .unknown:
           log.warning("Unknown AppDistributor; treating as App Store for debug gating")
           refined = .appStore
         }
@@ -112,12 +179,11 @@ enum AppInfo {
         )
         environment = .appStore
       }
-      #endif
     }
   }
   #endif
 
-  private static func detectEnvironment() -> EnvironmentType {
+  fileprivate static func detectEnvironment() -> EnvironmentType {
     let env = ProcessInfo.processInfo.environment
     guard env["XCODE_RUNNING_FOR_PREVIEWS"] != "1",
       env["XCODE_RUNNING_FOR_PLAYGROUNDS"] != "1"

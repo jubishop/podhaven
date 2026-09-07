@@ -28,7 +28,6 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
   @DynamicInjected(\.publisherTranscriptProcessor) private var publisherTranscriptProcessor
   @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
-  @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
@@ -37,7 +36,6 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.transcriptionAvailability) private var transcriptionAvailability
   @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
 
-  private var alert: Alert { get async { await Container.shared.alert() } }
   private var taskPriority: @Sendable (TaskPriority?) -> TaskPriority? {
     Container.shared.taskPriority()
   }
@@ -48,7 +46,6 @@ struct AppLauncher: Sendable {
   private static let log = Log.as("AppLauncher")
   private let prepareForPlaybackOnce = AsyncOnce()
   private let prepareForForegroundOnce = AsyncOnce()
-  private let startSystemMonitoringOnce = Once()
 
   // MXMetricManager holds subscribers weakly, so this must outlive registration.
   private let metricKitMonitor = MetricKitMonitor()
@@ -165,28 +162,12 @@ struct AppLauncher: Sendable {
       self.cacheManager.start()
       self.recommendationEngine.start()
 
-      self.startSystemMonitoring()
+      await Container.shared.memoryWarningMonitor().start()
     }
 
     guard AppInfo.environment != .testing else { return }
     guard !Task.isCancelled else { return }
     await playManager.restorePersistedEpisodeForForeground()
-  }
-
-  // MARK: - System Monitoring
-
-  private func startSystemMonitoring() {
-    startSystemMonitoringOnce.run {
-      Task(priority: taskPriority(.utility)) {
-        for await _ in self.notifications(UIApplication.didReceiveMemoryWarningNotification) {
-          Self.log.warning("System memory warning received")
-
-          if AppInfo.myDevice {
-            await self.alert("Memory warning received")
-          }
-        }
-      }
-    }
   }
 
   // MARK: - Logging
