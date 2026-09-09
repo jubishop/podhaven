@@ -82,6 +82,9 @@ import UIKit
 
   @Test("backgrounding cancels the sleeping foreground loop and schedules a background task")
   func backgroundingCancelsSleepingForegroundLoop() async throws {
+    refreshScheduler.register()
+    fakeBGTaskScheduler.setPendingIdentifiers([])
+    let initialSubmissionCount = feedRefreshSubmissionCount
     let fakeSleeper = fakeSleeper
     let session = session
     let podcastSeries = try await makeStaleSubscribedSeries()
@@ -107,7 +110,7 @@ import UIKit
     await fakeSleeper.advanceTime(by: .minutes(4))
 
     #expect(await session.requests.count == 1)
-    #expect(feedRefreshSubmissionCount == 1)
+    #expect(feedRefreshSubmissionCount == initialSubmissionCount + 1)
   }
 
   @Test("duplicate active transitions do not create multiple foreground loops")
@@ -157,6 +160,9 @@ import UIKit
 
   @Test("backgrounding during an in-flight foreground refresh prevents loop re-arming")
   func backgroundingDuringForegroundRefreshPreventsRearming() async throws {
+    refreshScheduler.register()
+    fakeBGTaskScheduler.setPendingIdentifiers([])
+    let initialSubmissionCount = feedRefreshSubmissionCount
     let fakeApplication = fakeApplication
     let fakeSleeper = fakeSleeper
     let session = session
@@ -195,7 +201,7 @@ import UIKit
     await fakeSleeper.advanceTime(by: .minutes(4))
 
     #expect(await session.requests.count == 1)
-    #expect(feedRefreshSubmissionCount == 1)
+    #expect(feedRefreshSubmissionCount == initialSubmissionCount + 1)
   }
 
   @Test("background refresh completion while backgrounded does not arm the foreground loop")

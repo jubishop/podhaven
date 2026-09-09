@@ -75,11 +75,14 @@ import Testing
   @Test("backgrounding schedules the next purge task")
   func backgroundingSchedulesNextPurgeTask() throws {
     let fakeBGTaskScheduler = fakeBGTaskScheduler
+    cachePurger.register()
+    fakeBGTaskScheduler.setPendingIdentifiers([])
+    let initialSubmissionCount = fakeBGTaskScheduler.submissions.count
 
     cachePurger.handleScenePhaseChange(to: .background)
 
-    let submission = try #require(fakeBGTaskScheduler.submissions.first)
-    #expect(fakeBGTaskScheduler.submissions.count == 1)
+    let submission = try #require(fakeBGTaskScheduler.submissions.last)
+    #expect(fakeBGTaskScheduler.submissions.count == initialSubmissionCount + 1)
     #expect(submission.isProcessing == true)
     #expect(submission.requiresNetworkConnectivity == false)
   }
@@ -87,20 +90,27 @@ import Testing
   @Test("active scene phase does not schedule a purge task")
   func activeScenePhaseDoesNotSchedulePurgeTask() {
     let fakeBGTaskScheduler = fakeBGTaskScheduler
+    cachePurger.register()
+    fakeBGTaskScheduler.setPendingIdentifiers([])
+    let initialSubmissionCount = fakeBGTaskScheduler.submissions.count
 
     cachePurger.handleScenePhaseChange(to: .active)
 
-    #expect(fakeBGTaskScheduler.submissions.isEmpty)
+    #expect(fakeBGTaskScheduler.submissions.count == initialSubmissionCount)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers.isEmpty)
   }
 
   @Test("repeated background transitions do not enqueue duplicate pending purge tasks")
   func repeatedBackgroundTransitionsDoNotEnqueueDuplicatePendingTasks() {
     let fakeBGTaskScheduler = fakeBGTaskScheduler
+    cachePurger.register()
+    fakeBGTaskScheduler.setPendingIdentifiers([])
+    let initialSubmissionCount = fakeBGTaskScheduler.submissions.count
 
     cachePurger.handleScenePhaseChange(to: .background)
     cachePurger.handleScenePhaseChange(to: .background)
 
-    #expect(fakeBGTaskScheduler.submissions.count == 1)
+    #expect(fakeBGTaskScheduler.submissions.count == initialSubmissionCount + 1)
     #expect(fakeBGTaskScheduler.pendingIdentifiers.count == 1)
   }
 
