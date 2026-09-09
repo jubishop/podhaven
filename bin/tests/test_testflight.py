@@ -36,8 +36,13 @@ class TestFlightTests(unittest.TestCase):
         self.assertTrue(config["submit_beta_review"])
         self.assertTrue(config["notify_external_testers"])
         self.assertFalse(config["expire_previous_builds"])
-        self.assertIn(["groups", {"builds": "build-id", "id": "everyone-id"}], events)
+        self.assertIn(["groups", {"builds": "build-id"}], events)
         self.assertIn("waiting for beta review", events[-1][1])
+
+    def test_verification_accepts_assignment_on_a_later_page(self):
+        result, events = self.run_lane("paginated")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Confirmed 1.0.1 (569) in Everyone", events[-1][1])
 
     def test_preflight_only_checks_login_and_external_group(self):
         result, events = self.run_lane(TESTFLIGHT_PREFLIGHT="true")
@@ -57,6 +62,8 @@ class TestFlightTests(unittest.TestCase):
             with self.subTest(scenario=scenario):
                 result, events = self.run_lane(scenario)
                 self.assertNotEqual(result.returncode, 0)
+                expected = "assignment to Everyone" if scenario == "unconfirmed" else "BETA_REJECTED"
+                self.assertIn(expected, result.stderr)
                 self.assertFalse(any(event[0] == "success" for event in events))
 
     def test_api_key_is_loaded_from_a_path(self):

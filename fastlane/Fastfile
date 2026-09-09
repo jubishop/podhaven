@@ -70,7 +70,7 @@ lane :distribute_testflight do |options|
   config[:groups] = [group.id]
   manager.distribute(config, build: build)
 
-  assigned = app.get_beta_groups(filter: { builds: build.id, id: group.id })
+  assigned = Spaceship::ConnectAPI.get_beta_groups(filter: { builds: build.id }).all_pages.flat_map(&:to_models)
   unless assigned.any? { |candidate| candidate.id == group.id }
     UI.user_error!("Apple has not confirmed this build's assignment to Everyone. Retry the command.")
   end

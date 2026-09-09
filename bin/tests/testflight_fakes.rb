@@ -22,6 +22,24 @@ module Spaceship
       attr_accessor :token
     end
 
+    def self.get_beta_groups(filter:)
+      $events << ["groups", filter.dup]
+      if filter[:app] && filter[:builds]
+        raise "Only one relationship filter can be applied."
+      end
+
+      group = OpenStruct.new(id: "everyone-id", name: "Everyone", is_internal_group: $scenario == "internal_group")
+      groups = $scenario == "duplicate_group" ? [group, group] : [group]
+      groups = [] if $scenario == "missing_group"
+      pages = [groups]
+      if filter[:builds] && %w[unconfirmed paginated].include?($scenario)
+        other = OpenStruct.new(id: "other-id", name: "Everyone", is_internal_group: false)
+        pages = [[other]]
+        pages << [group] if $scenario == "paginated"
+      end
+      OpenStruct.new(to_models: pages.first, all_pages: pages.map { |models| OpenStruct.new(to_models: models) })
+    end
+
     class Token
       def self.create(**options)
         $events << ["token", options]
@@ -66,10 +84,8 @@ class FakeApp
   end
 
   def get_beta_groups(filter:)
-    $events << ["groups", filter]
-    return [] if $scenario == "missing_group" || ($scenario == "unconfirmed" && filter[:builds])
-    group = OpenStruct.new(id: "everyone-id", name: "Everyone", is_internal_group: $scenario == "internal_group")
-    $scenario == "duplicate_group" ? [group, group] : [group]
+    filter[:app] = id
+    Spaceship::ConnectAPI.get_beta_groups(filter: filter).all_pages.flat_map(&:to_models)
   end
 end
 
