@@ -149,46 +149,53 @@ required only with `--notes`; install it with `brew install fastlane`.
 
 ## App Store Releases
 
-Show the live version, pending versions and reviews, and uploaded builds for the
-current local app version:
+Release the next minor version with notes from the latest TestFlight build:
 
 ```sh
 bin/appstore
 ```
 
-Submit the latest processed, unexpired build of the current `bin/version` value:
+The command requires clean `main`. It increments the minor version (`2.1.2`
+becomes `2.2`), commits and pushes the version change, tests, archives, uploads,
+waits for that exact build to finish processing, and submits for App Review.
+Apple releases it automatically after approval.
+
+Override the release number or public "What's New" notes when needed:
 
 ```sh
 bin/appstore --notes "Improved playback reliability."
+bin/appstore --release 3 --notes "A new major release."
 ```
 
-Or select an exact uploaded build:
+`--release` must be strictly greater than the current version and have zero or
+one dot. Without `--notes`, the command copies notes from the latest iOS build
+with a two-dot TestFlight version. It uses the app's primary language or `en-US`
+and stops if the latest build has no usable notes. Public notes must contain
+1 to 4000 characters and are used for every existing listing language.
+
+Show the live version, pending versions and reviews, and uploaded builds for the
+current local app version without releasing:
 
 ```sh
-bin/appstore --build 569 --notes "Improved playback reliability."
+bin/appstore --status
 ```
 
-The command creates the App Store version if needed, selects the build, sets
-public "What's New" notes, and submits for App Review. It selects automatic
-release after approval. It verifies Apple's saved build, notes, release setting,
-and submission state before reporting success. It waits briefly for submission
-confirmation; it does not wait for Apple to complete App Review.
+To submit an exact existing build, use `--release VERSION --build NUMBER`.
+This skips the version change and upload. The build must match that version.
 
 The description, screenshots, and other listing metadata carry over. Only the
-build, release setting, and "What's New" text are updated. The supplied notes are
-used for every existing listing language and must contain 1 to 4000 characters.
-They are separate from TestFlight's "What to Test" notes.
+build, release setting, and "What's New" text are updated. The command verifies
+Apple's saved build, notes, release setting, and submission state before
+reporting success. It does not wait for Apple to complete App Review.
 
-Use `bin/shipit` to build and upload first. `bin/appstore` uses uploaded builds,
-so it does not require a clean working tree or create a build, commit, or push.
 The build must be App Store eligible with export compliance already complete.
 Apple can still require changes to listing or review information before accepting
 a submission; the command reports those errors.
 
-If a run stops, use `bin/appstore` to inspect the state, then retry with the same
-notes and `--build` number. It reuses a matching draft or reports that the exact
-release is already submitted. Conflicting versions, review items, or queued
-release settings stop the command instead of replacing a submission.
+If a run stops, use `bin/appstore --status` to inspect the state, then retry the
+same command. It retains the chosen version, notes, and exact build across
+retries, including after a failed version push. See
+[Versioning and releases](docs/releases.md) for the complete workflow and retry rules.
 
 Fastlane is required (`brew install fastlane`). Authentication uses the same
 `--api-key`, `--api-key-id`, and `--api-issuer-id` options and `ASC_*` environment

@@ -11,13 +11,13 @@ module PodHavenAppStore
   def self.run(options)
     mode = options[:mode].to_s
     number = options[:version].to_s
-    UI.user_error!("Expected status, preflight, or submit mode and an app version.") unless %w[status preflight submit].include?(mode) && !number.empty?
+    UI.user_error!("Expected status, notes, preflight, or submit mode and an app version.") unless %w[status notes preflight submit].include?(mode) && !number.empty?
     notes = ENV["PODHAVEN_APPSTORE_NOTES"]
-    if mode != "status" && (notes.nil? || notes.strip.empty? || notes.length > 4000)
+    if %w[preflight submit].include?(mode) && (notes.nil? || notes.strip.empty? || notes.length > 4000)
       UI.user_error!("Public release notes must contain 1 to 4000 characters.")
     end
 
-    if mode != "status" && !number.match?(/\A(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*))?\z/)
+    if %w[preflight submit].include?(mode) && !number.match?(/\A(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*))?\z/)
       UI.user_error!("App Store release versions must have zero or one dot, such as 2 or 2.1.")
     end
     if mode == "submit" && options[:build].to_s.empty?
@@ -35,6 +35,21 @@ module PodHavenAppStore
       app_identifier: "com.artisanalsoftware.PodHaven", app_platform: "ios", username: ENV["FASTLANE_USER"]
     }))
     app = manager.app
+    if mode == "notes"
+      builds = Spaceship::ConnectAPI::Build.all(app_id: app.id, platform: "IOS", sort: "-uploadedDate")
+      latest = builds.find { |candidate| candidate.app_version.match?(/\A[0-9]+\.[0-9]+\.[0-9]+\z/) }
+      UI.user_error!("No TestFlight build is available. Supply public release notes with --notes.") unless latest
+      localizations = latest.get_beta_build_localizations
+      localization = localizations.find { |candidate| candidate.locale == app.primary_locale }
+      localization ||= localizations.find { |candidate| candidate.locale == "en-US" }
+      notes = localization&.whats_new
+      if notes.nil? || notes.strip.empty? || notes.length > 4000
+        UI.user_error!("The latest TestFlight build #{latest.app_version} (#{latest.version}) has no usable public notes. Supply --notes.")
+      end
+      File.write(ENV.fetch("PODHAVEN_APPSTORE_NOTES_PATH"), notes)
+      UI.message("Using #{localization.locale} notes from TestFlight #{latest.app_version} (#{latest.version}) as public release notes.")
+      return
+    end
     if mode == "submit"
       build = FastlaneCore::BuildWatcher.wait_for_build_processing_to_be_complete(
         app_id: app.id, platform: "IOS", app_version: number, build_version: options[:build].to_s,
@@ -102,7 +117,7 @@ module PodHavenAppStore
     UI.user_error!("Multiple App Store review submissions are active; resolve them in App Store Connect.") if reviews.length > 1
     review = reviews.first
     if review && review.state != "READY_FOR_REVIEW"
-      UI.user_error!("An App Store review is already active: #{review.state}. Use bin/appstore to check it.")
+      UI.user_error!("An App Store review is already active: #{review.state}. Use bin/appstore --status to check it.")
     end
     items = review ? Spaceship::ConnectAPI::ReviewSubmissionItem.all(review_submission_id: review.id, includes: "appStoreVersion") : []
     unless items.empty? || (items.length == 1 && target && items.first.app_store_version&.id == target.id)
@@ -159,6 +174,6 @@ module PodHavenAppStore
       UI.message("Waiting for Apple to confirm the version state (currently #{version.app_version_state})...")
       sleep(5) unless attempt == 11
     end
-    UI.user_error!("Apple has not confirmed the version state. Run bin/appstore to inspect it, then retry the same submission if needed.")
+    UI.user_error!("Apple has not confirmed the version state. Run bin/appstore --status to inspect it, then retry the same submission if needed.")
   end
 end

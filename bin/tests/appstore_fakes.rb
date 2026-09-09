@@ -73,6 +73,7 @@ end
 
 class FakeApp
   def id; "app-id"; end
+  def primary_locale; "en-US"; end
   def get_app_store_versions(**options)
     $events << ["versions", options]
     $versions
@@ -137,7 +138,8 @@ module Spaceship
     class Build
       def self.all(**options)
         $events << ["builds", options]
-        options[:build_number] ? $builds.select { |build| build.version == options[:build_number] } : $builds
+        builds = options[:build_number] ? $builds.select { |build| build.version == options[:build_number] } : $builds
+        options[:platform] ? builds.select { |build| build.platform == options[:platform] } : builds
       end
     end
     class AppStoreVersion
@@ -195,6 +197,30 @@ when "already_submitted", "queued_different_build", "queued_different_notes"
   review = FakeReview.new
   review.state = "WAITING_FOR_REVIEW"
   $reviews << review
+end
+
+if $scenario.start_with?("notes_")
+  $builds = [make_build("600"), make_build("599"), make_build("598"), make_build("597")]
+  $builds[0].app_version = "3.0"
+  $builds[1].app_version = "2.5.2"
+  $builds[1].platform = "MAC_OS"
+  $builds[2].app_version = "2.1.2"
+  $builds[3].app_version = "2.1.1"
+  $builds.each do |build|
+    build.define_singleton_method(:get_beta_build_localizations) do
+      $events << ["beta_notes", id]
+      raise "Must not use an older build" unless version == "598"
+      case $scenario
+      when "notes_missing" then []
+      when "notes_blank" then [OpenStruct.new(locale: "en-US", whats_new: " \n")]
+      when "notes_long" then [OpenStruct.new(locale: "en-US", whats_new: "a" * 4001)]
+      when "notes_unknown_locale" then [OpenStruct.new(locale: "fr-FR", whats_new: "French")]
+      when "notes_api_failure" then raise "Notes request failed"
+      else [OpenStruct.new(locale: "fr-FR", whats_new: "French"), OpenStruct.new(locale: "en-US", whats_new: "TestFlight notes\nExact text")]
+      end
+    end
+  end
+  $builds = [$builds.first] if $scenario == "notes_no_testflight"
 end
 
 begin

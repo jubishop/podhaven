@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 
 
@@ -30,6 +31,33 @@ class AppStoreReleaseTests(unittest.TestCase):
         self.assertFalse(self.writes(events))
         self.assertTrue(any("Live App Store version: 1.0" in str(event) for event in events))
         self.assertTrue(any("570: PROCESSING" in str(event) for event in events))
+
+    def test_notes_use_latest_ios_testflight_build_and_primary_locale(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "notes.txt"
+            result, events = self.run_release("notes_latest", APPSTORE_MODE="notes",
+                                             PODHAVEN_APPSTORE_NOTES="", PODHAVEN_APPSTORE_NOTES_PATH=str(path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(path.read_text(), "TestFlight notes\nExact text")
+        self.assertIn(["beta_notes", "build-598"], events)
+        self.assertFalse(self.writes(events))
+        self.assertFalse(any(event[0] in ("wait", "versions", "reviews") for event in events))
+        query = next(event[1] for event in events if event[0] == "builds")
+        self.assertEqual(query["sort"], "-uploadedDate")
+        self.assertNotIn("version", query)
+
+    def test_missing_or_unusable_notes_do_not_fall_back_to_older_builds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "notes.txt"
+            for scenario in ("notes_no_testflight", "notes_missing", "notes_blank", "notes_long",
+                             "notes_unknown_locale", "notes_api_failure"):
+                with self.subTest(scenario=scenario):
+                    result, events = self.run_release(scenario, APPSTORE_MODE="notes",
+                                                     PODHAVEN_APPSTORE_NOTES_PATH=str(path))
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(path.exists())
+                    self.assertFalse(self.writes(events))
+                    self.assertNotIn(["beta_notes", "build-597"], events)
 
     def test_exact_build_creates_version_and_submits_automatically(self):
         result, events = self.run_release()

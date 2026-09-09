@@ -36,7 +36,7 @@ def run_lane(root, environment, mode, version, build=None):
     subprocess.run(command, cwd=root, env=environment, check=True)
 
 
-def release_app(root, environment, version, notes):
+def release_app(root, environment, version, notes, build=None):
     lock_path = Path(git(root, "rev-parse", "--path-format=absolute", "--git-path", "podhaven-appstore.lock"))
     with lock_path.open("a") as lock:
         try:
@@ -49,18 +49,33 @@ def release_app(root, environment, version, notes):
             raise ValueError("Commit your changes before releasing; the working tree must be clean.")
 
         path = lock_path.with_name("podhaven-appstore-release.json")
+        head = git(root, "rev-parse", "HEAD")
         release = json.loads(path.read_text()) if path.exists() else None
         if release is not None:
             if (not isinstance(release, dict) or set(release) != {"version", "notes", "commit", "build", "status"}
-                    or release["status"] not in ("uploading", "uploaded", "submitted")
+                    or release["status"] not in ("preparing", "uploading", "uploaded", "submitted")
                     or not all(isinstance(release[key], str) for key in ("version", "notes", "commit"))
                     or (release["build"] is not None and not isinstance(release["build"], str))):
                 raise ValueError(f"Invalid release receipt: {path}")
-            if release["version"] == version:
-                if release["notes"] != notes:
+            resume = release["version"] == version or (version is None and (
+                release["status"] != "submitted" or (head == release["commit"] and notes in (None, release["notes"]))))
+            if resume:
+                if notes is not None and release["notes"] != notes:
                     raise ValueError("Retry this release with the same --notes as the original command.")
-                if release["build"] is None and git(root, "rev-parse", "HEAD") != release["commit"]:
-                    raise ValueError("The checkout changed before upload completed. Return to the release commit to retry.")
+                if build is not None and release["build"] != build:
+                    raise ValueError("Retry this release with its original build; the selected build cannot change.")
+                version, notes = release["version"], release["notes"]
+                if release["build"] is None and head != release["commit"]:
+                    project = "PodHaven.xcodeproj/project.pbxproj"
+                    version_commit = False
+                    if release["status"] == "preparing" and git(root, "rev-parse", "HEAD^") == release["commit"]:
+                        source = git(root, "show", f"{release['commit']}:{project}")
+                        expected = re.sub(r"(?m)^([ \t]*MARKETING_VERSION[ \t]*=[ \t]*)([^;\r\n]+)(;)",
+                                          lambda match: match[1] + version + match[3], source)
+                        version_commit = (git(root, "diff", "--name-only", release["commit"], head) == project
+                                          and git(root, "show", f"HEAD:{project}") == expected)
+                    if not version_commit:
+                        raise ValueError("The checkout changed before upload completed. Return to the release commit to retry.")
             elif release["status"] != "submitted":
                 raise ValueError(f"Release {release['version']} is unfinished. Retry that --release with its original --notes first.")
             else:
@@ -68,23 +83,38 @@ def release_app(root, environment, version, notes):
 
         if release is None:
             current = subprocess.check_output([str(root / "bin/version")], text=True).strip()
+            if version is None:
+                parts = current.split(".")
+                version = f"{int(parts[0])}.{int(parts[1]) + 1 if len(parts) > 1 else 1}"
             requested_parts = tuple(int(part) for part in version.split("."))
             current_parts = tuple(int(part) for part in current.split("."))
-            if requested_parts + (0,) * (3 - len(requested_parts)) < current_parts + (0,) * (3 - len(current_parts)):
-                raise ValueError(f"The release version must not be older than {current}.")
+            if requested_parts + (0,) * (3 - len(requested_parts)) <= current_parts + (0,) * (3 - len(current_parts)):
+                raise ValueError(f"The release version must be greater than the current version {current}.")
         for command in ("xcodebuild", "xcbeautify", "llm", "gh"):
-            if (release is None or release["build"] is None) and not shutil.which(command):
+            if build is None and (release is None or release["build"] is None) and not shutil.which(command):
                 raise ValueError(f"{command} is required to build and upload the release.")
 
+        if notes is None:
+            print("==> Reading release notes from the latest TestFlight build...", flush=True)
+            with tempfile.TemporaryDirectory(prefix="podhaven-appstore-notes-") as directory:
+                notes_path = Path(directory) / "notes.txt"
+                run_lane(root, {**environment, "PODHAVEN_APPSTORE_NOTES_PATH": str(notes_path)}, "notes", version)
+                notes = notes_path.read_text()
+            if not notes.strip() or len(notes) > 4000:
+                raise ValueError("The latest TestFlight notes must contain 1 to 4000 characters. Supply public notes with --notes.")
+        environment = {**environment, "PODHAVEN_APPSTORE_NOTES": notes}
         print(f"==> Checking App Store readiness for {version}...", flush=True)
-        run_lane(root, environment, "preflight", version, release["build"] if release else None)
+        run_lane(root, environment, "preflight", version, release["build"] if release else build)
         if release is None:
+            release = {"version": version, "notes": notes, "commit": head,
+                       "build": build, "status": "preparing" if build is None else "uploaded"}
+            save_release(path, release)
+        if release["status"] == "preparing":
             print(f"==> Setting, committing, and pushing version {version}...", flush=True)
             subprocess.run([str(root / "bin/version"), version], cwd=root, check=True)
             if git(root, "status", "--porcelain"):
                 raise ValueError("The working tree changed while preparing the release. Resolve it before retrying.")
-            release = {"version": version, "notes": notes, "commit": git(root, "rev-parse", "HEAD"),
-                       "build": None, "status": "uploading"}
+            release.update(commit=git(root, "rev-parse", "HEAD"), status="uploading")
             save_release(path, release)
 
         if release["build"] is None:
@@ -107,7 +137,7 @@ def release_app(root, environment, version, notes):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Show App Store status, or release a version with --release VERSION --notes TEXT.",
+        description="Release the next minor version using the latest TestFlight notes, or show status with --status.",
         epilog="A release requires clean main, commits and pushes the version change, tests, archives, uploads, waits for "
                "processing, and submits for automatic release after approval. Uploads publish the existing Git tags, "
                "GitHub releases, and SourceHut mirror. Repeat the same command to resume the exact build. "
@@ -115,22 +145,23 @@ def main():
                "API key environment variables: ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID. "
                "Without a key, Fastlane uses Apple ID login; FASTLANE_USER selects the account.",
     )
-    parser.add_argument("--release", metavar="VERSION", help="Required for submission. Zero or one dot, such as 2 or 2.1.")
-    parser.add_argument("--notes", help="Required with --release. Public What's New text (maximum 4000 characters).")
-    parser.add_argument("--build", help="Submit this exact existing uploaded build; skips version changes and upload. Requires --release and --notes.")
+    parser.add_argument("--status", action="store_true", help="Show read-only App Store status; does not release.")
+    parser.add_argument("--release", metavar="VERSION", help="Override the next minor version. Must be greater than the current version, with zero or one dot.")
+    parser.add_argument("--notes", help="Override the latest TestFlight notes with public What's New text (maximum 4000 characters).")
+    parser.add_argument("--build", help="Submit this exact existing uploaded build; skips version changes and upload. Requires --release.")
     parser.add_argument("--api-key", default=os.environ.get("ASC_KEY_PATH"), help="Path to an App Store Connect .p8 key.")
     parser.add_argument("--api-key-id", default=os.environ.get("ASC_KEY_ID"), help="App Store Connect key ID.")
     parser.add_argument("--api-issuer-id", default=os.environ.get("ASC_ISSUER_ID"), help="App Store Connect issuer ID.")
     args = parser.parse_args()
-    if (args.release is None) != (args.notes is None):
-        parser.error("Submission requires both --release VERSION and --notes TEXT.")
+    if args.status and any(value is not None for value in (args.release, args.notes, args.build)):
+        parser.error("--status cannot be combined with --release, --notes, or --build.")
     if args.release is not None and not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*))?", args.release):
         parser.error("--release must have zero or one dot, such as 2 or 2.1; TestFlight versions such as 2.1.1 are not allowed.")
     if args.notes is not None and (not args.notes.strip() or len(args.notes) > 4000):
         parser.error("--notes must contain 1 to 4000 characters and must not be blank.")
     if args.build is not None:
         if args.release is None:
-            parser.error("--build requires --release and --notes.")
+            parser.error("--build requires --release.")
         if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){0,2}", args.build):
             parser.error("--build requires an exact numeric build number, such as 569.")
     keys = (args.api_key, args.api_key_id, args.api_issuer_id)
@@ -153,18 +184,16 @@ def main():
             "FASTLANE_SKIP_UPDATE_CHECK": "1", "FASTLANE_SKIP_DOCS": "1",
             "FASTLANE_HIDE_CHANGELOG": "1", "FASTLANE_OPT_OUT_USAGE": "1",
         })
-        if args.release is None:
+        if args.status:
             version = subprocess.check_output([str(root / "bin/version")], text=True).strip()
             run_lane(root, environment, "status", version)
-        elif args.build is not None:
-            run_lane(root, environment, "submit", args.release, args.build)
         else:
-            release_app(root, environment, args.release, args.notes)
+            release_app(root, environment, args.release, args.notes, args.build)
         return 0
     except (OSError, ValueError, subprocess.SubprocessError, KeyboardInterrupt) as error:
         print(f"error: {error or 'Release interrupted.'}", file=sys.stderr)
-        if args.release is not None:
-            print("Retry with the same --release and --notes to resume. Keep any explicit --build unchanged.", file=sys.stderr)
+        if not args.status:
+            print("Retry the same command to resume the saved version, notes, and build. Keep any explicit overrides unchanged.", file=sys.stderr)
         return error.returncode if isinstance(error, subprocess.CalledProcessError) else 1
 
 
