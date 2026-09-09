@@ -1,5 +1,6 @@
 require "pilot"
 require "pilot/options"
+require "fastlane_core/build_watcher"
 
 module PodHavenAppStore
   UI = FastlaneCore::UI
@@ -10,10 +11,17 @@ module PodHavenAppStore
   def self.run(options)
     mode = options[:mode].to_s
     number = options[:version].to_s
-    UI.user_error!("Expected status or submit mode and a current app version.") unless %w[status submit].include?(mode) && !number.empty?
+    UI.user_error!("Expected status, preflight, or submit mode and an app version.") unless %w[status preflight submit].include?(mode) && !number.empty?
     notes = ENV["PODHAVEN_APPSTORE_NOTES"]
-    if mode == "submit" && (notes.nil? || notes.strip.empty? || notes.length > 4000)
+    if mode != "status" && (notes.nil? || notes.strip.empty? || notes.length > 4000)
       UI.user_error!("Public release notes must contain 1 to 4000 characters.")
+    end
+
+    if mode != "status" && !number.match?(/\A(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*))?\z/)
+      UI.user_error!("App Store release versions must have zero or one dot, such as 2 or 2.1.")
+    end
+    if mode == "submit" && options[:build].to_s.empty?
+      UI.user_error!("An exact uploaded build number is required for submission.")
     end
 
     key_path = ENV.fetch("ASC_KEY_PATH", "")
@@ -27,12 +35,31 @@ module PodHavenAppStore
       app_identifier: "com.artisanalsoftware.PodHaven", app_platform: "ios", username: ENV["FASTLANE_USER"]
     }))
     app = manager.app
+    if mode == "submit"
+      build = FastlaneCore::BuildWatcher.wait_for_build_processing_to_be_complete(
+        app_id: app.id, platform: "IOS", app_version: number, build_version: options[:build].to_s,
+        poll_interval: 30, timeout_duration: 1800, select_latest: false,
+        wait_for_build_beta_detail_processing: true, return_spaceship_testflight_build: false
+      )
+      unless Gem::Version.new(build.app_version) == Gem::Version.new(number) && build.version == options[:build].to_s &&
+             build.platform == "IOS" && build.app_id == app.id
+        UI.user_error!("Apple returned a different app, version, platform, or build. Nothing was submitted.")
+      end
+      unless build.processing_state == "VALID" && build.expired == false
+        UI.user_error!("Build #{number} (#{build.version}) is invalid or expired.")
+      end
+      audience = Spaceship::ConnectAPI.get_build(build_id: build.id).body.fetch("data").fetch("attributes")["buildAudienceType"]
+      UI.user_error!("Build #{build.version} is not confirmed as App Store eligible: #{audience || 'unknown audience'}.") unless audience == "APP_STORE_ELIGIBLE"
+      if build.uses_non_exempt_encryption.nil? || build.missing_export_compliance?
+        UI.user_error!("Complete export compliance for this build in App Store Connect, then retry.")
+      end
+      UI.message("Selected PodHaven #{number} (build #{build.version}) for automatic release after approval.")
+    end
     versions = app.get_app_store_versions(filter: { platform: "IOS" }, includes: "build")
     reviews = app.get_review_submissions(filter: { platform: "IOS", state: REVIEW_STATES.join(",") },
                                        includes: "appStoreVersionForReview")
-    builds = Spaceship::ConnectAPI::Build.all(app_id: app.id, version: number,
-                                            build_number: options[:build], platform: "IOS", sort: "-uploadedDate")
     if mode == "status"
+      builds = Spaceship::ConnectAPI::Build.all(app_id: app.id, version: number, platform: "IOS", sort: "-uploadedDate")
       UI.message("Current local app version: #{number}")
       live = versions.select { |version| version.app_version_state == "READY_FOR_DISTRIBUTION" }
       live_numbers = live.empty? ? "none" : live.map(&:version_string).join(", ")
@@ -49,24 +76,14 @@ module PodHavenAppStore
       return
     end
 
-    matches = builds.select { |build| build.processing_state == "VALID" && build.expired == false }
-    UI.user_error!("No processed, unexpired build exists for #{number}. Upload with bin/shipit and let Apple finish processing.") if matches.empty?
-    UI.user_error!("More than one build matches the requested build number.") if options[:build] && matches.length != 1
-    build = matches.first
-    unless Gem::Version.new(build.app_version) == Gem::Version.new(number) && build.platform == "IOS" && build.app_id == app.id
-      UI.user_error!("Apple returned a build for a different app, version, or platform.")
-    end
-    audience = Spaceship::ConnectAPI.get_build(build_id: build.id).body.fetch("data").fetch("attributes")["buildAudienceType"]
-    UI.user_error!("Build #{build.version} is not confirmed as App Store eligible: #{audience || 'unknown audience'}.") unless audience == "APP_STORE_ELIGIBLE"
-    if build.uses_non_exempt_encryption.nil? || build.missing_export_compliance?
-      UI.user_error!("Complete export compliance for this build in App Store Connect, then retry.")
-    end
-    UI.message("Selected PodHaven #{number} (build #{build.version}) for automatic release after approval.")
-
     matching_versions = versions.select { |version| Gem::Version.new(version.version_string) == Gem::Version.new(number) }
     UI.user_error!("More than one App Store version matches #{number}.") if matching_versions.length > 1
     target = matching_versions.first
     if target && SUBMITTED.include?(target.app_version_state)
+      unless target.build && target.build.version == options[:build].to_s
+        UI.user_error!("This version is already submitted with a different build. Retry the original release command.")
+      end
+      build = target.build if mode == "preflight"
       verify_release(target.id, build, notes)
       UI.success("Already submitted: #{number} (#{build.version}), #{target.app_version_state}; automatic release after approval.")
       return
@@ -90,6 +107,11 @@ module PodHavenAppStore
     items = review ? Spaceship::ConnectAPI::ReviewSubmissionItem.all(review_submission_id: review.id, includes: "appStoreVersion") : []
     unless items.empty? || (items.length == 1 && target && items.first.app_store_version&.id == target.id)
       UI.user_error!("The draft review contains other items. Resolve it in App Store Connect before submitting.")
+    end
+
+    if mode == "preflight"
+      UI.success("App Store #{number} is ready for a release upload and submission.")
+      return
     end
 
     unless target

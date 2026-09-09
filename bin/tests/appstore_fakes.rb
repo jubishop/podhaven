@@ -1,6 +1,6 @@
 require "json"
 require "ostruct"
-$LOADED_FEATURES.concat(["pilot.rb", "pilot/options.rb"])
+$LOADED_FEATURES.concat(["pilot.rb", "pilot/options.rb", "fastlane_core/build_watcher.rb"])
 $events = []
 $scenario = ENV.fetch("APPSTORE_SCENARIO", "new")
 $notes = "Fixed playback"
@@ -90,6 +90,18 @@ class FakeApp
 end
 
 module FastlaneCore
+  class BuildWatcher
+    def self.wait_for_build_processing_to_be_complete(**options)
+      $events << ["wait", options]
+      raise "Processing timed out" if $scenario == "timeout"
+      build = $builds.find { |candidate| candidate.version == options[:build_version] }
+      raise "Processing timed out" unless build
+      build = $builds.last if $scenario == "wrong_build"
+      build.processing_state = "VALID" if build.processing_state == "PROCESSING"
+      build
+    end
+  end
+
   class Configuration
     def self.create(_options, values); values; end
   end
@@ -144,7 +156,7 @@ module Spaceship
 end
 
 def make_build(number, state = "VALID")
-  OpenStruct.new(id: "build-#{number}", version: number, app_version: "1.0.1", platform: "IOS", app_id: "app-id",
+  OpenStruct.new(id: "build-#{number}", version: number, app_version: "1.1", platform: "IOS", app_id: "app-id",
                  processing_state: state, expired: false, uses_non_exempt_encryption: false, missing_export_compliance?: false)
 end
 $builds = [make_build("570", "PROCESSING"), make_build("569"), make_build("568")]
@@ -152,7 +164,7 @@ $versions = [FakeVersion.new("live-id", "1.0", "READY_FOR_DISTRIBUTION")]
 $reviews = []
 $target = nil
 unless %w[new status no_build processing internal_only compliance wrong_version wrong_app response_lost].include?($scenario)
-  $target = FakeVersion.new("target-id", "1.0.1", "PREPARE_FOR_SUBMISSION")
+  $target = FakeVersion.new("target-id", "1.1", "PREPARE_FOR_SUBMISSION")
   $target.release_type = "MANUAL"
   $versions << $target
 end
@@ -188,7 +200,8 @@ end
 begin
   load ARGV.fetch(0)
   PodHavenAppStore.define_singleton_method(:sleep) { |seconds| $events << ["sleep", seconds] }
-  options = { mode: ENV.fetch("APPSTORE_MODE", "submit"), version: "1.0.1", build: ENV["APPSTORE_BUILD"] }
+  build = ENV.fetch("APPSTORE_BUILD", "569")
+  options = { mode: ENV.fetch("APPSTORE_MODE", "submit"), version: "1.1", build: build.empty? ? nil : build }
   if $scenario == "response_lost"
     begin
       PodHavenAppStore.run(options)

@@ -1,33 +1,136 @@
 #!/usr/bin/env python3
-"""Inspect App Store releases or submit an uploaded PodHaven build."""
+"""Inspect App Store status or prepare, upload, and submit an exact release."""
 
 import argparse
+import fcntl
+import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
+
+
+def git(root, *args):
+    return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+
+
+def save_release(path, release):
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, prefix=path.name + ".", delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            json.dump(release, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
+def run_lane(root, environment, mode, version, build=None):
+    command = ["fastlane", "manage_appstore", "mode:" + mode, "version:" + version]
+    if build is not None:
+        command.append("build:" + build)
+    subprocess.run(command, cwd=root, env=environment, check=True)
+
+
+def release_app(root, environment, version, notes):
+    lock_path = Path(git(root, "rev-parse", "--path-format=absolute", "--git-path", "podhaven-appstore.lock"))
+    with lock_path.open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError("Another App Store release command is running in this checkout.") from error
+        if git(root, "branch", "--show-current") != "main":
+            raise ValueError("App Store releases require the main branch.")
+        if git(root, "status", "--porcelain"):
+            raise ValueError("Commit your changes before releasing; the working tree must be clean.")
+
+        path = lock_path.with_name("podhaven-appstore-release.json")
+        release = json.loads(path.read_text()) if path.exists() else None
+        if release is not None:
+            if (not isinstance(release, dict) or set(release) != {"version", "notes", "commit", "build", "status"}
+                    or release["status"] not in ("uploading", "uploaded", "submitted")
+                    or not all(isinstance(release[key], str) for key in ("version", "notes", "commit"))
+                    or (release["build"] is not None and not isinstance(release["build"], str))):
+                raise ValueError(f"Invalid release receipt: {path}")
+            if release["version"] == version:
+                if release["notes"] != notes:
+                    raise ValueError("Retry this release with the same --notes as the original command.")
+                if release["build"] is None and git(root, "rev-parse", "HEAD") != release["commit"]:
+                    raise ValueError("The checkout changed before upload completed. Return to the release commit to retry.")
+            elif release["status"] != "submitted":
+                raise ValueError(f"Release {release['version']} is unfinished. Retry that --release with its original --notes first.")
+            else:
+                release = None
+
+        if release is None:
+            current = subprocess.check_output([str(root / "bin/version")], text=True).strip()
+            requested_parts = tuple(int(part) for part in version.split("."))
+            current_parts = tuple(int(part) for part in current.split("."))
+            if requested_parts + (0,) * (3 - len(requested_parts)) < current_parts + (0,) * (3 - len(current_parts)):
+                raise ValueError(f"The release version must not be older than {current}.")
+        for command in ("xcodebuild", "xcbeautify", "llm", "gh"):
+            if (release is None or release["build"] is None) and not shutil.which(command):
+                raise ValueError(f"{command} is required to build and upload the release.")
+
+        print(f"==> Checking App Store readiness for {version}...", flush=True)
+        run_lane(root, environment, "preflight", version, release["build"] if release else None)
+        if release is None:
+            print(f"==> Setting, committing, and pushing version {version}...", flush=True)
+            subprocess.run([str(root / "bin/version"), version], cwd=root, check=True)
+            if git(root, "status", "--porcelain"):
+                raise ValueError("The working tree changed while preparing the release. Resolve it before retrying.")
+            release = {"version": version, "notes": notes, "commit": git(root, "rev-parse", "HEAD"),
+                       "build": None, "status": "uploading"}
+            save_release(path, release)
+
+        if release["build"] is None:
+            print(f"==> Building and uploading App Store {version}...", flush=True)
+            subprocess.run([str(root / "bin/deploy.sh"), "--appstore-release", version],
+                           cwd=root, env=environment, check=True)
+            upload_path = Path(git(root, "rev-parse", "--path-format=absolute", "--git-path", "podhaven-last-upload"))
+            tag = upload_path.read_text().strip()
+            match = re.fullmatch(r"v" + re.escape(version) + r"b([0-9]+)", tag)
+            if not match or git(root, "rev-parse", f"{tag}^{{commit}}") != release["commit"]:
+                raise ValueError("The upload receipt does not match this release's version and commit. Nothing was submitted.")
+            release.update(build=match[1], status="uploaded")
+            save_release(path, release)
+
+        print(f"==> Waiting for {version} ({release['build']}) and submitting for App Review...", flush=True)
+        run_lane(root, environment, "submit", version, release["build"])
+        release["status"] = "submitted"
+        save_release(path, release)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Show App Store status. With --notes, submit an uploaded build for automatic release after approval.",
-        epilog="Uses the current bin/version value. No build, upload, commit, or push is performed. "
+        description="Show App Store status, or release a version with --release VERSION --notes TEXT.",
+        epilog="A release requires clean main, commits and pushes the version change, tests, archives, uploads, waits for "
+               "processing, and submits for automatic release after approval. Uploads publish the existing Git tags, "
+               "GitHub releases, and SourceHut mirror. Repeat the same command to resume the exact build. "
+               "Processing is checked every 30 seconds for up to 30 minutes. "
                "API key environment variables: ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID. "
                "Without a key, Fastlane uses Apple ID login; FASTLANE_USER selects the account.",
     )
-    parser.add_argument("--notes", help="Public What's New text; enables submission (maximum 4000 characters).")
-    parser.add_argument("--build", help="An exact uploaded build number. Requires --notes; defaults to the latest processed build.")
+    parser.add_argument("--release", metavar="VERSION", help="Required for submission. Zero or one dot, such as 2 or 2.1.")
+    parser.add_argument("--notes", help="Required with --release. Public What's New text (maximum 4000 characters).")
+    parser.add_argument("--build", help="Submit this exact existing uploaded build; skips version changes and upload. Requires --release and --notes.")
     parser.add_argument("--api-key", default=os.environ.get("ASC_KEY_PATH"), help="Path to an App Store Connect .p8 key.")
     parser.add_argument("--api-key-id", default=os.environ.get("ASC_KEY_ID"), help="App Store Connect key ID.")
     parser.add_argument("--api-issuer-id", default=os.environ.get("ASC_ISSUER_ID"), help="App Store Connect issuer ID.")
     args = parser.parse_args()
+    if (args.release is None) != (args.notes is None):
+        parser.error("Submission requires both --release VERSION and --notes TEXT.")
+    if args.release is not None and not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*))?", args.release):
+        parser.error("--release must have zero or one dot, such as 2 or 2.1; TestFlight versions such as 2.1.1 are not allowed.")
     if args.notes is not None and (not args.notes.strip() or len(args.notes) > 4000):
         parser.error("--notes must contain 1 to 4000 characters and must not be blank.")
     if args.build is not None:
-        if args.notes is None:
-            parser.error("--build requires --notes.")
+        if args.release is None:
+            parser.error("--build requires --release and --notes.")
         if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){0,2}", args.build):
             parser.error("--build requires an exact numeric build number, such as 569.")
     keys = (args.api_key, args.api_key_id, args.api_issuer_id)
@@ -39,13 +142,9 @@ def main():
         parser.error("Fastlane is required. Install with: brew install fastlane")
     root = Path(__file__).resolve().parents[1]
     try:
-        version = subprocess.check_output([str(root / "bin/version")], text=True).strip()
-        command = ["fastlane", "manage_appstore", "mode:" + ("submit" if args.notes is not None else "status"),
-                   "version:" + version]
-        if args.build is not None:
-            command.append("build:" + args.build)
         environment = dict(os.environ)
         environment.pop("PODHAVEN_APPSTORE_NOTES", None)
+        environment.pop("PODHAVEN_TESTFLIGHT_NOTES", None)
         if args.notes is not None:
             environment["PODHAVEN_APPSTORE_NOTES"] = args.notes
         environment.update({
@@ -54,10 +153,19 @@ def main():
             "FASTLANE_SKIP_UPDATE_CHECK": "1", "FASTLANE_SKIP_DOCS": "1",
             "FASTLANE_HIDE_CHANGELOG": "1", "FASTLANE_OPT_OUT_USAGE": "1",
         })
-        return subprocess.run(command, cwd=root, env=environment, check=False).returncode
-    except (OSError, subprocess.SubprocessError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
+        if args.release is None:
+            version = subprocess.check_output([str(root / "bin/version")], text=True).strip()
+            run_lane(root, environment, "status", version)
+        elif args.build is not None:
+            run_lane(root, environment, "submit", args.release, args.build)
+        else:
+            release_app(root, environment, args.release, args.notes)
+        return 0
+    except (OSError, ValueError, subprocess.SubprocessError, KeyboardInterrupt) as error:
+        print(f"error: {error or 'Release interrupted.'}", file=sys.stderr)
+        if args.release is not None:
+            print("Retry with the same --release and --notes to resume. Keep any explicit --build unchanged.", file=sys.stderr)
+        return error.returncode if isinstance(error, subprocess.CalledProcessError) else 1
 
 
 if __name__ == "__main__":

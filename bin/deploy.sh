@@ -23,6 +23,7 @@ API_KEY_ID="${ASC_KEY_ID:-}"
 API_ISSUER_ID="${ASC_ISSUER_ID:-}"
 FORCE=false
 TESTFLIGHT_NOTES=""
+APPSTORE_RELEASE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
@@ -30,6 +31,9 @@ while [[ $# -gt 0 ]]; do
 Usage: bin/shipit [--notes "What changed"] [-f] [API key options]
 
 No --notes: test, archive, and upload only.
+TestFlight uploads require a current app version with exactly two dots, such as 2.1.1.
+Release versions advance automatically: 2.1 becomes 2.1.1, and 2 becomes 2.0.1.
+The version change is committed and pushed before deployment.
 --notes TEXT: also wait for processing and submit to the external Everyone group.
               Repeating the command retries distribution of the same uploaded commit.
 -f, --force: allow a branch other than main (a clean working tree is still required).
@@ -42,6 +46,7 @@ Use FASTLANE_USER to select that Apple ID. Fastlane may request two-factor authe
 Processing is checked every 30 seconds for up to 30 minutes. Apple beta review may take longer.
 Successful uploads publish a Git tag and GitHub release and mirror to SourceHut.
 bin/deploy.sh accepts the same options.
+App Store uploads use bin/appstore --release VERSION --notes TEXT instead.
 HELP
       exit 0
       ;;
@@ -51,6 +56,18 @@ HELP
         exit 1
       fi
       TESTFLIGHT_NOTES="$2"
+      shift 2
+      ;;
+    --appstore-release)
+      if [[ "$(basename "$0")" == shipit ]]; then
+        echo 'error: shipit is for TestFlight versions. Use bin/appstore --release VERSION --notes TEXT.' >&2
+        exit 1
+      fi
+      if [[ $# -lt 2 || ! "$2" =~ ^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$ ]]; then
+        echo 'error: App Store versions must have zero or one dot, such as 2 or 2.1.' >&2
+        exit 1
+      fi
+      APPSTORE_RELEASE="$2"
       shift 2
       ;;
     -f|--force)
@@ -78,6 +95,11 @@ HELP
       ;;
   esac
 done
+
+if [[ -n "$APPSTORE_RELEASE" && -n "$TESTFLIGHT_NOTES" ]]; then
+  echo 'error: App Store uploads cannot distribute to TestFlight with --notes.' >&2
+  exit 1
+fi
 
 AUTH_FLAGS=()
 auth_value_count=0
@@ -147,14 +169,6 @@ if [[ -n $(git -C "$PROJECT_DIR" status --porcelain) ]]; then
   exit 1
 fi
 
-if [[ -n "$TESTFLIGHT_NOTES" ]]; then
-  if ! command -v fastlane &>/dev/null; then
-    echo 'error: --notes requires Fastlane. Install with: brew install fastlane' >&2
-    exit 1
-  fi
-  run_testflight preflight:true
-fi
-
 # Resolve the first available iPhone simulator for this scheme.
 SIM_DESTINATION=$(xcodebuild -hideShellScriptEnvironment -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null \
   | grep 'platform:iOS Simulator.*OS:.*name:iPhone' \
@@ -185,6 +199,41 @@ version=$(xcodebuild -hideShellScriptEnvironment -project "$PROJECT" -scheme "$S
 if [[ -z "$version" ]]; then
   echo "error: Could not determine MARKETING_VERSION from build settings." >&2
   exit 1
+fi
+
+if [[ -n "$APPSTORE_RELEASE" ]]; then
+  if [[ "$version" != "$APPSTORE_RELEASE" ]]; then
+    echo "error: Current version ${version} does not match App Store release ${APPSTORE_RELEASE}." >&2
+    exit 1
+  fi
+elif [[ "$version" =~ ^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$ ]]; then
+  if [[ "$version" == *.* ]]; then
+    next_version="${version}.1"
+  else
+    next_version="${version}.0.1"
+  fi
+  echo "==> Starting TestFlight version ${next_version}..."
+  "$SCRIPT_DIR/version" "$next_version"
+  version="$next_version"
+  commit=$(git -C "$PROJECT_DIR" rev-parse --short HEAD)
+elif [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+  echo "error: shipit requires a TestFlight version with exactly two dots; current version is ${version}." >&2
+  echo 'Set the next TestFlight version with bin/version (for example, 2.1.1), then retry.' >&2
+  exit 1
+fi
+
+pending_version_push=$(git -C "$PROJECT_DIR" rev-parse --path-format=absolute --git-path podhaven-version-push)
+if [[ -f "$pending_version_push" ]]; then
+  echo "==> Retrying the version push before deployment..."
+  "$SCRIPT_DIR/version" "$version"
+fi
+
+if [[ -n "$TESTFLIGHT_NOTES" ]]; then
+  if ! command -v fastlane &>/dev/null; then
+    echo 'error: --notes requires Fastlane. Install with: brew install fastlane' >&2
+    exit 1
+  fi
+  run_testflight preflight:true
 fi
 
 tag="v${version}b${build}"

@@ -31,10 +31,10 @@ class AppStoreReleaseTests(unittest.TestCase):
         self.assertTrue(any("Live App Store version: 1.0" in str(event) for event in events))
         self.assertTrue(any("570: PROCESSING" in str(event) for event in events))
 
-    def test_latest_processed_build_creates_version_and_submits_automatically(self):
+    def test_exact_build_creates_version_and_submits_automatically(self):
         result, events = self.run_release()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn(["write_create_version", "app-id", {"versionString": "1.0.1", "platform": "IOS",
+        self.assertIn(["write_create_version", "app-id", {"versionString": "1.1", "platform": "IOS",
                                                          "releaseType": "AFTER_APPROVAL"}], events)
         self.assertIn(["write_build", "build-569"], events)
         self.assertEqual(sum(event[0] == "write_notes" for event in events), 2)
@@ -49,12 +49,41 @@ class AppStoreReleaseTests(unittest.TestCase):
         self.assertFalse(any(event[0] == "write_create_version" for event in events))
 
     def test_unusable_builds_and_conflicts_stop_before_writes(self):
-        for scenario in ("no_build", "processing", "expired", "internal_only", "compliance",
-                         "wrong_version", "wrong_app", "conflicting_version", "draft_other_items"):
+        for scenario in ("no_build", "timeout", "expired", "internal_only", "compliance",
+                         "wrong_version", "wrong_app", "wrong_build", "conflicting_version", "draft_other_items"):
             with self.subTest(scenario=scenario):
                 result, events = self.run_release(scenario)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(self.writes(events))
+
+    def test_waits_for_exact_processing_build_instead_of_submitting_an_older_build(self):
+        result, events = self.run_release(APPSTORE_BUILD="570")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        wait = next(event[1] for event in events if event[0] == "wait")
+        self.assertEqual(wait["app_version"], "1.1")
+        self.assertEqual(wait["build_version"], "570")
+        self.assertEqual(wait["poll_interval"], 30)
+        self.assertEqual(wait["timeout_duration"], 1800)
+        self.assertFalse(wait["select_latest"])
+        self.assertIn(["write_build", "build-570"], events)
+        self.assertNotIn(["write_build", "build-569"], events)
+
+    def test_submission_requires_an_exact_build(self):
+        result, events = self.run_release(APPSTORE_BUILD="")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.writes(events))
+
+    def test_preflight_checks_apple_without_needing_an_uploaded_build(self):
+        result, events = self.run_release("no_build", APPSTORE_MODE="preflight", APPSTORE_BUILD="")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.writes(events))
+        self.assertFalse(any(event[0] in ("wait", "builds") for event in events))
+
+    def test_preflight_rejects_pending_conflicts_and_already_released_versions(self):
+        for scenario in ("conflicting_version", "draft_other_items", "already_submitted"):
+            result, events = self.run_release(scenario, APPSTORE_MODE="preflight", APPSTORE_BUILD="")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(self.writes(events))
 
     def test_apple_must_confirm_build_notes_and_automatic_release(self):
         for scenario in ("build_not_saved", "notes_not_saved", "release_not_saved"):

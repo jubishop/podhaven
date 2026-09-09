@@ -24,7 +24,7 @@ if name == 'git':
     state = json.loads(state_path.read_text())
     if args[0] == 'status': pass
     elif args[:2] == ['rev-parse', '--abbrev-ref']: print('main')
-    elif '--git-path' in args: print(base / 'last-upload')
+    elif '--git-path' in args: print(base / ('last-upload' if args[-1] == 'podhaven-last-upload' else args[-1]))
     elif args[0] == 'rev-parse':
         print('new' if args[-1] == 'HEAD' or state['tag'] != 'v1.0b568' else 'old')
     elif args[:2] == ['tag', '-l']:
@@ -38,7 +38,7 @@ if name == 'git':
     state_path.write_text(json.dumps(state))
 elif name == 'xcodebuild':
     if '-showdestinations' in args: print('{ platform:iOS Simulator, OS:26.5, name:iPhone 17 }')
-    elif '-showBuildSettings' in args: print('    MARKETING_VERSION = 1.0.1')
+    elif '-showBuildSettings' in args: print('    MARKETING_VERSION = ' + os.environ.get('DEPLOY_VERSION', '1.0.1'))
     elif '-exportArchive' in args and os.environ.get('FAIL_UPLOAD'): sys.exit(42)
 elif name == 'llm':
     sys.stdin.read()
@@ -92,6 +92,28 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(self.events("fastlane"))
         self.assertTrue(any('-exportArchive' in event[1] for event in self.events('xcodebuild')))
+
+    def test_shipit_rejects_malformed_testflight_versions(self):
+        for version in ("2.1.1.1", "2.01.1", "2.1.beta"):
+            with self.subTest(version=version):
+                result = self.run_deploy(DEPLOY_VERSION=version)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("two dots", result.stderr)
+                self.assertFalse(any('-exportArchive' in event[1] for event in self.events('xcodebuild')))
+
+    def test_release_upload_requires_matching_zero_or_one_dot_version(self):
+        result = self.run_deploy("--appstore-release", "2.1", DEPLOY_VERSION="2.1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.events("fastlane"))
+        for requested, actual in (("2.1.1", "2.1.1"), ("2.1", "2.2")):
+            result = self.run_deploy("--appstore-release", requested, DEPLOY_VERSION=actual)
+            self.assertNotEqual(result.returncode, 0)
+
+    def test_shipit_cannot_use_the_release_upload_mode(self):
+        result = subprocess.run([str(self.repo / "bin/shipit"), "--appstore-release", "2.1"],
+                                env={**self.env, "DEPLOY_VERSION": "2.1"}, text=True,
+                                capture_output=True, timeout=5)
+        self.assertNotEqual(result.returncode, 0)
 
     def test_shipit_help_has_no_external_side_effects(self):
         result = subprocess.run([str(self.repo / "bin/shipit"), "--help"],
