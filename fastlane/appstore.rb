@@ -5,6 +5,7 @@ require "fastlane_core/build_watcher"
 module PodHavenAppStore
   UI = FastlaneCore::UI
   EDITABLE = %w[PREPARE_FOR_SUBMISSION DEVELOPER_REJECTED REJECTED METADATA_REJECTED INVALID_BINARY].freeze
+  CANCELLABLE = %w[READY_FOR_REVIEW WAITING_FOR_REVIEW IN_REVIEW WAITING_FOR_EXPORT_COMPLIANCE PENDING_APPLE_RELEASE PENDING_DEVELOPER_RELEASE].freeze
   SUBMITTED = %w[WAITING_FOR_REVIEW IN_REVIEW ACCEPTED PENDING_APPLE_RELEASE PROCESSING_FOR_DISTRIBUTION READY_FOR_DISTRIBUTION].freeze
   REVIEW_STATES = %w[READY_FOR_REVIEW WAITING_FOR_REVIEW IN_REVIEW UNRESOLVED_ISSUES CANCELING COMPLETING].freeze
 
@@ -106,22 +107,39 @@ module PodHavenAppStore
     if target && !(EDITABLE + ["READY_FOR_REVIEW"]).include?(target.app_version_state)
       UI.user_error!("App Store #{number} cannot be submitted in state #{target.app_version_state}.")
     end
-    conflicts = versions.reject { |version| version.id == target&.id }.select do |version|
-      (EDITABLE + %w[READY_FOR_REVIEW WAITING_FOR_REVIEW IN_REVIEW ACCEPTED PENDING_APPLE_RELEASE PENDING_DEVELOPER_RELEASE]).include?(version.app_version_state)
+    conflicts = versions.reject do |version|
+      version.id == target&.id || %w[READY_FOR_DISTRIBUTION REPLACED_WITH_NEW_VERSION].include?(version.app_version_state)
     end
-    UI.user_error!("Another App Store version is pending: #{conflicts.map(&:version_string).join(', ')}.") unless conflicts.empty?
+    replacement = conflicts.first if !target && conflicts.length == 1 &&
+                                    Gem::Version.new(conflicts.first.version_string) < Gem::Version.new(number) &&
+                                    (EDITABLE + CANCELLABLE).include?(conflicts.first.app_version_state)
+    unless conflicts.empty? || replacement
+      pending = conflicts.map { |version| "#{version.version_string} (#{version.app_version_state})" }.join(", ")
+      UI.user_error!("Cannot replace pending App Store versions: #{pending}. Expected one older editable version or cancellable submission.")
+    end
     live = versions.select { |version| version.app_version_state == "READY_FOR_DISTRIBUTION" }
     if live.any? { |version| Gem::Version.new(version.version_string) >= Gem::Version.new(number) }
       UI.user_error!("Choose a higher app version with bin/version and upload a new build before submitting.")
     end
     UI.user_error!("Multiple App Store review submissions are active; resolve them in App Store Connect.") if reviews.length > 1
     review = reviews.first
-    if review && review.state != "READY_FOR_REVIEW"
-      UI.user_error!("An App Store review is already active: #{review.state}. Use bin/appstore --status to check it.")
-    end
     items = review ? Spaceship::ConnectAPI::ReviewSubmissionItem.all(review_submission_id: review.id, includes: "appStoreVersion") : []
-    unless items.empty? || (items.length == 1 && target && items.first.app_store_version&.id == target.id)
-      UI.user_error!("The draft review contains other items. Resolve it in App Store Connect before submitting.")
+    if replacement
+      if review
+        unless review.state != "COMPLETING" && items.length == 1 && items.first.app_store_version&.id == replacement.id
+          UI.user_error!("The pending review cannot be replaced: it is completing or contains other items. Resolve it in App Store Connect.")
+        end
+      elsif !EDITABLE.include?(replacement.app_version_state)
+        UI.user_error!("No cancellable review was found for App Store #{replacement.version_string}. Check App Store Connect before retrying.")
+      end
+      UI.message("Will replace App Store #{replacement.version_string} (#{replacement.app_version_state}) with #{number} after the new build is ready.")
+    else
+      if review && review.state != "READY_FOR_REVIEW"
+        UI.user_error!("An App Store review is already active: #{review.state}. Use bin/appstore --status to check it.")
+      end
+      unless items.empty? || (items.length == 1 && target && items.first.app_store_version&.id == target.id)
+        UI.user_error!("The draft review contains other items. Resolve it in App Store Connect before submitting.")
+      end
     end
 
     if mode == "preflight"
@@ -129,6 +147,11 @@ module PodHavenAppStore
       return
     end
 
+    if replacement
+      target = replace_version(replacement, review, number)
+      review = nil
+      items = []
+    end
     unless target
       target = Spaceship::ConnectAPI.post_app_store_version(app_id: app.id, attributes: {
         versionString: number, platform: "IOS", releaseType: "AFTER_APPROVAL"
@@ -156,6 +179,41 @@ module PodHavenAppStore
     UI.success("Submitted #{number} (#{build.version}): #{confirmed.app_version_state}; automatic release after approval.")
   end
 
+  def self.replace_version(version, review, number)
+    previous_number = version.version_string
+    if review
+      unless review.state == "CANCELING"
+        UI.message("Cancelling the App Store #{previous_number} submission...")
+        review.cancel_submission
+      end
+      12.times do |attempt|
+        review = Spaceship::ConnectAPI::ReviewSubmission.get(review_submission_id: review.id)
+        break if review.state == "COMPLETE"
+        UI.message("Waiting for Apple to cancel the previous review (#{review.state})...")
+        sleep(5) unless attempt == 11
+      end
+      UI.user_error!("Apple has not confirmed review cancellation. Retry the same appstore command.") unless review.state == "COMPLETE"
+    end
+    version = wait_for_version(version.id, EDITABLE)
+    unless version.version_string == previous_number
+      UI.user_error!("The pending version changed during replacement. Check App Store Connect before retrying.")
+    end
+    if version.build
+      version.select_build(build_id: nil)
+      version = Spaceship::ConnectAPI::AppStoreVersion.get(app_store_version_id: version.id, includes: "build")
+    end
+    unless version.build.nil? && version.version_string == previous_number && EDITABLE.include?(version.app_version_state)
+      UI.user_error!("Apple has not confirmed the old build was removed from #{previous_number}. Retry the same appstore command.")
+    end
+    version.update(attributes: { versionString: number })
+    confirmed = Spaceship::ConnectAPI::AppStoreVersion.get(app_store_version_id: version.id, includes: "build")
+    unless confirmed.version_string == number && confirmed.build.nil? && EDITABLE.include?(confirmed.app_version_state)
+      UI.user_error!("Apple has not confirmed the draft changed to #{number}. Retry the same appstore command.")
+    end
+    UI.success("Replaced App Store #{previous_number} with the #{number} draft.")
+    confirmed
+  end
+
   def self.verify_release(id, build, notes)
     version = Spaceship::ConnectAPI::AppStoreVersion.get(app_store_version_id: id, includes: "build")
     unless version.build&.id == build.id && version.release_type == "AFTER_APPROVAL"
@@ -169,7 +227,7 @@ module PodHavenAppStore
 
   def self.wait_for_version(id, states)
     12.times do |attempt|
-      version = Spaceship::ConnectAPI::AppStoreVersion.get(app_store_version_id: id)
+      version = Spaceship::ConnectAPI::AppStoreVersion.get(app_store_version_id: id, includes: "build")
       return version if states.include?(version.app_version_state)
       UI.message("Waiting for Apple to confirm the version state (currently #{version.app_version_state})...")
       sleep(5) unless attempt == 11

@@ -139,7 +139,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Release the next minor version using the latest TestFlight notes, or show status with --status.",
         epilog="A release requires clean main, commits and pushes the version change, tests, archives, uploads, waits for "
-               "processing, and submits for automatic release after approval. Uploads publish the existing Git tags, "
+               "processing, replaces an older pending App Store version, and submits for automatic release after approval. "
+               "Replacement cancels the older review after the new build is ready. Uploads publish the existing Git tags, "
                "GitHub releases, and SourceHut mirror. Repeat the same command to resume the exact build. "
                "Processing is checked every 30 seconds for up to 30 minutes. "
                "API key environment variables: ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID. "

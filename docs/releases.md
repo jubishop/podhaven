@@ -78,11 +78,11 @@ its original version even after the local version has changed to it.
 
 The release command requires clean `main` and performs these steps:
 
-1. Choose the version and notes, then check App Store Connect for conflicting versions or review submissions.
+1. Choose the version and notes, then check App Store Connect for an older version to replace or conflicting review items.
 2. Set, commit, and push the requested version with `bin/version`.
 3. Test, archive, and upload using the App Store upload mode.
 4. Wait for that exact build to finish processing.
-5. Set the public release notes and submit for App Review.
+5. Replace an older pending version when present, set the public release notes, and submit for App Review.
 6. Verify the selected build, notes, submission, and automatic release after approval.
 
 Processing is checked every 30 seconds for up to 30 minutes. Apple review
@@ -92,6 +92,20 @@ requested release number; the next `shipit` starts the next TestFlight patch.
 A typical cycle is App Store `2.1`, TestFlight `2.1.1` and `2.1.2`, then App Store `2.2`.
 The App Store upload is a fresh build with the release version; it does not
 rename an existing TestFlight build.
+
+An older pending App Store version is replaced automatically. For example,
+when `1.1` is waiting for review, releasing `1.2` first uploads and validates
+the new build. It then cancels the `1.1` submission, waits for Apple to confirm
+cancellation, removes the old build selection, and changes that draft to `1.2`.
+The existing listing metadata is retained. The new build and public notes are
+selected before submitting again. Apple's review starts over.
+
+An older editable draft is reused without cancellation. Replacement requires
+exactly one older pending version and, if a review exists, that version must
+be its only item. Newer pending versions, multiple pending versions or reviews,
+unrelated review items, and states that cannot be cancelled stop the command.
+`--status` and the initial readiness check remain read-only. A build or upload
+failure leaves the old submission intact.
 
 Uploads retain the existing Git tag, GitHub release, and SourceHut mirror
 behavior. The App Store upload mode does not distribute to external
@@ -105,6 +119,10 @@ exact build number. A retry does not bump the version again or fetch different
 notes. A completed upload is reused even if a newer build later appears in App
 Store Connect. An unrelated change to the checkout cannot replace a release
 whose upload has not completed.
+
+Retries also resume after review cancellation, build removal, or draft renaming.
+The command reads Apple's current state and continues with the saved release
+version, notes, and uploaded build.
 
 Repeating a completed automatic release from the same commit with the same
 notes verifies the existing submission. After new commits, an automatic release

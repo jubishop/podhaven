@@ -132,6 +132,87 @@ class AppStoreReleaseTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse(self.writes(events))
 
+    def test_preflight_allows_replacing_one_older_version_without_writes(self):
+        for scenario in ("replace_waiting", "replace_in_review", "replace_ready", "replace_draft",
+                         "replace_cancelled", "replace_canceling"):
+            with self.subTest(scenario=scenario):
+                result, events = self.run_release(scenario, APPSTORE_MODE="preflight", APPSTORE_BUILD="")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(self.writes(events))
+                self.assertFalse(any(event[0] == "wait" for event in events))
+                self.assertTrue(any("replace" in str(event).lower() for event in events))
+
+    def test_status_does_not_replace_a_pending_version(self):
+        result, events = self.run_release("replace_waiting", APPSTORE_MODE="status")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.writes(events))
+        self.assertTrue(any("App Store 1.1" in str(event) for event in events))
+
+    def test_replacement_cancels_and_reuses_the_older_version_after_build_validation(self):
+        for scenario in ("replace_waiting", "replace_in_review", "replace_ready"):
+            with self.subTest(scenario=scenario):
+                result, events = self.run_release(scenario)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                writes = self.writes(events)
+                self.assertEqual(writes[:3], [["write_cancel", "old-review"], ["write_build", None],
+                                             ["write_version", "old-id", "1.2"]])
+                self.assertLess(next(i for i, event in enumerate(events) if event[0] == "audience"),
+                                events.index(["write_cancel", "old-review"]))
+                self.assertIn(["write_build", "build-569"], writes)
+                self.assertIn(["write_review_item", "old-id"], writes)
+                self.assertFalse(any(event[0] == "write_create_version" for event in writes))
+                self.assertEqual(sum(event[0] == "write_submit" for event in writes), 1)
+
+    def test_replacement_reuses_editable_drafts_and_waits_for_existing_cancellation(self):
+        for scenario in ("replace_draft", "replace_cancelled", "replace_canceling"):
+            with self.subTest(scenario=scenario):
+                result, events = self.run_release(scenario)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertNotIn(["write_cancel", "old-review"], events)
+                self.assertIn(["write_version", "old-id", "1.2"], events)
+                self.assertIn(["write_submit"], events)
+
+    def test_ambiguous_or_newer_pending_versions_stop_before_writes(self):
+        for scenario in ("replace_newer", "replace_other_items", "replace_wrong_item", "replace_multiple_reviews",
+                         "replace_multiple_versions", "replace_existing_target", "replace_missing_review"):
+            for mode in ("preflight", "submit"):
+                with self.subTest(scenario=scenario, mode=mode):
+                    result, events = self.run_release(scenario, APPSTORE_MODE=mode)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(self.writes(events))
+
+    def test_invalid_replacement_build_does_not_cancel_the_old_submission(self):
+        result, events = self.run_release("replace_bad_build")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.writes(events))
+
+    def test_replacement_stops_when_cancellation_is_failed_or_unconfirmed(self):
+        for scenario in ("replace_cancel_failed", "replace_cancel_timeout"):
+            with self.subTest(scenario=scenario):
+                result, events = self.run_release(scenario)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.writes(events), [["write_cancel", "old-review"]])
+
+    def test_replacement_verifies_the_old_version_build_removal_and_rename(self):
+        for scenario in ("replace_version_changed", "replace_detach_not_saved", "replace_rename_not_saved"):
+            with self.subTest(scenario=scenario):
+                result, events = self.run_release(scenario)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(["write_cancel", "old-review"], events)
+                self.assertNotIn(["write_build", "build-569"], events)
+                self.assertNotIn(["write_submit"], events)
+
+    def test_replacement_retries_after_lost_cancel_detach_or_rename_responses(self):
+        for phase in ("cancel", "detach", "rename"):
+            with self.subTest(phase=phase):
+                result, events = self.run_release("replace_" + phase + "_response_lost")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                writes = self.writes(events)
+                self.assertEqual(writes.count(["write_cancel", "old-review"]), 1)
+                self.assertEqual(writes.count(["write_build", None]), 1)
+                self.assertEqual(writes.count(["write_version", "old-id", "1.2"]), 1)
+                self.assertEqual(writes.count(["write_submit"]), 1)
+
     def test_retry_reuses_existing_draft_item(self):
         result, events = self.run_release("draft_resume")
         self.assertEqual(result.returncode, 0, result.stderr)

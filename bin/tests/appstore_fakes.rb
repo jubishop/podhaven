@@ -38,13 +38,29 @@ class FakeVersion
     localizations
   end
   def update(attributes:)
+    if attributes.keys == [:versionString]
+      $events << ["write_version", id, attributes[:versionString]]
+      unless $scenario == "replace_rename_not_saved"
+        @version_string = attributes[:versionString]
+        $target = self
+      end
+      if $scenario == "replace_rename_response_lost" && !$lost
+        $lost = true
+        raise "Replacement response lost"
+      end
+      return
+    end
     raise "Unexpected version edit" unless attributes.keys == [:releaseType]
     $events << ["write_release_type", attributes]
     @release_type = attributes[:releaseType] unless $scenario == "release_not_saved"
   end
   def select_build(build_id:)
     $events << ["write_build", build_id]
-    @build = $builds.find { |candidate| candidate.id == build_id } unless $scenario == "build_not_saved"
+    @build = $builds.find { |candidate| candidate.id == build_id } unless %w[build_not_saved replace_detach_not_saved].include?($scenario)
+    if build_id.nil? && $scenario == "replace_detach_response_lost" && !$lost
+      $lost = true
+      raise "Replacement response lost"
+    end
   end
 end
 
@@ -57,6 +73,15 @@ class FakeReview
     $events << ["write_review_item", app_store_version_id]
     @items = [OpenStruct.new(app_store_version: $target)]
     $target.app_version_state = "READY_FOR_REVIEW"
+  end
+  def cancel_submission
+    $events << ["write_cancel", id]
+    raise "Cancellation failed" if $scenario == "replace_cancel_failed"
+    @state = "CANCELING"
+    if $scenario == "replace_cancel_response_lost" && !$lost
+      $lost = true
+      raise "Replacement response lost"
+    end
   end
   def submit_for_review
     $events << ["write_submit"]
@@ -80,7 +105,7 @@ class FakeApp
   end
   def get_review_submissions(**options)
     $events << ["reviews", options]
-    $reviews
+    $reviews.select { |review| options.fetch(:filter).fetch(:state).split(",").include?(review.state) }
   end
   def create_review_submission(platform:)
     $events << ["write_create_review", platform]
@@ -148,6 +173,21 @@ module Spaceship
         $versions.find { |version| version.id == app_store_version_id }
       end
     end
+    class ReviewSubmission
+      def self.get(review_submission_id:, **options)
+        $events << ["review_readback", review_submission_id]
+        review = $reviews.find { |candidate| candidate.id == review_submission_id }
+        if review.state == "CANCELING" && $scenario != "replace_cancel_timeout"
+          $cancel_reads = ($cancel_reads || 0) + 1
+          if $cancel_reads >= 2
+            review.state = "COMPLETE"
+            $old.app_version_state = "DEVELOPER_REJECTED"
+            $old.version_string = "9.0" if $scenario == "replace_version_changed"
+          end
+        end
+        review
+      end
+    end
     class ReviewSubmissionItem
       def self.all(review_submission_id:, includes:)
         $events << ["items", review_submission_id, includes]
@@ -165,7 +205,7 @@ $builds = [make_build("570", "PROCESSING"), make_build("569"), make_build("568")
 $versions = [FakeVersion.new("live-id", "1.0", "READY_FOR_DISTRIBUTION")]
 $reviews = []
 $target = nil
-unless %w[new status no_build processing internal_only compliance wrong_version wrong_app response_lost].include?($scenario)
+unless $scenario.start_with?("replace_") || %w[new status no_build processing internal_only compliance wrong_version wrong_app response_lost].include?($scenario)
   $target = FakeVersion.new("target-id", "1.1", "PREPARE_FOR_SUBMISSION")
   $target.release_type = "MANUAL"
   $versions << $target
@@ -199,6 +239,37 @@ when "already_submitted", "queued_different_build", "queued_different_notes"
   $reviews << review
 end
 
+if $scenario.start_with?("replace_")
+  $builds.each { |build| build.app_version = "1.2" }
+  $old = FakeVersion.new("old-id", "1.1", ENV.fetch("APPSTORE_OLD_STATE", "WAITING_FOR_REVIEW"))
+  $old.build = make_build("567")
+  $old.build.app_version = "1.1"
+  $versions << $old
+  review = FakeReview.new
+  review.id = "old-review"
+  review.state = "WAITING_FOR_REVIEW"
+  review.items = [OpenStruct.new(app_store_version: $old)]
+  $reviews << review
+  case $scenario
+  when "replace_draft", "replace_cancelled"
+    $reviews = []
+    $old.app_version_state = $scenario == "replace_draft" ? "PREPARE_FOR_SUBMISSION" : "DEVELOPER_REJECTED"
+  when "replace_ready"
+    $old.app_version_state = review.state = "READY_FOR_REVIEW"
+  when "replace_in_review"
+    $old.app_version_state = review.state = "IN_REVIEW"
+  when "replace_canceling" then review.state = "CANCELING"
+  when "replace_missing_review" then $reviews = []
+  when "replace_other_items" then review.items << OpenStruct.new(app_store_version: nil)
+  when "replace_wrong_item" then review.items = [OpenStruct.new(app_store_version: OpenStruct.new(id: "unrelated"))]
+  when "replace_multiple_reviews" then $reviews << FakeReview.new
+  when "replace_multiple_versions" then $versions << FakeVersion.new("another-id", "1.0.2", "PREPARE_FOR_SUBMISSION")
+  when "replace_existing_target" then $versions << FakeVersion.new("target-id", "1.2", "PREPARE_FOR_SUBMISSION")
+  when "replace_newer" then $old.version_string = "1.3"
+  when "replace_bad_build" then $builds[1].expired = true
+  end
+end
+
 if $scenario.start_with?("notes_")
   $builds = [make_build("600"), make_build("599"), make_build("598"), make_build("597")]
   $builds[0].app_version = "3.0"
@@ -227,13 +298,15 @@ begin
   load ARGV.fetch(0)
   PodHavenAppStore.define_singleton_method(:sleep) { |seconds| $events << ["sleep", seconds] }
   build = ENV.fetch("APPSTORE_BUILD", "569")
-  options = { mode: ENV.fetch("APPSTORE_MODE", "submit"), version: "1.1", build: build.empty? ? nil : build }
-  if $scenario == "response_lost"
+  options = { mode: ENV.fetch("APPSTORE_MODE", "submit"), version: $scenario.start_with?("replace_") ? "1.2" : "1.1",
+              build: build.empty? ? nil : build }
+  if $scenario == "response_lost" || $scenario.end_with?("_response_lost")
     begin
       PodHavenAppStore.run(options)
     rescue StandardError => error
-      raise unless error.message == "Submission response lost"
+      raise unless ["Submission response lost", "Replacement response lost"].include?(error.message)
     end
+    PodHavenAppStore.run(options.merge(mode: "preflight"))
   end
   PodHavenAppStore.run(options)
   raise "Description changed" unless $versions.all? { |version| version.localizations.all? { |locale| locale.description == "Existing description and screenshots" } }
