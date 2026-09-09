@@ -3,6 +3,7 @@
 import BackgroundTasks
 import Foundation
 import Semaphore
+import Testing
 
 @testable import PodHaven
 
@@ -78,6 +79,10 @@ final class FakeBGTask: BGTaskHandling, Sendable {
 }
 
 final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
+  private enum SubmissionError: Error {
+    case unregisteredIdentifier(String)
+  }
+
   private let _registrations = ThreadSafe<[RecordedBGTaskRegistration]>([])
   private let _submissions = ThreadSafe<[RecordedBGTaskRequest]>([])
   private let _pendingRequests = ThreadSafe<[String: RecordedBGTaskRequest]>([:])
@@ -86,6 +91,7 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
   private let _cancelledIdentifiers = ThreadSafe<[String]>([])
 
   private let _registerResult = ThreadSafe<Bool>(true)
+  private let _beforeRegistration = ThreadSafe<(@Sendable () -> Void)?>(nil)
   private let _submitError = ThreadSafe<(any Error)?>(nil)
   private let _deliverPendingRequestsAsynchronously = ThreadSafe<Bool>(false)
   private let _pendingRequestDeliveryGate = ThreadSafe<AsyncSemaphore?>(nil)
@@ -107,6 +113,7 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
       )
     }
 
+    _beforeRegistration()?()
     let registerResult = _registerResult()
     guard registerResult else { return false }
 
@@ -115,6 +122,12 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
   }
 
   func submit(_ taskRequest: BGTaskRequest) throws {
+    guard _launchHandlers()[taskRequest.identifier] != nil else {
+      Issue.record(
+        "Background task submitted before handler registration: \(taskRequest.identifier)"
+      )
+      throw SubmissionError.unregisteredIdentifier(taskRequest.identifier)
+    }
     if let error = _submitError() { throw error }
 
     let recordedRequest = RecordedBGTaskRequest(from: taskRequest)
@@ -162,6 +175,10 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
 
   func setRegisterResult(_ result: Bool) {
     _registerResult(result)
+  }
+
+  func setBeforeRegistration(_ action: (@Sendable () -> Void)?) {
+    _beforeRegistration(action)
   }
 
   func setSubmitError(_ error: (any Error)?) {
@@ -222,6 +239,7 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
     _pendingTaskRequestsCallCount(0)
     _cancelledIdentifiers { $0.removeAll() }
     _registerResult(true)
+    _beforeRegistration(nil)
     _submitError { $0 = nil }
     _deliverPendingRequestsAsynchronously(false)
     _pendingRequestDeliveryGate(nil)

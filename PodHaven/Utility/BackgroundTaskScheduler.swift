@@ -5,6 +5,20 @@ import FactoryKit
 import Foundation
 import Logging
 
+private enum BackgroundTaskRegistrationState: Sendable {
+  case registering
+  case registered
+  case failed
+}
+
+extension Container {
+  fileprivate var backgroundTaskRegistrationStates:
+    Factory<ThreadSafe<[String: BackgroundTaskRegistrationState]>>
+  {
+    Factory(self) { ThreadSafe([:]) }.scope(.cached)
+  }
+}
+
 enum BackgroundTaskType: Sendable {
   case processing(requiresNetworkConnectivity: Bool)
   case appRefresh
@@ -43,6 +57,7 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
+  @DynamicInjected(\.backgroundTaskRegistrationStates) private var registrationStates
 
   private static let log = Log.as("BackgroundTaskScheduler")
 
@@ -99,122 +114,128 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func register(executionTask: @escaping @Sendable (Completion) async -> Void) {
-    Once.run(identifier) {
-      Self.log.info("register() called for: \(identifier)")
+    let shouldRegister = registrationStates { states in
+      guard states[identifier] == nil else { return false }
+      states[identifier] = .registering
+      return true
+    }
+    guard shouldRegister else { return }
 
-      let success = bgTaskScheduler.register(
-        forTaskWithIdentifier: identifier,
-        using: nil
-      ) { task in
-        Self.log.debug("iOS is executing the background task: \(identifier)")
+    Self.log.info("register() called for: \(identifier)")
 
-        let executionState = ThreadSafe(ExecutionState.waiting)
-        let complete: Completion = { [executionState, task] success in
-          let completionResult: Bool? = executionState { state in
-            switch state {
-            case .waiting, .running:
-              state = .completed(success)
-              return success
-            case .expired:
-              state = .completed(false)
-              return false
-            case .completed:
-              return nil
-            }
-          }
-          if let completionResult {
-            task.setTaskCompleted(success: completionResult)
+    let success = bgTaskScheduler.register(
+      forTaskWithIdentifier: identifier,
+      using: nil
+    ) { task in
+      Self.log.debug("iOS is executing the background task: \(identifier)")
+
+      let executionState = ThreadSafe(ExecutionState.waiting)
+      let complete: Completion = { [executionState, task] success in
+        let completionResult: Bool? = executionState { state in
+          switch state {
+          case .waiting, .running:
+            state = .completed(success)
+            return success
+          case .expired:
+            state = .completed(false)
+            return false
+          case .completed:
+            return nil
           }
         }
+        if let completionResult {
+          task.setTaskCompleted(success: completionResult)
+        }
+      }
 
-        task.setExpirationHandler {
-          Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
+      task.setExpirationHandler {
+        Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
 
-          let expirationAction: (runningTask: Task<Void, Never>?, completesImmediately: Bool) =
-            executionState { state in
-              switch state {
-              case .waiting:
-                switch expirationBehavior {
-                case .completeImmediately:
-                  state = .completed(false)
-                  return (nil, true)
-                case .awaitCancellation:
-                  state = .expired
-                  return (nil, false)
-                }
-              case .running(let task):
-                switch expirationBehavior {
-                case .completeImmediately:
-                  state = .completed(false)
-                  return (task, true)
-                case .awaitCancellation:
-                  state = .expired
-                  return (task, false)
-                }
-              case .expired, .completed:
+        let expirationAction: (runningTask: Task<Void, Never>?, completesImmediately: Bool) =
+          executionState { state in
+            switch state {
+            case .waiting:
+              switch expirationBehavior {
+              case .completeImmediately:
+                state = .completed(false)
+                return (nil, true)
+              case .awaitCancellation:
+                state = .expired
                 return (nil, false)
               }
+            case .running(let task):
+              switch expirationBehavior {
+              case .completeImmediately:
+                state = .completed(false)
+                return (task, true)
+              case .awaitCancellation:
+                state = .expired
+                return (task, false)
+              }
+            case .expired, .completed:
+              return (nil, false)
             }
-          if let runningTask = expirationAction.runningTask {
-            runningTask.cancel()
           }
-          if expirationAction.completesImmediately {
-            task.setTaskCompleted(success: false)
-          }
-        }
-
-        scheduleNext()
-        let startLatch = AsyncLatch<Void>()
-        let executionToken = UUID()
-        let runningTask = Task {
-          defer {
-            activeExecutions { $0[executionToken] = nil }
-          }
-          do {
-            try Task.checkCancellation()
-            try await startLatch.wait()
-            try Task.checkCancellation()
-            await executionTask(complete)
-          } catch is CancellationError {
-            complete(false)
-            return
-          } catch {
-            Self.log.caughtError("Failed to start background task \(identifier)", error)
-            complete(false)
-            return
-          }
-          if Task.isCancelled {
-            complete(false)
-          }
-        }
-        activeExecutions { $0[executionToken] = runningTask }
-        let shouldCancelBeforeStart = executionState { state in
-          switch state {
-          case .waiting:
-            state = .running(runningTask)
-            return false
-          case .expired, .completed(false):
-            return true
-          case .running:
-            Assert.fatal("Background task \(identifier) installed its execution task twice")
-          case .completed(true):
-            Assert.fatal("Background task \(identifier) completed before execution was installed")
-          }
-        }
-        if shouldCancelBeforeStart {
+        if let runningTask = expirationAction.runningTask {
           runningTask.cancel()
         }
-        startLatch.open()
+        if expirationAction.completesImmediately {
+          task.setTaskCompleted(success: false)
+        }
       }
 
-      guard success else {
-        Self.log.error("register failed for BackgroundTask: \(identifier)")
-        return
-      }
-
-      Self.log.info("Registration for BackgroundTask: \(identifier) complete")
       scheduleNext()
+      let startLatch = AsyncLatch<Void>()
+      let executionToken = UUID()
+      let runningTask = Task {
+        defer {
+          activeExecutions { $0[executionToken] = nil }
+        }
+        do {
+          try Task.checkCancellation()
+          try await startLatch.wait()
+          try Task.checkCancellation()
+          await executionTask(complete)
+        } catch is CancellationError {
+          complete(false)
+          return
+        } catch {
+          Self.log.caughtError("Failed to start background task \(identifier)", error)
+          complete(false)
+          return
+        }
+        if Task.isCancelled {
+          complete(false)
+        }
+      }
+      activeExecutions { $0[executionToken] = runningTask }
+      let shouldCancelBeforeStart = executionState { state in
+        switch state {
+        case .waiting:
+          state = .running(runningTask)
+          return false
+        case .expired, .completed(false):
+          return true
+        case .running:
+          Assert.fatal("Background task \(identifier) installed its execution task twice")
+        case .completed(true):
+          Assert.fatal("Background task \(identifier) completed before execution was installed")
+        }
+      }
+      if shouldCancelBeforeStart {
+        runningTask.cancel()
+      }
+      startLatch.open()
     }
+
+    registrationStates[identifier] = success ? .registered : .failed
+    guard success else {
+      Self.log.error("register failed for BackgroundTask: \(identifier)")
+      return
+    }
+
+    Self.log.info("Registration for BackgroundTask: \(identifier) complete")
+    scheduleNext()
   }
 
   func cancelRunningTasks() {
@@ -223,6 +244,8 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func scheduleNext() {
+    guard registrationStates[identifier] == .registered else { return }
+
     guard shouldSchedule else {
       bgTaskScheduler.cancel(taskRequestWithIdentifier: identifier)
       Self.log.debug("scheduleNext: no work for \(identifier), cancelled pending request")

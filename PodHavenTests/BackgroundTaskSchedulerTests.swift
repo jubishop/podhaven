@@ -33,6 +33,12 @@ struct BackgroundTaskSchedulerTests {
     )
   }
 
+  private func registerWithoutSubmitting(_ scheduler: BackgroundTaskScheduler) {
+    fake.addPendingIdentifier(Self.testIdentifier)
+    scheduler.register { complete in complete(true) }
+    fake.setPendingIdentifiers([])
+  }
+
   // MARK: - Register
 
   @Test("register calls BGTaskScheduler.register with the correct identifier")
@@ -47,7 +53,7 @@ struct BackgroundTaskSchedulerTests {
     #expect(registration.usesDefaultQueue == true)
   }
 
-  @Test("register is idempotent via Once")
+  @Test("register is idempotent")
   func registerIsIdempotent() {
     let scheduler = makeScheduler()
 
@@ -265,6 +271,7 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduleNext submits when cadence has elapsed and no pending tasks")
   func scheduleNextSubmitsWhenReady() {
     let scheduler = makeScheduler(cadence: .seconds(1))
+    registerWithoutSubmitting(scheduler)
 
     scheduler.scheduleNext()
 
@@ -274,6 +281,7 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduleNext submits when pending requests are returned asynchronously")
   func scheduleNextSupportsAsyncPendingRequestLookup() async throws {
     let scheduler = makeScheduler(cadence: .seconds(0))
+    registerWithoutSubmitting(scheduler)
     fake.setDeliverPendingRequestsAsynchronously(true)
 
     scheduler.scheduleNext()
@@ -287,6 +295,7 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduleNext skips when task is already pending")
   func scheduleNextSkipsWhenPending() {
     let scheduler = makeScheduler(cadence: .seconds(0))
+    registerWithoutSubmitting(scheduler)
     fake.addPendingIdentifier(Self.testIdentifier)
 
     scheduler.scheduleNext()
@@ -297,6 +306,7 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduleNext ignores pending tasks with different identifiers")
   func scheduleNextIgnoresOtherPending() {
     let scheduler = makeScheduler(cadence: .seconds(0))
+    registerWithoutSubmitting(scheduler)
     fake.addPendingIdentifier("some.other.identifier")
 
     scheduler.scheduleNext()
@@ -326,6 +336,7 @@ struct BackgroundTaskSchedulerTests {
     let hasWork = ThreadSafe(true)
     let deliveryGate = AsyncSemaphore(value: 0)
     let scheduler = makeScheduler(schedulingMode: .onDemand { hasWork() })
+    registerWithoutSubmitting(scheduler)
     fake.setPendingRequestDeliveryGate(deliveryGate)
 
     scheduler.scheduleNext()
@@ -347,6 +358,7 @@ struct BackgroundTaskSchedulerTests {
       cadence: .seconds(0),
       taskType: .processing(requiresNetworkConnectivity: true)
     )
+    registerWithoutSubmitting(scheduler)
 
     scheduler.scheduleNext()
 
@@ -358,6 +370,7 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduling an app refresh task submits a non-processing request")
   func schedulingAppRefreshTask() throws {
     let scheduler = makeScheduler(cadence: .seconds(0), taskType: .appRefresh)
+    registerWithoutSubmitting(scheduler)
 
     scheduler.scheduleNext()
 
@@ -369,6 +382,7 @@ struct BackgroundTaskSchedulerTests {
   func schedulingSetsEarliestBeginDate() throws {
     let cadence: Duration = .minutes(30)
     let scheduler = makeScheduler(cadence: cadence, taskType: .appRefresh)
+    registerWithoutSubmitting(scheduler)
 
     let before = Date.now
     scheduler.scheduleNext()
@@ -390,6 +404,7 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduling handles submit error gracefully")
   func schedulingHandlesSubmitError() {
     let scheduler = makeScheduler(cadence: .seconds(0))
+    registerWithoutSubmitting(scheduler)
     fake.setSubmitError(TestError.simulatedFailure)
 
     scheduler.scheduleNext()
@@ -400,6 +415,7 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduling does not add to pending when submit fails")
   func schedulingDoesNotPendOnFailure() {
     let scheduler = makeScheduler(cadence: .seconds(0))
+    registerWithoutSubmitting(scheduler)
     fake.setSubmitError(TestError.simulatedFailure)
 
     scheduler.scheduleNext()
