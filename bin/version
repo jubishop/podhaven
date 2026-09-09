@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Read or set PodHaven's app version across all Xcode configurations."""
+
+from pathlib import Path
+import re
+import sys
+
+
+def version_parts(value):
+    if not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,2}", value):
+        raise ValueError("Use one to three numbers separated by dots, such as 1.0.1.")
+    parts = tuple(int(part) for part in value.split("."))
+    return parts + (0,) * (3 - len(parts))
+
+
+def main():
+    if sys.argv[1:] in (["--help"], ["-h"]):
+        print("Usage: bin/version [new-version]\nWithout an argument, print the current app version.")
+        return 0
+    try:
+        if len(sys.argv) > 2:
+            raise ValueError("Usage: bin/version [new-version]")
+        project = Path(__file__).resolve().parents[1] / "PodHaven.xcodeproj/project.pbxproj"
+        source = project.read_text()
+        setting = re.compile(r"(?m)^([ \t]*MARKETING_VERSION[ \t]*=[ \t]*)([^;\r\n]+)(;)")
+        versions = {match[2].strip().strip('"') for match in setting.finditer(source)}
+        if len(versions) != 1:
+            raise ValueError("Expected one consistent MARKETING_VERSION across all Xcode configurations.")
+        current = versions.pop()
+        current_parts = version_parts(current)
+        if len(sys.argv) == 1:
+            print(current)
+            return 0
+        new_version = sys.argv[1]
+        if version_parts(new_version) < current_parts:
+            raise ValueError(f"The new app version must not be older than {current}.")
+        if new_version != current:
+            project.write_text(setting.sub(lambda match: match[1] + new_version + match[3], source))
+        print(new_version)
+        return 0
+    except (OSError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

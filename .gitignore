@@ -12,6 +12,9 @@ xcuserdata/
 *.dSYM.zip
 *.dSYM
 
+# Fastlane's latest local run report
+/fastlane/report.xml
+
 ## Playgrounds
 timeline.xctimeline
 playground.xcworkspace

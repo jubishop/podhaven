@@ -1,0 +1,90 @@
+require "pilot"
+require "pilot/options"
+require "fastlane_core/build_watcher"
+
+desc "Assign an uploaded PodHaven build to the external Everyone group"
+lane :distribute_testflight do |options|
+  notes = ENV.fetch("PODHAVEN_TESTFLIGHT_NOTES", "")
+  UI.user_error!("TestFlight notes must not be blank.") if notes.strip.empty?
+  UI.user_error!("TestFlight notes must be at most 4000 bytes.") if notes.bytesize > 4000
+
+  key_path = ENV.fetch("ASC_KEY_PATH", "")
+  unless key_path.empty?
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      filepath: key_path
+    )
+  end
+
+  config = FastlaneCore::Configuration.create(Pilot::Options.available_options, {
+    app_identifier: "com.artisanalsoftware.PodHaven",
+    app_platform: "ios",
+    username: ENV["FASTLANE_USER"],
+    distribute_only: true,
+    distribute_external: true,
+    changelog: notes,
+    notify_external_testers: true,
+    submit_beta_review: true,
+    expire_previous_builds: false,
+    reject_build_waiting_for_review: false
+  })
+  manager = Pilot::BuildManager.new
+  manager.start(config)
+  app = manager.app
+  groups = app.get_beta_groups(filter: { name: "Everyone", isInternalGroup: "false" })
+  groups = groups.select { |group| group.name == "Everyone" && group.is_internal_group == false }
+  UI.user_error!("Expected exactly one external TestFlight group named Everyone.") unless groups.length == 1
+  group = groups.first
+  if options[:preflight].to_s == "true"
+    UI.success("Confirmed the external Everyone group and App Store Connect login.")
+    next
+  end
+
+  version = options[:version].to_s
+  number = options[:build].to_s
+  UI.user_error!("An exact app version and build number are required.") if version.empty? || number.empty?
+  build = FastlaneCore::BuildWatcher.wait_for_build_processing_to_be_complete(
+    app_id: app.id,
+    platform: "IOS",
+    app_version: version,
+    build_version: number,
+    poll_interval: 30,
+    timeout_duration: 1800,
+    select_latest: false,
+    wait_for_build_beta_detail_processing: true,
+    return_spaceship_testflight_build: false
+  )
+  unless Gem::Version.new(build.app_version) == Gem::Version.new(version) && build.version == number
+    UI.user_error!("Apple returned a different version or build; no distribution was attempted.")
+  end
+  unless build.processing_state == "VALID" && build.expired == false
+    UI.user_error!("Build #{version} (#{number}) is invalid or expired.")
+  end
+  if build.uses_non_exempt_encryption.nil? || build.missing_export_compliance?
+    UI.user_error!("Complete export compliance for this build in App Store Connect, then retry.")
+  end
+
+  config[:app_version] = version
+  config[:build_number] = number
+  config[:groups] = [group.id]
+  manager.distribute(config, build: build)
+
+  assigned = app.get_beta_groups(filter: { builds: build.id, id: group.id })
+  unless assigned.any? { |candidate| candidate.id == group.id }
+    UI.user_error!("Apple has not confirmed this build's assignment to Everyone. Retry the command.")
+  end
+  confirmed = Spaceship::ConnectAPI::Build.get(build_id: build.id)
+  state = confirmed.build_beta_detail.external_build_state
+  accepted = %w[WAITING_FOR_BETA_REVIEW IN_BETA_REVIEW BETA_APPROVED READY_FOR_BETA_TESTING IN_BETA_TESTING]
+  unless accepted.include?(state)
+    UI.user_error!("Assigned to Everyone, but external testing needs attention: #{state}.")
+  end
+  UI.success("Confirmed #{version} (#{number}) in Everyone: #{state.tr('_', ' ').downcase}.")
+end
+
+desc "Show App Store status or submit an uploaded PodHaven build"
+lane :manage_appstore do |options|
+  require_relative "appstore"
+  PodHavenAppStore.run(options)
+end

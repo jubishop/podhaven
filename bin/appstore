@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Inspect App Store releases or submit an uploaded PodHaven build."""
+
+import argparse
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Show App Store status. With --notes, submit an uploaded build for automatic release after approval.",
+        epilog="Uses the current bin/version value. No build, upload, commit, or push is performed. "
+               "API key environment variables: ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID. "
+               "Without a key, Fastlane uses Apple ID login; FASTLANE_USER selects the account.",
+    )
+    parser.add_argument("--notes", help="Public What's New text; enables submission (maximum 4000 characters).")
+    parser.add_argument("--build", help="An exact uploaded build number. Requires --notes; defaults to the latest processed build.")
+    parser.add_argument("--api-key", default=os.environ.get("ASC_KEY_PATH"), help="Path to an App Store Connect .p8 key.")
+    parser.add_argument("--api-key-id", default=os.environ.get("ASC_KEY_ID"), help="App Store Connect key ID.")
+    parser.add_argument("--api-issuer-id", default=os.environ.get("ASC_ISSUER_ID"), help="App Store Connect issuer ID.")
+    args = parser.parse_args()
+    if args.notes is not None and (not args.notes.strip() or len(args.notes) > 4000):
+        parser.error("--notes must contain 1 to 4000 characters and must not be blank.")
+    if args.build is not None:
+        if args.notes is None:
+            parser.error("--build requires --notes.")
+        if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){0,2}", args.build):
+            parser.error("--build requires an exact numeric build number, such as 569.")
+    keys = (args.api_key, args.api_key_id, args.api_issuer_id)
+    if any(keys) and not all(keys):
+        parser.error("API authentication requires a key path, key ID, and issuer ID together.")
+    if args.api_key and not Path(args.api_key).is_file():
+        parser.error("The App Store Connect API key file does not exist.")
+    if not shutil.which("fastlane"):
+        parser.error("Fastlane is required. Install with: brew install fastlane")
+    root = Path(__file__).resolve().parents[1]
+    try:
+        version = subprocess.check_output([str(root / "bin/version")], text=True).strip()
+        command = ["fastlane", "manage_appstore", "mode:" + ("submit" if args.notes is not None else "status"),
+                   "version:" + version]
+        if args.build is not None:
+            command.append("build:" + args.build)
+        environment = dict(os.environ)
+        environment.pop("PODHAVEN_APPSTORE_NOTES", None)
+        if args.notes is not None:
+            environment["PODHAVEN_APPSTORE_NOTES"] = args.notes
+        environment.update({
+            "ASC_KEY_PATH": str(Path(args.api_key).resolve()) if args.api_key else "",
+            "ASC_KEY_ID": args.api_key_id or "", "ASC_ISSUER_ID": args.api_issuer_id or "",
+            "FASTLANE_SKIP_UPDATE_CHECK": "1", "FASTLANE_SKIP_DOCS": "1",
+            "FASTLANE_HIDE_CHANGELOG": "1", "FASTLANE_OPT_OUT_USAGE": "1",
+        })
+        return subprocess.run(command, cwd=root, env=environment, check=False).returncode
+    except (OSError, subprocess.SubprocessError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

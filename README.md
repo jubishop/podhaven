@@ -82,6 +82,119 @@ xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme 
 ```
 </details>
 
+## App Version and TestFlight
+
+Print the current app version:
+
+```sh
+bin/version
+```
+
+Set the next app version across all targets and build configurations:
+
+```sh
+bin/version 1.0.1
+```
+
+This changes the app version (`MARKETING_VERSION`). The command rejects invalid
+or older versions. Use `bin/version --help` for usage.
+
+Commit your changes, then test, archive, and upload a build:
+
+```sh
+bin/shipit
+```
+
+To also distribute that build to the external Everyone group, supply TestFlight
+"What to Test" notes:
+
+```sh
+bin/shipit --notes "Improved playback reliability."
+```
+
+With `--notes`, the command checks the existing external Everyone group before
+building. After upload, it checks processing every 30 seconds for up to 30 minutes,
+adds the notes, submits for beta review when needed, and verifies the group
+assignment. Testers are notified when Apple makes the build available. Apple beta
+review can remain pending after the command finishes. Notes must be nonblank and
+at most 4000 bytes.
+
+If processing times out or distribution fails after upload, rerun the same command
+from the same clean commit. It reuses the uploaded build. You can also use
+`--notes` after an upload-only run of that commit. A single local upload receipt
+in Git's metadata directory supports retries; each new upload replaces it.
+
+`bin/shipit` increments the build number automatically. If Apple closes a version
+for external beta review, use `bin/version` to set a higher app version, commit it,
+and upload a new build. Successful runs also publish the Git tag and GitHub
+release and mirror the branch and tag to SourceHut. The existing generated GitHub
+release summary remains separate from the supplied TestFlight notes.
+
+Other options:
+
+| Option | Behavior |
+| --- | --- |
+| `-h`, `--help` | Show usage without building or uploading. |
+| `-f`, `--force` | Allow a branch other than `main`. A clean working tree is still required. |
+| `--api-key PATH --api-key-id ID --api-issuer-id ID` | Authenticate with an App Store Connect API key. Supply all three options together. |
+
+The API key options can also be set with `ASC_KEY_PATH`, `ASC_KEY_ID`, and
+`ASC_ISSUER_ID`. Keep private keys outside the repository. Without a key, uploads
+use Xcode's Apple ID login. Distribution uses Fastlane's own Apple ID login and
+may request two-factor authentication; `FASTLANE_USER` selects the Apple ID.
+An App Manager or Admin role is needed for external distribution. Fastlane is
+required only with `--notes`; install it with `brew install fastlane`.
+
+`bin/shipit` and `bin/deploy.sh` are aliases and accept the same options.
+
+## App Store Releases
+
+Show the live version, pending versions and reviews, and uploaded builds for the
+current local app version:
+
+```sh
+bin/appstore
+```
+
+Submit the latest processed, unexpired build of the current `bin/version` value:
+
+```sh
+bin/appstore --notes "Improved playback reliability."
+```
+
+Or select an exact uploaded build:
+
+```sh
+bin/appstore --build 569 --notes "Improved playback reliability."
+```
+
+The command creates the App Store version if needed, selects the build, sets
+public "What's New" notes, and submits for App Review. It selects automatic
+release after approval. It verifies Apple's saved build, notes, release setting,
+and submission state before reporting success. It waits briefly for submission
+confirmation; it does not wait for Apple to complete App Review.
+
+The description, screenshots, and other listing metadata carry over. Only the
+build, release setting, and "What's New" text are updated. The supplied notes are
+used for every existing listing language and must contain 1 to 4000 characters.
+They are separate from TestFlight's "What to Test" notes.
+
+Use `bin/shipit` to build and upload first. `bin/appstore` uses uploaded builds,
+so it does not require a clean working tree or create a build, commit, or push.
+The build must be App Store eligible with export compliance already complete.
+Apple can still require changes to listing or review information before accepting
+a submission; the command reports those errors.
+
+If a run stops, use `bin/appstore` to inspect the state, then retry with the same
+notes and `--build` number. It reuses a matching draft or reports that the exact
+release is already submitted. Conflicting versions, review items, or queued
+release settings stop the command instead of replacing a submission.
+
+Fastlane is required (`brew install fastlane`). Authentication uses the same
+`--api-key`, `--api-key-id`, and `--api-issuer-id` options and `ASC_*` environment
+variables described above. Without a key, it uses Fastlane's Apple ID login.
+Use `bin/appstore --help` for all options.
+
 ## Project Architecture
 
 PodHaven is built using modern Swift practices and a clean, modular architecture.
