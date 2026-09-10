@@ -2,9 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>com.apple.security.application-groups</key>
-	<array>
-		<string>$(APP_GROUP_ID)</string>
-	</array>
+  <key>com.apple.developer.associated-domains</key>
+  <array>
+    <string>applinks:artisanalsoftware.com</string>
+    <string>applinks:www.artisanalsoftware.com</string>
+  </array>
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>$(APP_GROUP_ID)</string>
+  </array>
 </dict>
 </plist>

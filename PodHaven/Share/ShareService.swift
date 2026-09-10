@@ -23,13 +23,24 @@ struct ShareService {
   // MARK: - URL Analysis
 
   static func isShareURL(_ url: URL) -> Bool {
-    url.host == "share"
+    url.host == "share" || ShareURL.universalLinkDestination(url) != nil
   }
 
   // MARK: - URL Handling
 
   func handleIncomingURL(_ sharedURL: URL) async throws {
     Self.log.debug("handleIncomingURL: \(sharedURL)")
+
+    if let destination = ShareURL.universalLinkDestination(sharedURL) {
+      try await handlePodcastURL(
+        destination.feedURL,
+        guid: destination.guid,
+        startTime: destination.startTime
+      )
+      return
+    }
+
+    guard sharedURL.host == "share" else { throw URLError(.badURL) }
 
     guard let extractedURL = extractURLParameter(from: sharedURL) else {
       throw URLError(.badURL)
