@@ -16,7 +16,7 @@ struct ContextualEmbeddingRecoveryTests {
     let embedding = register(fake)
     let captured = try await LogCapture.withSink { sink in
       await embedding.requestAndLoadAssetsIfNeeded()
-      try await Wait.until(maxAttempts: 100, { embedding.assetsLoaded.isOpen }) {
+      try await Wait.until({ embedding.assetsLoaded.isOpen }) {
         "Failed model did not recover after requesting its available assets"
       }
       return sink.captured()
@@ -49,7 +49,7 @@ struct ContextualEmbeddingRecoveryTests {
     await embedding.requestAndLoadAssetsIfNeeded()
     #expect(fake.requestCount == 1)
     fake.completeNextRequest(.available)
-    try await Wait.until(maxAttempts: 100, { fake.requestCount == 2 }) {
+    try await Wait.until({ fake.requestCount == 2 }) {
       "Post-download load failure left recovery suppressed"
     }
     #expect(!embedding.assetsLoaded.isOpen)
@@ -135,7 +135,7 @@ struct ContextualEmbeddingRecoveryTests {
     let fake = RecoveringEmbeddable(loadFailures: 100, automaticResult: .available)
     let embedding = register(fake)
     await embedding.requestAndLoadAssetsIfNeeded()
-    try await Wait.until(maxAttempts: 100, { fake.loadCount == 2 }) {
+    try await Wait.until({ fake.loadCount == 2 }) {
       "Expected one initial load and one recovery load"
     }
     for _ in 0..<20 {
