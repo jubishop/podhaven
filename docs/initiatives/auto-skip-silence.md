@@ -211,7 +211,7 @@ real decoding, thermal deferral, remote-to-cache readiness, manual and failed
 seeks, coverage accounting, and media-services recovery. Hosted accessibility
 inspection checks the separate control's label, selected value, placement, and
 hit target at narrow widths and large text sizes. The narrow-layout check includes chapter controls and an expanded transcript.
-The final My Mac run passed 2,155 tests across 292 suites, including the existing
+The final My Mac run passed 2,156 tests across 292 suites, including the existing
 chapter, transcript, queue, and recovery coverage. Swift formatting, preview
 compilation, and document checks passed; the final build emitted no compiler
 warnings. The My Mac harness still prints macOS accessibility-bundle loading

@@ -55,6 +55,24 @@ import Testing
     #expect(state.silenceOverride == nil)
   }
 
+  @Test("finishing with Stop After Current Episode clears the temporary playback mode")
+  func resetOnFinish() async throws {
+    let (_, player) = try await prepared()
+    PlayBarViewModel().selectSilenceMode(.aggressive)
+    let state = Container.shared.sharedState()
+    state.setStopAfterCurrentEpisode(true)
+    await Container.shared.playManager().play()
+    try await PlayHelpers.waitFor(.playing)
+    player.finishEpisode()
+    try await Wait.until(maxAttempts: 200) {
+      state.currentEpisodeID == nil && state.playbackStatus == .stopped
+    } _: {
+      "Stop After Current Episode did not finish playback"
+    }
+    #expect(state.silenceOverride == nil)
+    #expect(state.silenceSourceRejection == nil)
+  }
+
   private func prepared(_ interval: QuietInterval = .init(start: 1, end: 10)) async throws
     -> (PodcastEpisode, FakeAVPlayer)
   {

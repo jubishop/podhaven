@@ -717,6 +717,8 @@ final class PlayManager {
       try requireLoadTransitionOwnership(finalizationID)
       suppressRemoteScrubCommands()
       try await clearOnDeck(ownedBy: finalizationID)
+      sharedState.$silenceOverride.new(nil)
+      sharedState.$silenceSourceRejection.new(nil)
       if sharedState.stopAfterCurrentEpisode {
         Self.log.debug("finishEpisode: stopAfterCurrentEpisode set, stopping instead of advancing")
         sharedState.setStopAfterCurrentEpisode(false)
