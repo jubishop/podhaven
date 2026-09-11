@@ -16,6 +16,7 @@ struct TranscriptionPriorityTests {
 
   @Test(
     "every chunk requests background engine processing through the real worker",
+    .timeLimit(.minutes(5)),
     arguments: EntryPoint.allCases
   )
   func configuresEveryChunk(_ entryPoint: EntryPoint) async throws {
@@ -70,10 +71,10 @@ struct TranscriptionPriorityTests {
       )
       backgroundTask = launchedTask
     }
-    try await Wait.until(
-      { queue.episodeIDs.isEmpty },
-      { "The transcription worker did not finish" }
-    )
+    for await episodeIDs in queue.$episodeIDs.stream()
+    where episodeIDs.isEmpty {
+      break
+    }
     if let backgroundTask {
       try await Wait.until(
         { backgroundTask.completionResults == [true] },
