@@ -65,6 +65,13 @@ enum UndoSeekDirection {
     )
   }
 
+  var silenceMode: SilenceMode { sharedState.effectiveSilenceMode }
+
+  func selectSilenceMode(_ mode: SilenceMode) {
+    guard let episodeID = sharedState.currentEpisodeID else { return }
+    sharedState.$silenceOverride.new(SilenceOverride(episodeID: episodeID, mode: mode))
+  }
+
   var duration: CMTime {
     (sharedState.onDeck?.duration ?? .zero).safe
   }

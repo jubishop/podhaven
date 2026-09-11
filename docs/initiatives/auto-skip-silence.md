@@ -4,7 +4,7 @@ status: current
 
 # Auto-Skip Silence
 
-Agreed design, September 10, 2026. Planning only; no implementation is claimed.
+Agreed design and AVPlayer prototype, September 10, 2026.
 Implementation is tracked in [issue #656](https://github.com/jubishop/podhaven/issues/656).
 This plan replaces the earlier unapproved comparison of playback approaches.
 
@@ -120,6 +120,109 @@ Useful current code locations: `PodHaven/Environment/UserSettings.swift`; `PodHa
 Use the repository's Swift Testing fixtures and real orchestration with fakes at OS boundaries. Prove functional regression tests fail before each implementation change and pass afterward. Do not expose private logic or add production APIs solely for tests. Run suite-level filters using My Mac (Designed for iPhone), always pass `-hideShellScriptEnvironment`, format touched Swift, and finish with zero warnings. Follow `AGENTS.md` for required application checks and run document checks for the design updates.
 
 Initial listening/performance evidence should cover representative studio, quiet/noisy interview, and music-bearing episodes; mono/stereo MP3 and AAC, including variable-bitrate and long recordings; the supported speed range and mid-playback changes; and available speaker/headphone/Bluetooth/background flows. Record analysis time, peak memory, map size, and seek artifacts/overhead on a real device where possible. Clearly identify hardware checks that were not performed. Do not claim perfect audio quality or substitute a passing fake-player test for listening evidence.
+
+## Prototype constants and evidence
+
+The implementation keeps one detector map per installed cache-file generation.
+`CacheFileStore` creates a new generation when it installs replacement bytes,
+retains the generation when another episode reuses that file, and removes the
+map when the last reference or invalid file is removed. Startup also removes
+orphaned metadata. Analysis publication and player attachment check the same
+generation. A remote item cannot use the map of a local file.
+
+The detector uses the peak absolute sample value across all channels in each
+10 ms window. A window qualifies below 0.001 full scale (−60 dBFS). It keeps
+quiet candidates of at least 40 ms before preset filtering. An audible window
+splits candidates; missing timestamps do not join them. Invalid samples reject
+analysis. The decoder reads interleaved float PCM without downmixing and bounds
+one sample buffer to 1 MiB. A map is limited to 100,000 intervals and 8 MB of
+encoded data. Failed analysis is attempted at most twice per file generation
+and detector version, on separate eligibility triggers. Cancellation does not
+publish a partial map or record a permanent failure.
+
+| Preset | Minimum source gap at 1× | Total source pause retained at 1× |
+| --- | --- | --- |
+| Gentle | 1.2 s | 0.60 s |
+| Balanced | 0.9 s | 0.40 s |
+| Aggressive | 0.65 s | 0.28 s |
+
+Both values scale by `1 / sqrt(selectedRate)` over the UI's 0.8–2× range.
+Each end retains at least 100 ms of source audio. A cut must remove at least
+150 ms of heard time after this protection. Automatic seek targets and boundary
+observations use a 600,000-unit timescale, with zero seek tolerances. The general
+60-unit time helper remains unchanged for existing callers. These are initial,
+conservative values, not a claim that all pauses should be shortened.
+
+### Local decoder and transport measurements
+
+Measurements used the optimized production detector on three existing local
+podcast downloads. The files and the application's persistent database were
+read without modification. The run used a Mac; these are not iPhone battery or
+thermal measurements.
+
+| Recording | Source duration | Analysis time | Map size | Quiet candidates |
+| --- | --- | --- | --- | --- |
+| Talking Elite Fitness, “Crossing Over...Again, and a Conversation with Arielle Loewen” | 66.5 min | 5.40 s | 64,779 bytes | 1,752 |
+| My First Million, “How I Bought a $3.4M Business For $200K” | 81.0 min | 5.75 s | 54,636 bytes | 1,475 |
+| My First Million, Robert Greene interview | 84.3 min | 6.92 s | 92,769 bytes | 2,515 |
+
+The combined process reached 24.3 MB maximum resident memory. At 1×, Balanced
+would use 13, 3, and 20 of those candidates respectively. The remaining short
+candidates are retained for other presets and speeds, rather than decoded again.
+
+After waiting for `AVPlayerItem.Status.readyToPlay`, 81 zero-tolerance seek
+requests inside detected quiet ranges completed at 0.8×, 1×, and 2×. Median
+completion delay was 58 ms; the maximum was 108 ms. Reported player position
+was within 21 microseconds of the requested target. A separate 36-request run
+on synthetic mono VBR MP3 and opposite-phase stereo AAC completed with a maximum
+115 ms delay. Reported time accuracy does not prove the absence of an audible
+transition or measure the audio hardware's output latency.
+
+The checked-in synthetic fixtures alternate a tone and silence. They cover
+MP3/AAC decoding, channel cancellation, source timestamps, and window protection.
+They contain generated audio, not excerpts from the podcast downloads.
+
+### Cache-switch failure behavior
+
+The player restores its confirmed source position when switching from streaming
+to downloaded audio. Turning Off or pausing during this operation preserves
+position restoration and the latest playback intent. A manual seek or a new
+episode supersedes the operation.
+
+If positioning the downloaded item fails, the player restores the original
+streaming item at the confirmed position. Silence shortening stays inactive,
+and automatic retries for that installed file generation are suppressed for
+the current playback. If streaming restoration also fails, playback stays
+paused and the existing error alert explains the failure.
+
+Foreground decoding starts only after the app's explicit foreground signal.
+A background-only launch waits for an operating-system background-task grant.
+
+### Verification limits and later work
+
+This validation measured decoding, memory, and seek completion. It did not
+perform auditory listening or a physical iPhone, speaker, headphone, Bluetooth,
+or background audio-route session. The three downloaded recordings do not form
+an annotated quiet-speech or music corpus. Peak protection and conservative
+padding reduce risk, but do not establish perfect sound quality.
+
+Automated tests exercise mode inheritance, transient selection, cache identity,
+real decoding, thermal deferral, remote-to-cache readiness, manual and failed
+seeks, coverage accounting, and media-services recovery. Hosted accessibility
+inspection checks the separate control's label, selected value, placement, and
+hit target at narrow widths and large text sizes. The narrow-layout check includes chapter controls and an expanded transcript.
+The final My Mac run passed 2,155 tests across 292 suites, including the existing
+chapter, transcript, queue, and recovery coverage. Swift formatting, preview
+compilation, and document checks passed; the final build emitted no compiler
+warnings. The My Mac harness still prints macOS accessibility-bundle loading
+errors for RealityFoundation and ScreenTimeUI before the tests; hosted
+accessibility assertions passed.
+
+Later listening can identify audible jumps, soft-speech clipping, or preset
+changes. Such findings should be evaluated as focused follow-up work. The
+user's later listening and approval do not create an indefinite closure gate
+for the AVPlayer implementation, and AVAudioEngine remains a possible later
+transport redesign.
 
 ## Done when
 

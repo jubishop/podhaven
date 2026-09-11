@@ -123,6 +123,7 @@ struct SystemImageName:
   static let playButton = SystemImageName("play.circle.fill")
   static let previousChapter = SystemImageName("backward.frame.fill")
   static let finishEpisode = SystemImageName("forward.end.fill")
+  static let silence = SystemImageName("waveform.path")
   static let stopAfterEpisode = SystemImageName("moon.zzz")
   static let stopAfterEpisodeOn = SystemImageName("moon.zzz.fill")
   static let jumpToMaxPosition = SystemImageName("arrow.forward.to.line")

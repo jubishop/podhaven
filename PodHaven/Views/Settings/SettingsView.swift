@@ -133,6 +133,13 @@ struct SettingsView: View {
         }
 
         Section("Playback") {
+          SettingsRow(infoText: SilenceSettingsHelp.text) {
+            Picker("Shorten Silence", selection: userSettings.$silenceMode.binding) {
+              ForEach(SilenceMode.allCases) { mode in
+                Text(mode.title).tag(mode)
+              }
+            }
+          }
           VStack(alignment: .leading, spacing: 24) {
             SettingsRow(
               infoText: """

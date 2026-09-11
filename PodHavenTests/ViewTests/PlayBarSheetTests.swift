@@ -62,6 +62,85 @@ private struct TranscriptPlaybackTestView: View {
 
 @Suite("of PlayBarSheet tests", .container)
 @MainActor struct PlayBarSheetTests {
+  @Test(
+    "silence control is accessible beside speed at narrow widths",
+    .enabled(if: supportsHostedAccessibilityInspection)
+  )
+  func silenceControlPlacement() async throws {
+    let transcript = Transcript(
+      segments: [
+        TranscriptSegment(
+          start: 0,
+          end: 4,
+          text: "Follow along",
+          words: [TranscriptWord(start: 0, end: 4, text: "Follow along")]
+        )
+      ],
+      locale: "en-US",
+      createdAt: Date()
+    )
+    let episode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(
+        duration: .seconds(600),
+        description: "0:00 Intro\n2:00 Topic\n5:00 Outro",
+        transcript: transcript.jsonString()
+      )
+    )
+    let state = Container.shared.sharedState()
+    state.$onDeck.new(OnDeck(from: episode))
+    state.currentEpisodeID = episode.id
+    Container.shared.userSettings().$silenceMode.new(.balanced)
+    let viewModel = PlayBarViewModel()
+    let observation = Task { await viewModel.observeTranscript() }
+    defer { observation.cancel() }
+    try await Wait.until(maxAttempts: 200) { @MainActor in
+      viewModel.canExpandTranscript
+    } _: {
+      "Transcript did not load"
+    }
+    #expect(viewModel.hasChapters)
+    for size in [DynamicTypeSize.large, .accessibility3] {
+      let window = try Self.makeWindow(
+        PlayBarSheet(viewModel: viewModel).environment(\.dynamicTypeSize, size),
+        size: CGSize(width: 320, height: 844)
+      )
+      defer { window.isHidden = true }
+      try await Wait.until(maxAttempts: 400) { @MainActor in
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains { $0.accessibilityLabel == "Shorten Silence" }
+      } _: {
+        "Silence control did not appear in the accessibility tree"
+      }
+      let showTranscript = try #require(
+        Self.accessibilityElements(in: window)
+          .first {
+            $0.accessibilityLabel == "Show Transcript"
+          }
+      )
+      #expect(showTranscript.accessibilityActivate())
+      try await Wait.until(maxAttempts: 400) { @MainActor in
+        window.rootViewController?.view.layoutIfNeeded()
+        return Self.accessibilityElements(in: window)
+          .contains {
+            $0.accessibilityLabel == "Follow along"
+          }
+      } _: {
+        "Transcript did not expand beside chapter and silence controls"
+      }
+      let elements = Self.accessibilityElements(in: window)
+      let silence = try #require(elements.first { $0.accessibilityLabel == "Shorten Silence" })
+      let speed = try #require(elements.first { $0.accessibilityLabel == "Playback Speed" })
+      #expect(silence.accessibilityValue == "Balanced")
+      #expect(silence.accessibilityFrame.minX >= speed.accessibilityFrame.maxX)
+      #expect(silence.accessibilityFrame.width >= 44)
+      #expect(silence.accessibilityFrame.height >= 44)
+      let frame = window.convert(silence.accessibilityFrame, from: window.screen.coordinateSpace)
+      #expect(frame.minX >= 0)
+      #expect(frame.maxX <= 320)
+    }
+  }
+
   private struct PixelBuffer {
     let width: Int
     let height: Int

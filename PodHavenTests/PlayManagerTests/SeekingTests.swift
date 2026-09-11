@@ -63,18 +63,20 @@ import Testing
     #expect(PlayHelpers.nowPlayingProgress == rewindTime.seconds / duration.seconds)
   }
 
-  @Test("time update events are ignored while seeking")
+  @Test("failed seeks restore observation and pending seeks suppress time updates")
   func timeUpdateEventsAreIgnoredWhileSeeking() async throws {
     await playManager.start()
     let (failedEpisode, successfulEpisode) = try await Create.twoPodcastEpisodes()
 
     try await playManager.load(failedEpisode)
 
-    // After this failed seek, all time advancement is being ignored
+    // A failed seek must restore observation at the actual position.
     avPlayer.seekHandler = { _ in false }
     let failedSeekTime = CMTime.seconds(60)
     await playManager.seek(to: failedSeekTime)
-    #expect(!PlayHelpers.hasPeriodicTimeObservation())
+    try await PlayHelpers.waitForPeriodicTimeObserver()
+    avPlayer.advanceTime(to: .seconds(3))
+    try await PlayHelpers.waitFor(.seconds(3))
 
     await episodeAssetLoader.respond(
       to: successfulEpisode.episode.mediaURL,
@@ -319,20 +321,12 @@ import Testing
     try await playManager.load(seekingEpisode)
     let seekStarted = AsyncSemaphore(value: 0)
     let finishSeek = AsyncSemaphore(value: 0)
-    let seekApplied = AsyncSemaphore(value: 0)
     avPlayer.seekHandler = { _ in
       seekStarted.signal()
       await finishSeek.wait()
       return true
     }
-    let observer = avPlayer.addPeriodicTimeObserver(
-      forInterval: .milliseconds(250),
-      queue: nil
-    ) { _ in
-      seekApplied.signal()
-    }
     defer {
-      avPlayer.removeTimeObserver(observer)
       finishSeek.signal()
     }
 
@@ -341,8 +335,12 @@ import Testing
     try await playManager.load(incomingEpisode)
     fakeRepo.clearAllCalls()
 
+    let completedBefore = avPlayer.completedSeekCount
     finishSeek.signal()
-    await seekApplied.wait()
+    try await Wait.until(
+      { @MainActor in avPlayer.completedSeekCount > completedBefore },
+      { "Late seek completion did not arrive" }
+    )
     await Task.yield()
     _ = try await repo.episode(incomingEpisode.id)
 

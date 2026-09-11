@@ -212,6 +212,10 @@ struct PlayBarSheet: View {
           containerWidth: containerWidth
         )
       )
+      metaButtonStyle(
+        SilenceModeMenu(mode: viewModel.silenceMode, select: viewModel.selectSilenceMode)
+      )
+      .disabled(isShowingSpeedPopover)
 
       Spacer()
 
@@ -348,6 +352,7 @@ struct PlayBarSheetPreview: View {
   let durationSeconds: Double
   let description: String?
   let transcript: Transcript?
+  let silenceMode: SilenceMode?
 
   init(
     _ status: PlaybackStatus = .playing,
@@ -359,7 +364,8 @@ struct PlayBarSheetPreview: View {
     maxPlaybackTime: Double = 120,
     duration: Double = 2400,
     description: String? = nil,
-    transcript: Transcript? = nil
+    transcript: Transcript? = nil,
+    silenceMode: SilenceMode? = nil
   ) {
     self.status = status
     self.image = image
@@ -368,6 +374,7 @@ struct PlayBarSheetPreview: View {
     self.durationSeconds = duration
     self.description = description
     self.transcript = transcript
+    self.silenceMode = silenceMode
   }
 
   var body: some View {
@@ -399,6 +406,10 @@ struct PlayBarSheetPreview: View {
         onDeck.currentTime = CMTime.seconds(currentTimeSeconds)
         onDeck.maxPlaybackTime = CMTime.seconds(maxPlaybackTimeSeconds)
         sharedState.$onDeck.new(onDeck)
+        sharedState.currentEpisodeID = onDeck.id
+        if let silenceMode {
+          sharedState.$silenceOverride.new(SilenceOverride(episodeID: onDeck.id, mode: silenceMode))
+        }
       }
   }
 }
@@ -470,4 +481,9 @@ struct PlayBarSheetPreview: View {
     maxPlaybackTime: 0
   )
 }
+#Preview("Silence enabled with chapters and large text") {
+  PlayBarSheetPreview(description: "0:00 Introduction\n10:00 Discussion", silenceMode: .balanced)
+    .environment(\.dynamicTypeSize, .accessibility3)
+}
+
 #endif

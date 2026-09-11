@@ -16,6 +16,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.databaseMaintainer) private var databaseMaintainer
   @DynamicInjected(\.embeddingProcessor) private var embeddingProcessor
+  @DynamicInjected(\.silenceProcessor) private var silenceProcessor
   @DynamicInjected(\.publisherTranscriptProcessor) private var publisherTranscriptProcessor
   @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
   @DynamicInjected(\.recommendationEngine) private var recommendationEngine
@@ -95,6 +96,7 @@ struct PodHavenApp: App {
     cachePurger.handleScenePhaseChange(to: phase)
     databaseMaintainer.handleScenePhaseChange(to: phase)
     embeddingProcessor.handleScenePhaseChange(to: phase)
+    silenceProcessor.handleScenePhaseChange(to: phase)
     publisherTranscriptProcessor.handleScenePhaseChange(to: phase)
     transcriptionProcessor.handleScenePhaseChange(to: phase)
     recommendationEngine.handleScenePhaseChange(to: phase)

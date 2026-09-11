@@ -33,7 +33,34 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
   // MARK: - State Management
 
   var seekHandler: (CMTime) async -> Bool = { _ in (true) }
+  var resetTimeOnReplacement = false
   private(set) var seekRequests: [CMTime] = []
+  private(set) var preciseSeekRequests: [(CMTime, CMTime, CMTime)] = []
+  private var seekGeneration = UUID()
+  private(set) var completedSeekCount = 0
+  var boundaryObservers: [UUID: @Sendable () -> Void] = [:]
+
+  func cancelPendingSeeks() { seekGeneration = UUID() }
+
+  func seek(
+    to time: CMTime,
+    toleranceBefore: CMTime,
+    toleranceAfter: CMTime,
+    completionHandler: @escaping @Sendable (Bool) -> Void
+  ) {
+    preciseSeekRequests.append((time, toleranceBefore, toleranceAfter))
+    seek(to: time, completionHandler: completionHandler)
+  }
+
+  func addBoundaryTimeObserver(
+    forTimes: [NSValue],
+    queue: dispatch_queue_t?,
+    using block: @escaping @Sendable () -> Void
+  ) -> Any {
+    let id = UUID()
+    boundaryObservers[id] = block
+    return id
+  }
   var rateObservations: [ObservationHandler<Float>] = []
   var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
   var timeObservers: [UUID: TimeObserver] = [:]
@@ -70,6 +97,7 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
 
   func replaceCurrent(with item: (any AVPlayableItem)?) {
     current = item
+    if resetTimeOnReplacement { currentTimeValue = .zero }
   }
 
   // MARK: - AVPlayable Playback
@@ -107,11 +135,15 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
 
   func seek(to time: CMTime, completionHandler: @escaping @Sendable (Bool) -> Void) {
     seekRequests.append(time)
+    let generation = UUID()
+    seekGeneration = generation
     Task { [weak self] in
       guard let self else { return }
       let success = await seekHandler(time)
-      completionHandler(success)
-      if success { currentTimeValue = time }
+      let completed = success && seekGeneration == generation
+      if completed { currentTimeValue = time }
+      completionHandler(completed)
+      completedSeekCount += 1
     }
   }
 
@@ -169,6 +201,7 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
     else { Assert.fatal("Removing time observer: \(observer), of wrong type?") }
 
     timeObservers[id] = nil
+    boundaryObservers[id] = nil
   }
 
   // MARK: - AVPlayable Status

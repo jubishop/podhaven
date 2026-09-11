@@ -89,6 +89,7 @@ struct AppLauncher: Sendable {
     refreshScheduler.register()
     cachePurger.register()
     embeddingProcessor.register()
+    Container.shared.silenceProcessor().register()
     publisherTranscriptProcessor.register()
     transcriptionProcessor.register()
 

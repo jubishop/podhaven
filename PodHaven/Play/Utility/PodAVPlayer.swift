@@ -78,7 +78,7 @@ struct PodAVPlayerPlaybackSnapshot {
     case remote
   }
 
-  @DynamicInjected(\.avPlayer) private var avPlayer
+  @DynamicInjected(\.avPlayer) var avPlayer
   @DynamicInjected(\.cacheFileStore) private var cacheFileStore
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.loadEpisodeAsset) private var loadEpisodeAsset
@@ -90,14 +90,16 @@ struct PodAVPlayerPlaybackSnapshot {
   // value so each tick lands on a chunk boundary.
   nonisolated static let playbackTickSeconds: Int = 3
 
-  nonisolated private static let log = Log.as(LogSubsystem.Play.avPlayer)
+  nonisolated static let log = Log.as(LogSubsystem.Play.avPlayer)
 
   // MARK: - State Management
 
-  private var episodeID: Episode.ID?
-  private var eventSource: PodAVPlayerEventSource?
-  private var lastDatabaseUpdateTime: CMTime?
-  private var latestSeekID: UUID?
+  var episodeID: Episode.ID?
+  var eventSource: PodAVPlayerEventSource?
+  var lastDatabaseUpdateTime: CMTime?
+  var latestSeekID: UUID?
+  var silenceState = SilencePlaybackState()
+  var selectedRate: Float = 1
 
   private var playingFromCache: Bool {
     guard let urlAsset = avPlayer.current?.asset as? AVURLAsset
@@ -111,14 +113,14 @@ struct PodAVPlayerPlaybackSnapshot {
   let rateStream: AsyncStream<PodAVPlayerEvent<Float>>
   let didPlayToEndStream: AsyncStream<PodAVPlayerEventSource>
 
-  private let currentTimeContinuation: AsyncStream<PodAVPlayerEvent<CMTime>>.Continuation
+  let currentTimeContinuation: AsyncStream<PodAVPlayerEvent<CMTime>>.Continuation
   private let itemStatusContinuation:
     AsyncStream<PodAVPlayerEvent<PodAVPlayerItemStatus>>.Continuation
   private let controlStatusContinuation: AsyncStream<PodAVPlayerEvent<PlaybackStatus>>.Continuation
   private let rateContinuation: AsyncStream<PodAVPlayerEvent<Float>>.Continuation
   private let didPlayToEndContinuation: AsyncStream<PodAVPlayerEventSource>.Continuation
 
-  private var periodicTimeObservation: (observer: Any, player: any AVPlayable)?
+  var periodicTimeObservation: (observer: Any, player: any AVPlayable)?
   private var itemStatusObserver: NSKeyValueObservation?
   private var timeControlStatusObserver: NSKeyValueObservation?
   private var rateObserver: NSKeyValueObservation?
@@ -152,19 +154,26 @@ struct PodAVPlayerPlaybackSnapshot {
   ) async throws -> PodcastEpisode {
     Self.log.debug("load: \(podcastEpisode.toString)")
 
-    let (podcastEpisode, playableItem) = try await loadAsset(
+    let (podcastEpisode, playableItem, content) = try await loadAsset(
       for: podcastEpisode,
       mediaServicesResetElapsed: mediaServicesResetElapsed
     )
     try Task.checkCancellation()
     lastDatabaseUpdateTime = podcastEpisode.currentTime
-    bind(playableItem, to: podcastEpisode.id)
+    bind(playableItem, to: podcastEpisode.id, content: content)
 
     return podcastEpisode
   }
 
-  private func bind(_ playableItem: any AVPlayableItem, to episodeID: Episode.ID) {
+  func bind(
+    _ playableItem: any AVPlayableItem,
+    to episodeID: Episode.ID,
+    content: CachedAudioContent?
+  ) {
     self.episodeID = episodeID
+    silenceState.content = content
+    silenceState.map = nil
+    silenceState.consumedInterval = nil
     eventSource = PodAVPlayerEventSource(
       episodeID: episodeID,
       itemIdentity: ObjectIdentifier(playableItem),
@@ -173,11 +182,13 @@ struct PodAVPlayerPlaybackSnapshot {
     avPlayer.replaceCurrent(with: playableItem)
   }
 
-  private func loadAsset(
+  func loadAsset(
     for podcastEpisode: PodcastEpisode,
     mediaServicesResetElapsed: TimeInterval?
   ) async throws
-    -> (podcastEpisode: PodcastEpisode, playableItem: any AVPlayableItem)
+    -> (
+      podcastEpisode: PodcastEpisode, playableItem: any AVPlayableItem, content: CachedAudioContent?
+    )
   {
     Self.log.debug("loadAsset: \(podcastEpisode.toString)")
 
@@ -206,7 +217,7 @@ struct PodAVPlayerPlaybackSnapshot {
       )
     }
 
-    return (updatedPodcastEpisode, episodeAsset.playerItem())
+    return (updatedPodcastEpisode, episodeAsset.playerItem(), episodeAsset.cacheContent)
   }
   private func performLoadAsset(
     for podcastEpisode: PodcastEpisode,
@@ -223,14 +234,45 @@ struct PodAVPlayerPlaybackSnapshot {
         mediaServicesResetElapsed: mediaServicesResetElapsed
       )
     }
+    if !(await permitsAutomaticCacheReplacement(podcastEpisode)) {
+      return try await performEpisodeAssetLoad(
+        from: podcastEpisode.episode.mediaURL.rawValue,
+        source: .remote,
+        episodeID: podcastEpisode.id,
+        mediaServicesResetElapsed: mediaServicesResetElapsed
+      )
+    }
     do {
       Self.log.debug("performLoadAsset: loading from cache: \(cachedURL)")
-      return try await performEpisodeAssetLoad(
+      var content: CachedAudioContent?
+      do {
+        content = try await Container.shared.silenceStore()
+          .content(for: cachedURL.lastPathComponent)
+      } catch {
+        Self.log.caughtError(
+          "Silence metadata unavailable; keeping ordinary cached playback",
+          error
+        )
+      }
+      var loaded = try await performEpisodeAssetLoad(
         from: cachedURL.rawValue,
         source: .cache,
         episodeID: podcastEpisode.id,
         mediaServicesResetElapsed: mediaServicesResetElapsed
       )
+      if let content {
+        do {
+          if try await Container.shared.silenceStore().isCurrent(content) {
+            loaded.cacheContent = content
+          }
+        } catch {
+          Self.log.caughtError(
+            "Silence identity validation unavailable; keeping ordinary playback",
+            error
+          )
+        }
+      }
+      return loaded
     } catch is CancellationError {
       throw CancellationError()
     } catch {
@@ -306,6 +348,8 @@ struct PodAVPlayerPlaybackSnapshot {
     eventSource = nil
     lastDatabaseUpdateTime = nil
     latestSeekID = nil
+    silenceState = SilencePlaybackState()
+    avPlayer.cancelPendingSeeks()
     avPlayer.replaceCurrent(with: nil)
   }
 
@@ -350,6 +394,7 @@ struct PodAVPlayerPlaybackSnapshot {
   private func swapToCached(from source: PodAVPlayerEventSource) async -> Bool {
     guard isCurrent(source), !playingFromCache else { return false }
     let episodeID = source.episodeID
+    let startingSeekID = latestSeekID
 
     let podcastEpisode: PodcastEpisode
     do {
@@ -362,16 +407,18 @@ struct PodAVPlayerPlaybackSnapshot {
       )
       return false
     }
-    guard isCurrent(source) else {
+    guard isCurrent(source), latestSeekID == startingSeekID else {
       Self.log.debug("swapToCached: source retired while fetching episode \(episodeID)")
       return false
     }
 
     guard podcastEpisode.episode.cachedURL != nil else { return false }
+    if !(await permitsAutomaticCacheReplacement(podcastEpisode)) { return false }
 
     let playableItem: any AVPlayableItem
+    let content: CachedAudioContent?
     do {
-      (_, playableItem) = try await loadAsset(
+      (_, playableItem, content) = try await loadAsset(
         for: podcastEpisode,
         mediaServicesResetElapsed: nil
       )
@@ -382,13 +429,13 @@ struct PodAVPlayerPlaybackSnapshot {
       )
       return false
     }
-    guard isCurrent(source) else {
+    guard isCurrent(source), latestSeekID == startingSeekID else {
       Self.log.debug("swapToCached: source retired while loading cached item for \(episodeID)")
       return false
     }
 
     removeObservers()
-    bind(playableItem, to: episodeID)
+    bind(playableItem, to: episodeID, content: content)
     addObservers()
     Self.log.info("swapToCached: swapped to cached version")
     return true
@@ -398,16 +445,23 @@ struct PodAVPlayerPlaybackSnapshot {
 
   func play() {
     Self.log.debug("play: executing (fromCache: \(playingFromCache))")
+    if silenceState.replacementIntent != nil {
+      silenceState.replacementIntent = .playing
+      return
+    }
     avPlayer.play()
   }
 
   func pause() async {
     Self.log.debug("pause: executing")
+    if silenceState.replacementIntent != nil { silenceState.replacementIntent = .paused }
+    if silenceState.pending != .replacement { cancelAutomaticSilenceWork() }
     avPlayer.pause()
     await savePosition()
   }
 
   func savePosition() async {
+    guard silenceState.replacementIntent == nil else { return }
     await saveCurrentTime(avPlayer.currentTime())
   }
 
@@ -427,6 +481,8 @@ struct PodAVPlayerPlaybackSnapshot {
   func setRate(_ rate: Float) {
     Self.log.debug("setRate: \(rate)")
 
+    selectedRate = rate
+    refreshSilenceBoundary()
     avPlayer.setDefaultRate(rate)
     if avPlayer.timeControlStatus != .paused {
       Self.log.debug("Setting rate because timeControlStatus is: \(avPlayer.timeControlStatus)")
@@ -445,7 +501,9 @@ struct PodAVPlayerPlaybackSnapshot {
 
     guard let seekingSource = eventSource else { return }
     let seekID = UUID()
+    cancelAutomaticSilenceWork()
     latestSeekID = seekID
+    silenceState.consumedInterval = nil
     await swapToCached(from: seekingSource)
     guard latestSeekID == seekID, episodeID == seekingEpisodeID else { return }
     guard let eventSource else { return }
@@ -454,23 +512,23 @@ struct PodAVPlayerPlaybackSnapshot {
     currentTimeContinuation.yield(PodAVPlayerEvent(source: eventSource, value: time))
 
     avPlayer.seek(to: time) { [weak self, eventSource, seekID] completed in
-      guard let self else { return }
-
-      if completed {
-        Self.log.debug("seek: to \(time) completed")
-        Task { @MainActor [weak self, eventSource, seekID] in
-          guard let self, self.latestSeekID == seekID, self.isCurrent(eventSource) else { return }
-          await self.saveCurrentTime(time)
-          guard self.latestSeekID == seekID, self.isCurrent(eventSource) else { return }
-          self.addPeriodicTimeObserver()
-        }
-      } else {
-        Self.log.debug("seek: to \(time) interrupted")
+      Task { @MainActor [weak self] in
+        guard let self, self.latestSeekID == seekID, self.isCurrent(eventSource) else { return }
+        let actual = self.avPlayer.currentTime()
+        self.lastDatabaseUpdateTime = actual
+        await self.saveCurrentTime(actual)
+        guard self.latestSeekID == seekID, self.isCurrent(eventSource) else { return }
+        self.latestSeekID = nil
+        self.currentTimeContinuation.yield(PodAVPlayerEvent(source: eventSource, value: actual))
+        self.addPeriodicTimeObserver()
+        self.finishSilenceReplacementIntent()
+        self.refreshSilenceBoundary()
+        if completed { await self.shortenSilenceIfNeeded() }
       }
     }
   }
 
-  private func saveCurrentTime(_ currentTime: CMTime) async {
+  func saveCurrentTime(_ currentTime: CMTime) async {
     guard let episodeID else {
       Self.log.debug("Setting current time on nil player item with CMTime: \(currentTime)")
       return
@@ -491,8 +549,9 @@ struct PodAVPlayerPlaybackSnapshot {
 
   // Seek and pause stay on `saveCurrentTime` — they don't represent content
   // the user actually heard, so the bitmap and `lastPlayedDate` shouldn't grow.
-  private func savePlaybackTick(_ currentTime: CMTime, episodeID: Episode.ID) async {
-    guard self.episodeID == episodeID else { return }
+  @discardableResult
+  func savePlaybackTick(_ currentTime: CMTime, episodeID: Episode.ID) async -> Bool {
+    guard self.episodeID == episodeID else { return false }
     let playedFrom = lastDatabaseUpdateTime ?? currentTime
     do {
       try await repo.updatePlayback(
@@ -501,16 +560,18 @@ struct PodAVPlayerPlaybackSnapshot {
         playedFrom: playedFrom,
         now: Date()
       )
-      guard self.episodeID == episodeID else { return }
+      guard self.episodeID == episodeID else { return false }
       lastDatabaseUpdateTime = currentTime
       Self.log.trace(
         "savePlaybackTick: saved \(currentTime) (from \(playedFrom)) for \(episodeID)"
       )
+      return true
     } catch {
       Self.log.caughtError(
         "savePlaybackTick: failed to save \(currentTime) for episode \(episodeID)",
         error
       )
+      return false
     }
   }
 
@@ -520,7 +581,9 @@ struct PodAVPlayerPlaybackSnapshot {
     _ currentTime: CMTime,
     source: PodAVPlayerEventSource
   ) async {
-    guard isCurrent(source) else { return }
+    guard isCurrent(source), latestSeekID == nil else { return }
+    if await shortenSilenceIfNeeded() { return }
+    guard isCurrent(source), latestSeekID == nil else { return }
 
     // `abs` guards against any future path that moves time backward without
     // routing through `seek(to:)` (which resets `lastDatabaseUpdateTime`).
@@ -544,9 +607,11 @@ struct PodAVPlayerPlaybackSnapshot {
     addTimeControlStatusObserver()
     addRateObserver()
     addDidPlayToEndObserver()
+    startSilenceObservation()
   }
 
   func removeObservers() {
+    stopSilenceObservation()
     removeItemStatusObserver()
     removePeriodicTimeObserver()
     removeTimeControlStatusObserver()
@@ -602,7 +667,7 @@ struct PodAVPlayerPlaybackSnapshot {
     }
   }
 
-  private func addPeriodicTimeObserver() {
+  func addPeriodicTimeObserver() {
     guard periodicTimeObservation == nil else { return }
     guard let eventSource else { return }
 
@@ -643,9 +708,13 @@ struct PodAVPlayerPlaybackSnapshot {
           waitingReason=\(String(describing: snapshot.waitingReason))
           """
         )
-        guard status != .playing else { return }
+        if status == .playing {
+          self.refreshSilenceBoundary()
+          await self.shortenSilenceIfNeeded()
+          return
+        }
         let currentTime = avPlayer.currentTime()
-        if await swapToCached(from: eventSource) {
+        if latestSeekID == nil, await swapToCached(from: eventSource) {
           avPlayer.seek(to: currentTime)
         }
       }
@@ -670,7 +739,7 @@ struct PodAVPlayerPlaybackSnapshot {
     }
   }
 
-  private func removePeriodicTimeObserver() {
+  func removePeriodicTimeObserver() {
     if let (observer, player) = periodicTimeObservation {
       Self.log.debug("removePeriodicTimeObserver: unregistering observer")
       player.removeTimeObserver(observer)

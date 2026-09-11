@@ -54,6 +54,7 @@ struct CacheFileStore: Sendable {
         .fetchCount(db)
       guard referenceCount == 0 else { return .retained(cachedURL) }
 
+      try CachedAudioContent.deleteOne(db, key: cachedFilename)
       do {
         try fileManager.removeItem(at: cachedURL.rawValue)
         return .removed(cachedURL)
@@ -79,6 +80,7 @@ struct CacheFileStore: Sendable {
         .updateAll(db, Episode.Columns.cachedFilename.set(to: nil))
       guard released > 0 else { return }
 
+      try CachedAudioContent.deleteOne(db, key: cachedFilename)
       do {
         try fileManager.removeItem(at: cachedURL.rawValue)
       } catch {
@@ -100,6 +102,7 @@ struct CacheFileStore: Sendable {
         .fetchCount(db)
       guard referenceCount == 0 else { return .retained(cachedURL) }
 
+      try CachedAudioContent.deleteOne(db, key: cachedFilename)
       do {
         try fileManager.removeItem(at: cachedURL.rawValue)
         return .removed(cachedURL)
@@ -138,7 +141,13 @@ struct CacheFileStore: Sendable {
       guard updated > 0 else { return nil }
 
       if fileManager.fileExists(at: cachedURL.rawValue) {
-        guard existingReferenceCount == 0 else { return .reused(cachedURL) }
+        if existingReferenceCount > 0 {
+          if try CachedAudioContent.fetchOne(db, key: cachedFilename) == nil {
+            try CachedAudioContent(filename: cachedFilename, generation: UUID().uuidString)
+              .insert(db)
+          }
+          return .reused(cachedURL)
+        }
         do {
           try fileManager.removeItem(at: cachedURL.rawValue)
         } catch {
@@ -146,7 +155,9 @@ struct CacheFileStore: Sendable {
         }
       }
 
+      try CachedAudioContent.deleteOne(db, key: cachedFilename)
       try fileManager.moveItem(at: sourceURL, to: cachedURL.rawValue)
+      try CachedAudioContent(filename: cachedFilename, generation: UUID().uuidString).insert(db)
       return .installed(cachedURL)
     }
   }

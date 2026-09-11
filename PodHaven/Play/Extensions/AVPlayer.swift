@@ -11,6 +11,8 @@ extension Container {
 }
 
 extension AVPlayer: AVPlayable {
+  func cancelPendingSeeks() { currentItem?.cancelPendingSeeks() }
+
   var current: (any AVPlayableItem)? { currentItem }
   func replaceCurrent(with item: (any AVPlayableItem)?) {
     guard let item

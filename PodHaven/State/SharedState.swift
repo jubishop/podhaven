@@ -38,12 +38,26 @@ struct SharedState: Sendable {
   // When set, PlayManager stops at the current episode's end instead of
   // auto-advancing, then clears this back to false (single-use sleep stop).
   @Broadcasted var stopAfterCurrentEpisode: Bool = false
+  @Broadcasted var silenceOverride: SilenceOverride? = nil
+  @Broadcasted var silenceSourceRejection: SilenceSourceRejection? = nil
   @Broadcasted var playRate: Float = 1.0
   @Broadcasted var tags: IdentifiedArrayOf<Tag> = []
   // Only StateManager should write this. Mirrors the smartList table so
   // Navigation can resolve a smartList destination synchronously.
   @Broadcasted var smartLists: IdentifiedArrayOf<SmartList> = []
   @Broadcasted var queuedPodcastEpisodes: [ListablePodcastEpisode] = []
+
+  var effectiveSilenceMode: SilenceMode {
+    var temporary: SilenceMode?
+    if let silenceOverride, silenceOverride.episodeID == currentEpisodeID {
+      temporary = silenceOverride.mode
+    }
+    return SilenceMode.resolve(
+      temporary: temporary,
+      podcast: onDeck?.silenceMode,
+      global: Container.shared.userSettings().silenceMode
+    )
+  }
 
   // MARK: - Download Progress
 

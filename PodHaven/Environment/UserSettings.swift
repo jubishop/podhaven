@@ -16,6 +16,7 @@ struct UserSettings: Sendable {
 
   @PersistedBroadcast("shrinkPlayBarOnScroll") var shrinkPlayBarOnScroll: Bool = true
   @PersistedBroadcast("cacheSizeLimitGB") var cacheSizeLimitGB: Double = 1.0
+  @PersistedBroadcast("silenceMode") var silenceMode: SilenceMode = .off
   @PersistedBroadcast("defaultPlaybackRate") var defaultPlaybackRate: Double = 1.0
   @PersistedBroadcast("skipForwardInterval") var skipForwardInterval: TimeInterval = 30
   @PersistedBroadcast("skipBackwardInterval") var skipBackwardInterval: TimeInterval = 15
