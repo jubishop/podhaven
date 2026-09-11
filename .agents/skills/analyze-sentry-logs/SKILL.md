@@ -1,153 +1,102 @@
 ---
 name: analyze-sentry-logs
-description: >
-  Analyze Sentry logs to find real issues, severity mismatches, and missing observability.
-  Only runs when explicitly invoked via /analyze-sentry-logs.
+description: >-
+  Analyze PodHaven Sentry structured logs for real issues, severity mismatches,
+  and missing observability. Use only when explicitly invoked.
 user_invocable: true
-allowed-tools: Bash, Read, Grep, Glob, Agent
 disable-model-invocation: true
+argument: Time span (such as 12h, 2d, or 1w) and an optional Sentry logs query
 ---
 
 # Sentry Log Analysis
 
-Analyze Sentry logs for the PodHaven iOS app. This is a **logs-only** analysis — no Sentry issues, events, crashes, or other data. Focus exclusively on what the logs reveal.
+Analyze PodHaven's Sentry structured logs (`ourlogs`), using repository source
+and history to explain them. Do not fetch Sentry issues, events, crashes, or
+other Sentry data. Device NDJSON analysis belongs to `analyze-logs`; individual
+error issues and feedback belong to `analyze-sentry-issue` and
+`analyze-sentry-feedback`.
 
-"Sentry logs" here means Sentry's **structured logs** (`ourlogs`) — a different source from the device NDJSON files the `analyze-logs` skill reads. For a single error issue use `analyze-sentry-issue`; for one user feedback use `analyze-sentry-feedback`. Those two reuse the shared `sentry-cli/` fetch scripts (`fetch_sentry_logs.sh`, `filter_sentry_logs.py`) for targeted, user/trace-scoped timelines rather than the bulk pattern triage here.
+## Scope and access
 
-## Arguments
+Require a time span. If none is supplied, ask before fetching logs. Accept an
+optional Sentry logs query. Default to warnings/errors unless the user
+explicitly requests other levels. User, trace, and release filters preserve
+that default. Express requested levels through a severity filter; use
+`severity:*` for all levels.
 
-Accepts a time span argument. Examples:
-- `/analyze-sentry-logs 12h` — last 12 hours
-- `/analyze-sentry-logs 2d` — last 2 days
-- `/analyze-sentry-logs 1w` — last week
+PodHaven uses the device IDFV for `user.id`. Error events and structured logs
+can have different environment tags. Do not copy an event's environment filter
+without confirming it on log rows; prefer `user.id` and optional `release`.
 
-**If no argument is provided, ask the user what time span they want before proceeding.**
+Use the authenticated `sentry` CLI and the shared
+[fetch helper](../../scripts/sentry-cli/fetch_sentry_logs.sh). If the CLI or
+authentication is missing, stop and report it. Do not install tools or use the
+Sentry MCP server.
 
-Optional second argument: a Sentry logs search query. Use `user.id:<uuid>` to
-scope to one user (PodHaven sets this to the device IDFV). Use `trace:<id>` when
-correlating to a specific error event. The `analyze-sentry-issue` skill uses
-these filters for targeted timelines — this skill uses them for bulk pattern
-triage across the whole window.
-
-**Environment mismatch (PodHaven):** error events often tag `environment:testFlight`
-while structured logs usually tag `environment:deployed`. Do not filter logs by
-the event's environment unless you have confirmed that tag on log rows. Prefer
-`user.id` and optional `release`.
-
-## Prerequisites
-
-Requires the **`sentry` CLI** ([cli.sentry.dev](https://cli.sentry.dev)) and
-Sentry authentication (`sentry auth login`). If either prerequisite is missing,
-stop and report it. Do not install tools or use the Sentry MCP server.
-
-## Step 1: Fetch logs
-
-Run `.agents/scripts/sentry-cli/fetch_sentry_logs.sh` — it uses
-`sentry log list` and `sentry explore` under the hood:
-
-Create a unique output directory under `/tmp` for the invocation and delete it
-after reporting.
+From the repository root:
 
 ```bash
-bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh <statsPeriod> \
-  --out <temporary-output-directory>
-bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh 6h \
-  --out <temporary-output-directory> \
-  --query 'user.id:<uuid> severity:[warn,error]'
-bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh 1h \
-  --out <temporary-output-directory> \
-  --query 'trace:<trace_id> severity:[warn,error]'
+bash .agents/scripts/sentry-cli/fetch_sentry_logs.sh <time-span> \
+  --out <unique-temporary-directory> --query '<optional-query>'
 ```
 
-Where `<statsPeriod>` matches the user's time span (e.g., `10h`, `2d`, `1w`).
+Omit `--query` when no filter is needed. Use a unique temporary directory for
+each fetch and delete it after reporting.
 
-To narrow fetched rows to an incident window (used heavily by
-`analyze-sentry-issue`):
+## Coverage
 
-```bash
-python3 .agents/scripts/sentry-cli/filter_sentry_logs.py \
-  --input <temporary-output-directory>/detail.json \
-  --output <temporary-output-directory>/filtered.json \
-  --around-ms <event_epoch_ms> --window-ms 1200000 --oneline
-```
+Obtain complete counts for every matching pattern in the requested window.
+The helper fixes the time window, follows all aggregate pages, and writes:
 
-This outputs:
-- `<temporary-output-directory>/detail.json` — individual log entries (up to
-  1000 per fetch)
-- `<temporary-output-directory>/summary.json` — aggregated counts grouped by
-  severity + message
-- A summary table printed to stdout
+- `summary.json`: counts grouped by severity and full message.
+- `detail.json`: up to 1,000 individual entries for investigation.
+- `coverage.json`: effective query, fixed window, counts by severity, and
+  separate aggregate/detail coverage states.
 
-Present the summary table to the user immediately.
+Check coverage before drawing conclusions. Individual entries can be a sample;
+their count is not the total for the window. Obtain additional targeted samples
+when needed to investigate patterns, using the same fixed window from
+`coverage.json`. The helper also accepts a bounded ISO datetime range with
+explicit timezone offsets for this purpose.
 
-If you need to inspect individual entries (e.g., timestamps, burst patterns), read the detail JSON:
-```bash
-python3 -c "
-import json
-with open('<temporary-output-directory>/detail.json') as f:
-    for row in json.load(f)['data']:
-        print(f\"{row['timestamp']}\t{row['severity']}\t{row['message'][:120]}\")
-"
-```
+If a request or pagination fails, inspect the recorded coverage before using
+the retained evidence. Resolve the failure and fetch more where possible. Disclose any
+coverage that remains incomplete; do not claim full-window totals or complete
+pattern coverage. Group message variants when they share a cause, while
+preserving the counts and accounting for every returned group.
 
-## Step 2: Deep-dive into every log pattern
+## Investigation
 
-For **every unique log pattern** in the summary, find the source code. Use Grep to locate the log message string in `*.swift` files, then Read the surrounding context (at least 15 lines in each direction).
+Trace each pattern far enough through source and logs to establish its trigger,
+likely user impact, and whether it reflects expected behavior or a defect.
+Choose the search method and amount of source context needed for that judgment.
 
-For each pattern, determine:
+Assess severity, available diagnostic context, and concrete nearby failure
+paths that lack useful logging. Investigate bursts using timestamps and
+available user/trace context before attributing them to duplicate work. For
+`caughtError()` logs, inspect the current wrapper and `ErrorKit.isRemarkable`
+implementation before recommending severity changes.
 
-1. **What triggers this log?** Read the function it's in. What condition leads here? Trace callers if needed.
-2. **Is this expected or a bug?** Is this a normal edge case the code handles gracefully, or does it indicate a real problem the user should know about?
-3. **Is the severity right?**
-   - `.error`: something is broken and needs investigation
-   - `.warning`: something unexpected happened but was handled
-   - `.info`: notable state change, useful context
-   - `.debug`: verbose detail for active debugging only
-4. **Is there enough context in the log message?** Look at the local variables available at the log call site. Could you diagnose the root cause from this message alone, or is it missing values that are right there in scope? For example, a guard that logs "value is invalid" should include what the value actually was. Recommend adding specific variables/state to the message string.
-5. **Are related failure modes unlogged?** Look at nearby code paths — are there error conditions or edge cases with no logging at all?
-6. **Burst patterns** — If the same message fires multiple times within milliseconds, investigate why. Check the detail JSON timestamps to identify bursts. This often reveals a single event triggering multiple redundant log calls.
+Mark a pattern **stale** only when release or repository-history evidence
+establishes that its message or behavior was removed or replaced in the current
+code. An unsuccessful source search is insufficient. Otherwise report **source
+unresolved**, retain the observed impact, and explain the uncertainty. Stale
+patterns still belong in the report.
 
-For logs produced by `caughtError()` (which uses `ErrorKit.isRemarkable()` to choose between `remarkable:` and `mundane:` severity levels), check whether the error type is correctly classified. `isRemarkable` should return false for expected errors like cancellation, network timeouts, etc.
+Give each pattern one assessment of what the evidence establishes, including
+**inconclusive** when needed. Keep that assessment separate from its supported
+recommendations. A pattern can need a behavior fix, a severity change, and
+better logging context together. Explain the expected benefit of each change;
+do not infer missing observability from hypothetical failures.
 
-For log messages **not found** in the current codebase, check `git log --oneline -10` for recent refactors that may have removed them. Mark these as **Stale** and skip deep analysis — they'll stop once users update.
+## Report
 
-## Step 3: Classify each pattern
+Choose a concise layout that makes the findings easy to assess. Include:
 
-Every log pattern gets exactly one verdict:
+- Requested scope, effective query, absolute time range in PST/PDT, coverage
+  limits, and counts by severity.
+- Every pattern's count, severity, source evidence or unresolved source,
+  assessment, supporting reasoning, uncertainty, and recommendations.
+- Concrete missing observability found during the investigation.
 
-- **Real issue** — The log reveals a bug, data problem, or user-facing degradation. Describe what's wrong and suggest a fix.
-- **Downgrade to `.X`** — Fires for an expected/handled condition. Specify current and recommended level, and why.
-- **Upgrade to `.X`** — Fires for something more serious than its level suggests. Specify current and recommended level, and why.
-- **Enrich message** — The log fires at the right level but is missing context that's available in scope. Specify what variables/state to add to the message string.
-- **Add logging** — A nearby code path lacks observability. Describe what to add, at what level, and where.
-- **Fine as-is** — Right level, useful signal, sufficient context. Briefly say why.
-- **Stale** — From code no longer in the codebase. Skip.
-
-## Report Format
-
-```
-# Sentry Log Analysis — [time span] ([absolute date range in PT])
-
-## Summary
-[2-3 sentences: total log count by severity in the time window, overall signal-to-noise assessment]
-
-## Log Patterns
-
-Present every unique log pattern, in descending order of count:
-
-### `[first line of message]`
-- **Count:** N | **Severity:** error/warn | **Source:** `File.swift:LINE`
-- **Verdict:** Real issue | Downgrade to .X | Upgrade to .X | Add logging | Fine as-is | Stale
-- **Analysis:** [What triggers this, why it fires at this frequency, what should change and why.
-  For "Real issue" verdicts: describe the bug and suggest a fix.
-  For severity changes: explain what signal is gained or noise removed.
-  For "Add logging": describe the gap and what to add.]
-- **Suggested change:** [Specific code diff if applicable, or "None"]
-
-## Missing Observability
-[Code paths found during the deep-dive that should have logging but don't.
- Only include concrete gaps — not hypothetical ones.]
-[If none: omit this section]
-```
-
-Keep it dense and actionable. Every pattern gets a verdict. No filler.
+Distinguish observed behavior from inferred causes.
