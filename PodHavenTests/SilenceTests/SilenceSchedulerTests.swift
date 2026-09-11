@@ -59,8 +59,15 @@ struct SilenceSchedulerTests {
       .reset(.scope)
     let completed = try await LogCapture.withSink { sink in
       processor.handleScenePhaseChange(to: .active)
-      return try await Wait.forValue {
-        sink.captured().first { $0.message.contains("Silence analysis file=") }
+      do {
+        return try await Wait.forValue {
+          sink.captured().first { $0.message.contains("Silence analysis file=") }
+        }
+      } catch {
+        throw TestError.waitUntilFailure(
+          "Foreground analysis did not finish: priority=\(priority) requested=\(requests()) "
+            + "logs=\(sink.captured().map(\.message)) error=\(error)"
+        )
       }
     }
     #expect(!requests().isEmpty)

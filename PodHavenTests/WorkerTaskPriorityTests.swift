@@ -68,7 +68,11 @@ struct WorkerTaskPriorityTests {
     #expect(requests().first == process.priority)
     try await Wait.until(
       { task.completionResults == [true] },
-      { "Background execution did not finish: \(task.completionResults)" }
+      {
+        "Background execution did not finish: process=\(process) override=\(override) "
+          + "requested=\(requests()) completions=\(task.completionResults) "
+          + "basePriorities=\(task.completionBasePriorities)"
+      }
     )
     #expect(task.completionBasePriorities == [expectedPriority])
   }

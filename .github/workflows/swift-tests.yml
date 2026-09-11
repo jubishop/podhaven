@@ -45,6 +45,16 @@ jobs:
           grep -A 3 -iE '(fatal error|assertion|precondition|trap|crash|error:)' xcodebuild.log || echo "No matching lines found"
           echo "::endgroup::"
 
+      - name: Retain test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: swift-test-results
+          path: |
+            TestResults.xcresult
+            xcodebuild.log
+          retention-days: 7
+
       - name: Print test failures
         if: failure()
         run: |
