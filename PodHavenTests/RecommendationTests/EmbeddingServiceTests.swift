@@ -3,6 +3,7 @@
 import FactoryKit
 import FactoryTesting
 import Foundation
+import NaturalLanguage
 import Testing
 
 @testable import PodHaven
@@ -782,7 +783,10 @@ private struct RevisionedEmbeddable: Embeddable {
   let revision: Int
 
   func load() throws {}
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+  func requestAssets(
+    completionHandler completion:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) { completion(hasAvailableAssets ? .available : .notAvailable, nil) }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
     try FakeEmbeddable().embeddingResult(for: string)
@@ -796,7 +800,10 @@ private final class RecordingEmbeddable: Embeddable, Sendable {
   private let inputs = ThreadSafe<[String]>([])
 
   func load() throws {}
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+  func requestAssets(
+    completionHandler completion:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) { completion(hasAvailableAssets ? .available : .notAvailable, nil) }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
     inputs { $0.append(string) }
@@ -812,7 +819,10 @@ private struct FailOnMarkerEmbeddable: Embeddable {
   let failIfInputContains: String
 
   func load() throws {}
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+  func requestAssets(
+    completionHandler completion:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) { completion(hasAvailableAssets ? .available : .notAvailable, nil) }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
     if string.contains(failIfInputContains) { throw EmbeddingError.noResult }
@@ -826,7 +836,10 @@ private struct CancelOnMarkerEmbeddable: Embeddable {
   let cancelIfInputContains: String
 
   func load() throws {}
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+  func requestAssets(
+    completionHandler completion:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) { completion(hasAvailableAssets ? .available : .notAvailable, nil) }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
     if string.contains(cancelIfInputContains) { throw CancellationError() }
@@ -840,7 +853,10 @@ private struct DeterministicEmbeddable: Embeddable {
   let mapping: [String: [Double]]
 
   func load() throws {}
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+  func requestAssets(
+    completionHandler completion:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) { completion(hasAvailableAssets ? .available : .notAvailable, nil) }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
     guard let vector = mapping[string] else {

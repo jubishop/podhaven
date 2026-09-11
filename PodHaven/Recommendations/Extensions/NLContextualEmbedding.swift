@@ -20,10 +20,6 @@ extension Container {
 // MARK: - NLContextualEmbedding + Embeddable
 
 extension NLContextualEmbedding: Embeddable {
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) {
-    requestAssets { _, error in completion(error) }
-  }
-
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
     try embeddingResult(for: string, language: .english)
   }

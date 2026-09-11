@@ -3,6 +3,7 @@
 import FactoryKit
 import FactoryTesting
 import Foundation
+import NaturalLanguage
 import Testing
 
 @testable import PodHaven
@@ -276,7 +277,10 @@ private final class TelemetryRecordingEmbeddable: Embeddable, Sendable {
   private let inputs = ThreadSafe<[String]>([])
 
   func load() throws {}
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+  func requestAssets(
+    completionHandler completion:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) { completion(hasAvailableAssets ? .available : .notAvailable, nil) }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
     inputs { $0.append(string) }
@@ -293,7 +297,10 @@ private struct ClockAdvancingEmbeddable: Embeddable, Sendable {
   let durationPerInput: Duration
 
   func load() throws {}
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+  func requestAssets(
+    completionHandler completion:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) { completion(hasAvailableAssets ? .available : .notAvailable, nil) }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
     clock.advance(by: durationPerInput)

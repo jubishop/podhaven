@@ -4,6 +4,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import GRDB
+import NaturalLanguage
 import SwiftUI
 import Testing
 
@@ -966,7 +967,10 @@ private struct PendingAssetEmbeddable: Embeddable {
 
   func load() throws { throw EmbeddingError.modelUnavailable }
 
-  func requestAssets(completion _: @escaping @Sendable ((any Error)?) -> Void) {}
+  func requestAssets(
+    completionHandler _:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) {}
 
   func embeddingResult(for _: String) throws -> any EmbeddableResult {
     throw EmbeddingError.modelUnavailable
@@ -982,7 +986,10 @@ private struct AssetLoadOrderingEmbeddable: Embeddable {
     recordLoad()
   }
 
-  func requestAssets(completion _: @escaping @Sendable ((any Error)?) -> Void) {}
+  func requestAssets(
+    completionHandler _:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) {}
 
   func embeddingResult(for _: String) throws -> any EmbeddableResult {
     throw EmbeddingError.modelUnavailable
