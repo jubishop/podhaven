@@ -437,6 +437,10 @@ struct PodAVPlayerPlaybackSnapshot {
       Self.log.debug("swapToCached: source retired while loading cached item for \(episodeID)")
       return false
     }
+    guard let urlAsset = playableItem.asset as? AVURLAsset, urlAsset.url.isFileURL else {
+      Self.log.debug("swapToCached: keeping active stream because loaded item is not local")
+      return false
+    }
 
     removeObservers()
     bind(playableItem, to: episodeID, content: content)
