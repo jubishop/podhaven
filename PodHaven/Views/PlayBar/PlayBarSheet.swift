@@ -171,12 +171,7 @@ struct PlayBarSheet: View {
 
   private func metaButtonStyle<V: View>(_ content: V) -> some View {
     content
-      .font(.callout)
-      .fontWeight(.semibold)
-      .fontDesign(.rounded)
-      .padding(.horizontal, spacing)
-      .padding(.vertical, spacing / 2)
-      .glassEffect(.regular.interactive(), in: .capsule)
+      .buttonStyle(PlaybackMetaButtonStyle(spacing: spacing))
   }
 
   @ViewBuilder
@@ -339,6 +334,24 @@ struct PlayBarSheet: View {
   }
 }
 
+private struct PlaybackMetaButtonStyle: ButtonStyle {
+  let spacing: CGFloat
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.callout)
+      .fontWeight(.semibold)
+      .fontDesign(.rounded)
+      .foregroundStyle(.tint)
+      .padding(.horizontal, spacing)
+      .padding(.vertical, spacing / 2)
+      .glassEffect(.regular.interactive(), in: .capsule)
+      .frame(minWidth: 44, minHeight: 44)
+      .contentShape(.rect)
+      .opacity(configuration.isPressed ? 0.6 : 1)
+  }
+}
+
 // MARK: - Previews
 
 #if DEBUG
@@ -414,8 +427,8 @@ struct PlayBarSheetPreview: View {
   }
 }
 
-#Preview("at peak — transcription + finish") {
-  PlayBarSheetPreview(currentTime: 600, maxPlaybackTime: 600)
+#Preview("Silence off beside playback speed — transcription + finish") {
+  PlayBarSheetPreview(currentTime: 600, maxPlaybackTime: 600, silenceMode: .off)
 }
 
 #Preview("transcript — tap expand") {
