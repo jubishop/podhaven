@@ -52,6 +52,7 @@ struct PublisherTranscriptProcessor: Sendable {
       identifier: Self.backgroundTaskIdentifier,
       cadence: .minutes(1),
       taskType: .processing(requiresNetworkConnectivity: true),
+      executionPriority: .background,
       schedulingMode: .onDemand { hasWork() },
       expirationBehavior: .awaitCancellation
     )
