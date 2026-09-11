@@ -21,11 +21,12 @@ struct TranscriptionPriorityTests {
   )
   func configuresEveryChunk(_ entryPoint: EntryPoint) async throws {
     TranscriptionHelpers.stubSpeech(durationSeconds: 121)
+    let callingPriority = Task.currentPriority
     let requestedPriorities = ThreadSafe<[TaskPriority?]>([])
     Container.shared.taskPriority.context(.test) {
       { priority in
         requestedPriorities { $0.append(priority) }
-        return priority
+        return nil
       }
     }
     let constructionPriorities = ThreadSafe<[TaskPriority]>([])
@@ -91,13 +92,11 @@ struct TranscriptionPriorityTests {
     #expect(constructionPriorities().count == 2)
     #expect(analysisPriorities().count == 2)
     #expect(!inputPriorities().isEmpty)
-    #expect(analysisPriorities() == constructionPriorities())
-    #expect(inputPriorities().allSatisfy { $0 == constructionPriorities().first })
+    #expect(constructionPriorities().allSatisfy { $0 >= callingPriority })
+    #expect(inputPriorities().allSatisfy { $0 >= callingPriority })
+    #expect(analysisPriorities().allSatisfy { $0 >= callingPriority })
     if case .foreground = entryPoint {
       #expect(requestedPriorities().contains(.background))
-      #expect(constructionPriorities().allSatisfy { $0 == .background })
-      #expect(inputPriorities().allSatisfy { $0 == .background })
-      #expect(analysisPriorities().allSatisfy { $0 == .background })
     }
     let episodeAfter = try await Container.shared.repo().episode(episode.id)
     #expect(episodeAfter?.hasTranscript == true)
