@@ -248,6 +248,8 @@ struct PodAVPlayerPlaybackSnapshot {
       do {
         content = try await Container.shared.silenceStore()
           .content(for: cachedURL.lastPathComponent)
+      } catch is CancellationError {
+        throw CancellationError()
       } catch {
         Self.log.caughtError(
           "Silence metadata unavailable; keeping ordinary cached playback",
@@ -265,6 +267,8 @@ struct PodAVPlayerPlaybackSnapshot {
           if try await Container.shared.silenceStore().isCurrent(content) {
             loaded.cacheContent = content
           }
+        } catch is CancellationError {
+          throw CancellationError()
         } catch {
           Self.log.caughtError(
             "Silence identity validation unavailable; keeping ordinary playback",
