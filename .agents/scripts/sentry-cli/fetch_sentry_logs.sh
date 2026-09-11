@@ -10,7 +10,8 @@
 #     --query 'user.id:<uuid> severity:[warn,error]'
 #
 # Query notes:
-#   Prefer severity:[error,warn] over "severity:warn OR severity:error"
+#   Defaults to warnings/errors unless QUERY explicitly selects severity/level.
+#   Use severity:* to request all levels. Scope filters preserve the default.
 #   user.id:<uuid>  — PodHaven device IDFV
 #   trace:<trace_id> — logs sharing a trace with an error event
 #
@@ -18,8 +19,9 @@
 # tag environment:deployed. Prefer user.id (+ optional release) over environment.
 #
 # Outputs:
-#   <out>/detail.json   — individual entries (up to 1000)
-#   <out>/summary.json  — aggregated counts by severity + message
+#   <out>/detail.json   — individual entries (up to 1000; may be a sample)
+#   <out>/summary.json  — counts by severity + message across all pages
+#   <out>/coverage.json — fixed window, effective query, and coverage status
 #
 # Requires: `sentry` CLI on PATH and Sentry auth.
 
@@ -30,7 +32,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  sed -n '1,24p' "$0"
+  sed -n '1,26p' "$0"
   exit 0
 fi
 
@@ -39,7 +41,7 @@ if [[ -n "$STATS_PERIOD" ]]; then
   shift
 fi
 OUT=""
-QUERY="severity:[warn,error]"
+QUERY=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -78,38 +80,6 @@ fi
 require_sentry_auth
 mkdir -p "$OUT"
 
-sentry_cmd explore "$SENTRY_TARGET" --dataset logs \
-  --field severity --field message --field 'count()' \
-  --query "$QUERY" --period "$STATS_PERIOD" --limit 100 --json \
-  >"${OUT}/summary.json"
-
-sentry_cmd log list "$SENTRY_TARGET" \
-  --query "$QUERY" --period "$STATS_PERIOD" --limit 1000 --json \
-  >"${OUT}/detail.json"
-
-python3 - "${OUT}/detail.json" "${OUT}/summary.json" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1]) as f:
-    detail = json.load(f)
-with open(sys.argv[2]) as f:
-    summary = json.load(f)
-
-total = len(detail.get("data", []))
-has_more = detail.get("hasMore", False)
-print(f"Fetched {total} individual log entries", end="")
-if has_more:
-    print(" (more available — narrow query or period)", end="")
-print()
-print()
-print("Count | Severity | Message")
-print("------|----------|--------")
-for row in summary.get("data", []):
-    count = int(row["count()"])
-    sev = row["severity"]
-    msg = row["message"][:120]
-    print(f"{count:>5} | {sev:<8} | {msg}")
-print()
-print(f"Output: {sys.argv[1]} and {sys.argv[2]}")
-PY
+python3 "${SCRIPT_DIR}/collect_sentry_logs.py" \
+  --sentry "$(sentry_bin)" --target "$SENTRY_TARGET" \
+  --period "$STATS_PERIOD" --out "$OUT" --query "$QUERY"
