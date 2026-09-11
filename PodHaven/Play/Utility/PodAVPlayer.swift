@@ -466,7 +466,8 @@ struct PodAVPlayerPlaybackSnapshot {
   }
 
   func toggle() async {
-    let currentStatus = avPlayer.timeControlStatus
+    let currentStatus =
+      silenceState.replacementIntent ?? PlaybackStatus(avPlayer.timeControlStatus)
     Self.log.debug("toggle: executing (current status: \(currentStatus))")
 
     if currentStatus == .paused {

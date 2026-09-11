@@ -59,7 +59,7 @@ import Testing
 
   @Test(
     "controls and cache eviction preserve replacement position",
-    arguments: ["off", "pause", "evict"]
+    arguments: ["off", "pause", "toggle", "doubleToggle", "evict"]
   )
   func controlsDuringReplacement(action: String) async throws {
     let (_, player) = try await streaming()
@@ -78,6 +78,9 @@ import Testing
     }
     if action == "pause" {
       await Container.shared.playManager().pause()
+    } else if action == "toggle" || action == "doubleToggle" {
+      await Container.shared.playManager().toggle()
+      if action == "doubleToggle" { await Container.shared.playManager().toggle() }
     } else if action == "evict" {
       try await Container.shared.appDB().unsafeTestDB
         .write { db in
@@ -96,7 +99,8 @@ import Testing
     }
     try await PlayHelpers.waitForPeriodicTimeObserver()
     #expect(player.currentTime() == .seconds(12))
-    #expect(player.timeControlStatus == (action == "pause" ? .paused : .playing))
+    let shouldPause = action == "pause" || action == "toggle"
+    #expect(player.timeControlStatus == (shouldPause ? .paused : .playing))
   }
 
   @Test("failure to restore streaming stays paused and presents the playback error")
