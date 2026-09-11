@@ -49,6 +49,17 @@ enum BackgroundTaskExpirationBehavior: Sendable {
 struct BackgroundTaskScheduler: Sendable {
   typealias Completion = @Sendable (Bool) -> Void
 
+  struct ExecutionContext: Sendable {
+    fileprivate enum Expiration: Sendable {
+      case active
+      case expired
+    }
+
+    fileprivate let expiration = ThreadSafe(Expiration.active)
+
+    var isExpired: Bool { expiration() == .expired }
+  }
+
   private enum ExecutionState: Sendable {
     case waiting
     case running(Task<Void, Never>)
@@ -114,6 +125,12 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func register(executionTask: @escaping @Sendable (Completion) async -> Void) {
+    register { complete, _ in await executionTask(complete) }
+  }
+
+  func register(
+    executionTask: @escaping @Sendable (Completion, ExecutionContext) async -> Void
+  ) {
     let shouldRegister = registrationStates { states in
       guard states[identifier] == nil else { return false }
       states[identifier] = .registering
@@ -130,6 +147,7 @@ struct BackgroundTaskScheduler: Sendable {
       Self.log.debug("iOS is executing the background task: \(identifier)")
 
       let executionState = ThreadSafe(ExecutionState.waiting)
+      let context = ExecutionContext()
       let complete: Completion = { [executionState, task] success in
         let completionResult: Bool? = executionState { state in
           switch state {
@@ -155,6 +173,7 @@ struct BackgroundTaskScheduler: Sendable {
           executionState { state in
             switch state {
             case .waiting:
+              context.expiration(.expired)
               switch expirationBehavior {
               case .completeImmediately:
                 state = .completed(false)
@@ -164,6 +183,7 @@ struct BackgroundTaskScheduler: Sendable {
                 return (nil, false)
               }
             case .running(let task):
+              context.expiration(.expired)
               switch expirationBehavior {
               case .completeImmediately:
                 state = .completed(false)
@@ -195,7 +215,7 @@ struct BackgroundTaskScheduler: Sendable {
           try Task.checkCancellation()
           try await startLatch.wait()
           try Task.checkCancellation()
-          await executionTask(complete)
+          await executionTask(complete, context)
         } catch is CancellationError {
           complete(false)
           return

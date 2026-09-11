@@ -93,7 +93,10 @@ struct QuietDetector {
 }
 
 enum SilenceAnalyzer {
-  @concurrent static func analyze(_ url: URL) async throws -> SilenceMap {
+  @concurrent static func analyze(
+    _ url: URL,
+    progress: @Sendable (_ processedSeconds: Double, _ totalSeconds: Double) -> Void
+  ) async throws -> SilenceMap {
     try Task.checkCancellation()
     guard url.isFileURL else { throw SilenceAnalysisError.invalidAudio }
     let asset = AVURLAsset(url: url)
@@ -102,6 +105,7 @@ enum SilenceAnalyzer {
     guard let track = tracks.first, tracks.count == 1, duration.isFinite, duration > 0 else {
       throw SilenceAnalysisError.invalidAudio
     }
+    progress(0, duration)
     let reader = try AVAssetReader(asset: asset)
     let output = AVAssetReaderTrackOutput(
       track: track,
@@ -120,6 +124,7 @@ enum SilenceAnalyzer {
     defer { reader.cancelReading() }
     var detector = QuietDetector()
     var readFrames = 0
+    var processedSeconds = 0.0
     while reader.status == .reading {
       try Task.checkCancellation()
       let consumed: Bool = try autoreleasepool {
@@ -154,6 +159,8 @@ enum SilenceAnalyzer {
           time: CMSampleBufferGetPresentationTimeStamp(buffer).seconds
         )
         readFrames += count
+        processedSeconds += Double(count) / audioFormat.mSampleRate
+        progress(min(processedSeconds, duration), duration)
         return true
       }
       if !consumed { break }

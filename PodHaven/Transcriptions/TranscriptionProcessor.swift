@@ -35,6 +35,8 @@ struct TranscriptionProcessor: Sendable {
   private let processingTask = ThreadSafe<Task<Void, Never>?>(nil)
 
   private let activeTranscription = ThreadSafe<ActiveTranscription?>(nil)
+
+  var isTranscribing: Bool { activeTranscription() != nil }
   private let deletionBarrier = ThreadSafe<AsyncLatch<Void>?>(nil)
   private let deletionLock = ThreadLock()
   private let mediaServicesState = ThreadSafe(MediaServicesState.available)

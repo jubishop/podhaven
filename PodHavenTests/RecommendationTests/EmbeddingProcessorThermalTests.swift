@@ -2,6 +2,7 @@
 
 import FactoryKit
 import FactoryTesting
+import Foundation
 import Testing
 
 @testable import PodHaven
@@ -23,7 +24,7 @@ class EmbeddingProcessorThermalTests {
       recommendationRepo as? FakeRecommendationRepo
     )
     let workDemand = embeddingWorkDemand
-    let processor = EmbeddingProcessor()
+    let processor = Container.shared.embeddingProcessor()
     processor.register()
     try await Wait.until(
       { fakeBGTaskScheduler.pendingIdentifiers.isEmpty },
@@ -51,6 +52,14 @@ class EmbeddingProcessorThermalTests {
       { "Embedding background task did not reach its suspended write" }
     )
 
+    let run = Container.shared.silenceDiagnostics().startRun(id: UUID(), background: true)
+    let active = LogCapture.withSink { sink in
+      run.beginAttempt(filename: "fixture", generation: "concurrent-embedding")
+      run.progress(processedSeconds: 1, totalSeconds: 1)
+      return sink.captured()
+    }
+    #expect(active.last?.message.contains("embeddingActive=true") == true)
+
     processor.handleThermalPressureChange(to: .critical)
     fakeRecommendationRepo.releaseEmbeddingsGate()
 
@@ -61,5 +70,12 @@ class EmbeddingProcessorThermalTests {
     #expect(task.completionResults == [false])
     #expect(workDemand.hasWork)
     #expect(fakeBGTaskScheduler.pendingIdentifiers == [identifier])
+    let completed = LogCapture.withSink { sink in
+      run.finishAttempt(.published)
+      run.finish(expired: false)
+      return sink.captured()
+    }
+    #expect(completed.last?.message.contains("embeddingActive=false") == true)
+    #expect(completed.last?.message.contains("embeddingObserved=true") == true)
   }
 }
