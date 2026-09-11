@@ -28,6 +28,7 @@ struct BackgroundTaskSchedulerTests {
       identifier: identifier,
       cadence: cadence,
       taskType: taskType,
+      executionPriority: .background,
       schedulingMode: schedulingMode,
       expirationBehavior: expirationBehavior
     )

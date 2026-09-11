@@ -16,6 +16,7 @@ struct BackgroundTaskRegistrationTests {
       identifier: "test.registration",
       cadence: .minutes(1),
       taskType: .processing(requiresNetworkConnectivity: false),
+      executionPriority: .background,
       schedulingMode: .onDemand { hasWork() }
     )
 
@@ -39,6 +40,7 @@ struct BackgroundTaskRegistrationTests {
       identifier: "test.registration",
       cadence: .minutes(1),
       taskType: .appRefresh,
+      executionPriority: .background,
       schedulingMode: .onDemand { hasWork() }
     )
 
@@ -56,7 +58,8 @@ struct BackgroundTaskRegistrationTests {
     let scheduler = BackgroundTaskScheduler(
       identifier: "test.registration",
       cadence: .minutes(1),
-      taskType: .appRefresh
+      taskType: .appRefresh,
+      executionPriority: .background
     )
     fake.setBeforeRegistration {
       scheduler.scheduleNext()
@@ -78,7 +81,8 @@ struct BackgroundTaskRegistrationTests {
     let scheduler = BackgroundTaskScheduler(
       identifier: "test.registration",
       cadence: .minutes(1),
-      taskType: .appRefresh
+      taskType: .appRefresh,
+      executionPriority: .background
     )
     fake.setRegisterResult(false)
 
@@ -97,12 +101,14 @@ struct BackgroundTaskRegistrationTests {
     let first = BackgroundTaskScheduler(
       identifier: "test.registration",
       cadence: .minutes(1),
-      taskType: .appRefresh
+      taskType: .appRefresh,
+      executionPriority: .background
     )
     let second = BackgroundTaskScheduler(
       identifier: "test.registration",
       cadence: .minutes(1),
-      taskType: .appRefresh
+      taskType: .appRefresh,
+      executionPriority: .background
     )
 
     first.register { complete in complete(true) }

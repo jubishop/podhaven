@@ -45,7 +45,8 @@ struct CachePurger: Sendable {
     self.backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
       cadence: cadence,
-      taskType: .processing(requiresNetworkConnectivity: false)
+      taskType: .processing(requiresNetworkConnectivity: false),
+      executionPriority: .background
     )
   }
 

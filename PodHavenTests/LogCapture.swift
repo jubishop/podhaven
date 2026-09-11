@@ -19,6 +19,7 @@ enum LogCapture {
     let file: String
     let function: String
     let line: UInt
+    let taskBasePriority: TaskPriority?
   }
 
   final class Sink: Sendable {
@@ -85,7 +86,8 @@ private struct CapturingLogHandler: LogHandler {
         source: event.source,
         file: event.file,
         function: event.function,
-        line: event.line
+        line: event.line,
+        taskBasePriority: Task.basePriority
       )
     )
   }

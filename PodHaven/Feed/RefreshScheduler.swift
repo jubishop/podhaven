@@ -159,7 +159,8 @@ struct RefreshScheduler: Sendable {
     self.backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
       cadence: backgroundPolicy.cadence,
-      taskType: .appRefresh
+      taskType: .appRefresh,
+      executionPriority: .utility
     )
   }
 
