@@ -14,7 +14,8 @@ struct BackgroundTaskExpirationContextTests {
     let scheduler = BackgroundTaskScheduler(
       identifier: "context",
       cadence: .minutes(1),
-      taskType: .appRefresh
+      taskType: .appRefresh,
+      executionPriority: .background
     )
     let contexts = ThreadSafe<[BackgroundTaskScheduler.ExecutionContext]>([])
     let observed = ThreadSafe<[Bool]>([])
@@ -70,6 +71,7 @@ struct BackgroundTaskExpirationContextTests {
       identifier: "cancel",
       cadence: .minutes(1),
       taskType: .appRefresh,
+      executionPriority: .background,
       expirationBehavior: .awaitCancellation
     )
     let context = ThreadSafe<BackgroundTaskScheduler.ExecutionContext?>(nil)
