@@ -30,6 +30,48 @@ struct SilenceSchedulerTests {
     return url
   }
 
+  @Test(
+    "foreground analysis requests background priority and applies the injected priority",
+    arguments: [TaskPriority.background, .high]
+  )
+  func foregroundTaskPriority(priority: TaskPriority) async throws {
+    let episode = try await Create.podcastEpisode()
+    let url = try await cache(episode, playable: true)
+    defer { try? FileManager.default.removeItem(at: url) }
+    Container.shared.userSettings().$silenceMode.new(.balanced)
+    let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler
+    let processor = Container.shared.silenceProcessor()
+    processor.register()
+    defer { processor.handleScenePhaseChange(to: .background) }
+    try await Wait.until(maxAttempts: 200) {
+      scheduler.pendingIdentifiers.contains(identifier)
+    } _: {
+      "No eligible silence work was observed"
+    }
+    let requests = ThreadSafe<[TaskPriority?]>([])
+    Container.shared.taskPriority
+      .context(.test) {
+        { requested in
+          requests { $0.append(requested) }
+          return priority
+        }
+      }
+      .reset(.scope)
+    let completed = try await LogCapture.withSink { sink in
+      processor.handleScenePhaseChange(to: .active)
+      return try await Wait.forValue {
+        sink.captured().first { $0.message.contains("Silence analysis file=") }
+      }
+    }
+    #expect(!requests().isEmpty)
+    #expect(requests().allSatisfy { $0 == .background })
+    #expect(completed.taskBasePriority == priority)
+    #expect(completed.message.contains("published=true"))
+    #expect(
+      try await Container.shared.silenceStore().content(for: url.lastPathComponent)?.map != nil
+    )
+  }
+
   @Test("a background grant prepares current, queued, and other downloads in order")
   func priority() async throws {
     let other = try await Create.podcastEpisode()
