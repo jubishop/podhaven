@@ -38,7 +38,6 @@ struct SilenceModeMenu: View {
       }
     } label: {
       AppIcon.silence.image
-        .frame(minWidth: 44, minHeight: 44)
     }
     .accessibilityLabel("Shorten Silence")
     .accessibilityValue(mode.title)

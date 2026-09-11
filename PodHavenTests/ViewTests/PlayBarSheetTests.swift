@@ -63,7 +63,7 @@ private struct TranscriptPlaybackTestView: View {
 @Suite("of PlayBarSheet tests", .container)
 @MainActor struct PlayBarSheetTests {
   @Test(
-    "silence control is accessible beside speed at narrow widths",
+    "silence control matches speed height and stays accessible at narrow widths",
     .enabled(if: supportsHostedAccessibilityInspection)
   )
   func silenceControlPlacement() async throws {
@@ -132,9 +132,23 @@ private struct TranscriptPlaybackTestView: View {
       let silence = try #require(elements.first { $0.accessibilityLabel == "Shorten Silence" })
       let speed = try #require(elements.first { $0.accessibilityLabel == "Playback Speed" })
       #expect(silence.accessibilityValue == "Balanced")
+      #expect(silence.accessibilityTraits.contains(.button))
+      #expect(speed.accessibilityTraits.contains(.button))
       #expect(silence.accessibilityFrame.minX >= speed.accessibilityFrame.maxX)
       #expect(silence.accessibilityFrame.width >= 44)
       #expect(silence.accessibilityFrame.height >= 44)
+      #expect(
+        abs(silence.accessibilityFrame.height - speed.accessibilityFrame.height) <= 2,
+        """
+        Silence and speed controls should have similar heights at \(size): \
+        \(silence.accessibilityFrame.height) versus \(speed.accessibilityFrame.height)
+        """
+      )
+      let screenshot = UIGraphicsImageRenderer(bounds: window.bounds)
+        .image { _ in
+          window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+      Attachment.record(try #require(screenshot.pngData()), named: "silence-control-\(size).png")
       let frame = window.convert(silence.accessibilityFrame, from: window.screen.coordinateSpace)
       #expect(frame.minX >= 0)
       #expect(frame.maxX <= 320)
