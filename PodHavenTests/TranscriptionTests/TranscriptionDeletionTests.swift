@@ -85,7 +85,7 @@ struct TranscriptionDeletionTests {
     let analyzeCount = ThreadSafe(0)
     let cancellationCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer(
           analyzeAudio: { _, endTime in
             let invocation = analyzeCount {

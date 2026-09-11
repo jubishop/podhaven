@@ -9,14 +9,16 @@ extension Container {
   // Builds the analyzer for a module. Like AVPlayer.replaceCurrent's downcast,
   // it recovers the concrete SpeechTranscriber the analyzer requires from the
   // abstracted transcriber.
-  var speechAnalyzer: Factory<@Sendable (any SpeechTranscribing) -> any SpeechAnalyzing> {
+  var speechAnalyzer:
+    Factory<@Sendable (any SpeechTranscribing, SpeechAnalyzer.Options?) -> any SpeechAnalyzing>
+  {
     Factory(self) {
-      { transcribing in
+      { transcribing, options in
         guard let module = transcribing as? SpeechTranscriber
         else {
           Assert.fatal("speechAnalyzer requires a real SpeechTranscriber module: \(transcribing)")
         }
-        return SpeechAnalyzer(modules: [module])
+        return SpeechAnalyzer(modules: [module], options: options)
       }
     }
   }
