@@ -20,7 +20,7 @@ struct SilenceDiagnosticPolicyTests {
       run.beginAttempt(filename: "second", generation: "interrupted")
       run.progress(processedSeconds: 10, totalSeconds: 100)
       run.finish(expired: true)
-      return sink.captured()
+      return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
     let summary = try #require(entries.last)
     for field in [
@@ -38,6 +38,7 @@ struct SilenceDiagnosticPolicyTests {
     clock.freeze()
     let diagnostics = Container.shared.silenceDiagnostics()
     let entries = LogCapture.withSink { sink in
+      Log.as("UnrelatedComponent").warning("Unrelated warning during diagnostic capture")
       for index in 0..<5 {
         let run = diagnostics.startRun(id: UUID(), background: true)
         run.beginAttempt(filename: "fixture", generation: "\(index)")
@@ -46,7 +47,7 @@ struct SilenceDiagnosticPolicyTests {
         run.finishAttempt(.published)
         run.finish(expired: false)
       }
-      return sink.captured()
+      return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
     #expect(entries.filter { $0.level == .warning }.count == 6)
     let last = try #require(entries.last)
@@ -65,7 +66,7 @@ struct SilenceDiagnosticPolicyTests {
       run.progress(processedSeconds: 5, totalSeconds: 5)
       run.finishAttempt(.published)
       run.finish(expired: false)
-      return sink.captured()
+      return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
     #expect(next.filter { $0.level == .warning }.count == 2)
     #expect(next.last?.message.contains("suppressedWarnings=4") == true)
@@ -77,6 +78,7 @@ struct SilenceDiagnosticPolicyTests {
     clock.freeze()
     let diagnostics = Container.shared.silenceDiagnostics()
     let entries = LogCapture.withSink { sink in
+      Log.as("UnrelatedComponent").warning("Unrelated warning during diagnostic capture")
       for _ in 0..<3 {
         let run = diagnostics.startRun(id: UUID(), background: true)
         run.beginAttempt(filename: "fixture", generation: "same")
@@ -84,7 +86,7 @@ struct SilenceDiagnosticPolicyTests {
         run.finish(expired: true)
         clock.advance(by: .seconds(1))
       }
-      return sink.captured()
+      return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
     let warnings = entries.filter { $0.level == .warning }
     #expect(warnings.count == 1)
@@ -100,7 +102,7 @@ struct SilenceDiagnosticPolicyTests {
       run.beginAttempt(filename: "fixture", generation: "same")
       run.progress(processedSeconds: 5, totalSeconds: 100)
       run.finish(expired: true)
-      return sink.captured()
+      return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
     #expect(aged.allSatisfy { $0.level < .warning })
     #expect(aged.last?.message.contains("expirationCount=1") == true)
@@ -124,7 +126,7 @@ struct SilenceDiagnosticPolicyTests {
       run.beginAttempt(filename: "fixture", generation: "0")
       run.progress(processedSeconds: 5, totalSeconds: 100)
       run.finish(expired: true)
-      return sink.captured()
+      return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
     #expect(entries.last?.message.contains("expirationCount=1") == true)
     #expect(entries.last?.message.contains("previousExpiredRunID=none") == true)
@@ -143,7 +145,7 @@ struct SilenceDiagnosticPolicyTests {
         if reason == .thermal { Container.shared.sharedState().setThermalPressure(.serious) }
         run.interrupt(reason)
         run.finish(expired: false)
-        return sink.captured()
+        return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
       }
       let summary = try #require(entries.last)
       #expect(summary.message.contains("stopReason=\(reason.rawValue)"))
@@ -154,7 +156,7 @@ struct SilenceDiagnosticPolicyTests {
       let run = diagnostics.startRun(id: UUID(), background: true)
       run.interrupt(.thermal)
       run.finish(expired: false)
-      return sink.captured()
+      return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
     #expect(deferred.last?.message.contains("outcome=deferred") == true)
     #expect(deferred.last?.level == .info)
@@ -172,7 +174,7 @@ struct SilenceDiagnosticPolicyTests {
       run.progress(processedSeconds: 1, totalSeconds: 1)
       run.finishAttempt(.published)
       run.finish(expired: false)
-      return sink.captured()
+      return sink.captured().filter { $0.label == Log.as("SilenceDiagnostics").label }
     }
     let summary = try #require(entries.last)
     #expect(summary.message.contains("processCPUSeconds=2.0 cpuScope=process"))

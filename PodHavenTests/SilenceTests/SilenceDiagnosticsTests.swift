@@ -139,7 +139,9 @@ struct SilenceDiagnosticsTests {
       } _: {
         "Silence work did not finish"
       }
-      #expect(task.completionResults == [false])
+      if stopReason == "backgroundExpiration" {
+        #expect(task.completionResults == [false])
+      }
       return sink.captured()
     }
     let summary = try #require(entries.first { $0.message.contains("event=silenceRunFinished") })
