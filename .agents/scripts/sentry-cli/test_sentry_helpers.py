@@ -79,7 +79,7 @@ if args and args[0] == "api":
     raise SystemExit(0)
 
 if args and args[0] == "explore":
-    print('{"data": [{"severity": "error", "message": "failed", "count()": 1}]}')
+    print('{"data": [{"severity": "error", "message": "failed", "count()": 1}], "hasMore": false}')
     raise SystemExit(0)
 
 if args[:2] == ["log", "list"]:
