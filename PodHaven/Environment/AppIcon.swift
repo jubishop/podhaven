@@ -148,6 +148,7 @@ import SwiftUI
   case moreActions
   case noEpisodeSelected
   case pauseButton
+  case silence
   case playButton
   case nextChapter
   case previousChapter
@@ -612,6 +613,8 @@ import SwiftUI
         darkColor: .yellow,
         lightColor: .pink
       )
+    case .silence:
+      return Data(text: "Shorten Silence", systemImageName: .silence, color: .primary)
     case .playButton:
       return Data(text: "Play", systemImageName: .playButton, color: .green)
     case .seekBackward(let interval):

@@ -5,6 +5,7 @@ import Foundation
 
 @MainActor struct EpisodeAsset {
   private let playerItemFactory: @MainActor () -> any AVPlayableItem
+  var cacheContent: CachedAudioContent?
   let isPlayable: Bool
   let duration: CMTime
 

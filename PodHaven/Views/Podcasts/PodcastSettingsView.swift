@@ -26,6 +26,23 @@ struct PodcastSettingsView: View {
 
       Form {
         Section("Playback") {
+          SettingsRow(infoText: SilenceSettingsHelp.text) {
+            Picker(
+              "Shorten Silence",
+              selection: Binding(
+                get: { temp.silenceMode },
+                set: {
+                  temp.silenceMode = $0
+                  viewModel.updateSettings(temp)
+                }
+              )
+            ) {
+              Text("Use Global (\(userSettings.silenceMode.title))").tag(SilenceMode?.none)
+              ForEach(SilenceMode.allCases) { mode in
+                Text(mode.title).tag(Optional(mode))
+              }
+            }
+          }
           VStack(alignment: .leading, spacing: 24) {
             SettingsRow(
               infoText: """
@@ -285,7 +302,7 @@ struct PodcastSettingsView: View {
 }
 
 #if DEBUG
-#Preview("No Custom Rate") {
+#Preview("Inherited Gentle Silence") {
   struct PreviewWrapper: View {
     @State private var settings: PodcastSettings?
     @State private var viewModel: PodcastDetailViewModel?
@@ -299,6 +316,7 @@ struct PodcastSettingsView: View {
         }
       }
       .task {
+        Container.shared.userSettings().$silenceMode.new(.gentle)
         let podcast = try! await Create.podcast(title: "Sample Podcast")
         let displayed = DisplayedPodcast(podcast)
         settings = displayed.settings
@@ -341,7 +359,7 @@ struct PodcastSettingsView: View {
   return PreviewWrapper().preview()
 }
 
-#Preview("With Podcast Custom Rate") {
+#Preview("Explicit Off and Custom Rate") {
   struct PreviewWrapper: View {
     @State private var settings: PodcastSettings?
     @State private var viewModel: PodcastDetailViewModel?
@@ -357,7 +375,8 @@ struct PodcastSettingsView: View {
       .task {
         let podcast = try! await Create.podcast(
           title: "Sample Podcast",
-          defaultPlaybackRate: 1.5
+          defaultPlaybackRate: 1.5,
+          silenceMode: .off
         )
         let displayed = DisplayedPodcast(podcast)
         settings = displayed.settings

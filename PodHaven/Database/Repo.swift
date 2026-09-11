@@ -740,6 +740,7 @@ struct Repo: Databasing {
         .withID(podcastID)
         .updateAll(
           db,
+          Podcast.Columns.silenceMode.set(to: settings.silenceMode),
           Podcast.Columns.defaultPlaybackRate.set(to: settings.defaultPlaybackRate),
           Podcast.Columns.queueAllEpisodes.set(to: settings.queueAllEpisodes),
           Podcast.Columns.autoQueueLimit.set(to: settings.autoQueueLimit),

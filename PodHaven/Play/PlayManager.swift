@@ -321,7 +321,7 @@ final class PlayManager {
         "performLoad: removed player observers in \(Date().timeIntervalSince(phaseStart)) seconds"
       )
 
-      if sharedState.stopAfterCurrentEpisode {
+      if sharedState.stopAfterCurrentEpisode && !isMediaServicesRecovery {
         Self.log.debug("performLoad: new episode starting, clearing stopAfterCurrentEpisode")
         sharedState.setStopAfterCurrentEpisode(false)
       }
@@ -330,6 +330,10 @@ final class PlayManager {
 
       phaseStart = Date()
       Self.log.debug("performLoad: clearing onDeck")
+      if !isMediaServicesRecovery {
+        sharedState.$silenceOverride.new(nil)
+        sharedState.$silenceSourceRejection.new(nil)
+      }
       try await clearOnDeck(ownedBy: loadID)
       Self.log.debug(
         "performLoad: cleared onDeck in \(Date().timeIntervalSince(phaseStart)) seconds"
@@ -366,7 +370,9 @@ final class PlayManager {
       phaseStart = Date()
       Self.log.debug("performLoad: setting playback rate")
       await podAVPlayer.setRate(
-        Float(incoming.podcast.defaultPlaybackRate ?? userSettings.defaultPlaybackRate)
+        isMediaServicesRecovery
+          ? sharedState.playRate
+          : Float(incoming.podcast.defaultPlaybackRate ?? userSettings.defaultPlaybackRate)
       )
       try requireLoadTransitionOwnership(loadID)
       Self.log.debug(
@@ -711,6 +717,8 @@ final class PlayManager {
       try requireLoadTransitionOwnership(finalizationID)
       suppressRemoteScrubCommands()
       try await clearOnDeck(ownedBy: finalizationID)
+      sharedState.$silenceOverride.new(nil)
+      sharedState.$silenceSourceRejection.new(nil)
       if sharedState.stopAfterCurrentEpisode {
         Self.log.debug("finishEpisode: stopAfterCurrentEpisode set, stopping instead of advancing")
         sharedState.setStopAfterCurrentEpisode(false)
@@ -929,6 +937,8 @@ final class PlayManager {
   }
 
   func clearOnDeck() async {
+    sharedState.$silenceOverride.new(nil)
+    sharedState.$silenceSourceRejection.new(nil)
     cancelWidgetRouteRecovery(reason: "clearOnDeck")
     Self.log.debug("clearOnDeck: executing")
     clearMediaServicesRecovery()

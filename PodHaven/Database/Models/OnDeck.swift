@@ -31,6 +31,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
   let podcastImage: URL
   let podcastTitle: String
   let feedURL: FeedURL
+  let silenceMode: SilenceMode?
   let defaultPlaybackRate: Double?
 
   // MARK: - In-Memory Fields
@@ -75,6 +76,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     podcastImage = podcastRow[Podcast.Columns.image]
     podcastTitle = podcastRow[Podcast.Columns.title]
     feedURL = podcastRow[Podcast.Columns.feedURL]
+    silenceMode = podcastRow[Podcast.Columns.silenceMode]
     defaultPlaybackRate = podcastRow[Podcast.Columns.defaultPlaybackRate]
 
     // artwork, currentTime, and maxPlaybackTime are managed in-memory by
@@ -110,6 +112,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     podcastImage = podcastEpisode.podcastImage
     podcastTitle = podcastEpisode.podcastTitle
     feedURL = podcastEpisode.feedURL
+    silenceMode = podcastEpisode.podcast.silenceMode
     defaultPlaybackRate = podcastEpisode.podcast.defaultPlaybackRate
     artwork = nil
     currentTime = podcastEpisode.currentTime
@@ -151,6 +154,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       Podcast.Columns.image,
       Podcast.Columns.title,
       Podcast.Columns.feedURL,
+      Podcast.Columns.silenceMode,
       Podcast.Columns.defaultPlaybackRate,
     ]
   }
@@ -206,6 +210,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     hasher.combine(podcastTitle)
     hasher.combine(feedURL)
     hasher.combine(defaultPlaybackRate)
+    hasher.combine(silenceMode)
   }
 
   // MARK: - Equatable
@@ -244,5 +249,6 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       && lhs.podcastTitle == rhs.podcastTitle
       && lhs.feedURL == rhs.feedURL
       && lhs.defaultPlaybackRate == rhs.defaultPlaybackRate
+      && lhs.silenceMode == rhs.silenceMode
   }
 }

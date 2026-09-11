@@ -12,6 +12,19 @@ import Foundation
   func seek(to: CMTime)
   func seek(to: CMTime, completionHandler: @Sendable @escaping (Bool) -> Void)
 
+  func seek(
+    to: CMTime,
+    toleranceBefore: CMTime,
+    toleranceAfter: CMTime,
+    completionHandler: @Sendable @escaping (Bool) -> Void
+  )
+  func cancelPendingSeeks()
+  func addBoundaryTimeObserver(
+    forTimes: [NSValue],
+    queue: dispatch_queue_t?,
+    using: @Sendable @escaping () -> Void
+  ) -> Any
+
   func currentTime() -> CMTime
   func addPeriodicTimeObserver(
     forInterval interval: CMTime,
