@@ -14,6 +14,8 @@ extension Container {
 }
 
 actor SilenceProcessor {
+  @DynamicInjected(\.taskPriority) private var taskPriority
+
   private static let log = Log.as("SilenceProcessor")
   private let store = Container.shared.silenceStore()
   private let state = Container.shared.sharedState()
@@ -34,6 +36,7 @@ actor SilenceProcessor {
       identifier: "\(AppInfo.bundleIdentifier).silenceAnalysis",
       cadence: .minutes(1),
       taskType: .processing(requiresNetworkConnectivity: false),
+      executionPriority: .background,
       schedulingMode: .onDemand { demand() },
       expirationBehavior: .awaitCancellation
     )
@@ -166,7 +169,7 @@ actor SilenceProcessor {
       return
     }
     guard worker == nil, owner == nil, !eligible.isEmpty else { return }
-    worker = Task { [weak self] in
+    worker = Task(priority: taskPriority(.background)) { [weak self] in
       guard let self else { return }
       do {
         try await self.drain(background: false)

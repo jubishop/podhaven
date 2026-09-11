@@ -69,12 +69,14 @@ struct BackgroundTaskScheduler: Sendable {
 
   @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
   @DynamicInjected(\.backgroundTaskRegistrationStates) private var registrationStates
+  @DynamicInjected(\.taskPriority) private var taskPriority
 
   private static let log = Log.as("BackgroundTaskScheduler")
 
   private let identifier: String
   private let cadence: Duration
   private let taskType: BackgroundTaskType
+  private let executionPriority: TaskPriority
   private let schedulingMode: BackgroundTaskSchedulingMode
   private let expirationBehavior: BackgroundTaskExpirationBehavior
   private let activeExecutions = ThreadSafe<[UUID: Task<Void, Never>]>([:])
@@ -112,12 +114,14 @@ struct BackgroundTaskScheduler: Sendable {
     identifier: String,
     cadence: Duration,
     taskType: BackgroundTaskType,
+    executionPriority: TaskPriority,
     schedulingMode: BackgroundTaskSchedulingMode = .periodic,
     expirationBehavior: BackgroundTaskExpirationBehavior = .completeImmediately
   ) {
     self.identifier = identifier
     self.cadence = cadence
     self.taskType = taskType
+    self.executionPriority = executionPriority
     self.schedulingMode = schedulingMode
     self.expirationBehavior = expirationBehavior
 
@@ -207,7 +211,7 @@ struct BackgroundTaskScheduler: Sendable {
       scheduleNext()
       let startLatch = AsyncLatch<Void>()
       let executionToken = UUID()
-      let runningTask = Task {
+      let runningTask = Task(priority: taskPriority(executionPriority)) {
         defer {
           activeExecutions { $0[executionToken] = nil }
         }
