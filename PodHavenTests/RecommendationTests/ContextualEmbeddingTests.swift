@@ -1,11 +1,14 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
+import FactoryTesting
 import Foundation
+import NaturalLanguage
 import Testing
 
 @testable import PodHaven
 
-@Suite("ContextualEmbedding tests")
+@Suite("ContextualEmbedding tests", .container)
 struct ContextualEmbeddingTests {
 
   // MARK: - requestAndLoadAssetsIfNeeded
@@ -45,7 +48,7 @@ struct ContextualEmbeddingTests {
   }
 
   @Test("does not request assets again if already requested")
-  func doesNotReRequestAssets() async {
+  func doesNotReRequestAssets() async throws {
     let fake = ControllableEmbeddable(hasAvailableAssets: false)
     let embedding = ContextualEmbedding(embedding: fake)
 
@@ -55,7 +58,9 @@ struct ContextualEmbeddingTests {
 
     // Simulate assets arriving
     fake.hasAvailableAssets = true
+    fake.completeRequest()
     await embedding.requestAndLoadAssetsIfNeeded()
+    try await Wait.until({ embedding.assetsLoaded.isOpen }) { "Completed request did not load" }
     #expect(embedding.assetsLoaded.isOpen)
     #expect(fake.loadCount == 1)
     #expect(fake.requestAssetsCount == 1)
@@ -196,6 +201,7 @@ private final class ControllableEmbeddable: Embeddable, @unchecked Sendable {
 
   private(set) var loadCount = 0
   private(set) var requestAssetsCount = 0
+  private var completion: (@Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void)?
 
   init(
     hasAvailableAssets: Bool,
@@ -211,9 +217,17 @@ private final class ControllableEmbeddable: Embeddable, @unchecked Sendable {
     loadCount += 1
   }
 
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) {
+  func requestAssets(
+    completionHandler completion:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) {
     requestAssetsCount += 1
-    completion(nil)
+    self.completion = completion
+  }
+
+  func completeRequest() {
+    completion?(.available, nil)
+    completion = nil
   }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {

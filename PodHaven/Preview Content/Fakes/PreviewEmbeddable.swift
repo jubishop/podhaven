@@ -2,6 +2,7 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
+import NaturalLanguage
 
 // Embeddable whose output is driven by a caller-supplied closure so previews
 // can engineer specific similarity relationships between signals and
@@ -18,8 +19,11 @@ struct PreviewEmbeddable: Embeddable {
 
   func load() throws {}
 
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) {
-    completion(nil)
+  func requestAssets(
+    completionHandler completion:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) {
+    completion(hasAvailableAssets ? .available : .notAvailable, nil)
   }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {

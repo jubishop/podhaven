@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
+import NaturalLanguage
 
 @testable import PodHaven
 
@@ -10,8 +11,11 @@ struct FakeEmbeddable: Embeddable {
 
   func load() throws {}
 
-  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) {
-    completion(nil)
+  func requestAssets(
+    completionHandler completion:
+      @escaping @Sendable (NLContextualEmbedding.AssetsResult, (any Error)?) -> Void
+  ) {
+    completion(hasAvailableAssets ? .available : .notAvailable, nil)
   }
 
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
