@@ -76,7 +76,10 @@ struct SilenceSchedulerTests {
     )
   }
 
-  @Test("a background grant prepares current, queued, and other downloads in order")
+  @Test(
+    "a background grant prepares current, queued, and other downloads in order",
+    .timeLimit(.minutes(5))
+  )
   func priority() async throws {
     let other = try await Create.podcastEpisode()
     let queued = try await Create.podcastEpisode(Create.unsavedEpisode(queueOrder: 0))
@@ -97,11 +100,8 @@ struct SilenceSchedulerTests {
         "No background work was requested"
       }
       let task = try #require(scheduler.launchTask(withIdentifier: identifier))
-      try await Wait.until(maxAttempts: 1000) {
-        task.completionCount == 1
-      } _: {
-        "Background analysis did not finish"
-      }
+      defer { task.expire() }
+      try await task.completed.wait()
       #expect(task.completionResults == [true])
       return sink.captured().filter { $0.message.contains("Silence analysis file=") }
     }

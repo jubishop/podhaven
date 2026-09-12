@@ -5,8 +5,11 @@ status: current
 # Silence analysis diagnostics
 
 These diagnostics collect evidence about sustained silence analysis and work lost
-when a background grant expires. They do not change task priorities, scheduling,
-thermal policy, decoding, silence maps, or playback.
+when a background grant expires. Task priorities, scheduling, thermal policy,
+decoding, silence maps, and playback retain their existing behavior. Before
+publishing a completed scan, the processor reconciles current eligibility and
+thermal state so delayed settings or thermal observations do not bypass the
+cancellation check.
 
 ## Warning policy
 

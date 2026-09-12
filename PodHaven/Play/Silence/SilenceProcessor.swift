@@ -251,6 +251,7 @@ actor SilenceProcessor {
         let map = try await SilenceAnalyzer.analyze(url) { processedSeconds, totalSeconds in
           diagnostics.progress(processedSeconds: processedSeconds, totalSeconds: totalSeconds)
         }
+        reconcile()
         try Task.checkCancellation()
         let published = try await store.publish(map, for: content)
         diagnostics.finishAttempt(published ? .published : .stale)
