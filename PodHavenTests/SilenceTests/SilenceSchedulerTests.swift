@@ -12,14 +12,18 @@ private final class SilenceSchedulerBundle: NSObject {}
 struct SilenceSchedulerTests {
   private let identifier = "\(AppInfo.bundleIdentifier).silenceAnalysis"
 
-  private func cache(_ episode: PodcastEpisode, playable: Bool) async throws -> URL {
+  private func cache(
+    _ episode: PodcastEpisode,
+    playable: Bool,
+    fixtureName: String = "silence-mono-vbr"
+  ) async throws -> URL {
     let task = try await CacheHelpers.downloadToCache(episode.id)
     try await CacheHelpers.simulateBackgroundFinish(task)
     let url = try await CacheHelpers.waitForCached(episode.id).rawValue
     if playable {
       let fixture = try #require(
         Bundle(for: SilenceSchedulerBundle.self)
-          .url(forResource: "silence-mono-vbr", withExtension: "mp3")
+          .url(forResource: fixtureName, withExtension: "mp3")
       )
       try FileManager.default.createDirectory(
         at: url.deletingLastPathComponent(),
@@ -37,7 +41,7 @@ struct SilenceSchedulerTests {
   )
   func foregroundTaskPriority(priority: TaskPriority) async throws {
     let episode = try await Create.podcastEpisode()
-    let url = try await cache(episode, playable: true)
+    let url = try await cache(episode, playable: true, fixtureName: "silence-priority")
     defer { try? FileManager.default.removeItem(at: url) }
     Container.shared.userSettings().$silenceMode.new(.balanced)
     let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler
@@ -76,7 +80,10 @@ struct SilenceSchedulerTests {
     )
   }
 
-  @Test("a background grant prepares current, queued, and other downloads in order")
+  @Test(
+    "a background grant prepares current, queued, and other downloads in order",
+    .timeLimit(.minutes(5))
+  )
   func priority() async throws {
     let other = try await Create.podcastEpisode()
     let queued = try await Create.podcastEpisode(Create.unsavedEpisode(queueOrder: 0))
@@ -97,11 +104,8 @@ struct SilenceSchedulerTests {
         "No background work was requested"
       }
       let task = try #require(scheduler.launchTask(withIdentifier: identifier))
-      try await Wait.until(maxAttempts: 1000) {
-        task.completionCount == 1
-      } _: {
-        "Background analysis did not finish"
-      }
+      defer { task.expire() }
+      try await task.completed.wait()
       #expect(task.completionResults == [true])
       return sink.captured().filter { $0.message.contains("Silence analysis file=") }
     }

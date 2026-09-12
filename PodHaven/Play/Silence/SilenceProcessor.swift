@@ -28,6 +28,7 @@ actor SilenceProcessor {
   private var candidates: [SilenceCandidate] = []
   private var scenePhase = ScenePhase.background
   private var currentFilename: String?
+  private var diagnosticRun: SilenceAnalysisRun?
 
   fileprivate init() {
     let demand = self.demand
@@ -47,13 +48,13 @@ actor SilenceProcessor {
   }
 
   nonisolated func register() {
-    scheduler.register { [weak self] complete in
+    scheduler.register { [weak self] complete, context in
       guard let self else {
         complete(false)
         return
       }
       do {
-        try await self.drain(background: true)
+        try await self.drain(background: true, context: context)
         complete(true)
       } catch {
         Self.log.caughtError("Background silence analysis stopped", error)
@@ -152,10 +153,16 @@ actor SilenceProcessor {
     let eligible = eligible
     demand(!eligible.isEmpty)
     if let currentFilename, !eligible.contains(where: { $0.filename == currentFilename }) {
+      diagnosticRun?.interrupt(.eligibility)
       worker?.cancel()
       scheduler.cancelRunningTasks()
     }
     guard state.thermalPressure.permitsDiscretionaryWork, scenePhase == .active else {
+      if !state.thermalPressure.permitsDiscretionaryWork {
+        diagnosticRun?.interrupt(.thermal)
+      } else if diagnosticRun?.background == false {
+        diagnosticRun?.interrupt(.lifecycle)
+      }
       worker?.cancel()
       if !state.thermalPressure.permitsDiscretionaryWork { scheduler.cancelRunningTasks() }
       scheduler.scheduleNext()
@@ -181,15 +188,39 @@ actor SilenceProcessor {
     }
   }
 
-  private func drain(background: Bool) async throws {
+  private func drain(
+    background: Bool,
+    context: BackgroundTaskScheduler.ExecutionContext? = nil
+  ) async throws {
     guard owner == nil else { return }
     let id = UUID()
     owner = id
+    let diagnostics = Container.shared.silenceDiagnostics().startRun(id: id, background: background)
+    diagnosticRun = diagnostics
     defer {
+      if Task.isCancelled {
+        diagnostics.interrupt(context?.isExpired == true ? .backgroundExpiration : .cancelled)
+      } else if !state.thermalPressure.permitsDiscretionaryWork {
+        diagnostics.interrupt(.thermal)
+      } else if !background && scenePhase != .active {
+        diagnostics.interrupt(.lifecycle)
+      }
+      diagnostics.finish(expired: context?.isExpired ?? false)
+      diagnosticRun = nil
       owner = nil
       currentFilename = nil
       if background && scenePhase == .active { reconcile() }
     }
+    do {
+      try await analyzeEligibleFiles(background: background, diagnostics: diagnostics)
+    } catch {
+      if !(error is CancellationError) { diagnostics.interrupt(.failure) }
+      throw error
+    }
+  }
+
+  private func analyzeEligibleFiles(background: Bool, diagnostics: SilenceAnalysisRun) async throws
+  {
     var checked: Set<String> = []
     while state.thermalPressure.permitsDiscretionaryWork && (background || scenePhase == .active) {
       try Task.checkCancellation()
@@ -214,17 +245,23 @@ actor SilenceProcessor {
       }
       currentFilename = content.filename
       let started = ContinuousClock.now
+      diagnostics.beginAttempt(filename: content.filename, generation: content.generation)
       do {
         let url = CacheManager.resolveCachedFilepath(for: content.filename).rawValue
-        let map = try await SilenceAnalyzer.analyze(url)
+        let map = try await SilenceAnalyzer.analyze(url) { processedSeconds, totalSeconds in
+          diagnostics.progress(processedSeconds: processedSeconds, totalSeconds: totalSeconds)
+        }
+        reconcile()
         try Task.checkCancellation()
         let published = try await store.publish(map, for: content)
+        diagnostics.finishAttempt(published ? .published : .stale)
         Self.log.info(
           "Silence analysis file=\(content.filename) published=\(published) intervals=\(map.intervals.count) duration=\(started.duration(to: .now))"
         )
       } catch is CancellationError {
         throw CancellationError()
       } catch {
+        diagnostics.finishAttempt(.failed)
         Self.log.caughtError("Silence analysis failed for \(content.filename)", error)
         try await store.recordFailure(for: content)
       }
