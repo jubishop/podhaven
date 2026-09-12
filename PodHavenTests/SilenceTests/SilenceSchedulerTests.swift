@@ -32,6 +32,7 @@ struct SilenceSchedulerTests {
 
   @Test(
     "foreground analysis requests background priority and applies the injected priority",
+    .timeLimit(.minutes(5)),
     arguments: [TaskPriority.background, .high]
   )
   func foregroundTaskPriority(priority: TaskPriority) async throws {
@@ -57,11 +58,14 @@ struct SilenceSchedulerTests {
         }
       }
       .reset(.scope)
-    let completed = try await LogCapture.withSink { sink in
-      processor.handleScenePhaseChange(to: .active)
-      return try await Wait.forValue {
-        sink.captured().first { $0.message.contains("Silence analysis file=") }
+    let analysisFinished = AsyncLatch<LogCapture.Captured>()
+    let completed = try await LogCapture.withSink(
+      onCapture: { entry in
+        if entry.message.contains("Silence analysis file=") { analysisFinished.open(entry) }
       }
+    ) { _ in
+      processor.handleScenePhaseChange(to: .active)
+      return try await analysisFinished.wait()
     }
     #expect(!requests().isEmpty)
     #expect(requests().allSatisfy { $0 == .background })
