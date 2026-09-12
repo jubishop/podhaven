@@ -8,11 +8,9 @@ import Testing
 
 @testable import PodHaven
 
-// Polling defaults to .background priority so it never starves the
-// .utility (or higher) production tasks whose effects it waits for.
-// Tests whose `block` itself spawns work (via `Task {}` etc. inheriting
-// from the poller) can pass a higher `priority` to avoid starving that
-// child work at the cooperative pool's lowest tier.
+// Polling requests .background, but awaiting the task group can elevate it
+// to the caller's priority. Use completion signals for low-priority workers.
+// Blocks that spawn work can request a higher priority for that child work.
 enum Wait {
   @discardableResult
   static func forValue<T: Sendable>(
