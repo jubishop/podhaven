@@ -13,6 +13,8 @@ jobs:
   test:
     name: Run Swift Tests
     runs-on: macos-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v6
@@ -45,15 +47,30 @@ jobs:
           grep -A 3 -iE '(fatal error|assertion|precondition|trap|crash|error:)' xcodebuild.log || echo "No matching lines found"
           echo "::endgroup::"
 
+      - name: Verify test evidence
+        if: always()
+        run: |
+          evidence_status=0
+          if [ ! -d TestResults.xcresult ]; then
+            echo "::error::Missing TestResults.xcresult"
+            evidence_status=1
+          fi
+          if [ ! -s xcodebuild.log ]; then
+            echo "::error::Missing or empty xcodebuild.log"
+            evidence_status=1
+          fi
+          exit "$evidence_status"
+
       - name: Retain test evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: swift-test-results
           path: |
             TestResults.xcresult
             xcodebuild.log
           retention-days: 7
+          if-no-files-found: error
 
       - name: Print test failures
         if: failure()
