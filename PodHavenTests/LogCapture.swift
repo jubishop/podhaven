@@ -19,13 +19,20 @@ enum LogCapture {
     let file: String
     let function: String
     let line: UInt
+    let taskBasePriority: TaskPriority?
   }
 
   final class Sink: Sendable {
     private let storage = ThreadSafe<[Captured]>([])
+    private let onCapture: @Sendable (Captured) -> Void
+
+    init(onCapture: @escaping @Sendable (Captured) -> Void = { _ in }) {
+      self.onCapture = onCapture
+    }
 
     func append(_ captured: Captured) {
       storage { $0.append(captured) }
+      onCapture(captured)
     }
 
     func captured() -> [Captured] {
@@ -57,8 +64,11 @@ enum LogCapture {
     return try $current.withValue(sink) { try operation(sink) }
   }
 
-  static func withSink<T>(_ operation: (Sink) async throws -> T) async rethrows -> T {
-    let sink = Sink()
+  static func withSink<T>(
+    onCapture: @escaping @Sendable (Captured) -> Void = { _ in },
+    _ operation: (Sink) async throws -> T
+  ) async rethrows -> T {
+    let sink = Sink(onCapture: onCapture)
     return try await $current.withValue(sink) { try await operation(sink) }
   }
 }
@@ -85,7 +95,8 @@ private struct CapturingLogHandler: LogHandler {
         source: event.source,
         file: event.file,
         function: event.function,
-        line: event.line
+        line: event.line,
+        taskBasePriority: Task.basePriority
       )
     )
   }

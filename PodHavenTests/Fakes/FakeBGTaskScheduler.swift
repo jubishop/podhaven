@@ -58,19 +58,25 @@ struct RecordedBGTaskRequest: Sendable {
 }
 
 final class FakeBGTask: BGTaskHandling, Sendable {
+  let completed = AsyncLatch<Void>()
+
   private let _expirationHandler = ThreadSafe<(@Sendable () -> Void)?>(nil)
   private let _completionResults = ThreadSafe<[Bool]>([])
+  private let _completionBasePriorities = ThreadSafe<[TaskPriority?]>([])
 
   func setExpirationHandler(_ handler: @escaping @Sendable () -> Void) {
     _expirationHandler(handler)
   }
 
   func setTaskCompleted(success: Bool) {
+    _completionBasePriorities { $0.append(Task.basePriority) }
     _completionResults { $0.append(success) }
+    completed.open()
   }
 
   var completionCount: Int { _completionResults().count }
   var completionResults: [Bool] { _completionResults() }
+  var completionBasePriorities: [TaskPriority?] { _completionBasePriorities() }
   var hasExpirationHandler: Bool { _expirationHandler() != nil }
 
   func expire() {

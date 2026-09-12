@@ -81,6 +81,7 @@ struct EmbeddingProcessor: Sendable {
       identifier: Self.backgroundTaskIdentifier,
       cadence: .minutes(1),
       taskType: .processing(requiresNetworkConnectivity: false),
+      executionPriority: .background,
       schedulingMode: .onDemand { Container.shared.embeddingWorkDemand().hasWork },
       expirationBehavior: .awaitCancellation
     )
