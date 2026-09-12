@@ -21,84 +21,86 @@ struct PlayBarSheet: View {
   }
 
   var body: some View {
-    ZStack {
-      sheetArtwork
+    viewModel.withDependencies {
+      ZStack {
+        sheetArtwork
 
-      VStack(spacing: spacing) {
-        HStack(spacing: spacing) {
-          if viewModel.canExpandTranscript {
-            topBarButtonStyle(transcriptDetentButton)
-          }
-
-          Spacer()
-
-          if let onDeck = sharedState.onDeck {
-            topBarButtonStyle(ShareEpisodeButton(episode: onDeck))
-            if viewModel.isTranscriptionAvailable {
-              topBarButtonStyle(
-                TranscriptionToolbarButton(
-                  status: viewModel.transcriptionStatus,
-                  transcribe: viewModel.transcribe,
-                  pause: viewModel.pauseTranscription
-                )
-              )
+        VStack(spacing: spacing) {
+          HStack(spacing: spacing) {
+            if viewModel.canExpandTranscript {
+              topBarButtonStyle(transcriptDetentButton)
             }
-            topBarButtonStyle(ratingMenu(rating: onDeck.rating))
+
+            Spacer()
+
+            if let onDeck = sharedState.onDeck {
+              topBarButtonStyle(ShareEpisodeButton(episode: onDeck))
+              if viewModel.isTranscriptionAvailable {
+                topBarButtonStyle(
+                  TranscriptionToolbarButton(
+                    status: viewModel.transcriptionStatus,
+                    transcribe: viewModel.transcribe,
+                    pause: viewModel.pauseTranscription
+                  )
+                )
+              }
+              topBarButtonStyle(ratingMenu(rating: onDeck.rating))
+            }
           }
+          .padding(.horizontal, spacing)
+          .padding(.top, spacing)
+
+          if selectedDetent == .large, let transcript = viewModel.transcript {
+            PlayBarTranscriptView(
+              transcript: transcript,
+              currentTime: viewModel.sliderValue
+            )
+            .padding(.horizontal, spacing)
+            .transition(.opacity)
+          } else {
+            Spacer()
+          }
+
+          HStack {
+            playbackMetaControls
+          }
+          .padding(.horizontal, spacing)
+
+          HStack {
+            Spacer()
+
+            playbackControls
+
+            Spacer()
+          }
+          .animation(.easeInOut(duration: 0.2), value: viewModel.undoSeekDirection)
+
+          progressBar
+            .padding(.horizontal, spacing)
         }
         .padding(.horizontal, spacing)
-        .padding(.top, spacing)
-
-        if selectedDetent == .large, let transcript = viewModel.transcript {
-          PlayBarTranscriptView(
-            transcript: transcript,
-            currentTime: viewModel.sliderValue
-          )
-          .padding(.horizontal, spacing)
-          .transition(.opacity)
-        } else {
-          Spacer()
+        .onGeometryChange(for: CGFloat.self) { proxy in
+          proxy.size.width
+        } action: { newWidth in
+          containerWidth = newWidth
         }
-
-        HStack {
-          playbackMetaControls
-        }
-        .padding(.horizontal, spacing)
-
-        HStack {
-          Spacer()
-
-          playbackControls
-
-          Spacer()
-        }
-        .animation(.easeInOut(duration: 0.2), value: viewModel.undoSeekDirection)
-
-        progressBar
-          .padding(.horizontal, spacing)
+        .animation(
+          accessibilityReduceMotion ? nil : .easeInOut(duration: 0.25),
+          value: selectedDetent
+        )
       }
-      .padding(.horizontal, spacing)
-      .onGeometryChange(for: CGFloat.self) { proxy in
-        proxy.size.width
-      } action: { newWidth in
-        containerWidth = newWidth
+      .presentationDetents(availableDetents, selection: $selectedDetent)
+      .presentationDragIndicator(viewModel.canExpandTranscript ? .visible : .automatic)
+      .task(id: sharedState.onDeck?.id) {
+        await viewModel.observeTranscriptionCheckpoint()
       }
-      .animation(
-        accessibilityReduceMotion ? nil : .easeInOut(duration: 0.25),
-        value: selectedDetent
-      )
-    }
-    .presentationDetents(availableDetents, selection: $selectedDetent)
-    .presentationDragIndicator(viewModel.canExpandTranscript ? .visible : .automatic)
-    .task(id: sharedState.onDeck?.id) {
-      await viewModel.observeTranscriptionCheckpoint()
-    }
-    .task(id: sharedState.onDeck?.id) {
-      await viewModel.observeTranscript()
-    }
-    .onChange(of: viewModel.canExpandTranscript) { _, canExpandTranscript in
-      guard !canExpandTranscript else { return }
-      selectedDetent = .medium
+      .task(id: sharedState.onDeck?.id) {
+        await viewModel.observeTranscript()
+      }
+      .onChange(of: viewModel.canExpandTranscript) { _, canExpandTranscript in
+        guard !canExpandTranscript else { return }
+        selectedDetent = .medium
+      }
     }
   }
 

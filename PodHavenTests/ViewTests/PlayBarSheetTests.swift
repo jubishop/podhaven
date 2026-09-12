@@ -60,6 +60,20 @@ private struct TranscriptPlaybackTestView: View {
   }
 }
 
+@MainActor @Observable
+private final class HostedPlayBarEnvironment {
+  var colorScheme = ColorScheme.light
+}
+
+private struct HostedPlayBarTestView: View {
+  let sheet: PlayBarSheet
+  @Bindable var environment: HostedPlayBarEnvironment
+
+  var body: some View {
+    sheet.environment(\.colorScheme, environment.colorScheme)
+  }
+}
+
 @Suite("of PlayBarSheet tests", .container)
 @MainActor struct PlayBarSheetTests {
   @Test(
@@ -699,5 +713,110 @@ private struct TranscriptPlaybackTestView: View {
       },
       { @MainActor in "Play bar transcription action did not enqueue the episode" }
     )
+  }
+
+  @Test(
+    "hosted play bars retain isolated dependencies through updates and callbacks",
+    .enabled(if: supportsHostedAccessibilityInspection),
+    arguments: [1, 2]
+  )
+  func hostedDependenciesSurviveUpdatesAndCallbacks(origin: Int) async throws {
+    let episode = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Hosted origin \(origin)")
+    )
+    let container = Container.shared
+    container.transcriptionAvailability().$state.new(.available)
+    container.userSettings().$skipBackwardInterval.new(TimeInterval(10 + origin))
+    container.userSettings().$skipForwardInterval.new(TimeInterval(20 + origin))
+    let environment = HostedPlayBarEnvironment()
+    let window = try Self.makeWindow(
+      HostedPlayBarTestView(
+        sheet: PlayBarSheet(viewModel: PlayBarViewModel()),
+        environment: environment
+      )
+    )
+    defer { window.isHidden = true }
+    await DisplayFrameWaiter().wait()
+
+    container.stateManager().setOnDeck(episode)
+    let expectedActions = ["Share Episode", "Transcribe", "Rate Episode"]
+    try await Wait.until(maxAttempts: 100) { @MainActor in
+      let labels = Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+      return expectedActions.allSatisfy(labels.contains)
+    } _: {
+      "The installed sheet did not observe its originating on-deck episode"
+    }
+
+    let sampleY = Int(window.bounds.midY)
+    let lightLuminance = try #require(Self.render(window).luminance(atX: 5, y: sampleY))
+    #expect(lightLuminance > 0.9)
+    environment.colorScheme = .dark
+    try await Wait.until(maxAttempts: 100) { @MainActor in
+      window.rootViewController?.view.setNeedsLayout()
+      window.rootViewController?.view.layoutIfNeeded()
+      let luminance = try #require(Self.render(window).luminance(atX: 5, y: sampleY))
+      return luminance < 0.1
+    } _: {
+      "The installed sheet did not respond to its updated color scheme environment"
+    }
+
+    container.sharedState().setPlaybackStatus(.playing)
+    try await Wait.until(maxAttempts: 100) { @MainActor in
+      let labels = Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+      return [
+        "Pause", "Seek Backward \(10 + origin) Seconds", "Seek Forward \(20 + origin) Seconds",
+      ]
+      .allSatisfy(labels.contains)
+    } _: {
+      "Child controls did not retain the originating playback state and skip intervals"
+    }
+
+    let orderedActions = Self.accessibilityElements(in: window)
+      .filter { expectedActions.contains($0.accessibilityLabel ?? "") }
+      .sorted { $0.accessibilityFrame.minX < $1.accessibilityFrame.minX }
+      .compactMap(\.accessibilityLabel)
+    #expect(orderedActions == expectedActions)
+    let transcribe = try #require(
+      Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "Transcribe" }
+    )
+    let foreignContainer = Container()
+    let foreignQueue = Container.$shared.withValue(foreignContainer) {
+      let queue = foreignContainer.transcriptionQueue()
+      #expect(transcribe.accessibilityActivate())
+      return queue
+    }
+    try await Wait.until(maxAttempts: 100) { @MainActor in
+      container.transcriptionQueue().status(for: episode.id, hasTranscript: false).canPause
+    } _: {
+      "An action outside the test task did not enqueue the originating episode"
+    }
+    await foreignQueue.waitUntilLoaded()
+    #expect(
+      foreignQueue.status(for: episode.id, hasTranscript: false) == .none
+    )
+
+    let transcriptText = "Transcript from origin \(origin)"
+    let transcript = Transcript(
+      segments: [TranscriptSegment(start: 0, end: 4, text: transcriptText)],
+      locale: "en-US",
+      createdAt: Date()
+    )
+    try await container.repo().updateTranscript(episode.id, transcript: transcript.jsonString())
+    try await Wait.until(maxAttempts: 100) { @MainActor in
+      Self.accessibilityElements(in: window).contains { $0.accessibilityLabel == "Show Transcript" }
+    } _: {
+      "The installed sheet did not observe the transcript in its originating database"
+    }
+    let expand = try #require(
+      Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "Show Transcript" }
+    )
+    Container.$shared.withValue(foreignContainer) {
+      #expect(expand.accessibilityActivate())
+    }
+    try await Wait.until(maxAttempts: 100) { @MainActor in
+      Self.accessibilityElements(in: window).contains { $0.accessibilityLabel == transcriptText }
+    } _: {
+      "The installed sheet did not preserve its expansion state and transcript"
+    }
   }
 }

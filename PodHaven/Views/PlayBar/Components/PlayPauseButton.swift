@@ -4,7 +4,7 @@ import FactoryKit
 import SwiftUI
 
 struct PlayPauseButton: View {
-  @DynamicInjected(\.sharedState) private var sharedState
+  @Injected(\.sharedState) private var sharedState
 
   let action: @MainActor () -> Void
 

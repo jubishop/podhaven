@@ -8,8 +8,8 @@ import SwiftUI
 struct ShareEpisodeButton<E: EpisodeListable>: View {
   let episode: E
 
-  @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
-  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @Injected(\.imagePipeline) private var imagePipeline
+  @ObservationIgnored @Injected(\.sharedState) private var sharedState
 
   private var shareURL: URL {
     guard let url = ShareURL.episode(feedURL: episode.feedURL, guid: episode.mediaGUID.guid)

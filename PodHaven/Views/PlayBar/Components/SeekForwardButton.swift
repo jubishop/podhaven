@@ -4,12 +4,13 @@ import FactoryKit
 import SwiftUI
 
 struct SeekForwardButton: View {
+  @Injected(\.userSettings) private var userSettings
   @State private var animationTrigger = false
 
   let action: () -> Void
 
   var body: some View {
-    AppIcon.seekForward(Int(Container.shared.userSettings().skipForwardInterval))
+    AppIcon.seekForward(Int(userSettings.skipForwardInterval))
       .imageButton {
         animationTrigger.toggle()
         action()

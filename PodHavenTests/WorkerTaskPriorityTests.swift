@@ -46,6 +46,7 @@ struct WorkerTaskPriorityTests {
 
   @Test(
     "OS grants request each process policy and apply the injected priority to execution",
+    .timeLimit(.minutes(5)),
     arguments: Process.allCases,
     PriorityOverride.allCases
   )
@@ -65,11 +66,10 @@ struct WorkerTaskPriorityTests {
     let task = try #require(
       fake.launchTask(withIdentifier: "\(AppInfo.bundleIdentifier).\(process.rawValue)")
     )
+    defer { task.expire() }
     #expect(requests().first == process.priority)
-    try await Wait.until(
-      { task.completionResults == [true] },
-      { "Background execution did not finish: \(task.completionResults)" }
-    )
+    try await task.completed.wait()
+    #expect(task.completionResults == [true])
     #expect(task.completionBasePriorities == [expectedPriority])
   }
 }
