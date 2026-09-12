@@ -287,7 +287,7 @@ struct TranscriptionBackgroundTaskTests {
     let activeAnalyzers = ThreadSafe(0)
     let maximumActiveAnalyzers = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { _, endTime in
           let active = activeAnalyzers {
             $0 += 1
@@ -363,7 +363,7 @@ struct TranscriptionBackgroundTaskTests {
     let analyzerRelease = AsyncSemaphore(value: 0)
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { _, endTime in
           analyzeCount { $0 += 1 }
           analyzerStarted.signal()
@@ -428,7 +428,7 @@ struct TranscriptionBackgroundTaskTests {
     let firstAnalyzerRelease = AsyncSemaphore(value: 0)
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { _, endTime in
           let count = analyzeCount {
             $0 += 1
@@ -495,7 +495,7 @@ struct TranscriptionBackgroundTaskTests {
     let secondAnalysisRelease = AsyncSemaphore(value: 0)
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { _, endTime in
           let invocation = analyzeCount {
             $0 += 1
@@ -578,7 +578,7 @@ struct TranscriptionBackgroundTaskTests {
       let cancellationRelease = AsyncSemaphore(value: 0)
       let cancellationCount = ThreadSafe(0)
       Container.shared.speechAnalyzer.register {
-        { _ in
+        { _, _ in
           FakeSpeechAnalyzer(
             analyzeAudio: { _, _ in
               analyzerStarted.signal()
@@ -689,7 +689,7 @@ struct TranscriptionBackgroundTaskTests {
     let neverSignals = AsyncSemaphore(value: 0)
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { _, endTime in
           let count = analyzeCount {
             $0 += 1
@@ -758,7 +758,7 @@ struct TranscriptionBackgroundTaskTests {
     let neverSignals = AsyncSemaphore(value: 0)
     let analyzeCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { _, endTime in
           let count = analyzeCount {
             $0 += 1
@@ -871,7 +871,7 @@ struct TranscriptionBackgroundTaskTests {
     let neverSignals = AsyncSemaphore(value: 0)
     defer { neverSignals.signal() }
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { startTime, endTime in
           if endTime == durationSeconds {
             expiringAnalysisStarted(true)
@@ -916,7 +916,7 @@ struct TranscriptionBackgroundTaskTests {
     let resumedAnalysisRelease = AsyncSemaphore(value: 0)
     defer { resumedAnalysisRelease.signal() }
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { startTime, endTime in
           resumedRange((start: startTime, end: endTime))
           resumedAnalysisStarted(true)

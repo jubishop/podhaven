@@ -678,31 +678,32 @@ private struct HostedPlayBarTestView: View {
     let expectedActions = ["Share Episode", "Transcribe", "Rate Episode"]
     try await Wait.until(
       maxAttempts: 100,
+      priority: Task.currentPriority,
       { @MainActor in
         window.rootViewController?.view.setNeedsLayout()
         window.rootViewController?.view.layoutIfNeeded()
-        let labels = Set(
-          Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+        let elements = Self.accessibilityElements(in: window)
+        let labels = Set(elements.compactMap(\.accessibilityLabel))
+        guard expectedActions.allSatisfy(labels.contains) else { return false }
+
+        let orderedActions =
+          elements
+          .filter { element in
+            guard let label = element.accessibilityLabel else { return false }
+            return expectedActions.contains(label)
+          }
+          .sorted { $0.accessibilityFrame.minX < $1.accessibilityFrame.minX }
+          .compactMap(\.accessibilityLabel)
+        #expect(orderedActions == expectedActions)
+
+        let transcribeButton = try #require(
+          elements.first { $0.accessibilityLabel == "Transcribe" }
         )
-        return expectedActions.allSatisfy(labels.contains)
+        #expect(transcribeButton.accessibilityActivate())
+        return true
       },
       { @MainActor in "Play bar did not expose Share, Transcribe, and Rate actions" }
     )
-
-    let orderedActions = Self.accessibilityElements(in: window)
-      .filter { element in
-        guard let label = element.accessibilityLabel else { return false }
-        return expectedActions.contains(label)
-      }
-      .sorted { $0.accessibilityFrame.minX < $1.accessibilityFrame.minX }
-      .compactMap(\.accessibilityLabel)
-    #expect(orderedActions == expectedActions)
-
-    let transcribeButton = try #require(
-      Self.accessibilityElements(in: window)
-        .first { $0.accessibilityLabel == "Transcribe" }
-    )
-    #expect(transcribeButton.accessibilityActivate())
 
     let transcriptionQueue = Container.shared.transcriptionQueue()
     try await Wait.until(
