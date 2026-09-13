@@ -51,6 +51,7 @@ struct WorkerTaskPriorityTests {
     PriorityOverride.allCases
   )
   func backgroundExecution(process: Process, override: PriorityOverride) async throws {
+    _ = Container.shared.appDB()
     let fake = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
     process.register()
     let requests = ThreadSafe<[TaskPriority?]>([])
