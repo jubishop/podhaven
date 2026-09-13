@@ -4,6 +4,7 @@ import fcntl
 import fnmatch
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -360,15 +361,20 @@ def worker(fd):
                     return code
 
 
-def wait_for(ticket):
+def wait_for(ticket, timeout=None, output=None):
+    output = output or sys.stdout
+    deadline = time.monotonic() + timeout if timeout is not None else None
     while True:
         queue = read_json(cache() / "queue.json")
         if queue.get("completed", 0) >= ticket:
             state = read_json(cache() / "state.json")
-            print(state.get("message", "Refresh finished."))
+            print(state.get("message", "Refresh finished."), file=output)
             if queue.get("exit_code"):
                 print("Details: " + str(cache() / "index.log"), file=sys.stderr)
             return queue.get("exit_code", 1)
+        if deadline is not None and time.monotonic() >= deadline:
+            print("Search refresh timed out; the background worker may still be running. Run bin/doctor and bin/qmd-index.", file=sys.stderr)
+            return 1
         if not worker_active():
             # Re-read after observing the released lock to avoid an exit race.
             if read_json(cache() / "queue.json").get("completed", 0) >= ticket:
@@ -376,6 +382,45 @@ def wait_for(ticket):
             print("Index worker stopped before completing. Run bin/qmd-index --force; inspect .cache/qmd/index.log.", file=sys.stderr)
             return 1
         time.sleep(0.05)
+
+
+
+def current_index(version):
+    rendered, warnings = config()
+    for warning in warnings:
+        print(warning, file=sys.stderr)
+    fingerprint, _ = snapshot(rendered, version)
+    state = read_json(cache() / "state.json")
+    return (state.get("status") == "success" and
+            (state.get("last_success") or {}).get("fingerprint") == fingerprint and
+            (cache() / "index.sqlite").is_file() and
+            read_json(ROOT / ".config/qmd/index.yml") == rendered and not worker_active())
+
+
+
+def lookup(args):
+    tool, version = qmd_tool()
+    if not tool:
+        raise RuntimeError("QMD is not installed. Restore the configured tool or explicitly agree to operate without QMD.")
+    retrieves = args[0] in {"search", "query", "vsearch", "get", "multi-get", "ls"}
+    if retrieves and not current_index(version):
+        timeout = float(setting("searchRefreshTimeout") or "60")
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("knowledge.searchRefreshTimeout must be a positive number of seconds")
+        print("Search index freshness is stale or unknown; refreshing before lookup.", file=sys.stderr)
+        if wait_for(enqueue(), timeout=timeout, output=sys.stderr):
+            raise RuntimeError("Search refresh failed; no results returned. Run bin/doctor and bin/qmd-index.")
+        tool, version = qmd_tool()
+        if not tool or not current_index(version):
+            raise RuntimeError("Search freshness could not be established; no results returned. Run bin/doctor and bin/qmd-index.")
+    result = subprocess.run([tool, *args], cwd=ROOT, env=environment(), text=True, stdout=subprocess.PIPE)
+    if result.returncode:
+        raise RuntimeError("QMD lookup failed (exit " + str(result.returncode) + "); no results returned. Run bin/doctor and bin/qmd-index.")
+    if retrieves and not current_index(version):
+        raise RuntimeError("Knowledge changed during lookup; results discarded. Retry after bin/qmd-index completes.")
+    sys.stdout.write(result.stdout)
+    return 0
+
 
 
 def diagnose():
@@ -522,22 +567,12 @@ def cli(action):
                 raise ValueError("Usage: bin/knowledge <search|query|vsearch|get|multi-get|ls|status> [arguments]. Edit .config/knowledge.json for collections; use bin/qmd-index for refreshes.")
             if "--index" in args or any(a.startswith("--index=") for a in args):
                 raise ValueError("This command uses the checkout's own index; named indexes are not supported")
-            rendered, warnings = config()
-            for warning in warnings:
-                print(warning, file=sys.stderr)
-            if read_json(ROOT / ".config/qmd/index.yml") != rendered:
-                raise RuntimeError("Search configuration is missing or changed. Run bin/qmd-index first.")
-            tool, version = qmd_tool()
-            if not tool:
-                raise RuntimeError("QMD is not installed. Read or search the Markdown source files directly.")
-            fingerprint, _ = snapshot(rendered, version)
-            state = read_json(cache() / "state.json")
-            if (state.get("last_success") or {}).get("fingerprint") != fingerprint or state.get("status") != "success":
-                print("Warning: search freshness is stale or unknown. Run bin/qmd-index; verify results against source files.", file=sys.stderr)
-            return subprocess.run([tool, *args], cwd=ROOT, env=environment()).returncode
+            return lookup(args)
         raise ValueError("Unknown command")
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         print(str(error), file=sys.stderr)
+        if action == "knowledge":
+            print("Report this failure to the user immediately and attempt repair. If repair fails, pause knowledge-dependent work until the user approves a fallback. Do not silently bypass QMD with rg or direct reads.", file=sys.stderr)
         if action == "hook":
             print("Knowledge hook failed; Git can continue. Run bin/doctor.", file=sys.stderr)
             return 0

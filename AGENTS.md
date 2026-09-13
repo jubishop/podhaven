@@ -13,8 +13,13 @@ Use the repository's QMD helper for topic lookup:
 - `git knowledge query "question" --no-rerank`: broader topic lookup.
 - `git knowledge get <path>[:line] -l N`: focused source reads.
 
-Search before non-trivial work or writing memory. Use direct reads or `rg` for
-known paths or stale/unavailable search. Markdown remains authoritative.
+Search before non-trivial work or writing memory.
+Use direct reads or `rg` for known paths or after a successful lookup with no
+matches. Markdown source files are authoritative. Update existing pages when possible.
+If configured QMD fails, report it to the user immediately and attempt repair.
+If repair fails, pause knowledge-dependent work until the user approves a
+fallback; never silently bypass broken QMD with `rg` or direct reads. Follow
+the [search failure policy](docs/development-workflow.md#search-failures).
 Run `bin/setup` after cloning. Use `bin/check --documents-only` for Markdown
 edits and `bin/check` for fast tooling checks. Run `bin/check --full` after
 setup or foundation changes, and before a tooling PR or release. Use the

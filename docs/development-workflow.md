@@ -72,7 +72,9 @@ git knowledge context list
 
 Choose keyword search for names and known terms. Use a semantic query for
 broader questions. Read a focused source page before relying on a result.
-Source Markdown remains authoritative when search is unavailable or stale.
+Source Markdown remains authoritative. Known-file reads and broader source
+searches after a successful lookup with no matches remain appropriate. Follow
+the [failure policy](#search-failures) when a configured lookup fails.
 
 The command supplies QMD configuration, cache, and database paths only to
 the QMD process. It does not change the shell's cache directory or depend on
@@ -118,8 +120,22 @@ bin/qmd-index
 
 Git hooks do not run on every file save. Run this command after uncommitted
 knowledge edits when current search results matter. It waits for the requested
-refresh and returns its success or failure. Search warns when its recorded
-inputs are stale or unknown; it does not start a refresh.
+refresh and returns its success or failure. Every knowledge lookup verifies
+source, configuration, database presence, and successful refresh state before
+returning results. Stale or unknown inputs trigger a coordinated refresh.
+Refresh messages go to stderr so JSON output remains valid. Unchanged inputs
+reuse the existing index and embeddings.
+
+Automatic refresh waits up to 60 seconds. Set a positive local
+`knowledge.searchRefreshTimeout` value in seconds when a project needs a
+different bound. A timeout returns an error without results; the background
+worker may still finish. Use `bin/doctor` and the foreground refresh to inspect
+and recover. Explicit foreground refreshes can wait for larger indexing jobs.
+
+Results are buffered until QMD succeeds and freshness is checked again. If
+sources change during the lookup, discard the results and return an error.
+This verifies indexed inputs and completed refresh state, not the semantic
+quality of search results or the internal integrity of the SQLite database.
 
 One worker serves each checkout. It hashes indexed Markdown and configuration,
 including optional home notes, to skip unchanged inputs. Bursts of requests
@@ -139,6 +155,24 @@ Inspect `.cache/qmd/index.log` after failure. Logs rotate at approximately
 1 MB on worker start, retaining one previous file. A stopped worker releases
 its operating-system lock; rerun the foreground command to recover. Avoid
 direct `qmd update` and `qmd embed`, which bypass this coordination.
+
+### Search failures
+
+When configured QMD fails, immediately tell the user what failed. Run
+`bin/doctor`, inspect the refresh log, and attempt a focused repair. Verify
+recovery by repeating the failed lookup successfully. Do not report success
+from a command that returned an error, timed out, or discarded stale results.
+
+If repair fails, pause knowledge-dependent work until the user explicitly
+approves a fallback. Do not silently substitute `rg`, direct Markdown reads,
+another index, or a different search tool to bypass the failure. Unrelated
+work may continue when it does not depend on the missing knowledge.
+
+A successful lookup with no matches is not a tool failure. Reading known
+files and broadening that successful search remain allowed. A project may
+deliberately operate without optional QMD, but its absence or failure does
+not establish that decision; use an existing explicit project choice or ask
+the user. Keep the Markdown source usable in that approved mode.
 
 ## Worktrees
 
