@@ -29,19 +29,24 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Preserve diagnostic log handler
-        run: cp PodHavenTests/LogCapture.swift "$RUNNER_TEMP/issue676-LogCapture.swift"
+      - name: Preserve diagnostic test changes
+        run: |
+          cp PodHavenTests/LogCapture.swift "$RUNNER_TEMP/issue676-LogCapture.swift"
+          cp PodHavenTests/Utility/Wait.swift "$RUNNER_TEMP/issue676-Wait.swift"
+          cp PodHavenTests/WorkerTaskPriorityTests.swift "$RUNNER_TEMP/issue676-WorkerTaskPriorityTests.swift"
 
       - uses: actions/checkout@v6
         with:
           ref: ${{ matrix.revision }}
 
-      - name: Apply diagnostic log handler to recorded revision
+      - name: Apply diagnostic test changes to recorded revision
         run: |
           cp "$RUNNER_TEMP/issue676-LogCapture.swift" PodHavenTests/LogCapture.swift
+          cp "$RUNNER_TEMP/issue676-Wait.swift" PodHavenTests/Utility/Wait.swift
+          cp "$RUNNER_TEMP/issue676-WorkerTaskPriorityTests.swift" PodHavenTests/WorkerTaskPriorityTests.swift
           git rev-parse HEAD
           git diff --stat
-          git diff --exit-code -- . ':(exclude)PodHavenTests/LogCapture.swift'
+          git diff --exit-code -- . ':(exclude)PodHavenTests/LogCapture.swift' ':(exclude)PodHavenTests/Utility/Wait.swift' ':(exclude)PodHavenTests/WorkerTaskPriorityTests.swift'
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:

@@ -64,6 +64,7 @@ enum LogCapture {
                 "RefreshSchedulerTests", "EpisodeDeletionPlaybackTests",
                 "CacheManagerFinalizationTests", "EpisodesListRecommendationFailureTests",
                 "SilenceSchedulerTests",
+                "WorkerTaskPriorityTests",
               ]
               .contains(where: id.contains)
             else { return [:] }
