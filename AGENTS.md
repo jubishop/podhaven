@@ -41,6 +41,8 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## Compatibility
 - Use modern APIs and avoid unnecessary compatibility layers. Change deployment targets or dependency versions when the requested work requires it, or when an upgrade is explicitly requested.
+- Prefer fewer third-party dependencies. Use standard libraries, platform APIs, or a focused implementation we can maintain when they meet the need. Add a package when its concrete benefits justify the maintenance cost; initial convenience alone is not enough. Apply the [dependency policy](docs/development-workflow.md#third-party-dependencies) through ordinary technical judgment.
+- Keep supported toolchains consistent across development, CI, and releases. Follow the [runtime policy](docs/development-workflow.md#runtime-and-toolchain-versions) when changing application commands or upgrading tools.
 - Shipped DB migrations are immutable. Never edit body/version; add the next migration for schema or seed changes.
 
 ## UI Structure
@@ -81,6 +83,7 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 - All Swift test files belong to `PodHavenTests`. Repository tooling tests live in `bin/tests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete all test-only surfaces.
+- Use isolated fixtures for prerequisites unrelated to the behavior under test. Choose the least costly test level that proves the behavior, and retain complete journeys where they add distinct evidence. Measure test changes and preserve per-test isolation; do not hide races with retries or weaker assertions. See [test cost and coverage](docs/development-workflow.md#test-cost-and-coverage).
 - Put the test seam at the OS-integration boundary, not above our own logic. Wrap system-framework types in app-owned protocols that the real types conform to (via `extension`) and fake those, so our orchestration runs for real in tests.
 - To assert on swift-log output, use `LogCapture.withSink` (per-test isolation via `@TaskLocal`).
 
@@ -98,6 +101,8 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## Coding Standards
 - Keep every Swift file under 1000 lines.
+- Keep files cohesive and readable. Extract meaningful responsibilities; do not compress formatting or split files arbitrarily to meet a count. For other hand-written files, use approximately 1000 lines as a review threshold. See [file organization](docs/development-workflow.md#file-organization).
+- Scope source discovery and mutable validation output to the active checkout. Exclude nested worktrees and temporary copies explicitly; Git ignore rules do not control every tool. Preserve supported dependency sharing. See [checkout isolation](docs/development-workflow.md#validation-checkout-isolation).
 - Use `@discardableResult` when ignoring the result is a supported use of the API. Otherwise, preserve unused-result warnings and allow explicit `_ =` at individual call sites when discarding the result is intentional and safe. Do not add wrappers solely to avoid `_ =`.
 
 ### Production Only

@@ -14,7 +14,7 @@ Status describes document authority, not implementation progress. Use `draft` or
 
 ## Development
 
-- [Development workflow](development-workflow.md): setup, search, hooks, diagnostics, and automatic cache cleanup
+- [Development workflow](development-workflow.md): setup, search, hooks, cache isolation, dependencies, testing, and validation
 - [Versioning and releases](releases.md): version commits, TestFlight uploads, automated App Store submissions, and retry behavior
 - [Universal Links](universal-links.md): associated domains, website fallback, and coordinated app rollout
 - [Silence diagnostics](silence-diagnostics.md): telemetry fields, warning bounds, and later real-world assessment

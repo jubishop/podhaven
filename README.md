@@ -43,11 +43,16 @@ Website: [artisanalsoftware.com/podhaven](https://artisanalsoftware.com/podhaven
     ```sh
     cd podhaven
     ```
-3.  **Open the project in Xcode:**
+3.  **Set up repository tooling:**
+    ```sh
+    bin/setup
+    bin/check --full
+    ```
+4.  **Open the project in Xcode:**
     ```sh
     open PodHaven.xcodeproj
     ```
-4.  **Build the project:**
+5.  **Build the project:**
     Press `Cmd+R` in Xcode to build and run the app in the simulator.
 
 ## Build & Test Commands
@@ -58,7 +63,10 @@ For repository knowledge and tooling, use `bin/check --documents-only` after
 a batch of Markdown edits and `bin/check` for fast static checks. Run
 `bin/check --full` after setup or foundation changes, and before a tooling PR
 or release. CI runs the full tooling suite. These commands do not build the
-Swift app. See the [development workflow](docs/development-workflow.md).
+Swift app. Use focused Swift checks for ordinary application changes and
+require successful full validation before merge or release. See the
+[validation policy](docs/development-workflow.md#checks-and-project-extensions)
+and [test workflow](docs/development-workflow.md#test-driven-development).
 
 <details>
 <summary>Click to expand Build & Test Commands</summary>
