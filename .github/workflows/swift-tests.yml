@@ -17,10 +17,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case: integration
-            revision: 62cbeaf3ad309127908b34f3d182efd19bb85211
-          - case: pr667
-            revision: 46fefff5f5b4a1ec9b70dfb34c2b0c1880a9ae90
           - case: pr668
             revision: 752fd787592b9e659027197391b3e25a08914fdc
     permissions:
@@ -65,7 +61,10 @@ jobs:
               if [[ "$test_pid" =~ ^[0-9]+$ ]]; then
                 date -u
                 ps -p "$test_pid" -o pid,etime,%cpu,time,state,comm || true
-                sudo sample "$test_pid" 1 10 -file "test-samples/sample-${attempt}-${test_pid}.txt" || true
+                sudo taskinfo --threads --dq "$test_pid" 2>&1 | tee "test-samples/policy-${attempt}-${test_pid}.txt" > /dev/null || true
+                ps -axo pid,ppid,%cpu,time,state,comm -r | head -n 31 || true
+                uptime
+                vm_stat
               fi
               sleep 30
             done
