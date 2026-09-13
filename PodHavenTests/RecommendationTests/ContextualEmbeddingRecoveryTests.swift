@@ -79,8 +79,9 @@ struct ContextualEmbeddingRecoveryTests {
     #expect(captured.contains { $0.level == (result == .error ? .error : .warning) })
   }
 
-  @Test("download timeout is a targeted warning and repeated callers cannot request again")
+  @Test("download timeout is a targeted warning and repeated callers are bounded during cooldown")
   func timeoutIsWarningAndBounded() async throws {
+    Container.shared.fakeContinuousClock().freeze()
     let timeout = NSError(
       domain: "NLNaturalLanguageErrorDomain",
       code: 7,
