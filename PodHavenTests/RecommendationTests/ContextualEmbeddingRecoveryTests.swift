@@ -131,8 +131,9 @@ struct ContextualEmbeddingRecoveryTests {
     )
   }
 
-  @Test("persistent failure cannot be retried by scoring or repeated foreground calls")
+  @Test("persistent failure cannot be retried by scoring or foreground calls during cooldown")
   func persistentFailureIsBounded() async throws {
+    Container.shared.fakeContinuousClock().freeze()
     let fake = RecoveringEmbeddable(loadFailures: 100, automaticResult: .available)
     let embedding = register(fake)
     await embedding.requestAndLoadAssetsIfNeeded()
