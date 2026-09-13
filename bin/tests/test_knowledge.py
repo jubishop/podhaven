@@ -50,12 +50,17 @@ class KnowledgeTests(unittest.TestCase):
                         OLD_HOOKS=str(self.base / "old-hooks.jsonl"), QMD_CONFIG_DIR="/wrong-config",
                         XDG_CACHE_HOME="/wrong-cache", INDEX_PATH="/wrong-index")
         self.tool("qmd", '''
-import json, os, sys, time
+import json, os, subprocess, sys, time
 from pathlib import Path
 if sys.argv[1:] == ["--version"]:
     if os.environ.get("BROKEN_QMD"):
         sys.exit(9)
-    print("qmd 2.1.0 (test)")
+    version = os.environ.get("QMD_TEST_VERSION", "2.1.0")
+    revision = os.environ.get("QMD_TEST_REVISION", "test")
+    if os.environ.get("QMD_TEST_GIT_VERSION"):
+        revision = subprocess.check_output(
+            ["git", "-C", str(Path(__file__).parent), "rev-parse", "--short", "HEAD"], text=True).strip()
+    print(f"qmd {version} ({revision})")
     sys.exit(0)
 record = {"command": sys.argv[1], "cwd": os.getcwd(),
           "config": os.environ["QMD_CONFIG_DIR"], "cache": os.environ["XDG_CACHE_HOME"],
@@ -172,6 +177,49 @@ else:
         self.assertEqual(self.records(), [])
         report = json.loads(self.run_command("bin/doctor", "--json").stdout)
         self.assertEqual(report["freshness"], "unavailable")
+
+    def test_unrelated_git_revision_does_not_invalidate_search(self):
+        self.env["QMD_TEST_REVISION"] = "abc1234"
+        self.run_command("bin/setup")
+        self.env["QMD_TEST_REVISION"] = "def5678"
+        report = json.loads(self.run_command("bin/doctor", "--json").stdout)
+        self.assertEqual(report["freshness"], "current")
+        self.assertEqual(report["qmd_version"], "qmd 2.1.0 (def5678)")
+        result = self.run_command("git", "knowledge", "search", "reference")
+        self.assertNotIn("freshness", result.stderr)
+        self.drain()
+        self.assertEqual([r["command"] for r in self.records() if r["command"] in ("update", "embed")],
+                         ["update", "embed"])
+
+    def test_qmd_release_changes_still_require_refresh(self):
+        self.env["QMD_TEST_REVISION"] = "abc1234"
+        self.run_command("bin/setup")
+        for version in ("2.1.1", "2.2.0-rc.1", "2.2.0-rc.2", "2.2.0+custom.1", "2.2.0+custom.2"):
+            with self.subTest(version=version):
+                self.env["QMD_TEST_VERSION"] = version
+                report = json.loads(self.run_command("bin/doctor", "--json", check=False).stdout)
+                self.assertEqual(report["freshness"], "stale")
+                self.assertIn("freshness", self.run_command("bin/knowledge", "search", "reference").stderr)
+                initial = len(self.records())
+                self.drain()
+                self.assertEqual([r["command"] for r in self.records()[initial:]], ["update", "embed"])
+                self.assertEqual(json.loads(self.run_command("bin/doctor", "--json").stdout)["freshness"], "current")
+
+    def test_hook_git_environment_does_not_change_qmd_version(self):
+        # Reproduce a global QMD install nested inside an unrelated Git checkout.
+        self.run_command("git", "init", "-b", "main", root=self.base)
+        self.run_command("git", "-c", "user.name=Fixture", "-c", "user.email=test@example.invalid",
+                         "commit", "--allow-empty", "-m", "Surrounding checkout", root=self.base)
+        self.run_command("git", "commit", "--allow-empty", "-m", "Project checkout")
+        self.env["QMD_TEST_GIT_VERSION"] = "1"
+        self.run_command("bin/setup")
+        hook_environment = {"GIT_DIR": str(self.repo / ".git"), "GIT_WORK_TREE": str(self.repo)}
+        self.run_command("bin/qmd-index", "--force", extra=hook_environment)
+        report = json.loads(self.run_command("bin/doctor", "--json").stdout)
+        self.assertEqual(report["last_refresh"]["qmd_version"], report["qmd_version"])
+        self.assertEqual(report["freshness"], "current")
+        result = self.run_command("git", "knowledge", "search", "reference", extra=hook_environment)
+        self.assertNotIn("freshness", result.stderr)
 
     def test_installed_broken_qmd_is_not_reported_as_absent(self):
         result = self.run_command("bin/setup", extra={"BROKEN_QMD": "1"}, check=False)
@@ -366,6 +414,9 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
 
     def test_check_modes_run_behavior_tests_only_with_full(self):
         self.tool("shellcheck", "import sys\nsys.exit(0)\n")
+        application_calls = self.base / "application-calls"
+        for command in ("xcodebuild", "xcrun", "swift", "swift-format"):
+            self.tool(command, f"from pathlib import Path\nPath({str(application_calls)!r}).touch()\nraise SystemExit(91)\n")
         suite = self.repo / Path(__file__).resolve().relative_to(SOURCE)
         # Replace only the disposable suite to observe execution without recursion.
         for path in suite.parent.glob("test_*.py"):
@@ -376,11 +427,13 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
         fast = self.run_command("bin/check")
         self.assertIn("Fast foundation checks passed", fast.stdout)
         self.run_command("bin/check", "--documents-only")
+        self.assertFalse(application_calls.exists(), "Routine checks started an application tool")
         full = self.run_command("bin/check", "--full", check=False)
         self.assertNotEqual(full.returncode, 0)
         self.assertIn("behavior suite executed", full.stderr)
         suite.write_text(suite.read_text().replace("self.fail('behavior suite executed')", "pass"))
         self.assertIn("Full repository foundation checks passed", self.run_command("bin/check", "--full").stdout)
+        self.assertFalse(application_calls.exists(), "Tooling validation started an application tool")
         suite.unlink()
         missing = self.run_command("bin/check", "--full", check=False)
         self.assertNotEqual(missing.returncode, 0)
