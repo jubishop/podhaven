@@ -59,7 +59,7 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(self.command("git", "rev-parse", "HEAD").stdout.strip(), self.head)
         return result
 
-    def check_runner_transport(self, content):
+    def check_runner_transport(self, content, cost=0, should_succeed=True):
         for name in ("run-memory-audit.mjs", "memory-audit-prompt.md"):
             shutil.copy2(SOURCE / "bin" / name, self.repo / "bin" / name)
         (self.repo / "AGENTS.md").write_text("Audit fixture instructions.\n")
@@ -80,7 +80,7 @@ class AuditTests(unittest.TestCase):
             {"id": str(index), "type": "function", "function": {
                 "name": name, "arguments": json.dumps(args),
             }} for index, (name, args) in enumerate(calls)
-        ]}}], "usage": {"cost": 0}}
+        ]}}], "usage": {"cost": cost}}
         mock = self.repo / ".cache/openrouter.mjs"
         mock.parent.mkdir()
         mock.write_text(
@@ -92,9 +92,23 @@ class AuditTests(unittest.TestCase):
             "  await writeFile('.cache/request.json', options.body);\n"
             f"  return Response.json({json.dumps(response)});\n"
             "};\n")
-        self.command("node", "--import", str(mock), "bin/run-memory-audit.mjs", extra={
+        result = self.command("node", "--import", str(mock), "bin/run-memory-audit.mjs", check=False, extra={
             "OPENROUTER_API_KEY": "fixture-only", "OPENROUTER_MODEL": "", "MAX_AGENT_TURNS": "1",
+            "MAX_API_COST_USD": "",
         })
+        usage = json.loads((self.repo / "artifacts/openrouter-usage.json").read_text())
+        if not should_succeed:
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("cost limit exceeded", result.stderr)
+            self.assertEqual(usage["status"], "failed")
+            self.assertEqual(usage["maxCost"], 0.50)
+            self.assertEqual(usage["totalCost"], cost)
+            self.assertFalse((self.repo / "artifacts/memory-audit-report.md").exists())
+            self.assertNotIn("MEMORY_AUDIT_PATCH_START", (self.repo / "artifacts/openrouter-final.md").read_text())
+            self.command("git", "diff", "--exit-code", self.head, "--", "memory")
+            return
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(usage["status"], "success")
         request = json.loads((self.repo / ".cache/request.json").read_text())
         self.assertEqual(request["model"], "deepseek/deepseek-v4.1-flash")
         if content is not None:
@@ -125,6 +139,12 @@ class AuditTests(unittest.TestCase):
 
     def test_runner_transports_empty_patch(self):
         self.check_runner_transport(None)
+
+    def test_runner_allows_cost_above_former_guard(self):
+        self.check_runner_transport(None, cost=0.30)
+
+    def test_runner_stops_above_cost_guard(self):
+        self.check_runner_transport(None, cost=0.51, should_succeed=False)
 
     def test_archive_regenerates_index_preserves_policy_and_never_publishes(self):
         self.note.write_text(self.note.read_text().replace("status: active", "status: resolved"))

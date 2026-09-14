@@ -1,16 +1,16 @@
 ---
 name: "memory-audit-model-selection"
-description: "Use DeepSeek V4.1 Flash for the semantic memory audit; evaluate future model changes on audit quality within the $0.20 run budget."
+description: "Use DeepSeek V4.1 Flash for the semantic memory audit with a $0.50 cost guard; evaluate future model changes on audit quality and measured cost."
 type: "feedback"
 ---
 
 # Memory-audit model selection
 
-Evaluate the scheduled memory audit as retrieval-augmented semantic curation, not as coding-agent work. Use `deepseek/deepseek-v4.1-flash` through OpenRouter, requesting medium reasoning and retaining the $0.20 run cost guard. The user's [V4.1 Flash migration request](https://github.com/jubishop/podhaven/issues/675#issuecomment-5670651063) supersedes the earlier preference to keep V4 Flash 0731. Evaluate future model changes on task-specific evidence within the existing budget.
+Evaluate the scheduled memory audit as retrieval-augmented semantic curation, not as coding-agent work. Use `deepseek/deepseek-v4.1-flash` through OpenRouter, requesting medium reasoning with the user-approved $0.50 run cost guard. The guard is checked after each response, so the final request can take spending above the threshold. The user's [V4.1 Flash migration request](https://github.com/jubishop/podhaven/issues/675#issuecomment-5670651063) supersedes the earlier preference to keep V4 Flash 0731. Evaluate future model changes on task-specific evidence within the approved budget.
 
 **Why:** The audit extracts claims from every active note, retrieves current repository and GitHub evidence, classifies each note as keep or archive, consolidates overlap, and produces a structured report. Its iterative tool loop is mechanically agentic, but the substantive work is document analysis and evidence-backed judgment. Terminal and coding-agent benchmarks are therefore weak selection signals.
 
-Historical comparison as of 2026-07-19 (the exploratory $0.50 ceiling below predates the current run budget):
+Historical comparison as of 2026-07-19 (prices and model choices below are historical):
 
 - The latest scheduled run reviewed 14 of 14 active notes successfully in 61 turns and cost $0.123512 through OpenRouter.
 - Projected weekly spend at that measured rate is about $0.54 per month or $6.42 per year.
@@ -34,6 +34,6 @@ Before switching, run the candidate without publication against a frozen audit s
 - Report-contract compliance
 - Completed-run cost
 
-Prefer the current model unless the candidate produces a clear quality gain within the $0.20 run budget. Do not switch based only on a generic leaderboard or model branding. For an exact cost comparison, retain the input, cached-input, reasoning, and output token breakdown; the published audit artifacts currently retain only total cost.
+Prefer the current model unless the candidate produces a clear quality gain within the approved run budget. Do not switch based only on a generic leaderboard or model branding. For an exact cost comparison, retain the input, cached-input, reasoning, and output token breakdown; the published audit artifacts currently retain only total cost.
 
 Revisit this decision when audit quality problems recur, the audit scope changes materially, a candidate wins the frozen comparison, or provider pricing changes enough to alter the tradeoff.
