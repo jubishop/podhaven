@@ -172,7 +172,8 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       {
         """
         Expected at least \(count) suspended episode fetches, \
-        got \(self.suspendedEpisodeFetchCount())
+        got \(self.suspendedEpisodeFetchCount()) cacheFetchProbe repo=\(ObjectIdentifier(self)) \
+        uptime=\(ProcessInfo.processInfo.systemUptime) pending=\(self.pendingEpisodeFetchSuspend())
         """
       }
     )

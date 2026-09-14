@@ -736,10 +736,24 @@ import Testing
     try await fileManager.writeData(cachedData, to: cachedURL.rawValue)
     let fakeRepo = try #require(repo as? FakeRepo)
     fakeRepo.pendingEpisodeFetchSuspend(true)
+    let probeClock = ContinuousClock()
+    let probeStart = probeClock.now
+    let probeEntered = ThreadSafe<ContinuousClock.Instant?>(nil)
+    print("cacheFetchProbe waiterReady repo=\(ObjectIdentifier(fakeRepo))")
     let clear = Task {
-      try await cacheManager.clearCache(for: target.id)
+      probeEntered(probeClock.now)
+      print("cacheFetchProbe workerEntered elapsed=\(probeStart.duration(to: probeClock.now))")
+      return try await cacheManager.clearCache(for: target.id)
     }
-    try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+    do {
+      try await fakeRepo.waitForEpisodeFetchSuspended(count: 1)
+    } catch {
+      print(
+        "cacheFetchProbe failed elapsed=\(probeStart.duration(to: probeClock.now)) entered=\(String(describing: probeEntered())) pending=\(fakeRepo.pendingEpisodeFetchSuspend()) calls=\(fakeRepo.allCallsInOrder.map(\.toString))"
+      )
+      throw error
+    }
+    print("cacheFetchProbe suspended elapsed=\(probeStart.duration(to: probeClock.now))")
 
     try await repo.updateCachedFilename(survivor.id, cachedFilename: cachedFilename)
     await fakeRepo.resumeAllEpisodeFetchSuspensions()
