@@ -24,7 +24,7 @@ struct TranscriptionProcessorPublisherImportTests {
     let analysisRelease = AsyncSemaphore(value: 0)
     let cancellationCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer(
           analyzeAudio: { _, endTime in
             analysisStarted.signal()
@@ -172,7 +172,7 @@ struct TranscriptionProcessorPublisherImportTests {
     )
     let analysisStarted = ThreadSafe(false)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer(
           analyzeAudio: { _, endTime in
             analysisStarted(true)

@@ -31,7 +31,7 @@ enum TranscriptionHelpers {
       { _ in FakeSpeechTranscriber(behavior: .succeed(phrases)) }
     }
     Container.shared.speechAnalyzer.register {
-      { _ in FakeSpeechAnalyzer() }
+      { _, _ in FakeSpeechAnalyzer() }
     }
     Container.shared.speechModelManager.register { modelManager }
     return modelManager
@@ -39,7 +39,7 @@ enum TranscriptionHelpers {
 
   static func stubSpeechFailure() {
     Container.shared.speechTranscriber.register { { _ in FakeSpeechTranscriber(behavior: .fail) } }
-    Container.shared.speechAnalyzer.register { { _ in FakeSpeechAnalyzer() } }
+    Container.shared.speechAnalyzer.register { { _, _ in FakeSpeechAnalyzer() } }
     Container.shared.speechModelManager.register { FakeSpeechModelManager() }
   }
 

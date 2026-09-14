@@ -101,7 +101,7 @@ struct TranscriptionProcessorReplacementTests {
     )
     let analysisCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer(
           analyzeAudio: { _, endTime in
             analysisCount { $0 += 1 }
@@ -216,7 +216,7 @@ struct TranscriptionProcessorReplacementTests {
     let analysisStarted = ThreadSafe(false)
     let analysisRelease = AsyncSemaphore(value: 0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer(
           analyzeAudio: { _, endTime in
             analysisStarted(true)
@@ -355,7 +355,7 @@ struct TranscriptionProcessorReplacementTests {
     let cancellationRelease = AsyncSemaphore(value: 0)
     let analyzerCreations = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         let invocation = analyzerCreations {
           $0 += 1
           return $0
@@ -459,7 +459,7 @@ struct TranscriptionProcessorReplacementTests {
     let analysisRelease = AsyncSemaphore(value: 0)
     let cancellationCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer(
           analyzeAudio: { _, endTime in
             analysisStarted.signal()
@@ -630,7 +630,7 @@ struct TranscriptionProcessorReplacementTests {
     let waitingAnalysisRelease = AsyncSemaphore(value: 0)
     let analyzerCreations = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         let invocation = analyzerCreations {
           $0 += 1
           return $0
