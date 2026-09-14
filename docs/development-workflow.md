@@ -386,6 +386,8 @@ journeys when an isolated fixture supplies the same starting state. Test each
 worker's configured priority once, then cover actual priority execution and
 overrides in the shared scheduler. Keep real audio decoding and the complete
 download-to-analysis journey in their dedicated tests.
+Foreground silence-priority tests use an already-analyzed cache fixture to
+verify real worker priority and completion without waiting for audio I/O.
 
 Hosted view tests use `withHostedTestWindow` to perform their first layout
 inside the test's dependency context and await UIKit appearance and teardown.

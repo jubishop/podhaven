@@ -44,7 +44,7 @@ jobs:
             -hideShellScriptEnvironment \
             -scheme PodHaven \
             -testPlan PodHaven \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' \
             -skipMacroValidation \
             -resultBundlePath TestResults \
             LM_FORCE_LINK_GENERATION=YES \

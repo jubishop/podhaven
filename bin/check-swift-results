@@ -14,7 +14,7 @@ RUNTIME_DIAGNOSTIC = re.compile(
     r"Unbalanced calls to begin/end appearance transitions|"
     r"Main Thread Checker:|Thread Sanitizer:|"
     r"Publishing changes from|Modifying state during view update|"
-    r"Accessing State(?:Object)?'s object without being installed|"
+    r"Accessing State(?:Object)?'s (?:object|value) (?:without|outside of) being installed|"
     r"Accessing Environment<.*outside of being installed|"
     r"Potential Structural Swift Concurrency Issue|BUG IN CLIENT OF LIBDISPATCH"
 )

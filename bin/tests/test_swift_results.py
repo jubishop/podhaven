@@ -20,6 +20,7 @@ class SwiftResultTests(unittest.TestCase):
     def test_passed_assertions_do_not_hide_runtime_warnings(self):
         for warning in ("Unbalanced calls to begin/end appearance transitions for <UIHostingController>",
                         "Main Thread Checker: UI API called on a background thread",
+                        "Accessing State's value outside of being installed on a View.",
                         "Modifying state during view update, this will cause undefined behavior."):
             with self.subTest(warning=warning):
                 self.assertTrue(results.failures(self.summary, self.build, {"stdout": warning}, "Build succeeded"))
