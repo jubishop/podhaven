@@ -11,5 +11,6 @@
     "Tooling tests in bin/tests; Swift application validation stays separate",
     "Stronger Swift regression testing and file-size requirements preserved",
     "Existing minimum Xcode and Swift versions retained"
-  ]
+  ],
+  "knowledge_source_ref": "57c0f58b036af2e929b6d9d2f3a1518c62d563d9"
 }
