@@ -78,6 +78,8 @@ extension Container: @retroactive AutoRegistering {
     continuousClockNow.context(.test) { { self.fakeContinuousClock().now } }
       .scope(.cached)
 
+    processCPUTime.context(.test) { { .seconds(0) } }.scope(.cached)
+
     dateProvider.context(.test) { self.fakeDate() }.scope(.cached)
 
     userNotificationCenter.context(.test) { FakeUserNotificationCenter() }.scope(.cached)

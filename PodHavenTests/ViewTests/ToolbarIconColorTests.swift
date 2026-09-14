@@ -29,37 +29,31 @@ import UIKit
   }
 
   @Test("toolbar menus retain their icon color and accessibility label")
-  func toolbarMenusRetainTheirIconColorAndAccessibilityLabel() throws {
-    let host = UIHostingController(rootView: MenuFixture())
-    let scene = try #require(
-      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-    )
-    let window = UIWindow(windowScene: scene)
-    window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-    window.rootViewController = host
-    window.makeKeyAndVisible()
-    host.view.layoutIfNeeded()
-    defer { window.isHidden = true }
+  func toolbarMenusRetainTheirIconColorAndAccessibilityLabel() async throws {
+    let host = TestHostingController(rootView: MenuFixture())
+    try await withHostedTestWindow(host, size: CGSize(width: 390, height: 844)) { window in
+      host.view.layoutIfNeeded()
 
-    let descendants = Self.descendants(of: window)
-    let toolbarControl: UIView
-    if ProcessInfo.processInfo.isiOSAppOnMac {
-      toolbarControl = try #require(
-        descendants.first { $0.accessibilityLabel == "Episode Actions" }
-      )
-    } else {
-      let navigationBar = try #require(descendants.first { $0 is UINavigationBar })
-      toolbarControl = try #require(
-        Self.descendants(of: navigationBar)
-          .first {
-            $0 is UIControl && !$0.bounds.isEmpty
-          }
-      )
+      let descendants = Self.descendants(of: window)
+      let toolbarControl: UIView
+      if ProcessInfo.processInfo.isiOSAppOnMac {
+        toolbarControl = try #require(
+          descendants.first { $0.accessibilityLabel == "Episode Actions" }
+        )
+      } else {
+        let navigationBar = try #require(descendants.first { $0 is UINavigationBar })
+        toolbarControl = try #require(
+          Self.descendants(of: navigationBar)
+            .first {
+              $0 is UIControl && !$0.bounds.isEmpty
+            }
+        )
+      }
+
+      let expectedColor = UIColor(AppIcon.pauseButton.color(for: .dark))
+      let toolbarFrame = toolbarControl.convert(toolbarControl.bounds, to: window)
+      #expect(Self.contains(expectedColor, in: toolbarFrame, rendering: window))
     }
-
-    let expectedColor = UIColor(AppIcon.pauseButton.color(for: .dark))
-    let toolbarFrame = toolbarControl.convert(toolbarControl.bounds, to: window)
-    #expect(Self.contains(expectedColor, in: toolbarFrame, rendering: window))
   }
 
   private static func descendants(of view: UIView) -> [UIView] {

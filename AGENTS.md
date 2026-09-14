@@ -13,8 +13,13 @@ Use the repository's QMD helper for topic lookup:
 - `git knowledge query "question" --no-rerank`: broader topic lookup.
 - `git knowledge get <path>[:line] -l N`: focused source reads.
 
-Search before non-trivial work or writing memory. Use direct reads or `rg` for
-known paths or stale/unavailable search. Markdown remains authoritative.
+Search before non-trivial work or writing memory.
+Use direct reads or `rg` for known paths or after a successful lookup with no
+matches. Markdown source files are authoritative. Update existing pages when possible.
+If configured QMD fails, report it to the user immediately and attempt repair.
+If repair fails, pause knowledge-dependent work until the user approves a
+fallback; never silently bypass broken QMD with `rg` or direct reads. Follow
+the [search failure policy](docs/development-workflow.md#search-failures).
 Run `bin/setup` after cloning. Use `bin/check --documents-only` for Markdown
 edits and `bin/check` for fast tooling checks. Run `bin/check --full` after
 setup or foundation changes, and before a tooling PR or release. Use the
@@ -41,6 +46,8 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## Compatibility
 - Use modern APIs and avoid unnecessary compatibility layers. Change deployment targets or dependency versions when the requested work requires it, or when an upgrade is explicitly requested.
+- Prefer fewer third-party dependencies. Use standard libraries, platform APIs, or a focused implementation we can maintain when they meet the need. Add a package when its concrete benefits justify the maintenance cost; initial convenience alone is not enough. Apply the [dependency policy](docs/development-workflow.md#third-party-dependencies) through ordinary technical judgment.
+- Keep supported toolchains consistent across development, CI, and releases. Follow the [runtime policy](docs/development-workflow.md#runtime-and-toolchain-versions) when changing application commands or upgrading tools.
 - Shipped DB migrations are immutable. Never edit body/version; add the next migration for schema or seed changes.
 
 ## UI Structure
@@ -70,17 +77,21 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
+- Required CI must always validate the latest commit being proposed for merge or release. For a PR, test its current head integrated with the target branch. Every new commit requires fresh CI; results from an older or superseded revision cannot establish acceptance.
+- Never replace the required CI checkout with a historical revision, copy selected current files onto old source, or use historical experiment results as the PR's validation. Run historical reproductions separately and label them as diagnostic experiments. Record the exact tested revision and verify it matches the intended current revision.
 - Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`).
 - Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.
 - `@Suite("...", .container)` isolates Factory injected state per-test; supporting full test concurrency. Do not use `.serialized`.
 - Every functional change requires a regression test proven failing before the implementation and passing afterward; if it passes before and after, it does not prove the changed behavior.
 - Default local test runs to My Mac (Designed for iPhone): `-destination 'platform=macOS,name=My Mac'`.
 - Always pass `-hideShellScriptEnvironment` to `xcodebuild`; the shared scheme pre-action otherwise prints inherited environment values into raw logs.
+- Pass `LM_FORCE_LINK_GENERATION=YES` to Swift test builds so Xcode completes App Intents metadata extraction for dynamic packages instead of warning that it skipped them. Keep extraction and warning reporting enabled. Validate both the result bundle and raw log with `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`; add `--full` for the complete suite.
 - Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
 - Async tests use `Wait.until`, `Wait.forValue`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
 - All Swift test files belong to `PodHavenTests`. Repository tooling tests live in `bin/tests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete all test-only surfaces.
+- Use isolated fixtures for prerequisites unrelated to the behavior under test. Choose the least costly test level that proves the behavior, and retain complete journeys where they add distinct evidence. Measure test changes and preserve per-test isolation; do not hide races with retries or weaker assertions. See [test cost and coverage](docs/development-workflow.md#test-cost-and-coverage).
 - Put the test seam at the OS-integration boundary, not above our own logic. Wrap system-framework types in app-owned protocols that the real types conform to (via `extension`) and fake those, so our orchestration runs for real in tests.
 - To assert on swift-log output, use `LogCapture.withSink` (per-test isolation via `@TaskLocal`).
 
@@ -98,6 +109,8 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## Coding Standards
 - Keep every Swift file under 1000 lines.
+- Keep files cohesive and readable. Extract meaningful responsibilities; do not compress formatting or split files arbitrarily to meet a count. For other hand-written files, use approximately 1000 lines as a review threshold. See [file organization](docs/development-workflow.md#file-organization).
+- Scope source discovery and mutable validation output to the active checkout. Exclude nested worktrees and temporary copies explicitly; Git ignore rules do not control every tool. Preserve supported dependency sharing. See [checkout isolation](docs/development-workflow.md#validation-checkout-isolation).
 - Use `@discardableResult` when ignoring the result is a supported use of the API. Otherwise, preserve unused-result warnings and allow explicit `_ =` at individual call sites when discarding the result is intentional and safe. Do not add wrappers solely to avoid `_ =`.
 
 ### Production Only

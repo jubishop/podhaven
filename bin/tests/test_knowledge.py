@@ -50,12 +50,17 @@ class KnowledgeTests(unittest.TestCase):
                         OLD_HOOKS=str(self.base / "old-hooks.jsonl"), QMD_CONFIG_DIR="/wrong-config",
                         XDG_CACHE_HOME="/wrong-cache", INDEX_PATH="/wrong-index")
         self.tool("qmd", '''
-import json, os, sys, time
+import json, os, subprocess, sys, time
 from pathlib import Path
 if sys.argv[1:] == ["--version"]:
     if os.environ.get("BROKEN_QMD"):
         sys.exit(9)
-    print("qmd 2.1.0 (test)")
+    version = os.environ.get("QMD_TEST_VERSION", "2.1.0")
+    revision = os.environ.get("QMD_TEST_REVISION", "test")
+    if os.environ.get("QMD_TEST_GIT_VERSION"):
+        revision = subprocess.check_output(
+            ["git", "-C", str(Path(__file__).parent), "rev-parse", "--short", "HEAD"], text=True).strip()
+    print(f"qmd {version} ({revision})")
     sys.exit(0)
 record = {"command": sys.argv[1], "cwd": os.getcwd(),
           "config": os.environ["QMD_CONFIG_DIR"], "cache": os.environ["XDG_CACHE_HOME"],
@@ -67,8 +72,17 @@ if sys.argv[1] in ("update", "embed"):
     time.sleep(float(os.environ.get("QMD_TEST_DELAY", "0.02")))
     if sys.argv[1] == "update" and os.environ.get("FAIL_UPDATE"):
         sys.exit(23)
-    Path(record["index"]).touch()
+    if sys.argv[1] == "embed" and os.environ.get("FAIL_EMBED"):
+        sys.exit(24)
+    if not os.environ.get("NO_INDEX"):
+        Path(record["index"]).touch()
 else:
+    if os.environ.get("FAIL_QUERY"):
+        print("partial results must not escape")
+        sys.exit(25)
+    if os.environ.get("EDIT_DURING_QUERY"):
+        with (Path.cwd() / "docs/README.md").open("a") as stream:
+            stream.write("Changed during lookup.\\n")
     print(json.dumps(record))
 ''')
         self.tool("direnv", '''
@@ -173,6 +187,52 @@ else:
         report = json.loads(self.run_command("bin/doctor", "--json").stdout)
         self.assertEqual(report["freshness"], "unavailable")
 
+    def test_unrelated_git_revision_does_not_invalidate_search(self):
+        self.env["QMD_TEST_REVISION"] = "abc1234"
+        self.run_command("bin/setup")
+        self.env["QMD_TEST_REVISION"] = "def5678"
+        report = json.loads(self.run_command("bin/doctor", "--json").stdout)
+        self.assertEqual(report["freshness"], "current")
+        self.assertEqual(report["qmd_version"], "qmd 2.1.0 (def5678)")
+        result = self.run_command("git", "knowledge", "search", "reference")
+        self.assertNotIn("freshness", result.stderr)
+        self.drain()
+        self.assertEqual([r["command"] for r in self.records() if r["command"] in ("update", "embed")],
+                         ["update", "embed"])
+
+    def test_qmd_release_changes_still_require_refresh(self):
+        self.env["QMD_TEST_REVISION"] = "abc1234"
+        self.run_command("bin/setup")
+        for version in ("2.1.1", "2.2.0-rc.1", "2.2.0-rc.2", "2.2.0+custom.1", "2.2.0+custom.2"):
+            with self.subTest(version=version):
+                self.env["QMD_TEST_VERSION"] = version
+                report = json.loads(self.run_command("bin/doctor", "--json", check=False).stdout)
+                self.assertEqual(report["freshness"], "stale")
+                initial = len(self.records())
+                self.assertIn("freshness", self.run_command("bin/knowledge", "search", "reference").stderr)
+                self.assertEqual([r["command"] for r in self.records()[initial:]], ["update", "embed", "search"])
+                initial = len(self.records())
+                self.drain()
+                self.assertEqual(self.records()[initial:], [])
+                self.assertEqual(json.loads(self.run_command("bin/doctor", "--json").stdout)["freshness"], "current")
+
+
+    def test_hook_git_environment_does_not_change_qmd_version(self):
+        # Reproduce a global QMD install nested inside an unrelated Git checkout.
+        self.run_command("git", "init", "-b", "main", root=self.base)
+        self.run_command("git", "-c", "user.name=Fixture", "-c", "user.email=test@example.invalid",
+                         "commit", "--allow-empty", "-m", "Surrounding checkout", root=self.base)
+        self.run_command("git", "commit", "--allow-empty", "-m", "Project checkout")
+        self.env["QMD_TEST_GIT_VERSION"] = "1"
+        self.run_command("bin/setup")
+        hook_environment = {"GIT_DIR": str(self.repo / ".git"), "GIT_WORK_TREE": str(self.repo)}
+        self.run_command("bin/qmd-index", "--force", extra=hook_environment)
+        report = json.loads(self.run_command("bin/doctor", "--json").stdout)
+        self.assertEqual(report["last_refresh"]["qmd_version"], report["qmd_version"])
+        self.assertEqual(report["freshness"], "current")
+        result = self.run_command("git", "knowledge", "search", "reference", extra=hook_environment)
+        self.assertNotIn("freshness", result.stderr)
+
     def test_installed_broken_qmd_is_not_reported_as_absent(self):
         result = self.run_command("bin/setup", extra={"BROKEN_QMD": "1"}, check=False)
         self.assertNotEqual(result.returncode, 0)
@@ -225,6 +285,97 @@ else:
         (self.repo / ".cache/qmd/index.sqlite").unlink()
         self.drain()
         self.assertEqual([r["command"] for r in self.records()], ["update", "embed"] * 2)
+
+    def test_lookups_refresh_uncommitted_changes_without_polluting_stdout(self):
+        self.run_command("bin/setup")
+        for command in ("search", "query", "vsearch", "get", "multi-get", "ls"):
+            with self.subTest(command=command):
+                note = self.repo / "docs/README.md"
+                note.write_text(note.read_text() + "\nNew " + command + " guidance.\n")
+                initial = len(self.records())
+                result = self.run_command("bin/knowledge", command, "reference")
+                self.assertEqual(json.loads(result.stdout)["command"], command)
+                self.assertEqual([r["command"] for r in self.records()[initial:]], ["update", "embed", command])
+                initial = len(self.records())
+                self.run_command("bin/knowledge", command, "reference")
+                self.assertEqual([r["command"] for r in self.records()[initial:]], [command])
+
+
+    def test_lookup_refuses_failed_refresh_and_recovers_on_next_attempt(self):
+        self.run_command("bin/setup")
+        for failure in ("FAIL_UPDATE", "FAIL_EMBED"):
+            with self.subTest(failure=failure):
+                note = self.repo / "docs/README.md"
+                note.write_text(note.read_text() + "\nChanged.\n")
+                initial = len(self.records())
+                result = self.run_command("bin/knowledge", "search", "reference", extra={failure: "1"}, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertNotIn("search", [r["command"] for r in self.records()[initial:]])
+                self.assertIn("Report", result.stderr)
+                self.assertIn("pause", result.stderr)
+                self.assertEqual(json.loads(self.run_command("bin/knowledge", "search", "reference").stdout)["command"], "search")
+
+
+    def test_lookup_repairs_missing_database_and_changed_configuration(self):
+        self.run_command("bin/setup")
+        for missing in (".cache/qmd/index.sqlite", ".config/qmd/index.yml"):
+            with self.subTest(missing=missing):
+                (self.repo / missing).unlink()
+                self.run_command("bin/knowledge", "search", "reference")
+                self.assertTrue((self.repo / missing).is_file())
+        source = self.repo / ".config/knowledge.json"
+        config = json.loads(source.read_text())
+        config["collections"]["docs"]["context"]["/"] = "Updated collection"
+        source.write_text(json.dumps(config))
+        record = json.loads(self.run_command("bin/knowledge", "search", "reference").stdout)
+        self.assertEqual(record["collections"]["docs"]["context"]["/"], "Updated collection")
+
+
+    def test_lookup_requires_database_after_successful_refresh(self):
+        self.run_command("bin/setup")
+        (self.repo / ".cache/qmd/index.sqlite").unlink()
+        initial = len(self.records())
+        result = self.run_command("bin/knowledge", "search", "reference", extra={"NO_INDEX": "1"}, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertNotIn("search", [r["command"] for r in self.records()[initial:]])
+
+
+    def test_lookup_refresh_timeout_returns_no_results(self):
+        self.run_command("bin/setup")
+        self.run_command("git", "config", "knowledge.searchRefreshTimeout", "0.1")
+        (self.repo / ".cache/qmd/index.sqlite").unlink()
+        initial = len(self.records())
+        result = self.run_command("bin/knowledge", "search", "reference", extra={"QMD_TEST_DELAY": "0.4"}, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("timed out", result.stderr)
+        self.assertNotIn("search", [r["command"] for r in self.records()[initial:]])
+        self.drain()
+        self.run_command("bin/knowledge", "search", "reference")
+
+
+    def test_lookup_discards_results_when_sources_change_or_qmd_fails(self):
+        self.run_command("bin/setup")
+        for failure in ("EDIT_DURING_QUERY", "FAIL_QUERY", "BROKEN_QMD"):
+            with self.subTest(failure=failure):
+                result = self.run_command("bin/knowledge", "search", "reference", extra={failure: "1"}, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("Report", result.stderr)
+                self.run_command("bin/knowledge", "search", "reference")
+
+
+    def test_lookup_missing_tool_reports_failure_without_fallback(self):
+        self.run_command("bin/setup")
+        (self.tools / "qmd").unlink()
+        result = self.run_command("bin/knowledge", "search", "reference", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("Report", result.stderr)
+        self.assertIn("pause", result.stderr)
+
 
     def test_preserve_existing_configured_and_default_hooks(self):
         for configured in (False, True):
@@ -366,6 +517,9 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
 
     def test_check_modes_run_behavior_tests_only_with_full(self):
         self.tool("shellcheck", "import sys\nsys.exit(0)\n")
+        application_calls = self.base / "application-calls"
+        for command in ("xcodebuild", "xcrun", "swift", "swift-format"):
+            self.tool(command, f"from pathlib import Path\nPath({str(application_calls)!r}).touch()\nraise SystemExit(91)\n")
         suite = self.repo / Path(__file__).resolve().relative_to(SOURCE)
         # Replace only the disposable suite to observe execution without recursion.
         for path in suite.parent.glob("test_*.py"):
@@ -376,11 +530,13 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
         fast = self.run_command("bin/check")
         self.assertIn("Fast foundation checks passed", fast.stdout)
         self.run_command("bin/check", "--documents-only")
+        self.assertFalse(application_calls.exists(), "Routine checks started an application tool")
         full = self.run_command("bin/check", "--full", check=False)
         self.assertNotEqual(full.returncode, 0)
         self.assertIn("behavior suite executed", full.stderr)
         suite.write_text(suite.read_text().replace("self.fail('behavior suite executed')", "pass"))
         self.assertIn("Full repository foundation checks passed", self.run_command("bin/check", "--full").stdout)
+        self.assertFalse(application_calls.exists(), "Tooling validation started an application tool")
         suite.unlink()
         missing = self.run_command("bin/check", "--full", check=False)
         self.assertNotEqual(missing.returncode, 0)

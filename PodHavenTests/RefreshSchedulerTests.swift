@@ -92,17 +92,20 @@ import UIKit
       named: "hardfork_short_updated",
       in: .FeedRSS
     )
-    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: responseData)
+    let (requestStarted, releaseResponse) = await session.releaseWaitRespond(
+      to: podcastSeries.podcast.feedURL.rawValue,
+      data: responseData
+    )
+    defer { releaseResponse.signal() }
     fakeApplication.applicationState = .active
 
     refreshScheduler.handleScenePhaseChange(to: .active)
 
     try await fakeSleeper.waitForSleepRequests(count: 1)
     await fakeSleeper.advanceTime(by: .seconds(3))
-    try await Wait.until(
-      { await session.requests.count == 1 },
-      { "Expected the initial foreground refresh to run" }
-    )
+    try await requestStarted.waitUnlessCancelled()
+    #expect(await session.requests.count == 1)
+    releaseResponse.signal()
     try await fakeSleeper.waitForSleepRequests(count: 1)
 
     fakeApplication.applicationState = .background

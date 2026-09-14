@@ -56,7 +56,7 @@ enum MacroError: Error, CustomStringConvertible {
 
 @main
 struct SavedMacroPlugin: CompilerPlugin {
-  let providingMacros: [Macro.Type] = [
+  let providingMacros: [any Macro.Type] = [
     SavedMacro.self
   ]
 }

@@ -318,6 +318,14 @@ struct TranscriptionBackgroundTaskTests {
     )
     await analyzerStarted.wait()
 
+    let diagnostics = Container.shared.silenceDiagnostics().startRun(id: UUID(), background: true)
+    let active = LogCapture.withSink { sink in
+      diagnostics.beginAttempt(filename: "fixture", generation: "concurrent-transcription")
+      diagnostics.progress(processedSeconds: 1, totalSeconds: 1)
+      return sink.captured()
+    }
+    #expect(active.last?.message.contains("transcriptionActive=true") == true)
+
     processor.handleScenePhaseChange(to: .active)
 
     do {
@@ -343,6 +351,13 @@ struct TranscriptionBackgroundTaskTests {
       { task.completionResults == [true] },
       { "background task did not complete: \(task.completionResults)" }
     )
+    let completed = LogCapture.withSink { sink in
+      diagnostics.finishAttempt(.published)
+      diagnostics.finish(expired: false)
+      return sink.captured()
+    }
+    #expect(completed.last?.message.contains("transcriptionActive=false") == true)
+    #expect(completed.last?.message.contains("transcriptionObserved=true") == true)
 
     processor.handleScenePhaseChange(to: .background)
   }

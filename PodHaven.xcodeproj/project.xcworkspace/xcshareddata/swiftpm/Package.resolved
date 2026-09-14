@@ -1,5 +1,5 @@
 {
-  "originHash" : "15bb22d6b1de39dfa4897ddcc848dae237a60196dd27011dd4d3406797fd3adb",
+  "originHash" : "6f06d6e44f64d90262c89c828edbdae1e165061531bb59c501ee09859fb143de",
   "pins" : [
     {
       "identity" : "factory",
@@ -7,7 +7,7 @@
       "location" : "https://github.com/hmlongco/Factory",
       "state" : {
         "branch" : "main",
-        "revision" : "b32dc7a813c2da6b3c3618df12534b1d85c6aa78"
+        "revision" : "e7b123f191ff1cead0a6992f96099fde310a3284"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/groue/GRDB.swift",
       "state" : {
         "branch" : "master",
-        "revision" : "36e30a6f1ef10e4194f6af0cff90888526f0c115"
+        "revision" : "0d8cf958b4b66a0473ec6e6986eb9da462171da9"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/kean/Nuke",
       "state" : {
         "branch" : "main",
-        "revision" : "63a8fcbd6621340a2410bc3e9575ac97058615f4"
+        "revision" : "2c2b23f6ff4fd2398a54a889f4781686660c4c65"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
         "branch" : "main",
-        "revision" : "fc4e913ec370049f78c4b866e3ba352f073073f1"
+        "revision" : "fb53f5d9d56a90e0c14bfc42f7d1f1a58432059a"
       }
     },
     {
@@ -52,7 +52,7 @@
       "location" : "https://github.com/apple/swift-algorithms.git",
       "state" : {
         "branch" : "main",
-        "revision" : "0b4376902cfc3901c496a79f2cb70f1ffd583fff"
+        "revision" : "5b7143f8e291dee0e14c118fd0212487f0b37af5"
       }
     },
     {
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-case-paths",
       "state" : {
-        "revision" : "206cbce3882b4de9aee19ce62ac5b7306cadd45b",
-        "version" : "1.7.3"
+        "revision" : "cb4cba6a8a46a86db0d37dbe09935ead6b24c91a",
+        "version" : "1.10.0"
       }
     },
     {
@@ -70,7 +70,7 @@
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
         "branch" : "main",
-        "revision" : "cef97270511a04677b2df269fd82242cf0136b78"
+        "revision" : "774d6ba63114dd8302f2b509237748f54943ff2a"
       }
     },
     {
@@ -78,8 +78,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-concurrency-extras",
       "state" : {
-        "revision" : "a90e2e40a7a840a853dd29e57cbef5dbb72c9d5b",
-        "version" : "1.4.0"
+        "revision" : "5fa253428866f2360c3754e88537f700ed2656b5",
+        "version" : "1.4.1"
       }
     },
     {
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-custom-dump",
       "state" : {
-        "revision" : "b9b59eb58c946236d6f16305c576ad194c36444e",
-        "version" : "1.6.0"
+        "revision" : "4fb9e7cbb4b8f5a7354005db39447f570d6b3e19",
+        "version" : "1.7.3"
       }
     },
     {
@@ -97,7 +97,7 @@
       "location" : "https://github.com/pointfreeco/swift-identified-collections",
       "state" : {
         "branch" : "main",
-        "revision" : "a954e4d2a2c79dca6cb3088aa60f7881d83d73d5"
+        "revision" : "3abaf5156efa9437192f8608fa94e6e4e7abf36a"
       }
     },
     {
@@ -106,7 +106,7 @@
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
         "branch" : "main",
-        "revision" : "2aed77ae5ec9a86d8fe42c12275e4c2653a286ee"
+        "revision" : "9c6fb14227f55d8f711ce3847dc2f419fb0ecacb"
       }
     },
     {
@@ -115,7 +115,7 @@
       "location" : "https://github.com/pointfreeco/swift-navigation",
       "state" : {
         "branch" : "main",
-        "revision" : "2f1480feeba0b689e8ec901528074ccad68fe460"
+        "revision" : "7e95e5e9ff0a64f6ad8bca59083f8d6ba381b6ff"
       }
     },
     {
@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-perception",
       "state" : {
-        "revision" : "25ac73741c3436605d61eceb5207e896973918e7",
-        "version" : "2.0.10"
+        "revision" : "597afd46249f4a71885b95d26b26cc5b893daf32",
+        "version" : "2.0.12"
       }
     },
     {
@@ -142,7 +142,7 @@
       "location" : "https://github.com/swiftlang/swift-syntax",
       "state" : {
         "branch" : "main",
-        "revision" : "996efe58bff528645fb8273d641d3d1e5e2a693b"
+        "revision" : "d38f4e9257b4123eaf88fa13265b392c462d2d72"
       }
     },
     {
@@ -159,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
-        "revision" : "dfd70507def84cb5fb821278448a262c6ff2bbad",
-        "version" : "1.9.0"
+        "revision" : "d9308ad679143c26a30dec52daefe82f54af2b82",
+        "version" : "1.13.1"
       }
     },
     {

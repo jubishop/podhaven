@@ -58,8 +58,16 @@ import Testing
   func persistentCandidateObservationFailureSurfacesFailedAcrossReappear() async throws {
     let fakeObservatory = try #require(observatory as? FakeObservatory)
     let dbReader = appDB.unsafeTestDB
+    let callCount = ThreadSafe(0)
+    let reappeared = AsyncLatch<Void>()
     let scriptedFailure: @Sendable () -> AsyncValueObservation<[CandidateEpisode]> = {
-      ValueObservation
+      let count = callCount { count in
+        count += 1
+        return count
+      }
+      if count == 2 { reappeared.open() }
+      return
+        ValueObservation
         .tracking { _ -> [CandidateEpisode] in
           throw TestError.simulatedFailure
         }
@@ -83,27 +91,9 @@ import Testing
       )
     }
 
-    // Reappear: the candidate observation throws again. startDisplayObservation
-    // resets loadingState to .loading on the way in; the second failure must
-    // re-assert .failed so the UI doesn't strand on "Loading episodes…".
-    //
-    // The single-shot `Wait.until(loadingState == .failed)` would race-pass
-    // against the prior block's leftover .failed before the second observation
-    // even started, so first wait for the second `embeddedCandidateEpisodes`
-    // call to confirm the new pass ran end-to-end, then assert .failed.
-    @Sendable func embeddedCandidateCallCount() -> Int {
-      fakeObservatory.callsByType()
-        .values
-        .flatMap { $0 }
-        .filter { $0.methodName == "embeddedCandidateEpisodes" }
-        .count
-    }
     try await withRunningObservationLoop(viewModel) {
-      try await Wait.until(
-        priority: .userInitiated,
-        { embeddedCandidateCallCount() >= 2 },
-        { "Expected the reappear to re-enter the candidate observation." }
-      )
+      try await reappeared.wait()
+      #expect(callCount() == 2)
       try await Wait.until(
         priority: .userInitiated,
         { @MainActor in viewModel.loadingState == .failed },

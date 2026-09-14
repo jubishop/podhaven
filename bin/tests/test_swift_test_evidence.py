@@ -1,5 +1,6 @@
 """Exercise the Swift workflow's diagnostic validation with real file fixtures."""
 
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -54,6 +55,41 @@ class SwiftTestEvidenceTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                 for path in missing:
                     self.assertIn(path, result.stdout)
+
+    def test_revision_guard_rejects_stale_checkout_and_wrong_pr_head(self):
+        step = re.search(
+            r"^      - name: Verify current revision\n(.*?)(?=^      - |\Z)",
+            WORKFLOW.read_text(), re.M | re.S,
+        )
+        self.assertIsNotNone(step)
+        script = textwrap.dedent(step[1].split("        run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory(prefix="swift revision ") as directory:
+            root = Path(directory)
+
+            def git(*args, input=None):
+                return subprocess.check_output(
+                    ["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid", *args],
+                    cwd=root, input=input, text=True, stderr=subprocess.DEVNULL,
+                ).strip()
+
+            git("init", "--quiet")
+            tree = git("hash-object", "-t", "tree", "--stdin", input="")
+            base = git("commit-tree", tree, "-m", "base")
+            head = git("commit-tree", tree, "-p", base, "-m", "PR head")
+            merge = git("commit-tree", tree, "-p", base, "-p", head, "-m", "PR merge")
+            git("checkout", "--quiet", "--detach", merge)
+            for expected, pr_head, passes in (
+                (merge, head, True), (merge, "", True),
+                (base, head, False), (merge, "f" * 40, False),
+            ):
+                with self.subTest(expected=expected, pr_head=pr_head):
+                    result = subprocess.run(
+                        ["bash", "-e", "-o", "pipefail", "-c", script], cwd=root,
+                        env={**os.environ, "EXPECTED_REVISION": expected, "PR_HEAD_REVISION": pr_head},
+                        text=True, capture_output=True, timeout=5,
+                    )
+                    self.assertEqual(result.returncode == 0, passes, result.stdout + result.stderr)
+            self.assertIn(merge, (root / "ci-revision.txt").read_text())
 
     def test_upload_remains_unconditional_after_validation_failure(self):
         step = re.search(
