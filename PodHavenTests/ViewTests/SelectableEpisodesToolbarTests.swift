@@ -35,37 +35,31 @@ import UIKit
     viewModel.setSelecting(true)
     EpisodesListTestHelpers.select(viewModel, ids: [setup.ep1.id])
 
-    let window = try Self.makeWindow(Fixture(viewModel: viewModel))
-    defer { window.isHidden = true }
+    try await Self.withWindow(Fixture(viewModel: viewModel)) { window in
 
-    try await Wait.until(
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityLabels(in: window).contains("Queue")
-      },
-      { @MainActor in
-        """
-        The selected-episode actions did not enter the accessibility tree; labels were \
-        \(Self.accessibilityLabels(in: window).sorted())
-        """
-      }
-    )
+      try await Wait.until(
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityLabels(in: window).contains("Queue")
+        },
+        { @MainActor in
+          """
+          The selected-episode actions did not enter the accessibility tree; labels were \
+          \(Self.accessibilityLabels(in: window).sorted())
+          """
+        }
+      )
 
-    #expect(!Self.accessibilityLabels(in: window).contains("Play Selected Episodes"))
+      #expect(!Self.accessibilityLabels(in: window).contains("Play Selected Episodes"))
+    }
   }
 
-  private static func makeWindow<V: View>(_ rootView: V) throws -> UIWindow {
-    let host = UIHostingController(rootView: rootView)
-    let scene = try #require(
-      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-    )
-    let window = UIWindow(windowScene: scene)
-    window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-    window.rootViewController = host
-    window.makeKeyAndVisible()
-    host.view.layoutIfNeeded()
-    return window
+  private static func withWindow<V: View>(
+    _ rootView: V,
+    _ body: @MainActor (UIWindow) async throws -> Void
+  ) async throws {
+    try await withHostedTestWindow(TestHostingController(rootView: rootView), body)
   }
 
   private static func accessibilityLabels(in root: NSObject) -> Set<String> {

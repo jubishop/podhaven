@@ -380,6 +380,38 @@ shared files, processes, data, and services and provide independent setup and
 cleanup. Do not hide races with retries, longer timeouts, weaker assertions,
 or serialization of the Swift suites.
 
+Use event signals or database observations to wait for asynchronous work.
+Keep the real work and its outcome assertions; avoid repeated prerequisite
+journeys when an isolated fixture supplies the same starting state. Test each
+worker's configured priority once, then cover actual priority execution and
+overrides in the shared scheduler. Keep real audio decoding and the complete
+download-to-analysis journey in their dedicated tests.
+
+Hosted view tests use `withHostedTestWindow` to perform their first layout
+inside the test's dependency context and await UIKit appearance and teardown.
+Keep views installed and preserve their rendered and accessibility assertions.
+
+### Current-revision Swift validation
+
+Required CI tests the current PR head integrated with its target branch. The
+workflow records the tested revision and verifies the PR head is its parent.
+Each new commit requires a new run. Historical reproductions are separate
+diagnostic experiments and cannot establish acceptance of the current PR.
+
+Retain the `.xcresult` bundle and raw `xcodebuild` log for local and CI runs.
+Pass `-hideShellScriptEnvironment` and `LM_FORCE_LINK_GENERATION=YES` to test
+builds. The latter runs App Intents extraction even when a dynamic package's
+dependency file does not list App Intents. It confirms that there are no
+relevant symbols instead of emitting a skipped-extraction warning; it does
+not suppress warnings or bypass metadata validation.
+
+Run `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`
+after focused tests, adding `--full` for the complete suite. This gate requires
+passing tests, complete priority arguments, zero build diagnostics and raw
+build warnings, and no framework runtime diagnostics in exported test output.
+Intentional application warning/error logs from error-path tests remain
+available and are distinct from compiler and framework diagnostics.
+
 ## Checks and project extensions
 
 Choose validation by the changed files and the stage of the work:

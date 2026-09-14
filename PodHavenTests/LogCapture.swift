@@ -2,7 +2,6 @@
 
 import Foundation
 import Logging
-import Testing
 
 @testable import PodHaven
 
@@ -54,26 +53,7 @@ enum LogCapture {
     guard !alreadyInstalled else { return }
     LoggingSystem.bootstrap { label in
       MultiplexLogHandler([
-        StreamLogHandler.standardError(
-          label: label,
-          metadataProvider: .init {
-            guard let test = Test.current else { return [:] }
-            let id = String(describing: test.id)
-            guard
-              [
-                "RefreshSchedulerTests", "EpisodeDeletionPlaybackTests",
-                "CacheManagerFinalizationTests", "EpisodesListRecommendationFailureTests",
-                "SilenceSchedulerTests",
-                "WorkerTaskPriorityTests",
-              ]
-              .contains(where: id.contains)
-            else { return [:] }
-            return [
-              "test": .string(id),
-              "basePriority": .string(String(describing: Task.basePriority)),
-            ]
-          }
-        ),
+        StreamLogHandler.standardError(label: label),
         CapturingLogHandler(label: label),
       ])
     }

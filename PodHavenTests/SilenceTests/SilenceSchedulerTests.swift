@@ -14,16 +14,16 @@ struct SilenceSchedulerTests {
 
   private func cache(
     _ episode: PodcastEpisode,
-    playable: Bool,
-    fixtureName: String = "silence-mono-vbr"
+    playable: Bool
   ) async throws -> URL {
-    let task = try await CacheHelpers.downloadToCache(episode.id)
-    try await CacheHelpers.simulateBackgroundFinish(task)
-    let url = try await CacheHelpers.waitForCached(episode.id).rawValue
+    let filename = UUID().uuidString + ".mp3"
+    let url = CacheManager.resolveCachedFilepath(for: filename).rawValue
+    try await Container.shared.fileManager().writeData(Data(), to: url)
+    try await Container.shared.repo().updateCachedFilename(episode.id, cachedFilename: filename)
     if playable {
       let fixture = try #require(
         Bundle(for: SilenceSchedulerBundle.self)
-          .url(forResource: fixtureName, withExtension: "mp3")
+          .url(forResource: "silence-priority", withExtension: "mp3")
       )
       try FileManager.default.createDirectory(
         at: url.deletingLastPathComponent(),
@@ -41,7 +41,7 @@ struct SilenceSchedulerTests {
   )
   func foregroundTaskPriority(priority: TaskPriority) async throws {
     let episode = try await Create.podcastEpisode()
-    let url = try await cache(episode, playable: true, fixtureName: "silence-priority")
+    let url = try await cache(episode, playable: true)
     defer { try? FileManager.default.removeItem(at: url) }
     Container.shared.userSettings().$silenceMode.new(.balanced)
     let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler

@@ -37,40 +37,34 @@ import UIKit
     )
   )
   func combinedTextPickersExposeFullAccessibilityValues() async throws {
-    let window = try Self.makeWindow(Fixture())
-    defer { window.isHidden = true }
+    try await Self.withWindow(Fixture()) { window in
 
-    try await Wait.until(
-      maxAttempts: 100,
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        let labels = Set(
-          Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
-        )
-        return labels.contains("Condition, Episode Title or Description")
-          && labels.contains("Condition, Podcast Title or Description")
-      },
-      { @MainActor in
-        let semantics = Self.accessibilityElements(in: window)
-          .filter { $0.accessibilityLabel != nil }
-          .map { "\($0.accessibilityLabel ?? "nil"): \($0.accessibilityValue ?? "nil")" }
-        return "Combined-text picker semantics were \(semantics)"
-      }
-    )
+      try await Wait.until(
+        maxAttempts: 100,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          let labels = Set(
+            Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+          )
+          return labels.contains("Condition, Episode Title or Description")
+            && labels.contains("Condition, Podcast Title or Description")
+        },
+        { @MainActor in
+          let semantics = Self.accessibilityElements(in: window)
+            .filter { $0.accessibilityLabel != nil }
+            .map { "\($0.accessibilityLabel ?? "nil"): \($0.accessibilityValue ?? "nil")" }
+          return "Combined-text picker semantics were \(semantics)"
+        }
+      )
+    }
   }
 
-  private static func makeWindow<V: View>(_ rootView: V) throws -> UIWindow {
-    let host = UIHostingController(rootView: rootView)
-    let scene = try #require(
-      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-    )
-    let window = UIWindow(windowScene: scene)
-    window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-    window.rootViewController = host
-    window.makeKeyAndVisible()
-    host.view.layoutIfNeeded()
-    return window
+  private static func withWindow<V: View>(
+    _ rootView: V,
+    _ body: @MainActor (UIWindow) async throws -> Void
+  ) async throws {
+    try await withHostedTestWindow(TestHostingController(rootView: rootView), body)
   }
 
   private static func accessibilityElements(in root: NSObject) -> [NSObject] {
