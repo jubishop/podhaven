@@ -59,7 +59,7 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(self.command("git", "rev-parse", "HEAD").stdout.strip(), self.head)
         return result
 
-    def check_runner_transport(self, content, cost=0, should_succeed=True):
+    def check_runner_transport(self, content, cost=0, should_succeed=True, archive=False):
         for name in ("run-memory-audit.mjs", "memory-audit-prompt.md"):
             shutil.copy2(SOURCE / "bin" / name, self.repo / "bin" / name)
         (self.repo / "AGENTS.md").write_text("Audit fixture instructions.\n")
@@ -71,9 +71,13 @@ class AuditTests(unittest.TestCase):
         }))
         report = "# Memory audit report\n\n- Active notes reviewed: 1\n\n## Per-note findings\n\nIncident reviewed.\n"
         calls = []
+        result_note = self.note
+        if archive:
+            calls.append(("archive_memory_note", {"path": self.note.relative_to(self.repo).as_posix()}))
+            result_note = self.repo / "memory/archive/incident.md"
         if content is not None:
             calls.append(("write_memory_file", {
-                "path": self.note.relative_to(self.repo).as_posix(), "content": content,
+                "path": result_note.relative_to(self.repo).as_posix(), "content": content,
             }))
         calls.append(("write_report", {"content": report}))
         response = {"choices": [{"message": {"role": "assistant", "tool_calls": [
@@ -112,21 +116,40 @@ class AuditTests(unittest.TestCase):
         request = json.loads((self.repo / ".cache/request.json").read_text())
         self.assertEqual(request["model"], "deepseek/deepseek-v4.1-flash")
         if content is not None:
-            self.assertEqual(self.note.read_text(), content)
+            self.assertEqual(result_note.read_text(), content)
         patch = self.command("git", "diff", self.head, "--binary", "--", "memory").stdout
-        expected_note = self.note.read_text()
+        expected_note = result_note.read_text()
         self.command("git", "restore", "--staged", "--worktree", "memory")
+        if archive:
+            result_note.unlink(missing_ok=True)
         (self.repo / "artifacts/memory-audit-report.md").unlink()
         (self.repo / "artifacts/memory-audit-context.json").unlink()
         result = self.publish()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual((self.base / "memory-audit/memory-audit.patch").read_bytes(), patch.encode())
-        self.assertEqual(self.note.read_text(), expected_note)
+        self.assertEqual(result_note.read_text(), expected_note)
         meta = json.loads((self.base / "memory-audit/run-meta.json").read_text())
         self.assertEqual(meta["health"], "ok")
         self.assertEqual(meta["reportSource"], "result")
         self.assertTrue(meta["patchValid"])
         self.assertIsNone(meta["prUrl"])
+        if archive:
+            self.assertFalse(self.note.exists())
+            self.assertIn("memory/archive/incident.md", meta["changedFiles"])
+            self.assertIn("memory/README.md", meta["changedFiles"])
+            index = (self.repo / "memory/README.md").read_text()
+            self.assertIn("Keep this policy byte for byte.", index)
+            self.assertNotIn("](incident.md)", index)
+
+    def test_runner_transports_archive_and_later_edits(self):
+        content = self.note.read_text().replace("status: active", "status: resolved") + "\nResolved guidance.  \n"
+        self.check_runner_transport(content, archive=True)
+
+    def test_runner_transports_unchanged_archive(self):
+        self.note.write_text(self.note.read_text().replace("type: project\nstatus: active", "type: reference"))
+        self.command("git", "add", "memory/incident.md")
+        self.command("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "Reference note fixture")
+        self.check_runner_transport(None, archive=True)
 
     def test_runner_preserves_trailing_blank_context(self):
         self.note.write_text(self.note.read_text() + "\n## Details\n\n")

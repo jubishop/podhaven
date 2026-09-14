@@ -131,6 +131,13 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install repository search tools
+        if: steps.gate.outputs.should_run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+          rg --version
+
       - name: Prepare qmd index
         if: steps.gate.outputs.should_run == 'true'
         run: |

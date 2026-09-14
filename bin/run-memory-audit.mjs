@@ -7,7 +7,6 @@ import {
   lstat,
   mkdir,
   readFile,
-  rename,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -399,7 +398,7 @@ async function archiveMemoryNote(args) {
       throw error;
     }
   }
-  await rename(source.absolute, resolvedDestination.absolute);
+  await runCommand("git", ["mv", "--", source.relative, destination]);
   movedArchives.add(destination);
   return { from: source.relative, to: destination };
 }

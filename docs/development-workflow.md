@@ -478,11 +478,14 @@ response, so the final request can take spending above that threshold.
 It remains semantic curation:
 it verifies claims against repository and captured GitHub evidence.
 
-CI renders `.config/knowledge.json` with `bin/knowledge-config --ci` into its
-own keyword-only index. It does not include local personal notes or run QMD
+CI installs and verifies ripgrep for repository searches before making model
+requests. It renders `.config/knowledge.json` with `bin/knowledge-config --ci`
+into its own keyword-only index. It does not include local personal notes or run QMD
 embedding/model downloads. Legacy Sentry history stays outside default search.
-The model can edit existing ordinary active notes or archive them. It cannot
-edit README policy, existing archives, or tool-managed ledgers. The publisher
+The model can edit existing ordinary active notes or archive them. The runner
+uses Git moves so the exported patch includes archive destinations and any later
+edits to those files. The model cannot edit README policy, existing archives,
+or tool-managed ledgers. The publisher
 checks patch scope, regenerates only the active-index marker section, then
 validates metadata, index coverage, and local links before opening a PR.
 
