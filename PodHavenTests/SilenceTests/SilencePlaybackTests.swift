@@ -57,18 +57,35 @@ import Testing
 
   @Test("finishing with Stop After Current Episode clears the temporary playback mode")
   func resetOnFinish() async throws {
-    let (_, player) = try await prepared()
+    let (episode, player) = try await prepared()
+    try #require(Container.shared.podAVPlayer().playbackSnapshot().isFromCache)
     PlayBarViewModel().selectSilenceMode(.aggressive)
     let state = Container.shared.sharedState()
+    try #require(state.silenceOverride == SilenceOverride(episodeID: episode.id, mode: .aggressive))
+    let filename = try #require(episode.episode.cachedURL?.lastPathComponent)
+    let content = try #require(try await Container.shared.silenceStore().content(for: filename))
+    state.$silenceSourceRejection.new(
+      SilenceSourceRejection(
+        episodeID: episode.id,
+        filename: filename,
+        generation: content.generation
+      )
+    )
     state.setStopAfterCurrentEpisode(true)
     await Container.shared.playManager().play()
     try await PlayHelpers.waitFor(.playing)
+
+    let markedFinished = AsyncLatch<Episode.ID>()
+    let repo = try #require(Container.shared.repo() as? FakeRepo)
+    await repo.afterNextMarkFinished { markedFinished.open($0) }
+    let statuses = state.$playbackStatus.stream()
     player.finishEpisode()
-    try await Wait.until(maxAttempts: 200) {
-      state.currentEpisodeID == nil && state.playbackStatus == .stopped
-    } _: {
-      "Stop After Current Episode did not finish playback"
+    #expect(try await markedFinished.wait() == episode.id)
+    for await status in statuses where status == .stopped {
+      break
     }
+    #expect(state.currentEpisodeID == nil)
+    #expect(state.playbackStatus == .stopped)
     #expect(state.silenceOverride == nil)
     #expect(state.silenceSourceRejection == nil)
   }

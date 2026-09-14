@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
@@ -48,12 +49,14 @@ enum CacheHelpers {
 
   @discardableResult
   static func waitForCached(_ episodeID: Episode.ID) async throws -> CachedURL {
-    try await Wait.forValue(
-      {
-        let episode: Episode = try await repo.episode(episodeID)!
-        return episode.cachedURL
+    let cachedURLs = Container.shared.appDB().reader
+      .observe { db in
+        try Episode.fetchOne(db, key: episodeID)?.cachedURL
       }
-    )
+    for try await url in cachedURLs {
+      if let url { return url }
+    }
+    throw CancellationError()
   }
 
   static func waitForNotCached(_ episodeID: Episode.ID) async throws {

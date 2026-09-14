@@ -10,6 +10,7 @@ import UIKit
 @Suite("of Sheet alert presentation tests", .container)
 @MainActor final class SheetAlertPresentationTests {
   @Observable final class ProbeState {
+    var appearedSheets: [String] = []
     var disappearedSheets: [String] = []
     var showsPresenter = true
   }
@@ -81,7 +82,8 @@ import UIKit
     try await sheetDismissalClearsPresentation()
     try await externalSheetDismissalClearsPresentation()
     try await staleSheetConfigClearsWhenPresenterDisappears()
-    try await olderSheetDisappearDoesNotClearNewerConfig()
+    try await olderSheetDisappearDoesNotClearNewerConfig(waitForPresentation: false)
+    try await olderSheetDisappearDoesNotClearNewerConfig(waitForPresentation: true)
   }
 
   private func rootAlertPresentsActionsAndDismisses() async throws {
@@ -226,7 +228,7 @@ import UIKit
     try await cleanUp(window)
   }
 
-  private func olderSheetDisappearDoesNotClearNewerConfig() async throws {
+  private func olderSheetDisappearDoesNotClearNewerConfig(waitForPresentation: Bool) async throws {
     let alert = Container.shared.alert()
     let sheet = Container.shared.sheet()
     alert.config = nil
@@ -237,6 +239,7 @@ import UIKit
 
     sheet(id: "first") {
       Text("first sheet")
+        .onAppear { state.appearedSheets.append("first") }
         .onDisappear { state.disappearedSheets.append("first") }
     }
     try await Wait.until(
@@ -246,15 +249,35 @@ import UIKit
     )
     let firstConfig = try #require(sheet.config)
 
-    sheet(id: "second") { Text("second sheet") }
+    if waitForPresentation {
+      try await Wait.until(
+        maxAttempts: 400,
+        { @MainActor in
+          guard let presented = window.rootViewController?.presentedViewController else {
+            return false
+          }
+          return state.appearedSheets.contains("first")
+            && !presented.isBeingPresented
+            && presented.transitionCoordinator == nil
+        },
+        { @MainActor in "first sheet presentation never completed" }
+      )
+    }
+
+    sheet(id: "second") {
+      Text("second sheet")
+        .onAppear { state.appearedSheets.append("second") }
+    }
     let secondConfig = try #require(sheet.config)
     #expect(secondConfig.id != firstConfig.id)
     #expect(secondConfig.userID == AnyHashable("second"))
 
     try await Wait.until(
       maxAttempts: 400,
-      { @MainActor in state.disappearedSheets.contains("first") },
-      { @MainActor in "first sheet content never disappeared" }
+      { @MainActor in
+        state.disappearedSheets.contains("first") && state.appearedSheets.contains("second")
+      },
+      { @MainActor in "first sheet was not replaced by the second sheet" }
     )
 
     #expect(sheet.config?.id == secondConfig.id)

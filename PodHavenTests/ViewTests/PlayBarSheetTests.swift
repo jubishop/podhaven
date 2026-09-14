@@ -114,58 +114,58 @@ private struct HostedPlayBarTestView: View {
     }
     #expect(viewModel.hasChapters)
     for size in [DynamicTypeSize.large, .accessibility3] {
-      let window = try Self.makeWindow(
+      try await Self.withWindow(
         PlayBarSheet(viewModel: viewModel).environment(\.dynamicTypeSize, size),
         size: CGSize(width: 320, height: 844)
-      )
-      defer { window.isHidden = true }
-      try await Wait.until(maxAttempts: 400) { @MainActor in
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains { $0.accessibilityLabel == "Shorten Silence" }
-      } _: {
-        "Silence control did not appear in the accessibility tree"
-      }
-      let showTranscript = try #require(
-        Self.accessibilityElements(in: window)
-          .first {
-            $0.accessibilityLabel == "Show Transcript"
-          }
-      )
-      #expect(showTranscript.accessibilityActivate())
-      try await Wait.until(maxAttempts: 400) { @MainActor in
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains {
-            $0.accessibilityLabel == "Follow along"
-          }
-      } _: {
-        "Transcript did not expand beside chapter and silence controls"
-      }
-      let elements = Self.accessibilityElements(in: window)
-      let silence = try #require(elements.first { $0.accessibilityLabel == "Shorten Silence" })
-      let speed = try #require(elements.first { $0.accessibilityLabel == "Playback Speed" })
-      #expect(silence.accessibilityValue == "Balanced")
-      #expect(silence.accessibilityTraits.contains(.button))
-      #expect(speed.accessibilityTraits.contains(.button))
-      #expect(silence.accessibilityFrame.minX >= speed.accessibilityFrame.maxX)
-      #expect(silence.accessibilityFrame.width >= 44)
-      #expect(silence.accessibilityFrame.height >= 44)
-      #expect(
-        abs(silence.accessibilityFrame.height - speed.accessibilityFrame.height) <= 2,
-        """
-        Silence and speed controls should have similar heights at \(size): \
-        \(silence.accessibilityFrame.height) versus \(speed.accessibilityFrame.height)
-        """
-      )
-      let screenshot = UIGraphicsImageRenderer(bounds: window.bounds)
-        .image { _ in
-          window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+      ) { window in
+        try await Wait.until(maxAttempts: 400) { @MainActor in
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains { $0.accessibilityLabel == "Shorten Silence" }
+        } _: {
+          "Silence control did not appear in the accessibility tree"
         }
-      Attachment.record(try #require(screenshot.pngData()), named: "silence-control-\(size).png")
-      let frame = window.convert(silence.accessibilityFrame, from: window.screen.coordinateSpace)
-      #expect(frame.minX >= 0)
-      #expect(frame.maxX <= 320)
+        let showTranscript = try #require(
+          Self.accessibilityElements(in: window)
+            .first {
+              $0.accessibilityLabel == "Show Transcript"
+            }
+        )
+        #expect(showTranscript.accessibilityActivate())
+        try await Wait.until(maxAttempts: 400) { @MainActor in
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains {
+              $0.accessibilityLabel == "Follow along"
+            }
+        } _: {
+          "Transcript did not expand beside chapter and silence controls"
+        }
+        let elements = Self.accessibilityElements(in: window)
+        let silence = try #require(elements.first { $0.accessibilityLabel == "Shorten Silence" })
+        let speed = try #require(elements.first { $0.accessibilityLabel == "Playback Speed" })
+        #expect(silence.accessibilityValue == "Balanced")
+        #expect(silence.accessibilityTraits.contains(.button))
+        #expect(speed.accessibilityTraits.contains(.button))
+        #expect(silence.accessibilityFrame.minX >= speed.accessibilityFrame.maxX)
+        #expect(silence.accessibilityFrame.width >= 44)
+        #expect(silence.accessibilityFrame.height >= 44)
+        #expect(
+          abs(silence.accessibilityFrame.height - speed.accessibilityFrame.height) <= 2,
+          """
+          Silence and speed controls should have similar heights at \(size): \
+          \(silence.accessibilityFrame.height) versus \(speed.accessibilityFrame.height)
+          """
+        )
+        let screenshot = UIGraphicsImageRenderer(bounds: window.bounds)
+          .image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+          }
+        Attachment.record(try #require(screenshot.pngData()), named: "silence-control-\(size).png")
+        let frame = window.convert(silence.accessibilityFrame, from: window.screen.coordinateSpace)
+        #expect(frame.minX >= 0)
+        #expect(frame.maxX <= 320)
+      }
     }
   }
 
@@ -200,20 +200,12 @@ private struct HostedPlayBarTestView: View {
     }
   }
 
-  private static func makeWindow<V: View>(
+  private static func withWindow<V: View>(
     _ rootView: V,
-    size: CGSize = CGSize(width: 390, height: 844)
-  ) throws -> UIWindow {
-    let host = UIHostingController(rootView: rootView)
-    let scene = try #require(
-      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-    )
-    let window = UIWindow(windowScene: scene)
-    window.frame = CGRect(origin: .zero, size: size)
-    window.rootViewController = host
-    window.makeKeyAndVisible()
-    host.view.layoutIfNeeded()
-    return window
+    size: CGSize = CGSize(width: 390, height: 844),
+    _ body: @MainActor (UIWindow) async throws -> Void
+  ) async throws {
+    try await withHostedTestWindow(TestHostingController(rootView: rootView), size: size, body)
   }
 
   private static func accessibilityElements(in root: NSObject) -> [NSObject] {
@@ -347,40 +339,40 @@ private struct HostedPlayBarTestView: View {
       )
     }
 
-    let window = try Self.makeWindow(transcriptView(at: -1))
-    defer { window.isHidden = true }
+    try await Self.withWindow(transcriptView(at: -1)) { window in
 
-    func segmentHeight(expectedValue: String? = nil) async throws -> CGFloat {
-      try await Wait.until(
-        maxAttempts: 100,
-        { @MainActor in
-          window.rootViewController?.view.setNeedsLayout()
-          window.rootViewController?.view.layoutIfNeeded()
-          guard
-            let segment = Self.accessibilityElements(in: window)
-              .first(where: { $0.accessibilityLabel == transcriptText })
-          else { return false }
-          guard let expectedValue else { return true }
-          return segment.accessibilityValue == expectedValue
-        },
-        { "Transcript segment never became accessible" }
+      @MainActor func segmentHeight(expectedValue: String? = nil) async throws -> CGFloat {
+        try await Wait.until(
+          maxAttempts: 100,
+          { @MainActor in
+            window.rootViewController?.view.setNeedsLayout()
+            window.rootViewController?.view.layoutIfNeeded()
+            guard
+              let segment = Self.accessibilityElements(in: window)
+                .first(where: { $0.accessibilityLabel == transcriptText })
+            else { return false }
+            guard let expectedValue else { return true }
+            return segment.accessibilityValue == expectedValue
+          },
+          { "Transcript segment never became accessible" }
+        )
+        let segment = try #require(
+          Self.accessibilityElements(in: window)
+            .first { $0.accessibilityLabel == transcriptText }
+        )
+        return segment.accessibilityFrame.height
+      }
+
+      let inactiveHeight = try await segmentHeight()
+      let host = try #require(window.rootViewController as? UIHostingController<AnyView>)
+      host.rootView = transcriptView(at: 3.5)
+      let highlightedHeight = try await segmentHeight(expectedValue: "Current text block")
+
+      #expect(
+        highlightedHeight == inactiveHeight,
+        "Highlighting changed the segment from \(inactiveHeight) to \(highlightedHeight) points"
       )
-      let segment = try #require(
-        Self.accessibilityElements(in: window)
-          .first { $0.accessibilityLabel == transcriptText }
-      )
-      return segment.accessibilityFrame.height
     }
-
-    let inactiveHeight = try await segmentHeight()
-    let host = try #require(window.rootViewController as? UIHostingController<AnyView>)
-    host.rootView = transcriptView(at: 3.5)
-    let highlightedHeight = try await segmentHeight(expectedValue: "Current text block")
-
-    #expect(
-      highlightedHeight == inactiveHeight,
-      "Highlighting changed the segment from \(inactiveHeight) to \(highlightedHeight) points"
-    )
   }
 
   @Test(
@@ -416,46 +408,46 @@ private struct HostedPlayBarTestView: View {
       createdAt: Date()
     )
     let playbackState = TranscriptPlaybackState(currentTime: -1)
-    let window = try Self.makeWindow(
+    try await Self.withWindow(
       TranscriptPlaybackTestView(playbackState: playbackState, transcript: transcript),
       size: CGSize(width: 160, height: 520)
-    )
-    defer { window.isHidden = true }
-    let displayFrameWaiter = DisplayFrameWaiter()
+    ) { window in
+      let displayFrameWaiter = DisplayFrameWaiter()
 
-    await displayFrameWaiter.wait()
-    let inactiveRendering = try Self.render(window)
-    await displayFrameWaiter.wait()
-    let repeatedInactiveRendering = try Self.render(window)
+      await displayFrameWaiter.wait()
+      let inactiveRendering = try Self.render(window)
+      await displayFrameWaiter.wait()
+      let repeatedInactiveRendering = try Self.render(window)
 
-    playbackState.currentTime = 3.5
-    await displayFrameWaiter.wait(forFrameCount: 30)
-    let activeBlockRendering = try Self.render(window)
-    await displayFrameWaiter.wait()
-    let repeatedActiveBlockRendering = try Self.render(window)
+      playbackState.currentTime = 3.5
+      await displayFrameWaiter.wait(forFrameCount: 30)
+      let activeBlockRendering = try Self.render(window)
+      await displayFrameWaiter.wait()
+      let repeatedActiveBlockRendering = try Self.render(window)
 
-    playbackState.currentTime = 4.5
-    await displayFrameWaiter.wait(forFrameCount: 30)
-    let advancedWordRendering = try Self.render(window)
-    await displayFrameWaiter.wait()
-    let repeatedAdvancedWordRendering = try Self.render(window)
-    let stableNoise = max(
-      inactiveRendering.differingByteCount(from: repeatedInactiveRendering),
-      max(
-        activeBlockRendering.differingByteCount(from: repeatedActiveBlockRendering),
-        advancedWordRendering.differingByteCount(from: repeatedAdvancedWordRendering)
+      playbackState.currentTime = 4.5
+      await displayFrameWaiter.wait(forFrameCount: 30)
+      let advancedWordRendering = try Self.render(window)
+      await displayFrameWaiter.wait()
+      let repeatedAdvancedWordRendering = try Self.render(window)
+      let stableNoise = max(
+        inactiveRendering.differingByteCount(from: repeatedInactiveRendering),
+        max(
+          activeBlockRendering.differingByteCount(from: repeatedActiveBlockRendering),
+          advancedWordRendering.differingByteCount(from: repeatedAdvancedWordRendering)
+        )
       )
-    )
-    let tolerance = stableNoise + 64
+      let tolerance = stableNoise + 64
 
-    #expect(
-      activeBlockRendering.differingByteCount(from: inactiveRendering) > tolerance,
-      "The active transcript block did not receive a visible highlight"
-    )
-    #expect(
-      advancedWordRendering.differingByteCount(from: activeBlockRendering) <= tolerance,
-      "The highlighted transcript changed while playback remained in the same text block"
-    )
+      #expect(
+        activeBlockRendering.differingByteCount(from: inactiveRendering) > tolerance,
+        "The active transcript block did not receive a visible highlight"
+      )
+      #expect(
+        advancedWordRendering.differingByteCount(from: activeBlockRendering) <= tolerance,
+        "The highlighted transcript changed while playback remained in the same text block"
+      )
+    }
   }
 
   @Test(
@@ -498,85 +490,85 @@ private struct HostedPlayBarTestView: View {
       { @MainActor in "Transcribed play bar never loaded its transcript" }
     )
 
-    let window = try Self.makeWindow(
+    try await Self.withWindow(
       PlayBarSheet(viewModel: viewModel)
         .preferredColorScheme(.dark)
-    )
-    defer { window.isHidden = true }
+    ) { window in
 
-    try await Wait.until(
-      maxAttempts: 400,
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains { $0.accessibilityLabel == "Show Transcript" }
-      },
-      { @MainActor in
-        let labels = Self.accessibilityElements(in: window)
-          .compactMap(\.accessibilityLabel)
-        return "Play bar never exposed the Show Transcript action; labels: \(labels)"
-      }
-    )
-    let showTranscriptButton = try #require(
-      Self.accessibilityElements(in: window)
-        .first { $0.accessibilityLabel == "Show Transcript" }
-    )
-    let mediumPlaybackPosition = try #require(
-      Self.accessibilityElements(in: window)
-        .first { $0.accessibilityLabel == "Playback Position" }
-    )
-    let mediumContrast = try Self.progressGlassContrast(
-      for: mediumPlaybackPosition,
-      in: window
-    )
+      try await Wait.until(
+        maxAttempts: 400,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains { $0.accessibilityLabel == "Show Transcript" }
+        },
+        { @MainActor in
+          let labels = Self.accessibilityElements(in: window)
+            .compactMap(\.accessibilityLabel)
+          return "Play bar never exposed the Show Transcript action; labels: \(labels)"
+        }
+      )
+      let showTranscriptButton = try #require(
+        Self.accessibilityElements(in: window)
+          .first { $0.accessibilityLabel == "Show Transcript" }
+      )
+      let mediumPlaybackPosition = try #require(
+        Self.accessibilityElements(in: window)
+          .first { $0.accessibilityLabel == "Playback Position" }
+      )
+      let mediumContrast = try Self.progressGlassContrast(
+        for: mediumPlaybackPosition,
+        in: window
+      )
 
-    #expect(
-      mediumContrast >= 0.1,
-      "Medium glass differed from the surrounding artwork by only \(mediumContrast) luminance"
-    )
+      #expect(
+        mediumContrast >= 0.1,
+        "Medium glass differed from the surrounding artwork by only \(mediumContrast) luminance"
+      )
 
-    #expect(showTranscriptButton.accessibilityActivate())
+      #expect(showTranscriptButton.accessibilityActivate())
 
-    try await Wait.until(
-      maxAttempts: 400,
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains { $0.accessibilityLabel == "Collapse Transcript" }
-      },
-      { "Play bar never expanded its transcript" }
-    )
-    try await Wait.until(
-      maxAttempts: 400,
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        guard
-          let playbackPosition = Self.accessibilityElements(in: window)
-            .first(where: { $0.accessibilityLabel == "Playback Position" })
-        else { return false }
-        return try Self.progressGlassContrast(
-          for: playbackPosition,
-          in: window
-        ) >= 0.1
-      },
-      { "Expanded glass never finished applying its contrast treatment" }
-    )
-    let expandedPlaybackPosition = try #require(
-      Self.accessibilityElements(in: window)
-        .first { $0.accessibilityLabel == "Playback Position" }
-    )
-    let expandedContrast = try Self.progressGlassContrast(
-      for: expandedPlaybackPosition,
-      in: window
-    )
+      try await Wait.until(
+        maxAttempts: 400,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains { $0.accessibilityLabel == "Collapse Transcript" }
+        },
+        { "Play bar never expanded its transcript" }
+      )
+      try await Wait.until(
+        maxAttempts: 400,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          guard
+            let playbackPosition = Self.accessibilityElements(in: window)
+              .first(where: { $0.accessibilityLabel == "Playback Position" })
+          else { return false }
+          return try Self.progressGlassContrast(
+            for: playbackPosition,
+            in: window
+          ) >= 0.1
+        },
+        { "Expanded glass never finished applying its contrast treatment" }
+      )
+      let expandedPlaybackPosition = try #require(
+        Self.accessibilityElements(in: window)
+          .first { $0.accessibilityLabel == "Playback Position" }
+      )
+      let expandedContrast = try Self.progressGlassContrast(
+        for: expandedPlaybackPosition,
+        in: window
+      )
 
-    #expect(
-      expandedContrast >= 0.1,
-      "Expanded glass differed from the surrounding artwork by only \(expandedContrast) luminance"
-    )
+      #expect(
+        expandedContrast >= 0.1,
+        "Expanded glass differed from the surrounding artwork by only \(expandedContrast) luminance"
+      )
+    }
   }
 
   @Test("transcribed episodes expand to a synchronized full-height transcript")
@@ -621,41 +613,39 @@ private struct HostedPlayBarTestView: View {
       { @MainActor in "Transcribed play bar never loaded its transcript" }
     )
 
-    let window = try Self.makeWindow(PlayBarSheet(viewModel: viewModel))
-    defer {
-      window.isHidden = true
-    }
+    try await Self.withWindow(PlayBarSheet(viewModel: viewModel)) { window in
 
-    guard supportsHostedAccessibilityInspection else { return }
-    let presentedView = try #require(window.rootViewController?.view)
-    try await Wait.until(
-      maxAttempts: 400,
-      { @MainActor in
+      guard supportsHostedAccessibilityInspection else { return }
+      let presentedView = try #require(window.rootViewController?.view)
+      try await Wait.until(
+        maxAttempts: 400,
+        { @MainActor in
+          Self.accessibilityElements(in: presentedView)
+            .contains { $0.accessibilityLabel == "Show Transcript" }
+        },
+        { "Play bar never exposed the Show Transcript action" }
+      )
+      let showTranscriptButton = try #require(
         Self.accessibilityElements(in: presentedView)
-          .contains { $0.accessibilityLabel == "Show Transcript" }
-      },
-      { "Play bar never exposed the Show Transcript action" }
-    )
-    let showTranscriptButton = try #require(
-      Self.accessibilityElements(in: presentedView)
-        .first { $0.accessibilityLabel == "Show Transcript" }
-    )
-    #expect(showTranscriptButton.accessibilityActivate())
-    try await Wait.until(
-      maxAttempts: 400,
-      { @MainActor in
-        presentedView.setNeedsLayout()
-        presentedView.layoutIfNeeded()
-        return Self.accessibilityElements(in: presentedView)
-          .contains { $0.accessibilityLabel == "Follow along" }
-      },
-      { "Expanded play bar never exposed its transcript segment" }
-    )
-    let transcriptSegment = try #require(
-      Self.accessibilityElements(in: presentedView)
-        .first { $0.accessibilityLabel == "Follow along" }
-    )
-    #expect(transcriptSegment.accessibilityValue == "Current text block")
+          .first { $0.accessibilityLabel == "Show Transcript" }
+      )
+      #expect(showTranscriptButton.accessibilityActivate())
+      try await Wait.until(
+        maxAttempts: 400,
+        { @MainActor in
+          presentedView.setNeedsLayout()
+          presentedView.layoutIfNeeded()
+          return Self.accessibilityElements(in: presentedView)
+            .contains { $0.accessibilityLabel == "Follow along" }
+        },
+        { "Expanded play bar never exposed its transcript segment" }
+      )
+      let transcriptSegment = try #require(
+        Self.accessibilityElements(in: presentedView)
+          .first { $0.accessibilityLabel == "Follow along" }
+      )
+      #expect(transcriptSegment.accessibilityValue == "Current text block")
+    }
   }
 
   @Test(
@@ -672,47 +662,47 @@ private struct HostedPlayBarTestView: View {
     Container.shared.transcriptionAvailability().$state.new(.available)
     Container.shared.stateManager().setOnDeck(episode)
 
-    let window = try Self.makeWindow(PlayBarSheet(viewModel: PlayBarViewModel()))
-    defer { window.isHidden = true }
+    try await Self.withWindow(PlayBarSheet(viewModel: PlayBarViewModel())) { window in
 
-    let expectedActions = ["Share Episode", "Transcribe", "Rate Episode"]
-    try await Wait.until(
-      maxAttempts: 100,
-      priority: Task.currentPriority,
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        let elements = Self.accessibilityElements(in: window)
-        let labels = Set(elements.compactMap(\.accessibilityLabel))
-        guard expectedActions.allSatisfy(labels.contains) else { return false }
+      let expectedActions = ["Share Episode", "Transcribe", "Rate Episode"]
+      try await Wait.until(
+        maxAttempts: 100,
+        priority: Task.currentPriority,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          let elements = Self.accessibilityElements(in: window)
+          let labels = Set(elements.compactMap(\.accessibilityLabel))
+          guard expectedActions.allSatisfy(labels.contains) else { return false }
 
-        let orderedActions =
-          elements
-          .filter { element in
-            guard let label = element.accessibilityLabel else { return false }
-            return expectedActions.contains(label)
-          }
-          .sorted { $0.accessibilityFrame.minX < $1.accessibilityFrame.minX }
-          .compactMap(\.accessibilityLabel)
-        #expect(orderedActions == expectedActions)
+          let orderedActions =
+            elements
+            .filter { element in
+              guard let label = element.accessibilityLabel else { return false }
+              return expectedActions.contains(label)
+            }
+            .sorted { $0.accessibilityFrame.minX < $1.accessibilityFrame.minX }
+            .compactMap(\.accessibilityLabel)
+          #expect(orderedActions == expectedActions)
 
-        let transcribeButton = try #require(
-          elements.first { $0.accessibilityLabel == "Transcribe" }
-        )
-        #expect(transcribeButton.accessibilityActivate())
-        return true
-      },
-      { @MainActor in "Play bar did not expose Share, Transcribe, and Rate actions" }
-    )
+          let transcribeButton = try #require(
+            elements.first { $0.accessibilityLabel == "Transcribe" }
+          )
+          #expect(transcribeButton.accessibilityActivate())
+          return true
+        },
+        { @MainActor in "Play bar did not expose Share, Transcribe, and Rate actions" }
+      )
 
-    let transcriptionQueue = Container.shared.transcriptionQueue()
-    try await Wait.until(
-      maxAttempts: 100,
-      { @MainActor in
-        transcriptionQueue.status(for: episode.id, hasTranscript: false).canPause
-      },
-      { @MainActor in "Play bar transcription action did not enqueue the episode" }
-    )
+      let transcriptionQueue = Container.shared.transcriptionQueue()
+      try await Wait.until(
+        maxAttempts: 100,
+        { @MainActor in
+          transcriptionQueue.status(for: episode.id, hasTranscript: false).canPause
+        },
+        { @MainActor in "Play bar transcription action did not enqueue the episode" }
+      )
+    }
   }
 
   @Test(
@@ -729,94 +719,95 @@ private struct HostedPlayBarTestView: View {
     container.userSettings().$skipBackwardInterval.new(TimeInterval(10 + origin))
     container.userSettings().$skipForwardInterval.new(TimeInterval(20 + origin))
     let environment = HostedPlayBarEnvironment()
-    let window = try Self.makeWindow(
+    try await Self.withWindow(
       HostedPlayBarTestView(
         sheet: PlayBarSheet(viewModel: PlayBarViewModel()),
         environment: environment
       )
-    )
-    defer { window.isHidden = true }
-    await DisplayFrameWaiter().wait()
+    ) { window in
+      await DisplayFrameWaiter().wait()
 
-    container.stateManager().setOnDeck(episode)
-    let expectedActions = ["Share Episode", "Transcribe", "Rate Episode"]
-    try await Wait.until(maxAttempts: 100) { @MainActor in
-      let labels = Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
-      return expectedActions.allSatisfy(labels.contains)
-    } _: {
-      "The installed sheet did not observe its originating on-deck episode"
-    }
+      container.stateManager().setOnDeck(episode)
+      let expectedActions = ["Share Episode", "Transcribe", "Rate Episode"]
+      try await Wait.until(maxAttempts: 100) { @MainActor in
+        let labels = Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+        return expectedActions.allSatisfy(labels.contains)
+      } _: {
+        "The installed sheet did not observe its originating on-deck episode"
+      }
 
-    let sampleY = Int(window.bounds.midY)
-    let lightLuminance = try #require(Self.render(window).luminance(atX: 5, y: sampleY))
-    #expect(lightLuminance > 0.9)
-    environment.colorScheme = .dark
-    try await Wait.until(maxAttempts: 100) { @MainActor in
-      window.rootViewController?.view.setNeedsLayout()
-      window.rootViewController?.view.layoutIfNeeded()
-      let luminance = try #require(Self.render(window).luminance(atX: 5, y: sampleY))
-      return luminance < 0.1
-    } _: {
-      "The installed sheet did not respond to its updated color scheme environment"
-    }
+      let sampleY = Int(window.bounds.midY)
+      let lightLuminance = try #require(Self.render(window).luminance(atX: 5, y: sampleY))
+      #expect(lightLuminance > 0.9)
+      environment.colorScheme = .dark
+      try await Wait.until(maxAttempts: 100) { @MainActor in
+        window.rootViewController?.view.setNeedsLayout()
+        window.rootViewController?.view.layoutIfNeeded()
+        let luminance = try #require(Self.render(window).luminance(atX: 5, y: sampleY))
+        return luminance < 0.1
+      } _: {
+        "The installed sheet did not respond to its updated color scheme environment"
+      }
 
-    container.sharedState().setPlaybackStatus(.playing)
-    try await Wait.until(maxAttempts: 100) { @MainActor in
-      let labels = Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
-      return [
-        "Pause", "Seek Backward \(10 + origin) Seconds", "Seek Forward \(20 + origin) Seconds",
-      ]
-      .allSatisfy(labels.contains)
-    } _: {
-      "Child controls did not retain the originating playback state and skip intervals"
-    }
+      container.sharedState().setPlaybackStatus(.playing)
+      try await Wait.until(maxAttempts: 100) { @MainActor in
+        let labels = Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+        return [
+          "Pause", "Seek Backward \(10 + origin) Seconds", "Seek Forward \(20 + origin) Seconds",
+        ]
+        .allSatisfy(labels.contains)
+      } _: {
+        "Child controls did not retain the originating playback state and skip intervals"
+      }
 
-    let orderedActions = Self.accessibilityElements(in: window)
-      .filter { expectedActions.contains($0.accessibilityLabel ?? "") }
-      .sorted { $0.accessibilityFrame.minX < $1.accessibilityFrame.minX }
-      .compactMap(\.accessibilityLabel)
-    #expect(orderedActions == expectedActions)
-    let transcribe = try #require(
-      Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "Transcribe" }
-    )
-    let foreignContainer = Container()
-    let foreignQueue = Container.$shared.withValue(foreignContainer) {
-      let queue = foreignContainer.transcriptionQueue()
-      #expect(transcribe.accessibilityActivate())
-      return queue
-    }
-    try await Wait.until(maxAttempts: 100) { @MainActor in
-      container.transcriptionQueue().status(for: episode.id, hasTranscript: false).canPause
-    } _: {
-      "An action outside the test task did not enqueue the originating episode"
-    }
-    await foreignQueue.waitUntilLoaded()
-    #expect(
-      foreignQueue.status(for: episode.id, hasTranscript: false) == .none
-    )
+      let orderedActions = Self.accessibilityElements(in: window)
+        .filter { expectedActions.contains($0.accessibilityLabel ?? "") }
+        .sorted { $0.accessibilityFrame.minX < $1.accessibilityFrame.minX }
+        .compactMap(\.accessibilityLabel)
+      #expect(orderedActions == expectedActions)
+      let transcribe = try #require(
+        Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "Transcribe" }
+      )
+      let foreignContainer = Container()
+      let foreignQueue = Container.$shared.withValue(foreignContainer) {
+        let queue = foreignContainer.transcriptionQueue()
+        #expect(transcribe.accessibilityActivate())
+        return queue
+      }
+      try await Wait.until(maxAttempts: 100) { @MainActor in
+        container.transcriptionQueue().status(for: episode.id, hasTranscript: false).canPause
+      } _: {
+        "An action outside the test task did not enqueue the originating episode"
+      }
+      await foreignQueue.waitUntilLoaded()
+      #expect(
+        foreignQueue.status(for: episode.id, hasTranscript: false) == .none
+      )
 
-    let transcriptText = "Transcript from origin \(origin)"
-    let transcript = Transcript(
-      segments: [TranscriptSegment(start: 0, end: 4, text: transcriptText)],
-      locale: "en-US",
-      createdAt: Date()
-    )
-    try await container.repo().updateTranscript(episode.id, transcript: transcript.jsonString())
-    try await Wait.until(maxAttempts: 100) { @MainActor in
-      Self.accessibilityElements(in: window).contains { $0.accessibilityLabel == "Show Transcript" }
-    } _: {
-      "The installed sheet did not observe the transcript in its originating database"
-    }
-    let expand = try #require(
-      Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "Show Transcript" }
-    )
-    Container.$shared.withValue(foreignContainer) {
-      #expect(expand.accessibilityActivate())
-    }
-    try await Wait.until(maxAttempts: 100) { @MainActor in
-      Self.accessibilityElements(in: window).contains { $0.accessibilityLabel == transcriptText }
-    } _: {
-      "The installed sheet did not preserve its expansion state and transcript"
+      let transcriptText = "Transcript from origin \(origin)"
+      let transcript = Transcript(
+        segments: [TranscriptSegment(start: 0, end: 4, text: transcriptText)],
+        locale: "en-US",
+        createdAt: Date()
+      )
+      try await container.repo().updateTranscript(episode.id, transcript: transcript.jsonString())
+      try await Wait.until(maxAttempts: 100) { @MainActor in
+        Self.accessibilityElements(in: window)
+          .contains { $0.accessibilityLabel == "Show Transcript" }
+      } _: {
+        "The installed sheet did not observe the transcript in its originating database"
+      }
+      let expand = try #require(
+        Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "Show Transcript" }
+      )
+      Container.$shared.withValue(foreignContainer) {
+        #expect(expand.accessibilityActivate())
+      }
+      try await Wait.until(maxAttempts: 100) { @MainActor in
+        Self.accessibilityElements(in: window).contains { $0.accessibilityLabel == transcriptText }
+      } _: {
+        "The installed sheet did not preserve its expansion state and transcript"
+      }
     }
   }
 }

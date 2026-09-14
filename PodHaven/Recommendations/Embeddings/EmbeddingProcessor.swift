@@ -66,6 +66,13 @@ struct EmbeddingProcessor: Sendable {
   private let processingMode = ThreadSafe(ProcessingMode.background)
   private let drainOwnership = ThreadSafe(DrainOwnership.available)
 
+  var isComputing: Bool {
+    switch drainOwnership() {
+    case .available: false
+    case .held, .heldWithForegroundRetry: true
+    }
+  }
+
   init() {
     backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,

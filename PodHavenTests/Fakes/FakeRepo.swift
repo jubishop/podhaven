@@ -35,7 +35,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   private var episodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
 
   nonisolated let pendingPodcastEpisodeFetchSuspend = ThreadSafe<Bool>(false)
-  nonisolated let suspendedPodcastEpisodeFetchCount = ThreadSafe<Int>(0)
+  private nonisolated let suspendedPodcastEpisodeFetchCount = Broadcast(0)
   private var podcastEpisodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
   private var podcastEpisodeFetchBarrierRemaining = 0
   private var podcastEpisodeFetchBarrierContinuations: [CheckedContinuation<Void, Never>] = []
@@ -244,7 +244,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       pendingPodcastEpisodeFetchSuspend(false)
       await withCheckedContinuation { continuation in
         podcastEpisodeFetchSuspensions.append(continuation)
-        suspendedPodcastEpisodeFetchCount(podcastEpisodeFetchSuspensions.count)
+        suspendedPodcastEpisodeFetchCount.new(podcastEpisodeFetchSuspensions.count)
       }
     }
     guard podcastEpisodeFetchBarrierRemaining > 0 else { return result }
@@ -265,20 +265,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func resumeAllPodcastEpisodeFetchSuspensions() {
     let toResume = podcastEpisodeFetchSuspensions
     podcastEpisodeFetchSuspensions.removeAll()
-    suspendedPodcastEpisodeFetchCount(0)
+    suspendedPodcastEpisodeFetchCount.new(0)
     for continuation in toResume { continuation.resume() }
   }
 
   nonisolated func waitForPodcastEpisodeFetchSuspended(count: Int = 1) async throws {
-    try await Wait.until(
-      { self.suspendedPodcastEpisodeFetchCount() >= count },
-      {
-        """
-        Expected at least \(count) suspended podcast episode fetches, \
-        got \(self.suspendedPodcastEpisodeFetchCount())
-        """
-      }
-    )
+    for await suspended in suspendedPodcastEpisodeFetchCount.stream() where suspended >= count {
+      return
+    }
+    throw CancellationError()
   }
 
   func barrierNextPodcastEpisodeFetches(count: Int) {

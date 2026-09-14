@@ -40,7 +40,7 @@ struct SilenceAudioTests {
     let url = try #require(
       Bundle(for: SilenceAudioBundle.self).url(forResource: name, withExtension: fileExtension)
     )
-    let map = try await SilenceAnalyzer.analyze(url)
+    let map = try await SilenceAnalyzer.analyze(url, progress: { _, _ in })
     #expect(map.isValid)
     #expect(map.intervals.count == 8)
     for (index, interval) in map.intervals.enumerated() {
@@ -54,7 +54,9 @@ struct SilenceAudioTests {
     let url = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp3")
     try Data("not audio".utf8).write(to: url)
     defer { try? FileManager.default.removeItem(at: url) }
-    await #expect(throws: (any Error).self) { try await SilenceAnalyzer.analyze(url) }
+    await #expect(throws: (any Error).self) {
+      try await SilenceAnalyzer.analyze(url, progress: { _, _ in })
+    }
   }
 
   @Test("an eligible download outside the queue is analyzed after thermal recovery")
