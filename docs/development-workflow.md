@@ -19,8 +19,9 @@ bin/check --full
 ```
 
 Setup requires Git and Python 3.9 or later. Checks also require ShellCheck,
-available through the operating system's package manager. QMD and direnv are
-optional. Missing optional tools produce clear notices; an installed but
+available through the operating system's package manager. Full tooling checks
+also use Node.js 24, matching the Memory Audit workflow, to test the audit runner.
+QMD and direnv are optional. Missing optional tools produce clear notices; an installed but
 failing QMD returns an error. Install QMD using its
 [official instructions](https://github.com/tobi/qmd#installation).
 The starter records its tested QMD version in `.project-starter.json`.

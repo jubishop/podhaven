@@ -26,6 +26,10 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
       - name: Install repository check tools
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 

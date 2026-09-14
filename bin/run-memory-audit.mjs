@@ -632,16 +632,16 @@ async function writeUsage(status, error = null) {
 
 async function writeFinalResult(turn) {
   const report = (await readFile(reportPath, "utf8")).trimEnd();
-  const patch = (await getMemoryPatch()).trimEnd();
+  const patch = await getMemoryPatch();
   const finalMessage = [
-    "<!-- MEMORY_AUDIT_REPORT_START -->",
-    report,
-    "<!-- MEMORY_AUDIT_REPORT_END -->",
-    "<!-- MEMORY_AUDIT_PATCH_START -->",
+    "<!-- MEMORY_AUDIT_REPORT_START -->\n",
+    `${report}\n`,
+    "<!-- MEMORY_AUDIT_REPORT_END -->\n",
+    "<!-- MEMORY_AUDIT_PATCH_START -->\n",
     patch,
-    "<!-- MEMORY_AUDIT_PATCH_END -->",
-  ].join("\n");
-  await writeFile(finalPath, `${finalMessage}\n`, "utf8");
+    "<!-- MEMORY_AUDIT_PATCH_END -->\n",
+  ].join("");
+  await writeFile(finalPath, finalMessage, "utf8");
   await writeUsage("success");
   console.log(`OpenRouter audit completed in ${turn} turns at $${totalCost.toFixed(6)}`);
 }
