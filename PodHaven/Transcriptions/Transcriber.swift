@@ -5,6 +5,7 @@ import CoreMedia
 import FactoryKit
 import Foundation
 import Logging
+import Speech
 
 // MARK: - Container
 
@@ -111,8 +112,9 @@ struct Transcriber: Sendable {
     let audioSHA256 = try audioFileHasher.sha256(of: fileURL)
     try Task.checkCancellation()
 
+    let analysisOptions = SpeechAnalyzer.Options(priority: .background, modelRetention: .whileInUse)
     let firstTranscriber = speechTranscriber(locale)
-    let firstAnalyzer = speechAnalyzer(firstTranscriber)
+    let firstAnalyzer = speechAnalyzer(firstTranscriber, analysisOptions)
     let audioFile = try audioFileProvider.audioFile(forReading: fileURL)
     let durationSeconds = Double(audioFile.length) / audioFile.processingFormat.sampleRate
     guard durationSeconds > 0 else {
@@ -185,7 +187,7 @@ struct Transcriber: Sendable {
         firstPair = nil
       } else {
         transcriber = speechTranscriber(locale)
-        analyzer = speechAnalyzer(transcriber)
+        analyzer = speechAnalyzer(transcriber, analysisOptions)
       }
 
       let segments = try await transcribeChunk(

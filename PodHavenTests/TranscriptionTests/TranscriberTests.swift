@@ -116,7 +116,7 @@ struct TranscriberTests {
       let clock = Container.shared.fakeContinuousClock()
       clock.freeze()
       Container.shared.speechAnalyzer.register {
-        { _ in
+        { _, _ in
           FakeSpeechAnalyzer { _, endTime in
             clock.advance(by: .seconds(30))
             return CMTime(seconds: endTime, preferredTimescale: 600)
@@ -212,7 +212,7 @@ struct TranscriberTests {
     )
     let analyzedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { startTime, endTime in
           analyzedRange((start: startTime, end: endTime))
           return CMTime(seconds: endTime, preferredTimescale: 600)
@@ -270,7 +270,7 @@ struct TranscriberTests {
     )
     let analyzedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { startTime, endTime in
           analyzedRange((start: startTime, end: endTime))
           return CMTime(seconds: endTime, preferredTimescale: 600)
@@ -307,7 +307,7 @@ struct TranscriberTests {
     let durationSeconds = 120.0
     TranscriptionHelpers.stubSpeech(durationSeconds: durationSeconds)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { _, _ in
           CMTime(seconds: 60, preferredTimescale: 600)
         }
@@ -335,7 +335,7 @@ struct TranscriberTests {
     let analyzerStarted = AsyncSemaphore(value: 0)
     let analyzerRelease = AsyncSemaphore(value: 0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer(
           analyzeAudio: { _, _ in
             analyzerStarted.signal()
@@ -383,7 +383,7 @@ struct TranscriberTests {
     )
     let analyzedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { startTime, endTime in
           analyzedRange((start: startTime, end: endTime))
           return CMTime(seconds: endTime, preferredTimescale: 600)
@@ -429,7 +429,7 @@ struct TranscriberTests {
     )
     let analyzedRange = ThreadSafe<(start: TimeInterval, end: TimeInterval)?>(nil)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer { startTime, endTime in
           analyzedRange((start: startTime, end: endTime))
           return CMTime(seconds: endTime, preferredTimescale: 600)
@@ -471,7 +471,7 @@ struct TranscriberTests {
     let analyzerCancelled = ThreadSafe(0)
     let transcriptionFinished = ThreadSafe(false)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer(
           analyzeAudio: { _, _ in
             analyzerStarted.signal()
@@ -522,7 +522,7 @@ struct TranscriberTests {
       FakeSpeechTranscriptionResult(phrase: "ignored", startSeconds: 0, endSeconds: 60)
     ])
     Container.shared.speechAnalyzer.register {
-      { _ in FakeSpeechAnalyzer(analyzeAudio: { _, _ in nil }) }
+      { _, _ in FakeSpeechAnalyzer(analyzeAudio: { _, _ in nil }) }
     }
 
     await #expect(throws: TranscriptionError.self) {
@@ -538,7 +538,7 @@ struct TranscriberTests {
     let cancellationRelease = AsyncSemaphore(value: 0)
     let cancellationCount = ThreadSafe(0)
     Container.shared.speechAnalyzer.register {
-      { _ in
+      { _, _ in
         FakeSpeechAnalyzer(
           analyzeAudio: { _, _ in nil },
           cancelAudio: {
