@@ -84,15 +84,19 @@ class AuditTests(unittest.TestCase):
         mock = self.repo / ".cache/openrouter.mjs"
         mock.parent.mkdir()
         mock.write_text(
+            "import { writeFile } from 'node:fs/promises';\n"
             "let called = false;\n"
-            "globalThis.fetch = async () => {\n"
+            "globalThis.fetch = async (url, options) => {\n"
             "  if (called) throw new Error('Unexpected second model request');\n"
             "  called = true;\n"
+            "  await writeFile('.cache/request.json', options.body);\n"
             f"  return Response.json({json.dumps(response)});\n"
             "};\n")
         self.command("node", "--import", str(mock), "bin/run-memory-audit.mjs", extra={
-            "OPENROUTER_API_KEY": "fixture-only", "MAX_AGENT_TURNS": "1",
+            "OPENROUTER_API_KEY": "fixture-only", "OPENROUTER_MODEL": "", "MAX_AGENT_TURNS": "1",
         })
+        request = json.loads((self.repo / ".cache/request.json").read_text())
+        self.assertEqual(request["model"], "deepseek/deepseek-v4.1-flash")
         if content is not None:
             self.assertEqual(self.note.read_text(), content)
         patch = self.command("git", "diff", self.head, "--binary", "--", "memory").stdout

@@ -1,12 +1,12 @@
 ---
 name: "memory-audit-model-selection"
-description: "Treat the scheduled memory audit as semantic curation and keep DeepSeek V4 Flash until task-specific evidence supports a replacement within the $0.20 run budget."
+description: "Use DeepSeek V4.1 Flash for the semantic memory audit; evaluate future model changes on audit quality within the $0.20 run budget."
 type: "feedback"
 ---
 
 # Memory-audit model selection
 
-Evaluate the scheduled memory audit as retrieval-augmented semantic curation, not as coding-agent work. Keep `deepseek/deepseek-v4-flash-0731` at medium reasoning as the default unless a task-specific comparison demonstrates a meaningful quality improvement while staying within the $0.20 run budget agreed on 2026-09-05.
+Evaluate the scheduled memory audit as retrieval-augmented semantic curation, not as coding-agent work. Use `deepseek/deepseek-v4.1-flash` through OpenRouter, requesting medium reasoning and retaining the $0.20 run cost guard. The user's [V4.1 Flash migration request](https://github.com/jubishop/podhaven/issues/675#issuecomment-5670651063) supersedes the earlier preference to keep V4 Flash 0731. Evaluate future model changes on task-specific evidence within the existing budget.
 
 **Why:** The audit extracts claims from every active note, retrieves current repository and GitHub evidence, classifies each note as keep or archive, consolidates overlap, and produces a structured report. Its iterative tool loop is mechanically agentic, but the substantive work is document analysis and evidence-backed judgment. Terminal and coding-agent benchmarks are therefore weak selection signals.
 

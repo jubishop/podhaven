@@ -472,8 +472,8 @@ It reuses existing models and does not publish changes.
 
 ## Scheduled memory audit
 
-The audit uses `deepseek/deepseek-v4-flash-0731` through OpenRouter, with medium
-reasoning and the existing $0.20 run cost guard. It remains semantic curation:
+The audit uses `deepseek/deepseek-v4.1-flash` through OpenRouter. It requests
+medium reasoning and retains the $0.20 run cost guard. It remains semantic curation:
 it verifies claims against repository and captured GitHub evidence.
 
 CI renders `.config/knowledge.json` with `bin/knowledge-config --ci` into its
