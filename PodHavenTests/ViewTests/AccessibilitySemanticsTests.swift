@@ -30,17 +30,11 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     }
   }
 
-  private static func makeWindow<V: View>(_ rootView: V) throws -> UIWindow {
-    let host = UIHostingController(rootView: rootView)
-    let scene = try #require(
-      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-    )
-    let window = UIWindow(windowScene: scene)
-    window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-    window.rootViewController = host
-    window.makeKeyAndVisible()
-    host.view.layoutIfNeeded()
-    return window
+  private static func withWindow<V: View>(
+    _ rootView: V,
+    _ body: @MainActor (UIWindow) async throws -> Void
+  ) async throws {
+    try await withHostedTestWindow(TestHostingController(rootView: rootView), body)
   }
 
   private static func accessibilityElements(in root: NSObject) -> [NSObject] {
@@ -156,16 +150,16 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
     )
   )
-  func playbackProgressIsAdjustable() throws {
-    let window = try Self.makeWindow(PlayBarSheet(viewModel: PlayBarViewModel()))
-    defer { window.isHidden = true }
+  func playbackProgressIsAdjustable() async throws {
+    try await Self.withWindow(PlayBarSheet(viewModel: PlayBarViewModel())) { window in
 
-    let progress = Self.accessibilityElements(in: window)
-      .first {
-        $0.accessibilityLabel == "Playback Position"
-      }
+      let progress = Self.accessibilityElements(in: window)
+        .first {
+          $0.accessibilityLabel == "Playback Position"
+        }
 
-    #expect(progress?.accessibilityTraits.contains(.adjustable) == true)
+      #expect(progress?.accessibilityTraits.contains(.adjustable) == true)
+    }
   }
 
   @Test(
@@ -181,15 +175,15 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     Container.shared.userSettings().$showNowPlayingInUpNext.new(true)
     Container.shared.sharedState().$onDeck.new(OnDeck(from: episode))
 
-    let window = try Self.makeWindow(UpNextView(viewModel: UpNextViewModel()))
-    defer { window.isHidden = true }
+    try await Self.withWindow(UpNextView(viewModel: UpNextViewModel())) { window in
 
-    let currentEpisodeControl = Self.accessibilityElements(in: window)
-      .first {
-        $0.accessibilityLabel?.contains(title) == true && $0.accessibilityTraits.contains(.button)
-      }
+      let currentEpisodeControl = Self.accessibilityElements(in: window)
+        .first {
+          $0.accessibilityLabel?.contains(title) == true && $0.accessibilityTraits.contains(.button)
+        }
 
-    #expect(currentEpisodeControl != nil)
+      #expect(currentEpisodeControl != nil)
+    }
   }
 
   @Test(
@@ -199,20 +193,20 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
     )
   )
-  func feedbackPhotoPickerIsAnAnnouncedButton() throws {
-    let window = try Self.makeWindow(
+  func feedbackPhotoPickerIsAnAnnouncedButton() async throws {
+    try await Self.withWindow(
       NavigationStack {
         FeedbackFormView()
       }
-    )
-    defer { window.isHidden = true }
+    ) { window in
 
-    let photoPicker = Self.accessibilityElements(in: window)
-      .first {
-        $0.accessibilityLabel == "Attach Photos"
-      }
+      let photoPicker = Self.accessibilityElements(in: window)
+        .first {
+          $0.accessibilityLabel == "Attach Photos"
+        }
 
-    #expect(photoPicker?.accessibilityTraits.contains(.button) == true)
+      #expect(photoPicker?.accessibilityTraits.contains(.button) == true)
+    }
   }
 
   @Test(
@@ -222,16 +216,16 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
     )
   )
-  func settingsOverflowMenuAnnouncesMoreActions() throws {
-    let window = try Self.makeWindow(SettingsView())
-    defer { window.isHidden = true }
+  func settingsOverflowMenuAnnouncesMoreActions() async throws {
+    try await Self.withWindow(SettingsView()) { window in
 
-    let menu = Self.accessibilityElements(in: window)
-      .first {
-        $0.accessibilityLabel == "More Actions"
-      }
+      let menu = Self.accessibilityElements(in: window)
+        .first {
+          $0.accessibilityLabel == "More Actions"
+        }
 
-    #expect(menu?.accessibilityTraits.contains(.button) == true)
+      #expect(menu?.accessibilityTraits.contains(.button) == true)
+    }
   }
 
   @Test(
@@ -243,16 +237,16 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
   )
   func transcriptionQueueCapacityIsAdjustable() async throws {
     await TranscriptionHelpers.prepareAvailability()
-    let window = try Self.makeWindow(SettingsView())
-    defer { window.isHidden = true }
+    try await Self.withWindow(SettingsView()) { window in
 
-    let slider = Self.accessibilityElements(in: window)
-      .first {
-        $0.accessibilityLabel == "Maximum Transcription Queue Length"
-      }
+      let slider = Self.accessibilityElements(in: window)
+        .first {
+          $0.accessibilityLabel == "Maximum Transcription Queue Length"
+        }
 
-    #expect(slider?.accessibilityTraits.contains(.adjustable) == true)
-    #expect(slider?.accessibilityValue == "50 episodes")
+      #expect(slider?.accessibilityTraits.contains(.adjustable) == true)
+      #expect(slider?.accessibilityValue == "50 episodes")
+    }
   }
 
   @Test(
@@ -268,18 +262,18 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     try await Container.shared.transcriptionQueue().enqueue(episode.id)
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(episode))
 
-    let window = try Self.makeWindow(
+    try await Self.withWindow(
       NavigationStack {
         EpisodeDetailView(viewModel: viewModel)
       }
-    )
-    defer { window.isHidden = true }
+    ) { window in
 
-    let pauseButton = try #require(
-      Self.accessibilityElements(in: window)
-        .first { $0.accessibilityLabel == "Pause Transcription" }
-    )
-    #expect(pauseButton.accessibilityTraits.contains(.button))
+      let pauseButton = try #require(
+        Self.accessibilityElements(in: window)
+          .first { $0.accessibilityLabel == "Pause Transcription" }
+      )
+      #expect(pauseButton.accessibilityTraits.contains(.button))
+    }
   }
 
   @Test(
@@ -296,30 +290,30 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     try await queue.enqueue(episode.id)
     queue.setProgress(0.42, for: episode.id)
 
-    let window = try Self.makeWindow(
+    try await Self.withWindow(
       NavigationStack {
         TranscriptionQueueView()
       }
-    )
-    defer { window.isHidden = true }
+    ) { window in
 
-    try await Wait.until(
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains { $0.accessibilityLabel?.contains(title) == true }
-      },
-      { @MainActor in "Transcription queue row did not enter the accessibility tree" }
-    )
+      try await Wait.until(
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains { $0.accessibilityLabel?.contains(title) == true }
+        },
+        { @MainActor in "Transcription queue row did not enter the accessibility tree" }
+      )
 
-    let row = try #require(
-      Self.accessibilityElements(in: window)
-        .first { $0.accessibilityLabel?.contains(title) == true }
-    )
-    #expect(row.accessibilityValue == "Transcribing, 42 percent")
-    #expect(row.accessibilityTraits.contains(.button))
-    #expect(row.accessibilityFrame.height <= 64)
+      let row = try #require(
+        Self.accessibilityElements(in: window)
+          .first { $0.accessibilityLabel?.contains(title) == true }
+      )
+      #expect(row.accessibilityValue == "Transcribing, 42 percent")
+      #expect(row.accessibilityTraits.contains(.button))
+      #expect(row.accessibilityFrame.height <= 64)
+    }
   }
 
   @Test(
@@ -345,7 +339,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     try await queue.enqueue(longEpisode.id)
     queue.setProgress(0.5, for: shortEpisode.id)
 
-    let window = try Self.makeWindow(
+    try await Self.withWindow(
       NavigationStack {
         TranscriptionQueueView()
       }
@@ -353,85 +347,85 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       .transaction { transaction in
         transaction.disablesAnimations = true
       }
-    )
-    defer { window.isHidden = true }
+    ) { window in
 
-    try await Wait.until(
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains {
-            $0.accessibilityLabel?.contains(shortTitle) == true
-              && $0.accessibilityValue?.hasPrefix("Transcribing") == true
-          }
-      },
-      { @MainActor in "Short active transcription row did not finish loading" }
-    )
-    let shortTitleProgressY = try Self.transcriptionProgressY(
-      in: window,
-      title: shortTitle
-    )
-    let shortTitleRow = try #require(
-      Self.accessibilityElements(in: window)
-        .first { $0.accessibilityLabel?.contains(shortTitle) == true }
-    )
-    let frame = window.convert(
-      shortTitleRow.accessibilityFrame,
-      from: window.screen.coordinateSpace
-    )
-    let rendering = try Self.render(window)
-    let artworkX = Int((frame.minX + 28).rounded())
-    let backgroundX = Int((frame.minX + 62).rounded())
-    let artworkPixels =
-      (Int(frame.minY.rounded(.down))...Int(frame.maxY.rounded(.up)))
-      .filter { y in
-        guard
-          let artworkColor = rendering.color(atX: artworkX, y: y),
-          let backgroundColor = rendering.color(atX: backgroundX, y: y)
-        else { return false }
-        return abs(artworkColor.red - backgroundColor.red)
-          + abs(artworkColor.green - backgroundColor.green)
-          + abs(artworkColor.blue - backgroundColor.blue) > 30
-      }
-    let artworkTop = CGFloat(try #require(artworkPixels.first))
-    let artworkBottom = CGFloat(try #require(artworkPixels.last) + 1)
-    let topInset = artworkTop - frame.minY
-    let bottomInset = frame.maxY - artworkBottom
-    #expect(
-      abs(topInset - bottomInset) <= 2,
-      """
-      Artwork should be vertically centered in the row; found top/bottom insets \
-      \(topInset) and \(bottomInset)
-      """
-    )
+      try await Wait.until(
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains {
+              $0.accessibilityLabel?.contains(shortTitle) == true
+                && $0.accessibilityValue?.hasPrefix("Transcribing") == true
+            }
+        },
+        { @MainActor in "Short active transcription row did not finish loading" }
+      )
+      let shortTitleProgressY = try Self.transcriptionProgressY(
+        in: window,
+        title: shortTitle
+      )
+      let shortTitleRow = try #require(
+        Self.accessibilityElements(in: window)
+          .first { $0.accessibilityLabel?.contains(shortTitle) == true }
+      )
+      let frame = window.convert(
+        shortTitleRow.accessibilityFrame,
+        from: window.screen.coordinateSpace
+      )
+      let rendering = try Self.render(window)
+      let artworkX = Int((frame.minX + 28).rounded())
+      let backgroundX = Int((frame.minX + 62).rounded())
+      let artworkPixels =
+        (Int(frame.minY.rounded(.down))...Int(frame.maxY.rounded(.up)))
+        .filter { y in
+          guard
+            let artworkColor = rendering.color(atX: artworkX, y: y),
+            let backgroundColor = rendering.color(atX: backgroundX, y: y)
+          else { return false }
+          return abs(artworkColor.red - backgroundColor.red)
+            + abs(artworkColor.green - backgroundColor.green)
+            + abs(artworkColor.blue - backgroundColor.blue) > 30
+        }
+      let artworkTop = CGFloat(try #require(artworkPixels.first))
+      let artworkBottom = CGFloat(try #require(artworkPixels.last) + 1)
+      let topInset = artworkTop - frame.minY
+      let bottomInset = frame.maxY - artworkBottom
+      #expect(
+        abs(topInset - bottomInset) <= 2,
+        """
+        Artwork should be vertically centered in the row; found top/bottom insets \
+        \(topInset) and \(bottomInset)
+        """
+      )
 
-    queue.clearProgress(for: shortEpisode.id)
-    queue.setProgress(0.5, for: longEpisode.id)
-    try await Wait.until(
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains {
-            $0.accessibilityLabel?.contains(longTitle) == true
-              && $0.accessibilityValue?.hasPrefix("Transcribing") == true
-          }
-      },
-      { @MainActor in "Long active transcription row did not finish loading" }
-    )
-    let longTitleProgressY = try Self.transcriptionProgressY(
-      in: window,
-      title: longTitle
-    )
+      queue.clearProgress(for: shortEpisode.id)
+      queue.setProgress(0.5, for: longEpisode.id)
+      try await Wait.until(
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains {
+              $0.accessibilityLabel?.contains(longTitle) == true
+                && $0.accessibilityValue?.hasPrefix("Transcribing") == true
+            }
+        },
+        { @MainActor in "Long active transcription row did not finish loading" }
+      )
+      let longTitleProgressY = try Self.transcriptionProgressY(
+        in: window,
+        title: longTitle
+      )
 
-    #expect(
-      abs(shortTitleProgressY - longTitleProgressY) <= 1,
-      """
-      Progress should begin after two reserved title lines; found y positions \
-      \(shortTitleProgressY) and \(longTitleProgressY)
-      """
-    )
+      #expect(
+        abs(shortTitleProgressY - longTitleProgressY) <= 1,
+        """
+        Progress should begin after two reserved title lines; found y positions \
+        \(shortTitleProgressY) and \(longTitleProgressY)
+        """
+      )
+    }
   }
 
   @Test(
@@ -449,31 +443,31 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       try await queue.enqueue(episode.id)
     }
 
-    let window = try Self.makeWindow(
+    try await Self.withWindow(
       NavigationStack {
         TranscriptionQueueView()
       }
-    )
-    defer { window.isHidden = true }
+    ) { window in
 
-    try await Wait.until(
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains { $0.accessibilityLabel?.contains(titles[1]) == true }
-      },
-      { @MainActor in "Middle transcription queue row did not enter the accessibility tree" }
-    )
+      try await Wait.until(
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains { $0.accessibilityLabel?.contains(titles[1]) == true }
+        },
+        { @MainActor in "Middle transcription queue row did not enter the accessibility tree" }
+      )
 
-    let row = try #require(
-      Self.accessibilityElements(in: window)
-        .first { $0.accessibilityLabel?.contains(titles[1]) == true }
-    )
-    let actions = Set(row.accessibilityCustomActions?.map(\.name) ?? [])
-    #expect(
-      actions == ["Transcribe Now", "Move to Top", "Move to Bottom", "Remove from Queue"]
-    )
+      let row = try #require(
+        Self.accessibilityElements(in: window)
+          .first { $0.accessibilityLabel?.contains(titles[1]) == true }
+      )
+      let actions = Set(row.accessibilityCustomActions?.map(\.name) ?? [])
+      #expect(
+        actions == ["Transcribe Now", "Move to Top", "Move to Bottom", "Remove from Queue"]
+      )
+    }
   }
 
   @Test(
@@ -489,66 +483,66 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     )
     try await Container.shared.transcriptionQueue().enqueue(episode.id)
 
-    let window = try Self.makeWindow(
+    try await Self.withWindow(
       NavigationStack {
         TranscriptionQueueView()
       }
-    )
-    defer { window.isHidden = true }
+    ) { window in
 
-    try await Wait.until(
-      maxAttempts: 200,
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        let labels = Set(
-          Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
-        )
-        return labels.contains { $0.contains("Editable Transcription") }
-          && labels.contains("Edit")
-      },
-      { @MainActor in "Transcription queue and Edit button did not finish loading" }
-    )
+      try await Wait.until(
+        maxAttempts: 200,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          let labels = Set(
+            Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+          )
+          return labels.contains { $0.contains("Editable Transcription") }
+            && labels.contains("Edit")
+        },
+        { @MainActor in "Transcription queue and Edit button did not finish loading" }
+      )
 
-    let editButton = try #require(
-      Self.accessibilityElements(in: window)
-        .first { $0.accessibilityLabel == "Edit" }
-    )
-    #expect(editButton.accessibilityActivate())
+      let editButton = try #require(
+        Self.accessibilityElements(in: window)
+          .first { $0.accessibilityLabel == "Edit" }
+      )
+      #expect(editButton.accessibilityActivate())
 
-    try await Wait.until(
-      maxAttempts: 100,
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        let labels = Set(
-          Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
-        )
-        return labels.contains("Selection Actions") && labels.contains("Select")
-      },
-      { @MainActor in "Edit did not expose the thumbnail selector and selection menu" }
-    )
+      try await Wait.until(
+        maxAttempts: 100,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          let labels = Set(
+            Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+          )
+          return labels.contains("Selection Actions") && labels.contains("Select")
+        },
+        { @MainActor in "Edit did not expose the thumbnail selector and selection menu" }
+      )
 
-    let selectButton = try #require(
-      Self.accessibilityElements(in: window)
-        .first {
-          $0.accessibilityLabel == "Select" && $0.accessibilityTraits.contains(.button)
-        }
-    )
-    #expect(selectButton.accessibilityActivate())
+      let selectButton = try #require(
+        Self.accessibilityElements(in: window)
+          .first {
+            $0.accessibilityLabel == "Select" && $0.accessibilityTraits.contains(.button)
+          }
+      )
+      #expect(selectButton.accessibilityActivate())
 
-    try await Wait.until(
-      maxAttempts: 100,
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        let labels = Set(
-          Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
-        )
-        return labels.contains("Deselect") && labels.contains("More Actions")
-      },
-      { @MainActor in "Selecting a thumbnail did not expose the bulk actions menu" }
-    )
+      try await Wait.until(
+        maxAttempts: 100,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          let labels = Set(
+            Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+          )
+          return labels.contains("Deselect") && labels.contains("More Actions")
+        },
+        { @MainActor in "Selecting a thumbnail did not expose the bulk actions menu" }
+      )
+    }
   }
 
   @Test(
@@ -576,189 +570,189 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
           displayOrder: 0
         )
       )
-    let window = try Self.makeWindow(
+    try await Self.withWindow(
       NavigationStack {
         EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
       }
-    )
-    defer { window.isHidden = true }
+    ) { window in
 
-    try await Wait.until(
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains { $0.accessibilityLabel?.contains(oldTitle) == true }
-      },
-      { @MainActor in "Already-seen episode did not enter the accessibility tree" }
-    )
-
-    let newTitle = "Arrived While Viewing"
-    let secondNewTitle = "Latest Session Addition"
-    _ = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [
-          try Create.unsavedEpisode(title: newTitle, pubDate: pubDate),
-          try Create.unsavedEpisode(title: secondNewTitle, pubDate: pubDate),
-        ]
+      try await Wait.until(
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains { $0.accessibilityLabel?.contains(oldTitle) == true }
+        },
+        { @MainActor in "Already-seen episode did not enter the accessibility tree" }
       )
-    )
 
-    try await Wait.until(
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        let rows = Self.accessibilityElements(in: window)
-        return rows.contains { $0.accessibilityLabel?.contains(newTitle) == true }
-          && rows.contains { $0.accessibilityLabel?.contains(secondNewTitle) == true }
-      },
-      { @MainActor in "New episodes did not enter the accessibility tree" }
-    )
-
-    let rows = Self.accessibilityElements(in: window)
-    let oldRow = try #require(rows.first { $0.accessibilityLabel?.contains(oldTitle) == true })
-    let newRow = try #require(rows.first { $0.accessibilityLabel?.contains(newTitle) == true })
-    let oldValue = try #require(oldRow.accessibilityValue)
-    let newValue = try #require(newRow.accessibilityValue)
-    #expect(newValue == oldValue)
-
-    let oldStatuses = Self.accessibilityCustomContent(in: oldRow)
-      .filter { $0.label == "Status" }
-    let newStatuses = Self.accessibilityCustomContent(in: newRow)
-      .filter { $0.label == "Status" }
-    #expect(oldStatuses.isEmpty)
-    let newStatus = try #require(newStatuses.first)
-    #expect(newStatus.value == "New")
-    #expect(newStatus.importance == .high)
-
-    let layoutWindow = try Self.makeWindow(
-      NavigationStack {
-        EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
-      }
-      .preferredColorScheme(.dark)
-      .transaction { transaction in
-        transaction.disablesAnimations = true
-      }
-      .environment(\.dynamicTypeSize, .xxxLarge)
-    )
-    defer { layoutWindow.isHidden = true }
-    try await Wait.until(
-      { @MainActor in
-        layoutWindow.rootViewController?.view.setNeedsLayout()
-        layoutWindow.rootViewController?.view.layoutIfNeeded()
-        let layoutRows = Self.accessibilityElements(in: layoutWindow)
-        return layoutRows.contains {
-          $0.accessibilityLabel?.contains(oldTitle) == true
-        }
-          && layoutRows.contains {
-            $0.accessibilityLabel?.contains(newTitle) == true
-          }
-          && layoutRows.contains {
-            $0.accessibilityLabel?.contains(secondNewTitle) == true
-          }
-      },
-      { @MainActor in "All episode rows did not enter the static accessibility tree" }
-    )
-    let layoutRows = Self.accessibilityElements(in: layoutWindow)
-    let layoutOldRow = try #require(
-      layoutRows.first { $0.accessibilityLabel?.contains(oldTitle) == true }
-    )
-    let layoutNewRows = try [newTitle, secondNewTitle]
-      .map { title in
-        try #require(
-          layoutRows.first { $0.accessibilityLabel?.contains(title) == true }
+      let newTitle = "Arrived While Viewing"
+      let secondNewTitle = "Latest Session Addition"
+      _ = try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(),
+          unsavedEpisodes: [
+            try Create.unsavedEpisode(title: newTitle, pubDate: pubDate),
+            try Create.unsavedEpisode(title: secondNewTitle, pubDate: pubDate),
+          ]
         )
-      }
-    let oldFrame = layoutWindow.convert(
-      layoutOldRow.accessibilityFrame,
-      from: layoutWindow.screen.coordinateSpace
-    )
-    let newFrames =
-      layoutNewRows
-      .map {
-        layoutWindow.convert(
-          $0.accessibilityFrame,
+      )
+
+      try await Wait.until(
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          let rows = Self.accessibilityElements(in: window)
+          return rows.contains { $0.accessibilityLabel?.contains(newTitle) == true }
+            && rows.contains { $0.accessibilityLabel?.contains(secondNewTitle) == true }
+        },
+        { @MainActor in "New episodes did not enter the accessibility tree" }
+      )
+
+      let rows = Self.accessibilityElements(in: window)
+      let oldRow = try #require(rows.first { $0.accessibilityLabel?.contains(oldTitle) == true })
+      let newRow = try #require(rows.first { $0.accessibilityLabel?.contains(newTitle) == true })
+      let oldValue = try #require(oldRow.accessibilityValue)
+      let newValue = try #require(newRow.accessibilityValue)
+      #expect(newValue == oldValue)
+
+      let oldStatuses = Self.accessibilityCustomContent(in: oldRow)
+        .filter { $0.label == "Status" }
+      let newStatuses = Self.accessibilityCustomContent(in: newRow)
+        .filter { $0.label == "Status" }
+      #expect(oldStatuses.isEmpty)
+      let newStatus = try #require(newStatuses.first)
+      #expect(newStatus.value == "New")
+      #expect(newStatus.importance == .high)
+
+      try await Self.withWindow(
+        NavigationStack {
+          EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
+        }
+        .preferredColorScheme(.dark)
+        .transaction { transaction in
+          transaction.disablesAnimations = true
+        }
+        .environment(\.dynamicTypeSize, .xxxLarge)
+      ) { layoutWindow in
+        try await Wait.until(
+          { @MainActor in
+            layoutWindow.rootViewController?.view.setNeedsLayout()
+            layoutWindow.rootViewController?.view.layoutIfNeeded()
+            let layoutRows = Self.accessibilityElements(in: layoutWindow)
+            return layoutRows.contains {
+              $0.accessibilityLabel?.contains(oldTitle) == true
+            }
+              && layoutRows.contains {
+                $0.accessibilityLabel?.contains(newTitle) == true
+              }
+              && layoutRows.contains {
+                $0.accessibilityLabel?.contains(secondNewTitle) == true
+              }
+          },
+          { @MainActor in "All episode rows did not enter the static accessibility tree" }
+        )
+        let layoutRows = Self.accessibilityElements(in: layoutWindow)
+        let layoutOldRow = try #require(
+          layoutRows.first { $0.accessibilityLabel?.contains(oldTitle) == true }
+        )
+        let layoutNewRows = try [newTitle, secondNewTitle]
+          .map { title in
+            try #require(
+              layoutRows.first { $0.accessibilityLabel?.contains(title) == true }
+            )
+          }
+        let oldFrame = layoutWindow.convert(
+          layoutOldRow.accessibilityFrame,
           from: layoutWindow.screen.coordinateSpace
         )
-      }
-      .sorted { $0.minY < $1.minY }
-    let firstNewFrame = try #require(newFrames.first)
-    let secondNewFrame = try #require(newFrames.last)
-    let oldY = Int((oldFrame.minY + 8).rounded())
-    let newY = Int((firstNewFrame.minY + 8).rounded())
-    let leadingX = Int(min(oldFrame.minX, firstNewFrame.minX).rounded(.up)) + 8
-    let trailingX = Int(max(oldFrame.maxX, firstNewFrame.maxX).rounded(.down)) - 9
-    var leadingDifference = 0
-    var trailingDifference = 0
-    var verticalGap = 0
-    try await Wait.until(
-      { @MainActor in
-        layoutWindow.rootViewController?.view.setNeedsLayout()
-        layoutWindow.rootViewController?.view.layoutIfNeeded()
-        let rendering = try Self.render(layoutWindow)
-        leadingDifference =
-          Self.colorDistance(
-            atX: leadingX,
-            between: oldY,
-            and: newY,
-            in: rendering
-          ) ?? 0
-        trailingDifference =
-          Self.colorDistance(
-            atX: trailingX,
-            between: oldY,
-            and: newY,
-            in: rendering
-          ) ?? 0
-        let boundaryY = Int(
-          ((firstNewFrame.maxY + secondNewFrame.minY) / 2).rounded()
+        let newFrames =
+          layoutNewRows
+          .map {
+            layoutWindow.convert(
+              $0.accessibilityFrame,
+              from: layoutWindow.screen.coordinateSpace
+            )
+          }
+          .sorted { $0.minY < $1.minY }
+        let firstNewFrame = try #require(newFrames.first)
+        let secondNewFrame = try #require(newFrames.last)
+        let oldY = Int((oldFrame.minY + 8).rounded())
+        let newY = Int((firstNewFrame.minY + 8).rounded())
+        let leadingX = Int(min(oldFrame.minX, firstNewFrame.minX).rounded(.up)) + 8
+        let trailingX = Int(max(oldFrame.maxX, firstNewFrame.maxX).rounded(.down)) - 9
+        var leadingDifference = 0
+        var trailingDifference = 0
+        var verticalGap = 0
+        try await Wait.until(
+          { @MainActor in
+            layoutWindow.rootViewController?.view.setNeedsLayout()
+            layoutWindow.rootViewController?.view.layoutIfNeeded()
+            let rendering = try Self.render(layoutWindow)
+            leadingDifference =
+              Self.colorDistance(
+                atX: leadingX,
+                between: oldY,
+                and: newY,
+                in: rendering
+              ) ?? 0
+            trailingDifference =
+              Self.colorDistance(
+                atX: trailingX,
+                between: oldY,
+                and: newY,
+                in: rendering
+              ) ?? 0
+            let boundaryY = Int(
+              ((firstNewFrame.maxY + secondNewFrame.minY) / 2).rounded()
+            )
+            let firstHighlightedY =
+              (Int(firstNewFrame.minY.rounded(.down))...boundaryY)
+              .last {
+                Self.colorDistance(
+                  atX: leadingX,
+                  between: oldY,
+                  and: $0,
+                  in: rendering
+                ) ?? 0 > 12
+              }
+            let secondHighlightedY =
+              (boundaryY...Int(secondNewFrame.maxY.rounded(.up)))
+              .first {
+                Self.colorDistance(
+                  atX: leadingX,
+                  between: oldY,
+                  and: $0,
+                  in: rendering
+                ) ?? 0 > 12
+              }
+            if let firstHighlightedY, let secondHighlightedY {
+              verticalGap = secondHighlightedY - firstHighlightedY - 1
+            }
+            return leadingDifference > 12 && trailingDifference > 12 && verticalGap > 0
+          },
+          { @MainActor in
+            """
+            Highlight rendering did not stabilize; color differences were \
+            \(leadingDifference)/\(trailingDifference), vertical gap \(verticalGap), \
+            old frame \(oldFrame), new frames \(newFrames), \
+            sample x \(leadingX)/\(trailingX), y \(oldY)/\(newY)
+            """
+          }
         )
-        let firstHighlightedY =
-          (Int(firstNewFrame.minY.rounded(.down))...boundaryY)
-          .last {
-            Self.colorDistance(
-              atX: leadingX,
-              between: oldY,
-              and: $0,
-              in: rendering
-            ) ?? 0 > 12
-          }
-        let secondHighlightedY =
-          (boundaryY...Int(secondNewFrame.maxY.rounded(.up)))
-          .first {
-            Self.colorDistance(
-              atX: leadingX,
-              between: oldY,
-              and: $0,
-              in: rendering
-            ) ?? 0 > 12
-          }
-        if let firstHighlightedY, let secondHighlightedY {
-          verticalGap = secondHighlightedY - firstHighlightedY - 1
-        }
-        return leadingDifference > 12 && trailingDifference > 12 && verticalGap > 0
-      },
-      { @MainActor in
-        """
-        Highlight rendering did not stabilize; color differences were \
-        \(leadingDifference)/\(trailingDifference), vertical gap \(verticalGap), \
-        old frame \(oldFrame), new frames \(newFrames), \
-        sample x \(leadingX)/\(trailingX), y \(oldY)/\(newY)
-        """
+        #expect(
+          leadingDifference >= 90 && trailingDifference >= 90,
+          """
+          Highlight was too subtle at the row edges; color differences were \
+          \(leadingDifference)/\(trailingDifference)
+          """
+        )
+        #expect(
+          verticalGap >= 5,
+          "Highlighted rows should have at least five rendered pixels between them, found \(verticalGap)"
+        )
       }
-    )
-    #expect(
-      leadingDifference >= 90 && trailingDifference >= 90,
-      """
-      Highlight was too subtle at the row edges; color differences were \
-      \(leadingDifference)/\(trailingDifference)
-      """
-    )
-    #expect(
-      verticalGap >= 5,
-      "Highlighted rows should have at least five rendered pixels between them, found \(verticalGap)"
-    )
+    }
   }
 
   @Test(
@@ -787,88 +781,88 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
           showUnreadBadge: false
         )
       )
-    let window = try Self.makeWindow(
+    try await Self.withWindow(
       NavigationStack {
         EpisodesListView(viewModel: EpisodesListViewModel(smartList: smartList))
       }
       .transaction { transaction in
         transaction.disablesAnimations = true
       }
-    )
-    defer { window.isHidden = true }
+    ) { window in
 
-    try await Wait.until(
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains { $0.accessibilityLabel?.contains(oldTitle) == true }
-      },
-      { @MainActor in "Already-seen episode did not enter the accessibility tree" }
-    )
-
-    let newTitle = "New Without Highlight"
-    _ = try await repo.insertSeries(
-      UnsavedPodcastSeries(
-        unsavedPodcast: try Create.unsavedPodcast(),
-        unsavedEpisodes: [try Create.unsavedEpisode(title: newTitle, pubDate: pubDate)]
+      try await Wait.until(
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains { $0.accessibilityLabel?.contains(oldTitle) == true }
+        },
+        { @MainActor in "Already-seen episode did not enter the accessibility tree" }
       )
-    )
 
-    try await Wait.until(
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains { $0.accessibilityLabel?.contains(newTitle) == true }
-      },
-      { @MainActor in "New episode did not enter the accessibility tree" }
-    )
+      let newTitle = "New Without Highlight"
+      _ = try await repo.insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(),
+          unsavedEpisodes: [try Create.unsavedEpisode(title: newTitle, pubDate: pubDate)]
+        )
+      )
 
-    let rows = Self.accessibilityElements(in: window)
-    let oldRow = try #require(rows.first { $0.accessibilityLabel?.contains(oldTitle) == true })
-    let newRow = try #require(rows.first { $0.accessibilityLabel?.contains(newTitle) == true })
-    let oldStatuses = Self.accessibilityCustomContent(in: oldRow)
-      .filter { $0.label == "Status" }
-    let newStatuses = Self.accessibilityCustomContent(in: newRow)
-      .filter { $0.label == "Status" }
-    #expect(oldStatuses.isEmpty)
-    #expect(newStatuses.isEmpty)
+      try await Wait.until(
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains { $0.accessibilityLabel?.contains(newTitle) == true }
+        },
+        { @MainActor in "New episode did not enter the accessibility tree" }
+      )
 
-    let oldFrame = window.convert(
-      oldRow.accessibilityFrame,
-      from: window.screen.coordinateSpace
-    )
-    let newFrame = window.convert(
-      newRow.accessibilityFrame,
-      from: window.screen.coordinateSpace
-    )
-    let oldY = Int((oldFrame.minY + 8).rounded())
-    let newY = Int((newFrame.minY + 8).rounded())
-    let leadingX = Int(min(oldFrame.minX, newFrame.minX).rounded(.up)) + 8
-    let trailingX = Int(max(oldFrame.maxX, newFrame.maxX).rounded(.down)) - 9
-    let rendering = try Self.render(window)
-    let leadingDifference =
-      Self.colorDistance(
-        atX: leadingX,
-        between: oldY,
-        and: newY,
-        in: rendering
-      ) ?? 0
-    let trailingDifference =
-      Self.colorDistance(
-        atX: trailingX,
-        between: oldY,
-        and: newY,
-        in: rendering
-      ) ?? 0
-    #expect(
-      leadingDifference <= 12 && trailingDifference <= 12,
-      """
-      Rows without unread badges should share the same background; color differences were \
-      \(leadingDifference)/\(trailingDifference)
-      """
-    )
+      let rows = Self.accessibilityElements(in: window)
+      let oldRow = try #require(rows.first { $0.accessibilityLabel?.contains(oldTitle) == true })
+      let newRow = try #require(rows.first { $0.accessibilityLabel?.contains(newTitle) == true })
+      let oldStatuses = Self.accessibilityCustomContent(in: oldRow)
+        .filter { $0.label == "Status" }
+      let newStatuses = Self.accessibilityCustomContent(in: newRow)
+        .filter { $0.label == "Status" }
+      #expect(oldStatuses.isEmpty)
+      #expect(newStatuses.isEmpty)
+
+      let oldFrame = window.convert(
+        oldRow.accessibilityFrame,
+        from: window.screen.coordinateSpace
+      )
+      let newFrame = window.convert(
+        newRow.accessibilityFrame,
+        from: window.screen.coordinateSpace
+      )
+      let oldY = Int((oldFrame.minY + 8).rounded())
+      let newY = Int((newFrame.minY + 8).rounded())
+      let leadingX = Int(min(oldFrame.minX, newFrame.minX).rounded(.up)) + 8
+      let trailingX = Int(max(oldFrame.maxX, newFrame.maxX).rounded(.down)) - 9
+      let rendering = try Self.render(window)
+      let leadingDifference =
+        Self.colorDistance(
+          atX: leadingX,
+          between: oldY,
+          and: newY,
+          in: rendering
+        ) ?? 0
+      let trailingDifference =
+        Self.colorDistance(
+          atX: trailingX,
+          between: oldY,
+          and: newY,
+          in: rendering
+        ) ?? 0
+      #expect(
+        leadingDifference <= 12 && trailingDifference <= 12,
+        """
+        Rows without unread badges should share the same background; color differences were \
+        \(leadingDifference)/\(trailingDifference)
+        """
+      )
+    }
   }
 
   @Test(
@@ -907,37 +901,37 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
     triggerLabel: String,
     overlayLabels: Set<String>
   ) async throws {
-    let window = try Self.makeWindow(rootView)
-    defer { window.isHidden = true }
+    try await Self.withWindow(rootView) { window in
 
-    try await Wait.until(
-      maxAttempts: 100,
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        return Self.accessibilityElements(in: window)
-          .contains {
-            $0.accessibilityLabel == triggerLabel
-          }
-      },
-      { @MainActor in "Artwork trigger did not enter the accessibility tree" }
-    )
-    let trigger = try #require(
-      Self.accessibilityElements(in: window).first { $0.accessibilityLabel == triggerLabel }
-    )
-    #expect(trigger.accessibilityActivate())
+      try await Wait.until(
+        maxAttempts: 100,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains {
+              $0.accessibilityLabel == triggerLabel
+            }
+        },
+        { @MainActor in "Artwork trigger did not enter the accessibility tree" }
+      )
+      let trigger = try #require(
+        Self.accessibilityElements(in: window).first { $0.accessibilityLabel == triggerLabel }
+      )
+      #expect(trigger.accessibilityActivate())
 
-    try await Wait.until(
-      maxAttempts: 100,
-      { @MainActor in
-        window.rootViewController?.view.setNeedsLayout()
-        window.rootViewController?.view.layoutIfNeeded()
-        let elements = Self.accessibilityElements(in: window)
-        return elements.contains { overlayLabels.contains($0.accessibilityLabel ?? "") }
-          && !elements.contains { $0.accessibilityLabel == triggerLabel }
-      },
-      { @MainActor in "Artwork overlay did not isolate the covered detail content" }
-    )
+      try await Wait.until(
+        maxAttempts: 100,
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          let elements = Self.accessibilityElements(in: window)
+          return elements.contains { overlayLabels.contains($0.accessibilityLabel ?? "") }
+            && !elements.contains { $0.accessibilityLabel == triggerLabel }
+        },
+        { @MainActor in "Artwork overlay did not isolate the covered detail content" }
+      )
+    }
   }
 
   @Test("seek actions include their configured interval")

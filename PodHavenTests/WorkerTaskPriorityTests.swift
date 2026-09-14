@@ -30,27 +30,13 @@ struct WorkerTaskPriorityTests {
     }
   }
 
-  enum PriorityOverride: CaseIterable, Sendable {
-    case unchanged
-    case high
-    case inherit
-
-    func resolve(_ requested: TaskPriority?) -> TaskPriority? {
-      switch self {
-      case .unchanged: requested
-      case .high: .high
-      case .inherit: nil
-      }
-    }
-  }
-
   @Test(
-    "OS grants request each process policy and apply the injected priority to execution",
+    "OS grants request each process priority and complete its work",
     .timeLimit(.minutes(5)),
-    arguments: Process.allCases,
-    PriorityOverride.allCases
+    arguments: Process.allCases
   )
-  func backgroundExecution(process: Process, override: PriorityOverride) async throws {
+  func backgroundExecution(process: Process) async throws {
+    _ = Container.shared.appDB()
     let fake = try #require(Container.shared.bgTaskScheduler() as? FakeBGTaskScheduler)
     process.register()
     let requests = ThreadSafe<[TaskPriority?]>([])
@@ -58,11 +44,11 @@ struct WorkerTaskPriorityTests {
       .context(.test) {
         { requested in
           requests { $0.append(requested) }
-          return override.resolve(requested)
+          return nil
         }
       }
       .reset(.scope)
-    let expectedPriority = override.resolve(process.priority) ?? Task.currentPriority
+    let expectedPriority = Task.currentPriority
     let task = try #require(
       fake.launchTask(withIdentifier: "\(AppInfo.bundleIdentifier).\(process.rawValue)")
     )

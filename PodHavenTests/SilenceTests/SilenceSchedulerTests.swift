@@ -14,16 +14,16 @@ struct SilenceSchedulerTests {
 
   private func cache(
     _ episode: PodcastEpisode,
-    playable: Bool,
-    fixtureName: String = "silence-mono-vbr"
+    playable: Bool
   ) async throws -> URL {
-    let task = try await CacheHelpers.downloadToCache(episode.id)
-    try await CacheHelpers.simulateBackgroundFinish(task)
-    let url = try await CacheHelpers.waitForCached(episode.id).rawValue
+    let filename = UUID().uuidString + ".mp3"
+    let url = CacheManager.resolveCachedFilepath(for: filename).rawValue
+    try await Container.shared.fileManager().writeData(Data(), to: url)
+    try await Container.shared.repo().updateCachedFilename(episode.id, cachedFilename: filename)
     if playable {
       let fixture = try #require(
         Bundle(for: SilenceSchedulerBundle.self)
-          .url(forResource: fixtureName, withExtension: "mp3")
+          .url(forResource: "silence-priority", withExtension: "mp3")
       )
       try FileManager.default.createDirectory(
         at: url.deletingLastPathComponent(),
@@ -35,14 +35,17 @@ struct SilenceSchedulerTests {
   }
 
   @Test(
-    "foreground analysis requests background priority and applies the injected priority",
+    "foreground worker requests background priority and applies the injected priority",
     .timeLimit(.minutes(5)),
     arguments: [TaskPriority.background, .high]
   )
   func foregroundTaskPriority(priority: TaskPriority) async throws {
     let episode = try await Create.podcastEpisode()
-    let url = try await cache(episode, playable: true, fixtureName: "silence-priority")
-    defer { try? FileManager.default.removeItem(at: url) }
+    let url = try await cache(episode, playable: false)
+    let store = Container.shared.silenceStore()
+    let content = try #require(try await store.content(for: url.lastPathComponent))
+    let map = SilenceMap(duration: 1, intervals: [])
+    #expect(try await store.publish(map, for: content))
     Container.shared.userSettings().$silenceMode.new(.balanced)
     let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler
     let processor = Container.shared.silenceProcessor()
@@ -62,21 +65,26 @@ struct SilenceSchedulerTests {
         }
       }
       .reset(.scope)
-    let analysisFinished = AsyncLatch<LogCapture.Captured>()
+    let workerFinished = AsyncLatch<LogCapture.Captured>()
     let completed = try await LogCapture.withSink(
       onCapture: { entry in
-        if entry.message.contains("Silence analysis file=") { analysisFinished.open(entry) }
+        if entry.message.contains("event=silenceRunFinished")
+          && entry.message.contains("mode=foreground")
+        {
+          workerFinished.open(entry)
+        }
       }
     ) { _ in
       processor.handleScenePhaseChange(to: .active)
-      return try await analysisFinished.wait()
+      return try await workerFinished.wait()
     }
     #expect(!requests().isEmpty)
     #expect(requests().allSatisfy { $0 == .background })
     #expect(completed.taskBasePriority == priority)
-    #expect(completed.message.contains("published=true"))
+    #expect(completed.message.contains("outcome=completed"))
+    #expect(completed.message.contains("completedFiles=0"))
     #expect(
-      try await Container.shared.silenceStore().content(for: url.lastPathComponent)?.map != nil
+      try await store.content(for: url.lastPathComponent)?.map == map
     )
   }
 

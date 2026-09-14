@@ -40,6 +40,52 @@ struct BackgroundTaskSchedulerTests {
     fake.setPendingIdentifiers([])
   }
 
+  enum PriorityOverride: CaseIterable, Sendable {
+    case unchanged
+    case high
+    case inherit
+
+    func resolve(_ requested: TaskPriority?) -> TaskPriority? {
+      switch self {
+      case .unchanged: requested
+      case .high: .high
+      case .inherit: nil
+      }
+    }
+  }
+
+  @Test(
+    "execution applies each requested priority and injected override",
+    .timeLimit(.minutes(5)),
+    arguments: [TaskPriority.background, .utility],
+    PriorityOverride.allCases
+  )
+  func executionPriority(priority: TaskPriority, override: PriorityOverride) async throws {
+    let requests = ThreadSafe<[TaskPriority?]>([])
+    Container.shared.taskPriority
+      .context(.test) {
+        { requested in
+          requests { $0.append(requested) }
+          return override.resolve(requested)
+        }
+      }
+      .reset(.scope)
+    let scheduler = BackgroundTaskScheduler(
+      identifier: Self.testIdentifier,
+      cadence: .hours(1),
+      taskType: .appRefresh,
+      executionPriority: priority
+    )
+    scheduler.register { complete in complete(true) }
+    let expectedPriority = override.resolve(priority) ?? Task.currentPriority
+    let task = try #require(fake.launchTask(withIdentifier: Self.testIdentifier))
+    defer { task.expire() }
+    try await task.completed.wait()
+    #expect(requests() == [priority])
+    #expect(task.completionResults == [true])
+    #expect(task.completionBasePriorities == [expectedPriority])
+  }
+
   // MARK: - Register
 
   @Test("register calls BGTaskScheduler.register with the correct identifier")

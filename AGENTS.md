@@ -77,12 +77,15 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
+- Required CI must always validate the latest commit being proposed for merge or release. For a PR, test its current head integrated with the target branch. Every new commit requires fresh CI; results from an older or superseded revision cannot establish acceptance.
+- Never replace the required CI checkout with a historical revision, copy selected current files onto old source, or use historical experiment results as the PR's validation. Run historical reproductions separately and label them as diagnostic experiments. Record the exact tested revision and verify it matches the intended current revision.
 - Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`).
 - Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.
 - `@Suite("...", .container)` isolates Factory injected state per-test; supporting full test concurrency. Do not use `.serialized`.
 - Every functional change requires a regression test proven failing before the implementation and passing afterward; if it passes before and after, it does not prove the changed behavior.
 - Default local test runs to My Mac (Designed for iPhone): `-destination 'platform=macOS,name=My Mac'`.
 - Always pass `-hideShellScriptEnvironment` to `xcodebuild`; the shared scheme pre-action otherwise prints inherited environment values into raw logs.
+- Pass `LM_FORCE_LINK_GENERATION=YES` to Swift test builds so Xcode completes App Intents metadata extraction for dynamic packages instead of warning that it skipped them. Keep extraction and warning reporting enabled. Validate both the result bundle and raw log with `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`; add `--full` for the complete suite.
 - Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
 - Async tests use `Wait.until`, `Wait.forValue`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
 - All Swift test files belong to `PodHavenTests`. Repository tooling tests live in `bin/tests`.
