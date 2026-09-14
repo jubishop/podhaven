@@ -37,10 +37,14 @@ settings when adapting setup; remove an obsolete QMD-only file.
 
 ## Runtime and toolchain versions
 
-The application requirements are Xcode 26 or later and Swift 6.2 or later,
+The application requires stable Xcode 27.0 and Swift 6.4,
 as declared in the [README](../README.md#prerequisites). The macro package
 also declares its minimum Swift tools version in `PodHavenMacros/Package.swift`.
 Keep development, CI, and release tools compatible with these requirements.
+Swift CI uses the `xcode-27` runner and selects stable Xcode `27.0`; it must
+fail when that stable toolchain is unavailable rather than use a beta or an
+older major version. Retained CI evidence includes the selected toolchain.
+The app continues to support its existing iOS deployment targets.
 Use the existing manifests and setup mechanisms instead of adding conflicting
 version declarations.
 

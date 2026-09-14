@@ -3,6 +3,7 @@
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Tagged
 
 struct UnsavedPodcastSeries: Equatable, Hashable, Identifiable, Stringable {
   var id: FeedURL { unsavedPodcast.id }

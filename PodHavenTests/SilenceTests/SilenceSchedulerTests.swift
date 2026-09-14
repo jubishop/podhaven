@@ -40,8 +40,16 @@ struct SilenceSchedulerTests {
     arguments: [TaskPriority.background, .high]
   )
   func foregroundTaskPriority(priority: TaskPriority) async throws {
+    let probeStart = ContinuousClock.now
+    print("silencePriorityProbe priority=\(priority.rawValue) phase=entered")
     let episode = try await Create.podcastEpisode()
+    print(
+      "silencePriorityProbe priority=\(priority.rawValue) phase=episodeReady elapsed=\(probeStart.duration(to: .now))"
+    )
     let url = try await cache(episode, playable: false)
+    print(
+      "silencePriorityProbe priority=\(priority.rawValue) phase=cacheReady elapsed=\(probeStart.duration(to: .now))"
+    )
     let store = Container.shared.silenceStore()
     let content = try #require(try await store.content(for: url.lastPathComponent))
     let map = SilenceMap(duration: 1, intervals: [])
@@ -49,6 +57,9 @@ struct SilenceSchedulerTests {
     Container.shared.userSettings().$silenceMode.new(.balanced)
     let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler
     let processor = Container.shared.silenceProcessor()
+    print(
+      "silencePriorityProbe priority=\(priority.rawValue) phase=fixtureReady elapsed=\(probeStart.duration(to: .now))"
+    )
     processor.register()
     defer { processor.handleScenePhaseChange(to: .background) }
     try await Wait.until(maxAttempts: 200) {
@@ -56,10 +67,16 @@ struct SilenceSchedulerTests {
     } _: {
       "No eligible silence work was observed"
     }
+    print(
+      "silencePriorityProbe priority=\(priority.rawValue) phase=eligible elapsed=\(probeStart.duration(to: .now))"
+    )
     let requests = ThreadSafe<[TaskPriority?]>([])
     Container.shared.taskPriority
       .context(.test) {
         { requested in
+          print(
+            "silencePriorityProbe priority=\(priority.rawValue) phase=priorityRequested elapsed=\(probeStart.duration(to: .now))"
+          )
           requests { $0.append(requested) }
           return priority
         }
@@ -68,6 +85,9 @@ struct SilenceSchedulerTests {
     let workerFinished = AsyncLatch<LogCapture.Captured>()
     let completed = try await LogCapture.withSink(
       onCapture: { entry in
+        print(
+          "silencePriorityProbe priority=\(priority.rawValue) phase=workerLog elapsed=\(probeStart.duration(to: .now)) basePriority=\(String(describing: entry.taskBasePriority)) label=\(entry.label) message=\(entry.message)"
+        )
         if entry.message.contains("event=silenceRunFinished")
           && entry.message.contains("mode=foreground")
         {
@@ -78,6 +98,9 @@ struct SilenceSchedulerTests {
       processor.handleScenePhaseChange(to: .active)
       return try await workerFinished.wait()
     }
+    print(
+      "silencePriorityProbe priority=\(priority.rawValue) phase=completed elapsed=\(probeStart.duration(to: .now))"
+    )
     #expect(!requests().isEmpty)
     #expect(requests().allSatisfy { $0 == .background })
     #expect(completed.taskBasePriority == priority)

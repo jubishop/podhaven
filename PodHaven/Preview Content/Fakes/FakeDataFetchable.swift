@@ -26,7 +26,7 @@ actor FakeDataFetchable: DataFetchable {
   }
 
   init(
-    defaultHandler: @escaping @Sendable DataHandler = { url in
+    defaultHandler: @escaping DataHandler = { url in
       (url.dataRepresentation, URL.response(url))
     }
   ) {

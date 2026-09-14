@@ -3,6 +3,7 @@
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Tagged
 
 struct PodcastEpisodeWithTags:
   Decodable,

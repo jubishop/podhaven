@@ -2,6 +2,7 @@
 
 import Foundation
 import GRDB
+import Tagged
 
 @dynamicMemberLookup
 struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Stringable {

@@ -12,7 +12,7 @@ concurrency:
 jobs:
   test:
     name: Run Swift Tests
-    runs-on: macos-latest
+    runs-on: xcode-27
     permissions:
       contents: read
 
@@ -32,7 +32,13 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '27.0'
+
+      - name: Record toolchain
+        run: |
+          xcodebuild -hideShellScriptEnvironment -version > ci-toolchain.txt
+          xcrun swift --version >> ci-toolchain.txt
+          cat ci-toolchain.txt
 
       - name: Lint Swift
         run: bin/lint-swift-format
@@ -87,6 +93,7 @@ jobs:
             TestResults.validation
             xcodebuild.log
             ci-revision.txt
+            ci-toolchain.txt
           retention-days: 7
           if-no-files-found: error
 

@@ -30,8 +30,8 @@ Website: [artisanalsoftware.com/podhaven](https://artisanalsoftware.com/podhaven
 
 ### Prerequisites
 
-- macOS with Xcode 26 or later
-- Swift 6.2 or later
+- macOS with stable Xcode 27.0
+- Swift 6.4 (included with Xcode 27.0)
 
 ### Installation
 
