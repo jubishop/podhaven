@@ -27,16 +27,19 @@ def checkout_state():
     revision = capture("git", "rev-parse", "HEAD")
     digest = hashlib.sha256()
     files = subprocess.check_output(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        ["git", "ls-files", "-v", "--cached", "--others", "--exclude-standard", "-z"],
         cwd=ROOT, env=TEST_ENVIRONMENT)
-    for name in sorted({part for part in files.split(b"\0") if part}):
+    entries = {part for part in files.split(b"\0") if part}
+    unchecked_paths = sorted(os.fsdecode(entry[2:]) for entry in entries
+                             if entry[:1] == b"S" or entry[:1].islower())
+    for name in sorted({entry[2:] for entry in entries}):
         path = ROOT / os.fsdecode(name)
         if not path.is_file() and not path.is_symlink():
             continue
         contents = os.fsencode(os.readlink(path)) if path.is_symlink() else path.read_bytes()
         mode = str(path.lstat().st_mode).encode()
         digest.update(name + b"\0" + mode + b"\0" + hashlib.sha256(contents).digest())
-    return {"revision": revision, "worktree_sha256": digest.hexdigest(),
+    return {"revision": revision, "worktree_sha256": digest.hexdigest(), "unchecked_paths": unchecked_paths,
             "status": capture("git", "status", "--porcelain=v1", "--untracked-files=all")}
 
 
@@ -119,6 +122,9 @@ def main():
             return 0
         report["checkout"] = checkout_state()
         if args.ensure or args.verify:
+            if report["checkout"]["unchecked_paths"]:
+                raise RuntimeError("Release validation requires clearing Git assume-unchanged and skip-worktree flags: "
+                                   + ", ".join(report["checkout"]["unchecked_paths"]))
             if report["checkout"]["status"]:
                 raise RuntimeError("Release validation requires a fully clean working tree. Commit your changes first.")
             if args.revision and report["checkout"]["revision"] != args.revision:
@@ -175,7 +181,7 @@ def main():
         if any(report["checkout_after"][key] != report["checkout"][key]
                for key in ("revision", "worktree_sha256")):
             raise RuntimeError("Checkout changed during testing; rerun bin/test-all for the final changes")
-        if args.ensure and report["checkout_after"]["status"]:
+        if args.ensure and (report["checkout_after"]["status"] or report["checkout_after"]["unchecked_paths"]):
             raise RuntimeError("Checkout is no longer clean; resolve changes and rerun bin/test-all")
         report["artifacts"] = evidence_files(output)
         report["result"] = "passed"

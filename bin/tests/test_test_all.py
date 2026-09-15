@@ -42,6 +42,8 @@ elif name == 'xcodebuild':
         pathlib.Path('source.txt').write_text('changed during tests')
     if os.environ.get('TEST_STAGE_CHECKOUT'):
         subprocess.run(['git', 'add', '.'], check=True)
+    if os.environ.get('TEST_ASSUME_CHECKOUT'):
+        subprocess.run(['git', 'update-index', '--assume-unchanged', 'source.txt'], check=True)
     if os.environ.get('TEST_BUILD_FAILURE'): sys.exit(65)
 elif name == 'xcrun' and args[:2] == ['xcresulttool', 'get']:
     if not pathlib.Path(args[args.index('--path') + 1]).is_dir(): sys.exit(1)
@@ -226,6 +228,34 @@ class TestAllTests(unittest.TestCase):
         (self.repo / "source.txt").write_text("hidden change")
         self.assertEqual(self.git("status", "--porcelain"), "")
         self.assertNotEqual(self.run_all("--verify").returncode, 0)
+
+    def test_ensure_rejects_unchecked_paths_before_running_tests(self):
+        for flag in ("assume-unchanged", "skip-worktree"):
+            with self.subTest(flag=flag):
+                self.git("update-index", "--" + flag, "source.txt")
+                try:
+                    (self.repo / "source.txt").write_text("hidden change")
+                    self.assertEqual(self.git("status", "--porcelain"), "")
+                    result = self.run_all("--ensure")
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertIn("source.txt", result.stderr)
+                    self.assertFalse((self.repo / ".cache").exists())
+                finally:
+                    (self.repo / "source.txt").write_text("original")
+                    self.git("update-index", "--no-" + flag, "source.txt")
+
+    def test_verify_rejects_development_evidence_with_unchecked_paths(self):
+        self.git("update-index", "--assume-unchanged", "source.txt")
+        (self.repo / "source.txt").write_text("hidden change")
+        self.assertEqual(self.run_all().returncode, 0)
+        result = self.run_all("--verify")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("source.txt", result.stderr)
+
+    def test_ensure_rejects_paths_marked_unchecked_during_tests(self):
+        result = self.run_all("--ensure", TEST_ASSUME_CHECKOUT="1")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(self.report()["result"], "failed")
 
     def test_preflight_does_not_run_tests_or_write_evidence(self):
         result = self.run_all("--preflight")

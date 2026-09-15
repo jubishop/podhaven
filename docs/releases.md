@@ -40,6 +40,9 @@ and successful full-suite evidence. Both recorded checkout states must match
 the current clean checkout. Logs and result-bundle files must still match their
 recorded hashes. Missing, failed, skipped, warning-producing, or stale evidence
 cannot authorize a push or fresh upload. An invalid cache requires a new full run.
+Clear any Git `assume-unchanged` or `skip-worktree` flags before using release
+evidence, then resolve any exposed edits. These flags can hide changes from
+Git's clean-checkout check, so the release gate rejects them.
 
 The suite includes My Mac hosted accessibility tests, macro tests, repository
 checks, and automated skill and tooling tests. The result-bundle and raw-log
