@@ -579,10 +579,10 @@ class V42MigrationTests {
     _ = try await populateAtV41()
     try migrator.migrate(appDB.unsafeTestDB, upTo: "v42")
 
-    let violations = try appDB.unsafeTestDB.read { db -> [Row] in
-      try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
+    let hasNoViolations = try await appDB.unsafeTestDB.read { db in
+      try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty
     }
-    #expect(violations.isEmpty)
+    #expect(hasNoViolations)
   }
 
   @Test("podcast→episode CASCADE still wired after v42 rebuild")

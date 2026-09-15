@@ -142,7 +142,7 @@ enum SilenceAnalyzer {
           CMBlockBufferGetDataLength(block) == count * channels * MemoryLayout<Float>.size
         else { throw SilenceAnalysisError.invalidAudio }
         var samples = [Float](repeating: 0, count: count * channels)
-        let status = unsafe samples.withUnsafeMutableBytes { bytes in
+        let status = samples.withUnsafeMutableBytes { bytes in
           guard let address = bytes.baseAddress else { return OSStatus(-1) }
           return unsafe CMBlockBufferCopyDataBytes(
             block,

@@ -1364,8 +1364,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/swift-collections.git";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = exactVersion;
+				version = 1.6.0;
 			};
 		};
 		8B7DAA1C2D3F1294000E9153 /* XCRemoteSwiftPackageReference "swift-tagged" */ = {

@@ -59,8 +59,9 @@ class PlaybackCoverageRepoTests {
       now: now
     )
 
-    let row = try repo.db.read { db -> Row? in
-      try Row.fetchOne(
+    let (currentTime, maxPlayback, lastPlayed, bitmap) = try await repo.db.read {
+      db -> (CMTime, CMTime, Date?, Data?) in
+      let row = try Row.fetchOne(
         db,
         Episode.withID(episode.id)
           .select(
@@ -70,12 +71,12 @@ class PlaybackCoverageRepoTests {
             Episode.Columns.playbackCoverage
           )
       )
+      let unwrapped = try #require(row)
+      return (
+        unwrapped[Episode.Columns.currentTime], unwrapped[Episode.Columns.maxPlaybackTime],
+        unwrapped[Episode.Columns.lastPlayedDate], unwrapped[Episode.Columns.playbackCoverage]
+      )
     }
-    let unwrapped = try #require(row)
-    let currentTime: CMTime = unwrapped[Episode.Columns.currentTime]
-    let maxPlayback: CMTime = unwrapped[Episode.Columns.maxPlaybackTime]
-    let lastPlayed: Date? = unwrapped[Episode.Columns.lastPlayedDate]
-    let bitmap: Data? = unwrapped[Episode.Columns.playbackCoverage]
 
     #expect(currentTime == CMTime.seconds(15))
     #expect(maxPlayback == CMTime.seconds(15))
@@ -157,13 +158,14 @@ class PlaybackCoverageRepoTests {
     let after = try await loadCoverage(for: episode.id, durationSeconds: 60)
     #expect(after?.bytes == originalBytes)
 
-    let row = try repo.db.read { db -> Row? in
-      try Row.fetchOne(
+    let currentTime = try await repo.db.read { db -> CMTime? in
+      let row = try Row.fetchOne(
         db,
         Episode.withID(episode.id).select(Episode.Columns.currentTime)
       )
+      return row?[Episode.Columns.currentTime]
     }
-    #expect((row?[Episode.Columns.currentTime] as CMTime?) == CMTime.seconds(10))
+    #expect(currentTime == CMTime.seconds(10))
   }
 
   @Test("zero-duration episode skips bitmap write but still updates currentTime")
@@ -177,16 +179,17 @@ class PlaybackCoverageRepoTests {
       now: Date()
     )
 
-    let row = try repo.db.read { db -> Row? in
-      try Row.fetchOne(
+    let (currentTime, bitmap) = try await repo.db.read { db -> (CMTime?, Data?) in
+      let row = try Row.fetchOne(
         db,
         Episode.withID(episode.id)
           .select(Episode.Columns.currentTime, Episode.Columns.playbackCoverage)
       )
+      let unwrapped = try #require(row)
+      return (unwrapped[Episode.Columns.currentTime], unwrapped[Episode.Columns.playbackCoverage])
     }
-    let unwrapped = try #require(row)
-    #expect((unwrapped[Episode.Columns.currentTime] as CMTime?) == CMTime.seconds(15))
-    #expect((unwrapped[Episode.Columns.playbackCoverage] as Data?) == nil)
+    #expect(currentTime == CMTime.seconds(15))
+    #expect(bitmap == nil)
   }
 
   @Test("missing episode returns false")
@@ -241,15 +244,16 @@ class PlaybackCoverageRepoTests {
       now: Date()
     )
 
-    let row = try repo.db.read { db -> Row? in
-      try Row.fetchOne(
+    let (currentTime, maxPlayback) = try await repo.db.read { db -> (CMTime?, CMTime?) in
+      let row = try Row.fetchOne(
         db,
         Episode.withID(episode.id)
           .select(Episode.Columns.currentTime, Episode.Columns.maxPlaybackTime)
       )
+      let unwrapped = try #require(row)
+      return (unwrapped[Episode.Columns.currentTime], unwrapped[Episode.Columns.maxPlaybackTime])
     }
-    let unwrapped = try #require(row)
-    #expect((unwrapped[Episode.Columns.currentTime] as CMTime?) == CMTime.seconds(45))
-    #expect((unwrapped[Episode.Columns.maxPlaybackTime] as CMTime?) == CMTime.seconds(120))
+    #expect(currentTime == CMTime.seconds(45))
+    #expect(maxPlayback == CMTime.seconds(120))
   }
 }

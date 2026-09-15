@@ -85,8 +85,8 @@ struct VectorMathTests {
   func addInPlaceCorrect() {
     var dest: [Float] = [1.0, 2.0, 3.0]
     let src: [Float] = [10.0, 20.0, 30.0]
-    unsafe src.withUnsafeBufferPointer { srcBuf in
-      unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    src.withUnsafeBufferPointer { srcBuf in
+      dest.withUnsafeMutableBufferPointer { destBuf in
         unsafe VectorMath.addInPlace(srcBuf, into: destBuf)
       }
     }
@@ -97,8 +97,8 @@ struct VectorMathTests {
   func scaledAddInPlaceCorrect() {
     var dest: [Float] = [1.0, 2.0, 3.0]
     let src: [Float] = [10.0, 20.0, 30.0]
-    unsafe src.withUnsafeBufferPointer { srcBuf in
-      unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    src.withUnsafeBufferPointer { srcBuf in
+      dest.withUnsafeMutableBufferPointer { destBuf in
         unsafe VectorMath.scaledAddInPlace(srcBuf, scalar: 0.5, into: destBuf)
       }
     }
@@ -110,9 +110,9 @@ struct VectorMathTests {
     let vector: [Float] = [10.0, 20.0, 30.0]
     let subtraction: [Float] = [1.0, 2.0, 3.0]
     var dest = [Float](repeating: 0, count: 3)
-    unsafe vector.withUnsafeBufferPointer { vecBuf in
-      unsafe subtraction.withUnsafeBufferPointer { subBuf in
-        unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    vector.withUnsafeBufferPointer { vecBuf in
+      subtraction.withUnsafeBufferPointer { subBuf in
+        dest.withUnsafeMutableBufferPointer { destBuf in
           unsafe VectorMath.subtract(vecBuf, subBuf, into: destBuf)
         }
       }
@@ -123,7 +123,7 @@ struct VectorMathTests {
   @Test("normalizeInPlace scales to unit length and returns prior norm")
   func normalizeInPlaceCorrect() {
     var dest: [Float] = [3.0, 4.0]
-    let norm = unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    let norm = dest.withUnsafeMutableBufferPointer { destBuf in
       unsafe VectorMath.normalizeInPlace(destBuf)
     }
     #expect(abs(norm - 5.0) < 0.0001)
@@ -134,7 +134,7 @@ struct VectorMathTests {
   @Test("normalizeInPlace returns 0 for zero vector")
   func normalizeInPlaceZero() {
     var dest: [Float] = [0.0, 0.0, 0.0]
-    let norm = unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    let norm = dest.withUnsafeMutableBufferPointer { destBuf in
       unsafe VectorMath.normalizeInPlace(destBuf)
     }
     #expect(norm == 0)
@@ -150,9 +150,9 @@ struct VectorMathTests {
     let matrix: [Float] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
     let vector: [Float] = [1, 2, 3]
     var dest = [Float](repeating: 0, count: 3)
-    unsafe matrix.withUnsafeBufferPointer { matBuf in
-      unsafe vector.withUnsafeBufferPointer { vecBuf in
-        unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    matrix.withUnsafeBufferPointer { matBuf in
+      vector.withUnsafeBufferPointer { vecBuf in
+        dest.withUnsafeMutableBufferPointer { destBuf in
           unsafe VectorMath.matrixVectorMultiply(matBuf, vecBuf, into: destBuf, dim: 3)
         }
       }
@@ -170,9 +170,9 @@ struct VectorMathTests {
     let v: [Float] = [1, 2, 3]
     var matrix = [Float](repeating: 0, count: 9)
     var scratch = [Float](repeating: 0, count: 9)
-    unsafe v.withUnsafeBufferPointer { vBuf in
-      unsafe matrix.withUnsafeMutableBufferPointer { matBuf in
-        unsafe scratch.withUnsafeMutableBufferPointer { scratchBuf in
+    v.withUnsafeBufferPointer { vBuf in
+      matrix.withUnsafeMutableBufferPointer { matBuf in
+        scratch.withUnsafeMutableBufferPointer { scratchBuf in
           unsafe VectorMath.accumulateScaledOuterProduct(
             of: vBuf,
             scalar: 2,
@@ -196,8 +196,8 @@ struct VectorMathTests {
     let a: [Float] = [1.5, 2.5, -3.0]
     let b: [Float] = [4.0, 0.5, 6.0]
     let viaArray = VectorMath.dotProduct(a, b)
-    let viaBuffer = unsafe a.withUnsafeBufferPointer { aBuf in
-      unsafe b.withUnsafeBufferPointer { bBuf in
+    let viaBuffer = a.withUnsafeBufferPointer { aBuf in
+      b.withUnsafeBufferPointer { bBuf in
         unsafe VectorMath.dotProduct(aBuf, bBuf)
       }
     }

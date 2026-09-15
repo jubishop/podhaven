@@ -7,6 +7,11 @@ Repo context lives in `memory/`, `docs/`, and GitHub issues:
 - `docs/`: PR-reviewed design docs and research; update [`docs/README.md`](docs/README.md) when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
+Keep memory, docs, and other Markdown pages focused on one topic or reader
+task. When extending a long page, review its scope and split independent
+topics into linked pages when that improves reading and maintenance. Use
+the [Markdown guidance](docs/development-workflow.md#markdown-pages), without numeric size thresholds.
+
 Use the repository's QMD helper for topic lookup:
 
 - `git knowledge search "known term"`: names, files, APIs, and exact concepts.
@@ -77,13 +82,16 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
-- Required CI must always validate the latest commit being proposed for merge or release. For a PR, test its current head integrated with the target branch. Every new commit requires fresh CI; results from an older or superseded revision cannot establish acceptance.
-- Never replace the required CI checkout with a historical revision, copy selected current files onto old source, or use historical experiment results as the PR's validation. Run historical reproductions separately and label them as diagnostic experiments. Record the exact tested revision and verify it matches the intended current revision.
+- Before any push or merge into `main`, and before a release, run `bin/test-all` locally and require all tests to pass with zero skipped tests or warnings. This applies to every change, including documentation and tooling. GitHub does not run test CI.
+- Test the exact commit being pushed. Before a PR merge into `main`, test its current head integrated with the latest `main`; verify the merge will contain that tested tree. Each new commit or change to the integration base requires a fresh full run. Retain the `bin/test-all` evidence and verify its revision and clean checkout match the proposed operation.
+- Never substitute a historical revision or copy selected current files onto old source for acceptance. Run historical reproductions separately and label them as diagnostic experiments.
+- `bin/test-all` runs the complete app suite on My Mac, macro tests, repository checks, and automated skill/tooling tests. `bin/check --full` alone does not satisfy this requirement. Live-service smoke tests remain separate; run them when their integration changes.
 - Swift Testing: follow existing fixtures (`@Suite("...", .container)`, `#expect`, `AppDB.inMemory()`, `Create`, `PodHavenTests/Fakes`).
 - Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.
 - `@Suite("...", .container)` isolates Factory injected state per-test; supporting full test concurrency. Do not use `.serialized`.
 - Every functional change requires a regression test proven failing before the implementation and passing afterward; if it passes before and after, it does not prove the changed behavior.
 - Default local test runs to My Mac (Designed for iPhone): `-destination 'platform=macOS,name=My Mac'`.
+- Run focused hosted tests through `bin/with-test-accessibility xcodebuild test ...`; `bin/test-all` includes this wrapper. The terminal or app running tests needs macOS Accessibility permission so SwiftUI exposes its controls for inspection.
 - Always pass `-hideShellScriptEnvironment` to `xcodebuild`; the shared scheme pre-action otherwise prints inherited environment values into raw logs.
 - Pass `LM_FORCE_LINK_GENERATION=YES` to Swift test builds so Xcode completes App Intents metadata extraction for dynamic packages instead of warning that it skipped them. Keep extraction and warning reporting enabled. Validate both the result bundle and raw log with `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`; add `--full` for the complete suite.
 - Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
@@ -109,7 +117,7 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## Coding Standards
 - Keep every Swift file under 1000 lines.
-- Keep files cohesive and readable. Extract meaningful responsibilities; do not compress formatting or split files arbitrarily to meet a count. For other hand-written files, use approximately 1000 lines as a review threshold. See [file organization](docs/development-workflow.md#file-organization).
+- Keep files cohesive and readable. Extract meaningful responsibilities; do not compress formatting or split files arbitrarily to meet a count. For other hand-written source, tests, and styles, use approximately 1000 lines as a review threshold. See [file organization](docs/development-workflow.md#file-organization).
 - Scope source discovery and mutable validation output to the active checkout. Exclude nested worktrees and temporary copies explicitly; Git ignore rules do not control every tool. Preserve supported dependency sharing. See [checkout isolation](docs/development-workflow.md#validation-checkout-isolation).
 - Use `@discardableResult` when ignoring the result is a supported use of the API. Otherwise, preserve unused-result warnings and allow explicit `_ =` at individual call sites when discarding the result is intentional and safe. Do not add wrappers solely to avoid `_ =`.
 

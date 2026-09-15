@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import Nuke
+import Testing
 
 @testable import PodHaven
 
@@ -58,7 +59,13 @@ extension Container: @retroactive AutoRegistering {
           )
           return false
         }
-        Task { try await fake.configure() }
+        Task {
+          do {
+            try await fake.configure()
+          } catch {
+            Issue.record(error)
+          }
+        }
         return true
       }
     }

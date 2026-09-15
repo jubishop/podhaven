@@ -12,6 +12,7 @@ struct EpisodeDetailView: View {
   }
 
   @DynamicInjected(\.alert) private var alert
+  @Environment(\.colorScheme) private var colorScheme
 
   @AccessibilityFocusState private var artworkAccessibilityFocus: ArtworkAccessibilityFocus?
   @State private var showingImageOverlay = false
@@ -156,6 +157,9 @@ struct EpisodeDetailView: View {
         (viewModel.isPlaying ? AppIcon.pauseButton : AppIcon.playButton).image
       }
       .accessibilityLabel("Episode Actions")
+      .tint(
+        (viewModel.isPlaying ? AppIcon.pauseButton : AppIcon.playButton).color(for: colorScheme)
+      )
     }
 
     ToolbarItem(placement: .primaryAction) {
@@ -179,6 +183,7 @@ struct EpisodeDetailView: View {
         AppIcon.rating(for: viewModel.episode.rating).image
       }
       .accessibilityLabel("Rate Episode")
+      .tint(AppIcon.rating(for: viewModel.episode.rating).color(for: colorScheme))
       .accessibilityValue(
         viewModel.episode.rating == nil
           ? "Not Rated" : AppIcon.rating(for: viewModel.episode.rating).text
@@ -450,7 +455,7 @@ struct EpisodeDetailView: View {
     .padding()
 }
 
-#Preview("Basic Episode") {
+#Preview("Basic Episode · Dark Toolbar") {
   NavigationStack {
     EpisodeDetailView(
       viewModel: EpisodeDetailViewModel(
@@ -482,6 +487,7 @@ struct EpisodeDetailView: View {
     )
     .preview()
   }
+  .preferredColorScheme(.dark)
 }
 
 #Preview("Long Title & Description") {

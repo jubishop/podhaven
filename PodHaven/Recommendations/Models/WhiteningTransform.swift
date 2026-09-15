@@ -25,13 +25,13 @@ struct WhiteningTransform: Sendable {
       unsafe destination.update(repeating: 0)
       return
     }
-    unsafe mean.withUnsafeBufferPointer { meanPtr in
+    mean.withUnsafeBufferPointer { meanPtr in
       unsafe VectorMath.subtract(vector, meanPtr, into: destination)
     }
     let stripCount = min(max(k, 0), principalComponents.count)
     for component in principalComponents.prefix(stripCount)
     where component.count == vector.count {
-      unsafe component.withUnsafeBufferPointer { componentPtr in
+      component.withUnsafeBufferPointer { componentPtr in
         let projection = unsafe VectorMath.dotProduct(
           UnsafeBufferPointer(destination),
           componentPtr

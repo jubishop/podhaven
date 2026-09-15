@@ -3,6 +3,7 @@
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Tagged
 
 // Full saved-series shape for callers that genuinely need every `Episode`
 // row. Detail-view callers should use `PodcastSeriesDetail` instead — it

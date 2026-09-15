@@ -2,6 +2,7 @@
 
 import Foundation
 import IdentifiedCollections
+import Tagged
 
 // MARK: - SearchCachedPodcastEntry
 

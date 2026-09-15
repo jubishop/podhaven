@@ -2,6 +2,7 @@
 
 import FactoryKit
 import SwiftUI
+import Tagged
 
 // Wrapped as a `View` (not a `@ViewBuilder` helper) so the
 // `@DynamicInjected(\.sharedState)` read participates in SwiftUI observation

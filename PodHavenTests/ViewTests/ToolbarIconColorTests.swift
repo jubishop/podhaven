@@ -8,51 +8,52 @@ import UIKit
 
 @Suite("of toolbar icon color tests", .container)
 @MainActor struct ToolbarIconColorTests {
-  private struct MenuFixture: View {
-    var body: some View {
-      NavigationStack {
-        Color.black
-          .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-              Menu {
-                Button("Action") {}
-              } label: {
-                AppIcon.pauseButton.image
-              }
-              .accessibilityLabel("Episode Actions")
-            }
+  @Test(
+    "episode toolbar menus retain their icon colors and accessibility labels",
+    arguments: [ColorScheme.light, .dark]
+  )
+  func toolbarMenusRetainTheirIconColorAndAccessibilityLabel(appearance: ColorScheme) async throws {
+    let episode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(),
+      unsavedEpisode: try Create.unsavedEpisode(rating: .loved)
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(episode))
+    let host = TestHostingController(
+      rootView: NavigationStack {
+        EpisodeDetailView(viewModel: viewModel)
+      }
+      .environment(\.colorScheme, appearance)
+    )
+    host.overrideUserInterfaceStyle = appearance == .dark ? .dark : .light
+    host.traitOverrides.activeAppearance = .active
+    try await withHostedTestWindow(host) { window in
+      for (label, icon) in [
+        ("Episode Actions", AppIcon.playButton), ("Rate Episode", .rating(for: .loved)),
+      ] {
+        try await Wait.until(
+          { @MainActor in Self.descendants(of: window).contains { $0.accessibilityLabel == label }
+          },
+          { "Toolbar accessibility label did not become available: \(label)" }
+        )
+        let toolbarControl = try #require(
+          Self.descendants(of: window).first { $0.accessibilityLabel == label }
+        )
+        let expectedColor = UIColor(icon.color(for: appearance))
+        let screenshot = UIGraphicsImageRenderer(bounds: window.bounds)
+          .image { _ in
+            _ = window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
           }
-          .toolbarRole(.editor)
-      }
-      .preferredColorScheme(.dark)
-    }
-  }
-
-  @Test("toolbar menus retain their icon color and accessibility label")
-  func toolbarMenusRetainTheirIconColorAndAccessibilityLabel() async throws {
-    let host = TestHostingController(rootView: MenuFixture())
-    try await withHostedTestWindow(host, size: CGSize(width: 390, height: 844)) { window in
-      host.view.layoutIfNeeded()
-
-      let descendants = Self.descendants(of: window)
-      let toolbarControl: UIView
-      if ProcessInfo.processInfo.isiOSAppOnMac {
-        toolbarControl = try #require(
-          descendants.first { $0.accessibilityLabel == "Episode Actions" }
-        )
-      } else {
-        let navigationBar = try #require(descendants.first { $0 is UINavigationBar })
-        toolbarControl = try #require(
-          Self.descendants(of: navigationBar)
-            .first {
-              $0 is UIControl && !$0.bounds.isEmpty
-            }
+        Attachment.record(try #require(screenshot.pngData()), named: "episode-toolbar.png")
+        try await Wait.until(
+          { @MainActor in
+            host.view.setNeedsLayout()
+            host.view.layoutIfNeeded()
+            let frame = toolbarControl.convert(toolbarControl.bounds, to: window)
+            return Self.contains(expectedColor, in: frame, rendering: window)
+          },
+          { "Toolbar menu did not render its icon color: \(label), \(appearance)" }
         )
       }
-
-      let expectedColor = UIColor(AppIcon.pauseButton.color(for: .dark))
-      let toolbarFrame = toolbarControl.convert(toolbarControl.bounds, to: window)
-      #expect(Self.contains(expectedColor, in: toolbarFrame, rendering: window))
     }
   }
 
@@ -91,7 +92,7 @@ import UIKit
     var expectedBlue: CGFloat = 0
     var expectedAlpha: CGFloat = 0
     guard
-      color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+      color.resolvedColor(with: view.traitCollection)
         .getRed(
           &expectedRed,
           green: &expectedGreen,

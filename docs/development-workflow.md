@@ -38,12 +38,17 @@ settings when adapting setup; remove an obsolete QMD-only file.
 
 ## Runtime and toolchain versions
 
-The application requirements are Xcode 26 or later and Swift 6.2 or later,
-as declared in the [README](../README.md#prerequisites). The macro package
+Local development and tests require macOS 27 or later, Xcode 27 or later,
+and Swift 6.4 or later, as declared in the [README](../README.md#prerequisites).
+The app retains its existing iOS 26 deployment target. The macro package
 also declares its minimum Swift tools version in `PodHavenMacros/Package.swift`.
 Keep development, CI, and release tools compatible with these requirements.
 Use the existing manifests and setup mechanisms instead of adding conflicting
 version declarations.
+
+Swift Collections uses release 1.6.0. Its development branch introduced a
+Swift runtime symbol that prevented the app from launching on OS 26. Keep
+dependency runtime requirements compatible with the app's deployment target.
 
 When changing application commands, reject unsupported toolchains before
 installation, tests, builds, or release work. Report the detected version,
@@ -331,6 +336,27 @@ Do not compress formatting, create numbered fragments, or move unrelated
 responsibilities into another large file to satisfy a count. Preserve the
 Swift extension rules in AGENTS.md when splitting Swift types.
 
+### Markdown pages
+
+Keep each memory, documentation, or other hand-written Markdown page focused
+on one topic or reader task. Before extending a long page, review its scope
+and remove repetition. Split it when it mixes independent topics, a section
+can be read and maintained on its own, or readers must scan unrelated material
+to find what they need. Use those signals instead of line, word, or token limits.
+
+Extract complete topics into descriptively named pages. Keep a short overview
+and links in the original page, and update indexes and incoming file or heading
+links. Keep each rule or decision in one authoritative place. Preserve its
+reasons, evidence, dates, status, and enough context to understand it on its own.
+Archive obsolete material according to the memory or docs lifecycle rules.
+
+Keep README indexes and automatically loaded instructions concise; link to
+detailed guidance instead of copying it. Headings help readers navigate a
+coherent page, but do not resolve unrelated topics accumulating in one file.
+Larger pages are acceptable when readers need the material together. Do not
+compress prose, discard useful context, or create arbitrary numbered fragments
+just to make a page shorter. Preserve generated and tool-managed record formats.
+
 ## Third-party dependencies
 
 Prefer fewer third-party dependencies. Start with standard libraries, platform
@@ -393,15 +419,52 @@ verify real worker priority and completion without waiting for audio I/O.
 Hosted view tests use `withHostedTestWindow` to perform their first layout
 inside the test's dependency context and await UIKit appearance and teardown.
 Keep views installed and preserve their rendered and accessibility assertions.
+For color assertions, set the host's color scheme and active-appearance traits
+so macOS window focus does not dim the controls being measured.
 
 ### Current-revision Swift validation
 
-Required CI tests the current PR head integrated with its target branch. The
-workflow records the tested revision and verifies the PR head is its parent.
-Each new commit requires a new run. Historical reproductions are separate
-diagnostic experiments and cannot establish acceptance of the current PR.
+Before any push or merge into `main`, and before a release, run all tests
+locally with `bin/test-all`. This includes documentation and tooling changes.
+Test the exact commit being pushed. For a PR merge, integrate its current
+head with the latest `main` in a local checkout, then test that integration.
+Verify the merge will contain the tested tree. A new commit or change to the
+integration base requires a fresh full run. Historical reproductions cannot
+establish acceptance of the current revision.
 
-Retain the `.xcresult` bundle and raw `xcodebuild` log for local and CI runs.
+`bin/test-all` runs repository checks, Python skill and helper tests, shell
+tooling tests, Swift formatting checks, macro tests, and the complete
+`PodHaven` test plan on My Mac (Designed for iPhone). My Mac also runs hosted
+UI and accessibility tests that the iOS Simulator skips. Use additional
+simulator or device checks when a change needs environment-specific coverage.
+The local run is the test gate; GitHub does not run test CI.
+
+On macOS 27, hosted SwiftUI tests need a native accessibility client to expose
+controls. `bin/test-all` starts it through `bin/with-test-accessibility`. Use
+`bin/with-test-accessibility xcodebuild test ...` for focused runs too. Grant
+Accessibility access to the terminal or app running tests in System Settings →
+Privacy & Security → Accessibility. The wrapper connects only to the PodHaven
+test host through a temporary, token-protected loopback endpoint to initialize
+inspection. Hosted control tests dispatch UIKit primary actions or activate
+SwiftUI accessibility elements inside the test's dependency context. Direct
+`Cmd+U` runs do not start this client. The wrapper also clears inherited
+`SDKROOT` so Xcode selects the SDK for the requested destination.
+
+Each attempt retains logs, its `.xcresult` bundle, diagnostic reports, and
+`run.json` under `.cache/test-all/`. The report records the revision, local
+changes, toolchain, destination, and outcome. The command permits uncommitted
+development work but rejects a checkout that changes during the run. Before
+a push or merge into `main`, require a passing report for the final clean
+revision. Do not treat an earlier dirty-worktree run as acceptance of a new
+commit. Keep the evidence until the operation is complete.
+
+The command runs automated tests with isolated service fixtures. Live Sentry
+smoke tests in `.agents/scripts/sentry-cli/test_sentry_skills.sh` and real QMD
+smoke tests remain separate because they need external credentials, current
+service data, or installed models. Run the relevant smoke tests when those
+integrations change; they do not replace the automated suite.
+
+Retain the `.xcresult` bundle and raw `xcodebuild` log for local runs.
 Pass `-hideShellScriptEnvironment` and `LM_FORCE_LINK_GENERATION=YES` to test
 builds. The latter runs App Intents extraction even when a dynamic package's
 dependency file does not list App Intents. It confirms that there are no
@@ -410,7 +473,7 @@ not suppress warnings or bypass metadata validation.
 
 Run `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`
 after focused tests, adding `--full` for the complete suite. This gate requires
-passing tests, complete priority arguments, zero build diagnostics and raw
+passing tests, zero skipped tests, complete priority arguments, zero build diagnostics and raw
 build warnings, and no framework runtime diagnostics in exported test output.
 Intentional application warning/error logs from error-path tests remain
 available and are distinct from compiler and framework diagnostics.
@@ -423,23 +486,22 @@ Choose validation by the changed files and the stage of the work:
 | --- | --- |
 | Discussion, planning, or read-only inspection | No checks. |
 | A batch of Markdown edits | `bin/check --documents-only`. |
-| Ordinary application changes | Focused Swift build and suite-level tests locally; complete required Swift validation before merge or release. |
+| Ordinary application changes | Focused Swift build and suite-level tests locally during development. |
 | Tooling edits during development | Focused tooling tests and `bin/check`. |
 | Initial setup; changes to foundation tools, hooks, configuration, tests, or CI | `bin/check --full` after the edits are complete. |
-| A tooling PR or release ready for delivery | `bin/check --full` once for the final changes. |
+| A tooling PR ready for review | `bin/check --full` once for the final changes. |
+| Any push or merge into `main`, or release | `bin/test-all` for the final clean revision, including integration with the latest `main` before a PR merge. |
 | Focused checks leave material uncertainty | Full validation for the affected application or tooling. |
 
-Require successful full validation for the code being merged or released.
-An enforced full CI gate may supply that result for ordinary application
-changes when repository requirements allow it. Pending, skipped, or failed
-runs do not satisfy the gate. Without such a gate, run the full applicable
-checks locally. Preserve the required local full tooling checks above and the
-release validation in [Versioning and releases](releases.md).
+Require successful full local validation before any push or merge into
+`main`, and before release. Pending, skipped, or failed runs do not satisfy
+the gate. Preserve the release validation in [Versioning and releases](releases.md).
 
 Batch related edits before checking. A conversational reply is not a release
-gate. Reuse a passing result while its relevant source, configuration, and
-dependencies are unchanged. Repeat a check when those inputs change or a
-failure needs verification. CI always runs the full check.
+gate. During development, reuse passing focused results while their relevant
+inputs are unchanged. The full gate requires evidence for the final revision
+and integration base. Repeat a check when its inputs change or a failure
+needs verification.
 
 `bin/check --documents-only` validates the documented frontmatter subset,
 index coverage, local file links, and ordinary heading anchors.
@@ -455,17 +517,18 @@ network access. Remote URLs are not fetched by foundation checks.
 
 All modes also verify the generated active-memory index. Keep the
 existing Swift build and test requirements for application changes.
-A Markdown or tooling edit does not require building the Swift app.
+A Markdown or tooling edit does not require building the Swift app during
+development. The full gate still applies before pushing or merging into
+`main`, and before release.
 
 Keep the foundation checks when adding application tests, builds, and linters.
 For generated or externally owned docs, add deliberate patterns to
 `checks.exclude` in `.config/knowledge.json`. Avoid broad exclusions that hide
 hand-written project knowledge.
 
-The [Python Tests workflow](../.github/workflows/python-tests.yml) runs
-`bin/check --full` in addition to the existing skill tests. The
-[Swift Tests workflow](../.github/workflows/swift-tests.yml) runs application
-validation separately. `bin/tests` covers the knowledge worker, cache ownership and artifact
+`bin/test-all` includes `bin/check --full` and the separate application,
+macro, skill, and shell tests. `bin/check --full` alone is not a full test run.
+`bin/tests` covers the knowledge worker, cache ownership and artifact
 repair, and audit publication gates. `bin/smoke-knowledge --models <existing-model-directory>`
 checks real QMD retrieval and linked-worktree isolation in disposable repositories.
 It reuses existing models and does not publish changes.

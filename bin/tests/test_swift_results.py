@@ -30,6 +30,11 @@ class SwiftResultTests(unittest.TestCase):
         self.summary["passedTests"] = 0
         self.assertTrue(results.failures(self.summary, self.build, {"stdout": "Finished"}, "Build succeeded"))
 
+    def test_skipped_tests_do_not_establish_a_complete_pass(self):
+        self.summary["skippedTests"] = 28
+        self.assertTrue(results.failures(self.summary, self.build,
+                                        {"stdout": "Finished"}, "Build succeeded"))
+
     def test_failed_results_and_build_diagnostics_fail(self):
         for field in self.build:
             with self.subTest(field=field):
