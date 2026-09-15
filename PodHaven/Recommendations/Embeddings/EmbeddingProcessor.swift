@@ -56,6 +56,11 @@ struct EmbeddingProcessor: Sendable {
     case heldWithForegroundRetry
   }
 
+  private enum DrainTrigger {
+    case demand
+    case ownershipRelease
+  }
+
   private struct DrainResult: Sendable {
     let state: DrainState
     let processedCount: Int
@@ -242,9 +247,9 @@ struct EmbeddingProcessor: Sendable {
     }
   }
 
-  private func scheduleDrain() {
+  private func scheduleDrain(trigger: DrainTrigger = .demand) {
     foregroundTask { _ in
-      guard !Task.isCancelled,
+      guard trigger == .ownershipRelease || !Task.isCancelled,
         processingMode() == .foreground,
         thermalPressure().permitsDiscretionaryWork
       else { return }
@@ -332,7 +337,7 @@ struct EmbeddingProcessor: Sendable {
         }
       }
       if needsForegroundRetry, processingMode() == .foreground {
-        scheduleDrain()
+        scheduleDrain(trigger: .ownershipRelease)
       }
     }
 
