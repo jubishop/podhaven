@@ -131,6 +131,13 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install repository search tools
+        if: steps.gate.outputs.should_run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+          rg --version
+
       - name: Prepare qmd index
         if: steps.gate.outputs.should_run == 'true'
         run: |
@@ -146,9 +153,9 @@ jobs:
         continue-on-error: true
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          OPENROUTER_MODEL: deepseek/deepseek-v4-flash-0731
+          OPENROUTER_MODEL: deepseek/deepseek-v4.1-flash
           REASONING_EFFORT: medium
-          MAX_API_COST_USD: "0.20"
+          MAX_API_COST_USD: "0.50"
         run: node bin/run-memory-audit.mjs
 
       - name: Expose audit result
@@ -207,7 +214,7 @@ jobs:
         env:
           AUDIT_OUTCOME: ${{ needs.audit.outputs.audit_outcome }}
           GH_TOKEN: ${{ github.token }}
-          MODEL_ID: deepseek/deepseek-v4-flash-0731
+          MODEL_ID: deepseek/deepseek-v4.1-flash
           REASONING_EFFORT: medium
           PUBLISH_CHANGES: ${{ github.event_name == 'schedule' || inputs.publish_changes }}
         run: bin/finalize-memory-audit
@@ -232,7 +239,7 @@ jobs:
           jq -n \
             --arg runId "$GITHUB_RUN_ID" \
             --arg runUrl "$RUN_URL" \
-            --arg model "deepseek/deepseek-v4-flash-0731" \
+            --arg model "deepseek/deepseek-v4.1-flash" \
             --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg skipReason "$SKIP_REASON" \
             --argjson activeNoteCount "$ACTIVE_NOTE_COUNT" \

@@ -19,8 +19,9 @@ bin/check --full
 ```
 
 Setup requires Git and Python 3.9 or later. Checks also require ShellCheck,
-available through the operating system's package manager. QMD and direnv are
-optional. Missing optional tools produce clear notices; an installed but
+available through the operating system's package manager. Full tooling checks
+also use Node.js 24, matching the Memory Audit workflow, to test the audit runner.
+QMD and direnv are optional. Missing optional tools produce clear notices; an installed but
 failing QMD returns an error. Install QMD using its
 [official instructions](https://github.com/tobi/qmd#installation).
 The starter records its tested QMD version in `.project-starter.json`.
@@ -534,15 +535,20 @@ It reuses existing models and does not publish changes.
 
 ## Scheduled memory audit
 
-The audit uses `deepseek/deepseek-v4-flash-0731` through OpenRouter, with medium
-reasoning and the existing $0.20 run cost guard. It remains semantic curation:
+The audit uses `deepseek/deepseek-v4.1-flash` through OpenRouter. It requests
+medium reasoning and uses a $0.50 run cost guard. The guard is checked after each
+response, so the final request can take spending above that threshold.
+It remains semantic curation:
 it verifies claims against repository and captured GitHub evidence.
 
-CI renders `.config/knowledge.json` with `bin/knowledge-config --ci` into its
-own keyword-only index. It does not include local personal notes or run QMD
+CI installs and verifies ripgrep for repository searches before making model
+requests. It renders `.config/knowledge.json` with `bin/knowledge-config --ci`
+into its own keyword-only index. It does not include local personal notes or run QMD
 embedding/model downloads. Legacy Sentry history stays outside default search.
-The model can edit existing ordinary active notes or archive them. It cannot
-edit README policy, existing archives, or tool-managed ledgers. The publisher
+The model can edit existing ordinary active notes or archive them. The runner
+uses Git moves so the exported patch includes archive destinations and any later
+edits to those files. The model cannot edit README policy, existing archives,
+or tool-managed ledgers. The publisher
 checks patch scope, regenerates only the active-index marker section, then
 validates metadata, index coverage, and local links before opening a PR.
 
