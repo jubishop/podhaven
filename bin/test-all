@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Run all automated tests locally and retain evidence for the tested checkout."""
+
+import argparse
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+
+sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[1]
+DESTINATION = "platform=macOS,name=My Mac"
+TEST_ENVIRONMENT = {key: value for key, value in os.environ.items() if key != "SDKROOT"}
+
+
+def capture(*command):
+    return subprocess.check_output(command, cwd=ROOT, env=TEST_ENVIRONMENT,
+                                   text=True, stderr=subprocess.STDOUT).strip()
+
+
+def checkout_state():
+    revision = capture("git", "rev-parse", "HEAD")
+    digest = hashlib.sha256()
+    files = subprocess.check_output(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        cwd=ROOT, env=TEST_ENVIRONMENT)
+    for name in sorted({part for part in files.split(b"\0") if part}):
+        path = ROOT / os.fsdecode(name)
+        if not path.is_file() and not path.is_symlink():
+            continue
+        contents = os.fsencode(os.readlink(path)) if path.is_symlink() else path.read_bytes()
+        mode = str(path.lstat().st_mode).encode()
+        digest.update(name + b"\0" + mode + b"\0" + hashlib.sha256(contents).digest())
+    return {"revision": revision, "worktree_sha256": digest.hexdigest(),
+            "status": capture("git", "status", "--porcelain=v1", "--untracked-files=all")}
+
+
+def run(command, output, name, *, check=True, require_unittest=False):
+    log = output / f"{name}.log"
+    print(f"Running {name}; log: {log}", flush=True)
+    with log.open("w") as stream:
+        result = subprocess.run(command, cwd=ROOT, env=TEST_ENVIRONMENT,
+                                stdout=stream, stderr=subprocess.STDOUT)
+    if result.returncode:
+        print("\n".join(log.read_text(errors="replace").splitlines()[-35:]), file=sys.stderr)
+        if check:
+            raise RuntimeError(f"{name} failed with exit code {result.returncode}; see {log}")
+    if require_unittest:
+        contents = log.read_text(errors="replace")
+        counts = re.findall(r"^Ran (\d+) tests? in ", contents, re.M)
+        if not counts or int(counts[-1]) == 0 or re.search(r"\bskipped=[1-9]\d*", contents):
+            raise RuntimeError(f"{name} has skipped or missing tests; see {log}")
+    return result.returncode
+
+
+def main():
+    argparse.ArgumentParser(description=__doc__).parse_args()
+    output = None
+    report = {"result": "failed", "started_at": datetime.now(timezone.utc).isoformat(),
+              "destination": DESTINATION}
+    try:
+        if Path(capture("git", "rev-parse", "--show-toplevel")).resolve() != ROOT:
+            raise RuntimeError("Git must use this checkout; clear inherited Git repository selectors")
+        report["xcode"] = capture("xcodebuild", "-hideShellScriptEnvironment", "-version")
+        report["swift"] = capture("xcrun", "swift", "--version")
+        report["macos"] = capture("sw_vers", "-productVersion")
+        xcode = re.search(r"Xcode (\d+)", report["xcode"])
+        swift = re.search(r"Swift version (\d+)\.(\d+)", report["swift"])
+        if int(report["macos"].split(".")[0]) < 27:
+            raise RuntimeError(f"My Mac tests require macOS 27+; detected {report['macos']}")
+        if not xcode or int(xcode[1]) < 27 or not swift or tuple(map(int, swift.groups())) < (6, 4):
+            raise RuntimeError(f"Xcode 27+ and Swift 6.4+ are required; select Xcode with DEVELOPER_DIR.\n"
+                               f"{report['xcode']}\n{report['swift']}")
+        report["checkout"] = checkout_state()
+        cache = ROOT / ".cache/test-all"
+        cache.mkdir(parents=True, exist_ok=True)
+        output = Path(tempfile.mkdtemp(prefix=datetime.now().strftime("%Y%m%d-%H%M%S-"), dir=cache))
+        print(f"Test evidence: {output}", flush=True)
+
+        run([str(ROOT / "bin/check"), "--full"], output, "tooling", require_unittest=True)
+        files = subprocess.check_output(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--",
+             ".agents", "bin/tests"], cwd=ROOT, env=TEST_ENVIRONMENT)
+        tests = sorted({Path(os.fsdecode(name)) for name in files.split(b"\0") if name})
+        for path in tests:
+            if not (ROOT / path).is_file():
+                continue
+            if path.parts[0] == ".agents" and path.match("test_*.py"):
+                run([sys.executable, "-B", str(path), "--verbose"], output,
+                    str(path).replace("/", "_"), require_unittest=True)
+            elif path.parent == Path("bin/tests") and path.suffix == ".sh":
+                run(["bash", str(path)], output, path.stem)
+
+        run([str(ROOT / "bin/lint-swift-format")], output, "swift-lint")
+        run(["xcrun", "swift", "test", "--package-path", "PodHavenMacros"], output, "macros")
+        macro_log = (output / "macros.log").read_text(errors="replace")
+        if re.search(r"(?:^|\s)warning:", macro_log, re.I):
+            raise RuntimeError(f"Macro tests emitted warnings; see {output / 'macros.log'}")
+        if not re.search(r"Executed [1-9]\d* tests?", macro_log):
+            raise RuntimeError(f"No executed macro tests found; see {output / 'macros.log'}")
+        if re.search(r"\b[1-9]\d* (?:tests? )?skipped\b", macro_log, re.I):
+            raise RuntimeError(f"Macro tests were skipped; see {output / 'macros.log'}")
+
+        test_status = run([
+            str(ROOT / "bin/with-test-accessibility"),
+            "xcodebuild", "test", "-hideShellScriptEnvironment", "-project", "PodHaven.xcodeproj",
+            "-scheme", "PodHaven", "-testPlan", "PodHaven", "-destination", DESTINATION,
+            "-skipMacroValidation", "-resultBundlePath", str(output / "TestResults.xcresult"),
+            "LM_FORCE_LINK_GENERATION=YES",
+        ], output, "xcodebuild", check=False)
+        validation_status = run([
+            str(ROOT / "bin/check-swift-results"), str(output / "TestResults.xcresult"),
+            "--build-log", str(output / "xcodebuild.log"), "--full",
+        ], output, "swift-validation", check=False)
+        if test_status or validation_status:
+            raise RuntimeError("Swift tests or evidence validation failed")
+        report["checkout_after"] = checkout_state()
+        if any(report["checkout_after"][key] != report["checkout"][key]
+               for key in ("revision", "worktree_sha256")):
+            raise RuntimeError("Checkout changed during testing; rerun bin/test-all for the final changes")
+        report["result"] = "passed"
+        print(f"All local tests passed. Evidence: {output}", flush=True)
+        return 0
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        report["error"] = str(error)
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    finally:
+        if output:
+            report["finished_at"] = datetime.now(timezone.utc).isoformat()
+            (output / "run.json").write_text(json.dumps(report, indent=2) + "\n")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

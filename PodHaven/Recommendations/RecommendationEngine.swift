@@ -7,6 +7,7 @@ import GRDB
 import IdentifiedCollections
 import Logging
 import SwiftUI
+import Tagged
 
 // MARK: - Types
 
@@ -275,11 +276,11 @@ struct RecommendationEngine: Sendable {
     let dim = context.positiveCentroid.count
     var scratch = [Float](repeating: 0, count: dim)
     var results = [Float?](repeating: nil, count: embeddings.count)
-    try unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+    try scratch.withUnsafeMutableBufferPointer { scratchPtr in
       for (index, embedding) in embeddings.enumerated() {
         if index % 64 == 0 { try Task.checkCancellation() }
         guard embedding.count == dim else { continue }
-        let raw = unsafe embedding.withUnsafeBufferPointer { vec -> Float in
+        let raw = embedding.withUnsafeBufferPointer { vec -> Float in
           if let whiteningTransform = context.whiteningTransform {
             unsafe whiteningTransform.apply(vec, strippingTopK: stripCount, into: scratchPtr)
             let projected = UnsafeBufferPointer(scratchPtr)
@@ -627,7 +628,7 @@ struct RecommendationEngine: Sendable {
     let dim = context.positiveCentroid.count
     var scratch = [Float](repeating: 0, count: dim)
     var scores = [Episode.ID: RecommendationScore](capacity: candidates.count)
-    try unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+    try scratch.withUnsafeMutableBufferPointer { scratchPtr in
       for (index, candidate) in candidates.enumerated() {
         if index % 64 == 0 { try Task.checkCancellation() }
         guard let embedding = embeddings[id: candidate.id] else { continue }
@@ -687,9 +688,9 @@ struct RecommendationEngine: Sendable {
     var negativeWeight: Float = 0
     var scratch = [Float](repeating: 0, count: dim)
 
-    unsafe positiveSum.withUnsafeMutableBufferPointer { positivePtr in
-      unsafe negativeSum.withUnsafeMutableBufferPointer { negativePtr in
-        unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
+    positiveSum.withUnsafeMutableBufferPointer { positivePtr in
+      negativeSum.withUnsafeMutableBufferPointer { negativePtr in
+        scratch.withUnsafeMutableBufferPointer { scratchPtr in
           func accumulate(
             embedding: EpisodeEmbedding,
             weight: Float,
@@ -769,11 +770,11 @@ struct RecommendationEngine: Sendable {
     positive: [Float],
     negative: [Float]?
   ) -> Float {
-    var similarity = unsafe positive.withUnsafeBufferPointer { posPtr in
+    var similarity = positive.withUnsafeBufferPointer { posPtr in
       unsafe VectorMath.dotProduct(vector, posPtr)
     }
     if let negative {
-      similarity -= unsafe negative.withUnsafeBufferPointer { negPtr in
+      similarity -= negative.withUnsafeBufferPointer { negPtr in
         unsafe VectorMath.dotProduct(vector, negPtr)
       }
     }

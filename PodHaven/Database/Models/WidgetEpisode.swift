@@ -2,6 +2,7 @@
 
 import AVFoundation
 import Foundation
+import Tagged
 
 struct WidgetEpisode: Equatable, Identifiable {
   let id: Episode.ID

@@ -2,6 +2,7 @@
 
 import Foundation
 import IdentifiedCollections
+import Tagged
 
 // Built by `RecommendationRepo.scoringContextInputs(_:partialSignals:)` and
 // consumed in two places: the GRDB observation passes an empty fetcher (so

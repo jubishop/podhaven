@@ -32,6 +32,6 @@ extension VectorStorable {
   }
 
   static func vectorData(from floats: [Float]) -> Data {
-    unsafe floats.withUnsafeBytes { unsafe Data($0) }
+    floats.withUnsafeBytes { unsafe Data($0) }
   }
 }

@@ -3,6 +3,7 @@
 import AVFoundation
 import Foundation
 import GRDB
+import Tagged
 
 struct FeedMergeEpisode: FetchableRecord, Identifiable, RSSUpdatable, Sendable, TableRecord {
   static let databaseTableName: String = Episode.databaseTableName

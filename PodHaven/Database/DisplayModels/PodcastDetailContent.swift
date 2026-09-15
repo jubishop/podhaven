@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
+import Tagged
 
 struct PodcastDetailContent: PodcastDisplayable, Hashable, Sendable {
   let podcastID: Podcast.ID?

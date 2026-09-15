@@ -61,7 +61,7 @@ enum UndoSeekDirection {
   var playbackRate: Binding<Float> {
     Binding(
       get: { self.withDependencies { self.sharedState.playRate } },
-      set: { newRate in
+      set: { [self] newRate in
         self.withDependencies {
           _ = Task { [weak self] in
             guard let self else { return }

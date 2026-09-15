@@ -48,8 +48,12 @@ actor ObservatoryQueueTests {
     let updateCount = Counter()
 
     Task {
-      for try await queuedEpisodes in observatory.queuedPodcastEpisodes() {
-        await updateCount(queuedEpisodes.count)
+      do {
+        for try await queuedEpisodes in observatory.queuedPodcastEpisodes() {
+          await updateCount(queuedEpisodes.count)
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 

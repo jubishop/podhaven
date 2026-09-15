@@ -25,7 +25,7 @@ enum BroadcastDuplicatePolicy<T: Sendable>: Sendable {
 }
 
 extension BroadcastDuplicatePolicy where T: Equatable {
-  static var equatable: Self { .suppressDuplicates(==) }
+  static var equatable: Self { .suppressDuplicates { $0 == $1 } }
 }
 
 // MARK: - Broadcast

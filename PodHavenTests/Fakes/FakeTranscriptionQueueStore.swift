@@ -1,5 +1,7 @@
 // Copyright Justin Bishop, 2026
 
+import Tagged
+
 @testable import PodHaven
 
 struct FakeTranscriptionQueueStore: TranscriptionQueueStoring, Sendable {

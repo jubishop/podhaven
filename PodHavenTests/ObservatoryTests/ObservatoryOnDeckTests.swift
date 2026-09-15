@@ -286,8 +286,12 @@ actor ObservatoryOnDeckTests {
     let updateCount = Counter()
 
     Task {
-      for try await _ in observatory.onDeck(episode.id) {
-        await updateCount.increment()
+      do {
+        for try await _ in observatory.onDeck(episode.id) {
+          await updateCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 
@@ -314,8 +318,12 @@ actor ObservatoryOnDeckTests {
     let updateCount = Counter()
 
     Task {
-      for try await _ in observatory.onDeck(episode.id) {
-        await updateCount.increment()
+      do {
+        for try await _ in observatory.onDeck(episode.id) {
+          await updateCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 
@@ -335,12 +343,16 @@ actor ObservatoryOnDeckTests {
     let receivedNil = ActorContainer<Bool>()
 
     Task {
-      for try await onDeck in observatory.onDeck(episode.id) {
-        if onDeck != nil {
-          await receivedNonNil.set(true)
-        } else {
-          await receivedNil.set(true)
+      do {
+        for try await onDeck in observatory.onDeck(episode.id) {
+          if onDeck != nil {
+            await receivedNonNil.set(true)
+          } else {
+            await receivedNil.set(true)
+          }
         }
+      } catch {
+        Issue.record(error)
       }
     }
 

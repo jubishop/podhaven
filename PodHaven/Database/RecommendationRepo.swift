@@ -189,12 +189,12 @@ struct RecommendationRepo: Recommending {
               outerScratch = [Float](repeating: 0, count: dim * dim)
             }
           }
-          unsafe sum.withUnsafeMutableBufferPointer { sumPtr in
+          sum.withUnsafeMutableBufferPointer { sumPtr in
             unsafe VectorMath.addInPlace(vec, into: sumPtr)
           }
           guard principalComponentCount > 0 else { return }
-          unsafe outerSum.withUnsafeMutableBufferPointer { outerPtr in
-            unsafe outerScratch.withUnsafeMutableBufferPointer { scratchPtr in
+          outerSum.withUnsafeMutableBufferPointer { outerPtr in
+            outerScratch.withUnsafeMutableBufferPointer { scratchPtr in
               unsafe VectorMath.accumulateScaledOuterProduct(
                 of: vec,
                 scalar: 1.0,
@@ -216,10 +216,10 @@ struct RecommendationRepo: Recommending {
       }
 
       // covariance = outerSum/N - μ⊗μᵀ, accumulated in `outerSum` in place.
-      unsafe outerSum.withUnsafeMutableBufferPointer { outerPtr in
+      outerSum.withUnsafeMutableBufferPointer { outerPtr in
         unsafe VectorMath.divideInPlace(outerPtr, by: Float(count))
-        unsafe outerScratch.withUnsafeMutableBufferPointer { scratchPtr in
-          unsafe mean.withUnsafeBufferPointer { meanPtr in
+        outerScratch.withUnsafeMutableBufferPointer { scratchPtr in
+          mean.withUnsafeBufferPointer { meanPtr in
             unsafe VectorMath.accumulateScaledOuterProduct(
               of: meanPtr,
               scalar: -1.0,
@@ -253,16 +253,16 @@ struct RecommendationRepo: Recommending {
     var cv = [Float](repeating: 0, count: dim)
     var components = [[Float]](capacity: k)
     for _ in 0..<k {
-      unsafe v.withUnsafeMutableBufferPointer { vBuf in
+      v.withUnsafeMutableBufferPointer { vBuf in
         unsafe vBuf.update(repeating: 0)
         unsafe vBuf[0] = 1
       }
       // Bail out of the PC loop when `Cov · v` is zero on the first step —
       // that means the residual covariance has rank below the requested k
       // and any "eigenvector" we'd record now would just be the seed.
-      let converged = unsafe covariance.withUnsafeBufferPointer { covPtr -> Bool in
-        unsafe cv.withUnsafeMutableBufferPointer { cvPtr in
-          unsafe v.withUnsafeMutableBufferPointer { vPtr in
+      let converged = covariance.withUnsafeBufferPointer { covPtr -> Bool in
+        cv.withUnsafeMutableBufferPointer { cvPtr in
+          v.withUnsafeMutableBufferPointer { vPtr in
             var madeProgress = false
             for _ in 0..<50 {
               unsafe VectorMath.matrixVectorMultiply(
@@ -295,9 +295,9 @@ struct RecommendationRepo: Recommending {
         }
       }
       guard converged else { break }
-      let eigenvalue = unsafe covariance.withUnsafeBufferPointer { covPtr -> Float in
-        unsafe v.withUnsafeMutableBufferPointer { vPtr -> Float in
-          unsafe cv.withUnsafeMutableBufferPointer { cvPtr -> Float in
+      let eigenvalue = covariance.withUnsafeBufferPointer { covPtr -> Float in
+        v.withUnsafeMutableBufferPointer { vPtr -> Float in
+          cv.withUnsafeMutableBufferPointer { cvPtr -> Float in
             unsafe VectorMath.matrixVectorMultiply(
               covPtr,
               UnsafeBufferPointer(vPtr),
@@ -311,9 +311,9 @@ struct RecommendationRepo: Recommending {
           }
         }
       }
-      unsafe covariance.withUnsafeMutableBufferPointer { covPtr in
-        unsafe scratch.withUnsafeMutableBufferPointer { scratchPtr in
-          unsafe v.withUnsafeBufferPointer { vPtr in
+      covariance.withUnsafeMutableBufferPointer { covPtr in
+        scratch.withUnsafeMutableBufferPointer { scratchPtr in
+          v.withUnsafeBufferPointer { vPtr in
             unsafe VectorMath.accumulateScaledOuterProduct(
               of: vPtr,
               scalar: -eigenvalue,

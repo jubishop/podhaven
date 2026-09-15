@@ -1,9 +1,7 @@
 # PodHaven - Your Personal Podcast Hub
 
-[![Swift Tests](https://github.com/jubishop/podhaven/actions/workflows/swift-tests.yml/badge.svg?branch=main)](https://github.com/jubishop/podhaven/actions/workflows/swift-tests.yml?query=branch%3Amain)
-[![Python Tests](https://github.com/jubishop/podhaven/actions/workflows/python-tests.yml/badge.svg?branch=main)](https://github.com/jubishop/podhaven/actions/workflows/python-tests.yml?query=branch%3Amain)
-[![Swift Version](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
-[![Xcode Version](https://img.shields.io/badge/Xcode-26-blue.svg)](https://developer.apple.com/xcode/)
+[![Swift Version](https://img.shields.io/badge/Swift-6.4-orange.svg)](https://swift.org)
+[![Xcode Version](https://img.shields.io/badge/Xcode-27-blue.svg)](https://developer.apple.com/xcode/)
 [![Platform](https://img.shields.io/badge/iOS-26-lightblue.svg)](https://developer.apple.com/ios/)
 [![License](https://img.shields.io/badge/License-Source%20Available-lightgrey.svg)](LICENSE)
 
@@ -30,8 +28,8 @@ Website: [artisanalsoftware.com/podhaven](https://artisanalsoftware.com/podhaven
 
 ### Prerequisites
 
-- macOS with Xcode 26 or later
-- Swift 6.2 or later
+- macOS 27 or later with Xcode 27 or later
+- Swift 6.4 or later
 
 ### Installation
 
@@ -62,9 +60,11 @@ For more advanced users, here are the commands to build and test from the comman
 For repository knowledge and tooling, use `bin/check --documents-only` after
 a batch of Markdown edits and `bin/check` for fast static checks. Run
 `bin/check --full` after setup or foundation changes, and before a tooling PR
-or release. CI runs the full tooling suite. These commands do not build the
-Swift app. Use focused Swift checks for ordinary application changes and
-require successful full validation before merge or release. See the
+or release. These commands do not build the Swift app. Use focused Swift
+checks during development. Before any push or merge into `main`, and before
+a release, run `bin/test-all` locally for the final revision. It runs the full
+app suite on My Mac, macro tests, and automated tooling and skill tests, and
+rejects skipped tests and Swift warnings. GitHub does not run test CI. See the
 [validation policy](docs/development-workflow.md#checks-and-project-extensions)
 and [test workflow](docs/development-workflow.md#test-driven-development).
 
@@ -73,21 +73,29 @@ and [test workflow](docs/development-workflow.md#test-driven-development).
 
 ### Build for Testing
 ```sh
-xcodebuild build-for-testing -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+env -u SDKROOT xcodebuild build-for-testing -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=macOS,name=My Mac' LM_FORCE_LINK_GENERATION=YES
 ```
 
 ### Run All Tests
-Use `Cmd+U` in Xcode, or run the following command in your terminal:
+Run the complete local validation from the repository root:
 ```sh
-xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -testPlan PodHaven -parallel-testing-enabled YES
+bin/test-all
 ```
+
+Logs, the Xcode result bundle, and the tested checkout are recorded under
+`.cache/test-all/`. Grant Accessibility access to the terminal or app running
+tests in System Settings → Privacy & Security → Accessibility. The local test
+wrapper uses a native accessibility client to expose SwiftUI controls on My Mac.
 
 ### Run a Specific Test Suite
 Swift Testing filters must stay at suite level; method-level filters can report success while
 running zero tests.
 ```sh
-xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeSuite
+bin/with-test-accessibility xcodebuild test -hideShellScriptEnvironment -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=macOS,name=My Mac' -only-testing:PodHavenTests/SomeSuite -resultBundlePath .cache/FocusedTests.xcresult LM_FORCE_LINK_GENERATION=YES > .cache/focused-tests.log 2>&1
+bin/check-swift-results .cache/FocusedTests.xcresult --build-log .cache/focused-tests.log
 ```
+Use a new result-bundle path for each run. Hosted UI tests need the wrapper;
+running them directly with `Cmd+U` does not start its accessibility client.
 </details>
 
 ## App Version and TestFlight

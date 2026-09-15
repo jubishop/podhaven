@@ -3,6 +3,7 @@
 import CoreMedia
 import FactoryKit
 import SwiftUI
+import UIKit
 
 struct PlayBarSheet: View {
   @DynamicInjected(\.sharedState) private var sharedState
@@ -333,6 +334,10 @@ struct PlayBarSheet: View {
       .regular.interactive(),
       in: .rect(cornerRadius: viewModel.isDragging ? 12 : 8)
     )
+    .background(
+      (colorScheme == .dark ? Color.black : Color.white).opacity(0.2),
+      in: .rect(cornerRadius: viewModel.isDragging ? 12 : 8)
+    )
   }
 }
 
@@ -483,6 +488,16 @@ struct PlayBarSheetPreview: View {
       Intro 00:00 — Guest 05:30 — Deep dive 18:00 — Break 25:15 — Closing 32:00
       """
   )
+}
+
+#Preview("Bright Artwork · Dark Controls") {
+  let artwork = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
+    .image { context in
+      UIColor(red: 0.72, green: 0.75, blue: 0, alpha: 1).setFill()
+      context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+    }
+  PlayBarSheetPreview(image: artwork)
+    .preferredColorScheme(.dark)
 }
 
 #Preview("no artwork") {

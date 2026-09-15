@@ -179,8 +179,12 @@ class SmartListRepoTests {
     let count = Counter()
     let observation = observatory.smartLists()
     Task {
-      for try await _ in observation {
-        await count.increment()
+      do {
+        for try await _ in observation {
+          await count.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 

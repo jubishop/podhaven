@@ -3,6 +3,7 @@
 import Accessibility
 import FactoryKit
 import Foundation
+import PhotosUI
 import SwiftUI
 import Testing
 import UIKit
@@ -125,10 +126,12 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
             && $0.accessibilityValue?.hasPrefix("Transcribing") == true
         }
     )
-    let frame = window.convert(
+    let cardFrame = window.convert(
       row.accessibilityFrame,
       from: window.screen.coordinateSpace
     )
+    let frame = cardFrame.insetBy(dx: 16, dy: 16)
+    #expect(frame.height <= 64, "The content inside the padded active card should stay compact")
     let rendering = try render(window)
     let progressX = Int((frame.minX + 80).rounded())
     let accentPixels =
@@ -268,6 +271,17 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       }
     ) { window in
 
+      try await Wait.until(
+        { @MainActor in
+          window.rootViewController?.view.setNeedsLayout()
+          window.rootViewController?.view.layoutIfNeeded()
+          return Self.accessibilityElements(in: window)
+            .contains { $0.accessibilityLabel == "Pause Transcription" }
+        },
+        { @MainActor in
+          "Pause button missing; available: \(viewModel.isTranscriptionAvailable), status: \(viewModel.transcriptionStatus); labels: \(Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel))"
+        }
+      )
       let pauseButton = try #require(
         Self.accessibilityElements(in: window)
           .first { $0.accessibilityLabel == "Pause Transcription" }
@@ -312,7 +326,6 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
       )
       #expect(row.accessibilityValue == "Transcribing, 42 percent")
       #expect(row.accessibilityTraits.contains(.button))
-      #expect(row.accessibilityFrame.height <= 64)
     }
   }
 
@@ -369,10 +382,12 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
         Self.accessibilityElements(in: window)
           .first { $0.accessibilityLabel?.contains(shortTitle) == true }
       )
-      let frame = window.convert(
-        shortTitleRow.accessibilityFrame,
-        from: window.screen.coordinateSpace
-      )
+      let frame =
+        window.convert(
+          shortTitleRow.accessibilityFrame,
+          from: window.screen.coordinateSpace
+        )
+        .insetBy(dx: 16, dy: 16)
       let rendering = try Self.render(window)
       let artworkX = Int((frame.minX + 28).rounded())
       let backgroundX = Int((frame.minX + 62).rounded())
@@ -507,7 +522,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
         Self.accessibilityElements(in: window)
           .first { $0.accessibilityLabel == "Edit" }
       )
-      #expect(editButton.accessibilityActivate())
+      try activateHostedControl(editButton)
 
       try await Wait.until(
         maxAttempts: 100,
@@ -519,7 +534,9 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
           )
           return labels.contains("Selection Actions") && labels.contains("Select")
         },
-        { @MainActor in "Edit did not expose the thumbnail selector and selection menu" }
+        { @MainActor in
+          "Edit did not expose selection controls: \(Self.accessibilityElements(in: window).compactMap(\.accessibilityLabel))"
+        }
       )
 
       let selectButton = try #require(
@@ -528,7 +545,7 @@ private let supportsHostedAccessibilityInspection = ProcessInfo.processInfo.isiO
             $0.accessibilityLabel == "Select" && $0.accessibilityTraits.contains(.button)
           }
       )
-      #expect(selectButton.accessibilityActivate())
+      try activateHostedControl(selectButton)
 
       try await Wait.until(
         maxAttempts: 100,

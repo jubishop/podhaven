@@ -294,8 +294,12 @@ class TagsTests {
         filter: Episode.Columns.id == episodeID
       )
     Task {
-      for try await _ in observation {
-        await updateCount.increment()
+      do {
+        for try await _ in observation {
+          await updateCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 
