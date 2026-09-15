@@ -54,7 +54,10 @@ func withHostedTestWindow<Content: View, Value>(
     request.httpBody = try JSONSerialization.data(
       withJSONObject: ["pid": ProcessInfo.processInfo.processIdentifier]
     )
-    let session = URLSession(configuration: .ephemeral)
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.timeoutIntervalForRequest = 120
+    configuration.timeoutIntervalForResource = 120
+    let session = URLSession(configuration: configuration)
     defer { session.invalidateAndCancel() }
     let (data, response) = try await session.data(for: request)
     let http = try #require(response as? HTTPURLResponse)

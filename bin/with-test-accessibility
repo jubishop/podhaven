@@ -29,7 +29,9 @@ class AccessibilityClient:
         pointer = ctypes.c_void_p
         for library, name, arguments, result in (
             (self.ax, 'AXIsProcessTrusted', [], ctypes.c_bool),
+            (self.ax, 'AXUIElementCreateSystemWide', [], pointer),
             (self.ax, 'AXUIElementCreateApplication', [ctypes.c_int], pointer),
+            (self.ax, 'AXUIElementSetMessagingTimeout', [pointer, ctypes.c_float], ctypes.c_int),
             (self.ax, 'AXUIElementCopyAttributeValue', [pointer, pointer, ctypes.POINTER(pointer)], ctypes.c_int),
             (self.cf, 'CFStringCreateWithCString', [pointer, ctypes.c_char_p, ctypes.c_uint32], pointer),
             (self.cf, 'CFArrayGetCount', [pointer], ctypes.c_long),
@@ -44,6 +46,13 @@ class AccessibilityClient:
             function.restype = result
         if not self.ax.AXIsProcessTrusted():
             raise RuntimeError('Grant Accessibility access to the terminal or app running tests in System Settings > Privacy & Security > Accessibility')
+        system = self.ax.AXUIElementCreateSystemWide()
+        try:
+            result = self.ax.AXUIElementSetMessagingTimeout(system, 60)
+            if result:
+                raise RuntimeError(f'Could not configure accessibility timeout: AX error {result}')
+        finally:
+            self.cf.CFRelease(system)
 
     def inspect(self, pid):
         executable = ctypes.create_string_buffer(4096)
