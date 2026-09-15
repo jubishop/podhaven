@@ -7,7 +7,6 @@ import {
   lstat,
   mkdir,
   readFile,
-  rename,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -28,9 +27,9 @@ if (!apiKey) {
 }
 delete process.env.OPENROUTER_API_KEY;
 
-const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
+const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4.1-flash";
 const reasoningEffort = process.env.REASONING_EFFORT || "medium";
-const maxCost = Number(process.env.MAX_API_COST_USD || "0.20");
+const maxCost = Number(process.env.MAX_API_COST_USD || "0.50");
 const maxTurns = Number(process.env.MAX_AGENT_TURNS || "160");
 const movedArchives = new Set();
 const requestUsage = [];
@@ -114,8 +113,7 @@ function runCommand(command, args, { maxCharacters = 100_000 } = {}) {
     let stderr = "";
     let clipped = false;
 
-    const collect = (chunk, target) => {
-      const text = chunk.toString("utf8");
+    const collect = (text, target) => {
       if (target === "stdout") {
         stdout += text;
         if (stdout.length > maxCharacters * 2) {
@@ -127,8 +125,10 @@ function runCommand(command, args, { maxCharacters = 100_000 } = {}) {
       }
     };
 
-    child.stdout.on("data", (chunk) => collect(chunk, "stdout"));
-    child.stderr.on("data", (chunk) => collect(chunk, "stderr"));
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (text) => collect(text, "stdout"));
+    child.stderr.on("data", (text) => collect(text, "stderr"));
     child.on("error", reject);
     child.on("close", (code) => {
       if (clipped || code === 0) {
@@ -399,7 +399,7 @@ async function archiveMemoryNote(args) {
       throw error;
     }
   }
-  await rename(source.absolute, resolvedDestination.absolute);
+  await runCommand("git", ["mv", "--", source.relative, destination]);
   movedArchives.add(destination);
   return { from: source.relative, to: destination };
 }
@@ -632,16 +632,16 @@ async function writeUsage(status, error = null) {
 
 async function writeFinalResult(turn) {
   const report = (await readFile(reportPath, "utf8")).trimEnd();
-  const patch = (await getMemoryPatch()).trimEnd();
+  const patch = await getMemoryPatch();
   const finalMessage = [
-    "<!-- MEMORY_AUDIT_REPORT_START -->",
-    report,
-    "<!-- MEMORY_AUDIT_REPORT_END -->",
-    "<!-- MEMORY_AUDIT_PATCH_START -->",
+    "<!-- MEMORY_AUDIT_REPORT_START -->\n",
+    `${report}\n`,
+    "<!-- MEMORY_AUDIT_REPORT_END -->\n",
+    "<!-- MEMORY_AUDIT_PATCH_START -->\n",
     patch,
-    "<!-- MEMORY_AUDIT_PATCH_END -->",
-  ].join("\n");
-  await writeFile(finalPath, `${finalMessage}\n`, "utf8");
+    "<!-- MEMORY_AUDIT_PATCH_END -->\n",
+  ].join("");
+  await writeFile(finalPath, finalMessage, "utf8");
   await writeUsage("success");
   console.log(`OpenRouter audit completed in ${turn} turns at $${totalCost.toFixed(6)}`);
 }

@@ -50,11 +50,146 @@ class AuditTests(unittest.TestCase):
         (self.repo / "artifacts/openrouter-final.md").write_text(
             "<!-- MEMORY_AUDIT_REPORT_START -->\n" + report + "<!-- MEMORY_AUDIT_REPORT_END -->\n"
             "<!-- MEMORY_AUDIT_PATCH_START -->\n" + patch + "<!-- MEMORY_AUDIT_PATCH_END -->\n")
+        return self.publish()
+
+    def publish(self):
         result = self.command("bin/finalize-memory-audit", check=False, extra={
             "PUBLISH_CHANGES": "false", "AUDIT_OUTCOME": "success", "RUNNER_TEMP": str(self.base),
             "EXPECTED_HEAD_SHA": self.head})
         self.assertEqual(self.command("git", "rev-parse", "HEAD").stdout.strip(), self.head)
         return result
+
+    def check_runner_transport(self, content, cost=0, should_succeed=True, archive=False):
+        for name in ("run-memory-audit.mjs", "memory-audit-prompt.md"):
+            shutil.copy2(SOURCE / "bin" / name, self.repo / "bin" / name)
+        (self.repo / "AGENTS.md").write_text("Audit fixture instructions.\n")
+        self.command("git", "add", "bin", "AGENTS.md")
+        self.command("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "Runner fixture")
+        self.head = self.command("git", "rev-parse", "HEAD").stdout.strip()
+        (self.repo / "artifacts/memory-audit-context.json").write_text(json.dumps({
+            "baseSha": self.head, "activeNoteCount": 1, "issues": [], "pullRequests": [],
+        }))
+        report = "# Memory audit report\n\n- Active notes reviewed: 1\n\n## Per-note findings\n\nIncident reviewed.\n"
+        calls = []
+        result_note = self.note
+        if archive:
+            calls.append(("archive_memory_note", {"path": self.note.relative_to(self.repo).as_posix()}))
+            result_note = self.repo / "memory/archive/incident.md"
+        if content is not None:
+            calls.append(("write_memory_file", {
+                "path": result_note.relative_to(self.repo).as_posix(), "content": content,
+            }))
+        calls.append(("write_report", {"content": report}))
+        response = {"choices": [{"message": {"role": "assistant", "tool_calls": [
+            {"id": str(index), "type": "function", "function": {
+                "name": name, "arguments": json.dumps(args),
+            }} for index, (name, args) in enumerate(calls)
+        ]}}], "usage": {"cost": cost}}
+        mock = self.repo / ".cache/openrouter.mjs"
+        mock.parent.mkdir()
+        mock.write_text(
+            "import { writeFile } from 'node:fs/promises';\n"
+            "import childProcess from 'node:child_process';\n"
+            "import { syncBuiltinESMExports } from 'node:module';\n"
+            "import { Transform } from 'node:stream';\n"
+            "const spawn = childProcess.spawn;\n"
+            "childProcess.spawn = (...args) => {\n"
+            "  const child = spawn(...args);\n"
+            "  if (args[0] === 'git' && args[1][0] === 'diff') {\n"
+            "    child.stdout = child.stdout.pipe(new Transform({\n"
+            "      transform(chunk, encoding, done) {\n"
+            "        for (let i = 0; i < chunk.length; i += 1) {\n"
+            "          this.push(chunk.subarray(i, i + 1));\n"
+            "        }\n"
+            "        done();\n"
+            "      },\n"
+            "    }));\n"
+            "  }\n"
+            "  return child;\n"
+            "};\n"
+            "syncBuiltinESMExports();\n"
+            "let called = false;\n"
+            "globalThis.fetch = async (url, options) => {\n"
+            "  if (called) throw new Error('Unexpected second model request');\n"
+            "  called = true;\n"
+            "  await writeFile('.cache/request.json', options.body);\n"
+            f"  return Response.json({json.dumps(response)});\n"
+            "};\n")
+        result = self.command("node", "--import", str(mock), "bin/run-memory-audit.mjs", check=False, extra={
+            "OPENROUTER_API_KEY": "fixture-only", "OPENROUTER_MODEL": "", "MAX_AGENT_TURNS": "1",
+            "MAX_API_COST_USD": "",
+        })
+        usage = json.loads((self.repo / "artifacts/openrouter-usage.json").read_text())
+        if not should_succeed:
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("cost limit exceeded", result.stderr)
+            self.assertEqual(usage["status"], "failed")
+            self.assertEqual(usage["maxCost"], 0.50)
+            self.assertEqual(usage["totalCost"], cost)
+            self.assertFalse((self.repo / "artifacts/memory-audit-report.md").exists())
+            self.assertNotIn("MEMORY_AUDIT_PATCH_START", (self.repo / "artifacts/openrouter-final.md").read_text())
+            self.command("git", "diff", "--exit-code", self.head, "--", "memory")
+            return
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(usage["status"], "success")
+        request = json.loads((self.repo / ".cache/request.json").read_text())
+        self.assertEqual(request["model"], "deepseek/deepseek-v4.1-flash")
+        if content is not None:
+            self.assertEqual(result_note.read_text(), content)
+        patch = self.command("git", "diff", self.head, "--binary", "--", "memory").stdout
+        expected_note = result_note.read_text()
+        self.command("git", "restore", "--staged", "--worktree", "memory")
+        if archive:
+            result_note.unlink(missing_ok=True)
+        (self.repo / "artifacts/memory-audit-report.md").unlink()
+        (self.repo / "artifacts/memory-audit-context.json").unlink()
+        result = self.publish()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.base / "memory-audit/memory-audit.patch").read_bytes(), patch.encode())
+        self.assertEqual(result_note.read_text(), expected_note)
+        meta = json.loads((self.base / "memory-audit/run-meta.json").read_text())
+        self.assertEqual(meta["health"], "ok")
+        self.assertEqual(meta["reportSource"], "result")
+        self.assertTrue(meta["patchValid"])
+        self.assertIsNone(meta["prUrl"])
+        if archive:
+            self.assertFalse(self.note.exists())
+            self.assertIn("memory/archive/incident.md", meta["changedFiles"])
+            self.assertIn("memory/README.md", meta["changedFiles"])
+            index = (self.repo / "memory/README.md").read_text()
+            self.assertIn("Keep this policy byte for byte.", index)
+            self.assertNotIn("](incident.md)", index)
+
+    def test_runner_transports_archive_and_later_edits(self):
+        content = self.note.read_text().replace("status: active", "status: resolved") + "\nResolved guidance.  \n"
+        self.check_runner_transport(content, archive=True)
+
+    def test_runner_transports_unchanged_archive(self):
+        self.note.write_text(self.note.read_text().replace("type: project\nstatus: active", "type: reference"))
+        self.command("git", "add", "memory/incident.md")
+        self.command("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "Reference note fixture")
+        self.check_runner_transport(None, archive=True)
+
+    def test_runner_preserves_trailing_blank_context(self):
+        self.note.write_text(self.note.read_text() + "\n## Details\n\n")
+        self.command("git", "add", "memory/incident.md")
+        self.command("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "Blank context fixture")
+        self.check_runner_transport(self.note.read_text().replace("A durable rule.", "An updated rule."))
+
+    def test_runner_preserves_trailing_spaces_in_added_line(self):
+        self.check_runner_transport(self.note.read_text() + "\nMore guidance.  \n")
+
+    def test_runner_preserves_utf8_across_output_chunks(self):
+        self.check_runner_transport(self.note.read_text() + "\nCafé — 中文 🥖\n")
+
+    def test_runner_transports_empty_patch(self):
+        self.check_runner_transport(None)
+
+    def test_runner_allows_cost_above_former_guard(self):
+        self.check_runner_transport(None, cost=0.30)
+
+    def test_runner_stops_above_cost_guard(self):
+        self.check_runner_transport(None, cost=0.51, should_succeed=False)
 
     def test_archive_regenerates_index_preserves_policy_and_never_publishes(self):
         self.note.write_text(self.note.read_text().replace("status: active", "status: resolved"))
