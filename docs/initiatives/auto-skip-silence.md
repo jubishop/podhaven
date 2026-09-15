@@ -40,6 +40,12 @@ Shorten clear pauses while preserving natural speech cadence and the selected sp
 | Medium | −55 dBFS | Allows more faint background noise within pauses. |
 | Low | −50 dBFS | Allows more noise, with greater risk of skipping quiet speech. |
 
+These values are accepted for issue #685 and PR #686, with High as the default.
+Review implementation correctness against this mapping. Subjective listening
+calibration and selecting different thresholds are not merge or issue-closure
+requirements. No completed listening calibration is claimed. The user will open
+a new issue if later app testing shows that the values need adjustment.
+
 One decoding pass measures the peak across all channels in each window and
 calculates all three levels. Timing presets, padding, and speed scaling are
 unchanged. Changing protection selects stored intervals without decoding again;
@@ -88,7 +94,7 @@ Turning Off prevents further automatic skips immediately. Other effective change
 
 - Add a **separate compact silence control immediately to the right of the existing playback-speed control** in `PlayBarSheet.metaControlsRow`. Both belong in the left group before the spacer; keep the existing controls on the right.
 - The player control opens a popover/menu with only **Gentle, Balanced, Aggressive, Off**, with the current effective selection indicated. No reset action, explanatory text, timing controls, or new playback-options panel. Do not combine it with the speed popover.
-- Put detailed explanations only in the existing question-mark help popovers (`SettingsRow`) in `SettingsView` and `PodcastSettingsView`. Explain natural pause shortening, relative preset strength, automatic speed scaling, inheritance, and the downloaded/analyzed-audio requirement. Explain the current-playback scope of the player control there if needed.
+- Use the concise help copy above in the existing question-mark popovers (`SettingsRow`) in `SettingsView` and `PodcastSettingsView`. Keep inheritance and playback-lifetime explanations out of both popovers.
 - Use `AppIcon` and accessible native menu/picker semantics. Give the compact control an accurate VoiceOver label and selected value. Preserve Dynamic Type, reading order, adequate hit targets, and usable narrow layouts with chapter controls and the transcript visible.
 - Add isolated `#Preview` states for inherited and explicit settings, enabled/Off selections, and the expanded player layout. No network or persistent database access in previews.
 
@@ -99,7 +105,7 @@ Turning Off prevents further automatic skips immediately. Other effective change
 - Use one analysis worker at a time. Integrate with existing foreground/background scheduling and thermal-pressure handling. Keep work cancellable, bounded in memory, and outside the UI and audio-render paths. Do not start a second media download for analysis.
 - Reconcile eligibility after downloads finish, settings change, the current playback or queue changes, and on launch. Do not re-query the whole library on every playback-position update. Deferral or background-task expiration must not stop ordinary playback.
 - Decode the local audio with `AVAssetReader` and `AVAssetReaderTrackOutput` to PCM. Separate sample reading, quiet-interval detection, preset/rate policy, and playback orchestration so each can be tested at the correct boundary.
-- Use conservative audio-level detection, initially evaluated over short windows. Calibrate the detector and boundary protection on actual podcasts. Preserve quiet speech, breaths, music, and other audible material; this is not speech-only filtering, ad removal, or transcript-gap skipping.
+- Use the accepted peak thresholds over short windows and retain the existing boundary protection. Later listening can identify adjustments for quiet speech, breaths, music, and other audible material; track those in a new issue. This is not speech-only filtering, ad removal, or transcript-gap skipping.
 - Evaluate channel energy without cancellation from downmixing opposite-phase stereo. An audible signal in either channel must protect that interval. Preserve brief audible sounds between quiet intervals instead of merging across them blindly.
 - Missing samples, invalid values, timestamp discontinuities, and decode failures are not evidence of silence. Fail back to normal playback.
 - Store the detected quiet intervals before applying any preset's minimum-gap filter or cut padding. Retain enough resolution and sufficiently short candidates for the most aggressive supported preset/rate combination. Store source timestamps and detector version. Do not cache only one preset's final skip ranges.
@@ -261,8 +267,9 @@ accepting three empty levels. The combined bound remains 100,000 intervals and
 No threshold tuning was made. These are numerical comparisons, not a listening
 calibration. Listening comparisons for faint speech, word endings, breaths,
 background noise, and music, plus physical-device audio-route checks, remain
-unperformed. Review those before accepting the new detection levels; passing
-decoder and fake-player tests does not establish their audible quality.
+unperformed. They do not block delivery of the accepted thresholds. Passing
+decoder and fake-player tests does not establish their audible quality; later
+listening concerns belong in a new issue.
 
 Hosted My Mac tests check the controls at 320 points, selected accessibility
 values, minimum hit targets, and complete popover text. Captured popovers show
