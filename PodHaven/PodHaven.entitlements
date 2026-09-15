@@ -7,6 +7,8 @@
     <string>applinks:artisanalsoftware.com</string>
     <string>applinks:www.artisanalsoftware.com</string>
   </array>
+  <key>com.apple.developer.carplay-audio</key>
+  <true/>
   <key>com.apple.security.application-groups</key>
   <array>
     <string>$(APP_GROUP_ID)</string>

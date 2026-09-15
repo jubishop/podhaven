@@ -22,13 +22,14 @@ API_KEY_PATH="${ASC_KEY_PATH:-}"
 API_KEY_ID="${ASC_KEY_ID:-}"
 API_ISSUER_ID="${ASC_ISSUER_ID:-}"
 FORCE=false
+REUSE=false
 TESTFLIGHT_NOTES=""
 APPSTORE_RELEASE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
       cat <<'HELP'
-Usage: bin/shipit [--notes "What changed"] [-f] [API key options]
+Usage: bin/testflight [--reuse] [--notes "What changed"] [-f] [API key options]
 
 No --notes: test, archive, and upload only.
 TestFlight uploads require a current app version with exactly two dots, such as 2.1.1.
@@ -37,6 +38,9 @@ The version change is committed, fully tested locally, and pushed before deploym
 Fresh archives and uploads require valid full local test evidence for the clean commit.
 --notes TEXT: also wait for processing and submit to the external Everyone group.
               Repeating the command retries distribution of the same uploaded commit.
+--reuse: distribute the highest-numbered local TestFlight build tag, even after new commits.
+         Requires --notes and a matching upload receipt or published tag.
+         Stops if the upload cannot be confirmed; never builds, uploads, or pushes.
 -f, --force: allow a branch other than main (a clean working tree is still required).
 --api-key PATH --api-key-id ID --api-issuer-id ID: use an App Store Connect API key.
 API keys can also use ASC_KEY_PATH, ASC_KEY_ID, and ASC_ISSUER_ID.
@@ -46,7 +50,7 @@ Use FASTLANE_USER to select that Apple ID. Fastlane may request two-factor authe
 
 Processing is checked every 30 seconds for up to 30 minutes. Apple beta review may take longer.
 Successful uploads publish a Git tag and GitHub release and mirror to SourceHut.
-bin/deploy.sh accepts the same options.
+bin/shipit and bin/deploy.sh accept the same options.
 App Store uploads use bin/appstore --release VERSION --notes TEXT instead.
 HELP
       exit 0
@@ -58,6 +62,10 @@ HELP
       fi
       TESTFLIGHT_NOTES="$2"
       shift 2
+      ;;
+    --reuse)
+      REUSE=true
+      shift
       ;;
     --appstore-release)
       if [[ "$(basename "$0")" == shipit ]]; then
@@ -96,6 +104,16 @@ HELP
       ;;
   esac
 done
+
+if [[ "$REUSE" == true && -n "$APPSTORE_RELEASE" ]]; then
+  echo 'error: --reuse cannot be combined with --appstore-release.' >&2
+  exit 1
+fi
+
+if [[ "$REUSE" == true && -z "$TESTFLIGHT_NOTES" ]]; then
+  echo 'error: --reuse requires --notes, such as --reuse --notes "Fixed playback".' >&2
+  exit 1
+fi
 
 if [[ -n "$APPSTORE_RELEASE" && -n "$TESTFLIGHT_NOTES" ]]; then
   echo 'error: App Store uploads cannot distribute to TestFlight with --notes.' >&2
@@ -139,24 +157,6 @@ run_testflight() {
   )
 }
 
-# Require xcbeautify for formatted build output
-if ! command -v xcbeautify &>/dev/null; then
-  echo "error: xcbeautify not found. Install with: brew install xcbeautify" >&2
-  exit 1
-fi
-
-# Require llm for AI-generated tag summaries
-if ! command -v llm &>/dev/null; then
-  echo "error: llm not found. Install with: pipx install llm" >&2
-  exit 1
-fi
-
-# Require gh for creating GitHub releases
-if ! command -v gh &>/dev/null; then
-  echo "error: gh not found. Install with: brew install gh" >&2
-  exit 1
-fi
-
 # Preflight: block deploys from non-main branches
 branch=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD)
 if [[ "$branch" != "main" && "$FORCE" != true ]]; then
@@ -175,16 +175,57 @@ if [[ -n "$TESTFLIGHT_NOTES" ]] && ! command -v fastlane &>/dev/null; then
   exit 1
 fi
 
+UPLOAD_RECEIPT=$(git -C "$PROJECT_DIR" rev-parse --path-format=absolute --git-path podhaven-last-upload)
+release_tags=$(git -C "$PROJECT_DIR" tag -l "v*b*" | sort -t b -k2,2n)
+prev_tag=$(printf '%s\n' "$release_tags" | tail -1)
+
+if [[ "$REUSE" == true ]]; then
+  tag=$(printf '%s\n' "$release_tags" | sed -nE '/^v[0-9]+\.[0-9]+\.[0-9]+b[0-9]+$/p' | tail -1)
+  if [[ -z "$tag" ]]; then
+    echo 'error: No TestFlight build tag found in this checkout.' >&2
+    exit 1
+  fi
+  commit=$(git -C "$PROJECT_DIR" rev-parse --short "${tag}^{commit}")
+  if [[ ! -f "$UPLOAD_RECEIPT" || "$(cat "$UPLOAD_RECEIPT")" != "$tag" ]]; then
+    remote_tag=$(git -C "$PROJECT_DIR" ls-remote --tags origin "refs/tags/$tag")
+    local_tag=$(git -C "$PROJECT_DIR" rev-parse "refs/tags/$tag")
+    if [[ "$remote_tag" != "$local_tag"$'\t'"refs/tags/$tag" ]]; then
+      echo "error: No completed upload confirmed for ${tag}; expected a matching receipt or published tag." >&2
+      exit 1
+    fi
+  fi
+  build="${tag##*b}"
+  version="${tag#v}"
+  version="${version%b*}"
+  echo "==> Reusing ${tag} from ${commit} for Everyone..."
+  run_testflight "version:$version" "build:$build"
+  exit 0
+fi
+
+# Require xcbeautify for formatted build output
+if ! command -v xcbeautify &>/dev/null; then
+  echo "error: xcbeautify not found. Install with: brew install xcbeautify" >&2
+  exit 1
+fi
+
+# Require llm for AI-generated tag summaries
+if ! command -v llm &>/dev/null; then
+  echo "error: llm not found. Install with: pipx install llm" >&2
+  exit 1
+fi
+
+# Require gh for creating GitHub releases
+if ! command -v gh &>/dev/null; then
+  echo "error: gh not found. Install with: brew install gh" >&2
+  exit 1
+fi
+
 "$SCRIPT_DIR/test-all" --preflight
 
 UPLOAD_SUCCEEDED=false
-UPLOAD_RECEIPT=$(git -C "$PROJECT_DIR" rev-parse --path-format=absolute --git-path podhaven-last-upload)
 
 # Calculate next build number from git tags
-last_build=$(git -C "$PROJECT_DIR" tag -l "v*b*" \
-  | sed 's/v.*b//' \
-  | sort -n \
-  | tail -1)
+last_build="${prev_tag##*b}"
 build=$(( ${last_build:-0} + 1 ))
 commit=$(git -C "$PROJECT_DIR" rev-parse --short HEAD)
 version=$(xcodebuild -hideShellScriptEnvironment -project "$PROJECT" -scheme "$SCHEME" \
@@ -231,7 +272,6 @@ fi
 
 tag="v${version}b${build}"
 
-prev_tag=$(git -C "$PROJECT_DIR" tag -l "v*b*" --sort=version:refname | tail -1)
 prev_tag_commit=$(git -C "$PROJECT_DIR" rev-parse "${prev_tag}^{commit}" 2>/dev/null || true)
 head_commit=$(git -C "$PROJECT_DIR" rev-parse HEAD)
 

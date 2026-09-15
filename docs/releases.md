@@ -30,7 +30,9 @@ also retries an unfinished version push before it can upload anything.
 
 `bin/version`, `bin/shipit`, and fresh `bin/appstore` releases check the
 supported macOS, Xcode, and Swift versions before version changes or external
-writes. Read-only version, status, and help commands do not run tests or builds.
+writes. Distribution with `--reuse` skips local build validation because it
+uses an existing upload. Read-only version, status, and help commands do not
+run tests or builds.
 
 Before a version push or fresh archive, the commands use `bin/test-all --ensure`.
 It requires a clean checkout and either runs the complete local suite or reuses
@@ -58,6 +60,8 @@ build. Submitting an explicit existing App Store build also skips local builds.
 
 ## Upload to TestFlight
 
+`bin/testflight` and `bin/shipit` are aliases for the same release command.
+
 ```sh
 bin/shipit --notes "What testers should try"
 ```
@@ -76,6 +80,33 @@ group. Without `--notes`, it only tests, archives, and uploads.
 
 Use `bin/version` yourself when you want a different patch version. For
 example, `bin/version 2.1.2` followed by `bin/shipit` uploads `2.1.2`.
+
+### Distribute an existing TestFlight build
+
+```sh
+bin/testflight --reuse --notes "What testers should try"
+```
+
+Use `--reuse` to send an existing upload to Everyone after the current commit
+has changed. It selects the highest build number among local TestFlight tags
+such as `v2.1.2b600`; App Store tags are excluded. Release ordering uses the
+numeric build number, not the full version string.
+
+The selected tag must have a matching upload receipt in this checkout or
+match the tag published to `origin`. The command stops if that evidence is
+missing. It does not fall back to an older build or create a new upload.
+Selection uses this checkout's tags; it does not fetch tags or discover
+uploads made outside these release commands.
+
+`--reuse` requires `--notes` and a clean `main` checkout; `--force` permits
+another clean branch. It skips version changes, local builds and tests,
+uploads, Git pushes, and GitHub release publication. Fastlane waits for the
+exact build, submits it for beta review when needed, enables tester
+notifications, and verifies assignment to Everyone. Repeat the command to
+retry distribution while that tag remains the newest local TestFlight build.
+
+Without `--reuse`, retrying with `--notes` reuses a completed upload only when
+the highest-numbered release tag still points to the current commit.
 
 ## Release on the App Store
 
