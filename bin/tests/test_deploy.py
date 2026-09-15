@@ -40,6 +40,8 @@ elif name == 'xcodebuild':
     if '-showdestinations' in args: print('{ platform:iOS Simulator, OS:26.5, name:iPhone 17 }')
     elif '-showBuildSettings' in args: print('    MARKETING_VERSION = ' + os.environ.get('DEPLOY_VERSION', '1.0.1'))
     elif '-exportArchive' in args and os.environ.get('FAIL_UPLOAD'): sys.exit(42)
+elif name == 'test-all':
+    if os.environ.get('FAIL_LOCAL_TESTS') and '--preflight' not in args: sys.exit(44)
 elif name == 'llm':
     sys.stdin.read()
     print('Generated release notes')
@@ -67,6 +69,9 @@ class DeployTests(unittest.TestCase):
         (self.repo / "bin").mkdir(parents=True)
         shutil.copy2(ROOT / "bin/deploy.sh", self.repo / "bin/deploy.sh")
         (self.repo / "bin/shipit").symlink_to("deploy.sh")
+        gate = self.repo / "bin/test-all"
+        gate.write_text(f"#!{sys.executable}\n" + FAKE)
+        gate.chmod(0o755)
         self.commands = self.base / "commands"
         self.commands.mkdir()
         for command in ("git", "xcodebuild", "llm", "xcbeautify", "mktemp", "fastlane", "gh", "rm"):
@@ -86,6 +91,13 @@ class DeployTests(unittest.TestCase):
     def events(self, command):
         return [event for line in (self.base / "events").read_text().splitlines()
                 if (event := json.loads(line))[0] == command]
+
+    def test_local_gate_failure_prevents_summary_archive_and_upload(self):
+        result = self.run_deploy(FAIL_LOCAL_TESTS="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.events("llm"))
+        self.assertFalse(any("archive" in event[1] or "-exportArchive" in event[1]
+                             for event in self.events("xcodebuild")))
 
     def test_without_notes_only_uploads(self):
         result = self.run_deploy()
@@ -147,6 +159,7 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         uploads = [event for event in self.events('xcodebuild') if '-exportArchive' in event[1]]
         self.assertEqual(len(uploads), 1)
+        self.assertEqual(sum("--ensure" in event[1] for event in self.events("test-all")), 2)
 
     def test_notes_can_distribute_a_previously_completed_upload(self):
         self.assertEqual(self.run_deploy().returncode, 0)

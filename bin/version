@@ -18,8 +18,9 @@ def main():
     if sys.argv[1:] in (["--help"], ["-h"]):
         print("Usage: bin/version [new-version]\nWithout an argument, print the current app version.\n"
               "Setting a version requires a fully clean working tree. It commits only the version change\n"
-              "and pushes the current branch to its configured upstream. Repeat to retry a failed push.")
+              "and runs the full local test gate before pushing to its upstream. Repeat to retry validation or a failed push.")
         return 0
+    pending_push = None
     try:
         if len(sys.argv) > 2:
             raise ValueError("Usage: bin/version [new-version]")
@@ -52,20 +53,24 @@ def main():
             [*git, "rev-parse", "--path-format=absolute", "--git-path", "podhaven-version-push"], text=True).strip())
         if pending_push.exists() and pending_push.read_text().strip() != branch:
             raise ValueError("A version push is unfinished on another branch. Retry bin/version there first.")
+        gate = str(root / "bin/test-all")
+        subprocess.run([gate, "--preflight"], cwd=root, check=True)
         if new_version != current:
             project.write_text(setting.sub(lambda match: match[1] + new_version + match[3], source))
             relative = str(project.relative_to(root))
             subprocess.run([*git, "add", "--", relative], check=True)
             subprocess.run([*git, "commit", "-m", f"Change version number to {new_version}", "--", relative], check=True)
         pending_push.write_text(branch + "\n")
-        subprocess.run([*git, "push", "--", remote, f"HEAD:{destination}"], check=True)
+        revision = subprocess.check_output([*git, "rev-parse", "HEAD"], text=True).strip()
+        subprocess.run([gate, "--ensure", "--revision", revision], cwd=root, check=True)
+        subprocess.run([*git, "push", "--", remote, f"{revision}:{destination}"], check=True)
         pending_push.unlink()
         print(new_version)
         return 0
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"error: {error}", file=sys.stderr)
-        if isinstance(error, subprocess.CalledProcessError) and "push" in error.cmd:
-            print(f"The version commit is local. Retry bin/version {sys.argv[1]} to push it.", file=sys.stderr)
+        if pending_push is not None and pending_push.exists():
+            print(f"The version commit is local. Retry bin/version {sys.argv[1]} to validate and push it.", file=sys.stderr)
         return 1
 
 

@@ -93,6 +93,8 @@ def release_app(root, environment, version, notes, build=None):
         for command in ("xcodebuild", "xcbeautify", "llm", "gh"):
             if build is None and (release is None or release["build"] is None) and not shutil.which(command):
                 raise ValueError(f"{command} is required to build and upload the release.")
+        if build is None and (release is None or release["build"] is None):
+            subprocess.run([str(root / "bin/test-all"), "--preflight"], cwd=root, check=True)
 
         if notes is None:
             print("==> Reading release notes from the latest TestFlight build...", flush=True)

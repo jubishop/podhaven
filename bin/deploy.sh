@@ -33,7 +33,8 @@ Usage: bin/shipit [--notes "What changed"] [-f] [API key options]
 No --notes: test, archive, and upload only.
 TestFlight uploads require a current app version with exactly two dots, such as 2.1.1.
 Release versions advance automatically: 2.1 becomes 2.1.1, and 2 becomes 2.0.1.
-The version change is committed and pushed before deployment.
+The version change is committed, fully tested locally, and pushed before deployment.
+Fresh archives and uploads require valid full local test evidence for the clean commit.
 --notes TEXT: also wait for processing and submit to the external Everyone group.
               Repeating the command retries distribution of the same uploaded commit.
 -f, --force: allow a branch other than main (a clean working tree is still required).
@@ -169,16 +170,12 @@ if [[ -n $(git -C "$PROJECT_DIR" status --porcelain) ]]; then
   exit 1
 fi
 
-# Resolve the first available iPhone simulator for this scheme.
-SIM_DESTINATION=$(xcodebuild -hideShellScriptEnvironment -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null \
-  | grep 'platform:iOS Simulator.*OS:.*name:iPhone' \
-  | head -1 \
-  | sed 's/.*name://' | sed 's/ *}$//')
-
-if [[ -z "$SIM_DESTINATION" ]]; then
-  echo "error: No iPhone simulator found. Install one via Xcode." >&2
+if [[ -n "$TESTFLIGHT_NOTES" ]] && ! command -v fastlane &>/dev/null; then
+  echo 'error: --notes requires Fastlane. Install with: brew install fastlane' >&2
   exit 1
 fi
+
+"$SCRIPT_DIR/test-all" --preflight
 
 UPLOAD_SUCCEEDED=false
 UPLOAD_RECEIPT=$(git -C "$PROJECT_DIR" rev-parse --path-format=absolute --git-path podhaven-last-upload)
@@ -229,10 +226,6 @@ if [[ -f "$pending_version_push" ]]; then
 fi
 
 if [[ -n "$TESTFLIGHT_NOTES" ]]; then
-  if ! command -v fastlane &>/dev/null; then
-    echo 'error: --notes requires Fastlane. Install with: brew install fastlane' >&2
-    exit 1
-  fi
   run_testflight preflight:true
 fi
 
@@ -274,6 +267,8 @@ if [[ -n "$prev_tag" && "$prev_tag_commit" == "$head_commit" ]]; then
   tag_message=$(git -C "$PROJECT_DIR" tag -l --format='%(contents)' "$prev_tag")
   echo "==> Reusing ${tag}..."
 else
+  "$SCRIPT_DIR/test-all" --ensure --revision "$head_commit"
+
   # Normal path: generate summary and create a new tag.
   if [[ -z "$prev_tag" ]]; then
     echo "error: No previous tag found. Cannot generate summary." >&2
@@ -375,15 +370,8 @@ run_xcodebuild() {
 }
 
 if [[ "$UPLOAD_SUCCEEDED" != true ]]; then
-  # Run tests
-  echo "==> Running tests..."
-  TEST_LOG="$LOG_DIR/xcodebuild-test.log"
-  run_xcodebuild "tests" "$TEST_LOG" \
-    test \
-    -project "$PROJECT" \
-    -scheme "$SCHEME" \
-    -destination "platform=iOS Simulator,name=$SIM_DESTINATION"
-  echo "==> Tests passed."
+  CURRENT_PHASE="full local validation"
+  "$SCRIPT_DIR/test-all" --ensure --revision "$head_commit"
 
   # Archive
   echo "==> Archiving..."
@@ -398,6 +386,9 @@ if [[ "$UPLOAD_SUCCEEDED" != true ]]; then
     -allowProvisioningUpdates \
     "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
     CURRENT_PROJECT_VERSION="$build"
+
+  CURRENT_PHASE="verify local validation before upload"
+  "$SCRIPT_DIR/test-all" --verify --revision "$head_commit"
 
   # Export and upload
   echo "==> Uploading to App Store Connect..."
