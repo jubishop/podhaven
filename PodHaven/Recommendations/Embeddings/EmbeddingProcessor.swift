@@ -44,6 +44,16 @@ struct EmbeddingProcessor: Sendable {
     case background
   }
 
+  private enum SceneState: Equatable {
+    case foreground(UUID)
+    case background
+
+    var activation: UUID? {
+      guard case .foreground(let activation) = self else { return nil }
+      return activation
+    }
+  }
+
   private enum DrainState: String, Sendable {
     case deferred
     case empty
@@ -68,7 +78,7 @@ struct EmbeddingProcessor: Sendable {
     let duration: Duration
   }
 
-  private let processingMode = ThreadSafe(ProcessingMode.background)
+  private let sceneState = ThreadSafe(SceneState.background)
   private let drainOwnership = ThreadSafe(DrainOwnership.available)
 
   var isComputing: Bool {
@@ -141,7 +151,9 @@ struct EmbeddingProcessor: Sendable {
     case .active:
       Self.log.debug("activated")
 
-      processingMode(.foreground)
+      sceneState { state in
+        if case .background = state { state = .foreground(UUID()) }
+      }
       reconcileForegroundObservation()
       if Container.shared.embeddingWorkDemand().hasWork {
         scheduleDrain()
@@ -149,7 +161,7 @@ struct EmbeddingProcessor: Sendable {
     case .background:
       Self.log.debug("backgrounded")
 
-      processingMode(.background)
+      sceneState(.background)
       reconcileForegroundObservation()
       backgroundTaskScheduler.scheduleNext()
     default:
@@ -174,7 +186,7 @@ struct EmbeddingProcessor: Sendable {
     }
 
     Self.log.info("Resuming embedding work after thermal recovery")
-    switch processingMode() {
+    switch sceneState() {
     case .foreground:
       reconcileForegroundObservation()
       if Container.shared.embeddingWorkDemand().hasWork { scheduleDrain() }
@@ -186,7 +198,7 @@ struct EmbeddingProcessor: Sendable {
   func workBecameAvailable() {
     Container.shared.embeddingWorkDemand().markAvailable()
 
-    switch processingMode() {
+    switch sceneState() {
     case .foreground:
       if thermalPressure().permitsDiscretionaryWork { scheduleDrain() }
     case .background:
@@ -211,7 +223,9 @@ struct EmbeddingProcessor: Sendable {
 
   private func reconcileForegroundObservation() {
     foregroundTask { task in
-      guard processingMode() == .foreground, thermalPressure().permitsDiscretionaryWork else {
+      guard let activation = sceneState().activation,
+        thermalPressure().permitsDiscretionaryWork
+      else {
         task?.cancel()
         task = nil
         drainDebounce.cancel()
@@ -230,7 +244,13 @@ struct EmbeddingProcessor: Sendable {
                 workBecameAvailable()
               } else {
                 hasReceivedEmission = true
-                await contextualEmbedding.requestAndLoadAssetsIfNeeded()
+                await contextualEmbedding.requestAndLoadAssetsIfNeeded(
+                  activation: activation,
+                  permitsPreparation: {
+                    sceneState() == .foreground(activation)
+                      && thermalPressure().permitsDiscretionaryWork
+                  }
+                )
                 guard !Task.isCancelled else { return }
                 scheduleDrain()
               }
@@ -250,7 +270,7 @@ struct EmbeddingProcessor: Sendable {
   private func scheduleDrain(trigger: DrainTrigger = .demand) {
     foregroundTask { _ in
       guard trigger == .ownershipRelease || !Task.isCancelled,
-        processingMode() == .foreground,
+        sceneState().activation != nil,
         thermalPressure().permitsDiscretionaryWork
       else { return }
 
@@ -260,7 +280,7 @@ struct EmbeddingProcessor: Sendable {
           try await contextualEmbedding.assetsLoaded.wait()
           let result = try await drainAvailableWork(mode: .foreground, pacer: nil)
           logWorkSlice(result, mode: .foreground)
-          if result.state == .pending, processingMode() == .foreground {
+          if result.state == .pending, sceneState().activation != nil {
             scheduleDrain()
           }
         } catch is CancellationError {
@@ -336,7 +356,7 @@ struct EmbeddingProcessor: Sendable {
           Assert.fatal("Embedding drain ownership released while already available")
         }
       }
-      if needsForegroundRetry, processingMode() == .foreground {
+      if needsForegroundRetry, sceneState().activation != nil {
         scheduleDrain(trigger: .ownershipRelease)
       }
     }
