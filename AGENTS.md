@@ -7,6 +7,11 @@ Repo context lives in `memory/`, `docs/`, and GitHub issues:
 - `docs/`: PR-reviewed design docs and research; update [`docs/README.md`](docs/README.md) when adding/removing docs.
 - GitHub Issues (`jubishop/podhaven`): lifecycle-tracked TODOs, bugs, refactors.
 
+Keep memory, docs, and other Markdown pages focused on one topic or reader
+task. When extending a long page, review its scope and split independent
+topics into linked pages when that improves reading and maintenance. Use
+the [Markdown guidance](docs/development-workflow.md#markdown-pages), without numeric size thresholds.
+
 Use the repository's QMD helper for topic lookup:
 
 - `git knowledge search "known term"`: names, files, APIs, and exact concepts.
@@ -109,7 +114,7 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## Coding Standards
 - Keep every Swift file under 1000 lines.
-- Keep files cohesive and readable. Extract meaningful responsibilities; do not compress formatting or split files arbitrarily to meet a count. For other hand-written files, use approximately 1000 lines as a review threshold. See [file organization](docs/development-workflow.md#file-organization).
+- Keep files cohesive and readable. Extract meaningful responsibilities; do not compress formatting or split files arbitrarily to meet a count. For other hand-written source, tests, and styles, use approximately 1000 lines as a review threshold. See [file organization](docs/development-workflow.md#file-organization).
 - Scope source discovery and mutable validation output to the active checkout. Exclude nested worktrees and temporary copies explicitly; Git ignore rules do not control every tool. Preserve supported dependency sharing. See [checkout isolation](docs/development-workflow.md#validation-checkout-isolation).
 - Use `@discardableResult` when ignoring the result is a supported use of the API. Otherwise, preserve unused-result warnings and allow explicit `_ =` at individual call sites when discarding the result is intentional and safe. Do not add wrappers solely to avoid `_ =`.
 
