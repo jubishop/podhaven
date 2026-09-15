@@ -61,7 +61,8 @@ Quiet Audio Protection help uses this concise explanation in both settings surfa
 > Controls how quiet a pause must be before it can be skipped. High (−60 dBFS) protects fainter sounds. Medium (−55 dBFS) and Low (−50 dBFS) allow more background noise, but may skip quiet speech.
 
 Help popovers omit inheritance and playback-lifetime explanations. Keep the full
-copy accessible at narrow widths and larger text sizes.
+copy accessible at narrow widths and larger text sizes. Help that exceeds the
+available height uses a scrollable presentation instead of truncating the text.
 
 ### Settings, precedence, and lifetime
 
@@ -265,7 +266,8 @@ decoder and fake-player tests does not establish their audible quality.
 
 Hosted My Mac tests check the controls at 320 points, selected accessibility
 values, minimum hit targets, and complete popover text. Captured popovers show
-both help texts without truncation. The Mac host rendered identical font sizes
+both help texts without truncation. A separate overflow regression verifies
+that help exceeding the available height can scroll to its final paragraph. The Mac host rendered identical font sizes
 for normal and accessibility text-size requests, including an explicit native
 trait override. It therefore does not verify actual large-text growth on iOS.
 Verify narrow iPhone/iPad layouts with larger text and a spoken VoiceOver flow

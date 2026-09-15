@@ -183,6 +183,58 @@ private let supportsHostedPodcastSettingsInspection = ProcessInfo.processInfo.is
     }
   }
 
+  @Test(
+    "oversized silence help remains scrollable to its final paragraph",
+    .enabled(if: supportsHostedPodcastSettingsInspection)
+  )
+  func overflowingSilenceHelp() async throws {
+    let help = String(repeating: SilenceSettingsHelp.text + "\n\n", count: 4)
+    let host = TestHostingController(
+      rootView:
+        VStack {
+          SettingsRow(infoText: help) { Text("Playback setting") }
+          Spacer()
+        }
+        .padding()
+    )
+    try await withHostedTestWindow(host, size: CGSize(width: 320, height: 480)) { window in
+      try await Wait.until { @MainActor in
+        Self.accessibilityElements(in: window).contains { $0.accessibilityLabel == "More Info" }
+      } _: {
+        "Help button did not appear"
+      }
+      try activateHostedControl(
+        try #require(
+          Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "More Info" }
+        )
+      )
+      try await Wait.until { @MainActor in
+        host.presentedViewController != nil
+      } _: {
+        "Popover did not open"
+      }
+      let popover = try #require(host.presentedViewController?.view)
+      popover.layoutIfNeeded()
+      let scroll = try #require(
+        Self.descendants(of: popover).compactMap { $0 as? UIScrollView }
+          .first {
+            $0.isScrollEnabled && $0.contentSize.height > $0.bounds.height
+          },
+        "Help that exceeds the available height needs a scrollable presentation"
+      )
+      scroll.setContentOffset(
+        CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height),
+        animated: false
+      )
+      #expect(scroll.contentOffset.y > 0)
+      let image = UIGraphicsImageRenderer(bounds: popover.bounds)
+        .image { _ in
+          popover.drawHierarchy(in: popover.bounds, afterScreenUpdates: true)
+        }
+      Attachment.record(try #require(image.pngData()), named: "silence-help-scrolled.png")
+    }
+  }
+
   private static func descendants(of view: UIView) -> [UIView] {
     [view] + view.subviews.flatMap(descendants)
   }
