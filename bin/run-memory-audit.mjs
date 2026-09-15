@@ -113,8 +113,7 @@ function runCommand(command, args, { maxCharacters = 100_000 } = {}) {
     let stderr = "";
     let clipped = false;
 
-    const collect = (chunk, target) => {
-      const text = chunk.toString("utf8");
+    const collect = (text, target) => {
       if (target === "stdout") {
         stdout += text;
         if (stdout.length > maxCharacters * 2) {
@@ -126,8 +125,10 @@ function runCommand(command, args, { maxCharacters = 100_000 } = {}) {
       }
     };
 
-    child.stdout.on("data", (chunk) => collect(chunk, "stdout"));
-    child.stderr.on("data", (chunk) => collect(chunk, "stderr"));
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (text) => collect(text, "stdout"));
+    child.stderr.on("data", (text) => collect(text, "stderr"));
     child.on("error", reject);
     child.on("close", (code) => {
       if (clipped || code === 0) {

@@ -89,6 +89,25 @@ class AuditTests(unittest.TestCase):
         mock.parent.mkdir()
         mock.write_text(
             "import { writeFile } from 'node:fs/promises';\n"
+            "import childProcess from 'node:child_process';\n"
+            "import { syncBuiltinESMExports } from 'node:module';\n"
+            "import { Transform } from 'node:stream';\n"
+            "const spawn = childProcess.spawn;\n"
+            "childProcess.spawn = (...args) => {\n"
+            "  const child = spawn(...args);\n"
+            "  if (args[0] === 'git' && args[1][0] === 'diff') {\n"
+            "    child.stdout = child.stdout.pipe(new Transform({\n"
+            "      transform(chunk, encoding, done) {\n"
+            "        for (let i = 0; i < chunk.length; i += 1) {\n"
+            "          this.push(chunk.subarray(i, i + 1));\n"
+            "        }\n"
+            "        done();\n"
+            "      },\n"
+            "    }));\n"
+            "  }\n"
+            "  return child;\n"
+            "};\n"
+            "syncBuiltinESMExports();\n"
             "let called = false;\n"
             "globalThis.fetch = async (url, options) => {\n"
             "  if (called) throw new Error('Unexpected second model request');\n"
@@ -159,6 +178,9 @@ class AuditTests(unittest.TestCase):
 
     def test_runner_preserves_trailing_spaces_in_added_line(self):
         self.check_runner_transport(self.note.read_text() + "\nMore guidance.  \n")
+
+    def test_runner_preserves_utf8_across_output_chunks(self):
+        self.check_runner_transport(self.note.read_text() + "\nCafé — 中文 🥖\n")
 
     def test_runner_transports_empty_patch(self):
         self.check_runner_transport(None)
