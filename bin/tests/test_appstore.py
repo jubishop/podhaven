@@ -10,6 +10,8 @@ import sys
 import tempfile
 import unittest
 
+from local_validation_fixture import FAKE as GATE_FAKE, install_gate
+
 
 ROOT = Path(__file__).resolve().parents[2]
 FAKE = r'''
@@ -34,6 +36,8 @@ elif name == 'xcodebuild':
     elif '-showBuildSettings' in args:
         source = (base / 'repo/PodHaven.xcodeproj/project.pbxproj').read_text()
         print('    MARKETING_VERSION = ' + re.search(r'MARKETING_VERSION = ([^;]+);', source)[1])
+    elif 'archive' in args and os.environ.get('CHANGE_DURING_ARCHIVE'):
+        (base / 'repo/PodHaven.xcodeproj/project.pbxproj').write_text('changed during archive')
     elif '-exportArchive' in args and os.environ.get('FAIL_UPLOAD'):
         sys.exit(42)
 elif name == 'llm':
@@ -69,13 +73,17 @@ class AppStoreCommandTests(unittest.TestCase):
             shutil.copy2(ROOT / "bin" / name, self.repo / "bin" / name)
         (self.repo / "bin/shipit").symlink_to("deploy.sh")
         commands = self.base / "commands"
-        commands.mkdir()
+        install_gate(self.repo, commands)
         for name in ("fastlane", "xcodebuild", "llm", "xcbeautify", "mktemp", "gh", "rm"):
             path = commands / name
-            path.write_text(f"#!{sys.executable}\n" + FAKE)
+            source = FAKE
+            if name == "xcodebuild":
+                source = ("import sys\nif '-version' in sys.argv or ('test' in sys.argv and 'platform=macOS,name=My Mac' in sys.argv):\n    exec("
+                          + repr(GATE_FAKE) + ")\nelse:\n    exec(" + repr(FAKE) + ")\n")
+            path.write_text(f"#!{sys.executable}\n" + source)
             path.chmod(0o755)
         self.env = {**os.environ, "PATH": str(commands) + os.pathsep + os.environ["PATH"],
-                    "APPSTORE_FIXTURE": str(self.base), "GIT_CONFIG_NOSYSTEM": "1",
+                    "APPSTORE_FIXTURE": str(self.base), "TEST_ALL_FIXTURE": str(self.base), "GIT_CONFIG_NOSYSTEM": "1",
                     "GIT_CONFIG_GLOBAL": os.devnull}
         for key in ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID", "PODHAVEN_APPSTORE_NOTES",
                     "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
@@ -107,6 +115,52 @@ class AppStoreCommandTests(unittest.TestCase):
         events = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
         return [event for event in events if name is None or event[0] == name]
 
+    def gate_runs(self):
+        path = self.base / "gate-events"
+        events = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+        return [args for name, args in events if name == "xcodebuild" and "test" in args]
+
+    def test_failed_local_tests_prevent_automatic_version_push_and_upload(self):
+        result = self.run_command("--notes", "Fixes", TEST_SKIPPED="1")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(self.git("rev-parse", "origin/main"), self.initial)
+        self.assertEqual(self.git("rev-list", "--count", "HEAD"), "2")
+        self.assertFalse(any("-exportArchive" in event[1] for event in self.events("xcodebuild")))
+        result = self.run_command("--notes", "Fixes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.git("rev-list", "--count", "HEAD"), "2")
+        self.assertEqual(len(self.gate_runs()), 2)
+        shutil.rmtree(self.repo / ".cache/test-all")
+        result = self.run_command("--notes", "Fixes", TEST_BUILD_FAILURE="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(self.gate_runs()), 2)
+
+    def test_fresh_versioned_upload_requires_full_gate(self):
+        (self.repo / "change.txt").write_text("New release work")
+        self.git("add", "change.txt")
+        self.git("commit", "-m", "New work")
+        result = subprocess.run([str(self.repo / "bin/shipit")], cwd=self.repo,
+                                env={**self.env, "TEST_MACRO_WARNING": "1"},
+                                text=True, capture_output=True, timeout=20)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertFalse(any("archive" in event[1] or "-exportArchive" in event[1]
+                             for event in self.events("xcodebuild")))
+        self.assertFalse(self.events("llm"))
+
+    def test_checkout_changes_during_archive_prevent_upload(self):
+        result = self.run_command("--notes", "Fixes", CHANGE_DURING_ARCHIVE="1")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertTrue(any("archive" in event[1] for event in self.events("xcodebuild")))
+        self.assertFalse(any("-exportArchive" in event[1] for event in self.events("xcodebuild")))
+        self.assertFalse(any("mode:submit" in event[1] for event in self.events("fastlane")))
+
+    def test_unsupported_tools_stop_before_apple_or_version_changes(self):
+        result = self.run_command("--notes", "Fixes", TEST_XCODE_VERSION="26.5")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("Xcode 27+", result.stderr)
+        self.assertFalse(self.events("fastlane"))
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.initial)
+
     def test_status_is_read_only_for_current_version(self):
         result = self.run_command("--status", PODHAVEN_APPSTORE_NOTES="stale inherited text")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -115,6 +169,7 @@ class AppStoreCommandTests(unittest.TestCase):
         self.assertIsNone(event[2])
         self.assertEqual(self.git("rev-parse", "HEAD"), self.initial)
         self.assertFalse(self.git("status", "--porcelain"))
+        self.assertFalse((self.base / "gate-events").exists())
 
     def test_default_releases_with_latest_testflight_notes(self):
         notes = 'Fixed playback.\nLiteral $HOME and `text`.'

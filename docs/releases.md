@@ -19,11 +19,42 @@ Without an argument, `bin/version` only prints the current version. Setting a
 version requires a fully clean working tree and a branch with a configured
 upstream. The command changes all Xcode marketing-version settings, commits
 only the project file with a message such as `Change version number to 2.1.2`,
-and pushes the current branch to its upstream. It rejects version decreases.
+runs the complete local test gate on that clean commit, and pushes it to the
+configured upstream. It rejects version decreases.
 
-If the push fails, the version commit remains local. Repeat the same
+If validation or the push fails, the version commit remains local. Repeat the same
 `bin/version` command to retry the push without another commit. Deployment
 also retries an unfinished version push before it can upload anything.
+
+## Full local validation gate
+
+`bin/version`, `bin/shipit`, and fresh `bin/appstore` releases check the
+supported macOS, Xcode, and Swift versions before version changes or external
+writes. Read-only version, status, and help commands do not run tests or builds.
+
+Before a version push or fresh archive, the commands use `bin/test-all --ensure`.
+It requires a clean checkout and either runs the complete local suite or reuses
+its latest retained report. Reuse requires the exact commit, tracked and
+untracked file digest, unchanged toolchain and macOS version, My Mac destination,
+and successful full-suite evidence. Both recorded checkout states must match
+the current clean checkout. Logs and result-bundle files must still match their
+recorded hashes. Missing, failed, skipped, warning-producing, or stale evidence
+cannot authorize a push or fresh upload. An invalid cache requires a new full run.
+Clear any Git `assume-unchanged` or `skip-worktree` flags before using release
+evidence, then resolve any exposed edits. These flags can hide changes from
+Git's clean-checkout check, so the release gate rejects them.
+
+The suite includes My Mac hosted accessibility tests, macro tests, repository
+checks, and automated skill and tooling tests. The result-bundle and raw-log
+gate requires zero skipped tests and warnings. See the
+[local test workflow](development-workflow.md#current-revision-swift-validation).
+
+Evidence stays under `.cache/test-all/`. A version push retry and the archive
+following that push reuse unchanged evidence. Deployment verifies it again
+before upload with `bin/test-all --verify`, which fails if the checkout,
+toolchain, or artifacts changed during archiving. A completed upload retry
+continues distribution or publication without testing or uploading another
+build. Submitting an explicit existing App Store build also skips local builds.
 
 ## Upload to TestFlight
 
@@ -33,7 +64,7 @@ bin/shipit --notes "What testers should try"
 
 The command requires clean `main`; the existing `--force` option permits
 another clean branch. If the current version is an App Store version,
-`shipit` first commits and pushes the next TestFlight version:
+`shipit` first commits, fully validates, and pushes the next TestFlight version:
 
 - `2.1` becomes `2.1.1`.
 - `2` becomes `2.0.1`.
@@ -79,8 +110,8 @@ its original version even after the local version has changed to it.
 The release command requires clean `main` and performs these steps:
 
 1. Choose the version and notes, then check App Store Connect for an older version to replace or conflicting review items.
-2. Set, commit, and push the requested version with `bin/version`.
-3. Test, archive, and upload using the App Store upload mode.
+2. Set and commit the requested version, run the full local gate, and push with `bin/version`.
+3. Verify the same full evidence, archive, and upload using the App Store upload mode.
 4. Wait for that exact build to finish processing.
 5. Replace an older pending version when present, set the public release notes, and submit for App Review.
 6. Verify the selected build, notes, submission, and automatic release after approval.

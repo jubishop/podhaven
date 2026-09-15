@@ -1,5 +1,6 @@
 """Exercise the hosted-test accessibility connection without platform dependencies."""
 
+from concurrent.futures import ThreadPoolExecutor
 from http.client import HTTPConnection
 import importlib.machinery
 import importlib.util
@@ -66,6 +67,20 @@ class AccessibilityClientTests(unittest.TestCase):
         self.assertEqual(self.request({'pid': 123})[0], 200)
         self.assertEqual(self.request({'pid': 456})[0], 200)
         self.assertEqual(self.client.requests, [123, 456])
+
+    def test_concurrent_hosted_windows_all_complete_inspection(self):
+        count = 64
+        start = threading.Barrier(count)
+
+        def request(_):
+            start.wait(timeout=15)
+            return self.request({'pid': 123})
+
+        with ThreadPoolExecutor(max_workers=count) as pool:
+            responses = list(pool.map(request, range(count)))
+
+        self.assertEqual([status for status, _ in responses], [200] * count)
+        self.assertEqual(self.client.requests, [123])
 
     def test_invalid_requests_do_not_inspect_any_process(self):
         for value in ({}, [], {'pid': True}, {'pid': -1}, {'pid': '123'}):

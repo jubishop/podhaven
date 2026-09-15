@@ -21,7 +21,7 @@ with (base / 'events').open('a') as stream:
 if name == 'xcodebuild' and '-version' in args:
     print('Xcode ' + os.environ.get('TEST_XCODE_VERSION', '27.0'))
 elif name == 'xcrun' and args == ['swift', '--version']:
-    print('Apple Swift version 6.4')
+    print('Apple Swift version ' + os.environ.get('TEST_SWIFT_VERSION', '6.4'))
 elif name == 'sw_vers':
     print(os.environ.get('TEST_MACOS_VERSION', '27.0'))
 elif name == 'with-test-accessibility':
@@ -42,6 +42,8 @@ elif name == 'xcodebuild':
         pathlib.Path('source.txt').write_text('changed during tests')
     if os.environ.get('TEST_STAGE_CHECKOUT'):
         subprocess.run(['git', 'add', '.'], check=True)
+    if os.environ.get('TEST_ASSUME_CHECKOUT'):
+        subprocess.run(['git', 'update-index', '--assume-unchanged', 'source.txt'], check=True)
     if os.environ.get('TEST_BUILD_FAILURE'): sys.exit(65)
 elif name == 'xcrun' and args[:2] == ['xcresulttool', 'get']:
     if not pathlib.Path(args[args.index('--path') + 1]).is_dir(): sys.exit(1)
@@ -115,8 +117,8 @@ class TestAllTests(unittest.TestCase):
     def git(self, *args):
         return subprocess.check_output(["git", *args], cwd=self.repo, env=self.env, text=True).strip()
 
-    def run_all(self, **env):
-        return subprocess.run([sys.executable, "-B", str(self.repo / "bin/test-all")],
+    def run_all(self, *args, **env):
+        return subprocess.run([sys.executable, "-B", str(self.repo / "bin/test-all"), *args],
                               cwd=self.base, env={**self.env, **env}, text=True,
                               capture_output=True, timeout=15)
 
@@ -168,6 +170,97 @@ class TestAllTests(unittest.TestCase):
         self.assertEqual(self.report()["result"], "failed")
         events = [json.loads(line) for line in (self.base / "events").read_text().splitlines()]
         self.assertFalse(any(name == "xcodebuild" and "test" in args for name, args in events))
+
+    def test_ensure_reuses_only_intact_clean_full_evidence(self):
+        result = self.run_all("--ensure")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = self.run_all("--ensure", TEST_BUILD_FAILURE="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(list((self.repo / ".cache/test-all").glob("*/run.json"))), 1)
+        log = next((self.repo / ".cache/test-all").glob("*/xcodebuild.log"))
+        log.write_text(log.read_text() + "\nwarning: changed evidence\n")
+        result = self.run_all("--verify")
+        self.assertNotEqual(result.returncode, 0)
+        result = self.run_all("--ensure", TEST_BUILD_FAILURE="1")
+        self.assertNotEqual(result.returncode, 0)
+
+    def test_verify_rejects_missing_failed_stale_or_dirty_evidence(self):
+        self.assertNotEqual(self.run_all("--verify").returncode, 0)
+        self.assertEqual(self.run_all().returncode, 0)
+        path = next((self.repo / ".cache/test-all").glob("*/run.json"))
+        original = path.read_text()
+        for field, value in (("result", "failed"), ("checkout", {}), ("checkout_after", {}),
+                             ("xcode", "Xcode 26"), ("destination", "simulator")):
+            with self.subTest(field=field):
+                report = json.loads(original)
+                report[field] = value
+                path.write_text(json.dumps(report))
+                self.assertNotEqual(self.run_all("--verify").returncode, 0)
+        path.write_text(original)
+        self.assertEqual(self.run_all("--verify").returncode, 0)
+        (self.repo / "source.txt").write_text("dirty")
+        self.assertNotEqual(self.run_all("--ensure").returncode, 0)
+        self.assertEqual(len(list((self.repo / ".cache/test-all").glob("*/run.json"))), 1)
+        (self.repo / "source.txt").write_text("original")
+        self.git("-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                 "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false",
+                 "commit", "--allow-empty", "-m", "new revision")
+        self.assertNotEqual(self.run_all("--verify").returncode, 0)
+
+    def test_expected_revision_and_changed_toolchain_reject_reuse(self):
+        self.assertEqual(self.run_all().returncode, 0)
+        self.assertNotEqual(self.run_all("--verify", "--revision", "wrong").returncode, 0)
+        self.assertNotEqual(self.run_all("--verify", TEST_SWIFT_VERSION="6.5").returncode, 0)
+        self.assertNotEqual(self.run_all("--verify", TEST_XCODE_VERSION="26.5").returncode, 0)
+
+    def test_latest_failure_does_not_reuse_an_older_success(self):
+        self.assertEqual(self.run_all().returncode, 0)
+        self.assertNotEqual(self.run_all(TEST_SKIPPED="1").returncode, 0)
+        self.assertNotEqual(self.run_all("--verify").returncode, 0)
+        latest = max((self.repo / ".cache/test-all").glob("*/run.json"),
+                     key=lambda path: path.stat().st_mtime_ns)
+        latest.unlink()
+        self.assertNotEqual(self.run_all("--verify").returncode, 0)
+
+    def test_content_digest_catches_changes_hidden_from_git_status(self):
+        self.assertEqual(self.run_all().returncode, 0)
+        self.git("update-index", "--assume-unchanged", "source.txt")
+        (self.repo / "source.txt").write_text("hidden change")
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertNotEqual(self.run_all("--verify").returncode, 0)
+
+    def test_ensure_rejects_unchecked_paths_before_running_tests(self):
+        for flag in ("assume-unchanged", "skip-worktree"):
+            with self.subTest(flag=flag):
+                self.git("update-index", "--" + flag, "source.txt")
+                try:
+                    (self.repo / "source.txt").write_text("hidden change")
+                    self.assertEqual(self.git("status", "--porcelain"), "")
+                    result = self.run_all("--ensure")
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertIn("source.txt", result.stderr)
+                    self.assertFalse((self.repo / ".cache").exists())
+                finally:
+                    (self.repo / "source.txt").write_text("original")
+                    self.git("update-index", "--no-" + flag, "source.txt")
+
+    def test_verify_rejects_development_evidence_with_unchecked_paths(self):
+        self.git("update-index", "--assume-unchanged", "source.txt")
+        (self.repo / "source.txt").write_text("hidden change")
+        self.assertEqual(self.run_all().returncode, 0)
+        result = self.run_all("--verify")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("source.txt", result.stderr)
+
+    def test_ensure_rejects_paths_marked_unchecked_during_tests(self):
+        result = self.run_all("--ensure", TEST_ASSUME_CHECKOUT="1")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(self.report()["result"], "failed")
+
+    def test_preflight_does_not_run_tests_or_write_evidence(self):
+        result = self.run_all("--preflight")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((self.repo / ".cache").exists())
 
     def test_unsupported_xcode_stops_before_tests(self):
         result = self.run_all(TEST_XCODE_VERSION="26.5")

@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 import secrets
+import socket
 from socketserver import TCPServer
 import subprocess
 import sys
@@ -15,6 +16,8 @@ sys.dont_write_bytecode = True
 
 
 class LocalAccessibilityServer(ThreadingHTTPServer):
+    request_queue_size = socket.SOMAXCONN
+
     def server_bind(self):
         TCPServer.server_bind(self)
         self.server_name = 'localhost'
