@@ -104,6 +104,7 @@ private struct HostedPlayBarTestView: View {
     state.$onDeck.new(OnDeck(from: episode))
     state.currentEpisodeID = episode.id
     Container.shared.userSettings().$silenceMode.new(.balanced)
+    Container.shared.userSettings().$quietAudioProtection.new(.medium)
     let viewModel = PlayBarViewModel()
     let observation = Task { await viewModel.observeTranscript() }
     defer { observation.cancel() }
@@ -144,6 +145,19 @@ private struct HostedPlayBarTestView: View {
         let elements = Self.accessibilityElements(in: window)
         let silence = try #require(elements.first { $0.accessibilityLabel == "Shorten Silence" })
         let speed = try #require(elements.first { $0.accessibilityLabel == "Playback Speed" })
+        let protection = try #require(
+          elements.first { $0.accessibilityLabel == "Quiet Audio Protection" }
+        )
+        #expect(protection.accessibilityValue == "Medium")
+        #expect(protection.accessibilityTraits.contains(.button))
+        #expect(protection.accessibilityFrame.minX >= silence.accessibilityFrame.maxX)
+        #expect(protection.accessibilityFrame.width >= 44)
+        #expect(abs(protection.accessibilityFrame.height - speed.accessibilityFrame.height) <= 2)
+        #expect(
+          window.convert(protection.accessibilityFrame, from: window.screen.coordinateSpace).maxX
+            <= 320
+        )
+
         #expect(silence.accessibilityValue == "Balanced")
         #expect(silence.accessibilityTraits.contains(.button))
         #expect(speed.accessibilityTraits.contains(.button))

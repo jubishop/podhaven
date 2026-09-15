@@ -24,9 +24,11 @@ struct QuietDetectorTests {
       time: 1.001
     )
     let map = try detector.finish(duration: 2)
-    #expect(map.intervals.count == 2)
-    #expect(abs(map.intervals[0].end - 1) < 0.001)
-    #expect(map.intervals[1].start >= 1.009)
+    #expect(map.high == map.medium)
+    #expect(map.high == map.low)
+    #expect(map.high.count == 2)
+    #expect(abs(map.high[0].end - 1) < 0.001)
+    #expect(map.high[1].start >= 1.009)
   }
 
   @Test("missing timestamps never become silence")
@@ -45,9 +47,11 @@ struct QuietDetectorTests {
       time: 5
     )
     let map = try detector.finish(duration: 6)
-    #expect(map.intervals.count == 2)
-    #expect(map.intervals[0].end <= 1.001)
-    #expect(map.intervals[1].start == 5)
+    #expect(map.high == map.medium)
+    #expect(map.high == map.low)
+    #expect(map.high.count == 2)
+    #expect(map.high[0].end <= 1.001)
+    #expect(map.high[1].start == 5)
   }
 
   @Test("invalid samples reject analysis")
@@ -70,7 +74,7 @@ struct QuietDetectorTests {
         sampleRate: rate,
         time: 0
       )
-      #expect(try detector.finish(duration: 1).intervals.isEmpty)
+      #expect(try detector.finish(duration: 1).high.isEmpty)
     }
   }
 }

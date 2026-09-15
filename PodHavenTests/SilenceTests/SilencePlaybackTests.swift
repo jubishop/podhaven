@@ -26,7 +26,12 @@ import Testing
     let store = Container.shared.silenceStore()
     let content = try #require(try await store.content(for: url.lastPathComponent))
     try await store.publish(
-      SilenceMap(duration: 30, intervals: [.init(start: 1, end: 4)]),
+      SilenceMap(
+        duration: 30,
+        high: [.init(start: 1, end: 4)],
+        medium: [.init(start: 1, end: 4)],
+        low: [.init(start: 1, end: 4)]
+      ),
       for: content
     )
     Container.shared.userSettings().$silenceMode.new(.gentle)
@@ -51,8 +56,10 @@ import Testing
     try await manager.load(first)
     let state = Container.shared.sharedState()
     state.$silenceOverride.new(SilenceOverride(episodeID: first.id, mode: .aggressive))
+    PlayBarViewModel().selectQuietAudioProtection(.low)
     try await manager.load(second)
     #expect(state.silenceOverride == nil)
+    #expect(state.quietAudioProtectionOverride == nil)
   }
 
   @Test("finishing with Stop After Current Episode clears the temporary playback mode")
@@ -60,6 +67,7 @@ import Testing
     let (episode, player) = try await prepared()
     try #require(Container.shared.podAVPlayer().playbackSnapshot().isFromCache)
     PlayBarViewModel().selectSilenceMode(.aggressive)
+    PlayBarViewModel().selectQuietAudioProtection(.low)
     let state = Container.shared.sharedState()
     try #require(state.silenceOverride == SilenceOverride(episodeID: episode.id, mode: .aggressive))
     let filename = try #require(episode.episode.cachedURL?.lastPathComponent)
@@ -87,6 +95,7 @@ import Testing
     #expect(state.currentEpisodeID == nil)
     #expect(state.playbackStatus == .stopped)
     #expect(state.silenceOverride == nil)
+    #expect(state.quietAudioProtectionOverride == nil)
     #expect(state.silenceSourceRejection == nil)
   }
 
@@ -99,7 +108,10 @@ import Testing
     let url = try await CacheHelpers.waitForCached(episode.id)
     let store = Container.shared.silenceStore()
     let content = try #require(try await store.content(for: url.lastPathComponent))
-    try await store.publish(SilenceMap(duration: 30, intervals: [interval]), for: content)
+    try await store.publish(
+      SilenceMap(duration: 30, high: [interval], medium: [interval], low: [interval]),
+      for: content
+    )
     Container.shared.userSettings().$silenceMode.new(.gentle)
     let loaded = try #require(try await Container.shared.repo().podcastEpisode(episode.id))
     try await Container.shared.playManager().load(loaded)
@@ -287,7 +299,12 @@ import Testing
     let store = Container.shared.silenceStore()
     let content = try #require(try await store.content(for: url.lastPathComponent))
     try await store.publish(
-      SilenceMap(duration: 30, intervals: [.init(start: 1, end: 10)]),
+      SilenceMap(
+        duration: 30,
+        high: [.init(start: 1, end: 10)],
+        medium: [.init(start: 1, end: 10)],
+        low: [.init(start: 1, end: 10)]
+      ),
       for: content
     )
     let entered = ThreadSafe(false)
@@ -328,6 +345,7 @@ import Testing
     let (episode, player) = try await prepared()
     let viewModel = PlayBarViewModel()
     viewModel.selectSilenceMode(.aggressive)
+    viewModel.selectQuietAudioProtection(.medium)
     await Container.shared.playManager().setRate(1.8)
     Container.shared.sharedState().setStopAfterCurrentEpisode(true)
     Container.shared.notifier().continuation(for: AVAudioSession.mediaServicesWereResetNotification)
@@ -342,6 +360,7 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
     #expect(Container.shared.sharedState().currentEpisodeID == episode.id)
     #expect(viewModel.silenceMode == .aggressive)
+    #expect(viewModel.quietAudioProtection == .medium)
     #expect((Container.shared.avPlayer() as! FakeAVPlayer).rate == 1.8)
     #expect(Container.shared.sharedState().stopAfterCurrentEpisode)
     #expect(Container.shared.sharedState().silenceOverride?.episodeID == episode.id)

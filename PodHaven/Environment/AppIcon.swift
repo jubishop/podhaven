@@ -149,6 +149,7 @@ import SwiftUI
   case noEpisodeSelected
   case pauseButton
   case silence
+  case quietAudioProtection
   case playButton
   case nextChapter
   case previousChapter
@@ -612,6 +613,12 @@ import SwiftUI
         systemImageName: .pauseButton,
         darkColor: .yellow,
         lightColor: .pink
+      )
+    case .quietAudioProtection:
+      return Data(
+        text: "Quiet Audio Protection",
+        systemImageName: .quietAudioProtection,
+        color: .primary
       )
     case .silence:
       return Data(text: "Shorten Silence", systemImageName: .silence, color: .primary)

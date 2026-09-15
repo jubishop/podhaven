@@ -9,29 +9,67 @@ enum SilenceAnalysisError: Error {
 }
 
 struct SilenceMap: Codable, Equatable, Sendable {
-  static let detectorVersion = 1
+  static let detectorVersion = 2
   static let maximumIntervals = 100_000
   let duration: Double
-  let intervals: [QuietInterval]
+  let high: [QuietInterval]
+  let medium: [QuietInterval]
+  let low: [QuietInterval]
+
+  func intervals(for protection: QuietAudioProtection) -> [QuietInterval] {
+    switch protection {
+    case .high: high
+    case .medium: medium
+    case .low: low
+    }
+  }
+
+  var intervalCount: Int { high.count + medium.count + low.count }
 
   var isValid: Bool {
-    guard duration.isFinite, duration > 0, intervals.count <= Self.maximumIntervals else {
+    guard duration.isFinite, duration > 0, intervalCount <= Self.maximumIntervals else {
       return false
     }
-    var previousEnd = 0.0
-    for interval in intervals {
-      guard interval.start.isFinite, interval.end.isFinite,
-        interval.start >= previousEnd, interval.end > interval.start, interval.end <= duration
-      else { return false }
-      previousEnd = interval.end
+    for protection in QuietAudioProtection.allCases {
+      var previousEnd = 0.0
+      for interval in intervals(for: protection) {
+        guard interval.start.isFinite, interval.end.isFinite,
+          interval.start >= previousEnd, interval.end > interval.start, interval.end <= duration
+        else { return false }
+        previousEnd = interval.end
+      }
     }
     return true
   }
 }
 
-struct QuietDetector {
-  private var intervals: [QuietInterval] = []
+private struct QuietRun {
+  let threshold: Float
+  var intervals: [QuietInterval] = []
   private var quietStart: Double?
+
+  init(threshold: Float) { self.threshold = threshold }
+
+  mutating func consume(peak: Float, at time: Double) {
+    if peak < threshold {
+      if quietStart == nil { quietStart = time }
+    } else {
+      finish(at: time)
+    }
+  }
+
+  mutating func finish(at end: Double) {
+    guard let start = quietStart else { return }
+    quietStart = nil
+    guard end - start >= 0.04 else { return }
+    intervals.append(QuietInterval(start: start, end: end))
+  }
+}
+
+struct QuietDetector {
+  private var high = QuietRun(threshold: QuietAudioProtection.high.threshold)
+  private var medium = QuietRun(threshold: QuietAudioProtection.medium.threshold)
+  private var low = QuietRun(threshold: QuietAudioProtection.low.threshold)
   private var expectedTime: Double?
   private var windowStart = 0.0
   private var windowFrames = 0
@@ -45,7 +83,9 @@ struct QuietDetector {
     if let expectedTime,
       abs(time - expectedTime) > 2 / sampleRate || self.sampleRate != sampleRate
     {
-      try finishQuiet(at: windowStart)
+      high.finish(at: windowStart)
+      medium.finish(at: windowStart)
+      low.finish(at: windowStart)
       windowFrames = 0
       windowPeak = 0
     }
@@ -61,11 +101,13 @@ struct QuietDetector {
       }
       windowFrames += 1
       if windowFrames == windowSize {
-        if windowPeak < 0.001 {
-          if quietStart == nil { quietStart = windowStart }
-        } else {
-          try finishQuiet(at: windowStart)
-        }
+        high.consume(peak: windowPeak, at: windowStart)
+        medium.consume(peak: windowPeak, at: windowStart)
+        low.consume(peak: windowPeak, at: windowStart)
+        guard
+          high.intervals.count + medium.intervals.count + low.intervals.count
+            <= SilenceMap.maximumIntervals
+        else { throw SilenceAnalysisError.tooManyIntervals }
         windowStart += Double(windowFrames) / sampleRate
         windowFrames = 0
         windowPeak = 0
@@ -75,20 +117,20 @@ struct QuietDetector {
   }
 
   mutating func finish(duration: Double) throws -> SilenceMap {
-    try finishQuiet(at: min(windowStart, duration))
-    let map = SilenceMap(duration: duration, intervals: intervals)
-    guard map.isValid else { throw SilenceAnalysisError.invalidAudio }
-    return map
-  }
-
-  private mutating func finishQuiet(at end: Double) throws {
-    guard let start = quietStart else { return }
-    quietStart = nil
-    guard end - start >= 0.04 else { return }
-    guard intervals.count < SilenceMap.maximumIntervals else {
+    high.finish(at: min(windowStart, duration))
+    medium.finish(at: min(windowStart, duration))
+    low.finish(at: min(windowStart, duration))
+    let map = SilenceMap(
+      duration: duration,
+      high: high.intervals,
+      medium: medium.intervals,
+      low: low.intervals
+    )
+    guard map.intervalCount <= SilenceMap.maximumIntervals else {
       throw SilenceAnalysisError.tooManyIntervals
     }
-    intervals.append(QuietInterval(start: start, end: end))
+    guard map.isValid else { throw SilenceAnalysisError.invalidAudio }
+    return map
   }
 }
 

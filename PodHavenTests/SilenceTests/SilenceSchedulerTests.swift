@@ -44,7 +44,7 @@ struct SilenceSchedulerTests {
     let url = try await cache(episode, playable: false)
     let store = Container.shared.silenceStore()
     let content = try #require(try await store.content(for: url.lastPathComponent))
-    let map = SilenceMap(duration: 1, intervals: [])
+    let map = SilenceMap(duration: 1, high: [], medium: [], low: [])
     #expect(try await store.publish(map, for: content))
     Container.shared.userSettings().$silenceMode.new(.balanced)
     let scheduler = Container.shared.bgTaskScheduler() as! FakeBGTaskScheduler

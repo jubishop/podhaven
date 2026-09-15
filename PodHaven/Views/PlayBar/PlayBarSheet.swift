@@ -174,6 +174,7 @@ struct PlayBarSheet: View {
 
   private func metaButtonStyle<V: View>(_ content: V) -> some View {
     content
+      .menuStyle(PlaybackMetaMenuStyle(spacing: spacing))
       .buttonStyle(PlaybackMetaButtonStyle(spacing: spacing))
   }
 
@@ -202,7 +203,7 @@ struct PlayBarSheet: View {
   }
 
   private var metaControlsRow: some View {
-    HStack {
+    HStack(spacing: spacing / 2) {
       metaButtonStyle(
         PlaybackSpeedButton(
           rate: viewModel.playbackRate,
@@ -212,6 +213,13 @@ struct PlayBarSheet: View {
       )
       metaButtonStyle(
         SilenceModeMenu(mode: viewModel.silenceMode, select: viewModel.selectSilenceMode)
+      )
+      .disabled(isShowingSpeedPopover)
+      metaButtonStyle(
+        QuietAudioProtectionMenu(
+          mode: viewModel.quietAudioProtection,
+          select: viewModel.selectQuietAudioProtection
+        )
       )
       .disabled(isShowingSpeedPopover)
 
@@ -346,16 +354,37 @@ private struct PlaybackMetaButtonStyle: ButtonStyle {
 
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
+      .modifier(PlaybackMetaLabelStyle(spacing: spacing))
+      .opacity(configuration.isPressed ? 0.6 : 1)
+  }
+}
+
+private struct PlaybackMetaMenuStyle: MenuStyle {
+  let spacing: CGFloat
+
+  func makeBody(configuration: Configuration) -> some View {
+    Menu(configuration)
+      .buttonStyle(.plain)
+      .modifier(PlaybackMetaLabelStyle(spacing: spacing))
+  }
+}
+
+private struct PlaybackMetaLabelStyle: ViewModifier {
+  let spacing: CGFloat
+  @ScaledMetric(relativeTo: .callout) private var labelHeight: CGFloat = 20
+
+  func body(content: Content) -> some View {
+    content
       .font(.callout)
       .fontWeight(.semibold)
       .fontDesign(.rounded)
       .foregroundStyle(.tint)
+      .frame(height: labelHeight)
       .padding(.horizontal, spacing)
       .padding(.vertical, spacing / 2)
       .glassEffect(.regular.interactive(), in: .capsule)
       .frame(minWidth: 44, minHeight: 44)
       .contentShape(.rect)
-      .opacity(configuration.isPressed ? 0.6 : 1)
   }
 }
 
@@ -373,6 +402,7 @@ struct PlayBarSheetPreview: View {
   let description: String?
   let transcript: Transcript?
   let silenceMode: SilenceMode?
+  let quietAudioProtection: QuietAudioProtection?
 
   init(
     _ status: PlaybackStatus = .playing,
@@ -385,7 +415,8 @@ struct PlayBarSheetPreview: View {
     duration: Double = 2400,
     description: String? = nil,
     transcript: Transcript? = nil,
-    silenceMode: SilenceMode? = nil
+    silenceMode: SilenceMode? = nil,
+    quietAudioProtection: QuietAudioProtection? = nil
   ) {
     self.status = status
     self.image = image
@@ -395,6 +426,7 @@ struct PlayBarSheetPreview: View {
     self.description = description
     self.transcript = transcript
     self.silenceMode = silenceMode
+    self.quietAudioProtection = quietAudioProtection
   }
 
   var body: some View {
@@ -427,6 +459,11 @@ struct PlayBarSheetPreview: View {
         onDeck.maxPlaybackTime = CMTime.seconds(maxPlaybackTimeSeconds)
         sharedState.$onDeck.new(onDeck)
         sharedState.currentEpisodeID = onDeck.id
+        if let quietAudioProtection {
+          sharedState.$quietAudioProtectionOverride.new(
+            QuietAudioProtectionOverride(episodeID: onDeck.id, protection: quietAudioProtection)
+          )
+        }
         if let silenceMode {
           sharedState.$silenceOverride.new(SilenceOverride(episodeID: onDeck.id, mode: silenceMode))
         }
@@ -434,7 +471,7 @@ struct PlayBarSheetPreview: View {
   }
 }
 
-#Preview("Silence off beside playback speed — transcription + finish") {
+#Preview("High protection with silence off — transcription + finish") {
   PlayBarSheetPreview(currentTime: 600, maxPlaybackTime: 600, silenceMode: .off)
 }
 
@@ -512,8 +549,18 @@ struct PlayBarSheetPreview: View {
   )
 }
 #Preview("Silence enabled with chapters and large text") {
-  PlayBarSheetPreview(description: "0:00 Introduction\n10:00 Discussion", silenceMode: .balanced)
-    .environment(\.dynamicTypeSize, .accessibility3)
+  PlayBarSheetPreview(
+    description: "0:00 Introduction\n10:00 Discussion",
+    silenceMode: .balanced,
+    quietAudioProtection: .low
+  )
+  .frame(width: 320)
+  .environment(\.dynamicTypeSize, .accessibility3)
+}
+
+#Preview("Medium protection, narrow player") {
+  PlayBarSheetPreview(silenceMode: .gentle, quietAudioProtection: .medium)
+    .frame(width: 320)
 }
 
 #endif

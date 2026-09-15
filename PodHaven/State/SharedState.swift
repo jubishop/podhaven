@@ -38,6 +38,7 @@ struct SharedState: Sendable {
   // When set, PlayManager stops at the current episode's end instead of
   // auto-advancing, then clears this back to false (single-use sleep stop).
   @Broadcasted var stopAfterCurrentEpisode: Bool = false
+  @Broadcasted var quietAudioProtectionOverride: QuietAudioProtectionOverride? = nil
   @Broadcasted var silenceOverride: SilenceOverride? = nil
   @Broadcasted var silenceSourceRejection: SilenceSourceRejection? = nil
   @Broadcasted var playRate: Float = 1.0
@@ -56,6 +57,19 @@ struct SharedState: Sendable {
       temporary: temporary,
       podcast: onDeck?.silenceMode,
       global: Container.shared.userSettings().silenceMode
+    )
+  }
+
+  var effectiveQuietAudioProtection: QuietAudioProtection {
+    var temporary: QuietAudioProtection?
+    if let quietAudioProtectionOverride, quietAudioProtectionOverride.episodeID == currentEpisodeID
+    {
+      temporary = quietAudioProtectionOverride.protection
+    }
+    return QuietAudioProtection.resolve(
+      temporary: temporary,
+      podcast: onDeck?.quietAudioProtection,
+      global: Container.shared.userSettings().quietAudioProtection
     )
   }
 

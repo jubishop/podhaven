@@ -332,6 +332,7 @@ final class PlayManager {
       Self.log.debug("performLoad: clearing onDeck")
       if !isMediaServicesRecovery {
         sharedState.$silenceOverride.new(nil)
+        sharedState.$quietAudioProtectionOverride.new(nil)
         sharedState.$silenceSourceRejection.new(nil)
       }
       try await clearOnDeck(ownedBy: loadID)
@@ -718,6 +719,7 @@ final class PlayManager {
       suppressRemoteScrubCommands()
       try await clearOnDeck(ownedBy: finalizationID)
       sharedState.$silenceOverride.new(nil)
+      sharedState.$quietAudioProtectionOverride.new(nil)
       sharedState.$silenceSourceRejection.new(nil)
       if sharedState.stopAfterCurrentEpisode {
         Self.log.debug("finishEpisode: stopAfterCurrentEpisode set, stopping instead of advancing")
@@ -938,6 +940,7 @@ final class PlayManager {
 
   func clearOnDeck() async {
     sharedState.$silenceOverride.new(nil)
+    sharedState.$quietAudioProtectionOverride.new(nil)
     sharedState.$silenceSourceRejection.new(nil)
     cancelWidgetRouteRecovery(reason: "clearOnDeck")
     Self.log.debug("clearOnDeck: executing")

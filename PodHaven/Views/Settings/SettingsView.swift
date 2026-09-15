@@ -140,6 +140,14 @@ struct SettingsView: View {
               }
             }
           }
+          SettingsRow(infoText: QuietAudioProtectionHelp.text) {
+            Picker("Quiet Audio Protection", selection: userSettings.$quietAudioProtection.binding)
+            {
+              ForEach(QuietAudioProtection.allCases) { mode in
+                Text(mode.title).tag(mode)
+              }
+            }
+          }
           VStack(alignment: .leading, spacing: 24) {
             SettingsRow(
               infoText: """

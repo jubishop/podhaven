@@ -4,6 +4,7 @@ import Foundation
 
 struct PodcastSettings: Hashable, Sendable {
   var silenceMode: SilenceMode? = nil
+  var quietAudioProtection: QuietAudioProtection? = nil
   var defaultPlaybackRate: Double?
   var queueAllEpisodes: QueueAllEpisodes
   var autoQueueLimit: Int?

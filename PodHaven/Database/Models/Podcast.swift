@@ -36,6 +36,7 @@ struct UnsavedPodcast:
   let lastUpdate: Date
   let subscriptionDate: Date?
   let silenceMode: SilenceMode?
+  let quietAudioProtection: QuietAudioProtection?
   let defaultPlaybackRate: Double?
   let queueAllEpisodes: QueueAllEpisodes
   let autoQueueLimit: Int?
@@ -57,6 +58,7 @@ struct UnsavedPodcast:
     subscriptionDate: Date? = nil,
     defaultPlaybackRate: Double? = nil,
     silenceMode: SilenceMode? = nil,
+    quietAudioProtection: QuietAudioProtection? = nil,
     queueAllEpisodes: QueueAllEpisodes = .never,
     autoQueueLimit: Int? = nil,
     cacheAllEpisodes: CacheAllEpisodes = .never,
@@ -86,6 +88,7 @@ struct UnsavedPodcast:
     self.lastUpdate = lastUpdate ?? Date.epoch
     self.subscriptionDate = subscriptionDate
     self.silenceMode = silenceMode
+    self.quietAudioProtection = quietAudioProtection
     self.defaultPlaybackRate = defaultPlaybackRate
     self.queueAllEpisodes = queueAllEpisodes
     self.autoQueueLimit = autoQueueLimit
@@ -105,6 +108,7 @@ struct UnsavedPodcast:
   var settings: PodcastSettings {
     PodcastSettings(
       silenceMode: silenceMode,
+      quietAudioProtection: quietAudioProtection,
       defaultPlaybackRate: defaultPlaybackRate,
       queueAllEpisodes: queueAllEpisodes,
       autoQueueLimit: autoQueueLimit,
@@ -236,6 +240,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let lastUpdate = Column("lastUpdate")
     static let subscriptionDate = Column("subscriptionDate")
     static let silenceMode = Column("silenceMode")
+    static let quietAudioProtection = Column("quietAudioProtection")
     static let defaultPlaybackRate = Column("defaultPlaybackRate")
     static let queueAllEpisodes = Column("queueAllEpisodes")
     static let autoQueueLimit = Column("autoQueueLimit")
