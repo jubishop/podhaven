@@ -177,9 +177,13 @@ struct DownloadManagerTests {
     let downloadCount = Counter()
     for _ in 0..<taskCount {
       Task {
-        let downloadData = try await task.downloadFinished()
-        #expect(downloadData == DownloadData(url: url))
-        await downloadCount.increment()
+        do {
+          let downloadData = try await task.downloadFinished()
+          #expect(downloadData == DownloadData(url: url))
+          await downloadCount.increment()
+        } catch {
+          Issue.record(error)
+        }
       }
     }
     asyncSemaphore.signal()

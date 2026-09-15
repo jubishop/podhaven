@@ -3,6 +3,7 @@
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Tagged
 
 // Detail-view shape returned by `Repo.podcastSeriesDetail(...)` and
 // `Observatory.podcastSeriesDetail(...)`. Carries:

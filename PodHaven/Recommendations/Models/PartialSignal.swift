@@ -3,6 +3,7 @@
 import AVFoundation
 import Foundation
 import GRDB
+import Tagged
 
 // Read-on-rebuild only. `playbackCoverage` and `lastPlayedDate` here must
 // not enter any GRDB observation — go through `allUnratedListenedEpisodes()`

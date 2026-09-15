@@ -521,6 +521,11 @@ private struct HostedPlayBarTestView: View {
         for: mediumPlaybackPosition,
         in: window
       )
+      let screenshot = UIGraphicsImageRenderer(bounds: window.bounds)
+        .image { _ in
+          _ = window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+      Attachment.record(try #require(screenshot.pngData()), named: "playback-glass.png")
 
       #expect(
         mediumContrast >= 0.1,

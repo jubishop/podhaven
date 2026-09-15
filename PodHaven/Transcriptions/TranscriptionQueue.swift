@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import Logging
+import Tagged
 
 // MARK: - Container
 

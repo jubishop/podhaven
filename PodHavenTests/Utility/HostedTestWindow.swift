@@ -44,6 +44,24 @@ func withHostedTestWindow<Content: View, Value>(
   try await host.appeared.wait()
   host.view.layoutIfNeeded()
 
+  if ProcessInfo.processInfo.isiOSAppOnMac {
+    let address = try #require(
+      ProcessInfo.processInfo.environment["PODHAVEN_ACCESSIBILITY_URL"],
+      "Run hosted tests with bin/with-test-accessibility xcodebuild test ..."
+    )
+    var request = URLRequest(url: try #require(URL(string: address)))
+    request.httpMethod = "POST"
+    request.httpBody = try JSONSerialization.data(
+      withJSONObject: ["pid": ProcessInfo.processInfo.processIdentifier]
+    )
+    let session = URLSession(configuration: .ephemeral)
+    defer { session.invalidateAndCancel() }
+    let (data, response) = try await session.data(for: request)
+    let http = try #require(response as? HTTPURLResponse)
+    try #require(http.statusCode == 200, "\(String(decoding: data, as: UTF8.self))")
+    host.view.layoutIfNeeded()
+  }
+
   let result: Result<Value, any Error>
   do {
     result = .success(try await body(window))
@@ -55,4 +73,15 @@ func withHostedTestWindow<Content: View, Value>(
   window.rootViewController = nil
   try await host.disappeared.wait()
   return try result.get()
+}
+
+@MainActor
+func activateHostedControl(_ element: NSObject) throws {
+  if let control = element as? UIControl,
+    control.allControlEvents.contains(.primaryActionTriggered)
+  {
+    control.sendActions(for: .primaryActionTriggered)
+  } else {
+    try #require(element.accessibilityActivate())
+  }
 }

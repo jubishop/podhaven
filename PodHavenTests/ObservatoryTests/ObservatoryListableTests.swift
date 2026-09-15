@@ -99,12 +99,16 @@ actor ObservatoryListableTests {
     let updateCount = Counter()
 
     Task {
-      let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
-        observatory.listablePodcastEpisodes(
-          filter: Episode.Columns.id == episodeID
-        )
-      for try await _ in observation {
-        await updateCount.increment()
+      do {
+        let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+          observatory.listablePodcastEpisodes(
+            filter: Episode.Columns.id == episodeID
+          )
+        for try await _ in observation {
+          await updateCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 
@@ -140,12 +144,16 @@ actor ObservatoryListableTests {
     let updateCount = Counter()
 
     Task {
-      let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
-        observatory.listablePodcastEpisodes(
-          filter: Episode.Columns.id == episodeID
-        )
-      for try await _ in observation {
-        await updateCount.increment()
+      do {
+        let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+          observatory.listablePodcastEpisodes(
+            filter: Episode.Columns.id == episodeID
+          )
+        for try await _ in observation {
+          await updateCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 
@@ -219,10 +227,14 @@ actor ObservatoryListableTests {
     let updateCount = Counter()
 
     Task {
-      let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
-        observatory.listablePodcastsWithEpisodeMetadata()
-      for try await _ in observation {
-        await updateCount.increment()
+      do {
+        let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
+          observatory.listablePodcastsWithEpisodeMetadata()
+        for try await _ in observation {
+          await updateCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 
@@ -257,10 +269,14 @@ actor ObservatoryListableTests {
     let updateCount = Counter()
 
     Task {
-      let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
-        observatory.listablePodcastsWithEpisodeMetadata()
-      for try await _ in observation {
-        await updateCount.increment()
+      do {
+        let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
+          observatory.listablePodcastsWithEpisodeMetadata()
+        for try await _ in observation {
+          await updateCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 

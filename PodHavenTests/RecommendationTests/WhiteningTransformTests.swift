@@ -18,8 +18,8 @@ struct WhiteningTransformTests {
     )
     let input: [Float] = [1.0, 0.5, 0.5]
     var dest = [Float](repeating: 0, count: 3)
-    unsafe input.withUnsafeBufferPointer { inBuf in
-      unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    input.withUnsafeBufferPointer { inBuf in
+      dest.withUnsafeMutableBufferPointer { destBuf in
         unsafe transform.apply(inBuf, strippingTopK: 0, into: destBuf)
       }
     }
@@ -39,8 +39,8 @@ struct WhiteningTransformTests {
     )
     let input: [Float] = [5.0, 0, 0]
     var dest = [Float](repeating: 0, count: 3)
-    unsafe input.withUnsafeBufferPointer { inBuf in
-      unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    input.withUnsafeBufferPointer { inBuf in
+      dest.withUnsafeMutableBufferPointer { destBuf in
         unsafe transform.apply(inBuf, strippingTopK: 1, into: destBuf)
       }
     }
@@ -55,8 +55,8 @@ struct WhiteningTransformTests {
     )
     let input: [Float] = [0.3, 0.0, 0.4]
     var dest = [Float](repeating: 0, count: 3)
-    unsafe input.withUnsafeBufferPointer { inBuf in
-      unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    input.withUnsafeBufferPointer { inBuf in
+      dest.withUnsafeMutableBufferPointer { destBuf in
         unsafe transform.apply(inBuf, strippingTopK: 1, into: destBuf)
       }
     }
@@ -74,8 +74,8 @@ struct WhiteningTransformTests {
     )
     let input: [Float] = [1, 2, 3]
     var dest = [Float](repeating: 7, count: 5)  // wrong size
-    unsafe input.withUnsafeBufferPointer { inBuf in
-      unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    input.withUnsafeBufferPointer { inBuf in
+      dest.withUnsafeMutableBufferPointer { destBuf in
         unsafe transform.apply(inBuf, strippingTopK: 0, into: destBuf)
       }
     }
@@ -90,8 +90,8 @@ struct WhiteningTransformTests {
     )
     let input: [Float] = [0, 1, 0]
     var dest = [Float](repeating: 0, count: 3)
-    unsafe input.withUnsafeBufferPointer { inBuf in
-      unsafe dest.withUnsafeMutableBufferPointer { destBuf in
+    input.withUnsafeBufferPointer { inBuf in
+      dest.withUnsafeMutableBufferPointer { destBuf in
         // Asking for 5 PCs when only 1 exists should clamp to 1.
         unsafe transform.apply(inBuf, strippingTopK: 5, into: destBuf)
       }

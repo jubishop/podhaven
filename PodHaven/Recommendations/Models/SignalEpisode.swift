@@ -2,6 +2,7 @@
 
 import Foundation
 import GRDB
+import Tagged
 
 // `databaseSelection` is intentionally narrow: filtering on
 // `Episode.hasRatingSignal` against this projection caps GRDB's tracked
