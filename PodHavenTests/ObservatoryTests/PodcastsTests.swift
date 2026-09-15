@@ -177,8 +177,12 @@ actor PodcastsTests {
 
     // Start observing before any podcasts exist
     Task {
-      for try await podcasts in observatory.podcasts([feedURL1, feedURL2]) {
-        await observedPodcasts.set(podcasts)
+      do {
+        for try await podcasts in observatory.podcasts([feedURL1, feedURL2]) {
+          await observedPodcasts.set(podcasts)
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 

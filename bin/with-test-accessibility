@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""Connect a local accessibility client to hosted tests run by the given command."""
+
+import ctypes
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
+import os
+import secrets
+from socketserver import TCPServer
+import subprocess
+import sys
+import threading
+
+sys.dont_write_bytecode = True
+
+
+class LocalAccessibilityServer(ThreadingHTTPServer):
+    def server_bind(self):
+        TCPServer.server_bind(self)
+        self.server_name = 'localhost'
+        self.server_port = self.server_address[1]
+
+
+class AccessibilityClient:
+    def __init__(self):
+        self.ax = ctypes.CDLL('/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices')
+        self.cf = ctypes.CDLL('/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation')
+        self.proc = ctypes.CDLL('/usr/lib/libproc.dylib')
+        pointer = ctypes.c_void_p
+        for library, name, arguments, result in (
+            (self.ax, 'AXIsProcessTrusted', [], ctypes.c_bool),
+            (self.ax, 'AXUIElementCreateSystemWide', [], pointer),
+            (self.ax, 'AXUIElementCreateApplication', [ctypes.c_int], pointer),
+            (self.ax, 'AXUIElementSetMessagingTimeout', [pointer, ctypes.c_float], ctypes.c_int),
+            (self.ax, 'AXUIElementCopyAttributeValue', [pointer, pointer, ctypes.POINTER(pointer)], ctypes.c_int),
+            (self.cf, 'CFStringCreateWithCString', [pointer, ctypes.c_char_p, ctypes.c_uint32], pointer),
+            (self.cf, 'CFArrayGetCount', [pointer], ctypes.c_long),
+            (self.cf, 'CFArrayGetValueAtIndex', [pointer, ctypes.c_long], pointer),
+            (self.cf, 'CFGetTypeID', [pointer], ctypes.c_ulong),
+            (self.cf, 'CFArrayGetTypeID', [], ctypes.c_ulong),
+            (self.cf, 'CFRelease', [pointer], None),
+            (self.proc, 'proc_pidpath', [ctypes.c_int, pointer, ctypes.c_uint32], ctypes.c_int),
+        ):
+            function = getattr(library, name)
+            function.argtypes = arguments
+            function.restype = result
+        if not self.ax.AXIsProcessTrusted():
+            raise RuntimeError('Grant Accessibility access to the terminal or app running tests in System Settings > Privacy & Security > Accessibility')
+        system = self.ax.AXUIElementCreateSystemWide()
+        try:
+            result = self.ax.AXUIElementSetMessagingTimeout(system, 60)
+            if result:
+                raise RuntimeError(f'Could not configure accessibility timeout: AX error {result}')
+        finally:
+            self.cf.CFRelease(system)
+
+    def inspect(self, pid):
+        executable = ctypes.create_string_buffer(4096)
+        if self.proc.proc_pidpath(pid, executable, len(executable)) <= 0:
+            raise RuntimeError('The test process is no longer available')
+        if not os.fsdecode(executable.value).endswith('/PodHaven.app/PodHaven'):
+            raise RuntimeError('Accessibility requests must target the PodHaven test host')
+        application = self.ax.AXUIElementCreateApplication(pid)
+        key = self.cf.CFStringCreateWithCString(None, b'AXChildren', 0x08000100)
+        remaining = 10000
+
+        def visit(element, depth=0):
+            nonlocal remaining
+            remaining -= 1
+            if remaining < 0 or depth > 40:
+                raise RuntimeError('Accessibility tree exceeded the inspection limit')
+            value = ctypes.c_void_p()
+            result = self.ax.AXUIElementCopyAttributeValue(element, key, ctypes.byref(value))
+            if result in (-25205, -25212):
+                return
+            if result:
+                raise RuntimeError(f'Accessibility inspection failed with AX error {result}')
+            if not value:
+                return
+            try:
+                if self.cf.CFGetTypeID(value) == self.cf.CFArrayGetTypeID():
+                    for index in range(self.cf.CFArrayGetCount(value)):
+                        visit(self.cf.CFArrayGetValueAtIndex(value, index), depth + 1)
+            finally:
+                self.cf.CFRelease(value)
+
+        try:
+            visit(application)
+        finally:
+            self.cf.CFRelease(key)
+            self.cf.CFRelease(application)
+
+
+def request_handler(client, token):
+    initialized = set()
+    initialization = threading.Lock()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            status = 200
+            message = 'Accessibility tree inspected'
+            try:
+                if self.path != '/' + token:
+                    self.send_error(404)
+                    return
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 1024:
+                    raise ValueError('Invalid request size')
+                request = json.loads(self.rfile.read(length))
+                if not isinstance(request, dict):
+                    raise ValueError('Invalid inspection request')
+                pid = request.get('pid')
+                if type(pid) is not int or pid <= 0:
+                    raise ValueError('Invalid test process ID')
+                with initialization:
+                    if pid not in initialized:
+                        client.inspect(pid)
+                        initialized.add(pid)
+            except (OSError, ValueError, RuntimeError) as error:
+                status = 400
+                message = str(error)
+            body = message.encode()
+            self.send_response(status)
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args):
+            pass
+
+    return Handler
+
+
+def main():
+    if len(sys.argv) < 2:
+        print('Usage: bin/with-test-accessibility <command> [arguments ...]', file=sys.stderr)
+        return 2
+    try:
+        client = AccessibilityClient()
+        token = secrets.token_hex(24)
+        with LocalAccessibilityServer(('127.0.0.1', 0), request_handler(client, token)) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            environment = {key: value for key, value in os.environ.items() if key != 'SDKROOT'}
+            environment['TEST_RUNNER_PODHAVEN_ACCESSIBILITY_URL'] = f'http://127.0.0.1:{server.server_port}/{token}'
+            try:
+                return subprocess.run(sys.argv[1:], env=environment).returncode
+            finally:
+                server.shutdown()
+                thread.join()
+    except (OSError, RuntimeError) as error:
+        print(f'error: {error}', file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

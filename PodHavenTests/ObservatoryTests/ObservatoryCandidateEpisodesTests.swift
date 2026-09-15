@@ -52,8 +52,12 @@ actor ObservatoryCandidateEpisodesTests {
     let candidateIDs = ThreadSafe<Set<Episode.ID>?>(nil)
     let observation = observatory.embeddedCandidateEpisodes(filter: Episode.candidate)
     Task {
-      for try await candidates in observation {
-        candidateIDs(Set(candidates.map(\.id)))
+      do {
+        for try await candidates in observation {
+          candidateIDs(Set(candidates.map(\.id)))
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     return candidateIDs
@@ -82,16 +86,20 @@ actor ObservatoryCandidateEpisodesTests {
     let emissions = Counter()
     let reader = appDB.reader
     Task {
-      let observation = reader.observe { db -> [CandidateEpisode] in
-        fetches { $0 += 1 }
-        return
-          try CandidateEpisode
-          .joining(required: CandidateEpisode.podcast)
-          .filter(Episode.candidate && Episode.hasEmbedding)
-          .fetchAll(db)
-      }
-      for try await _ in observation {
-        await emissions.increment()
+      do {
+        let observation = reader.observe { db -> [CandidateEpisode] in
+          fetches { $0 += 1 }
+          return
+            try CandidateEpisode
+            .joining(required: CandidateEpisode.podcast)
+            .filter(Episode.candidate && Episode.hasEmbedding)
+            .fetchAll(db)
+        }
+        for try await _ in observation {
+          await emissions.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await emissions.wait(for: 1)
@@ -129,8 +137,12 @@ actor ObservatoryCandidateEpisodesTests {
     let emissions = Counter()
     let observation = observatory.embeddedCandidateEpisodes(filter: Episode.candidate)
     Task {
-      for try await _ in observation {
-        await emissions.increment()
+      do {
+        for try await _ in observation {
+          await emissions.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await emissions.wait(for: 1)

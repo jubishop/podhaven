@@ -35,7 +35,6 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/swiftlang/swift-syntax", branch: "main"),
     .package(url: "https://github.com/pointfreeco/swift-tagged", branch: "main"),
-    .package(url: "https://github.com/apple/swift-testing", branch: "main"),
   ],
   targets: [
     .macro(
@@ -59,7 +58,6 @@ let package = Package(
       dependencies: [
         "SavedMacroPlugin",
         .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
-        .product(name: "Testing", package: "swift-testing"),
       ],
       swiftSettings: testSwiftSettings
     ),

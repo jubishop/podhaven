@@ -292,7 +292,11 @@ enum PlayHelpers {
     }
     Task {
       await loadSemaphoreBegun.wait()
-      try await block()
+      do {
+        try await block()
+      } catch {
+        Issue.record(error)
+      }
       finishLoadingSemaphore.signal()
     }
   }
@@ -312,7 +316,11 @@ enum PlayHelpers {
     }
     Task {
       await fetchSemaphoreBegun.wait()
-      try await block()
+      do {
+        try await block()
+      } catch {
+        Issue.record(error)
+      }
       finishFetchingSemaphore.signal()
     }
   }
@@ -330,7 +338,11 @@ enum PlayHelpers {
     }
     Task {
       await seekSemaphoreBegun.wait()
-      try await block()
+      do {
+        try await block()
+      } catch {
+        Issue.record(error)
+      }
       finishSeekingSemaphore.signal()
     }
   }

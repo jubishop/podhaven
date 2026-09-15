@@ -197,11 +197,15 @@ actor PodcastsWithMetadataTests {
 
     // Start observing before any podcasts exist
     Task {
-      let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> =
-        observatory.podcastsWithEpisodeMetadata([feedURL1, feedURL2])
+      do {
+        let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> =
+          observatory.podcastsWithEpisodeMetadata([feedURL1, feedURL2])
 
-      for try await metadata in observation {
-        await observedMetadata.set(metadata)
+        for try await metadata in observation {
+          await observedMetadata.set(metadata)
+        }
+      } catch {
+        Issue.record(error)
       }
     }
 

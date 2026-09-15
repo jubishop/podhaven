@@ -29,6 +29,8 @@ def failures(summary, build, runtime_logs, build_log):
         problems.append("Test result did not pass")
     if summary.get("passedTests", 0) <= 0:
         problems.append("No tests passed")
+    if summary.get("skippedTests", 0):
+        problems.append(f"Skipped tests: {summary['skippedTests']}")
     for key in ("errorCount", "warningCount", "analyzerWarningCount"):
         if key not in build or build[key] != 0:
             problems.append(f"Build {key}: {build.get(key, 'missing')}")

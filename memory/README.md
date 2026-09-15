@@ -54,6 +54,13 @@ For `feedback` and `project`, lead with the rule/fact, then:
 
 Use `[Page title](page-name.md)` to cross-link pages.
 
+## Page organization
+
+Keep each page focused on one topic. Review a long page before adding more;
+split independent topics into linked pages when that improves reading and
+maintenance. Preserve the rule, reason, and evidence together. Follow the
+[Markdown guidance](../docs/development-workflow.md#markdown-pages).
+
 ## Archive
 
 When a note is no longer relevant for day-to-day lookup — resolved incidents, superseded guidance, outdated context — move it to `memory/archive/`. Set `status: resolved` only on project notes; omit status on other types. Archived notes stay in git for history but are excluded from `qmd` indexing — the `memory` collection ignores `archive/**` — so stale pages do not compete with live notes in search.

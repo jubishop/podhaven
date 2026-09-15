@@ -188,8 +188,12 @@ actor ObservatoryScoringContextInputsTests {
     let podcastID = podcast.id
     let cadence = ThreadSafe<FreshnessCadence?>(nil)
     Task {
-      for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
-        cadence(inputs.freshnessCadences[podcastID])
+      do {
+        for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
+          cadence(inputs.freshnessCadences[podcastID])
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await Wait.until(
@@ -282,8 +286,12 @@ actor ObservatoryScoringContextInputsTests {
 
     let emissionCount = Counter()
     Task {
-      for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
-        await emissionCount.increment()
+      do {
+        for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
+          await emissionCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await emissionCount.wait(for: 1)
@@ -319,8 +327,12 @@ actor ObservatoryScoringContextInputsTests {
 
     let emissionCount = Counter()
     Task {
-      for try await _ in observatory.embeddingWorkSignal() {
-        await emissionCount.increment()
+      do {
+        for try await _ in observatory.embeddingWorkSignal() {
+          await emissionCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await emissionCount.wait(for: 1)
@@ -353,8 +365,12 @@ actor ObservatoryScoringContextInputsTests {
 
     let emissionCount = Counter()
     Task {
-      for try await _ in observatory.embeddingWorkSignal() {
-        await emissionCount.increment()
+      do {
+        for try await _ in observatory.embeddingWorkSignal() {
+          await emissionCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     // First emission has no episodes, so latestEpisodeContentUpdate is nil.
@@ -386,8 +402,12 @@ actor ObservatoryScoringContextInputsTests {
 
     let signalCount = Counter()
     Task {
-      for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
-        await signalCount(inputs.ratedSignals.count)
+      do {
+        for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
+          await signalCount(inputs.ratedSignals.count)
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await Wait.until(
@@ -410,8 +430,12 @@ actor ObservatoryScoringContextInputsTests {
 
     let embeddingCount = Counter()
     Task {
-      for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
-        await embeddingCount(inputs.signalEmbeddings.count)
+      do {
+        for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
+          await embeddingCount(inputs.signalEmbeddings.count)
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await Wait.until(
@@ -440,8 +464,12 @@ actor ObservatoryScoringContextInputsTests {
 
     let emissionCount = Counter()
     Task {
-      for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
-        await emissionCount.increment()
+      do {
+        for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
+          await emissionCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await emissionCount.wait(for: 1)
@@ -465,8 +493,12 @@ actor ObservatoryScoringContextInputsTests {
 
     let signalCount = Counter()
     Task {
-      for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
-        await signalCount(inputs.ratedSignals.count)
+      do {
+        for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
+          await signalCount(inputs.ratedSignals.count)
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await Wait.until(
@@ -490,8 +522,12 @@ actor ObservatoryScoringContextInputsTests {
 
     let embeddingCount = Counter()
     Task {
-      for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
-        await embeddingCount(inputs.signalEmbeddings.count)
+      do {
+        for try await inputs in observatory.scoringContextInputsWithoutPartialSignals() {
+          await embeddingCount(inputs.signalEmbeddings.count)
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await Wait.until(
@@ -537,8 +573,12 @@ actor ObservatoryScoringContextInputsTests {
 
     let emissionCount = Counter()
     Task {
-      for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
-        await emissionCount.increment()
+      do {
+        for try await _ in observatory.scoringContextInputsWithoutPartialSignals() {
+          await emissionCount.increment()
+        }
+      } catch {
+        Issue.record(error)
       }
     }
     try await emissionCount.wait(for: 1)

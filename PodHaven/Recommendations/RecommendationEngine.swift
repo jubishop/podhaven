@@ -7,6 +7,7 @@ import GRDB
 import IdentifiedCollections
 import Logging
 import SwiftUI
+import Tagged
 
 // MARK: - Types
 

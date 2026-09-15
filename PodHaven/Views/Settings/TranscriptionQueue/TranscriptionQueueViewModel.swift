@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import Logging
 import SwiftUI
+import Tagged
 
 @Observable @MainActor final class TranscriptionQueueViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert

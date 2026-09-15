@@ -2,6 +2,7 @@
 
 import Foundation
 import GRDB
+import Tagged
 
 // Narrow projection of `Episode` carrying only the columns scoring math
 // reads. `RecommendationRepo.allCandidateEpisodes` uses it so per-rebuild

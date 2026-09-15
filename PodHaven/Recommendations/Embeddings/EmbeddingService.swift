@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
+import Tagged
 
 // MARK: - EmbeddingService
 

@@ -97,10 +97,10 @@ enum EpisodeDetailTextTab: Hashable, Sendable {
   @ObservationIgnored @DynamicInjected(\.recommendationRepo) private var recommendationRepo
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
-  @ObservationIgnored @DynamicInjected(\.transcriptionAvailability)
-  private var transcriptionAvailability
+  @ObservationIgnored
+  private let transcriptionAvailability = Container.shared.transcriptionAvailability()
   @ObservationIgnored @DynamicInjected(\.transcriptionProcessor) private var transcriptionProcessor
-  @ObservationIgnored @DynamicInjected(\.transcriptionQueue) private var transcriptionQueue
+  @ObservationIgnored private let transcriptionQueue = Container.shared.transcriptionQueue()
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 

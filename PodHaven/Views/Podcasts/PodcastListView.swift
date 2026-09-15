@@ -2,6 +2,7 @@
 
 import Foundation
 import SwiftUI
+import Tagged
 
 struct PodcastListView<Podcast: PodcastListable>: View {
   private let imageSize: CGFloat = 76

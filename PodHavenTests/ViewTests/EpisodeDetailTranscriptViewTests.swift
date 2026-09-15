@@ -43,27 +43,19 @@ import UIKit
     let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
     viewModel.selectTextTab(.transcript)
-    let host = UIHostingController(
+    let host = TestHostingController(
       rootView: EpisodeDetailView(viewModel: viewModel)
         .environment(\.dynamicTypeSize, .accessibility2)
     )
-    host.loadViewIfNeeded()
-    host.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-    host.beginAppearanceTransition(true, animated: false)
-    host.endAppearanceTransition()
-    defer {
-      host.beginAppearanceTransition(false, animated: false)
-      host.endAppearanceTransition()
+    try await withHostedTestWindow(host) { window in
+      let elements = accessibilityElements(in: window)
+      #expect(elements.contains { $0.accessibilityLabel == "Podcast feed transcript" })
+      #expect(
+        elements.contains {
+          $0.accessibilityLabel == "Replace with On-Device Transcription"
+        }
+      )
     }
-    host.view.layoutIfNeeded()
-
-    let elements = accessibilityElements(in: host.view)
-    #expect(elements.contains { $0.accessibilityLabel == "Podcast feed transcript" })
-    #expect(
-      elements.contains {
-        $0.accessibilityLabel == "Replace with On-Device Transcription"
-      }
-    )
   }
 
   @Test(
@@ -98,7 +90,7 @@ import UIKit
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
     #expect(viewModel.canReplacePublisherTranscript)
 
-    let heights = try replacementActionHeights(
+    let heights = try await replacementActionHeights(
       for: viewModel,
       narrowWidth: 390,
       wideWidth: 800,
@@ -127,24 +119,16 @@ import UIKit
     let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
     viewModel.selectTextTab(.transcript)
-    let host = UIHostingController(rootView: EpisodeDetailView(viewModel: viewModel))
-    host.loadViewIfNeeded()
-    host.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-    host.beginAppearanceTransition(true, animated: false)
-    host.endAppearanceTransition()
-    defer {
-      host.beginAppearanceTransition(false, animated: false)
-      host.endAppearanceTransition()
+    let host = TestHostingController(rootView: EpisodeDetailView(viewModel: viewModel))
+    try await withHostedTestWindow(host) { window in
+      let elements = accessibilityElements(in: window)
+      #expect(elements.contains { $0.accessibilityLabel == "On-device transcript" })
+      #expect(
+        !elements.contains {
+          $0.accessibilityLabel == "Replace with On-Device Transcription"
+        }
+      )
     }
-    host.view.layoutIfNeeded()
-
-    let elements = accessibilityElements(in: host.view)
-    #expect(elements.contains { $0.accessibilityLabel == "On-device transcript" })
-    #expect(
-      !elements.contains {
-        $0.accessibilityLabel == "Replace with On-Device Transcription"
-      }
-    )
   }
 
   @Test(
@@ -186,24 +170,16 @@ import UIKit
     let loaded = try #require(try await repo.podcastEpisode(podcastEpisode.id))
     let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(loaded))
     #expect(viewModel.transcriptionStatus == .failed)
-    let host = UIHostingController(
+    let host = TestHostingController(
       rootView: EpisodeDetailTranscriptView(viewModel: viewModel)
     )
-    host.loadViewIfNeeded()
-    host.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-    host.beginAppearanceTransition(true, animated: false)
-    host.endAppearanceTransition()
-    defer {
-      host.beginAppearanceTransition(false, animated: false)
-      host.endAppearanceTransition()
+    try await withHostedTestWindow(host) { window in
+      let labels = Set(
+        accessibilityElements(in: window).compactMap(\.accessibilityLabel)
+      )
+      #expect(labels.contains("On-device transcription isn't available right now."))
+      #expect(!labels.contains("Retry"))
     }
-    host.view.layoutIfNeeded()
-
-    let labels = Set(
-      accessibilityElements(in: host.view).compactMap(\.accessibilityLabel)
-    )
-    #expect(labels.contains("On-device transcription isn't available right now."))
-    #expect(!labels.contains("Retry"))
   }
 
   @Test(
@@ -213,24 +189,16 @@ import UIKit
       "SwiftUI does not expose hosted accessibility elements in iOS Simulator"
     )
   )
-  func unreadableTranscriptWithoutOnDeviceSupport() {
-    let host = UIHostingController(
+  func unreadableTranscriptWithoutOnDeviceSupport() async throws {
+    let host = TestHostingController(
       rootView: TranscriptDecodeFailureView(canTranscribeAgain: false, transcribe: {})
     )
-    host.loadViewIfNeeded()
-    host.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-    host.beginAppearanceTransition(true, animated: false)
-    host.endAppearanceTransition()
-    defer {
-      host.beginAppearanceTransition(false, animated: false)
-      host.endAppearanceTransition()
+    try await withHostedTestWindow(host) { window in
+      let labels = Set(accessibilityElements(in: window).compactMap(\.accessibilityLabel))
+      #expect(labels.contains("Transcript couldn't be read"))
+      #expect(labels.contains("On-device transcription isn't available to replace it."))
+      #expect(!labels.contains("Transcribe Again"))
     }
-    host.view.layoutIfNeeded()
-
-    let labels = Set(accessibilityElements(in: host.view).compactMap(\.accessibilityLabel))
-    #expect(labels.contains("Transcript couldn't be read"))
-    #expect(labels.contains("On-device transcription isn't available to replace it."))
-    #expect(!labels.contains("Transcribe Again"))
   }
 
   @Test(
@@ -337,45 +305,40 @@ import UIKit
     narrowWidth: CGFloat,
     wideWidth: CGFloat,
     dynamicTypeSize: DynamicTypeSize
-  ) throws -> (narrow: CGFloat, wide: CGFloat) {
-    let host = UIHostingController(
+  ) async throws -> (narrow: CGFloat, wide: CGFloat) {
+    let host = TestHostingController(
       rootView: EpisodeDetailTranscriptView(viewModel: viewModel)
         .padding()
         .environment(\.dynamicTypeSize, dynamicTypeSize)
     )
-    let scene = try #require(
-      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-    )
-    let window = UIWindow(windowScene: scene)
-    window.frame = CGRect(x: 0, y: 0, width: narrowWidth, height: 844)
-    host.loadViewIfNeeded()
-    window.addSubview(host.view)
-    defer {
-      host.view.removeFromSuperview()
-    }
-    func actionHeight(at width: CGFloat) throws -> CGFloat {
-      window.frame = CGRect(x: 0, y: 0, width: width, height: 844)
-      host.view.frame = window.bounds
-      host.view.setNeedsLayout()
-      host.view.layoutIfNeeded()
-      let action = try #require(
-        accessibilityElements(in: window)
-          .first {
-            $0.accessibilityLabel == "Replace with On-Device Transcription"
-          }
-      )
-      return
-        window.convert(
-          action.accessibilityFrame,
-          from: window.screen.coordinateSpace
+    return try await withHostedTestWindow(
+      host,
+      size: CGSize(width: narrowWidth, height: 844)
+    ) { window in
+      @MainActor func actionHeight(at width: CGFloat) throws -> CGFloat {
+        window.frame = CGRect(x: 0, y: 0, width: width, height: 844)
+        host.view.frame = window.bounds
+        host.view.setNeedsLayout()
+        host.view.layoutIfNeeded()
+        let action = try #require(
+          accessibilityElements(in: window)
+            .first {
+              $0.accessibilityLabel == "Replace with On-Device Transcription"
+            }
         )
-        .height
-    }
+        return
+          window.convert(
+            action.accessibilityFrame,
+            from: window.screen.coordinateSpace
+          )
+          .height
+      }
 
-    let narrowHeight = try actionHeight(at: narrowWidth)
-    let wideHeight = try actionHeight(at: wideWidth)
-    #expect(narrowHeight > 0)
-    #expect(wideHeight > 0)
-    return (narrowHeight, wideHeight)
+      let narrowHeight = try actionHeight(at: narrowWidth)
+      let wideHeight = try actionHeight(at: wideWidth)
+      #expect(narrowHeight > 0)
+      #expect(wideHeight > 0)
+      return (narrowHeight, wideHeight)
+    }
   }
 }

@@ -254,10 +254,6 @@ import Testing
 
   @Test("unsaved episode hides the score when the engine cache is cold")
   func unsavedEpisodeHidesScoreWhenCacheIsCold() async throws {
-    // Probe-then-assert pattern: no signals planted means similarityScore
-    // returns nil for every tick, so waiting on a probe-observed vector
-    // request is the only way to distinguish "scoring ran and produced nil"
-    // from the VM's default state.
     let probe = EmbeddingProbe()
     Container.shared.contextualEmbedding.reset()
       .register {
@@ -274,22 +270,22 @@ import Testing
         title: "Cold Cache Episode"
       )
     )
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+    let viewModel = EpisodeDetailViewModel(
+      listedEpisode: ListedEpisode(unsavedPodcastEpisode),
+      similarityScore: -1
+    )
+    try #require(viewModel.displayedScore != nil)
 
     viewModel.appear()
+    defer { viewModel.disappear() }
 
     try await Wait.until(
-      { probe.vectorRequestCount() > 0 },
-      {
-        """
-        Expected unsaved scoring to request at least one embedding vector. \
-        vectorRequestCount: \(probe.vectorRequestCount())
-        """
+      { @MainActor in viewModel.displayedScore == nil },
+      { @MainActor in
+        "Expected cold-cache scoring to clear the seeded score. Score: \(String(describing: viewModel.displayedScore))"
       }
     )
-    try await yieldForSpuriousAsyncWork()
-
-    #expect(viewModel.displayedScore == nil)
+    #expect(probe.vectorRequestCount() > 0)
   }
 
   @Test("unsaved episode skips vector scoring when embedding assets are unavailable")
