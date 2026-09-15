@@ -66,6 +66,11 @@ struct EmbeddingProcessor: Sendable {
     case heldWithForegroundRetry
   }
 
+  private enum DrainTrigger {
+    case demand
+    case ownershipRelease
+  }
+
   private struct DrainResult: Sendable {
     let state: DrainState
     let processedCount: Int
@@ -149,8 +154,7 @@ struct EmbeddingProcessor: Sendable {
       sceneState { state in
         if case .background = state { state = .foreground(UUID()) }
       }
-      guard thermalPressure().permitsDiscretionaryWork else { return }
-      startForegroundObservation()
+      reconcileForegroundObservation()
       if Container.shared.embeddingWorkDemand().hasWork {
         scheduleDrain()
       }
@@ -158,7 +162,7 @@ struct EmbeddingProcessor: Sendable {
       Self.log.debug("backgrounded")
 
       sceneState(.background)
-      stopForegroundObservation()
+      reconcileForegroundObservation()
       backgroundTaskScheduler.scheduleNext()
     default:
       break
@@ -175,7 +179,7 @@ struct EmbeddingProcessor: Sendable {
 
     guard pressure.permitsDiscretionaryWork else {
       Self.log.info("Suspending embedding work for thermal pressure=\(pressure.rawValue)")
-      stopForegroundObservation()
+      reconcileForegroundObservation()
       backgroundTaskScheduler.cancelRunningTasks()
       backgroundTaskScheduler.scheduleNext()
       return
@@ -184,7 +188,7 @@ struct EmbeddingProcessor: Sendable {
     Self.log.info("Resuming embedding work after thermal recovery")
     switch sceneState() {
     case .foreground:
-      startForegroundObservation()
+      reconcileForegroundObservation()
       if Container.shared.embeddingWorkDemand().hasWork { scheduleDrain() }
     case .background:
       backgroundTaskScheduler.scheduleNext()
@@ -217,10 +221,16 @@ struct EmbeddingProcessor: Sendable {
   // the write that advanced MAX, so the pending drain still re-queries it.
   private let drainDebounce = Debounce(duration: .seconds(5), priority: .background)
 
-  private func startForegroundObservation() {
-    guard thermalPressure().permitsDiscretionaryWork else { return }
-    guard let activation = sceneState().activation else { return }
+  private func reconcileForegroundObservation() {
     foregroundTask { task in
+      guard let activation = sceneState().activation,
+        thermalPressure().permitsDiscretionaryWork
+      else {
+        task?.cancel()
+        task = nil
+        drainDebounce.cancel()
+        return
+      }
       guard task == nil else { return }
       task = Task(priority: taskPriority(.background)) {
         var retryDelay: Duration = .seconds(1)
@@ -257,34 +267,30 @@ struct EmbeddingProcessor: Sendable {
     }
   }
 
-  private func scheduleDrain() {
-    drainDebounce {
-      guard thermalPressure().permitsDiscretionaryWork else { return }
-      do {
-        try await contextualEmbedding.assetsLoaded.wait()
-        let result = try await drainAvailableWork(mode: .foreground, pacer: nil)
-        logWorkSlice(result, mode: .foreground)
-        if result.state == .pending, sceneState().activation != nil {
-          scheduleDrain()
+  private func scheduleDrain(trigger: DrainTrigger = .demand) {
+    foregroundTask { _ in
+      guard trigger == .ownershipRelease || !Task.isCancelled,
+        sceneState().activation != nil,
+        thermalPressure().permitsDiscretionaryWork
+      else { return }
+
+      drainDebounce {
+        guard thermalPressure().permitsDiscretionaryWork else { return }
+        do {
+          try await contextualEmbedding.assetsLoaded.wait()
+          let result = try await drainAvailableWork(mode: .foreground, pacer: nil)
+          logWorkSlice(result, mode: .foreground)
+          if result.state == .pending, sceneState().activation != nil {
+            scheduleDrain()
+          }
+        } catch is CancellationError {
+          // Superseded by a newer trigger or backgrounded mid-drain; the next
+          // foreground pass re-queries any remaining work.
+        } catch {
+          Self.log.caughtError("Foreground embedding drain failed", error)
         }
-      } catch is CancellationError {
-        // Superseded by a newer trigger or backgrounded mid-drain; the next
-        // foreground pass re-queries any remaining work.
-      } catch {
-        Self.log.caughtError("Foreground embedding drain failed", error)
       }
     }
-  }
-
-  private func stopForegroundObservation() {
-    // Cancel the task before the debounce: a still-live task could arm a fresh
-    // drain via `scheduleDrain`, and that debounce Task isn't a child of the
-    // observation task. Cancelling the debounce last sweeps any such straggler.
-    foregroundTask { task in
-      task?.cancel()
-      task = nil
-    }
-    drainDebounce.cancel()
   }
 
   private func reconcilePersistedDemand() async {
@@ -351,7 +357,7 @@ struct EmbeddingProcessor: Sendable {
         }
       }
       if needsForegroundRetry, sceneState().activation != nil {
-        scheduleDrain()
+        scheduleDrain(trigger: .ownershipRelease)
       }
     }
 
