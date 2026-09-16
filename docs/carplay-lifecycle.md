@@ -4,7 +4,8 @@ status: current
 
 # CarPlay scene lifecycle
 
-CarPlay uses its own `CPTemplateApplicationScene` and audio scene delegate.
+CarPlay uses its own `CPTemplateApplicationScene`. Its `CarPlaySceneDelegate`
+conforms to `CPTemplateApplicationSceneDelegate`.
 The phone continues to use the SwiftUI `WindowGroup`. Automatic scene-manifest
 generation overwrites the source manifest with an empty configuration map,
 so it is disabled in all three build configurations. The source manifest
