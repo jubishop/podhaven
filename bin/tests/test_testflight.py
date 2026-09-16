@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 
 
@@ -49,9 +50,98 @@ class TestFlightTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(any(event[0] in ("wait", "distribute") for event in events))
 
+    def test_waiting_review_is_expired_and_verified_before_distribution(self):
+        result, events = self.run_lane("waiting_review")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expire = events.index(["expire", "older-id"])
+        distribute = next(i for i, event in enumerate(events) if event[0] == "distribute")
+        reads = [i for i, event in enumerate(events) if event[0] == "readback" and event[1]["build_id"] == "older-id"]
+        self.assertEqual(len(reads), 2)
+        self.assertLess(reads[0], expire)
+        self.assertLess(expire, reads[1])
+        self.assertLess(reads[1], distribute)
+        config = events[distribute][1]
+        self.assertFalse(config["reject_build_waiting_for_review"])
+
+    def test_preflight_leaves_waiting_review_until_replacement_is_valid(self):
+        result, events = self.run_lane("waiting_review", TESTFLIGHT_PREFLIGHT="true")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(any(event[0] == "builds" for event in events))
+        self.assertFalse(any(event[0] in ("expire", "distribute") for event in events))
+
+    def test_prepare_cancels_waiting_review_before_an_upload_exists(self):
+        result, events = self.run_lane("waiting_review", TESTFLIGHT_PREPARE="true")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(["expire", "older-id"], events)
+        self.assertFalse(any(event[0] in ("wait", "distribute") for event in events))
+
+    def test_active_review_requests_next_patch_version(self):
+        for preflight in ("true", "false"):
+            with self.subTest(preflight=preflight), tempfile.TemporaryDirectory() as folder:
+                result, events = self.run_lane("active_review", TESTFLIGHT_PREFLIGHT=preflight,
+                                              PODHAVEN_TESTFLIGHT_NEXT_VERSION_PATH=str(Path(folder) / "next"))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(["next_version", "1.0.2"], events)
+                self.assertFalse(any(event[0] in ("expire", "distribute", "success") for event in events))
+
+    def test_review_starting_during_replacement_requests_new_version(self):
+        with tempfile.TemporaryDirectory() as folder:
+            result, events = self.run_lane("review_started", PODHAVEN_TESTFLIGHT_NEXT_VERSION_PATH=str(Path(folder) / "next"))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(["next_version", "1.0.2"], events)
+            self.assertFalse(any(event[0] in ("expire", "distribute") for event in events))
+
+    def test_apple_refusing_expiration_after_review_starts_requests_new_version(self):
+        with tempfile.TemporaryDirectory() as folder:
+            result, events = self.run_lane("expire_review_started", PODHAVEN_TESTFLIGHT_NEXT_VERSION_PATH=str(Path(folder) / "next"))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(["next_version", "1.0.2"], events)
+            self.assertIn(["expire", "older-id"], events)
+            self.assertFalse(any(event[0] in ("distribute", "success") for event in events))
+
+    def test_apple_reporting_active_review_during_submission_requests_new_version(self):
+        with tempfile.TemporaryDirectory() as folder:
+            result, events = self.run_lane("submission_started", PODHAVEN_TESTFLIGHT_NEXT_VERSION_PATH=str(Path(folder) / "next"))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(["next_version", "1.0.2"], events)
+            self.assertEqual(sum(event[0] == "distribute" for event in events), 1)
+            self.assertFalse(any(event[0] in ("expire", "success") for event in events))
+
+    def test_reuse_cannot_rebuild_an_active_review(self):
+        result, events = self.run_lane("active_review")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("without --reuse", result.stderr)
+        self.assertIn("1.0.1 (568)", result.stderr)
+        self.assertFalse(any(event[0] in ("expire", "distribute") for event in events))
+
+    def test_unrelated_or_already_submitted_builds_are_not_expired(self):
+        for scenario in ("target_in_review", "approved_previous", "expired_previous", "other_version", "other_platform"):
+            with self.subTest(scenario=scenario):
+                result, events = self.run_lane(scenario)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(any(event[0] == "expire" for event in events))
+
+    def test_unsafe_or_unconfirmed_replacement_stops_distribution(self):
+        for scenario in ("newer_review", "multiple_reviews", "review_finished", "expire_error", "expire_unconfirmed"):
+            with self.subTest(scenario=scenario):
+                result, events = self.run_lane(scenario)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(any(event[0] == "distribute" for event in events))
+                if scenario in ("newer_review", "multiple_reviews", "review_finished"):
+                    self.assertFalse(any(event[0] == "expire" for event in events))
+
+    def test_submission_conflict_reports_retry_and_other_errors_propagate(self):
+        result, events = self.run_lane("submission_conflict")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Retry", result.stderr)
+        self.assertFalse(any(event[0] == "success" for event in events))
+        result, _ = self.run_lane("submission_error")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Apple authentication failed", result.stderr)
+
     def test_invalid_groups_processing_or_builds_cannot_distribute(self):
         for scenario in ("missing_group", "duplicate_group", "internal_group", "timeout",
-                         "wrong_build", "invalid", "expired", "compliance"):
+                         "wrong_build", "wrong_app", "wrong_platform", "invalid", "expired", "compliance"):
             with self.subTest(scenario=scenario):
                 result, events = self.run_lane(scenario)
                 self.assertNotEqual(result.returncode, 0)

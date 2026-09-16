@@ -25,6 +25,8 @@ FORCE=false
 REUSE=false
 TESTFLIGHT_NOTES=""
 APPSTORE_RELEASE=""
+ORIGINAL_ARGS=("$@")
+NEXT_TESTFLIGHT_VERSION_PATH=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
@@ -38,6 +40,8 @@ The version change is committed, fully tested locally, and pushed before deploym
 Fresh archives and uploads require valid full local test evidence for the clean commit.
 --notes TEXT: also wait for processing and submit to the external Everyone group.
               Repeating the command retries distribution of the same uploaded commit.
+              Cancels one older waiting beta review before upload. If Apple has started
+              review, advances the patch version, validates, and uploads with the same notes.
 --reuse: distribute the highest-numbered local TestFlight build tag, even after new commits.
          Requires --notes and a matching upload receipt or published tag.
          Stops if the upload cannot be confirmed; never builds, uploads, or pushes.
@@ -148,13 +152,41 @@ if (( auth_value_count == 3 )); then
 fi
 
 run_testflight() {
+  if [[ -n "$NEXT_TESTFLIGHT_VERSION_PATH" ]]; then
+    : > "$NEXT_TESTFLIGHT_VERSION_PATH"
+  fi
   (
     cd "$PROJECT_DIR"
     ASC_KEY_PATH="$API_KEY_PATH" ASC_KEY_ID="$API_KEY_ID" ASC_ISSUER_ID="$API_ISSUER_ID" \
       PODHAVEN_TESTFLIGHT_NOTES="$TESTFLIGHT_NOTES" \
+      PODHAVEN_TESTFLIGHT_NEXT_VERSION_PATH="$NEXT_TESTFLIGHT_VERSION_PATH" \
       FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_HIDE_CHANGELOG=1 FASTLANE_OPT_OUT_USAGE=1 FASTLANE_SKIP_DOCS=1 \
       fastlane distribute_testflight "$@"
   )
+}
+
+restart_testflight_if_needed() {
+  [[ -s "$NEXT_TESTFLIGHT_VERSION_PATH" ]] || return 0
+  local next_version expected_version
+  next_version=$(cat "$NEXT_TESTFLIGHT_VERSION_PATH")
+  expected_version="${version%.*}.$(( ${version##*.} + 1 ))"
+  if [[ "$next_version" != "$expected_version" ]]; then
+    echo 'error: TestFlight returned an unexpected replacement version.' >&2
+    exit 1
+  fi
+  if [[ "${PODHAVEN_TESTFLIGHT_PATCH_RETRY:-}" == true ]]; then
+    echo 'error: This run already advanced the patch version. Another review is active; retry after checking App Store Connect.' >&2
+    exit 1
+  fi
+  echo "==> Preserving the active beta review and starting TestFlight ${next_version} with the same notes..."
+  if [[ -n "${CURRENT_PHASE:-}" && "$UPLOAD_SUCCEEDED" != true ]]; then
+    git -C "$PROJECT_DIR" tag -d "$tag"
+  fi
+  trap - EXIT
+  rm -f "$NEXT_TESTFLIGHT_VERSION_PATH"
+  "$SCRIPT_DIR/version" "$next_version"
+  export PODHAVEN_TESTFLIGHT_PATCH_RETRY=true
+  exec "$SCRIPT_DIR/deploy.sh" "${ORIGINAL_ARGS[@]}"
 }
 
 # Preflight: block deploys from non-main branches
@@ -267,7 +299,13 @@ if [[ -f "$pending_version_push" ]]; then
 fi
 
 if [[ -n "$TESTFLIGHT_NOTES" ]]; then
-  run_testflight preflight:true
+  NEXT_TESTFLIGHT_VERSION_PATH=$(mktemp "/tmp/podhaven-testflight-version.XXXXXX")
+  review_build="$build"
+  if [[ -n "$prev_tag" && "$(git -C "$PROJECT_DIR" rev-parse "${prev_tag}^{commit}")" == "$(git -C "$PROJECT_DIR" rev-parse HEAD)" ]]; then
+    review_build="${prev_tag##*b}"
+  fi
+  run_testflight preflight:true "version:$version" "build:$review_build"
+  restart_testflight_if_needed
 fi
 
 tag="v${version}b${build}"
@@ -352,6 +390,9 @@ CURRENT_PHASE=""
 CURRENT_LOG=""
 on_exit() {
   local exit_code=$?
+  if [[ -n "$NEXT_TESTFLIGHT_VERSION_PATH" ]]; then
+    rm -f "$NEXT_TESTFLIGHT_VERSION_PATH"
+  fi
   if [[ "$DEPLOY_SUCCEEDED" != true ]]; then
     {
       echo ""
@@ -413,6 +454,12 @@ if [[ "$UPLOAD_SUCCEEDED" != true ]]; then
   CURRENT_PHASE="full local validation"
   "$SCRIPT_DIR/test-all" --ensure --revision "$head_commit"
 
+  if [[ -n "$TESTFLIGHT_NOTES" ]]; then
+    CURRENT_PHASE="TestFlight review preparation"
+    run_testflight prepare:true "version:$version" "build:$build"
+    restart_testflight_if_needed
+  fi
+
   # Archive
   echo "==> Archiving..."
   BUILD_LOG="$LOG_DIR/xcodebuild-archive.log"
@@ -450,6 +497,7 @@ if [[ -n "$TESTFLIGHT_NOTES" ]]; then
   CURRENT_LOG="$LOG_DIR/testflight.log"
   echo '==> Waiting for processing and submitting to Everyone...'
   run_testflight "version:$version" "build:$build" 2>&1 | tee "$CURRENT_LOG"
+  restart_testflight_if_needed
 fi
 
 # Signal success — the EXIT trap handles the rest.

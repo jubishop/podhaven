@@ -12,7 +12,8 @@ This deliberate PodHaven convention makes the intended release channel
 immediately recognizable in version labels, logs, and bug reports. Preserve
 the distinct numbering for that recognition benefit; it is our convention,
 not an Apple requirement. Routine TestFlight uploads keep the same app
-version throughout a testing cycle and increase only the build number.
+version throughout a testing cycle and increase only the build number,
+except when an active beta review requires the next patch version.
 
 ## Read or change the version
 
@@ -84,6 +85,26 @@ The upload then uses that version and a new build number. With `--notes`, it
 waits for processing and assigns the exact build to the external Everyone
 group. Without `--notes`, it only tests, archives, and uploads.
 
+With `--notes`, the command checks beta review before upload. After local
+validation, it expires one older build of the same iOS version that is still
+waiting for beta review, verifies expiration, and continues the upload.
+Expiring the older build prevents testers from installing it. Approved builds,
+other versions, and other platforms are preserved.
+
+If Apple has started reviewing the older build, the command preserves that
+review and increases the last version number: `1.3.1` becomes `1.3.2`.
+It uses `bin/version` to commit, fully validate, and push the new version,
+then builds, uploads, and submits with the original notes. The same fallback
+applies if Apple refuses expiration and a fresh read confirms active review.
+Other API failures and ambiguous or newer review submissions stop the command.
+
+The cancellation decision happens before a fresh upload, so the next build
+number can use the new patch version. If review starts after upload, that
+binary keeps its original version and tag; the command uploads another build
+with the next patch version and build number. It advances the patch at most
+once per invocation. If that version also has an active review, it stops with
+an explanation. Completed upload receipts remain available for retry.
+
 Use `bin/version` yourself when you want a different patch version. For
 example, `bin/version 2.1.2` followed by `bin/shipit` uploads `2.1.2`.
 
@@ -110,6 +131,9 @@ uploads, Git pushes, and GitHub release publication. Fastlane waits for the
 exact build, submits it for beta review when needed, enables tester
 notifications, and verifies assignment to Everyone. Repeat the command to
 retry distribution while that tag remains the newest local TestFlight build.
+It can expire an older waiting review after validating the selected uploaded
+build. If the older build is actively under review, `--reuse` stops and asks
+for a normal `testflight --notes` run, which can build the next patch version.
 
 Without `--reuse`, retrying with `--notes` reuses a completed upload only when
 the highest-numbered release tag still points to the current commit.
