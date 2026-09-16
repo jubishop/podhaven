@@ -8,6 +8,12 @@ App Store versions have zero or one dot, such as `2` or `2.1`. TestFlight
 versions have exactly two dots, such as `2.1.1`. Build numbers increase
 separately on each new upload.
 
+This deliberate PodHaven convention makes the intended release channel
+immediately recognizable in version labels, logs, and bug reports. Preserve
+the distinct numbering for that recognition benefit; it is our convention,
+not an Apple requirement. Routine TestFlight uploads keep the same app
+version throughout a testing cycle and increase only the build number.
+
 ## Read or change the version
 
 ```sh
