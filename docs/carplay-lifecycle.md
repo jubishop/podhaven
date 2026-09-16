@@ -37,8 +37,9 @@ Each system-created scene delegate retains its own container-built
 root. Duplicate connect notifications for the same active controller do
 nothing. Disconnect clears row handlers and releases the connection. A new
 connection has a new identity even when it reuses the controller. Root
-completion and retry callbacks check both connection and root identity before
-changing presentation. An old disconnect cannot release a newer controller.
+completions check both connection and root identity before changing presentation.
+Retry callbacks check connection identity; replacing the root clears its old
+handlers. An old disconnect cannot release a newer controller.
 
 This foundation has no connection-owned asynchronous tasks or data observers.
 The root uses native placeholders. Queue, artwork, selection, and navigation
