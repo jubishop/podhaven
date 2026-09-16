@@ -2,6 +2,7 @@
 
 import CoreMedia
 import FactoryKit
+import Logging
 import SwiftUI
 import UIKit
 
@@ -392,6 +393,7 @@ private struct PlaybackMetaLabelStyle: ViewModifier {
 
 #if DEBUG
 struct PlayBarSheetPreview: View {
+  private static let log = Log.as("PlayBarSheetPreview")
   private var sharedState: SharedState { Container.shared.sharedState() }
 
   let status: PlaybackStatus
@@ -436,22 +438,29 @@ struct PlayBarSheetPreview: View {
         Container.shared.transcriptionAvailability().$state.new(.available)
         sharedState.setPlaybackStatus(status)
 
-        let unsavedEpisode = try! Create.unsavedEpisode(
-          duration: CMTime.seconds(durationSeconds),
-          description: description
-        )
-        var podcastEpisode = try! await Create.podcastEpisode(unsavedEpisode)
-        if let transcript {
-          try! await Container.shared.repo()
-            .updateTranscript(
-              podcastEpisode.id,
-              transcript: transcript.jsonString()
-            )
-          guard
-            let updatedPodcastEpisode = try! await Container.shared.repo()
-              .podcastEpisode(podcastEpisode.id)
-          else { return }
-          podcastEpisode = updatedPodcastEpisode
+        var podcastEpisode: PodcastEpisode
+        do {
+          let unsavedEpisode = try Create.unsavedEpisode(
+            duration: CMTime.seconds(durationSeconds),
+            description: description
+          )
+          podcastEpisode = try await Create.podcastEpisode(unsavedEpisode)
+          if let transcript {
+            try await Container.shared.repo()
+              .updateTranscript(
+                podcastEpisode.id,
+                transcript: transcript.jsonString()
+              )
+            guard
+              let updatedPodcastEpisode = try await Container.shared.repo()
+                .podcastEpisode(podcastEpisode.id)
+            else { return }
+            podcastEpisode = updatedPodcastEpisode
+          }
+          try Task.checkCancellation()
+        } catch {
+          Self.log.caughtError("Could not prepare player preview", error)
+          return
         }
         var onDeck = OnDeck(from: podcastEpisode)
         onDeck.artwork = image
