@@ -35,7 +35,6 @@ Run `bin/qmd-index` after uncommitted knowledge edits when current search
 results are needed. Use `bin/doctor`
 for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 [development workflow](docs/development-workflow.md) for cache cleanup and recovery.
-Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 
 ## MCP Usage
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
@@ -49,7 +48,8 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 ## Repo Guardrails
 - Public repo: no secrets, API keys, tokens, or credentials.
 - No commits or pushes unless explicitly asked; preserve user edits and never reset/revert unknown changes.
-- Build/test must end with zero compiler/linker/runtime/deprecation/unused-result/Sendable warnings.
+- Build/test must end with zero compiler, linker, or framework runtime warnings, including deprecation, unused-result, and Sendable diagnostics. Intentional application warning/error logs from error-path tests are allowed; keep diagnostic reporting enabled.
+- Never install or run an Xcode-direct/debug build on @jubishop's physical iPhone. See the [device restriction](memory/device-debug-builds-break-background-scheduling.md) for context.
 - The Lint Swift build phase fails before `SwiftCompile`: a lint-only failure says nothing about whether the code compiles. Format touched files with `swift-format format --in-place --configuration .swift-format <files>`, check with `bin/lint-swift-format`, then rebuild to surface compile errors.
 
 ## Compatibility
@@ -85,7 +85,8 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 - Log self-contained values (counts, sizes, flags, settings) after guards/conditionals: what happened, not what might.
 
 ## Testing
-- Before any push or merge into `main`, and before a release, run `bin/test-all` locally and require all tests to pass with zero skipped tests or warnings. This applies to every change, including documentation and tooling. GitHub does not run test CI.
+- Before running Swift build or test checks, read the [Swift validation workflow](docs/development-workflow.md#current-revision-swift-validation) for commands, test targets, accessibility setup, and evidence checks.
+- Before pushing any branch, merging into `main`, or releasing, require passing full local test evidence with zero skipped tests and the warning requirements above. Use `bin/test-all --ensure --revision <sha>` to verify matching evidence or run the full suite. This applies to every change, including documentation and tooling. GitHub does not run test CI.
 - Test the exact commit being pushed. Before a PR merge into `main`, test its current head integrated with the latest `main`; verify the merge will contain that tested tree. Each new commit or change to the integration base requires a fresh full run. Retain the `bin/test-all` evidence and verify its revision and clean checkout match the proposed operation.
 - Never substitute a historical revision or copy selected current files onto old source for acceptance. Run historical reproductions separately and label them as diagnostic experiments.
 - `bin/test-all` runs the complete app suite on My Mac, macro tests, repository checks, and automated skill/tooling tests. `bin/check --full` alone does not satisfy this requirement. Live-service smoke tests remain separate; run them when their integration changes.
@@ -93,13 +94,11 @@ Legacy Sentry history requires `-c sentry-history`; it is not current guidance.
 - Use `FactoryKit` with `scope(.cached)` and then override with `context(.test)` in `PodHavenTests/Extensions/Container.swift` for test injection.
 - `@Suite("...", .container)` isolates Factory injected state per-test; supporting full test concurrency. Do not use `.serialized`.
 - Every functional change requires a regression test proven failing before the implementation and passing afterward; if it passes before and after, it does not prove the changed behavior.
-- Default local test runs to My Mac (Designed for iPhone): `-destination 'platform=macOS,name=My Mac'`.
-- Run focused hosted tests through `bin/with-test-accessibility xcodebuild test ...`; `bin/test-all` includes this wrapper. The terminal or app running tests needs macOS Accessibility permission so SwiftUI exposes its controls for inspection.
 - Always pass `-hideShellScriptEnvironment` to `xcodebuild`; the shared scheme pre-action otherwise prints inherited environment values into raw logs.
-- Pass `LM_FORCE_LINK_GENERATION=YES` to Swift test builds so Xcode completes App Intents metadata extraction for dynamic packages instead of warning that it skipped them. Keep extraction and warning reporting enabled. Validate both the result bundle and raw log with `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`; add `--full` for the complete suite.
-- Use suite/class-level `-only-testing:PodHavenTests/SomeSuite`. Method filters can look green while running zero tests.
+- Keep App Intents extraction and warning reporting enabled. Validate both the result bundle and raw build log through the workflow's evidence checks.
+- Use suite/class-level test filters; method filters can look green while running zero tests.
 - Async tests use `Wait.until`, `Wait.forValue`, polling helpers, `AsyncStream` continuations, or `withObservationTracking`; never `Task.sleep` or thread blockers (`DispatchSemaphore`, `RunLoop.run`, `Thread.sleep`, `NSCondition.wait()`). Use `sleeper.sleep` only to advance production sleeps.
-- All Swift test files belong to `PodHavenTests`. Repository tooling tests live in `bin/tests`.
+- Application tests belong in `PodHavenTests`; macro tests belong in `PodHavenMacros/Tests`; repository tooling tests belong in `bin/tests`.
 - Migration tests use raw SQL and `Container.shared.standardDefaults()` only; no model types, `Create`, or drifting constructs.
 - Test observable behavior, not internals. Do not expose `private` methods, add test-only injection/accessors, or keep production API with only test callers. Delete all test-only surfaces.
 - Use isolated fixtures for prerequisites unrelated to the behavior under test. Choose the least costly test level that proves the behavior, and retain complete journeys where they add distinct evidence. Measure test changes and preserve per-test isolation; do not hide races with retries or weaker assertions. See [test cost and coverage](docs/development-workflow.md#test-cost-and-coverage).

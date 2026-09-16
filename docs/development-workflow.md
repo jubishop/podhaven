@@ -424,20 +424,39 @@ so macOS window focus does not dim the controls being measured.
 
 ### Current-revision Swift validation
 
-Before any push or merge into `main`, and before a release, run all tests
-locally with `bin/test-all`. This includes documentation and tooling changes.
-Test the exact commit being pushed. For a PR merge, integrate its current
-head with the latest `main` in a local checkout, then test that integration.
-Verify the merge will contain the tested tree. A new commit or change to the
-integration base requires a fresh full run. Historical reproductions cannot
-establish acceptance of the current revision.
+Follow the [testing policy](../AGENTS.md#testing) before pushing any branch,
+merging into `main`, or releasing. This includes documentation and tooling
+changes. For a PR merge, integrate its current head with the latest `main`
+before validation and verify the merge will contain the tested tree.
+
+For the final clean revision, run:
+
+```sh
+bin/test-all --ensure --revision <sha>
+```
+
+Replace `<sha>` with the full commit hash being validated. The command requires
+a clean checkout at that revision. It reuses the latest retained passing report
+only when the revision, checkout contents, toolchain, macOS version, destination,
+and evidence artifacts still match. Otherwise, it runs the complete suite. A new commit or
+change to the integration base requires a fresh full run.
+`bin/test-all --verify --revision <sha>` checks existing evidence without running
+tests and fails when it cannot reuse that evidence. Plain `bin/test-all` always
+runs the complete suite and also supports uncommitted development work.
 
 `bin/test-all` runs repository checks, Python skill and helper tests, shell
 tooling tests, Swift formatting checks, macro tests, and the complete
 `PodHaven` test plan on My Mac (Designed for iPhone). My Mac also runs hosted
 UI and accessibility tests that the iOS Simulator skips. Use additional
-simulator or device checks when a change needs environment-specific coverage.
+simulator checks when a change needs environment-specific coverage. Development
+checks use local targets; physical-device testing belongs to separate release
+workflows and must respect the [device restriction](../AGENTS.md#repo-guardrails).
 The local run is the test gate; GitHub does not run test CI.
+
+For focused application tests, use My Mac by default with
+`-destination 'platform=macOS,name=My Mac'`. Select a complete suite/class with
+`-only-testing:PodHavenTests/SomeSuite`; method filters can report success while
+running zero tests.
 
 On macOS 27, hosted SwiftUI tests need a native accessibility client to expose
 controls. `bin/test-all` starts it through `bin/with-test-accessibility`. Use
@@ -454,8 +473,8 @@ Each attempt retains logs, its `.xcresult` bundle, diagnostic reports, and
 `run.json` under `.cache/test-all/`. The report records the revision, local
 changes, toolchain, destination, and outcome. The command permits uncommitted
 development work but rejects a checkout that changes during the run. Before
-a push or merge into `main`, require a passing report for the final clean
-revision. Do not treat an earlier dirty-worktree run as acceptance of a new
+pushing any branch, merging into `main`, or releasing, require a passing report
+for the final clean revision. Do not treat an earlier dirty-worktree run as acceptance of a new
 commit. Keep the evidence until the operation is complete.
 
 The command runs automated tests with isolated service fixtures. Live Sentry
@@ -490,11 +509,11 @@ Choose validation by the changed files and the stage of the work:
 | Tooling edits during development | Focused tooling tests and `bin/check`. |
 | Initial setup; changes to foundation tools, hooks, configuration, tests, or CI | `bin/check --full` after the edits are complete. |
 | A tooling PR ready for review | `bin/check --full` once for the final changes. |
-| Any push or merge into `main`, or release | `bin/test-all` for the final clean revision, including integration with the latest `main` before a PR merge. |
+| Pushing any branch, merging into `main`, or releasing | `bin/test-all --ensure --revision <sha>` for the final clean revision, including integration with the latest `main` before a PR merge. |
 | Focused checks leave material uncertainty | Full validation for the affected application or tooling. |
 
-Require successful full local validation before any push or merge into
-`main`, and before release. Pending, skipped, or failed runs do not satisfy
+Require successful full local validation before pushing any branch, merging
+into `main`, or releasing. Pending, skipped, or failed runs do not satisfy
 the gate. Preserve the release validation in [Versioning and releases](releases.md).
 
 Batch related edits before checking. A conversational reply is not a release
@@ -518,8 +537,8 @@ network access. Remote URLs are not fetched by foundation checks.
 All modes also verify the generated active-memory index. Keep the
 existing Swift build and test requirements for application changes.
 A Markdown or tooling edit does not require building the Swift app during
-development. The full gate still applies before pushing or merging into
-`main`, and before release.
+development. The full gate still applies before pushing any branch, merging
+into `main`, or releasing.
 
 Keep the foundation checks when adding application tests, builds, and linters.
 For generated or externally owned docs, add deliberate patterns to
