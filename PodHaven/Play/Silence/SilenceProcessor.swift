@@ -256,7 +256,7 @@ actor SilenceProcessor {
         let published = try await store.publish(map, for: content)
         diagnostics.finishAttempt(published ? .published : .stale)
         Self.log.info(
-          "Silence analysis file=\(content.filename) published=\(published) intervals=\(map.intervals.count) duration=\(started.duration(to: .now))"
+          "Silence analysis file=\(content.filename) published=\(published) intervals=\(map.intervalCount) duration=\(started.duration(to: .now))"
         )
       } catch is CancellationError {
         throw CancellationError()

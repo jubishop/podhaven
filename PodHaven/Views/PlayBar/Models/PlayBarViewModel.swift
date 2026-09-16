@@ -83,6 +83,19 @@ enum UndoSeekDirection {
     }
   }
 
+  var quietAudioProtection: QuietAudioProtection {
+    withDependencies { sharedState.effectiveQuietAudioProtection }
+  }
+
+  func selectQuietAudioProtection(_ mode: QuietAudioProtection) {
+    withDependencies {
+      guard let episodeID = sharedState.currentEpisodeID else { return }
+      sharedState.$quietAudioProtectionOverride.new(
+        QuietAudioProtectionOverride(episodeID: episodeID, protection: mode)
+      )
+    }
+  }
+
   var duration: CMTime {
     withDependencies {
       (sharedState.onDeck?.duration ?? .zero).safe

@@ -9,12 +9,7 @@ enum SilenceSettingsHelp {
     pauses a little more automatically. Off keeps the original pauses.
 
     Requires downloaded audio and completed audio analysis. Playback continues normally while \
-    analysis is pending. Podcasts use the global choice unless they have an explicit override, \
-    including Off. Use Global clears that override.
-
-    The player control changes only the current playback. Its choice lasts through pauses and \
-    recovery, and clears when that playback ends. Until you choose a mode there, changes to the \
-    podcast or global setting also apply to current playback.
+    analysis is pending.
     """
 }
 

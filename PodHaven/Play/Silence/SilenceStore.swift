@@ -101,15 +101,19 @@ struct SilenceStore: Sendable {
         return nil
       }
       if var content = try CachedAudioContent.fetchOne(db, key: filename) {
-        if let version = content.detectorVersion, version != SilenceMap.detectorVersion {
+        if content.detectorVersion != SilenceMap.detectorVersion {
           content.analysis = nil
-          content.detectorVersion = nil
+          content.detectorVersion = SilenceMap.detectorVersion
           content.failureCount = 0
           try content.update(db)
         }
         return content
       }
-      let content = CachedAudioContent(filename: filename, generation: UUID().uuidString)
+      let content = CachedAudioContent(
+        filename: filename,
+        generation: UUID().uuidString,
+        detectorVersion: SilenceMap.detectorVersion
+      )
       try content.insert(db)
       return content
     }
@@ -127,6 +131,7 @@ struct SilenceStore: Sendable {
 
   @discardableResult
   func publish(_ map: SilenceMap, for content: CachedAudioContent) async throws -> Bool {
+    guard content.detectorVersion == SilenceMap.detectorVersion else { return false }
     guard map.isValid else { throw SilenceAnalysisError.invalidAudio }
     let encoded = try JSONEncoder().encode(map)
     guard encoded.count <= 8_000_000 else { throw SilenceAnalysisError.tooManyIntervals }
@@ -139,6 +144,7 @@ struct SilenceStore: Sendable {
       else { return false }
       return try CachedAudioContent.filter(Column("filename") == content.filename)
         .filter(Column("generation") == content.generation)
+        .filter(Column("detectorVersion") == SilenceMap.detectorVersion)
         .updateAll(
           db,
           Column("analysis").set(to: encoded),
@@ -149,9 +155,11 @@ struct SilenceStore: Sendable {
   }
 
   func recordFailure(for content: CachedAudioContent) async throws {
+    guard content.detectorVersion == SilenceMap.detectorVersion else { return }
     try await writer.write { db in
       try CachedAudioContent.filter(Column("filename") == content.filename)
         .filter(Column("generation") == content.generation)
+        .filter(Column("detectorVersion") == SilenceMap.detectorVersion)
         .updateAll(
           db,
           Column("failureCount").set(to: content.failureCount + 1),

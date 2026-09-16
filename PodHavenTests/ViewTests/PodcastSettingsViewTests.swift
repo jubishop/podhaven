@@ -129,6 +129,112 @@ private let supportsHostedPodcastSettingsInspection = ProcessInfo.processInfo.is
     }
   }
 
+  @Test(
+    "silence help popovers expose their complete text on narrow layouts",
+    .enabled(if: supportsHostedPodcastSettingsInspection)
+  )
+  func silenceHelpPopovers() async throws {
+    for size in [DynamicTypeSize.large, .accessibility3] {
+      for (index, help) in [SilenceSettingsHelp.text, QuietAudioProtectionHelp.text].enumerated() {
+        let host = TestHostingController(
+          rootView:
+            VStack {
+              SettingsRow(infoText: help) { Text("Playback setting") }
+              Spacer()
+            }
+            .padding()
+            .environment(\.dynamicTypeSize, size)
+        )
+        host.traitOverrides.preferredContentSizeCategory =
+          size == .large ? .large : .accessibilityExtraExtraLarge
+        try await withHostedTestWindow(host, size: CGSize(width: 320, height: 844)) { window in
+          try await Wait.until { @MainActor in
+            Self.accessibilityElements(in: window).contains { $0.accessibilityLabel == "More Info" }
+          } _: {
+            "Help button did not appear"
+          }
+          let info = try #require(
+            Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "More Info" }
+          )
+          #expect(info.accessibilityActivate())
+          try await Wait.until { @MainActor in
+            Self.accessibilityElements(in: window).contains { $0.accessibilityLabel == help }
+          } _: {
+            "Complete help text did not appear"
+          }
+          let text = try #require(
+            Self.accessibilityElements(in: window).first { $0.accessibilityLabel == help }
+          )
+          let frame = window.convert(text.accessibilityFrame, from: window.screen.coordinateSpace)
+          #expect(frame.width > 0)
+          #expect(frame.minX >= 0 && frame.maxX <= 320)
+          #expect(frame.minY >= 0 && frame.maxY <= 844)
+          let popover = try #require(host.presentedViewController?.view)
+          let image = UIGraphicsImageRenderer(bounds: popover.bounds)
+            .image { _ in
+              popover.drawHierarchy(in: popover.bounds, afterScreenUpdates: true)
+            }
+          Attachment.record(
+            try #require(image.pngData()),
+            named: "silence-help-\(index)-\(size).png"
+          )
+        }
+      }
+    }
+  }
+
+  @Test(
+    "oversized silence help remains scrollable to its final paragraph",
+    .enabled(if: supportsHostedPodcastSettingsInspection)
+  )
+  func overflowingSilenceHelp() async throws {
+    let help = String(repeating: SilenceSettingsHelp.text + "\n\n", count: 4)
+    let host = TestHostingController(
+      rootView:
+        VStack {
+          SettingsRow(infoText: help) { Text("Playback setting") }
+          Spacer()
+        }
+        .padding()
+    )
+    try await withHostedTestWindow(host, size: CGSize(width: 320, height: 480)) { window in
+      try await Wait.until { @MainActor in
+        Self.accessibilityElements(in: window).contains { $0.accessibilityLabel == "More Info" }
+      } _: {
+        "Help button did not appear"
+      }
+      try activateHostedControl(
+        try #require(
+          Self.accessibilityElements(in: window).first { $0.accessibilityLabel == "More Info" }
+        )
+      )
+      try await Wait.until { @MainActor in
+        host.presentedViewController != nil
+      } _: {
+        "Popover did not open"
+      }
+      let popover = try #require(host.presentedViewController?.view)
+      popover.layoutIfNeeded()
+      let scroll = try #require(
+        Self.descendants(of: popover).compactMap { $0 as? UIScrollView }
+          .first {
+            $0.isScrollEnabled && $0.contentSize.height > $0.bounds.height
+          },
+        "Help that exceeds the available height needs a scrollable presentation"
+      )
+      scroll.setContentOffset(
+        CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height),
+        animated: false
+      )
+      #expect(scroll.contentOffset.y > 0)
+      let image = UIGraphicsImageRenderer(bounds: popover.bounds)
+        .image { _ in
+          popover.drawHierarchy(in: popover.bounds, afterScreenUpdates: true)
+        }
+      Attachment.record(try #require(image.pngData()), named: "silence-help-scrolled.png")
+    }
+  }
+
   private static func descendants(of view: UIView) -> [UIView] {
     [view] + view.subviews.flatMap(descendants)
   }

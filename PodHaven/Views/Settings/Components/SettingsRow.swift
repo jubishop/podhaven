@@ -20,11 +20,15 @@ struct SettingsRow<Content: View>: View {
           .accessibilityLabel("More Info")
           .buttonStyle(.plain)  // Necessary to keep hit target from bleeding out of row
           .popover(isPresented: $showPopover) {
-            Text(infoText)
-              .frame(idealWidth: geometry.size.width * 0.75)
-              .multilineTextAlignment(.leading)
-              .padding()
-              .presentationCompactAdaptation(.popover)
+            ViewThatFits(in: .vertical) {
+              helpText
+              ScrollView { helpText }
+                .scrollBounceBehavior(.basedOnSize)
+            }
+            .frame(idealWidth: geometry.size.width * 0.75)
+            .multilineTextAlignment(.leading)
+            .padding()
+            .presentationCompactAdaptation(.popover)
           }
       }
       .frame(width: geometry.size.width, alignment: .leading)
@@ -40,4 +44,22 @@ struct SettingsRow<Content: View>: View {
     .frame(height: measuredHeight > 0 ? measuredHeight : nil)
     .fixedSize(horizontal: false, vertical: measuredHeight == 0)
   }
+
+  private var helpText: some View {
+    Text(infoText)
+      .fixedSize(horizontal: false, vertical: true)
+  }
 }
+
+#if DEBUG
+#Preview("Silence help at large text sizes") {
+  VStack {
+    SettingsRow(infoText: SilenceSettingsHelp.text) { Text("Shorten Silence") }
+    SettingsRow(infoText: QuietAudioProtectionHelp.text) { Text("Quiet Audio Protection") }
+    Spacer()
+  }
+  .padding()
+  .frame(width: 320)
+  .environment(\.dynamicTypeSize, .accessibility5)
+}
+#endif

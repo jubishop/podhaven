@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import SwiftUI
 import Tagged
 import Testing
@@ -42,8 +43,10 @@ struct SilenceAudioTests {
     )
     let map = try await SilenceAnalyzer.analyze(url, progress: { _, _ in })
     #expect(map.isValid)
-    #expect(map.intervals.count == 8)
-    for (index, interval) in map.intervals.enumerated() {
+    #expect(map.medium.count == 8)
+    #expect(map.low.count == 8)
+    #expect(map.high.count == 8)
+    for (index, interval) in map.high.enumerated() {
       #expect(abs(interval.start - (Double(index) * 4 + 2)) < 0.1)
       #expect(abs(interval.end - (Double(index) * 4 + 4)) < 0.1)
     }
@@ -77,6 +80,15 @@ struct SilenceAudioTests {
     defer { try? FileManager.default.removeItem(at: url.rawValue) }
     let state = Container.shared.sharedState()
     state.setThermalPressure(.serious)
+    try await Container.shared.appDB().writer
+      .write { db in
+        try db.execute(
+          sql:
+            "UPDATE cachedAudioContent SET detectorVersion = 1, analysis = ?, failureCount = 2 WHERE filename = ?",
+          arguments: [Data(#"{"duration":32,"intervals":[]}"#.utf8), url.lastPathComponent]
+        )
+      }
+
     Container.shared.userSettings().$silenceMode.new(.balanced)
     Container.shared.silenceProcessor().register()
     Container.shared.silenceProcessor().handleScenePhaseChange(to: .active)
@@ -87,7 +99,9 @@ struct SilenceAudioTests {
     let prepared: SilenceMap = try await Wait.forValue {
       try await store.content(for: url.lastPathComponent)?.map
     }
-    #expect(prepared.intervals.count == 8)
+    #expect(prepared.high.count == 8)
+    #expect(prepared.medium.count == 8)
+    #expect(prepared.low.count == 8)
     Container.shared.userSettings().$silenceMode.new(.off)
     #expect(try await store.content(for: url.lastPathComponent)?.map == prepared)
     Container.shared.silenceProcessor().handleScenePhaseChange(to: .background)

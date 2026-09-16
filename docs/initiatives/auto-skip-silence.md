@@ -5,7 +5,8 @@ status: current
 # Auto-Skip Silence
 
 Agreed design and AVPlayer prototype, September 10, 2026.
-Implementation is tracked in [issue #656](https://github.com/jubishop/podhaven/issues/656).
+Initial implementation is tracked in completed [issue #656](https://github.com/jubishop/podhaven/issues/656).
+The approved detection-sensitivity extension is tracked in [issue #685](https://github.com/jubishop/podhaven/issues/685).
 This plan replaces the earlier unapproved comparison of playback approaches.
 
 ## What
@@ -22,7 +23,7 @@ Shorten clear pauses while preserving natural speech cadence and the selected sp
 
 ### Modes and speed scaling
 
-- Offer **Gentle, Balanced, Aggressive, and Off**. There is no Custom mode, minimum-gap slider, retained-pause slider, or user-facing sound-level threshold.
+- Offer **Gentle, Balanced, Aggressive, and Off**. There is no Custom mode, minimum-gap slider, retained-pause slider, or free-form sound-level slider. Quiet Audio Protection selects a separate detection threshold.
 - The global mode initially defaults to **Off**. Podcast overrides initially remain unset.
 - The enabled presets define internal 1× values for minimum qualifying quiet duration and total quiet duration retained around the cut. Gentle preserves more space; Aggressive removes more; Balanced sits between them.
 - Start with a gentle scaling curve: divide both baseline source-audio timing values by `sqrt(selectedPlaybackRate)`. Playback itself then applies the selected rate. This is a prototype starting rule, with final preset values, bounds, and protection margins tuned through listening.
@@ -31,9 +32,47 @@ Shorten clear pauses while preserving natural speech cadence and the selected sp
 - Keep sound-level detection independent of preset and speed. Speed changes must not make quiet speech more likely to be classified as silence.
 - Recalculate future skip boundaries from reusable analysis when the mode or speed changes. Do not decode the file again merely for those changes. Preserve safe minimum margins, positive useful skip lengths, and monotonic preset ordering throughout the supported rate range.
 
+### Quiet Audio Protection
+
+| Choice | Peak threshold | Tradeoff |
+| --- | --- | --- |
+| High (default) | −60 dBFS | Preserves the original detector behavior and protects fainter sounds. |
+| Medium | −55 dBFS | Allows more faint background noise within pauses. |
+| Low | −50 dBFS | Allows more noise, with greater risk of skipping quiet speech. |
+
+These values are accepted for issue #685 and PR #686, with High as the default.
+Review implementation correctness against this mapping. Subjective listening
+calibration and selecting different thresholds are not merge or issue-closure
+requirements. No completed listening calibration is claimed. The user will open
+a new issue if later app testing shows that the values need adjustment.
+
+One decoding pass measures the peak across all channels in each window and
+calculates all three levels. Timing presets, padding, and speed scaling are
+unchanged. Changing protection selects stored intervals without decoding again;
+it cannot enable skipping while Shorten Silence is Off.
+
+The expanded player's order is speed, Shorten Silence, Quiet Audio Protection,
+then the existing spacer and remaining controls. Both silence menus use the
+same `metaButtonStyle` and `AppIcon` system. The protection menu contains only
+High, Medium, and Low, with the effective choice selected.
+
+The shared Shorten Silence help contains exactly these two paragraphs:
+
+> Shortens clear pauses while keeping natural space around speech. Gentle keeps more space, Balanced shortens more, and Aggressive removes the most. Higher playback speeds shorten pauses a little more automatically. Off keeps the original pauses.
+>
+> Requires downloaded audio and completed audio analysis. Playback continues normally while analysis is pending.
+
+Quiet Audio Protection help uses this concise explanation in both settings surfaces:
+
+> Controls how quiet a pause must be before it can be skipped. High (−60 dBFS) protects fainter sounds. Medium (−55 dBFS) and Low (−50 dBFS) allow more background noise, but may skip quiet speech.
+
+Help popovers omit inheritance and playback-lifetime explanations. Keep the full
+copy accessible at narrow widths and larger text sizes. Help that exceeds the
+available height uses a scrollable presentation instead of truncating the text.
+
 ### Settings, precedence, and lifetime
 
-Resolve the effective mode in this order:
+Resolve the pause mode and Quiet Audio Protection independently in this order:
 
 1. An explicit temporary override for the current playback.
 2. An explicit podcast override.
@@ -47,13 +86,15 @@ Resolve the effective mode in this order:
 
 The current playback follows applicable podcast/global changes until the user selects a mode in the player. That selection creates the temporary override, which then wins over later default changes. Preserve it through pause/resume, seeking, playback-speed changes, remote-to-cache item swaps, interruptions, route recovery, and media-services recovery of the same playback. Clear it when that playback ends or another episode is selected. A new playback, including after an app relaunch, starts from the effective podcast/global setting. Do not confuse rebuilding a player item for recovery with starting a new playback session.
 
+Selecting one player control does not freeze inheritance for the other. Quiet Audio Protection defaults to High globally; its podcast override starts unset. Its independent temporary player choice has the same lifetime described above.
+
 Turning Off prevents further automatic skips immediately. Other effective changes update future skip decisions during current playback when eligible audio is ready. While waiting for downloaded/analyzed audio, retain the latest selection and apply it when the actual playback source becomes eligible.
 
 ### Interface contract
 
 - Add a **separate compact silence control immediately to the right of the existing playback-speed control** in `PlayBarSheet.metaControlsRow`. Both belong in the left group before the spacer; keep the existing controls on the right.
 - The player control opens a popover/menu with only **Gentle, Balanced, Aggressive, Off**, with the current effective selection indicated. No reset action, explanatory text, timing controls, or new playback-options panel. Do not combine it with the speed popover.
-- Put detailed explanations only in the existing question-mark help popovers (`SettingsRow`) in `SettingsView` and `PodcastSettingsView`. Explain natural pause shortening, relative preset strength, automatic speed scaling, inheritance, and the downloaded/analyzed-audio requirement. Explain the current-playback scope of the player control there if needed.
+- Use the concise help copy above in the existing question-mark popovers (`SettingsRow`) in `SettingsView` and `PodcastSettingsView`. Keep inheritance and playback-lifetime explanations out of both popovers.
 - Use `AppIcon` and accessible native menu/picker semantics. Give the compact control an accurate VoiceOver label and selected value. Preserve Dynamic Type, reading order, adequate hit targets, and usable narrow layouts with chapter controls and the transcript visible.
 - Add isolated `#Preview` states for inherited and explicit settings, enabled/Off selections, and the expanded player layout. No network or persistent database access in previews.
 
@@ -64,7 +105,7 @@ Turning Off prevents further automatic skips immediately. Other effective change
 - Use one analysis worker at a time. Integrate with existing foreground/background scheduling and thermal-pressure handling. Keep work cancellable, bounded in memory, and outside the UI and audio-render paths. Do not start a second media download for analysis.
 - Reconcile eligibility after downloads finish, settings change, the current playback or queue changes, and on launch. Do not re-query the whole library on every playback-position update. Deferral or background-task expiration must not stop ordinary playback.
 - Decode the local audio with `AVAssetReader` and `AVAssetReaderTrackOutput` to PCM. Separate sample reading, quiet-interval detection, preset/rate policy, and playback orchestration so each can be tested at the correct boundary.
-- Use conservative audio-level detection, initially evaluated over short windows. Calibrate the detector and boundary protection on actual podcasts. Preserve quiet speech, breaths, music, and other audible material; this is not speech-only filtering, ad removal, or transcript-gap skipping.
+- Use the accepted peak thresholds over short windows and retain the existing boundary protection. Later listening can identify adjustments for quiet speech, breaths, music, and other audible material; track those in a new issue. This is not speech-only filtering, ad removal, or transcript-gap skipping.
 - Evaluate channel energy without cancellation from downmixing opposite-phase stereo. An audible signal in either channel must protect that interval. Preserve brief audible sounds between quiet intervals instead of merging across them blindly.
 - Missing samples, invalid values, timestamp discontinuities, and decode failures are not evidence of silence. Fail back to normal playback.
 - Store the detected quiet intervals before applying any preset's minimum-gap filter or cut padding. Retain enough resolution and sufficiently short candidates for the most aggressive supported preset/rate combination. Store source timestamps and detector version. Do not cache only one preset's final skip ranges.
@@ -131,12 +172,14 @@ orphaned metadata. Analysis publication and player attachment check the same
 generation. A remote item cannot use the map of a local file.
 
 The detector uses the peak absolute sample value across all channels in each
-10 ms window. A window qualifies below 0.001 full scale (−60 dBFS). It keeps
+10 ms window. Each window is compared with the three protection thresholds above. High retains
+the original 0.001 full-scale threshold (−60 dBFS). The detector keeps
 quiet candidates of at least 40 ms before preset filtering. An audible window
 splits candidates; missing timestamps do not join them. Invalid samples reject
 analysis. The decoder reads interleaved float PCM without downmixing and bounds
-one sample buffer to 1 MiB. A map is limited to 100,000 intervals and 8 MB of
-encoded data. Failed analysis is attempted at most twice per file generation
+one sample buffer to 1 MiB. The complete three-level map is limited to 100,000 intervals in total and 8 MB
+of encoded data. Every level must be present; an empty level is complete analysis.
+The full map is published atomically. Failed analysis is attempted at most twice per file generation
 and detector version, on separate eligibility triggers. Cancellation does not
 publish a partial map or record a permanent failure.
 
@@ -152,6 +195,17 @@ Each end retains at least 100 ms of source audio. A cut must remove at least
 observations use a 600,000-unit timescale, with zero seek tolerances. The general
 60-unit time helper remains unchanged for existing callers. These are initial,
 conservative values, not a claim that all pauses should be shortened.
+
+### Upgrading stored analysis
+
+Detector format version 2 replaces all legacy single-threshold results, including
+High-only analysis. Migration v83 adds a nullable podcast protection setting and
+invalidates old analysis and failure state. Lazy version checks also reset stale
+results when a file next becomes eligible. Cached audio bytes and file generation
+identity remain intact. The normal scheduler rebuilds all eligible downloads,
+including files outside the queue, retaining current-episode and queue priorities.
+Temporarily ineligible files wait until enabled or thermal/lifecycle recovery.
+Obsolete scan results cannot publish against the current detector version.
 
 ### Local decoder and transport measurements
 
@@ -181,6 +235,52 @@ transition or measure the audio hardware's output latency.
 The checked-in synthetic fixtures alternate a tone and silence. They cover
 MP3/AAC decoding, channel cancellation, source timestamps, and window protection.
 They contain generated audio, not excerpts from the podcast downloads.
+
+### Three-level measurements (September 15, 2026)
+
+The optimized production decoder analyzed the cited [AudioDharma meditation](https://www.audiodharma.org/talks/26250)
+and the same three local podcast downloads without modifying their bytes or the
+app database. A standalone Mac harness supplied the preference/interval types;
+it used the production decoder and detector source. Peak resident memory for
+the three-podcast run was 29.8 MB. The measurements below use
+Balanced at 1× and include retained padding.
+
+| Recording | Source length | Scan time | Complete map | High cuts / seconds removed | Medium cuts / seconds removed | Low cuts / seconds removed |
+| --- | --- | --- | --- | --- | --- | --- |
+| AudioDharma, Developing Learning Readiness | 25.7 min | 1.06 s | 10,737 bytes | 50 / 1,378.77 s | 50 / 1,379.89 s | 48 / 1,384.36 s |
+| My First Million, Robert Greene interview | 84.3 min | 11.20 s | 341,902 bytes | 20 / 13.78 s | 41 / 28.22 s | 59 / 41.25 s |
+| Talking Elite Fitness, Crossing Over…Again | 66.5 min | 5.05 s | 239,623 bytes | 12 / 11.73 s | 21 / 17.53 s | 31 / 25.58 s |
+| My First Million, How I Bought a $3.4M Business For $200K | 81.0 min | 5.51 s | 232,621 bytes | 3 / 2.55 s | 12 / 7.66 s | 17 / 11.42 s |
+
+Cut counts can fall when a higher threshold joins neighboring quiet ranges, as
+in the meditation. Total removed time increases. Each scan produces all three
+levels together. These timings include file decoding and are subject to machine
+load; they are not iPhone power measurements.
+
+Generated mono MP3 and opposite-phase stereo AAC each retain eight separated
+quiet regions at every level. Tone regions remain protected. Threshold-band PCM
+regressions verify the additional cuts, and brief audible samples and timestamp
+gaps split intervals at every level. Stored maps reject missing levels while
+accepting three empty levels. The combined bound remains 100,000 intervals and
+8 MB, rather than multiplying the original limits by three.
+
+No threshold tuning was made. These are numerical comparisons, not a listening
+calibration. Listening comparisons for faint speech, word endings, breaths,
+background noise, and music, plus physical-device audio-route checks, remain
+unperformed. They do not block delivery of the accepted thresholds. Passing
+decoder and fake-player tests does not establish their audible quality; later
+listening concerns belong in a new issue.
+
+Hosted My Mac tests check the controls at 320 points, selected accessibility
+values, minimum hit targets, and complete popover text. Captured popovers show
+both help texts without truncation. A separate overflow regression verifies
+that help exceeding the available height can scroll to its final paragraph. The Mac host rendered identical font sizes
+for normal and accessibility text-size requests, including an explicit native
+trait override. It therefore does not verify actual large-text growth on iOS.
+Verify narrow iPhone/iPad layouts with larger text and a spoken VoiceOver flow
+before accepting the UI. Preview states include High with Off, Medium in the
+narrow player, Low with chapters, transcript layouts, and inherited/explicit
+podcast preferences.
 
 ### Cache-switch failure behavior
 

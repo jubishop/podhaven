@@ -741,6 +741,7 @@ struct Repo: Databasing {
         .updateAll(
           db,
           Podcast.Columns.silenceMode.set(to: settings.silenceMode),
+          Podcast.Columns.quietAudioProtection.set(to: settings.quietAudioProtection),
           Podcast.Columns.defaultPlaybackRate.set(to: settings.defaultPlaybackRate),
           Podcast.Columns.queueAllEpisodes.set(to: settings.queueAllEpisodes),
           Podcast.Columns.autoQueueLimit.set(to: settings.autoQueueLimit),

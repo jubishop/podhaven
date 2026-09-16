@@ -11,6 +11,7 @@ import Tagged
   enum Pending { case cut, preparation, replacement }
   var content: CachedAudioContent?
   var map: SilenceMap?
+  var protection: QuietAudioProtection?
   var consumedInterval: Int?
   var pending: Pending?
   var replacementIntent: PlaybackStatus?
@@ -66,15 +67,37 @@ extension PodAVPlayer {
     )
     silenceState.observations.append(
       Task { [weak self] in
+        for await _ in settings.$quietAudioProtection.stream() {
+          guard let self, !Task.isCancelled, self.isCurrent(source) else { return }
+          await self.updateSilencePlayback()
+        }
+      }
+    )
+    silenceState.observations.append(
+      Task { [weak self] in
+        for await _ in state.$quietAudioProtectionOverride.stream() {
+          guard let self, !Task.isCancelled, self.isCurrent(source) else { return }
+          await self.updateSilencePlayback()
+        }
+      }
+    )
+    silenceState.observations.append(
+      Task { [weak self] in
         var previousMode: SilenceMode?
+        var previousProtection: QuietAudioProtection?
         var previousCache: Episode.CacheStatus?
         for await onDeck in state.$onDeck.stream() {
           guard let self, !Task.isCancelled, self.isCurrent(source) else { return }
           guard onDeck?.id == source.episodeID else { continue }
-          guard previousMode != onDeck?.silenceMode || previousCache != onDeck?.cacheStatus else {
+          guard
+            previousMode != onDeck?.silenceMode
+              || previousProtection != onDeck?.quietAudioProtection
+              || previousCache != onDeck?.cacheStatus
+          else {
             continue
           }
           previousMode = onDeck?.silenceMode
+          previousProtection = onDeck?.quietAudioProtection
           previousCache = onDeck?.cacheStatus
           await self.updateSilencePlayback()
         }
@@ -100,7 +123,17 @@ extension PodAVPlayer {
     removeSilenceBoundary()
   }
 
+  private func synchronizeSilenceProtection() {
+    let protection = Container.shared.sharedState().effectiveQuietAudioProtection
+    guard silenceState.protection != protection else { return }
+    silenceState.protection = protection
+    silenceState.consumedInterval = nil
+    if silenceState.pending == .cut { cancelAutomaticSilenceWork() }
+    removeSilenceBoundary()
+  }
+
   func updateSilencePlayback() async {
+    synchronizeSilenceProtection()
     let state = Container.shared.sharedState()
     if state.effectiveSilenceMode == .off {
       if silenceState.pending != .replacement { cancelAutomaticSilenceWork() }
@@ -124,9 +157,10 @@ extension PodAVPlayer {
     let policy = SilencePolicy(mode: state.effectiveSilenceMode, rate: Double(selectedRate))
     let now = avPlayer.currentTime().seconds
     guard
-      let interval = map.intervals.first(where: {
-        $0.start + policy.padding > now && $0.end - $0.start >= policy.minimumGap
-      })
+      let interval = map.intervals(for: state.effectiveQuietAudioProtection)
+        .first(where: {
+          $0.start + policy.padding > now && $0.end - $0.start >= policy.minimumGap
+        })
     else { return }
     let token = avPlayer.addBoundaryTimeObserver(
       forTimes: [
@@ -151,21 +185,24 @@ extension PodAVPlayer {
 
   @discardableResult
   func shortenSilenceIfNeeded() async -> Bool {
+    synchronizeSilenceProtection()
     let state = Container.shared.sharedState()
     guard state.effectiveSilenceMode != .off, !state.playbackStatus.loading, latestSeekID == nil,
       avPlayer.timeControlStatus == .playing, avPlayer.current?.status == .readyToPlay,
       let source = eventSource, let content = silenceState.content, let map = silenceState.map,
       playbackSnapshot().isFromCache, periodicTimeObservation != nil
     else { return false }
+    let protection = state.effectiveQuietAudioProtection
+    let intervals = map.intervals(for: protection)
     let time = avPlayer.currentTime().seconds
     var lower = 0
-    var upper = map.intervals.count
+    var upper = intervals.count
     while lower < upper {
       let middle = lower + (upper - lower) / 2
-      if map.intervals[middle].end <= time { lower = middle + 1 } else { upper = middle }
+      if intervals[middle].end <= time { lower = middle + 1 } else { upper = middle }
     }
-    guard lower < map.intervals.count, silenceState.consumedInterval != lower else { return false }
-    let interval = map.intervals[lower]
+    guard lower < intervals.count, silenceState.consumedInterval != lower else { return false }
+    let interval = intervals[lower]
     let policy = SilencePolicy(mode: state.effectiveSilenceMode, rate: Double(selectedRate))
     guard policy.cut(in: interval, from: time) != nil else { return false }
     let id = UUID()
@@ -186,7 +223,9 @@ extension PodAVPlayer {
       return false
     }
     guard latestSeekID == id, isCurrent(source) else { return true }
-    guard state.effectiveSilenceMode != .off, avPlayer.timeControlStatus == .playing else {
+    guard state.effectiveSilenceMode != .off, state.effectiveQuietAudioProtection == protection,
+      avPlayer.timeControlStatus == .playing
+    else {
       cancelAutomaticSilenceWork()
       return false
     }
@@ -199,7 +238,7 @@ extension PodAVPlayer {
     }
     guard latestSeekID == id, isCurrent(source) else { return true }
     let currentPolicy = SilencePolicy(mode: state.effectiveSilenceMode, rate: Double(selectedRate))
-    guard avPlayer.timeControlStatus == .playing,
+    guard state.effectiveQuietAudioProtection == protection, avPlayer.timeControlStatus == .playing,
       let target = currentPolicy.cut(in: interval, from: avPlayer.currentTime().seconds)
     else {
       cancelAutomaticSilenceWork()

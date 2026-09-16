@@ -37,6 +37,7 @@ import Testing
     player.seekHandler = { _ in
       !(player.current as! FakeAVPlayerItem).url.isFileURL
     }
+    PlayBarViewModel().selectQuietAudioProtection(.low)
     PlayBarViewModel().selectSilenceMode(.balanced)
     try await Wait.until(maxAttempts: 200) { @MainActor in
       player.completedSeekCount >= 2
@@ -48,6 +49,7 @@ import Testing
     #expect(player.currentTime() == .seconds(12))
     #expect(player.rate == 1.5)
     #expect(Container.shared.sharedState().silenceOverride?.mode == .balanced)
+    #expect(PlayBarViewModel().quietAudioProtection == .low)
     await Container.shared.playManager().pause()
     await Container.shared.playManager().play()
     player.advanceTime(to: .seconds(15))
@@ -107,6 +109,7 @@ import Testing
   func failedStreamingRestoration() async throws {
     let (_, player) = try await streaming()
     player.seekHandler = { _ in false }
+    PlayBarViewModel().selectQuietAudioProtection(.low)
     PlayBarViewModel().selectSilenceMode(.balanced)
     try await Wait.until(maxAttempts: 200) { @MainActor in
       Container.shared.alert().config != nil
@@ -122,6 +125,7 @@ import Testing
   func rejectedRecovery() async throws {
     let (_, player) = try await streaming()
     player.seekHandler = { _ in !(player.current as! FakeAVPlayerItem).url.isFileURL }
+    PlayBarViewModel().selectQuietAudioProtection(.low)
     PlayBarViewModel().selectSilenceMode(.balanced)
     try await Wait.until(maxAttempts: 200) { @MainActor in
       player.completedSeekCount >= 2
@@ -151,6 +155,7 @@ import Testing
       return true
     }
     defer { release.signal() }
+    PlayBarViewModel().selectQuietAudioProtection(.low)
     PlayBarViewModel().selectSilenceMode(.balanced)
     try await Wait.until(maxAttempts: 200) { @MainActor in
       player.preciseSeekRequests.count == 1

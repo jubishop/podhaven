@@ -43,6 +43,24 @@ struct PodcastSettingsView: View {
               }
             }
           }
+          SettingsRow(infoText: QuietAudioProtectionHelp.text) {
+            Picker(
+              "Quiet Audio Protection",
+              selection: Binding(
+                get: { temp.quietAudioProtection },
+                set: {
+                  temp.quietAudioProtection = $0
+                  viewModel.updateSettings(temp)
+                }
+              )
+            ) {
+              Text("Use Global (\(userSettings.quietAudioProtection.title))")
+                .tag(QuietAudioProtection?.none)
+              ForEach(QuietAudioProtection.allCases) { mode in
+                Text(mode.title).tag(Optional(mode))
+              }
+            }
+          }
           VStack(alignment: .leading, spacing: 24) {
             SettingsRow(
               infoText: """
@@ -376,7 +394,8 @@ struct PodcastSettingsView: View {
         let podcast = try! await Create.podcast(
           title: "Sample Podcast",
           defaultPlaybackRate: 1.5,
-          silenceMode: .off
+          silenceMode: .off,
+          quietAudioProtection: .medium
         )
         let displayed = DisplayedPodcast(podcast)
         settings = displayed.settings

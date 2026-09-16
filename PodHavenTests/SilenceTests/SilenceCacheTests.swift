@@ -48,7 +48,12 @@ struct SilenceCacheTests {
     #expect(
       try await !Container.shared.silenceStore()
         .publish(
-          SilenceMap(duration: 30, intervals: [.init(start: 1, end: 2)]),
+          SilenceMap(
+            duration: 30,
+            high: [.init(start: 1, end: 2)],
+            medium: [.init(start: 1, end: 2)],
+            low: [.init(start: 1, end: 2)]
+          ),
           for: oldContent
         )
     )
@@ -72,7 +77,12 @@ struct SilenceCacheTests {
     let url = try await CacheHelpers.waitForCached(first.id)
     let store = Container.shared.silenceStore()
     let content = try #require(try await store.content(for: url.lastPathComponent))
-    let map = SilenceMap(duration: 30, intervals: [.init(start: 1, end: 3)])
+    let map = SilenceMap(
+      duration: 30,
+      high: [.init(start: 1, end: 3)],
+      medium: [.init(start: 1, end: 3)],
+      low: [.init(start: 1, end: 3)]
+    )
     try await store.publish(map, for: content)
     let secondTask = try await CacheHelpers.downloadToCache(second.id)
     try await CacheHelpers.simulateBackgroundFinish(secondTask)
