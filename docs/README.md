@@ -22,6 +22,7 @@ Preserve decision reasons and evidence. Follow the
 - [Development workflow](development-workflow.md): setup, search, hooks, cache isolation, dependencies, testing, and validation
 - [Versioning and releases](releases.md): version commits, TestFlight uploads, automated App Store submissions, and retry behavior
 - [Universal Links](universal-links.md): associated domains, website fallback, and coordinated app rollout
+- [CarPlay scene lifecycle](carplay-lifecycle.md): startup ownership, connection cleanup, protected storage audit, and validation boundaries
 - [Silence diagnostics](silence-diagnostics.md): telemetry fields, warning bounds, and later real-world assessment
 
 ## Initiatives

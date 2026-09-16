@@ -120,12 +120,18 @@ struct AppLauncher: Sendable {
     }
   }
 
+  // MARK: - Shared Data
+
+  func prepareForBrowsing() {
+    stateManager.start()
+  }
+
   // MARK: - Playback
 
   func prepareForPlayback() async {
     await prepareForPlaybackOnce.run {
       Self.log.info("Preparing for background audio playback")
-      self.stateManager.start()
+      self.prepareForBrowsing()
       await self.playManager.start()
       self.widgetSnapshotWriter.start()
     }

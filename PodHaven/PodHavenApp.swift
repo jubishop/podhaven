@@ -7,6 +7,16 @@ import SwiftUI
 @main
 struct PodHavenApp: App {
   @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
+  var body: some Scene {
+    WindowGroup {
+      PhoneSceneView(appDelegate: appDelegate)
+    }
+  }
+}
+
+struct PhoneSceneView: View {
+  let appDelegate: AppDelegate
   @Environment(\.scenePhase) private var scenePhase
 
   @InjectedObservable(\.alert) private var alert
@@ -32,58 +42,56 @@ struct PodHavenApp: App {
 
   nonisolated private static let log = Log.as("Main")
 
-  var body: some Scene {
-    WindowGroup {
-      Group {
-        if initialized {
-          ContentView()
-            .customAlert($alert.config, isEnabled: sheet.config == nil)
-            .customSheet($sheet.config, alert: $alert.config)
-        } else {
-          ProgressView("Loading...")
-        }
+  var body: some View {
+    Group {
+      if initialized {
+        ContentView()
+          .customAlert($alert.config, isEnabled: sheet.config == nil)
+          .customSheet($sheet.config, alert: $alert.config)
+      } else {
+        ProgressView("Loading...")
       }
-      .preferredColorScheme(userSettings.appearanceMode.colorScheme)
-      .onChange(of: scenePhase, initial: true) { _, newPhase in
-        sharedState.$scenePhase.new(newPhase)
+    }
+    .preferredColorScheme(userSettings.appearanceMode.colorScheme)
+    .onChange(of: scenePhase, initial: true) { _, newPhase in
+      sharedState.$scenePhase.new(newPhase)
 
-        switch newPhase {
-        case .active:
-          Task {
-            await appLauncher.prepareForForeground()
-            initialized = true
-            // Skip the notify if the phase changed during the await: the
-            // captured `.active` would be stale (the gate would re-enter
-            // foreground while backgrounded), and the `.background` arm
-            // already sync-notified when the transition happened.
-            guard sharedState.$scenePhase.value == .active else { return }
-            notifyScenePhaseChange(.active)
-          }
-        case .background:
-          notifyScenePhaseChange(newPhase)
-          if initialized {
-            bgTaskScheduler.getPendingTaskRequests { requests in
-              if requests.isEmpty {
-                Self.log.error("No pending background tasks after entering background")
-              } else {
-                Self.log.debug(
-                  """
-                  Pending background tasks:
-                  \(BackgroundTaskScheduler.formatPendingTasks(requests))
-                  """
-                )
-              }
+      switch newPhase {
+      case .active:
+        Task {
+          await appLauncher.prepareForForeground()
+          initialized = true
+          // Skip the notify if the phase changed during the await: the
+          // captured `.active` would be stale (the gate would re-enter
+          // foreground while backgrounded), and the `.background` arm
+          // already sync-notified when the transition happened.
+          guard sharedState.$scenePhase.value == .active else { return }
+          notifyScenePhaseChange(.active)
+        }
+      case .background:
+        notifyScenePhaseChange(newPhase)
+        if initialized {
+          bgTaskScheduler.getPendingTaskRequests { requests in
+            if requests.isEmpty {
+              Self.log.error("No pending background tasks after entering background")
+            } else {
+              Self.log.debug(
+                """
+                Pending background tasks:
+                \(BackgroundTaskScheduler.formatPendingTasks(requests))
+                """
+              )
             }
           }
-        default:
-          break
         }
+      default:
+        break
       }
-      .onOpenURL { url in
-        Self.log.info("Received incoming URL: \(url)")
-        Task {
-          await handleIncomingURL(url)
-        }
+    }
+    .onOpenURL { url in
+      Self.log.info("Received incoming URL: \(url)")
+      Task {
+        await handleIncomingURL(url)
       }
     }
   }
