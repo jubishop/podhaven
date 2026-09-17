@@ -106,6 +106,42 @@ import Testing
     )
   }
 
+  @Test("remote toggle supersedes a pending CarPlay lookup", arguments: [false, true])
+  func toggleDuringLookup(playing: Bool) async throws {
+    let selected = try await Create.podcastEpisode()
+    let current = try await Create.podcastEpisode()
+    let (coordinator, controller, rows) = try await connect([selected])
+    defer { coordinator.disconnect(controller) }
+    let player = Container.shared.playManager()
+    try await player.load(current)
+    if playing { await player.play() }
+    try await PlayHelpers.waitFor(playing ? .playing : .paused)
+    let repo = Container.shared.repo() as! FakeRepo
+    repo.pendingPodcastEpisodeFetchSuspend(true)
+    let count = ThreadSafe(0)
+    rows[0].handler?(rows[0]) { count { $0 += 1 } }
+    try await repo.waitForPodcastEpisodeFetchSuspended()
+    do {
+      Container.shared.commandCenterStream().continuation.yield(.togglePlayPause)
+      try await PlayHelpers.waitFor(playing ? .paused : .playing)
+      try await Wait.until(
+        { count() == 1 },
+        { "Remote toggle must promptly complete the superseded CarPlay callback" }
+      )
+    } catch {
+      await repo.resumeAllPodcastEpisodeFetchSuspensions()
+      throw error
+    }
+    #expect(Container.shared.sharedState().currentEpisodeID == current.id)
+    #expect(controller.pushed.isEmpty)
+    #expect(controller.alerts.isEmpty)
+    await repo.resumeAllPodcastEpisodeFetchSuspensions()
+    #expect(
+      await Container.shared.fakeEpisodeAssetLoader().responseCount(for: selected.episode.mediaURL)
+        == 0
+    )
+  }
+
   @Test("disconnect completes pending lookup without playing or navigating on reconnect")
   func disconnectLookup() async throws {
     let episode = try await Create.podcastEpisode()
