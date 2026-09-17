@@ -132,71 +132,8 @@ final class PlayManager {
       Self.log.debug("start: executing")
 
       self.startStreamConsumers()
-      await self.restorePersistedEpisodeIfNeeded()
+      await self.restorePersistedEpisodeIfNeeded(preserving: self.playbackRequestRevision)
     }
-  }
-
-  private func restorePersistedEpisodeIfNeeded() async {
-    guard sharedState.onDeck == nil else { return }
-    guard let currentEpisodeID = sharedState.currentEpisodeID else { return }
-    guard case .none = mediaServicesRecoveryState else { return }
-
-    Self.log.info("Loading persisted episode \(currentEpisodeID)")
-    do {
-      guard let podcastEpisode = try await repo.podcastEpisode(currentEpisodeID) else {
-        Self.log.warning("Persisted episode \(currentEpisodeID) not found in database")
-        stateManager.clearOnDeck()
-        return
-      }
-      try await load(podcastEpisode, preserving: playbackRequestRevision)
-    } catch {
-      Self.log.caughtError(
-        "restorePersistedEpisodeIfNeeded: failed to load persisted episode \(currentEpisodeID)",
-        error
-      )
-    }
-  }
-
-  private func restorePendingPlaybackRequestIfNeeded() async {
-    guard case .play(let episodeID) = pendingPlaybackRequest else { return }
-    guard sharedState.onDeck?.id != episodeID else { return }
-
-    Self.log.info("Loading episode \(episodeID) for pending playback")
-    do {
-      let podcastEpisode = try await repo.podcastEpisode(episodeID)
-      guard case .play(let pendingEpisodeID) = pendingPlaybackRequest,
-        pendingEpisodeID == episodeID
-      else { return }
-      guard let podcastEpisode else {
-        Self.log.warning("Pending episode \(episodeID) not found in database")
-        pendingPlaybackRequest = .none
-        if sharedState.onDeck == nil && sharedState.currentEpisodeID == episodeID {
-          stateManager.clearOnDeck()
-        }
-        return
-      }
-      try await load(podcastEpisode, preserving: playbackRequestRevision)
-    } catch {
-      Self.log.caughtError(
-        "restorePendingPlaybackRequestIfNeeded: failed to load episode \(episodeID)",
-        error
-      )
-    }
-  }
-
-  func restorePersistedEpisodeForForeground() async {
-    await restorePendingPlaybackRequestIfNeeded()
-    if case .play(let episodeID) = pendingPlaybackRequest {
-      guard sharedState.onDeck?.id == episodeID else {
-        Self.log.info("Pending playback for episode \(episodeID) remains deferred")
-        return
-      }
-      await fulfillPendingPlaybackRequest()
-      return
-    }
-
-    await restorePersistedEpisodeIfNeeded()
-    await fulfillPendingPlaybackRequest()
   }
 
   @discardableResult
@@ -235,7 +172,7 @@ final class PlayManager {
     do {
       return try await task.value
     } catch {
-      if let recoveryEpisode {
+      if let recoveryEpisode, playbackRequestRevision == acceptedRevision {
         restoreMediaServicesRecoveryPresentation(recoveryEpisode)
       }
       throw error
@@ -627,7 +564,7 @@ final class PlayManager {
       episodeID: podcastEpisode.id,
       snapshot: podAVPlayer.playbackSnapshot()
     )
-    await fulfillPendingPlaybackRequest()
+    await fulfillPendingPlaybackRequest(preserving: requestID)
     guard playbackRequestRevision == requestID else { return .superseded }
     return settledOnDeckID == podcastEpisode.id ? .ready : .unavailable
   }
@@ -643,39 +580,19 @@ final class PlayManager {
     }
     pendingPlaybackRequest = .play(episodeID)
 
-    guard await reloadMediaServicesRecoveryIfNeeded(for: episodeID) else { return }
+    guard await reloadMediaServicesRecoveryIfNeeded(for: episodeID, preserving: requestID),
+      playbackRequestRevision == requestID
+    else { return }
 
-    await restorePersistedEpisodeIfNeeded()
+    await restorePersistedEpisodeIfNeeded(preserving: requestID)
+    guard playbackRequestRevision == requestID else { return }
     await beginPlaybackRequest(
       origin: origin,
       requestID: requestID,
       episodeID: episodeID,
       snapshot: podAVPlayer.playbackSnapshot()
     )
-    await fulfillPendingPlaybackRequest()
-  }
-
-  private func fulfillPendingPlaybackRequest() async {
-    guard case .play(let episodeID) = pendingPlaybackRequest else { return }
-    guard let onDeck = sharedState.onDeck else {
-      if sharedState.currentEpisodeID == episodeID {
-        Self.log.info("play: deferring episode \(episodeID) until persisted playback is restored")
-      } else {
-        pendingPlaybackRequest = .none
-        Self.log.warning("play: nothing to play")
-      }
-      return
-    }
-    guard onDeck.id == episodeID else {
-      pendingPlaybackRequest = .none
-      Self.log.warning(
-        "play: dropping stale request for episode \(episodeID); on-deck episode is \(onDeck.id)"
-      )
-      return
-    }
-
-    pendingPlaybackRequest = .none
-    await podAVPlayer.play()
+    await fulfillPendingPlaybackRequest(preserving: requestID)
   }
 
   func pause() async {
@@ -689,8 +606,17 @@ final class PlayManager {
     playbackRevision.new(UUID())
     cancelWidgetRouteRecovery(reason: "userStop")
     pendingPlaybackRequest = .none
-    await clearOnDeck()
-    setStatus(.stopped)
+    let previousLoad = loadTask
+    let stopID = claimLoadTransition(for: nil)
+    loadTransition?.state = .ownsPlaybackState
+    sharedState.$silenceOverride.new(nil)
+    sharedState.$quietAudioProtectionOverride.new(nil)
+    sharedState.$silenceSourceRejection.new(nil)
+    clearMediaServicesRecovery()
+    await Task { await finishLoadTransition(stopID, outcome: .didNotLoad) }.value
+    if let previousLoad, case .failure(let error) = await previousLoad.result {
+      Self.log.caughtError("stop: previous load settled", error, level: .debug)
+    }
   }
 
   func removeDeletedEpisodes(_ episodeIDs: Set<Episode.ID>) async {
@@ -944,21 +870,6 @@ final class PlayManager {
     } else {
       setCurrentTime(.zero)
     }
-  }
-
-  func clearOnDeck() async {
-    sharedState.$silenceOverride.new(nil)
-    sharedState.$quietAudioProtectionOverride.new(nil)
-    sharedState.$silenceSourceRejection.new(nil)
-    cancelWidgetRouteRecovery(reason: "clearOnDeck")
-    Self.log.debug("clearOnDeck: executing")
-    clearMediaServicesRecovery()
-    imageFetchTask?.cancel()
-    await podAVPlayer.clear()
-    NowPlayingInfo.clear()
-    stateManager.clearOnDeck()
-    onDeckBecameCurrentAt = nil
-    CommandCenter.updateNextTrack()
   }
 
   func setCurrentTime(_ currentTime: CMTime) {

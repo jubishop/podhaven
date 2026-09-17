@@ -49,28 +49,36 @@ extension PlayManager {
     mediaServicesRecoveryState = .none
   }
 
-  func reloadMediaServicesRecoveryIfNeeded(for episodeID: Episode.ID) async -> Bool {
+  func reloadMediaServicesRecoveryIfNeeded(for episodeID: Episode.ID, preserving requestID: UUID)
+    async -> Bool
+  {
+    guard playbackRequestRevision == requestID else { return false }
     guard mediaServicesRecoveryEpisodeID == episodeID else { return true }
 
     do {
-      guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
+      let podcastEpisode = try await repo.podcastEpisode(episodeID)
+      guard playbackRequestRevision == requestID else { return false }
+      guard let podcastEpisode else {
         Self.log.warning("Media-services recovery episode \(episodeID) not found in database")
         mediaServicesRecoveryState = .none
         pendingPlaybackRequest = .none
         stateManager.clearOnDeck()
         return false
       }
-      guard try await load(podcastEpisode) else {
+      let loaded = try await load(podcastEpisode, preserving: requestID)
+      guard playbackRequestRevision == requestID else { return false }
+      guard loaded else {
         pendingPlaybackRequest = .none
         return false
       }
       return true
     } catch {
-      pendingPlaybackRequest = .none
       Self.log.caughtError(
         "play: failed to restore episode \(episodeID) after media-services reset",
         error
       )
+      guard playbackRequestRevision == requestID else { return false }
+      pendingPlaybackRequest = .none
       await alert(ErrorKit.message(for: error))
       return false
     }

@@ -118,13 +118,13 @@ import Testing
     )
   }
 
-  @Test("clearOnDeck sets playbackState to stopped")
-  func clearOnDeckSetsPlaybackStateToStopped() async throws {
+  @Test("stop sets playbackState to stopped")
+  func stopSetsPlaybackStateToStopped() async throws {
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
     try await playManager.load(podcastEpisode)
 
-    await playManager.clearOnDeck()
+    await playManager.stop()
 
     #expect(infoCenter.playbackState == .stopped)
   }
