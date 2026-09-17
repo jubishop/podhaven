@@ -419,6 +419,7 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await notification in notifications(AVPlayerItem.failedToPlayToEndTimeNotification) {
+        let requestID = playbackRequestRevision
         guard await podAVPlayer.isCurrentItem(notification.object as? AVPlayerItem) else {
           Self.log.warning("Ignoring failedToPlayToEndTimeNotification from non-current item")
           continue
@@ -435,7 +436,7 @@ extension PlayManager {
           level: .warning
         )
 
-        await handlePlaybackFailure()
+        await handlePlaybackFailure(preserving: requestID)
       }
     }
 

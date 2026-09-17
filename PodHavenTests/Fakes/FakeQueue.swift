@@ -101,6 +101,14 @@ struct FakeQueue: Sendable, FakeCallable, Queueing {
     try await queue.unshift(episodeID)
   }
 
+  func unshift(_ episodeID: Episode.ID, if shouldQueue: @Sendable () -> Bool) async throws -> Bool {
+    recordCall(methodName: "unshift", parameters: episodeID)
+    if let beforeUnshiftEpisode = beforeUnshiftEpisodeHandler() {
+      try await beforeUnshiftEpisode(episodeID)
+    }
+    return try await queue.unshift(episodeID, if: shouldQueue)
+  }
+
   func append(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
     recordCall(methodName: "append", parameters: episodeIDs)
     try queue.append(db, episodeIDs)

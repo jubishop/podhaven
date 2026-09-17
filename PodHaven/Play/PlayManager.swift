@@ -602,8 +602,8 @@ final class PlayManager {
     await podAVPlayer.pause()
   }
 
-  func stop() async {
-    playbackRevision.new(UUID())
+  func stop(requestID: UUID = UUID()) async {
+    playbackRevision.new(requestID)
     cancelWidgetRouteRecovery(reason: "userStop")
     pendingPlaybackRequest = .none
     let previousLoad = loadTask

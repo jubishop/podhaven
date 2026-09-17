@@ -2,6 +2,7 @@
 
 import AVFoundation
 import FactoryKit
+import Foundation
 import Logging
 import Tagged
 
@@ -9,7 +10,9 @@ extension PlayManager {
 
   // MARK: - Playback Recovery
 
-  func handlePlaybackFailure() async {
+  func handlePlaybackFailure(preserving revision: UUID? = nil) async {
+    let requestID = revision ?? playbackRequestRevision
+    guard playbackRequestRevision == requestID else { return }
     Self.log.info("handlePlaybackFailure: recovering from AVPlayerItem failure")
 
     guard let episodeID = sharedState.onDeck?.id else {
@@ -18,8 +21,12 @@ extension PlayManager {
     }
 
     await podAVPlayer.savePosition()
+    guard playbackRequestRevision == requestID else { return }
     await logFailureDiagnostics(episodeID)
-    await stop()
+    guard playbackRequestRevision == requestID else { return }
+    let recoveryRequestID = UUID()
+    await stop(requestID: recoveryRequestID)
+    guard playbackRequestRevision == recoveryRequestID else { return }
 
     // Attempt auto-recovery unless we just tried for this same episode
     let shouldAttemptRecovery: Bool
@@ -35,7 +42,9 @@ extension PlayManager {
     if shouldAttemptRecovery {
       lastRecoveryAttempt = (episodeID, Date())
       do {
-        guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
+        let podcastEpisode = try await repo.podcastEpisode(episodeID)
+        guard playbackRequestRevision == recoveryRequestID else { return }
+        guard let podcastEpisode else {
           Self.log.warning("handlePlaybackFailure: episode \(episodeID) no longer exists")
           return
         }
@@ -43,12 +52,21 @@ extension PlayManager {
         Self.log.info(
           "handlePlaybackFailure: attempting auto-recovery for \(podcastEpisode.toString)"
         )
-        if try await load(podcastEpisode) {
-          await play()
+        let result = try await play(
+          podcastEpisode,
+          replacing: recoveryRequestID,
+          requestID: recoveryRequestID
+        )
+        guard playbackRequestRevision == recoveryRequestID else { return }
+        switch result {
+        case .ready:
           Self.log.info("handlePlaybackFailure: auto-recovery succeeded")
           return
+        case .superseded:
+          return
+        case .unavailable:
+          Self.log.warning("handlePlaybackFailure: auto-recovery load remained deferred")
         }
-        Self.log.warning("handlePlaybackFailure: auto-recovery load remained deferred")
       } catch {
         Self.log.caughtError(
           "handlePlaybackFailure: auto-recovery failed",
@@ -62,17 +80,34 @@ extension PlayManager {
       )
     }
 
-    // Fall back to returning episode to queue
+    guard playbackRequestRevision == recoveryRequestID else { return }
+    pendingPlaybackRequest = .none
+    let returnedToQueue: Bool
     do {
-      try await queue.unshift(episodeID)
+      returnedToQueue = try await queue.unshift(episodeID) {
+        self.playbackRequestRevision == recoveryRequestID
+      }
     } catch {
       Self.log.caughtError(
         "handlePlaybackFailure: failed to return episode \(episodeID) to queue",
         error
       )
+      returnedToQueue = false
     }
 
-    await alert("Playback failed unexpectedly. The episode has been returned to your queue.")
+    await presentPlaybackFailure(returnedToQueue: returnedToQueue, preserving: recoveryRequestID)
+  }
+
+  @MainActor private func presentPlaybackFailure(returnedToQueue: Bool, preserving requestID: UUID)
+  {
+    guard playbackRequestRevision == requestID else { return }
+    let message =
+      if returnedToQueue {
+        "Playback failed unexpectedly. The episode has been returned to your queue."
+      } else {
+        "Playback failed unexpectedly. The episode could not be returned to your queue."
+      }
+    Container.shared.alert()(message)
   }
 
   func activateAudioSessionForLoad() throws -> Bool {
