@@ -41,10 +41,13 @@ completions check both connection and root identity before changing presentation
 Retry callbacks check connection identity; replacing the root clears its old
 handlers. An old disconnect cannot release a newer controller.
 
-This foundation has no connection-owned asynchronous tasks or data observers.
-The root uses native placeholders. Queue, artwork, selection, and navigation
-work belong to subsequent CarPlay issues and must adopt the same connection
-lifetime. Shared data observers and the player outlive a CarPlay disconnect.
+The active connection owns Up Next observations, row artwork, selection
+callbacks, session restrictions, and the shared Now Playing observer.
+Disconnect cancels and invalidates this presentation work. Shared data
+observers and accepted player loads outlive a CarPlay disconnect. See
+[CarPlay browsing and playback](carplay-playback.md) for selection ownership
+and bounded list navigation. Episodes and Podcasts remain placeholders until
+their browser implementations are delivered.
 
 If root installation fails, the coordinator logs the failure and attempts a
 three-tab error root with native Retry rows. Retry starts a new root attempt.
@@ -75,8 +78,8 @@ demonstrated need for such a change. A delegate-only protected-data guard
 would not fix a bootstrap database failure, so none is added.
 
 Simulator and My Mac evidence cannot establish the protection class or locked
-access of an installed iPhone's existing files. Issue #631 owns real-device
-acceptance: record the actual database, both sidecars, a downloaded audio
+access of an installed iPhone's existing files. Issue #631 documents optional real-device
+checks. If separately performed, record the actual database, both sidecars, a downloaded audio
 file, and required settings access on a cold launch after first unlock and
 relock. Record before-first-unlock restrictions separately. If an existing
 file is found to have stronger protection that blocks ordinary locked use,
@@ -95,6 +98,9 @@ controller, and failure/retry cleanup.
 The Xcode previews show shared titles, icons, placeholder copy, and retry
 content with no database or network dependencies. They are content fixtures:
 CarPlay owns native template rendering and cannot embed that renderer in a
-SwiftUI preview. Actual template layout, tab order, empty views, phone scene
-launch, and reconnect must also be inspected in Simulator. Locked access and
-vehicle audio behavior remain real-device checks in #631.
+SwiftUI preview. The user accepts automated behavioral tests, isolated preview builds, and
+applicable signed Simulator/configuration checks for implementation delivery.
+Native template layout, visual interaction, locked access, vehicle audio,
+spoken Siri, and hardware accessibility/input remain unverified unless
+separately checked. These optional checks do not block merge or issue closure;
+issue #631 records integrated automated coverage and validation limits.

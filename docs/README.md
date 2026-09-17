@@ -23,6 +23,7 @@ Preserve decision reasons and evidence. Follow the
 - [Versioning and releases](releases.md): version commits, TestFlight uploads, automated App Store submissions, and retry behavior
 - [Universal Links](universal-links.md): associated domains, website fallback, and coordinated app rollout
 - [CarPlay scene lifecycle](carplay-lifecycle.md): startup ownership, connection cleanup, protected storage audit, and validation boundaries
+- [CarPlay browsing and playback](carplay-playback.md): live Up Next rows, bounded paging, shared selection ownership, and Now Playing controls
 - [Silence diagnostics](silence-diagnostics.md): telemetry fields, warning bounds, and later real-world assessment
 
 ## Initiatives

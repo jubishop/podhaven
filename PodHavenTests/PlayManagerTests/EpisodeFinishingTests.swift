@@ -193,7 +193,7 @@ import Testing
     #expect(sharedState.onDeck == nil)
     #expect(sharedState.playbackStatus == .stopped)
     finishCleanup.signal()
-    try await pendingPlay.value
+    _ = try await pendingPlay.value
 
     await playManager.restorePersistedEpisodeForForeground()
 
@@ -269,7 +269,7 @@ import Testing
 
     await playManager.finishEpisode(currentEpisode.id)
     finishConfiguration.signal()
-    try await selectedPlay.value
+    _ = try await selectedPlay.value
 
     try await PlayHelpers.waitForOnDeck(selectedEpisode)
     try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
@@ -305,7 +305,7 @@ import Testing
 
     await playManager.finishEpisode(currentEpisode.id)
     finishConfiguration.signal()
-    try await selectedPlay.value
+    _ = try await selectedPlay.value
 
     #expect(sharedState.onDeck == nil)
     #expect(sharedState.currentEpisodeID == nil)
@@ -340,7 +340,7 @@ import Testing
 
     await playManager.finishEpisode(currentEpisode.id)
     finishRestoration.signal()
-    try await selectedPlay.value
+    _ = try await selectedPlay.value
 
     try await PlayHelpers.waitForOnDeck(selectedEpisode)
     try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
@@ -451,7 +451,7 @@ import Testing
     finishAutomaticCleanup.signal()
     await finalization.value
     finishSelectedConfiguration.signal()
-    try await selectedPlay.value
+    _ = try await selectedPlay.value
 
     try await PlayHelpers.waitForOnDeck(selectedEpisode)
     try await PlayHelpers.waitForCurrentItem(selectedEpisode.episode.mediaURL)
