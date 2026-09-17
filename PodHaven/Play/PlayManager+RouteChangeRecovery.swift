@@ -298,7 +298,7 @@ extension PlayManager {
       """
     )
 
-    await podAVPlayer.play()
+    await podAVPlayer.play(requestID: requestID)
     guard let currentRecovery = widgetRouteRecovery, currentRecovery.requestID == requestID else {
       return
     }

@@ -96,6 +96,7 @@ struct PodAVPlayerPlaybackSnapshot {
 
   var episodeID: Episode.ID?
   var eventSource: PodAVPlayerEventSource?
+  private var playbackRequestID: UUID?
   var lastDatabaseUpdateTime: CMTime?
   var latestSeekID: UUID?
   var silenceState = SilencePlaybackState()
@@ -350,6 +351,7 @@ struct PodAVPlayerPlaybackSnapshot {
     removeObservers()
     episodeID = nil
     eventSource = nil
+    playbackRequestID = nil
     lastDatabaseUpdateTime = nil
     latestSeekID = nil
     silenceState = SilencePlaybackState()
@@ -385,6 +387,11 @@ struct PodAVPlayerPlaybackSnapshot {
     guard let item, let current = avPlayer.current as? AVPlayerItem
     else { return false }
     return item === current
+  }
+
+  func failurePlaybackRequest(for item: AVPlayerItem?) -> UUID? {
+    guard isCurrentItem(item) else { return nil }
+    return playbackRequestID
   }
 
   func isCurrent(_ source: PodAVPlayerEventSource) -> Bool {
@@ -451,7 +458,8 @@ struct PodAVPlayerPlaybackSnapshot {
 
   // MARK: - Playback Controls
 
-  func play() {
+  func play(requestID: UUID) {
+    playbackRequestID = requestID
     Self.log.debug("play: executing (fromCache: \(playingFromCache))")
     if silenceState.replacementIntent != nil {
       silenceState.replacementIntent = .playing
@@ -473,13 +481,13 @@ struct PodAVPlayerPlaybackSnapshot {
     await saveCurrentTime(avPlayer.currentTime())
   }
 
-  func toggle() async {
+  func toggle(requestID: UUID) async {
     let currentStatus =
       silenceState.replacementIntent ?? PlaybackStatus(avPlayer.timeControlStatus)
     Self.log.debug("toggle: executing (current status: \(currentStatus))")
 
     if currentStatus == .paused {
-      play()
+      play(requestID: requestID)
     } else if currentStatus == .playing {
       await pause()
     } else {

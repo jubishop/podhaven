@@ -16,6 +16,7 @@ protocol Queueing: Sendable {
   func unshift(_ db: Database, _ episodeIDs: [Episode.ID]) throws
   func unshift(_ episodeIDs: [Episode.ID]) async throws
   func unshift(_ episodeID: Episode.ID) async throws
+  func unshift(_ episodeID: Episode.ID, if shouldQueue: @Sendable () -> Bool) async throws -> Bool
   func append(_ db: Database, _ episodeIDs: [Episode.ID]) throws
   func append(_ episodeIDs: [Episode.ID]) async throws
   func append(_ episodeID: Episode.ID) async throws

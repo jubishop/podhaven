@@ -111,6 +111,14 @@ struct Queue: Queueing {
     try await unshift([episodeID])
   }
 
+  func unshift(_ episodeID: Episode.ID, if shouldQueue: @Sendable () -> Bool) async throws -> Bool {
+    try await writer.write { db in
+      guard shouldQueue(), try Episode.withID(episodeID).fetchCount(db) > 0 else { return false }
+      try unshift(db, [episodeID])
+      return true
+    }
+  }
+
   func append(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
     try _append(db, episodeIDs)
   }

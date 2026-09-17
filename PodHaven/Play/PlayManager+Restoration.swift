@@ -100,6 +100,6 @@ extension PlayManager {
     }
 
     pendingPlaybackRequest = .none
-    await player.play()
+    await player.play(requestID: requestID)
   }
 }
