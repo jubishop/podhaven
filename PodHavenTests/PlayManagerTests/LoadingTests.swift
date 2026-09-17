@@ -450,7 +450,7 @@ import Testing
     }
 
     incomingSemaphore.signal()
-    try await incomingPlay.value
+    _ = try await incomingPlay.value
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
     try await PlayHelpers.waitFor(.playing)
   }
@@ -517,7 +517,7 @@ import Testing
 
     try await playManager.play(podcastEpisode)
     finishDequeue.signal()
-    try await originalPlay.value
+    _ = try await originalPlay.value
 
     try await PlayHelpers.waitFor(.playing)
   }

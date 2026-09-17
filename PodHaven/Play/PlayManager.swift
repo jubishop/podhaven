@@ -41,6 +41,14 @@ final class PlayManager {
     init(id: UUID) { self.id = id }
   }
 
+  enum SelectionResult {
+    case ready, superseded, unavailable
+  }
+
+  nonisolated private let playbackRevision = Broadcast(UUID())
+  nonisolated var playbackRequestRevision: UUID { playbackRevision.value }
+  nonisolated var playbackRequests: AsyncStream<UUID> { playbackRevision.stream() }
+
   enum PendingPlaybackRequest {
     case none
     case play(Episode.ID)
@@ -50,7 +58,7 @@ final class PlayManager {
   @DynamicInjected(\.commandCenterStream) var commandCenterStream
   @DynamicInjected(\.dateProvider) var dateProvider
   @DynamicInjected(\.fileManager) var fileManager
-  @DynamicInjected(\.imagePipeline) private var imagePipeline
+  @DynamicInjected(\.imagePipeline) var imagePipeline
   @DynamicInjected(\.notifications) var notifications
   @DynamicInjected(\.queue) var queue
   @DynamicInjected(\.repo) var repo
@@ -61,7 +69,7 @@ final class PlayManager {
 
   var alert: Alert { get async { await Container.shared.alert() } }
   var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
-  private var settledOnDeckID: Episode.ID? {
+  var settledOnDeckID: Episode.ID? {
     guard loadTransition == nil, case .none = pendingPlaybackRequest else { return nil }
     return sharedState.onDeck?.id
   }
@@ -88,7 +96,7 @@ final class PlayManager {
   var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
   var lastMediaServicesResetAt: Date?
   var latestAudioRouteChange: AudioRouteChange?
-  private var imageFetchTask: Task<Void, Never>?
+  var imageFetchTask: Task<Void, Never>?
   private var loadTransition: LoadTransition?
   private(set) var loadTask: Task<Bool, any Error>?
   private let startOnce = AsyncOnce()
@@ -140,7 +148,7 @@ final class PlayManager {
         stateManager.clearOnDeck()
         return
       }
-      try await load(podcastEpisode)
+      try await load(podcastEpisode, preserving: playbackRequestRevision)
     } catch {
       Self.log.caughtError(
         "restorePersistedEpisodeIfNeeded: failed to load persisted episode \(currentEpisodeID)",
@@ -167,7 +175,7 @@ final class PlayManager {
         }
         return
       }
-      try await load(podcastEpisode)
+      try await load(podcastEpisode, preserving: playbackRequestRevision)
     } catch {
       Self.log.caughtError(
         "restorePendingPlaybackRequestIfNeeded: failed to load episode \(episodeID)",
@@ -192,9 +200,18 @@ final class PlayManager {
   }
 
   @discardableResult
-  func load(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
+  func load(_ podcastEpisode: PodcastEpisode, preserving requestID: UUID? = nil) async throws
+    -> Bool
+  {
+    if let requestID {
+      guard playbackRequestRevision == requestID else { throw CancellationError() }
+    } else {
+      playbackRevision.new(UUID())
+    }
+    let acceptedRevision = playbackRequestRevision
     cancelWidgetRouteRecovery(reason: "newLoad")
     let recoveryEpisode = try await mediaServicesRecoveryEpisode(whenLoading: podcastEpisode)
+    guard playbackRequestRevision == acceptedRevision else { throw CancellationError() }
     let loadID = claimLoadTransition(for: podcastEpisode.id)
 
     let task = Task<Bool, any Error> { [weak self] in
@@ -569,23 +586,41 @@ final class PlayManager {
     CommandCenter.updateNextTrack()
   }
 
+  @discardableResult
   func play(
     _ podcastEpisode: PodcastEpisode,
-    origin: PlaybackRequestOrigin = .application
-  ) async throws {
-    let requestID = UUID()
+    origin: PlaybackRequestOrigin = .application,
+    replacing revision: UUID? = nil,
+    requestID: UUID = UUID()
+  ) async throws -> SelectionResult {
+    if let revision {
+      try Task.checkCancellation()
+      guard playbackRequestRevision == revision else { return .superseded }
+    }
+    playbackRevision.new(requestID)
     let isMediaServicesRecovery = mediaServicesRecoveryEpisodeID == podcastEpisode.id
     pendingPlaybackRequest = .play(podcastEpisode.id)
-    let loaded = try await load(podcastEpisode)
+    let loaded: Bool
+    do {
+      loaded = try await load(podcastEpisode, preserving: requestID)
+    } catch {
+      guard revision != nil, playbackRequestRevision != requestID else { throw error }
+      Self.log.caughtError(
+        "Superseded playback request failed: episode=\(podcastEpisode.id)",
+        error
+      )
+      return .superseded
+    }
+    guard playbackRequestRevision == requestID else { return .superseded }
     if isMediaServicesRecovery, !loaded {
       pendingPlaybackRequest = .none
-      return
+      return .unavailable
     }
 
     guard case .play(let pendingEpisodeID) = pendingPlaybackRequest,
       pendingEpisodeID == podcastEpisode.id,
       sharedState.onDeck?.id == podcastEpisode.id
-    else { return }
+    else { return .unavailable }
     await beginPlaybackRequest(
       origin: origin,
       requestID: requestID,
@@ -593,10 +628,13 @@ final class PlayManager {
       snapshot: podAVPlayer.playbackSnapshot()
     )
     await fulfillPendingPlaybackRequest()
+    guard playbackRequestRevision == requestID else { return .superseded }
+    return settledOnDeckID == podcastEpisode.id ? .ready : .unavailable
   }
 
   func play(origin: PlaybackRequestOrigin = .application) async {
     let requestID = UUID()
+    playbackRevision.new(requestID)
     cancelWidgetRouteRecovery(reason: "newPlay")
     guard let episodeID = sharedState.onDeck?.id ?? sharedState.currentEpisodeID else {
       pendingPlaybackRequest = .none
@@ -641,12 +679,14 @@ final class PlayManager {
   }
 
   func pause() async {
+    playbackRevision.new(UUID())
     cancelWidgetRouteRecovery(reason: "userPause")
     pendingPlaybackRequest = .none
     await podAVPlayer.pause()
   }
 
   func stop() async {
+    playbackRevision.new(UUID())
     cancelWidgetRouteRecovery(reason: "userStop")
     pendingPlaybackRequest = .none
     await clearOnDeck()
@@ -902,40 +942,6 @@ final class PlayManager {
     } else {
       setCurrentTime(.zero)
     }
-  }
-
-  private func fetchImage(for podcastEpisode: PodcastEpisode) {
-    let imageURL =
-      userSettings.alwaysShowPodcastImageForOnDeck
-      ? podcastEpisode.podcastImage : podcastEpisode.image
-    fetchImage(episodeID: podcastEpisode.id, imageURL: imageURL)
-  }
-
-  private func fetchImage(episodeID: Episode.ID, imageURL: URL) {
-    imageFetchTask?.cancel()
-
-    imageFetchTask = Task { [weak self, episodeID, imageURL] in
-      guard let self else { return }
-      do {
-        let image = try await imagePipeline.image(for: imageURL)
-        guard !Task.isCancelled else { return }
-
-        stateManager.setArtwork(image, for: episodeID)
-        NowPlayingInfo.setImage(image)
-      } catch {
-        Self.log.caughtError(
-          "fetchImage: failed to load image \(imageURL) for episode \(episodeID)",
-          error
-        )
-      }
-    }
-  }
-
-  func refetchOnDeckImage() {
-    guard let onDeck = sharedState.onDeck else { return }
-    let imageURL =
-      userSettings.alwaysShowPodcastImageForOnDeck ? onDeck.podcastImage : onDeck.image
-    fetchImage(episodeID: onDeck.id, imageURL: imageURL)
   }
 
   func clearOnDeck() async {

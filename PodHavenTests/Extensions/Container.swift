@@ -10,6 +10,16 @@ import Testing
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
     LogCapture.installOnce()
+    carPlayNowPlaying.context(.test) { MainActor.assumeIsolated { FakeCarPlayNowPlaying() } }
+      .scope(.cached)
+    carPlaySession.context(.test) {
+      { delegate in
+        let session = FakeCarPlaySession()
+        session.delegate = delegate
+        return session
+      }
+    }
+    carPlayListLimits.context(.test) { { CarPlayListLimits(items: 100, sections: 10) } }
 
     appDB.context(.test) { AppDB.inMemory() }.scope(.cached)
     repo.context(.test) { FakeRepo(self.makeRepo()) }.scope(.cached)

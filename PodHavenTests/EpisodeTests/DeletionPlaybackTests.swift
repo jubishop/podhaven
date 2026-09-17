@@ -90,7 +90,7 @@ import Testing
 
     #expect(try await repo.deletePodcast(targetSeries.podcast.id))
     finishConfiguration.signal()
-    try await replacementPlay.value
+    _ = try await replacementPlay.value
 
     try await PlayHelpers.waitForOnDeck(replacement)
     try await PlayHelpers.waitForCurrentItem(replacement.episode.mediaURL)
