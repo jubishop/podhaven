@@ -45,6 +45,7 @@ extension PlayManager {
     snapshot: PodAVPlayerPlaybackSnapshot
   ) async {
     let applicationState = await Container.shared.uiApplication().applicationState
+    guard playbackRequestRevision == requestID, sharedState.onDeck?.id == episodeID else { return }
     let routeOutputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType.rawValue)
     Self.log.info(
       """
