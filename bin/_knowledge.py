@@ -170,13 +170,60 @@ def snapshot(rendered, version):
 
 
 def shared_models(root=ROOT):
-    primary = primary_checkout(root)
-    if primary:
-        existing = cache(primary) / "models"
-        if existing.is_dir():
-            return existing.resolve()
-    common = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", root=root))
-    return common / "knowledge" / "models"
+    return Path.home() / ".cache" / "qmd" / "models"
+
+
+def model_digest(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.digest()
+
+
+def prepare_models(root):
+    models = shared_models()
+    local = cache(root) / "models"
+    if local.is_dir() and local.resolve() == models.resolve():
+        return
+    with lock_file(models.parent / "models-migration.lock"):
+        models.mkdir(parents=True, exist_ok=True)
+        local.parent.mkdir(parents=True, exist_ok=True)
+        if local.resolve() == models.resolve():
+            return
+        files = sorted(local.iterdir()) if local.is_dir() else []
+        if local.exists() and not local.is_dir():
+            raise ValueError("Model cache is not a directory: " + str(local))
+        # Validate everything before removing any old files. Unknown files may be
+        # an in-progress download; let its owner finish before migrating.
+        for source in files:
+            if source.is_symlink() or not source.is_file() or source.suffix not in {".gguf", ".etag"}:
+                raise ValueError("Inspect unexpected model-cache entry before migration: " + str(source))
+            target = models / source.name
+            if target.exists() and (not target.is_file() or model_digest(source) != model_digest(target)):
+                raise ValueError("Model cache conflict; preserve and inspect both files: " + str(source) + " and " + str(target))
+        for source in files:
+            target = models / source.name
+            if not target.exists():
+                with tempfile.NamedTemporaryFile(dir=models, delete=False) as stream:
+                    temporary = Path(stream.name)
+                try:
+                    shutil.copyfile(source, temporary)
+                    if model_digest(source) != model_digest(temporary):
+                        raise RuntimeError("Model changed during migration: " + str(source))
+                    temporary.replace(target)
+                finally:
+                    temporary.unlink(missing_ok=True)
+        if local.is_symlink():
+            # Other consumers may still use the old link target.
+            local.unlink()
+        elif local.exists():
+            for source in files:
+                if model_digest(source) != model_digest(models / source.name):
+                    raise RuntimeError("Model changed during migration: " + str(source))
+                source.unlink()
+            local.rmdir()
+        local.symlink_to(models, target_is_directory=True)
 
 
 def primary_checkout(root):
@@ -207,14 +254,7 @@ def prepare(root):
     primary = primary_checkout(root)
     if primary and primary.resolve() == root:
         git("config", "--local", "knowledge.primaryWorktree", str(root), root=root)
-    models = shared_models(root)
-    models.mkdir(parents=True, exist_ok=True)
-    local = cache(root) / "models"
-    local.parent.mkdir(parents=True, exist_ok=True)
-    if not local.exists() and not local.is_symlink():
-        local.symlink_to(os.path.relpath(models, local.parent), target_is_directory=True)
-    elif local.resolve() != models.resolve():
-        print("Preserved existing model cache: " + str(local))
+    prepare_models(root)
     from _worktrees import prepare_xcode
     prepare_xcode(root)
     if not shutil.which("direnv"):
@@ -315,6 +355,7 @@ def refresh(force):
         for warning in warnings:
             print(warning, flush=True)
         atomic_json(ROOT / ".config/qmd/index.yml", rendered)
+        prepare_models(ROOT)
         tool, version = qmd_tool()
         result["qmd_version"] = version
         if not tool:
@@ -399,6 +440,7 @@ def current_index(version):
 
 
 def lookup(args):
+    prepare_models(ROOT)
     tool, version = qmd_tool()
     if not tool:
         raise RuntimeError("QMD is not installed. Restore the configured tool or explicitly agree to operate without QMD.")
@@ -483,7 +525,7 @@ def diagnose():
         if not models.is_dir():
             report["issues"].append("Model cache missing or broken. Inspect .cache/qmd/models, then run bin/prep-worktree.")
         elif models.resolve() != shared_models().resolve():
-            report["notices"].append("Existing model cache preserved; it is not the default shared cache.")
+            report["issues"].append("Model cache must use ~/.cache/qmd/models. Run bin/prep-worktree to migrate it.")
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         report["freshness"] = "unknown"
         report["issues"].append(str(error))

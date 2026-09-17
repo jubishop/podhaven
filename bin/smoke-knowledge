@@ -17,10 +17,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--models", required=True, type=Path, help="Existing QMD model directory; reused without copying")
+
     parser.add_argument("--qmd", default="qmd", help="QMD executable or its absolute path")
     args = parser.parse_args()
-    models = args.models.expanduser().resolve()
+    models = (Path.home() / ".cache/qmd/models").resolve()
     if not (models / "hf_ggml-org_embeddinggemma-300M-Q8_0.gguf").is_file():
         raise RuntimeError("The existing model directory must contain QMD's default embedding model")
     qmd = shutil.which(args.qmd)
@@ -33,6 +33,10 @@ def main():
     checks = []
     with tempfile.TemporaryDirectory(prefix="project starter real qmd ") as temporary:
         base = Path(temporary).resolve()
+        smoke_home = base / "home"
+        (smoke_home / ".cache/qmd").mkdir(parents=True)
+        (smoke_home / ".cache/qmd/models").symlink_to(models, target_is_directory=True)
+        env["HOME"] = str(smoke_home)
         repo = base / "primary checkout"
         for name in ("bin", "docs", "memory"):
             shutil.copytree(ROOT / name, repo / name, ignore=shutil.ignore_patterns("__pycache__", ".cache"))

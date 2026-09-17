@@ -45,7 +45,7 @@ class KnowledgeTests(unittest.TestCase):
             (self.tools / name).symlink_to(target)
         self.events = self.base / "events.jsonl"
         self.env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-        self.env.update(PATH=str(self.tools), GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
+        self.env.update(HOME=str(self.base / "home"), PATH=str(self.tools), GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
                         PYTHONDONTWRITEBYTECODE="1", EVENTS=str(self.events), APPROVALS=str(self.base / "approvals.jsonl"),
                         OLD_HOOKS=str(self.base / "old-hooks.jsonl"), QMD_CONFIG_DIR="/wrong-config",
                         XDG_CACHE_HOME="/wrong-cache", INDEX_PATH="/wrong-index")
@@ -138,6 +138,53 @@ else:
                         stat = path.stat()
                         result[str(path)] = (stat.st_mtime_ns, stat.st_size, path.read_bytes())
         return result
+
+    def test_unrelated_repositories_share_home_models_and_keep_local_indexes(self):
+        self.run_command("bin/setup")
+        models = self.base / "home/.cache/qmd/models"
+        self.assertTrue(models.is_dir())
+        (models / "existing.gguf").write_text("downloaded once")
+        other = self.base / "unrelated project"
+        shutil.copytree(self.repo, other, ignore=shutil.ignore_patterns(".git", ".cache", "qmd"))
+        self.run_command("git", "init", "-b", "main", root=other)
+        self.run_command("bin/setup", root=other)
+        self.assertEqual((other / ".cache/qmd/models").resolve(), models)
+        self.assertEqual((other / ".cache/qmd/models/existing.gguf").read_text(), "downloaded once")
+        self.assertFalse(os.path.samefile(self.repo / ".cache/qmd/index.sqlite", other / ".cache/qmd/index.sqlite"))
+
+    def test_model_migration_deduplicates_but_rejects_conflicts(self):
+        models = self.base / "home/.cache/qmd/models"
+        local = self.repo / ".cache/qmd/models"
+        models.mkdir(parents=True)
+        local.mkdir(parents=True)
+        (models / "existing.gguf").write_text("shared")
+        (local / "existing.gguf").write_text("different")
+        result = self.run_command("bin/setup", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("conflict", result.stderr.lower())
+        self.assertFalse(local.is_symlink())
+        self.assertEqual((local / "existing.gguf").read_text(), "different")
+        (local / "existing.gguf").write_text("shared")
+        (local / "another.gguf").write_text("another model")
+        self.run_command("bin/setup")
+        self.assertTrue(local.is_symlink())
+        self.assertEqual(local.resolve(), models)
+        self.assertEqual((models / "another.gguf").read_text(), "another model")
+
+    def test_model_link_migration_preserves_external_source_and_repairs_broken_links(self):
+        source = self.base / "old model cache"
+        source.mkdir()
+        (source / "existing.gguf").write_text("preserve external source")
+        local = self.repo / ".cache/qmd/models"
+        local.parent.mkdir(parents=True)
+        local.symlink_to(source)
+        self.run_command("bin/setup")
+        self.assertEqual(local.resolve(), self.base / "home/.cache/qmd/models")
+        self.assertEqual((source / "existing.gguf").read_bytes(), (local / "existing.gguf").read_bytes())
+        local.unlink()
+        local.symlink_to(self.base / "missing")
+        self.run_command("bin/setup")
+        self.assertEqual(local.resolve(), self.base / "home/.cache/qmd/models")
 
     def test_fresh_copy_setup_from_subdirectory_and_search_routing(self):
         self.run_command("../bin/setup", root=self.repo / "docs")
@@ -439,7 +486,7 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
         self.run_command("git", "worktree", "add", "-b", "feature", str(worktree))
         self.drain(root=worktree)
         self.assertEqual((self.repo / ".cache/qmd/models").resolve(), (worktree / ".cache/qmd/models").resolve())
-        self.assertEqual((worktree / ".cache/qmd/models").resolve(), metadata / "knowledge/models")
+        self.assertEqual((worktree / ".cache/qmd/models").resolve(), self.base / "home/.cache/qmd/models")
         self.assertFalse(os.path.samefile(self.repo / ".cache/qmd/index.sqlite", worktree / ".cache/qmd/index.sqlite"))
         self.assertEqual(json.loads(self.run_command("bin/doctor", "--json", root=worktree).stdout)["freshness"], "current")
         approvals = Path(self.env["APPROVALS"])
@@ -461,7 +508,8 @@ sys.exit(int(os.environ.get("OLD_HOOK_EXIT", "0")))
         worktree = self.base / "another checkout"
         self.run_command("git", "worktree", "add", "-b", "another", str(worktree))
         self.drain(root=worktree)
-        self.assertEqual((worktree / ".cache/qmd/models").resolve(), models)
+        self.assertEqual((worktree / ".cache/qmd/models").resolve(), self.base / "home/.cache/qmd/models")
+        self.assertTrue(models.is_symlink())
         self.assertEqual((models / "existing.gguf").read_text(), "preserve")
         self.run_command("git", "worktree", "remove", "--force", str(worktree))
 
