@@ -407,7 +407,7 @@ def wait_for(ticket, timeout=None, output=None):
     deadline = time.monotonic() + timeout if timeout is not None else None
     while True:
         queue = read_json(cache() / "queue.json")
-        if queue.get("completed", 0) >= ticket:
+        if queue.get("completed", 0) >= ticket and not worker_active():
             state = read_json(cache() / "state.json")
             print(state.get("message", "Refresh finished."), file=output)
             if queue.get("exit_code"):
