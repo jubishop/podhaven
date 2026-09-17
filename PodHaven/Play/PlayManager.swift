@@ -651,10 +651,11 @@ final class PlayManager {
 
   func toggle() async {
     guard mediaServicesRecoveryEpisodeID == nil else { return await play() }
-    playbackRevision.new(UUID())
+    let requestID = UUID()
+    playbackRevision.new(requestID)
     pendingPlaybackRequest = .none
     cancelWidgetRouteRecovery(reason: "userToggle")
-    await podAVPlayer.toggle()
+    await podAVPlayer.toggle(requestID: requestID)
   }
 
   func finishEpisode(_ episodeID: Episode.ID? = nil) async {

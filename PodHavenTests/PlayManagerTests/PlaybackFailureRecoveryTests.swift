@@ -11,6 +11,11 @@ import Testing
 
 @Suite("of automatic playback failure recovery", .container)
 @MainActor struct PlaybackFailureRecoveryTests {
+  enum NotificationCommand: CaseIterable {
+    case play, pause, togglePause, resume, toggleResume
+    var shouldRecover: Bool { self != .pause && self != .togglePause }
+  }
+
   enum Lookup: CaseIterable { case diagnostics, reload }
   enum Command: CaseIterable { case sameEpisode, differentEpisode, pause, stop }
 
@@ -199,6 +204,88 @@ import Testing
     #expect(avPlayer.playCallCount == 2)
     #expect(try await PlayHelpers.queuedEpisodeIDs == [failed.id])
     #expect(alert.config != nil)
+  }
+
+  @Test("superseded reload lookup does not consume the next recovery attempt")
+  func supersededLookupDoesNotDebounce() async throws {
+    let failed = try await Create.podcastEpisode()
+    PlayHelpers.setupCommandHandling()
+    try await playManager.play(failed)
+    let recovery = try await suspendRecovery(at: .reload)
+    try await playManager.play(failed)
+    await repo.resumeAllPodcastEpisodeFetchSuspensions()
+    await recovery.value
+
+    await playManager.handlePlaybackFailure()
+
+    #expect(sharedState.onDeck?.id == failed.id)
+    #expect(avPlayer.timeControlStatus == .playing)
+    #expect(avPlayer.playCallCount == 3)
+    #expect(try await PlayHelpers.queuedEpisodeIDs.isEmpty)
+    #expect(alert.config == nil)
+  }
+
+  @Test("failure notification honors playback ownership", arguments: NotificationCommand.allCases)
+  func notificationHonorsPlaybackOwnership(command: NotificationCommand) async throws {
+    let failed = try await Create.podcastEpisode()
+    Container.shared.loadEpisodeAsset.context(.test) {
+      { @concurrent url in
+        await EpisodeAsset(
+          isPlayable: true,
+          duration: .seconds(60),
+          playerItemFactory: { AVPlayerItem(url: url) }
+        )
+      }
+    }
+    let release = AsyncSemaphore(value: 0)
+    let processed = AsyncSemaphore(value: 0)
+    let delivered = ThreadSafe(false)
+    let notifier = Container.shared.notifier()
+    let item = ThreadSafe<AVPlayerItem?>(nil)
+    Container.shared.notifications.context(.test) {
+      { name in
+        guard name == AVPlayerItem.failedToPlayToEndTimeNotification else {
+          return notifier.stream(for: name)
+        }
+        return AsyncStream(unfolding: {
+          guard !delivered() else {
+            processed.signal()
+            return nil
+          }
+          await release.wait()
+          delivered(true)
+          return Notification(
+            name: name,
+            object: item(),
+            userInfo: [AVPlayerItemFailedToPlayToEndTimeErrorKey: TestError.simulatedFailure]
+          )
+        })
+      }
+    }
+    PlayHelpers.setupCommandHandling()
+    try await playManager.play(failed)
+    item(try #require(avPlayer.current as? AVPlayerItem))
+    switch command {
+    case .play: break
+    case .pause: await playManager.pause()
+    case .togglePause: await playManager.toggle()
+    case .resume:
+      await playManager.pause()
+      await playManager.play()
+    case .toggleResume:
+      await playManager.toggle()
+      await playManager.toggle()
+    }
+    let revision = playManager.playbackRequestRevision
+    let playCount = avPlayer.playCallCount
+    release.signal()
+    await processed.wait()
+
+    #expect((playManager.playbackRequestRevision != revision) == command.shouldRecover)
+    #expect(sharedState.onDeck?.id == failed.id)
+    #expect(avPlayer.timeControlStatus == (command.shouldRecover ? .playing : .paused))
+    #expect(avPlayer.playCallCount == playCount + (command.shouldRecover ? 1 : 0))
+    #expect(alert.config == nil)
   }
 
   private func suspendRecovery(at lookup: Lookup) async throws -> Task<Void, Never> {

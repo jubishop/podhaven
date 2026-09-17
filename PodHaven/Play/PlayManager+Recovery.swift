@@ -40,7 +40,6 @@ extension PlayManager {
     }
 
     if shouldAttemptRecovery {
-      lastRecoveryAttempt = (episodeID, Date())
       do {
         let podcastEpisode = try await repo.podcastEpisode(episodeID)
         guard playbackRequestRevision == recoveryRequestID else { return }
@@ -52,6 +51,7 @@ extension PlayManager {
         Self.log.info(
           "handlePlaybackFailure: attempting auto-recovery for \(podcastEpisode.toString)"
         )
+        lastRecoveryAttempt = (episodeID, Date())
         let result = try await play(
           podcastEpisode,
           replacing: recoveryRequestID,
