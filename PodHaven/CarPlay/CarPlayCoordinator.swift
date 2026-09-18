@@ -42,11 +42,14 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
   CPSessionConfigurationDelegate, CPInterfaceControllerDelegate, CPTabBarTemplateDelegate
 {
   @MainActor private final class Connection {
-    enum Navigation { case idle, pushingNowPlaying, returningToQueue, browsingPodcasts }
+    enum Navigation {
+      case idle, pushingNowPlaying, returningToQueue, browsingPodcasts, browsingEpisodes
+    }
     let controller: any CarPlayInterfaceControlling
     let selection = Container.shared.carPlaySelection()
     let upNext = Container.shared.carPlayUpNext()
     let podcasts = Container.shared.carPlayPodcasts()
+    let episodes = Container.shared.carPlayEpisodes()
     var root: CPTabBarTemplate?
     var session: (any CarPlaySession)?
     var navigation = Navigation.idle
@@ -58,6 +61,7 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
     func clearHandlers() {
       upNext.stop()
       podcasts.stop()
+      episodes.stop()
       selection.disconnect()
       controller.delegate = nil
       root?.delegate = nil
@@ -162,7 +166,25 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
       connection.podcasts.showError = connection.selection.showError
       connection.podcasts.restricted = connection.upNext.restricted
       connection.podcasts.start(podcasts, selection: connection.selection)
-      updatePodcastNavigation(connection)
+      updateBrowserNavigation(connection)
+    }
+    if let episodes = root.templates[1] as? CPListTemplate {
+      connection.episodes.canNavigate = { [weak self, weak connection] in
+        guard let self, let connection, self.connection === connection else { return false }
+        return connection.navigation == .idle
+      }
+      connection.episodes.navigate = { [weak self, weak connection] template, reset in
+        guard let self, let connection, self.connection === connection else { return }
+        self.showEpisodesTemplate(template, reset: reset, connection: connection)
+      }
+      connection.episodes.deleted = { [weak self, weak connection] template in
+        guard let self, let connection, self.connection === connection,
+          connection.controller.topTemplate === template, connection.navigation == .idle
+        else { return }
+        self.showEpisodesTemplate(nil, reset: true, connection: connection)
+      }
+      connection.episodes.restricted = connection.upNext.restricted
+      connection.episodes.start(episodes, selection: connection.selection)
     }
     nowPlaying.isAlbumArtistButtonEnabled = false
     nowPlaying.isUpNextButtonEnabled = true
@@ -194,7 +216,7 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
       [weak self, weak connection] success, error in
       guard let self, let connection, self.connection === connection else { return }
       connection.navigation = .idle
-      self.updatePodcastNavigation(connection)
+      self.updateBrowserNavigation(connection)
       guard !success else { return }
       if let error {
         Self.log.caughtError("CarPlay Now Playing presentation failed", error)
@@ -213,14 +235,14 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
       guard let self, let connection, self.connection === connection else { return }
       guard connection.podcasts.canOpen(template), connection.controller.templates.count < 4 else {
         connection.navigation = .idle
-        self.updatePodcastNavigation(connection)
+        self.updateBrowserNavigation(connection)
         return
       }
       connection.controller.pushTemplate(template, animated: true) {
         [weak self, weak connection] success, error in
         guard let self, let connection, self.connection === connection else { return }
         connection.navigation = .idle
-        self.updatePodcastNavigation(connection)
+        self.updateBrowserNavigation(connection)
         if let error {
           Self.log.caughtError("CarPlay podcast navigation failed", error)
         } else if !success {
@@ -239,13 +261,68 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
           push()
         } else {
           connection.navigation = .idle
-          self.updatePodcastNavigation(connection)
+          self.updateBrowserNavigation(connection)
           if let error {
             Self.log.caughtError("CarPlay current podcast navigation failed", error)
           } else {
             Self.log.error("CarPlay current podcast navigation was rejected")
           }
           self.showError("Couldn't open this podcast. Try again.", connection: connection)
+        }
+      }
+    } else {
+      push()
+    }
+  }
+
+  private func showEpisodesTemplate(
+    _ template: CPListTemplate?,
+    reset: Bool,
+    connection: Connection
+  ) {
+    guard connection.navigation == .idle else { return }
+    connection.navigation = .browsingEpisodes
+    let push = { [weak self, weak connection] in
+      guard let self, let connection, self.connection === connection else { return }
+      guard let template, connection.episodes.canOpen(template),
+        connection.controller.templates.count < 4
+      else {
+        connection.navigation = .idle
+        self.updateBrowserNavigation(connection)
+        return
+      }
+      connection.controller.pushTemplate(template, animated: true) {
+        [weak self, weak connection] success, error in
+        guard let self, let connection, self.connection === connection else { return }
+        connection.navigation = .idle
+        self.updateBrowserNavigation(connection)
+        if let error {
+          Self.log.caughtError("CarPlay Smart List navigation failed", error)
+        } else if !success {
+          Self.log.error("CarPlay Smart List navigation was rejected")
+        }
+        if !success {
+          self.showError("Couldn't open this list. Try again.", connection: connection)
+        }
+      }
+    }
+    if reset {
+      connection.controller.popToRootTemplate(animated: false) {
+        [weak self, weak connection] success, error in
+        guard let self, let connection, self.connection === connection else { return }
+        if success || connection.controller.topTemplate === connection.root {
+          connection.root?.selectTemplate(at: 1)
+          connection.selectedTab = connection.root?.templates[1]
+          push()
+        } else {
+          connection.navigation = .idle
+          self.updateBrowserNavigation(connection)
+          if let error {
+            Self.log.caughtError("CarPlay return to Episodes failed", error)
+          } else {
+            Self.log.error("CarPlay return to Episodes was rejected")
+          }
+          self.showError("Couldn't open Episodes. Try again.", connection: connection)
         }
       }
     } else {
@@ -294,7 +371,7 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
         }
         self.showError("Couldn't open Up Next. Try again.", connection: connection)
       }
-      self.updatePodcastNavigation(connection)
+      self.updateBrowserNavigation(connection)
     }
   }
 
@@ -307,7 +384,7 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
       connection.controller.templates.contains(where: { $0 === aTemplate })
         || connection.root?.templates.contains(where: { $0 === aTemplate }) == true
     else { return }
-    updatePodcastNavigation(connection)
+    updateBrowserNavigation(connection)
   }
 
   func tabBarTemplate(_ tabBarTemplate: CPTabBarTemplate, didSelect selectedTemplate: CPTemplate) {
@@ -315,10 +392,14 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
       return
     }
     connection.selectedTab = selectedTemplate
-    updatePodcastNavigation(connection)
+    updateBrowserNavigation(connection)
   }
 
-  private func updatePodcastNavigation(_ connection: Connection) {
+  private func updateBrowserNavigation(_ connection: Connection) {
+    connection.episodes.navigationChanged(
+      templates: connection.controller.templates,
+      rootVisible: connection.selectedTab === connection.root?.templates[1]
+    )
     connection.podcasts.navigationChanged(
       templates: connection.controller.templates,
       rootVisible: connection.selectedTab === connection.root?.templates.last
@@ -332,5 +413,6 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
     guard let connection, connection.session === sessionConfiguration else { return }
     connection.upNext.restricted = limitedUserInterfaces.contains(.lists)
     connection.podcasts.restricted = limitedUserInterfaces.contains(.lists)
+    connection.episodes.restricted = limitedUserInterfaces.contains(.lists)
   }
 }
