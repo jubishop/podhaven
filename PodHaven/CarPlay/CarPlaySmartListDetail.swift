@@ -122,7 +122,7 @@ final class CarPlaySmartListDetail {
         )
       }
       do {
-        let scores = try await recommendationEngine.recommendationScores(for: candidates)
+        let scores = try await recommendationEngine.unscaledRecommendationScores(for: candidates)
         return .cacheable(
           Ranking(
             ids:

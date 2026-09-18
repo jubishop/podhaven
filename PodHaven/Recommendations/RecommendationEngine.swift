@@ -203,55 +203,39 @@ struct RecommendationEngine: Sendable {
     )
   }
 
-  // Scores `candidates` against the current cache, paired with the display
-  // anchor. Returns nil when there's nothing to score or the cache is cold.
   private func scoredCandidates(
     _ candidates: [CandidateEpisode]
-  ) async throws -> (scores: [Episode.ID: RecommendationScore], displayMax: Float)? {
-    guard !candidates.isEmpty else { return nil }
-    guard let context = cache() else { return nil }
-    let scores = try await scoreEpisodes(candidates, context: context)
-    return (scores, observedMaxScore())
+  ) async throws -> [Episode.ID: RecommendationScore] {
+    guard !candidates.isEmpty, let context = cache() else { return [:] }
+    return try await scoreEpisodes(candidates, context: context)
   }
 
   func recommendations(
     for candidates: [CandidateEpisode]
   ) async throws -> [Episode.ID: RecommendationScore] {
-    guard let (scores, displayMax) = try await scoredCandidates(candidates) else { return [:] }
+    let scores = try await scoredCandidates(candidates)
+    let displayMax = observedMaxScore()
     return scores.mapValues { $0.rescaledForDisplay(max: displayMax) }
   }
 
-  // Display-scaled, like `recommendations(for:)` — the top candidate reads as
-  // 1.0. Use `unscaledRecommendationScores(forEpisodeIDs:)` when ordering rather
-  // than displaying.
-  func recommendationScores(
+  // Raw scores preserve ordering above the display anchor. Membership comes
+  // from the caller; episodes without embeddings are omitted.
+  func unscaledRecommendationScores(
     for candidates: [CandidateEpisode]
   ) async throws -> [Episode.ID: Float] {
-    guard let (scores, displayMax) = try await scoredCandidates(candidates) else { return [:] }
-    return scores.mapValues {
-      RecommendationScore.rescaledForDisplay(value: $0.value, max: displayMax)
-    }
+    try await scoredCandidates(candidates).mapValues(\.value)
   }
 
-  // Scores arbitrary saved episodes by ID, ignoring the candidate gate — the
-  // queue sort scores already-queued episodes, which are by definition not
-  // candidates. Unlike the display-scaled scorers, returns raw scores: callers
-  // here only order by them, and the display rescale clamps every value above
-  // the candidate-pool anchor to 1.0, which would collapse the ordering of the
-  // highest-scoring queued episodes into a tie. IDs without an embedding are
-  // omitted from the result map.
+  // Resolve arbitrary saved episodes, including those already in the queue.
   func unscaledRecommendationScores(
     forEpisodeIDs episodeIDs: [Episode.ID]
   ) async throws -> [Episode.ID: Float] {
     let episodes = try await recommendationRepo.episodes(for: episodeIDs)
-    guard
-      let (scores, _) = try await scoredCandidates(
-        episodes.map {
-          CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
-        }
-      )
-    else { return [:] }
-    return scores.mapValues(\.value)
+    return try await unscaledRecommendationScores(
+      for: episodes.map {
+        CandidateEpisode(id: $0.id, podcastID: $0.podcastID, pubDate: $0.pubDate)
+      }
+    )
   }
 
   // Returns nil if the episode doesn't exist, has no embedding, or the
