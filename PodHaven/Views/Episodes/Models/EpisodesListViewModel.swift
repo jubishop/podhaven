@@ -347,7 +347,9 @@ class EpisodesListViewModel:
         return .cacheable([:])
       }
       do {
-        return .cacheable(try await recommendationEngine.recommendationScores(for: candidates))
+        return .cacheable(
+          try await recommendationEngine.unscaledRecommendationScores(for: candidates)
+        )
       } catch is CancellationError {
         return .cancelled
       } catch {
