@@ -209,7 +209,8 @@ final class CarPlayEpisodeList {
       groups.append(("Pages", navigation))
     }
     if groups.count > max(0, limits.sections) {
-      groups = limits.sections > 0 ? [("", groups.flatMap(\.1))] : []
+      let title = sections.count == 1 ? sections[0].title : ""
+      groups = limits.sections > 0 ? [(title, groups.flatMap(\.1))] : []
     }
     template.updateSections(
       groups.map { CPListSection(items: $0.1, header: $0.0, sectionIndexTitle: nil) }

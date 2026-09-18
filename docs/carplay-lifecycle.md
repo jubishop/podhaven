@@ -47,7 +47,7 @@ Disconnect cancels and invalidates this presentation work. Shared data
 observers and accepted player loads outlive a CarPlay disconnect. See
 [CarPlay browsing and playback](carplay-playback.md) for selection ownership
 and bounded list navigation. Podcasts observes the saved library; Episodes
-remains a placeholder until its browser implementation is delivered.
+observes saved Smart Lists and their live definitions, episode results, and unread counts.
 
 If root installation fails, the coordinator logs the failure and attempts a
 three-tab error root with native Retry rows. Retry starts a new root attempt.

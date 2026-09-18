@@ -32,6 +32,34 @@ space from that budget. When vehicle list restrictions are active, paging
 is disabled and the visible prefix explains that more content is available
 when vehicle limits permit. The durable queue is never shortened or reordered.
 
+## Episodes and Smart Lists
+
+Episodes observes saved Smart Lists in their configured order. Native rows use
+the list title and icon, and show an unread count only when the list enables it
+and the count query succeeds. Lists and episodes share the runtime item budget
+with paging controls; restricted lists explain when more content is unavailable.
+
+Each selected list observes its saved definition. Standard sorts use the shared
+filter engine and each sort's membership filter, with episode ID breaking ties.
+Recommendation sorts use the phone's embedded-candidate query and cached scorer.
+A cold scorer preserves candidate eligibility and temporarily orders by newest
+publication date, with an explanation. Browsing does not start the engine or
+change the saved sort. Scoring revisions restore ranking, without cancelling an
+active episode selection. Definition changes cancel obsolete queries; page and
+row updates reuse the shared episode presentation and selection flow.
+
+Returning to the Episodes hub marks visited lists seen through `SmartListRepo`.
+Entering Now Playing, returning to a list, refreshing rows, and disconnecting do
+not advance the watermark. Deleting the visible list returns to Episodes. A
+list deleted beneath Now Playing becomes a live Episodes hub in place, so Back
+cannot reveal its deleted content. Selecting from that replacement hub returns
+through the root before opening another list, keeping the stack bounded.
+
+Catalog and episode query failures have native Retry rows. Loading, no saved
+lists, no matching episodes, and temporarily unavailable ranking remain distinct.
+Isolated Smart List content previews cover those states without database or
+network access; they do not reproduce native CarPlay rendering.
+
 ## Podcasts
 
 The Podcasts tab observes saved subscriptions. Recently Updated shows up to ten

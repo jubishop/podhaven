@@ -108,7 +108,7 @@ struct ListablePodcastEpisode:
       ListablePodcastEpisode
       .filter(filter)
       .including(required: ListablePodcastEpisode.podcast.select(podcastColumns))
-    if let order { request = request.order(order) }
+    if let order { request = request.order(order, Episode.Columns.id.asc) }
     return request.limit(limit)
   }
 
