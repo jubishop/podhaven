@@ -50,17 +50,18 @@ import UIKit
     Container.shared.notifier.reset()
     let alert = Container.shared.alert()
     alert.config = nil
-    return try await LogCapture.withSink { sink in
+    let handled = AsyncLatch<Void>()
+    return try await LogCapture.withSink(
+      onCapture: { event in
+        if event.message == "System memory warning received" { handled.open() }
+      }
+    ) { sink in
       let monitor = Container.shared.memoryWarningMonitor()
       monitor.start()
       Container.shared.notifier()
         .continuation(for: UIApplication.didReceiveMemoryWarningNotification)
         .yield(Notification(name: UIApplication.didReceiveMemoryWarningNotification))
-      try await Wait.until {
-        sink.captured().contains { $0.message == "System memory warning received" }
-      } _: {
-        "Memory warning was not handled"
-      }
+      try await handled.wait()
       return (
         alert.config != nil,
         sink.captured()
@@ -157,22 +158,21 @@ import UIKit
     let settings = Container.shared.userSettings()
     settings.enableWriteProbe = true
     let (database, probe) = try probeDatabase()
-    let requested = Broadcast(false)
+    let requested = AsyncLatch<Void>()
     let (results, continuation) = AsyncStream<AppDistribution>.makeStream()
     Container.shared.appDistributor.register {
       {
-        requested.new(true)
+        requested.open()
         for await result in results { return result }
         throw CancellationError()
       }
     }
     let detection = Task { await AppInfo.finalizeEnvironment() }
-    defer { continuation.finish() }
-    try await Wait.until {
-      requested.value
-    } _: {
-      "Distribution lookup was not started"
+    defer {
+      continuation.finish()
+      detection.cancel()
     }
+    try await requested.wait()
 
     #expect(AppInfo.environment == .deployed)
     #expect(!probe.observes(eventsOfKind: .insert(tableName: "probeTest")))
