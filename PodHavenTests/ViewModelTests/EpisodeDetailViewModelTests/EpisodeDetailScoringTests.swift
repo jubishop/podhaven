@@ -306,37 +306,23 @@ import Testing
         title: "Unavailable Embedding Episode"
       )
     )
-    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+    let viewModel = EpisodeDetailViewModel(
+      listedEpisode: ListedEpisode(unsavedPodcastEpisode),
+      similarityScore: -1
+    )
+    try #require(viewModel.displayedScore != nil)
 
     viewModel.appear()
+    defer { viewModel.disappear() }
 
     try await Wait.until(
-      { probe.loadAssetsIfAvailableCount() > 0 },
-      {
-        """
-        Expected unsaved scoring to check whether embedding assets are available.
-        loadAssetsIfAvailableCount: \(probe.loadAssetsIfAvailableCount())
-        """
+      { @MainActor in viewModel.displayedScore == nil },
+      { @MainActor in
+        "Expected unavailable embedding assets to clear the seeded score. Score: \(String(describing: viewModel.displayedScore))"
       }
     )
-
-    let observedVectorRequest: Bool
-    do {
-      try await Wait.until(
-        maxAttempts: 100,
-        delay: .milliseconds(10),
-        priority: .userInitiated,
-        { probe.vectorRequestCount() > 0 },
-        { "no vector request observed within polling window" }
-      )
-      observedVectorRequest = true
-    } catch {
-      // Timeout is the success case — the unavailable-assets path stayed quiet.
-      observedVectorRequest = false
-    }
-
-    #expect(observedVectorRequest == false)
-    #expect(viewModel.displayedScore == nil)
+    #expect(probe.loadAssetsIfAvailableCount() > 0)
+    #expect(probe.vectorRequestCount() == 0)
   }
 
   @Test(

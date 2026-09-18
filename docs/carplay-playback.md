@@ -32,6 +32,29 @@ space from that budget. When vehicle list restrictions are active, paging
 is disabled and the visible prefix explains that more content is available
 when vehicle limits permit. The durable queue is never shortened or reordered.
 
+## Podcasts
+
+The Podcasts tab observes saved subscriptions. Recently Updated shows up to ten
+shows ordered by their newest saved episode publication date, with podcast ID
+breaking ties. All Podcasts includes shows with no saved episodes and uses
+locale-aware natural title ordering, then podcast ID. Both paths share the
+runtime paging budget with episode lists, including navigation rows.
+
+A show opens in Unfinished. All Episodes includes finished episodes; both use
+newest-first publication dates with episode ID breaking ties. Switching filters
+reuses the same template and resets its page. Listening state uses the existing
+finished flag and resume position. Not started, In progress, Finished, and
+Downloaded describe separate saved facts; unfinished does not mean new or unread.
+Browsing never fetches a feed or changes a subscription.
+
+Live observations retain visible row objects and page position. Popping a
+podcast destination cancels its observation; hiding a page cancels artwork.
+A failed current-podcast transition retains the previous detail's handlers and
+observation while its template remains in the navigation stack.
+A deleted detail becomes an unavailable state without ejecting Now Playing or
+issuing player commands. Query errors offer native Retry rows. Empty saved shows,
+empty unfinished results, loading, and artwork failure remain distinct.
+
 ## Selection ownership
 
 Each selected row passes its stable episode ID to `CarPlaySelection`.
@@ -60,9 +83,12 @@ callback cannot navigate. No blanket stop or load cancellation is issued.
 
 ## Now Playing and validation
 
-The connection configures `CPNowPlayingTemplate.shared`, enables Up Next,
-and disables album/artist navigation until the Podcasts browser supplies its
-destination. The playback-rate button cycles the rates configured by the
+The connection configures `CPNowPlayingTemplate.shared` and enables Up Next.
+The album/artist shortcut is enabled when the saved current episode resolves.
+A tap looks up the actual current episode again and rejects obsolete results.
+Its podcast can be unsubscribed. The shortcut returns through the existing root
+to the same podcast destination, reserving space for another Now Playing visit.
+The playback-rate button cycles the rates configured by the
 existing remote-command center and uses its shared command stream. Existing
 metadata, skip intervals, play/pause, seek, and next-track behavior remain in
 the shared player and command center.

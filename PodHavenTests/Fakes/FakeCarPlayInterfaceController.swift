@@ -6,6 +6,7 @@ import CarPlay
 
 @MainActor
 final class FakeCarPlayInterfaceController: CarPlayInterfaceControlling {
+  weak var delegate: (any CPInterfaceControllerDelegate)?
   private(set) var roots: [CPTemplate] = []
   private(set) var completions: [(Bool, (any Error)?) -> Void] = []
   private(set) var pushed: [CPTemplate] = []
@@ -13,6 +14,7 @@ final class FakeCarPlayInterfaceController: CarPlayInterfaceControlling {
   var templates: [CPTemplate] = []
   var topTemplate: CPTemplate? { templates.last }
   var pushResult = true
+  var popResult = true
 
   func setRootTemplate(
     _ rootTemplate: CPTemplate,
@@ -30,13 +32,25 @@ final class FakeCarPlayInterfaceController: CarPlayInterfaceControlling {
     completion: ((Bool, (any Error)?) -> Void)?
   ) {
     pushed.append(templateToPush)
-    if pushResult { templates.append(templateToPush) }
+    if pushResult {
+      templates.append(templateToPush)
+      delegate?.templateDidAppear?(templateToPush, animated: animated)
+    }
     completion?(pushResult, nil)
   }
 
   func popToRootTemplate(animated: Bool, completion: ((Bool, (any Error)?) -> Void)?) {
-    templates = Array(templates.prefix(1))
-    completion?(true, nil)
+    if popResult {
+      templates = Array(templates.prefix(1))
+      if let topTemplate { delegate?.templateDidAppear?(topTemplate, animated: animated) }
+    }
+    completion?(popResult, nil)
+  }
+
+  func goBack() {
+    guard templates.count > 1 else { return }
+    templates.removeLast()
+    if let topTemplate { delegate?.templateDidAppear?(topTemplate, animated: true) }
   }
 
   func presentTemplate(

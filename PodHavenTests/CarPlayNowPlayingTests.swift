@@ -42,7 +42,10 @@ import Testing
     #expect(controller.pushed.count == 1)
     #expect(nowPlaying.buttons.first is CPNowPlayingPlaybackRateButton)
     #expect(nowPlaying.isUpNextButtonEnabled)
-    #expect(!nowPlaying.isAlbumArtistButtonEnabled)
+    try await Wait.until(
+      { @MainActor in nowPlaying.isAlbumArtistButtonEnabled },
+      { "Saved current podcast must enable its shortcut" }
+    )
     #expect(nowPlaying.observers.count == 1)
     let originalRate = Container.shared.sharedState().playRate
     let changeRate = try #require(action())
