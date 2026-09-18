@@ -363,6 +363,8 @@ final class CarPlayPodcasts {
   }
 
   func navigationChanged(templates: [CPTemplate], rootVisible: Bool) {
+    shortcut?.cancel()
+    shortcut = nil
     if let detail, !templates.contains(where: { $0 === detail.list.template }) {
       selection?.cancel()
       detail.stop()

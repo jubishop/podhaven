@@ -35,6 +35,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   private var episodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
 
   nonisolated let pendingPodcastEpisodeFetchSuspend = ThreadSafe<Bool>(false)
+  nonisolated let cancelledPodcastEpisodeFetchCount = ThreadSafe<Int>(0)
   private nonisolated let suspendedPodcastEpisodeFetchCount = Broadcast(0)
   private var podcastEpisodeFetchSuspensions: [CheckedContinuation<Void, Never>] = []
   private var podcastEpisodeFetchBarrierRemaining = 0
@@ -242,9 +243,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     let result = try await repo.podcastEpisode(episodeID)
     if pendingPodcastEpisodeFetchSuspend() {
       pendingPodcastEpisodeFetchSuspend(false)
-      await withCheckedContinuation { continuation in
-        podcastEpisodeFetchSuspensions.append(continuation)
-        suspendedPodcastEpisodeFetchCount.new(podcastEpisodeFetchSuspensions.count)
+      await withTaskCancellationHandler {
+        await withCheckedContinuation { continuation in
+          podcastEpisodeFetchSuspensions.append(continuation)
+          suspendedPodcastEpisodeFetchCount.new(podcastEpisodeFetchSuspensions.count)
+        }
+      } onCancel: {
+        cancelledPodcastEpisodeFetchCount { $0 += 1 }
       }
     }
     guard podcastEpisodeFetchBarrierRemaining > 0 else { return result }

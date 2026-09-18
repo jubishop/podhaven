@@ -12,6 +12,38 @@ import Testing
 
 @Suite("of CarPlay podcast recovery tests", .container)
 @MainActor struct CarPlayPodcastRecoveryTests {
+  @Test("leaving Now Playing cancels its pending podcast shortcut", arguments: [false, true])
+  func navigationCancelsShortcut(upNext: Bool) async throws {
+    let episode = try await Create.podcastEpisode()
+    Container.shared.stateManager().setOnDeck(episode)
+    let scene = try CarPlayPodcastScene()
+    defer { scene.stop() }
+    let repo = try #require(Container.shared.repo() as? FakeRepo)
+    scene.controller.pushTemplate(CPNowPlayingTemplate.shared, animated: false, completion: nil)
+    repo.pendingPodcastEpisodeFetchSuspend(true)
+    scene.coordinator.nowPlayingTemplateAlbumArtistButtonTapped(CPNowPlayingTemplate.shared)
+    try await repo.waitForPodcastEpisodeFetchSuspended()
+    if upNext {
+      scene.coordinator.nowPlayingTemplateUpNextButtonTapped(CPNowPlayingTemplate.shared)
+    } else {
+      scene.controller.goBack()
+    }
+    #expect(repo.cancelledPodcastEpisodeFetchCount() == 1)
+    #expect(scene.controller.topTemplate === scene.root)
+    await repo.resumeAllPodcastEpisodeFetchSuspensions()
+    scene.controller.pushTemplate(CPNowPlayingTemplate.shared, animated: false, completion: nil)
+    scene.coordinator.nowPlayingTemplateAlbumArtistButtonTapped(CPNowPlayingTemplate.shared)
+    try await Wait.until(
+      { @MainActor in
+        (scene.controller.topTemplate as? CPListTemplate)?.sections.flatMap(\.items)
+          .contains { $0.text == episode.title } == true
+      },
+      { "A fresh podcast shortcut must still open the current podcast" }
+    )
+    #expect(scene.controller.pushed.count == 3)
+    #expect(scene.controller.alerts.isEmpty)
+  }
+
   @Test("changing root tabs cancels hidden podcast artwork")
   func tabArtworkCancellation() async throws {
     let imageURL = URL.valid()
