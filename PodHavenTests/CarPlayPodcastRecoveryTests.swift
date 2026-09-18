@@ -12,6 +12,59 @@ import Testing
 
 @Suite("of CarPlay podcast recovery tests", .container)
 @MainActor struct CarPlayPodcastRecoveryTests {
+  @Test("a rejected podcast shortcut preserves the previous detail until navigation succeeds")
+  func rejectedShortcutPreservesDetail() async throws {
+    let series = try await Container.shared.repo()
+      .insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(title: "Saved show", subscriptionDate: Date()),
+          unsavedEpisodes: [try Create.unsavedEpisode(title: "Saved episode")]
+        )
+      )
+    let episode = try #require(series.episodes.first)
+    Container.shared.stateManager()
+      .setOnDeck(
+        PodcastEpisode(podcast: series.podcast, episode: episode)
+      )
+    let scene = try CarPlayPodcastScene()
+    defer { scene.stop() }
+    let detail = try await scene.open("Saved show")
+    let row = try #require(CarPlayPodcastScene.rows(detail).first { $0.text == "Saved episode" })
+    scene.controller.pushTemplate(CPNowPlayingTemplate.shared, animated: false, completion: nil)
+    scene.controller.popResult = false
+    scene.coordinator.nowPlayingTemplateAlbumArtistButtonTapped(CPNowPlayingTemplate.shared)
+    try await Wait.until(
+      { @MainActor in scene.controller.alerts.count == 1 },
+      { "Rejected navigation must report its error" }
+    )
+    #expect(scene.controller.topTemplate === CPNowPlayingTemplate.shared)
+    scene.controller.goBack()
+    #expect(scene.controller.topTemplate === detail)
+    #expect(CarPlayPodcastScene.rows(detail).first { $0.text == "Saved episode" } === row)
+    #expect(row.handler != nil)
+    try CarPlayPodcastScene.tap("All Episodes", in: detail)
+    #expect(CarPlayPodcastScene.rows(detail).contains { $0.text == "Unfinished" })
+    try await Container.shared.repo().markFinished(episode.id)
+    try await Wait.until(
+      { @MainActor in row.detailText?.contains("Finished") == true },
+      { "The retained detail must still observe saved changes" }
+    )
+    scene.controller.pushTemplate(CPNowPlayingTemplate.shared, animated: false, completion: nil)
+    scene.controller.popResult = true
+    scene.coordinator.nowPlayingTemplateAlbumArtistButtonTapped(CPNowPlayingTemplate.shared)
+    try await Wait.until(
+      { @MainActor in
+        guard let top = scene.controller.topTemplate as? CPListTemplate else { return false }
+        return top !== detail
+          && CarPlayPodcastScene.rows(top).contains { $0.text == "No unfinished episodes" }
+      },
+      { "A successful retry must open a fresh detail" }
+    )
+    #expect(row.handler == nil)
+    #expect(scene.controller.templates.count == 2)
+    #expect(Container.shared.sharedState().currentEpisodeID == episode.id)
+  }
+
   @Test("leaving Now Playing cancels its pending podcast shortcut", arguments: [false, true])
   func navigationCancelsShortcut(upNext: Bool) async throws {
     let episode = try await Create.podcastEpisode()

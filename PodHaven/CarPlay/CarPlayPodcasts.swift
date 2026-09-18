@@ -62,7 +62,7 @@ final class CarPlayPodcasts {
   private var catalog = Catalog.loading
   private var root: CarPlayPodcastList?
   private var all: CarPlayPodcastList?
-  private var detail: Detail?
+  private var details: [Detail] = []
   private var selection: CarPlaySelection?
   private var catalogObservation: Task<Void, Never>?
   private var stateObservation: Task<Void, Never>?
@@ -75,7 +75,7 @@ final class CarPlayPodcasts {
   var restricted = false {
     didSet {
       renderCatalog()
-      renderDetail()
+      renderDetails()
     }
   }
 
@@ -188,9 +188,8 @@ final class CarPlayPodcasts {
   private func openPodcast(_ id: Podcast.ID, shortcutEpisodeID: Episode.ID? = nil) {
     guard let selection, canNavigate?() == true else { return }
     selection.cancel()
-    detail?.stop()
     let detail = Detail(id, selection: selection, shortcutEpisodeID: shortcutEpisodeID)
-    self.detail = detail
+    details.append(detail)
     detail.filter.accessoryType = .disclosureIndicator
     observeDetail(detail)
     navigate?(detail.list.template, shortcutEpisodeID != nil)
@@ -199,29 +198,32 @@ final class CarPlayPodcasts {
   private func observeDetail(_ detail: Detail) {
     detail.observation?.cancel()
     detail.state = .loading
-    renderDetail()
+    renderDetail(detail)
     detail.observation = Task { [weak self, weak detail] in
       guard let self, let detail else { return }
       do {
         for try await series in observatory.podcastSeriesDetail(detail.id) {
-          guard !Task.isCancelled, self.detail === detail else { return }
+          guard !Task.isCancelled, details.contains(where: { $0 === detail }) else { return }
           if let series { detail.state = .ready(series) } else { detail.state = .missing }
-          renderDetail()
+          renderDetail(detail)
         }
       } catch {
         Self.log.caughtError(
           "CarPlay podcast episode observation failed: podcast=\(detail.id)",
           error
         )
-        guard !Task.isCancelled, self.detail === detail else { return }
+        guard !Task.isCancelled, details.contains(where: { $0 === detail }) else { return }
         detail.state = .failed
-        renderDetail()
+        renderDetail(detail)
       }
     }
   }
 
-  private func renderDetail() {
-    guard let detail else { return }
+  private func renderDetails() {
+    for detail in details { renderDetail(detail) }
+  }
+
+  private func renderDetail(_ detail: Detail) {
     detail.list.template.showsSpinnerWhileEmpty = false
     var rows: [CarPlayEpisodeRow] = []
     var leading: [CPListItem] = []
@@ -242,18 +244,18 @@ final class CarPlayPodcasts {
       let retry = CPListItem(text: "Retry", detailText: title)
       retry.handler = { [weak self, weak detail] _, completion in
         completion()
-        guard let self, let detail, self.detail === detail else { return }
+        guard let self, let detail, self.details.contains(where: { $0 === detail }) else { return }
         self.observeDetail(detail)
       }
       leading = [retry]
     case .ready(let series):
       detail.filter.handler = { [weak self, weak detail] _, completion in
         completion()
-        guard let self, let detail, self.detail === detail else { return }
+        guard let self, let detail, self.details.contains(where: { $0 === detail }) else { return }
         self.selection?.cancel()
         detail.mode = detail.mode == .unfinished ? .all : .unfinished
         detail.list.resetPage()
-        self.renderDetail()
+        self.renderDetail(detail)
       }
       let all = detail.mode == .all
       header = "\(series.podcast.title) · \(all ? "All Episodes" : "Unfinished")"
@@ -291,7 +293,7 @@ final class CarPlayPodcasts {
       guard !Task.isCancelled else { return }
       currentObservation?.cancel()
       nowPlaying.isAlbumArtistButtonEnabled = false
-      renderDetail()
+      renderDetails()
       guard let id else { continue }
       currentObservation = Task { [weak self] in
         guard let self else { return }
@@ -310,21 +312,21 @@ final class CarPlayPodcasts {
   private func observePlayback() async {
     for await _ in sharedState.$playbackStatus.stream() {
       guard !Task.isCancelled else { return }
-      renderDetail()
+      renderDetails()
     }
   }
 
   private func observeOnDeck() async {
     for await _ in sharedState.$onDeck.stream() {
       guard !Task.isCancelled else { return }
-      renderDetail()
+      renderDetails()
     }
   }
 
   private func observeTimeFormat() async {
     for await _ in userSettings.$showTimeRemainingInEpisodeLists.stream() {
       guard !Task.isCancelled else { return }
-      renderDetail()
+      renderDetails()
     }
   }
 
@@ -355,7 +357,7 @@ final class CarPlayPodcasts {
   }
 
   func canOpen(_ template: CPTemplate) -> Bool {
-    if let detail, detail.list.template === template {
+    if let detail = details.first(where: { $0.list.template === template }) {
       if let id = detail.shortcutEpisodeID { return sharedState.currentEpisodeID == id }
       return true
     }
@@ -365,18 +367,20 @@ final class CarPlayPodcasts {
   func navigationChanged(templates: [CPTemplate], rootVisible: Bool) {
     shortcut?.cancel()
     shortcut = nil
-    if let detail, !templates.contains(where: { $0 === detail.list.template }) {
+    for detail in details where !templates.contains(where: { $0 === detail.list.template }) {
       selection?.cancel()
       detail.stop()
-      self.detail = nil
     }
+    details.removeAll { detail in !templates.contains(where: { $0 === detail.list.template }) }
     if let all, !templates.contains(where: { $0 === all.template }) {
       all.stop()
       self.all = nil
     }
     root?.setArtworkEnabled(templates.count == 1 && rootVisible)
     all?.setArtworkEnabled(templates.last === all?.template)
-    detail?.list.setArtworkEnabled(templates.last === detail?.list.template)
+    for detail in details {
+      detail.list.setArtworkEnabled(templates.last === detail.list.template)
+    }
   }
 
   func stop() {
@@ -390,10 +394,10 @@ final class CarPlayPodcasts {
     shortcut = nil
     root?.stop()
     all?.stop()
-    detail?.stop()
+    for detail in details { detail.stop() }
     root = nil
     all = nil
-    detail = nil
+    details = []
     selection = nil
     allPodcasts.handler = nil
     navigate = nil

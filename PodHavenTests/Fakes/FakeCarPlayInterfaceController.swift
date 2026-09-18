@@ -14,6 +14,7 @@ final class FakeCarPlayInterfaceController: CarPlayInterfaceControlling {
   var templates: [CPTemplate] = []
   var topTemplate: CPTemplate? { templates.last }
   var pushResult = true
+  var popResult = true
 
   func setRootTemplate(
     _ rootTemplate: CPTemplate,
@@ -39,9 +40,11 @@ final class FakeCarPlayInterfaceController: CarPlayInterfaceControlling {
   }
 
   func popToRootTemplate(animated: Bool, completion: ((Bool, (any Error)?) -> Void)?) {
-    templates = Array(templates.prefix(1))
-    if let topTemplate { delegate?.templateDidAppear?(topTemplate, animated: animated) }
-    completion?(true, nil)
+    if popResult {
+      templates = Array(templates.prefix(1))
+      if let topTemplate { delegate?.templateDidAppear?(topTemplate, animated: animated) }
+    }
+    completion?(popResult, nil)
   }
 
   func goBack() {

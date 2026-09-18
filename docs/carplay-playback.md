@@ -49,6 +49,8 @@ Browsing never fetches a feed or changes a subscription.
 
 Live observations retain visible row objects and page position. Popping a
 podcast destination cancels its observation; hiding a page cancels artwork.
+A failed current-podcast transition retains the previous detail's handlers and
+observation while its template remains in the navigation stack.
 A deleted detail becomes an unavailable state without ejecting Now Playing or
 issuing player commands. Query errors offer native Retry rows. Empty saved shows,
 empty unfinished results, loading, and artwork failure remain distinct.
