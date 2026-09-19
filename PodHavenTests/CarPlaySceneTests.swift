@@ -291,6 +291,20 @@ import Testing
       )
       coordinator.connect(controller)
       #expect(sharedState.scenePhase == .inactive)
+      for phase in [ScenePhase.active, .background, .inactive] {
+        host.rootView = PhoneSceneView(appDelegate: AppDelegate()).environment(\.scenePhase, phase)
+        host.view.setNeedsLayout()
+        host.view.layoutIfNeeded()
+        try await Wait.until(
+          { sharedState.scenePhase == phase },
+          {
+            "Phone phase is \(sharedState.scenePhase), expected \(phase) while CarPlay is connected"
+          }
+        )
+        #expect(controller.roots.count == 1)
+        #expect(controller.pushed.isEmpty)
+        #expect(sharedState.onDeck == nil)
+      }
       coordinator.disconnect(controller)
       #expect(sharedState.scenePhase == .inactive)
       #expect(await Container.shared.fakeAudioSession().activeCalls.isEmpty)

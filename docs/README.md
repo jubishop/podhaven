@@ -24,6 +24,7 @@ Preserve decision reasons and evidence. Follow the
 - [Universal Links](universal-links.md): associated domains, website fallback, and coordinated app rollout
 - [CarPlay scene lifecycle](carplay-lifecycle.md): startup ownership, connection cleanup, protected storage audit, and validation boundaries
 - [CarPlay browsing and playback](carplay-playback.md): live Up Next rows, bounded paging, shared selection ownership, and Now Playing controls
+- [CarPlay MVP automated acceptance](carplay-validation.md): integration evidence matrix, signed builds, reproducible checks, and native/device limits
 - [Silence diagnostics](silence-diagnostics.md): telemetry fields, warning bounds, and later real-world assessment
 
 ## Initiatives
