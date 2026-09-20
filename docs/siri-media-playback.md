@@ -57,10 +57,20 @@ or tells the driver to unlock the phone. One assistant affordance belongs on
 the Up Next root, with native system visibility and authorization gating.
 
 Automated matching, catalog, delegate, playback, callback, and template tests
-cover the app-owned behavior. Signed artifact checks must verify extension
-embedding, bundle identities, app groups, and Siri capability. System handoff
-verification must run across app and extension processes. The exact final
+cover the app-owned behavior. The accepted delivery evidence consists of these
+tests, isolated preview builds, and signed artifact checks for extension
+embedding, bundle identities, app groups, and Siri capability. The exact final
 revision must pass `bin/test-all`, including the existing CarPlay suites.
+
+Real Siri-driven handoff across the extension and app processes is deferred
+and remains unverified. The Simulator media request did not launch the main
+app despite authorization and a valid catalog. A generic Siri query also failed,
+while the network control passed. These observations do not establish the cause
+or prove the app's system integration correct. The user explicitly accepted the
+existing automated and signed configuration evidence; a successful real Siri
+handoff is not a delivery, merge, after-merge, or issue-closing requirement.
+Known app defects and failures in the required automated app suite still block
+acceptance.
 
 Spoken Siri, native assistant-cell activation, locked installed-file access,
 vehicle audio, and hardware accessibility/input remain unverified unless
