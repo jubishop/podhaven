@@ -118,6 +118,51 @@ struct SiriCatalogTests {
     #expect(try file.read().entries.isEmpty)
   }
 
+  @Test("catalog publication does not read transcript or description payloads")
+  func narrowPublication() async throws {
+    let series = try await Container.shared.repo()
+      .insertSeries(
+        UnsavedPodcastSeries(
+          unsavedPodcast: try Create.unsavedPodcast(title: "Named show"),
+          unsavedEpisodes: [try Create.unsavedEpisode(title: "Named episode")]
+        )
+      )
+    let episode = PodcastEpisode(podcast: series.podcast, episode: series.episodes[0])
+    let file = Container.shared.siriCatalogFile()
+    defer { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }
+    try await Container.shared.appDB().writer
+      .write { db in
+        let queries = ThreadSafe<[String]>([])
+        db.trace { event in
+          if case .statement(let statement) = event {
+            queries { $0.append(statement.sql) }
+          }
+        }
+        SiriCatalogPublisher(file: file).publish(db)
+        db.trace(options: [])
+        #expect(!queries().isEmpty)
+        for query in queries() {
+          let region = try db.makeStatement(sql: query).databaseRegion
+          for (table, column) in [
+            ("episode", "transcript"), ("episode", "description"), ("podcast", "description"),
+          ] {
+            #expect(
+              !region.isModified(byEventsOfKind: .update(tableName: table, columnNames: [column])),
+              "Catalog publication must not read \(table).\(column)"
+            )
+          }
+        }
+      }
+    let entries = try file.read().entries
+    #expect(entries.count == 2)
+    #expect(entries[0].identity.id == episode.podcast.id.rawValue)
+    #expect(entries[0].title == episode.podcastTitle)
+    #expect(entries[1].identity.id == episode.id.rawValue)
+    #expect(entries[1].identity.feed == episode.feedURL.absoluteString)
+    #expect(entries[1].identity.guid == episode.episode.guid.rawValue)
+    #expect(entries[1].displayTitle == "Named episode — \(episode.podcastTitle)")
+  }
+
   @Test("unavailable or invalidated catalog data never produces a handoff")
   func unavailableCatalog() throws {
     let file = Container.shared.siriCatalogFile()

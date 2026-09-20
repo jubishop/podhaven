@@ -4,7 +4,6 @@ import FactoryKit
 import Foundation
 import GRDB
 import Logging
-import Tagged
 
 extension Container {
   var siriCatalogFile: Factory<SiriCatalogFile> {
@@ -70,18 +69,27 @@ final class SiriCatalogPublisher: TransactionObserver {
 
   func publish(_ db: Database) {
     do {
-      let podcasts = try Podcast.order(Podcast.Columns.id).fetchAll(db)
-      let episodes = try Episode.order(Episode.Columns.id)
-        .including(required: Episode.podcast).asRequest(of: PodcastEpisode.self).fetchAll(db)
+      let podcasts =
+        try Podcast
+        .select(Podcast.Columns.id, Podcast.Columns.feedURL, Podcast.Columns.title)
+        .order(Podcast.Columns.id).asRequest(of: Row.self).fetchAll(db)
+      let podcast = TableAlias()
+      let episodes =
+        try Episode
+        .select(Episode.Columns.id, Episode.Columns.guid, Episode.Columns.title)
+        .joining(required: Episode.podcast.aliased(podcast))
+        .annotated(with: podcast[Podcast.Columns.feedURL])
+        .annotated(with: podcast[Podcast.Columns.title].forKey("podcastTitle"))
+        .order(Episode.Columns.id).asRequest(of: Row.self).fetchAll(db)
       let entries =
         podcasts.map {
           SiriCatalog.Entry(
             identity: SiriMediaIdentity(
               kind: .podcast,
-              id: $0.id.rawValue,
-              feed: $0.feedURL.absoluteString
+              id: $0[Podcast.Columns.id],
+              feed: $0[Podcast.Columns.feedURL]
             ),
-            title: $0.title,
+            title: $0[Podcast.Columns.title],
             podcastTitle: nil
           )
         }
@@ -89,12 +97,12 @@ final class SiriCatalogPublisher: TransactionObserver {
           SiriCatalog.Entry(
             identity: SiriMediaIdentity(
               kind: .episode,
-              id: $0.id.rawValue,
-              feed: $0.feedURL.absoluteString,
-              guid: $0.episode.guid.rawValue
+              id: $0[Episode.Columns.id],
+              feed: $0[Podcast.Columns.feedURL],
+              guid: $0[Episode.Columns.guid]
             ),
-            title: $0.title,
-            podcastTitle: $0.podcastTitle
+            title: $0[Episode.Columns.title],
+            podcastTitle: $0["podcastTitle"]
           )
         }
       let catalog = SiriCatalog(entries: entries)
