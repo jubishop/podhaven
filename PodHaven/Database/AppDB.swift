@@ -62,6 +62,7 @@ struct AppDB {
       )
       let dbPool = try DatabasePool(path: sqlitePath, configuration: makeConfiguration())
       let appDB = AppDB(dbPool)
+      appDB.startSiriCatalog(Container.shared.siriCatalogFile())
       dbPool.add(
         transactionObserver: WriteProbe(enabled: Container.shared.userSettings().$enableWriteProbe),
         extent: .databaseLifetime
@@ -124,6 +125,12 @@ struct AppDB {
 
   var reader: Reader { Reader(self) }
   var writer: Writer { Writer(self) }
+
+  func startSiriCatalog(_ file: SiriCatalogFile) {
+    let publisher = SiriCatalogPublisher(file: file)
+    db.writeWithoutTransaction { db in publisher.publish(db) }
+    db.add(transactionObserver: publisher, extent: .databaseLifetime)
+  }
 
   struct Reader: Sendable {
     private let appDB: AppDB

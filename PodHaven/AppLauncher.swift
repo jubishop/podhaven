@@ -2,6 +2,7 @@
 
 import AVFoundation
 import FactoryKit
+import Intents
 import Logging
 import MetricKit
 import Sentry
@@ -154,6 +155,11 @@ struct AppLauncher: Sendable {
       }
 
       await self.userNotificationManager.initialize()
+      if INPreferences.siriAuthorizationStatus() == .notDetermined {
+        INPreferences.requestSiriAuthorization { status in
+          Self.log.info("Siri authorization status: \(status.rawValue)")
+        }
+      }
       guard !Task.isCancelled else { return }
 
       Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")

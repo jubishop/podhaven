@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / ".swift-format"
-LINT_ROOTS = [ROOT / "PodHaven", ROOT / "PodHavenMacros" / "Sources"]
+LINT_ROOTS = [ROOT / "PodHaven", ROOT / "PodHavenIntents", ROOT / "PodHavenMacros" / "Sources"]
 PREVIEW_MARK_RE = re.compile(r"^// MARK: - Preview")
 DIAG_RE = re.compile(
     r"^(?P<path>[^:]+):(?P<line>\d+):\d+:\s+(?P<level>warning|error):\s+\[(?P<rule>\w+)\]"

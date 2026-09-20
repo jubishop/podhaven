@@ -7,6 +7,10 @@ import FactoryKit
 final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
   private let coordinator = Container.shared.carPlayCoordinator()
 
+  func sceneDidBecomeActive(_ scene: UIScene) {
+    coordinator.refreshAssistant()
+  }
+
   func templateApplicationScene(
     _ templateApplicationScene: CPTemplateApplicationScene,
     didConnect interfaceController: CPInterfaceController

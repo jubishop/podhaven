@@ -40,7 +40,7 @@ for read-only diagnostics. Hooks use each checkout's own scripts. Read the
 - Swift/SwiftUI/iOS: consult apple-docs MCP for current info.
 
 ## Xcode Project
-- All four target folders (`PodHaven`, `PodHavenShare`, `PodHavenWidget`, `PodHavenTests`) are synchronized folder groups (`PBXFileSystemSynchronizedRootGroup`): files added on disk join the target automatically; never edit `project.pbxproj` to register files. `PodHavenMacros` is a local SPM package.
+- All five target folders (`PodHaven`, `PodHavenShare`, `PodHavenWidget`, `PodHavenIntents`, `PodHavenTests`) are synchronized folder groups (`PBXFileSystemSynchronizedRootGroup`): files added on disk join the target automatically; never edit `project.pbxproj` to register files. `PodHavenMacros` is a local SPM package.
 
 ## Release Versions
 - App Store versions have zero or one dot (`2`, `2.1`); TestFlight versions have exactly two (`2.1.1`). Preserve this deliberate convention so the version identifies the intended release channel at a glance. See [Versioning and releases](docs/releases.md).

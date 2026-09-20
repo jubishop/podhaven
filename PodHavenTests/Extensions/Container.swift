@@ -10,6 +10,14 @@ import Testing
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
     LogCapture.installOnce()
+    siriAuthorized.context(.test) { { true } }
+    siriCatalogFile.context(.test) {
+      SiriCatalogFile(
+        url: URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+          .appendingPathComponent("siri-media.json")
+      )
+    }
+    .scope(.cached)
     carPlayNowPlaying.context(.test) { MainActor.assumeIsolated { FakeCarPlayNowPlaying() } }
       .scope(.cached)
     carPlaySession.context(.test) {

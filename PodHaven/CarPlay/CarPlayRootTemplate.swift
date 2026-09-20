@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import CarPlay
+import FactoryKit
 import SwiftUI
 
 @MainActor
@@ -47,6 +48,13 @@ enum CarPlayRootTemplate {
         sections = [CPListSection(items: [item])]
       }
       let list = CPListTemplate(title: tab.rawValue, sections: sections)
+      if state == .ready, tab == .upNext, Container.shared.siriAuthorized()() {
+        list.assistantCellConfiguration = CPAssistantCellConfiguration(
+          position: .top,
+          visibility: .always,
+          assistantAction: .playMedia
+        )
+      }
       list.tabTitle = tab.rawValue
       list.tabImage = UIImage(systemName: tab.icon.systemImageName)
       list.emptyViewTitleVariants = [tab.rawValue]
@@ -60,6 +68,7 @@ enum CarPlayRootTemplate {
 #if DEBUG
 private struct CarPlayTemplatePreview: View {
   let state: CarPlayRootTemplate.State
+  var assistantAvailable = false
 
   var body: some View {
     TabView {
@@ -67,10 +76,15 @@ private struct CarPlayTemplatePreview: View {
         Group {
           switch state {
           case .ready:
-            ContentUnavailableView {
-              tab.icon.label
-            } description: {
-              Text(tab.placeholder)
+            VStack {
+              if assistantAvailable, tab == .upNext {
+                Button("Ask Siri to play") {}
+              }
+              ContentUnavailableView {
+                tab.icon.label
+              } description: {
+                Text(tab.placeholder)
+              }
             }
           case .unavailable:
             List {
@@ -91,5 +105,13 @@ private struct CarPlayTemplatePreview: View {
 
 #Preview("CarPlay retry content") {
   CarPlayTemplatePreview(state: .unavailable)
+}
+
+#Preview("CarPlay Siri available content") {
+  CarPlayTemplatePreview(state: .ready, assistantAvailable: true)
+}
+
+#Preview("CarPlay Siri unavailable content") {
+  CarPlayTemplatePreview(state: .ready, assistantAvailable: false)
 }
 #endif

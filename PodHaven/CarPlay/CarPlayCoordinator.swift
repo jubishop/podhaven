@@ -46,6 +46,7 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
       case idle, pushingNowPlaying, returningToQueue, browsingPodcasts, browsingEpisodes
     }
     let controller: any CarPlayInterfaceControlling
+    let presentationID = UUID()
     let selection = Container.shared.carPlaySelection()
     let upNext = Container.shared.carPlayUpNext()
     let podcasts = Container.shared.carPlayPodcasts()
@@ -59,6 +60,7 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
     init(_ controller: any CarPlayInterfaceControlling) { self.controller = controller }
 
     func clearHandlers() {
+      Container.shared.siriPlayback().disconnectPresentation(id: presentationID)
       upNext.stop()
       podcasts.stop()
       episodes.stop()
@@ -72,6 +74,7 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
       navigation = .idle
       guard let root else { return }
       for case let list as CPListTemplate in root.templates {
+        list.assistantCellConfiguration = nil
         for section in list.sections {
           for case let item as CPListItem in section.items { item.handler = nil }
         }
@@ -146,6 +149,12 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
       guard let self, let connection, self.connection === connection else { return }
       self.showNowPlaying(connection)
     }
+    Container.shared.siriPlayback()
+      .connectPresentation(id: connection.presentationID) {
+        [weak self, weak connection] in
+        guard let self, let connection, self.connection === connection else { return }
+        self.showNowPlaying(connection)
+      }
     connection.selection.showError = { [weak self, weak connection] message in
       guard let self, let connection, self.connection === connection else { return }
       self.showError(message, connection: connection)
@@ -380,6 +389,7 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
   }
 
   func templateDidAppear(_ aTemplate: CPTemplate, animated: Bool) {
+    refreshAssistant()
     guard let connection, connection.navigation == .idle,
       connection.controller.templates.contains(where: { $0 === aTemplate })
         || connection.root?.templates.contains(where: { $0 === aTemplate }) == true
@@ -388,11 +398,27 @@ final class CarPlayCoordinator: NSObject, CPNowPlayingTemplateObserver,
   }
 
   func tabBarTemplate(_ tabBarTemplate: CPTabBarTemplate, didSelect selectedTemplate: CPTemplate) {
+    refreshAssistant()
     guard let connection, connection.root === tabBarTemplate, connection.navigation == .idle else {
       return
     }
     connection.selectedTab = selectedTemplate
     updateBrowserNavigation(connection)
+  }
+
+  func refreshAssistant() {
+    guard let root = connection?.activeRoot,
+      let queue = root.templates.first as? CPListTemplate
+    else { return }
+    if Container.shared.siriAuthorized()() {
+      queue.assistantCellConfiguration = CPAssistantCellConfiguration(
+        position: .top,
+        visibility: .always,
+        assistantAction: .playMedia
+      )
+    } else {
+      queue.assistantCellConfiguration = nil
+    }
   }
 
   private func updateBrowserNavigation(_ connection: Connection) {
