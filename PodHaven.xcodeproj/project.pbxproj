@@ -34,6 +34,15 @@
 		8BD2B1D02E8C8D0E007FD606 /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD2B1CF2E8C8D0E007FD606 /* Algorithms */; };
 		8BE319E92D0E22D8009F48C9 /* Semaphore in Frameworks */ = {isa = PBXBuildFile; productRef = 8BE319E82D0E22D8009F48C9 /* Semaphore */; };
 		AF396B2F1DBEC4D55DD18A5F /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = F6FBB57DA0643D700A323209 /* IdentifiedCollections */; };
+		A63200000000000000000001 /* PodHavenIntents.appex in Embed Foundation Extensions */ = {
+			isa = PBXBuildFile;
+			fileRef = A63200000000000000000002 /* PodHavenIntents.appex */;
+			settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); };
+		};
+		A63200000000000000000008 /* Logging in Frameworks */ = {
+			isa = PBXBuildFile;
+			productRef = A63200000000000000000009 /* Logging */;
+		};
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +67,13 @@
 			remoteGlobalIDString = 8BD7F91F2CF2A49000CEDAA7;
 			remoteInfo = PodHaven;
 		};
+		A63200000000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8BD7F9182CF2A49000CEDAA7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A63200000000000000000004;
+			remoteInfo = PodHavenIntents;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -69,6 +85,7 @@
 			files = (
 				8BBD96982E2701F500BE32DD /* PodHavenShare.appex in Embed Foundation Extensions */,
 				8BA4F4312F3E74AD000AC336 /* PodHavenWidget.appex in Embed Foundation Extensions */,
+				A63200000000000000000001 /* PodHavenIntents.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -86,6 +103,13 @@
 		8BD0C2362CF638C700B7DC07 /* PodHaven.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = PodHaven.xctestplan; sourceTree = "<group>"; };
 		8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PodHaven.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodHavenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A63200000000000000000002 /* PodHavenIntents.appex */ = {
+			isa = PBXFileReference;
+			explicitFileType = "wrapper.app-extension";
+			includeInIndex = 0;
+			path = PodHavenIntents.appex;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -157,6 +181,27 @@
 			);
 			target = 8BD7F91F2CF2A49000CEDAA7 /* PodHaven */;
 		};
+		A6320000000000000000000C /* Intents plist exception */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (Info.plist, );
+			target = A63200000000000000000004 /* PodHavenIntents */;
+		};
+		A6320000000000000000000D /* Shared Siri sources */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Errors/ErrorKit.swift,
+				Extensions/Array.swift,
+				Logging/Handlers/OSLogHandler.swift,
+				Logging/Log.swift,
+				Logging/LogCategorizable.swift,
+				Logging/Logger.swift,
+				Logging/LogKit.swift,
+				Utility/Assert.swift,
+				Siri/SiriCatalog.swift,
+				Siri/SiriMediaIntentHandler.swift,
+			);
+			target = A63200000000000000000004 /* PodHavenIntents */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -181,6 +226,7 @@
 			exceptions = (
 				8BCAF0922D07E231002F069D /* Exceptions for "PodHaven" folder in "PodHaven" target */,
 				8BA4F44F2F3E7B4E000AC336 /* Exceptions for "PodHaven" folder in "PodHavenWidget" target */,
+				A6320000000000000000000D /* Shared Siri sources */,
 			);
 			path = PodHaven;
 			sourceTree = "<group>";
@@ -188,6 +234,12 @@
 		8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = PodHavenTests;
+			sourceTree = "<group>";
+		};
+		A6320000000000000000000B /* PodHavenIntents */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (A6320000000000000000000C /* Intents plist exception */, );
+			path = PodHavenIntents;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -246,6 +298,12 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A6320000000000000000000A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A63200000000000000000008 /* Logging in Frameworks */, );
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -269,6 +327,7 @@
 				8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */,
 				8BBD968F2E2701F500BE32DD /* PodHavenShare */,
 				8BA4F4252F3E74AC000AC336 /* PodHavenWidget */,
+				A6320000000000000000000B /* PodHavenIntents */,
 				8B9B8EEA2DCD5BC200E574E6 /* Frameworks */,
 				8BD7F9212CF2A49000CEDAA7 /* Products */,
 			);
@@ -281,6 +340,7 @@
 				8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */,
 				8BBD968E2E2701F400BE32DD /* PodHavenShare.appex */,
 				8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */,
+				A63200000000000000000002 /* PodHavenIntents.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -352,6 +412,7 @@
 			dependencies = (
 				8BBD96972E2701F500BE32DD /* PBXTargetDependency */,
 				8BA4F4302F3E74AD000AC336 /* PBXTargetDependency */,
+				A63200000000000000000005 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8BD7F9222CF2A49000CEDAA7 /* PodHaven */,
@@ -402,6 +463,19 @@
 			productName = PodHavenTests;
 			productReference = 8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A63200000000000000000004 /* PodHavenIntents */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A63200000000000000000011 /* Intents configurations */;
+			buildPhases = (A63200000000000000000006 /* Sources */, A6320000000000000000000A /* Frameworks */, A63200000000000000000007 /* Resources */, );
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (A6320000000000000000000B /* PodHavenIntents */, );
+			name = PodHavenIntents;
+			packageProductDependencies = (A63200000000000000000009 /* Logging */, );
+			productName = PodHavenIntents;
+			productReference = A63200000000000000000002 /* PodHavenIntents.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -462,6 +536,7 @@
 				8BD7F92F2CF2A49100CEDAA7 /* PodHavenTests */,
 				8BBD968D2E2701F400BE32DD /* PodHavenShare */,
 				8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */,
+				A63200000000000000000004 /* PodHavenIntents */,
 			);
 		};
 /* End PBXProject section */
@@ -493,6 +568,12 @@
 			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A63200000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
@@ -562,6 +643,12 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A63200000000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -579,6 +666,11 @@
 			isa = PBXTargetDependency;
 			target = 8BD7F91F2CF2A49000CEDAA7 /* PodHaven */;
 			targetProxy = 8BD7F9312CF2A49100CEDAA7 /* PBXContainerItemProxy */;
+		};
+		A63200000000000000000005 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A63200000000000000000004 /* PodHavenIntents */;
+			targetProxy = A63200000000000000000003 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1257,6 +1349,116 @@
 			};
 			name = Release;
 		};
+		A6320000000000000000000E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = PodHavenIntents/PodHavenIntents.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 34TKMKM889;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PodHavenIntents/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PodHavenIntents;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHaven.debug.PodHavenIntents;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG SIRI_EXTENSION";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY = YES;
+				SWIFT_UPCOMING_FEATURE_INTERNAL_IMPORTS_BY_DEFAULT = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A6320000000000000000000F /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = PodHavenIntents/PodHavenIntents.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 34TKMKM889;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PodHavenIntents/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PodHavenIntents;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHaven.dev.PodHavenIntents;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG SIRI_EXTENSION";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY = YES;
+				SWIFT_UPCOMING_FEATURE_INTERNAL_IMPORTS_BY_DEFAULT = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Development;
+		};
+		A63200000000000000000010 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = PodHavenIntents/PodHavenIntents.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 34TKMKM889;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PodHavenIntents/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PodHavenIntents;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHaven.PodHavenIntents;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = SIRI_EXTENSION;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY = YES;
+				SWIFT_UPCOMING_FEATURE_INTERNAL_IMPORTS_BY_DEFAULT = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1307,6 +1509,12 @@
 				8B7332602E1778EB008C1622 /* Development */,
 				8BD7F9492CF2A49100CEDAA7 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A63200000000000000000011 /* Intents configurations */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A6320000000000000000000E /* Debug */, A6320000000000000000000F /* Development */, A63200000000000000000010 /* Release */, );
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
@@ -1530,6 +1738,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8B14BBE12D0CB37A0007E89B /* XCRemoteSwiftPackageReference "swift-identified-collections" */;
 			productName = IdentifiedCollections;
+		};
+		A63200000000000000000009 /* Logging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8BAE003A2DDE79A4008E40B2 /* XCRemoteSwiftPackageReference "swift-log" */;
+			productName = Logging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

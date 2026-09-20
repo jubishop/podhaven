@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
+import Intents
 import Logging
 import SwiftUI
 import Tagged
@@ -28,6 +29,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
   func applicationWillTerminate(_ application: UIApplication) {
     FileLogHandler.flush()
+  }
+
+  func application(_ application: UIApplication, handlerFor intent: INIntent) -> Any? {
+    guard intent is INPlayMediaIntent else { return nil }
+    return Container.shared.siriPlayback().handler
   }
 
   func application(

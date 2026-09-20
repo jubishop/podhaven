@@ -1,0 +1,72 @@
+---
+status: current
+---
+
+# Siri media playback
+
+## Process boundary
+
+The main app owns the library database and player. The Intents extension reads
+only a versioned JSON catalog in the existing build-specific app group. It
+never opens the app's Documents database, creates the app's dependency graph,
+or starts audio. Debug, Development, and Release keep their existing separate
+app groups and receive distinct extension bundle identifiers.
+
+The catalog contains saved podcast and episode names, durable database IDs,
+and source identities. Source identities prevent a reused database ID from
+selecting different media. It contains no transcript, description, artwork,
+playback history, or downloaded audio. The app creates it at database startup
+and updates it synchronously after relevant commits, including background
+refresh and deletion. Before a relevant commit, the previous catalog becomes
+unavailable. A crash or failed write therefore causes a truthful temporary
+failure instead of silently trusting an obsolete snapshot. Rollback republishes
+the unchanged library. The app database stays in its current location. Each
+publication has a new generation ID. The main app checks that generation after
+its asynchronous lookup and before playback. Names, deletion, publication dates,
+and finished state invalidate pending selections; routine position writes do not.
+
+The extension rereads the catalog for resolution, confirmation, and handling.
+It normalizes case, diacritics, punctuation, and whitespace. Exact names rank
+above prefixes and contained phrases. Equally ranked results use Siri's native
+disambiguation. Unnamed recommendations, unsupported options, absent catalog
+data, and missing authorization fail without opening the phone.
+
+Audio handling returns `.handleInApp`. The main app receives
+`application(_:handlerFor:)` and returns an `INPlayMediaIntentHandling` object.
+The handler prepares shared background playback
+and checks the requested ID and source identity against its current database.
+This uses UIKit's supported replacement for the older
+`application(_:handle:completionHandler:)` callback, deprecated since iOS 14.
+A podcast resumes its current unfinished episode, otherwise its newest saved
+unfinished episode, with episode ID breaking date ties. A named finished
+episode can be replayed. Explicit play resumes the current episode.
+
+The main app owns request cancellation, deadlines, and callback completion.
+Newer Siri or shared-player requests supersede obsolete work. A response reports
+success only after the shared player is ready and playing the requested item.
+CarPlay presentation remains owned by the current connection; voice playback
+also works without a CarPlay scene.
+
+## System configuration and validation
+
+The extension supports `INPlayMediaIntent` and podcast media categories, with
+no restriction while locked after first unlock. It remains restricted while
+protected data is unavailable. The main app declares Siri usage and requests
+authorization during phone foreground startup. CarPlay never requests permission
+or tells the driver to unlock the phone. One assistant affordance belongs on
+the Up Next root, with native system visibility and authorization gating.
+
+Automated matching, catalog, delegate, playback, callback, and template tests
+cover the app-owned behavior. Signed artifact checks must verify extension
+embedding, bundle identities, app groups, and Siri capability. System handoff
+verification must run across app and extension processes. The exact final
+revision must pass `bin/test-all`, including the existing CarPlay suites.
+
+Spoken Siri, native assistant-cell activation, locked installed-file access,
+vehicle audio, and hardware accessibility/input remain unverified unless
+separately tested. These optional checks do not block delivery or closure.
+
+See [CarPlay validation](carplay-validation.md) and Apple's
+[Intents extension configuration](https://developer.apple.com/documentation/sirikit/creating-an-intents-app-extension),
+[audio handoff](https://developer.apple.com/documentation/intents/inplaymediaintenthandling/handle(intent:completion:)),
+and [Siri authorization](https://developer.apple.com/documentation/sirikit/requesting-authorization-to-use-siri).
