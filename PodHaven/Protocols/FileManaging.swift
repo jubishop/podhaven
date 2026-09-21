@@ -6,6 +6,10 @@ protocol FileManaging {
   // MARK: - Directory Paths
 
   var temporaryDirectory: URL { get }
+  func urls(
+    for directory: FileManager.SearchPathDirectory,
+    in domainMask: FileManager.SearchPathDomainMask
+  ) -> [URL]
 
   // MARK: - Data Operations
 

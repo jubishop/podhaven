@@ -43,6 +43,9 @@ the next launch. A successful file-size check does not prove attachment
 ingestion; compare this context with the event's downloadable attachments when
 investigating another missing upload.
 
+For the recovered AppHang scope gap and temporary callback, see
+[recovered-hang diagnostic delivery](sentry-recovered-hang-diagnostics.md).
+
 ## MetricKit exit summaries
 
 `MetricKitMonitor` receives foreground and background exit counts through

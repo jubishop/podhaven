@@ -285,7 +285,12 @@ enum AppInfo {
   }
 
   static var documentsDirectory: URL {
-    let baseURL = URL.documentsDirectory
+    guard
+      let baseURL = Container.shared.fileManager()
+        .urls(for: .documentDirectory, in: .userDomainMask).first
+    else {
+      Assert.fatal("Documents directory not found")
+    }
 
     // Production uses root Documents directory to preserve existing data
     guard let subdirectory = dataDirectoryName

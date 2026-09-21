@@ -28,6 +28,7 @@ Preserve decision reasons and evidence. Follow the
 - [Siri media playback](siri-media-playback.md): extension catalog, background handoff, playback ownership, and assistant cells
 - [Silence diagnostics](silence-diagnostics.md): telemetry fields, warning bounds, and later real-world assessment
 - [Foreground termination diagnostics](sentry-termination-diagnostics.md): prior-session log retention, MetricKit exit summaries, attribution, and validation limits
+- [Recovered-hang diagnostic delivery](sentry-recovered-hang-diagnostics.md): bounded attachments, the temporary hint callback, and SDK migration requirements
 
 ## Initiatives
 

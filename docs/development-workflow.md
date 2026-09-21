@@ -503,6 +503,8 @@ Run `bin/check-swift-results <bundle.xcresult> --build-log <xcodebuild.log>`
 after focused tests, adding `--full` for the complete suite. This gate requires
 passing tests, zero skipped tests, complete priority arguments, zero build diagnostics and raw
 build warnings, and no framework runtime diagnostics in exported test output.
+The sole approved exception is the exact transitional Sentry callback warning
+described in [recovered-hang diagnostics](sentry-recovered-hang-diagnostics.md).
 Intentional application warning/error logs from error-path tests remain
 available and are distinct from compiler and framework diagnostics.
 
