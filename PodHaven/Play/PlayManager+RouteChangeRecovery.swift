@@ -197,7 +197,7 @@ extension PlayManager {
       case .waiting, .retryScheduled:
         break
       case .retrying:
-        scheduleWidgetRouteRecoveryTimeout(recovery)
+        scheduleWidgetRouteRecoveryTimeout(requestID: recovery.requestID)
       case .requested, .routeChanged, .timingOut:
         break
       }
@@ -297,17 +297,17 @@ extension PlayManager {
     )
 
     await podAVPlayer.play(requestID: requestID)
+    let result = await podAVPlayer.playbackSnapshot()
     guard let currentRecovery = widgetRouteRecovery, currentRecovery.requestID == requestID else {
       return
     }
-    let result = await podAVPlayer.playbackSnapshot()
     switch result.status {
     case .playing:
       setStatus(.playing)
-      scheduleWidgetRouteRecoveryTimeout(currentRecovery)
+      scheduleWidgetRouteRecoveryTimeout(requestID: currentRecovery.requestID)
     case .waiting:
       setStatus(.waiting)
-      scheduleWidgetRouteRecoveryTimeout(currentRecovery)
+      scheduleWidgetRouteRecoveryTimeout(requestID: currentRecovery.requestID)
     case .paused:
       setStatus(.paused)
       failWidgetRouteRecovery(currentRecovery, reason: "pausedAfterRetry")
@@ -316,9 +316,10 @@ extension PlayManager {
     }
   }
 
-  private func scheduleWidgetRouteRecoveryTimeout(_ recovery: WidgetRouteRecovery) {
-    guard case .retrying(let waitingAt, let routeChangeID) = recovery.phase else { return }
-    var recovery = recovery
+  private func scheduleWidgetRouteRecoveryTimeout(requestID: UUID) {
+    guard var recovery = widgetRouteRecovery, recovery.requestID == requestID,
+      case .retrying(let waitingAt, let routeChangeID) = recovery.phase
+    else { return }
     recovery.phase = .timingOut(waitingAt: waitingAt, routeChangeID: routeChangeID)
     widgetRouteRecovery = recovery
     widgetRouteRecoveryTask?.cancel()
