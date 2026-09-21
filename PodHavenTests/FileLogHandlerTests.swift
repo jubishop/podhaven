@@ -14,6 +14,10 @@ struct FileLogHandlerTests {
     let message: String
     let line: UInt
     let timestamp: Int64
+    let sessionID: String?
+    let version: String?
+    let buildNumber: String?
+    let gitCommitHash: String?
   }
 
   private func makeHandler(
@@ -88,6 +92,106 @@ struct FileLogHandlerTests {
     let entries = try decodedEntries(at: fileURL)
     #expect(entries.map(\.message) == (0..<5).map { "entry-\($0)" })
     #expect(entries.map(\.line) == (0..<5).map { UInt($0) })
+  }
+
+  @Test("retained records identify their process session and build after a relaunch")
+  func retainedRecordsIdentifyTheirSessionAndBuild() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+    let priorSession = UUID().uuidString
+    let prior: [String: Any] = [
+      "message": "prior process", "line": 1, "timestamp": 1,
+      "sessionID": priorSession, "version": "prior-version", "buildNumber": "prior-build",
+      "gitCommitHash": "prior-commit",
+    ]
+    var priorData = try JSONSerialization.data(withJSONObject: prior)
+    priorData.append(0x0A)
+    try priorData.write(to: fileURL)
+    let handler = makeHandler(
+      fileURL: fileURL,
+      maxFileSizeBytes: 100_000,
+      targetFileSizeBytes: 75_000
+    )
+    log(handler, message: "current process", line: 2)
+    log(handler, message: "same process", line: 3)
+
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.count == 3)
+    #expect(entries[0].sessionID == priorSession)
+    #expect(entries[0].buildNumber == "prior-build")
+    let currentID = try #require(entries[1].sessionID)
+    #expect(UUID(uuidString: currentID) != nil)
+    #expect(currentID != priorSession)
+    #expect(entries[2].sessionID == currentID)
+    #expect(entries[1].version == AppInfo.version)
+    #expect(entries[1].buildNumber == AppInfo.buildNumber)
+    #expect(entries[1].gitCommitHash == AppInfo.gitCommitHash)
+  }
+
+  @Test("recent tails retain prior-session history when the new launch fills the buffer")
+  func priorSessionSurvivesNewLaunchLogVolume() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+    let priorSession = UUID().uuidString
+    let prior: [String: Any] = [
+      "message": "prior process", "line": 1, "timestamp": 1,
+      "sessionID": priorSession, "version": "prior-version", "buildNumber": "prior-build",
+      "gitCommitHash": "prior-commit",
+    ]
+    var priorData = try JSONSerialization.data(withJSONObject: prior)
+    priorData.append(0x0A)
+    try priorData.write(to: fileURL)
+    let handler = FileLogHandler(
+      label: "PodHaven/FileLogTest",
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000,
+      targetFileSizeBytes: 7_500,
+      historyPolicy: .preservePreviousSession,
+      writeSynchronously: { _ in true }
+    )
+    for index in 0..<100 {
+      log(handler, message: "current-\(index)", line: UInt(index))
+    }
+    let data = try Data(contentsOf: fileURL)
+    let entries = try decodedEntries(at: fileURL)
+    #expect(data.count <= 10_000)
+    #expect(data.last == 0x0A)
+    #expect(entries.contains { $0.sessionID == priorSession && $0.message == "prior process" })
+    #expect(entries.last?.message == "current-99")
+    #expect(entries.filter { $0.sessionID == priorSession }.count == 1)
+  }
+
+  @Test("prior history preparation discards a partial final write and stays bounded")
+  func priorHistoryDiscardsPartialRecord() throws {
+    let fileURL = tempFileURL()
+    defer { tearDownLogFile(fileURL) }
+    var data = Data()
+    for index in 0..<100 {
+      data.append(
+        try JSONSerialization.data(withJSONObject: [
+          "message": "prior-\(index)", "line": index, "timestamp": index,
+          "sessionID": "prior-session", "buildNumber": "prior-build",
+        ])
+      )
+      data.append(0x0A)
+    }
+    data.append(Data(#"{"message":"partial"#.utf8))
+    try data.write(to: fileURL)
+    let handler = FileLogHandler(
+      label: "PodHaven/FileLogTest",
+      fileURL: fileURL,
+      maxFileSizeBytes: 10_000,
+      targetFileSizeBytes: 7_500,
+      historyPolicy: .preservePreviousSession,
+      writeSynchronously: { _ in true }
+    )
+    let prepared = try Data(contentsOf: fileURL)
+    #expect(prepared.count <= 3_750)
+    #expect(prepared.last == 0x0A)
+    log(handler, message: "new session", line: 101)
+    let entries = try decodedEntries(at: fileURL)
+    #expect(entries.contains { $0.message == "prior-99" })
+    #expect(entries.last?.message == "new session")
   }
 
   @Test("truncation keeps whole JSON lines and keeps appending to the live file")

@@ -19,6 +19,7 @@ enum LogCapture {
     let file: String
     let function: String
     let line: UInt
+    let metadata: [String: String]
     let taskBasePriority: TaskPriority?
   }
 
@@ -96,6 +97,9 @@ private struct CapturingLogHandler: LogHandler {
         file: event.file,
         function: event.function,
         line: event.line,
+        metadata:
+          LogKit.merge(handler: metadata, provider: metadataProvider, oneOff: event.metadata)
+          .mapValues { $0.description },
         taskBasePriority: Task.basePriority
       )
     )

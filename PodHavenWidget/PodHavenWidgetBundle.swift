@@ -22,6 +22,7 @@ struct PodHavenWidgetBundle: WidgetBundle {
           fileURL: WidgetInfo.recentLogFileURL,
           maxFileSizeBytes: WidgetInfo.recentLogMaxFileSizeBytes,
           targetFileSizeBytes: WidgetInfo.recentLogTargetFileSizeBytes,
+          historyPolicy: .preservePreviousSession,
           writeSynchronously: { $0 >= .critical }
         ),
       ])

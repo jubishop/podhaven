@@ -96,15 +96,25 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
 
   // MARK: - MXMetricManagerSubscriber
 
-  // MetricKit invokes both callbacks on a background queue: metrics roughly
-  // once per 24 h, diagnostics on the launch after the event.
+  // MetricKit delivers on a background queue. A payload can describe an earlier
+  // process, so its reporting period must remain separate from the upload session.
 
   func didReceive(_ payloads: [MXMetricPayload]) {
     for payload in payloads {
-      guard let backgroundExit = payload.applicationExitMetrics?.backgroundExitData else {
-        continue
-      }
-      emit(Self.exitMetricDirective(for: BackgroundExitCounts(backgroundExit)))
+      receive(payload)
+    }
+  }
+
+  func receive(_ payload: any MetricKitMetricReporting) {
+    if let counts = payload.foregroundExitCounts {
+      emitExitMetric(counts.directive, period: payload.reportingPeriod, scope: "foreground")
+    }
+    if let counts = payload.backgroundExitCounts {
+      emitExitMetric(
+        Self.exitMetricDirective(for: counts),
+        period: payload.reportingPeriod,
+        scope: "background"
+      )
     }
   }
 
@@ -132,6 +142,16 @@ final class MetricKitMonitor: NSObject, MXMetricManagerSubscriber, Sendable {
 
   private func emit(_ directive: MetricKitLogDirective) {
     Self.log.log(level: directive.level, "\(directive.message)", metadata: directive.metadata)
+  }
+
+  private func emitExitMetric(
+    _ directive: MetricKitLogDirective,
+    period: MetricKitReportingPeriod,
+    scope: String
+  ) {
+    var metadata = directive.metadata.merging(period.metadata) { _, new in new }
+    metadata["metricKit.scope"] = .string(scope)
+    Self.log.log(level: directive.level, "\(directive.message)", metadata: metadata)
   }
 
   // MARK: - Decision
