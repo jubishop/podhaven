@@ -2,6 +2,7 @@
 
 import Foundation
 import Intents
+import Logging
 
 struct SiriMediaIdentity: Codable, Equatable, Sendable {
   enum Kind: String, Codable, Sendable { case podcast, episode }
@@ -145,12 +146,42 @@ struct SiriCatalog: Codable, Sendable {
   }
 }
 
+protocol SiriCatalogReadHandle {
+  func read(upToCount count: Int) throws -> Data?
+  func close() throws
+}
+
+extension FileHandle: SiriCatalogReadHandle {}
+
 struct SiriCatalogFile: Sendable {
   let url: URL
+  private let openForReading: @Sendable (URL) throws -> any SiriCatalogReadHandle
+  private static let maximumBytes = 32 * 1024 * 1024
+  private static let log = Log.as("SiriCatalogFile")
+
+  init(
+    url: URL,
+    openForReading: @escaping @Sendable (URL) throws -> any SiriCatalogReadHandle = {
+      try FileHandle(forReadingFrom: $0)
+    }
+  ) {
+    self.url = url
+    self.openForReading = openForReading
+  }
 
   func read() throws -> SiriCatalog {
-    let data = try Data(contentsOf: url)
-    guard data.count <= 32 * 1024 * 1024 else { throw SiriMediaFailure.unavailable }
+    let handle = try openForReading(url)
+    let data: Data?
+    do {
+      data = try handle.read(upToCount: Self.maximumBytes + 1)
+    } catch {
+      do { try handle.close() } catch {
+        Self.log.caughtError("Could not close Siri catalog after read failure", error)
+      }
+      throw error
+    }
+    try handle.close()
+    guard let data, data.count <= Self.maximumBytes else { throw SiriMediaFailure.unavailable }
     let catalog = try JSONDecoder().decode(SiriCatalog.self, from: data)
     guard catalog.schemaVersion == 1 else { throw SiriMediaFailure.unavailable }
     return catalog
