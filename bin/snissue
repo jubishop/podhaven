@@ -1,0 +1,227 @@
+#!/usr/bin/env fish
+
+function __snissue_usage
+    echo "Usage: snissue [issue-url|issue-short-id|issue-id]"
+end
+
+function __snissue_parse_reference --argument-names reference
+    if string match -qr '^[0-9]+$' -- "$reference"
+        echo "$reference"
+    else if string match -qr '^(?i:PODHAVEN)-[a-zA-Z0-9]+$' -- "$reference"
+        string upper -- "$reference"
+    else
+        set -l url_match (string match -r '(?i)^https?://(?:[a-z0-9-]+\.)?sentry\.io/(?:organizations/[a-z0-9-]+/)?issues/([0-9]+)(?:[/?#]|$)' -- "$reference")
+        if test (count $url_match) -lt 2
+            return 1
+        end
+        echo "$url_match[2]"
+    end
+end
+
+function __snissue_pick
+    set -g __snissue_selected_id
+
+    for dependency in sentry jq gh
+        if not type -q "$dependency"
+            echo "Error: $dependency is required to list Sentry issues"
+            return 1
+        end
+    end
+
+    set -l issue_json (sentry issue list artisanal-software/podhaven \
+        --query 'is:unresolved !issue.category:feedback' \
+        --period 365d \
+        --limit 1000 \
+        --sort new \
+        --fresh \
+        --json \
+        --fields id,shortId,title,level,count,userCount)
+    set -l list_status $status
+    if test $list_status -ne 0
+        echo "Error: could not fetch unresolved PodHaven issues from Sentry"
+        return $list_status
+    end
+
+    set -l has_more (printf '%s\n' $issue_json | jq -r '
+        if type == "array" then false
+        elif type == "object" and (.data | type) == "array" then (.hasMore // false)
+        else error("expected an issue array") end')
+    if test $status -ne 0
+        echo "Error: Sentry returned invalid issue data"
+        return 1
+    end
+    if test "$has_more" = true
+        echo "Error: Sentry has more than 1000 unresolved issues; refusing to show a partial list"
+        return 1
+    end
+
+    set -l raw_rows (printf '%s\n' $issue_json | jq -r '
+        def oneline:
+            tostring
+            | gsub("[[:cntrl:]]+"; " ")
+            | gsub("  +"; " ")
+            | sub("^ +"; "")
+            | sub(" +$"; "");
+        (if type == "array" then . else .data end)
+        | sort_by(.id | tonumber)
+        | reverse
+        | .[]
+        | if (.id | tostring | test("^[0-9]+$")) then . else error("invalid issue ID") end
+        | [
+            .id,
+            ((.shortId // "PODHAVEN-?") | oneline),
+            ((.title // "(no title)") | oneline | if length > 140 then .[:137] + "..." else . end),
+            ((.level // "unknown") | oneline),
+            ((.count // "?") | oneline),
+            ((.userCount // "?") | oneline)
+        ]
+        | @tsv')
+    if test $status -ne 0
+        echo "Error: Sentry returned invalid issue data"
+        return 1
+    end
+    if test (count $raw_rows) -eq 0
+        echo "No unresolved Sentry issues found."
+        return 1
+    end
+
+    set -l github_issues_json (gh api --paginate --slurp \
+        'repos/jubishop/podhaven/issues?state=all&per_page=100')
+    set -l github_status $status
+    if test $github_status -ne 0
+        echo "Error: could not fetch PodHaven GitHub issues"
+        return $github_status
+    end
+
+    set -l cyan (set_color --bold cyan)
+    set -l dim (set_color brblack)
+    set -l normal (set_color normal)
+    set -l issue_rows
+
+    for raw_row in $raw_rows
+        set -l parts (string split \t -- "$raw_row")
+        set -l id "$parts[1]"
+        set -l short_id "$parts[2]"
+        set -l github_match (printf '%s\n' $github_issues_json | jq -r \
+            --arg id "$id" --arg short_id "$short_id" '
+                if type != "array" or any(.[]; type != "array") then
+                    error("expected paginated GitHub issues")
+                else . end
+                | def candidate_issues: .[][] | select(has("pull_request") | not);
+                def issue_text: (.title // "") + "\n" + (.body // "");
+                (
+                    first(candidate_issues | select(issue_text | test(
+                        "https?://(artisanal-software[.])?sentry[.]io/(organizations/artisanal-software/)?issues/"
+                        + $id + "([/?#[:space:]<>)]|$)"
+                    )))
+                    // first(candidate_issues | select(
+                        ($short_id | test("^PODHAVEN-[A-Z0-9]+$"))
+                        and (issue_text | test("(^|[^A-Z0-9-])" + $short_id + "([^A-Z0-9-]|$)"))
+                    ))
+                )
+                | select(. != null)
+                | [.number, .state]
+                | @tsv')
+        if test $status -ne 0
+            echo "Error: GitHub returned invalid issue data"
+            return 1
+        end
+
+        set -l tracking untracked
+        if test -n "$github_match"
+            set -l github_parts (string split \t -- "$github_match")
+            if test (count $github_parts) -ne 2; or not string match -qr '^[0-9]+$' -- "$github_parts[1]"; or not contains -- "$github_parts[2]" open closed
+                echo "Error: GitHub returned invalid issue data"
+                return 1
+            end
+            set tracking "#$github_parts[1] $github_parts[2]"
+        end
+
+        set -l display "$cyan$short_id$normal  $id — $parts[3]  $dim($parts[4]; $parts[5] events; $parts[6] users; GitHub: $tracking)$normal"
+        set -a issue_rows (string join \t -- "$id" "$display")
+    end
+
+    set -l selection
+    if type -q fzf
+        set selection (printf '%s\n' $issue_rows | fzf \
+            --ansi \
+            --delimiter=\t \
+            --with-nth=2.. \
+            --height=80% \
+            --layout=reverse \
+            --border \
+            --prompt='Issue> ' \
+            --header='Newest first; activity within 365 days')
+        if test $status -ne 0
+            echo "No issue selected."
+            return 1
+        end
+    else
+        echo "Select unresolved Sentry issues (newest first; activity within 365 days):"
+        for index in (seq (count $issue_rows))
+            set -l row_parts (string split -m 1 \t -- "$issue_rows[$index]")
+            printf '%d. %s\n' $index "$row_parts[2]"
+        end
+
+        read -P "Enter a number: " selection_index
+        or return 1
+        if not string match -qr '^[0-9]+$' -- "$selection_index"
+            echo "Error: '$selection_index' is not a valid selection"
+            return 1
+        end
+        if test $selection_index -lt 1; or test $selection_index -gt (count $issue_rows)
+            echo "Error: selection must be between 1 and "(count $issue_rows)
+            return 1
+        end
+        set selection "$issue_rows[$selection_index]"
+    end
+
+    set -l selection_parts (string split -m 1 \t -- "$selection")
+    if not string match -qr '^[0-9]+$' -- "$selection_parts[1]"
+        echo "Error: invalid issue selection"
+        return 1
+    end
+    set -g __snissue_selected_id "$selection_parts[1]"
+end
+
+function __snissue_main
+    if test (count $argv) -gt 1
+        __snissue_usage
+        return 1
+    end
+    if test (count $argv) -eq 1; and contains -- "$argv[1]" -h --help
+        __snissue_usage
+        return 0
+    end
+
+    set -l repo_root (git rev-parse --show-toplevel 2>/dev/null)
+    or begin
+        echo "Error: not in a git repository"
+        return 1
+    end
+
+    set -l reference
+    if test (count $argv) -eq 0
+        __snissue_pick
+        or return 1
+        set reference "$__snissue_selected_id"
+    else
+        set reference (__snissue_parse_reference "$argv[1]")
+        if test -z "$reference"
+            echo "Error: '$argv[1]' is not a PodHaven issue short ID, numeric ID, or Sentry issue URL"
+            return 1
+        end
+    end
+
+    if not type -q codex
+        echo "Error: codex is required to analyze Sentry issues"
+        return 1
+    end
+
+    cd "$repo_root"
+    or return 1
+    codex --dangerously-bypass-approvals-and-sandbox "\$analyze-sentry-issue $reference"
+end
+
+__snissue_main $argv
+exit $status

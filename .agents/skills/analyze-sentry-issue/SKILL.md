@@ -2,9 +2,10 @@
 name: analyze-sentry-issue
 description: >-
   Diagnose one PodHaven Sentry error issue by correlating representative events,
-  impact patterns, relevant logs or traces, and the codebase. Use when the user
-  provides a Sentry issue URL or ID, or asks what caused a PodHaven Sentry error
-  and how to address it.
+  impact patterns, relevant logs or traces, and the codebase, then use
+  create-issue to track sanitized findings in GitHub. Use when the user provides
+  a Sentry issue URL or ID, or asks what caused a PodHaven Sentry error and how
+  to address it.
 user_invocable: true
 disable-model-invocation: false
 argument: >-
@@ -14,9 +15,10 @@ argument: >-
 
 # Analyze Sentry Issue
 
-Produce a read-only diagnosis of one PodHaven error issue. Explain what failed,
-who it affects, the most likely cause, and the best fix or mitigation. Do not
-edit application code during this skill.
+Diagnose one PodHaven error issue and track the actionable result in GitHub
+through `create-issue`. Explain what failed, who it affects, the most likely
+cause, and the best fix or mitigation. Keep the repository unchanged; do not
+implement the fix during this skill.
 
 Use `analyze-sentry-feedback` for Sentry feedback URLs and
 `analyze-sentry-logs` for bulk structured-log triage.
@@ -33,11 +35,16 @@ Use `analyze-sentry-feedback` for Sentry feedback URLs and
   committed files.
 - Treat user notes as scope, constraints, or hypotheses to test. They are not
   evidence by themselves.
+- Leave Sentry status unchanged. Creating a tracking issue does not resolve
+  the underlying error.
 
 ## Evidence workflow
 
 Resolve the supplied URL or ID. Ask for a reference only when none was provided.
 Run repository scripts from the repository root.
+
+Capture `git status --short` before the investigation and compare it before
+the final response; this workflow must not change the checkout.
 
 Create one unique working directory under `/tmp` for the invocation. Put every
 issue bundle, structured-log result, and downloaded attachment inside it. Keep
@@ -78,7 +85,7 @@ tests. If an event does not match the current tree, use stable symbol names and
 history to explain the drift. Test git ancestry before attributing a recurrence
 to a build that may predate a known fix.
 
-## Report
+## Synthesize
 
 Lead with what failed and who it affects. Include:
 
@@ -92,5 +99,58 @@ Lead with what failed and who it affects. Include:
 Use Pacific Time for user-facing timestamps and name the timezone. If evidence
 sources disagree or correlation fails, say so directly. Keep the report focused
 on facts that explain the failure or help decide the next action.
+
+## Track the findings in GitHub
+
+Before the final report, read and apply the available `create-issue` skill.
+This handoff is part of triage unless the user explicitly requested diagnosis
+only. Let that skill handle preflight, scope clarification through `grill-me`,
+duplicate checks across open and closed issues, creation, repository metadata,
+and live verification. Reuse settled decisions and collected evidence; ask
+only about unresolved material scope. Do not add a separate approval step.
+
+Pass it a public-safe summary with:
+
+- The Sentry permalink and short ID so later triage can find the tracking issue.
+- Observed versus expected behavior, affected scope, and minimal technical
+  evidence. Separate confirmed facts from hypotheses and state confidence.
+- The supported fix or a bounded investigation when the cause is uncertain,
+  with relevant code paths and observable completion or regression criteria.
+- The user's settled constraints and any known related GitHub issues.
+
+Require a `Sentry closeout` section in the GitHub issue, with the actual short
+ID, numeric issue ID, and permalink. Pass these instructions to `create-issue`
+as required issue content:
+
+- After this GitHub issue is closed, mark the linked Sentry issue resolved
+  with `sentry issue resolve <numeric-id>`.
+- Read it back with `sentry issue view <numeric-id> --fresh --json --fields id,status`
+  and verify the matching ID has `status: resolved` before reporting completion.
+- For PR-backed work, `issuefix` must carry this obligation, identifiers, and
+  verification into the PR's `Do After Merging` section. The `after-merge`
+  agent completes it as tracking closeout after confirming GitHub closure.
+  It is agent work, not a manual reminder or a release/observation task.
+- For issue-only work, the closing agent performs the same resolution and
+  readback after closing the GitHub issue. If access or resolution fails,
+  report the closeout as incomplete rather than claiming success.
+
+The repository is public. Keep reporter names, contact details, user/device
+identifiers, private feed or media URLs, credentials, raw event/log payloads,
+and attachment contents out of the issue. Use sanitized technical summaries;
+retain private evidence in Sentry and the user-facing diagnosis.
+
+If `create-issue` finds an issue that already owns the outcome, reuse it.
+Read its body and relevant discussion before deciding whether new findings
+materially change it. Enrich the body only when needed, preserving human
+content and its established scope; an accurate issue needs no write. Missing
+or incorrect Sentry closeout instructions require an update. Follow
+`create-issue`'s distinction between unfinished closed work and a new regression.
+Do not replace a closed issue with a duplicate to bypass its disposition.
+
+Include the created, updated, or reused issue URL in the final report. Read
+back any issue changes and verify the public-safe content and closeout section. If handoff or
+verification fails, report the diagnosis and the exact remaining gap; do not
+claim tracking succeeded. Do not create a placeholder merely because fetching
+the evidence failed.
 
 Delete the invocation's temporary working directory before the final response.

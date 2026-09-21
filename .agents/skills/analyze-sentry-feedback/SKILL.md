@@ -4,8 +4,8 @@ description: >-
   Triage a Sentry user feedback item end to end: fetch the feedback, download
   the reporter's NDJSON logs (app and widget) that PodHaven attaches to the
   feedback event, correlate them to the report time, and explain what likely
-  happened plus a suggested fix, then funnel sanitized findings into a GitHub
-  issue that tracks the feedback through closeout. Use when the user pastes a
+  happened plus a suggested fix, then use create-issue to track sanitized
+  findings in GitHub through closeout. Use when the user pastes a
   Sentry feedback URL (e.g.
   .../issues/feedback/?feedbackSlug=podhaven:NNN...), references a feedback by
   slug or ID, or asks to investigate a piece of user feedback from Sentry.
@@ -133,7 +133,7 @@ anything else.
 
 - The daily `bin/check-sentry-feedback` workflow may already have created a
   placeholder issue. Its generic title and instruction comment offer two
-  equivalent entry paths: direct analysis through `bin/sfeedback`, or analysis
+  equivalent entry paths: direct analysis through `bin/snfeedback`, or analysis
   as a prerequisite when the issue is passed to `issuefix`. Neither path counts
   as complete until this skill adds the managed findings block.
 - A complete managed findings block means the issue was already analyzed.
@@ -488,7 +488,7 @@ Omit this section if there are no useful follow-ups.
 
 ## GitHub issue
 <created|enriched|updated|reopened|reused unchanged> <issue number and URL>.
-Sentry feedback `<slug>` remains unresolved and should be resolved when this
+Sentry feedback `<slug>` remains unresolved and must be resolved after this
 issue is closed.
 ```
 
@@ -499,18 +499,35 @@ the actionable, public-safe result of the analysis. Creating, enriching, or
 materially updating this issue is automatic; do not ask for confirmation. An
 already-accurate issue is a successful no-write outcome.
 
-1. If no matching issue exists, create one in `jubishop/podhaven` with a concise
-   action-oriented title. Use `Investigate ...` when the cause is uncertain.
+Read and apply the available `create-issue` skill for this handoff. Give it
+the public-safe synthesis, settled user constraints, canonical issue and prior
+analysis from Step 2, and the feedback-specific tracking rules below. Use its
+preflight, `grill-me` scope clarification, duplicate search, creation, metadata,
+and live verification workflow. Reuse settled decisions and fetched issue
+data; ask only about unresolved material scope. Pass only sanitized findings
+into its public draft, not the private report or reporter attachments.
+
+The existing feedback issue remains canonical even when a new analysis calls
+for reopening it. The markers and managed findings below are required task
+constraints for `create-issue`, including its duplicate handling and draft
+format. If it finds an existing issue, continue with enrichment or reuse here
+instead of creating another. Do not change labels or other metadata merely
+because the handoff ran.
+
+1. If no matching issue exists after duplicate checks, use `create-issue` to
+   create one in `jubishop/podhaven` with a concise action-oriented title and
+   the body below. Use `Investigate ...` when the cause is uncertain.
 2. If the canonical issue is an intake placeholder, enrich it by editing its
    title and body directly. Do not post the findings as another comment.
    Preserve a meaningful human-written title and leave the checker's
-   `sfeedback` / `issuefix` prerequisite comment alone as history. Adding the
+   `snfeedback` / `issuefix` prerequisite comment alone as history. Adding the
    managed findings block satisfies that prerequisite for either entry path.
 3. If the issue already has a complete managed findings block, compare the new
    synthesis to it. Update the title or managed block only for a material
    change, such as a new Sentry follow-up or user-provided context that changes
    the conclusion, a corrected root cause or confidence level, or a changed
-   proposed resolution or verification plan. Rewording, formatting cleanup, a
+   proposed resolution or verification plan, or missing/incorrect Sentry
+   closeout and merge-handoff instructions. Rewording, formatting cleanup, a
    rerun timestamp, or repeated evidence is not material.
 4. If nothing material changed, make **no GitHub writes**: do not edit the
    title, body, state, or comments. Report the outcome as `reused unchanged`.
@@ -550,9 +567,21 @@ Keep the feedback unresolved in Sentry while this issue remains open.
 
 ## Sentry closeout
 
-When this GitHub issue is ready to close, also resolve Sentry feedback
-`<slug>`. Reporter text and identity remain in Sentry and must not be copied
-into this public issue.
+- After this GitHub issue is closed, resolve [Sentry feedback `<slug>`](<permalink>)
+  (`<shortId>`, numeric issue ID `<numeric-id>`) with
+  `sentry issue resolve <numeric-id>`.
+- Read it back with `sentry issue view <numeric-id> --fresh --json --fields id,status`
+  and verify the matching ID has `status: resolved` before reporting completion.
+- For PR-backed work, `issuefix` must carry this obligation, identifiers, and
+  verification into the PR's `Do After Merging` section. The `after-merge`
+  agent completes it as tracking closeout after confirming GitHub closure.
+  It is agent work, not a manual reminder or a release/observation task.
+- For issue-only work, the closing agent performs the same resolution and
+  readback after closing the GitHub issue. If access or resolution fails,
+  report the closeout as incomplete rather than claiming success.
+
+Reporter text and identity remain in Sentry and must not be copied into this
+public issue.
 <!-- analyze-sentry-feedback-findings:end -->
 ```
 
@@ -567,6 +596,13 @@ Leave the feedback unresolved during ordinary triage. The issue's closeout
 section is the handoff for resolving it after the fix or disposition is
 complete. If the user explicitly directs immediate resolution because no work
 remains, honor that only after the issue records the disposition.
+
+Replace all placeholders with this feedback's actual identifiers before
+handing the body to `create-issue`. Read back any created or changed issue.
+Verify its title, sanitized body, feedback marker, complete findings block,
+Sentry closeout and merge-handoff instructions, state, and any required metadata.
+The `create-issue` verification covers new issues; apply the same readback
+standard to enrichment and reopening.
 
 If GitHub authentication or issue creation/update fails, deliver the report
 and the exact blocker, but do not create a local ledger or any other fallback
