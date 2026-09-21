@@ -14,6 +14,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   let callsByType = ThreadSafe<[ObjectIdentifier: [any MethodCalling]]>([:])
   nonisolated let refreshEpisodeRowsRead = ThreadSafe<Int>(0)
   private var afterMarkFinishedHandler: AfterMarkFinished?
+  private var beforeCurrentTimeUpdate: (@Sendable () async -> Void)?
 
   // One-shot error to throw from `updateSaveInCache(_ episodeIDs:saveInCache:)`.
   // Cleared on use so subsequent calls reach the real repo.
@@ -504,7 +505,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
       methodName: "updateCurrentTime",
       parameters: (episodeID: episodeID, currentTime: currentTime)
     )
+    if let beforeCurrentTimeUpdate {
+      self.beforeCurrentTimeUpdate = nil
+      await beforeCurrentTimeUpdate()
+    }
     return try await repo.updateCurrentTime(episodeID, currentTime: currentTime)
+  }
+
+  func beforeNextCurrentTimeUpdate(_ handler: @escaping @Sendable () async -> Void) {
+    beforeCurrentTimeUpdate = handler
   }
 
   @discardableResult
