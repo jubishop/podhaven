@@ -77,7 +77,7 @@ write_instruction_comment() {
     printf '<!-- sfeedback:%s -->\n' "$slug"
     printf '<!-- issuefix-prerequisite: analyze-sentry-feedback %s -->\n' "$slug"
     printf 'This issue is intake only and must be analyzed before implementation.\n\n'
-    printf -- "- Run \`bin/sfeedback %s\` from a PodHaven checkout to analyze it directly.\n" "$slug"
+    printf -- "- Run \`bin/snfeedback %s\` from a PodHaven checkout to analyze it directly.\n" "$slug"
     printf -- "- If passed to \`issuefix\`, it will run the same analysis prerequisite, refresh this issue, and then continue from the findings.\n\n"
     printf 'Protected feedback details remain in Sentry: [%s](%s).\n' "$slug" "$permalink"
   } > "$comment_path"

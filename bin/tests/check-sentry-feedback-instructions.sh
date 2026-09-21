@@ -58,8 +58,8 @@ if ! grep -Fq '<!-- sfeedback:podhaven:7485822944 -->' "$CAPTURE/comment"; then
   exit 1
 fi
 
-if ! grep -Fq "\`bin/sfeedback podhaven:7485822944\`" "$CAPTURE/comment"; then
-  echo "check-sentry-feedback did not provide the direct sfeedback command" >&2
+if ! grep -Fq "\`bin/snfeedback podhaven:7485822944\`" "$CAPTURE/comment"; then
+  echo "check-sentry-feedback did not provide the direct snfeedback command" >&2
   exit 1
 fi
 

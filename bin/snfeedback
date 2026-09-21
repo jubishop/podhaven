@@ -1,10 +1,10 @@
 #!/usr/bin/env fish
 
-function __sfeedback_usage
-    echo "Usage: sfeedback [feedback-url|feedback-slug|feedback-id]"
+function __snfeedback_usage
+    echo "Usage: snfeedback [feedback-url|feedback-slug|feedback-id]"
 end
 
-function __sfeedback_parse_reference --argument-names reference
+function __snfeedback_parse_reference --argument-names reference
     set -l slug
 
     if string match -qr '^[0-9]+$' -- "$reference"
@@ -26,8 +26,8 @@ function __sfeedback_parse_reference --argument-names reference
     echo "$slug"
 end
 
-function __sfeedback_pick
-    set -g __sfeedback_selected_slug
+function __snfeedback_pick
+    set -g __snfeedback_selected_slug
 
     if not type -q sentry
         echo "Error: sentry is required to list Sentry feedback"
@@ -216,12 +216,12 @@ function __sfeedback_pick
     end
 
     set -l selection_parts (string split -m 1 \t -- "$selection")
-    set -g __sfeedback_selected_slug "$selection_parts[1]"
+    set -g __snfeedback_selected_slug "$selection_parts[1]"
 end
 
-function __sfeedback_main
+function __snfeedback_main
     if test (count $argv) -gt 1
-        __sfeedback_usage
+        __snfeedback_usage
         return 1
     end
 
@@ -234,11 +234,11 @@ function __sfeedback_main
 
     set -l slug
     if test (count $argv) -eq 0
-        __sfeedback_pick
+        __snfeedback_pick
         or return 1
-        set slug "$__sfeedback_selected_slug"
+        set slug "$__snfeedback_selected_slug"
     else
-        set slug (__sfeedback_parse_reference "$argv[1]")
+        set slug (__snfeedback_parse_reference "$argv[1]")
         if test -z "$slug"
             echo "Error: '$argv[1]' is not a PodHaven feedback slug, ID, or Sentry feedback URL"
             return 1
@@ -256,5 +256,5 @@ function __sfeedback_main
     codex --dangerously-bypass-approvals-and-sandbox "\$analyze-sentry-feedback $slug"
 end
 
-__sfeedback_main $argv
+__snfeedback_main $argv
 exit $status

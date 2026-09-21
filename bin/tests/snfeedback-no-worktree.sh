@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sfeedback-test.XXXXXX")"
+TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/snfeedback-test.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 
 STUBS="$TEST_DIR/bin"
@@ -14,7 +14,7 @@ for command_name in ghcw llm sentry; do
   stub="$STUBS/$command_name"
   printf '%s\n' \
     '#!/bin/sh' \
-    "printf '%s\\n' \"\$0\" >> \"\$SFEEDBACK_TEST_CAPTURE/forbidden\"" \
+    "printf '%s\\n' \"\$0\" >> \"\$SNFEEDBACK_TEST_CAPTURE/forbidden\"" \
     'exit 97' \
     > "$stub"
   chmod +x "$stub"
@@ -22,25 +22,25 @@ done
 
 cat > "$STUBS/codex" <<'EOF'
 #!/bin/sh
-printf '%s\n' "$PWD" > "$SFEEDBACK_TEST_CAPTURE/pwd"
-printf '%s\n' "$@" > "$SFEEDBACK_TEST_CAPTURE/args"
+printf '%s\n' "$PWD" > "$SNFEEDBACK_TEST_CAPTURE/pwd"
+printf '%s\n' "$@" > "$SNFEEDBACK_TEST_CAPTURE/args"
 EOF
 chmod +x "$STUBS/codex"
 
 (
   cd "$ROOT/PodHavenTests"
   PATH="$STUBS:$PATH" \
-    SFEEDBACK_TEST_CAPTURE="$CAPTURE" \
-    "$ROOT/bin/sfeedback" podhaven:7485822944
+    SNFEEDBACK_TEST_CAPTURE="$CAPTURE" \
+    "$ROOT/bin/snfeedback" podhaven:7485822944
 )
 
 if [[ -e "$CAPTURE/forbidden" ]]; then
-  echo "sfeedback invoked a removed worktree-preparation dependency" >&2
+  echo "snfeedback invoked a removed worktree-preparation dependency" >&2
   exit 1
 fi
 
 if [[ "$(< "$CAPTURE/pwd")" != "$ROOT" ]]; then
-  echo "sfeedback did not launch Codex from the repository root" >&2
+  echo "snfeedback did not launch Codex from the repository root" >&2
   exit 1
 fi
 
@@ -51,7 +51,7 @@ printf '%s\n' \
   > "$EXPECTED_ARGS"
 
 if ! cmp -s "$EXPECTED_ARGS" "$CAPTURE/args"; then
-  echo "sfeedback launched Codex with unexpected arguments" >&2
+  echo "snfeedback launched Codex with unexpected arguments" >&2
   diff -u "$EXPECTED_ARGS" "$CAPTURE/args" >&2 || true
   exit 1
 fi
@@ -72,7 +72,7 @@ cat > "$STUBS/fzf" <<'EOF'
 #!/bin/sh
 first=true
 while IFS= read -r line; do
-  printf '%s\n' "$line" >> "$SFEEDBACK_TEST_CAPTURE/picker"
+  printf '%s\n' "$line" >> "$SNFEEDBACK_TEST_CAPTURE/picker"
   if "$first"; then
     selection="$line"
     first=false
@@ -86,17 +86,17 @@ rm -f "$CAPTURE/args" "$CAPTURE/pwd"
 (
   cd "$ROOT/PodHavenTests"
   PATH="$STUBS:$PATH" \
-    SFEEDBACK_TEST_CAPTURE="$CAPTURE" \
-    "$ROOT/bin/sfeedback"
+    SNFEEDBACK_TEST_CAPTURE="$CAPTURE" \
+    "$ROOT/bin/snfeedback"
 )
 
 if ! grep -Fq 'GitHub: #42 intake' "$CAPTURE/picker"; then
-  echo "sfeedback did not prefer the exact-marker issue or require a complete findings block" >&2
+  echo "snfeedback did not prefer the exact-marker issue or require a complete findings block" >&2
   exit 1
 fi
 
 if ! cmp -s "$EXPECTED_ARGS" "$CAPTURE/args"; then
-  echo "sfeedback did not launch the selected feedback" >&2
+  echo "snfeedback did not launch the selected feedback" >&2
   diff -u "$EXPECTED_ARGS" "$CAPTURE/args" >&2 || true
   exit 1
 fi
@@ -111,17 +111,17 @@ rm -f "$CAPTURE/args" "$CAPTURE/pwd" "$CAPTURE/picker"
 (
   cd "$ROOT/PodHavenTests"
   PATH="$STUBS:$PATH" \
-    SFEEDBACK_TEST_CAPTURE="$CAPTURE" \
-    "$ROOT/bin/sfeedback"
+    SNFEEDBACK_TEST_CAPTURE="$CAPTURE" \
+    "$ROOT/bin/snfeedback"
 )
 
 if ! grep -Fq 'GitHub: #42 analyzed' "$CAPTURE/picker"; then
-  echo "sfeedback did not recognize a complete findings block as analyzed" >&2
+  echo "snfeedback did not recognize a complete findings block as analyzed" >&2
   exit 1
 fi
 
 if ! cmp -s "$EXPECTED_ARGS" "$CAPTURE/args"; then
-  echo "sfeedback did not launch the fully analyzed feedback" >&2
+  echo "snfeedback did not launch the fully analyzed feedback" >&2
   diff -u "$EXPECTED_ARGS" "$CAPTURE/args" >&2 || true
   exit 1
 fi

@@ -506,6 +506,31 @@ build warnings, and no framework runtime diagnostics in exported test output.
 Intentional application warning/error logs from error-path tests remain
 available and are distinct from compiler and framework diagnostics.
 
+## Sentry triage commands
+
+Run `bin/snfeedback` to select unresolved user feedback, or `bin/snissue` to
+select an unresolved issue that is not feedback. Both show the newest items
+first, with activity within the last 365 days. They use `fzf` when installed
+and a numbered prompt otherwise. Listing requires authenticated `sentry` and
+`gh` commands plus `jq`; analysis requires `codex`.
+
+`bin/snissue` shows severity, available event and user counts, and the state
+of a GitHub issue whose title or body references the Sentry issue. It accepts
+a Sentry issue URL, a short ID such as `PODHAVEN-42`, or a numeric ID to skip
+the picker. Selection launches `$analyze-sentry-issue` from the current
+checkout root. That skill diagnoses the issue and recommends a fix, then uses
+`$create-issue` to track sanitized findings in GitHub without changing
+application code. Existing issues are reused when they already own the work.
+
+`bin/snfeedback` launches `$analyze-sentry-feedback`, which also uses
+`$create-issue`. It preserves the feedback tracking markers and updates its
+canonical GitHub issue only when the findings materially change.
+
+Both skills require the GitHub issue to include Sentry closeout instructions.
+After GitHub closure, the closing agent resolves the linked Sentry item and
+reads back its resolved status. For PR-backed work, `issuefix` carries that
+task into `Do After Merging` for the `after-merge` agent to execute and verify.
+
 ## Checks and project extensions
 
 Choose validation by the changed files and the stage of the work:
