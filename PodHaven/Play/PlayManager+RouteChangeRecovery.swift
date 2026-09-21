@@ -352,6 +352,13 @@ extension PlayManager {
       return
     }
 
+    Self.log.info(
+      """
+      event=widgetRouteRecoveryTimeout requestID=\(requestID) episodeID=\(recovery.episodeID) \
+      playerGeneration=\(recovery.playerSource.generation) currentTime=\(snapshot.currentTime) \
+      timeControlStatus=\(snapshot.status)
+      """
+    )
     let paused = await player.pause(requestID: requestID, ifCurrent: recovery.playerSource)
     guard let currentRecovery = ownedWidgetRouteRecovery(requestID: requestID) else { return }
     guard paused else {

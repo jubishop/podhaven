@@ -56,6 +56,7 @@ import Testing
     replacement: PodcastEpisode
   ) async throws {
     let revision = manager.playbackRequestRevision
+    // Both operations reach their first actor hop before this PlayActor job yields.
     let stale = Task.immediate {
       await manager.handleWidgetRouteRecoveryStatus(event)
     }
@@ -67,14 +68,19 @@ import Testing
     await stale.value
   }
 
-  @Test("a retry action cannot overtake a newer request", arguments: Command.allCases)
-  func retryActionPreservesNewRequest(command: Command) async throws {
+  @Test(
+    "a recovery action cannot overtake a newer request",
+    arguments: Command.allCases,
+    [false, true]
+  )
+  func recoveryActionPreservesNewRequest(command: Command, timingOut: Bool) async throws {
     let replacement = try await Create.podcastEpisode()
     let manager = manager
     let newer = ThreadSafe<Task<Void, any Error>?>(nil)
+    let trigger = timingOut ? "widgetRouteRecoveryTimeout" : "widgetRouteRecoveryAttempt"
     try await LogCapture.withSink(
       onCapture: { entry in
-        guard entry.message.contains("event=widgetRouteRecoveryAttempt") else { return }
+        guard entry.message.contains("event=\(trigger) ") else { return }
         let task = Task.immediate { @PlayActor in
           try await Self.supersede(manager, command: command, replacement: replacement)
         }
@@ -85,17 +91,49 @@ import Testing
       avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
       try await PlayHelpers.waitFor(.waiting)
       try await sleeper.waitForSleepRequests(for: .seconds(1))
+      if timingOut {
+        await sleeper.advanceTime(by: .seconds(1))
+        try await sleeper.waitForSleepRequests(for: .seconds(10))
+      }
       let recoveryTask = try #require(await manager.widgetRouteRecoveryTask)
-      await sleeper.advanceTime(by: .seconds(1))
+      let pauses = avPlayer.pauseCallCount
+      await sleeper.advanceTime(by: timingOut ? .seconds(10) : .seconds(1))
       let newerTask = try await Wait.forValue { newer() }
       try await newerTask.value
       await recoveryTask.value
 
       try await assertNewRequest(command, replacement: replacement)
-      #expect(avPlayer.playCallCount == (command == .play || command == .replace ? 2 : 1))
+      let expectedPlays = (timingOut ? 2 : 1) + (command == .play || command == .replace ? 1 : 0)
+      #expect(avPlayer.playCallCount == expectedPlays)
+      if timingOut && command == .play { #expect(avPlayer.pauseCallCount == pauses) }
       let recovery = await manager.widgetRouteRecovery
       #expect(recovery == nil || recovery?.requestID == manager.playbackRequestRevision)
     }
+  }
+
+  @Test(
+    "qualified actions reject a retired player within the same request",
+    arguments: [false, true]
+  )
+  func qualifiedActionsRejectRetiredPlayer(pausing: Bool) async throws {
+    try await preparePlayback()
+    let source = try #require(player.eventSource)
+    let requestID = manager.playbackRequestRevision
+    let episode = try #require(try await Container.shared.repo().podcastEpisode(source.episodeID))
+    _ = try await player.load(episode)
+    player.play(requestID: requestID)
+    #expect(manager.playbackRequestRevision == requestID)
+    #expect(player.eventSource != source)
+    let plays = avPlayer.playCallCount
+
+    if pausing {
+      #expect(await !player.pause(requestID: requestID, ifCurrent: source))
+    } else {
+      #expect(player.play(requestID: requestID, ifCurrent: source) == nil)
+    }
+    #expect(avPlayer.playCallCount == plays)
+    #expect(player.playbackStatus() == .playing)
+    #expect(widget.playbackStatus == .playing)
   }
 
   @Test("timeout position saving cannot publish over a newer request", arguments: Command.allCases)
