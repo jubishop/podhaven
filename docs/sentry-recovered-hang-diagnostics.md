@@ -70,11 +70,13 @@ persistence boundary has its own existing file-log rate limit. Busy work at one
 site does not consume another site's allowance. Repeated work at the same site
 can still be suppressed; rate-limit summaries identify that loss.
 
-A start without a completion in the uploaded tail shows work still pending at
-the attachment snapshot, a completion outside the retained history, or a
-suppressed completion. It does not prove that operation caused the hang. Use
-encoded/completed transitions,
-thread flags, timestamps, the hang interval, and the captured stack together.
+A `started` marker followed by `failed` is a terminal encoding failure; no
+`completed` marker is expected. A start without either terminal marker in the
+uploaded tail shows work still pending at the attachment snapshot, a terminal
+marker outside the retained history, or a suppressed terminal marker. It does
+not prove that operation caused the hang. Use encoded/completed/failed
+transitions, thread flags, timestamps, the hang interval, and the captured stack
+together.
 Current-process context describes capture time and must not be relabeled as
 hang-time context.
 
