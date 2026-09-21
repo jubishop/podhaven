@@ -520,6 +520,64 @@ import Testing
     }
   }
 
+  @Test("a backward seek supersedes cached widget recovery", arguments: [false, true])
+  func backwardSeekSupersedesRecovery(afterRetry: Bool) async throws {
+    try await LogCapture.withSink { sink in
+      try await startWidgetPlayback(cached: true)
+      await playManager.pause()
+      await playManager.seek(to: .seconds(120))
+      try await PlayHelpers.waitForPeriodicTimeObserver()
+      let result = try await PlayPauseIntent(playing: true).perform()
+      withExtendedLifetime(result) {}
+      try await PlayHelpers.waitFor(.playing)
+
+      avPlayer.waitingToPlay(waitingReason: .evaluatingBufferingRate)
+      try await PlayHelpers.waitFor(.waiting)
+      try await sleeper.waitForSleepRequests(for: .seconds(1))
+      if afterRetry {
+        await sleeper.advanceTime(by: .seconds(1))
+        try await sleeper.waitForSleepRequests(for: .seconds(10))
+      } else {
+        avPlayer.resumePlayback()
+      }
+      try await PlayHelpers.waitFor(.playing)
+      let playCallCount = avPlayer.playCallCount
+
+      await playManager.seekBackward(30)
+      try await PlayHelpers.waitForPeriodicTimeObserver()
+      avPlayer.advanceTime(to: .seconds(91))
+      try await PlayHelpers.waitFor(.seconds(91))
+      await sleeper.advanceTime(by: .seconds(1))
+      if !afterRetry {
+        try await Wait.until(
+          { @MainActor in
+            avPlayer.playCallCount > playCallCount
+              || sink.captured().contains { $0.message.contains("reason=userSeek") }
+          },
+          { "Expected the scheduled recovery to retry or be cancelled by the seek" }
+        )
+        if avPlayer.playCallCount > playCallCount {
+          try await sleeper.waitForSleepRequests(for: .seconds(10))
+        }
+      }
+      await sleeper.advanceTime(by: .seconds(10))
+      try await Wait.until(
+        {
+          sink.captured()
+            .contains {
+              $0.message.contains("reason=userSeek")
+                || $0.message.contains("event=widgetRouteRecoveryFailed")
+            }
+        },
+        { "Expected recovery cancellation or timeout to finish" }
+      )
+
+      #expect(avPlayer.playCallCount == playCallCount)
+      #expect(avPlayer.timeControlStatus == .playing)
+      try await waitForWidgetStatus(.playing)
+    }
+  }
+
   @discardableResult
   private func startWidgetPlayback(cached: Bool) async throws -> PodcastEpisode {
     let unsavedEpisode =

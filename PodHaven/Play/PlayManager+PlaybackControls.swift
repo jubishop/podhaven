@@ -19,6 +19,7 @@ extension PlayManager {
   }
 
   func seek(to time: CMTime) async {
+    cancelWidgetRouteRecovery(reason: "userSeek")
     NowPlayingInfo.setCurrentTime(time)
     await podAVPlayer.seek(to: time)
   }
