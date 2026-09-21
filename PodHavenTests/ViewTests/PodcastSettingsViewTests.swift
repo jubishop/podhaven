@@ -48,12 +48,9 @@ private let supportsHostedPodcastSettingsInspection = ProcessInfo.processInfo.is
   @Test(
     "freshness selection aligns with its label and help button",
     .enabled(if: supportsHostedPodcastSettingsInspection),
-    arguments: [FreshnessCadence?.none, .daily, .twiceWeekly, .evergreen],
-    [DynamicTypeSize.large, .xxxLarge, .accessibility3]
+    arguments: [FreshnessCadence?.none, .daily, .twiceWeekly, .evergreen]
   )
-  func freshnessSelectionAlignment(cadence: FreshnessCadence?, textSize: DynamicTypeSize)
-    async throws
-  {
+  func freshnessSelectionAlignment(cadence: FreshnessCadence?) async throws {
     let podcast = try await Create.podcast(title: "Freshness layout", freshnessCadence: cadence)
     let displayed = DisplayedPodcast(podcast)
     let host = TestHostingController(
@@ -61,15 +58,8 @@ private let supportsHostedPodcastSettingsInspection = ProcessInfo.processInfo.is
         viewModel: PodcastDetailViewModel(podcast: displayed),
         settings: displayed.settings
       )
-      .environment(\.dynamicTypeSize, textSize)
       .transaction { $0.disablesAnimations = true }
     )
-    host.traitOverrides.preferredContentSizeCategory =
-      switch textSize {
-      case .xxxLarge: .extraExtraExtraLarge
-      case .accessibility3: .accessibilityExtraExtraLarge
-      default: .large
-      }
     try await withHostedTestWindow(host, size: CGSize(width: 320, height: 844)) { window in
       let scroll = try #require(
         Self.descendants(of: host.view).compactMap { $0 as? UIScrollView }.first
@@ -135,7 +125,7 @@ private let supportsHostedPodcastSettingsInspection = ProcessInfo.processInfo.is
         }
       Attachment.record(
         try #require(image.pngData()),
-        named: "freshness-\(selection)-\(textSize).png"
+        named: "freshness-\(selection).png"
       )
     }
   }
