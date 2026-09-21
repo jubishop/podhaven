@@ -73,6 +73,7 @@ def source_state():
         path = ROOT / os.fsdecode(name)
         digest.update(name + b"\0" + path.read_bytes())
     return {"revision": command("git", "rev-parse", "HEAD"),
+            "gitCommitHash": command("git", "rev-parse", "--short", "HEAD"),
             "cleanCheckout": not command("git", "status", "--porcelain"),
             "sourceDiffSHA256": digest.hexdigest()}
 
@@ -100,7 +101,8 @@ def main():
                             "-derivedDataPath", str(output / "DerivedData"), "-skipMacroValidation",
                             "-resultBundlePath", str(evidence / "build.xcresult"),
                             "-clonedSourcePackagesDirPath", str(Path.home() / "Library/Developer/SharedSourcePackages/PodHaven"),
-                            "LM_FORCE_LINK_GENERATION=YES", "CODE_SIGNING_ALLOWED=NO"], cwd=ROOT,
+                            "LM_FORCE_LINK_GENERATION=YES", "CODE_SIGNING_ALLOWED=NO",
+                            "GIT_COMMIT_HASH=" + source["gitCommitHash"]], cwd=ROOT,
                            env={key: value for key, value in os.environ.items() if key != "SDKROOT"},
                            stdout=log, stderr=subprocess.STDOUT, check=True)
     loader = SourceFileLoader("swift_results", str(ROOT / "bin/check-swift-results"))
@@ -176,7 +178,7 @@ def main():
         assert pending and foreground and detail, "Missing pending/background or completed/foreground timeline"
         assert float(foreground[0][-1]["elapsedMs"]) >= 4000, "Controlled persistence hang not visible"
         assert float(detail[0][-1]["uptime"]) <= float(foreground[0][0]["uptime"])
-        assert all(row["gitCommitHash"] == source["revision"][:8] for row in records)
+        assert all(row["gitCommitHash"] == source["gitCommitHash"] for row in records)
         tags = {tag["key"]: tag["value"] for tag in event["tags"]}
         assert tags["diagnostic-run"] == run and tags["log-session-id"] == session
         assert event["contexts"]["recent_log_files"]["app"]["status"] == "present"
