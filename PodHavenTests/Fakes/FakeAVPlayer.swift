@@ -260,6 +260,11 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
     currentTimeValue = cmTime
   }
 
+  func resumePlayback() {
+    timeControlStatus = .playing
+    setRate(defaultRate)
+  }
+
   func waitingToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
     reasonForWaitingToPlay = waitingReason
     timeControlStatus = .waitingToPlayAtSpecifiedRate
