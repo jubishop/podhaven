@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Logging
 import Testing
 
 @testable import PodHaven
@@ -86,5 +87,56 @@ struct OperationTimelineTests {
       let records = sink.captured().filter { $0.metadata["operationKind"] == "defaults.remove" }
       #expect(records.map { $0.metadata["operationState"] } == ["started", "completed"])
     }
+  }
+
+  @Test("busy detail activity does not suppress other operation sites in the file log")
+  func independentOperationRateLimits() throws {
+    let file = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ndjson")
+    defer { try? FileManager.default.removeItem(at: file) }
+    let handler = FileLogHandler(
+      label: "PodHaven/OperationTimelineTests",
+      fileURL: file,
+      maxFileSizeBytes: AppInfo.recentLogMaxFileSizeBytes,
+      targetFileSizeBytes: AppInfo.recentLogTargetFileSizeBytes,
+      historyPolicy: .preservePreviousSession,
+      writeSynchronously: { _ in true }
+    )
+    let captured = LogCapture.withSink { sink in
+      let diagnostics = Container.shared.podcastDetailPerformanceDiagnostics()
+      for _ in 0..<100 {
+        diagnostics.measure(.filterRefresh, episodeCount: 12) {}
+      }
+      diagnostics.measure(.episodeProjection, episodeCount: 12) {}
+      true.store(to: InspectingStore {}, forKey: "fixture")
+      return sink.captured()
+    }
+    for entry in captured {
+      handler.log(
+        event: LogEvent(
+          level: entry.level,
+          message: "\(entry.message)",
+          metadata: entry.metadata.mapValues { .string($0) },
+          source: entry.source,
+          file: entry.file,
+          function: entry.function,
+          line: entry.line
+        )
+      )
+    }
+    FileLogHandler.flush(fileURL: file)
+    let entries = try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
+      .map {
+        try #require(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])
+      }
+    let metadata = entries.compactMap { $0["metadata"] as? [String: String] }
+    #expect(entries.contains { ($0["message"] as? String)?.contains("rate limit") == true })
+    #expect(
+      metadata.filter { $0["operationKind"] == "detail.episodeProjection" }
+        .compactMap { $0["operationState"] } == ["started", "completed"]
+    )
+    #expect(
+      metadata.filter { $0["operationKind"] == "defaults.store" }
+        .compactMap { $0["operationState"] } == ["started", "encoded", "completed"]
+    )
   }
 }

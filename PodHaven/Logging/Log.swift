@@ -14,11 +14,24 @@ enum Log {
     private let id = UUID().uuidString
     private let startedAt = ProcessInfo.processInfo.systemUptime
     private let count: Int?
+    private let file: String
+    private let function: String
+    private let line: UInt
 
-    init(_ logger: Logger, kind: String, count: Int? = nil) {
+    init(
+      _ logger: Logger,
+      kind: String,
+      count: Int? = nil,
+      file: String = #fileID,
+      function: String = #function,
+      line: UInt = #line
+    ) {
       self.logger = logger
       self.kind = kind
       self.count = count
+      self.file = file
+      self.function = function
+      self.line = line
       record(.started)
     }
 
@@ -34,7 +47,13 @@ enum Log {
       ]
       if let count { metadata["count"] = .stringConvertible(count) }
       if let byteCount { metadata["byteCount"] = .stringConvertible(byteCount) }
-      logger.debug("Operation \(state.rawValue)", metadata: metadata)
+      logger.debug(
+        "Operation \(state.rawValue)",
+        metadata: metadata,
+        file: file,
+        function: function,
+        line: line
+      )
     }
   }
 

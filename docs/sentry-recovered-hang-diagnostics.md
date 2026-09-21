@@ -65,9 +65,15 @@ persistence markers include encoded byte counts. They do not include setting
 keys, values, titles, or URLs. Record-level session, build, and timestamp fields
 identify the process and revision. Compare uptime only within that session.
 
+Markers retain their operation's caller location, so each detail call site and
+persistence boundary has its own existing file-log rate limit. Busy work at one
+site does not consume another site's allowance. Repeated work at the same site
+can still be suppressed; rate-limit summaries identify that loss.
+
 A start without a completion in the uploaded tail shows work still pending at
-the attachment snapshot, or a completion outside the retained history. It does
-not prove that operation caused the hang. Use encoded/completed transitions,
+the attachment snapshot, a completion outside the retained history, or a
+suppressed completion. It does not prove that operation caused the hang. Use
+encoded/completed transitions,
 thread flags, timestamps, the hang interval, and the captured stack together.
 Current-process context describes capture time and must not be relabeled as
 hang-time context.

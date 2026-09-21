@@ -66,9 +66,19 @@ struct PodcastDetailPerformanceDiagnostics: Sendable {
   func measure<Result>(
     _ phase: Phase,
     episodeCount: Int,
+    file: String = #fileID,
+    function: String = #function,
+    line: UInt = #line,
     operation: () throws -> Result
   ) rethrows -> Result {
-    let timeline = Log.Operation(Self.log, kind: "detail.\(phase.rawValue)", count: episodeCount)
+    let timeline = Log.Operation(
+      Self.log,
+      kind: "detail.\(phase.rawValue)",
+      count: episodeCount,
+      file: file,
+      function: function,
+      line: line
+    )
     let startedAt = continuousClockNow()
     let signpostName: StaticString =
       switch phase {
