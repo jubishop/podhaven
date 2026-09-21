@@ -22,10 +22,10 @@ extension PlayManager {
   struct WidgetRouteRecovery {
     enum Phase {
       case requested
-      case retrying(waitingAt: CMTime, routeChangeID: UUID)
-      case retryScheduled(waitingAt: CMTime, routeChangeID: UUID)
+      case retrying(waitingAt: CMTime, routeChangeID: UUID?)
+      case retryScheduled(waitingAt: CMTime, routeChangeID: UUID?)
       case routeChanged(UUID)
-      case timingOut(waitingAt: CMTime, routeChangeID: UUID)
+      case timingOut(waitingAt: CMTime, routeChangeID: UUID?)
       case waiting(at: CMTime, routeChangeID: UUID?)
     }
 
@@ -47,6 +47,12 @@ extension PlayManager {
     let applicationState = await Container.shared.uiApplication().applicationState
     guard playbackRequestRevision == requestID, sharedState.onDeck?.id == episodeID else { return }
     let routeOutputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType.rawValue)
+    let routeAge: String
+    if let latestAudioRouteChange {
+      routeAge = String(dateProvider.now.timeIntervalSince(latestAudioRouteChange.occurredAt))
+    } else {
+      routeAge = "none"
+    }
     Self.log.info(
       """
       event=playRequest requestID=\(requestID) origin=\(origin.rawValue) episodeID=\(episodeID) \
@@ -54,7 +60,8 @@ extension PlayManager {
       appState=\(applicationState) currentTime=\(snapshot.currentTime) \
       itemStatus=\(String(describing: snapshot.itemStatus)) cached=\(snapshot.isFromCache) \
       timeControlStatus=\(snapshot.status) \
-      waitingReason=\(String(describing: snapshot.waitingReason)) routeOutputs=\(routeOutputs)
+      waitingReason=\(String(describing: snapshot.waitingReason)) routeOutputs=\(routeOutputs) \
+      routeAgeSeconds=\(routeAge)
       """
     )
 
@@ -111,9 +118,6 @@ extension PlayManager {
     case .retryScheduled(let waitingAt, _):
       guard elapsed >= 0 && elapsed <= routeChangeAssociationWindow else { return }
       recovery.phase = .retryScheduled(waitingAt: waitingAt, routeChangeID: routeChange.id)
-      widgetRouteRecovery = recovery
-      scheduleWidgetRouteRecovery(recovery)
-      return
     case .requested, .retrying, .timingOut:
       return
     }
@@ -166,10 +170,6 @@ extension PlayManager {
     case .paused:
       switch recovery.phase {
       case .waiting(let waitingAt, let routeChangeID):
-        guard let routeChangeID else {
-          skipWidgetRouteRecovery(recovery, reason: "noRouteChange")
-          return
-        }
         guard recovery.isFromCache else {
           skipWidgetRouteRecovery(recovery, reason: "notCached")
           return
@@ -194,10 +194,8 @@ extension PlayManager {
       }
     case .playing:
       switch recovery.phase {
-      case .waiting:
-        skipWidgetRouteRecovery(recovery, reason: "resumedWithoutRetry")
-      case .retryScheduled:
-        skipWidgetRouteRecovery(recovery, reason: "resumedBeforeRetry")
+      case .waiting, .retryScheduled:
+        break
       case .retrying:
         scheduleWidgetRouteRecoveryTimeout(recovery)
       case .requested, .routeChanged, .timingOut:
@@ -217,7 +215,7 @@ extension PlayManager {
     guard routeRecoveryHasProgressed(event.value, since: recovery.requestedTime) else { return }
     switch recovery.phase {
     case .retrying, .timingOut:
-      succeedWidgetRouteRecovery(recovery, reason: "timeAdvanced")
+      succeedWidgetRouteRecovery(recovery, currentTime: event.value)
     case .requested, .retryScheduled, .routeChanged, .waiting:
       cancelWidgetRouteRecovery(reason: "timeAdvanced")
     }
@@ -239,8 +237,7 @@ extension PlayManager {
 
   private func scheduleWidgetRouteRecoveryFromWaiting(_ recovery: WidgetRouteRecovery) {
     guard recovery.isFromCache,
-      case .waiting(let waitingAt, let routeChangeID) = recovery.phase,
-      let routeChangeID
+      case .waiting(let waitingAt, let routeChangeID) = recovery.phase
     else { return }
     var recovery = recovery
     recovery.phase = .retryScheduled(waitingAt: waitingAt, routeChangeID: routeChangeID)
@@ -279,7 +276,7 @@ extension PlayManager {
     guard sharedState.onDeck?.id == recovery.episodeID,
       snapshot.source == recovery.playerSource,
       snapshot.isFromCache,
-      snapshot.status == .paused || snapshot.status == .waiting,
+      snapshot.status == .paused || snapshot.status == .waiting || snapshot.status == .playing,
       !routeRecoveryHasProgressed(snapshot.currentTime, since: recovery.requestedTime)
     else {
       cancelWidgetRouteRecovery(reason: "retryOwnershipChanged")
@@ -291,7 +288,8 @@ extension PlayManager {
     Self.log.notice(
       """
       event=widgetRouteRecoveryAttempt requestID=\(requestID) episodeID=\(recovery.episodeID) \
-      playerGeneration=\(recovery.playerSource.generation) routeChangeID=\(routeChangeID) \
+      playerGeneration=\(recovery.playerSource.generation) \
+      routeChangeID=\(String(describing: routeChangeID)) \
       currentTime=\(snapshot.currentTime) itemStatus=\(String(describing: snapshot.itemStatus)) \
       cached=\(snapshot.isFromCache) timeControlStatus=\(snapshot.status) \
       waitingReason=\(String(describing: snapshot.waitingReason))
@@ -349,7 +347,7 @@ extension PlayManager {
       return
     }
     if routeRecoveryHasProgressed(snapshot.currentTime, since: recovery.requestedTime) {
-      succeedWidgetRouteRecovery(recovery, reason: "timeAdvanced")
+      succeedWidgetRouteRecovery(recovery, currentTime: snapshot.currentTime)
       return
     }
 
@@ -372,14 +370,15 @@ extension PlayManager {
     )
   }
 
-  private func succeedWidgetRouteRecovery(_ recovery: WidgetRouteRecovery, reason: String) {
+  private func succeedWidgetRouteRecovery(_ recovery: WidgetRouteRecovery, currentTime: CMTime) {
     widgetRouteRecoveryTask?.cancel()
     widgetRouteRecoveryTask = nil
     widgetRouteRecovery = nil
     Self.log.notice(
       """
-      event=widgetRouteRecoverySucceeded reason=\(reason) requestID=\(recovery.requestID) \
-      episodeID=\(recovery.episodeID) playerGeneration=\(recovery.playerSource.generation)
+      event=widgetRouteRecoverySucceeded reason=timeAdvanced requestID=\(recovery.requestID) \
+      episodeID=\(recovery.episodeID) playerGeneration=\(recovery.playerSource.generation) \
+      requestedTime=\(recovery.requestedTime) currentTime=\(currentTime)
       """
     )
   }
